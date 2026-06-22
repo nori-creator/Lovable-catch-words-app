@@ -19,7 +19,9 @@ export const getLeaderboard = createServerFn({ method: "GET" })
   )
   .handler(async ({ context, data }): Promise<LeaderboardRow[]> => {
     const { supabase } = context;
-    const { data: rows, error } = await supabase.rpc("get_leaderboard", { _limit: data.limit });
+    const { data: rows, error } = await (supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: Array<{ user_id: string; display_name: string | null; avatar_url: string | null; sticker_count: number | string; post_count: number | string; xp: number | string }> | null; error: { message: string } | null }>;
+    }).rpc("get_leaderboard", { _limit: data.limit });
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r, i) => ({
       user_id: r.user_id,
