@@ -20,6 +20,7 @@ function SettingsPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState("");
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
