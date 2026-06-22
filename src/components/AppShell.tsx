@@ -1,8 +1,10 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss, BookText } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss, BookText, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
+import { unreadNotificationCount } from "@/lib/notifications.functions";
 import type { ReactNode } from "react";
 
 type Item = { to: "/home" | "/feed" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
@@ -19,6 +21,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const router = useRouter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const fetchUnread = useServerFn(unreadNotificationCount);
+  const { data: unread } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: () => fetchUnread(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const unreadCount = unread?.count ?? 0;
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
@@ -39,6 +49,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             </span>
           </Link>
           <div className="flex items-center gap-1">
+            <Link to="/notifications" aria-label="通知" className="relative rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Link>
             <Link to="/journal" aria-label="日記" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <BookText className="h-4 w-4" />
             </Link>

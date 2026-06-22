@@ -15,12 +15,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated/review'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
 import { Route as AuthenticatedJournalRouteImport } from './routes/_authenticated/journal'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedDexRouteImport } from './routes/_authenticated/dex'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
 import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
 
@@ -53,6 +55,12 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMapRoute = AuthenticatedMapRouteImport.update({
   id: '/map',
   path: '/map',
@@ -83,6 +91,11 @@ const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   path: '/capture',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedUUserIdRoute = AuthenticatedUUserIdRouteImport.update({
+  id: '/u/$userId',
+  path: '/u/$userId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPostPostIdRoute = AuthenticatedPostPostIdRouteImport.update({
   id: '/post/$postId',
   path: '/post/$postId',
@@ -104,11 +117,13 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/journal': typeof AuthenticatedJournalRoute
   '/map': typeof AuthenticatedMapRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
+  '/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -119,11 +134,13 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/journal': typeof AuthenticatedJournalRoute
   '/map': typeof AuthenticatedMapRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
+  '/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -136,11 +153,13 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/journal': typeof AuthenticatedJournalRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/review': typeof AuthenticatedReviewRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
+  '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -153,11 +172,13 @@ export interface FileRouteTypes {
     | '/home'
     | '/journal'
     | '/map'
+    | '/notifications'
     | '/onboarding'
     | '/review'
     | '/settings'
     | '/dex/$stickerId'
     | '/post/$postId'
+    | '/u/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -168,11 +189,13 @@ export interface FileRouteTypes {
     | '/home'
     | '/journal'
     | '/map'
+    | '/notifications'
     | '/onboarding'
     | '/review'
     | '/settings'
     | '/dex/$stickerId'
     | '/post/$postId'
+    | '/u/$userId'
   id:
     | '__root__'
     | '/'
@@ -184,11 +207,13 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/journal'
     | '/_authenticated/map'
+    | '/_authenticated/notifications'
     | '/_authenticated/onboarding'
     | '/_authenticated/review'
     | '/_authenticated/settings'
     | '/_authenticated/dex/$stickerId'
     | '/_authenticated/post/$postId'
+    | '/_authenticated/u/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -241,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/map': {
       id: '/_authenticated/map'
       path: '/map'
@@ -283,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/u/$userId': {
+      id: '/_authenticated/u/$userId'
+      path: '/u/$userId'
+      fullPath: '/u/$userId'
+      preLoaderRoute: typeof AuthenticatedUUserIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/post/$postId': {
       id: '/_authenticated/post/$postId'
       path: '/post/$postId'
@@ -318,10 +357,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedJournalRoute: typeof AuthenticatedJournalRoute
   AuthenticatedMapRoute: typeof AuthenticatedMapRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
+  AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -331,10 +372,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedJournalRoute: AuthenticatedJournalRoute,
   AuthenticatedMapRoute: AuthenticatedMapRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
+  AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
