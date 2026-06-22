@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { getSticker } from "@/lib/stickers.functions";
 import { createPost } from "@/lib/social.functions";
 import { useState } from "react";
