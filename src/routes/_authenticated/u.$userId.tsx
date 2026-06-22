@@ -9,9 +9,21 @@ import { toggleFollow } from "@/lib/social.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
-  head: () => ({ meta: [{ title: "プロフィール — Catchwords" }] }),
+  head: ({ params }) => ({
+    meta: [
+      { title: `ユーザー ${params.userId.slice(0, 8)} のプロフィール — Catchwords` },
+      { name: "description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      { property: "og:title", content: `プロフィール — Catchwords` },
+      { property: "og:description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      { property: "og:type", content: "profile" },
+      { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${params.userId}` },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/u/${params.userId}` }],
+  }),
   component: UserProfilePage,
 });
+
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
