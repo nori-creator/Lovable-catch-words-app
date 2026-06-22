@@ -14,7 +14,184 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      categories: {
+        Row: {
+          icon_emoji: string
+          key: string
+          label_ja: string
+          sort_order: number
+        }
+        Insert: {
+          icon_emoji?: string
+          key: string
+          label_ja: string
+          sort_order?: number
+        }
+        Update: {
+          icon_emoji?: string
+          key?: string
+          label_ja?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          level_goal: string
+          native_language: string
+          onboarded: boolean
+          pronunciation_strictness: string
+          target_language: string
+          ui_language: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          level_goal?: string
+          native_language?: string
+          onboarded?: boolean
+          pronunciation_strictness?: string
+          target_language?: string
+          ui_language?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          level_goal?: string
+          native_language?: string
+          onboarded?: boolean
+          pronunciation_strictness?: string
+          target_language?: string
+          ui_language?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stickers: {
+        Row: {
+          caption: string | null
+          created_at: string
+          cutout_image_url: string | null
+          id: string
+          language: string
+          lat: number | null
+          lng: number | null
+          location_name: string | null
+          object_image_url: string | null
+          selfie_image_url: string | null
+          taken_at: string
+          user_id: string
+          word_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          cutout_image_url?: string | null
+          id?: string
+          language?: string
+          lat?: number | null
+          lng?: number | null
+          location_name?: string | null
+          object_image_url?: string | null
+          selfie_image_url?: string | null
+          taken_at?: string
+          user_id: string
+          word_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          cutout_image_url?: string | null
+          id?: string
+          language?: string
+          lat?: number | null
+          lng?: number | null
+          location_name?: string | null
+          object_image_url?: string | null
+          selfie_image_url?: string | null
+          taken_at?: string
+          user_id?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stickers_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: false
+            referencedRelation: "words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      words: {
+        Row: {
+          category_key: string | null
+          created_at: string
+          example_sentence: string | null
+          example_translation: string | null
+          headword: string
+          id: string
+          language: string
+          level: string | null
+          meaning_ja: string
+          part_of_speech: string | null
+          pinyin: string | null
+          reading_zhuyin: string | null
+          silhouette_emoji: string | null
+          source: string
+        }
+        Insert: {
+          category_key?: string | null
+          created_at?: string
+          example_sentence?: string | null
+          example_translation?: string | null
+          headword: string
+          id?: string
+          language?: string
+          level?: string | null
+          meaning_ja: string
+          part_of_speech?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          silhouette_emoji?: string | null
+          source?: string
+        }
+        Update: {
+          category_key?: string | null
+          created_at?: string
+          example_sentence?: string | null
+          example_translation?: string | null
+          headword?: string
+          id?: string
+          language?: string
+          level?: string | null
+          meaning_ja?: string
+          part_of_speech?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          silhouette_emoji?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "words_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
