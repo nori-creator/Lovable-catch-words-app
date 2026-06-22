@@ -1,16 +1,17 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Map as MapIcon, Settings, LogOut } from "lucide-react";
+import { Camera, Home, BookOpen, Map as MapIcon, Settings, LogOut, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-type Item = { to: "/home" | "/dex" | "/capture" | "/map" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/capture" | "/review" | "/map" | "/settings"; label: string; icon: typeof Home };
 
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
   { to: "/dex", label: "図鑑", icon: BookOpen },
   { to: "/capture", label: "撮る", icon: Camera },
+  { to: "/review", label: "復習", icon: Sparkles },
   { to: "/map", label: "マップ", icon: MapIcon },
   { to: "/settings", label: "設定", icon: Settings },
 ];
