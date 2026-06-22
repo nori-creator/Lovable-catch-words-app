@@ -126,7 +126,11 @@ function AuthPage() {
         </div>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
-          続行すると、利用規約とプライバシーポリシーに同意したものとみなします。
+          続行すると、
+          <a href="/terms" className="underline hover:text-foreground">利用規約</a>
+          と
+          <a href="/privacy" className="underline hover:text-foreground">プライバシーポリシー</a>
+          に同意したものとみなします。
         </p>
       </div>
     </div>
