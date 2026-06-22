@@ -54,8 +54,8 @@ export const suggestWords = createServerFn({ method: "POST" })
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: data.imageBase64 } } as never,
-          ] as never,
+            { type: "image", image: data.imageBase64 },
+          ],
         },
       ],
       experimental_output: Output.object({ schema: SuggestionSchema }) as never,
