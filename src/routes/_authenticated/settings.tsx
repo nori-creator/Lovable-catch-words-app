@@ -126,6 +126,22 @@ function SettingsPage() {
           </div>
         </div>
 
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
+          <Label>テーマ</Label>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {(["light", "dark", "system"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setTheme(v)}
+                className={`rounded-full border py-1.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+              >
+                {v === "light" ? "ライト" : v === "dark" ? "ダーク" : "システム"}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? "保存中..." : "保存"}
         </Button>
