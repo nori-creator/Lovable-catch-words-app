@@ -71,6 +71,53 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_quests: {
+        Row: {
+          category_key: string | null
+          completed_at: string | null
+          created_at: string
+          hint_ja: string
+          id: string
+          quest_date: string
+          reward_xp: number
+          sticker_id: string | null
+          target_word: string
+          user_id: string
+        }
+        Insert: {
+          category_key?: string | null
+          completed_at?: string | null
+          created_at?: string
+          hint_ja: string
+          id?: string
+          quest_date?: string
+          reward_xp?: number
+          sticker_id?: string | null
+          target_word: string
+          user_id: string
+        }
+        Update: {
+          category_key?: string | null
+          completed_at?: string | null
+          created_at?: string
+          hint_ja?: string
+          id?: string
+          quest_date?: string
+          reward_xp?: number
+          sticker_id?: string | null
+          target_word?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quests_sticker_id_fkey"
+            columns: ["sticker_id"]
+            isOneToOne: false
+            referencedRelation: "stickers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -86,6 +133,39 @@ export type Database = {
           created_at?: string
           follower_id?: string
           following_id?: string
+        }
+        Relationships: []
+      }
+      journal_entries: {
+        Row: {
+          body_ja: string
+          body_zh: string
+          created_at: string
+          entry_date: string
+          id: string
+          model: string | null
+          used_sticker_ids: string[]
+          user_id: string
+        }
+        Insert: {
+          body_ja: string
+          body_zh: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          model?: string | null
+          used_sticker_ids?: string[]
+          user_id: string
+        }
+        Update: {
+          body_ja?: string
+          body_zh?: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          model?: string | null
+          used_sticker_ids?: string[]
+          user_id?: string
         }
         Relationships: []
       }
