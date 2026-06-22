@@ -37,7 +37,9 @@ export const getTodayQuests = createServerFn({ method: "GET" })
 
     // Generate 3 quests via AI (Maker/Checker)
     const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider();
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY missing");
+    const gateway = createLovableAiGatewayProvider(key);
     const Schema = z.object({
       quests: z.array(z.object({
         category_key: z.string(),
