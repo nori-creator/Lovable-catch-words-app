@@ -60,7 +60,7 @@ function MapPage() {
 
   function renderMarkers() {
     if (!mapInstance.current || !window.google) return;
-    const g = (window.google as { maps: { Marker: new (opts: object) => unknown; LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean } } }).maps;
+    const g = (window.google as { maps: { Marker: new (opts: object) => unknown; LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean }; Size: new (a: number, b: number) => unknown; Point: new (a: number, b: number) => unknown } }).maps;
     for (const m of markersRef.current) {
       (m as { setMap: (x: null) => void }).setMap(null);
     }
@@ -68,10 +68,15 @@ function MapPage() {
     const bounds = new g.LatLngBounds();
     for (const s of stickers ?? []) {
       if (s.lat == null || s.lng == null) continue;
+      const emoji = s.word.silhouette_emoji ?? "📍";
+      const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
+        `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`
+      )}`;
       const marker = new g.Marker({
         position: { lat: s.lat, lng: s.lng },
         map: mapInstance.current,
         title: s.word.headword,
+        icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
       });
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
         navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
@@ -91,6 +96,7 @@ function MapPage() {
 
   const browserKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
   const withLoc = (stickers ?? []).filter((s) => s.lat != null && s.lng != null);
+  const recent = withLoc.slice(0, 6);
 
   return (
     <AppShell title="マップ">
@@ -102,11 +108,30 @@ function MapPage() {
         <>
           <div
             ref={mapRef}
-            className="h-[60vh] w-full overflow-hidden rounded-2xl border border-border bg-secondary"
+            className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            位置情報付きのステッカー: {withLoc.length} 件
-          </p>
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>位置情報付きのステッカー</span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{withLoc.length} 件</span>
+          </div>
+
+          {recent.length > 0 && (
+            <section className="mt-5">
+              <h3 className="mb-2 text-sm font-semibold tracking-tight">最近キャッチした場所</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {recent.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } })}
+                    className="lift flex flex-col items-center rounded-2xl border border-border bg-card p-3 text-center"
+                  >
+                    <span className="text-2xl">{s.word.silhouette_emoji ?? "📍"}</span>
+                    <span className="mt-1 text-xs font-medium">{s.word.headword}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </AppShell>
