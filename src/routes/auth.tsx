@@ -79,6 +79,22 @@ function AuthPage() {
     }
   }
 
+  async function handleApple() {
+    setLoading(true);
+    try {
+      const res = await lovable.auth.signInWithOAuth("apple", {
+        redirect_uri: window.location.origin,
+      });
+      if (res.error) {
+        toast.error(res.error.message ?? "Appleサインインに失敗しました");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "サインインに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
@@ -126,9 +142,20 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
-            Googleでサインイン
-          </Button>
+          <div className="space-y-2">
+            <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
+              Googleでサインイン
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-black text-white hover:bg-black/90 hover:text-white"
+              onClick={handleApple}
+              disabled={loading}
+            >
+              Appleでサインイン
+            </Button>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
