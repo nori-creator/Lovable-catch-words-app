@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_runs: {
+        Row: {
+          accepted: number
+          created_at: string
+          id: string
+          iterations: number
+          loop: string
+          meta: Json | null
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string
+        }
+        Insert: {
+          accepted?: number
+          created_at?: string
+          id?: string
+          iterations?: number
+          loop: string
+          meta?: Json | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id: string
+        }
+        Update: {
+          accepted?: number
+          created_at?: string
+          id?: string
+          iterations?: number
+          loop?: string
+          meta?: Json | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           icon_emoji: string
@@ -76,6 +112,59 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      reviews: {
+        Row: {
+          blur_seen: boolean
+          created_at: string
+          due_at: string
+          ease: number
+          id: string
+          interval_days: number
+          last_reviewed_at: string | null
+          last_score: number | null
+          repetitions: number
+          sticker_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blur_seen?: boolean
+          created_at?: string
+          due_at?: string
+          ease?: number
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          last_score?: number | null
+          repetitions?: number
+          sticker_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blur_seen?: boolean
+          created_at?: string
+          due_at?: string
+          ease?: number
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          last_score?: number | null
+          repetitions?: number
+          sticker_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_sticker_id_fkey"
+            columns: ["sticker_id"]
+            isOneToOne: false
+            referencedRelation: "stickers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stickers: {
         Row: {
