@@ -70,7 +70,7 @@ function StickerDetailPage() {
               <div className="card-face absolute inset-0 rounded-3xl border border-border bg-card shadow-xl">
                 <div className="grid h-full place-items-center p-6">
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.word.headword} className="max-h-full max-w-full object-contain" />
+                    <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="max-h-full max-w-full object-contain" />
                   ) : (
                     <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
                   )}

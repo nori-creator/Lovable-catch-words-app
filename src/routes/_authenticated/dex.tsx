@@ -97,7 +97,7 @@ function DexPage() {
                   >
                     <div className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white shadow transition-transform group-active:scale-95">
                       {s.cutout_url ? (
-                        <img src={s.cutout_url} alt={s.word.headword} className="h-full w-full object-contain p-2 pop-in" />
+                        <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-2 pop-in" />
                       ) : (
                         <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
                       )}

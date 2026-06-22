@@ -117,7 +117,7 @@ function UserProfilePage() {
                   className="lift group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
                 >
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.headword ?? ""} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <img src={s.cutout_url} alt={`「${s.headword ?? ""}」のステッカー`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
                     <div className="grid h-full w-full place-items-center text-3xl">{s.emoji ?? "📍"}</div>
                   )}

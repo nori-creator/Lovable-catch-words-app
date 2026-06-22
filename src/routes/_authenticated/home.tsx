@@ -167,7 +167,7 @@ function HomePage() {
               className="group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
             >
               {s.cutout_url ? (
-                <img src={s.cutout_url} alt={s.word.headword} className="h-full w-full object-contain p-3 transition-transform group-active:scale-95" />
+                <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-3 transition-transform group-active:scale-95" />
               ) : (
                 <div className="grid h-full place-items-center text-3xl">{s.word.silhouette_emoji ?? "📦"}</div>
               )}
@@ -192,7 +192,7 @@ function HomePage() {
               >
                 <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.word.headword} className="h-full w-full object-contain p-1" />
+                    <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-1" />
                   ) : (
                     <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
                   )}
