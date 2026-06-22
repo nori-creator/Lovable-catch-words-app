@@ -4,7 +4,21 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { getDueReviews, gradeReview, type DueReviewCard } from "@/lib/reviews.functions";
-import { Eye, Sparkles, Check, X } from "lucide-react";
+import { Eye, Sparkles, Check, X, Volume2 } from "lucide-react";
+
+function speakZhTW(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const v =
+    voices.find((vo) => /zh-TW|zh-Hant|cmn-Hant/i.test(vo.lang)) ??
+    voices.find((vo) => /^zh/i.test(vo.lang));
+  if (v) u.voice = v;
+  u.lang = v?.lang ?? "zh-TW";
+  u.rate = 0.95;
+  window.speechSynthesis.speak(u);
+}
 
 export const Route = createFileRoute("/_authenticated/review")({
   head: () => ({
