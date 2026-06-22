@@ -46,9 +46,10 @@ function HomePage() {
   return (
     <AppShell>
       <section className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">こんにちは、{profile?.display_name ?? "あなた"}</h1>
-        <p className="text-sm text-muted-foreground">街で見つけた言葉を集めましょう。</p>
+        <h1 className="text-2xl font-semibold tracking-tight">今日のステッカーアルバム</h1>
+        <p className="text-sm text-muted-foreground">こんにちは、{profile?.display_name ?? "あなた"}。街で見つけた言葉を集めましょう。</p>
       </section>
+
 
       {/* Stats banner */}
       <section className="mb-5 rounded-3xl bg-gradient-to-br from-primary/90 via-primary to-rose-500 p-5 text-primary-foreground shadow-lg shadow-primary/20">
