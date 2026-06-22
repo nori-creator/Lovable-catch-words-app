@@ -1,10 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { getSticker } from "@/lib/stickers.functions";
+import { createPost } from "@/lib/social.functions";
 import { useState } from "react";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, MapPin, Share2, Lock, Users, Globe } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
   head: () => ({
@@ -15,12 +17,27 @@ export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
 
 function StickerDetailPage() {
   const { stickerId } = Route.useParams();
+  const navigate = useNavigate();
   const fetchSticker = useServerFn(getSticker);
+  const post = useServerFn(createPost);
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId } }),
   });
   const [flipped, setFlipped] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "friends" | "private">("public");
+
+  const shareMut = useMutation({
+    mutationFn: () => post({ data: { sticker_id: stickerId, caption: caption.trim() || undefined, visibility } }),
+    onSuccess: ({ id }) => {
+      toast.success("投稿しました");
+      setShareOpen(false);
+      navigate({ to: "/post/$postId", params: { postId: id } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <AppShell title="カード">
