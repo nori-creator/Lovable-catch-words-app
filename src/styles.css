@@ -126,9 +126,24 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(60% 40% at 50% 0%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 70%),
+      radial-gradient(40% 30% at 100% 100%, color-mix(in oklab, var(--primary) 6%, transparent) 0%, transparent 70%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.011em;
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.022em;
+  }
+
+  /* Traditional Chinese typography refinement */
+  :lang(zh-Hant), .font-zh {
+    font-family: "Noto Sans TC", "PingFang TC", "Hiragino Sans", sans-serif;
   }
 }
 
