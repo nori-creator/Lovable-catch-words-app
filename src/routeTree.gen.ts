@@ -17,8 +17,10 @@ import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedDexRouteImport } from './routes/_authenticated/dex'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
 
 const AuthRoute = AuthRouteImport.update({
@@ -60,6 +62,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
+  id: '/feed',
+  path: '/feed',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDexRoute = AuthenticatedDexRouteImport.update({
   id: '/dex',
   path: '/dex',
@@ -68,6 +75,11 @@ const AuthenticatedDexRoute = AuthenticatedDexRouteImport.update({
 const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   id: '/capture',
   path: '/capture',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPostPostIdRoute = AuthenticatedPostPostIdRouteImport.update({
+  id: '/post/$postId',
+  path: '/post/$postId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDexStickerIdRoute =
@@ -82,24 +94,28 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/dex': typeof AuthenticatedDexRouteWithChildren
+  '/feed': typeof AuthenticatedFeedRoute
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
+  '/post/$postId': typeof AuthenticatedPostPostIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/dex': typeof AuthenticatedDexRouteWithChildren
+  '/feed': typeof AuthenticatedFeedRoute
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
+  '/post/$postId': typeof AuthenticatedPostPostIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -108,12 +124,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/dex': typeof AuthenticatedDexRouteWithChildren
+  '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/review': typeof AuthenticatedReviewRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
+  '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -122,24 +140,28 @@ export interface FileRouteTypes {
     | '/auth'
     | '/capture'
     | '/dex'
+    | '/feed'
     | '/home'
     | '/map'
     | '/onboarding'
     | '/review'
     | '/settings'
     | '/dex/$stickerId'
+    | '/post/$postId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/capture'
     | '/dex'
+    | '/feed'
     | '/home'
     | '/map'
     | '/onboarding'
     | '/review'
     | '/settings'
     | '/dex/$stickerId'
+    | '/post/$postId'
   id:
     | '__root__'
     | '/'
@@ -147,12 +169,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/capture'
     | '/_authenticated/dex'
+    | '/_authenticated/feed'
     | '/_authenticated/home'
     | '/_authenticated/map'
     | '/_authenticated/onboarding'
     | '/_authenticated/review'
     | '/_authenticated/settings'
     | '/_authenticated/dex/$stickerId'
+    | '/_authenticated/post/$postId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -219,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/feed': {
+      id: '/_authenticated/feed'
+      path: '/feed'
+      fullPath: '/feed'
+      preLoaderRoute: typeof AuthenticatedFeedRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dex': {
       id: '/_authenticated/dex'
       path: '/dex'
@@ -231,6 +262,13 @@ declare module '@tanstack/react-router' {
       path: '/capture'
       fullPath: '/capture'
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/post/$postId': {
+      id: '/_authenticated/post/$postId'
+      path: '/post/$postId'
+      fullPath: '/post/$postId'
+      preLoaderRoute: typeof AuthenticatedPostPostIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dex/$stickerId': {
@@ -257,21 +295,25 @@ const AuthenticatedDexRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedDexRoute: typeof AuthenticatedDexRouteWithChildren
+  AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMapRoute: typeof AuthenticatedMapRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedDexRoute: AuthenticatedDexRouteWithChildren,
+  AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMapRoute: AuthenticatedMapRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
