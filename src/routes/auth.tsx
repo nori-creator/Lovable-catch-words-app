@@ -8,11 +8,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) throw redirect({ to: "/home" });
-  },
   head: () => ({
     meta: [
       { title: "ログイン — Catchwords" },
