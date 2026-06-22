@@ -68,15 +68,22 @@ function DexPage() {
         if (!bucket) return null;
         const total = bucket.captured.length + bucket.missing.length;
         if (total === 0) return null;
+        const complete = bucket.missing.length === 0 && bucket.captured.length > 0;
+        const catPct = Math.round((bucket.captured.length / total) * 100);
         return (
           <section key={cat.key} className="mb-6">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-base font-semibold tracking-tight">
-                <span className="mr-1.5">{cat.icon_emoji}</span>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight">
+                <span>{cat.icon_emoji}</span>
                 {cat.label_ja}
+                {complete && (
+                  <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow animate-fade-in">
+                    ★ COMPLETE
+                  </span>
+                )}
               </h3>
               <span className="text-xs text-muted-foreground">
-                {bucket.captured.length} / {total}
+                {bucket.captured.length} / {total} · {catPct}%
               </span>
             </div>
             <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-secondary/40 p-4 shadow-sm">
