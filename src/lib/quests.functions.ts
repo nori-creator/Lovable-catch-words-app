@@ -47,12 +47,22 @@ export const getTodayQuests = createServerFn({ method: "GET" })
         hint_ja: z.string(),
       })).length(3),
     });
-    const { experimental_output } = await generateText({
-      model: gateway(MODEL),
-      experimental_output: Output.object({ schema: Schema }),
-      prompt: `今日の台湾華語デイリークエスト3つを生成して。街で出会いやすい身近な対象物の華語単語（果物・飲み物・乗り物・店看板など）。各クエスト: category_key, target_word(繁体字), hint_ja(日本語で「街で◯◯を見つけて撮ろう」風)。JSON only.`,
-    });
-    const quests = experimental_output.quests;
+    let quests: Array<{ category_key: string; target_word: string; hint_ja: string }>;
+    try {
+      const { experimental_output } = await generateText({
+        model: gateway(MODEL),
+        experimental_output: Output.object({ schema: Schema }),
+        prompt: `今日の台湾華語デイリークエスト3つを生成して。街で出会いやすい身近な対象物の華語単語（果物・飲み物・乗り物・店看板など）。各クエスト: category_key, target_word(繁体字), hint_ja(日本語で「街で◯◯を見つけて撮ろう」風)。必ずJSONスキーマに従ってquests配列を3件返す。`,
+      });
+      quests = experimental_output.quests;
+    } catch {
+      // Fallback if AI returns malformed structure
+      quests = [
+        { category_key: "food", target_word: "珍珠奶茶", hint_ja: "街でタピオカミルクティーを見つけて撮ろう" },
+        { category_key: "transport", target_word: "捷運", hint_ja: "街でMRT（捷運）の標識を撮ろう" },
+        { category_key: "sign", target_word: "便利商店", hint_ja: "街でコンビニの看板を撮ろう" },
+      ];
+    }
     const rows = quests.map((q) => ({
       user_id: userId,
       quest_date: today,

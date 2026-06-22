@@ -535,6 +535,17 @@ export type Database = {
         Args: { _post_id: string; _user: string }
         Returns: boolean
       }
+      get_leaderboard: {
+        Args: { _limit?: number }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          post_count: number
+          sticker_count: number
+          user_id: string
+          xp: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
