@@ -10,11 +10,21 @@ import { ArrowLeft, MapPin, Share2, Lock, Users, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
-  head: () => ({
-    meta: [{ title: "カード詳細 — Catchwords" }],
+  head: ({ params }) => ({
+    meta: [
+      { title: `ステッカー詳細 ${params.stickerId.slice(0, 8)} — Catchwords` },
+      { name: "description", content: "あなたが街でキャッチした言葉のステッカー詳細。意味・例文・発音、撮影場所、復習スケジュールをまとめて確認できます。" },
+      { property: "og:title", content: `ステッカー詳細 — Catchwords` },
+      { property: "og:description", content: "あなたが街でキャッチした言葉のステッカー詳細。" },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` }],
   }),
   component: StickerDetailPage,
 });
+
 
 function StickerDetailPage() {
   const { stickerId } = Route.useParams();
