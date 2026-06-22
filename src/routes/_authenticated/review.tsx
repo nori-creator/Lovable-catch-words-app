@@ -109,7 +109,17 @@ function ReviewPage() {
           </div>
 
           <div className="mb-4 text-center">
-            <div className="text-3xl font-bold tracking-tight">{current.headword}</div>
+            <div className="inline-flex items-center gap-2">
+              <div className="text-3xl font-bold tracking-tight">{current.headword}</div>
+              <button
+                type="button"
+                onClick={() => speakZhTW(current.headword)}
+                className="lift inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
+                aria-label="発音を聞く"
+              >
+                <Volume2 className="h-4 w-4" />
+              </button>
+            </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {current.reading_zhuyin} {current.pinyin && `· ${current.pinyin}`}
             </div>
