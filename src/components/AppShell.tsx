@@ -33,30 +33,32 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
   // Realtime notifications: refresh badge + toast when a new notification arrives
   useEffect(() => {
-    let userId: string | null = null;
+    let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     supabase.auth.getUser().then(({ data }) => {
-      userId = data.user?.id ?? null;
-      if (!userId) return;
-      channel = supabase
-        .channel(`notif:${userId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-          (payload) => {
-            queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
-            queryClient.invalidateQueries({ queryKey: ["notifications"] });
-            const type = (payload.new as { type?: string }).type;
-            const msg = type === "like" ? "❤️ いいねが届きました" : type === "comment" ? "💬 コメントが届きました" : type === "follow" ? "👤 新しいフォロワー" : "🔔 新しい通知";
-            toast(msg);
-          },
-        )
-        .subscribe();
+      const userId = data.user?.id;
+      if (!userId || cancelled) return;
+      const ch = supabase.channel(`notif:${userId}:${Math.random().toString(36).slice(2)}`);
+      ch.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          const type = (payload.new as { type?: string }).type;
+          const msg = type === "like" ? "❤️ いいねが届きました" : type === "comment" ? "💬 コメントが届きました" : type === "follow" ? "👤 新しいフォロワー" : "🔔 新しい通知";
+          toast(msg);
+        },
+      ).subscribe();
+      channel = ch;
+      if (cancelled) supabase.removeChannel(ch);
     });
     return () => {
+      cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
