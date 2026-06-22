@@ -71,6 +71,164 @@ export type Database = {
         }
         Relationships: []
       }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          id: string
+          post_id: string | null
+          read_at: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          read_at?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          read_at?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          caption: string | null
+          comment_count: number
+          created_at: string
+          id: string
+          like_count: number
+          sticker_id: string | null
+          updated_at: string
+          user_id: string
+          visibility: string
+        }
+        Insert: {
+          caption?: string | null
+          comment_count?: number
+          created_at?: string
+          id?: string
+          like_count?: number
+          sticker_id?: string | null
+          updated_at?: string
+          user_id: string
+          visibility?: string
+        }
+        Update: {
+          caption?: string | null
+          comment_count?: number
+          created_at?: string
+          id?: string
+          like_count?: number
+          sticker_id?: string | null
+          updated_at?: string
+          user_id?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_sticker_id_fkey"
+            columns: ["sticker_id"]
+            isOneToOne: false
+            referencedRelation: "stickers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -180,6 +338,7 @@ export type Database = {
           selfie_image_url: string | null
           taken_at: string
           user_id: string
+          visibility: string
           word_id: string
         }
         Insert: {
@@ -195,6 +354,7 @@ export type Database = {
           selfie_image_url?: string | null
           taken_at?: string
           user_id: string
+          visibility?: string
           word_id: string
         }
         Update: {
@@ -210,6 +370,7 @@ export type Database = {
           selfie_image_url?: string | null
           taken_at?: string
           user_id?: string
+          visibility?: string
           word_id?: string
         }
         Relationships: [
@@ -286,7 +447,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      are_mutual_followers: {
+        Args: { _a: string; _b: string }
+        Returns: boolean
+      }
+      can_see_post: {
+        Args: { _post_id: string; _user: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
