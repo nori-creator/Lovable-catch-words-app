@@ -29,14 +29,24 @@ const SuggestionSchema = z.object({
   ).length(5),
 });
 
+function parseJsonFromAiText(text: string) {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) return JSON.parse(fenced[1]);
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+
+  return JSON.parse(trimmed);
+}
+
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -47,30 +57,45 @@ export const suggestWords = createServerFn({ method: "POST" })
 - 各候補に注音、拼音、日本語意味、カテゴリを必ず付ける`
         : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
 
-    const result = await generateText({
-      model: gateway(MODEL),
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image", image: data.imageBase64 },
-          ],
-        },
-      ],
-      experimental_output: Output.object({ schema: SuggestionSchema }) as never,
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Lovable-API-Key": key,
+        "X-Lovable-AIG-SDK": "manual-chat-completions",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。suggestionsは必ず5件。`,
+              },
+              { type: "image_url", image_url: { url: data.imageBase64 } },
+            ],
+          },
+        ],
+      }),
     });
 
-    const out = (result as unknown as { experimental_output?: z.infer<typeof SuggestionSchema> }).experimental_output;
-    if (!out) {
-      try {
-        const parsed = JSON.parse(result.text);
-        return SuggestionSchema.parse(parsed);
-      } catch {
-        throw new Error("AI did not return structured suggestions");
-      }
+    if (!response.ok) {
+      throw new Error("画像のAI読み込みに失敗しました");
     }
-    return out;
+
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) throw new Error("AI did not return suggestions");
+
+    try {
+      return SuggestionSchema.parse(parseJsonFromAiText(content));
+    } catch {
+      throw new Error("AI did not return structured suggestions");
+    }
   });
 
 const CardInput = z.object({
