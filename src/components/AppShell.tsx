@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss, BookText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
