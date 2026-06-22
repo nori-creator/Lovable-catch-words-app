@@ -100,6 +100,13 @@ function StickerDetailPage() {
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">タップして裏返す</p>
 
+          <button
+            onClick={() => setShareOpen(true)}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/30 active:scale-[0.98]"
+          >
+            <Share2 className="h-4 w-4" /> フィードにシェア
+          </button>
+
           <section className="mt-6 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
             {s.caption && <p>「{s.caption}」</p>}
             {s.location_name && (
@@ -111,6 +118,44 @@ function StickerDetailPage() {
               {new Date(s.created_at).toLocaleString("ja-JP")}
             </p>
           </section>
+
+          {shareOpen && (
+            <div className="fixed inset-0 z-50 grid place-items-end bg-black/40 backdrop-blur-sm sm:place-items-center" onClick={() => setShareOpen(false)}>
+              <div onClick={(e) => e.stopPropagation()} className="float-up w-full max-w-md rounded-t-3xl border border-border bg-card p-5 sm:rounded-3xl">
+                <h3 className="text-base font-semibold">フィードに投稿</h3>
+                <textarea
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  maxLength={500}
+                  placeholder="一言コメント（任意）"
+                  className="mt-3 h-24 w-full resize-none rounded-2xl border border-input bg-background p-3 text-sm outline-none focus:border-primary"
+                />
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  {([
+                    { v: "public", l: "公開", I: Globe },
+                    { v: "friends", l: "友達のみ", I: Users },
+                    { v: "private", l: "自分のみ", I: Lock },
+                  ] as const).map(({ v, l, I }) => (
+                    <button
+                      key={v}
+                      onClick={() => setVisibility(v)}
+                      className={`flex flex-col items-center gap-1 rounded-2xl border p-3 ${visibility === v ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                    >
+                      <I className="h-4 w-4" />
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => shareMut.mutate()}
+                  disabled={shareMut.isPending}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {shareMut.isPending ? "投稿中…" : "投稿する"}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </AppShell>
