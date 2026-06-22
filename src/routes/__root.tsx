@@ -83,10 +83,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Catchwords — 街で出会う、台湾華語" },
       { name: "description", content: "撮って、切り抜いて、覚える。街で出会った言葉をステッカーに変えて自分だけの図鑑を作るSNS型言語学習アプリ。" },
       { name: "author", content: "Catchwords" },
+      { property: "og:site_name", content: "Catchwords" },
       { property: "og:title", content: "Catchwords — 街で出会う、台湾華語" },
       { property: "og:description", content: "撮って、切り抜いて、覚える。街で出会った言葉をステッカーに変えて自分だけの図鑑を作るSNS型言語学習アプリ。" },
       { property: "og:type", content: "website" },
+      { property: "og:locale", content: "ja_JP" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Catchwords — 街で出会う、台湾華語" },
+      { name: "twitter:description", content: "撮って、切り抜いて、覚える。街で出会った言葉をステッカーに変えて自分だけの図鑑を作るSNS型言語学習アプリ。" },
       { name: "theme-color", content: "#ff6f61" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
@@ -103,7 +107,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@500;700&display=swap" },
     ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              name: "Catchwords",
+              url: "https://word-snap-journey.lovable.app",
+              logo: "https://word-snap-journey.lovable.app/icon-512.png",
+            },
+            {
+              "@type": "WebSite",
+              name: "Catchwords",
+              url: "https://word-snap-journey.lovable.app",
+              inLanguage: "ja-JP",
+              description: "街で出会った言葉をステッカーに変えて学ぶ、台湾華語の学習アプリ。",
+            },
+          ],
+        }),
+      },
+    ],
   }),
+
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

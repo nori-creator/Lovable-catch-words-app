@@ -10,11 +10,21 @@ import { ArrowLeft, MapPin, Share2, Lock, Users, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
-  head: () => ({
-    meta: [{ title: "カード詳細 — Catchwords" }],
+  head: ({ params }) => ({
+    meta: [
+      { title: `ステッカー詳細 ${params.stickerId.slice(0, 8)} — Catchwords` },
+      { name: "description", content: "あなたが街でキャッチした言葉のステッカー詳細。意味・例文・発音、撮影場所、復習スケジュールをまとめて確認できます。" },
+      { property: "og:title", content: `ステッカー詳細 — Catchwords` },
+      { property: "og:description", content: "あなたが街でキャッチした言葉のステッカー詳細。" },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` }],
   }),
   component: StickerDetailPage,
 });
+
 
 function StickerDetailPage() {
   const { stickerId } = Route.useParams();
@@ -60,7 +70,7 @@ function StickerDetailPage() {
               <div className="card-face absolute inset-0 rounded-3xl border border-border bg-card shadow-xl">
                 <div className="grid h-full place-items-center p-6">
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.word.headword} className="max-h-full max-w-full object-contain" />
+                    <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="max-h-full max-w-full object-contain" />
                   ) : (
                     <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
                   )}
@@ -74,9 +84,9 @@ function StickerDetailPage() {
                 <div className="flex h-full flex-col">
                   <div className="relative aspect-square w-full bg-secondary">
                     {s.selfie_url ? (
-                      <img src={s.selfie_url} alt="selfie" className="h-full w-full object-cover" />
+                      <img src={s.selfie_url} alt="撮影者の自撮り写真" className="h-full w-full object-cover" />
                     ) : s.object_url ? (
-                      <img src={s.object_url} alt="object" className="h-full w-full object-cover" />
+                      <img src={s.object_url} alt="言葉が写った被写体" className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full place-items-center text-sm text-muted-foreground">写真なし</div>
                     )}

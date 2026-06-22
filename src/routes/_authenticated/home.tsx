@@ -46,9 +46,10 @@ function HomePage() {
   return (
     <AppShell>
       <section className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">こんにちは、{profile?.display_name ?? "あなた"}</h1>
-        <p className="text-sm text-muted-foreground">街で見つけた言葉を集めましょう。</p>
+        <h1 className="text-2xl font-semibold tracking-tight">今日のステッカーアルバム</h1>
+        <p className="text-sm text-muted-foreground">こんにちは、{profile?.display_name ?? "あなた"}。街で見つけた言葉を集めましょう。</p>
       </section>
+
 
       {/* Stats banner */}
       <section className="mb-5 rounded-3xl bg-gradient-to-br from-primary/90 via-primary to-rose-500 p-5 text-primary-foreground shadow-lg shadow-primary/20">
@@ -166,7 +167,7 @@ function HomePage() {
               className="group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
             >
               {s.cutout_url ? (
-                <img src={s.cutout_url} alt={s.word.headword} className="h-full w-full object-contain p-3 transition-transform group-active:scale-95" />
+                <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-3 transition-transform group-active:scale-95" />
               ) : (
                 <div className="grid h-full place-items-center text-3xl">{s.word.silhouette_emoji ?? "📦"}</div>
               )}
@@ -191,7 +192,7 @@ function HomePage() {
               >
                 <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.word.headword} className="h-full w-full object-contain p-1" />
+                    <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-1" />
                   ) : (
                     <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
                   )}

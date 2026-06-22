@@ -9,9 +9,21 @@ import { toggleFollow } from "@/lib/social.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
-  head: () => ({ meta: [{ title: "プロフィール — Catchwords" }] }),
+  head: ({ params }) => ({
+    meta: [
+      { title: `ユーザー ${params.userId.slice(0, 8)} のプロフィール — Catchwords` },
+      { name: "description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      { property: "og:title", content: `プロフィール — Catchwords` },
+      { property: "og:description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      { property: "og:type", content: "profile" },
+      { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${params.userId}` },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/u/${params.userId}` }],
+  }),
   component: UserProfilePage,
 });
+
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -55,7 +67,7 @@ function UserProfilePage() {
         <div className="rounded-3xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
             {data.avatar_url ? (
-              <img src={data.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
+              <img src={data.avatar_url} alt={`${data.display_name ?? "ユーザー"}のアバター`} className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
             ) : (
               <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-2xl font-bold text-primary-foreground">
                 {(data.display_name ?? "?").slice(0, 1)}
@@ -105,7 +117,7 @@ function UserProfilePage() {
                   className="lift group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
                 >
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.headword ?? ""} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <img src={s.cutout_url} alt={`「${s.headword ?? ""}」のステッカー`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
                     <div className="grid h-full w-full place-items-center text-3xl">{s.emoji ?? "📍"}</div>
                   )}

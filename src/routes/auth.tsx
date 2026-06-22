@@ -11,11 +11,17 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "ログイン — Catchwords" },
-      { name: "description", content: "Catchwordsにサインインして、街で出会う言葉を集めましょう。" },
+      { name: "description", content: "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。" },
+      { property: "og:title", content: "ログイン — Catchwords" },
+      { property: "og:description", content: "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。" },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://word-snap-journey.lovable.app/auth" },
     ],
+    links: [{ rel: "canonical", href: "https://word-snap-journey.lovable.app/auth" }],
   }),
   component: AuthPage,
 });
+
 
 function AuthPage() {
   const navigate = useNavigate();

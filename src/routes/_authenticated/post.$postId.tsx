@@ -7,9 +7,32 @@ import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/post/$postId")({
-  head: () => ({ meta: [{ title: "投稿 — Catchwords" }] }),
+  head: ({ params }) => ({
+    meta: [
+      { title: `投稿 ${params.postId.slice(0, 8)} — Catchwords` },
+      { name: "description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },
+      { property: "og:title", content: `投稿 — Catchwords` },
+      { property: "og:description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: `https://word-snap-journey.lovable.app/post/${params.postId}` },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${params.postId}` }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Article",
+          headline: `Catchwords post ${params.postId.slice(0, 8)}`,
+          url: `https://word-snap-journey.lovable.app/post/${params.postId}`,
+        }),
+      },
+    ],
+  }),
   component: PostPage,
 });
+
 
 function PostPage() {
   const { postId } = Route.useParams();

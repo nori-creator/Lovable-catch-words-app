@@ -4,13 +4,17 @@ export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
       { title: "プライバシーポリシー — Catchwords" },
-      { name: "description", content: "Catchwordsのプライバシーポリシー。" },
+      { name: "description", content: "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。" },
       { property: "og:title", content: "プライバシーポリシー — Catchwords" },
-      { property: "og:description", content: "Catchwordsのプライバシーポリシー。" },
+      { property: "og:description", content: "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。" },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: "https://word-snap-journey.lovable.app/privacy" },
     ],
+    links: [{ rel: "canonical", href: "https://word-snap-journey.lovable.app/privacy" }],
   }),
   component: PrivacyPage,
 });
+
 
 function PrivacyPage() {
   return (
