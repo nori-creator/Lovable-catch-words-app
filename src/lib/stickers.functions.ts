@@ -160,6 +160,16 @@ export const saveSticker = createServerFn({ method: "POST" })
 
     let wordId = existing?.id;
     if (!wordId) {
+      // Normalize category_key: if the AI proposed one that doesn't exist in the
+      // categories table, fall back to 'other' so the FK doesn't reject the insert.
+      let categoryKey = data.word.category_key;
+      const { data: catRow } = await supabase
+        .from("categories")
+        .select("key")
+        .eq("key", categoryKey)
+        .maybeSingle();
+      if (!catRow) categoryKey = "other";
+
       const { data: ins, error: insErr } = await supabase
         .from("words")
         .insert({
@@ -170,7 +180,7 @@ export const saveSticker = createServerFn({ method: "POST" })
           meaning_ja: data.word.meaning_ja,
           part_of_speech: data.word.part_of_speech,
           level: data.word.level,
-          category_key: data.word.category_key,
+          category_key: categoryKey,
           example_sentence: data.word.example_sentence || null,
           example_translation: data.word.example_translation || null,
           source: "ai",
@@ -180,6 +190,7 @@ export const saveSticker = createServerFn({ method: "POST" })
       if (insErr) throw new Error(insErr.message);
       wordId = ins.id;
     }
+
 
     const { data: sticker, error: stErr } = await supabase
       .from("stickers")

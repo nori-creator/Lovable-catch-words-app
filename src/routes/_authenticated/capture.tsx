@@ -316,21 +316,26 @@ function CapturePage() {
       )}
 
       {step === "processing" && (
-        <div className="space-y-6 py-12 text-center">
-          <div className="relative mx-auto h-40 w-40 overflow-hidden rounded-3xl bg-secondary shimmer-sweep">
-            {objectImg && <img src={objectImg} alt="processing" className="h-full w-full object-cover opacity-60" />}
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2 text-primary">
+        <div className="fixed inset-0 z-50 bg-black">
+          {objectImg && (
+            <img
+              src={objectImg}
+              alt="processing"
+              className="absolute inset-0 h-full w-full object-cover opacity-70"
+            />
+          )}
+          <div className="absolute inset-0 shimmer-sweep" />
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
+            <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 animate-pulse" />
               <span className="font-semibold">AIが切り抜き中...</span>
             </div>
-            <p className="text-sm text-muted-foreground">単語を5つ提案します</p>
-            <div className="mt-4 flex gap-1.5">
+            <p className="text-sm text-white/80">単語を5つ提案します</p>
+            <div className="mt-2 flex flex-wrap justify-center gap-1.5">
               {["蘋果", "杯子", "桌子", "椅子", "貓"].map((w, i) => (
                 <span
                   key={w}
-                  className="float-up rounded-full bg-secondary px-3 py-1 text-xs"
+                  className="float-up rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur"
                   style={{ animationDelay: `${i * 0.15}s` }}
                 >
                   {w}
@@ -340,6 +345,7 @@ function CapturePage() {
           </div>
         </div>
       )}
+
 
       {step === "select" && (
         <div className="space-y-4">
