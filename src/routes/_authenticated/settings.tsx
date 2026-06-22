@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTheme } from "@/components/theme-provider";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
@@ -19,6 +20,7 @@ function SettingsPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState("");
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
@@ -119,6 +121,22 @@ function SettingsPage() {
                 className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
                 {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
+          <Label>テーマ</Label>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {(["light", "dark", "system"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setTheme(v)}
+                className={`rounded-full border py-1.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+              >
+                {v === "light" ? "ライト" : v === "dark" ? "ダーク" : "システム"}
               </button>
             ))}
           </div>
