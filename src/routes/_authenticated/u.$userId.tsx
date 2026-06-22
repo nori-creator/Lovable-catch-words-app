@@ -67,7 +67,7 @@ function UserProfilePage() {
         <div className="rounded-3xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
             {data.avatar_url ? (
-              <img src={data.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
+              <img src={data.avatar_url} alt={`${data.display_name ?? "ユーザー"}のアバター`} className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
             ) : (
               <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-2xl font-bold text-primary-foreground">
                 {(data.display_name ?? "?").slice(0, 1)}

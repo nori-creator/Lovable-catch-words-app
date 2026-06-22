@@ -84,9 +84,9 @@ function StickerDetailPage() {
                 <div className="flex h-full flex-col">
                   <div className="relative aspect-square w-full bg-secondary">
                     {s.selfie_url ? (
-                      <img src={s.selfie_url} alt="selfie" className="h-full w-full object-cover" />
+                      <img src={s.selfie_url} alt="撮影者の自撮り写真" className="h-full w-full object-cover" />
                     ) : s.object_url ? (
-                      <img src={s.object_url} alt="object" className="h-full w-full object-cover" />
+                      <img src={s.object_url} alt="言葉が写った被写体" className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full place-items-center text-sm text-muted-foreground">写真なし</div>
                     )}
