@@ -101,12 +101,19 @@ function StickerDetailPage() {
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">タップして裏返す</p>
 
-          <button
-            onClick={() => setShareOpen(true)}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/30 active:scale-[0.98]"
-          >
-            <Share2 className="h-4 w-4" /> フィードにシェア
-          </button>
+          <div className="mt-4 space-y-3">
+            <PronunciationPanel
+              headword={s.word.headword}
+              pinyin={s.word.pinyin}
+              zhuyin={s.word.reading_zhuyin}
+            />
+            <button
+              onClick={() => setShareOpen(true)}
+              className="lift inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/30"
+            >
+              <Share2 className="h-4 w-4" /> フィードにシェア
+            </button>
+          </div>
 
           <section className="mt-6 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
             {s.caption && <p>「{s.caption}」</p>}
