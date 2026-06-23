@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      diaries: {
+        Row: {
+          body_target: string | null
+          body_translation: string | null
+          created_at: string
+          entry_date: string
+          generated_by_ai: boolean
+          id: string
+          mood: string | null
+          one_liner: string | null
+          place_label: string | null
+          status: string
+          sticker_ids: string[]
+          updated_at: string
+          user_id: string
+          visibility: string
+        }
+        Insert: {
+          body_target?: string | null
+          body_translation?: string | null
+          created_at?: string
+          entry_date: string
+          generated_by_ai?: boolean
+          id?: string
+          mood?: string | null
+          one_liner?: string | null
+          place_label?: string | null
+          status?: string
+          sticker_ids?: string[]
+          updated_at?: string
+          user_id: string
+          visibility?: string
+        }
+        Update: {
+          body_target?: string | null
+          body_translation?: string | null
+          created_at?: string
+          entry_date?: string
+          generated_by_ai?: boolean
+          id?: string
+          mood?: string | null
+          one_liner?: string | null
+          place_label?: string | null
+          status?: string
+          sticker_ids?: string[]
+          updated_at?: string
+          user_id?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
+      quests: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          criteria: Json
+          description: string | null
+          id: string
+          progress: number
+          quest_date: string
+          reward: string | null
+          target_count: number
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          criteria?: Json
+          description?: string | null
+          id?: string
+          progress?: number
+          quest_date: string
+          reward?: string | null
+          target_count?: number
+          title: string
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          criteria?: Json
+          description?: string | null
+          id?: string
+          progress?: number
+          quest_date?: string
+          reward?: string | null
+          target_count?: number
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_runs: {
         Row: {
           accepted: number
@@ -235,6 +337,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          is_premium: boolean
           level_goal: string
           native_language: string
           onboarded: boolean
@@ -248,6 +351,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          is_premium?: boolean
           level_goal?: string
           native_language?: string
           onboarded?: boolean
@@ -261,6 +365,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          is_premium?: boolean
           level_goal?: string
           native_language?: string
           onboarded?: boolean

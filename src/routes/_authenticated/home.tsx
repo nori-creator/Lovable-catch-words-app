@@ -4,8 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { listMyStickers } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
+import { getTodayQuest } from "@/lib/quests.functions";
+import { getDiary } from "@/lib/diary.functions";
 import { useEffect } from "react";
-import { Camera, MapPin } from "lucide-react";
+import { Camera, MapPin, Target, BookText, Check } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -21,11 +23,17 @@ function HomePage() {
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
+  const fetchQuest = useServerFn(getTodayQuest);
+  const fetchDiary = useServerFn(getDiary);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
   });
+  // 初回起動時にその日のクエストを生成（遅延生成）
+  const { data: quest } = useQuery({ queryKey: ["quest-today"], queryFn: () => fetchQuest() });
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const { data: diary } = useQuery({ queryKey: ["diary", todayDate], queryFn: () => fetchDiary({ data: { date: todayDate } }) });
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
@@ -40,6 +48,28 @@ function HomePage() {
         <h1 className="text-2xl font-semibold tracking-tight">こんにちは、{profile?.display_name ?? "あなた"}</h1>
         <p className="text-sm text-muted-foreground">街で見つけた言葉を集めましょう。</p>
       </section>
+
+      {quest && (
+        <Link
+          to="/quest"
+          className="mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:bg-accent/40"
+        >
+          <span
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+              quest.completed ? "bg-green-500/15 text-green-600" : "bg-primary/10 text-primary"
+            }`}
+          >
+            {quest.completed ? <Check className="h-5 w-5" /> : <Target className="h-5 w-5" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] text-muted-foreground">きょうのクエスト</div>
+            <div className="truncate text-sm font-semibold">{quest.title}</div>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {Math.min(quest.progress, quest.target_count)}/{quest.target_count}
+          </span>
+        </Link>
+      )}
 
       <Link
         to="/capture"
@@ -92,6 +122,27 @@ function HomePage() {
           ))}
         </div>
       )}
+
+      <Link
+        to="/diary"
+        className="mt-6 flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-4 transition-colors hover:bg-primary/10"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <BookText className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold">
+            {diary ? "きょうの振り返り日記を見る" : "きょうの振り返り日記を書く"}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {diary
+              ? "AIが綴った台湾華語の日記が待っています"
+              : todayStickers.length > 0
+                ? "今日の言葉から、AIが台湾華語で日記を作ります"
+                : "ひとつ言葉をキャッチすると日記を作れます"}
+          </div>
+        </div>
+      </Link>
 
       <section className="mt-8">
         <h2 className="mb-2 text-lg font-semibold tracking-tight">最近のキャッチ</h2>

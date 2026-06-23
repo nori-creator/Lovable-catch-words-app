@@ -1,15 +1,15 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss } from "lucide-react";
+import { Camera, Home, BookOpen, BookText, Settings, LogOut, Sparkles, Map as MapIcon, Rss, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-type Item = { to: "/home" | "/feed" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/diary" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
 
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
-  { to: "/feed", label: "フィード", icon: Rss },
+  { to: "/diary", label: "日記", icon: BookText },
   { to: "/capture", label: "撮る", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
   { to: "/dex", label: "図鑑", icon: BookOpen },
@@ -39,6 +39,12 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             </span>
           </Link>
           <div className="flex items-center gap-1">
+            <Link to="/feed" aria-label="フィード" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <Rss className="h-4 w-4" />
+            </Link>
+            <Link to="/quest" aria-label="クエスト" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <Target className="h-4 w-4" />
+            </Link>
             <Link to="/map" aria-label="マップ" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <MapIcon className="h-4 w-4" />
             </Link>
