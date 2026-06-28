@@ -309,6 +309,7 @@ function CapturePage() {
               </div>
             </div>
             <input
+              ref={cameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"
