@@ -19,11 +19,13 @@ export type StickerWithWord = {
     reading_zhuyin: string | null;
     pinyin: string | null;
     meaning_ja: string;
+    part_of_speech: string | null;
     example_sentence: string | null;
     example_translation: string | null;
     level: string | null;
     category_key: string | null;
     silhouette_emoji: string | null;
+    extras: Record<string, unknown> | null;
   };
 };
 
