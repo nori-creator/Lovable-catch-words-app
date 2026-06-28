@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { getDueReviews, gradeReview, type DueReviewCard } from "@/lib/reviews.functions";
-import { Eye, Sparkles, Check, X, Volume2 } from "lucide-react";
+import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
+import { getDueReviews, gradeReview, getOverallMemoryStats, type DueReviewCard } from "@/lib/reviews.functions";
+import { Eye, Sparkles, Check, X, Volume2, Brain } from "lucide-react";
+
 
 function speakZhTW(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -33,11 +35,18 @@ export const Route = createFileRoute("/_authenticated/review")({
 function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const grade = useServerFn(gradeReview);
+  const fetchStats = useServerFn(getOverallMemoryStats);
   const { data: cards, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
     staleTime: 0,
   });
+  const { data: memStats } = useQuery({
+    queryKey: ["memory-stats"],
+    queryFn: () => fetchStats(),
+    staleTime: 60_000,
+  });
+
 
   const [idx, setIdx] = useState(0);
   const [blurSeen, setBlurSeen] = useState(false);
@@ -88,6 +97,25 @@ function ReviewPage() {
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
         </div>
       </section>
+
+      {memStats && memStats.total_cards > 0 && (
+        <section className="mb-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold">記憶の状態</h2>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
+            </div>
+          </div>
+          <MiniRetentionGraph series={memStats.series} />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            点線（80%）を下回ったら復習タイミング。今日復習すると曲線がリセットされます。
+          </p>
+        </section>
+      )}
+
 
       {isLoading || isFetching ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
@@ -191,6 +219,33 @@ function ReviewPage() {
     </AppShell>
   );
 }
+
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid } from "recharts";
+
+
+
+function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
+  return (
+    <div className="h-32 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <Tooltip
+            formatter={(v: number) => [`${v}%`, "平均記憶率"]}
+            labelFormatter={(l) => (l === 0 ? "今日" : `${l > 0 ? "+" : ""}${l}日`)}
+            contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+          />
+          <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
+          <ReferenceLine y={80} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
+          <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 
 function EmptyState() {
   return (

@@ -1,54 +1,38 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
+import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
-import { createPost } from "@/lib/social.functions";
+import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { useState } from "react";
-import { ArrowLeft, MapPin, Share2, Lock, Users, Globe } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, MapPin, Brain, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
   head: ({ params }) => ({
     meta: [
       { title: `ステッカー詳細 ${params.stickerId.slice(0, 8)} — Catchwords` },
-      { name: "description", content: "あなたが街でキャッチした言葉のステッカー詳細。意味・例文・発音、撮影場所、復習スケジュールをまとめて確認できます。" },
-      { property: "og:title", content: `ステッカー詳細 — Catchwords` },
-      { property: "og:description", content: "あなたが街でキャッチした言葉のステッカー詳細。" },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` },
+      { name: "description", content: "あなたが街でキャッチした言葉のステッカー詳細。意味・例文・発音、撮影場所、記憶曲線をまとめて確認できます。" },
       { name: "robots", content: "noindex" },
     ],
-    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/dex/${params.stickerId}` }],
   }),
   component: StickerDetailPage,
 });
 
-
 function StickerDetailPage() {
   const { stickerId } = Route.useParams();
-  const navigate = useNavigate();
   const fetchSticker = useServerFn(getSticker);
-  const post = useServerFn(createPost);
+  const fetchMemory = useServerFn(getStickerMemoryHistory);
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId } }),
   });
-  const [flipped, setFlipped] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [caption, setCaption] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "friends" | "private">("public");
-
-  const shareMut = useMutation({
-    mutationFn: () => post({ data: { sticker_id: stickerId, caption: caption.trim() || undefined, visibility } }),
-    onSuccess: ({ id }) => {
-      toast.success("投稿しました");
-      setShareOpen(false);
-      navigate({ to: "/post/$postId", params: { postId: id } });
-    },
-    onError: (e: Error) => toast.error(e.message),
+  const { data: mem } = useQuery({
+    queryKey: ["memory", stickerId],
+    queryFn: () => fetchMemory({ data: { sticker_id: stickerId } }),
   });
+  const [flipped, setFlipped] = useState(false);
 
   return (
     <AppShell title="カード">
@@ -111,21 +95,39 @@ function StickerDetailPage() {
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">タップして裏返す</p>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4">
             <PronunciationPanel
               headword={s.word.headword}
               pinyin={s.word.pinyin}
               zhuyin={s.word.reading_zhuyin}
             />
-            <button
-              onClick={() => setShareOpen(true)}
-              className="lift inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/30"
-            >
-              <Share2 className="h-4 w-4" /> フィードにシェア
-            </button>
           </div>
 
-          <section className="mt-6 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
+          <section className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-semibold">この単語の記憶曲線</h2>
+              </div>
+              {mem?.current?.due_at && (
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  次回 {new Date(mem.current.due_at).toLocaleDateString("ja-JP")}
+                </div>
+              )}
+            </div>
+            <ForgettingCurveChart
+              history={mem?.history ?? []}
+              currentEase={mem?.current?.ease ?? 2.5}
+              currentIntervalDays={mem?.current?.interval_days ?? 1}
+              lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              点：復習した瞬間（100%にリセット）。曲線：時間経過で記憶が薄れていく予測。
+            </p>
+          </section>
+
+          <section className="mt-5 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
             {s.caption && <p>「{s.caption}」</p>}
             {s.location_name && (
               <p className="flex items-center gap-1 text-muted-foreground">
@@ -136,44 +138,6 @@ function StickerDetailPage() {
               {new Date(s.created_at).toLocaleString("ja-JP")}
             </p>
           </section>
-
-          {shareOpen && (
-            <div className="fixed inset-0 z-50 grid place-items-end bg-black/40 backdrop-blur-sm sm:place-items-center" onClick={() => setShareOpen(false)}>
-              <div onClick={(e) => e.stopPropagation()} className="float-up w-full max-w-md rounded-t-3xl border border-border bg-card p-5 sm:rounded-3xl">
-                <h3 className="text-base font-semibold">フィードに投稿</h3>
-                <textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  maxLength={500}
-                  placeholder="一言コメント（任意）"
-                  className="mt-3 h-24 w-full resize-none rounded-2xl border border-input bg-background p-3 text-sm outline-none focus:border-primary"
-                />
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  {([
-                    { v: "public", l: "公開", I: Globe },
-                    { v: "friends", l: "友達のみ", I: Users },
-                    { v: "private", l: "自分のみ", I: Lock },
-                  ] as const).map(({ v, l, I }) => (
-                    <button
-                      key={v}
-                      onClick={() => setVisibility(v)}
-                      className={`flex flex-col items-center gap-1 rounded-2xl border p-3 ${visibility === v ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
-                    >
-                      <I className="h-4 w-4" />
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => shareMut.mutate()}
-                  disabled={shareMut.isPending}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
-                >
-                  {shareMut.isPending ? "投稿中…" : "投稿する"}
-                </button>
-              </div>
-            </div>
-          )}
         </>
       )}
     </AppShell>
