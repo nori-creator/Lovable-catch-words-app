@@ -164,74 +164,65 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
 }
 
 function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bgClass: string }) {
-  const rotations = [-6, 4, -3, 7, -5, 2, -8, 5, -2, 6];
-  const aspects = ["aspect-square", "aspect-[4/5]", "aspect-[5/4]", "aspect-square", "aspect-[3/4]"];
-  const tapes = ["bg-amber-200/80", "bg-rose-200/80", "bg-sky-200/80", "bg-emerald-200/80"];
+  const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
+  const sizes = [
+    "col-span-2 row-span-2",
+    "col-span-1 row-span-1",
+    "col-span-1 row-span-2",
+    "col-span-1 row-span-1",
+    "col-span-2 row-span-1",
+    "col-span-1 row-span-1",
+  ];
 
   const items = useMemo(
     () =>
       stickers.map((s, i) => ({
         sticker: s,
         rot: rotations[i % rotations.length],
-        aspect: aspects[i % aspects.length],
-        tape: tapes[i % tapes.length],
-        accent: i % 4 === 0,
+        size: sizes[i % sizes.length],
+        z: 10 + (i % 5),
       })),
     [stickers],
   );
 
   return (
-    <div className={`relative rounded-3xl border border-amber-900/10 p-3 shadow-inner sm:p-5 ${bgClass}`}>
-      <div className="columns-2 gap-3 sm:columns-3 sm:gap-4">
-        {items.map(({ sticker: s, rot, aspect, tape, accent }) => {
-          // Default to the selfie photo (the "memory"); fall back to object then cutout.
-          const mainImg = s.selfie_url ?? s.object_url ?? s.cutout_url;
+    <div className={`relative rounded-3xl border border-amber-900/10 p-4 shadow-inner sm:p-6 ${bgClass}`}>
+      <div className="grid auto-rows-[6.5rem] grid-cols-3 gap-x-3 gap-y-6 sm:auto-rows-[8rem] sm:grid-cols-4">
+        {items.map(({ sticker: s, rot, size, z }) => {
+          // The "memory" cutout: selfie preferred (object + person together).
+          // If no selfie, use the object cutout alone. Never both.
+          const img = s.selfie_url ?? s.cutout_url ?? s.object_url;
           return (
             <Link
               key={s.id}
               to="/dex/$stickerId"
               params={{ stickerId: s.id }}
-              className="lift relative mb-3 block break-inside-avoid sm:mb-4"
-              style={{ transform: `rotate(${rot}deg)` }}
+              className={`lift group relative block ${size}`}
+              style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
-              <div className="relative rounded-md bg-white p-2 pb-7 shadow-[0_4px_14px_-4px_rgba(0,0,0,0.25)] ring-1 ring-black/5">
-                <span
-                  className={`absolute -top-2 left-1/2 h-3 w-12 -translate-x-1/2 rotate-[-3deg] rounded-sm ${tape} shadow-sm`}
-                />
-                <div className={`relative ${aspect} grid w-full place-items-center overflow-hidden rounded-sm bg-[#fafaf5]`}>
-                  {mainImg ? (
-                    <img
-                      src={mainImg}
-                      alt={`「${s.word.headword}」の思い出の一枚`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-4xl">{s.word.silhouette_emoji ?? "📦"}</span>
-                  )}
-                  {s.cutout_url && (
-                    <img
-                      src={s.cutout_url}
-                      alt=""
-                      aria-hidden
-                      className="pointer-events-none absolute -right-1 -bottom-1 h-1/2 w-1/2 object-contain drop-shadow-md"
-                    />
-                  )}
-                </div>
-                <div className="mt-1 text-center font-serif text-sm leading-tight">
-                  <div className="font-semibold tracking-tight">{s.word.headword}</div>
-                  {accent && s.word.meaning_ja && (
-                    <div className="truncate text-[10px] italic text-muted-foreground">
-                      {s.word.meaning_ja}
-                    </div>
-                  )}
-                </div>
+              <div className="relative h-full w-full">
+                {img ? (
+                  <img
+                    src={img}
+                    alt={`「${s.word.headword}」の思い出`}
+                    className="h-full w-full object-contain transition-transform group-active:scale-95"
+                    style={{ filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.35)) drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center text-4xl">
+                    {s.word.silhouette_emoji ?? "📦"}
+                  </div>
+                )}
+                <span className="pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap font-serif text-[11px] italic text-amber-950/80 drop-shadow-sm">
+                  {s.word.headword}
+                </span>
               </div>
             </Link>
           );
         })}
       </div>
 
-      <div className="mt-2 text-right">
+      <div className="mt-6 text-right">
         <span className="font-serif text-xs italic text-amber-900/60">
           — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>
