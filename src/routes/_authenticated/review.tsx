@@ -98,6 +98,25 @@ function ReviewPage() {
         </div>
       </section>
 
+      {memStats && memStats.total_cards > 0 && (
+        <section className="mb-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold">記憶の状態</h2>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
+            </div>
+          </div>
+          <MiniRetentionGraph series={memStats.series} />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            点線（80%）を下回ったら復習タイミング。今日復習すると曲線がリセットされます。
+          </p>
+        </section>
+      )}
+
+
       {isLoading || isFetching ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
