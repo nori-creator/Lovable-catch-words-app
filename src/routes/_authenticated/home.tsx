@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { useEffect, useMemo, useState } from "react";
