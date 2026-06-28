@@ -74,7 +74,7 @@ function CapturePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("photo");
-  const [step, setStep] = useState<Step>("mode");
+  const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
   const [selfieImg, setSelfieImg] = useState<string | null>(null);
