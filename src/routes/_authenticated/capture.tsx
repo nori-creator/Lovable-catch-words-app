@@ -3,11 +3,12 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { ImagePicker } from "@/components/ImagePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, RotateCcw, Sparkles, Check } from "lucide-react";
+import { Camera, Loader2, RotateCcw, Sparkles, Check, Keyboard } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
@@ -17,14 +18,24 @@ import { saveSticker } from "@/lib/stickers.functions";
 export const Route = createFileRoute("/_authenticated/capture")({
   head: () => ({
     meta: [
-      { title: "撮る — Catchwords" },
-      { name: "description", content: "対象物と自撮りを撮って、AIが切り抜きフラッシュカードに変換します。" },
+      { title: "集める — Catchwords" },
+      { name: "description", content: "写真でも文字入力でも、見つけた言葉をすぐに図鑑へ。" },
     ],
   }),
   component: CapturePage,
 });
 
-type Step = "object" | "selfie" | "processing" | "select" | "card" | "saving";
+type Mode = "photo" | "text";
+type Step =
+  | "mode"
+  | "object"
+  | "selfie"
+  | "processing"
+  | "select"
+  | "textInput"
+  | "imagePick"
+  | "card"
+  | "saving";
 
 type Suggestion = {
   headword: string;
@@ -62,7 +73,8 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
 function CapturePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>("object");
+  const [mode, setMode] = useState<Mode>("photo");
+  const [step, setStep] = useState<Step>("mode");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
   const [selfieImg, setSelfieImg] = useState<string | null>(null);
@@ -94,30 +106,30 @@ function CapturePage() {
     await runAi();
   }
 
+  function tryGetLocation() {
+    if (loc || !("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { location_name } = await geocodeFn({ data: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
+          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: location_name });
+        } catch {
+          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null });
+        }
+      },
+      () => {},
+      { timeout: 5000 }
+    );
+  }
+
   async function runAi() {
     if (!objectImg) return;
     setStep("processing");
     setError(null);
-
-    // Try to grab location in parallel; don't fail capture if blocked.
-    if (!loc && "geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { location_name } = await geocodeFn({ data: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
-            setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: location_name });
-          } catch {
-            setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null });
-          }
-        },
-        () => {},
-        { timeout: 5000 }
-      );
-    }
+    tryGetLocation();
 
     try {
       const [cutoutRes, suggestRes] = await Promise.all([
-        // Background removal in browser. Dynamic import to keep SSR clean.
         (async () => {
           try {
             const mod = await import("@imgly/background-removal");
@@ -147,7 +159,7 @@ function CapturePage() {
     }
   }
 
-  async function confirmWord(head: string, hint?: Suggestion) {
+  async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
     setSelectedHead(head);
     setStep("processing");
     try {
@@ -162,7 +174,6 @@ function CapturePage() {
           example_sentence: "",
           example_translation: "",
         });
-        // Get example sentence + level in the background
         cardFn({ data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key } })
           .then((c) => setCard(c))
           .catch(() => {});
@@ -170,12 +181,23 @@ function CapturePage() {
         const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
         setCard(c);
       }
-      setStep("card");
+      // Text-input path needs to pick an image next
+      if (mode === "text" && !objectImg && !opts?.skipImagePick) {
+        setStep("imagePick");
+      } else {
+        setStep("card");
+      }
     } catch (e) {
       console.error(e);
       toast.error("カード生成に失敗しました");
-      setStep("select");
+      setStep(mode === "text" ? "textInput" : "select");
     }
+  }
+
+  function onImagePicked(dataUrl: string) {
+    setObjectImg(dataUrl);
+    setCutoutImg(dataUrl);
+    setStep("card");
   }
 
   async function handleSave() {
@@ -231,7 +253,6 @@ function CapturePage() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      await queryClient.invalidateQueries({ queryKey: ["seedWords"] });
       toast.success("ステッカーを図鑑に追加しました！");
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {
@@ -242,7 +263,7 @@ function CapturePage() {
   }
 
   function reset() {
-    setStep("object");
+    setStep("mode");
     setObjectImg(null);
     setCutoutImg(null);
     setSelfieImg(null);
@@ -256,7 +277,40 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title="撮る">
+    <AppShell title="集める">
+      {step === "mode" && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight">どうやって集める？</h2>
+          <p className="text-sm text-muted-foreground">写真からでも、授業で習った単語をそのまま入力してもOK。</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => { setMode("photo"); setStep("object"); }}
+              className="lift flex flex-col items-center gap-3 rounded-3xl border border-border bg-card p-6 text-center"
+            >
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
+                <Camera className="h-6 w-6" />
+              </span>
+              <div>
+                <div className="text-base font-semibold">写真で集める</div>
+                <div className="mt-1 text-xs text-muted-foreground">街で見つけたモノを撮る</div>
+              </div>
+            </button>
+            <button
+              onClick={() => { setMode("text"); setStep("textInput"); }}
+              className="lift flex flex-col items-center gap-3 rounded-3xl border border-border bg-card p-6 text-center"
+            >
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
+                <Keyboard className="h-6 w-6" />
+              </span>
+              <div>
+                <div className="text-base font-semibold">単語を入力</div>
+                <div className="mt-1 text-xs text-muted-foreground">授業で習った言葉を追加</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {step === "object" && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold tracking-tight">ステップ 1: 対象物を撮る</h2>
@@ -276,14 +330,15 @@ function CapturePage() {
               onChange={(e) => e.target.files?.[0] && handleObjectFile(e.target.files[0])}
             />
           </label>
+          <button onClick={reset} className="text-xs text-muted-foreground underline">入力モードに切替</button>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )}
 
       {step === "selfie" && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 2: 自撮りを撮る</h2>
-          <p className="text-sm text-muted-foreground">対象物と一緒に自分も撮っておくと、後で振り返るときに思い出が蘇ります。スキップもできます。</p>
+          <h2 className="text-xl font-semibold tracking-tight">ステップ 2: 自撮りを撮る（任意）</h2>
+          <p className="text-sm text-muted-foreground">対象物と一緒に自分も撮ると、後で振り返るときに記憶が蘇ります。</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
               <img src={objectImg} alt="object" className="h-full w-full object-cover" />
@@ -308,7 +363,7 @@ function CapturePage() {
             <Button variant="outline" onClick={() => handleSelfieFile(null)} className="flex-1">
               スキップして次へ
             </Button>
-            <Button variant="ghost" onClick={reset} className="">
+            <Button variant="ghost" onClick={reset}>
               <RotateCcw className="mr-1 h-4 w-4" /> やり直す
             </Button>
           </div>
@@ -328,24 +383,12 @@ function CapturePage() {
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 animate-pulse" />
-              <span className="font-semibold">AIが切り抜き中...</span>
+              <span className="font-semibold">{mode === "text" ? "意味と例文を生成中..." : "AIが切り抜き中..."}</span>
             </div>
-            <p className="text-sm text-white/80">単語を5つ提案します</p>
-            <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-              {["蘋果", "杯子", "桌子", "椅子", "貓"].map((w, i) => (
-                <span
-                  key={w}
-                  className="float-up rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                >
-                  {w}
-                </span>
-              ))}
-            </div>
+            <p className="text-sm text-white/80">少しだけ待ってね</p>
           </div>
         </div>
       )}
-
 
       {step === "select" && (
         <div className="space-y-4">
@@ -356,14 +399,14 @@ function CapturePage() {
                 <img src={cutoutImg} alt="cutout" className="h-full w-full object-contain pop-in" />
               </div>
             )}
-            <p className="text-sm text-muted-foreground">AIがこの画像から5つの候補を提案しました。あなたが学びたい単語を選んでください。</p>
+            <p className="text-sm text-muted-foreground">AIが候補を提案しました。学びたい単語を選んでください。</p>
           </div>
           <div className="grid gap-2">
             {suggestions.map((s) => (
               <button
                 key={s.headword}
-                onClick={() => confirmWord(s.headword, s)}
-                className="flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
+                onClick={() => confirmWord(s.headword, s, { skipImagePick: true })}
+                className="lift flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
               >
                 <div>
                   <div className="text-base font-semibold">{s.headword}</div>
@@ -386,7 +429,7 @@ function CapturePage() {
               />
               <Button
                 disabled={!manualWord.trim()}
-                onClick={() => confirmWord(manualWord.trim())}
+                onClick={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
               >
                 これにする
               </Button>
@@ -395,9 +438,44 @@ function CapturePage() {
         </div>
       )}
 
+      {step === "textInput" && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight">単語を入力</h2>
+          <p className="text-sm text-muted-foreground">中国語（繁体字）か日本語、どちらでもOK。AIが意味と例文を作ります。</p>
+          <div>
+            <Label htmlFor="word" className="text-xs text-muted-foreground">単語</Label>
+            <Input
+              id="word"
+              value={manualWord}
+              onChange={(e) => setManualWord(e.target.value)}
+              placeholder="例: 咖啡 / コーヒー"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={reset} className="flex-1">戻る</Button>
+            <Button disabled={!manualWord.trim()} onClick={() => { tryGetLocation(); confirmWord(manualWord.trim()); }} className="flex-1">
+              次へ <Sparkles className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "imagePick" && card && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight">この単語の画像を選ぶ</h2>
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="text-xl font-semibold">{selectedHead}</div>
+            <div className="text-xs text-muted-foreground">{card.reading_zhuyin} · {card.meaning_ja}</div>
+          </div>
+          <ImagePicker query={selectedHead} onPicked={onImagePicked} />
+          <button onClick={() => setStep("textInput")} className="text-xs text-muted-foreground underline">単語を変える</button>
+        </div>
+      )}
+
       {step === "card" && card && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 4: カード確認</h2>
+          <h2 className="text-xl font-semibold tracking-tight">カード確認</h2>
           <p className="text-sm text-muted-foreground">タップして裏返せます。</p>
 
           <div className="perspective-[1200px]">
@@ -414,16 +492,15 @@ function CapturePage() {
                   <div className="text-sm text-muted-foreground">{card.reading_zhuyin}</div>
                 </div>
               </div>
-
               <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
                 <div className="flex h-full flex-col">
                   <div className="relative aspect-square w-full bg-secondary">
                     {selfieImg ? (
                       <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
+                    ) : objectImg ? (
+                      <img src={objectImg} alt="object" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                        自撮り写真なし
-                      </div>
+                      <div className="grid h-full place-items-center text-sm text-muted-foreground">写真なし</div>
                     )}
                   </div>
                   <div className="flex-1 space-y-2 p-4 text-left">
@@ -455,10 +532,10 @@ function CapturePage() {
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep("select")} className="flex-1">
-              単語を変える
+            <Button variant="outline" onClick={reset} className="flex-1">
+              やり直す
             </Button>
-            <Button onClick={handleSave} className="flex-1">
+            <Button onClick={handleSave} className="lift flex-1">
               <Check className="mr-1 h-4 w-4" /> 図鑑に追加
             </Button>
           </div>
