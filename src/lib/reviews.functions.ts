@@ -217,7 +217,7 @@ export const gradeReview = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("reviews")
-      .select("id, ease, interval_days, repetitions, blur_seen")
+      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen")
       .eq("id", data.review_id)
       .eq("user_id", userId)
       .single();
@@ -255,5 +255,105 @@ export const gradeReview = createServerFn({ method: "POST" })
       .eq("user_id", userId);
     if (upErr) throw new Error(upErr.message);
 
+    // Append to review_history for the forgetting-curve visualization.
+    await supabase.from("review_history").insert({
+      user_id: userId,
+      review_id: data.review_id,
+      sticker_id: row.sticker_id,
+      score,
+      correct: data.correct,
+      blur_seen: data.blur_seen,
+      response_ms: data.response_ms,
+      interval_days_after: next.interval_days,
+      ease_after: next.ease,
+      repetitions_after: next.repetitions,
+    });
+
     return { score, next_due_at: dueAt, interval_days: next.interval_days };
   });
+
+// --- Forgetting curve data ---------------------------------------------------
+
+export type StickerMemoryHistory = {
+  history: Array<{
+    reviewed_at: string;
+    score: number;
+    interval_days_after: number;
+    ease_after: number;
+  }>;
+  current: { ease: number; interval_days: number; last_reviewed_at: string | null; due_at: string | null } | null;
+};
+
+export const getStickerMemoryHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ sticker_id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }): Promise<StickerMemoryHistory> => {
+    const { supabase, userId } = context;
+    const [{ data: hist }, { data: rev }] = await Promise.all([
+      supabase
+        .from("review_history")
+        .select("reviewed_at, score, interval_days_after, ease_after")
+        .eq("user_id", userId)
+        .eq("sticker_id", data.sticker_id)
+        .order("reviewed_at", { ascending: true }),
+      supabase
+        .from("reviews")
+        .select("ease, interval_days, last_reviewed_at, due_at")
+        .eq("user_id", userId)
+        .eq("sticker_id", data.sticker_id)
+        .maybeSingle(),
+    ]);
+    return {
+      history: hist ?? [],
+      current: rev
+        ? {
+            ease: rev.ease,
+            interval_days: rev.interval_days,
+            last_reviewed_at: rev.last_reviewed_at,
+            due_at: rev.due_at,
+          }
+        : null,
+    };
+  });
+
+export type OverallMemoryStats = {
+  avg_retention: number; // 0-100
+  total_cards: number;
+  due_now: number;
+  series: Array<{ day_offset: number; avg_retention: number }>; // -14..+14
+};
+
+export const getOverallMemoryStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<OverallMemoryStats> => {
+    const { supabase, userId } = context;
+    const { data: rows } = await supabase
+      .from("reviews")
+      .select("ease, interval_days, last_reviewed_at, due_at")
+      .eq("user_id", userId);
+    const cards = rows ?? [];
+    const now = Date.now();
+    const dueNow = cards.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
+
+    function retentionAt(card: { ease: number; interval_days: number; last_reviewed_at: string | null }, atMs: number): number {
+      if (!card.last_reviewed_at) return 100;
+      const dt = (atMs - new Date(card.last_reviewed_at).getTime()) / 86400_000;
+      if (dt <= 0) return 100;
+      const stability = Math.max(0.5, card.interval_days * Math.max(1, card.ease));
+      return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stability)));
+    }
+
+    const series: Array<{ day_offset: number; avg_retention: number }> = [];
+    for (let d = -14; d <= 14; d++) {
+      const at = now + d * 86400_000;
+      const vals = cards.map((c) => retentionAt(c, at));
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      series.push({ day_offset: d, avg_retention: Math.round(avg) });
+    }
+    const avgRet = cards.length
+      ? Math.round(cards.map((c) => retentionAt(c, now)).reduce((a, b) => a + b, 0) / cards.length)
+      : 0;
+
+    return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
+  });
+
