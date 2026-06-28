@@ -148,13 +148,9 @@ function ScrapbookAlbum({ stickers }: { stickers: StickerWithWord[] }) {
 
       <div className="mt-2 text-right">
         <span className="font-serif text-xs italic text-amber-900/60">
-          — {todayStickers(stickers.length)}
+          — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught today
         </span>
       </div>
     </div>
   );
-}
-
-function todayStickers(n: number): string {
-  return `${n} ${n === 1 ? "memory" : "memories"} caught today`;
 }
