@@ -93,7 +93,7 @@ function HomePage() {
         </div>
       ) : (
         <>
-          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} />
+          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} onOpen={setOpenId} />
           <div className="mt-4 text-center">
             <Link
               to="/journal"
