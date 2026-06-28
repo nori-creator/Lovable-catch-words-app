@@ -35,11 +35,18 @@ export const Route = createFileRoute("/_authenticated/review")({
 function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const grade = useServerFn(gradeReview);
+  const fetchStats = useServerFn(getOverallMemoryStats);
   const { data: cards, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
     staleTime: 0,
   });
+  const { data: memStats } = useQuery({
+    queryKey: ["memory-stats"],
+    queryFn: () => fetchStats(),
+    staleTime: 60_000,
+  });
+
 
   const [idx, setIdx] = useState(0);
   const [blurSeen, setBlurSeen] = useState(false);
