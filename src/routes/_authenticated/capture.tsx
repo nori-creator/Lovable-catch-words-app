@@ -279,48 +279,19 @@ function CapturePage() {
 
   return (
     <AppShell title="集める">
-      {step === "mode" && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">どうやって集める？</h2>
-          <p className="text-sm text-muted-foreground">写真からでも、授業で習った単語をそのまま入力してもOK。</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => { setMode("photo"); setStep("object"); }}
-              className="lift flex flex-col items-center gap-3 rounded-3xl border border-border bg-card p-6 text-center"
-            >
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
-                <Camera className="h-6 w-6" />
-              </span>
-              <div>
-                <div className="text-base font-semibold">写真で集める</div>
-                <div className="mt-1 text-xs text-muted-foreground">街で見つけたモノを撮る</div>
-              </div>
-            </button>
-            <button
-              onClick={() => { setMode("text"); setStep("textInput"); }}
-              className="lift flex flex-col items-center gap-3 rounded-3xl border border-border bg-card p-6 text-center"
-            >
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
-                <Keyboard className="h-6 w-6" />
-              </span>
-              <div>
-                <div className="text-base font-semibold">単語を入力</div>
-                <div className="mt-1 text-xs text-muted-foreground">授業で習った言葉を追加</div>
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
-
       {step === "object" && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 1: 対象物を撮る</h2>
-          <p className="text-sm text-muted-foreground">街で見つけたモノにカメラを向けてみてください。</p>
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">写真で集める</h2>
+            <p className="mt-1 text-sm text-muted-foreground">街で見つけたモノにカメラを向けてみてください。</p>
+          </div>
           <label className="block">
             <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
               <div className="flex flex-col items-center gap-2">
-                <Camera className="h-10 w-10" />
-                <span className="text-sm">タップして撮影 / 選択</span>
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
+                  <Camera className="h-8 w-8" />
+                </span>
+                <span className="text-sm font-medium">タップして撮影</span>
               </div>
             </div>
             <input
@@ -331,7 +302,21 @@ function CapturePage() {
               onChange={(e) => e.target.files?.[0] && handleObjectFile(e.target.files[0])}
             />
           </label>
-          <button onClick={reset} className="text-xs text-muted-foreground underline">入力モードに切替</button>
+
+          <div className="flex items-center gap-3 pt-2">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">または</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <button
+            onClick={() => { setMode("text"); setStep("textInput"); }}
+            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
+          >
+            <Keyboard className="h-4 w-4" />
+            単語を文字で入力
+          </button>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )}
