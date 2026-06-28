@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { useEffect, useMemo, useState } from "react";
@@ -39,6 +40,8 @@ function HomePage() {
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
   });
+  const [openId, setOpenId] = useState<string | null>(null);
+
 
   const [bg, setBg] = useState<BgId>("paper");
   useEffect(() => {
@@ -90,7 +93,7 @@ function HomePage() {
         </div>
       ) : (
         <>
-          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} />
+          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} onOpen={setOpenId} />
           <div className="mt-4 text-center">
             <Link
               to="/journal"
@@ -113,11 +116,12 @@ function HomePage() {
           {pastDays.map(([k, items]) => (
             <div key={k}>
               <DayHeader date={new Date(k)} compact />
-              <ScrapbookAlbum stickers={items} bgClass={bgClass} />
+              <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={setOpenId} />
             </div>
           ))}
         </section>
       )}
+      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
@@ -163,7 +167,7 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
   );
 }
 
-function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bgClass: string }) {
+function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWord[]; bgClass: string; onOpen: (id: string) => void }) {
   const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
   const sizes = [
     "col-span-2 row-span-2",
@@ -189,15 +193,12 @@ function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bg
     <div className={`relative rounded-3xl border border-amber-900/10 p-4 shadow-inner sm:p-6 ${bgClass}`}>
       <div className="grid auto-rows-[6.5rem] grid-cols-3 gap-x-3 gap-y-6 sm:auto-rows-[8rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {
-          // The "memory" cutout: selfie preferred (object + person together).
-          // If no selfie, use the object cutout alone. Never both.
           const img = s.selfie_url ?? s.cutout_url ?? s.object_url;
           return (
-            <Link
+            <button
               key={s.id}
-              to="/dex/$stickerId"
-              params={{ stickerId: s.id }}
-              className={`lift group relative block ${size}`}
+              onClick={() => onOpen(s.id)}
+              className={`lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
               <div className="relative h-full w-full">
@@ -217,7 +218,7 @@ function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bg
                   {s.word.headword}
                 </span>
               </div>
-            </Link>
+            </button>
           );
         })}
       </div>

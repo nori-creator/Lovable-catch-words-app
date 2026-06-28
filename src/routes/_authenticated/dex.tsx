@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { LayoutGrid, List, Map as MapIcon, Search, X } from "lucide-react";
@@ -39,6 +40,7 @@ function DexPage() {
   const captured = stickers ?? [];
 
   const [view, setView] = useState<ViewMode>("gallery");
+  const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
@@ -149,11 +151,10 @@ function DexPage() {
               <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-secondary/40 p-3 shadow-sm">
                 <div className="grid grid-cols-2 gap-3">
                   {items.map((s) => (
-                    <Link
+                    <button
                       key={s.id}
-                      to="/dex/$stickerId"
-                      params={{ stickerId: s.id }}
-                      className="group block"
+                      onClick={() => setOpenId(s.id)}
+                      className="group block text-left"
                     >
                       <div className="relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95">
                         {s.cutout_url ? (
@@ -171,7 +172,7 @@ function DexPage() {
                           <div className="text-sm font-bold text-white">{s.word.headword}</div>
                         </div>
                       </div>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -179,10 +180,9 @@ function DexPage() {
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                 {items.map((s, i) => (
                   <li key={s.id} className={i > 0 ? "border-t border-border" : ""}>
-                    <Link
-                      to="/dex/$stickerId"
-                      params={{ stickerId: s.id }}
-                      className="flex items-center gap-3 p-3 transition-colors hover:bg-accent/40 active:bg-accent/60"
+                    <button
+                      onClick={() => setOpenId(s.id)}
+                      className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
                     >
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
                         {s.cutout_url ? (
@@ -208,7 +208,7 @@ function DexPage() {
                           {s.word.meaning_ja}
                         </div>
                       </div>
-                    </Link>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -216,6 +216,7 @@ function DexPage() {
           </section>
         ))
       )}
+      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
