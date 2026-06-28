@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -86,11 +86,25 @@ function CapturePage() {
   const [loc, setLoc] = useState<{ lat: number; lng: number; name: string | null } | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const autoOpenedRef = useRef(false);
 
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
   const geocodeFn = useServerFn(geocodeLocation);
   const saveFn = useServerFn(saveSticker);
+
+  // Auto-open the camera as soon as the user lands on /capture so they
+  // don't have to tap a second time.
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (step !== "object") return;
+    autoOpenedRef.current = true;
+    // small delay helps mobile browsers honor the synthetic click after navigation
+    const t = setTimeout(() => cameraInputRef.current?.click(), 60);
+    return () => clearTimeout(t);
+  }, [step]);
+
 
   async function handleObjectFile(file: File) {
     const url = await fileToDataUrl(file);
@@ -295,6 +309,7 @@ function CapturePage() {
               </div>
             </div>
             <input
+              ref={cameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"

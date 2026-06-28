@@ -1,33 +1,18 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, BookText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { Camera, Home, BookOpen, Settings, Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 
-type Item = { to: "/settings" | "/home" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
 
 const items: Item[] = [
-  { to: "/settings", label: "設定", icon: Settings },
   { to: "/home", label: "ホーム", icon: Home },
+  { to: "/dex", label: "図鑑", icon: BookOpen },
   { to: "/capture", label: "集める", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
-  { to: "/dex", label: "図鑑", icon: BookOpen },
+  { to: "/settings", label: "設定", icon: Settings },
 ];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
-  const router = useRouter();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
-  async function handleSignOut() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
-    await router.invalidate();
-    navigate({ to: "/auth", replace: true });
-  }
-
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 backdrop-blur-xl">
@@ -38,18 +23,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               {title ?? "Catchwords"}
             </span>
           </Link>
-          <div className="flex items-center gap-1">
-            <Link to="/journal" aria-label="日記" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
-              <BookText className="h-4 w-4" />
-            </Link>
-            <button
-              onClick={handleSignOut}
-              className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label="サインアウト"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
