@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
+import { supabase } from "@/integrations/supabase/client";
+import { LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
@@ -17,6 +19,8 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
@@ -144,6 +148,20 @@ function SettingsPage() {
 
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? "保存中..." : "保存"}
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={async () => {
+            await queryClient.cancelQueries();
+            queryClient.clear();
+            await supabase.auth.signOut();
+            await router.invalidate();
+            navigate({ to: "/auth", replace: true });
+          }}
+        >
+          <LogOut className="mr-2 h-4 w-4" /> サインアウト
         </Button>
       </div>
     </AppShell>

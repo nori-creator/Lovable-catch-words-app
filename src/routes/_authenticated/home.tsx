@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { useEffect, useMemo } from "react";
+import { BookText } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -15,6 +16,10 @@ export const Route = createFileRoute("/_authenticated/home")({
   }),
   component: HomePage,
 });
+
+function dayKey(d: Date) {
+  return d.toLocaleDateString("en-CA"); // YYYY-MM-DD local
+}
 
 function HomePage() {
   const navigate = useNavigate();
@@ -31,30 +36,24 @@ function HomePage() {
   }, [profile, navigate]);
 
   const today = new Date();
-  const todayKey = today.toDateString();
-  const todayStickers = (stickers ?? []).filter(
-    (s) => new Date(s.created_at).toDateString() === todayKey,
-  );
+  const todayKey = dayKey(today);
 
-  const dateLabel = today.toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const weekday = today.toLocaleDateString("en-US", { weekday: "long" });
+  const grouped = useMemo(() => {
+    const map = new Map<string, StickerWithWord[]>();
+    for (const s of stickers ?? []) {
+      const k = dayKey(new Date(s.created_at));
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [stickers]);
+
+  const todayStickers = grouped.find(([k]) => k === todayKey)?.[1] ?? [];
+  const pastDays = grouped.filter(([k]) => k !== todayKey);
 
   return (
     <AppShell>
-      <section className="mb-6 text-center">
-        <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
-          Today&rsquo;s Scrapbook
-        </p>
-        <h1 className="mt-2 font-serif text-3xl italic tracking-tight">{dateLabel}</h1>
-        <p className="mt-0.5 text-xs uppercase tracking-[0.25em] text-muted-foreground">
-          {weekday}
-        </p>
-        <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
-      </section>
+      <DayHeader date={today} label="Today's Scrapbook" />
 
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
@@ -69,14 +68,63 @@ function HomePage() {
           </Link>
         </div>
       ) : (
-        <ScrapbookAlbum stickers={todayStickers} />
+        <>
+          <ScrapbookAlbum stickers={todayStickers} />
+          <div className="mt-4 text-center">
+            <Link
+              to="/journal"
+              className="lift inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
+            >
+              <BookText className="h-4 w-4 text-primary" />
+              今日の日記を書く
+            </Link>
+          </div>
+        </>
+      )}
+
+      {pastDays.length > 0 && (
+        <section className="mt-12 space-y-10">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Past Pages</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          {pastDays.map(([k, items]) => (
+            <div key={k}>
+              <DayHeader date={new Date(k)} compact />
+              <ScrapbookAlbum stickers={items} />
+            </div>
+          ))}
+        </section>
       )}
     </AppShell>
   );
 }
 
+function DayHeader({ date, label, compact }: { date: Date; label?: string; compact?: boolean }) {
+  const dateLabel = date.toLocaleDateString("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  return (
+    <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
+      {label && (
+        <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
+      )}
+      <h1 className={`${compact ? "mt-1 text-xl" : "mt-2 text-3xl"} font-serif italic tracking-tight`}>
+        {dateLabel}
+      </h1>
+      <p className={`${compact ? "" : "mt-0.5"} text-xs uppercase tracking-[0.25em] text-muted-foreground`}>
+        {weekday}
+      </p>
+      <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
+    </section>
+  );
+}
+
 function ScrapbookAlbum({ stickers }: { stickers: StickerWithWord[] }) {
-  // Deterministic but varied layout — tilt, tape color, aspect.
   const rotations = [-6, 4, -3, 7, -5, 2, -8, 5, -2, 6];
   const aspects = ["aspect-square", "aspect-[4/5]", "aspect-[5/4]", "aspect-square", "aspect-[3/4]"];
   const tapes = ["bg-amber-200/80", "bg-rose-200/80", "bg-sky-200/80", "bg-emerald-200/80"];
@@ -148,7 +196,7 @@ function ScrapbookAlbum({ stickers }: { stickers: StickerWithWord[] }) {
 
       <div className="mt-2 text-right">
         <span className="font-serif text-xs italic text-amber-900/60">
-          — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught today
+          — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>
       </div>
     </div>
