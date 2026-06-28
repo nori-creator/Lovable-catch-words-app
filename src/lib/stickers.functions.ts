@@ -2,6 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+export type WordExtrasDTO = {
+  collocations: string[];
+  synonyms: string[];
+  antonyms: string[];
+  etymology: string;
+  radicals: string;
+  mnemonic: string;
+  trivia: string;
+  common_situation: string;
+  usage_note: string;
+  examples_extra: { zh: string; ja: string }[];
+};
+
 export type StickerWithWord = {
   id: string;
   word_id: string;
@@ -19,13 +32,40 @@ export type StickerWithWord = {
     reading_zhuyin: string | null;
     pinyin: string | null;
     meaning_ja: string;
+    part_of_speech: string | null;
     example_sentence: string | null;
     example_translation: string | null;
     level: string | null;
     category_key: string | null;
     silhouette_emoji: string | null;
+    extras: WordExtrasDTO | null;
   };
 };
+
+function normalizeExtras(raw: unknown): WordExtrasDTO | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const arrStr = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  const str = (v: unknown): string => typeof v === "string" ? v : "";
+  const exExtra = Array.isArray(r.examples_extra)
+    ? r.examples_extra
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ zh: str(x.zh), ja: str(x.ja) }))
+        .filter((x) => x.zh || x.ja)
+    : [];
+  return {
+    collocations: arrStr(r.collocations),
+    synonyms: arrStr(r.synonyms),
+    antonyms: arrStr(r.antonyms),
+    etymology: str(r.etymology),
+    radicals: str(r.radicals),
+    mnemonic: str(r.mnemonic),
+    trivia: str(r.trivia),
+    common_situation: str(r.common_situation),
+    usage_note: str(r.usage_note),
+    examples_extra: exExtra,
+  };
+}
 
 async function signUrls(
   supabase: { storage: { from: (b: string) => { createSignedUrl: (p: string, e: number) => Promise<{ data: { signedUrl: string } | null }> } } },
@@ -50,7 +90,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("stickers")
       .select(
-        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, level, category_key, silhouette_emoji)"
+        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
@@ -63,8 +103,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
         row.cutout_image_url,
         row.selfie_image_url,
       ]);
-      const w = (row as unknown as { words: StickerWithWord["word"] | null }).words;
-      if (!w) continue;
+      const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
+      if (!wRaw) continue;
       result.push({
         id: row.id,
         word_id: row.word_id,
@@ -77,7 +117,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
         object_url,
         cutout_url,
         selfie_url,
-        word: w,
+        word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
     return result;
@@ -91,7 +131,7 @@ export const getSticker = createServerFn({ method: "GET" })
     const { data: row, error } = await supabase
       .from("stickers")
       .select(
-        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, level, category_key, silhouette_emoji)"
+        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
       )
       .eq("id", data.id)
       .eq("user_id", userId)
@@ -103,8 +143,8 @@ export const getSticker = createServerFn({ method: "GET" })
       row.cutout_image_url,
       row.selfie_image_url,
     ]);
-    const w = (row as unknown as { words: StickerWithWord["word"] | null }).words;
-    if (!w) return null;
+    const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
+    if (!wRaw) return null;
     const res: StickerWithWord = {
       id: row.id,
       word_id: row.word_id,
@@ -117,7 +157,7 @@ export const getSticker = createServerFn({ method: "GET" })
       object_url,
       cutout_url,
       selfie_url,
-      word: w,
+      word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
     };
     return res;
   });
@@ -133,6 +173,18 @@ const SaveStickerInput = z.object({
     category_key: z.string().min(1),
     example_sentence: z.string().optional().default(""),
     example_translation: z.string().optional().default(""),
+    extras: z.object({
+      collocations: z.array(z.string()).default([]),
+      synonyms: z.array(z.string()).default([]),
+      antonyms: z.array(z.string()).default([]),
+      etymology: z.string().default(""),
+      radicals: z.string().default(""),
+      mnemonic: z.string().default(""),
+      trivia: z.string().default(""),
+      common_situation: z.string().default(""),
+      usage_note: z.string().default(""),
+      examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
+    }).optional(),
   }),
   language: z.string().default("zh-TW"),
   object_path: z.string().nullable().optional(),
@@ -183,12 +235,19 @@ export const saveSticker = createServerFn({ method: "POST" })
           category_key: categoryKey,
           example_sentence: data.word.example_sentence || null,
           example_translation: data.word.example_translation || null,
+          extras: (data.word.extras ?? {}) as never,
           source: "ai",
         })
         .select("id")
         .single();
       if (insErr) throw new Error(insErr.message);
       wordId = ins.id;
+    } else if (data.word.extras) {
+      // Update extras for existing word if AI generated new ones
+      await supabase
+        .from("words")
+        .update({ extras: data.word.extras as never })
+        .eq("id", wordId);
     }
 
 

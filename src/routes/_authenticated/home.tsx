@@ -4,8 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { useEffect, useMemo } from "react";
-import { BookText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookText, Image as ImageIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -21,6 +21,15 @@ function dayKey(d: Date) {
   return d.toLocaleDateString("en-CA"); // YYYY-MM-DD local
 }
 
+const BG_OPTIONS = [
+  { id: "paper", label: "紙", className: "album-bg-paper" },
+  { id: "frame", label: "額", className: "album-bg-frame" },
+  { id: "notebook", label: "ノート", className: "album-bg-notebook" },
+  { id: "cork", label: "コルク", className: "album-bg-cork" },
+] as const;
+
+type BgId = typeof BG_OPTIONS[number]["id"];
+
 function HomePage() {
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
@@ -30,6 +39,15 @@ function HomePage() {
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
   });
+
+  const [bg, setBg] = useState<BgId>("paper");
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("album-bg") : null;
+    if (saved && BG_OPTIONS.some((o) => o.id === saved)) setBg(saved as BgId);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("album-bg", bg);
+  }, [bg]);
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
@@ -50,10 +68,13 @@ function HomePage() {
 
   const todayStickers = grouped.find(([k]) => k === todayKey)?.[1] ?? [];
   const pastDays = grouped.filter(([k]) => k !== todayKey);
+  const bgClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
 
   return (
     <AppShell>
       <DayHeader date={today} label="Today's Scrapbook" />
+
+      <BackgroundPicker current={bg} onChange={setBg} />
 
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
@@ -69,7 +90,7 @@ function HomePage() {
         </div>
       ) : (
         <>
-          <ScrapbookAlbum stickers={todayStickers} />
+          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} />
           <div className="mt-4 text-center">
             <Link
               to="/journal"
@@ -92,12 +113,30 @@ function HomePage() {
           {pastDays.map(([k, items]) => (
             <div key={k}>
               <DayHeader date={new Date(k)} compact />
-              <ScrapbookAlbum stickers={items} />
+              <ScrapbookAlbum stickers={items} bgClass={bgClass} />
             </div>
           ))}
         </section>
       )}
     </AppShell>
+  );
+}
+
+function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: BgId) => void }) {
+  return (
+    <div className="mb-3 flex items-center justify-end gap-1">
+      <ImageIcon className="mr-1 h-3 w-3 text-muted-foreground" />
+      {BG_OPTIONS.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          aria-label={`背景: ${o.label}`}
+          className={`lift-soft h-7 w-7 overflow-hidden rounded-full border ${current === o.id ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
+        >
+          <span className={`block h-full w-full ${o.className}`} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -124,7 +163,7 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
   );
 }
 
-function ScrapbookAlbum({ stickers }: { stickers: StickerWithWord[] }) {
+function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bgClass: string }) {
   const rotations = [-6, 4, -3, 7, -5, 2, -8, 5, -2, 6];
   const aspects = ["aspect-square", "aspect-[4/5]", "aspect-[5/4]", "aspect-square", "aspect-[3/4]"];
   const tapes = ["bg-amber-200/80", "bg-rose-200/80", "bg-sky-200/80", "bg-emerald-200/80"];
@@ -142,56 +181,54 @@ function ScrapbookAlbum({ stickers }: { stickers: StickerWithWord[] }) {
   );
 
   return (
-    <div
-      className="relative rounded-3xl border border-amber-900/10 p-3 shadow-inner sm:p-5"
-      style={{
-        background:
-          "radial-gradient(circle at 20% 20%, #fff8eb 0%, #f5ecd6 60%, #e9dcb9 100%)",
-      }}
-    >
-      <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-30 mix-blend-multiply"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg, transparent 0 23px, rgba(180,140,60,0.06) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(180,140,60,0.04) 23px 24px)",
-        }} />
-
+    <div className={`relative rounded-3xl border border-amber-900/10 p-3 shadow-inner sm:p-5 ${bgClass}`}>
       <div className="columns-2 gap-3 sm:columns-3 sm:gap-4">
-        {items.map(({ sticker: s, rot, aspect, tape, accent }) => (
-          <Link
-            key={s.id}
-            to="/dex/$stickerId"
-            params={{ stickerId: s.id }}
-            className="lift relative mb-3 block break-inside-avoid sm:mb-4"
-            style={{ transform: `rotate(${rot}deg)` }}
-          >
-            <div className="relative rounded-md bg-white p-2 pb-7 shadow-[0_4px_14px_-4px_rgba(0,0,0,0.25)] ring-1 ring-black/5">
-              <span
-                className={`absolute -top-2 left-1/2 h-3 w-12 -translate-x-1/2 rotate-[-3deg] rounded-sm ${tape} shadow-sm`}
-              />
-              <div
-                className={`relative ${aspect} grid w-full place-items-center overflow-hidden rounded-sm bg-[#fafaf5]`}
-              >
-                {s.cutout_url ? (
-                  <img
-                    src={s.cutout_url}
-                    alt={`「${s.word.headword}」のステッカー`}
-                    className="h-full w-full object-contain p-2"
-                  />
-                ) : (
-                  <span className="text-4xl">{s.word.silhouette_emoji ?? "📦"}</span>
-                )}
+        {items.map(({ sticker: s, rot, aspect, tape, accent }) => {
+          // Default to the selfie photo (the "memory"); fall back to object then cutout.
+          const mainImg = s.selfie_url ?? s.object_url ?? s.cutout_url;
+          return (
+            <Link
+              key={s.id}
+              to="/dex/$stickerId"
+              params={{ stickerId: s.id }}
+              className="lift relative mb-3 block break-inside-avoid sm:mb-4"
+              style={{ transform: `rotate(${rot}deg)` }}
+            >
+              <div className="relative rounded-md bg-white p-2 pb-7 shadow-[0_4px_14px_-4px_rgba(0,0,0,0.25)] ring-1 ring-black/5">
+                <span
+                  className={`absolute -top-2 left-1/2 h-3 w-12 -translate-x-1/2 rotate-[-3deg] rounded-sm ${tape} shadow-sm`}
+                />
+                <div className={`relative ${aspect} grid w-full place-items-center overflow-hidden rounded-sm bg-[#fafaf5]`}>
+                  {mainImg ? (
+                    <img
+                      src={mainImg}
+                      alt={`「${s.word.headword}」の思い出の一枚`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-4xl">{s.word.silhouette_emoji ?? "📦"}</span>
+                  )}
+                  {s.cutout_url && (
+                    <img
+                      src={s.cutout_url}
+                      alt=""
+                      aria-hidden
+                      className="pointer-events-none absolute -right-1 -bottom-1 h-1/2 w-1/2 object-contain drop-shadow-md"
+                    />
+                  )}
+                </div>
+                <div className="mt-1 text-center font-serif text-sm leading-tight">
+                  <div className="font-semibold tracking-tight">{s.word.headword}</div>
+                  {accent && s.word.meaning_ja && (
+                    <div className="truncate text-[10px] italic text-muted-foreground">
+                      {s.word.meaning_ja}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="mt-1 text-center font-serif text-sm leading-tight">
-                <div className="font-semibold tracking-tight">{s.word.headword}</div>
-                {accent && s.word.meaning_ja && (
-                  <div className="truncate text-[10px] italic text-muted-foreground">
-                    {s.word.meaning_ja}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="mt-2 text-right">

@@ -210,3 +210,39 @@
   100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 0%, transparent); }
 }
 .pulse-ring { animation: pulse-ring 1.4s ease-out infinite; }
+
+/* Hero image expand: image grows from small to large with a soft bounce */
+@keyframes hero-pop {
+  0% { transform: scale(0.55); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.hero-pop { animation: hero-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Scrapbook background presets — selectable per user */
+.album-bg-paper {
+  background:
+    radial-gradient(circle at 20% 20%, #fff8eb 0%, #f5ecd6 60%, #e9dcb9 100%);
+}
+.album-bg-frame {
+  background:
+    linear-gradient(135deg, #f3e8d4 0%, #e7d4b1 100%);
+  box-shadow: inset 0 0 0 10px #b88a4d, inset 0 0 0 14px #f5ecd6, inset 0 0 0 24px #a06a2c;
+}
+.album-bg-notebook {
+  background-color: #fdfbf3;
+  background-image:
+    linear-gradient(#dbe7f1 1px, transparent 1px),
+    linear-gradient(90deg, #f3c6c6 1px, transparent 1px);
+  background-size: 100% 28px, 60px 100%;
+  background-position: 0 0, 56px 0;
+}
+.album-bg-cork {
+  background-color: #c89a5b;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(0,0,0,0.18) 1px, transparent 2px),
+    radial-gradient(circle at 80% 60%, rgba(255,255,255,0.18) 1px, transparent 2px),
+    radial-gradient(circle at 40% 80%, rgba(0,0,0,0.12) 1px, transparent 2px);
+  background-size: 18px 18px, 22px 22px, 26px 26px;
+}
+

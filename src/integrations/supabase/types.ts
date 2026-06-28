@@ -320,6 +320,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          album_bg: string
           avatar_url: string | null
           created_at: string
           display_name: string | null
@@ -333,6 +334,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          album_bg?: string
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -346,6 +348,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          album_bg?: string
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -539,6 +542,7 @@ export type Database = {
           created_by: string | null
           example_sentence: string | null
           example_translation: string | null
+          extras: Json
           headword: string
           id: string
           language: string
@@ -556,6 +560,7 @@ export type Database = {
           created_by?: string | null
           example_sentence?: string | null
           example_translation?: string | null
+          extras?: Json
           headword: string
           id?: string
           language?: string
@@ -573,6 +578,7 @@ export type Database = {
           created_by?: string | null
           example_sentence?: string | null
           example_translation?: string | null
+          extras?: Json
           headword?: string
           id?: string
           language?: string
