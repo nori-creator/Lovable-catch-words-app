@@ -1,88 +1,102 @@
-今のアプリはほとんど完成しています。ローンチまでに、あなたが（または私が代理で）行うべきことを、小学生でもわかる順番で並べました。
+# 語彙収集アプリへのピボット
 
-## 0. まず知っておくこと
+## ゴール
+インスタ的な機能をUIから外し、「撮る・入力する → 意味と発音がわかる → 楽しく集まる → 文脈で覚える → SRSで忘れない」のループに集中。
 
-- ** Catchwords** はすでに作られています。写真を撮って単語帳（ステッカー）を作り、復習したり友達とシェアしたりできるアプリです。
-- **Googleログイン** はLovableが自動で管理しているので、特別な設定は不要です。
-- **メールアドレスで登録** もできますが、今は「パスワードを忘れた時の再設定画面」がありません。これは公開前に作る必要があります。
+---
 
-## 1. まず私にやらせること（ボタン1つでOK）
+## Phase 1: インスタ機能をUIから隠す（DBは温存）
 
-あなたが「お願い」と言えば、私が以下を自動で追加・修正します。
+ナビゲーションとルートから以下を非表示／無効化。ファイルとDBテーブルは残す。
 
-### 1.1 パスワードリセット画面を作る
-- `/reset-password` という画面を追加します。
-- メールで届いたリンクをクリックした人が、新しいパスワードを入力できる画面です。
-- これがないと、友達が「パスワード忘れた」ときに助けられません。
+- 非表示: `feed`, `post.$postId`, `u.$userId`, `discover`, `notifications`（後で復習リマインド土台として再利用）
+- `AppShell` のボトムナビ刷新: **ホーム / 撮る・入力 / 図鑑 / 復習 / マップ**
+- `home` から「フィード」「ランキング」セクションを削除し、今日のクエスト・連続記録・新着収集をメインに
 
-### 1.2 セキュリティスキャンを最新にする
-- 今のスキャン結果は少し古い（up_to_date: false）です。
-- 最新のチェックを実行して、問題があれば直します。
+---
 
-### 1.3 SEOの残り1件を対応する（任意）
-- 「台湾華語と中国語の違い」ガイド記事の提案があります。
-- これは必須ではありませんが、Googleから友達が見つけやすくなります。
+## Phase 2: テキスト入力による収集経路（新規）
 
-## 2. あなたがやること（本当に簡単）
+`capture.tsx` に「📷 写真 / ⌨️ 単語入力」のタブを追加。
 
-### 2.1 アプリを公開する
-画面右上（または下）の **「Publish」ボタン** を押すだけです。
+### 単語入力フロー
+1. ユーザーが単語を入力（例: 「咖啡」または日本語「コーヒー」）
+2. AIで `headword / 注音 / 拼音 / 意味 / 例文` を生成（既存 `generateCard` を再利用）
+3. **画像候補を生成**（後述）→ 3〜4枚から選ぶ
+4. または **自分でアップロード** ボタンで端末から選択
+5. 確定 → `saveSticker` で登録（自撮り・位置はオプション）
 
-押すと、URLがもらえます。例：`https://word-snap-journey.lovable.app`
+### 画像候補の取得方針
+- **Unsplash API** を採用。ユーザーから Access Key を `secrets--add_secret` で受け取り、`UNSPLASH_ACCESS_KEY` として保存
+- 新規 server fn `searchUnsplashImages({ query })` → 4件の `regular` URL を返却
+- 候補ゼロ件 or 失敗時のフォールバック: Lovable AI `google/gemini-3.1-flash-image` で1枚生成
+- 選択後、画像URLを `fetch` してBlob化 → `stickers` バケットに保存し既存 `object_image_url` に格納（既存表示ロジックを再利用）
 
-初回公開時だけ、以下を確認します。
-- アプリ名：Catchwords
-- 説明文：撮って、切り抜いて、覚える。街で出会った言葉をステッカーに変えて自分だけの図鑑を作るSNS型言語学習アプリ。
-- これらはすでに設定済みなので、特に変える必要はありません。
+---
 
-### 2.2 自分のAndroidでホーム画面に追加する
-1. 公開したURLを **AndroidのChrome** で開きます。
-2. 画面下や右上に出る **「ホーム画面に追加」** をタップします。
-3. アイコンが追加されたら、まるで普通のアプリのように開けます。
+## Phase 3: 発音TTS（台湾華語音声）
 
-### 2.3 実際に動くかテストする
-自分で1回、以下の流れを試してください。
+- 新規ルート `src/routes/api/tts.ts`（SSE ストリーミング、`openai/gpt-4o-mini-tts`）
+- `PronunciationPanel` に🔊ボタン追加。`headword` と `example_sentence` を別ボタンで再生
+- 同じテキストはクライアントでキャッシュ（`Map<text, AudioBuffer>`）してクレジット節約
+- 図鑑詳細・復習カード・収集確定モーダルから利用可能に
 
-1. **新規登録** → メール or Googleでアカウントを作る
-2. **写真を撮る** → カメラで何かの文字を撮影
-3. **ステッカーができる** → 切り抜かれた言葉が図鑑に入る
-4. **復習する** → 復習画面でクイズを解く
-5. **友達にシェア** → 投稿して、リンクを送る
+---
 
-## 3. 友達に使ってもらう方法
+## Phase 4: 忘却曲線の可視化
 
-### 方法A：URLを送る（一番簡単）
-LINEやメールで公開URLを送ります。
-「このURLを開いて、ホーム画面に追加してね」と伝えます。
+`review.tsx` 上部と `dex.$stickerId` に「記憶度グラフ」を追加。
 
-### 方法B：QRコードを使う（オススメ）
-1. 公開URLを開きます。
-2. ブラウザの「共有」ボタンを押します。
-3. QRコードを作成して、友達に見せるか送ります。
-
-## 4. 公開後に気をつけること
-
-### 4.1 メール確認が届かない場合
-- ゴミ箱や迷惑メールフォルダを確認してもらいます。
-- それでも届かない場合は、Lovable Cloudの設定でメールドメインを追加する必要があります。
-
-### 4.2 有料プランについて（任意）
-- 今は無料のLovable URLで十分です。
-- 自分のドメイン（例：`catchwords.jp`）を使いたい場合は、有料プランが必要です。
-
-## 5. 実行順番のまとめ
-
+### 計算方法（SM-2の値から推定）
+各レビュー時点の retention を Ebbinghaus 風に推定:
 ```
-① 私に「パスワードリセット画面とセキュリティスキャンをお願い」と言う
-② 右上の「Publish」ボタンを押す
-③ AndroidでURLを開いて「ホーム画面に追加」
-④ 自分で登録→撮影→復習→シェアを1回試す
-⑤ 友達にURLまたはQRコードを送す
+R(t) = exp(-t / S)
+S ≒ interval_days × ease  （安定性の近似）
 ```
 
-## 質問
+### 表示
+- **全体ビュー（review画面）**: 全カードの平均記憶率を折れ線で14日分。「今日学べば◯%回復」のヒントを併記
+- **単語別ビュー（dex詳細）**: その単語の過去レビュー履歴をドットで、推定 retention カーブを線で重ねる。次回の due_at を縦線で表示
+- ライブラリは `recharts`（既にshadcn `chart.tsx` あり）
 
-次に進むには、以下のどちらかを教えてください。
+### データソース
+- 既存 `reviews` テーブルの `ease, interval_days, repetitions, last_reviewed_at, last_score, due_at` から計算
+- より精密にするため新テーブル `review_history` を追加: `review_id, reviewed_at, score, interval_days_after, ease_after`
+- `gradeReview` で `review_history` にも INSERT
 
-- **「お願い」** → パスワードリセット画面作成＋セキュリティスキャン実行＋公開まで私が一気に進めます。
-- **「自分でPublishしたい」** → 今すぐPublishボタンの押し方を詳しく説明します。
+---
+
+## Phase 5: 報酬感UIの強化（小タスク）
+
+- 収集成功時のシルエット→カラー化に「キラッ」エフェクト（CSS gradient sweep + 軽いhaptic `navigator.vibrate`）
+- レアリティバッジ（カテゴリ初収集=⭐SR、3件目以降=N など簡易ルール）
+- カテゴリ別コンプリ率を図鑑トップにバー表示
+
+---
+
+## 段階リリース
+
+ユーザーの希望どおり段階実装。今回のターンでは **Phase 1 + Phase 2 + Phase 4 の忘却曲線グラフ** をまず実装。Phase 3（TTS）と Phase 5 は次ターン以降。
+
+---
+
+## 技術詳細セクション
+
+### 変更ファイル
+- 編集: `src/components/AppShell.tsx`, `src/routes/_authenticated/home.tsx`, `src/routes/_authenticated/capture.tsx`, `src/routes/_authenticated/review.tsx`, `src/routes/_authenticated/dex.$stickerId.tsx`, `src/lib/reviews.functions.ts`, `src/lib/stickers.functions.ts`
+- 新規: `src/lib/images.functions.ts`（Unsplash検索 + 画像取得→Storage保存）, `src/components/ForgettingCurveChart.tsx`, `src/components/ImagePicker.tsx`
+- 削除しない: `feed`, `post.*`, `u.userId`, `discover`, `notifications`, `social.functions.ts`（ルート登録はそのまま、ナビからのリンクのみ除去）
+
+### DBマイグレーション
+- `CREATE TABLE public.review_history(...)` + GRANT + RLS（ユーザー自身のみ select/insert）
+- `gradeReview` 内で INSERT を追加
+
+### シークレット
+- `UNSPLASH_ACCESS_KEY` を `add_secret` で要求（実装ターンで提示）
+
+### 互換性
+- 既存の `stickers / words / reviews` スキーマはそのまま。テキスト入力経路でも同じ `saveSticker` を通すので図鑑・SRS・マップは無修正で動作
+
+---
+
+このプランで進めてOKであれば、Phase 1+2+4 を1ターンで実装します。

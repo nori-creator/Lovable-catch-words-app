@@ -351,6 +351,66 @@ export type Database = {
         }
         Relationships: []
       }
+      review_history: {
+        Row: {
+          blur_seen: boolean
+          correct: boolean
+          ease_after: number
+          id: string
+          interval_days_after: number
+          repetitions_after: number
+          response_ms: number
+          review_id: string
+          reviewed_at: string
+          score: number
+          sticker_id: string
+          user_id: string
+        }
+        Insert: {
+          blur_seen?: boolean
+          correct: boolean
+          ease_after: number
+          id?: string
+          interval_days_after: number
+          repetitions_after: number
+          response_ms?: number
+          review_id: string
+          reviewed_at?: string
+          score: number
+          sticker_id: string
+          user_id: string
+        }
+        Update: {
+          blur_seen?: boolean
+          correct?: boolean
+          ease_after?: number
+          id?: string
+          interval_days_after?: number
+          repetitions_after?: number
+          response_ms?: number
+          review_id?: string
+          reviewed_at?: string
+          score?: number
+          sticker_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_history_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_history_sticker_id_fkey"
+            columns: ["sticker_id"]
+            isOneToOne: false
+            referencedRelation: "stickers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           blur_seen: boolean
