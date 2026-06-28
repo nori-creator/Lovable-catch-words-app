@@ -3,14 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { listMyStickers } from "@/lib/stickers.functions";
-import { listSeedWordsWithStatus } from "@/lib/words.functions";
 import { useMemo } from "react";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   head: () => ({
     meta: [
       { title: "図鑑 — Catchwords" },
-      { name: "description", content: "あなたが街でキャッチしたステッカーをジャンル別に。未取得のものはシルエットで現れます。" },
+      {
+        name: "description",
+        content:
+          "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。",
+      },
     ],
   }),
   component: DexPage,
@@ -18,77 +21,55 @@ export const Route = createFileRoute("/_authenticated/dex")({
 
 function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
-  const fetchSeed = useServerFn(listSeedWordsWithStatus);
-  const { data: stickers } = useQuery({ queryKey: ["stickers"], queryFn: () => fetchStickers() });
-  const { data: seed } = useQuery({ queryKey: ["seedWords"], queryFn: () => fetchSeed() });
-
+  const { data: stickers } = useQuery({
+    queryKey: ["stickers"],
+    queryFn: () => fetchStickers(),
+  });
   const captured = stickers ?? [];
-  const seedWords = seed?.words ?? [];
-  const categories = seed?.categories ?? [];
 
-  // Group captured by category, fallback to seed word's category
-  const byCategory = useMemo(() => {
-    const map = new Map<string, { captured: typeof captured; missing: typeof seedWords }>();
-    for (const c of categories) map.set(c.key, { captured: [], missing: [] });
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof captured>();
     for (const s of captured) {
-      const k = s.word.category_key ?? "other";
-      if (!map.has(k)) map.set(k, { captured: [], missing: [] });
-      map.get(k)!.captured.push(s);
+      const k = (s.word.category_key ?? "その他").toString();
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
     }
-    const capturedWordIds = new Set(captured.map((s) => s.word_id));
-    for (const w of seedWords) {
-      if (capturedWordIds.has(w.id)) continue;
-      const k = w.category_key ?? "other";
-      if (!map.has(k)) map.set(k, { captured: [], missing: [] });
-      map.get(k)!.missing.push(w);
-    }
-    return map;
-  }, [captured, seedWords, categories]);
-
-  const totalSeed = seedWords.length;
-  const totalCaughtSeed = seedWords.filter((w) => w.captured).length;
-  const pct = totalSeed > 0 ? Math.round((totalCaughtSeed / totalSeed) * 100) : 0;
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [captured]);
 
   return (
     <AppShell title="図鑑">
       <section className="mb-4 rounded-2xl border border-border bg-card p-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-base font-semibold tracking-tight">TOCFL Level 1–2</h2>
+          <h2 className="text-base font-semibold tracking-tight">あなたの図鑑</h2>
           <span className="text-sm text-muted-foreground">
-            {totalCaughtSeed} / {totalSeed}
+            {captured.length} 種類
           </span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
         </div>
       </section>
 
-      {categories.map((cat) => {
-        const bucket = byCategory.get(cat.key);
-        if (!bucket) return null;
-        const total = bucket.captured.length + bucket.missing.length;
-        if (total === 0) return null;
-        const complete = bucket.missing.length === 0 && bucket.captured.length > 0;
-        const catPct = Math.round((bucket.captured.length / total) * 100);
-        return (
-          <section key={cat.key} className="mb-6">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight">
-                <span>{cat.icon_emoji}</span>
-                {cat.label_ja}
-                {complete && (
-                  <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow animate-fade-in">
-                    ★ COMPLETE
-                  </span>
-                )}
-              </h3>
-              <span className="text-xs text-muted-foreground">
-                {bucket.captured.length} / {total} · {catPct}%
-              </span>
+      {captured.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            まだ何もキャッチしていません。
+          </p>
+          <Link
+            to="/capture"
+            className="lift mt-3 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+          >
+            最初の一枚を撮る
+          </Link>
+        </div>
+      ) : (
+        groups.map(([key, items]) => (
+          <section key={key} className="mb-6">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h3 className="text-base font-semibold tracking-tight">{prettifyCategory(key)}</h3>
+              <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
             <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-secondary/40 p-4 shadow-sm">
               <div className="grid grid-cols-4 gap-3">
-                {bucket.captured.map((s) => (
+                {items.map((s) => (
                   <Link
                     key={s.id}
                     to="/dex/$stickerId"
@@ -97,27 +78,42 @@ function DexPage() {
                   >
                     <div className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white shadow transition-transform group-active:scale-95">
                       {s.cutout_url ? (
-                        <img src={s.cutout_url} alt={`「${s.word.headword}」のステッカー`} className="h-full w-full object-contain p-2 pop-in" />
+                        <img
+                          src={s.cutout_url}
+                          alt={`「${s.word.headword}」のステッカー`}
+                          className="h-full w-full object-contain p-2 pop-in"
+                        />
                       ) : (
                         <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
                       )}
                     </div>
-                    <div className="mt-1 text-center text-[11px] font-medium">{s.word.headword}</div>
-                  </Link>
-                ))}
-                {bucket.missing.map((w) => (
-                  <div key={w.id} className="flex flex-col items-center">
-                    <div className="grid aspect-square w-full place-items-center rounded-2xl border border-dashed border-border bg-secondary/40 text-3xl opacity-40 grayscale">
-                      {w.silhouette_emoji ?? "❓"}
+                    <div className="mt-1 text-center text-[11px] font-medium">
+                      {s.word.headword}
                     </div>
-                    <div className="mt-1 text-center text-[11px] text-muted-foreground">{w.headword}</div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
           </section>
-        );
-      })}
+        ))
+      )}
     </AppShell>
   );
+}
+
+function prettifyCategory(key: string): string {
+  const map: Record<string, string> = {
+    food: "🍜 食べ物",
+    drink: "🥤 飲み物",
+    animal: "🐾 動物",
+    plant: "🌱 植物",
+    place: "📍 場所",
+    object: "📦 もの",
+    transport: "🚆 乗り物",
+    sign: "🪧 看板・表示",
+    nature: "🌿 自然",
+    clothes: "👕 服飾",
+    other: "✨ その他",
+  };
+  return map[key] ?? `✨ ${key}`;
 }

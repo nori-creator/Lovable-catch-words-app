@@ -127,7 +127,7 @@ function StickerDetailPage() {
             </p>
           </section>
 
-          <section className="mt-5 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
+          <section className="mt-5 space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
             {s.caption && <p>「{s.caption}」</p>}
             {s.location_name && (
               <p className="flex items-center gap-1 text-muted-foreground">
@@ -137,6 +137,16 @@ function StickerDetailPage() {
             <p className="text-xs text-muted-foreground">
               {new Date(s.created_at).toLocaleString("ja-JP")}
             </p>
+            {s.lat != null && s.lng != null && (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <iframe
+                  title="撮影場所のマップ"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
+                  className="h-48 w-full"
+                  loading="lazy"
+                />
+              </div>
+            )}
           </section>
         </>
       )}
