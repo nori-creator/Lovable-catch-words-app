@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
 import { geocodeLocation } from "@/lib/geocode.functions";
 import { saveSticker } from "@/lib/stickers.functions";
+import { WordCard } from "@/components/WordCard";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   head: () => ({
@@ -489,52 +490,46 @@ function CapturePage() {
 
       {step === "card" && card && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">カード確認</h2>
-          <p className="text-sm text-muted-foreground">タップして裏返せます。</p>
-
-          <div className="perspective-[1200px]">
+          <div
+            className="perspective-[1200px]"
+            onClick={() => setFlipped((f) => !f)}
+          >
             <div
-              className={`card-flip relative mx-auto aspect-[3/4] w-full max-w-xs cursor-pointer ${flipped ? "flipped" : ""}`}
-              onClick={() => setFlipped((f) => !f)}
+              className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
             >
-              <div className="card-face absolute inset-0 rounded-3xl border border-border bg-card shadow-xl">
+              <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
                 <div className="grid h-full place-items-center p-6">
-                  {cutoutImg && <img src={cutoutImg} alt={selectedHead} className="max-h-full max-w-full object-contain pop-in" />}
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
-                  <div className="text-3xl font-bold tracking-tight">{selectedHead}</div>
-                  <div className="text-sm text-muted-foreground">{card.reading_zhuyin}</div>
+                  {cutoutImg ? (
+                    <img src={cutoutImg} alt={selectedHead} className="max-h-full max-w-full object-contain pop-in" />
+                  ) : objectImg ? (
+                    <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
+                  ) : null}
                 </div>
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-                <div className="flex h-full flex-col">
-                  <div className="relative aspect-square w-full bg-secondary">
-                    {selfieImg ? (
-                      <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
-                    ) : objectImg ? (
-                      <img src={objectImg} alt="object" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="grid h-full place-items-center text-sm text-muted-foreground">写真なし</div>
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-2 p-4 text-left">
-                    <div className="flex items-baseline justify-between">
-                      <div className="text-xl font-semibold">{selectedHead}</div>
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px]">{card.level}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{card.reading_zhuyin} · {card.pinyin}</div>
-                    <div className="text-sm">{card.meaning_ja}</div>
-                    {card.example_sentence && (
-                      <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-xs">
-                        <div>{card.example_sentence}</div>
-                        <div className="mt-0.5 text-muted-foreground">{card.example_translation}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {selfieImg ? (
+                  <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
+                )}
               </div>
             </div>
           </div>
+          <p className="text-center text-[11px] text-muted-foreground">画像をタップで自撮りにフリップ</p>
+
+          <WordCard
+            word={{
+              headword: selectedHead,
+              reading_zhuyin: card.reading_zhuyin,
+              pinyin: card.pinyin,
+              meaning_ja: card.meaning_ja,
+              part_of_speech: card.part_of_speech,
+              level: card.level,
+              example_sentence: card.example_sentence,
+              example_translation: card.example_translation,
+              extras: card.extras ?? null,
+            }}
+          />
 
           <div>
             <Label htmlFor="caption" className="text-xs text-muted-foreground">一言メモ（任意）</Label>
