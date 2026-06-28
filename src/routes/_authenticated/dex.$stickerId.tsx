@@ -82,6 +82,35 @@ function StickerDetailPage() {
             </div>
           </div>
 
+          {/* When & Where — shown right under the photo, inside the word area */}
+          <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                {new Date(s.created_at).toLocaleString("ja-JP", {
+                  year: "numeric", month: "short", day: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </div>
+              {(s.location_name || (s.lat != null && s.lng != null)) && (
+                <a
+                  href={
+                    s.lat != null && s.lng != null
+                      ? `https://www.google.com/maps?q=${s.lat},${s.lng}`
+                      : `https://www.google.com/maps?q=${encodeURIComponent(s.location_name ?? "")}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  {s.location_name ?? "地図で開く"}
+                </a>
+              )}
+            </div>
+            {s.caption && <p className="mt-2 text-sm">「{s.caption}」</p>}
+          </section>
+
           <WordCard
             word={{
               headword: s.word.headword,
@@ -117,27 +146,27 @@ function StickerDetailPage() {
             />
           </section>
 
-          <section className="mt-5 space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
-            {s.caption && <p>「{s.caption}」</p>}
-            {s.location_name && (
-              <p className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" /> {s.location_name}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {new Date(s.created_at).toLocaleString("ja-JP")}
-            </p>
-            {s.lat != null && s.lng != null && (
-              <div className="overflow-hidden rounded-xl border border-border">
+          {s.lat != null && s.lng != null && (
+            <section className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+              <a
+                href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+              >
                 <iframe
                   title="撮影場所のマップ"
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
-                  className="h-48 w-full"
+                  className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
-              </div>
-            )}
-          </section>
+                <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}</span>
+                  <span className="text-primary">Google マップで開く →</span>
+                </div>
+              </a>
+            </section>
+          )}
         </>
       )}
     </AppShell>
