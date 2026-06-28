@@ -218,7 +218,31 @@ function ReviewPage() {
       ) : null}
     </AppShell>
   );
+
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid } from "recharts";
+
+function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
+  return (
+    <div className="h-32 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <Tooltip
+            formatter={(v: number) => [`${v}%`, "平均記憶率"]}
+            labelFormatter={(l) => (l === 0 ? "今日" : `${l > 0 ? "+" : ""}${l}日`)}
+            contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+          />
+          <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
+          <ReferenceLine y={80} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
+          <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
+
 
 function EmptyState() {
   return (
