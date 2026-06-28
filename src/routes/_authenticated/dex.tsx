@@ -151,11 +151,10 @@ function DexPage() {
               <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-secondary/40 p-3 shadow-sm">
                 <div className="grid grid-cols-2 gap-3">
                   {items.map((s) => (
-                    <Link
+                    <button
                       key={s.id}
-                      to="/dex/$stickerId"
-                      params={{ stickerId: s.id }}
-                      className="group block"
+                      onClick={() => setOpenId(s.id)}
+                      className="group block text-left"
                     >
                       <div className="relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95">
                         {s.cutout_url ? (
@@ -173,7 +172,7 @@ function DexPage() {
                           <div className="text-sm font-bold text-white">{s.word.headword}</div>
                         </div>
                       </div>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               </div>
