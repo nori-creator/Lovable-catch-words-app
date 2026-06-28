@@ -104,6 +104,22 @@ const CardInput = z.object({
   hintCategory: z.string().optional(),
 });
 
+const ExtrasSchema = z.object({
+  collocations: z.array(z.string()).default([]),
+  synonyms: z.array(z.string()).default([]),
+  antonyms: z.array(z.string()).default([]),
+  etymology: z.string().default(""),
+  radicals: z.string().default(""),
+  mnemonic: z.string().default(""),
+  trivia: z.string().default(""),
+  common_situation: z.string().default(""),
+  usage_note: z.string().default(""),
+  examples_extra: z.array(z.object({
+    zh: z.string(),
+    ja: z.string(),
+  })).default([]),
+});
+
 const CardSchema = z.object({
   reading_zhuyin: z.string().default(""),
   pinyin: z.string().default(""),
@@ -113,7 +129,14 @@ const CardSchema = z.object({
   category_key: z.enum(CATEGORY_KEYS),
   example_sentence: z.string(),
   example_translation: z.string(),
+  extras: ExtrasSchema.default({
+    collocations: [], synonyms: [], antonyms: [],
+    etymology: "", radicals: "", mnemonic: "", trivia: "",
+    common_situation: "", usage_note: "", examples_extra: [],
+  }),
 });
+
+export type GeneratedCard = z.infer<typeof CardSchema>;
 
 export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -126,7 +149,31 @@ export const generateCard = createServerFn({ method: "POST" })
 
     const prompt =
       data.targetLanguage === "zh-TW"
-        ? `「${data.headword}」という台湾華語の単語について、台湾教育部準拠の注音（ㄅㄆㄇ）、拼音、日本語の意味、品詞、TOCFLレベル、カテゴリ、台湾人が日常使う自然な例文と日本語訳を生成してください。${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
+        ? `「${data.headword}」という台湾華語の単語について、台湾人学習者向けに語彙カードを生成してください。
+
+必須項目:
+- reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。
+- pinyin: 拼音
+- meaning_ja: 日本語の意味（簡潔に）
+- part_of_speech: 品詞（名詞/動詞/形容詞/副詞など日本語表記）
+- level: TOCFLレベル（TOCFL-1〜6 のいずれか）
+- category_key: ${CATEGORY_KEYS.join("/")} のどれか
+- example_sentence: 台湾で日常的に使う自然な例文（繁体字）
+- example_translation: 例文の日本語訳
+
+extras 項目（できる限り埋めること、不明な場合は空配列または空文字で可）:
+- collocations: 一緒に使われる典型的なコロケーション3〜5個（繁体字）
+- synonyms: 類義語2〜4個（繁体字）
+- antonyms: 反義語1〜3個（繁体字）
+- etymology: 漢字の語源・成り立ち（1〜2文、日本語）
+- radicals: 部首と意味の説明（1文、日本語）
+- mnemonic: 記憶に残るひとことフレーズ・覚え方（日本語）
+- trivia: 台湾文化の雑学・面白い豆知識（1〜2文、日本語）
+- common_situation: ネイティブが最もよく使う場面・状況（1〜2文、日本語）
+- usage_note: 注意したい語法・誤用しやすいポイント（1〜2文、日本語）
+- examples_extra: 追加の自然な例文2つ {zh, ja}
+
+${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const result = await generateText({
@@ -137,7 +184,7 @@ export const generateCard = createServerFn({ method: "POST" })
     const out = (result as unknown as { experimental_output?: z.infer<typeof CardSchema> }).experimental_output;
     if (!out) {
       try {
-        return CardSchema.parse(JSON.parse(result.text));
+        return CardSchema.parse(parseJsonFromAiText(result.text));
       } catch {
         throw new Error("AI did not return a structured card");
       }
