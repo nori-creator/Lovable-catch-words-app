@@ -216,6 +216,7 @@ function DexPage() {
           </section>
         ))
       )}
+      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
