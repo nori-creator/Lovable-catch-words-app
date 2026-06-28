@@ -116,7 +116,7 @@ function HomePage() {
           {pastDays.map(([k, items]) => (
             <div key={k}>
               <DayHeader date={new Date(k)} compact />
-              <ScrapbookAlbum stickers={items} bgClass={bgClass} />
+              <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={setOpenId} />
             </div>
           ))}
         </section>
