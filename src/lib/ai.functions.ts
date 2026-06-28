@@ -4,9 +4,16 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 
 const CATEGORY_KEYS = [
-  "fruit","vegetable","drink","food","dessert","vehicle","animal","plant",
-  "building","street","home","furniture","appliance","clothes","accessory",
-  "stationery","tech","nature","weather","other",
+  "fruit","vegetable","drink","food","dessert",
+  "vehicle","transport","animal","plant","flower",
+  "building","street","sign","shop","home","furniture","appliance","kitchenware","tool",
+  "clothes","accessory","shoes","bag","jewelry",
+  "stationery","book","tech","gadget","toy","game","sport","instrument",
+  "nature","weather","sky","water","mountain",
+  "body","face","hand","clothing_part",
+  "person","family","job",
+  "art","decoration","character","symbol","color","shape",
+  "money","document","medicine","other",
 ] as const;
 
 const MODEL = "google/gemini-3-flash-preview";
