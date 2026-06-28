@@ -54,6 +54,18 @@ type CardData = {
   category_key: string;
   example_sentence: string;
   example_translation: string;
+  extras?: {
+    collocations: string[];
+    synonyms: string[];
+    antonyms: string[];
+    etymology: string;
+    radicals: string;
+    mnemonic: string;
+    trivia: string;
+    common_situation: string;
+    usage_note: string;
+    examples_extra: { zh: string; ja: string }[];
+  };
 };
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -254,6 +266,7 @@ function CapturePage() {
             category_key: card.category_key,
             example_sentence: card.example_sentence,
             example_translation: card.example_translation,
+            extras: card.extras,
           },
           language: "zh-TW",
           object_path,
