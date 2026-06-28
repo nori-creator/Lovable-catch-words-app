@@ -173,6 +173,18 @@ const SaveStickerInput = z.object({
     category_key: z.string().min(1),
     example_sentence: z.string().optional().default(""),
     example_translation: z.string().optional().default(""),
+    extras: z.object({
+      collocations: z.array(z.string()).default([]),
+      synonyms: z.array(z.string()).default([]),
+      antonyms: z.array(z.string()).default([]),
+      etymology: z.string().default(""),
+      radicals: z.string().default(""),
+      mnemonic: z.string().default(""),
+      trivia: z.string().default(""),
+      common_situation: z.string().default(""),
+      usage_note: z.string().default(""),
+      examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
+    }).optional(),
   }),
   language: z.string().default("zh-TW"),
   object_path: z.string().nullable().optional(),
@@ -223,12 +235,19 @@ export const saveSticker = createServerFn({ method: "POST" })
           category_key: categoryKey,
           example_sentence: data.word.example_sentence || null,
           example_translation: data.word.example_translation || null,
+          extras: (data.word.extras ?? {}) as never,
           source: "ai",
         })
         .select("id")
         .single();
       if (insErr) throw new Error(insErr.message);
       wordId = ins.id;
+    } else if (data.word.extras) {
+      // Update extras for existing word if AI generated new ones
+      await supabase
+        .from("words")
+        .update({ extras: data.word.extras as never })
+        .eq("id", wordId);
     }
 
 
