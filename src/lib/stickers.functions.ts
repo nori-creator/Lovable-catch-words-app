@@ -2,6 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+export type WordExtrasDTO = {
+  collocations: string[];
+  synonyms: string[];
+  antonyms: string[];
+  etymology: string;
+  radicals: string;
+  mnemonic: string;
+  trivia: string;
+  common_situation: string;
+  usage_note: string;
+  examples_extra: { zh: string; ja: string }[];
+};
+
 export type StickerWithWord = {
   id: string;
   word_id: string;
@@ -25,9 +38,34 @@ export type StickerWithWord = {
     level: string | null;
     category_key: string | null;
     silhouette_emoji: string | null;
-    extras: Record<string, unknown> | null;
+    extras: WordExtrasDTO | null;
   };
 };
+
+function normalizeExtras(raw: unknown): WordExtrasDTO | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const arrStr = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  const str = (v: unknown): string => typeof v === "string" ? v : "";
+  const exExtra = Array.isArray(r.examples_extra)
+    ? r.examples_extra
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ zh: str(x.zh), ja: str(x.ja) }))
+        .filter((x) => x.zh || x.ja)
+    : [];
+  return {
+    collocations: arrStr(r.collocations),
+    synonyms: arrStr(r.synonyms),
+    antonyms: arrStr(r.antonyms),
+    etymology: str(r.etymology),
+    radicals: str(r.radicals),
+    mnemonic: str(r.mnemonic),
+    trivia: str(r.trivia),
+    common_situation: str(r.common_situation),
+    usage_note: str(r.usage_note),
+    examples_extra: exExtra,
+  };
+}
 
 async function signUrls(
   supabase: { storage: { from: (b: string) => { createSignedUrl: (p: string, e: number) => Promise<{ data: { signedUrl: string } | null }> } } },
