@@ -263,7 +263,8 @@ function CapturePage() {
   }
 
   function reset() {
-    setStep("mode");
+    setMode("photo");
+    setStep("object");
     setObjectImg(null);
     setCutoutImg(null);
     setSelfieImg(null);
