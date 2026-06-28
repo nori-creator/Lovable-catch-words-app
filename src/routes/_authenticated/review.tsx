@@ -218,8 +218,11 @@ function ReviewPage() {
       ) : null}
     </AppShell>
   );
+}
 
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid } from "recharts";
+
+
 
 function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
   return (
