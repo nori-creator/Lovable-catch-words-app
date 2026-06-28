@@ -1,18 +1,18 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, BookText } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, BookText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 
-type Item = { to: "/home" | "/capture" | "/review" | "/dex" | "/map"; label: string; icon: typeof Home };
+type Item = { to: "/settings" | "/home" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
 
 const items: Item[] = [
+  { to: "/settings", label: "設定", icon: Settings },
   { to: "/home", label: "ホーム", icon: Home },
-  { to: "/dex", label: "図鑑", icon: BookOpen },
   { to: "/capture", label: "集める", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
-  { to: "/map", label: "マップ", icon: MapIcon },
+  { to: "/dex", label: "図鑑", icon: BookOpen },
 ];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
@@ -41,9 +41,6 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           <div className="flex items-center gap-1">
             <Link to="/journal" aria-label="日記" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <BookText className="h-4 w-4" />
-            </Link>
-            <Link to="/settings" aria-label="設定" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
-              <Settings className="h-4 w-4" />
             </Link>
             <button
               onClick={handleSignOut}
@@ -81,4 +78,3 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
     </div>
   );
 }
-
