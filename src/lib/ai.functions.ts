@@ -4,9 +4,16 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 
 const CATEGORY_KEYS = [
-  "fruit","vegetable","drink","food","dessert","vehicle","animal","plant",
-  "building","street","home","furniture","appliance","clothes","accessory",
-  "stationery","tech","nature","weather","other",
+  "fruit","vegetable","drink","food","dessert",
+  "vehicle","transport","animal","plant","flower",
+  "building","street","sign","shop","home","furniture","appliance","kitchenware","tool",
+  "clothes","accessory","shoes","bag","jewelry",
+  "stationery","book","tech","gadget","toy","game","sport","instrument",
+  "nature","weather","sky","water","mountain",
+  "body","face","hand","clothing_part",
+  "person","family","job",
+  "art","decoration","character","symbol","color","shape",
+  "money","document","medicine","other",
 ] as const;
 
 const MODEL = "google/gemini-3-flash-preview";
@@ -54,7 +61,9 @@ export const suggestWords = createServerFn({ method: "POST" })
 - 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
 - 学習者目標レベル: ${data.levelGoal}（TOCFL）。これ以下の難易度を優先
 - 画像に明確に写っているものだけ
-- 各候補に注音、拼音、日本語意味、カテゴリを必ず付ける`
+- 各候補に注音、拼音、日本語意味、カテゴリを必ず付ける
+- category_keyは最も具体的で適切なものを選ぶこと。例: 手・足・顔・髪などの体の部位は "body"、シャツ・帽子などは "clothes"、お店の看板は "sign"、MRT/バス等は "transport"、犬・猫等は "animal"、花は "flower"、本は "book"、人物は "person"
+- "other" は本当にどのカテゴリにも当てはまらない場合の最終手段。安易に "other" を選ばないこと`
         : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
