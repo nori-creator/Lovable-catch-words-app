@@ -40,6 +40,7 @@ function DexPage() {
   const captured = stickers ?? [];
 
   const [view, setView] = useState<ViewMode>("gallery");
+  const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
