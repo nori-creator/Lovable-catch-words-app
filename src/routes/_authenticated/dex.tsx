@@ -180,10 +180,9 @@ function DexPage() {
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                 {items.map((s, i) => (
                   <li key={s.id} className={i > 0 ? "border-t border-border" : ""}>
-                    <Link
-                      to="/dex/$stickerId"
-                      params={{ stickerId: s.id }}
-                      className="flex items-center gap-3 p-3 transition-colors hover:bg-accent/40 active:bg-accent/60"
+                    <button
+                      onClick={() => setOpenId(s.id)}
+                      className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
                     >
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
                         {s.cutout_url ? (
@@ -209,7 +208,7 @@ function DexPage() {
                           {s.word.meaning_ja}
                         </div>
                       </div>
-                    </Link>
+                    </button>
                   </li>
                 ))}
               </ul>
