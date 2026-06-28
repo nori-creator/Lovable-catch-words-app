@@ -131,7 +131,7 @@ export const getSticker = createServerFn({ method: "GET" })
     const { data: row, error } = await supabase
       .from("stickers")
       .select(
-        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, level, category_key, silhouette_emoji)"
+        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
       )
       .eq("id", data.id)
       .eq("user_id", userId)
@@ -143,8 +143,8 @@ export const getSticker = createServerFn({ method: "GET" })
       row.cutout_image_url,
       row.selfie_image_url,
     ]);
-    const w = (row as unknown as { words: StickerWithWord["word"] | null }).words;
-    if (!w) return null;
+    const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
+    if (!wRaw) return null;
     const res: StickerWithWord = {
       id: row.id,
       word_id: row.word_id,
@@ -157,7 +157,7 @@ export const getSticker = createServerFn({ method: "GET" })
       object_url,
       cutout_url,
       selfie_url,
-      word: w,
+      word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
     };
     return res;
   });
