@@ -1,64 +1,24 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, Rss, BookText, Bell, Trophy } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, LogOut, Sparkles, Map as MapIcon, BookText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { unreadNotificationCount } from "@/lib/notifications.functions";
-import { useEffect, type ReactNode } from "react";
-import { toast } from "sonner";
+import { type ReactNode } from "react";
 
-type Item = { to: "/home" | "/feed" | "/capture" | "/review" | "/dex"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/capture" | "/review" | "/dex" | "/map"; label: string; icon: typeof Home };
 
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
-  { to: "/feed", label: "フィード", icon: Rss },
-  { to: "/capture", label: "撮る", icon: Camera },
-  { to: "/review", label: "復習", icon: Sparkles },
   { to: "/dex", label: "図鑑", icon: BookOpen },
+  { to: "/capture", label: "集める", icon: Camera },
+  { to: "/review", label: "復習", icon: Sparkles },
+  { to: "/map", label: "マップ", icon: MapIcon },
 ];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const router = useRouter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const fetchUnread = useServerFn(unreadNotificationCount);
-  const { data: unread } = useQuery({
-    queryKey: ["notifications-unread"],
-    queryFn: () => fetchUnread(),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
-  const unreadCount = unread?.count ?? 0;
-
-  // Realtime notifications: refresh badge + toast when a new notification arrives
-  useEffect(() => {
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getUser().then(({ data }) => {
-      const userId = data.user?.id;
-      if (!userId || cancelled) return;
-      const ch = supabase.channel(`notif:${userId}:${Math.random().toString(36).slice(2)}`);
-      ch.on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          const type = (payload.new as { type?: string }).type;
-          const msg = type === "like" ? "❤️ いいねが届きました" : type === "comment" ? "💬 コメントが届きました" : type === "follow" ? "👤 新しいフォロワー" : "🔔 新しい通知";
-          toast(msg);
-        },
-      ).subscribe();
-      channel = ch;
-      if (cancelled) supabase.removeChannel(ch);
-    });
-    return () => {
-      cancelled = true;
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
@@ -79,22 +39,8 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             </span>
           </Link>
           <div className="flex items-center gap-1">
-            <Link to="/notifications" aria-label="通知" className="relative rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
-              <Bell className="h-4 w-4" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </Link>
             <Link to="/journal" aria-label="日記" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <BookText className="h-4 w-4" />
-            </Link>
-            <Link to="/discover" aria-label="ランキング" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
-              <Trophy className="h-4 w-4" />
-            </Link>
-            <Link to="/map" aria-label="マップ" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
-              <MapIcon className="h-4 w-4" />
             </Link>
             <Link to="/settings" aria-label="設定" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <Settings className="h-4 w-4" />
@@ -135,3 +81,4 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
     </div>
   );
 }
+
