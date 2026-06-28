@@ -40,6 +40,8 @@ function HomePage() {
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
   });
+  const [openId, setOpenId] = useState<string | null>(null);
+
 
   const [bg, setBg] = useState<BgId>("paper");
   useEffect(() => {
