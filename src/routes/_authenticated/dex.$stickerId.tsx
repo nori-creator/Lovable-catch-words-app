@@ -54,15 +54,15 @@ function StickerDetailPage() {
             <div
               className={`card-flip relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl cursor-pointer ${flipped ? "flipped" : ""}`}
             >
-              <div className="card-face absolute inset-0 grid place-items-center bg-gradient-to-br from-sky-50 via-white to-rose-50">
-                {s.cutout_url ? (
+              <div className="card-face absolute inset-0 grid place-items-center bg-secondary overflow-hidden">
+                {s.object_url ? (
                   <img
-                    src={s.cutout_url}
-                    alt={`「${s.word.headword}」の切り抜き`}
-                    className="hero-pop max-h-[92%] max-w-[92%] object-contain"
+                    src={s.object_url}
+                    alt={`「${s.word.headword}」の写真`}
+                    className="hero-pop h-full w-full object-cover"
                   />
-                ) : s.object_url ? (
-                  <img src={s.object_url} alt={s.word.headword} className="h-full w-full object-cover" />
+                ) : s.cutout_url ? (
+                  <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
                 ) : (
                   <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
                 )}
