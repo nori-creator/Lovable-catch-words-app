@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { getDueReviews, gradeReview, type DueReviewCard } from "@/lib/reviews.functions";
-import { Eye, Sparkles, Check, X, Volume2 } from "lucide-react";
+import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
+import { getDueReviews, gradeReview, getOverallMemoryStats, type DueReviewCard } from "@/lib/reviews.functions";
+import { Eye, Sparkles, Check, X, Volume2, Brain } from "lucide-react";
+
 
 function speakZhTW(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
