@@ -166,7 +166,7 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
   );
 }
 
-function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bgClass: string }) {
+function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWord[]; bgClass: string; onOpen: (id: string) => void }) {
   const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
   const sizes = [
     "col-span-2 row-span-2",
@@ -192,15 +192,12 @@ function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bg
     <div className={`relative rounded-3xl border border-amber-900/10 p-4 shadow-inner sm:p-6 ${bgClass}`}>
       <div className="grid auto-rows-[6.5rem] grid-cols-3 gap-x-3 gap-y-6 sm:auto-rows-[8rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {
-          // The "memory" cutout: selfie preferred (object + person together).
-          // If no selfie, use the object cutout alone. Never both.
           const img = s.selfie_url ?? s.cutout_url ?? s.object_url;
           return (
-            <Link
+            <button
               key={s.id}
-              to="/dex/$stickerId"
-              params={{ stickerId: s.id }}
-              className={`lift group relative block ${size}`}
+              onClick={() => onOpen(s.id)}
+              className={`lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
               <div className="relative h-full w-full">
@@ -220,7 +217,7 @@ function ScrapbookAlbum({ stickers, bgClass }: { stickers: StickerWithWord[]; bg
                   {s.word.headword}
                 </span>
               </div>
-            </Link>
+            </button>
           );
         })}
       </div>
