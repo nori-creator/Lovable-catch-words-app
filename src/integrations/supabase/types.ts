@@ -138,33 +138,42 @@ export type Database = {
       }
       journal_entries: {
         Row: {
-          body_ja: string
-          body_zh: string
+          body_ja: string | null
+          body_zh: string | null
+          correction: string | null
           created_at: string
           entry_date: string
+          feedback_ja: string | null
           id: string
           model: string | null
           used_sticker_ids: string[]
+          user_draft: string | null
           user_id: string
         }
         Insert: {
-          body_ja: string
-          body_zh: string
+          body_ja?: string | null
+          body_zh?: string | null
+          correction?: string | null
           created_at?: string
           entry_date?: string
+          feedback_ja?: string | null
           id?: string
           model?: string | null
           used_sticker_ids?: string[]
+          user_draft?: string | null
           user_id: string
         }
         Update: {
-          body_ja?: string
-          body_zh?: string
+          body_ja?: string | null
+          body_zh?: string | null
+          correction?: string | null
           created_at?: string
           entry_date?: string
+          feedback_ja?: string | null
           id?: string
           model?: string | null
           used_sticker_ids?: string[]
+          user_draft?: string | null
           user_id?: string
         }
         Relationships: []
