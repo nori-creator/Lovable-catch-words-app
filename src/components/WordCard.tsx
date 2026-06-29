@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown, Settings2 } from "lucide-react";
+import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/tts.functions";
+
 
 export type WordExtras = {
   collocations?: string[];
