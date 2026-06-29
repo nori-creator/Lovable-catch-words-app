@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown, Settings2 } from "lucide-react";
+import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 
 export type WordExtras = {
@@ -30,7 +30,6 @@ export type WordCardData = {
 
 type SectionId =
   | "meaning"
-  | "level"
   | "common_situation"
   | "example"
   | "examples_extra"
@@ -42,8 +41,7 @@ type SectionId =
   | "usage_note";
 
 const ALL_SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "meaning", label: "意味・品詞" },
-  { id: "level", label: "難易度" },
+  { id: "meaning", label: "意味" },
   { id: "common_situation", label: "使う場面" },
   { id: "example", label: "例文" },
   { id: "examples_extra", label: "追加の例文" },
@@ -55,7 +53,7 @@ const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "usage_note", label: "語法ノート" },
 ];
 
-const PREF_KEY = "wordcard-prefs-v1";
+const PREF_KEY = "wordcard-prefs-v2";
 
 type Prefs = { order: SectionId[]; hidden: SectionId[] };
 
@@ -65,9 +63,12 @@ function loadPrefs(): Prefs {
     const raw = localStorage.getItem(PREF_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Prefs;
-      // fill new sections at end
+      const valid = (id: SectionId) => ALL_SECTIONS.some((s) => s.id === id);
       const missing = ALL_SECTIONS.map((s) => s.id).filter((id) => !p.order.includes(id));
-      return { order: [...p.order.filter((id) => ALL_SECTIONS.some((s) => s.id === id)), ...missing], hidden: p.hidden ?? [] };
+      return {
+        order: [...p.order.filter(valid), ...missing],
+        hidden: (p.hidden ?? []).filter(valid),
+      };
     }
   } catch { /* noop */ }
   return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
@@ -77,10 +78,8 @@ function savePrefs(p: Prefs) {
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* noop */ }
 }
 
-// color theme per section — vivid, readable, "ふわっと浮き上がる"
 const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string; icon: string; title: string }> = {
   meaning:          { bg: "bg-sky-50",     ring: "ring-sky-200",     chip: "bg-sky-500",     icon: "📖", title: "text-sky-900" },
-  level:            { bg: "bg-violet-50",  ring: "ring-violet-200",  chip: "bg-violet-500",  icon: "🎯", title: "text-violet-900" },
   common_situation: { bg: "bg-amber-50",   ring: "ring-amber-200",   chip: "bg-amber-500",   icon: "🗣️", title: "text-amber-900" },
   example:          { bg: "bg-emerald-50", ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
   examples_extra:   { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
@@ -92,86 +91,93 @@ const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string;
   usage_note:       { bg: "bg-orange-50",  ring: "ring-orange-200",  chip: "bg-orange-500",  icon: "⚠️", title: "text-orange-900" },
 };
 
-export function WordCard({ word, autoplay = true }: { word: WordCardData; autoplay?: boolean }) {
-  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
-  const [editing, setEditing] = useState(false);
+export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
 
-  useEffect(() => { savePrefs(prefs); }, [prefs]);
+export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autoplay?: boolean }>(
+  function WordCard({ word, autoplay = true }, ref) {
+    const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+    const [editing, setEditing] = useState(false);
 
-  const ex = word.extras ?? {};
-  const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
-  const toggle = (id: SectionId) =>
-    setPrefs((p) => ({ ...p, hidden: p.hidden.includes(id) ? p.hidden.filter((x) => x !== id) : [...p.hidden, id] }));
-  const move = (id: SectionId, dir: -1 | 1) =>
-    setPrefs((p) => {
-      const i = p.order.indexOf(id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= p.order.length) return p;
-      const o = [...p.order];
-      [o[i], o[j]] = [o[j], o[i]];
-      return { ...p, order: o };
-    });
+    useImperativeHandle(ref, () => ({
+      toggleEditing: () => setEditing((v) => !v),
+      isEditing: () => editing,
+    }), [editing]);
 
-  // Sections empty-checker
-  const hasContent = (id: SectionId): boolean => {
-    switch (id) {
-      case "meaning": return !!word.meaning_ja;
-      case "level": return !!word.level || !!word.part_of_speech;
-      case "common_situation": return !!ex.common_situation;
-      case "example": return !!word.example_sentence;
-      case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
-      case "collocations": return (ex.collocations?.length ?? 0) > 0;
-      case "synonyms": return (ex.synonyms?.length ?? 0) > 0 || (ex.antonyms?.length ?? 0) > 0;
-      case "etymology": return !!ex.etymology || !!ex.radicals;
-      case "mnemonic": return !!ex.mnemonic;
-      case "trivia": return !!ex.trivia;
-      case "usage_note": return !!ex.usage_note;
-    }
-  };
+    useEffect(() => { savePrefs(prefs); }, [prefs]);
 
-  return (
-    <div className="space-y-3">
-      <HeaderRow word={word} autoplay={autoplay} onEditToggle={() => setEditing((v) => !v)} editing={editing} />
+    const ex = word.extras ?? {};
+    const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
+    const toggle = (id: SectionId) =>
+      setPrefs((p) => ({ ...p, hidden: p.hidden.includes(id) ? p.hidden.filter((x) => x !== id) : [...p.hidden, id] }));
+    const move = (id: SectionId, dir: -1 | 1) =>
+      setPrefs((p) => {
+        const i = p.order.indexOf(id);
+        const j = i + dir;
+        if (i < 0 || j < 0 || j >= p.order.length) return p;
+        const o = [...p.order];
+        [o[i], o[j]] = [o[j], o[i]];
+        return { ...p, order: o };
+      });
 
-      {editing && (
-        <div className="rounded-2xl border border-dashed border-border bg-card p-3 text-xs">
-          <p className="mb-2 font-medium text-muted-foreground">表示する項目と順番</p>
-          <ul className="space-y-1">
-            {prefs.order.map((id, idx) => {
-              const meta = ALL_SECTIONS.find((s) => s.id === id);
-              if (!meta) return null;
-              const visible = isVisible(id);
-              return (
-                <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1">
-                  <span className={visible ? "" : "text-muted-foreground line-through"}>{meta.label}</span>
-                  <span className="flex gap-1">
-                    <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                    <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
-                      {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                    </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+    const hasContent = (id: SectionId): boolean => {
+      switch (id) {
+        case "meaning": return !!word.meaning_ja;
+        case "common_situation": return !!ex.common_situation;
+        case "example": return !!word.example_sentence;
+        case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
+        case "collocations": return (ex.collocations?.length ?? 0) > 0;
+        case "synonyms": return (ex.synonyms?.length ?? 0) > 0 || (ex.antonyms?.length ?? 0) > 0;
+        case "etymology": return !!ex.etymology || !!ex.radicals;
+        case "mnemonic": return !!ex.mnemonic;
+        case "trivia": return !!ex.trivia;
+        case "usage_note": return !!ex.usage_note;
+      }
+    };
+
+    return (
+      <div className="space-y-3">
+        <HeaderRow word={word} autoplay={autoplay} />
+
+        {editing && (
+          <div className="rounded-2xl border border-dashed border-border bg-card p-3 text-xs">
+            <p className="mb-2 font-medium text-muted-foreground">表示する項目と順番</p>
+            <ul className="space-y-1">
+              {prefs.order.map((id, idx) => {
+                const meta = ALL_SECTIONS.find((s) => s.id === id);
+                if (!meta) return null;
+                const visible = isVisible(id);
+                return (
+                  <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1">
+                    <span className={visible ? "" : "text-muted-foreground line-through"}>{meta.label}</span>
+                    <span className="flex gap-1">
+                      <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
+                        {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        <div className="grid gap-3">
+          {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
+            <SectionCard key={id} id={id} word={word} />
+          ))}
         </div>
-      )}
-
-      <div className="grid gap-3">
-        {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
-          <SectionCard key={id} id={id} word={word} />
-        ))}
       </div>
-    </div>
-  );
-}
+    );
+  },
+);
 
-function HeaderRow({ word, autoplay, onEditToggle, editing }: { word: WordCardData; autoplay: boolean; onEditToggle: () => void; editing: boolean }) {
+function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const ttsFn = useServerFn(synthesizeSpeech);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,7 +208,6 @@ function HeaderRow({ word, autoplay, onEditToggle, editing }: { word: WordCardDa
       await audioRef.current.play();
     } catch (e) {
       console.warn("TTS playback failed", e);
-      // Fallback to browser TTS
       if ("speechSynthesis" in window) {
         const u = new SpeechSynthesisUtterance(word.headword);
         u.lang = "zh-TW";
@@ -215,36 +220,44 @@ function HeaderRow({ word, autoplay, onEditToggle, editing }: { word: WordCardDa
   useEffect(() => {
     if (!autoplay || autoplayedRef.current) return;
     autoplayedRef.current = true;
-    // Most browsers block autoplay before user gesture; we still try, fall back silently.
     const t = setTimeout(() => { play().catch(() => {}); }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word.headword]);
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-3xl border border-border bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm">
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-4xl font-bold tracking-tight">{word.headword}</h1>
-          <button
-            onClick={play}
-            aria-label="発音を再生"
-            className={`lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ${playing ? "animate-pulse" : ""}`}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-5 w-5" />}
-          </button>
-        </div>
-        <div className="mt-1 text-sm text-muted-foreground">
-          {word.reading_zhuyin} {word.pinyin && <span className="ml-2">{word.pinyin}</span>}
+    <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-4xl font-bold tracking-tight">{word.headword}</h1>
+            <button
+              onClick={play}
+              aria-label="発音を再生"
+              className={`lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ${playing ? "animate-pulse" : ""}`}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-5 w-5" />}
+            </button>
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {word.reading_zhuyin} {word.pinyin && <span className="ml-2">{word.pinyin}</span>}
+          </div>
+          {(word.part_of_speech || word.level) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {word.part_of_speech && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200">
+                  {word.part_of_speech}
+                </span>
+              )}
+              {word.level && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200">
+                  {word.level}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      <button
-        onClick={onEditToggle}
-        aria-label="項目を編集"
-        className={`lift-soft inline-flex h-8 w-8 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
-      >
-        <Settings2 className="h-3.5 w-3.5" />
-      </button>
     </div>
   );
 }
@@ -270,23 +283,7 @@ function SectionCard({ id, word }: { id: SectionId; word: WordCardData }) {
 function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExtras }) {
   switch (id) {
     case "meaning":
-      return (
-        <div className="space-y-1 text-sm">
-          <p className="text-base font-medium text-foreground">{word.meaning_ja}</p>
-          {word.part_of_speech && (
-            <span className="inline-block rounded-full bg-white/60 px-2 py-0.5 text-[11px] text-muted-foreground">
-              {word.part_of_speech}
-            </span>
-          )}
-        </div>
-      );
-    case "level":
-      return (
-        <div className="flex flex-wrap gap-2 text-sm">
-          {word.level && <Pill>{word.level}</Pill>}
-          {word.part_of_speech && <Pill>{word.part_of_speech}</Pill>}
-        </div>
-      );
+      return <p className="text-base font-medium text-foreground">{word.meaning_ja}</p>;
     case "common_situation":
       return <p className="text-sm leading-relaxed">{ex.common_situation}</p>;
     case "example":

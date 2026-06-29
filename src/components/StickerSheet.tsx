@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2 } from "lucide-react";
-import { WordCard } from "@/components/WordCard";
+import { X, MapPin, Clock, Loader2, Settings2 } from "lucide-react";
+import { WordCard, type WordCardHandle } from "@/components/WordCard";
 import { getSticker } from "@/lib/stickers.functions";
+
 
 type Props = {
   stickerId: string | null;
@@ -18,6 +19,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     enabled: !!stickerId,
   });
   const [flipped, setFlipped] = useState(false);
+  const cardRef = useRef<WordCardHandle>(null);
+  const [editing, setEditing] = useState(false);
+
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -53,13 +57,23 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         <span className="pl-1 text-xs font-medium text-muted-foreground">
           {s ? s.word.headword : "..."}
         </span>
-        <button
-          onClick={onClose}
-          aria-label="閉じる"
-          className="lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { cardRef.current?.toggleEditing(); setEditing((v) => !v); }}
+            aria-label="表示項目を編集"
+            className={`lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
+          >
+            <Settings2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="閉じる"
+            className="lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
@@ -143,6 +157,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
             {/* The full word card — same component shown on capture */}
             <WordCard
+              ref={cardRef}
               word={{
                 headword: s.word.headword,
                 reading_zhuyin: s.word.reading_zhuyin,

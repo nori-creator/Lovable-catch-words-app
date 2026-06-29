@@ -171,12 +171,13 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
   const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
   const sizes = [
     "col-span-2 row-span-2",
-    "col-span-1 row-span-1",
     "col-span-1 row-span-2",
     "col-span-1 row-span-1",
     "col-span-2 row-span-1",
+    "col-span-1 row-span-2",
     "col-span-1 row-span-1",
   ];
+  const tapeColors = ["", "blue", "yellow", "mint"];
 
   const items = useMemo(
     () =>
@@ -185,49 +186,75 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
         rot: rotations[i % rotations.length],
         size: sizes[i % sizes.length],
         z: 10 + (i % 5),
+        tape: tapeColors[i % tapeColors.length],
       })),
     [stickers],
   );
 
   return (
-    <div className={`relative rounded-3xl border border-amber-900/10 p-4 shadow-inner sm:p-6 ${bgClass}`}>
-      <div className="grid auto-rows-[6.5rem] grid-cols-3 gap-x-3 gap-y-6 sm:auto-rows-[8rem] sm:grid-cols-4">
-        {items.map(({ sticker: s, rot, size, z }) => {
-          const img = s.selfie_url ?? s.cutout_url ?? s.object_url;
+    <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-5 shadow-inner sm:p-7 ${bgClass}`}>
+      {/* Decorative washi tape corners */}
+      <span className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
+      <span className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
+
+      <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
+        {items.map(({ sticker: s, rot, size, z, tape }) => {
+          // Prefer cutout (background-removed) for both object and selfie.
+          // Fallback: selfie photo → polaroid; otherwise emoji.
+          const hasCutout = !!s.cutout_url;
+          const hasSelfie = !!s.selfie_url;
+          const isPolaroid = !hasCutout && hasSelfie;
+
           return (
             <button
               key={s.id}
               onClick={() => onOpen(s.id)}
-              className={`lift group relative block text-left ${size}`}
+              className={`group relative block text-left transition-transform hover:scale-[1.03] active:scale-95 ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
-              <div className="relative h-full w-full">
-                {img ? (
+              {isPolaroid ? (
+                <div className="polaroid relative h-full w-full">
+                  <span className={`washi-tape ${tape}`} style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }} />
+                  <div className="h-[calc(100%-28px)] w-full overflow-hidden">
+                    <img
+                      src={s.selfie_url!}
+                      alt={`「${s.word.headword}」の思い出`}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/80">
+                    {s.word.headword}
+                  </span>
+                </div>
+              ) : hasCutout ? (
+                <div className="relative h-full w-full">
                   <img
-                    src={img}
+                    src={s.cutout_url!}
                     alt={`「${s.word.headword}」の思い出`}
-                    className="h-full w-full object-contain transition-transform group-active:scale-95"
+                    className="h-full w-full object-contain"
                     style={{ filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.35)) drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}
                   />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-4xl">
-                    {s.word.silhouette_emoji ?? "📦"}
-                  </div>
-                )}
-                <span className="pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap font-serif text-[11px] italic text-amber-950/80 drop-shadow-sm">
-                  {s.word.headword}
-                </span>
-              </div>
+                  <span className="handwritten pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap text-base text-amber-950/85 drop-shadow-sm">
+                    {s.word.headword}
+                  </span>
+                </div>
+              ) : (
+                <div className="grid h-full w-full place-items-center text-4xl">
+                  {s.word.silhouette_emoji ?? "📦"}
+                  <span className="handwritten -mt-1 text-sm text-amber-950/85">{s.word.headword}</span>
+                </div>
+              )}
             </button>
           );
         })}
       </div>
 
-      <div className="mt-6 text-right">
-        <span className="font-serif text-xs italic text-amber-900/60">
+      <div className="mt-8 text-right">
+        <span className="handwritten text-base text-amber-900/70">
           — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>
       </div>
     </div>
   );
 }
+
