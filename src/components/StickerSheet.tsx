@@ -95,7 +95,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             </button>
           </div>
           {s && (
-            <WordCardSettingsProxy cardRef={cardRef} word={s.word} />
+            <WordCardSettingsProxy />
           )}
         </div>
       </div>
