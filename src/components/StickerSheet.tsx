@@ -237,14 +237,3 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     </div>
   );
 }
-
-// Renders nothing but keeps WordCardHandle wiring simple; the actual editing UI
-// lives inside WordCard toggled via ref. We keep this shim so future adjustments
-// (e.g., dedicated top-panel controls) don't require prop drilling changes.
-function WordCardSettingsProxy() {
-  return (
-    <p className="text-[11px] text-muted-foreground">
-      下の単語カード上部で項目の並び替え・表示を編集できます。
-    </p>
-  );
-}
