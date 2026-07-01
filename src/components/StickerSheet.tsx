@@ -199,7 +199,6 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             </section>
 
             <WordCard
-              ref={cardRef}
               word={{
                 headword: s.word.headword,
                 reading_zhuyin: s.word.reading_zhuyin,
