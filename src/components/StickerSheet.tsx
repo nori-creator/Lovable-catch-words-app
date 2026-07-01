@@ -60,7 +60,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { cardRef.current?.toggleEditing(); setEditing((v) => !v); }}
+            onClick={() => setEditing((v) => !v)}
             aria-label="表示項目を編集"
             className={`lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
@@ -86,16 +86,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground">表示する項目と順番</p>
             <button
-              onClick={() => { cardRef.current?.toggleEditing(); setEditing(false); }}
+              onClick={() => setEditing(false)}
               className="lift-soft inline-flex h-7 w-7 items-center justify-center rounded-full bg-secondary"
               aria-label="閉じる"
             >
               <ChevronUp className="h-3.5 w-3.5" />
             </button>
           </div>
-          {s && (
-            <WordCardSettingsProxy />
-          )}
+          {s && <WordCardSectionsEditor />}
         </div>
       </div>
 
