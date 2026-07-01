@@ -100,21 +100,30 @@ function CapturePage() {
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
+  const selfieAutoOpenedRef = useRef(false);
 
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
   const geocodeFn = useServerFn(geocodeLocation);
   const saveFn = useServerFn(saveSticker);
 
-  // Auto-open the camera as soon as the user lands on /capture so they
-  // don't have to tap a second time.
+  // Auto-open the rear camera when landing on /capture.
   useEffect(() => {
     if (autoOpenedRef.current) return;
     if (step !== "object") return;
     autoOpenedRef.current = true;
-    // small delay helps mobile browsers honor the synthetic click after navigation
     const t = setTimeout(() => cameraInputRef.current?.click(), 60);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  // Auto-open front camera as soon as the selfie step begins.
+  useEffect(() => {
+    if (step !== "selfie") { selfieAutoOpenedRef.current = false; return; }
+    if (selfieAutoOpenedRef.current) return;
+    selfieAutoOpenedRef.current = true;
+    const t = setTimeout(() => selfieInputRef.current?.click(), 120);
     return () => clearTimeout(t);
   }, [step]);
 
@@ -367,6 +376,7 @@ function CapturePage() {
               </div>
             </div>
             <input
+              ref={selfieInputRef}
               type="file"
               accept="image/*"
               capture="user"

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2 } from "lucide-react";
-import { WordCard, type WordCardHandle } from "@/components/WordCard";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp } from "lucide-react";
+import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { getSticker } from "@/lib/stickers.functions";
 
 
@@ -19,13 +19,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     enabled: !!stickerId,
   });
   const [flipped, setFlipped] = useState(false);
-  const cardRef = useRef<WordCardHandle>(null);
   const [editing, setEditing] = useState(false);
-
 
   // reset flip when sticker changes
   useEffect(() => {
     setFlipped(false);
+    setEditing(false);
   }, [stickerId]);
 
   // lock body scroll while open
@@ -50,16 +49,18 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
   if (!stickerId) return null;
 
+  const hasSelfie = !!s?.selfie_url;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md animate-in fade-in duration-200">
       {/* Close bar */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <span className="pl-1 text-xs font-medium text-muted-foreground">
           {s ? s.word.headword : "..."}
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { cardRef.current?.toggleEditing(); setEditing((v) => !v); }}
+            onClick={() => setEditing((v) => !v)}
             aria-label="表示項目を編集"
             className={`lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
@@ -73,7 +74,27 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             <X className="h-4 w-4" />
           </button>
         </div>
+      </div>
 
+      {/* Settings panel — slides down from top */}
+      <div
+        className={`fixed left-0 right-0 top-[52px] z-20 transition-all duration-300 ease-out ${
+          editing ? "translate-y-0 opacity-100" : "-translate-y-4 pointer-events-none opacity-0"
+        }`}
+      >
+        <div className="mx-3 mt-2 rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground">表示する項目と順番</p>
+            <button
+              onClick={() => setEditing(false)}
+              className="lift-soft inline-flex h-7 w-7 items-center justify-center rounded-full bg-secondary"
+              aria-label="閉じる"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {s && <WordCardSectionsEditor />}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
@@ -83,47 +104,67 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           </div>
         ) : (
           <>
-            {/* Hero — expands with pop-in. Tap to flip selfie ↔ cutout */}
+            {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
-              className="perspective-[1200px] mb-4"
-              onClick={() => setFlipped((f) => !f)}
+              className="perspective-1200 mb-4"
+              onClick={() => hasSelfie && setFlipped((f) => !f)}
             >
               <div
-                className={`card-flip relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl cursor-pointer ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-square w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
               >
-                <div className="card-face absolute inset-0 grid place-items-center bg-secondary overflow-hidden">
-                  {/* Front: original photo WITH background */}
+                {/* Front: original photo WITH background; centered via contain over a blurred backdrop */}
+                <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
                   {s.object_url ? (
-                    <img
-                      src={s.object_url}
-                      alt={`「${s.word.headword}」の写真`}
-                      className="hero-pop h-full w-full object-cover"
-                    />
+                    <>
+                      <img
+                        src={s.object_url}
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
+                      />
+                      <img
+                        src={s.object_url}
+                        alt={`「${s.word.headword}」の写真`}
+                        className="hero-pop absolute inset-0 h-full w-full object-contain"
+                      />
+                    </>
                   ) : s.cutout_url ? (
-                    <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
+                    <div className="grid h-full w-full place-items-center bg-secondary">
+                      <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
+                    </div>
                   ) : (
-                    <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
+                    <div className="grid h-full w-full place-items-center bg-secondary text-7xl">
+                      {s.word.silhouette_emoji ?? "📦"}
+                    </div>
                   )}
-                  {s.selfie_url && (
+                  {hasSelfie && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                       タップで自撮りへ
                     </span>
                   )}
                 </div>
-                <div className="card-face card-back absolute inset-0 overflow-hidden bg-secondary">
-                  {/* Back: the selfie (you + the thing) */}
-                  {s.selfie_url ? (
-                    <img src={s.selfie_url} alt="撮影者の自撮り" className="h-full w-full object-cover" />
+
+                {/* Back: the selfie (you + the thing) */}
+                <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
+                  {hasSelfie ? (
+                    <>
+                      <img
+                        src={s.selfie_url!}
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
+                      />
+                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-contain" />
+                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                        タップで戻る
+                      </span>
+                    </>
                   ) : (
-                    <div className="grid h-full place-items-center text-sm text-muted-foreground">
-                      自撮りなし
-                    </div>
+                    <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* When & Where chip — tap location to open in maps */}
+            {/* When & Where chip */}
             <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -155,9 +196,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               {s.caption && <p className="mt-2 text-sm">「{s.caption}」</p>}
             </section>
 
-            {/* The full word card — same component shown on capture */}
             <WordCard
-              ref={cardRef}
               word={{
                 headword: s.word.headword,
                 reading_zhuyin: s.word.reading_zhuyin,

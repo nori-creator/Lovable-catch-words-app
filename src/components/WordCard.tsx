@@ -54,6 +54,7 @@ const ALL_SECTIONS: { id: SectionId; label: string }[] = [
 ];
 
 const PREF_KEY = "wordcard-prefs-v2";
+const PREF_EVENT = "wordcard-prefs-changed";
 
 type Prefs = { order: SectionId[]; hidden: SectionId[] };
 
@@ -75,7 +76,66 @@ function loadPrefs(): Prefs {
 }
 
 function savePrefs(p: Prefs) {
-  try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* noop */ }
+  try {
+    localStorage.setItem(PREF_KEY, JSON.stringify(p));
+    window.dispatchEvent(new CustomEvent(PREF_EVENT));
+  } catch { /* noop */ }
+}
+
+function usePrefsSync(setPrefs: (p: Prefs) => void) {
+  useEffect(() => {
+    const h = () => setPrefs(loadPrefs());
+    window.addEventListener(PREF_EVENT, h);
+    window.addEventListener("storage", h);
+    return () => {
+      window.removeEventListener(PREF_EVENT, h);
+      window.removeEventListener("storage", h);
+    };
+  }, [setPrefs]);
+}
+
+export function WordCardSectionsEditor() {
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+  usePrefsSync(setPrefs);
+  const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
+  const toggle = (id: SectionId) => {
+    const next = { ...prefs, hidden: prefs.hidden.includes(id) ? prefs.hidden.filter((x) => x !== id) : [...prefs.hidden, id] };
+    setPrefs(next); savePrefs(next);
+  };
+  const move = (id: SectionId, dir: -1 | 1) => {
+    const i = prefs.order.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= prefs.order.length) return;
+    const o = [...prefs.order];
+    [o[i], o[j]] = [o[j], o[i]];
+    const next = { ...prefs, order: o };
+    setPrefs(next); savePrefs(next);
+  };
+  return (
+    <ul className="space-y-1">
+      {prefs.order.map((id, idx) => {
+        const meta = ALL_SECTIONS.find((s) => s.id === id);
+        if (!meta) return null;
+        const visible = isVisible(id);
+        return (
+          <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs">
+            <span className={visible ? "" : "text-muted-foreground line-through"}>{meta.label}</span>
+            <span className="flex gap-1">
+              <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
+                {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+              </button>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string; icon: string; title: string }> = {
@@ -96,28 +156,16 @@ export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boole
 export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autoplay?: boolean }>(
   function WordCard({ word, autoplay = true }, ref) {
     const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
-    const [editing, setEditing] = useState(false);
+    usePrefsSync(setPrefs);
 
+    // Kept for API compatibility — the editor now lives outside the card.
     useImperativeHandle(ref, () => ({
-      toggleEditing: () => setEditing((v) => !v),
-      isEditing: () => editing,
-    }), [editing]);
-
-    useEffect(() => { savePrefs(prefs); }, [prefs]);
+      toggleEditing: () => {},
+      isEditing: () => false,
+    }), []);
 
     const ex = word.extras ?? {};
     const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
-    const toggle = (id: SectionId) =>
-      setPrefs((p) => ({ ...p, hidden: p.hidden.includes(id) ? p.hidden.filter((x) => x !== id) : [...p.hidden, id] }));
-    const move = (id: SectionId, dir: -1 | 1) =>
-      setPrefs((p) => {
-        const i = p.order.indexOf(id);
-        const j = i + dir;
-        if (i < 0 || j < 0 || j >= p.order.length) return p;
-        const o = [...p.order];
-        [o[i], o[j]] = [o[j], o[i]];
-        return { ...p, order: o };
-      });
 
     const hasContent = (id: SectionId): boolean => {
       switch (id) {
@@ -137,36 +185,6 @@ export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autopla
     return (
       <div className="space-y-3">
         <HeaderRow word={word} autoplay={autoplay} />
-
-        {editing && (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-3 text-xs">
-            <p className="mb-2 font-medium text-muted-foreground">表示する項目と順番</p>
-            <ul className="space-y-1">
-              {prefs.order.map((id, idx) => {
-                const meta = ALL_SECTIONS.find((s) => s.id === id);
-                if (!meta) return null;
-                const visible = isVisible(id);
-                return (
-                  <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1">
-                    <span className={visible ? "" : "text-muted-foreground line-through"}>{meta.label}</span>
-                    <span className="flex gap-1">
-                      <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                      <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
-                        {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
         <div className="grid gap-3">
           {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
             <SectionCard key={id} id={id} word={word} />
