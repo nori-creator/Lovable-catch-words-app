@@ -376,6 +376,7 @@ function CapturePage() {
               </div>
             </div>
             <input
+              ref={selfieInputRef}
               type="file"
               accept="image/*"
               capture="user"
