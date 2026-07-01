@@ -242,12 +242,9 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       experimental_output: Output.object({ schema: CardSchema }) as never,
     });
     const out = (result as unknown as { experimental_output?: z.infer<typeof CardSchema> }).experimental_output;
-    if (!out) {
-      try {
-        return CardSchema.parse(parseJsonFromAiText(result.text));
-      } catch {
-        throw new Error("AI did not return a structured card");
-      }
-    }
-    return out;
+    const card = out ?? (() => {
+      try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
+      catch { throw new Error("AI did not return a structured card"); }
+    })();
+    return { ...card, category_key: normalizeCategory(data.headword, card.category_key) };
   });
