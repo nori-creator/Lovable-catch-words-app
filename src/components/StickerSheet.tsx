@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X, MapPin, Clock, Loader2, Settings2, ChevronUp } from "lucide-react";
-import { WordCard, type WordCardHandle } from "@/components/WordCard";
+import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { getSticker } from "@/lib/stickers.functions";
 
 
