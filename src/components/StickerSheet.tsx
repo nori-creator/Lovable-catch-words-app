@@ -19,7 +19,6 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     enabled: !!stickerId,
   });
   const [flipped, setFlipped] = useState(false);
-  const cardRef = useRef<WordCardHandle>(null);
   const [editing, setEditing] = useState(false);
 
   // reset flip when sticker changes
