@@ -270,3 +270,43 @@ export const saveSticker = createServerFn({ method: "POST" })
     if (stErr) throw new Error(stErr.message);
     return { id: sticker.id, word_id: wordId };
   });
+
+const UpdateExtrasInput = z.object({
+  word_id: z.string().uuid(),
+  extras: z.object({
+    collocations: z.array(z.string()).default([]),
+    synonyms: z.array(z.string()).default([]),
+    antonyms: z.array(z.string()).default([]),
+    etymology: z.string().default(""),
+    radicals: z.string().default(""),
+    mnemonic: z.string().default(""),
+    trivia: z.string().default(""),
+    common_situation: z.string().default(""),
+    usage_note: z.string().default(""),
+    examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
+  }),
+  patch: z.object({
+    reading_zhuyin: z.string().optional(),
+    pinyin: z.string().optional(),
+    part_of_speech: z.string().optional(),
+    level: z.string().optional(),
+    example_sentence: z.string().optional(),
+    example_translation: z.string().optional(),
+  }).optional(),
+});
+
+export const updateWordExtras = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateExtrasInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const update: Record<string, unknown> = { extras: data.extras as never };
+    if (data.patch) {
+      for (const [k, v] of Object.entries(data.patch)) {
+        if (v !== undefined && v !== "") update[k] = v;
+      }
+    }
+    const { error } = await supabase.from("words").update(update as never).eq("id", data.word_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

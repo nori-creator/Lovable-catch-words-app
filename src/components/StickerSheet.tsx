@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
+import { generateCard } from "@/lib/ai.functions";
 
 
 type Props = {
@@ -13,6 +14,9 @@ type Props = {
 
 export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchSticker = useServerFn(getSticker);
+  const enrichWord = useServerFn(generateCard);
+  const saveExtras = useServerFn(updateWordExtras);
+  const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
@@ -20,6 +24,49 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const enrichedRef = useRef<Set<string>>(new Set());
+
+  // Auto-enrich word details (collocations, synonyms, etymology, examples, etc.)
+  // the first time a word without extras is opened.
+  useEffect(() => {
+    if (!s) return;
+    const ex = s.word.extras;
+    const isEmpty =
+      !ex ||
+      (!ex.collocations.length && !ex.synonyms.length && !ex.antonyms.length &&
+       !ex.etymology && !ex.mnemonic && !ex.trivia && !ex.common_situation &&
+       !ex.usage_note && !ex.examples_extra.length);
+    if (!isEmpty) return;
+    if (enrichedRef.current.has(s.word_id)) return;
+    enrichedRef.current.add(s.word_id);
+    setEnriching(true);
+    (async () => {
+      try {
+        const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+        await saveExtras({
+          data: {
+            word_id: s.word_id,
+            extras: card.extras,
+            patch: {
+              reading_zhuyin: card.reading_zhuyin,
+              pinyin: card.pinyin,
+              part_of_speech: card.part_of_speech,
+              level: card.level,
+              example_sentence: card.example_sentence,
+              example_translation: card.example_translation,
+            },
+          },
+        });
+        await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+      } catch (e) {
+        console.warn("Enrichment failed", e);
+      } finally {
+        setEnriching(false);
+      }
+    })();
+  }, [s, stickerId, enrichWord, saveExtras, qc]);
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -110,27 +157,22 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               onClick={() => hasSelfie && setFlipped((f) => !f)}
             >
               <div
-                className={`card-flip relative aspect-square w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
               >
-                {/* Front: original photo WITH background; centered via contain over a blurred backdrop */}
+                {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
                   {s.object_url ? (
-                    <>
-                      <img
-                        src={s.object_url}
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
-                      />
-                      <img
-                        src={s.object_url}
-                        alt={`「${s.word.headword}」の写真`}
-                        className="hero-pop absolute inset-0 h-full w-full object-contain"
-                      />
-                    </>
+                    <img
+                      src={s.object_url}
+                      alt={`「${s.word.headword}」の写真`}
+                      className="hero-pop absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : s.cutout_url ? (
-                    <div className="grid h-full w-full place-items-center bg-secondary">
-                      <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
-                    </div>
+                    <img
+                      src={s.cutout_url}
+                      alt={s.word.headword}
+                      className="hero-pop absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="grid h-full w-full place-items-center bg-secondary text-7xl">
                       {s.word.silhouette_emoji ?? "📦"}
@@ -147,12 +189,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
                   {hasSelfie ? (
                     <>
-                      <img
-                        src={s.selfie_url!}
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
-                      />
-                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-contain" />
+                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                         タップで戻る
                       </span>
@@ -209,6 +246,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 extras: s.word.extras,
               }}
             />
+
+            {enriching && (
+              <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-xs text-primary">
+                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                詳しい解説をAIが準備中…
+              </div>
+            )}
 
             {s.lat != null && s.lng != null && (
               <a
