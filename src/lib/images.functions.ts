@@ -106,13 +106,38 @@ async function generateOneAiImage(prompt: string): Promise<ImageCandidate | null
  */
 const FetchInput = z.object({ url: z.string().url().max(2000) });
 
+// Allowlist of external image hosts we're willing to proxy. Keeps this
+// endpoint from being abused as an SSRF gadget against internal/metadata
+// endpoints (e.g. 169.254.169.254) or arbitrary internal services.
+const ALLOWED_IMAGE_HOSTS = new Set<string>([
+  "images.unsplash.com",
+  "plus.unsplash.com",
+]);
+
+const ALLOWED_IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|avif)$/i;
+
 export const fetchImageAsDataUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => FetchInput.parse(input))
   .handler(async ({ data }): Promise<{ dataUrl: string }> => {
-    const res = await fetch(data.url);
+    let parsed: URL;
+    try {
+      parsed = new URL(data.url);
+    } catch {
+      throw new Error("Invalid URL");
+    }
+    if (parsed.protocol !== "https:") {
+      throw new Error("Only https URLs are permitted");
+    }
+    if (!ALLOWED_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
+      throw new Error("URL host is not permitted");
+    }
+    const res = await fetch(parsed.toString(), { redirect: "error" });
     if (!res.ok) throw new Error(`image fetch failed: ${res.status}`);
-    const ct = res.headers.get("content-type") ?? "image/jpeg";
+    const ct = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (!ALLOWED_IMAGE_MIME.test(ct)) {
+      throw new Error("Response is not a permitted image type");
+    }
     const buf = new Uint8Array(await res.arrayBuffer());
     // base64 encode (Buffer is available in workers via nodejs_compat)
     const b64 = Buffer.from(buf).toString("base64");
