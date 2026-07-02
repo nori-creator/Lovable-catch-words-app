@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
+import { generateCard } from "@/lib/ai.functions";
 
 
 type Props = {
