@@ -199,11 +199,10 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
 
       <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z, tape }) => {
-          // Prefer cutout (background-removed) for both object and selfie.
-          // Fallback: selfie photo → polaroid; otherwise emoji.
-          const hasCutout = !!s.cutout_url;
-          const hasSelfie = !!s.selfie_url;
-          const isPolaroid = !hasCutout && hasSelfie;
+          // Album is a memory book: prefer selfie (you + the thing).
+          // Fallback to the plain object photo only when there's no selfie.
+          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? null;
+          const isPolaroid = !!heroUrl;
 
           return (
             <button
@@ -217,24 +216,12 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
                   <span className={`washi-tape ${tape}`} style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }} />
                   <div className="h-[calc(100%-28px)] w-full overflow-hidden">
                     <img
-                      src={s.selfie_url!}
+                      src={heroUrl!}
                       alt={`「${s.word.headword}」の思い出`}
                       className="h-full w-full object-cover"
                     />
                   </div>
                   <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/80">
-                    {s.word.headword}
-                  </span>
-                </div>
-              ) : hasCutout ? (
-                <div className="relative h-full w-full">
-                  <img
-                    src={s.cutout_url!}
-                    alt={`「${s.word.headword}」の思い出`}
-                    className="h-full w-full object-contain"
-                    style={{ filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.35)) drop-shadow(0 1px 1px rgba(0,0,0,0.2))" }}
-                  />
-                  <span className="handwritten pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap text-base text-amber-950/85 drop-shadow-sm">
                     {s.word.headword}
                   </span>
                 </div>
