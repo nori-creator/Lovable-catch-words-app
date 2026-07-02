@@ -306,7 +306,7 @@ export const updateWordExtras = createServerFn({ method: "POST" })
         if (v !== undefined && v !== "") update[k] = v;
       }
     }
-    const { error } = await supabase.from("words").update(update).eq("id", data.word_id);
+    const { error } = await supabase.from("words").update(update as never).eq("id", data.word_id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
