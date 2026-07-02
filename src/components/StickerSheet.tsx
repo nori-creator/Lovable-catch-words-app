@@ -14,6 +14,9 @@ type Props = {
 
 export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchSticker = useServerFn(getSticker);
+  const enrichWord = useServerFn(generateCard);
+  const saveExtras = useServerFn(updateWordExtras);
+  const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
@@ -21,6 +24,49 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const enrichedRef = useRef<Set<string>>(new Set());
+
+  // Auto-enrich word details (collocations, synonyms, etymology, examples, etc.)
+  // the first time a word without extras is opened.
+  useEffect(() => {
+    if (!s) return;
+    const ex = s.word.extras;
+    const isEmpty =
+      !ex ||
+      (!ex.collocations.length && !ex.synonyms.length && !ex.antonyms.length &&
+       !ex.etymology && !ex.mnemonic && !ex.trivia && !ex.common_situation &&
+       !ex.usage_note && !ex.examples_extra.length);
+    if (!isEmpty) return;
+    if (enrichedRef.current.has(s.word_id)) return;
+    enrichedRef.current.add(s.word_id);
+    setEnriching(true);
+    (async () => {
+      try {
+        const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+        await saveExtras({
+          data: {
+            word_id: s.word_id,
+            extras: card.extras,
+            patch: {
+              reading_zhuyin: card.reading_zhuyin,
+              pinyin: card.pinyin,
+              part_of_speech: card.part_of_speech,
+              level: card.level,
+              example_sentence: card.example_sentence,
+              example_translation: card.example_translation,
+            },
+          },
+        });
+        await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+      } catch (e) {
+        console.warn("Enrichment failed", e);
+      } finally {
+        setEnriching(false);
+      }
+    })();
+  }, [s, stickerId, enrichWord, saveExtras, qc]);
 
   // reset flip when sticker changes
   useEffect(() => {
