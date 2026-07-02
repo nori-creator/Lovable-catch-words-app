@@ -8,15 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, RotateCcw, Sparkles, Check, Keyboard } from "lucide-react";
+import { Camera, Loader2, RotateCcw, Sparkles, Check, Keyboard, PartyPopper, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
 import { geocodeLocation } from "@/lib/geocode.functions";
 import { saveSticker } from "@/lib/stickers.functions";
+import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
+import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
 import { WordCard } from "@/components/WordCard";
 
 export const Route = createFileRoute("/_authenticated/capture")({
+  validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
+    const out: { word?: string; pending?: string } = {};
+    // 派生キャッチ: /capture?word=咖啡 で文字入力フローを自動実行
+    if (typeof search.word === "string" && search.word) out.word = search.word;
+    // オフラインキューからの復元: /capture?pending=<id>
+    if (typeof search.pending === "string" && search.pending) out.pending = search.pending;
+    return out;
+  },
   head: () => ({
     meta: [
       { title: "集める — Catchwords" },
@@ -36,7 +46,9 @@ type Step =
   | "textInput"
   | "imagePick"
   | "card"
-  | "saving";
+  | "saving"
+  | "reencounter"
+  | "offlineSaved";
 
 type Suggestion = {
   headword: string;
@@ -83,9 +95,38 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return await res.blob();
 }
 
+/**
+ * Canvas re-encode: shrinks the image AND strips EXIF metadata (GPS etc.)
+ * embedded by the camera, so uploads and AI calls never leak it.
+ */
+async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): Promise<string> {
+  if (typeof document === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("image load failed"));
+      img.src = dataUrl;
+    });
+    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return dataUrl;
+  }
+}
+
 function CapturePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { word: wordParam, pending: pendingParam } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("photo");
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
@@ -99,24 +140,65 @@ function CapturePage() {
   const [loc, setLoc] = useState<{ lat: number; lng: number; name: string | null } | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reenc, setReenc] = useState<OwnedWord | null>(null);
+  const [reencRevealed, setReencRevealed] = useState(false);
+  const [reencResult, setReencResult] = useState<{ recalled: boolean; encounter_count: number; next_due_at: string | null } | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
   const selfieAutoOpenedRef = useRef(false);
+  const handledParamRef = useRef<string | null>(null);
 
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
   const geocodeFn = useServerFn(geocodeLocation);
   const saveFn = useServerFn(saveSticker);
+  const ownedFn = useServerFn(checkOwnedWord);
+  const encounterFn = useServerFn(recordEncounter);
 
-  // Auto-open the rear camera when landing on /capture.
+  // Auto-open the rear camera when landing on /capture (unless we arrived
+  // with a derived-catch word or an offline-queue restore).
   useEffect(() => {
     if (autoOpenedRef.current) return;
     if (step !== "object") return;
+    if (wordParam || pendingParam) return;
     autoOpenedRef.current = true;
     const t = setTimeout(() => cameraInputRef.current?.click(), 60);
     return () => clearTimeout(t);
-  }, [step]);
+  }, [step, wordParam, pendingParam]);
+
+  // Derived catch: /capture?word=◯◯ (tapped a collocation/synonym on a card).
+  useEffect(() => {
+    if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
+    handledParamRef.current = `w:${wordParam}`;
+    setMode("text");
+    setManualWord(wordParam);
+    tryGetLocation();
+    void confirmWord(wordParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordParam]);
+
+  // Offline-queue restore: /capture?pending=<id>.
+  useEffect(() => {
+    if (!pendingParam || handledParamRef.current === `p:${pendingParam}`) return;
+    handledParamRef.current = `p:${pendingParam}`;
+    void (async () => {
+      const item = await getPendingCapture(pendingParam);
+      if (!item) {
+        toast.error("保存されていた写真が見つかりませんでした");
+        return;
+      }
+      setPendingId(item.id);
+      setObjectImg(item.object_img);
+      setSelfieImg(item.selfie_img);
+      if (item.lat != null && item.lng != null) {
+        setLoc({ lat: item.lat, lng: item.lng, name: item.location_name });
+      }
+      await runAi(item.object_img);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingParam]);
 
   // Auto-open front camera as soon as the selfie step begins.
   useEffect(() => {
@@ -130,14 +212,15 @@ function CapturePage() {
 
   async function handleObjectFile(file: File) {
     const url = await fileToDataUrl(file);
-    setObjectImg(url);
+    const compressed = await compressImage(url, 1600);
+    setObjectImg(compressed);
     setStep("selfie");
   }
 
   async function handleSelfieFile(file: File | null) {
     if (file) {
       const url = await fileToDataUrl(file);
-      setSelfieImg(url);
+      setSelfieImg(await compressImage(url, 1280));
     }
     await runAi();
   }
@@ -158,18 +241,21 @@ function CapturePage() {
     );
   }
 
-  async function runAi() {
-    if (!objectImg) return;
+  async function runAi(imgOverride?: string) {
+    const img = imgOverride ?? objectImg;
+    if (!img) return;
     setStep("processing");
     setError(null);
     tryGetLocation();
 
     try {
+      // The AI only needs a small image — shrinking it cuts upload time and cost.
+      const aiImage = await compressImage(img, 768, 0.8);
       const [cutoutRes, suggestRes] = await Promise.all([
         (async () => {
           try {
             const mod = await import("@imgly/background-removal");
-            const blob = await dataUrlToBlob(objectImg);
+            const blob = await dataUrlToBlob(img);
             const out = await mod.removeBackground(blob);
             const reader = new FileReader();
             return await new Promise<string>((resolve, reject) => {
@@ -179,16 +265,30 @@ function CapturePage() {
             });
           } catch (e) {
             console.warn("background removal failed, using original", e);
-            return objectImg;
+            return img;
           }
         })(),
-        suggestFn({ data: { imageBase64: objectImg, targetLanguage: "zh-TW" } }),
+        suggestFn({ data: { imageBase64: aiImage, targetLanguage: "zh-TW" } }),
       ]);
       setCutoutImg(cutoutRes);
       setSuggestions(suggestRes.suggestions);
       setStep("select");
     } catch (e) {
       console.error(e);
+      // Offline? Keep the shot: queue it locally and analyze when back online.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const saved = await enqueueCapture({
+          object_img: img,
+          selfie_img: selfieImg,
+          lat: loc?.lat ?? null,
+          lng: loc?.lng ?? null,
+          location_name: loc?.name ?? null,
+        });
+        if (saved) {
+          setStep("offlineSaved");
+          return;
+        }
+      }
       setError(e instanceof Error ? e.message : "AI処理に失敗しました");
       setStep("object");
       toast.error("AI処理に失敗しました。もう一度お試しください。");
@@ -198,6 +298,22 @@ function CapturePage() {
   async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
     setSelectedHead(head);
     setStep("processing");
+
+    // Already caught this word? Then this is a re-encounter — the best review
+    // moment there is — not a duplicate sticker.
+    try {
+      const { owned } = await ownedFn({ data: { headword: head, language: "zh-TW" } });
+      if (owned) {
+        setReenc(owned);
+        setReencRevealed(false);
+        setReencResult(null);
+        setStep("reencounter");
+        return;
+      }
+    } catch {
+      // Ownership check is best-effort; fall through to the normal flow.
+    }
+
     try {
       if (hint) {
         setCard({
@@ -290,6 +406,7 @@ function CapturePage() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
+      if (pendingId) await removePendingCapture(pendingId);
       toast.success("ステッカーを図鑑に追加しました！");
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {
@@ -312,6 +429,31 @@ function CapturePage() {
     setCaption("");
     setFlipped(false);
     setError(null);
+    setReenc(null);
+    setReencRevealed(false);
+    setReencResult(null);
+    setPendingId(null);
+  }
+
+  async function answerReencounter(recalled: boolean) {
+    if (!reenc || reencResult) return;
+    try {
+      const res = await encounterFn({
+        data: {
+          sticker_id: reenc.sticker_id,
+          recalled,
+          lat: loc?.lat ?? null,
+          lng: loc?.lng ?? null,
+          location_name: loc?.name ?? null,
+        },
+      });
+      setReencResult({ recalled, encounter_count: res.encounter_count, next_due_at: res.next_due_at });
+      await queryClient.invalidateQueries({ queryKey: ["stickers"] });
+      await queryClient.invalidateQueries({ queryKey: ["reviews-due"] });
+    } catch (e) {
+      console.error(e);
+      toast.error("記録に失敗しました");
+    }
   }
 
   return (
@@ -565,6 +707,97 @@ function CapturePage() {
         <div className="grid place-items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">保存中...</p>
+        </div>
+      )}
+
+      {step === "reencounter" && reenc && (
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-amber-300/60 bg-gradient-to-br from-amber-50 to-white p-5 text-center shadow-lg">
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-xs font-bold text-amber-950">
+              <PartyPopper className="h-3.5 w-3.5" /> 再会！
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              この言葉、{new Date(reenc.taken_at).toLocaleDateString("ja-JP")}
+              {reenc.location_name ? `に ${reenc.location_name} で` : "に"}ゲットしています。
+            </p>
+            {reenc.cutout_url && (
+              <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5">
+                <img src={reenc.cutout_url} alt={reenc.headword} className="h-full w-full object-contain p-2" />
+              </div>
+            )}
+            <div className="text-3xl font-bold tracking-tight">{reenc.headword}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
+            </div>
+
+            {!reencRevealed ? (
+              <button
+                onClick={() => setReencRevealed(true)}
+                className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-sm font-semibold text-amber-900"
+              >
+                意味、覚えてる？ — タップして答え合わせ
+              </button>
+            ) : (
+              <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
+                <p className="text-lg font-semibold">{reenc.meaning_ja}</p>
+                {!reencResult ? (
+                  <div className="mt-3 flex gap-2">
+                    <Button onClick={() => answerReencounter(true)} className="flex-1">
+                      覚えてた！
+                    </Button>
+                    <Button variant="outline" onClick={() => answerReencounter(false)} className="flex-1">
+                      忘れてた…
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2 text-sm">
+                    <p className="font-semibold">
+                      {reencResult.recalled ? "現実世界での復習、最強です 🎉" : "大丈夫、明日また出題します"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      再会 {reencResult.encounter_count} 回目
+                      {reencResult.next_due_at &&
+                        ` · 次の復習: ${new Date(reencResult.next_due_at).toLocaleDateString("ja-JP")}`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={reset} className="flex-1">
+              <Camera className="mr-1 h-4 w-4" /> 別のものを撮る
+            </Button>
+            {reencResult && (
+              <Button
+                onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })}
+                className="flex-1"
+              >
+                図鑑で見る
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === "offlineSaved" && (
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-border bg-card p-8 text-center">
+            <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <p className="text-base font-semibold">オフラインなので写真だけ保存しました</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              電波が戻ったら、ホームの「解析待ち」から続きができます。撮った瞬間は逃していません。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
+              ホームへ
+            </Button>
+            <Button onClick={reset} className="flex-1">
+              <Camera className="mr-1 h-4 w-4" /> もう一枚撮る
+            </Button>
+          </div>
         </div>
       )}
     </AppShell>

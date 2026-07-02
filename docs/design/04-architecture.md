@@ -33,20 +33,29 @@ Lovable が「勝手にやっている」ことの正体は以下のとおり。
 リポジトリはローカル(またはClaude Codeのクラウド環境)でそのまま動く構成になっている。
 
 ```bash
-# 1. 依存インストール(bun.lock があるので bun を使う)
-bun install
+# 1. 依存インストール
+#    注意: bun.lock には Lovable 専用のプライベートnpmミラーURLが焼き込まれており、
+#    Lovable の外(あなたのPCやCI)では bun install が 403 で失敗する。
+#    ローカルでは npm を使う(リポジトリのロックファイルは書き換えない):
+npm install --no-package-lock --no-save
 
 # 2. 環境変数(.env はリポジトリ直下に既にある)
 #    SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY などは設定済み。
 #    AI機能を動かすには LOVABLE_API_KEY(または §3 の代替キー)を追記する。
 
-# 3. 開発サーバ
-bun run dev   # → vite dev
+# 3. 開発サーバ(このサンドボックスのようにIPv6が無い環境では --host を付ける)
+npm run dev -- --host 127.0.0.1   # → vite dev
 
-# 4. Lint / フォーマット
-bun run lint
-bun run format
+# 4. Lint / 型チェック
+npx eslint .
+npx tsc --noEmit
 ```
+
+**マイグレーションの適用について**: `supabase/migrations/` に追加したSQLは、gitにコミットしただけでは
+本番DBに反映されない。このアプリのDBは Lovable Cloud 管理(あなたの個人 Supabase アカウントからは見えない)なので、
+新しいマイグレーションファイルを適用するには Lovable のチャットで
+「supabase/migrations/ の未適用マイグレーションを適用して」と依頼するのが確実
+(コードは未適用でも壊れないフェイルソフト設計にしてある)。
 
 運用ルール(Lovable と Claude Code の併用時):
 1. **DB変更は必ず `supabase/migrations/` にSQLファイルとして残す**(Lovable も Claude Code も同じ履歴を見る)。Supabase MCP や dashboard で直接いじった場合も、同じSQLをマイグレーションとして追加する
@@ -56,7 +65,13 @@ bun run format
 
 ## 3. AIプロバイダ抽象化(Lovable 依存の解消)
 
-現状の `src/lib/ai-gateway.server.ts` は `createOpenAICompatible` の薄いラッパー(12行)なので、差し替えは簡単。
+**→ 実装済み: `src/lib/ai-provider.server.ts`。** 環境変数だけで切替できる:
+`AI_PROVIDER=lovable|google|openai-compatible`、google は `GEMINI_API_KEY`、
+openai-compatible は `AI_BASE_URL`+`AI_API_KEY`。モデルは `AI_MODEL_FAST` / `AI_MODEL_RICH`、
+TTSは `TTS_BASE_URL`+`TTS_API_KEY`(+`TTS_MODEL`)で任意のOpenAI互換サーバに向けられる。
+未設定なら従来どおり Lovable ゲートウェイで動く(後方互換)。
+
+以下は当初の設計メモ(実装の背景として残す):
 
 仕様: `createAiProvider()` に一般化し、環境変数で切替える
 

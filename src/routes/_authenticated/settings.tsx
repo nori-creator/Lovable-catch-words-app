@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { exportMyDeck } from "@/lib/words.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut } from "lucide-react";
+import { LogOut, Download } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
@@ -32,6 +33,27 @@ function SettingsPage() {
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportFn = useServerFn(exportMyDeck);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const { tsv, count } = await exportFn();
+      const blob = new Blob([tsv], { type: "text/tab-separated-values;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `catchwords-deck-${new Date().toISOString().slice(0, 10)}.tsv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${count}枚のカードを書き出しました`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "エクスポートに失敗しました");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     if (!profile) return;
@@ -149,6 +171,22 @@ function SettingsPage() {
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? "保存中..." : "保存"}
         </Button>
+
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="mb-1 text-sm font-semibold text-muted-foreground">データ</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            集めた単語をタブ区切りテキストで書き出します（Ankiにそのままインポートでき、Excelでも開けます）。
+          </p>
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={exporting}
+            onClick={handleExport}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "書き出し中..." : "デッキをエクスポート（Anki / TSV）"}
+          </Button>
+        </div>
 
         <Button
           variant="outline"

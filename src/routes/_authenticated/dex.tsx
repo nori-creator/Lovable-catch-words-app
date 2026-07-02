@@ -168,6 +168,11 @@ function DexPage() {
                             {s.word.silhouette_emoji ?? "📦"}
                           </div>
                         )}
+                        {s.encounter_count > 0 && (
+                          <span className="absolute right-2 top-2 rounded-full bg-amber-400/95 px-2 py-0.5 text-[10px] font-bold text-amber-950 shadow">
+                            再会 ×{s.encounter_count}
+                          </span>
+                        )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                           <div className="text-sm font-bold text-white">{s.word.headword}</div>
                         </div>

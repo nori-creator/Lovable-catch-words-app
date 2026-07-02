@@ -5,8 +5,9 @@ import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
+import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon } from "lucide-react";
+import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -20,6 +21,44 @@ export const Route = createFileRoute("/_authenticated/home")({
 
 function dayKey(d: Date) {
   return d.toLocaleDateString("en-CA"); // YYYY-MM-DD local
+}
+
+/** Offline captures waiting for AI analysis (queued in IndexedDB). */
+function PendingCapturesBanner() {
+  const [pending, setPending] = useState<PendingCapture[]>([]);
+  useEffect(() => {
+    const load = () => {
+      void listPendingCaptures().then(setPending);
+    };
+    load();
+    window.addEventListener("online", load);
+    window.addEventListener("focus", load);
+    return () => {
+      window.removeEventListener("online", load);
+      window.removeEventListener("focus", load);
+    };
+  }, []);
+  if (pending.length === 0) return null;
+  const first = pending[0];
+  return (
+    <Link
+      to="/capture"
+      search={{ pending: first.id }}
+      className="lift mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200">
+        {first.object_img ? (
+          <img src={first.object_img} alt="解析待ちの写真" className="h-full w-full object-cover" />
+        ) : (
+          <WifiOff className="h-5 w-5 text-amber-700" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-amber-950">📥 解析待ちの写真が {pending.length} 枚</span>
+        <span className="block text-xs text-amber-900/70">タップしてAI解析を再開する</span>
+      </span>
+    </Link>
+  );
 }
 
 const BG_OPTIONS = [
@@ -76,6 +115,8 @@ function HomePage() {
   return (
     <AppShell>
       <DayHeader date={today} label="Today's Scrapbook" />
+
+      <PendingCapturesBanner />
 
       <BackgroundPicker current={bg} onChange={setBg} />
 
