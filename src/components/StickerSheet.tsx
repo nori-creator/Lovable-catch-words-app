@@ -247,6 +247,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               }}
             />
 
+            {enriching && (
+              <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-xs text-primary">
+                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                詳しい解説をAIが準備中…
+              </div>
+            )}
+
             {s.lat != null && s.lng != null && (
               <a
                 href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
