@@ -157,27 +157,22 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               onClick={() => hasSelfie && setFlipped((f) => !f)}
             >
               <div
-                className={`card-flip relative aspect-square w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
               >
-                {/* Front: original photo WITH background; centered via contain over a blurred backdrop */}
+                {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
                   {s.object_url ? (
-                    <>
-                      <img
-                        src={s.object_url}
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
-                      />
-                      <img
-                        src={s.object_url}
-                        alt={`「${s.word.headword}」の写真`}
-                        className="hero-pop absolute inset-0 h-full w-full object-contain"
-                      />
-                    </>
+                    <img
+                      src={s.object_url}
+                      alt={`「${s.word.headword}」の写真`}
+                      className="hero-pop absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : s.cutout_url ? (
-                    <div className="grid h-full w-full place-items-center bg-secondary">
-                      <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
-                    </div>
+                    <img
+                      src={s.cutout_url}
+                      alt={s.word.headword}
+                      className="hero-pop absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="grid h-full w-full place-items-center bg-secondary text-7xl">
                       {s.word.silhouette_emoji ?? "📦"}
@@ -194,12 +189,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
                   {hasSelfie ? (
                     <>
-                      <img
-                        src={s.selfie_url!}
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
-                      />
-                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-contain" />
+                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                         タップで戻る
                       </span>
