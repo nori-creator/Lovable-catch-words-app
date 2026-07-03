@@ -118,6 +118,47 @@ export type Database = {
           },
         ]
       }
+      encounters: {
+        Row: {
+          created_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          location_name: string | null
+          recalled: boolean | null
+          sticker_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          location_name?: string | null
+          recalled?: boolean | null
+          sticker_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          location_name?: string | null
+          recalled?: boolean | null
+          sticker_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "encounters_sticker_id_fkey"
+            columns: ["sticker_id"]
+            isOneToOne: false
+            referencedRelation: "stickers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -363,6 +404,32 @@ export type Database = {
         }
         Relationships: []
       }
+      review_choices: {
+        Row: {
+          distractors: string[]
+          generated_at: string
+          word_id: string
+        }
+        Insert: {
+          distractors?: string[]
+          generated_at?: string
+          word_id: string
+        }
+        Update: {
+          distractors?: string[]
+          generated_at?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_choices_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: true
+            referencedRelation: "words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       review_history: {
         Row: {
           blur_seen: boolean
@@ -481,6 +548,7 @@ export type Database = {
           caption: string | null
           created_at: string
           cutout_image_url: string | null
+          encounter_count: number
           id: string
           language: string
           lat: number | null
@@ -497,6 +565,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           cutout_image_url?: string | null
+          encounter_count?: number
           id?: string
           language?: string
           lat?: number | null
@@ -513,6 +582,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           cutout_image_url?: string | null
+          encounter_count?: number
           id?: string
           language?: string
           lat?: number | null
@@ -534,6 +604,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      usage_events: {
+        Row: {
+          created_at: string
+          id: number
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          kind: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          kind?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       words: {
         Row: {

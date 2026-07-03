@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { pregenerateDistractors } from "./reviews.functions";
 
 export type WordExtrasDTO = {
   collocations: string[];
@@ -24,6 +25,7 @@ export type StickerWithWord = {
   lng: number | null;
   taken_at: string;
   created_at: string;
+  encounter_count: number;
   object_url: string | null;
   cutout_url: string | null;
   selfie_url: string | null;
@@ -67,20 +69,53 @@ function normalizeExtras(raw: unknown): WordExtrasDTO | null {
   };
 }
 
-async function signUrls(
-  supabase: { storage: { from: (b: string) => { createSignedUrl: (p: string, e: number) => Promise<{ data: { signedUrl: string } | null }> } } },
-  paths: (string | null | undefined)[]
-): Promise<(string | null)[]> {
-  const results: (string | null)[] = [];
-  for (const p of paths) {
-    if (!p) {
-      results.push(null);
-      continue;
-    }
-    const { data } = await supabase.storage.from("stickers").createSignedUrl(p, 60 * 60 * 6);
-    results.push(data?.signedUrl ?? null);
+type SignedUrlsClient = {
+  storage: {
+    from: (b: string) => {
+      createSignedUrls: (
+        p: string[],
+        e: number,
+      ) => Promise<{ data: Array<{ path: string | null; signedUrl: string | null; error: string | null }> | null }>;
+    };
+  };
+};
+
+/**
+ * Sign many storage paths in a single API call (avoids the N+1 of one
+ * createSignedUrl round-trip per image) and return a path→URL lookup.
+ */
+async function signUrlMap(
+  supabase: SignedUrlsClient,
+  paths: (string | null | undefined)[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => !!p))];
+  const map = new Map<string, string>();
+  if (unique.length === 0) return map;
+  const { data } = await supabase.storage.from("stickers").createSignedUrls(unique, 60 * 60 * 6);
+  for (const row of data ?? []) {
+    if (row.path && row.signedUrl && !row.error) map.set(row.path, row.signedUrl);
   }
-  return results;
+  return map;
+}
+
+/**
+ * Per-sticker encounter counts, tolerant of the pre-migration schema
+ * (encounter_count column may not exist yet — then everything is 0).
+ */
+async function encounterCounts(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const { data, error } = await supabase
+    .from("stickers")
+    .select("id, encounter_count")
+    .eq("user_id", userId)
+    .gt("encounter_count", 0);
+  if (error) return map;
+  for (const row of data ?? []) map.set(row.id, row.encounter_count ?? 0);
+  return map;
 }
 
 export const listMyStickers = createServerFn({ method: "GET" })
@@ -96,13 +131,17 @@ export const listMyStickers = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
 
+    const rows = data ?? [];
+    const [urlMap, counts] = await Promise.all([
+      signUrlMap(
+        supabase,
+        rows.flatMap((r) => [r.object_image_url, r.cutout_image_url, r.selfie_image_url]),
+      ),
+      encounterCounts(supabase, userId),
+    ]);
+
     const result: StickerWithWord[] = [];
-    for (const row of data ?? []) {
-      const [object_url, cutout_url, selfie_url] = await signUrls(supabase, [
-        row.object_image_url,
-        row.cutout_image_url,
-        row.selfie_image_url,
-      ]);
+    for (const row of rows) {
       const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
       if (!wRaw) continue;
       result.push({
@@ -114,9 +153,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
         lng: row.lng,
         taken_at: row.taken_at,
         created_at: row.created_at,
-        object_url,
-        cutout_url,
-        selfie_url,
+        encounter_count: counts.get(row.id) ?? 0,
+        object_url: row.object_image_url ? (urlMap.get(row.object_image_url) ?? null) : null,
+        cutout_url: row.cutout_image_url ? (urlMap.get(row.cutout_image_url) ?? null) : null,
+        selfie_url: row.selfie_image_url ? (urlMap.get(row.selfie_image_url) ?? null) : null,
         word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
@@ -156,16 +196,20 @@ export const getSticker = createServerFn({ method: "GET" })
       row = res.data as typeof row;
     }
     if (!row) return null;
-
-    let signer: Parameters<typeof signUrls>[0] = supabase;
+    // Non-owners sign URLs via the admin client (their RLS can't see the
+    // owner's storage objects); the selfie stays private to the owner.
+    let signer: SignedUrlsClient = supabase;
     if (!isOwner) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      signer = supabaseAdmin;
+      signer = supabaseAdmin as unknown as SignedUrlsClient;
     }
-    const [object_url, cutout_url, selfie_url] = await signUrls(signer, [
-      row.object_image_url,
-      row.cutout_image_url,
-      isOwner ? row.selfie_image_url : null,
+    const [urlMap, counts] = await Promise.all([
+      signUrlMap(signer, [
+        row.object_image_url,
+        row.cutout_image_url,
+        isOwner ? row.selfie_image_url : null,
+      ]),
+      encounterCounts(supabase, userId),
     ]);
 
     const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
@@ -179,9 +223,10 @@ export const getSticker = createServerFn({ method: "GET" })
       lng: row.lng,
       taken_at: row.taken_at,
       created_at: row.created_at,
-      object_url,
-      cutout_url,
-      selfie_url,
+      encounter_count: counts.get(row.id) ?? 0,
+      object_url: row.object_image_url ? (urlMap.get(row.object_image_url) ?? null) : null,
+      cutout_url: row.cutout_image_url ? (urlMap.get(row.cutout_image_url) ?? null) : null,
+      selfie_url: isOwner && row.selfie_image_url ? (urlMap.get(row.selfie_image_url) ?? null) : null,
       word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
     };
     return res;
@@ -268,6 +313,17 @@ export const saveSticker = createServerFn({ method: "POST" })
         .single();
       if (insErr) throw new Error(insErr.message);
       wordId = ins.id;
+
+      // Pre-generate quiz distractors off the review path. Fire-and-forget:
+      // reviews fall back to the user's own deck when this hasn't landed.
+      void pregenerateDistractors(
+        supabase,
+        userId,
+        wordId,
+        data.word.headword,
+        data.word.meaning_ja,
+        categoryKey,
+      ).catch(() => {});
     } else if (data.word.extras) {
       // Update extras for existing word if AI generated new ones
       await supabase

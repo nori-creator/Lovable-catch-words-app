@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/tts.functions";
@@ -208,8 +209,8 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
     setLoading(true);
     try {
       const r = await ttsFn({ data: { text: word.headword } });
-      setAudioUrl(r.audio_data_url);
-      return r.audio_data_url;
+      setAudioUrl(r.audio_url);
+      return r.audio_url;
     } finally {
       setLoading(false);
     }
@@ -324,10 +325,13 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
       );
     case "collocations":
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {(ex.collocations ?? []).map((c, i) => (
-            <Pill key={i}>{c}</Pill>
-          ))}
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {(ex.collocations ?? []).map((c, i) => (
+              <CatchPill key={i}>{c}</CatchPill>
+            ))}
+          </div>
+          <DerivedCatchHint />
         </div>
       );
     case "synonyms":
@@ -336,15 +340,16 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
           {(ex.synonyms?.length ?? 0) > 0 && (
             <div>
               <span className="mr-2 text-[11px] text-muted-foreground">類義</span>
-              {ex.synonyms!.map((s, i) => <Pill key={i}>{s}</Pill>)}
+              {ex.synonyms!.map((s, i) => <CatchPill key={i}>{s}</CatchPill>)}
             </div>
           )}
           {(ex.antonyms?.length ?? 0) > 0 && (
             <div>
               <span className="mr-2 text-[11px] text-muted-foreground">反義</span>
-              {ex.antonyms!.map((s, i) => <Pill key={i} tone="rose">{s}</Pill>)}
+              {ex.antonyms!.map((s, i) => <CatchPill key={i} tone="rose">{s}</CatchPill>)}
             </div>
           )}
+          <DerivedCatchHint />
         </div>
       );
     case "etymology":
@@ -363,10 +368,24 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
   }
 }
 
-function Pill({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "rose" }) {
+/**
+ * Derived catch: every related word on a card is itself catchable. Tapping a
+ * pill jumps to /capture?word=◯◯ which runs the text-capture flow — this is
+ * how verbs/adjectives get collected even though photos mostly yield nouns.
+ */
+function CatchPill({ children, tone = "default" }: { children: string; tone?: "default" | "rose" }) {
   return (
-    <span className={`mr-1 mb-1 inline-block rounded-full px-2.5 py-1 text-[12px] font-medium ${tone === "rose" ? "bg-rose-100 text-rose-900" : "bg-white/70 text-foreground"} shadow-sm ring-1 ring-black/5`}>
+    <Link
+      to="/capture"
+      search={{ word: children }}
+      className={`mr-1 mb-1 inline-block rounded-full px-2.5 py-1 text-[12px] font-medium ${tone === "rose" ? "bg-rose-100 text-rose-900" : "bg-white/70 text-foreground"} shadow-sm ring-1 ring-black/5 transition-transform active:scale-95`}
+    >
       {children}
-    </span>
+      <span className="ml-1 opacity-50">＋</span>
+    </Link>
   );
+}
+
+function DerivedCatchHint() {
+  return <p className="mt-2 text-[10px] text-muted-foreground">タップでこの言葉もゲットできます</p>;
 }

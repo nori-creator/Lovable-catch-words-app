@@ -2,8 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { getAi } from "./ai-provider.server";
+import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 
-const MODEL = "google/gemini-3-flash-preview";
+/**
+ * Review card modes escalate with SRS maturity (repetitions):
+ * 0-1 recognition (see photo+word, pick meaning)
+ * 2-3 listening   (audio only, pick meaning; photo/word revealed after answer)
+ * 4-5 reverse     (see meaning+photo, pick the headword)
+ * 6+  production  (see photo+meaning, say the word; client falls back to
+ *                  reverse when speech recognition is unavailable)
+ */
+export type ReviewMode = "recognition" | "listening" | "reverse" | "production";
 
 export type DueReviewCard = {
   review_id: string;
@@ -16,11 +26,14 @@ export type DueReviewCard = {
   example_translation: string | null;
   category_key: string | null;
   cutout_url: string | null;
+  audio_url: string | null; // cached TTS if it exists; client falls back to speechSynthesis
   blur_seen: boolean;
   ease: number;
   interval_days: number;
   repetitions: number;
+  mode: ReviewMode;
   choices: string[]; // 4 meaning_ja options (shuffled); correct = meaning_ja
+  headword_choices: string[]; // 4 headword options for reverse mode
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -32,32 +45,202 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// Maker/Checker loop: produce 3 plausible-but-wrong meanings
-async function generateDistractors(
-  gateway: ReturnType<typeof import("./ai-gateway.server").createLovableAiGatewayProvider>,
+function modeFor(repetitions: number): ReviewMode {
+  if (repetitions <= 1) return "recognition";
+  if (repetitions <= 3) return "listening";
+  if (repetitions <= 5) return "reverse";
+  return "production";
+}
+
+const STATIC_MEANING_FALLBACK = ["別の物体", "場所の名前", "人物の役職"];
+const STATIC_HEADWORD_FALLBACK = ["蘋果", "公車", "雨傘"];
+
+/**
+ * Pick 3 distractors without any AI call. Priority:
+ * 1. meanings/headwords of the user's OWN words in the same category
+ *    (the confusions that actually happen in this learner's head),
+ * 2. pre-generated AI distractors cached in review_choices,
+ * 3. the user's other words, 4. static fallback.
+ */
+function pickThree(correct: string, ...pools: string[][]): string[] {
+  const out: string[] = [];
+  for (const pool of pools) {
+    for (const cand of pool) {
+      if (!cand || cand === correct || out.includes(cand)) continue;
+      out.push(cand);
+      if (out.length >= 3) return out;
+    }
+  }
+  return out;
+}
+
+export const getDueReviews = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<DueReviewCard[]> => {
+    const { supabase, userId } = context;
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("reviews")
+      .select(
+        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+      )
+      .eq("user_id", userId)
+      .lte("due_at", nowIso)
+      .order("due_at", { ascending: true })
+      .limit(10);
+    if (error) throw new Error(error.message);
+
+    type DueRow = {
+      id: string;
+      sticker_id: string;
+      ease: number;
+      interval_days: number;
+      repetitions: number;
+      blur_seen: boolean;
+      stickers: {
+        cutout_image_url: string | null;
+        words: {
+          id: string;
+          headword: string;
+          reading_zhuyin: string | null;
+          pinyin: string | null;
+          meaning_ja: string;
+          example_sentence: string | null;
+          example_translation: string | null;
+          category_key: string | null;
+        } | null;
+      } | null;
+    };
+    const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
+    if (rows.length === 0) return [];
+
+    // The user's own deck is the distractor pool — zero AI calls at review time.
+    const { data: deckRows } = await supabase
+      .from("stickers")
+      .select("words(id, headword, meaning_ja, category_key)")
+      .eq("user_id", userId)
+      .limit(500);
+    type DeckWord = { id: string; headword: string; meaning_ja: string; category_key: string | null };
+    const deck: DeckWord[] = [];
+    const seen = new Set<string>();
+    for (const r of (deckRows ?? []) as unknown as Array<{ words: DeckWord | null }>) {
+      if (r.words && !seen.has(r.words.id)) {
+        seen.add(r.words.id);
+        deck.push(r.words);
+      }
+    }
+
+    // Pre-generated AI distractors (best-effort: table may not exist yet).
+    const wordIds = rows.map((r) => r.stickers!.words!.id);
+    const cached = new Map<string, string[]>();
+    const { data: choiceRows } = await supabase
+      .from("review_choices")
+      .select("word_id, distractors")
+      .in("word_id", wordIds);
+    for (const c of choiceRows ?? []) cached.set(c.word_id, c.distractors ?? []);
+
+    // Batch-sign all image and audio URLs in two calls instead of one per card.
+    const cutoutPaths = rows.map((r) => r.stickers!.cutout_image_url).filter((p): p is string => !!p);
+    const cutoutUrlByPath = new Map<string, string>();
+    if (cutoutPaths.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from("stickers")
+        .createSignedUrls(cutoutPaths, 60 * 60 * 6);
+      for (const s of signed ?? []) {
+        if (s.path && s.signedUrl && !s.error) cutoutUrlByPath.set(s.path, s.signedUrl);
+      }
+    }
+    const audioPaths = await Promise.all(
+      rows.map((r) => ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, r.stickers!.words!.headword)),
+    );
+    const audioUrlByPath = new Map<string, string>();
+    {
+      const { data: signed } = await supabase.storage
+        .from("tts")
+        .createSignedUrls(audioPaths, 60 * 60 * 6);
+      for (const s of signed ?? []) {
+        if (s.path && s.signedUrl && !s.error) audioUrlByPath.set(s.path, s.signedUrl);
+      }
+    }
+
+    return rows.map((row, i) => {
+      const w = row.stickers!.words!;
+      const sameCat = shuffle(deck.filter((d) => d.id !== w.id && d.category_key === w.category_key));
+      const otherCat = shuffle(deck.filter((d) => d.id !== w.id && d.category_key !== w.category_key));
+
+      const meaningDistractors = pickThree(
+        w.meaning_ja,
+        sameCat.map((d) => d.meaning_ja),
+        cached.get(w.id) ?? [],
+        otherCat.map((d) => d.meaning_ja),
+        STATIC_MEANING_FALLBACK,
+      );
+      const headwordDistractors = pickThree(
+        w.headword,
+        sameCat.map((d) => d.headword),
+        otherCat.map((d) => d.headword),
+        STATIC_HEADWORD_FALLBACK,
+      );
+
+      const cutoutPath = row.stickers!.cutout_image_url;
+      return {
+        review_id: row.id,
+        sticker_id: row.sticker_id,
+        headword: w.headword,
+        reading_zhuyin: w.reading_zhuyin,
+        pinyin: w.pinyin,
+        meaning_ja: w.meaning_ja,
+        example_sentence: w.example_sentence,
+        example_translation: w.example_translation,
+        category_key: w.category_key,
+        cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
+        audio_url: audioUrlByPath.get(audioPaths[i]) ?? null,
+        blur_seen: row.blur_seen,
+        ease: row.ease,
+        interval_days: row.interval_days,
+        repetitions: row.repetitions,
+        mode: modeFor(row.repetitions),
+        choices: shuffle([w.meaning_ja, ...meaningDistractors]),
+        headword_choices: shuffle([w.headword, ...headwordDistractors]),
+      };
+    });
+  });
+
+// --- Distractor pre-generation (runs once at card save time, off the review path) ---
+
+const MakerSchema = z.object({
+  distractors: z.array(z.string().min(1)).length(3),
+});
+const CheckerSchema = z.object({
+  verdicts: z.array(
+    z.object({
+      ok: z.boolean(),
+      reason: z.string().optional().default(""),
+    }),
+  ),
+});
+
+/**
+ * Maker/Checker loop producing 3 plausible-but-wrong meanings. Called from
+ * saveSticker (fire-and-forget); results land in review_choices. Failure is
+ * fine — reviews fall back to the user's own deck.
+ */
+export async function pregenerateDistractors(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  wordId: string,
   headword: string,
   correctMeaning: string,
   categoryKey: string | null,
-): Promise<{ distractors: string[]; iterations: number; accepted: number }> {
-  const MakerSchema = z.object({
-    distractors: z.array(z.string().min(1)).length(3),
-  });
-  const CheckerSchema = z.object({
-    verdicts: z.array(
-      z.object({
-        ok: z.boolean(),
-        reason: z.string().optional().default(""),
-      }),
-    ),
-  });
-
-  let accepted: string[] = [];
+): Promise<void> {
+  const ai = getAi();
+  const accepted: string[] = [];
   let iter = 0;
   const MAX = 2;
 
   while (accepted.length < 3 && iter < MAX) {
     iter++;
-    // Maker
     const makerPrompt = `台湾華語の単語「${headword}」（意味: ${correctMeaning}${categoryKey ? `、カテゴリ: ${categoryKey}` : ""}）の4択クイズ用に、もっともらしいが間違っている日本語の意味を3つ作ってください。
 - 正解「${correctMeaning}」と同義語/言い換えは禁止
 - 文字数は正解と同程度
@@ -65,21 +248,20 @@ async function generateDistractors(
 - すでに却下された候補: ${accepted.length ? accepted.join(", ") : "なし"}`;
 
     const maker = await generateText({
-      model: gateway(MODEL),
+      model: ai.gateway(ai.modelFast),
       prompt: makerPrompt,
       experimental_output: Output.object({ schema: MakerSchema }) as never,
     });
     const makerOut = (maker as unknown as { experimental_output?: z.infer<typeof MakerSchema> }).experimental_output;
     const candidates = makerOut?.distractors ?? [];
 
-    // Checker
     const checkerPrompt = `以下は単語「${headword}」（正解の意味: ${correctMeaning}）の4択クイズの不正解候補です。
 各候補について、(a) 正解と意味が被っていない (b) 学習者を惑わすが正解とは明確に違う、を満たすかtrue/falseで判定してください。
 候補:
 ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
 
     const checker = await generateText({
-      model: gateway(MODEL),
+      model: ai.gateway(ai.modelFast),
       prompt: checkerPrompt,
       experimental_output: Output.object({ schema: CheckerSchema }) as never,
     });
@@ -94,98 +276,17 @@ ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
       if (accepted.length >= 3) break;
     }
   }
+  if (accepted.length === 0) return;
 
-  // Fallback if AI loop failed
-  while (accepted.length < 3) {
-    accepted.push(["別の物体", "場所の名前", "人物の役職"][accepted.length] ?? "その他");
-  }
-  return { distractors: accepted.slice(0, 3), iterations: iter, accepted: accepted.length };
-}
-
-export const getDueReviews = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("reviews")
-      .select(
-        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
-      )
-      .eq("user_id", userId)
-      .lte("due_at", nowIso)
-      .order("due_at", { ascending: true })
-      .limit(10);
-    if (error) throw new Error(error.message);
-
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-
-    const cards: DueReviewCard[] = [];
-    for (const row of data ?? []) {
-      const sticker = (row as unknown as {
-        stickers: {
-          cutout_image_url: string | null;
-          words: {
-            headword: string;
-            reading_zhuyin: string | null;
-            pinyin: string | null;
-            meaning_ja: string;
-            example_sentence: string | null;
-            example_translation: string | null;
-            category_key: string | null;
-          } | null;
-        } | null;
-      }).stickers;
-      if (!sticker?.words) continue;
-      const w = sticker.words;
-
-      let cutout_url: string | null = null;
-      if (sticker.cutout_image_url) {
-        const { data: s } = await supabase.storage
-          .from("stickers")
-          .createSignedUrl(sticker.cutout_image_url, 60 * 60 * 6);
-        cutout_url = s?.signedUrl ?? null;
-      }
-
-      const { distractors, iterations, accepted } = await generateDistractors(
-        gateway,
-        w.headword,
-        w.meaning_ja,
-        w.category_key,
-      );
-
-      // Log Maker/Checker loop run
-      await supabase.from("ai_runs").insert({
-        user_id: userId,
-        loop: "review_distractor",
-        iterations,
-        accepted,
-        meta: { headword: w.headword },
-      });
-
-      cards.push({
-        review_id: row.id,
-        sticker_id: row.sticker_id,
-        headword: w.headword,
-        reading_zhuyin: w.reading_zhuyin,
-        pinyin: w.pinyin,
-        meaning_ja: w.meaning_ja,
-        example_sentence: w.example_sentence,
-        example_translation: w.example_translation,
-        category_key: w.category_key,
-        cutout_url,
-        blur_seen: row.blur_seen,
-        ease: row.ease,
-        interval_days: row.interval_days,
-        repetitions: row.repetitions,
-        choices: shuffle([w.meaning_ja, ...distractors]),
-      });
-    }
-    return cards;
+  await supabase.from("review_choices").upsert({ word_id: wordId, distractors: accepted.slice(0, 3) });
+  await supabase.from("ai_runs").insert({
+    user_id: userId,
+    loop: "review_distractor_pregen",
+    iterations: iter,
+    accepted: accepted.length,
+    meta: { headword },
   });
+}
 
 const GradeInput = z.object({
   review_id: z.string().uuid(),
@@ -195,7 +296,7 @@ const GradeInput = z.object({
 });
 
 // SM-2 simplified
-function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
+export function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
   let { ease, interval_days, repetitions } = prev;
   if (score < 3) {
     repetitions = 0;
@@ -356,4 +457,3 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
 
     return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
   });
-

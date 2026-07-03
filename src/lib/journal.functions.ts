@@ -2,8 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-
-const MODEL = "google/gemini-3-flash-preview";
+import { getAi, logUsage } from "./ai-provider.server";
 
 export type JournalEntry = {
   id: string;
@@ -72,17 +71,14 @@ export const generateTodayJournal = createServerFn({ method: "POST" })
       throw new Error("今日まだ写真がありません。撮ってから日記を生成しましょう。");
     }
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY missing");
-    const gateway = createLovableAiGatewayProvider(key);
+    const ai = getAi();
 
     const Schema = z.object({
       body_zh: z.string().min(10),
       body_ja: z.string().min(10),
     });
     const { experimental_output } = await generateText({
-      model: gateway(MODEL),
+      model: ai.gateway(ai.modelRich),
       experimental_output: Output.object({ schema: Schema }),
       prompt:
         `あなたは台湾華語の作文の先生。学習者の今日のキャプチャから、その日の流れが伝わる自然な「模範」日記を書いてください。\n\n` +
@@ -99,13 +95,14 @@ export const generateTodayJournal = createServerFn({ method: "POST" })
           body_zh: experimental_output.body_zh,
           body_ja: experimental_output.body_ja,
           used_sticker_ids: stickers.map((s: any) => s.id),
-          model: MODEL,
+          model: ai.modelRich,
         },
         { onConflict: "user_id,entry_date" },
       )
       .select("*")
       .single();
     if (iErr) throw new Error(iErr.message);
+    await logUsage(supabase, userId, "journal");
     return inserted as JournalEntry;
   });
 
@@ -118,17 +115,14 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY missing");
-    const gateway = createLovableAiGatewayProvider(key);
+    const ai = getAi();
 
     const Schema = z.object({
       correction: z.string().min(1),
       feedback_ja: z.string().min(1),
     });
     const { experimental_output } = await generateText({
-      model: gateway(MODEL),
+      model: ai.gateway(ai.modelRich),
       experimental_output: Output.object({ schema: Schema }),
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
@@ -147,12 +141,13 @@ export const correctMyJournal = createServerFn({ method: "POST" })
           correction: experimental_output.correction,
           feedback_ja: experimental_output.feedback_ja,
           used_sticker_ids: stickers.map((s: any) => s.id),
-          model: MODEL,
+          model: ai.modelRich,
         },
         { onConflict: "user_id,entry_date" },
       )
       .select("*")
       .single();
     if (iErr) throw new Error(iErr.message);
+    await logUsage(supabase, userId, "correction");
     return inserted as JournalEntry;
   });

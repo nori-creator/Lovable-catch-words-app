@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { getAi, logUsage } from "./ai-provider.server";
 
 const CATEGORY_KEYS = [
   "fruit","vegetable","drink","food","dessert",
@@ -15,8 +16,6 @@ const CATEGORY_KEYS = [
   "art","decoration","character","symbol","color","shape",
   "money","document","medicine","other",
 ] as const;
-
-const MODEL = "google/gemini-3-flash-preview";
 
 const SuggestInput = z.object({
   imageBase64: z.string().min(100),
@@ -86,9 +85,8 @@ function normalizeCategory(headword: string, cat: string): typeof CATEGORY_KEYS[
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+  .handler(async ({ data, context }) => {
+    const ai = getAi();
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -111,15 +109,10 @@ export const suggestWords = createServerFn({ method: "POST" })
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**`
         : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": key,
-        "X-Lovable-AIG-SDK": "manual-chat-completions",
-      },
-      body: JSON.stringify({
-        model: MODEL,
+    let content: string;
+    try {
+      const result = await generateText({
+        model: ai.gateway(ai.modelFast),
         messages: [
           {
             role: "user",
@@ -128,22 +121,18 @@ export const suggestWords = createServerFn({ method: "POST" })
                 type: "text",
                 text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。suggestionsは必ず5件。`,
               },
-              { type: "image_url", image_url: { url: data.imageBase64 } },
+              { type: "image", image: data.imageBase64 },
             ],
           },
         ],
-      }),
-    });
-
-    if (!response.ok) {
+      });
+      content = result.text;
+    } catch {
       throw new Error("画像のAI読み込みに失敗しました");
     }
-
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("AI did not return suggestions");
+
+    await logUsage(context.supabase, context.userId, "suggest");
 
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
@@ -201,11 +190,8 @@ export type GeneratedCard = z.infer<typeof CardSchema>;
 export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CardInput.parse(input))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
+  .handler(async ({ data, context }) => {
+    const ai = getAi();
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -237,7 +223,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const result = await generateText({
-      model: gateway(MODEL),
+      model: ai.gateway(ai.modelRich),
       prompt,
       experimental_output: Output.object({ schema: CardSchema }) as never,
     });
@@ -246,5 +232,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
       catch { throw new Error("AI did not return a structured card"); }
     })();
+    await logUsage(context.supabase, context.userId, "card");
     return { ...card, category_key: normalizeCategory(data.headword, card.category_key) };
   });
