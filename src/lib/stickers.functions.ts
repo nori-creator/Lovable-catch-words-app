@@ -168,20 +168,50 @@ export const getSticker = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    // Try to read as owner first (RLS-scoped)
+    let { data: row, error } = await supabase
       .from("stickers")
       .select(
-        "id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
+        "id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
       )
       .eq("id", data.id)
       .eq("user_id", userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
+
+    // If not the owner, fall back to admin read so authenticated viewers can
+    // see other users' sticker detail from the public profile grid. Selfie
+    // remains private to the owner.
+    let isOwner = !!row;
+    if (!row) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const res = await supabaseAdmin
+        .from("stickers")
+        .select(
+          "id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)"
+        )
+        .eq("id", data.id)
+        .maybeSingle();
+      if (res.error) throw new Error(res.error.message);
+      row = res.data as typeof row;
+    }
     if (!row) return null;
+    // Non-owners sign URLs via the admin client (their RLS can't see the
+    // owner's storage objects); the selfie stays private to the owner.
+    let signer: SignedUrlsClient = supabase;
+    if (!isOwner) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      signer = supabaseAdmin as unknown as SignedUrlsClient;
+    }
     const [urlMap, counts] = await Promise.all([
-      signUrlMap(supabase, [row.object_image_url, row.cutout_image_url, row.selfie_image_url]),
+      signUrlMap(signer, [
+        row.object_image_url,
+        row.cutout_image_url,
+        isOwner ? row.selfie_image_url : null,
+      ]),
       encounterCounts(supabase, userId),
     ]);
+
     const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
     if (!wRaw) return null;
     const res: StickerWithWord = {
@@ -196,11 +226,12 @@ export const getSticker = createServerFn({ method: "GET" })
       encounter_count: counts.get(row.id) ?? 0,
       object_url: row.object_image_url ? (urlMap.get(row.object_image_url) ?? null) : null,
       cutout_url: row.cutout_image_url ? (urlMap.get(row.cutout_image_url) ?? null) : null,
-      selfie_url: row.selfie_image_url ? (urlMap.get(row.selfie_image_url) ?? null) : null,
+      selfie_url: isOwner && row.selfie_image_url ? (urlMap.get(row.selfie_image_url) ?? null) : null,
       word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
     };
     return res;
   });
+
 
 const SaveStickerInput = z.object({
   word: z.object({
