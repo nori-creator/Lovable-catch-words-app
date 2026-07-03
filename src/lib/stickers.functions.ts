@@ -157,11 +157,17 @@ export const getSticker = createServerFn({ method: "GET" })
     }
     if (!row) return null;
 
-    const [object_url, cutout_url, selfie_url] = await signUrls(supabase, [
+    let signer: Parameters<typeof signUrls>[0] = supabase;
+    if (!isOwner) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      signer = supabaseAdmin;
+    }
+    const [object_url, cutout_url, selfie_url] = await signUrls(signer, [
       row.object_image_url,
       row.cutout_image_url,
       isOwner ? row.selfie_image_url : null,
     ]);
+
     const wRaw = (row as unknown as { words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null }).words;
     if (!wRaw) return null;
     const res: StickerWithWord = {
