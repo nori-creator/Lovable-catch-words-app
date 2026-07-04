@@ -1,5 +1,9 @@
 # Catchwords 設計ドキュメント
 
+> ⚠️ **正式仕様(Source of Truth)は [`06-scan-first-mvp.md`](./06-scan-first-mvp.md)**。
+> `01`〜`05` と本書 06 が矛盾する場合は **必ず 06 を優先** する。
+> 01〜05 は背景・分析・過去の検討経緯として残す。
+
 「街で出会った言葉を、写真1枚で 意味・発音・カード化・復習 まで自動化する」アプリの全体設計書。
 現在のコードベース(TanStack Start + Supabase + Lovable AI Gateway)を実際に読んだ上で、
 **すでに出来ていること / 見落としていること / これから作るべきものの詳細仕様** をまとめている。
@@ -11,6 +15,8 @@ Lovable にプロンプトを送るときも、Claude Code で直接実装する
 
 | ファイル | 内容 |
 |---|---|
+| **[06-scan-first-mvp.md](./06-scan-first-mvp.md)** | **★ Source of Truth (Scan-First MVP v2)** — 確定コンセプト・MVPスコープ・フェーズ別受入基準・Lovable用プロンプト |
+
 | [01-vision-and-gaps.md](./01-vision-and-gaps.md) | コンセプト定義、ターゲット、あなたが挙げたペイン①〜⑨と現状実装のギャップ分析、競合との差別化 |
 | [02-core-experience.md](./02-core-experience.md) | コア体験の詳細仕様(2段階AI解析、再遭遇ループ、復習セッション設計、図鑑コンプ、位置リマインダー、週間リキャップ、品詞色分け例文、日記) |
 | [03-overlooked.md](./03-overlooked.md) | 見落としている重要事項(セキュリティ穴、プライバシー、モデレーション、AIの嘘対策、コスト、オフライン、退会・データ輸出) |
