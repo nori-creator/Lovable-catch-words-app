@@ -30,6 +30,7 @@ import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
 import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
+import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -137,6 +138,12 @@ const AuthenticatedDexStickerIdRoute =
     path: '/$stickerId',
     getParentRoute: () => AuthenticatedDexRoute,
   } as any)
+const AuthenticatedAdminDictionaryRoute =
+  AuthenticatedAdminDictionaryRouteImport.update({
+    id: '/admin/dictionary',
+    path: '/admin/dictionary',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -178,6 +186,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -202,6 +211,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/review': typeof AuthenticatedReviewRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/review'
     | '/settings'
+    | '/admin/dictionary'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/review'
     | '/settings'
+    | '/admin/dictionary'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -271,6 +283,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/_authenticated/review'
     | '/_authenticated/settings'
+    | '/_authenticated/admin/dictionary'
     | '/_authenticated/dex/$stickerId'
     | '/_authenticated/post/$postId'
     | '/_authenticated/u/$userId'
@@ -435,6 +448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDexStickerIdRouteImport
       parentRoute: typeof AuthenticatedDexRoute
     }
+    '/_authenticated/admin/dictionary': {
+      id: '/_authenticated/admin/dictionary'
+      path: '/admin/dictionary'
+      fullPath: '/admin/dictionary'
+      preLoaderRoute: typeof AuthenticatedAdminDictionaryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -461,6 +481,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
   AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
@@ -477,6 +498,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
   AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
