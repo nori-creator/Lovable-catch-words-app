@@ -118,6 +118,63 @@ export type Database = {
           },
         ]
       }
+      dictionary_entries: {
+        Row: {
+          audio_path: string | null
+          created_at: string
+          entry_type: string
+          headword: string
+          id: string
+          language: string
+          meaning_ja: string
+          notes: string | null
+          pinyin: string | null
+          pos: string | null
+          scene_tags: string[] | null
+          source: string
+          taiwan_usage: string | null
+          tocfl_level: number | null
+          updated_at: string
+          zhuyin: string | null
+        }
+        Insert: {
+          audio_path?: string | null
+          created_at?: string
+          entry_type?: string
+          headword: string
+          id?: string
+          language?: string
+          meaning_ja: string
+          notes?: string | null
+          pinyin?: string | null
+          pos?: string | null
+          scene_tags?: string[] | null
+          source?: string
+          taiwan_usage?: string | null
+          tocfl_level?: number | null
+          updated_at?: string
+          zhuyin?: string | null
+        }
+        Update: {
+          audio_path?: string | null
+          created_at?: string
+          entry_type?: string
+          headword?: string
+          id?: string
+          language?: string
+          meaning_ja?: string
+          notes?: string | null
+          pinyin?: string | null
+          pos?: string | null
+          scene_tags?: string[] | null
+          source?: string
+          taiwan_usage?: string | null
+          tocfl_level?: number | null
+          updated_at?: string
+          zhuyin?: string | null
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           created_at: string
@@ -543,6 +600,48 @@ export type Database = {
           },
         ]
       }
+      scan_events: {
+        Row: {
+          caught: boolean
+          confidence: number | null
+          created_at: string
+          headword: string
+          id: string
+          kind: string
+          lat: number | null
+          lng: number | null
+          meaning_ja: string | null
+          tapped: boolean
+          user_id: string
+        }
+        Insert: {
+          caught?: boolean
+          confidence?: number | null
+          created_at?: string
+          headword: string
+          id?: string
+          kind: string
+          lat?: number | null
+          lng?: number | null
+          meaning_ja?: string | null
+          tapped?: boolean
+          user_id: string
+        }
+        Update: {
+          caught?: boolean
+          confidence?: number | null
+          created_at?: string
+          headword?: string
+          id?: string
+          kind?: string
+          lat?: number | null
+          lng?: number | null
+          meaning_ja?: string | null
+          tapped?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       stickers: {
         Row: {
           caption: string | null
@@ -622,6 +721,27 @@ export type Database = {
           created_at?: string
           id?: never
           kind?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
@@ -715,9 +835,16 @@ export type Database = {
           xp: number
         }[]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -844,6 +971,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
