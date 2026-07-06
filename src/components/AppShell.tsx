@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, Sparkles } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
 import { type ReactNode } from "react";
 
-type Item = { to: "/home" | "/dex" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/scan" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
 
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
   { to: "/dex", label: "図鑑", icon: BookOpen },
+  { to: "/scan", label: "スキャン", icon: ScanLine },
   { to: "/capture", label: "集める", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
   { to: "/settings", label: "設定", icon: Settings },
@@ -35,7 +36,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] text-muted-foreground transition-colors"
                 activeProps={{ className: "text-primary" }}
               >
-                {to === "/capture" ? (
+                {to === "/scan" ? (
                   <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-primary-foreground shadow-lg shadow-primary/30">
                     <Icon className="h-5 w-5" />
                   </span>
