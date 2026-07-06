@@ -147,14 +147,15 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ headwords: z.array(z.string()).max(20) }).parse(input))
   .handler(async ({ data, context }) => {
     const words = Array.from(new Set(data.headwords.map((s) => s.trim()).filter(Boolean)));
-    if (words.length === 0) return { entries: {} as Record<string, unknown> };
+    const empty: Record<string, DictionaryEntry> = {};
+    if (words.length === 0) return { entries: empty };
     const { data: rows, error } = await context.supabase
       .from("dictionary_entries")
       .select("headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, audio_path, source, entry_type")
       .in("headword", words);
     if (error) throw new Error(error.message);
-    const map: Record<string, (typeof rows)[number]> = {};
-    for (const r of rows ?? []) map[r.headword] = r;
+    const map: Record<string, DictionaryEntry> = {};
+    for (const r of rows ?? []) map[r.headword] = r as DictionaryEntry;
     return { entries: map };
   });
 
