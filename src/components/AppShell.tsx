@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, Sparkles } from "lucide-react";
+import { Camera, Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
 import { type ReactNode } from "react";
 
-type Item = { to: "/home" | "/dex" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/scan" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
 
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
   { to: "/dex", label: "図鑑", icon: BookOpen },
+  { to: "/scan", label: "スキャン", icon: ScanLine },
   { to: "/capture", label: "集める", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
   { to: "/settings", label: "設定", icon: Settings },
