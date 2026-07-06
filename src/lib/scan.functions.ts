@@ -35,6 +35,18 @@ const DetectResponseSchema = z.object({
 
 export type DetectedItem = z.infer<typeof DetectItemSchema> & { id: string };
 
+export type DictionaryEntry = {
+  headword: string;
+  zhuyin: string | null;
+  pinyin: string | null;
+  meaning_ja: string;
+  pos: string | null;
+  tocfl_level: number | null;
+  audio_path: string | null;
+  source: string | null;
+  entry_type: string | null;
+};
+
 function parseJsonFromAiText(text: string): unknown {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
