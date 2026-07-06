@@ -36,7 +36,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] text-muted-foreground transition-colors"
                 activeProps={{ className: "text-primary" }}
               >
-                {to === "/capture" ? (
+                {to === "/scan" ? (
                   <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-primary-foreground shadow-lg shadow-primary/30">
                     <Icon className="h-5 w-5" />
                   </span>
