@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw } from "lucide-react";
+import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
+import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
+import { ScanDetailSheet } from "@/components/ScanDetailSheet";
+import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -12,6 +15,7 @@ export const Route = createFileRoute("/_authenticated/scan")({
     meta: [{ title: "スキャン | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
 });
+
 
 type ChipState = {
   item: DetectedItem;
@@ -24,11 +28,27 @@ function ScanPage() {
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
   const ttsFn = useServerFn(synthesizeSpeech);
+  const cardFn = useServerFn(generateCard);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // §3.3 プリフェッチ: タップされた語だけ generateCard をバックグラウンド起動し、
+  // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
+  // 物体の詳細生成は行わない(コスト10倍防止)。
+  const prefetchRef = useRef<Map<string, Promise<GeneratedCard>>>(new Map());
+  const startPrefetch = useCallback((headword: string): Promise<GeneratedCard> => {
+    const cache = prefetchRef.current;
+    const hit = cache.get(headword);
+    if (hit) return hit;
+    const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+    cache.set(headword, p);
+    // Drop failed prefetches so the next tap can retry.
+    p.catch(() => { cache.delete(headword); });
+    return p;
+  }, [cardFn]);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +59,10 @@ function ScanPage() {
   const [chip, setChip] = useState<ChipState | null>(null);
   const [detectMs, setDetectMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
+
 
   // ---- camera lifecycle ----
   useEffect(() => {
@@ -105,16 +129,12 @@ function ScanPage() {
         });
         lat = pos.coords.latitude; lng = pos.coords.longitude;
       } catch { /* ignore */ }
+      setScanLoc({ lat, lng, name: null });
 
-      const [{ items }, look] = await Promise.all([
-        detectFn({ data: { imageBase64: frame, lat, lng } }),
-        // lookup runs after detect returns; kick off placeholder so structure stays parallel-ready
-        Promise.resolve(null),
-      ]);
+      const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
       const dt = Math.round(performance.now() - t0);
       setDetectMs(dt);
       setItems(items);
-      void look;
 
       if (items.length > 0) {
         const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
@@ -134,9 +154,11 @@ function ScanPage() {
     if (!lowConf) {
       void playAudio(item.headword, item);
       void tapFn({ data: { headword: item.headword } }).catch(() => {});
+      // §3.3 プリフェッチ: バックグラウンドで詳細カード生成を開始。
+      startPrefetch(item.headword);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tapFn]);
+  }, [tapFn, startPrefetch]);
 
   const pickCandidate = useCallback(async (headword: string, item: DetectedItem) => {
     setChip({ item, chosenHeadword: headword, showingCandidates: false });
@@ -149,8 +171,11 @@ function ScanPage() {
     }
     void playAudio(headword, item);
     void tapFn({ data: { headword } }).catch(() => {});
+    // 候補確定後にプリフェッチ開始(誤選択で無駄打ちしないため候補選択より後)。
+    startPrefetch(headword);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, lookupFn, tapFn]);
+  }, [entries, lookupFn, tapFn, startPrefetch]);
+
 
   const playAudio = useCallback(async (headword: string, item: DetectedItem) => {
     const t0 = performance.now();
@@ -186,7 +211,10 @@ function ScanPage() {
   const reset = useCallback(() => {
     setItems(null); setSnapshot(null); setChip(null); setEntries({});
     setDetectMs(null); setTapToAudioMs(null);
+    setDetailOpen(null); setCatchOpen(null);
+    prefetchRef.current.clear();
   }, []);
+
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
   const boxSize = useBoxSize(boxRef);
@@ -340,10 +368,43 @@ function ScanPage() {
             candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
             onPickCandidate={(h) => pickCandidate(h, chip.item)}
             onPlay={() => playAudio(displayHeadword, chip.item)}
+            onDetail={() => {
+              if (!chip.chosenHeadword) return;
+              // Prefetch is already running (started at tap). Reuse the same promise.
+              startPrefetch(chip.chosenHeadword);
+              setDetailOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
+            onCatch={() => {
+              if (!chip.chosenHeadword || !snapshot) return;
+              startPrefetch(chip.chosenHeadword);
+              setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
             onClose={() => setChip(null)}
           />
         )}
       </div>
+
+      {detailOpen && (
+        <ScanDetailSheet
+          headword={detailOpen.headword}
+          item={detailOpen.item}
+          dict={entries[detailOpen.headword]}
+          cardPromise={startPrefetch(detailOpen.headword)}
+          onClose={() => setDetailOpen(null)}
+        />
+      )}
+
+      {catchOpen && snapshot && (
+        <ScanCatchSheet
+          snapshotDataUrl={snapshot}
+          item={catchOpen.item}
+          headword={catchOpen.headword}
+          dict={entries[catchOpen.headword]}
+          cardPromise={startPrefetch(catchOpen.headword)}
+          loc={scanLoc}
+          onClose={() => setCatchOpen(null)}
+        />
+      )}
 
       <style>{`
         @keyframes scanline { 0% { transform: translateY(0); } 50% { transform: translateY(400px); } 100% { transform: translateY(0); } }
@@ -352,8 +413,9 @@ function ScanPage() {
   );
 }
 
+
 function ScanChip({
-  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onClose,
+  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onDetail, onCatch, onClose,
 }: {
   headword: string;
   zhuyin: string;
@@ -365,11 +427,13 @@ function ScanChip({
   candidates: string[];
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
+  onDetail: () => void;
+  onCatch: () => void;
   onClose: () => void;
 }) {
   if (candidates.length > 0) {
     return (
-      <div className="rounded-2xl border border-border bg-white p-4 shadow-md">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium text-muted-foreground">どちらですか?</p>
           <button onClick={onClose} className="text-muted-foreground"><X className="h-4 w-4" /></button>
@@ -389,7 +453,7 @@ function ScanChip({
     );
   }
   return (
-    <div className="rounded-2xl border border-border bg-gradient-to-br from-white to-sky-50 p-4 shadow-md">
+    <div className="rounded-2xl border border-border bg-gradient-to-br from-card to-sky-50/50 p-4 shadow-md">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
@@ -425,9 +489,24 @@ function ScanChip({
           <X className="h-4 w-4" />
         </button>
       </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={onDetail}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground active:scale-95"
+        >
+          <Sparkles className="h-4 w-4" /> 詳しく
+        </button>
+        <button
+          onClick={onCatch}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95"
+        >
+          <BookOpen className="h-4 w-4" /> キャッチ
+        </button>
+      </div>
     </div>
   );
 }
+
 
 function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
   const [size, setSize] = useState({ w: 0, h: 0 });

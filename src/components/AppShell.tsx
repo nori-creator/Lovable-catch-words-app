@@ -33,6 +33,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             <li key={to} className="flex-1">
               <Link
                 to={to}
+                data-nav={to}
                 className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] text-muted-foreground transition-colors"
                 activeProps={{ className: "text-primary" }}
               >
