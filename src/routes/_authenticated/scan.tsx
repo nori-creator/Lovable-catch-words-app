@@ -415,7 +415,7 @@ function ScanPage() {
 
 
 function ScanChip({
-  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onClose,
+  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onDetail, onCatch, onClose,
 }: {
   headword: string;
   zhuyin: string;
@@ -427,11 +427,13 @@ function ScanChip({
   candidates: string[];
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
+  onDetail: () => void;
+  onCatch: () => void;
   onClose: () => void;
 }) {
   if (candidates.length > 0) {
     return (
-      <div className="rounded-2xl border border-border bg-white p-4 shadow-md">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium text-muted-foreground">どちらですか?</p>
           <button onClick={onClose} className="text-muted-foreground"><X className="h-4 w-4" /></button>
@@ -451,7 +453,7 @@ function ScanChip({
     );
   }
   return (
-    <div className="rounded-2xl border border-border bg-gradient-to-br from-white to-sky-50 p-4 shadow-md">
+    <div className="rounded-2xl border border-border bg-gradient-to-br from-card to-sky-50/50 p-4 shadow-md">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
@@ -487,9 +489,24 @@ function ScanChip({
           <X className="h-4 w-4" />
         </button>
       </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={onDetail}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground active:scale-95"
+        >
+          <Sparkles className="h-4 w-4" /> 詳しく
+        </button>
+        <button
+          onClick={onCatch}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95"
+        >
+          <BookOpen className="h-4 w-4" /> キャッチ
+        </button>
+      </div>
     </div>
   );
 }
+
 
 function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
   const [size, setSize] = useState({ w: 0, h: 0 });
