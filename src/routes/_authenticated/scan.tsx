@@ -211,7 +211,10 @@ function ScanPage() {
   const reset = useCallback(() => {
     setItems(null); setSnapshot(null); setChip(null); setEntries({});
     setDetectMs(null); setTapToAudioMs(null);
+    setDetailOpen(null); setCatchOpen(null);
+    prefetchRef.current.clear();
   }, []);
+
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
   const boxSize = useBoxSize(boxRef);
