@@ -28,11 +28,27 @@ function ScanPage() {
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
   const ttsFn = useServerFn(synthesizeSpeech);
+  const cardFn = useServerFn(generateCard);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // §3.3 プリフェッチ: タップされた語だけ generateCard をバックグラウンド起動し、
+  // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
+  // 物体の詳細生成は行わない(コスト10倍防止)。
+  const prefetchRef = useRef<Map<string, Promise<GeneratedCard>>>(new Map());
+  const startPrefetch = useCallback((headword: string): Promise<GeneratedCard> => {
+    const cache = prefetchRef.current;
+    const hit = cache.get(headword);
+    if (hit) return hit;
+    const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+    cache.set(headword, p);
+    // Drop failed prefetches so the next tap can retry.
+    p.catch(() => { cache.delete(headword); });
+    return p;
+  }, [cardFn]);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +59,10 @@ function ScanPage() {
   const [chip, setChip] = useState<ChipState | null>(null);
   const [detectMs, setDetectMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
+
 
   // ---- camera lifecycle ----
   useEffect(() => {
