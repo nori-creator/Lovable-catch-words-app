@@ -187,3 +187,20 @@ export const markScanTap = createServerFn({ method: "POST" })
     if (id) await context.supabase.from("scan_events").update({ tapped: true }).eq("id", id);
     return { ok: true };
   });
+
+export const markScanCaught = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ headword: z.string().min(1) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: rows } = await context.supabase
+      .from("scan_events")
+      .select("id")
+      .eq("user_id", context.userId)
+      .eq("headword", data.headword)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const id = rows?.[0]?.id;
+    if (id) await context.supabase.from("scan_events").update({ tapped: true, caught: true }).eq("id", id);
+    return { ok: true };
+  });
+
