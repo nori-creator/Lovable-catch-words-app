@@ -368,10 +368,43 @@ function ScanPage() {
             candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
             onPickCandidate={(h) => pickCandidate(h, chip.item)}
             onPlay={() => playAudio(displayHeadword, chip.item)}
+            onDetail={() => {
+              if (!chip.chosenHeadword) return;
+              // Prefetch is already running (started at tap). Reuse the same promise.
+              startPrefetch(chip.chosenHeadword);
+              setDetailOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
+            onCatch={() => {
+              if (!chip.chosenHeadword || !snapshot) return;
+              startPrefetch(chip.chosenHeadword);
+              setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
             onClose={() => setChip(null)}
           />
         )}
       </div>
+
+      {detailOpen && (
+        <ScanDetailSheet
+          headword={detailOpen.headword}
+          item={detailOpen.item}
+          dict={entries[detailOpen.headword]}
+          cardPromise={startPrefetch(detailOpen.headword)}
+          onClose={() => setDetailOpen(null)}
+        />
+      )}
+
+      {catchOpen && snapshot && (
+        <ScanCatchSheet
+          snapshotDataUrl={snapshot}
+          item={catchOpen.item}
+          headword={catchOpen.headword}
+          dict={entries[catchOpen.headword]}
+          cardPromise={startPrefetch(catchOpen.headword)}
+          loc={scanLoc}
+          onClose={() => setCatchOpen(null)}
+        />
+      )}
 
       <style>{`
         @keyframes scanline { 0% { transform: translateY(0); } 50% { transform: translateY(400px); } 100% { transform: translateY(0); } }
@@ -379,6 +412,7 @@ function ScanPage() {
     </AppShell>
   );
 }
+
 
 function ScanChip({
   headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onClose,
