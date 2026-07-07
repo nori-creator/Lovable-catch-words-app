@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw } from "lucide-react";
+import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
+import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
+import { ScanDetailSheet } from "@/components/ScanDetailSheet";
+import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -12,6 +15,7 @@ export const Route = createFileRoute("/_authenticated/scan")({
     meta: [{ title: "スキャン | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
 });
+
 
 type ChipState = {
   item: DetectedItem;
