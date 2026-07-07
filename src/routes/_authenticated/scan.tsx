@@ -129,16 +129,12 @@ function ScanPage() {
         });
         lat = pos.coords.latitude; lng = pos.coords.longitude;
       } catch { /* ignore */ }
+      setScanLoc({ lat, lng, name: null });
 
-      const [{ items }, look] = await Promise.all([
-        detectFn({ data: { imageBase64: frame, lat, lng } }),
-        // lookup runs after detect returns; kick off placeholder so structure stays parallel-ready
-        Promise.resolve(null),
-      ]);
+      const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
       const dt = Math.round(performance.now() - t0);
       setDetectMs(dt);
       setItems(items);
-      void look;
 
       if (items.length > 0) {
         const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
@@ -158,9 +154,11 @@ function ScanPage() {
     if (!lowConf) {
       void playAudio(item.headword, item);
       void tapFn({ data: { headword: item.headword } }).catch(() => {});
+      // §3.3 プリフェッチ: バックグラウンドで詳細カード生成を開始。
+      startPrefetch(item.headword);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tapFn]);
+  }, [tapFn, startPrefetch]);
 
   const pickCandidate = useCallback(async (headword: string, item: DetectedItem) => {
     setChip({ item, chosenHeadword: headword, showingCandidates: false });
@@ -173,8 +171,11 @@ function ScanPage() {
     }
     void playAudio(headword, item);
     void tapFn({ data: { headword } }).catch(() => {});
+    // 候補確定後にプリフェッチ開始(誤選択で無駄打ちしないため候補選択より後)。
+    startPrefetch(headword);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, lookupFn, tapFn]);
+  }, [entries, lookupFn, tapFn, startPrefetch]);
+
 
   const playAudio = useCallback(async (headword: string, item: DetectedItem) => {
     const t0 = performance.now();
