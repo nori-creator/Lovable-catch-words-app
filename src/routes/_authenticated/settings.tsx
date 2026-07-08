@@ -1,8 +1,10 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { getMyScanMetrics } from "@/lib/metrics.functions";
+import { checkIsAdmin } from "@/lib/admin.functions";
 import { exportMyDeck } from "@/lib/words.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,6 +212,8 @@ function SettingsPage() {
           </Button>
         </div>
 
+        <DeveloperPanel />
+
         <Button
           variant="outline"
           className="w-full"
@@ -225,5 +229,48 @@ function SettingsPage() {
         </Button>
       </div>
     </AppShell>
+  );
+}
+
+/** §7: median speeds over the last 20 scans vs. the spec targets. */
+function DeveloperPanel() {
+  const metricsFn = useServerFn(getMyScanMetrics);
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: m } = useQuery({
+    queryKey: ["scan-metrics"],
+    queryFn: () => metricsFn(),
+    staleTime: 60_000,
+  });
+  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+
+  const row = (label: string, value: number | null | undefined, targetMs: number) => {
+    const ok = value != null && value <= targetMs;
+    return (
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={value == null ? "text-muted-foreground" : ok ? "font-semibold text-emerald-600" : "font-semibold text-red-600"}>
+          {value == null ? "計測なし" : `${(value / 1000).toFixed(2)}s`}
+          <span className="ml-1 font-normal text-muted-foreground">/ 目標 {(targetMs / 1000).toFixed(1)}s</span>
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <details className="group rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-sm font-semibold text-muted-foreground [&::-webkit-details-marker]:hidden">
+        開発者(速度計測)
+      </summary>
+      <div className="mt-3 space-y-2">
+        {row("スキャン検出(中央値)", m?.detect_ms_median, 2500)}
+        {row("タップ→音声再生(中央値)", m?.tap_to_audio_ms_median, 1000)}
+        <p className="text-[10px] text-muted-foreground">直近{m?.samples ?? 0}回のスキャンから算出(仕様§9の合格ライン)</p>
+        {adm?.isAdmin && (
+          <Link to="/admin/metrics" className="block text-xs text-primary underline">
+            KPIダッシュボードを開く →
+          </Link>
+        )}
+      </div>
+    </details>
   );
 }

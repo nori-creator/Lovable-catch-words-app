@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+function dayKey(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+}
+
 /**
  * KPI events (roadmap §2/§3): funnel markers recorded into the existing
  * usage_events table — no new tables. The client dedupes (localStorage);
@@ -60,5 +64,124 @@ export const getMyScanMetrics = createServerFn({ method: "GET" })
       detect_ms_median: median(detects.slice(0, 20)),
       tap_to_audio_ms_median: median(audios.slice(0, 20)),
       samples: Math.min(20, detects.length),
+    };
+  });
+
+// --- Admin KPI dashboard (roadmap §3) ---------------------------------------
+
+export type AdminDashboard = {
+  days: Array<{
+    day: string;
+    scans: number;
+    taps: number;
+    catches: number;
+    active_users: number;
+    reviews: number;
+  }>;
+  funnel: {
+    users_total: number;
+    users_onboarded: number;
+    users_first_scan: number;
+    users_first_catch: number;
+    d1_retention_pct: number | null;
+  };
+};
+
+export const getAdminDashboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminDashboard> => {
+    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (roleErr) throw new Error(roleErr.message);
+    if (!isAdmin) throw new Error("Forbidden: admin role required");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const since = new Date(Date.now() - 14 * 86400 * 1000).toISOString();
+
+    const [usageRes, scanRes, stickerRes, profileCountRes, kpiRes] = await Promise.all([
+      supabaseAdmin
+        .from("usage_events")
+        .select("kind, user_id, created_at")
+        .gte("created_at", since)
+        .limit(20000),
+      supabaseAdmin
+        .from("scan_events")
+        .select("created_at, tapped")
+        .gte("created_at", since)
+        .limit(20000),
+      supabaseAdmin.from("stickers").select("created_at").gte("created_at", since).limit(20000),
+      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
+      supabaseAdmin
+        .from("usage_events")
+        .select("kind, user_id, created_at")
+        .in("kind", ["app_open", "onboarding_done", "first_scan", "first_catch"])
+        .limit(50000),
+    ]);
+
+    const byDay = new Map<
+      string,
+      { scans: number; taps: number; catches: number; users: Set<string>; reviews: number }
+    >();
+    const bucket = (day: string) => {
+      if (!byDay.has(day)) byDay.set(day, { scans: 0, taps: 0, catches: 0, users: new Set(), reviews: 0 });
+      return byDay.get(day)!;
+    };
+    for (const e of usageRes.data ?? []) {
+      const b = bucket(dayKey(e.created_at));
+      if (e.kind === "scan_detect") b.scans += 1;
+      if (e.kind === "app_open") b.users.add(e.user_id);
+      if (e.kind === "speaking_feedback") b.reviews += 1;
+    }
+    for (const e of scanRes.data ?? []) {
+      if (e.tapped) bucket(dayKey(e.created_at)).taps += 1;
+    }
+    for (const e of stickerRes.data ?? []) {
+      bucket(dayKey(e.created_at)).catches += 1;
+    }
+
+    const days = [...byDay.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .slice(0, 14)
+      .map(([day, v]) => ({
+        day,
+        scans: v.scans,
+        taps: v.taps,
+        catches: v.catches,
+        active_users: v.users.size,
+        reviews: v.reviews,
+      }));
+
+    // Funnel: distinct users per KPI marker + naive D1 (first open → opened next day).
+    const usersBy = (kind: string) =>
+      new Set((kpiRes.data ?? []).filter((e) => e.kind === kind).map((e) => e.user_id));
+    const opensByUser = new Map<string, Set<string>>();
+    for (const e of kpiRes.data ?? []) {
+      if (e.kind !== "app_open") continue;
+      if (!opensByUser.has(e.user_id)) opensByUser.set(e.user_id, new Set());
+      opensByUser.get(e.user_id)!.add(dayKey(e.created_at));
+    }
+    let d1Yes = 0;
+    let d1Eligible = 0;
+    const today = dayKey(new Date().toISOString());
+    for (const daysSet of opensByUser.values()) {
+      const first = [...daysSet].sort()[0];
+      if (!first || first === today) continue; // day-1 not observable yet
+      d1Eligible += 1;
+      const next = new Date(`${first}T12:00:00+08:00`);
+      next.setDate(next.getDate() + 1);
+      if (daysSet.has(next.toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" }))) d1Yes += 1;
+    }
+
+    return {
+      days,
+      funnel: {
+        users_total: profileCountRes.count ?? 0,
+        users_onboarded: usersBy("onboarding_done").size,
+        users_first_scan: usersBy("first_scan").size,
+        users_first_catch: usersBy("first_catch").size,
+        d1_retention_pct: d1Eligible > 0 ? Math.round((100 * d1Yes) / d1Eligible) : null,
+      },
     };
   });

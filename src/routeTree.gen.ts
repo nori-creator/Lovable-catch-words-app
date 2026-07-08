@@ -31,6 +31,7 @@ import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
 import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
+import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 
 const TermsRoute = TermsRouteImport.update({
@@ -144,6 +145,12 @@ const AuthenticatedDexStickerIdRoute =
     path: '/$stickerId',
     getParentRoute: () => AuthenticatedDexRoute,
   } as any)
+const AuthenticatedAdminMetricsRoute =
+  AuthenticatedAdminMetricsRouteImport.update({
+    id: '/admin/metrics',
+    path: '/admin/metrics',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminDictionaryRoute =
   AuthenticatedAdminDictionaryRouteImport.update({
     id: '/admin/dictionary',
@@ -171,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
+  '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -195,6 +203,7 @@ export interface FileRoutesByTo {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
+  '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -221,6 +230,7 @@ export interface FileRoutesById {
   '/_authenticated/scan': typeof AuthenticatedScanRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
+  '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/admin/dictionary'
+    | '/admin/metrics'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/admin/dictionary'
+    | '/admin/metrics'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -296,6 +308,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scan'
     | '/_authenticated/settings'
     | '/_authenticated/admin/dictionary'
+    | '/_authenticated/admin/metrics'
     | '/_authenticated/dex/$stickerId'
     | '/_authenticated/post/$postId'
     | '/_authenticated/u/$userId'
@@ -467,6 +480,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDexStickerIdRouteImport
       parentRoute: typeof AuthenticatedDexRoute
     }
+    '/_authenticated/admin/metrics': {
+      id: '/_authenticated/admin/metrics'
+      path: '/admin/metrics'
+      fullPath: '/admin/metrics'
+      preLoaderRoute: typeof AuthenticatedAdminMetricsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/dictionary': {
       id: '/_authenticated/admin/dictionary'
       path: '/admin/dictionary'
@@ -502,6 +522,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedScanRoute: typeof AuthenticatedScanRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
+  AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
   AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
   AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
@@ -520,6 +541,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedScanRoute: AuthenticatedScanRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
+  AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
   AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
   AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
