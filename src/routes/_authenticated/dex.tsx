@@ -84,7 +84,12 @@ function DexPage() {
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
           <h2 className="text-base font-semibold tracking-tight">あなたの図鑑</h2>
-          <p className="text-xs text-muted-foreground">{captured.length} 種類</p>
+          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
+          <p className="text-xs text-muted-foreground">
+            見つけた <span className="font-semibold text-foreground">{captured.length}</span>
+            <span className="mx-1.5">·</span>
+            捕まえた <span className="font-semibold text-foreground">{captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url).length}</span>
+          </p>
         </div>
         <div className="flex gap-1 rounded-full bg-secondary p-1">
           {([
@@ -160,7 +165,9 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="group block text-left"
                     >
-                      <div className="relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95">
+                      <div className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
+                        isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
+                      }`}>
                         {s.cutout_url ? (
                           <img
                             src={s.cutout_url}
@@ -169,10 +176,23 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-3"
                           />
+                        ) : isGhost(s) && s.placeholder_url ? (
+                          <img
+                            src={s.placeholder_url}
+                            alt={`「${s.word.headword}」の仮画像`}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover opacity-60 grayscale"
+                          />
                         ) : (
-                          <div className="grid h-full place-items-center text-5xl">
+                          <div className={`grid h-full place-items-center text-5xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
                             {s.word.silhouette_emoji ?? "📦"}
                           </div>
+                        )}
+                        {isGhost(s) && (
+                          <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
+                            👻 仮
+                          </span>
                         )}
                         {s.encounter_count > 0 && (
                           <span className="absolute right-2 top-2 rounded-full bg-amber-400/95 px-2 py-0.5 text-[10px] font-bold text-amber-950 shadow">
@@ -195,7 +215,7 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
                     >
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                      <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
                           <img
                             src={s.cutout_url}
@@ -204,8 +224,16 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
+                        ) : isGhost(s) && s.placeholder_url ? (
+                          <img
+                            src={s.placeholder_url}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover opacity-60 grayscale"
+                          />
                         ) : (
-                          <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
+                          <span className={`text-2xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>{s.word.silhouette_emoji ?? "📦"}</span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -415,6 +443,11 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
       )}
     </>
   );
+}
+
+/** Ghost card (§5.3): caught by text/voice, no real photo yet. */
+function isGhost(s: { capture_type: string; cutout_url: string | null; object_url: string | null }): boolean {
+  return s.capture_type !== "photo" && !s.cutout_url && !s.object_url;
 }
 
 function prettifyCategory(key: string): string {

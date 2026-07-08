@@ -245,8 +245,9 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
       <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z, tape }) => {
           // Album is a memory book: prefer selfie (you + the thing).
-          // Fallback to the plain object photo only when there's no selfie.
-          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? null;
+          // Fallback to the plain object photo only when there's no selfie;
+          // ghosts show their placeholder (clearly temporary).
+          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
           const isPolaroid = !!heroUrl;
 
           return (

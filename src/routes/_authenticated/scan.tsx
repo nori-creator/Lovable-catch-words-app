@@ -1,8 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Keyboard, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
+import { Camera, Check, Keyboard, Loader2, Mic, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
@@ -10,6 +10,7 @@ import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { preloadCutout } from "@/lib/cutout";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
+import { InputCatchSheet } from "@/components/InputCatchSheet";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -95,6 +96,7 @@ function ScanPage() {
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
 
 
@@ -362,10 +364,16 @@ function ScanPage() {
             );
           })}
 
-          {/* empty state after scan */}
+          {/* empty state after scan — always offer the typed escape hatch (§2 onboarding) */}
           {items && items.length === 0 && !scanning && (
             <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/90 p-3 text-center text-sm shadow-lg">
-              何も検出できませんでした。文字入力で調べてみましょう。
+              <p>何も検出できませんでした。文字や物にもう少し近づいてみて。</p>
+              <button
+                onClick={() => setInputCatchOpen("text")}
+                className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground active:scale-95"
+              >
+                文字入力で調べる
+              </button>
             </div>
           )}
 
@@ -390,13 +398,13 @@ function ScanPage() {
         <div className="flex items-center justify-center gap-3">
           {!snapshot ? (
             <>
-              <Link
-                to="/capture"
-                aria-label="写真アップロード・文字入力で集める"
+              <button
+                onClick={() => setInputCatchOpen("text")}
+                aria-label="文字入力でキャッチ"
                 className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
               >
                 <Keyboard className="h-5 w-5" />
-              </Link>
+              </button>
               <button
                 onClick={doScan}
                 disabled={!ready || scanning}
@@ -405,7 +413,13 @@ function ScanPage() {
                 {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
                 スキャン
               </button>
-              <span className="h-11 w-11" aria-hidden />
+              <button
+                onClick={() => setInputCatchOpen("voice")}
+                aria-label="聞こえたフレーズを復唱してキャッチ"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
+              >
+                <Mic className="h-5 w-5" />
+              </button>
             </>
           ) : (
             <>
@@ -479,8 +493,17 @@ function ScanPage() {
           dict={entries[catchOpen.headword]}
           cardPromise={startPrefetch(catchOpen.headword)}
           loc={scanLoc}
+          upgrade={(() => {
+            // §5.3: catching a gold (ghost) dot upgrades the existing sticker.
+            const entry = scanCtx?.owned[normHead(catchOpen.headword)];
+            return entry && !entry.has_photo ? { sticker_id: entry.sticker_id } : null;
+          })()}
           onClose={() => setCatchOpen(null)}
         />
+      )}
+
+      {inputCatchOpen && (
+        <InputCatchSheet initialMode={inputCatchOpen} onClose={() => setInputCatchOpen(null)} />
       )}
 
       <style>{`

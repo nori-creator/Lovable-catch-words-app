@@ -28,6 +28,8 @@ export type DueReviewCard = {
   category_key: string | null;
   entry_type: string;
   cutout_url: string | null;
+  /** Ghost cards (§5.3): temporary stand-in image so review isn't a blank. */
+  placeholder_url: string | null;
   audio_url: string | null; // cached TTS if it exists; client falls back to speechSynthesis
   caption: string | null;
   location_name: string | null;
@@ -85,15 +87,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<DueReviewCard[]> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
+    const dueSelect = (withGhost: boolean) =>
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
+    let { data, error } = await supabase
       .from("reviews")
-      .select(
-        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))",
-      )
+      .select(dueSelect(true))
       .eq("user_id", userId)
       .lte("due_at", nowIso)
       .order("due_at", { ascending: true })
       .limit(10);
+    if (error && /placeholder_image_url|entry_type/.test(error.message)) {
+      ({ data, error } = (await supabase
+        .from("reviews")
+        .select(
+          "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+        )
+        .eq("user_id", userId)
+        .lte("due_at", nowIso)
+        .order("due_at", { ascending: true })
+        .limit(10)) as unknown as { data: typeof data; error: typeof error });
+    }
     if (error) throw new Error(error.message);
 
     type DueRow = {
@@ -108,6 +121,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         caption: string | null;
         location_name: string | null;
         taken_at: string | null;
+        placeholder_image_url?: string | null;
         words: {
           id: string;
           headword: string;
@@ -164,12 +178,14 @@ export const getDueReviews = createServerFn({ method: "GET" })
     for (const c of choiceRows ?? []) cached.set(c.word_id, c.distractors ?? []);
 
     // Batch-sign all image and audio URLs in two calls instead of one per card.
-    const cutoutPaths = rows.map((r) => r.stickers!.cutout_image_url).filter((p): p is string => !!p);
+    const cutoutPaths = rows
+      .flatMap((r) => [r.stickers!.cutout_image_url, r.stickers!.placeholder_image_url ?? null])
+      .filter((p): p is string => !!p);
     const cutoutUrlByPath = new Map<string, string>();
     if (cutoutPaths.length > 0) {
       const { data: signed } = await supabase.storage
         .from("stickers")
-        .createSignedUrls(cutoutPaths, 60 * 60 * 6);
+        .createSignedUrls([...new Set(cutoutPaths)], 60 * 60 * 6);
       for (const s of signed ?? []) {
         if (s.path && s.signedUrl && !s.error) cutoutUrlByPath.set(s.path, s.signedUrl);
       }
@@ -220,6 +236,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
+        placeholder_url: row.stickers!.placeholder_image_url
+          ? (cutoutUrlByPath.get(row.stickers!.placeholder_image_url) ?? null)
+          : null,
         audio_url: audioUrlByPath.get(audioPaths[i]) ?? null,
         caption: row.stickers!.caption,
         location_name: row.stickers!.location_name,

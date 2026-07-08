@@ -196,7 +196,7 @@ export function SpeakingReviewCard({
     playCardAudio(card);
   }
 
-  const heroUrl = card.cutout_url;
+  const heroUrl = card.cutout_url ?? card.placeholder_url;
   const takenLabel = card.taken_at
     ? new Date(card.taken_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
     : null;
