@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { SpeakingReviewCard } from "@/components/SpeakingReviewCard";
 import { getDueReviews, gradeReview, getOverallMemoryStats, type DueReviewCard, type ReviewMode } from "@/lib/reviews.functions";
+import { getMyProfile } from "@/lib/profile.functions";
 import { Eye, Sparkles, Check, X, Volume2, Brain, Mic, Ear, MessageSquareText, Square } from "lucide-react";
 
 function speakZhTW(text: string) {
@@ -58,6 +60,7 @@ function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const grade = useServerFn(gradeReview);
   const fetchStats = useServerFn(getOverallMemoryStats);
+  const fetchProfile = useServerFn(getMyProfile);
   const { data: cards, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
@@ -68,6 +71,15 @@ function ReviewPage() {
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 60_000,
+  });
+  // §6/§10-3: speaking-output review is the default; the classic quiz
+  // remains as "light mode" (choice) selectable in settings.
+  const speakingMode =
+    (profile as { review_mode?: string } | null | undefined)?.review_mode !== "choice";
 
   const [idx, setIdx] = useState(0);
   const [blurSeen, setBlurSeen] = useState(false);
@@ -93,12 +105,13 @@ function ReviewPage() {
   }, [idx]);
 
   // Listening mode: the audio IS the question, so it plays automatically.
+  // (Choice mode only — in speaking mode the word must stay hidden, §6-1.)
   useEffect(() => {
-    if (!current || mode !== "listening" || picked) return;
+    if (speakingMode || !current || mode !== "listening" || picked) return;
     const t = setTimeout(() => playAudio(current), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.review_id, mode]);
+  }, [current?.review_id, mode, speakingMode]);
 
   async function submit(correct: boolean, pickedValue: string) {
     if (!current || picked) return;
@@ -163,6 +176,8 @@ function ReviewPage() {
         <EmptyState />
       ) : done ? (
         <DoneState onAgain={() => { setIdx(0); refetch(); }} />
+      ) : current && speakingMode ? (
+        <SpeakingReviewCard card={current} onFinished={() => setIdx((i) => i + 1)} />
       ) : current && mode && meta ? (
         <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
           <div className="mb-3 flex items-center justify-between">

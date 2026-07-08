@@ -23,6 +23,7 @@ const UpdateInput = z.object({
   target_language: z.string().optional(),
   level_goal: z.string().optional(),
   pronunciation_strictness: z.enum(["easy", "normal", "strict"]).optional(),
+  review_mode: z.enum(["speaking", "choice"]).optional(),
   onboarded: z.boolean().optional(),
 });
 

@@ -18,6 +18,7 @@ export type ReviewMode = "recognition" | "listening" | "reverse" | "production";
 export type DueReviewCard = {
   review_id: string;
   sticker_id: string;
+  word_id: string;
   headword: string;
   reading_zhuyin: string | null;
   pinyin: string | null;
@@ -25,8 +26,13 @@ export type DueReviewCard = {
   example_sentence: string | null;
   example_translation: string | null;
   category_key: string | null;
+  entry_type: string;
   cutout_url: string | null;
   audio_url: string | null; // cached TTS if it exists; client falls back to speechSynthesis
+  caption: string | null;
+  location_name: string | null;
+  taken_at: string | null;
+  review_count: number; // completed reviews so far (word-tree unlock count)
   blur_seen: boolean;
   ease: number;
   interval_days: number;
@@ -82,7 +88,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("reviews")
       .select(
-        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))",
       )
       .eq("user_id", userId)
       .lte("due_at", nowIso)
@@ -99,6 +105,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
       blur_seen: boolean;
       stickers: {
         cutout_image_url: string | null;
+        caption: string | null;
+        location_name: string | null;
+        taken_at: string | null;
         words: {
           id: string;
           headword: string;
@@ -108,11 +117,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
           example_sentence: string | null;
           example_translation: string | null;
           category_key: string | null;
+          entry_type: string | null;
         } | null;
       } | null;
     };
     const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
     if (rows.length === 0) return [];
+
+    // Word-tree unlock counts: one review_history row per completed review.
+    const stickerIds = rows.map((r) => r.sticker_id);
+    const reviewCounts = new Map<string, number>();
+    {
+      const { data: histRows } = await supabase
+        .from("review_history")
+        .select("sticker_id")
+        .eq("user_id", userId)
+        .in("sticker_id", stickerIds);
+      for (const h of histRows ?? []) {
+        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+      }
+    }
 
     // The user's own deck is the distractor pool — zero AI calls at review time.
     const { data: deckRows } = await supabase
@@ -186,6 +210,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       return {
         review_id: row.id,
         sticker_id: row.sticker_id,
+        word_id: w.id,
         headword: w.headword,
         reading_zhuyin: w.reading_zhuyin,
         pinyin: w.pinyin,
@@ -193,8 +218,13 @@ export const getDueReviews = createServerFn({ method: "GET" })
         example_sentence: w.example_sentence,
         example_translation: w.example_translation,
         category_key: w.category_key,
+        entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
         audio_url: audioUrlByPath.get(audioPaths[i]) ?? null,
+        caption: row.stickers!.caption,
+        location_name: row.stickers!.location_name,
+        taken_at: row.stickers!.taken_at,
+        review_count: reviewCounts.get(row.sticker_id) ?? 0,
         blur_seen: row.blur_seen,
         ease: row.ease,
         interval_days: row.interval_days,
@@ -293,6 +323,12 @@ const GradeInput = z.object({
   correct: z.boolean(),
   blur_seen: z.boolean().default(false),
   response_ms: z.number().int().nonnegative().default(0),
+  /**
+   * Speaking review result (§6): success = said it without help (5),
+   * hint = needed the word revealed = lapse (2), skip = couldn't say it (1).
+   * When omitted, the classic correct/blur scoring applies (choice mode).
+   */
+  result: z.enum(["success", "hint", "skip"]).optional(),
 });
 
 // SM-2 simplified
@@ -324,9 +360,12 @@ export const gradeReview = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1
+    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
+    // Speaking mode sends `result` instead: success=5 / hint=2 (lapse) / skip=1.
     let score = 1;
-    if (data.correct) {
+    if (data.result) {
+      score = data.result === "success" ? 5 : data.result === "hint" ? 2 : 1;
+    } else if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
       if (data.response_ms > 8000) score -= 1;

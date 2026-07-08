@@ -32,6 +32,7 @@ function SettingsPage() {
   const [targetLanguage, setTargetLanguage] = useState("zh-TW");
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
+  const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportFn = useServerFn(exportMyDeck);
@@ -63,6 +64,9 @@ function SettingsPage() {
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
+    setReviewMode(
+      ((profile as { review_mode?: string }).review_mode as "speaking" | "choice") ?? "speaking",
+    );
   }, [profile]);
 
   async function handleSave() {
@@ -76,6 +80,7 @@ function SettingsPage() {
           target_language: targetLanguage,
           level_goal: levelGoal,
           pronunciation_strictness: strictness,
+          review_mode: reviewMode,
         },
       });
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -138,17 +143,34 @@ function SettingsPage() {
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">学習設定</h3>
-          <Label>発音判定の厳しさ</Label>
-          <div className="mt-1 grid grid-cols-3 gap-2">
-            {(["easy", "normal", "strict"] as const).map((v) => (
+          <Label>復習モード</Label>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {(["speaking", "choice"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setStrictness(v)}
-                className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                onClick={() => setReviewMode(v)}
+                className={`rounded-full border py-1.5 text-sm ${reviewMode === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
-                {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
+                {v === "speaking" ? "🎤 スピーキング" : "👆 4択(ライト)"}
               </button>
             ))}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。
+          </p>
+          <div className="mt-3">
+            <Label>発音判定の厳しさ</Label>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["easy", "normal", "strict"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setStrictness(v)}
+                  className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                >
+                  {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
