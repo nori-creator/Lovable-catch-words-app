@@ -160,12 +160,11 @@ function ScanPage() {
     setChip({ item, chosenHeadword: item.headword, showingCandidates: lowConf });
     if (!lowConf) {
       void playAudio(item.headword, item);
-      void tapFn({ data: { headword: item.headword } }).catch(() => {});
       // §3.3 プリフェッチ: バックグラウンドで詳細カード生成を開始。
       startPrefetch(item.headword);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tapFn, startPrefetch]);
+  }, [startPrefetch]);
 
   const pickCandidate = useCallback(async (headword: string, item: DetectedItem) => {
     setChip({ item, chosenHeadword: headword, showingCandidates: false });
@@ -177,23 +176,25 @@ function ScanPage() {
       } catch { /* noop */ }
     }
     void playAudio(headword, item);
-    void tapFn({ data: { headword } }).catch(() => {});
     // 候補確定後にプリフェッチ開始(誤選択で無駄打ちしないため候補選択より後)。
     startPrefetch(headword);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, lookupFn, tapFn, startPrefetch]);
+  }, [entries, lookupFn, startPrefetch]);
 
 
   const playAudio = useCallback(async (headword: string, item: DetectedItem) => {
     const t0 = performance.now();
+    // タップ記録は音声再生開始後に1回だけ送る(tap_to_audio_msを同梱、§7)。
+    const reportTap = (ms: number) => {
+      setTapToAudioMs(ms);
+      void tapFn({ data: { headword, tap_to_audio_ms: ms } }).catch(() => {});
+    };
     try {
       const dict = entries[headword];
       let url: string;
-      if (dict?.audio_path) {
-        // audio_path is a storage key — request signed URL via TTS is overkill;
-        // fall through to TTS which will find the cached mp3 by deterministic path.
-        const r = await ttsFn({ data: { text: headword } });
-        url = r.audio_url;
+      if (dict?.audio_url) {
+        // §4.3 事前生成音声: 署名URLが手元にあるのでサーバー往復ゼロで即再生。
+        url = dict.audio_url;
       } else {
         const r = await ttsFn({ data: { text: headword } });
         url = r.audio_url;
@@ -201,7 +202,7 @@ function ScanPage() {
       if (!audioRef.current) audioRef.current = new Audio();
       audioRef.current.src = url;
       await audioRef.current.play();
-      setTapToAudioMs(Math.round(performance.now() - t0));
+      reportTap(Math.round(performance.now() - t0));
     } catch {
       // fall back to browser TTS
       if ("speechSynthesis" in window) {
@@ -209,11 +210,13 @@ function ScanPage() {
         u.lang = "zh-TW";
         speechSynthesis.cancel();
         speechSynthesis.speak(u);
-        setTapToAudioMs(Math.round(performance.now() - t0));
+        reportTap(Math.round(performance.now() - t0));
+      } else {
+        void tapFn({ data: { headword } }).catch(() => {});
       }
     }
     void item;
-  }, [entries, ttsFn]);
+  }, [entries, ttsFn, tapFn]);
 
   const reset = useCallback(() => {
     setItems(null); setSnapshot(null); setChip(null); setEntries({});

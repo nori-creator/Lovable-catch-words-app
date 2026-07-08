@@ -43,6 +43,8 @@ export type DictionaryEntry = {
   pos: string | null;
   tocfl_level: number | null;
   audio_path: string | null;
+  /** Signed URL for the pre-generated audio (§4.3). Play directly — no TTS round trip. */
+  audio_url: string | null;
   source: string | null;
   entry_type: string | null;
 };
@@ -98,6 +100,7 @@ export const detectScan = createServerFn({ method: "POST" })
       ? data.imageBase64
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
+    const t0 = Date.now();
     let text = "";
     try {
       const r = await generateText({
@@ -126,6 +129,10 @@ export const detectScan = createServerFn({ method: "POST" })
 
     await logUsage(supabase, userId, "scan_detect");
 
+    // §7 measurement: server-side detection latency (AI call + parse).
+    // The client's full scan→dots number additionally includes upload+render.
+    const detectMs = Date.now() - t0;
+
     // §3.7 record every detected item as a scan_event (tapped=false initially)
     if (parsed.items.length > 0) {
       const rows = parsed.items.map((it) => ({
@@ -138,8 +145,13 @@ export const detectScan = createServerFn({ method: "POST" })
         caught: false,
         lat: data.lat ?? null,
         lng: data.lng ?? null,
+        detect_ms: detectMs,
       }));
-      await supabase.from("scan_events").insert(rows);
+      const { error: insErr } = await supabase.from("scan_events").insert(rows);
+      if (insErr && /detect_ms/.test(insErr.message)) {
+        // Migration not applied yet — keep the funnel log working without the column.
+        await supabase.from("scan_events").insert(rows.map(({ detect_ms: _detectMs, ...r }) => r));
+      }
     }
 
     const items: DetectedItem[] = parsed.items.map((it, i) => ({
@@ -156,7 +168,12 @@ export const detectScan = createServerFn({ method: "POST" })
  */
 export const lookupHeadwords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ headwords: z.array(z.string()).max(20) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({
+      headwords: z.array(z.string()).max(20),
+      language: z.string().default("zh-TW"),
+    }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const words = Array.from(new Set(data.headwords.map((s) => s.trim()).filter(Boolean)));
     const empty: Record<string, DictionaryEntry> = {};
@@ -164,16 +181,41 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
     const { data: rows, error } = await context.supabase
       .from("dictionary_entries")
       .select("headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, audio_path, source, entry_type")
+      .eq("language", data.language)
       .in("headword", words);
     if (error) throw new Error(error.message);
+
+    // §4.3: pre-generated audio is served straight from Storage. Sign all
+    // audio paths in one call so tap→audio start needs zero further requests.
+    const paths = (rows ?? []).map((r) => r.audio_path).filter((p): p is string => !!p);
+    const urlByPath = new Map<string, string>();
+    if (paths.length > 0) {
+      const { data: signed } = await context.supabase.storage
+        .from("tts")
+        .createSignedUrls([...new Set(paths)], 60 * 60 * 6);
+      for (const row of signed ?? []) {
+        if (row.path && row.signedUrl && !row.error) urlByPath.set(row.path, row.signedUrl);
+      }
+    }
+
     const map: Record<string, DictionaryEntry> = {};
-    for (const r of rows ?? []) map[r.headword] = r as DictionaryEntry;
+    for (const r of rows ?? []) {
+      map[r.headword] = {
+        ...(r as Omit<DictionaryEntry, "audio_url">),
+        audio_url: r.audio_path ? (urlByPath.get(r.audio_path) ?? null) : null,
+      };
+    }
     return { entries: map };
   });
 
 export const markScanTap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ headword: z.string().min(1) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({
+      headword: z.string().min(1),
+      tap_to_audio_ms: z.number().int().nonnegative().optional(),
+    }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     // Best-effort: flip the most recent matching scan_event to tapped=true.
     const { data: rows } = await context.supabase
@@ -184,7 +226,14 @@ export const markScanTap = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1);
     const id = rows?.[0]?.id;
-    if (id) await context.supabase.from("scan_events").update({ tapped: true }).eq("id", id);
+    if (id) {
+      const patch: { tapped: boolean; tap_to_audio_ms?: number } = { tapped: true };
+      if (data.tap_to_audio_ms != null) patch.tap_to_audio_ms = data.tap_to_audio_ms;
+      const { error } = await context.supabase.from("scan_events").update(patch).eq("id", id);
+      if (error && /tap_to_audio_ms/.test(error.message)) {
+        await context.supabase.from("scan_events").update({ tapped: true }).eq("id", id);
+      }
+    }
     return { ok: true };
   });
 

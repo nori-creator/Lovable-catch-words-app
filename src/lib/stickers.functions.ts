@@ -381,7 +381,19 @@ export const updateWordExtras = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => UpdateExtrasInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    // Ownership check (docs/design/03 §1): words is a shared table — only a
+    // user who owns a sticker referencing this word may edit it, and only
+    // AI-generated words are editable. RLS enforces the same rule; this
+    // keeps the error explicit instead of a silent 0-row update.
+    const { data: owned } = await supabase
+      .from("stickers")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("word_id", data.word_id)
+      .limit(1)
+      .maybeSingle();
+    if (!owned) throw new Error("この単語を編集する権限がありません");
     const update: Record<string, unknown> = { extras: data.extras as never };
     if (data.patch) {
       for (const [k, v] of Object.entries(data.patch)) {
