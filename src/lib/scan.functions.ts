@@ -208,6 +208,80 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
     return { entries: map };
   });
 
+/**
+ * §3.1b dot-state context: the user's own cards + previously tapped words,
+ * fetched once per scan session and matched client-side (zero AI calls).
+ * Headwords are NFC-normalized so 你/你 variants from different sources match.
+ */
+export type ScanContextEntry = {
+  sticker_id: string;
+  has_photo: boolean;
+  found_at: string;
+};
+
+export type ScanContext = {
+  owned: Record<string, ScanContextEntry>;
+  tapped: string[];
+};
+
+const normHeadword = (s: string) => s.normalize("NFC").trim();
+
+export const getScanContext = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ScanContext> => {
+    const { supabase, userId } = context;
+    let [stickerRes, tapRes] = await Promise.all([
+      supabase
+        .from("stickers")
+        .select("id, created_at, capture_type, cutout_image_url, object_image_url, words(headword)")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true })
+        .limit(2000),
+      supabase
+        .from("scan_events")
+        .select("headword")
+        .eq("user_id", userId)
+        .eq("tapped", true)
+        .order("created_at", { ascending: false })
+        .limit(3000),
+    ]);
+    if (stickerRes.error && /capture_type/.test(stickerRes.error.message)) {
+      // Migration not applied yet — every sticker is a photo catch then.
+      stickerRes = (await supabase
+        .from("stickers")
+        .select("id, created_at, cutout_image_url, object_image_url, words(headword)")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true })
+        .limit(2000)) as typeof stickerRes;
+    }
+
+    const owned: Record<string, ScanContextEntry> = {};
+    type Row = {
+      id: string;
+      created_at: string;
+      capture_type: string | null;
+      cutout_image_url: string | null;
+      object_image_url: string | null;
+      words: { headword: string } | null;
+    };
+    for (const r of (stickerRes.data ?? []) as unknown as Row[]) {
+      if (!r.words?.headword) continue;
+      const key = normHeadword(r.words.headword);
+      const hasPhoto =
+        (r.capture_type ?? "photo") === "photo" || !!r.cutout_image_url || !!r.object_image_url;
+      const prev = owned[key];
+      // Keep the earliest sticker; a photo on any sticker counts as captured.
+      if (!prev) {
+        owned[key] = { sticker_id: r.id, has_photo: hasPhoto, found_at: r.created_at };
+      } else if (hasPhoto && !prev.has_photo) {
+        prev.has_photo = true;
+      }
+    }
+
+    const tapped = [...new Set((tapRes.data ?? []).map((r) => normHeadword(r.headword)))];
+    return { owned, tapped };
+  });
+
 export const markScanTap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

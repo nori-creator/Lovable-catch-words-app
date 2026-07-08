@@ -222,6 +222,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
 
       void caughtFn({ data: { headword } }).catch(() => {});
       await qc.invalidateQueries({ queryKey: ["stickers"] });
+      void qc.invalidateQueries({ queryKey: ["scan-context"] });
       await runLandingAnimation();
       setPhase("done");
       toast.success("図鑑に1体増えました！");
