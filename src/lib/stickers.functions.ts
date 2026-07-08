@@ -37,6 +37,10 @@ export type StickerWithWord = {
   /** Signed URL of the temporary stand-in image for ghosts. */
   placeholder_url: string | null;
   placeholder_credit: PlaceholderCredit | null;
+  /** §6 word tree: branch plan frozen at save time (getSticker only). */
+  branch_plan?: Array<{ type: string; zh: string; ja?: string }> | null;
+  /** §6 word tree: completed reviews = unlocked branch count (getSticker only). */
+  review_count?: number;
   word: {
     headword: string;
     reading_zhuyin: string | null;
@@ -216,7 +220,7 @@ export const getSticker = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     const cols = (withGhost: boolean) =>
-      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
+      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
 
     // Try to read as owner first (RLS-scoped); retry without ghost columns
     // when the migration hasn't been applied.
@@ -227,7 +231,7 @@ export const getSticker = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     let ghostCols = true;
-    if (error && /capture_type|placeholder/.test(error.message)) {
+    if (error && /capture_type|placeholder|branch_plan/.test(error.message)) {
       ghostCols = false;
       ({ data: row, error } = await supabase
         .from("stickers")
@@ -269,9 +273,21 @@ export const getSticker = createServerFn({ method: "GET" })
       capture_type?: string | null;
       placeholder_image_url?: string | null;
       placeholder_credit?: PlaceholderCredit | null;
+      branch_plan?: unknown;
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
     const r = row as unknown as StickerRow;
+
+    // §6 word tree: unlock count = completed reviews (monotonic).
+    let reviewCount = 0;
+    if (isOwner) {
+      const { count } = await supabase
+        .from("review_history")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("sticker_id", r.id);
+      reviewCount = count ?? 0;
+    }
     // Non-owners sign URLs via the admin client (their RLS can't see the
     // owner's storage objects); the selfie stays private to the owner.
     let signer: SignedUrlsClient = supabase;
@@ -307,6 +323,8 @@ export const getSticker = createServerFn({ method: "GET" })
       capture_type: r.capture_type ?? "photo",
       placeholder_url: r.placeholder_image_url ? (urlMap.get(r.placeholder_image_url) ?? null) : null,
       placeholder_credit: r.placeholder_credit ?? null,
+      branch_plan: (r.branch_plan as StickerWithWord["branch_plan"]) ?? null,
+      review_count: reviewCount,
       word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
     };
     return res;
