@@ -326,9 +326,11 @@ export const gradeReview = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1
+    // Score: correct=5 base; blur -1; slow -1; hint used → forced lapse; wrong=1
     let score = 1;
-    if (data.correct) {
+    if (data.hint_used) {
+      score = 1;
+    } else if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
       if (data.response_ms > 8000) score -= 1;
@@ -336,6 +338,7 @@ export const gradeReview = createServerFn({ method: "POST" })
       score = 1;
     }
     score = Math.max(0, Math.min(5, score));
+
 
     const next = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
