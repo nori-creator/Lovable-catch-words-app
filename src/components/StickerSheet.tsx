@@ -21,6 +21,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
     enabled: !!stickerId,
+    staleTime: 5 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);

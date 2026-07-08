@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
+import { downscaleDataUrl, removeBackgroundFast } from "@/lib/cutout";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 
@@ -106,16 +107,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const cropped = await cropAround(snapshotDataUrl, item.point);
         if (cancelled) return;
         setObjectDataUrl(cropped);
-        const mod = await import("@imgly/background-removal");
-        const blob = await dataUrlToBlob(cropped);
-        const out = await mod.removeBackground(blob);
-        if (cancelled) return;
-        const reader = new FileReader();
-        const dataUrl: string = await new Promise((res, rej) => {
-          reader.onload = () => res(reader.result as string);
-          reader.onerror = () => rej(new Error("read failed"));
-          reader.readAsDataURL(out as Blob);
-        });
+        const dataUrl = await removeBackgroundFast(cropped);
         if (cancelled) return;
         setCutoutUrl(dataUrl);
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
@@ -137,7 +129,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       reader.onerror = () => rej(new Error("read failed"));
       reader.readAsDataURL(file);
     });
-    setSelfieDataUrl(dataUrl);
+    // Camera files can be several MB — shrink before preview/upload so the
+    // album loads fast later (roadmap B1).
+    setSelfieDataUrl(await downscaleDataUrl(dataUrl, 1280, 0.82));
   }
 
   async function runLandingAnimation(): Promise<void> {

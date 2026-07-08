@@ -78,6 +78,10 @@ function HomePage() {
   const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
+    // Keep the signed URLs stable across tab switches so the browser cache
+    // can serve the images instead of re-downloading them (roadmap B1).
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -259,6 +263,8 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
                     <img
                       src={heroUrl!}
                       alt={`「${s.word.headword}」の思い出`}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   </div>

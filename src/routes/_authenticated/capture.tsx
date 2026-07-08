@@ -16,6 +16,7 @@ import { geocodeLocation } from "@/lib/geocode.functions";
 import { saveSticker } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
+import { preloadCutout, removeBackgroundFast } from "@/lib/cutout";
 import { WordCard } from "@/components/WordCard";
 
 export const Route = createFileRoute("/_authenticated/capture")({
@@ -157,6 +158,12 @@ function CapturePage() {
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
 
+  // Warm the cutout model while the user frames the shot, so the first
+  // catch doesn't pay the model download + init cost (roadmap B2).
+  useEffect(() => {
+    preloadCutout();
+  }, []);
+
   // Auto-open the rear camera when landing on /capture (unless we arrived
   // with a derived-catch word or an offline-queue restore).
   useEffect(() => {
@@ -252,22 +259,10 @@ function CapturePage() {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
       const aiImage = await compressImage(img, 768, 0.8);
       const [cutoutRes, suggestRes] = await Promise.all([
-        (async () => {
-          try {
-            const mod = await import("@imgly/background-removal");
-            const blob = await dataUrlToBlob(img);
-            const out = await mod.removeBackground(blob);
-            const reader = new FileReader();
-            return await new Promise<string>((resolve, reject) => {
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(out as Blob);
-            });
-          } catch (e) {
-            console.warn("background removal failed, using original", e);
-            return img;
-          }
-        })(),
+        removeBackgroundFast(img).catch((e) => {
+          console.warn("background removal failed, using original", e);
+          return img;
+        }),
         suggestFn({ data: { imageBase64: aiImage, targetLanguage: "zh-TW" } }),
       ]);
       setCutoutImg(cutoutRes);

@@ -1,11 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
+import { Camera, Keyboard, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
+import { preloadCutout } from "@/lib/cutout";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 
@@ -63,6 +64,12 @@ function ScanPage() {
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
 
+
+  // Warm the cutout model while the user frames the shot, so the first
+  // catch doesn't pay the model download + init cost (roadmap B2).
+  useEffect(() => {
+    preloadCutout();
+  }, []);
 
   // ---- camera lifecycle ----
   useEffect(() => {
@@ -324,14 +331,24 @@ function ScanPage() {
         {/* controls */}
         <div className="flex items-center justify-center gap-3">
           {!snapshot ? (
-            <button
-              onClick={doScan}
-              disabled={!ready || scanning}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
-            >
-              {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
-              スキャン
-            </button>
+            <>
+              <Link
+                to="/capture"
+                aria-label="写真アップロード・文字入力で集める"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
+              >
+                <Keyboard className="h-5 w-5" />
+              </Link>
+              <button
+                onClick={doScan}
+                disabled={!ready || scanning}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+              >
+                {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
+                スキャン
+              </button>
+              <span className="h-11 w-11" aria-hidden />
+            </>
           ) : (
             <>
               <button

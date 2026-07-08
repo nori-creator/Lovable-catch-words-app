@@ -36,6 +36,10 @@ function DexPage() {
   const { data: stickers } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
+    // Keep the signed URLs stable across tab switches so the browser cache
+    // can serve the images instead of re-downloading them (roadmap B1).
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
   const captured = stickers ?? [];
 
@@ -161,6 +165,8 @@ function DexPage() {
                           <img
                             src={s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-contain p-3"
                           />
                         ) : (
@@ -194,6 +200,8 @@ function DexPage() {
                           <img
                             src={s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
                         ) : (
@@ -226,11 +234,63 @@ function DexPage() {
   );
 }
 
+/**
+ * Draw a map pin whose head is the sticker's own photo clipped in a circle
+ * (roadmap B4: every pin shows what was caught there, not a generic marker).
+ * Returns null when the image can't be drawn (CORS/load failure) so the
+ * caller keeps the emoji fallback pin.
+ */
+async function photoPinIcon(url: string): Promise<string | null> {
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("pin image load failed"));
+      img.src = url;
+    });
+    const W = 104, H = 120, cx = 52, cy = 46, R = 42; // 2x for retina
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    // tail
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + R - 6);
+    ctx.lineTo(cx, H - 4);
+    ctx.lineTo(cx + 14, cy + R - 6);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fill();
+    // white ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    // photo clipped in circle (cover fit)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+    const scale = Math.max((R * 2) / img.width, (R * 2) / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.restore();
+    return c.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
 function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
+  const pinIconCache = useRef<Map<string, string | null>>(new Map());
   const browserKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
   const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
 
@@ -283,6 +343,21 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
         title: s.word.headword,
         icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
       });
+      // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
+      const photoUrl = s.object_url ?? s.cutout_url;
+      if (photoUrl) {
+        const cached = pinIconCache.current.get(s.id);
+        const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);
+        void iconPromise.then((icon) => {
+          pinIconCache.current.set(s.id, icon);
+          if (!icon || !markersRef.current.includes(marker)) return;
+          (marker as { setIcon: (i: object) => void }).setIcon({
+            url: icon,
+            scaledSize: new g.Size(52, 60),
+            anchor: new g.Point(26, 58),
+          });
+        });
+      }
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
         navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
       });

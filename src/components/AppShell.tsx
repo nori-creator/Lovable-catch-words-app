@@ -1,14 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { Camera, Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
+import { Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
 import { type ReactNode } from "react";
 
-type Item = { to: "/home" | "/dex" | "/scan" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; label: string; icon: typeof Home };
 
+// 5-item nav (roadmap B5): the center slot is the one big camera entrance —
+// scan (かざす=調べる) with the catch/keyboard entrances living inside it.
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
   { to: "/dex", label: "図鑑", icon: BookOpen },
   { to: "/scan", label: "スキャン", icon: ScanLine },
-  { to: "/capture", label: "集める", icon: Camera },
   { to: "/review", label: "復習", icon: Sparkles },
   { to: "/settings", label: "設定", icon: Settings },
 ];
@@ -38,8 +39,8 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 activeProps={{ className: "text-primary" }}
               >
                 {to === "/scan" ? (
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-primary-foreground shadow-lg shadow-primary/30">
-                    <Icon className="h-5 w-5" />
+                  <span className="-mt-7 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform group-active:scale-95">
+                    <Icon className="h-6 w-6" />
                   </span>
                 ) : (
                   <Icon className="h-5 w-5" />
