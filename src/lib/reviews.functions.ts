@@ -293,7 +293,9 @@ const GradeInput = z.object({
   correct: z.boolean(),
   blur_seen: z.boolean().default(false),
   response_ms: z.number().int().nonnegative().default(0),
+  hint_used: z.boolean().default(false),
 });
+
 
 // SM-2 simplified
 export function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
