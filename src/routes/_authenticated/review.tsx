@@ -3,9 +3,40 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { getDueReviews, gradeReview, getOverallMemoryStats, type DueReviewCard, type ReviewMode } from "@/lib/reviews.functions";
-import { Eye, Sparkles, Check, X, Volume2, Brain, Mic, Ear, MessageSquareText, Square } from "lucide-react";
+import {
+  getDueReviews,
+  gradeReview,
+  getOverallMemoryStats,
+  getSpeakingFeedback,
+  type DueReviewCard,
+  type SpeakingFeedback,
+} from "@/lib/reviews.functions";
+import {
+  Eye,
+  Sparkles,
+  Check,
+  X,
+  Volume2,
+  Brain,
+  Mic,
+  Square,
+  Lightbulb,
+  Loader2,
+  Video,
+  Repeat,
+  ArrowRight,
+} from "lucide-react";
 
+// ---- prefs (localStorage) --------------------------------------------------
+const LIGHT_KEY = "review-light-mode-v1";
+const VIDEO_KEY = "review-video-v1";
+function readBool(key: string, def = false) {
+  if (typeof window === "undefined") return def;
+  const v = localStorage.getItem(key);
+  return v == null ? def : v === "1";
+}
+
+// ---- speech helpers --------------------------------------------------------
 function speakZhTW(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
@@ -19,7 +50,6 @@ function speakZhTW(text: string) {
   u.rate = 0.95;
   window.speechSynthesis.speak(u);
 }
-
 let sharedAudio: HTMLAudioElement | null = null;
 function playAudio(card: DueReviewCard) {
   if (card.audio_url) {
@@ -30,25 +60,26 @@ function playAudio(card: DueReviewCard) {
     speakZhTW(card.headword);
   }
 }
-
 function speechRecognitionAvailable(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
   return !!(w.SpeechRecognition ?? w.webkitSpeechRecognition);
 }
 
-const MODE_META: Record<ReviewMode, { label: string; hint: string; icon: typeof Eye }> = {
-  recognition: { label: "みる", hint: "写真と単語から意味を選ぼう", icon: Eye },
-  listening: { label: "きく", hint: "音だけを聞いて意味を選ぼう", icon: Ear },
-  reverse: { label: "おもいだす", hint: "意味から単語を選ぼう", icon: MessageSquareText },
-  production: { label: "はなす", hint: "写真を見て、声に出して言おう", icon: Mic },
+// ---- POS color map ---------------------------------------------------------
+const POS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+  S: { bg: "bg-sky-100", text: "text-sky-900", label: "主語" },
+  V: { bg: "bg-rose-100", text: "text-rose-900", label: "動詞" },
+  O: { bg: "bg-emerald-100", text: "text-emerald-900", label: "目的語" },
+  M: { bg: "bg-amber-100", text: "text-amber-900", label: "修飾" },
+  C: { bg: "bg-violet-100", text: "text-violet-900", label: "接続" },
 };
 
 export const Route = createFileRoute("/_authenticated/review")({
   head: () => ({
     meta: [
       { title: "復習 — Catchwords" },
-      { name: "description", content: "今日の弱点語をAIが選別。ぼかしを剥がして思い出そう。" },
+      { name: "description", content: "自分の写真を見て、その単語で一言。AIが添削と型を返します。" },
     ],
   }),
   component: ReviewPage,
@@ -56,7 +87,6 @@ export const Route = createFileRoute("/_authenticated/review")({
 
 function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
-  const grade = useServerFn(gradeReview);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const { data: cards, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["reviews-due"],
@@ -70,66 +100,40 @@ function ReviewPage() {
   });
 
   const [idx, setIdx] = useState(0);
-  const [blurSeen, setBlurSeen] = useState(false);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState<{ correct: boolean; score: number } | null>(null);
-  const startedAt = useRef<number>(Date.now());
+  const [lightMode, setLightMode] = useState(false);
+  useEffect(() => { setLightMode(readBool(LIGHT_KEY, false)); }, []);
 
   const current: DueReviewCard | undefined = cards?.[idx];
   const done = cards && idx >= cards.length;
-
-  // Production needs speech recognition; degrade to reverse without it.
-  const mode: ReviewMode | undefined = useMemo(() => {
-    if (!current) return undefined;
-    if (current.mode === "production" && !speechRecognitionAvailable()) return "reverse";
-    return current.mode;
-  }, [current]);
-
-  useEffect(() => {
-    startedAt.current = Date.now();
-    setBlurSeen(false);
-    setPicked(null);
-    setShowResult(null);
-  }, [idx]);
-
-  // Listening mode: the audio IS the question, so it plays automatically.
-  useEffect(() => {
-    if (!current || mode !== "listening" || picked) return;
-    const t = setTimeout(() => playAudio(current), 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.review_id, mode]);
-
-  async function submit(correct: boolean, pickedValue: string) {
-    if (!current || picked) return;
-    setPicked(pickedValue);
-    const res = await grade({
-      data: {
-        review_id: current.review_id,
-        correct,
-        blur_seen: blurSeen,
-        response_ms: Date.now() - startedAt.current,
-      },
-    });
-    setShowResult({ correct, score: res.score });
-    if (mode !== "listening") playAudio(current); // reinforce with native audio on reveal
-  }
 
   const progress = useMemo(() => {
     if (!cards?.length) return 0;
     return Math.round((idx / cards.length) * 100);
   }, [cards, idx]);
 
-  const meta = mode ? MODE_META[mode] : null;
-
   return (
     <AppShell title="復習">
       <section className="mb-4">
         <div className="flex items-baseline justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">きょうの復習</h1>
-          <span className="text-xs text-muted-foreground">
-            {cards ? `${Math.min(idx, cards.length)} / ${cards.length}` : "—"}
-          </span>
+          <div className="flex items-center gap-3">
+            {cards && (
+              <span className="text-xs text-muted-foreground">
+                {Math.min(idx, cards.length)} / {cards.length}
+              </span>
+            )}
+            <button
+              onClick={() => {
+                const next = !lightMode;
+                setLightMode(next);
+                localStorage.setItem(LIGHT_KEY, next ? "1" : "0");
+              }}
+              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
+              title="声を出せない場所用の4択モード"
+            >
+              ライト {lightMode ? "ON" : "OFF"}
+            </button>
+          </div>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -148,9 +152,6 @@ function ReviewPage() {
             </div>
           </div>
           <MiniRetentionGraph series={memStats.series} />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            点線（80%）を下回ったら復習タイミング。今日復習すると曲線がリセットされます。
-          </p>
         </section>
       )}
 
@@ -163,222 +164,522 @@ function ReviewPage() {
         <EmptyState />
       ) : done ? (
         <DoneState onAgain={() => { setIdx(0); refetch(); }} />
-      ) : current && mode && meta ? (
-        <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-              <meta.icon className="h-3.5 w-3.5" /> {meta.label}
-            </span>
-            <span className="text-[11px] text-muted-foreground">{meta.hint}</span>
-          </div>
-
-          {/* --- Question area, varies by mode --- */}
-          {mode === "listening" && !picked ? (
-            <div className="mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center rounded-2xl bg-secondary">
-              <button
-                onClick={() => playAudio(current)}
-                className="lift grid h-24 w-24 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl shadow-primary/30"
-                aria-label="もう一度聞く"
-              >
-                <Volume2 className="h-10 w-10" />
-              </button>
-            </div>
-          ) : (
-            <div className="relative mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
-              {current.cutout_url ? (
-                <img
-                  src={current.cutout_url}
-                  alt="復習対象"
-                  className={`h-full w-full object-contain p-4 transition-[filter] duration-300 ${
-                    mode !== "recognition" || blurSeen || picked ? "blur-0" : "blur-md scale-105"
-                  }`}
-                />
-              ) : (
-                <span className="text-5xl">📦</span>
-              )}
-              {mode === "recognition" && !picked && (
-                <button
-                  onClick={() => setBlurSeen(true)}
-                  className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur hover:bg-background"
-                >
-                  <Eye className="h-3 w-3" /> ぼかしを剥がす{blurSeen && "（-1点）"}
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="mb-4 text-center">
-            {(mode === "recognition" || ((mode === "listening" || mode === "production") && picked)) && (
-              <div className="inline-flex items-center gap-2">
-                <div className="text-3xl font-bold tracking-tight">{current.headword}</div>
-                <button
-                  type="button"
-                  onClick={() => playAudio(current)}
-                  className="lift inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
-                  aria-label="発音を聞く"
-                >
-                  <Volume2 className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-            {(mode === "reverse" || mode === "production") && (
-              <div className="text-2xl font-bold tracking-tight">{current.meaning_ja}</div>
-            )}
-            {(mode === "recognition" || !!picked) && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                {current.reading_zhuyin} {current.pinyin && `· ${current.pinyin}`}
-              </div>
-            )}
-          </div>
-
-          {/* --- Answer area --- */}
-          {mode === "production" ? (
-            <ProductionAnswer
-              card={current}
-              disabled={!!picked}
-              onResult={(correct, heard) => submit(correct, heard || "(音声)")}
-            />
-          ) : (
-            <ul className="space-y-2">
-              {(mode === "reverse" ? current.headword_choices : current.choices).map((c) => {
-                const correctValue = mode === "reverse" ? current.headword : current.meaning_ja;
-                const isPicked = picked === c;
-                const isCorrect = picked && c === correctValue;
-                const wrong = isPicked && !showResult?.correct;
-                return (
-                  <li key={c}>
-                    <button
-                      disabled={!!picked}
-                      onClick={() => submit(c === correctValue, c)}
-                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-all
-                        ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
-                        ${isCorrect ? "border-green-500/60 bg-green-500/10" : ""}
-                        ${wrong ? "border-red-500/60 bg-red-500/10" : ""}
-                        ${picked && !isPicked && c !== correctValue ? "opacity-50" : ""}`}
-                    >
-                      <span>{c}</span>
-                      {isCorrect && <Check className="h-4 w-4 text-green-600" />}
-                      {wrong && <X className="h-4 w-4 text-red-600" />}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {showResult && (
-            <div className="mt-5 rounded-2xl bg-secondary/60 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold">
-                  {showResult.correct ? "正解！" : "もう一度覚えよう"}
-                </span>
-                <span className="text-xs text-muted-foreground">スコア {showResult.score}/5</span>
-              </div>
-              {current.example_sentence && (
-                <div>
-                  <div className="text-sm">{current.example_sentence}</div>
-                  <div className="text-xs text-muted-foreground">{current.example_translation}</div>
-                </div>
-              )}
-              <button
-                onClick={() => setIdx((i) => i + 1)}
-                className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
-              >
-                次へ
-              </button>
-            </div>
-          )}
-        </article>
+      ) : current ? (
+        lightMode ? (
+          <LightModeCard
+            key={current.review_id}
+            card={current}
+            onNext={() => setIdx((i) => i + 1)}
+          />
+        ) : (
+          <SpeakingCard
+            key={current.review_id}
+            card={current}
+            onNext={() => setIdx((i) => i + 1)}
+          />
+        )
       ) : null}
     </AppShell>
   );
 }
 
-/**
- * Production stage: say the word out loud. Uses the Web Speech API; the page
- * only renders this when recognition is available (otherwise the card falls
- * back to reverse mode).
- */
-function ProductionAnswer({
-  card,
-  disabled,
-  onResult,
-}: {
-  card: DueReviewCard;
-  disabled: boolean;
-  onResult: (correct: boolean, heard: string | null) => void;
-}) {
-  const [listening, setListening] = useState(false);
-  const [heard, setHeard] = useState<string | null>(null);
-  const recogRef = useRef<{ stop: () => void } | null>(null);
+// ============================================================================
+// Speaking-output card (§6)
+// ============================================================================
+function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
+  const grade = useServerFn(gradeReview);
+  const feedbackFn = useServerFn(getSpeakingFeedback);
 
-  function start() {
-    if (disabled || listening) return;
+  const [transcript, setTranscript] = useState("");
+  const [listening, setListening] = useState(false);
+  const [hintShown, setHintShown] = useState(false);
+  const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [videoOn, setVideoOn] = useState(false);
+  const [round, setRound] = useState<1 | 2>(1);
+  const [graded, setGraded] = useState(false);
+  const startedAt = useRef<number>(Date.now());
+  const recogRef = useRef<{ stop: () => void } | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  useEffect(() => { setVideoOn(readBool(VIDEO_KEY, false)); }, []);
+  useEffect(() => () => {
+    stopVideo();
+    recogRef.current?.stop();
+  }, []);
+
+  async function startVideo() {
+    if (!videoOn) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        setVideoUrl(URL.createObjectURL(blob));
+      };
+      rec.start();
+      recorderRef.current = rec;
+    } catch { /* denied */ }
+  }
+  function stopVideo() {
+    recorderRef.current?.state === "recording" && recorderRef.current.stop();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+  }
+
+  function startListen() {
+    if (listening) return;
     const w = window as unknown as {
       SpeechRecognition?: new () => unknown;
       webkitSpeechRecognition?: new () => unknown;
     };
     const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      setError("このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。");
+      return;
+    }
+    setError(null);
     const rec = new SR() as {
-      lang: string;
-      interimResults: boolean;
-      maxAlternatives: number;
-      continuous: boolean;
-      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-      onend: () => void;
-      onerror: () => void;
-      start: () => void;
-      stop: () => void;
+      lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean;
+      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> & { length: number } }) => void;
+      onend: () => void; onerror: () => void; start: () => void; stop: () => void;
     };
     rec.lang = "cmn-Hant-TW";
-    rec.interimResults = false;
-    rec.maxAlternatives = 3;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
     rec.continuous = false;
+    let finalText = "";
     rec.onresult = (e) => {
-      const alternatives: string[] = [];
-      const result = e.results[0];
-      for (let i = 0; i < result.length; i++) alternatives.push(result[i].transcript.trim());
-      const text = alternatives[0] ?? "";
-      setHeard(text);
-      const ok = alternatives.some((a) => a.includes(card.headword) || card.headword.includes(a));
-      onResult(ok, text);
+      let interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const r = e.results[i] as unknown as { 0: { transcript: string }; isFinal: boolean };
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      setTranscript((finalText + interim).trim());
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    rec.onend = () => { setListening(false); stopVideo(); };
+    rec.onerror = () => { setListening(false); stopVideo(); };
     recogRef.current = rec;
-    setHeard(null);
+    startedAt.current = Date.now();
     setListening(true);
+    startVideo();
     rec.start();
   }
 
+  function stopListen() {
+    recogRef.current?.stop();
+    setListening(false);
+    stopVideo();
+  }
+
+  function useHint() {
+    setHintShown(true);
+    playAudio(card);
+  }
+
+  async function submit() {
+    if (!transcript.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const fb = await feedbackFn({ data: { sticker_id: card.sticker_id, transcript: transcript.trim() } });
+      setFeedback(fb);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AIフィードバックに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function commitAndNext(kind: "success" | "skip") {
+    if (graded) { onNext(); return; }
+    setGraded(true);
+    const correct =
+      kind === "success" &&
+      !hintShown &&
+      !!feedback &&
+      feedback.used_target &&
+      feedback.natural_score >= 3;
+    try {
+      await grade({
+        data: {
+          review_id: card.review_id,
+          correct,
+          blur_seen: false,
+          response_ms: Date.now() - startedAt.current,
+          hint_used: hintShown,
+        },
+      });
+    } catch { /* keep flow moving */ }
+    onNext();
+  }
+
   return (
-    <div className="space-y-3">
-      <button
-        onClick={() => (listening ? recogRef.current?.stop() : start())}
-        disabled={disabled}
-        className={`lift mx-auto flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
-          listening ? "bg-red-500 text-white shadow-red-500/30" : "bg-primary text-primary-foreground shadow-primary/30"
-        } ${disabled ? "opacity-50" : ""}`}
-        aria-label={listening ? "停止" : "発音する"}
-      >
-        {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
-      </button>
-      <p className="text-center text-xs text-muted-foreground">
-        {listening ? "聞き取り中… 台湾華語で言ってみよう" : heard ? `聞こえた: ${heard}` : "マイクをタップして発音"}
-      </p>
-      {!disabled && (
-        <button
-          onClick={() => onResult(false, null)}
-          className="mx-auto block text-[11px] text-muted-foreground underline"
-        >
-          言えなかった（スキップ）
-        </button>
+    <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+          <Mic className="h-3.5 w-3.5" /> はなす
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          この時のことを、単語を使って一文で
+        </span>
+      </div>
+
+      {/* Photo — the word itself stays hidden until hint */}
+      <div className="relative mx-auto mb-3 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+        {card.cutout_url ? (
+          <img src={card.cutout_url} alt="復習対象" className="h-full w-full object-contain p-4" />
+        ) : (
+          <span className="text-5xl">📦</span>
+        )}
+      </div>
+
+      {/* Hint reveal */}
+      {hintShown && (
+        <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
+          <div className="text-xl font-bold">{card.headword}</div>
+          <div className="text-xs text-muted-foreground">
+            {card.reading_zhuyin} {card.pinyin && `· ${card.pinyin}`}
+          </div>
+          <button
+            onClick={() => playAudio(card)}
+            className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"
+            aria-label="発音"
+          >
+            <Volume2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
+
+      {/* Video preview (opt-in) */}
+      {videoOn && listening && (
+        <video ref={videoRef} autoPlay muted playsInline className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-2 ring-primary" />
+      )}
+      {videoUrl && !listening && (
+        <video src={videoUrl} controls className="mx-auto mb-3 h-32 rounded-xl bg-black" />
+      )}
+
+      {/* Recording controls */}
+      {!feedback && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={listening ? stopListen : startListen}
+              disabled={loading}
+              className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
+                listening ? "bg-red-500 text-white shadow-red-500/30 animate-pulse" : "bg-primary text-primary-foreground shadow-primary/30"
+              }`}
+              aria-label={listening ? "停止" : "録音"}
+            >
+              {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
+            </button>
+            <button
+              onClick={useHint}
+              disabled={hintShown || loading}
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] ${hintShown ? "border-amber-300 bg-amber-50 text-amber-700" : "border-border bg-background text-muted-foreground hover:bg-accent/40"}`}
+            >
+              <Lightbulb className="h-5 w-5" />
+              {hintShown ? "ヒント使用" : "ヒント"}
+            </button>
+          </div>
+
+          <textarea
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            placeholder={listening ? "聞き取り中…" : "音声認識のミスはここで直せます（直接入力もOK）"}
+            className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
+            dir="auto"
+          />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={submit}
+              disabled={!transcript.trim() || loading}
+              className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> AIが添削中…</span>
+              ) : (
+                "送信してフィードバック"
+              )}
+            </button>
+            <button
+              onClick={() => commitAndNext("skip")}
+              className="rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground"
+            >
+              スキップ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI feedback */}
+      {feedback && (
+        <FeedbackView
+          card={card}
+          feedback={feedback}
+          round={round}
+          transcript={transcript}
+          onRetry={() => {
+            setRound(2);
+            setFeedback(null);
+            setTranscript("");
+            setVideoUrl(null);
+          }}
+          onNext={() => commitAndNext(feedback.used_target && feedback.natural_score >= 3 ? "success" : "skip")}
+        />
+      )}
+    </article>
+  );
+}
+
+function FeedbackView({
+  card,
+  feedback,
+  round,
+  transcript,
+  onRetry,
+  onNext,
+}: {
+  card: DueReviewCard;
+  feedback: SpeakingFeedback;
+  round: 1 | 2;
+  transcript: string;
+  onRetry: () => void;
+  onNext: () => void;
+}) {
+  const goodTarget = feedback.used_target;
+  const score = feedback.natural_score;
+  return (
+    <div className="mt-5 space-y-4">
+      {/* Header verdict */}
+      <div className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200" : "bg-rose-50 ring-1 ring-rose-200"}`}>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">
+            {goodTarget && score >= 4 ? "自然！" : goodTarget ? "通じるけど、もう一歩" : `「${card.headword}」を使ってみよう`}
+          </span>
+          <span className="text-xs text-muted-foreground">自然さ {score}/5</span>
+        </div>
+      </div>
+
+      {/* Your line vs corrected */}
+      <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">あなた</div>
+        <div className="text-sm">{transcript}</div>
+        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">添削</div>
+        <div className="flex items-start gap-2">
+          <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
+          <button
+            onClick={() => speakZhTW(feedback.corrected)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            aria-label="添削文を聞く"
+          >
+            <Volume2 className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">{feedback.correction_note}</p>
+      </div>
+
+      {/* Chunk = 型 with POS colors */}
+      <div className="rounded-2xl bg-white p-3 ring-1 ring-border">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">型</span>
+          <span className="text-xs text-muted-foreground">{feedback.chunk_note}</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {feedback.chunk.map((c, i) => {
+            const st = POS_STYLE[c.pos] ?? POS_STYLE.M;
+            return (
+              <span key={i} className={`rounded-lg px-2 py-1 text-sm font-medium ${st.bg} ${st.text}`} title={st.label}>
+                {c.text}
+                <span className="ml-1 text-[9px] opacity-60">{c.pos}</span>
+              </span>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+          {Object.entries(POS_STYLE).map(([k, s]) => (
+            <span key={k} className="inline-flex items-center gap-1">
+              <span className={`inline-block h-2 w-2 rounded-full ${s.bg}`} />{k}={s.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Native feel */}
+      <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900">ネイティブの気持ち</div>
+        <p className="text-sm text-indigo-950">{feedback.native_note}</p>
+      </div>
+
+      {/* Model answers */}
+      <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900">お手本</div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 text-sm">{feedback.model_answer}</div>
+          <button onClick={() => speakZhTW(feedback.model_answer)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-emerald-700" aria-label="お手本を聞く">
+            <Volume2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 text-sm text-emerald-900/80">別の言い方: {feedback.alt_answer}</div>
+          <button onClick={() => speakZhTW(feedback.alt_answer)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-emerald-700" aria-label="別の言い方を聞く">
+            <Volume2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        {round === 1 && (
+          <button
+            onClick={onRetry}
+            className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-sm font-semibold text-primary"
+          >
+            <Repeat className="mr-1 inline h-4 w-4" /> 型を使ってもう一度
+          </button>
+        )}
+        <button
+          onClick={onNext}
+          className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+        >
+          次へ <ArrowRight className="ml-1 inline h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
 
+// ============================================================================
+// Light-mode: original 4-choice card (kept for silent situations)
+// ============================================================================
+function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
+  const grade = useServerFn(gradeReview);
+  const [blurSeen, setBlurSeen] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState<{ correct: boolean; score: number } | null>(null);
+  const startedAt = useRef<number>(Date.now());
+
+  async function submit(correct: boolean, pickedValue: string) {
+    if (picked) return;
+    setPicked(pickedValue);
+    const res = await grade({
+      data: {
+        review_id: card.review_id,
+        correct,
+        blur_seen: blurSeen,
+        response_ms: Date.now() - startedAt.current,
+        hint_used: false,
+      },
+    });
+    setShowResult({ correct, score: res.score });
+    playAudio(card);
+  }
+
+  return (
+    <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
+          ライトモード（4択）
+        </span>
+        <span className="text-[11px] text-muted-foreground">意味を選ぼう</span>
+      </div>
+      <div className="relative mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+        {card.cutout_url ? (
+          <img
+            src={card.cutout_url}
+            alt="復習対象"
+            className={`h-full w-full object-contain p-4 transition-[filter] duration-300 ${blurSeen || picked ? "blur-0" : "blur-md scale-105"}`}
+          />
+        ) : (
+          <span className="text-5xl">📦</span>
+        )}
+        {!picked && (
+          <button
+            onClick={() => setBlurSeen(true)}
+            className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur hover:bg-background"
+          >
+            <Eye className="h-3 w-3" /> ぼかしを剥がす{blurSeen && "（-1点）"}
+          </button>
+        )}
+      </div>
+      {picked && (
+        <div className="mb-4 text-center">
+          <div className="inline-flex items-center gap-2">
+            <div className="text-3xl font-bold tracking-tight">{card.headword}</div>
+            <button
+              onClick={() => playAudio(card)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
+              aria-label="発音"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {card.reading_zhuyin} {card.pinyin && `· ${card.pinyin}`}
+          </div>
+        </div>
+      )}
+      <ul className="space-y-2">
+        {card.choices.map((c) => {
+          const isPicked = picked === c;
+          const isCorrect = picked && c === card.meaning_ja;
+          const wrong = isPicked && !showResult?.correct;
+          return (
+            <li key={c}>
+              <button
+                disabled={!!picked}
+                onClick={() => submit(c === card.meaning_ja, c)}
+                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-all
+                  ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
+                  ${isCorrect ? "border-green-500/60 bg-green-500/10" : ""}
+                  ${wrong ? "border-red-500/60 bg-red-500/10" : ""}
+                  ${picked && !isPicked && c !== card.meaning_ja ? "opacity-50" : ""}`}
+              >
+                <span>{c}</span>
+                {isCorrect && <Check className="h-4 w-4 text-green-600" />}
+                {wrong && <X className="h-4 w-4 text-red-600" />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {showResult && (
+        <div className="mt-5 rounded-2xl bg-secondary/60 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold">{showResult.correct ? "正解！" : "もう一度覚えよう"}</span>
+            <span className="text-xs text-muted-foreground">スコア {showResult.score}/5</span>
+          </div>
+          {card.example_sentence && (
+            <div>
+              <div className="text-sm">{card.example_sentence}</div>
+              <div className="text-xs text-muted-foreground">{card.example_translation}</div>
+            </div>
+          )}
+          <button
+            onClick={onNext}
+            className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
+          >
+            次へ
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ============================================================================
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid } from "recharts";
 
 function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
@@ -419,11 +720,15 @@ function DoneState({ onAgain }: { onAgain: () => void }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-8 text-center">
       <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
-      <p className="text-base font-semibold">今日の復習、完了！</p>
-      <p className="mt-1 text-xs text-muted-foreground">AIが次の出題タイミングを調整しました。</p>
-      <button onClick={onAgain} className="mt-4 rounded-full border border-border px-4 py-2 text-xs">
-        もう一度チェック
+      <p className="text-sm font-medium">今日のノルマ、達成！</p>
+      <p className="mt-1 text-xs text-muted-foreground">また明日の復習で会いましょう。</p>
+      <button onClick={onAgain} className="mt-4 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">
+        もう一度出す
       </button>
+      <div className="mt-2 text-[10px] text-muted-foreground">
+        <Video className="mr-1 inline h-3 w-3" />
+        設定で「録画」をONにすると、話した時の自撮り動画も残せます
+      </div>
     </div>
   );
 }

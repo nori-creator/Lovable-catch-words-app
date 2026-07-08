@@ -150,7 +150,9 @@ function SettingsPage() {
               </button>
             ))}
           </div>
+          <ReviewPrefsToggles />
         </div>
+
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
@@ -205,3 +207,55 @@ function SettingsPage() {
     </AppShell>
   );
 }
+
+const LIGHT_KEY = "review-light-mode-v1";
+const VIDEO_KEY = "review-video-v1";
+
+function ReviewPrefsToggles() {
+  const [light, setLight] = useState(false);
+  const [video, setVideo] = useState(false);
+  useEffect(() => {
+    setLight(localStorage.getItem(LIGHT_KEY) === "1");
+    setVideo(localStorage.getItem(VIDEO_KEY) === "1");
+  }, []);
+  function toggle(key: string, val: boolean, setter: (v: boolean) => void) {
+    setter(val);
+    localStorage.setItem(key, val ? "1" : "0");
+  }
+  return (
+    <div className="mt-4 space-y-3 border-t border-border pt-3">
+      <ToggleRow
+        label="ライトモード（4択）"
+        hint="声を出せない場所用。ONにするとスピーキング復習の代わりに4択が出ます。"
+        value={light}
+        onChange={(v) => toggle(LIGHT_KEY, v, setLight)}
+      />
+      <ToggleRow
+        label="録画（インカメ）"
+        hint="スピーキング復習中、自分の姿を録画してあとで見返せます。"
+        value={video}
+        onChange={(v) => toggle(VIDEO_KEY, v, setVideo)}
+      />
+    </div>
+  );
+}
+
+function ToggleRow({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-[11px] text-muted-foreground">{hint}</div>
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        role="switch"
+        aria-checked={value}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0.5"}`} />
+      </button>
+    </div>
+  );
+}
+

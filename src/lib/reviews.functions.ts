@@ -293,7 +293,9 @@ const GradeInput = z.object({
   correct: z.boolean(),
   blur_seen: z.boolean().default(false),
   response_ms: z.number().int().nonnegative().default(0),
+  hint_used: z.boolean().default(false),
 });
+
 
 // SM-2 simplified
 export function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
@@ -324,9 +326,11 @@ export const gradeReview = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1
+    // Score: correct=5 base; blur -1; slow -1; hint used → forced lapse; wrong=1
     let score = 1;
-    if (data.correct) {
+    if (data.hint_used) {
+      score = 1;
+    } else if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
       if (data.response_ms > 8000) score -= 1;
@@ -334,6 +338,7 @@ export const gradeReview = createServerFn({ method: "POST" })
       score = 1;
     }
     score = Math.max(0, Math.min(5, score));
+
 
     const next = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
@@ -456,4 +461,94 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
       : 0;
 
     return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
+  });
+
+// --- Speaking-output review feedback (§6) -----------------------------------
+
+const FeedbackInput = z.object({
+  sticker_id: z.string().uuid(),
+  transcript: z.string().min(1).max(500),
+});
+
+const PosEnum = z.enum(["S", "V", "O", "M", "C"]);
+export type SpeakingPos = z.infer<typeof PosEnum>;
+
+const FeedbackSchema = z.object({
+  corrected: z.string(),
+  natural_score: z.number().int().min(1).max(5),
+  used_target: z.boolean(),
+  correction_note: z.string(),
+  chunk: z
+    .array(z.object({ text: z.string(), pos: PosEnum }))
+    .min(1)
+    .max(12),
+  chunk_note: z.string(),
+  native_note: z.string(),
+  model_answer: z.string(),
+  alt_answer: z.string(),
+});
+export type SpeakingFeedback = z.infer<typeof FeedbackSchema> & {
+  headword: string;
+  reading_zhuyin: string | null;
+  pinyin: string | null;
+  meaning_ja: string;
+};
+
+export const getSpeakingFeedback = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => FeedbackInput.parse(input))
+  .handler(async ({ context, data }): Promise<SpeakingFeedback> => {
+    const { supabase, userId } = context;
+    const { data: st, error } = await supabase
+      .from("stickers")
+      .select("id, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence)")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !st?.words) throw new Error("カードが見つかりません");
+    const w = st.words as {
+      headword: string;
+      reading_zhuyin: string | null;
+      pinyin: string | null;
+      meaning_ja: string;
+      example_sentence: string | null;
+    };
+
+    const ai = getAi();
+    const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
+
+学習者の発話: 「${data.transcript}」
+
+要件:
+- corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
+- natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
+- used_target: 「${w.headword}」を(活用形含め)使っているか。
+- correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
+- chunk: correctedを語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
+- chunk_note: この型の使いどころを日本語で1文。
+- native_note: この単語をネイティブが実際に使う時の気持ち・状況を日本語で1〜2文。
+- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
+- alt_answer: 別の言い方1つ(繁体字)。`;
+
+    const { experimental_output } = await generateText({
+      model: ai.gateway(ai.modelRich),
+      prompt,
+      experimental_output: Output.object({ schema: FeedbackSchema }) as never,
+    }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };
+
+    await supabase.from("ai_runs").insert({
+      user_id: userId,
+      loop: "speaking_feedback",
+      iterations: 1,
+      accepted: 1,
+      meta: { headword: w.headword, score: experimental_output.natural_score },
+    });
+
+    return {
+      ...experimental_output,
+      headword: w.headword,
+      reading_zhuyin: w.reading_zhuyin,
+      pinyin: w.pinyin,
+      meaning_ja: w.meaning_ja,
+    };
   });
