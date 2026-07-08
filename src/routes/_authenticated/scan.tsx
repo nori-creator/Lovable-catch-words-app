@@ -8,6 +8,7 @@ import { detectScan, getScanContext, lookupHeadwords, markScanTap, type Detected
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { preloadCutout } from "@/lib/cutout";
+import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
@@ -53,6 +54,7 @@ function ScanPage() {
   const ttsFn = useServerFn(synthesizeSpeech);
   const cardFn = useServerFn(generateCard);
   const scanCtxFn = useServerFn(getScanContext);
+  const logEvent = useServerFn(logAppEvent);
 
   // §3.1b: the user's collection, cached lightly for dot-state matching.
   const { data: rawScanCtx } = useQuery({
@@ -161,6 +163,13 @@ function ScanPage() {
     if (!frame) { setError("フレームを取得できませんでした"); return; }
     setSnapshot(frame);
     setScanning(true);
+    // KPI: first scan ever (localStorage-deduped).
+    try {
+      if (!localStorage.getItem("kpi-first-scan")) {
+        localStorage.setItem("kpi-first-scan", "1");
+        void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+      }
+    } catch { /* ignore */ }
     const t0 = performance.now();
     try {
       // location best-effort (§3.7)
@@ -187,7 +196,7 @@ function ScanPage() {
     } finally {
       setScanning(false);
     }
-  }, [scanning, grabFrame, detectFn, lookupFn]);
+  }, [scanning, grabFrame, detectFn, lookupFn, logEvent]);
 
   // ---- tap a dot ----
   const openChip = useCallback((item: DetectedItem) => {

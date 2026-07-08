@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { logAppEvent } from "@/lib/metrics.functions";
 
 type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; label: string; icon: typeof Home };
 
@@ -15,6 +17,20 @@ const items: Item[] = [
 ];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
+  const logEvent = useServerFn(logAppEvent);
+
+  // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
+  useEffect(() => {
+    try {
+      const today = new Date().toLocaleDateString("en-CA");
+      if (localStorage.getItem("kpi-app-open") !== today) {
+        localStorage.setItem("kpi-app-open", today);
+        void logEvent({ data: { kind: "app_open" } }).catch(() => {});
+      }
+    } catch { /* storage unavailable */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 backdrop-blur-xl">

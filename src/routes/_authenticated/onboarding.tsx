@@ -2,11 +2,16 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { logAppEvent } from "@/lib/metrics.functions";
+import { Camera, ScanLine, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+/**
+ * Onboarding (roadmap §2): ONE screen only — no slide wizard, no forms.
+ * "かざして、タップしてみて" + the camera-permission reason in one line,
+ * then straight into the scan screen. Name/level/etc. live in settings.
+ */
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "ようこそ — Catchwords" }] }),
@@ -18,151 +23,71 @@ function OnboardingPage() {
   const queryClient = useQueryClient();
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
+  const logEvent = useServerFn(logAppEvent);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
-  const [step, setStep] = useState(0);
-  const [displayName, setDisplayName] = useState("");
-  const [target, setTarget] = useState("zh-TW");
-  const [level, setLevel] = useState("TOCFL-2");
-  const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
-  const [saving, setSaving] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (profile?.onboarded) navigate({ to: "/home", replace: true });
-    if (profile?.display_name) setDisplayName(profile.display_name);
   }, [profile, navigate]);
 
-  async function finish() {
-    setSaving(true);
+  async function start() {
+    if (starting) return;
+    setStarting(true);
     try {
       await updateProfile({
         data: {
-          display_name: displayName || "学習者",
-          target_language: target,
-          level_goal: level,
-          pronunciation_strictness: strictness,
+          display_name: profile?.display_name || "学習者",
           onboarded: true,
         },
       });
+      void logEvent({ data: { kind: "onboarding_done" } }).catch(() => {});
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      navigate({ to: "/home", replace: true });
+      navigate({ to: "/scan", replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
-      setSaving(false);
+      toast.error(e instanceof Error ? e.message : "開始に失敗しました");
+      setStarting(false);
     }
   }
 
-  const steps = [
-    {
-      title: "ようこそ 👋",
-      body: (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Catchwordsは、街で出会ったモノを撮ってステッカーにし、自分だけの図鑑を作りながら言語を学ぶアプリです。
-          </p>
-          <div>
-            <Label htmlFor="dn">あなたの名前を教えてください</Label>
-            <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="例: ゆうき" />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "何を学びますか？",
-      body: (
-        <div className="space-y-3">
-          <Label>学習言語</Label>
-          <div className="grid gap-2">
-            {[
-              { v: "zh-TW", label: "台湾華語", sub: "教育部準拠 / TOCFL / 注音 / 台湾人ネイティブ音声" },
-              { v: "en", label: "英語", sub: "近日公開" },
-            ].map((opt) => (
-              <button
-                key={opt.v}
-                disabled={opt.v !== "zh-TW"}
-                onClick={() => setTarget(opt.v)}
-                className={`rounded-2xl border p-3 text-left ${target === opt.v ? "border-primary bg-accent/40" : "border-border bg-card"} ${opt.v !== "zh-TW" ? "opacity-50" : ""}`}
-              >
-                <div className="font-semibold">{opt.label}</div>
-                <div className="text-xs text-muted-foreground">{opt.sub}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "目標レベルは？",
-      body: (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            {["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4"].map((l) => (
-              <button
-                key={l}
-                onClick={() => setLevel(l)}
-                className={`rounded-2xl border p-3 text-center ${level === l ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">いつでも変更できます。</p>
-        </div>
-      ),
-    },
-    {
-      title: "発音判定の厳しさ",
-      body: (
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            {(["easy", "normal", "strict"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setStrictness(v)}
-                className={`rounded-2xl border p-3 text-center ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-              >
-                {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">後の復習機能で使います。</p>
-        </div>
-      ),
-    },
-  ];
-
-  const current = steps[step];
-  const isLast = step === steps.length - 1;
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-4 flex justify-center gap-1.5">
-          {steps.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 w-6 rounded-full ${i === step ? "bg-primary" : i < step ? "bg-primary/40" : "bg-secondary"}`}
-            />
+    <div className="grid min-h-screen place-items-center bg-background px-6">
+      <div className="w-full max-w-sm text-center">
+        <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-primary-foreground shadow-xl shadow-primary/30">
+          <ScanLine className="h-10 w-10" />
+        </div>
+
+        <h1 className="text-2xl font-bold tracking-tight">かざして、タップしてみて</h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          街で見たものにカメラをかざすと、
+          <br />
+          その単語と発音が<span className="font-semibold text-foreground">瞬間的に</span>分かります。
+        </p>
+
+        <div className="mx-auto mt-6 space-y-2 text-left">
+          {[
+            { icon: ScanLine, text: "かざす = 調べる(無制限)" },
+            { icon: Volume2, text: "タップ = 発音が聞こえる" },
+            { icon: Camera, text: "撮る = 自分の図鑑に残る" },
+          ].map(({ icon: Icon, text }) => (
+            <div key={text} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+              <Icon className="h-4 w-4 shrink-0 text-primary" />
+              {text}
+            </div>
           ))}
         </div>
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <h1 className="mb-3 text-xl font-semibold tracking-tight">{current.title}</h1>
-          {current.body}
-          <div className="mt-6 flex gap-2">
-            {step > 0 && (
-              <Button variant="outline" onClick={() => setStep((s) => s - 1)} className="flex-1">
-                戻る
-              </Button>
-            )}
-            <Button
-              onClick={() => (isLast ? finish() : setStep((s) => s + 1))}
-              disabled={saving}
-              className="flex-1"
-            >
-              {isLast ? (saving ? "保存中..." : "はじめる") : "次へ"}
-            </Button>
-          </div>
-        </div>
+
+        <button
+          onClick={start}
+          disabled={starting}
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+        >
+          <Camera className="h-5 w-5" />
+          スキャンをはじめる
+        </button>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          カメラは「見たものの単語を教えるため」だけに使います
+        </p>
       </div>
     </div>
   );

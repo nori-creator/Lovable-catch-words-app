@@ -240,7 +240,11 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
 
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
-      toast.success("図鑑にゴーストカードが入りました。実物に出会ったら金色に光ります!");
+      if (res.first_catch) {
+        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+      } else {
+        toast.success("図鑑にゴーストカードが入りました。実物に出会ったら金色に光ります!");
+      }
       onClose();
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {

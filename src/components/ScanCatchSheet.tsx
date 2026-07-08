@@ -207,6 +207,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       ]);
 
       let stickerId: string;
+      let firstCatch = false;
       if (upgrade) {
         // §5.3 golden reunion: swap the ghost's placeholder for the real
         // photo, then record the encounter as a top-grade SRS review.
@@ -259,6 +260,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           },
         });
         stickerId = res.id;
+        firstCatch = res.first_catch ?? false;
       }
 
       void caughtFn({ data: { headword } }).catch(() => {});
@@ -266,7 +268,12 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       await runLandingAnimation();
       setPhase("done");
-      toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
+      if (firstCatch) {
+        // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
+        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+      } else {
+        toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
+      }
       setTimeout(() => navigate({ to: "/dex/$stickerId", params: { stickerId } }), 550);
     } catch (e) {
       console.error(e);

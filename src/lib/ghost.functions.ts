@@ -89,7 +89,17 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
       res = await supabase.from("stickers").insert(baseRow).select("id").single();
     }
     if (res.error) throw new Error(res.error.message);
-    return { id: res.data.id as string, word_id: wordId };
+
+    // KPI: first catch (ghosts count as "found").
+    const { count } = await supabase
+      .from("stickers")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    const firstCatch = (count ?? 0) === 1;
+    if (firstCatch) {
+      await supabase.from("usage_events").insert({ user_id: userId, kind: "first_catch" });
+    }
+    return { id: res.data.id as string, word_id: wordId, first_catch: firstCatch };
   });
 
 const AttachInput = z.object({
