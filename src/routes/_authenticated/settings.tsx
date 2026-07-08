@@ -150,7 +150,9 @@ function SettingsPage() {
               </button>
             ))}
           </div>
+          <ReviewPrefsToggles />
         </div>
+
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
