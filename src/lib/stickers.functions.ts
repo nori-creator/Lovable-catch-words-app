@@ -289,6 +289,17 @@ export const saveSticker = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 
+    // Guard against cross-account storage path spoofing: only accept paths
+    // rooted under the caller's own uid folder (the client upload convention).
+    const ownPath = (p: string | null | undefined): string | null => {
+      if (!p) return null;
+      return p.startsWith(`${userId}/`) ? p : null;
+    };
+    const objectPath = ownPath(data.object_path);
+    const cutoutPath = ownPath(data.cutout_path);
+    const selfiePath = ownPath(data.selfie_path);
+
+
     // upsert word: find by (language, headword), else insert as 'ai'
     const { data: existing } = await supabase
       .from("words")
