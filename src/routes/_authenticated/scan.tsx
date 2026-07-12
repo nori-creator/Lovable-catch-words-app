@@ -35,8 +35,14 @@ type ChipState = {
   showingCandidates: boolean;
 };
 
+// A sub-item is a §3.5 part detection whose normalized coords have already
+// been remapped into the parent frame (0..1000). We keep the parent id and
+// tag it so the renderer can draw it as a smaller "child" dot.
+type SubItem = DetectedItem & { parentId: string; sub: true };
+
 function ScanPage() {
   const detectFn = useServerFn(detectScan);
+  const partsFn = useServerFn(detectParts);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
   const ttsFn = useServerFn(synthesizeSpeech);
@@ -51,16 +57,20 @@ function ScanPage() {
   // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
   // 物体の詳細生成は行わない(コスト10倍防止)。
   const prefetchRef = useRef<Map<string, Promise<GeneratedCard>>>(new Map());
+  const prefetchTimingRef = useRef<Map<string, number>>(new Map());
   const startPrefetch = useCallback((headword: string): Promise<GeneratedCard> => {
     const cache = prefetchRef.current;
     const hit = cache.get(headword);
     if (hit) return hit;
+    const t0 = performance.now();
     const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
     cache.set(headword, p);
-    // Drop failed prefetches so the next tap can retry.
-    p.catch(() => { cache.delete(headword); });
+    p.then(() => {
+      prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
+    }).catch(() => { cache.delete(headword); });
     return p;
   }, [cardFn]);
+
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
