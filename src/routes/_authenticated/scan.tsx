@@ -592,7 +592,17 @@ function ScanPage() {
       )}
 
       <style>{`
-        @keyframes scanline { 0% { transform: translateY(0); } 50% { transform: translateY(400px); } 100% { transform: translateY(0); } }
+        @keyframes scanline { 0% { transform: translateY(0); opacity: 0.2; } 50% { transform: translateY(400px); opacity: 1; } 100% { transform: translateY(0); opacity: 0.2; } }
+        @keyframes scanlineV { 0% { transform: translateX(0); opacity: 0.2; } 50% { transform: translateX(300px); opacity: 1; } 100% { transform: translateX(0); opacity: 0.2; } }
+        @keyframes probeBlink {
+          0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+          40%      { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+          70%      { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+        }
+        @keyframes partsPulse {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
+          50%      { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+        }
       `}</style>
     </AppShell>
   );
@@ -600,7 +610,8 @@ function ScanPage() {
 
 
 function ScanChip({
-  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onDetail, onCatch, onClose,
+  headword, zhuyin, pinyin, meaning, pos, verified, candidates, expanding, canExpand,
+  onPickCandidate, onPlay, onExpand, onDetail, onCatch, onClose,
 }: {
   headword: string;
   zhuyin: string;
@@ -610,8 +621,11 @@ function ScanChip({
   verified: boolean;
   item: DetectedItem;
   candidates: string[];
+  expanding: boolean;
+  canExpand: boolean;
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
+  onExpand: () => void;
   onDetail: () => void;
   onCatch: () => void;
   onClose: () => void;
@@ -674,7 +688,18 @@ function ScanChip({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
+        {canExpand && (
+          <button
+            onClick={onExpand}
+            disabled={expanding}
+            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60"
+            title="この物体を構成する部品を追加検出"
+          >
+            {expanding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {expanding ? "解析中…" : "細かく"}
+          </button>
+        )}
         <button
           onClick={onDetail}
           className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground active:scale-95"
@@ -691,6 +716,92 @@ function ScanChip({
     </div>
   );
 }
+
+
+// ---- helper micro-components for loader / dev overlay ----
+
+const PROBE_DOTS: { x: number; y: number; delay: number }[] = [
+  { x: 22, y: 18, delay: 0 },   { x: 78, y: 24, delay: 250 },
+  { x: 62, y: 46, delay: 500 }, { x: 30, y: 60, delay: 750 },
+  { x: 82, y: 66, delay: 1000 },{ x: 46, y: 80, delay: 1250 },
+  { x: 18, y: 40, delay: 350 }, { x: 70, y: 82, delay: 600 },
+];
+
+function ReticleCorners() {
+  const base = "pointer-events-none absolute h-4 w-4 border-white/70";
+  return (
+    <>
+      <span className={`${base} left-4 top-4 border-l-2 border-t-2 rounded-tl`} />
+      <span className={`${base} right-4 top-4 border-r-2 border-t-2 rounded-tr`} />
+      <span className={`${base} left-4 bottom-4 border-l-2 border-b-2 rounded-bl`} />
+      <span className={`${base} right-4 bottom-4 border-r-2 border-b-2 rounded-br`} />
+    </>
+  );
+}
+
+function StageDot({ active, done }: { active: boolean; done: boolean }) {
+  return (
+    <span
+      className={[
+        "h-1.5 rounded-full transition-all duration-300",
+        active ? "w-6 bg-cyan-300" : done ? "w-1.5 bg-cyan-500" : "w-1.5 bg-white/30",
+      ].join(" ")}
+    />
+  );
+}
+
+// §9 targets (MVP pass line). Values in ms.
+const SCAN_TARGETS = {
+  detect_ms: 2500,
+  parts_ms: 2500,
+  lookup_ms: 400,
+  tap_to_audio_ms: 1000,
+  prefetch_ms: 3000,
+  catch_ms: 8000,
+} as const;
+
+function DevMetrics({ values, targets }: { values: Metrics; targets: Record<keyof Metrics, number> }) {
+  const [open, setOpen] = useState(true);
+  const rows: { key: keyof Metrics; label: string }[] = [
+    { key: "detect_ms",       label: "検出 (§9 ≤2500ms)" },
+    { key: "parts_ms",        label: "+細かく (§3.5)" },
+    { key: "lookup_ms",       label: "辞書照合" },
+    { key: "tap_to_audio_ms", label: "タップ→音声 (§9 ≤1000ms)" },
+    { key: "prefetch_ms",     label: "詳細プリフェッチ (§9 ≤500ms表示)" },
+    { key: "catch_ms",        label: "キャッチ完了" },
+  ];
+  return (
+    <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-xs">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 text-amber-900 font-semibold">
+        <span className="flex items-center gap-1.5"><Bug className="h-3.5 w-3.5" /> 開発者計測 (§9)</span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1">
+          {rows.map((r) => {
+            const v = values[r.key];
+            const t = targets[r.key];
+            const ok = v !== null && v <= t;
+            const bad = v !== null && v > t;
+            return (
+              <li key={r.key} className="flex items-center justify-between gap-2">
+                <span className="text-amber-950/80">{r.label}</span>
+                <span className={`tabular-nums font-mono ${ok ? "text-emerald-700" : bad ? "text-red-700" : "text-muted-foreground"}`}>
+                  {v === null ? "—" : `${v}ms`}
+                  <span className="ml-1 text-[10px] opacity-60">/ {t}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="mt-2 text-[10px] text-amber-900/70">
+        表示切替: <code>?dev=1</code> か <code>localStorage.catchwords_dev=1</code>
+      </p>
+    </div>
+  );
+}
+
 
 
 function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
