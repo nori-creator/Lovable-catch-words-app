@@ -152,24 +152,43 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (!startEl || !fly || !dexEl) { await new Promise((r) => setTimeout(r, 700)); return; }
     const from = startEl.getBoundingClientRect();
     const to = dexEl.getBoundingClientRect();
+    // Set initial position for the flying cutout
     fly.style.left = `${from.left}px`;
     fly.style.top = `${from.top}px`;
     fly.style.width = `${from.width}px`;
     fly.style.height = `${from.height}px`;
     fly.style.opacity = "1";
     fly.style.transform = "translate(0,0) scale(1)";
+    // Position the shimmer trail overlay to match
+    const trail = document.getElementById("catch-trail");
+    if (trail) {
+      trail.style.left = `${from.left + from.width / 2}px`;
+      trail.style.top = `${from.top + from.height / 2}px`;
+    }
     void fly.offsetWidth;
+    // Fly with a curved trajectory: apply translate first, then a scale so it
+    // "spins into" the dex icon.
     fly.style.transition = "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25), opacity 820ms ease";
     const dx = to.left + to.width / 2 - (from.left + from.width / 2);
     const dy = to.top + to.height / 2 - (from.top + from.height / 2);
     fly.style.transform = `translate(${dx}px, ${dy}px) scale(0.08) rotate(-6deg)`;
     fly.style.opacity = "0.85";
-    await new Promise((r) => setTimeout(r, 840));
-    // impact — pulse the dex icon
+    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+    await new Promise((r) => setTimeout(r, 820));
+    // Impact: pulse dex icon + spawn expanding ring at the icon center
     dexEl.classList.add("dex-impact");
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(50);
+    const ring = document.getElementById("catch-impact-ring");
+    if (ring) {
+      ring.style.left = `${to.left + to.width / 2}px`;
+      ring.style.top = `${to.top + to.height / 2}px`;
+      ring.classList.remove("hidden");
+      ring.classList.add("impact-play");
+      setTimeout(() => { ring.classList.add("hidden"); ring.classList.remove("impact-play"); }, 900);
+    }
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(60);
     setTimeout(() => dexEl.classList.remove("dex-impact"), 900);
   }
+
 
   async function doSave() {
     if (phase !== "ready" || !objectDataUrl || !cutoutUrl || saving) return;
