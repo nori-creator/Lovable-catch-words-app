@@ -150,13 +150,20 @@ function ScanPage() {
     setError(null);
     setChip(null);
     setItems(null);
+    setSubItems([]);
     setEntries({});
     setDetectMs(null);
+    setPartsMs(null);
+    setLookupMs(null);
     setTapToAudioMs(null);
     const frame = grabFrame();
     if (!frame) { setError("フレームを取得できませんでした"); return; }
     setSnapshot(frame);
     setScanning(true);
+    setScanStage("sensing");
+    // Cycle status text so the wait feels intentional. Cleared in finally.
+    const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
+    const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
     const t0 = performance.now();
     try {
       // location best-effort (§3.7)
@@ -175,9 +182,13 @@ function ScanPage() {
       setItems(items);
 
       if (items.length > 0) {
+        setScanStage("matching");
+        const tl = performance.now();
         const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
+        setLookupMs(Math.round(performance.now() - tl));
         setEntries(entries);
       }
+
     } catch (e) {
       setError((e as Error).message || "検出に失敗しました");
     } finally {
