@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
+import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { detectScan, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
+import { detectScan, detectParts, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
@@ -15,6 +15,18 @@ export const Route = createFileRoute("/_authenticated/scan")({
     meta: [{ title: "スキャン | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
 });
+
+// § metrics — a tiny bus so the Catch flow can report catch_ms back here
+// without prop-drilling. Only meaningful when dev overlay is on.
+type Metrics = {
+  detect_ms: number | null;
+  parts_ms: number | null;
+  lookup_ms: number | null;
+  tap_to_audio_ms: number | null;
+  prefetch_ms: number | null;
+  catch_ms: number | null;
+};
+
 
 
 type ChipState = {
