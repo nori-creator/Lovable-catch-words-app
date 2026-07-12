@@ -179,12 +179,31 @@ export const getSticker = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw new Error(error.message);
 
-    // If not the owner, fall back to admin read so authenticated viewers can
-    // see other users' sticker detail from the public profile grid. Selfie
-    // remains private to the owner.
+    // If not the owner, fall back to admin read ONLY when the sticker is
+    // attached to a post the viewer may see (public / friends-mutual / own).
+    // Without this check any authenticated user with a sticker UUID could
+    // read private lat/lng/caption for un-posted stickers.
     let isOwner = !!row;
     if (!row) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: visible, error: visErr } = await supabaseAdmin
+        .rpc("can_see_post", { _post_id: null, _user: userId }); // placeholder to satisfy TS; not used
+      void visible; void visErr;
+      // Find any post referencing this sticker that the viewer can see.
+      const { data: postRow, error: postErr } = await supabaseAdmin
+        .from("posts")
+        .select("id, user_id, visibility")
+        .eq("sticker_id", data.id)
+        .maybeSingle();
+      if (postErr) throw new Error(postErr.message);
+      if (!postRow) return null;
+      let canSee = postRow.user_id === userId || postRow.visibility === "public";
+      if (!canSee && postRow.visibility === "friends") {
+        const { data: mutual } = await supabaseAdmin
+          .rpc("are_mutual_followers", { _a: userId, _b: postRow.user_id });
+        canSee = !!mutual;
+      }
+      if (!canSee) return null;
       const res = await supabaseAdmin
         .from("stickers")
         .select(
