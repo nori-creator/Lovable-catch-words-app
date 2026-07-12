@@ -262,11 +262,70 @@ function ScanPage() {
   }, [entries, ttsFn]);
 
   const reset = useCallback(() => {
-    setItems(null); setSnapshot(null); setChip(null); setEntries({});
-    setDetectMs(null); setTapToAudioMs(null);
-    setDetailOpen(null); setCatchOpen(null);
+    setItems(null); setSubItems([]); setSnapshot(null); setChip(null); setEntries({});
+    setDetectMs(null); setPartsMs(null); setLookupMs(null); setTapToAudioMs(null);
+    setDetailOpen(null); setCatchOpen(null); setExpandingId(null);
     prefetchRef.current.clear();
+    prefetchTimingRef.current.clear();
   }, []);
+
+  // ---- §3.5 「+細かく」: crop a region around the parent tap point and run a
+  // second (parts-only) detection. Coords come back in the cropped 0..1000
+  // frame; we remap into the parent frame before storing so the same dot
+  // renderer can draw them.
+  const expandParts = useCallback(async (parent: DetectedItem) => {
+    if (!snapshot || expandingId) return;
+    // Skip if we already have children for this parent
+    if (subItems.some((s) => s.parentId === parent.id)) return;
+    setExpandingId(parent.id);
+    const t0 = performance.now();
+    try {
+      // Crop a square around the tap point ~40% of the shortest side.
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("img")); img.src = snapshot; });
+      const cx = (parent.point[0] / 1000) * img.width;
+      const cy = (parent.point[1] / 1000) * img.height;
+      const side = Math.min(img.width, img.height) * 0.42;
+      const x = Math.max(0, Math.min(img.width - side, cx - side / 2));
+      const y = Math.max(0, Math.min(img.height - side, cy - side / 2));
+      const c = document.createElement("canvas");
+      c.width = c.height = Math.round(side);
+      const ctx = c.getContext("2d");
+      if (!ctx) throw new Error("canvas");
+      ctx.drawImage(img, x, y, side, side, 0, 0, c.width, c.height);
+      const cropDataUrl = c.toDataURL("image/jpeg", 0.85);
+
+      const { items: parts } = await partsFn({ data: { imageBase64: cropDataUrl, parentHeadword: parent.headword } });
+      setPartsMs(Math.round(performance.now() - t0));
+
+      // Remap normalized crop coords → parent-frame normalized coords.
+      // Crop region in parent-frame normalized units:
+      const rx0 = (x / img.width) * 1000;
+      const ry0 = (y / img.height) * 1000;
+      const rw = (side / img.width) * 1000;
+      const rh = (side / img.height) * 1000;
+      const mapped: SubItem[] = parts.map((p) => ({
+        ...p,
+        parentId: parent.id,
+        sub: true,
+        point: [rx0 + (p.point[0] / 1000) * rw, ry0 + (p.point[1] / 1000) * rh],
+      }));
+      setSubItems((prev) => [...prev, ...mapped]);
+
+      // Lookup verified dict entries for the sub-parts so chips can badge them
+      if (mapped.length > 0) {
+        try {
+          const { entries: e } = await lookupFn({ data: { headwords: mapped.map((m) => m.headword) } });
+          setEntries((prev) => ({ ...prev, ...e }));
+        } catch { /* noop */ }
+      }
+    } catch (e) {
+      setError((e as Error).message || "詳細検出に失敗しました");
+    } finally {
+      setExpandingId(null);
+    }
+  }, [snapshot, expandingId, subItems, partsFn, lookupFn]);
+
 
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
