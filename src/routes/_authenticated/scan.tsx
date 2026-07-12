@@ -192,9 +192,13 @@ function ScanPage() {
     } catch (e) {
       setError((e as Error).message || "検出に失敗しました");
     } finally {
+      window.clearTimeout(stageTimer1);
+      window.clearTimeout(stageTimer2);
       setScanning(false);
+      setScanStage("idle");
     }
   }, [scanning, grabFrame, detectFn, lookupFn]);
+
 
   // ---- tap a dot ----
   const openChip = useCallback((item: DetectedItem) => {
