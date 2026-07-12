@@ -58,6 +58,13 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 
+    // Same storage path-spoofing guard as saveSticker: only paths under the
+    // caller's own uid folder are accepted.
+    const ownPath = (p: string | null | undefined): string | null => {
+      if (!p) return null;
+      return p.startsWith(`${userId}/`) ? p : null;
+    };
+
     const wordId = await upsertWord(supabase, userId, data.word, data.language);
     const branchPlan = buildBranchPlan(data.word.extras);
 
@@ -78,7 +85,7 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
       .insert({
         ...baseRow,
         capture_type: data.capture_type,
-        placeholder_image_url: data.placeholder_path ?? null,
+        placeholder_image_url: ownPath(data.placeholder_path),
         placeholder_credit: (data.placeholder_credit ?? null) as never,
         branch_plan: branchPlan as never,
       })
@@ -133,10 +140,16 @@ export const attachPhotoToSticker = createServerFn({ method: "POST" })
     if (ownErr) throw new Error(ownErr.message);
     if (!owned) throw new Error("このカードは編集できません");
 
+    // Same storage path-spoofing guard as saveSticker.
+    const ownPath = (p: string | null | undefined): string | null => {
+      if (!p) return null;
+      return p.startsWith(`${userId}/`) ? p : null;
+    };
+
     const basePatch = {
-      object_image_url: data.object_path ?? null,
-      cutout_image_url: data.cutout_path ?? null,
-      selfie_image_url: data.selfie_path ?? null,
+      object_image_url: ownPath(data.object_path),
+      cutout_image_url: ownPath(data.cutout_path),
+      selfie_image_url: ownPath(data.selfie_path),
       ...(data.caption != null ? { caption: data.caption } : {}),
       ...(data.location_name != null ? { location_name: data.location_name } : {}),
       ...(data.lat != null ? { lat: data.lat } : {}),

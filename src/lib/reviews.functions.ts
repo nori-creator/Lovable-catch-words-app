@@ -328,7 +328,8 @@ ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
   }
   if (accepted.length === 0) return;
 
-  await supabase.from("review_choices").upsert({ word_id: wordId, distractors: accepted.slice(0, 3) });
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await supabaseAdmin.from("review_choices").upsert({ word_id: wordId, distractors: accepted.slice(0, 3) });
   await supabase.from("ai_runs").insert({
     user_id: userId,
     loop: "review_distractor_pregen",

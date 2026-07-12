@@ -18,7 +18,8 @@ const CATEGORY_KEYS = [
 ] as const;
 
 const SuggestInput = z.object({
-  imageBase64: z.string().min(100),
+  // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
+  imageBase64: z.string().min(100).max(8_000_000),
   targetLanguage: z.string().default("zh-TW"),
   levelGoal: z.string().default("TOCFL-2"),
 });

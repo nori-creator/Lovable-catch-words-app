@@ -12,7 +12,8 @@ import { getAi, logUsage } from "./ai-provider.server";
  */
 
 const DetectInput = z.object({
-  imageBase64: z.string().min(100), // data URL or raw base64
+  // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
+  imageBase64: z.string().min(100).max(8_000_000), // data URL or raw base64
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
 });
@@ -160,6 +161,80 @@ export const detectScan = createServerFn({ method: "POST" })
     }));
     return { items };
   });
+
+/**
+ * §3.5 「+細かく」 on-demand hierarchical detection. The client crops a region
+ * around a previously-tapped object (e.g. 手) and sends it in; we ask the fast
+ * model to enumerate *parts* of that thing (拇指 / 手掌 / 指甲) with normalized
+ * coords **within the cropped region**. The client maps them back into the
+ * parent frame. Kept as a second call so the initial scan stays fast.
+ */
+const DetectPartsInput = z.object({
+  imageBase64: z.string().min(100).max(8_000_000),
+  parentHeadword: z.string().min(1).max(40),
+});
+
+export const detectParts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => DetectPartsInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const ai = getAi();
+    const imageInput = data.imageBase64.startsWith("data:")
+      ? data.imageBase64
+      : `data:image/jpeg;base64,${data.imageBase64}`;
+
+    const prompt = `画像には「${data.parentHeadword}」が写っています。この物体を構成する**部分・要素**の名称を、台湾華語(繁体字/注音)で学習価値のあるものだけ最大6個抽出してください。
+- 全体名(${data.parentHeadword})は含めない
+- 部位・部品・素材・付随物のみ(例: 手→拇指/手掌/指甲/手腕)
+- point は切り取られた画像内での中心座標を 0〜1000 に正規化した [x, y]
+- 台湾教育部準拠の正式な繁体字。TOCFL 1〜3レベル優先
+- 出力はJSONのみ、前置き/コードフェンス禁止
+
+出力スキーマ:
+{"items":[{"kind":"object","headword":"拇指","zhuyin":"ㄇㄨˇ ㄓˇ","pinyin":"mǔzhǐ","meaning_ja":"親指","pos":"名詞","point":[420,510],"confidence":0.9,"alternatives":[]}]}`;
+
+    let text = "";
+    try {
+      const r = await generateText({
+        model: ai.gateway(ai.modelFast),
+        messages: [
+          { role: "user", content: [
+            { type: "text", text: prompt },
+            { type: "image", image: imageInput },
+          ] },
+        ],
+      });
+      text = r.text;
+    } catch (e) {
+      throw new Error(`detect parts failed: ${(e as Error).message}`);
+    }
+
+    let parsed: z.infer<typeof DetectResponseSchema>;
+    try { parsed = DetectResponseSchema.parse(parseJsonFromAiText(text)); }
+    catch { throw new Error("AI did not return valid parts JSON"); }
+
+    await logUsage(context.supabase, context.userId, "scan_parts");
+
+    // Also log parts into scan_events so recollection notifications can surface them.
+    if (parsed.items.length > 0) {
+      await context.supabase.from("scan_events").insert(parsed.items.map((it) => ({
+        user_id: context.userId,
+        headword: it.headword,
+        meaning_ja: it.meaning_ja || null,
+        kind: it.kind,
+        confidence: it.confidence,
+        tapped: false,
+        caught: false,
+      })));
+    }
+
+    const items: DetectedItem[] = parsed.items.map((it, i) => ({
+      ...it,
+      id: `part_${Date.now()}_${i}`,
+    }));
+    return { items };
+  });
+
 
 /**
  * Bulk lookup for detected headwords against the verified dictionary (§4.2).

@@ -242,12 +242,28 @@ export const getSticker = createServerFn({ method: "GET" })
     }
     if (error) throw new Error(error.message);
 
-    // If not the owner, fall back to admin read so authenticated viewers can
-    // see other users' sticker detail from the public profile grid. Selfie
-    // remains private to the owner.
+    // If not the owner, fall back to admin read ONLY when the sticker is
+    // attached to a post the viewer may see (public / friends-mutual / own).
+    // Without this check any authenticated user with a sticker UUID could
+    // read private lat/lng/caption for un-posted stickers.
     let isOwner = !!row;
     if (!row) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      // Find any post referencing this sticker that the viewer can see.
+      const { data: postRow, error: postErr } = await supabaseAdmin
+        .from("posts")
+        .select("id, user_id, visibility")
+        .eq("sticker_id", data.id)
+        .maybeSingle();
+      if (postErr) throw new Error(postErr.message);
+      if (!postRow) return null;
+      let canSee = postRow.user_id === userId || postRow.visibility === "public";
+      if (!canSee && postRow.visibility === "friends") {
+        const { data: mutual } = await supabaseAdmin
+          .rpc("are_mutual_followers", { _a: userId, _b: postRow.user_id });
+        canSee = !!mutual;
+      }
+      if (!canSee) return null;
       const res = await supabaseAdmin
         .from("stickers")
         .select(cols(ghostCols))
@@ -450,6 +466,13 @@ export const saveSticker = createServerFn({ method: "POST" })
 
     const wordId = await upsertWord(supabase, userId, data.word, data.language);
 
+    // Guard against cross-account storage path spoofing: only accept paths
+    // rooted under the caller's own uid folder (the client upload convention).
+    const ownPath = (p: string | null | undefined): string | null => {
+      if (!p) return null;
+      return p.startsWith(`${userId}/`) ? p : null;
+    };
+
     // §6 word tree: freeze the branch plan at save time so later extras
     // regenerations don't reshuffle already-unlocked branches.
     const branchPlan = buildBranchPlan(data.word.extras);
@@ -457,9 +480,9 @@ export const saveSticker = createServerFn({ method: "POST" })
       user_id: userId,
       word_id: wordId,
       language: data.language,
-      object_image_url: data.object_path ?? null,
-      cutout_image_url: data.cutout_path ?? null,
-      selfie_image_url: data.selfie_path ?? null,
+      object_image_url: ownPath(data.object_path),
+      cutout_image_url: ownPath(data.cutout_path),
+      selfie_image_url: ownPath(data.selfie_path),
       caption: data.caption ?? null,
       location_name: data.location_name ?? null,
       lat: data.lat ?? null,
