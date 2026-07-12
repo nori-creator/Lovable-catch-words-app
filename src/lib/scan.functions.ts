@@ -12,7 +12,8 @@ import { getAi, logUsage } from "./ai-provider.server";
  */
 
 const DetectInput = z.object({
-  imageBase64: z.string().min(100), // data URL or raw base64
+  // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
+  imageBase64: z.string().min(100).max(8_000_000), // data URL or raw base64
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
 });
