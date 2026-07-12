@@ -366,21 +366,51 @@ function ScanPage() {
             <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
 
-          {/* scanning overlay */}
+          {/* scanning overlay — multi-stage: 感知→読取→照合 */}
           {scanning && (
-            <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-2 text-white">
-                <ScanLine className="h-10 w-10 animate-pulse" />
-                <p className="text-sm font-medium">読み取り中…</p>
+            <div className="absolute inset-0 grid place-items-center bg-black/50 backdrop-blur-[6px]">
+              {/* candidate probe dots — random positions, appearing/dying to
+                  suggest "the AI is looking around". Purely decorative. */}
+              <div className="pointer-events-none absolute inset-0">
+                {PROBE_DOTS.map((p, i) => (
+                  <span
+                    key={i}
+                    style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${p.delay}ms` }}
+                    className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 opacity-0 shadow-[0_0_12px_rgba(103,232,249,0.9)] animate-[probeBlink_1800ms_ease-in-out_infinite]"
+                  />
+                ))}
               </div>
-              <div className="absolute inset-x-0 top-0 h-1 animate-[scanline_1.6s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-cyan-300 to-transparent" />
+              {/* dual sweep lines */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent animate-[scanline_1.6s_ease-in-out_infinite]" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-gradient-to-b from-transparent via-fuchsia-300 to-transparent animate-[scanlineV_2.1s_ease-in-out_infinite]" />
+              {/* corner reticles */}
+              <div className="pointer-events-none absolute inset-4 rounded-2xl border border-white/20" />
+              <ReticleCorners />
+              <div className="relative flex flex-col items-center gap-3 text-white">
+                <div className="relative grid h-16 w-16 place-items-center">
+                  <span className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" />
+                  <span className="absolute inset-2 rounded-full bg-cyan-400/40 animate-[ping_1.5s_ease-in-out_infinite]" />
+                  <ScanLine className="relative h-8 w-8" />
+                </div>
+                <p className="text-sm font-medium tabular-nums">
+                  {scanStage === "sensing" && "シーンを感知中…"}
+                  {scanStage === "reading" && "文字と物体を読み取り中…"}
+                  {scanStage === "matching" && "辞書と照合中…"}
+                </p>
+                <div className="flex gap-1.5">
+                  <StageDot active={scanStage === "sensing"} done={scanStage !== "sensing"} />
+                  <StageDot active={scanStage === "reading"} done={scanStage === "matching"} />
+                  <StageDot active={scanStage === "matching"} done={false} />
+                </div>
+              </div>
             </div>
           )}
 
-          {/* dots */}
+          {/* main dots + sub-dots (§3.5) */}
           {items && items.map((it) => {
             const low = it.confidence < 0.75;
             const isText = it.kind === "text";
+            const expanded = subItems.some((s) => s.parentId === it.id);
             return (
               <button
                 key={it.id}
@@ -396,6 +426,7 @@ function ScanPage() {
                       ? "h-6 w-6 bg-fuchsia-500" // text = マゼンタ (§3.4)
                       : "h-6 w-6 bg-cyan-400",
                     low ? "opacity-80" : "",
+                    expanded ? "ring-amber-300" : "",
                   ].join(" ")}
                 />
                 {isText && (
@@ -408,6 +439,28 @@ function ScanPage() {
               </button>
             );
           })}
+          {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
+          {subItems.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => openChip(s)}
+              style={dotStyle(s)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 grid place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300"
+              aria-label={s.headword}
+            >
+              <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
+              <span className="pointer-events-none absolute -inset-2 rounded-full border border-dashed border-amber-300/70" />
+            </button>
+          ))}
+          {/* parts loader (§3.5) — subtle pulse over the parent region */}
+          {expandingId && items?.find((i) => i.id === expandingId) && (
+            <div
+              style={dotStyle(items.find((i) => i.id === expandingId)!)}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+            >
+              <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
+            </div>
+          )}
 
           {/* empty state after scan */}
           {items && items.length === 0 && !scanning && (
@@ -424,7 +477,7 @@ function ScanPage() {
             </div>
           )}
 
-          {/* metrics badge */}
+          {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
             <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
               {detectMs !== null && <span>検出 {detectMs}ms</span>}
@@ -432,6 +485,7 @@ function ScanPage() {
             </div>
           )}
         </div>
+
 
         {/* controls */}
         <div className="flex items-center justify-center gap-3">
