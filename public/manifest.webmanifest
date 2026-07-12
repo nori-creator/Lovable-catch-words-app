@@ -1,7 +1,7 @@
 {
   "name": "Catchwords — 街で出会う、台湾華語",
   "short_name": "Catchwords",
-  "description": "撮って、切り抜いて、覚える。街で出会った言葉をステッカーに変えて自分だけの図鑑を作るSNS型言語学習アプリ。",
+  "description": "街で見たものの単語と発音が瞬間的に分かる。撮って、切り抜いて、自分だけの図鑑を作る台湾華語学習アプリ。",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",
@@ -9,9 +9,18 @@
   "background_color": "#ffffff",
   "theme_color": "#ff6f61",
   "lang": "ja",
-  "categories": ["education", "lifestyle", "social"],
+  "categories": ["education", "lifestyle"],
   "icons": [
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "スキャン",
+      "short_name": "スキャン",
+      "description": "カメラをかざして単語を調べる",
+      "url": "/scan",
+      "icons": [{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }]
+    }
   ]
 }

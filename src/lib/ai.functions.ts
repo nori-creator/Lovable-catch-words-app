@@ -236,3 +236,55 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
     await logUsage(context.supabase, context.userId, "card");
     return { ...card, category_key: normalizeCategory(data.headword, card.category_key) };
   });
+
+// --- Phrase cards (§5.2): front = the scene, back = phrase + replies -------
+
+const PhraseInput = z.object({
+  phrase: z.string().min(1).max(80),
+  scene: z.string().max(200).default(""),
+  targetLanguage: z.string().default("zh-TW"),
+});
+
+const PhraseCardSchema = z.object({
+  reading_zhuyin: z.string().default(""),
+  pinyin: z.string().default(""),
+  meaning_ja: z.string(),
+  usage_note: z.string().default(""),
+  common_situation: z.string().default(""),
+  replies: z
+    .array(z.object({ zh: z.string(), ja: z.string() }))
+    .min(1)
+    .max(3),
+});
+
+export type GeneratedPhraseCard = z.infer<typeof PhraseCardSchema>;
+
+export const generatePhraseCard = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => PhraseInput.parse(input))
+  .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
+    const ai = getAi();
+    const result = await generateText({
+      model: ai.gateway(ai.modelRich),
+      prompt:
+        `台湾華語(繁體字)のフレーズカードを作ります。\n` +
+        `フレーズ: 「${data.phrase}」\n` +
+        (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
+        `\n次をJSONで出力:\n` +
+        `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
+        `- pinyin: 拼音\n` +
+        `- meaning_ja: 日本語の意味(簡潔に)\n` +
+        `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、日本語)\n` +
+        `- common_situation: 最もよくある場面(1文、日本語)\n` +
+        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: 日本語訳}。` +
+        `例:「請稍等」→「好、謝謝」`,
+      experimental_output: Output.object({ schema: PhraseCardSchema }) as never,
+    });
+    const out = (result as unknown as { experimental_output?: GeneratedPhraseCard }).experimental_output;
+    const card = out ?? (() => {
+      try { return PhraseCardSchema.parse(parseJsonFromAiText(result.text)); }
+      catch { throw new Error("AI did not return a structured phrase card"); }
+    })();
+    await logUsage(context.supabase, context.userId, "phrase_card");
+    return card;
+  });

@@ -21,6 +21,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
     enabled: !!stickerId,
+    staleTime: 5 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -173,6 +174,28 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       alt={s.word.headword}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
+                  ) : s.placeholder_url ? (
+                    // Ghost card (§5.3): the stand-in is clearly temporary.
+                    <>
+                      <img
+                        src={s.placeholder_url}
+                        alt={`「${s.word.headword}」の仮画像`}
+                        className="absolute inset-0 h-full w-full object-cover opacity-70 grayscale"
+                      />
+                      <span className="absolute left-3 top-3 rounded-full bg-foreground/70 px-2.5 py-1 text-[11px] font-semibold text-background">
+                        👻 仮の画像 — 実物に出会って完成させよう
+                      </span>
+                      {s.placeholder_credit?.name && (
+                        <a
+                          href={s.placeholder_credit.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute bottom-2 left-3 text-[9px] text-white/90 drop-shadow"
+                        >
+                          📷 {s.placeholder_credit.name}
+                        </a>
+                      )}
+                    </>
                   ) : (
                     <div className="grid h-full w-full place-items-center bg-secondary text-7xl">
                       {s.word.silhouette_emoji ?? "📦"}

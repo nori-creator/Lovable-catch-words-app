@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi } from "./ai-provider.server";
+import { getAi, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -18,6 +19,7 @@ export type ReviewMode = "recognition" | "listening" | "reverse" | "production";
 export type DueReviewCard = {
   review_id: string;
   sticker_id: string;
+  word_id: string;
   headword: string;
   reading_zhuyin: string | null;
   pinyin: string | null;
@@ -25,8 +27,15 @@ export type DueReviewCard = {
   example_sentence: string | null;
   example_translation: string | null;
   category_key: string | null;
+  entry_type: string;
   cutout_url: string | null;
+  /** Ghost cards (§5.3): temporary stand-in image so review isn't a blank. */
+  placeholder_url: string | null;
   audio_url: string | null; // cached TTS if it exists; client falls back to speechSynthesis
+  caption: string | null;
+  location_name: string | null;
+  taken_at: string | null;
+  review_count: number; // completed reviews so far (word-tree unlock count)
   blur_seen: boolean;
   ease: number;
   interval_days: number;
@@ -79,15 +88,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<DueReviewCard[]> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
+    const dueSelect = (withGhost: boolean) =>
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
+    let { data, error } = await supabase
       .from("reviews")
-      .select(
-        "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
-      )
+      .select(dueSelect(true))
       .eq("user_id", userId)
       .lte("due_at", nowIso)
       .order("due_at", { ascending: true })
       .limit(10);
+    if (error && /placeholder_image_url|entry_type/.test(error.message)) {
+      ({ data, error } = (await supabase
+        .from("reviews")
+        .select(
+          "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+        )
+        .eq("user_id", userId)
+        .lte("due_at", nowIso)
+        .order("due_at", { ascending: true })
+        .limit(10)) as unknown as { data: typeof data; error: typeof error });
+    }
     if (error) throw new Error(error.message);
 
     type DueRow = {
@@ -99,6 +119,10 @@ export const getDueReviews = createServerFn({ method: "GET" })
       blur_seen: boolean;
       stickers: {
         cutout_image_url: string | null;
+        caption: string | null;
+        location_name: string | null;
+        taken_at: string | null;
+        placeholder_image_url?: string | null;
         words: {
           id: string;
           headword: string;
@@ -108,11 +132,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
           example_sentence: string | null;
           example_translation: string | null;
           category_key: string | null;
+          entry_type: string | null;
         } | null;
       } | null;
     };
     const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
     if (rows.length === 0) return [];
+
+    // Word-tree unlock counts: one review_history row per completed review.
+    const stickerIds = rows.map((r) => r.sticker_id);
+    const reviewCounts = new Map<string, number>();
+    {
+      const { data: histRows } = await supabase
+        .from("review_history")
+        .select("sticker_id")
+        .eq("user_id", userId)
+        .in("sticker_id", stickerIds);
+      for (const h of histRows ?? []) {
+        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+      }
+    }
 
     // The user's own deck is the distractor pool — zero AI calls at review time.
     const { data: deckRows } = await supabase
@@ -140,12 +179,14 @@ export const getDueReviews = createServerFn({ method: "GET" })
     for (const c of choiceRows ?? []) cached.set(c.word_id, c.distractors ?? []);
 
     // Batch-sign all image and audio URLs in two calls instead of one per card.
-    const cutoutPaths = rows.map((r) => r.stickers!.cutout_image_url).filter((p): p is string => !!p);
+    const cutoutPaths = rows
+      .flatMap((r) => [r.stickers!.cutout_image_url, r.stickers!.placeholder_image_url ?? null])
+      .filter((p): p is string => !!p);
     const cutoutUrlByPath = new Map<string, string>();
     if (cutoutPaths.length > 0) {
       const { data: signed } = await supabase.storage
         .from("stickers")
-        .createSignedUrls(cutoutPaths, 60 * 60 * 6);
+        .createSignedUrls([...new Set(cutoutPaths)], 60 * 60 * 6);
       for (const s of signed ?? []) {
         if (s.path && s.signedUrl && !s.error) cutoutUrlByPath.set(s.path, s.signedUrl);
       }
@@ -186,6 +227,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       return {
         review_id: row.id,
         sticker_id: row.sticker_id,
+        word_id: w.id,
         headword: w.headword,
         reading_zhuyin: w.reading_zhuyin,
         pinyin: w.pinyin,
@@ -193,8 +235,16 @@ export const getDueReviews = createServerFn({ method: "GET" })
         example_sentence: w.example_sentence,
         example_translation: w.example_translation,
         category_key: w.category_key,
+        entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
+        placeholder_url: row.stickers!.placeholder_image_url
+          ? (cutoutUrlByPath.get(row.stickers!.placeholder_image_url) ?? null)
+          : null,
         audio_url: audioUrlByPath.get(audioPaths[i]) ?? null,
+        caption: row.stickers!.caption,
+        location_name: row.stickers!.location_name,
+        taken_at: row.stickers!.taken_at,
+        review_count: reviewCounts.get(row.sticker_id) ?? 0,
         blur_seen: row.blur_seen,
         ease: row.ease,
         interval_days: row.interval_days,
@@ -294,6 +344,13 @@ const GradeInput = z.object({
   correct: z.boolean(),
   blur_seen: z.boolean().default(false),
   response_ms: z.number().int().nonnegative().default(0),
+  /**
+   * Speaking review result (§6): success = said it without help (5),
+   * hint = needed the word revealed = lapse (2), skip = couldn't say it (1).
+   * When omitted, the classic correct/blur scoring applies (choice mode).
+   */
+  result: z.enum(["success", "hint", "skip"]).optional(),
+  /** Convenience flag: same as result="hint" (a lapse, score 2). */
   hint_used: z.boolean().default(false),
 });
 
@@ -327,10 +384,13 @@ export const gradeReview = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Score: correct=5 base; blur -1; slow -1; hint used → forced lapse; wrong=1
+    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
+    // Speaking mode sends `result` (or hint_used): success=5 / hint=2 (lapse,
+    // §6「ヒント使用=失念」 — resets SM-2 but is gentler on ease than a fail) / skip=1.
     let score = 1;
-    if (data.hint_used) {
-      score = 1;
+    const result = data.result ?? (data.hint_used ? "hint" : undefined);
+    if (result) {
+      score = result === "success" ? 5 : result === "hint" ? 2 : 1;
     } else if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
@@ -469,6 +529,7 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
 const FeedbackInput = z.object({
   sticker_id: z.string().uuid(),
   transcript: z.string().min(1).max(500),
+  hint_used: z.boolean().default(false),
 });
 
 const PosEnum = z.enum(["S", "V", "O", "M", "C"]);
@@ -493,6 +554,8 @@ export type SpeakingFeedback = z.infer<typeof FeedbackSchema> & {
   reading_zhuyin: string | null;
   pinyin: string | null;
   meaning_ja: string;
+  /** §6 word tree: the branch this review presents/unlocks as「今日の型」. */
+  unlocked_branch: Branch | null;
 };
 
 export const getSpeakingFeedback = createServerFn({ method: "POST" })
@@ -500,32 +563,68 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => FeedbackInput.parse(input))
   .handler(async ({ context, data }): Promise<SpeakingFeedback> => {
     const { supabase, userId } = context;
-    const { data: st, error } = await supabase
+    // branch_plan/entry_type/extras may predate the Phase A migration —
+    // retry without them so feedback never breaks on a stale schema.
+    let { data: st, error } = await supabase
       .from("stickers")
-      .select("id, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence)")
+      .select(
+        "id, caption, location_name, branch_plan, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, entry_type, extras)",
+      )
       .eq("id", data.sticker_id)
       .eq("user_id", userId)
       .maybeSingle();
+    if (error && /branch_plan|entry_type/.test(error.message)) {
+      ({ data: st, error } = (await supabase
+        .from("stickers")
+        .select(
+          "id, caption, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, extras)",
+        )
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId)
+        .maybeSingle()) as unknown as { data: typeof st; error: typeof error });
+    }
     if (error || !st?.words) throw new Error("カードが見つかりません");
-    const w = st.words as {
-      headword: string;
-      reading_zhuyin: string | null;
-      pinyin: string | null;
-      meaning_ja: string;
-      example_sentence: string | null;
+    const row = st as unknown as {
+      id: string;
+      caption: string | null;
+      location_name: string | null;
+      branch_plan?: unknown;
+      words: {
+        headword: string;
+        reading_zhuyin: string | null;
+        pinyin: string | null;
+        meaning_ja: string;
+        example_sentence: string | null;
+        entry_type?: string | null;
+        extras?: unknown;
+      };
     };
+    const w = row.words;
+    const isPhrase = w.entry_type === "phrase";
+
+    // §6 word tree: the pattern we teach IS the branch this review unlocks —
+    // one branch per completed review, no extra AI call for the selection.
+    const { count } = await supabase
+      .from("review_history")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("sticker_id", data.sticker_id);
+    const plan =
+      parseBranchPlan(row.branch_plan) ??
+      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
+    const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
     const ai = getAi();
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
-
+${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
 - natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
 - used_target: 「${w.headword}」を(活用形含め)使っているか。
 - correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
-- chunk: correctedを語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
+- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
 - chunk_note: この型の使いどころを日本語で1文。
 - native_note: この単語をネイティブが実際に使う時の気持ち・状況を日本語で1〜2文。
 - model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
@@ -537,6 +636,8 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
       experimental_output: Output.object({ schema: FeedbackSchema }) as never,
     }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };
 
+    // KPI (roadmap §3): speaking reviews feed the admin dashboard.
+    await logUsage(supabase, userId, "speaking_feedback");
     await supabase.from("ai_runs").insert({
       user_id: userId,
       loop: "speaking_feedback",
@@ -551,5 +652,6 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
       reading_zhuyin: w.reading_zhuyin,
       pinyin: w.pinyin,
       meaning_ja: w.meaning_ja,
+      unlocked_branch: branch,
     };
   });

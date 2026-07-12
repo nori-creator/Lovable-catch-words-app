@@ -244,6 +244,7 @@ export type Database = {
           feedback_ja: string | null
           id: string
           model: string | null
+          native_phrases: Json | null
           used_sticker_ids: string[]
           user_draft: string | null
           user_id: string
@@ -257,6 +258,7 @@ export type Database = {
           feedback_ja?: string | null
           id?: string
           model?: string | null
+          native_phrases?: Json | null
           used_sticker_ids?: string[]
           user_draft?: string | null
           user_id: string
@@ -270,6 +272,7 @@ export type Database = {
           feedback_ja?: string | null
           id?: string
           model?: string | null
+          native_phrases?: Json | null
           used_sticker_ids?: string[]
           user_draft?: string | null
           user_id?: string
@@ -427,6 +430,7 @@ export type Database = {
           native_language: string
           onboarded: boolean
           pronunciation_strictness: string
+          review_mode: string
           target_language: string
           ui_language: string
           updated_at: string
@@ -441,6 +445,7 @@ export type Database = {
           native_language?: string
           onboarded?: boolean
           pronunciation_strictness?: string
+          review_mode?: string
           target_language?: string
           ui_language?: string
           updated_at?: string
@@ -455,6 +460,7 @@ export type Database = {
           native_language?: string
           onboarded?: boolean
           pronunciation_strictness?: string
+          review_mode?: string
           target_language?: string
           ui_language?: string
           updated_at?: string
@@ -605,12 +611,14 @@ export type Database = {
           caught: boolean
           confidence: number | null
           created_at: string
+          detect_ms: number | null
           headword: string
           id: string
           kind: string
           lat: number | null
           lng: number | null
           meaning_ja: string | null
+          tap_to_audio_ms: number | null
           tapped: boolean
           user_id: string
         }
@@ -618,12 +626,14 @@ export type Database = {
           caught?: boolean
           confidence?: number | null
           created_at?: string
+          detect_ms?: number | null
           headword: string
           id?: string
           kind: string
           lat?: number | null
           lng?: number | null
           meaning_ja?: string | null
+          tap_to_audio_ms?: number | null
           tapped?: boolean
           user_id: string
         }
@@ -631,12 +641,14 @@ export type Database = {
           caught?: boolean
           confidence?: number | null
           created_at?: string
+          detect_ms?: number | null
           headword?: string
           id?: string
           kind?: string
           lat?: number | null
           lng?: number | null
           meaning_ja?: string | null
+          tap_to_audio_ms?: number | null
           tapped?: boolean
           user_id?: string
         }
@@ -644,7 +656,9 @@ export type Database = {
       }
       stickers: {
         Row: {
+          branch_plan: Json | null
           caption: string | null
+          capture_type: string
           created_at: string
           cutout_image_url: string | null
           encounter_count: number
@@ -654,6 +668,8 @@ export type Database = {
           lng: number | null
           location_name: string | null
           object_image_url: string | null
+          placeholder_credit: Json | null
+          placeholder_image_url: string | null
           selfie_image_url: string | null
           taken_at: string
           user_id: string
@@ -661,7 +677,9 @@ export type Database = {
           word_id: string
         }
         Insert: {
+          branch_plan?: Json | null
           caption?: string | null
+          capture_type?: string
           created_at?: string
           cutout_image_url?: string | null
           encounter_count?: number
@@ -671,6 +689,8 @@ export type Database = {
           lng?: number | null
           location_name?: string | null
           object_image_url?: string | null
+          placeholder_credit?: Json | null
+          placeholder_image_url?: string | null
           selfie_image_url?: string | null
           taken_at?: string
           user_id: string
@@ -678,7 +698,9 @@ export type Database = {
           word_id: string
         }
         Update: {
+          branch_plan?: Json | null
           caption?: string | null
+          capture_type?: string
           created_at?: string
           cutout_image_url?: string | null
           encounter_count?: number
@@ -688,6 +710,8 @@ export type Database = {
           lng?: number | null
           location_name?: string | null
           object_image_url?: string | null
+          placeholder_credit?: Json | null
+          placeholder_image_url?: string | null
           selfie_image_url?: string | null
           taken_at?: string
           user_id?: string
@@ -751,6 +775,7 @@ export type Database = {
           category_key: string | null
           created_at: string
           created_by: string | null
+          entry_type: string
           example_sentence: string | null
           example_translation: string | null
           extras: Json
@@ -769,6 +794,7 @@ export type Database = {
           category_key?: string | null
           created_at?: string
           created_by?: string | null
+          entry_type?: string
           example_sentence?: string | null
           example_translation?: string | null
           extras?: Json
@@ -787,6 +813,7 @@ export type Database = {
           category_key?: string | null
           created_at?: string
           created_by?: string | null
+          entry_type?: string
           example_sentence?: string | null
           example_translation?: string | null
           extras?: Json

@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
+import { attachPhotoToSticker } from "@/lib/ghost.functions";
+import { recordEncounter } from "@/lib/encounters.functions";
+import { downscaleDataUrl, removeBackgroundFast } from "@/lib/cutout";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 
@@ -17,6 +20,12 @@ type Props = {
   dict: DictionaryEntry | undefined;
   cardPromise: Promise<GeneratedCard>;
   loc: { lat: number | null; lng: number | null; name: string | null };
+  /**
+   * Reunion catch (§5.3): when set, the photo replaces this ghost sticker's
+   * placeholder instead of creating a new sticker, and the SRS gets the
+   * highest possible grade (real-world recall).
+   */
+  upgrade?: { sticker_id: string } | null;
   onClose: () => void;
 };
 
@@ -75,11 +84,13 @@ function playChime() {
  * 2. show cutout + verified details + optional selfie/caption (§5.1)
  * 3. on 保存: upload → reuse prefetched card (no additional AI call) → fly to 図鑑
  */
-export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardPromise, loc, onClose }: Props) {
+export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardPromise, loc, upgrade, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
   const caughtFn = useServerFn(markScanCaught);
+  const attachFn = useServerFn(attachPhotoToSticker);
+  const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
@@ -106,16 +117,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const cropped = await cropAround(snapshotDataUrl, item.point);
         if (cancelled) return;
         setObjectDataUrl(cropped);
-        const mod = await import("@imgly/background-removal");
-        const blob = await dataUrlToBlob(cropped);
-        const out = await mod.removeBackground(blob);
-        if (cancelled) return;
-        const reader = new FileReader();
-        const dataUrl: string = await new Promise((res, rej) => {
-          reader.onload = () => res(reader.result as string);
-          reader.onerror = () => rej(new Error("read failed"));
-          reader.readAsDataURL(out as Blob);
-        });
+        const dataUrl = await removeBackgroundFast(cropped);
         if (cancelled) return;
         setCutoutUrl(dataUrl);
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
@@ -137,7 +139,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       reader.onerror = () => rej(new Error("read failed"));
       reader.readAsDataURL(file);
     });
-    setSelfieDataUrl(dataUrl);
+    // Camera files can be several MB — shrink before preview/upload so the
+    // album loads fast later (roadmap B1).
+    setSelfieDataUrl(await downscaleDataUrl(dataUrl, 1280, 0.82));
   }
 
   async function runLandingAnimation(): Promise<void> {
@@ -195,8 +199,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     setSaving(true);
     setErr(null);
     try {
-      // §3.3 acceptance: the prefetched card is reused — no additional AI call here.
-      const card = await cardPromise;
+      // §3.3 acceptance: the prefetched card is reused — no additional AI call
+      // here. A reunion upgrade doesn't need the card at all (word exists).
+      const card = upgrade ? null : await cardPromise;
 
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
@@ -220,37 +225,75 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         upload(selfieDataUrl, "selfie"),
       ]);
 
-      const res = await saveFn({
-        data: {
-          word: {
-            headword,
-            reading_zhuyin: dict?.zhuyin || card.reading_zhuyin,
-            pinyin: dict?.pinyin || card.pinyin,
-            meaning_ja: dict?.meaning_ja || card.meaning_ja,
-            part_of_speech: dict?.pos || card.part_of_speech,
-            level: card.level,
-            category_key: card.category_key,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            extras: card.extras,
+      let stickerId: string;
+      let firstCatch = false;
+      if (upgrade) {
+        // §5.3 golden reunion: swap the ghost's placeholder for the real
+        // photo, then record the encounter as a top-grade SRS review.
+        await attachFn({
+          data: {
+            sticker_id: upgrade.sticker_id,
+            object_path,
+            cutout_path,
+            selfie_path,
+            caption: caption || null,
+            location_name: loc.name,
+            lat: loc.lat,
+            lng: loc.lng,
           },
-          language: "zh-TW",
-          object_path,
-          cutout_path,
-          selfie_path,
-          caption: caption || null,
-          location_name: loc.name,
-          lat: loc.lat,
-          lng: loc.lng,
-        },
-      });
+        });
+        void encounterFn({
+          data: {
+            sticker_id: upgrade.sticker_id,
+            recalled: true,
+            lat: loc.lat,
+            lng: loc.lng,
+            location_name: loc.name,
+          },
+        }).catch(() => {});
+        stickerId = upgrade.sticker_id;
+      } else {
+        if (!card) throw new Error("カード情報の生成に失敗しました");
+        const res = await saveFn({
+          data: {
+            word: {
+              headword,
+              reading_zhuyin: dict?.zhuyin || card.reading_zhuyin,
+              pinyin: dict?.pinyin || card.pinyin,
+              meaning_ja: dict?.meaning_ja || card.meaning_ja,
+              part_of_speech: dict?.pos || card.part_of_speech,
+              level: card.level,
+              category_key: card.category_key,
+              example_sentence: card.example_sentence,
+              example_translation: card.example_translation,
+              extras: card.extras,
+            },
+            language: "zh-TW",
+            object_path,
+            cutout_path,
+            selfie_path,
+            caption: caption || null,
+            location_name: loc.name,
+            lat: loc.lat,
+            lng: loc.lng,
+          },
+        });
+        stickerId = res.id;
+        firstCatch = res.first_catch ?? false;
+      }
 
       void caughtFn({ data: { headword } }).catch(() => {});
       await qc.invalidateQueries({ queryKey: ["stickers"] });
+      void qc.invalidateQueries({ queryKey: ["scan-context"] });
       await runLandingAnimation();
       setPhase("done");
-      toast.success("図鑑に1体増えました！");
-      setTimeout(() => navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } }), 550);
+      if (firstCatch) {
+        // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
+        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+      } else {
+        toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
+      }
+      setTimeout(() => navigate({ to: "/dex/$stickerId", params: { stickerId } }), 550);
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : "保存に失敗しました");

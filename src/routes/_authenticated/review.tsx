@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -11,6 +11,7 @@ import {
   type DueReviewCard,
   type SpeakingFeedback,
 } from "@/lib/reviews.functions";
+import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import {
   Eye,
   Sparkles,
@@ -25,10 +26,14 @@ import {
   Video,
   Repeat,
   ArrowRight,
+  Clock,
+  MapPin,
 } from "lucide-react";
 
-// ---- prefs (localStorage) --------------------------------------------------
-const LIGHT_KEY = "review-light-mode-v1";
+// ---- prefs -------------------------------------------------------------------
+// Review mode (speaking/choice) lives in profiles.review_mode (DB) so it
+// follows the user across devices. Video recording stays per-device
+// (localStorage) since camera availability is a device property.
 const VIDEO_KEY = "review-video-v1";
 function readBool(key: string, def = false) {
   if (typeof window === "undefined") return def;
@@ -60,11 +65,6 @@ function playAudio(card: DueReviewCard) {
     speakZhTW(card.headword);
   }
 }
-function speechRecognitionAvailable(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-  return !!(w.SpeechRecognition ?? w.webkitSpeechRecognition);
-}
 
 // ---- POS color map ---------------------------------------------------------
 const POS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -88,6 +88,9 @@ export const Route = createFileRoute("/_authenticated/review")({
 function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
+  const fetchProfile = useServerFn(getMyProfile);
+  const updateProfileFn = useServerFn(updateMyProfile);
+  const qc = useQueryClient();
   const { data: cards, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
@@ -98,10 +101,26 @@ function ReviewPage() {
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 60_000,
+  });
 
   const [idx, setIdx] = useState(0);
-  const [lightMode, setLightMode] = useState(false);
-  useEffect(() => { setLightMode(readBool(LIGHT_KEY, false)); }, []);
+  // §6/§10-3: speaking is the default; 4択 stays as "light mode".
+  // Stored in profiles.review_mode; the header toggle flips it optimistically.
+  const lightMode =
+    (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
+  function toggleLight() {
+    const next = lightMode ? "speaking" : "choice";
+    qc.setQueryData(["profile"], (old: unknown) =>
+      old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
+    );
+    void updateProfileFn({ data: { review_mode: next as "speaking" | "choice" } })
+      .catch(() => {})
+      .finally(() => qc.invalidateQueries({ queryKey: ["profile"] }));
+  }
 
   const current: DueReviewCard | undefined = cards?.[idx];
   const done = cards && idx >= cards.length;
@@ -123,11 +142,7 @@ function ReviewPage() {
               </span>
             )}
             <button
-              onClick={() => {
-                const next = !lightMode;
-                setLightMode(next);
-                localStorage.setItem(LIGHT_KEY, next ? "1" : "0");
-              }}
+              onClick={toggleLight}
               className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
               title="声を出せない場所用の4択モード"
             >
@@ -207,11 +222,28 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
   const chunksRef = useRef<Blob[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
+  const isPhrase = card.entry_type === "phrase";
+  // Ghost cards (§5.3): the placeholder stands in until a real photo exists.
+  const heroUrl = card.cutout_url ?? card.placeholder_url;
+  const isGhostImage = !card.cutout_url && !!card.placeholder_url;
+  const takenLabel = card.taken_at
+    ? new Date(card.taken_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+    : null;
+
   useEffect(() => { setVideoOn(readBool(VIDEO_KEY, false)); }, []);
   useEffect(() => () => {
     stopVideo();
     recogRef.current?.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Phrase roleplay (§5.2): the partner line IS the question — play it.
+  useEffect(() => {
+    if (!isPhrase) return;
+    const t = setTimeout(() => playAudio(card), 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.review_id]);
 
   async function startVideo() {
     if (!videoOn) return;
@@ -231,7 +263,7 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
     } catch { /* denied */ }
   }
   function stopVideo() {
-    recorderRef.current?.state === "recording" && recorderRef.current.stop();
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     recorderRef.current = null;
@@ -293,7 +325,9 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
     setLoading(true);
     setError(null);
     try {
-      const fb = await feedbackFn({ data: { sticker_id: card.sticker_id, transcript: transcript.trim() } });
+      const fb = await feedbackFn({
+        data: { sticker_id: card.sticker_id, transcript: transcript.trim(), hint_used: hintShown },
+      });
       setFeedback(fb);
     } catch (e) {
       setError(e instanceof Error ? e.message : "AIフィードバックに失敗しました");
@@ -305,20 +339,21 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
   async function commitAndNext(kind: "success" | "skip") {
     if (graded) { onNext(); return; }
     setGraded(true);
-    const correct =
-      kind === "success" &&
-      !hintShown &&
-      !!feedback &&
-      feedback.used_target &&
-      feedback.natural_score >= 3;
+    // §6 3-level SRS: success=5 / hint=2 (失念) / skip・不成立=1.
+    // "Success" additionally requires the AI's objective check (used the
+    // target word, natural enough) — the honest-grading idea from main.
+    const objectiveOk =
+      !!feedback && feedback.used_target && feedback.natural_score >= 3;
+    const result: "success" | "hint" | "skip" =
+      kind === "skip" ? "skip" : hintShown ? "hint" : objectiveOk ? "success" : "skip";
     try {
       await grade({
         data: {
           review_id: card.review_id,
-          correct,
-          blur_seen: false,
+          correct: result === "success",
+          blur_seen: hintShown,
           response_ms: Date.now() - startedAt.current,
-          hint_used: hintShown,
+          result,
         },
       });
     } catch { /* keep flow moving */ }
@@ -329,21 +364,50 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-          <Mic className="h-3.5 w-3.5" /> はなす
+          <Mic className="h-3.5 w-3.5" /> {isPhrase ? "ロールプレイ" : "はなす"}
         </span>
         <span className="text-[11px] text-muted-foreground">
-          この時のことを、単語を使って一文で
+          {isPhrase ? "この場面、どう返す?" : "この時のことを、単語を使って一文で"}
         </span>
       </div>
 
       {/* Photo — the word itself stays hidden until hint */}
-      <div className="relative mx-auto mb-3 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
-        {card.cutout_url ? (
-          <img src={card.cutout_url} alt="復習対象" className="h-full w-full object-contain p-4" />
+      <div className="relative mx-auto mb-2 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+        {heroUrl ? (
+          <img
+            src={heroUrl}
+            alt="復習対象"
+            className={`h-full w-full object-contain p-4 ${isGhostImage ? "opacity-70 grayscale" : ""}`}
+          />
         ) : (
           <span className="text-5xl">📦</span>
         )}
+        {isGhostImage && (
+          <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
+            👻 仮の画像
+          </span>
+        )}
       </div>
+
+      {/* When & where the memory was made (§6-1: 場所・日時つき) */}
+      {(takenLabel || card.location_name) && (
+        <div className="mb-3 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+          {takenLabel && (
+            <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {takenLabel}</span>
+          )}
+          {card.location_name && (
+            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {card.location_name}</span>
+          )}
+        </div>
+      )}
+
+      {/* Phrase cards: the scene is the front of the card (§5.2) */}
+      {isPhrase && card.caption && (
+        <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-sm">
+          <span className="text-xs text-muted-foreground">シーン: </span>
+          {card.caption}
+        </p>
+      )}
 
       {/* Hint reveal */}
       {hintShown && (
@@ -438,7 +502,7 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
             setTranscript("");
             setVideoUrl(null);
           }}
-          onNext={() => commitAndNext(feedback.used_target && feedback.natural_score >= 3 ? "success" : "skip")}
+          onNext={() => commitAndNext("success")}
         />
       )}
     </article>
@@ -492,10 +556,15 @@ function FeedbackView({
         <p className="text-xs text-muted-foreground">{feedback.correction_note}</p>
       </div>
 
-      {/* Chunk = 型 with POS colors */}
+      {/* Chunk = 型 with POS colors (+ word-tree unlock, §6) */}
       <div className="rounded-2xl bg-white p-3 ring-1 ring-border">
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">型</span>
+          {feedback.unlocked_branch && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              🌿 新しい枝が解禁
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">{feedback.chunk_note}</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -580,7 +649,6 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         correct,
         blur_seen: blurSeen,
         response_ms: Date.now() - startedAt.current,
-        hint_used: false,
       },
     });
     setShowResult({ correct, score: res.score });
@@ -596,11 +664,11 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         <span className="text-[11px] text-muted-foreground">意味を選ぼう</span>
       </div>
       <div className="relative mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
-        {card.cutout_url ? (
+        {card.cutout_url ?? card.placeholder_url ? (
           <img
-            src={card.cutout_url}
+            src={(card.cutout_url ?? card.placeholder_url)!}
             alt="復習対象"
-            className={`h-full w-full object-contain p-4 transition-[filter] duration-300 ${blurSeen || picked ? "blur-0" : "blur-md scale-105"}`}
+            className={`h-full w-full object-contain p-4 transition-[filter] duration-300 ${blurSeen || picked ? "blur-0" : "blur-md scale-105"} ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
           />
         ) : (
           <span className="text-5xl">📦</span>

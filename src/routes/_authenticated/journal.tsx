@@ -4,11 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import {
   listJournal,
-  generateTodayJournal,
   correctMyJournal,
-  type JournalEntry,
+  type NativePhrase,
 } from "@/lib/journal.functions";
-import { Sparkles, BookText, Wand2 } from "lucide-react";
+import { BookText, Quote, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +25,6 @@ export const Route = createFileRoute("/_authenticated/journal")({
 function JournalPage() {
   const qc = useQueryClient();
   const fetchJournal = useServerFn(listJournal);
-  const genJournal = useServerFn(generateTodayJournal);
   const correct = useServerFn(correctMyJournal);
 
   const { data: entries } = useQuery({
@@ -42,15 +40,6 @@ function JournalPage() {
   useEffect(() => {
     if (todayEntry?.user_draft && !draft) setDraft(todayEntry.user_draft);
   }, [todayEntry]);
-
-  const generate = useMutation({
-    mutationFn: () => genJournal(),
-    onSuccess: () => {
-      toast.success("AIの模範日記ができました");
-      qc.invalidateQueries({ queryKey: ["journal"] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "生成失敗"),
-  });
 
   const correctMut = useMutation({
     mutationFn: () => correct({ data: { draft } }),
@@ -69,7 +58,7 @@ function JournalPage() {
             <BookText className="h-4 w-4 text-primary" /> 今日の日記
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、模範解答も見せてくれます。
+            今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。
           </p>
         </div>
 
@@ -89,23 +78,15 @@ function JournalPage() {
             <Wand2 className="h-4 w-4" />
             {correctMut.isPending ? "添削中…" : "AIに添削してもらう"}
           </button>
-          <button
-            disabled={generate.isPending}
-            onClick={() => generate.mutate()}
-            className="lift inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold disabled:opacity-50"
-          >
-            <Sparkles className="h-4 w-4 text-primary" />
-            {generate.isPending ? "生成中…" : "AIの模範解答を見る"}
-          </button>
         </div>
 
         {todayEntry && (
           <div className="space-y-3 pt-2">
             {todayEntry.correction && (
-              <EntryBlock label="✦ 添削後" body={todayEntry.correction} subtle={todayEntry.feedback_ja} subtleLabel="解説" />
+              <EntryBlock label="✦ 添削後" body={todayEntry.correction} subtle={todayEntry.feedback_ja} subtleLabel="型と解説" />
             )}
-            {todayEntry.body_zh && (
-              <EntryBlock label="✦ AIの模範解答" body={todayEntry.body_zh} subtle={todayEntry.body_ja} subtleLabel="日本語訳" />
+            {todayEntry.native_phrases && todayEntry.native_phrases.length > 0 && (
+              <NativePhrases phrases={todayEntry.native_phrases} />
             )}
           </div>
         )}
@@ -123,6 +104,11 @@ function JournalPage() {
                 {e.feedback_ja && (
                   <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{e.feedback_ja}</p>
                 )}
+                {e.native_phrases && e.native_phrases.length > 0 && (
+                  <div className="mt-3">
+                    <NativePhrases phrases={e.native_phrases} compact />
+                  </div>
+                )}
                 {!e.correction && e.body_ja && (
                   <p className="mt-2 text-sm text-muted-foreground">{e.body_ja}</p>
                 )}
@@ -132,6 +118,25 @@ function JournalPage() {
         </section>
       )}
     </AppShell>
+  );
+}
+
+function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?: boolean }) {
+  return (
+    <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
+      <div className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-primary">
+        <Quote className="h-3 w-3" /> ネイティブならこう言う
+      </div>
+      <ul className="space-y-2">
+        {phrases.map((p, i) => (
+          <li key={i} className="rounded-xl bg-card p-3 shadow-sm ring-1 ring-border/60">
+            <p className="text-base font-semibold leading-relaxed">{p.zh}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{p.ja}</p>
+            {p.note && <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">{p.note}</p>}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

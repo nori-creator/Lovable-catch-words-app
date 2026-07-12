@@ -1,0 +1,12 @@
+-- Fix regression from the 2026-07-12 hardening migration: SELECT on
+-- public.profiles was reduced to (id, display_name, avatar_url, created_at)
+-- for `authenticated`, but column-level grants cannot distinguish "my row"
+-- from "someone else's row" — so users could no longer read their OWN
+-- settings (native_language, level_goal, onboarded, ...) and every
+-- profiles select("*") in the app failed.
+--
+-- Restore full-column SELECT for authenticated users (anon keeps the
+-- public 4 columns). Proper per-viewer privacy needs a public view or
+-- security-definer accessor instead of column grants — scheduled for the
+-- Phase B RLS re-audit (docs/design/07 §B-2).
+grant select on public.profiles to authenticated;

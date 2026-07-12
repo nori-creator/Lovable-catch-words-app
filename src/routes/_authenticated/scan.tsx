@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Check, Keyboard, Loader2, Mic, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { detectScan, detectParts, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
+import { detectScan, detectParts, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
+import { preloadCutout } from "@/lib/cutout";
+import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
+import { InputCatchSheet } from "@/components/InputCatchSheet";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -35,6 +39,26 @@ type ChipState = {
   showingCandidates: boolean;
 };
 
+/** §3.1b discovery radar: how this word relates to the user's collection. */
+type DotState = "new" | "reunion" | "owned" | "seen";
+
+type ScanCtx = { owned: ScanContext["owned"]; tappedSet: Set<string> };
+
+const normHead = (s: string) => s.normalize("NFC").trim();
+
+function dotStateFor(headword: string, ctx: ScanCtx | undefined): DotState {
+  if (!ctx) return "seen";
+  const key = normHead(headword);
+  const entry = ctx.owned[key];
+  if (entry) return entry.has_photo ? "owned" : "reunion";
+  if (ctx.tappedSet.has(key)) return "seen";
+  return "new";
+}
+
+function daysAgo(iso: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
+}
+
 // A sub-item is a §3.5 part detection whose normalized coords have already
 // been remapped into the parent frame (0..1000). We keep the parent id and
 // tag it so the renderer can draw it as a smaller "child" dot.
@@ -47,6 +71,19 @@ function ScanPage() {
   const tapFn = useServerFn(markScanTap);
   const ttsFn = useServerFn(synthesizeSpeech);
   const cardFn = useServerFn(generateCard);
+  const scanCtxFn = useServerFn(getScanContext);
+  const logEvent = useServerFn(logAppEvent);
+
+  // §3.1b: the user's collection, cached lightly for dot-state matching.
+  const { data: rawScanCtx } = useQuery({
+    queryKey: ["scan-context"],
+    queryFn: () => scanCtxFn(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const scanCtx = useMemo<ScanCtx | undefined>(
+    () => (rawScanCtx ? { owned: rawScanCtx.owned, tappedSet: new Set(rawScanCtx.tapped) } : undefined),
+    [rawScanCtx],
+  );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -88,6 +125,7 @@ function ScanPage() {
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
 
   // Dev metrics overlay — gated so it doesn't pollute normal use.
@@ -101,6 +139,12 @@ function ScanPage() {
   }, []);
 
 
+
+  // Warm the cutout model while the user frames the shot, so the first
+  // catch doesn't pay the model download + init cost (roadmap B2).
+  useEffect(() => {
+    preloadCutout();
+  }, []);
 
   // ---- camera lifecycle ----
   useEffect(() => {
@@ -160,6 +204,13 @@ function ScanPage() {
     if (!frame) { setError("フレームを取得できませんでした"); return; }
     setSnapshot(frame);
     setScanning(true);
+    // KPI: first scan ever (localStorage-deduped).
+    try {
+      if (!localStorage.getItem("kpi-first-scan")) {
+        localStorage.setItem("kpi-first-scan", "1");
+        void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+      }
+    } catch { /* ignore */ }
     setScanStage("sensing");
     // Cycle status text so the wait feels intentional. Cleared in finally.
     const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
@@ -197,7 +248,7 @@ function ScanPage() {
       setScanning(false);
       setScanStage("idle");
     }
-  }, [scanning, grabFrame, detectFn, lookupFn]);
+  }, [scanning, grabFrame, detectFn, lookupFn, logEvent]);
 
 
   // ---- tap a dot ----
@@ -206,12 +257,11 @@ function ScanPage() {
     setChip({ item, chosenHeadword: item.headword, showingCandidates: lowConf });
     if (!lowConf) {
       void playAudio(item.headword, item);
-      void tapFn({ data: { headword: item.headword } }).catch(() => {});
       // §3.3 プリフェッチ: バックグラウンドで詳細カード生成を開始。
       startPrefetch(item.headword);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tapFn, startPrefetch]);
+  }, [startPrefetch]);
 
   const pickCandidate = useCallback(async (headword: string, item: DetectedItem) => {
     setChip({ item, chosenHeadword: headword, showingCandidates: false });
@@ -223,23 +273,25 @@ function ScanPage() {
       } catch { /* noop */ }
     }
     void playAudio(headword, item);
-    void tapFn({ data: { headword } }).catch(() => {});
     // 候補確定後にプリフェッチ開始(誤選択で無駄打ちしないため候補選択より後)。
     startPrefetch(headword);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, lookupFn, tapFn, startPrefetch]);
+  }, [entries, lookupFn, startPrefetch]);
 
 
   const playAudio = useCallback(async (headword: string, item: DetectedItem) => {
     const t0 = performance.now();
+    // タップ記録は音声再生開始後に1回だけ送る(tap_to_audio_msを同梱、§7)。
+    const reportTap = (ms: number) => {
+      setTapToAudioMs(ms);
+      void tapFn({ data: { headword, tap_to_audio_ms: ms } }).catch(() => {});
+    };
     try {
       const dict = entries[headword];
       let url: string;
-      if (dict?.audio_path) {
-        // audio_path is a storage key — request signed URL via TTS is overkill;
-        // fall through to TTS which will find the cached mp3 by deterministic path.
-        const r = await ttsFn({ data: { text: headword } });
-        url = r.audio_url;
+      if (dict?.audio_url) {
+        // §4.3 事前生成音声: 署名URLが手元にあるのでサーバー往復ゼロで即再生。
+        url = dict.audio_url;
       } else {
         const r = await ttsFn({ data: { text: headword } });
         url = r.audio_url;
@@ -247,7 +299,7 @@ function ScanPage() {
       if (!audioRef.current) audioRef.current = new Audio();
       audioRef.current.src = url;
       await audioRef.current.play();
-      setTapToAudioMs(Math.round(performance.now() - t0));
+      reportTap(Math.round(performance.now() - t0));
     } catch {
       // fall back to browser TTS
       if ("speechSynthesis" in window) {
@@ -255,11 +307,13 @@ function ScanPage() {
         u.lang = "zh-TW";
         speechSynthesis.cancel();
         speechSynthesis.speak(u);
-        setTapToAudioMs(Math.round(performance.now() - t0));
+        reportTap(Math.round(performance.now() - t0));
+      } else {
+        void tapFn({ data: { headword } }).catch(() => {});
       }
     }
     void item;
-  }, [entries, ttsFn]);
+  }, [entries, ttsFn, tapFn]);
 
   const reset = useCallback(() => {
     setItems(null); setSubItems([]); setSnapshot(null); setChip(null); setEntries({});
@@ -406,11 +460,20 @@ function ScanPage() {
             </div>
           )}
 
-          {/* main dots + sub-dots (§3.5) */}
+          {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
           {items && items.map((it) => {
             const low = it.confidence < 0.75;
             const isText = it.kind === "text";
             const expanded = subItems.some((s) => s.parentId === it.id);
+            const state = dotStateFor(it.headword, scanCtx);
+            const fill =
+              state === "reunion"
+                ? "bg-amber-400" // 金色: 前に調べたゴーストとの再会 (§3.1b)
+                : state === "owned"
+                  ? "bg-white/80"
+                  : isText
+                    ? "bg-fuchsia-500" // text = マゼンタ (§3.4)
+                    : "bg-cyan-400";
             return (
               <button
                 key={it.id}
@@ -421,18 +484,31 @@ function ScanPage() {
               >
                 <span
                   className={[
-                    "block rounded-full shadow-lg ring-2 ring-white/90",
-                    isText
-                      ? "h-6 w-6 bg-fuchsia-500" // text = マゼンタ (§3.4)
-                      : "h-6 w-6 bg-cyan-400",
+                    "block rounded-full shadow-lg ring-2",
+                    state === "reunion" ? "ring-amber-200" : "ring-white/90",
+                    state === "owned" ? "h-5 w-5 opacity-90" : "h-6 w-6",
+                    fill,
                     low ? "opacity-80" : "",
                     expanded ? "ring-amber-300" : "",
                   ].join(" ")}
                 />
-                {isText && (
+                {isText && state !== "owned" && (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-black text-white">A</span>
                 )}
-                <span className="pointer-events-none absolute -inset-2 rounded-full bg-white/25 blur-md" />
+                {state === "owned" && (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                    <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={3.5} />
+                  </span>
+                )}
+                {state === "new" && (
+                  <span className="pointer-events-none absolute -inset-1.5 animate-ping rounded-full bg-white/40" />
+                )}
+                {state === "reunion" && (
+                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/50 blur-sm" />
+                )}
+                {state !== "new" && state !== "reunion" && (
+                  <span className="pointer-events-none absolute -inset-2 rounded-full bg-white/25 blur-md" />
+                )}
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
                 )}
@@ -462,10 +538,16 @@ function ScanPage() {
             </div>
           )}
 
-          {/* empty state after scan */}
+          {/* empty state after scan — always offer the typed escape hatch (§2 onboarding) */}
           {items && items.length === 0 && !scanning && (
             <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/90 p-3 text-center text-sm shadow-lg">
-              何も検出できませんでした。文字入力で調べてみましょう。
+              <p>何も検出できませんでした。文字や物にもう少し近づいてみて。</p>
+              <button
+                onClick={() => setInputCatchOpen("text")}
+                className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground active:scale-95"
+              >
+                文字入力で調べる
+              </button>
             </div>
           )}
 
@@ -490,14 +572,30 @@ function ScanPage() {
         {/* controls */}
         <div className="flex items-center justify-center gap-3">
           {!snapshot ? (
-            <button
-              onClick={doScan}
-              disabled={!ready || scanning}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
-            >
-              {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
-              スキャン
-            </button>
+            <>
+              <button
+                onClick={() => setInputCatchOpen("text")}
+                aria-label="文字入力でキャッチ"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
+              >
+                <Keyboard className="h-5 w-5" />
+              </button>
+              <button
+                onClick={doScan}
+                disabled={!ready || scanning}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+              >
+                {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
+                スキャン
+              </button>
+              <button
+                onClick={() => setInputCatchOpen("voice")}
+                aria-label="聞こえたフレーズを復唱してキャッチ"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
+              >
+                <Mic className="h-5 w-5" />
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -530,6 +628,8 @@ function ScanPage() {
             meaning={displayMeaning}
             pos={displayPos}
             verified={verified}
+            state={dotStateFor(displayHeadword, scanCtx)}
+            foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
             item={chip.item}
             candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
             expanding={expandingId === chip.item.id}
@@ -587,8 +687,17 @@ function ScanPage() {
           dict={entries[catchOpen.headword]}
           cardPromise={startPrefetch(catchOpen.headword)}
           loc={scanLoc}
+          upgrade={(() => {
+            // §5.3: catching a gold (ghost) dot upgrades the existing sticker.
+            const entry = scanCtx?.owned[normHead(catchOpen.headword)];
+            return entry && !entry.has_photo ? { sticker_id: entry.sticker_id } : null;
+          })()}
           onClose={() => setCatchOpen(null)}
         />
+      )}
+
+      {inputCatchOpen && (
+        <InputCatchSheet initialMode={inputCatchOpen} onClose={() => setInputCatchOpen(null)} />
       )}
 
       <style>{`
@@ -610,7 +719,7 @@ function ScanPage() {
 
 
 function ScanChip({
-  headword, zhuyin, pinyin, meaning, pos, verified, candidates, expanding, canExpand,
+  headword, zhuyin, pinyin, meaning, pos, verified, state, foundAt, candidates, expanding, canExpand,
   onPickCandidate, onPlay, onExpand, onDetail, onCatch, onClose,
 }: {
   headword: string;
@@ -619,6 +728,8 @@ function ScanChip({
   meaning: string;
   pos: string;
   verified: boolean;
+  state: DotState;
+  foundAt: string | null;
   item: DetectedItem;
   candidates: string[];
   expanding: boolean;
@@ -652,11 +763,25 @@ function ScanChip({
     );
   }
   return (
-    <div className="rounded-2xl border border-border bg-gradient-to-br from-card to-sky-50/50 p-4 shadow-md">
+    <div className={`rounded-2xl border p-4 shadow-md ${
+      state === "reunion"
+        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50"
+        : "border-border bg-gradient-to-br from-card to-sky-50/50"
+    }`}>
+      {state === "reunion" && foundAt && (
+        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900">
+          ✨ {daysAgo(foundAt)}日前に調べた「{headword}」だ! 撮って図鑑を完成させよう
+        </p>
+      )}
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <h2 className="text-2xl font-bold tracking-tight">{headword}</h2>
+            {state === "owned" && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                <Check className="h-3 w-3 text-emerald-600" /> 取得済み
+              </span>
+            )}
             {verified ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
                 ✓ 検証済み

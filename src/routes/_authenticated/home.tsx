@@ -78,6 +78,10 @@ function HomePage() {
   const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
+    // Keep the signed URLs stable across tab switches so the browser cache
+    // can serve the images instead of re-downloading them (roadmap B1).
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -241,8 +245,9 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
       <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z, tape }) => {
           // Album is a memory book: prefer selfie (you + the thing).
-          // Fallback to the plain object photo only when there's no selfie.
-          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? null;
+          // Fallback to the plain object photo only when there's no selfie;
+          // ghosts show their placeholder (clearly temporary).
+          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
           const isPolaroid = !!heroUrl;
 
           return (
@@ -259,6 +264,8 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
                     <img
                       src={heroUrl!}
                       alt={`「${s.word.headword}」の思い出`}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   </div>

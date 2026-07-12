@@ -36,6 +36,10 @@ function DexPage() {
   const { data: stickers } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
+    // Keep the signed URLs stable across tab switches so the browser cache
+    // can serve the images instead of re-downloading them (roadmap B1).
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
   const captured = stickers ?? [];
 
@@ -80,7 +84,12 @@ function DexPage() {
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
           <h2 className="text-base font-semibold tracking-tight">あなたの図鑑</h2>
-          <p className="text-xs text-muted-foreground">{captured.length} 種類</p>
+          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
+          <p className="text-xs text-muted-foreground">
+            見つけた <span className="font-semibold text-foreground">{captured.length}</span>
+            <span className="mx-1.5">·</span>
+            捕まえた <span className="font-semibold text-foreground">{captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url).length}</span>
+          </p>
         </div>
         <div className="flex gap-1 rounded-full bg-secondary p-1">
           {([
@@ -156,17 +165,34 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="group block text-left"
                     >
-                      <div className="relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95">
+                      <div className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
+                        isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
+                      }`}>
                         {s.cutout_url ? (
                           <img
                             src={s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-contain p-3"
                           />
+                        ) : isGhost(s) && s.placeholder_url ? (
+                          <img
+                            src={s.placeholder_url}
+                            alt={`「${s.word.headword}」の仮画像`}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover opacity-60 grayscale"
+                          />
                         ) : (
-                          <div className="grid h-full place-items-center text-5xl">
+                          <div className={`grid h-full place-items-center text-5xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
                             {s.word.silhouette_emoji ?? "📦"}
                           </div>
+                        )}
+                        {isGhost(s) && (
+                          <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
+                            👻 仮
+                          </span>
                         )}
                         {s.encounter_count > 0 && (
                           <span className="absolute right-2 top-2 rounded-full bg-amber-400/95 px-2 py-0.5 text-[10px] font-bold text-amber-950 shadow">
@@ -189,15 +215,25 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
                     >
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                      <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
                           <img
                             src={s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
+                        ) : isGhost(s) && s.placeholder_url ? (
+                          <img
+                            src={s.placeholder_url}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover opacity-60 grayscale"
+                          />
                         ) : (
-                          <span className="text-2xl">{s.word.silhouette_emoji ?? "📦"}</span>
+                          <span className={`text-2xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>{s.word.silhouette_emoji ?? "📦"}</span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -226,11 +262,63 @@ function DexPage() {
   );
 }
 
+/**
+ * Draw a map pin whose head is the sticker's own photo clipped in a circle
+ * (roadmap B4: every pin shows what was caught there, not a generic marker).
+ * Returns null when the image can't be drawn (CORS/load failure) so the
+ * caller keeps the emoji fallback pin.
+ */
+async function photoPinIcon(url: string): Promise<string | null> {
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("pin image load failed"));
+      img.src = url;
+    });
+    const W = 104, H = 120, cx = 52, cy = 46, R = 42; // 2x for retina
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    // tail
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + R - 6);
+    ctx.lineTo(cx, H - 4);
+    ctx.lineTo(cx + 14, cy + R - 6);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fill();
+    // white ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    // photo clipped in circle (cover fit)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+    const scale = Math.max((R * 2) / img.width, (R * 2) / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.restore();
+    return c.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
 function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
+  const pinIconCache = useRef<Map<string, string | null>>(new Map());
   const browserKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
   const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
 
@@ -283,6 +371,21 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
         title: s.word.headword,
         icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
       });
+      // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
+      const photoUrl = s.object_url ?? s.cutout_url;
+      if (photoUrl) {
+        const cached = pinIconCache.current.get(s.id);
+        const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);
+        void iconPromise.then((icon) => {
+          pinIconCache.current.set(s.id, icon);
+          if (!icon || !markersRef.current.includes(marker)) return;
+          (marker as { setIcon: (i: object) => void }).setIcon({
+            url: icon,
+            scaledSize: new g.Size(52, 60),
+            anchor: new g.Point(26, 58),
+          });
+        });
+      }
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
         navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
       });
@@ -340,6 +443,11 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
       )}
     </>
   );
+}
+
+/** Ghost card (§5.3): caught by text/voice, no real photo yet. */
+function isGhost(s: { capture_type: string; cutout_url: string | null; object_url: string | null }): boolean {
+  return s.capture_type !== "photo" && !s.cutout_url && !s.object_url;
 }
 
 function prettifyCategory(key: string): string {

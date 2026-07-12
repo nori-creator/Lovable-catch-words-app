@@ -1,8 +1,10 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { getMyScanMetrics } from "@/lib/metrics.functions";
+import { checkIsAdmin } from "@/lib/admin.functions";
 import { exportMyDeck } from "@/lib/words.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,7 @@ function SettingsPage() {
   const [targetLanguage, setTargetLanguage] = useState("zh-TW");
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
+  const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportFn = useServerFn(exportMyDeck);
@@ -63,6 +66,9 @@ function SettingsPage() {
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
+    setReviewMode(
+      ((profile as { review_mode?: string }).review_mode as "speaking" | "choice") ?? "speaking",
+    );
   }, [profile]);
 
   async function handleSave() {
@@ -76,6 +82,7 @@ function SettingsPage() {
           target_language: targetLanguage,
           level_goal: levelGoal,
           pronunciation_strictness: strictness,
+          review_mode: reviewMode,
         },
       });
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -138,19 +145,36 @@ function SettingsPage() {
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">学習設定</h3>
-          <Label>発音判定の厳しさ</Label>
-          <div className="mt-1 grid grid-cols-3 gap-2">
-            {(["easy", "normal", "strict"] as const).map((v) => (
+          <Label>復習モード</Label>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {(["speaking", "choice"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setStrictness(v)}
-                className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                onClick={() => setReviewMode(v)}
+                className={`rounded-full border py-1.5 text-sm ${reviewMode === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
-                {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
+                {v === "speaking" ? "🎤 スピーキング" : "👆 4択(ライト)"}
               </button>
             ))}
           </div>
-          <ReviewPrefsToggles />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。
+          </p>
+          <div className="mt-3">
+            <Label>発音判定の厳しさ</Label>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["easy", "normal", "strict"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setStrictness(v)}
+                  className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                >
+                  {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <VideoRecordingToggle />
         </div>
 
 
@@ -190,6 +214,8 @@ function SettingsPage() {
           </Button>
         </div>
 
+        <DeveloperPanel />
+
         <Button
           variant="outline"
           className="w-full"
@@ -208,33 +234,70 @@ function SettingsPage() {
   );
 }
 
-const LIGHT_KEY = "review-light-mode-v1";
+/** §7: median speeds over the last 20 scans vs. the spec targets. */
+function DeveloperPanel() {
+  const metricsFn = useServerFn(getMyScanMetrics);
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: m } = useQuery({
+    queryKey: ["scan-metrics"],
+    queryFn: () => metricsFn(),
+    staleTime: 60_000,
+  });
+  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+
+  const row = (label: string, value: number | null | undefined, targetMs: number) => {
+    const ok = value != null && value <= targetMs;
+    return (
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={value == null ? "text-muted-foreground" : ok ? "font-semibold text-emerald-600" : "font-semibold text-red-600"}>
+          {value == null ? "計測なし" : `${(value / 1000).toFixed(2)}s`}
+          <span className="ml-1 font-normal text-muted-foreground">/ 目標 {(targetMs / 1000).toFixed(1)}s</span>
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <details className="group rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-sm font-semibold text-muted-foreground [&::-webkit-details-marker]:hidden">
+        開発者(速度計測)
+      </summary>
+      <div className="mt-3 space-y-2">
+        {row("スキャン検出(中央値)", m?.detect_ms_median, 2500)}
+        {row("タップ→音声再生(中央値)", m?.tap_to_audio_ms_median, 1000)}
+        <p className="text-[10px] text-muted-foreground">直近{m?.samples ?? 0}回のスキャンから算出(仕様§9の合格ライン)</p>
+        {adm?.isAdmin && (
+          <Link to="/admin/metrics" className="block text-xs text-primary underline">
+            KPIダッシュボードを開く →
+          </Link>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// Review-mode itself is saved to profiles.review_mode (above); this
+// device-local toggle only covers the camera recording, which is a
+// per-device preference (main branch's VIDEO_KEY, read by review.tsx).
 const VIDEO_KEY = "review-video-v1";
 
-function ReviewPrefsToggles() {
-  const [light, setLight] = useState(false);
+function VideoRecordingToggle() {
   const [video, setVideo] = useState(false);
   useEffect(() => {
-    setLight(localStorage.getItem(LIGHT_KEY) === "1");
     setVideo(localStorage.getItem(VIDEO_KEY) === "1");
   }, []);
-  function toggle(key: string, val: boolean, setter: (v: boolean) => void) {
-    setter(val);
-    localStorage.setItem(key, val ? "1" : "0");
+  function toggle(val: boolean) {
+    setVideo(val);
+    localStorage.setItem(VIDEO_KEY, val ? "1" : "0");
   }
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-3">
-      <ToggleRow
-        label="ライトモード（4択）"
-        hint="声を出せない場所用。ONにするとスピーキング復習の代わりに4択が出ます。"
-        value={light}
-        onChange={(v) => toggle(LIGHT_KEY, v, setLight)}
-      />
+    <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
         label="録画（インカメ）"
-        hint="スピーキング復習中、自分の姿を録画してあとで見返せます。"
+        hint="スピーキング復習中、自分の姿を録画してあとで見返せます。この端末のみに保存。"
         value={video}
-        onChange={(v) => toggle(VIDEO_KEY, v, setVideo)}
+        onChange={toggle}
       />
     </div>
   );
@@ -258,4 +321,3 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
     </div>
   );
 }
-
