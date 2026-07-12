@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi } from "./ai-provider.server";
+import { getAi, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -348,7 +349,10 @@ const GradeInput = z.object({
    * When omitted, the classic correct/blur scoring applies (choice mode).
    */
   result: z.enum(["success", "hint", "skip"]).optional(),
+  /** Convenience flag: same as result="hint" (a lapse, score 2). */
+  hint_used: z.boolean().default(false),
 });
+
 
 // SM-2 simplified
 export function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
@@ -380,10 +384,12 @@ export const gradeReview = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
-    // Speaking mode sends `result` instead: success=5 / hint=2 (lapse) / skip=1.
+    // Speaking mode sends `result` (or hint_used): success=5 / hint=2 (lapse,
+    // §6「ヒント使用=失念」 — resets SM-2 but is gentler on ease than a fail) / skip=1.
     let score = 1;
-    if (data.result) {
-      score = data.result === "success" ? 5 : data.result === "hint" ? 2 : 1;
+    const result = data.result ?? (data.hint_used ? "hint" : undefined);
+    if (result) {
+      score = result === "success" ? 5 : result === "hint" ? 2 : 1;
     } else if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
@@ -392,6 +398,7 @@ export const gradeReview = createServerFn({ method: "POST" })
       score = 1;
     }
     score = Math.max(0, Math.min(5, score));
+
 
     const next = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
@@ -514,4 +521,136 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
       : 0;
 
     return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
+  });
+
+// --- Speaking-output review feedback (§6) -----------------------------------
+
+const FeedbackInput = z.object({
+  sticker_id: z.string().uuid(),
+  transcript: z.string().min(1).max(500),
+  hint_used: z.boolean().default(false),
+});
+
+const PosEnum = z.enum(["S", "V", "O", "M", "C"]);
+export type SpeakingPos = z.infer<typeof PosEnum>;
+
+const FeedbackSchema = z.object({
+  corrected: z.string(),
+  natural_score: z.number().int().min(1).max(5),
+  used_target: z.boolean(),
+  correction_note: z.string(),
+  chunk: z
+    .array(z.object({ text: z.string(), pos: PosEnum }))
+    .min(1)
+    .max(12),
+  chunk_note: z.string(),
+  native_note: z.string(),
+  model_answer: z.string(),
+  alt_answer: z.string(),
+});
+export type SpeakingFeedback = z.infer<typeof FeedbackSchema> & {
+  headword: string;
+  reading_zhuyin: string | null;
+  pinyin: string | null;
+  meaning_ja: string;
+  /** §6 word tree: the branch this review presents/unlocks as「今日の型」. */
+  unlocked_branch: Branch | null;
+};
+
+export const getSpeakingFeedback = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => FeedbackInput.parse(input))
+  .handler(async ({ context, data }): Promise<SpeakingFeedback> => {
+    const { supabase, userId } = context;
+    // branch_plan/entry_type/extras may predate the Phase A migration —
+    // retry without them so feedback never breaks on a stale schema.
+    let { data: st, error } = await supabase
+      .from("stickers")
+      .select(
+        "id, caption, location_name, branch_plan, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, entry_type, extras)",
+      )
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error && /branch_plan|entry_type/.test(error.message)) {
+      ({ data: st, error } = (await supabase
+        .from("stickers")
+        .select(
+          "id, caption, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, extras)",
+        )
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId)
+        .maybeSingle()) as unknown as { data: typeof st; error: typeof error });
+    }
+    if (error || !st?.words) throw new Error("カードが見つかりません");
+    const row = st as unknown as {
+      id: string;
+      caption: string | null;
+      location_name: string | null;
+      branch_plan?: unknown;
+      words: {
+        headword: string;
+        reading_zhuyin: string | null;
+        pinyin: string | null;
+        meaning_ja: string;
+        example_sentence: string | null;
+        entry_type?: string | null;
+        extras?: unknown;
+      };
+    };
+    const w = row.words;
+    const isPhrase = w.entry_type === "phrase";
+
+    // §6 word tree: the pattern we teach IS the branch this review unlocks —
+    // one branch per completed review, no extra AI call for the selection.
+    const { count } = await supabase
+      .from("review_history")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("sticker_id", data.sticker_id);
+    const plan =
+      parseBranchPlan(row.branch_plan) ??
+      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
+    const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
+
+    const ai = getAi();
+    const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
+
+学習者の発話: 「${data.transcript}」
+${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
+要件:
+- corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
+- natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
+- used_target: 「${w.headword}」を(活用形含め)使っているか。
+- correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
+- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
+- chunk_note: この型の使いどころを日本語で1文。
+- native_note: この単語をネイティブが実際に使う時の気持ち・状況を日本語で1〜2文。
+- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
+- alt_answer: 別の言い方1つ(繁体字)。`;
+
+    const { experimental_output } = await generateText({
+      model: ai.gateway(ai.modelRich),
+      prompt,
+      experimental_output: Output.object({ schema: FeedbackSchema }) as never,
+    }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };
+
+    // KPI (roadmap §3): speaking reviews feed the admin dashboard.
+    await logUsage(supabase, userId, "speaking_feedback");
+    await supabase.from("ai_runs").insert({
+      user_id: userId,
+      loop: "speaking_feedback",
+      iterations: 1,
+      accepted: 1,
+      meta: { headword: w.headword, score: experimental_output.natural_score },
+    });
+
+    return {
+      ...experimental_output,
+      headword: w.headword,
+      reading_zhuyin: w.reading_zhuyin,
+      pinyin: w.pinyin,
+      meaning_ja: w.meaning_ja,
+      unlocked_branch: branch,
+    };
   });

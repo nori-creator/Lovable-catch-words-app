@@ -174,7 +174,9 @@ function SettingsPage() {
               ))}
             </div>
           </div>
+          <VideoRecordingToggle />
         </div>
+
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
@@ -272,5 +274,50 @@ function DeveloperPanel() {
         )}
       </div>
     </details>
+  );
+}
+
+// Review-mode itself is saved to profiles.review_mode (above); this
+// device-local toggle only covers the camera recording, which is a
+// per-device preference (main branch's VIDEO_KEY, read by review.tsx).
+const VIDEO_KEY = "review-video-v1";
+
+function VideoRecordingToggle() {
+  const [video, setVideo] = useState(false);
+  useEffect(() => {
+    setVideo(localStorage.getItem(VIDEO_KEY) === "1");
+  }, []);
+  function toggle(val: boolean) {
+    setVideo(val);
+    localStorage.setItem(VIDEO_KEY, val ? "1" : "0");
+  }
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <ToggleRow
+        label="録画（インカメ）"
+        hint="スピーキング復習中、自分の姿を録画してあとで見返せます。この端末のみに保存。"
+        value={video}
+        onChange={toggle}
+      />
+    </div>
+  );
+}
+
+function ToggleRow({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-[11px] text-muted-foreground">{hint}</div>
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        role="switch"
+        aria-checked={value}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0.5"}`} />
+      </button>
+    </div>
   );
 }
