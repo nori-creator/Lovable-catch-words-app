@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, detectParts, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
