@@ -75,15 +75,31 @@ function ScanPage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
+  const [subItems, setSubItems] = useState<SubItem[]>([]);
+  const [expandingId, setExpandingId] = useState<string | null>(null); // parent id currently loading parts
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
   const [detectMs, setDetectMs] = useState<number | null>(null);
+  const [partsMs, setPartsMs] = useState<number | null>(null);
+  const [lookupMs, setLookupMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
+
+  // Dev metrics overlay — gated so it doesn't pollute normal use.
+  const [devOn, setDevOn] = useState(false);
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("dev");
+      const ls = window.localStorage.getItem("catchwords_dev");
+      if (q === "1" || ls === "1") setDevOn(true);
+    } catch { /* ignore */ }
+  }, []);
+
 
 
   // ---- camera lifecycle ----
