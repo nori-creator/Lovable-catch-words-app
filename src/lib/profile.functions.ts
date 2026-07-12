@@ -5,8 +5,12 @@ import { z } from "zod";
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data, error } = await supabase
+    const { userId } = context;
+    // Own-row read needs all columns; column-level SELECT grants restrict the
+    // authenticated role to public columns only, so read via admin scoped by
+    // the authenticated userId (safe: userId comes from verified JWT).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("*")
       .eq("id", userId)
