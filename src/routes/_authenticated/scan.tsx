@@ -532,8 +532,11 @@ function ScanPage() {
             verified={verified}
             item={chip.item}
             candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
+            expanding={expandingId === chip.item.id}
+            canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
             onPickCandidate={(h) => pickCandidate(h, chip.item)}
             onPlay={() => playAudio(displayHeadword, chip.item)}
+            onExpand={() => expandParts(chip.item)}
             onDetail={() => {
               if (!chip.chosenHeadword) return;
               // Prefetch is already running (started at tap). Reuse the same promise.
@@ -548,7 +551,23 @@ function ScanPage() {
             onClose={() => setChip(null)}
           />
         )}
+
+        {/* Dev metrics panel (?dev=1 or localStorage.catchwords_dev=1) */}
+        {devOn && (
+          <DevMetrics
+            values={{
+              detect_ms: detectMs,
+              parts_ms: partsMs,
+              lookup_ms: lookupMs,
+              tap_to_audio_ms: tapToAudioMs,
+              prefetch_ms: chip ? (prefetchTimingRef.current.get(chip.chosenHeadword) ?? null) : null,
+              catch_ms: null,
+            }}
+            targets={SCAN_TARGETS}
+          />
+        )}
       </div>
+
 
       {detailOpen && (
         <ScanDetailSheet
