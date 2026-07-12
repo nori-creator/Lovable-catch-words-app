@@ -24,3 +24,8 @@ alter table public.words
 alter table public.profiles
   add column if not exists review_mode text not null default 'speaking'
     check (review_mode in ('speaking','choice'));
+
+-- profiles uses column-level grants (hardening of 2026-07-12); a new column
+-- gets no privileges by default, so grant them explicitly or the review-mode
+-- toggle silently fails for users.
+grant select (review_mode), update (review_mode) on public.profiles to authenticated;
