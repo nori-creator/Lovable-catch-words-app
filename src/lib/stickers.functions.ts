@@ -186,9 +186,6 @@ export const getSticker = createServerFn({ method: "GET" })
     let isOwner = !!row;
     if (!row) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: visible, error: visErr } = await supabaseAdmin
-        .rpc("can_see_post", { _post_id: null, _user: userId }); // placeholder to satisfy TS; not used
-      void visible; void visErr;
       // Find any post referencing this sticker that the viewer can see.
       const { data: postRow, error: postErr } = await supabaseAdmin
         .from("posts")
