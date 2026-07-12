@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, Loader2, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { detectScan, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
+import { detectScan, detectParts, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
@@ -16,6 +16,18 @@ export const Route = createFileRoute("/_authenticated/scan")({
   }),
 });
 
+// § metrics — a tiny bus so the Catch flow can report catch_ms back here
+// without prop-drilling. Only meaningful when dev overlay is on.
+type Metrics = {
+  detect_ms: number | null;
+  parts_ms: number | null;
+  lookup_ms: number | null;
+  tap_to_audio_ms: number | null;
+  prefetch_ms: number | null;
+  catch_ms: number | null;
+};
+
+
 
 type ChipState = {
   item: DetectedItem;
@@ -23,8 +35,14 @@ type ChipState = {
   showingCandidates: boolean;
 };
 
+// A sub-item is a §3.5 part detection whose normalized coords have already
+// been remapped into the parent frame (0..1000). We keep the parent id and
+// tag it so the renderer can draw it as a smaller "child" dot.
+type SubItem = DetectedItem & { parentId: string; sub: true };
+
 function ScanPage() {
   const detectFn = useServerFn(detectScan);
+  const partsFn = useServerFn(detectParts);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
   const ttsFn = useServerFn(synthesizeSpeech);
@@ -39,29 +57,49 @@ function ScanPage() {
   // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
   // 物体の詳細生成は行わない(コスト10倍防止)。
   const prefetchRef = useRef<Map<string, Promise<GeneratedCard>>>(new Map());
+  const prefetchTimingRef = useRef<Map<string, number>>(new Map());
   const startPrefetch = useCallback((headword: string): Promise<GeneratedCard> => {
     const cache = prefetchRef.current;
     const hit = cache.get(headword);
     if (hit) return hit;
+    const t0 = performance.now();
     const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
     cache.set(headword, p);
-    // Drop failed prefetches so the next tap can retry.
-    p.catch(() => { cache.delete(headword); });
+    p.then(() => {
+      prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
+    }).catch(() => { cache.delete(headword); });
     return p;
   }, [cardFn]);
+
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
+  const [subItems, setSubItems] = useState<SubItem[]>([]);
+  const [expandingId, setExpandingId] = useState<string | null>(null); // parent id currently loading parts
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
   const [detectMs, setDetectMs] = useState<number | null>(null);
+  const [partsMs, setPartsMs] = useState<number | null>(null);
+  const [lookupMs, setLookupMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
+
+  // Dev metrics overlay — gated so it doesn't pollute normal use.
+  const [devOn, setDevOn] = useState(false);
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("dev");
+      const ls = window.localStorage.getItem("catchwords_dev");
+      if (q === "1" || ls === "1") setDevOn(true);
+    } catch { /* ignore */ }
+  }, []);
+
 
 
   // ---- camera lifecycle ----
@@ -112,13 +150,20 @@ function ScanPage() {
     setError(null);
     setChip(null);
     setItems(null);
+    setSubItems([]);
     setEntries({});
     setDetectMs(null);
+    setPartsMs(null);
+    setLookupMs(null);
     setTapToAudioMs(null);
     const frame = grabFrame();
     if (!frame) { setError("フレームを取得できませんでした"); return; }
     setSnapshot(frame);
     setScanning(true);
+    setScanStage("sensing");
+    // Cycle status text so the wait feels intentional. Cleared in finally.
+    const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
+    const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
     const t0 = performance.now();
     try {
       // location best-effort (§3.7)
@@ -137,15 +182,23 @@ function ScanPage() {
       setItems(items);
 
       if (items.length > 0) {
+        setScanStage("matching");
+        const tl = performance.now();
         const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
+        setLookupMs(Math.round(performance.now() - tl));
         setEntries(entries);
       }
+
     } catch (e) {
       setError((e as Error).message || "検出に失敗しました");
     } finally {
+      window.clearTimeout(stageTimer1);
+      window.clearTimeout(stageTimer2);
       setScanning(false);
+      setScanStage("idle");
     }
   }, [scanning, grabFrame, detectFn, lookupFn]);
+
 
   // ---- tap a dot ----
   const openChip = useCallback((item: DetectedItem) => {
@@ -209,11 +262,70 @@ function ScanPage() {
   }, [entries, ttsFn]);
 
   const reset = useCallback(() => {
-    setItems(null); setSnapshot(null); setChip(null); setEntries({});
-    setDetectMs(null); setTapToAudioMs(null);
-    setDetailOpen(null); setCatchOpen(null);
+    setItems(null); setSubItems([]); setSnapshot(null); setChip(null); setEntries({});
+    setDetectMs(null); setPartsMs(null); setLookupMs(null); setTapToAudioMs(null);
+    setDetailOpen(null); setCatchOpen(null); setExpandingId(null);
     prefetchRef.current.clear();
+    prefetchTimingRef.current.clear();
   }, []);
+
+  // ---- §3.5 「+細かく」: crop a region around the parent tap point and run a
+  // second (parts-only) detection. Coords come back in the cropped 0..1000
+  // frame; we remap into the parent frame before storing so the same dot
+  // renderer can draw them.
+  const expandParts = useCallback(async (parent: DetectedItem) => {
+    if (!snapshot || expandingId) return;
+    // Skip if we already have children for this parent
+    if (subItems.some((s) => s.parentId === parent.id)) return;
+    setExpandingId(parent.id);
+    const t0 = performance.now();
+    try {
+      // Crop a square around the tap point ~40% of the shortest side.
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("img")); img.src = snapshot; });
+      const cx = (parent.point[0] / 1000) * img.width;
+      const cy = (parent.point[1] / 1000) * img.height;
+      const side = Math.min(img.width, img.height) * 0.42;
+      const x = Math.max(0, Math.min(img.width - side, cx - side / 2));
+      const y = Math.max(0, Math.min(img.height - side, cy - side / 2));
+      const c = document.createElement("canvas");
+      c.width = c.height = Math.round(side);
+      const ctx = c.getContext("2d");
+      if (!ctx) throw new Error("canvas");
+      ctx.drawImage(img, x, y, side, side, 0, 0, c.width, c.height);
+      const cropDataUrl = c.toDataURL("image/jpeg", 0.85);
+
+      const { items: parts } = await partsFn({ data: { imageBase64: cropDataUrl, parentHeadword: parent.headword } });
+      setPartsMs(Math.round(performance.now() - t0));
+
+      // Remap normalized crop coords → parent-frame normalized coords.
+      // Crop region in parent-frame normalized units:
+      const rx0 = (x / img.width) * 1000;
+      const ry0 = (y / img.height) * 1000;
+      const rw = (side / img.width) * 1000;
+      const rh = (side / img.height) * 1000;
+      const mapped: SubItem[] = parts.map((p) => ({
+        ...p,
+        parentId: parent.id,
+        sub: true,
+        point: [rx0 + (p.point[0] / 1000) * rw, ry0 + (p.point[1] / 1000) * rh],
+      }));
+      setSubItems((prev) => [...prev, ...mapped]);
+
+      // Lookup verified dict entries for the sub-parts so chips can badge them
+      if (mapped.length > 0) {
+        try {
+          const { entries: e } = await lookupFn({ data: { headwords: mapped.map((m) => m.headword) } });
+          setEntries((prev) => ({ ...prev, ...e }));
+        } catch { /* noop */ }
+      }
+    } catch (e) {
+      setError((e as Error).message || "詳細検出に失敗しました");
+    } finally {
+      setExpandingId(null);
+    }
+  }, [snapshot, expandingId, subItems, partsFn, lookupFn]);
+
 
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
@@ -254,21 +366,51 @@ function ScanPage() {
             <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
 
-          {/* scanning overlay */}
+          {/* scanning overlay — multi-stage: 感知→読取→照合 */}
           {scanning && (
-            <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-2 text-white">
-                <ScanLine className="h-10 w-10 animate-pulse" />
-                <p className="text-sm font-medium">読み取り中…</p>
+            <div className="absolute inset-0 grid place-items-center bg-black/50 backdrop-blur-[6px]">
+              {/* candidate probe dots — random positions, appearing/dying to
+                  suggest "the AI is looking around". Purely decorative. */}
+              <div className="pointer-events-none absolute inset-0">
+                {PROBE_DOTS.map((p, i) => (
+                  <span
+                    key={i}
+                    style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${p.delay}ms` }}
+                    className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 opacity-0 shadow-[0_0_12px_rgba(103,232,249,0.9)] animate-[probeBlink_1800ms_ease-in-out_infinite]"
+                  />
+                ))}
               </div>
-              <div className="absolute inset-x-0 top-0 h-1 animate-[scanline_1.6s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-cyan-300 to-transparent" />
+              {/* dual sweep lines */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent animate-[scanline_1.6s_ease-in-out_infinite]" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-gradient-to-b from-transparent via-fuchsia-300 to-transparent animate-[scanlineV_2.1s_ease-in-out_infinite]" />
+              {/* corner reticles */}
+              <div className="pointer-events-none absolute inset-4 rounded-2xl border border-white/20" />
+              <ReticleCorners />
+              <div className="relative flex flex-col items-center gap-3 text-white">
+                <div className="relative grid h-16 w-16 place-items-center">
+                  <span className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" />
+                  <span className="absolute inset-2 rounded-full bg-cyan-400/40 animate-[ping_1.5s_ease-in-out_infinite]" />
+                  <ScanLine className="relative h-8 w-8" />
+                </div>
+                <p className="text-sm font-medium tabular-nums">
+                  {scanStage === "sensing" && "シーンを感知中…"}
+                  {scanStage === "reading" && "文字と物体を読み取り中…"}
+                  {scanStage === "matching" && "辞書と照合中…"}
+                </p>
+                <div className="flex gap-1.5">
+                  <StageDot active={scanStage === "sensing"} done={scanStage !== "sensing"} />
+                  <StageDot active={scanStage === "reading"} done={scanStage === "matching"} />
+                  <StageDot active={scanStage === "matching"} done={false} />
+                </div>
+              </div>
             </div>
           )}
 
-          {/* dots */}
+          {/* main dots + sub-dots (§3.5) */}
           {items && items.map((it) => {
             const low = it.confidence < 0.75;
             const isText = it.kind === "text";
+            const expanded = subItems.some((s) => s.parentId === it.id);
             return (
               <button
                 key={it.id}
@@ -284,6 +426,7 @@ function ScanPage() {
                       ? "h-6 w-6 bg-fuchsia-500" // text = マゼンタ (§3.4)
                       : "h-6 w-6 bg-cyan-400",
                     low ? "opacity-80" : "",
+                    expanded ? "ring-amber-300" : "",
                   ].join(" ")}
                 />
                 {isText && (
@@ -296,6 +439,28 @@ function ScanPage() {
               </button>
             );
           })}
+          {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
+          {subItems.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => openChip(s)}
+              style={dotStyle(s)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 grid place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300"
+              aria-label={s.headword}
+            >
+              <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
+              <span className="pointer-events-none absolute -inset-2 rounded-full border border-dashed border-amber-300/70" />
+            </button>
+          ))}
+          {/* parts loader (§3.5) — subtle pulse over the parent region */}
+          {expandingId && items?.find((i) => i.id === expandingId) && (
+            <div
+              style={dotStyle(items.find((i) => i.id === expandingId)!)}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+            >
+              <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
+            </div>
+          )}
 
           {/* empty state after scan */}
           {items && items.length === 0 && !scanning && (
@@ -312,7 +477,7 @@ function ScanPage() {
             </div>
           )}
 
-          {/* metrics badge */}
+          {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
             <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
               {detectMs !== null && <span>検出 {detectMs}ms</span>}
@@ -320,6 +485,7 @@ function ScanPage() {
             </div>
           )}
         </div>
+
 
         {/* controls */}
         <div className="flex items-center justify-center gap-3">
@@ -366,8 +532,11 @@ function ScanPage() {
             verified={verified}
             item={chip.item}
             candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
+            expanding={expandingId === chip.item.id}
+            canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
             onPickCandidate={(h) => pickCandidate(h, chip.item)}
             onPlay={() => playAudio(displayHeadword, chip.item)}
+            onExpand={() => expandParts(chip.item)}
             onDetail={() => {
               if (!chip.chosenHeadword) return;
               // Prefetch is already running (started at tap). Reuse the same promise.
@@ -382,7 +551,23 @@ function ScanPage() {
             onClose={() => setChip(null)}
           />
         )}
+
+        {/* Dev metrics panel (?dev=1 or localStorage.catchwords_dev=1) */}
+        {devOn && (
+          <DevMetrics
+            values={{
+              detect_ms: detectMs,
+              parts_ms: partsMs,
+              lookup_ms: lookupMs,
+              tap_to_audio_ms: tapToAudioMs,
+              prefetch_ms: chip ? (prefetchTimingRef.current.get(chip.chosenHeadword) ?? null) : null,
+              catch_ms: null,
+            }}
+            targets={SCAN_TARGETS}
+          />
+        )}
       </div>
+
 
       {detailOpen && (
         <ScanDetailSheet
@@ -407,7 +592,17 @@ function ScanPage() {
       )}
 
       <style>{`
-        @keyframes scanline { 0% { transform: translateY(0); } 50% { transform: translateY(400px); } 100% { transform: translateY(0); } }
+        @keyframes scanline { 0% { transform: translateY(0); opacity: 0.2; } 50% { transform: translateY(400px); opacity: 1; } 100% { transform: translateY(0); opacity: 0.2; } }
+        @keyframes scanlineV { 0% { transform: translateX(0); opacity: 0.2; } 50% { transform: translateX(300px); opacity: 1; } 100% { transform: translateX(0); opacity: 0.2; } }
+        @keyframes probeBlink {
+          0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+          40%      { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+          70%      { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+        }
+        @keyframes partsPulse {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
+          50%      { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+        }
       `}</style>
     </AppShell>
   );
@@ -415,7 +610,8 @@ function ScanPage() {
 
 
 function ScanChip({
-  headword, zhuyin, pinyin, meaning, pos, verified, candidates, onPickCandidate, onPlay, onDetail, onCatch, onClose,
+  headword, zhuyin, pinyin, meaning, pos, verified, candidates, expanding, canExpand,
+  onPickCandidate, onPlay, onExpand, onDetail, onCatch, onClose,
 }: {
   headword: string;
   zhuyin: string;
@@ -425,8 +621,11 @@ function ScanChip({
   verified: boolean;
   item: DetectedItem;
   candidates: string[];
+  expanding: boolean;
+  canExpand: boolean;
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
+  onExpand: () => void;
   onDetail: () => void;
   onCatch: () => void;
   onClose: () => void;
@@ -489,7 +688,18 @@ function ScanChip({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
+        {canExpand && (
+          <button
+            onClick={onExpand}
+            disabled={expanding}
+            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60"
+            title="この物体を構成する部品を追加検出"
+          >
+            {expanding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {expanding ? "解析中…" : "細かく"}
+          </button>
+        )}
         <button
           onClick={onDetail}
           className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground active:scale-95"
@@ -506,6 +716,92 @@ function ScanChip({
     </div>
   );
 }
+
+
+// ---- helper micro-components for loader / dev overlay ----
+
+const PROBE_DOTS: { x: number; y: number; delay: number }[] = [
+  { x: 22, y: 18, delay: 0 },   { x: 78, y: 24, delay: 250 },
+  { x: 62, y: 46, delay: 500 }, { x: 30, y: 60, delay: 750 },
+  { x: 82, y: 66, delay: 1000 },{ x: 46, y: 80, delay: 1250 },
+  { x: 18, y: 40, delay: 350 }, { x: 70, y: 82, delay: 600 },
+];
+
+function ReticleCorners() {
+  const base = "pointer-events-none absolute h-4 w-4 border-white/70";
+  return (
+    <>
+      <span className={`${base} left-4 top-4 border-l-2 border-t-2 rounded-tl`} />
+      <span className={`${base} right-4 top-4 border-r-2 border-t-2 rounded-tr`} />
+      <span className={`${base} left-4 bottom-4 border-l-2 border-b-2 rounded-bl`} />
+      <span className={`${base} right-4 bottom-4 border-r-2 border-b-2 rounded-br`} />
+    </>
+  );
+}
+
+function StageDot({ active, done }: { active: boolean; done: boolean }) {
+  return (
+    <span
+      className={[
+        "h-1.5 rounded-full transition-all duration-300",
+        active ? "w-6 bg-cyan-300" : done ? "w-1.5 bg-cyan-500" : "w-1.5 bg-white/30",
+      ].join(" ")}
+    />
+  );
+}
+
+// §9 targets (MVP pass line). Values in ms.
+const SCAN_TARGETS = {
+  detect_ms: 2500,
+  parts_ms: 2500,
+  lookup_ms: 400,
+  tap_to_audio_ms: 1000,
+  prefetch_ms: 3000,
+  catch_ms: 8000,
+} as const;
+
+function DevMetrics({ values, targets }: { values: Metrics; targets: Record<keyof Metrics, number> }) {
+  const [open, setOpen] = useState(true);
+  const rows: { key: keyof Metrics; label: string }[] = [
+    { key: "detect_ms",       label: "検出 (§9 ≤2500ms)" },
+    { key: "parts_ms",        label: "+細かく (§3.5)" },
+    { key: "lookup_ms",       label: "辞書照合" },
+    { key: "tap_to_audio_ms", label: "タップ→音声 (§9 ≤1000ms)" },
+    { key: "prefetch_ms",     label: "詳細プリフェッチ (§9 ≤500ms表示)" },
+    { key: "catch_ms",        label: "キャッチ完了" },
+  ];
+  return (
+    <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-xs">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 text-amber-900 font-semibold">
+        <span className="flex items-center gap-1.5"><Bug className="h-3.5 w-3.5" /> 開発者計測 (§9)</span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1">
+          {rows.map((r) => {
+            const v = values[r.key];
+            const t = targets[r.key];
+            const ok = v !== null && v <= t;
+            const bad = v !== null && v > t;
+            return (
+              <li key={r.key} className="flex items-center justify-between gap-2">
+                <span className="text-amber-950/80">{r.label}</span>
+                <span className={`tabular-nums font-mono ${ok ? "text-emerald-700" : bad ? "text-red-700" : "text-muted-foreground"}`}>
+                  {v === null ? "—" : `${v}ms`}
+                  <span className="ml-1 text-[10px] opacity-60">/ {t}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="mt-2 text-[10px] text-amber-900/70">
+        表示切替: <code>?dev=1</code> か <code>localStorage.catchwords_dev=1</code>
+      </p>
+    </div>
+  );
+}
+
 
 
 function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {

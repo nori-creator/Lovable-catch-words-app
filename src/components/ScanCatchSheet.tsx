@@ -152,24 +152,43 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (!startEl || !fly || !dexEl) { await new Promise((r) => setTimeout(r, 700)); return; }
     const from = startEl.getBoundingClientRect();
     const to = dexEl.getBoundingClientRect();
+    // Set initial position for the flying cutout
     fly.style.left = `${from.left}px`;
     fly.style.top = `${from.top}px`;
     fly.style.width = `${from.width}px`;
     fly.style.height = `${from.height}px`;
     fly.style.opacity = "1";
     fly.style.transform = "translate(0,0) scale(1)";
+    // Position the shimmer trail overlay to match
+    const trail = document.getElementById("catch-trail");
+    if (trail) {
+      trail.style.left = `${from.left + from.width / 2}px`;
+      trail.style.top = `${from.top + from.height / 2}px`;
+    }
     void fly.offsetWidth;
+    // Fly with a curved trajectory: apply translate first, then a scale so it
+    // "spins into" the dex icon.
     fly.style.transition = "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25), opacity 820ms ease";
     const dx = to.left + to.width / 2 - (from.left + from.width / 2);
     const dy = to.top + to.height / 2 - (from.top + from.height / 2);
     fly.style.transform = `translate(${dx}px, ${dy}px) scale(0.08) rotate(-6deg)`;
     fly.style.opacity = "0.85";
-    await new Promise((r) => setTimeout(r, 840));
-    // impact — pulse the dex icon
+    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+    await new Promise((r) => setTimeout(r, 820));
+    // Impact: pulse dex icon + spawn expanding ring at the icon center
     dexEl.classList.add("dex-impact");
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(50);
+    const ring = document.getElementById("catch-impact-ring");
+    if (ring) {
+      ring.style.left = `${to.left + to.width / 2}px`;
+      ring.style.top = `${to.top + to.height / 2}px`;
+      ring.classList.remove("hidden");
+      ring.classList.add("impact-play");
+      setTimeout(() => { ring.classList.add("hidden"); ring.classList.remove("impact-play"); }, 900);
+    }
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(60);
     setTimeout(() => dexEl.classList.remove("dex-impact"), 900);
   }
+
 
   async function doSave() {
     if (phase !== "ready" || !objectDataUrl || !cutoutUrl || saving) return;
@@ -351,15 +370,55 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         </div>
       </div>
 
-      {/* Flying cutout during landing */}
+      {/* Flying cutout + gold shimmer trail during landing */}
       {phase === "landing" && cutoutUrl && (
-        <img
-          ref={flyRef}
-          src={cutoutUrl}
-          alt=""
-          className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
-          style={{ willChange: "transform, opacity", left: 0, top: 0 }}
-        />
+        <>
+          <div
+            id="catch-trail"
+            className="pointer-events-none fixed z-[59]"
+            style={{
+              willChange: "transform",
+              transition: "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25)",
+              width: 8, height: 8, left: 0, top: 0,
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <span className="absolute inset-0 -m-6 rounded-full bg-amber-300/60 blur-2xl animate-pulse" />
+            <span className="absolute inset-0 -m-3 rounded-full bg-white/80 blur-md" />
+          </div>
+          <img
+            ref={flyRef}
+            src={cutoutUrl}
+            alt=""
+            className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
+            style={{ willChange: "transform, opacity", left: 0, top: 0 }}
+          />
+        </>
+      )}
+      {/* Impact ring at the dex icon on landing */}
+      <div
+        id="catch-impact-ring"
+        className="pointer-events-none fixed z-[70] hidden -translate-x-1/2 -translate-y-1/2"
+        style={{ left: 0, top: 0 }}
+      >
+        <span className="block h-6 w-6 rounded-full bg-amber-300/0 ring-2 ring-amber-300" />
+      </div>
+
+      {/* Ready-state sparkle burst around the cutout — "this is now yours" */}
+      {phase === "ready" && cutoutUrl && (
+        <div className="pointer-events-none absolute left-1/2 top-[8.5rem] -translate-x-1/2">
+          {[0, 60, 120, 180, 240, 300].map((deg) => (
+            <span
+              key={deg}
+              className="absolute h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,224,71,0.9)]"
+              style={{
+                transform: `rotate(${deg}deg) translateY(-120px)`,
+                animation: `readyBurst 900ms ease-out forwards`,
+                animationDelay: `${deg * 1.5}ms`,
+              }}
+            />
+          ))}
+        </div>
       )}
 
       <style>{`
@@ -376,7 +435,18 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           100% { transform: scale(1); filter: brightness(1); }
         }
         .dex-impact { animation: dexImpact 780ms cubic-bezier(0.3, 1.6, 0.4, 1); }
+        @keyframes impactRing {
+          0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+          100% { transform: translate(-50%, -50%) scale(6);   opacity: 0; }
+        }
+        #catch-impact-ring.impact-play span { animation: impactRing 780ms cubic-bezier(0.15, 0.6, 0.3, 1) forwards; }
+        @keyframes readyBurst {
+          0%   { opacity: 0; }
+          20%  { opacity: 1; }
+          100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-160px) scale(0.6); }
+        }
       `}</style>
+
     </div>
   );
 }
