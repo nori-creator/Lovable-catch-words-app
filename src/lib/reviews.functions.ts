@@ -36,6 +36,12 @@ export type DueReviewCard = {
   location_name: string | null;
   taken_at: string | null;
   review_count: number; // completed reviews so far (word-tree unlock count)
+  /**
+   * §6/B7: the pattern (branch) THIS review teaches — shown as the task
+   * ("この型を使って一文") instead of the harder free-form 例文作れ.
+   * Same branch the feedback call will unlock, so task and feedback agree.
+   */
+  prompt_pattern: { type: string; zh: string; ja?: string } | null;
   blur_seen: boolean;
   ease: number;
   interval_days: number;
@@ -89,7 +95,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
     let { data, error } = await supabase
       .from("reviews")
       .select(dueSelect(true))
@@ -97,7 +103,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       .lte("due_at", nowIso)
       .order("due_at", { ascending: true })
       .limit(10);
-    if (error && /placeholder_image_url|entry_type/.test(error.message)) {
+    if (error && /placeholder_image_url|entry_type|branch_plan/.test(error.message)) {
       ({ data, error } = (await supabase
         .from("reviews")
         .select(
@@ -123,6 +129,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         location_name: string | null;
         taken_at: string | null;
         placeholder_image_url?: string | null;
+        branch_plan?: unknown;
         words: {
           id: string;
           headword: string;
@@ -224,6 +231,12 @@ export const getDueReviews = createServerFn({ method: "GET" })
       );
 
       const cutoutPath = row.stickers!.cutout_image_url;
+      // The branch this review will unlock = today's designated pattern.
+      // Mirrors getSpeakingFeedback's selection so task and feedback agree.
+      const reviewCount = reviewCounts.get(row.sticker_id) ?? 0;
+      const plan = parseBranchPlan(row.stickers!.branch_plan) ?? [];
+      const promptPattern: Branch | null =
+        resolveBranches(plan, Math.max(1, reviewCount + 1)).justUnlocked;
       return {
         review_id: row.id,
         sticker_id: row.sticker_id,
@@ -244,7 +257,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         caption: row.stickers!.caption,
         location_name: row.stickers!.location_name,
         taken_at: row.stickers!.taken_at,
-        review_count: reviewCounts.get(row.sticker_id) ?? 0,
+        review_count: reviewCount,
+        prompt_pattern: promptPattern,
         blur_seen: row.blur_seen,
         ease: row.ease,
         interval_days: row.interval_days,

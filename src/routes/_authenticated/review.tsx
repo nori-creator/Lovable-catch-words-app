@@ -414,6 +414,24 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
         </p>
       )}
 
+      {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
+          使う型を1つ指定して、その型で言わせる。単語部分は伏せ字にして
+          思い出す練習は守る。ヒント後は全体を表示。 */}
+      {!isPhrase && card.prompt_pattern && (
+        <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">今日の型</div>
+          <div className="mt-1 text-lg font-bold tracking-wide">
+            {hintShown
+              ? card.prompt_pattern.zh
+              : card.prompt_pattern.zh.split(card.headword).join("◯".repeat(Math.max(1, card.headword.length)))}
+          </div>
+          {card.prompt_pattern.ja && (
+            <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
+          )}
+          <div className="mt-1 text-[10px] text-muted-foreground">この型を入れて一文話してみよう</div>
+        </div>
+      )}
+
       {/* Hint reveal */}
       {hintShown && (
         <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
