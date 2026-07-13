@@ -38,7 +38,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       (!ex.collocations.length && !ex.synonyms.length && !ex.antonyms.length &&
        !ex.etymology && !ex.mnemonic && !ex.trivia && !ex.common_situation &&
        !ex.usage_note && !ex.examples_extra.length);
-    if (!isEmpty) return;
+    // Cards generated before 2026-07-13 lack the corpus-style fields
+    // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
+    const missingNewFields =
+      !ex || (!ex.register_note && !ex.synonym_diff && !ex.word_order && !ex.study_tips);
+    if (!isEmpty && !missingNewFields) return;
     if (enrichedRef.current.has(s.word_id)) return;
     enrichedRef.current.add(s.word_id);
     setEnriching(true);

@@ -155,21 +155,6 @@ function ReviewPage() {
         </div>
       </section>
 
-      {memStats && memStats.total_cards > 0 && (
-        <section className="mb-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Brain className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold">記憶の状態</h2>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
-            </div>
-          </div>
-          <MiniRetentionGraph series={memStats.series} />
-        </section>
-      )}
-
       {isLoading || isFetching ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
@@ -194,6 +179,24 @@ function ReviewPage() {
           />
         )
       ) : null}
+
+      {/* Memory graph lives BELOW the cards, collapsed — the first thing on
+          this screen is always the review itself (no scrolling to start). */}
+      {memStats && memStats.total_cards > 0 && (
+        <details className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <Brain className="h-4 w-4 text-primary" /> 記憶の状態
+            </span>
+            <span className="text-xs text-muted-foreground">
+              平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
+            </span>
+          </summary>
+          <div className="mt-3">
+            <MiniRetentionGraph series={memStats.series} />
+          </div>
+        </details>
+      )}
     </AppShell>
   );
 }
@@ -248,7 +251,9 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
   async function startVideo() {
     if (!videoOn) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      // audio:true — without it every recording was silent. SpeechRecognition
+      // and MediaRecorder can share the mic on all supported browsers.
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       const rec = new MediaRecorder(stream);
@@ -496,6 +501,7 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
           feedback={feedback}
           round={round}
           transcript={transcript}
+          videoUrl={videoUrl}
           onRetry={() => {
             setRound(2);
             setFeedback(null);
@@ -514,6 +520,7 @@ function FeedbackView({
   feedback,
   round,
   transcript,
+  videoUrl,
   onRetry,
   onNext,
 }: {
@@ -521,6 +528,7 @@ function FeedbackView({
   feedback: SpeakingFeedback;
   round: 1 | 2;
   transcript: string;
+  videoUrl: string | null;
   onRetry: () => void;
   onNext: () => void;
 }) {
@@ -537,6 +545,16 @@ function FeedbackView({
           <span className="text-xs text-muted-foreground">自然さ {score}/5</span>
         </div>
       </div>
+
+      {/* Your recording — watch yourself say it (with sound) */}
+      {videoUrl && (
+        <div className="rounded-2xl bg-secondary/50 p-3">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            自分の発話を見返す
+          </div>
+          <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
+        </div>
+      )}
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
@@ -635,7 +653,6 @@ function FeedbackView({
 // ============================================================================
 function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
   const grade = useServerFn(gradeReview);
-  const [blurSeen, setBlurSeen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [showResult, setShowResult] = useState<{ correct: boolean; score: number } | null>(null);
   const startedAt = useRef<number>(Date.now());
@@ -647,7 +664,7 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
       data: {
         review_id: card.review_id,
         correct,
-        blur_seen: blurSeen,
+        blur_seen: false,
         response_ms: Date.now() - startedAt.current,
       },
     });
@@ -668,18 +685,10 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
           <img
             src={(card.cutout_url ?? card.placeholder_url)!}
             alt="復習対象"
-            className={`h-full w-full object-contain p-4 transition-[filter] duration-300 ${blurSeen || picked ? "blur-0" : "blur-md scale-105"} ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
+            className={`h-full w-full object-contain p-4 ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
           />
         ) : (
           <span className="text-5xl">📦</span>
-        )}
-        {!picked && (
-          <button
-            onClick={() => setBlurSeen(true)}
-            className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur hover:bg-background"
-          >
-            <Eye className="h-3 w-3" /> ぼかしを剥がす{blurSeen && "（-1点）"}
-          </button>
         )}
       </div>
       {picked && (

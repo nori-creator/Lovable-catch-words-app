@@ -129,13 +129,15 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
         setDict(null);
         void loadImages(pc.meaning_ja || headword);
       } else {
-        const [lk, c] = await Promise.all([
-          lookupFn({ data: { headwords: [headword] } }),
-          cardFn({ data: { headword, targetLanguage: "zh-TW" } }),
-        ]);
-        setDict(lk.entries[headword] ?? null);
+        // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
+        // headword_zh で返すので、辞書照合はその解決後の語で行う。
+        const c = await cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+        const resolved = c.headword_zh || headword;
+        const lk = await lookupFn({ data: { headwords: [resolved] } }).catch(() => ({ entries: {} as Record<string, DictionaryEntry> }));
+        setDict(lk.entries[resolved] ?? null);
         setCard(c);
-        void loadImages(c.meaning_ja || headword);
+        if (resolved !== headword) setText(resolved);
+        void loadImages(c.meaning_ja || resolved);
       }
       setStep("preview");
     } catch (e) {
@@ -293,8 +295,8 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
               {canSpeak
                 ? listening
                   ? "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう"
-                  : "マイクで復唱するか、下に入力"
-                : "台湾華語で入力してください"}
+                  : "マイクで復唱するか、下に入力(日本語でもOK — 台湾華語に自動変換)"
+                : "台湾華語でも日本語でもOK(日本語は自動で台湾華語に変換されます)"}
             </p>
 
             <div className="relative">

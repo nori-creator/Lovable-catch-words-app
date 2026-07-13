@@ -170,7 +170,7 @@ function DexPage() {
                       }`}>
                         {s.cutout_url ? (
                           <img
-                            src={s.cutout_url}
+                            src={s.cutout_thumb_url ?? s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
                             loading="lazy"
                             decoding="async"
@@ -218,7 +218,7 @@ function DexPage() {
                       <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
                           <img
-                            src={s.cutout_url}
+                            src={s.cutout_thumb_url ?? s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
                             loading="lazy"
                             decoding="async"
@@ -372,7 +372,8 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
         icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
       });
       // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
-      const photoUrl = s.object_url ?? s.cutout_url;
+      // Thumbs first: a pin head is 52px, a 400px thumb is already 8x overkill.
+      const photoUrl = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
       if (photoUrl) {
         const cached = pinIconCache.current.get(s.id);
         const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);

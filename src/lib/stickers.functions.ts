@@ -14,6 +14,10 @@ export type WordExtrasDTO = {
   trivia: string;
   common_situation: string;
   usage_note: string;
+  register_note: string;
+  synonym_diff: string;
+  word_order: string;
+  study_tips: string;
   examples_extra: { zh: string; ja: string }[];
 };
 
@@ -32,6 +36,9 @@ export type StickerWithWord = {
   object_url: string | null;
   cutout_url: string | null;
   selfie_url: string | null;
+  /** Small grid thumbnails (`${path}.thumb.webp`) — null for older stickers. */
+  object_thumb_url: string | null;
+  cutout_thumb_url: string | null;
   /** 'photo' | 'text' | 'voice' — non-photo catches are ghosts (§5.3). */
   capture_type: string;
   /** Signed URL of the temporary stand-in image for ghosts. */
@@ -77,6 +84,10 @@ function normalizeExtras(raw: unknown): WordExtrasDTO | null {
     trivia: str(r.trivia),
     common_situation: str(r.common_situation),
     usage_note: str(r.usage_note),
+    register_note: str(r.register_note),
+    synonym_diff: str(r.synonym_diff),
+    word_order: str(r.word_order),
+    study_tips: str(r.study_tips),
     examples_extra: exExtra,
   };
 }
@@ -173,6 +184,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
     const rows = (data ?? []) as unknown as RowShape[];
+    // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
+    // Missing thumbs (old stickers) simply return error rows and drop out of
+    // the map — the client falls back to the full image.
+    const thumbOf = (p: string | null | undefined) => (p ? `${p}.thumb.webp` : null);
     const [urlMap, counts] = await Promise.all([
       signUrlMap(
         supabase,
@@ -181,6 +196,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
           r.cutout_image_url,
           r.selfie_image_url,
           r.placeholder_image_url,
+          thumbOf(r.object_image_url),
+          thumbOf(r.cutout_image_url),
         ]),
       ),
       encounterCounts(supabase, userId),
@@ -203,6 +220,12 @@ export const listMyStickers = createServerFn({ method: "GET" })
         object_url: row.object_image_url ? (urlMap.get(row.object_image_url) ?? null) : null,
         cutout_url: row.cutout_image_url ? (urlMap.get(row.cutout_image_url) ?? null) : null,
         selfie_url: row.selfie_image_url ? (urlMap.get(row.selfie_image_url) ?? null) : null,
+        object_thumb_url: row.object_image_url
+          ? (urlMap.get(`${row.object_image_url}.thumb.webp`) ?? null)
+          : null,
+        cutout_thumb_url: row.cutout_image_url
+          ? (urlMap.get(`${row.cutout_image_url}.thumb.webp`) ?? null)
+          : null,
         capture_type: row.capture_type ?? "photo",
         placeholder_url: row.placeholder_image_url
           ? (urlMap.get(row.placeholder_image_url) ?? null)
@@ -336,6 +359,9 @@ export const getSticker = createServerFn({ method: "GET" })
       object_url: r.object_image_url ? (urlMap.get(r.object_image_url) ?? null) : null,
       cutout_url: r.cutout_image_url ? (urlMap.get(r.cutout_image_url) ?? null) : null,
       selfie_url: isOwner && r.selfie_image_url ? (urlMap.get(r.selfie_image_url) ?? null) : null,
+      // Detail view always shows the full-resolution image.
+      object_thumb_url: null,
+      cutout_thumb_url: null,
       capture_type: r.capture_type ?? "photo",
       placeholder_url: r.placeholder_image_url ? (urlMap.get(r.placeholder_image_url) ?? null) : null,
       placeholder_credit: r.placeholder_credit ?? null,
@@ -368,6 +394,10 @@ const SaveStickerInput = z.object({
       trivia: z.string().default(""),
       common_situation: z.string().default(""),
       usage_note: z.string().default(""),
+      register_note: z.string().default(""),
+      synonym_diff: z.string().default(""),
+      word_order: z.string().default(""),
+      study_tips: z.string().default(""),
       examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
     }).optional(),
   }),
@@ -523,6 +553,10 @@ const UpdateExtrasInput = z.object({
     trivia: z.string().default(""),
     common_situation: z.string().default(""),
     usage_note: z.string().default(""),
+    register_note: z.string().default(""),
+    synonym_diff: z.string().default(""),
+    word_order: z.string().default(""),
+    study_tips: z.string().default(""),
     examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
   }),
   patch: z.object({
@@ -541,9 +575,7 @@ export const updateWordExtras = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     // Ownership check (docs/design/03 §1): words is a shared table — only a
-    // user who owns a sticker referencing this word may edit it, and only
-    // AI-generated words are editable. RLS enforces the same rule; this
-    // keeps the error explicit instead of a silent 0-row update.
+    // user who owns a sticker referencing this word may edit it.
     const { data: owned } = await supabase
       .from("stickers")
       .select("id")
@@ -552,13 +584,30 @@ export const updateWordExtras = createServerFn({ method: "POST" })
       .limit(1)
       .maybeSingle();
     if (!owned) throw new Error("この単語を編集する権限がありません");
+
+    // The words UPDATE policy only covers source='ai', so writing through the
+    // user client silently updates 0 rows for dictionary (verified) words —
+    // their extras never persisted and the enrichment AI call was re-paid on
+    // every open. Write via the service role instead, with a hard rule that
+    // keeps constitution §2-1 intact: verified base fields (reading, meaning,
+    // examples…) are never touched — verified words only ever gain `extras`,
+    // which the UI already labels as AI-generated supplements.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: word, error: readErr } = await supabaseAdmin
+      .from("words")
+      .select("id, source")
+      .eq("id", data.word_id)
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!word) throw new Error("単語が見つかりません");
+
     const update: Record<string, unknown> = { extras: data.extras as never };
-    if (data.patch) {
+    if (data.patch && word.source !== "verified") {
       for (const [k, v] of Object.entries(data.patch)) {
         if (v !== undefined && v !== "") update[k] = v;
       }
     }
-    const { error } = await supabase.from("words").update(update as never).eq("id", data.word_id);
+    const { error } = await supabaseAdmin.from("words").update(update as never).eq("id", data.word_id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
