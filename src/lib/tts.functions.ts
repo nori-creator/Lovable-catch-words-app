@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { getTts, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 
 const DEFAULT_SPEED = 0.95;
@@ -34,6 +34,8 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     const { data: cached } = await supabase.storage.from("tts").createSignedUrl(path, SIGNED_URL_TTL);
     if (cached?.signedUrl) return { audio_url: cached.signedUrl };
 
+    // Cache hits above are free and unlimited — the cap only meters real synthesis.
+    await assertWithinDailyCap(userId, "tts");
     const tts = getTts();
     const res = await fetch(tts.url, {
       method: "POST",

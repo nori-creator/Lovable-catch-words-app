@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
@@ -563,6 +563,7 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => FeedbackInput.parse(input))
   .handler(async ({ context, data }): Promise<SpeakingFeedback> => {
     const { supabase, userId } = context;
+    await assertWithinDailyCap(userId, "speaking_feedback");
     // branch_plan/entry_type/extras may predate the Phase A migration —
     // retry without them so feedback never breaks on a stale schema.
     let { data: st, error } = await supabase

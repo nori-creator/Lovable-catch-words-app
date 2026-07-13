@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
 
 export type NativePhrase = { zh: string; ja: string; note: string };
 
@@ -92,6 +92,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => CorrectInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
+    await assertWithinDailyCap(userId, "correction");
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
 
     const ai = getAi();
