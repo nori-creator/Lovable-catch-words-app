@@ -17,6 +17,7 @@ import { saveSticker } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
 
 export const Route = createFileRoute("/_authenticated/capture")({
@@ -375,7 +376,11 @@ function CapturePage() {
             .from("stickers")
             .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
             .catch(() => {});
+          void putCachedImage(thumbPath(path), thumb);
         }
+        // Prime the device cache so the dex shows this image instantly,
+        // without ever downloading what we just uploaded.
+        void putCachedImage(path, blob);
         return path;
       }
 

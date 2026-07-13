@@ -10,6 +10,7 @@ import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
 import { downscaleDataUrl, makeThumbBlob, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { putCachedImage } from "@/lib/image-cache";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 
@@ -189,27 +190,18 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(30);
     await new Promise((r) => setTimeout(r, 480)); // 見せ場のタメ
 
-    // --- 第2幕: 図鑑アイコンへ吸い込まれて「登録」 ---------------------------
+    // --- 第2幕: ふわっと上に抜けて図鑑ページへ(着弾は図鑑側の slam-in) -----
     if (wordEl) wordEl.classList.remove("hero-word-play");
-    fly.style.transition = "transform 720ms cubic-bezier(0.5, -0.15, 0.35, 1.2), opacity 720ms ease";
-    const dx = to.left + to.width / 2 - fromCx;
-    const dy = to.top + to.height / 2 - fromCy;
-    fly.style.transform = `translate(${dx}px, ${dy}px) scale(0.08) rotate(-6deg)`;
-    fly.style.opacity = "0.85";
-    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
-    await new Promise((r) => setTimeout(r, 720));
+    fly.style.transition = "transform 480ms cubic-bezier(0.55, -0.1, 0.6, 0.9), opacity 480ms ease";
+    fly.style.transform = `translate(${dxHero}px, ${dyHero - vh * 0.5}px) scale(${heroScale * 0.5})`;
+    fly.style.opacity = "0";
+    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dxHero}px, ${dyHero - vh * 0.5}px)`;
+    await new Promise((r) => setTimeout(r, 480));
     if (flash) flash.classList.remove("hero-flash-play");
-    // Impact: pulse dex icon + spawn expanding ring at the icon center
+    // Small pulse on the dex tab as the page opens (the real「バン」is the
+    // slam-in of the new cell on the dex grid, driven by ?justCaught=).
     dexEl.classList.add("dex-impact");
-    const ring = document.getElementById("catch-impact-ring");
-    if (ring) {
-      ring.style.left = `${to.left + to.width / 2}px`;
-      ring.style.top = `${to.top + to.height / 2}px`;
-      ring.classList.remove("hidden");
-      ring.classList.add("impact-play");
-      setTimeout(() => { ring.classList.add("hidden"); ring.classList.remove("impact-play"); }, 900);
-    }
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(60);
+    void to;
     setTimeout(() => dexEl.classList.remove("dex-impact"), 900);
   }
 
@@ -244,7 +236,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             .from("stickers")
             .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
             .catch(() => {});
+          void putCachedImage(thumbPath(path), thumb);
         }
+        void putCachedImage(path, blob);
         return path;
       }
       const [object_path, cutout_path, selfie_path] = await Promise.all([
@@ -321,7 +315,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       } else {
         toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
       }
-      setTimeout(() => navigate({ to: "/dex/$stickerId", params: { stickerId } }), 550);
+      // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
+      setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : "保存に失敗しました");
