@@ -148,3 +148,45 @@ export async function logUsage(supabase: unknown, userId: string, kind: string):
     /* noop */
   }
 }
+
+/**
+ * Phase B-2 abuse guard: rolling-24h soft cap per user per AI kind.
+ * This is NOT a paywall (constitution: スキャンに課金壁を置かない) — the limits
+ * are far above any human usage and only stop runaway loops / scripted abuse
+ * from burning the AI budget. Counted via the service role because the
+ * authenticated role has no SELECT grant on usage_events.
+ */
+const DAILY_CAPS: Record<string, number> = {
+  scan_detect: 300,
+  scan_parts: 300,
+  speaking_feedback: 200,
+  tts: 500,
+  correction: 100,
+  card: 200,
+  phrase_card: 100,
+  suggest: 300,
+};
+
+export async function assertWithinDailyCap(userId: string, kind: string): Promise<void> {
+  const limit = DAILY_CAPS[kind];
+  if (!limit) return;
+  let count: number | null = null;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const res = await supabaseAdmin
+      .from("usage_events")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("kind", kind)
+      .gte("created_at", since);
+    if (!res.error) count = res.count;
+  } catch {
+    // Fail open: a broken meter must never block scanning (§2 保存の摩擦を増やさない).
+  }
+  if (count != null && count >= limit) {
+    throw new Error(
+      `1日の利用上限(${limit}回)に達しました。24時間以内に自動で回復します。通常の学習でここに届くことはないため、心当たりがない場合はお問い合わせください。`,
+    );
+  }
+}

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
 
 const CATEGORY_KEYS = [
   "fruit","vegetable","drink","food","dessert",
@@ -88,6 +88,7 @@ export const suggestWords = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
     const ai = getAi();
+    await assertWithinDailyCap(context.userId, "suggest");
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -193,6 +194,7 @@ export const generateCard = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => CardInput.parse(input))
   .handler(async ({ data, context }) => {
     const ai = getAi();
+    await assertWithinDailyCap(context.userId, "card");
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -264,6 +266,7 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => PhraseInput.parse(input))
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
     const ai = getAi();
+    await assertWithinDailyCap(context.userId, "phrase_card");
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:

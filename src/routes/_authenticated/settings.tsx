@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
-import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { deleteMyAccount, getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { exportMyDeck } from "@/lib/words.functions";
@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Download } from "lucide-react";
+import { LogOut, Download, Loader2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
@@ -229,8 +229,82 @@ function SettingsPage() {
         >
           <LogOut className="mr-2 h-4 w-4" /> サインアウト
         </Button>
+
+        <DangerZone />
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Permanent account deletion (privacy policy §6 / store review requirement).
+ * Two-step: open the panel, then type 「削除」 to arm the button — the server
+ * re-checks the same string, so nothing short of both steps can wipe data.
+ */
+function DangerZone() {
+  const deleteFn = useServerFn(deleteMyAccount);
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const navigate = useNavigate();
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const armed = confirmText.trim() === "削除";
+
+  async function handleDelete() {
+    if (!armed || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteFn({ data: { confirm: "削除" } });
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await supabase.auth.signOut().catch(() => {}); // user is already gone server-side
+      toast.success("アカウントを削除しました。ご利用ありがとうございました。");
+      await router.invalidate();
+      navigate({ to: "/auth", replace: true });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "削除に失敗しました。もう一度お試しください。");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <details className="group rounded-2xl border border-destructive/30 bg-card p-4">
+      <summary className="cursor-pointer list-none text-sm font-semibold text-destructive [&::-webkit-details-marker]:hidden">
+        アカウントを削除
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-xs text-muted-foreground">
+          集めた単語カード・写真・復習の記録・日記など、すべてのデータが完全に削除されます。
+          この操作は取り消せません。カードを残したい場合は、先に上の「デッキをエクスポート」で書き出してください。
+        </p>
+        <div>
+          <Label htmlFor="del-confirm">確認のため「削除」と入力してください</Label>
+          <Input
+            id="del-confirm"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="削除"
+            autoComplete="off"
+          />
+        </div>
+        <Button
+          variant="destructive"
+          className="w-full"
+          disabled={!armed || deleting}
+          onClick={handleDelete}
+        >
+          {deleting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 削除しています…
+            </>
+          ) : (
+            <>
+              <Trash2 className="mr-2 h-4 w-4" /> アカウントを完全に削除する
+            </>
+          )}
+        </Button>
+      </div>
+    </details>
   );
 }
 
