@@ -10,8 +10,11 @@ export default defineTool({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {
     if (!ctx.isAuthenticated()) return errorContent("Not authenticated");
-    const supabase = supabaseForCaller(ctx);
     const userId = ctx.getUserId();
+    if (!userId) return errorContent("No user id on token");
+    const supabase = supabaseForCaller(ctx);
+
+
 
     // Public profile columns are readable by RLS + column grants.
     const { data: profile, error: pErr } = await supabase
