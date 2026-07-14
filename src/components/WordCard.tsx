@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/tts.functions";
+import { primeAudio } from "@/lib/audio";
 
 export type WordExtras = {
   collocations?: string[];
@@ -14,6 +15,10 @@ export type WordExtras = {
   trivia?: string;
   common_situation?: string;
   usage_note?: string;
+  register_note?: string;
+  synonym_diff?: string;
+  word_order?: string;
+  study_tips?: string;
   examples_extra?: { zh: string; ja: string }[];
 };
 
@@ -32,24 +37,32 @@ export type WordCardData = {
 type SectionId =
   | "meaning"
   | "common_situation"
+  | "register_note"
   | "example"
   | "examples_extra"
   | "collocations"
+  | "word_order"
   | "synonyms"
+  | "synonym_diff"
   | "etymology"
   | "mnemonic"
+  | "study_tips"
   | "trivia"
   | "usage_note";
 
 const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "meaning", label: "意味" },
   { id: "common_situation", label: "使う場面" },
+  { id: "register_note", label: "頻度・どこで使う" },
   { id: "example", label: "例文" },
   { id: "examples_extra", label: "追加の例文" },
   { id: "collocations", label: "コロケーション" },
+  { id: "word_order", label: "語順・型" },
   { id: "synonyms", label: "類義語・反義語" },
+  { id: "synonym_diff", label: "類義語との違い" },
   { id: "etymology", label: "語源・部首" },
   { id: "mnemonic", label: "覚え方" },
+  { id: "study_tips", label: "勉強のコツ" },
   { id: "trivia", label: "雑学" },
   { id: "usage_note", label: "語法ノート" },
 ];
@@ -142,6 +155,10 @@ export function WordCardSectionsEditor() {
 const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string; icon: string; title: string }> = {
   meaning:          { bg: "bg-sky-50",     ring: "ring-sky-200",     chip: "bg-sky-500",     icon: "📖", title: "text-sky-900" },
   common_situation: { bg: "bg-amber-50",   ring: "ring-amber-200",   chip: "bg-amber-500",   icon: "🗣️", title: "text-amber-900" },
+  register_note:    { bg: "bg-cyan-50",    ring: "ring-cyan-200",    chip: "bg-cyan-600",    icon: "📊", title: "text-cyan-900" },
+  word_order:       { bg: "bg-lime-50",    ring: "ring-lime-200",    chip: "bg-lime-600",    icon: "🧩", title: "text-lime-900" },
+  synonym_diff:     { bg: "bg-indigo-50/70", ring: "ring-indigo-200", chip: "bg-indigo-400", icon: "⚖️", title: "text-indigo-900" },
+  study_tips:       { bg: "bg-pink-50",    ring: "ring-pink-200",    chip: "bg-pink-500",    icon: "🎯", title: "text-pink-900" },
   example:          { bg: "bg-emerald-50", ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
   examples_extra:   { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
   collocations:     { bg: "bg-rose-50",    ring: "ring-rose-200",    chip: "bg-rose-500",    icon: "🔗", title: "text-rose-900" },
@@ -172,6 +189,10 @@ export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autopla
       switch (id) {
         case "meaning": return !!word.meaning_ja;
         case "common_situation": return !!ex.common_situation;
+        case "register_note": return !!ex.register_note;
+        case "word_order": return !!ex.word_order;
+        case "synonym_diff": return !!ex.synonym_diff;
+        case "study_tips": return !!ex.study_tips;
         case "example": return !!word.example_sentence;
         case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
         case "collocations": return (ex.collocations?.length ?? 0) > 0;
@@ -217,9 +238,11 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
   }
 
   async function play() {
+    // Prime synchronously inside the gesture — see src/lib/audio.ts.
+    if (!audioRef.current) audioRef.current = new Audio();
+    primeAudio(audioRef.current);
     try {
       const url = await ensureAudio();
-      if (!audioRef.current) audioRef.current = new Audio();
       audioRef.current.src = url;
       audioRef.current.onplay = () => setPlaying(true);
       audioRef.current.onended = () => setPlaying(false);
@@ -359,6 +382,14 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
           {ex.radicals && <p className="text-xs text-muted-foreground">部首: {ex.radicals}</p>}
         </div>
       );
+    case "register_note":
+      return <p className="text-sm leading-relaxed">{ex.register_note}</p>;
+    case "word_order":
+      return <p className="text-sm leading-relaxed">{ex.word_order}</p>;
+    case "synonym_diff":
+      return <p className="text-sm leading-relaxed">{ex.synonym_diff}</p>;
+    case "study_tips":
+      return <p className="text-sm leading-relaxed">{ex.study_tips}</p>;
     case "mnemonic":
       return <p className="text-sm italic leading-relaxed">「{ex.mnemonic}」</p>;
     case "trivia":

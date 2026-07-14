@@ -165,6 +165,7 @@ const DAILY_CAPS: Record<string, number> = {
   card: 200,
   phrase_card: 100,
   suggest: 300,
+  removebg: 100, // paid per image — tighter than the free-tier guards
 };
 
 export async function assertWithinDailyCap(userId: string, kind: string): Promise<void> {

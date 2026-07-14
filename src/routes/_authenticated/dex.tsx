@@ -4,11 +4,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
+import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { LayoutGrid, List, Map as MapIcon, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/dex")({
+  validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
+    // キャッチ演出v2: /dex?justCaught=<stickerId> で該当セルがバンと着弾する
+    return typeof search.justCaught === "string" && search.justCaught
+      ? { justCaught: search.justCaught }
+      : {};
+  },
   head: () => ({
     meta: [
       { title: "図鑑 — Catchwords" },
@@ -33,6 +40,8 @@ declare global {
 
 function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
+  const navigate = useNavigate();
+  const { justCaught } = Route.useSearch();
   const { data: stickers } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
@@ -42,6 +51,19 @@ function DexPage() {
     gcTime: 30 * 60 * 1000,
   });
   const captured = stickers ?? [];
+
+  // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
+  useEffect(() => {
+    if (!justCaught) return;
+    setView("gallery"); // 着弾はギャラリーのセルで見せる
+    const el = document.getElementById(`dex-cell-${justCaught}`);
+    el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 30, 70]);
+    const t = setTimeout(() => {
+      void navigate({ to: "/dex", search: {}, replace: true });
+    }, 1600);
+    return () => clearTimeout(t);
+  }, [justCaught, navigate, captured.length]);
 
   const [view, setView] = useState<ViewMode>("gallery");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -157,27 +179,42 @@ function DexPage() {
             </div>
 
             {view === "gallery" ? (
-              <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-secondary/40 p-3 shadow-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  {items.map((s) => (
+              // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+              // 表示される3列グリッド+下端のグラデーションに単語名。
+              <div className="grid grid-cols-3 gap-2.5">
+                {items.map((s) => {
+                  const photo = s.object_thumb_url ?? s.object_url;
+                  const slam = s.id === justCaught;
+                  return (
                     <button
                       key={s.id}
                       onClick={() => setOpenId(s.id)}
                       className="group block text-left"
                     >
-                      <div className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
-                        isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
-                      }`}>
-                        {s.cutout_url ? (
-                          <img
-                            src={s.cutout_url}
+                      <div
+                        id={`dex-cell-${s.id}`}
+                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
+                          isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
+                        } ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
+                      >
+                        {photo ? (
+                          <CachedImg
+                            src={photo}
+                            alt={`「${s.word.headword}」の写真`}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : s.cutout_url ? (
+                          <CachedImg
+                            src={s.cutout_thumb_url ?? s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full object-contain p-3"
+                            className="h-full w-full object-contain p-2"
                           />
                         ) : isGhost(s) && s.placeholder_url ? (
-                          <img
+                          <CachedImg
                             src={s.placeholder_url}
                             alt={`「${s.word.headword}」の仮画像`}
                             loading="lazy"
@@ -185,27 +222,30 @@ function DexPage() {
                             className="h-full w-full object-cover opacity-60 grayscale"
                           />
                         ) : (
-                          <div className={`grid h-full place-items-center text-5xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
+                          <div className={`grid h-full place-items-center text-4xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
                             {s.word.silhouette_emoji ?? "📦"}
                           </div>
                         )}
                         {isGhost(s) && (
-                          <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
+                          <span className="absolute left-1.5 top-1.5 rounded-full bg-foreground/60 px-1.5 py-0.5 text-[9px] font-semibold text-background">
                             👻 仮
                           </span>
                         )}
                         {s.encounter_count > 0 && (
-                          <span className="absolute right-2 top-2 rounded-full bg-amber-400/95 px-2 py-0.5 text-[10px] font-bold text-amber-950 shadow">
-                            再会 ×{s.encounter_count}
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-amber-950 shadow">
+                            ×{s.encounter_count}
                           </span>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                          <div className="text-sm font-bold text-white">{s.word.headword}</div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
+                          <div className="truncate text-[12px] font-semibold text-white">{s.word.headword}</div>
                         </div>
+                        {slam && (
+                          <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
+                        )}
                       </div>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             ) : (
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -217,15 +257,15 @@ function DexPage() {
                     >
                       <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
-                          <img
-                            src={s.cutout_url}
+                          <CachedImg
+                            src={s.cutout_thumb_url ?? s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
                         ) : isGhost(s) && s.placeholder_url ? (
-                          <img
+                          <CachedImg
                             src={s.placeholder_url}
                             alt=""
                             loading="lazy"
@@ -258,6 +298,21 @@ function DexPage() {
         ))
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      <style>{`
+        @keyframes slamIn {
+          0%   { transform: scale(2.6) rotate(-3deg); opacity: 0; }
+          35%  { transform: scale(1.18) rotate(1deg); opacity: 1; }
+          60%  { transform: scale(0.93); }
+          100% { transform: scale(1); }
+        }
+        .slam-in { animation: slamIn 720ms cubic-bezier(0.22, 1.2, 0.36, 1) 120ms both; position: relative; z-index: 10; }
+        @keyframes slamFlash {
+          0%   { opacity: 0; }
+          40%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 900ms ease-out 300ms both; }
+      `}</style>
     </AppShell>
   );
 }
@@ -372,7 +427,8 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
         icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
       });
       // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
-      const photoUrl = s.object_url ?? s.cutout_url;
+      // Thumbs first: a pin head is 52px, a 400px thumb is already 8x overkill.
+      const photoUrl = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
       if (photoUrl) {
         const cached = pinIconCache.current.get(s.id);
         const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);

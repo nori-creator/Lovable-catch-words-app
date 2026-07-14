@@ -61,6 +61,59 @@ export async function downscaleDataUrl(
 }
 
 /**
+ * Small grid thumbnail (~10-50KB) for a just-uploaded image. Uploaded next to
+ * the original as `${path}.thumb.webp`; the 図鑑/アルバム grids load these
+ * instead of multi-MB camera photos (the "画像が上からカクカク降りてくる" was
+ * baseline-JPEG decode of full-size photos). toBlob falls back to PNG on
+ * browsers without WebP encoding — blob.type carries the real content type.
+ */
+export async function makeThumbBlob(dataUrl: string, maxSide = 400): Promise<Blob | null> {
+  try {
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("image load failed"));
+      img.src = dataUrl;
+    });
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.width * scale));
+    c.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise<Blob | null>((res) => c.toBlob((b) => res(b), "image/webp", 0.8));
+  } catch {
+    return null;
+  }
+}
+
+/** Storage-path convention shared with listMyStickers on the server. */
+export function thumbPath(path: string): string {
+  return `${path}.thumb.webp`;
+}
+
+/**
+ * Preferred cutout path: remove.bg via the server (fast, highest quality)
+ * when REMOVE_BG_API_KEY is configured, otherwise the free in-browser
+ * pipeline below. Any API failure (no key, quota, network) falls back
+ * silently — a catch must never fail because a paid service hiccuped.
+ */
+export async function removeBackgroundSmart(dataUrl: string): Promise<string> {
+  try {
+    const { removeBackgroundApi } = await import("./cutout.functions");
+    // Higher input resolution than the local path — the API is doing the
+    // heavy lifting server-side, so give it more pixels to work with.
+    const input = await downscaleDataUrl(dataUrl, 1600, 0.9);
+    const r = await removeBackgroundApi({ data: { imageBase64: input } });
+    if (r.available && r.image) return r.image;
+  } catch {
+    /* fall back to local */
+  }
+  return removeBackgroundFast(dataUrl);
+}
+
+/**
  * Remove the background from a data-URL image and return a transparent PNG
  * data URL. Throws on failure — callers keep their own crop fallback.
  */

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
+import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
+import { CachedImg } from "@/lib/image-cache";
 
 
 type Props = {
@@ -38,7 +40,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       (!ex.collocations.length && !ex.synonyms.length && !ex.antonyms.length &&
        !ex.etymology && !ex.mnemonic && !ex.trivia && !ex.common_situation &&
        !ex.usage_note && !ex.examples_extra.length);
-    if (!isEmpty) return;
+    // Cards generated before 2026-07-13 lack the corpus-style fields
+    // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
+    const missingNewFields =
+      !ex || (!ex.register_note && !ex.synonym_diff && !ex.word_order && !ex.study_tips);
+    if (!isEmpty && !missingNewFields) return;
     if (enrichedRef.current.has(s.word_id)) return;
     enrichedRef.current.add(s.word_id);
     setEnriching(true);
@@ -163,13 +169,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
                   {s.object_url ? (
-                    <img
+                    <CachedImg
                       src={s.object_url}
                       alt={`「${s.word.headword}」の写真`}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
                   ) : s.cutout_url ? (
-                    <img
+                    <CachedImg
                       src={s.cutout_url}
                       alt={s.word.headword}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
@@ -277,6 +283,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               </div>
             )}
 
+            <WebImagesSection headword={s.word.headword} meaningJa={s.word.meaning_ja} />
+            <RealUsageSection headword={s.word.headword} />
+
             {s.lat != null && s.lng != null && (
               <a
                 href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
@@ -302,5 +311,100 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * ネットの画像: その単語を最もよく表す画像をWeb検索から表示(開いた時だけ
+ * 取得=コストゼロのまま)。もっと見たい人はGoogle画像検索へ。
+ */
+function WebImagesSection({ headword, meaningJa }: { headword: string; meaningJa: string }) {
+  const searchFn = useServerFn(searchImageCandidates);
+  const [opened, setOpened] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ["web-images", headword],
+    queryFn: async () => (await searchFn({ data: { query: meaningJa || headword } })).candidates,
+    enabled: opened,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+  const candidates: ImageCandidate[] = data ?? [];
+  return (
+    <details className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm" onToggle={(e) => (e.target as HTMLDetailsElement).open && setOpened(true)}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sky-500 text-xs text-white shadow"><Globe className="h-3.5 w-3.5" /></span>
+        ネットの画像
+        <span className="ml-auto text-[10px] font-normal text-muted-foreground">タップで表示</span>
+      </summary>
+      <div className="mt-3">
+        {isLoading ? (
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-secondary" />)}
+          </div>
+        ) : candidates.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {candidates.slice(0, 3).map((c, i) => (
+              <figure key={i} className="relative aspect-square overflow-hidden rounded-xl bg-secondary">
+                <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+                {c.credit?.name && (
+                  <figcaption className="absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">📷 {c.credit.name}</figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
+        )}
+        <a
+          href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
+        >
+          Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * 実際の使われ方: 動画・SNS・辞書・ニュースの中で本当に使われている
+ * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
+ */
+function RealUsageSection({ headword }: { headword: string }) {
+  const q = encodeURIComponent(headword);
+  const links: { label: string; hint: string; href: string; emoji: string }[] = [
+    { emoji: "🎬", label: "YouTubeで聞く", hint: "この単語が話されている動画", href: `https://www.youtube.com/results?search_query=${q}` },
+    { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
+    { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
+    { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
+    { emoji: "📖", label: "萌典(教育部辞書)", hint: "公式辞書の定義・注音", href: `https://www.moedict.tw/${q}` },
+  ];
+  return (
+    <section className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-rose-500 text-xs text-white shadow"><Play className="h-3.5 w-3.5" /></span>
+        実際の使われ方
+      </div>
+      <ul className="grid grid-cols-1 gap-1.5">
+        {links.map((l) => (
+          <li key={l.label}>
+            <a
+              href={l.href}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2.5 rounded-xl bg-secondary/50 px-3 py-2 text-sm transition-colors active:bg-secondary"
+            >
+              <span className="text-base">{l.emoji}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{l.label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{l.hint}</span>
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

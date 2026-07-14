@@ -21,6 +21,10 @@ const ExtrasSchema = z.object({
   trivia: z.string().default(""),
   common_situation: z.string().default(""),
   usage_note: z.string().default(""),
+  register_note: z.string().default(""),
+  synonym_diff: z.string().default(""),
+  word_order: z.string().default(""),
+  study_tips: z.string().default(""),
   examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
 });
 

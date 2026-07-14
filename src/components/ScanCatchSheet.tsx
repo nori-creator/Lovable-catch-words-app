@@ -9,7 +9,8 @@ import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, removeBackgroundFast } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { putCachedImage } from "@/lib/image-cache";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 
@@ -117,7 +118,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const cropped = await cropAround(snapshotDataUrl, item.point);
         if (cancelled) return;
         setObjectDataUrl(cropped);
-        const dataUrl = await removeBackgroundFast(cropped);
+        const dataUrl = await removeBackgroundSmart(cropped);
         if (cancelled) return;
         setCutoutUrl(dataUrl);
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
@@ -156,6 +157,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (!startEl || !fly || !dexEl) { await new Promise((r) => setTimeout(r, 700)); return; }
     const from = startEl.getBoundingClientRect();
     const to = dexEl.getBoundingClientRect();
+    const fromCx = from.left + from.width / 2;
+    const fromCy = from.top + from.height / 2;
     // Set initial position for the flying cutout
     fly.style.left = `${from.left}px`;
     fly.style.top = `${from.top}px`;
@@ -166,30 +169,39 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     // Position the shimmer trail overlay to match
     const trail = document.getElementById("catch-trail");
     if (trail) {
-      trail.style.left = `${from.left + from.width / 2}px`;
-      trail.style.top = `${from.top + from.height / 2}px`;
+      trail.style.left = `${fromCx}px`;
+      trail.style.top = `${fromCy}px`;
     }
     void fly.offsetWidth;
-    // Fly with a curved trajectory: apply translate first, then a scale so it
-    // "spins into" the dex icon.
-    fly.style.transition = "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25), opacity 820ms ease";
-    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
-    fly.style.transform = `translate(${dx}px, ${dy}px) scale(0.08) rotate(-6deg)`;
-    fly.style.opacity = "0.85";
-    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
-    await new Promise((r) => setTimeout(r, 820));
-    // Impact: pulse dex icon + spawn expanding ring at the icon center
+
+    // --- 第1幕: 画面いっぱいに「バン」と拡大 + 単語ドーン ---------------------
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const heroScale = (Math.min(vw, vh) * 0.9) / Math.max(from.width, 1);
+    const dxHero = vw / 2 - fromCx;
+    const dyHero = vh * 0.42 - fromCy;
+    fly.style.transition = "transform 460ms cubic-bezier(0.2, 0.9, 0.3, 1.18)";
+    fly.style.transform = `translate(${dxHero}px, ${dyHero}px) scale(${heroScale})`;
+    const flash = document.getElementById("catch-hero-flash");
+    const wordEl = document.getElementById("catch-hero-word");
+    if (flash) flash.classList.add("hero-flash-play");
+    if (wordEl) wordEl.classList.add("hero-word-play");
+    await new Promise((r) => setTimeout(r, 460));
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(30);
+    await new Promise((r) => setTimeout(r, 480)); // 見せ場のタメ
+
+    // --- 第2幕: ふわっと上に抜けて図鑑ページへ(着弾は図鑑側の slam-in) -----
+    if (wordEl) wordEl.classList.remove("hero-word-play");
+    fly.style.transition = "transform 480ms cubic-bezier(0.55, -0.1, 0.6, 0.9), opacity 480ms ease";
+    fly.style.transform = `translate(${dxHero}px, ${dyHero - vh * 0.5}px) scale(${heroScale * 0.5})`;
+    fly.style.opacity = "0";
+    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dxHero}px, ${dyHero - vh * 0.5}px)`;
+    await new Promise((r) => setTimeout(r, 480));
+    if (flash) flash.classList.remove("hero-flash-play");
+    // Small pulse on the dex tab as the page opens (the real「バン」is the
+    // slam-in of the new cell on the dex grid, driven by ?justCaught=).
     dexEl.classList.add("dex-impact");
-    const ring = document.getElementById("catch-impact-ring");
-    if (ring) {
-      ring.style.left = `${to.left + to.width / 2}px`;
-      ring.style.top = `${to.top + to.height / 2}px`;
-      ring.classList.remove("hidden");
-      ring.classList.add("impact-play");
-      setTimeout(() => { ring.classList.add("hidden"); ring.classList.remove("impact-play"); }, 900);
-    }
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(60);
+    void to;
     setTimeout(() => dexEl.classList.remove("dex-impact"), 900);
   }
 
@@ -212,11 +224,21 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const blob = await dataUrlToBlob(u);
         const ext = blob.type.includes("png") ? "png" : "jpg";
         const path = `${userId}/${ts}-${kind}.${ext}`;
+        const thumbPromise = makeThumbBlob(u);
         const { error } = await supabase.storage.from("stickers").upload(path, blob, {
           contentType: blob.type,
           upsert: false,
         });
         if (error) throw error;
+        const thumb = await thumbPromise;
+        if (thumb) {
+          await supabase.storage
+            .from("stickers")
+            .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
+            .catch(() => {});
+          void putCachedImage(thumbPath(path), thumb);
+        }
+        void putCachedImage(path, blob);
         return path;
       }
       const [object_path, cutout_path, selfie_path] = await Promise.all([
@@ -293,7 +315,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       } else {
         toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
       }
-      setTimeout(() => navigate({ to: "/dex/$stickerId", params: { stickerId } }), 550);
+      // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
+      setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : "保存に失敗しました");
@@ -438,6 +461,32 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           />
         </>
       )}
+      {/* Full-screen flash + big word for act 1 of the landing (画面いっぱい演出) */}
+      {phase === "landing" && (
+        <>
+          <div
+            id="catch-hero-flash"
+            className="pointer-events-none fixed inset-0 z-[58] opacity-0"
+            style={{ background: "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)" }}
+          />
+          <div
+            id="catch-hero-word"
+            className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
+            style={{ top: "68%" }}
+          >
+            <div className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
+              {headword}
+            </div>
+            {(dict?.zhuyin || item.zhuyin) && (
+              <div className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+                {dict?.zhuyin || item.zhuyin}
+              </div>
+            )}
+            <div className="mt-1 text-sm font-medium text-white/85">GET!</div>
+          </div>
+        </>
+      )}
+
       {/* Impact ring at the dex icon on landing */}
       <div
         id="catch-impact-ring"
@@ -487,6 +536,17 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           0%   { opacity: 0; }
           20%  { opacity: 1; }
           100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-160px) scale(0.6); }
+        }
+        #catch-hero-flash.hero-flash-play { animation: heroFlash 900ms ease-out forwards; }
+        @keyframes heroFlash {
+          0%   { opacity: 0; }
+          25%  { opacity: 1; }
+          100% { opacity: 0.65; }
+        }
+        #catch-hero-word.hero-word-play { animation: heroWord 460ms cubic-bezier(0.2, 1.4, 0.4, 1) 120ms forwards; }
+        @keyframes heroWord {
+          0%   { opacity: 0; transform: translateX(-50%) scale(0.5) translateY(24px); }
+          100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
         }
       `}</style>
 

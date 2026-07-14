@@ -16,7 +16,8 @@ import { geocodeLocation } from "@/lib/geocode.functions";
 import { saveSticker } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
-import { preloadCutout, removeBackgroundFast } from "@/lib/cutout";
+import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
 
 export const Route = createFileRoute("/_authenticated/capture")({
@@ -259,7 +260,7 @@ function CapturePage() {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
       const aiImage = await compressImage(img, 768, 0.8);
       const [cutoutRes, suggestRes] = await Promise.all([
-        removeBackgroundFast(img).catch((e) => {
+        removeBackgroundSmart(img).catch((e) => {
           console.warn("background removal failed, using original", e);
           return img;
         }),
@@ -361,11 +362,25 @@ function CapturePage() {
         const blob = await dataUrlToBlob(dataUrl);
         const ext = blob.type.includes("png") ? "png" : "jpg";
         const path = `${userId}/${ts}-${kind}.${ext}`;
+        const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
         const { error } = await supabase.storage.from("stickers").upload(path, blob, {
           contentType: blob.type,
           upsert: false,
         });
         if (error) throw error;
+        // Grid thumbnail alongside — best-effort, the grid falls back to the
+        // original when it's missing (old stickers, encode failure).
+        const thumb = await thumbPromise;
+        if (thumb) {
+          await supabase.storage
+            .from("stickers")
+            .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
+            .catch(() => {});
+          void putCachedImage(thumbPath(path), thumb);
+        }
+        // Prime the device cache so the dex shows this image instantly,
+        // without ever downloading what we just uploaded.
+        void putCachedImage(path, blob);
         return path;
       }
 
