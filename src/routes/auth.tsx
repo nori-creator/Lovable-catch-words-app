@@ -8,6 +8,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
+  // Preserve a same-origin `next` path so OAuth consent (or any protected
+  // deep-link) can round-trip through sign-in and return to the original URL.
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : "",
+  }),
   head: () => ({
     meta: [
       { title: "ログイン — Catchwords" },
@@ -23,32 +28,55 @@ export const Route = createFileRoute("/auth")({
 });
 
 
+/** Only accept a same-origin absolute path (no scheme, no protocol-relative). */
+function sanitizeNext(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null;
+  return raw;
+}
+
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const nextPath = sanitizeNext(search.next);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function goPostAuth() {
+    if (nextPath) {
+      // Full page navigation so consent/loader/beforeLoad re-run cleanly.
+      window.location.replace(nextPath);
+    } else {
+      navigate({ to: "/home", replace: true });
+    }
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/home", replace: true });
+      if (data.user) goPostAuth();
     });
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: "/home", replace: true });
+      if (session) goPostAuth();
     });
     return () => data.subscription.unsubscribe();
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextPath]);
 
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
       if (mode === "signup") {
+        const emailRedirectTo = nextPath
+          ? `${window.location.origin}${nextPath}`
+          : window.location.origin;
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo },
         });
         if (error) throw error;
         toast.success("確認メールを送りました。受信トレイをご確認ください。");
@@ -66,8 +94,14 @@ function AuthPage() {
   async function handleGoogle() {
     setLoading(true);
     try {
+      // redirect_uri MUST be a full same-origin URL. Append the sanitized
+      // `next` as a query param on /auth so this same route consumes it after
+      // the provider round-trip and forwards to the consent URL.
+      const redirectUri = nextPath
+        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+        : window.location.origin;
       const res = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: redirectUri,
       });
       if (res.error) {
         toast.error(res.error.message ?? "Googleサインインに失敗しました");
@@ -78,6 +112,7 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
 
   async function handleApple() {
     setLoading(true);
