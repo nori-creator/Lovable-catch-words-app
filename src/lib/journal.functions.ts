@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
 
 export type NativePhrase = { zh: string; ja: string; note: string };
 
@@ -107,8 +107,10 @@ export const correctMyJournal = createServerFn({ method: "POST" })
         .min(1)
         .max(3),
     });
+    const pro = await isProUser(userId);
+    const richModel = pro ? ai.modelRichPremium : ai.modelRich;
     const { experimental_output } = await generateText({
-      model: ai.gateway(ai.modelRich),
+      model: ai.gateway(richModel),
       experimental_output: Output.object({ schema: Schema }),
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
@@ -127,7 +129,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
       correction: experimental_output.correction,
       feedback_ja: experimental_output.feedback_ja,
       used_sticker_ids: stickers.map((s: any) => s.id),
-      model: ai.modelRich,
+      model: richModel,
     };
     // Try with native_phrases first; retry without it if the column hasn't
     // been migrated yet, so correction never breaks on a stale schema.

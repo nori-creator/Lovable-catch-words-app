@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
@@ -645,8 +645,9 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 - model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
 - alt_answer: 別の言い方1つ(繁体字)。`;
 
+    const pro = await isProUser(userId);
     const { experimental_output } = await generateText({
-      model: ai.gateway(ai.modelRich),
+      model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
       prompt,
       experimental_output: Output.object({ schema: FeedbackSchema }) as never,
     }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };

@@ -429,6 +429,7 @@ export type Database = {
           level_goal: string
           native_language: string
           onboarded: boolean
+          plan: string
           pronunciation_strictness: string
           review_mode: string
           target_language: string
@@ -444,6 +445,7 @@ export type Database = {
           level_goal?: string
           native_language?: string
           onboarded?: boolean
+          plan?: string
           pronunciation_strictness?: string
           review_mode?: string
           target_language?: string
@@ -459,6 +461,7 @@ export type Database = {
           level_goal?: string
           native_language?: string
           onboarded?: boolean
+          plan?: string
           pronunciation_strictness?: string
           review_mode?: string
           target_language?: string
