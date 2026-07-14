@@ -134,9 +134,11 @@ export const detectScan = createServerFn({ method: "POST" })
 
     // 自動で貯まる共有辞書: AIが今調べた読み・意味を蓄積(fire-and-forget)。
     // 次のスキャンからは辞書ヒット=AI再問い合わせゼロで即表示になる。
-    void import("./lexicon.server").then(({ learnLexiconEntries }) =>
-      learnLexiconEntries(parsed.items),
-    );
+    // ついでに1日1回の自己改善(辞書監査+ニュースコーパス観察)も起動。
+    void import("./lexicon.server").then((m) => {
+      void m.learnLexiconEntries(parsed.items);
+      void m.maybeRunDailySelfImprovement(userId);
+    });
 
     // §7 measurement: server-side detection latency (AI call + parse).
     // The client's full scan→dots number additionally includes upload+render.
