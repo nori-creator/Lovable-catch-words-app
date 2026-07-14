@@ -117,9 +117,13 @@ function AuthPage() {
   async function handleApple() {
     setLoading(true);
     try {
+      const redirectUri = nextPath
+        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
+        : window.location.origin;
       const res = await lovable.auth.signInWithOAuth("apple", {
-        redirect_uri: window.location.origin,
+        redirect_uri: redirectUri,
       });
+
       if (res.error) {
         toast.error(res.error.message ?? "Appleサインインに失敗しました");
       }
