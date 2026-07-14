@@ -6,7 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { getAdminDashboard } from "@/lib/metrics.functions";
 import { pregenerateDictionaryTts } from "@/lib/tts.functions";
-import { BarChart3, Loader2, Users, Volume2 } from "lucide-react";
+import { getSelfImprovementStatus, runSelfImprovementNow } from "@/lib/selfimprove.functions";
+import { BarChart3, Brain, Loader2, Users, Volume2 } from "lucide-react";
 
 /** KPI dashboard (roadmap §3) — admin only, one screen, numbers over charts. */
 export const Route = createFileRoute("/_authenticated/admin/metrics")({
@@ -75,6 +76,9 @@ function AdminMetricsPage() {
           {/* TTS pre-generation (§4.3) — runs server-side where the key lives */}
           <TtsPregenPanel />
 
+          {/* 自己改善システム: 毎日の辞書監査+ニュースコーパス観察 */}
+          <SelfImprovePanel />
+
           {/* Daily table */}
           <section className="overflow-x-auto rounded-2xl border border-border bg-card p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold">日次(直近14日)</h2>
@@ -113,6 +117,99 @@ function AdminMetricsPage() {
         </>
       )}
     </AppShell>
+  );
+}
+
+/**
+ * 自己改善システムの状態表示+手動実行。通常は誰かの最初のスキャンで
+ * 1日1回自動で走る(lexicon.server.ts)ので、このパネルは監視用。
+ */
+function SelfImprovePanel() {
+  const statusFn = useServerFn(getSelfImprovementStatus);
+  const runFn = useServerFn(runSelfImprovementNow);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const { data: st, refetch } = useQuery({
+    queryKey: ["self-improve-status"],
+    queryFn: () => statusFn(),
+    staleTime: 60_000,
+  });
+
+  async function run() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await runFn();
+      setResult(
+        `監査 ${r.audit.checked}件(自動修正 ${r.audit.fixed} / 要レビュー ${r.audit.flagged})· ニュース ${r.corpus.titles}見出し → ${r.corpus.words}語を蓄積`,
+      );
+      void refetch();
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : "実行に失敗しました");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日自動)
+        </h2>
+        <button
+          onClick={run}
+          disabled={running}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm active:scale-95 disabled:opacity-60"
+        >
+          {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          今すぐ実行
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        最終実行:{" "}
+        {st?.last_run_at
+          ? new Date(st.last_run_at).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          : "まだ"}
+        {" · 人間レビュー待ち "}
+        <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>{st?.needs_review ?? 0}</span> 件
+      </p>
+      {result && <p className="mt-2 rounded-lg bg-primary/5 p-2 text-[11px] text-primary">{result}</p>}
+
+      {(st?.top_words.length ?? 0) > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            今週の台湾ニュース頻出語(独自コーパス)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {st!.top_words.map((w) => (
+              <span key={w.word} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                {w.word} <span className="text-muted-foreground">{w.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(st?.audits.length ?? 0) > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-[11px] text-muted-foreground">直近の監査結果</summary>
+          <ul className="mt-1 space-y-0.5 text-[11px]">
+            {st!.audits.map((a, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span>{a.ok ? "✅" : a.applied ? "🔧" : "⚠️"}</span>
+                <span className="font-medium">{a.headword}</span>
+                <span className="text-muted-foreground">
+                  {a.source}
+                  {!a.ok && !a.applied && " · 要レビュー"}
+                  {a.applied && " · 自動修正済み"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 

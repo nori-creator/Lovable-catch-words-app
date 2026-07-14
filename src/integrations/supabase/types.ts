@@ -175,6 +175,63 @@ export type Database = {
         }
         Relationships: []
       }
+      lexicon_audits: {
+        Row: {
+          id: string
+          entry_id: string | null
+          headword: string
+          source: string
+          ok: boolean
+          confidence: number | null
+          suggestion: Json | null
+          applied: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id?: string | null
+          headword: string
+          source: string
+          ok: boolean
+          confidence?: number | null
+          suggestion?: Json | null
+          applied?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string | null
+          headword?: string
+          source?: string
+          ok?: boolean
+          confidence?: number | null
+          suggestion?: Json | null
+          applied?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      corpus_stats: {
+        Row: {
+          word: string
+          day: string
+          source: string
+          count: number
+        }
+        Insert: {
+          word: string
+          day: string
+          source?: string
+          count?: number
+        }
+        Update: {
+          word?: string
+          day?: string
+          source?: string
+          count?: number
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           created_at: string
@@ -429,6 +486,7 @@ export type Database = {
           level_goal: string
           native_language: string
           onboarded: boolean
+          plan: string
           pronunciation_strictness: string
           review_mode: string
           target_language: string
@@ -444,6 +502,7 @@ export type Database = {
           level_goal?: string
           native_language?: string
           onboarded?: boolean
+          plan?: string
           pronunciation_strictness?: string
           review_mode?: string
           target_language?: string
@@ -459,6 +518,7 @@ export type Database = {
           level_goal?: string
           native_language?: string
           onboarded?: boolean
+          plan?: string
           pronunciation_strictness?: string
           review_mode?: string
           target_language?: string

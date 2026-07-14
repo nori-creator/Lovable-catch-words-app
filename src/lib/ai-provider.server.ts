@@ -26,6 +26,8 @@ export type AiConfig = {
   gateway: ReturnType<typeof createOpenAICompatible>;
   modelFast: string;
   modelRich: string;
+  /** Proユーザー向け上位モデル(AI_MODEL_RICH_PREMIUM)。未設定なら modelRich。 */
+  modelRichPremium: string;
 };
 
 function detectProvider(): AiConfig["provider"] {
@@ -54,6 +56,8 @@ export function getAi(): AiConfig {
       }),
       modelFast: process.env.AI_MODEL_FAST ?? GOOGLE_DEFAULT_MODEL,
       modelRich: process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_MODEL,
+      modelRichPremium:
+        process.env.AI_MODEL_RICH_PREMIUM ?? process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_MODEL,
     };
   }
 
@@ -72,6 +76,7 @@ export function getAi(): AiConfig {
       }),
       modelFast: process.env.AI_MODEL_FAST ?? model,
       modelRich: process.env.AI_MODEL_RICH ?? model,
+      modelRichPremium: process.env.AI_MODEL_RICH_PREMIUM ?? process.env.AI_MODEL_RICH ?? model,
     };
   }
 
@@ -93,7 +98,29 @@ export function getAi(): AiConfig {
     }),
     modelFast: process.env.AI_MODEL_FAST ?? LOVABLE_DEFAULT_MODEL,
     modelRich: process.env.AI_MODEL_RICH ?? LOVABLE_DEFAULT_MODEL,
+    modelRichPremium:
+      process.env.AI_MODEL_RICH_PREMIUM ?? process.env.AI_MODEL_RICH ?? LOVABLE_DEFAULT_MODEL,
   };
+}
+
+/**
+ * Proプラン判定(Phase C の土台)。profiles.plan はサーバー/管理者だけが
+ * 変更できる(ユーザー側updateMyProfileの許可リストに含めない)。判定に
+ * 失敗したら必ず free 扱い — 課金判定のフェイルオープンはしない。
+ */
+export async function isProUser(userId: string): Promise<boolean> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("plan")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return false;
+    return (data as { plan?: string } | null)?.plan === "pro";
+  } catch {
+    return false;
+  }
 }
 
 /**
