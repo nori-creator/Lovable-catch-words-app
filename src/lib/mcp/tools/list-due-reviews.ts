@@ -48,7 +48,7 @@ export default defineTool({
         due_at: r.due_at,
         interval_days: (r as { interval_days?: number }).interval_days ?? null,
         ease: (r as { ease?: number }).ease ?? null,
-        reps: (r as { reps?: number }).reps ?? null,
+        reps: (r as { repetitions?: number }).repetitions ?? null,
       };
     });
 
