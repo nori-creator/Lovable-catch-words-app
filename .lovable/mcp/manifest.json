@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "sdk_version": "0.21.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://arjicopbmvseztldpxpk.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "catchwords-mcp",
+      "version": "0.1.0",
+      "title": "Catchwords MCP"
+    },
+    "tools": [
+      {
+        "name": "who_am_i",
+        "title": "Who am I",
+        "description": "Return the Catchwords profile of the currently connected user: display name, UI/target languages, level goal, and total sticker count.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_my_stickers",
+        "title": "List my stickers",
+        "description": "List the caller's most recent Catchwords stickers (photo/text/voice catches) with the associated Mandarin word, reading, Japanese meaning, and capture time. Returns compact rows suitable for browsing the dex.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Maximum number of stickers to return (1-50). Defaults to 20."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Number of stickers to skip for pagination. Defaults to 0."
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_my_dex",
+        "title": "Search my dex",
+        "description": "Search the caller's caught words by Mandarin headword, pinyin, or Japanese meaning substring. Returns at most 30 matches, newest first, with the same shape as list_my_stickers.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Substring to match against headword (Mandarin), pinyin, or Japanese meaning. Case-insensitive."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_sticker",
+        "title": "Get sticker details",
+        "description": "Return full details for one of the caller's stickers by id: word card (headword, reading, pinyin, meaning, example sentence, part of speech, level, category), caption, location, and capture metadata. Only works for stickers owned by the caller.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "sticker_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The sticker's UUID."
+            }
+          },
+          "required": [
+            "sticker_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_due_reviews",
+        "title": "List due reviews",
+        "description": "List the caller's SRS reviews that are due now (due_at ≤ now). Each row includes the sticker id, the associated Mandarin word, reading, and Japanese meaning, and the current SRS interval and ease.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Maximum number of due reviews to return (1-100). Defaults to 25."
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
