@@ -27,7 +27,7 @@ export default defineTool({
     const { data, error } = await supabase
       .from("reviews")
       .select(
-        "id, sticker_id, due_at, interval_days, ease, reps, stickers!inner(user_id, words(headword, reading_zhuyin, pinyin, meaning_ja))",
+        "id, sticker_id, due_at, interval_days, ease, repetitions, stickers!inner(user_id, words(headword, reading_zhuyin, pinyin, meaning_ja))",
       )
       .eq("stickers.user_id", userId)
       .lte("due_at", nowIso)
