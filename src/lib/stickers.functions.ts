@@ -349,16 +349,20 @@ export const getSticker = createServerFn({ method: "GET" })
     const res: StickerWithWord = {
       id: r.id,
       word_id: r.word_id,
-      caption: r.caption,
-      location_name: r.location_name,
-      lat: r.lat,
-      lng: r.lng,
+      // Non-owners see the sticker via a post — the post carries its own
+      // caption. Private sticker-level fields (caption, precise coordinates,
+      // location name, selfie) stay owner-only.
+      caption: isOwner ? r.caption : null,
+      location_name: isOwner ? r.location_name : null,
+      lat: isOwner ? r.lat : null,
+      lng: isOwner ? r.lng : null,
       taken_at: r.taken_at,
       created_at: r.created_at,
       encounter_count: counts.get(r.id) ?? 0,
       object_url: r.object_image_url ? (urlMap.get(r.object_image_url) ?? null) : null,
       cutout_url: r.cutout_image_url ? (urlMap.get(r.cutout_image_url) ?? null) : null,
       selfie_url: isOwner && r.selfie_image_url ? (urlMap.get(r.selfie_image_url) ?? null) : null,
+
       // Detail view always shows the full-resolution image.
       object_thumb_url: null,
       cutout_thumb_url: null,

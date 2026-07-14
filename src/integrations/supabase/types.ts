@@ -71,6 +71,27 @@ export type Database = {
         }
         Relationships: []
       }
+      corpus_stats: {
+        Row: {
+          count: number
+          day: string
+          source: string
+          word: string
+        }
+        Insert: {
+          count?: number
+          day: string
+          source?: string
+          word: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          source?: string
+          word?: string
+        }
+        Relationships: []
+      }
       daily_quests: {
         Row: {
           category_key: string | null
@@ -172,63 +193,6 @@ export type Database = {
           tocfl_level?: number | null
           updated_at?: string
           zhuyin?: string | null
-        }
-        Relationships: []
-      }
-      lexicon_audits: {
-        Row: {
-          id: string
-          entry_id: string | null
-          headword: string
-          source: string
-          ok: boolean
-          confidence: number | null
-          suggestion: Json | null
-          applied: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          entry_id?: string | null
-          headword: string
-          source: string
-          ok: boolean
-          confidence?: number | null
-          suggestion?: Json | null
-          applied?: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          entry_id?: string | null
-          headword?: string
-          source?: string
-          ok?: boolean
-          confidence?: number | null
-          suggestion?: Json | null
-          applied?: boolean
-          created_at?: string
-        }
-        Relationships: []
-      }
-      corpus_stats: {
-        Row: {
-          word: string
-          day: string
-          source: string
-          count: number
-        }
-        Insert: {
-          word: string
-          day: string
-          source?: string
-          count?: number
-        }
-        Update: {
-          word?: string
-          day?: string
-          source?: string
-          count?: number
         }
         Relationships: []
       }
@@ -335,6 +299,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      lexicon_audits: {
+        Row: {
+          applied: boolean
+          confidence: number | null
+          created_at: string
+          entry_id: string | null
+          headword: string
+          id: string
+          ok: boolean
+          source: string
+          suggestion: Json | null
+        }
+        Insert: {
+          applied?: boolean
+          confidence?: number | null
+          created_at?: string
+          entry_id?: string | null
+          headword: string
+          id?: string
+          ok: boolean
+          source: string
+          suggestion?: Json | null
+        }
+        Update: {
+          applied?: boolean
+          confidence?: number | null
+          created_at?: string
+          entry_id?: string | null
+          headword?: string
+          id?: string
+          ok?: boolean
+          source?: string
+          suggestion?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lexicon_audits_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "dictionary_entries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
