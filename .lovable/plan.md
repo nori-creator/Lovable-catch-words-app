@@ -1,16 +1,122 @@
-# Save Scan-First MVP spec as the formal source of truth
+# Catchwords ― UX根本再設計プラン
 
-## 1. Save the uploaded spec
-- Copy `user-uploads://catchwords-master-spec-v2_1.md` → `docs/design/06-scan-first-mvp.md` (verbatim, no edits).
+過去指示は一旦リセット。「毎日開きたい・誰かに見せたい」を心理学から逆算する。
 
-## 2. Update `docs/design/README.md`
-- Add a prominent banner at the top: **「本プロジェクトの正式仕様は [`06-scan-first-mvp.md`](./06-scan-first-mvp.md)。`01`〜`05` と矛盾する場合は 06 を優先する。」**
-- Add `06-scan-first-mvp.md` to the 目次 table as the first row, labeled as *Source of Truth (Scan-First MVP v2)*.
+## 1. 世界の人気アプリから抽出した"無意識の秘密"
 
-## 3. Update project memory (`mem://index.md`)
-Bootstrap the index (no memories exist yet) with:
-- **Core rule**: `docs/design/06-scan-first-mvp.md` is the formal source of truth for Catchwords; on conflict with `01`〜`05`, 06 wins. Scan-first (かざす=調べる/撮る=残す), MVP = 台湾在住日本人 (zh-TW × ja).
-- **Memories reference entry**: link to `docs/design/06-scan-first-mvp.md` describing it as the Scan-First MVP v2 spec (scope, phases, acceptance criteria, Lovable prompt copy).
+| 秘密 | 出典 | Catchwordsへの応用 |
+|---|---|---|
+| **可変報酬 (Variable Reward)** | Instagram/TikTok/ガチャ | スキャン結果の"開封演出"を毎回微妙に変える(レア度・光り方) |
+| **未完了の緊張 (Zeigarnik)** | Duolingo/BeReal | ホームに「今日まだ捕まえてない」1枠だけ空白で残す |
+| **蒐集完了バイアス (Endowed Progress)** | Pokédex/Starbucks | 初回スキャンで図鑑に3枠"うっすら"見せる=既に始まってる感 |
+| **社会的証明の即時性** | BeReal/Locket | 1日1枚「今日のベスト」だけを大きく、共有トリガー |
+| **ピーク・エンド則** | Apple/Airbnb | 捕獲成功の"ピーク"演出＋日終わりの"エンド"リフレクション |
+| **所有感 (Endowment)** | Notion/Arc | 自分の言葉が"自分の色/写真"で残る=手放したくない |
+| **美的ユーザビリティ効果** | Apple/Things | 綺麗だと使いやすく感じる=浮遊感・余白・上質シャドウ徹底 |
 
-## 4. No implementation
-No feature code, DB migrations, or component changes in this turn. Implementation happens later, one phase per message per the spec's §8.
+**結論**: ストリーク・ミッション羅列は捨てる。「今日の1枚」+「育つ図鑑」の2軸だけに絞る。
+
+## 2. ホーム画面：アルバム案は"半分正解"
+
+現行アルバム=情報密度が低いのに散漫。**Instagram的インパクト**と**BeReal的親密さ**の折衷に作り替える。
+
+### 新ホーム構造 (上から)
+
+```text
+┌──────────────────────────────┐
+│  July 15  Wed        🔥 12   │  ← 極小メタ (ストリークは"数字だけ"1箇所)
+├──────────────────────────────┤
+│                              │
+│                              │
+│     [ TODAY'S CATCH ]        │  ← 全幅ヒーロー(1枚)
+│      巨大なフルブリード写真   │     tap→詳細/フリップで単語
+│      handwritten: "café"     │     未取得日は"空きフレーム"演出
+│                              │
+│                              │
+├──────────────────────────────┤
+│  ○ ○ ● ○ ○ ○ ○   this week   │  ← 週7ドット(埋める快感)
+├──────────────────────────────┤
+│  Recent finds                │
+│  [◨][◨][◨][◨] →              │  ← 横スクロールの小ポラロイド
+├──────────────────────────────┤
+│  Your Dex  ▓▓▓░░ 47/∞        │  ← 図鑑への"扉"1つだけ
+└──────────────────────────────┘
+   ●   ◎   ○   ○              ← ボトムnav (Capture中央強調)
+```
+
+**心理設計**:
+- ヒーロー1枚=**インパクト**(Instagram/BeReal)。今日撮ってなければ淡いプレースホルダ+CTA=**Zeigarnik**発火
+- 週ドット=**Endowed Progress**(1日埋めるだけで達成感)
+- Recent finds横スクロール=**Variable Reward**(スワイプするたび違う思い出)
+- 図鑑バーは"扉"1つに集約=**ごちゃごちゃ排除**
+
+## 3. スキャン演出：待ち時間を報酬に変える
+
+3幕構成 (Pixar/Appleの映画的リズム)。合計2〜4秒を"見たい時間"に。
+
+**Act 1 (0-400ms) — 予感**: シャッター音のかわりに**触覚的な"tock"**+画面が0.98倍に一瞬凹む(物理感)。周辺が微かに暗転しフォーカスが吸い寄せられる。
+
+**Act 2 (400-1800ms) — 探査 (AIリズム)**:
+- Apple Intelligence風の**虹色の光の帯**が対象の輪郭を"なぞる"(SVGストローク+conic gradient)
+- 同時に**言葉の粒子**(候補ワードが小さく飛び交う=AIが考えてる可視化)
+- 下部に**進捗ではなくポエティックな一言**を差し替え表示: "look closer…" → "something's here…" → "almost…"
+  → **Labor Illusion**(努力が見えると価値が上がる/DoorDash研究)
+
+**Act 3 (1800ms-) — 顕現**:
+- 対象から**金色の粒**が集まって単語カードが**pop-in**(既存 pop-in を強化)
+- レア度で演出差: 新発見=**金色オーラ+微かなchime**、再会=**銀の波紋**、既知=**静かなチェック**
+  → **Variable Reward**
+- カードは**haptic tick**と共に着地、handwrittenで単語が"書かれていく"タイプライタ演出
+
+**技術**: Framer Motion + SVG mask + conic-gradient + Web Audio(生成音、外部音源不要)。全て既存stackで実装可能。
+
+## 4. カラー戦略：3案を比較したい
+
+現行の深い青は残しつつ、"アクセント色"だけ差し替えて印象を検証:
+
+- **A: Deep Indigo × Champagne Gold** (現primary + #E8C77A) — Pokédex的発見の高揚
+- **B: Deep Indigo × Coral Blush** (現primary + #FF7A6B) — BeReal的親密さ・温かさ
+- **C: Deep Indigo × Aurora Mint** (現primary + #7DE3C4) — Duolingo的爽やか達成感
+
+3案を実際にヒーローカード+スキャン光で並べて選ぶ (実装フェーズ冒頭でプレビュー提示)。
+
+## 5. タイポグラフィ
+
+- 見出し: **Instrument Serif** (italic) — 雑誌的な"作品感"、handwrittenとの相性◎
+- 本文: 現行 Inter 維持
+- 手書き: **Caveat** 維持だが sizeを上げてポラロイド署名として主役化
+- 数字(ストリーク等): **SF Mono / JetBrains Mono** — 記録感
+
+## 6. 削除するもの (ごちゃごちゃ撲滅)
+
+- ホームの背景ピッカー(paper/frame/notebook/cork) → 1つに固定
+- 複数CTA(日記書く/街で見つける等) → **中央下のCaptureボタン1つに集約**
+- Past Pages縦積み → **カレンダー/月ビュー**を別画面に隔離
+
+## 7. 実装スコープ (このプランで触るファイル)
+
+- `src/routes/_authenticated/home.tsx` — 全面書き換え(ヒーロー+週ドット+recent+dex bar)
+- `src/components/ScanCatchSheet.tsx` — 3幕演出組込み
+- `src/components/ScanOverlay.tsx` — **新規**、Framer MotionでAct1-3
+- `src/lib/haptics.ts` — **新規**、Vibration API薄ラッパ
+- `src/lib/scan-sfx.ts` — **新規**、Web Audio生成音(chime/tick/whoosh)
+- `src/styles.css` — アクセント色トークン追加、hero-pop等強化、handwritten sizeスケール
+- `src/components/AppShell.tsx` — 中央Captureを浮遊FABに(既にあれば強調)
+
+## 8. 受入基準
+
+1. ホームを開いた最初の3秒で「今日の1枚」か「空きフレーム(=撮りたくなる)」のどちらかが必ず視界を占める
+2. スキャン開始→顕現まで、進捗バーが**一度も出ない**。代わりに光の帯・粒・ポエティックコピーで待たせる
+3. 新発見/再会/既知の3レア度で、演出(色・音・触覚)が体感で違う
+4. ホーム上のタップ可能要素が**5つ以下**(ヒーロー/週ドット/recent/dex/capture)
+5. 3案のアクセント色プレビューを見て1つ選べる
+
+## 9. 非スコープ (今回触らない)
+
+- 図鑑内部・ワードツリー・レビュー画面のレイアウト (別ターン)
+- サーバ関数・DB・RLS・MCP周り
+- 新機能追加 (既存機能の見せ方だけ再設計)
+
+---
+
+**次のターンで**: (a) このプランでOK→ビルドモードで着手 / (b) スキャン3幕やホーム構造の具体調整があれば指示 / (c) アクセント色3案は実装時に実プレビューで比較。
