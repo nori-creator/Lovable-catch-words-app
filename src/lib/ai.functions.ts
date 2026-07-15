@@ -187,11 +187,13 @@ const CardSchema = z.object({
   category_key: z.enum(CATEGORY_KEYS),
   example_sentence: z.string(),
   example_translation: z.string(),
-  extras: ExtrasSchema.default({
+  extras: ExtrasSchema.default(() => ({
     collocations: [], synonyms: [], antonyms: [],
     etymology: "", radicals: "", mnemonic: "", trivia: "",
     common_situation: "", usage_note: "", examples_extra: [],
-  }),
+    register_note: "", synonym_diff: "", word_order: "", study_tips: "",
+  })),
+
 });
 
 export type GeneratedCard = z.infer<typeof CardSchema>;

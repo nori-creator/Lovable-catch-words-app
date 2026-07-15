@@ -224,7 +224,7 @@ function SettingsPage() {
             queryClient.clear();
             await supabase.auth.signOut();
             await router.invalidate();
-            navigate({ to: "/auth", replace: true });
+            navigate({ to: "/auth", replace: true, search: { next: "" } });
           }}
         >
           <LogOut className="mr-2 h-4 w-4" /> サインアウト
@@ -260,7 +260,7 @@ function DangerZone() {
       await supabase.auth.signOut().catch(() => {}); // user is already gone server-side
       toast.success("アカウントを削除しました。ご利用ありがとうございました。");
       await router.invalidate();
-      navigate({ to: "/auth", replace: true });
+      navigate({ to: "/auth", replace: true, search: { next: "" } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "削除に失敗しました。もう一度お試しください。");
       setDeleting(false);

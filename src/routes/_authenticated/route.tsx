@@ -15,13 +15,13 @@ function AuthenticatedLayout() {
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (!data.session) {
-        navigate({ to: "/auth", replace: true });
+        navigate({ to: "/auth", replace: true, search: { next: "" } });
       } else {
         setReady(true);
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate({ to: "/auth", replace: true });
+      if (!session) navigate({ to: "/auth", replace: true, search: { next: "" } });
     });
     return () => {
       active = false;
