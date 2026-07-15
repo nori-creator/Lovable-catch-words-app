@@ -141,7 +141,9 @@ function SelfImprovePanel() {
     try {
       const r = await runFn();
       setResult(
-        `監査 ${r.audit.checked}件(自動修正 ${r.audit.fixed} / 要レビュー ${r.audit.flagged})· ニュース ${r.corpus.titles}見出し → ${r.corpus.words}語を蓄積`,
+        r.steps
+          .map((s) => `${s.ok ? "✅" : "❌"} ${s.step}: ${s.detail}`)
+          .join("\n"),
       );
       void refetch();
     } catch (e) {
@@ -174,7 +176,42 @@ function SelfImprovePanel() {
         {" · 人間レビュー待ち "}
         <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>{st?.needs_review ?? 0}</span> 件
       </p>
-      {result && <p className="mt-2 rounded-lg bg-primary/5 p-2 text-[11px] text-primary">{result}</p>}
+      {result && (
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">{result}</pre>
+      )}
+
+      {(st?.runs.length ?? 0) > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-[11px] text-muted-foreground">実行ログ(直近)</summary>
+          <ul className="mt-1 space-y-0.5 text-[10px]">
+            {st!.runs.map((r, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span>{r.ok ? "✅" : "❌"}</span>
+                <span className="font-medium">{r.step}</span>
+                <span className="text-muted-foreground">
+                  {new Date(r.created_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span className="min-w-0 flex-1 break-all text-muted-foreground">{r.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {(st?.top_pairs.length ?? 0) > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            よく一緒に使われる組み合わせ(今週)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {st!.top_pairs.map((p) => (
+              <span key={p.pair} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                {p.pair} <span className="text-muted-foreground">{p.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(st?.top_words.length ?? 0) > 0 && (
         <div className="mt-3">
@@ -268,7 +305,7 @@ function TtsPregenPanel() {
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <Volume2 className="h-4 w-4 text-primary" /> 辞書音声の事前生成(TOCFL L1-3)
+          <Volume2 className="h-4 w-4 text-primary" /> 辞書音声の事前生成(全語)
         </h2>
         <button
           onClick={run}
