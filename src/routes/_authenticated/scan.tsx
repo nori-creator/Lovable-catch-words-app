@@ -13,6 +13,7 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanAuroraOverlay } from "@/components/ScanAuroraOverlay";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -425,45 +426,9 @@ function ScanPage() {
             <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
 
-          {/* scanning overlay — multi-stage: 感知→読取→照合 */}
-          {scanning && (
-            <div className="absolute inset-0 grid place-items-center bg-black/50 backdrop-blur-[6px]">
-              {/* candidate probe dots — random positions, appearing/dying to
-                  suggest "the AI is looking around". Purely decorative. */}
-              <div className="pointer-events-none absolute inset-0">
-                {PROBE_DOTS.map((p, i) => (
-                  <span
-                    key={i}
-                    style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${p.delay}ms` }}
-                    className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 opacity-0 shadow-[0_0_12px_rgba(103,232,249,0.9)] animate-[probeBlink_1800ms_ease-in-out_infinite]"
-                  />
-                ))}
-              </div>
-              {/* dual sweep lines */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent animate-[scanline_1.6s_ease-in-out_infinite]" />
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-gradient-to-b from-transparent via-fuchsia-300 to-transparent animate-[scanlineV_2.1s_ease-in-out_infinite]" />
-              {/* corner reticles */}
-              <div className="pointer-events-none absolute inset-4 rounded-2xl border border-white/20" />
-              <ReticleCorners />
-              <div className="relative flex flex-col items-center gap-3 text-white">
-                <div className="relative grid h-16 w-16 place-items-center">
-                  <span className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" />
-                  <span className="absolute inset-2 rounded-full bg-cyan-400/40 animate-[ping_1.5s_ease-in-out_infinite]" />
-                  <ScanLine className="relative h-8 w-8" />
-                </div>
-                <p className="text-sm font-medium tabular-nums">
-                  {scanStage === "sensing" && "シーンを感知中…"}
-                  {scanStage === "reading" && "文字と物体を読み取り中…"}
-                  {scanStage === "matching" && "辞書と照合中…"}
-                </p>
-                <div className="flex gap-1.5">
-                  <StageDot active={scanStage === "sensing"} done={scanStage !== "sensing"} />
-                  <StageDot active={scanStage === "reading"} done={scanStage === "matching"} />
-                  <StageDot active={scanStage === "matching"} done={false} />
-                </div>
-              </div>
-            </div>
-          )}
+          {/* scanning overlay — Apple Intelligence-style aurora, poetic copy.
+              Labor Illusion + Variable Reward: no progress bar, no cyan sweep. */}
+          {scanning && <ScanAuroraOverlay stage={scanStage} />}
 
           {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
           {items && items.map((it) => {
