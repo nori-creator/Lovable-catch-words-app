@@ -13,6 +13,7 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanAuroraOverlay } from "@/components/ScanAuroraOverlay";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
