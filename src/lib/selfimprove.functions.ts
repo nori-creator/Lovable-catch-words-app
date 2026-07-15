@@ -41,7 +41,7 @@ export const getSelfImprovementStatus = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString().slice(0, 10);
-    const [auditsRes, lastRunRes, corpusRes, flaggedRes] = await Promise.all([
+    const [auditsRes, lastRunRes, corpusRes, flaggedRes, runsRes, pairsRes] = await Promise.all([
       supabaseAdmin
         .from("lexicon_audits")
         .select("headword, source, ok, confidence, suggestion, applied, created_at")
@@ -64,6 +64,17 @@ export const getSelfImprovementStatus = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .eq("ok", false)
         .eq("applied", false),
+      supabaseAdmin
+        .from("self_improve_runs")
+        .select("step, ok, detail, created_at")
+        .order("created_at", { ascending: false })
+        .limit(9),
+      supabaseAdmin
+        .from("corpus_pairs")
+        .select("word_a, word_b, count")
+        .gte("day", sevenDaysAgo)
+        .order("count", { ascending: false })
+        .limit(200),
     ]);
 
     // 直近7日の頻度を語ごとに合算 → 上位15語
@@ -76,11 +87,29 @@ export const getSelfImprovementStatus = createServerFn({ method: "GET" })
       .slice(0, 15)
       .map(([word, count]) => ({ word, count }));
 
+    // 共起ペアも7日で合算 → 上位10組
+    const pairAgg = new Map<string, number>();
+    for (const r of pairsRes.data ?? []) {
+      const key = `${r.word_a}×${r.word_b}`;
+      pairAgg.set(key, (pairAgg.get(key) ?? 0) + r.count);
+    }
+    const topPairs = [...pairAgg.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([pair, count]) => ({ pair, count }));
+
     return {
       last_run_at: lastRunRes.data?.[0]?.created_at ?? null,
       audits: (auditsRes.data ?? []) as unknown as AuditRow[],
       needs_review: flaggedRes.count ?? 0,
       top_words: topWords,
+      top_pairs: topPairs,
+      runs: (runsRes.data ?? []).map((r) => ({
+        step: r.step,
+        ok: r.ok,
+        detail: JSON.stringify(r.detail).slice(0, 260),
+        created_at: r.created_at,
+      })),
     };
   });
 
@@ -88,16 +117,13 @@ export const runSelfImprovementNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const [{ supabaseAdmin }, lex] = await Promise.all([
-      import("@/integrations/supabase/client.server"),
-      import("./lexicon.server"),
-    ]);
-    await supabaseAdmin
-      .from("usage_events")
-      .insert({ user_id: context.userId, kind: "self_improve" });
-    const [audit, corpus] = await Promise.all([
-      lex.runLexiconAudit(10),
-      lex.ingestCorpusFromNews(),
-    ]);
-    return { audit, corpus };
+    const lex = await import("./lexicon.server");
+    const { steps } = await lex.runSelfImprovement(context.userId, true);
+    return {
+      steps: steps.map((s) => ({
+        step: s.step,
+        ok: s.ok,
+        detail: JSON.stringify(s.detail).slice(0, 400),
+      })),
+    };
   });

@@ -196,6 +196,54 @@ export type Database = {
         }
         Relationships: []
       }
+      corpus_pairs: {
+        Row: {
+          word_a: string
+          word_b: string
+          day: string
+          source: string
+          count: number
+        }
+        Insert: {
+          word_a: string
+          word_b: string
+          day: string
+          source?: string
+          count?: number
+        }
+        Update: {
+          word_a?: string
+          word_b?: string
+          day?: string
+          source?: string
+          count?: number
+        }
+        Relationships: []
+      }
+      self_improve_runs: {
+        Row: {
+          id: string
+          step: string
+          ok: boolean
+          detail: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          step: string
+          ok: boolean
+          detail?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          step?: string
+          ok?: boolean
+          detail?: Json | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           created_at: string

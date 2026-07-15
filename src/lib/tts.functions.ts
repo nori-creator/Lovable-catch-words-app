@@ -81,7 +81,8 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
 // batches until `remaining` hits 0. Cost ≈ 0.1円/語.
 
 const PregenInput = z.object({
-  level_max: z.number().int().min(1).max(7).default(3),
+  // 2026-07-15: 全音声化 — デフォルトを全レベル(7)に拡大。
+  level_max: z.number().int().min(1).max(7).default(7),
   batch: z.number().int().min(1).max(50).default(25),
   dry_run: z.boolean().default(false),
 });
@@ -100,13 +101,15 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // tocfl_level が null の語(スキャンやAI合成で自動蓄積された新語)も対象に
+    // 含める — 「すべての語に音声」が目標。
     const pending = () =>
       supabaseAdmin
         .from("dictionary_entries")
         .select("id, headword", { count: "exact" })
         .eq("language", "zh-TW")
         .is("audio_path", null)
-        .lte("tocfl_level", data.level_max);
+        .or(`tocfl_level.lte.${data.level_max},tocfl_level.is.null`);
 
     const { count: remainingBefore } = await pending().limit(0);
     if (data.dry_run) {
@@ -114,7 +117,7 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
     }
 
     const { data: entries, error } = await pending()
-      .order("tocfl_level", { ascending: true })
+      .order("tocfl_level", { ascending: true, nullsFirst: false })
       .order("headword", { ascending: true })
       .limit(data.batch);
     if (error) throw new Error(error.message);
