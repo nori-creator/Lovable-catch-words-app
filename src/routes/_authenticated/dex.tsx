@@ -66,15 +66,21 @@ function DexPage() {
   }, [justCaught, navigate, captured.length]);
 
   const [view, setView] = useState<ViewMode>("gallery");
+  const [groupMode, setGroupMode] = useState<GroupMode>("category");
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (saved === "list" || saved === "gallery" || saved === "map") setView(saved);
+    const savedGroup = typeof window !== "undefined" ? localStorage.getItem("dex-group") : null;
+    if (savedGroup === "category" || savedGroup === "pos") setGroupMode(savedGroup);
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
   }, [view]);
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("dex-group", groupMode);
+  }, [groupMode]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -94,12 +100,18 @@ function DexPage() {
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const s of filtered) {
-      const k = (s.word.category_key ?? "other").toString();
+      const k =
+        groupMode === "pos"
+          ? posBucket(s.word.part_of_speech, s.capture_type)
+          : (s.word.category_key ?? "other").toString();
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
-    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
-  }, [filtered]);
+    const entries = Array.from(map.entries());
+    return groupMode === "pos"
+      ? entries.sort((a, b) => POS_ORDER.indexOf(a[0]) - POS_ORDER.indexOf(b[0]))
+      : entries.sort((a, b) => b[1].length - a[1].length);
+  }, [filtered, groupMode]);
 
   return (
     <AppShell title="図鑑">
@@ -154,6 +166,26 @@ function DexPage() {
         </div>
       )}
 
+      {/* B6: グルーピング切替(カテゴリ/品詞)。品詞は自動分類。 */}
+      {view !== "map" && captured.length > 0 && (
+        <div className="mb-3 flex gap-1.5">
+          {([
+            ["category", "カテゴリ"],
+            ["pos", "品詞"],
+          ] as const).map(([g, label]) => (
+            <button
+              key={g}
+              onClick={() => setGroupMode(g)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                groupMode === g ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {view === "map" ? (
         <DexMap stickers={captured} />
       ) : captured.length === 0 ? (
@@ -174,7 +206,7 @@ function DexPage() {
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-base font-semibold tracking-tight">{prettifyCategory(key)}</h3>
+              <h3 className="text-base font-semibold tracking-tight">{groupMode === "pos" ? key : prettifyCategory(key)}</h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 
@@ -504,6 +536,20 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
 /** Ghost card (§5.3): caught by text/voice, no real photo yet. */
 function isGhost(s: { capture_type: string; cutout_url: string | null; object_url: string | null }): boolean {
   return s.capture_type !== "photo" && !s.cutout_url && !s.object_url;
+}
+
+// B6: 品詞グルーピング。part_of_speech(日本語表記)を代表的なバケツに正規化。
+type GroupMode = "category" | "pos";
+const POS_ORDER = ["📛 名詞", "🏃 動詞", "🎨 形容詞", "💬 フレーズ", "✨ その他"];
+function posBucket(pos: string | null | undefined, captureType: string): string {
+  if (captureType === "phrase") return "💬 フレーズ";
+  const p = (pos ?? "").trim();
+  if (!p) return "✨ その他";
+  if (/名詞|代名詞|数詞|量詞/.test(p)) return "📛 名詞";
+  if (/動詞|助動詞/.test(p)) return "🏃 動詞";
+  if (/形容詞|形容動詞|副詞|形容/.test(p)) return "🎨 形容詞";
+  if (/フレーズ|慣用|成語|挨拶|感嘆|感動詞|接続詞|助詞/.test(p)) return "💬 フレーズ";
+  return "✨ その他";
 }
 
 function prettifyCategory(key: string): string {

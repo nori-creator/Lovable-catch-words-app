@@ -8,10 +8,13 @@ import {
   getDueReviews,
   gradeReview,
   getOverallMemoryStats,
+  getMemoryOverview,
+  getStickerMemoryHistory,
   getSpeakingFeedback,
   getSpeakingScaffold,
   type DueReviewCard,
   type SpeakingFeedback,
+  type MemoryWord,
 } from "@/lib/reviews.functions";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import {
@@ -116,6 +119,12 @@ function ReviewPage() {
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
+  const fetchMemOverview = useServerFn(getMemoryOverview);
+  const { data: memOverview } = useQuery({
+    queryKey: ["memory-overview"],
+    queryFn: () => fetchMemOverview(),
+    staleTime: 60_000,
+  });
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -123,6 +132,7 @@ function ReviewPage() {
   });
 
   const [idx, setIdx] = useState(0);
+  const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
   const lightMode =
@@ -215,7 +225,7 @@ function ReviewPage() {
         )
       ) : null}
 
-      {/* Memory graph lives BELOW the cards, collapsed — the first thing on
+      {/* Memory state lives BELOW the cards, collapsed — the first thing on
           this screen is always the review itself (no scrolling to start). */}
       {memStats && memStats.total_cards > 0 && (
         <details className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
@@ -227,12 +237,155 @@ function ReviewPage() {
               平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
             </span>
           </summary>
-          <div className="mt-3">
+          {memOverview && (
+            <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
+          )}
+          <div className="mt-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              全体の記憶率(前後2週間)
+            </p>
             <MiniRetentionGraph series={memStats.series} />
           </div>
         </details>
       )}
+
+      {memModal && <ForgettingCurveModal word={memModal} onClose={() => setMemModal(null)} />}
     </AppShell>
+  );
+}
+
+// ---- B5 記憶ビジュアライズ --------------------------------------------------
+function retColor(retention: number): { bar: string; text: string; dot: string } {
+  if (retention < 50) return { bar: "bg-red-500", text: "text-red-600", dot: "🔴" };
+  if (retention <= 80) return { bar: "bg-amber-500", text: "text-amber-600", dot: "🟡" };
+  return { bar: "bg-emerald-500", text: "text-emerald-600", dot: "🟢" };
+}
+
+function MemoryOverviewPanel({
+  overview,
+  onOpenWord,
+}: {
+  overview: { danger: number; fuzzy: number; solid: number; words: MemoryWord[] };
+  onOpenWord: (w: MemoryWord) => void;
+}) {
+  const total = overview.danger + overview.fuzzy + overview.solid;
+  if (total === 0) return null;
+  const pct = (n: number) => (total ? (n / total) * 100 : 0);
+  return (
+    <div className="mt-3">
+      {/* 信号色サマリー */}
+      <div className="flex gap-3 text-xs">
+        <span className="text-red-600">🔴 危険 <b>{overview.danger}</b></span>
+        <span className="text-amber-600">🟡 うろ覚え <b>{overview.fuzzy}</b></span>
+        <span className="text-emerald-600">🟢 定着 <b>{overview.solid}</b></span>
+      </div>
+      <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-secondary">
+        <div className="bg-red-500" style={{ width: `${pct(overview.danger)}%` }} />
+        <div className="bg-amber-500" style={{ width: `${pct(overview.fuzzy)}%` }} />
+        <div className="bg-emerald-500" style={{ width: `${pct(overview.solid)}%` }} />
+      </div>
+
+      {/* 危険な語から順に(タップで忘却曲線) */}
+      <ul className="mt-3 max-h-64 space-y-1.5 overflow-y-auto">
+        {overview.words.slice(0, 40).map((w) => {
+          const c = retColor(w.retention);
+          return (
+            <li key={w.sticker_id}>
+              <button
+                onClick={() => onOpenWord(w)}
+                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
+              >
+                <span className="w-14 shrink-0 truncate text-sm font-medium">{w.headword}</span>
+                <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <span className={`absolute inset-y-0 left-0 ${c.bar}`} style={{ width: `${w.retention}%` }} />
+                </span>
+                <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${c.text}`}>{w.retention}%</span>
+                {w.fresh ? (
+                  <span className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] text-sky-700">覚えたて</span>
+                ) : w.long_term ? (
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] text-emerald-700">長期定着</span>
+                ) : (
+                  <span className="w-[3.5rem] shrink-0" />
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: () => void }) {
+  const histFn = useServerFn(getStickerMemoryHistory);
+  const { data } = useQuery({
+    queryKey: ["sticker-memory", word.sticker_id],
+    queryFn: () => histFn({ data: { sticker_id: word.sticker_id } }),
+    staleTime: 60_000,
+  });
+  const c = retColor(word.retention);
+  // 現在→将来の忘却曲線(既存式で30日先まで)。
+  const series = useMemo(() => {
+    const cur = data?.current;
+    if (!cur?.last_reviewed_at) return [] as Array<{ day_offset: number; avg_retention: number }>;
+    const lastMs = new Date(cur.last_reviewed_at).getTime();
+    const stability = Math.max(0.5, cur.interval_days * Math.max(1, cur.ease));
+    const now = Date.now();
+    const out: Array<{ day_offset: number; avg_retention: number }> = [];
+    for (let d = 0; d <= 30; d++) {
+      const at = now + d * 86400_000;
+      const dt = (at - lastMs) / 86400_000;
+      out.push({ day_offset: d, avg_retention: Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-dt / stability)))) });
+    }
+    return out;
+  }, [data]);
+  const dueLabel = word.due_at
+    ? new Date(word.due_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+    : "—";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-lg font-bold">{word.headword}</h3>
+          <button onClick={onClose} aria-label="閉じる" className="rounded-full p-1 text-muted-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          <span className={c.text}>{c.dot} 記憶率 <b>{word.retention}%</b></span>
+          <span className="text-muted-foreground">次の復習: <b className="text-foreground">{dueLabel}</b></span>
+          {word.days_until_forgot != null && (
+            <span className="text-muted-foreground">
+              あと <b className={word.days_until_forgot <= 2 ? "text-red-600" : "text-foreground"}>{word.days_until_forgot}日</b> で忘却ライン(50%)
+            </span>
+          )}
+        </div>
+        {series.length > 0 ? (
+          <div className="h-40 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `+${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <Tooltip formatter={(v: number) => [`${v}%`, "記憶率"]} labelFormatter={(l) => (l === 0 ? "今日" : `${l}日後`)} />
+                <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="py-8 text-center text-xs text-muted-foreground">まだ復習履歴がありません。</p>
+        )}
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {word.long_term
+            ? "長期記憶に入りつつあります。間隔をあけて思い出すほど定着します。"
+            : word.fresh
+              ? "覚えたてです。数日以内にもう一度会うと記憶が固定されます。"
+              : "赤い線(50%)を切る前に復習すると、少ない回数で長く覚えられます。"}
+        </p>
+      </div>
+    </div>
   );
 }
 

@@ -61,6 +61,16 @@ function daysAgo(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
 }
 
+// B6: スキャンのドットラベルを品詞で色分け(名詞=白/動詞=ローズ/形容詞=アンバー)。
+// ドット本体の状態色(新規/金/取得済)は変えず、ラベルの小さな色ドットだけで示す。
+function posDotColor(pos: string | null | undefined): string {
+  const p = (pos ?? "").trim();
+  if (/動詞/.test(p)) return "bg-rose-400";
+  if (/形容/.test(p)) return "bg-amber-400";
+  if (/名詞|代名詞|量詞|数詞/.test(p)) return "bg-white";
+  return "bg-white/50";
+}
+
 // A sub-item is a §3.5 part detection whose normalized coords have already
 // been remapped into the parent frame (0..1000). We keep the parent id and
 // tag it so the renderer can draw it as a smaller "child" dot.
@@ -559,10 +569,14 @@ function ScanPage() {
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
                 )}
-                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる */}
-                <span className="pointer-events-none absolute top-full mt-1 left-1/2 max-w-[140px] -translate-x-1/2 truncate whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
-                  {it.headword}
-                  {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
+                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
+                    B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
+                <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
+                  <span className="truncate">
+                    {it.headword}
+                    {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
+                  </span>
                 </span>
               </button>
             );
