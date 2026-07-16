@@ -195,6 +195,8 @@ function ScanPage() {
 
   const doScan = useCallback(async () => {
     if (scanning) return;
+    unlockAudio();
+    haptic("medium");
     setError(null);
     setChip(null);
     setItems(null);
