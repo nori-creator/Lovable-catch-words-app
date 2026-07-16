@@ -97,8 +97,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "Catchwords" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "format-detection", content: "telephone=no" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7c531fd4-e6b7-459e-b255-c801eab9f04d/id-preview-71076ee6--51f4a9c9-677a-4416-9772-08e9df160261.lovable.app-1784014578576.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7c531fd4-e6b7-459e-b255-c801eab9f04d/id-preview-71076ee6--51f4a9c9-677a-4416-9772-08e9df160261.lovable.app-1784014578576.png" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209821987-Gemini_Generated_Image_.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209821987-Gemini_Generated_Image_.webp" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -107,6 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@500;700&display=swap" },
+      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
     ],
     scripts: [
       {
