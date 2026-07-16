@@ -294,3 +294,54 @@
 }
 
 
+
+/* ═══════════ Reels-style feed ═══════════ */
+.feed-scroll {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.feed-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* Slow ken-burns for hero photos */
+@keyframes ken-burns-a {
+  0%   { transform: scale(1.05) translate(0, 0); }
+  100% { transform: scale(1.18) translate(-2%, -1.5%); }
+}
+@keyframes ken-burns-b {
+  0%   { transform: scale(1.10) translate(1%, -1%); }
+  100% { transform: scale(1.22) translate(-1%, 2%); }
+}
+.ken-burns-a { animation: ken-burns-a 14s ease-out both; }
+.ken-burns-b { animation: ken-burns-b 16s ease-in-out both; }
+
+/* Breathing scan FAB */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 40%, transparent), 0 18px 40px -14px color-mix(in oklab, var(--primary) 55%, transparent); }
+  50%      { transform: scale(1.05); box-shadow: 0 0 0 18px color-mix(in oklab, var(--primary) 0%, transparent), 0 22px 50px -14px color-mix(in oklab, var(--primary) 65%, transparent); }
+}
+.breathe { animation: breathe 3.4s ease-in-out infinite; }
+
+/* Segmented nav pill */
+.seg-pill {
+  background: color-mix(in oklab, var(--card) 65%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+/* Deep-ocean body ambience (only in dark) */
+.dark body {
+  background-image:
+    radial-gradient(70% 45% at 50% -5%, color-mix(in oklab, var(--primary) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 40% at 100% 100%, color-mix(in oklab, var(--accent-cyan) 12%, transparent) 0%, transparent 70%),
+    radial-gradient(45% 40% at 0% 90%, color-mix(in oklab, var(--primary) 15%, transparent) 0%, transparent 70%);
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .ken-burns-a, .ken-burns-b, .breathe, .pulse-ring, .shimmer-sweep::after { animation: none !important; }
+}
