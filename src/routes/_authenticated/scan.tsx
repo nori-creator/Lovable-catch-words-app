@@ -13,6 +13,9 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanEffect } from "@/components/ScanEffect";
+import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
