@@ -25,7 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Read stored value once on client
   useEffect(() => {
     const stored = (typeof localStorage !== "undefined" && localStorage.getItem("theme")) as Theme | null;
-    const initial: Theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+    const initial: Theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
     setThemeState(initial);
   }, []);
 
