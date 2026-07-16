@@ -45,6 +45,9 @@ const GhostInput = z.object({
   language: z.string().default("zh-TW"),
   capture_type: z.enum(["text", "voice"]),
   caption: z.string().nullable().optional(),
+  // B2: ユーザーが自分の画像を添付した場合の実写パス。設定されると
+  // object_image_url が入り、そのカードはゴーストでなくなる(実物あり)。
+  object_path: z.string().nullable().optional(),
   placeholder_path: z.string().nullable().optional(),
   placeholder_credit: z
     .object({
@@ -76,7 +79,7 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
       user_id: userId,
       word_id: wordId,
       language: data.language,
-      object_image_url: null,
+      object_image_url: ownPath(data.object_path),
       cutout_image_url: null,
       selfie_image_url: null,
       caption: data.caption ?? null,

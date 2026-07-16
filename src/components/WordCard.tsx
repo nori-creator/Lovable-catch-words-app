@@ -1,9 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
+import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown, ExternalLink, Flag } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/tts.functions";
-import { primeAudio } from "@/lib/audio";
+import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
+import { reportEntry } from "@/lib/reports.functions";
+import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
 
 export type WordExtras = {
   collocations?: string[];
@@ -36,6 +39,7 @@ export type WordCardData = {
 
 type SectionId =
   | "meaning"
+  | "web_images"
   | "common_situation"
   | "register_note"
   | "example"
@@ -48,10 +52,12 @@ type SectionId =
   | "mnemonic"
   | "study_tips"
   | "trivia"
-  | "usage_note";
+  | "usage_note"
+  | "real_usage";
 
 const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "meaning", label: "意味" },
+  { id: "web_images", label: "ネットの画像" },
   { id: "common_situation", label: "使う場面" },
   { id: "register_note", label: "頻度・どこで使う" },
   { id: "example", label: "例文" },
@@ -65,6 +71,7 @@ const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "study_tips", label: "勉強のコツ" },
   { id: "trivia", label: "雑学" },
   { id: "usage_note", label: "語法ノート" },
+  { id: "real_usage", label: "実際の使われ方" },
 ];
 
 const PREF_KEY = "wordcard-prefs-v2";
@@ -167,6 +174,8 @@ const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string;
   mnemonic:         { bg: "bg-fuchsia-50", ring: "ring-fuchsia-200", chip: "bg-fuchsia-500", icon: "💡", title: "text-fuchsia-900" },
   trivia:           { bg: "bg-teal-50",    ring: "ring-teal-200",    chip: "bg-teal-500",    icon: "✨", title: "text-teal-900" },
   usage_note:       { bg: "bg-orange-50",  ring: "ring-orange-200",  chip: "bg-orange-500",  icon: "⚠️", title: "text-orange-900" },
+  web_images:       { bg: "bg-sky-50/70",  ring: "ring-sky-200",     chip: "bg-sky-600",     icon: "🌐", title: "text-sky-900" },
+  real_usage:       { bg: "bg-rose-50/70", ring: "ring-rose-200",    chip: "bg-rose-600",    icon: "🎬", title: "text-rose-900" },
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
@@ -201,6 +210,9 @@ export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autopla
         case "mnemonic": return !!ex.mnemonic;
         case "trivia": return !!ex.trivia;
         case "usage_note": return !!ex.usage_note;
+        // 外部データのセクションは常に描画できる(A10)。
+        case "web_images": return true;
+        case "real_usage": return true;
       }
     };
 
@@ -243,6 +255,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
     primeAudio(audioRef.current);
     try {
       const url = await ensureAudio();
+      claimAudio(audioRef.current);
       audioRef.current.src = url;
       audioRef.current.onplay = () => setPlaying(true);
       audioRef.current.onended = () => setPlaying(false);
@@ -251,9 +264,9 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
     } catch (e) {
       console.warn("TTS playback failed", e);
       if ("speechSynthesis" in window) {
+        stopOtherAudio();
         const u = new SpeechSynthesisUtterance(word.headword);
         u.lang = "zh-TW";
-        speechSynthesis.cancel();
         speechSynthesis.speak(u);
       }
     }
@@ -285,7 +298,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             {word.reading_zhuyin} {word.pinyin && <span className="ml-2">{word.pinyin}</span>}
           </div>
           {(word.part_of_speech || word.level) && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {word.part_of_speech && (
                 <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200">
                   {word.part_of_speech}
@@ -296,11 +309,63 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
                   {word.level}
                 </span>
               )}
+              <ReportButton headword={word.headword} />
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 辞書エラー報告(A8): 発音・意味・品詞の誤りをその場で通報。監査の
+ * ランダム抜き打ちだけでは拾えない実利用者の指摘を集める恒久ルート。
+ */
+function ReportButton({ headword }: { headword: string }) {
+  const reportFn = useServerFn(reportEntry);
+  const [open, setOpen] = useState(false);
+  const [sent, setSent] = useState(false);
+  const kinds: { kind: "pronunciation" | "meaning" | "pos" | "other"; label: string }[] = [
+    { kind: "pronunciation", label: "発音・注音" },
+    { kind: "meaning", label: "意味" },
+    { kind: "pos", label: "品詞" },
+    { kind: "other", label: "その他" },
+  ];
+  async function send(kind: "pronunciation" | "meaning" | "pos" | "other") {
+    setOpen(false);
+    try {
+      await reportFn({ data: { headword, kind, note: "" } });
+      setSent(true);
+    } catch { /* 報告失敗は致命的でない */ }
+  }
+  if (sent) {
+    return <span className="text-[11px] text-muted-foreground">🙏 報告ありがとうございます</span>;
+  }
+  return (
+    <span className="relative ml-auto">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+        aria-label="この語の誤りを報告"
+      >
+        <Flag className="h-3 w-3" /> 報告
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+          <p className="px-2 py-1 text-[10px] text-muted-foreground">どこが違う?</p>
+          {kinds.map((k) => (
+            <button
+              key={k.kind}
+              onClick={() => send(k.kind)}
+              className="block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-secondary"
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -396,7 +461,92 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
       return <p className="text-sm leading-relaxed">{ex.trivia}</p>;
     case "usage_note":
       return <p className="text-sm leading-relaxed">{ex.usage_note}</p>;
+    case "web_images":
+      return <WebImagesBody headword={word.headword} meaningJa={word.meaning_ja} />;
+    case "real_usage":
+      return <RealUsageBody headword={word.headword} />;
   }
+}
+
+/**
+ * ネットの画像(A10): その単語を最もよく表すWeb画像を**開いた瞬間に**表示する
+ * (以前はStickerSheetの折りたたみで、タップしないと出なかった)。
+ * 結果は24hキャッシュされるので実コストは初回検索のみ。
+ */
+function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: string }) {
+  const searchFn = useServerFn(searchImageCandidates);
+  const { data, isLoading } = useQuery({
+    queryKey: ["web-images", headword],
+    queryFn: async () => (await searchFn({ data: { query: meaningJa || headword } })).candidates,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+  const candidates: ImageCandidate[] = data ?? [];
+  return (
+    <div>
+      {isLoading ? (
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/60" />)}
+        </div>
+      ) : candidates.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {candidates.slice(0, 3).map((c, i) => (
+            <figure key={i} className="relative aspect-square overflow-hidden rounded-xl bg-white/60">
+              <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+              {c.credit?.name && (
+                <figcaption className="absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">📷 {c.credit.name}</figcaption>
+              )}
+            </figure>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
+      )}
+      <a
+        href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
+      >
+        Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
+      </a>
+    </div>
+  );
+}
+
+/**
+ * 実際の使われ方(A10): 動画・SNS・辞書・ニュースの中で本当に使われている
+ * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
+ */
+function RealUsageBody({ headword }: { headword: string }) {
+  const q = encodeURIComponent(headword);
+  const links: { label: string; hint: string; href: string; emoji: string }[] = [
+    { emoji: "🎬", label: "YouTubeで聞く", hint: "この単語が話されている動画", href: `https://www.youtube.com/results?search_query=${q}` },
+    { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
+    { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
+    { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
+    { emoji: "📖", label: "萌典(教育部辞書)", hint: "公式辞書の定義・注音", href: `https://www.moedict.tw/${q}` },
+  ];
+  return (
+    <ul className="grid grid-cols-1 gap-1.5">
+      {links.map((l) => (
+        <li key={l.label}>
+          <a
+            href={l.href}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2.5 rounded-xl bg-white/60 px-3 py-2 text-sm shadow-sm ring-1 ring-black/5 transition-colors active:bg-white"
+          >
+            <span className="text-base">{l.emoji}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{l.label}</span>
+              <span className="block truncate text-[10px] text-muted-foreground">{l.hint}</span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /**

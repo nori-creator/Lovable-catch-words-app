@@ -7,9 +7,9 @@ import { AppShell } from "@/components/AppShell";
 import { detectScan, detectParts, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
-import { preloadCutout } from "@/lib/cutout";
-import { primeAudio } from "@/lib/audio";
+import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
 import { logAppEvent } from "@/lib/metrics.functions";
+import { geocodeLocation } from "@/lib/geocode.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
@@ -63,6 +63,16 @@ function daysAgo(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
 }
 
+// B6: スキャンのドットラベルを品詞で色分け(名詞=白/動詞=ローズ/形容詞=アンバー)。
+// ドット本体の状態色(新規/金/取得済)は変えず、ラベルの小さな色ドットだけで示す。
+function posDotColor(pos: string | null | undefined): string {
+  const p = (pos ?? "").trim();
+  if (/動詞/.test(p)) return "bg-rose-400";
+  if (/形容/.test(p)) return "bg-amber-400";
+  if (/名詞|代名詞|量詞|数詞/.test(p)) return "bg-white";
+  return "bg-white/50";
+}
+
 // A sub-item is a §3.5 part detection whose normalized coords have already
 // been remapped into the parent frame (0..1000). We keep the parent id and
 // tag it so the renderer can draw it as a smaller "child" dot.
@@ -77,6 +87,7 @@ function ScanPage() {
   const cardFn = useServerFn(generateCard);
   const scanCtxFn = useServerFn(getScanContext);
   const logEvent = useServerFn(logAppEvent);
+  const geocodeFn = useServerFn(geocodeLocation);
 
   // §3.1b: the user's collection, cached lightly for dot-state matching.
   const { data: rawScanCtx } = useQuery({
@@ -144,10 +155,27 @@ function ScanPage() {
 
 
 
-  // Warm the cutout model while the user frames the shot, so the first
-  // catch doesn't pay the model download + init cost (roadmap B2).
+  // B1(NORI指定): 切り抜きは一旦停止中のため、背景除去モデルの事前読み込みは
+  // 行わない(無駄なダウンロードを避け、写真で最速キャッチに集中)。
+
+  // GPSウォームアップ(A4): 以前は撮影時に timeout 800ms の getCurrentPosition
+  // 一発勝負で、初回フィックスが間に合わず場所がほぼ保存されなかった。
+  // 画面を開いた時点から watchPosition で追従し、撮影時は最新値を即使う。
+  const warmPosRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
   useEffect(() => {
-    preloadCutout();
+    if (!("geolocation" in navigator)) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        warmPosRef.current = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          at: Date.now(),
+        };
+      },
+      () => {},
+      { enableHighAccuracy: false, maximumAge: 60_000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
   }, []);
 
   // ---- camera lifecycle ----
@@ -223,15 +251,34 @@ function ScanPage() {
     const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
     const t0 = performance.now();
     try {
-      // location best-effort (§3.7)
+      // location best-effort (§3.7): warm watchPosition first, then one
+      // patient getCurrentPosition — never block the scan for more than 5s.
       let lat: number | null = null, lng: number | null = null;
-      try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) => {
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 800, maximumAge: 60000 });
-        });
-        lat = pos.coords.latitude; lng = pos.coords.longitude;
-      } catch { /* ignore */ }
+      const warm = warmPosRef.current;
+      if (warm && Date.now() - warm.at < 2 * 60_000) {
+        lat = warm.lat; lng = warm.lng;
+      } else {
+        try {
+          const pos = await new Promise<GeolocationPosition>((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, maximumAge: 120_000 });
+          });
+          lat = pos.coords.latitude; lng = pos.coords.longitude;
+        } catch { /* ignore */ }
+      }
       setScanLoc({ lat, lng, name: null });
+      if (lat != null && lng != null) {
+        // 地名(「士林」級)は非同期で追いつかせる — スキャンは待たない。
+        const glat = lat, glng = lng;
+        void geocodeFn({ data: { lat: glat, lng: glng } })
+          .then(({ location_name }) => {
+            if (location_name) {
+              setScanLoc((cur) =>
+                cur.lat === glat && cur.lng === glng ? { ...cur, name: location_name } : cur,
+              );
+            }
+          })
+          .catch(() => {});
+      }
 
       const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
       const dt = Math.round(performance.now() - t0);
@@ -325,15 +372,16 @@ function ScanPage() {
         url = r.audio_url;
       }
       if (!audioRef.current) audioRef.current = new Audio();
+      claimAudio(audioRef.current);
       audioRef.current.src = url;
       await audioRef.current.play();
       reportTap(Math.round(performance.now() - t0));
     } catch {
       // fall back to browser TTS
       if ("speechSynthesis" in window) {
+        stopOtherAudio();
         const u = new SpeechSynthesisUtterance(headword);
         u.lang = "zh-TW";
-        speechSynthesis.cancel();
         speechSynthesis.speak(u);
         reportTap(Math.round(performance.now() - t0));
       } else {
@@ -505,10 +553,14 @@ function ScanPage() {
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
                 )}
-                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる */}
-                <span className="pointer-events-none absolute top-full mt-1 left-1/2 max-w-[140px] -translate-x-1/2 truncate whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
-                  {it.headword}
-                  {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
+                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
+                    B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
+                <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
+                  <span className="truncate">
+                    {it.headword}
+                    {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
+                  </span>
                 </span>
               </button>
             );

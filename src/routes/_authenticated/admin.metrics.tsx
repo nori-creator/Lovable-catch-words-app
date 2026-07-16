@@ -7,7 +7,8 @@ import { checkIsAdmin } from "@/lib/admin.functions";
 import { getAdminDashboard } from "@/lib/metrics.functions";
 import { pregenerateDictionaryTts } from "@/lib/tts.functions";
 import { getSelfImprovementStatus, runSelfImprovementNow } from "@/lib/selfimprove.functions";
-import { BarChart3, Brain, Loader2, Users, Volume2 } from "lucide-react";
+import { listEntryReports, resolveEntryReport } from "@/lib/reports.functions";
+import { BarChart3, Brain, Flag, Loader2, Users, Volume2 } from "lucide-react";
 
 /** KPI dashboard (roadmap §3) — admin only, one screen, numbers over charts. */
 export const Route = createFileRoute("/_authenticated/admin/metrics")({
@@ -78,6 +79,9 @@ function AdminMetricsPage() {
 
           {/* 自己改善システム: 毎日の辞書監査+ニュースコーパス観察 */}
           <SelfImprovePanel />
+
+          {/* ユーザーからの辞書エラー報告(A8) */}
+          <EntryReportsPanel />
 
           {/* Daily table */}
           <section className="overflow-x-auto rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -157,7 +161,7 @@ function SelfImprovePanel() {
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日自動)
+          <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日=監査のみ)
         </h2>
         <button
           onClick={run}
@@ -175,6 +179,9 @@ function SelfImprovePanel() {
           : "まだ"}
         {" · 人間レビュー待ち "}
         <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>{st?.needs_review ?? 0}</span> 件
+      </p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
         <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">{result}</pre>
@@ -245,6 +252,72 @@ function SelfImprovePanel() {
             ))}
           </ul>
         </details>
+      )}
+    </section>
+  );
+}
+
+/**
+ * ユーザー報告キュー(A8): 「発音・意味・品詞が違う」の通報を確認し、
+ * 対応済み/却下にする。ランダム監査と相補で辞書の正確性を守る。
+ */
+function EntryReportsPanel() {
+  const listFn = useServerFn(listEntryReports);
+  const resolveFn = useServerFn(resolveEntryReport);
+  const { data: reports, refetch } = useQuery({
+    queryKey: ["entry-reports"],
+    queryFn: () => listFn(),
+    staleTime: 60_000,
+  });
+  const KIND_LABEL: Record<string, string> = {
+    pronunciation: "発音・注音",
+    meaning: "意味",
+    pos: "品詞",
+    other: "その他",
+  };
+  async function resolve(id: string, status: "resolved" | "dismissed") {
+    try {
+      await resolveFn({ data: { id, status } });
+      void refetch();
+    } catch { /* noop */ }
+  }
+  const list = reports ?? [];
+  return (
+    <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+        <Flag className="h-4 w-4 text-primary" /> エラー報告
+        <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] ${list.length ? "bg-amber-100 text-amber-800" : "bg-secondary text-muted-foreground"}`}>
+          {list.length}
+        </span>
+      </h2>
+      {list.length === 0 ? (
+        <p className="text-xs text-muted-foreground">未対応の報告はありません。</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {list.map((r) => (
+            <li key={r.id} className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs">
+              <span className="font-semibold">{r.headword}</span>
+              <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                {KIND_LABEL[r.kind] ?? r.kind}
+              </span>
+              {r.note && <span className="min-w-0 flex-1 truncate text-muted-foreground">「{r.note}」</span>}
+              <span className="ml-auto flex gap-1">
+                <button
+                  onClick={() => resolve(r.id, "resolved")}
+                  className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary"
+                >
+                  対応済み
+                </button>
+                <button
+                  onClick={() => resolve(r.id, "dismissed")}
+                  className="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground"
+                >
+                  却下
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

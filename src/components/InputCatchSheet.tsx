@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { generateCard, generatePhraseCard, type GeneratedCard, type GeneratedPhraseCard } from "@/lib/ai.functions";
 import { lookupHeadwords, type DictionaryEntry } from "@/lib/scan.functions";
-import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from "@/lib/images.functions";
 import { saveGhostSticker } from "@/lib/ghost.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 
@@ -56,8 +55,6 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
   const cardFn = useServerFn(generateCard);
   const phraseFn = useServerFn(generatePhraseCard);
   const lookupFn = useServerFn(lookupHeadwords);
-  const searchImagesFn = useServerFn(searchImageCandidates);
-  const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const saveGhostFn = useServerFn(saveGhostSticker);
 
   const [step, setStep] = useState<Step>("input");
@@ -70,8 +67,9 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
   const [card, setCard] = useState<GeneratedCard | null>(null);
   const [phraseCard, setPhraseCard] = useState<GeneratedPhraseCard | null>(null);
   const [dict, setDict] = useState<DictionaryEntry | null>(null);
-  const [candidates, setCandidates] = useState<ImageCandidate[]>([]);
-  const [picked, setPicked] = useState(0);
+  // B2: 自動仮画像(Unsplash)を廃止。ユーザーが自分の画像を任意で添付する。
+  const [attachedDataUrl, setAttachedDataUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
   const canSpeak = srAvailable();
 
@@ -122,12 +120,9 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
     setStep("loading");
     try {
       if (isPhrase) {
-        const [pc] = await Promise.all([
-          phraseFn({ data: { phrase: headword, scene } }),
-        ]);
+        const pc = await phraseFn({ data: { phrase: headword, scene } });
         setPhraseCard(pc);
         setDict(null);
-        void loadImages(pc.meaning_ja || headword);
       } else {
         // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
@@ -137,7 +132,6 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
         setDict(lk.entries[resolved] ?? null);
         setCard(c);
         if (resolved !== headword) setText(resolved);
-        void loadImages(c.meaning_ja || resolved);
       }
       setStep("preview");
     } catch (e) {
@@ -146,12 +140,17 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
     }
   }
 
-  async function loadImages(query: string) {
+  async function onPickFile(file: File) {
     try {
-      const { candidates: cands } = await searchImagesFn({ data: { query } });
-      setCandidates(cands);
-      setPicked(0);
-    } catch { /* placeholder is optional */ }
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(file);
+      });
+      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
+      setAttachedDataUrl(small);
+    } catch { /* 添付は任意 */ }
   }
 
   async function save() {
@@ -160,33 +159,23 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
     setStep("saving");
     setErr(null);
     try {
-      // Upload the placeholder (auto-picked, changeable) to Storage.
-      let placeholder_path: string | null = null;
-      let placeholder_credit: { name?: string; link?: string; source: string } | null = null;
-      const cand = candidates[picked];
-      if (cand) {
+      // B2: 自動仮画像は廃止。ユーザーが添付した画像があればそれを実写として
+      // 使う(なければ画像なしのゴーストのまま=実物に出会って完成させる)。
+      let object_path: string | null = null;
+      if (attachedDataUrl) {
         try {
-          const dataUrl = cand.url.startsWith("data:")
-            ? cand.url
-            : (await fetchImageFn({ data: { url: cand.url } })).dataUrl;
-          const small = await downscaleDataUrl(dataUrl, 800, 0.82);
-          const blob = await (await fetch(small)).blob();
+          const blob = await (await fetch(attachedDataUrl)).blob();
           const { data: userData } = await supabase.auth.getUser();
           const userId = userData.user?.id;
           if (userId) {
-            const path = `${userId}/${Date.now()}-placeholder.jpg`;
+            const path = `${userId}/${Date.now()}-object.jpg`;
             const { error } = await supabase.storage.from("stickers").upload(path, blob, {
               contentType: blob.type,
               upsert: false,
             });
-            if (!error) {
-              placeholder_path = path;
-              placeholder_credit = cand.credit
-                ? { ...cand.credit, source: cand.source }
-                : { source: cand.source };
-            }
+            if (!error) object_path = path;
           }
-        } catch { /* ghost without image is still fine */ }
+        } catch { /* 画像なしでも保存は続行 */ }
       }
 
       const word = isPhrase
@@ -235,8 +224,9 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
           language: "zh-TW",
           capture_type: initialMode === "voice" && canSpeak ? "voice" : "text",
           caption: isPhrase && scene ? scene : null,
-          placeholder_path,
-          placeholder_credit,
+          object_path,
+          placeholder_path: null,
+          placeholder_credit: null,
         },
       });
 
@@ -244,8 +234,10 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       if (res.first_catch) {
         toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+      } else if (object_path) {
+        toast.success("図鑑にカードが入りました!");
       } else {
-        toast.success("図鑑にゴーストカードが入りました。実物に出会ったら金色に光ります!");
+        toast.success("図鑑に入りました。実物に出会ったら金色に光ります!");
       }
       onClose();
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
@@ -350,42 +342,39 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
 
         {(step === "preview" || step === "saving") && (
           <div className="mx-auto max-w-sm space-y-4">
-            {/* Placeholder image — clearly temporary (§5.3) */}
-            <div className="relative mx-auto aspect-square w-48">
-              <div className="grid h-full w-full place-items-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-secondary/60">
-                {candidates[picked] ? (
-                  <img src={candidates[picked].thumb} alt="仮画像" className="h-full w-full object-cover opacity-80" />
-                ) : (
-                  <Ghost className="h-12 w-12 text-muted-foreground" />
-                )}
-              </div>
-              <span className="absolute left-2 top-2 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-semibold text-background">
-                仮の画像
-              </span>
-              {candidates[picked]?.credit && (
-                <a
-                  href={candidates[picked].credit!.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="absolute bottom-1 right-2 text-[9px] text-white/90 drop-shadow"
-                >
-                  📷 {candidates[picked].credit!.name}
-                </a>
+            {/* B2: 自動仮画像は廃止。ユーザーが自分の画像を任意で添付できる。
+                添付なしなら画像なしのゴースト(実物に出会って完成させる)。 */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onPickFile(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="relative mx-auto block aspect-square w-48"
+            >
+              {attachedDataUrl ? (
+                <img src={attachedDataUrl} alt="添付画像" className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
+              ) : (
+                <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
+                  <div className="text-center text-muted-foreground">
+                    <Ghost className="mx-auto h-10 w-10" />
+                    <span className="mt-1 block text-[11px]">画像を添付(任意)</span>
+                  </div>
+                </div>
               )}
-            </div>
-            {candidates.length > 1 && (
-              <div className="flex justify-center gap-2 overflow-x-auto">
-                {candidates.map((c, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPicked(i)}
-                    className={`h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-2 ${i === picked ? "ring-primary" : "ring-transparent"}`}
-                  >
-                    <img src={c.thumb} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
+            </button>
+            <p className="text-center text-[11px] text-muted-foreground">
+              {attachedDataUrl
+                ? "タップで画像を変更"
+                : "画像なしでもOK。実物に出会うと図鑑で金色に光ります"}
+            </p>
 
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-baseline gap-2">

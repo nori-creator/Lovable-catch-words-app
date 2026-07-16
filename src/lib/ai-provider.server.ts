@@ -1,4 +1,6 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText, Output } from "ai";
+import type { z } from "zod";
 
 /**
  * Single switch point for every AI call in the app.
@@ -101,6 +103,84 @@ export function getAi(): AiConfig {
     modelRichPremium:
       process.env.AI_MODEL_RICH_PREMIUM ?? process.env.AI_MODEL_RICH ?? LOVABLE_DEFAULT_MODEL,
   };
+}
+
+/** Pull a JSON object out of AI text that may carry fences or prose around it. */
+export function parseJsonFromAiText(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) return JSON.parse(fenced[1]);
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+  return JSON.parse(trimmed);
+}
+
+/**
+ * Structured generation that survives Gemini's flaky OpenAI-compatible
+ * structured output. `result.experimental_output` is a getter that THROWS
+ * "No object generated: response did not match schema" — so `out ?? fallback`
+ * never falls back; every feature built on Output.object (card, journal,
+ * speaking, audit, synth) was failing whenever the provider hiccuped.
+ *
+ * Order of attempts:
+ *  1. Output.object, then the same response's raw text re-parsed as JSON
+ *  2. a fresh plain-text call with a "JSONのみ" instruction (the pattern that
+ *     keeps suggestWords stable), parsed + schema-validated
+ */
+export async function generateStructured<S extends z.ZodTypeAny>(opts: {
+  model: Parameters<typeof generateText>[0]["model"];
+  prompt: string;
+  schema: S;
+}): Promise<z.infer<S>> {
+  try {
+    const result = await generateText({
+      model: opts.model,
+      prompt: opts.prompt,
+      experimental_output: Output.object({ schema: opts.schema }) as never,
+    });
+    try {
+      const out = (result as unknown as { experimental_output?: unknown }).experimental_output;
+      if (out != null) return opts.schema.parse(out);
+    } catch {
+      /* NoObjectGeneratedError — try the raw text below */
+    }
+    try {
+      return opts.schema.parse(parseJsonFromAiText(result.text));
+    } catch {
+      /* fall through to the plain-text retry */
+    }
+  } catch {
+    /* the call itself failed — retry once in plain-text mode */
+  }
+
+  const retry = await generateText({
+    model: opts.model,
+    prompt:
+      `${opts.prompt}\n\n` +
+      `重要: 出力は要求されたキーを持つ有効なJSONオブジェクトのみ。` +
+      `説明文・前置き・後書きは一切書かない(\`\`\`jsonフェンスは可)。`,
+  });
+  return opts.schema.parse(parseJsonFromAiText(retry.text));
+}
+
+/**
+ * 学習者の目標レベル(profiles.level_goal, 例 "TOCFL-2")。AIプロンプトの
+ * 語彙難易度をユーザーレベルに合わせるために使う。失敗時はβの既定値。
+ */
+export async function getUserLevelGoal(userId: string): Promise<string> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("level_goal")
+      .eq("id", userId)
+      .maybeSingle();
+    const goal = (data as { level_goal?: string } | null)?.level_goal;
+    return goal && goal.trim() ? goal : "TOCFL-2";
+  } catch {
+    return "TOCFL-2";
+  }
 }
 
 /**

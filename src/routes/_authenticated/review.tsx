@@ -3,13 +3,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { claimAudio, stopOtherAudio } from "@/lib/audio";
 import {
   getDueReviews,
   gradeReview,
   getOverallMemoryStats,
+  getMemoryOverview,
+  getStickerMemoryHistory,
   getSpeakingFeedback,
+  getSpeakingScaffold,
   type DueReviewCard,
   type SpeakingFeedback,
+  type MemoryWord,
 } from "@/lib/reviews.functions";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import {
@@ -44,7 +49,7 @@ function readBool(key: string, def = false) {
 // ---- speech helpers --------------------------------------------------------
 function speakZhTW(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  stopOtherAudio();
   const u = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
   const v =
@@ -59,10 +64,23 @@ let sharedAudio: HTMLAudioElement | null = null;
 function playAudio(card: DueReviewCard) {
   if (card.audio_url) {
     if (!sharedAudio) sharedAudio = new Audio();
+    claimAudio(sharedAudio);
     sharedAudio.src = card.audio_url;
     sharedAudio.play().catch(() => speakZhTW(card.headword));
   } else {
     speakZhTW(card.headword);
+  }
+}
+
+/** A3: 任意のテキスト/音声URLを排他再生(4択の選択肢🔊用)。 */
+function playText(text: string, audioUrl?: string | null) {
+  if (audioUrl) {
+    if (!sharedAudio) sharedAudio = new Audio();
+    claimAudio(sharedAudio);
+    sharedAudio.src = audioUrl;
+    sharedAudio.play().catch(() => speakZhTW(text));
+  } else {
+    speakZhTW(text);
   }
 }
 
@@ -101,6 +119,12 @@ function ReviewPage() {
     queryFn: () => fetchStats(),
     staleTime: 60_000,
   });
+  const fetchMemOverview = useServerFn(getMemoryOverview);
+  const { data: memOverview } = useQuery({
+    queryKey: ["memory-overview"],
+    queryFn: () => fetchMemOverview(),
+    staleTime: 60_000,
+  });
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -108,16 +132,17 @@ function ReviewPage() {
   });
 
   const [idx, setIdx] = useState(0);
+  const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
   const lightMode =
     (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
-  function toggleLight() {
-    const next = lightMode ? "speaking" : "choice";
+  function setMode(next: "speaking" | "choice") {
+    if ((lightMode ? "choice" : "speaking") === next) return;
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
-    void updateProfileFn({ data: { review_mode: next as "speaking" | "choice" } })
+    void updateProfileFn({ data: { review_mode: next } })
       .catch(() => {})
       .finally(() => qc.invalidateQueries({ queryKey: ["profile"] }));
   }
@@ -141,13 +166,33 @@ function ReviewPage() {
                 {Math.min(idx, cards.length)} / {cards.length}
               </span>
             )}
-            <button
-              onClick={toggleLight}
-              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
-              title="声を出せない場所用の4択モード"
+            <div
+              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-[11px] font-semibold"
+              role="tablist"
+              aria-label="復習モード"
             >
-              ライト {lightMode ? "ON" : "OFF"}
-            </button>
+              <span
+                aria-hidden
+                className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+              />
+              <button
+                role="tab"
+                aria-selected={!lightMode}
+                onClick={() => setMode("speaking")}
+                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              >
+                🎤 発音
+              </button>
+              <button
+                role="tab"
+                aria-selected={lightMode}
+                onClick={() => setMode("choice")}
+                title="声を出せない場所用の4択モード"
+                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              >
+                👆 4択
+              </button>
+            </div>
           </div>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -180,7 +225,7 @@ function ReviewPage() {
         )
       ) : null}
 
-      {/* Memory graph lives BELOW the cards, collapsed — the first thing on
+      {/* Memory state lives BELOW the cards, collapsed — the first thing on
           this screen is always the review itself (no scrolling to start). */}
       {memStats && memStats.total_cards > 0 && (
         <details className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
@@ -192,12 +237,155 @@ function ReviewPage() {
               平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
             </span>
           </summary>
-          <div className="mt-3">
+          {memOverview && (
+            <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
+          )}
+          <div className="mt-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              全体の記憶率(前後2週間)
+            </p>
             <MiniRetentionGraph series={memStats.series} />
           </div>
         </details>
       )}
+
+      {memModal && <ForgettingCurveModal word={memModal} onClose={() => setMemModal(null)} />}
     </AppShell>
+  );
+}
+
+// ---- B5 記憶ビジュアライズ --------------------------------------------------
+function retColor(retention: number): { bar: string; text: string; dot: string } {
+  if (retention < 50) return { bar: "bg-red-500", text: "text-red-600", dot: "🔴" };
+  if (retention <= 80) return { bar: "bg-amber-500", text: "text-amber-600", dot: "🟡" };
+  return { bar: "bg-emerald-500", text: "text-emerald-600", dot: "🟢" };
+}
+
+function MemoryOverviewPanel({
+  overview,
+  onOpenWord,
+}: {
+  overview: { danger: number; fuzzy: number; solid: number; words: MemoryWord[] };
+  onOpenWord: (w: MemoryWord) => void;
+}) {
+  const total = overview.danger + overview.fuzzy + overview.solid;
+  if (total === 0) return null;
+  const pct = (n: number) => (total ? (n / total) * 100 : 0);
+  return (
+    <div className="mt-3">
+      {/* 信号色サマリー */}
+      <div className="flex gap-3 text-xs">
+        <span className="text-red-600">🔴 危険 <b>{overview.danger}</b></span>
+        <span className="text-amber-600">🟡 うろ覚え <b>{overview.fuzzy}</b></span>
+        <span className="text-emerald-600">🟢 定着 <b>{overview.solid}</b></span>
+      </div>
+      <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-secondary">
+        <div className="bg-red-500" style={{ width: `${pct(overview.danger)}%` }} />
+        <div className="bg-amber-500" style={{ width: `${pct(overview.fuzzy)}%` }} />
+        <div className="bg-emerald-500" style={{ width: `${pct(overview.solid)}%` }} />
+      </div>
+
+      {/* 危険な語から順に(タップで忘却曲線) */}
+      <ul className="mt-3 max-h-64 space-y-1.5 overflow-y-auto">
+        {overview.words.slice(0, 40).map((w) => {
+          const c = retColor(w.retention);
+          return (
+            <li key={w.sticker_id}>
+              <button
+                onClick={() => onOpenWord(w)}
+                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
+              >
+                <span className="w-14 shrink-0 truncate text-sm font-medium">{w.headword}</span>
+                <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <span className={`absolute inset-y-0 left-0 ${c.bar}`} style={{ width: `${w.retention}%` }} />
+                </span>
+                <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${c.text}`}>{w.retention}%</span>
+                {w.fresh ? (
+                  <span className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] text-sky-700">覚えたて</span>
+                ) : w.long_term ? (
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] text-emerald-700">長期定着</span>
+                ) : (
+                  <span className="w-[3.5rem] shrink-0" />
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: () => void }) {
+  const histFn = useServerFn(getStickerMemoryHistory);
+  const { data } = useQuery({
+    queryKey: ["sticker-memory", word.sticker_id],
+    queryFn: () => histFn({ data: { sticker_id: word.sticker_id } }),
+    staleTime: 60_000,
+  });
+  const c = retColor(word.retention);
+  // 現在→将来の忘却曲線(既存式で30日先まで)。
+  const series = useMemo(() => {
+    const cur = data?.current;
+    if (!cur?.last_reviewed_at) return [] as Array<{ day_offset: number; avg_retention: number }>;
+    const lastMs = new Date(cur.last_reviewed_at).getTime();
+    const stability = Math.max(0.5, cur.interval_days * Math.max(1, cur.ease));
+    const now = Date.now();
+    const out: Array<{ day_offset: number; avg_retention: number }> = [];
+    for (let d = 0; d <= 30; d++) {
+      const at = now + d * 86400_000;
+      const dt = (at - lastMs) / 86400_000;
+      out.push({ day_offset: d, avg_retention: Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-dt / stability)))) });
+    }
+    return out;
+  }, [data]);
+  const dueLabel = word.due_at
+    ? new Date(word.due_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+    : "—";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-lg font-bold">{word.headword}</h3>
+          <button onClick={onClose} aria-label="閉じる" className="rounded-full p-1 text-muted-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          <span className={c.text}>{c.dot} 記憶率 <b>{word.retention}%</b></span>
+          <span className="text-muted-foreground">次の復習: <b className="text-foreground">{dueLabel}</b></span>
+          {word.days_until_forgot != null && (
+            <span className="text-muted-foreground">
+              あと <b className={word.days_until_forgot <= 2 ? "text-red-600" : "text-foreground"}>{word.days_until_forgot}日</b> で忘却ライン(50%)
+            </span>
+          )}
+        </div>
+        {series.length > 0 ? (
+          <div className="h-40 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `+${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <Tooltip formatter={(v: number) => [`${v}%`, "記憶率"]} labelFormatter={(l) => (l === 0 ? "今日" : `${l}日後`)} />
+                <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="py-8 text-center text-xs text-muted-foreground">まだ復習履歴がありません。</p>
+        )}
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {word.long_term
+            ? "長期記憶に入りつつあります。間隔をあけて思い出すほど定着します。"
+            : word.fresh
+              ? "覚えたてです。数日以内にもう一度会うと記憶が固定されます。"
+              : "赤い線(50%)を切る前に復習すると、少ない回数で長く覚えられます。"}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -207,6 +395,17 @@ function ReviewPage() {
 function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
   const grade = useServerFn(gradeReview);
   const feedbackFn = useServerFn(getSpeakingFeedback);
+  const scaffoldFn = useServerFn(getSpeakingScaffold);
+
+  // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
+  // フレーズカードはロールプレイなので対象外。lazyに取得し失敗は無視。
+  const { data: scaffold } = useQuery({
+    queryKey: ["speaking-scaffold", card.sticker_id],
+    queryFn: () => scaffoldFn({ data: { sticker_id: card.sticker_id } }),
+    enabled: card.entry_type !== "phrase",
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
 
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
@@ -429,6 +628,45 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
             <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
           )}
           <div className="mt-1 text-[10px] text-muted-foreground">この型を入れて一文話してみよう</div>
+        </div>
+      )}
+
+      {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
+          パーツを組み合わせて質問に答える。 */}
+      {!isPhrase && scaffold && !feedback && (
+        <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">先生の質問</div>
+          <div className="mt-0.5 flex items-start gap-2">
+            <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
+            <button
+              onClick={() => playText(scaffold.question_zh)}
+              className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
+              aria-label="質問を読み上げ"
+            >
+              <Volume2 className="h-3 w-3" />
+            </button>
+          </div>
+          <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
+
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">使えるパーツ</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {scaffold.parts.map((p, i) => (
+              <button
+                key={i}
+                onClick={() => playText(p.zh)}
+                className="rounded-full bg-white px-2.5 py-1 text-left text-[12px] shadow-sm ring-1 ring-sky-200 active:scale-95"
+                title="タップで発音"
+              >
+                <span className="font-medium">{p.zh}</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">{p.ja}</span>
+              </button>
+            ))}
+          </div>
+          {scaffold.caption_seed && (
+            <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
+              💭 あなたのメモ:「{scaffold.caption_seed}」— この気持ちも混ぜてみよう
+            </p>
+          )}
         </div>
       )}
 
@@ -672,33 +910,37 @@ function FeedbackView({
 function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
   const grade = useServerFn(gradeReview);
   const [picked, setPicked] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState<{ correct: boolean; score: number } | null>(null);
+  const [score, setScore] = useState<number | null>(null);
   const startedAt = useRef<number>(Date.now());
+  // 正誤はクライアントで即時判定する。以前はサーバー応答を待つ間
+  // `!showResult?.correct` が true になり、正解タップでも一瞬❌が出ていた。
+  const correct = picked != null && picked === card.headword;
 
-  async function submit(correct: boolean, pickedValue: string) {
+  function submit(pickedValue: string) {
     if (picked) return;
     setPicked(pickedValue);
-    const res = await grade({
+    playAudio(card);
+    void grade({
       data: {
         review_id: card.review_id,
-        correct,
+        correct: pickedValue === card.headword,
         blur_seen: false,
         response_ms: Date.now() - startedAt.current,
       },
-    });
-    setShowResult({ correct, score: res.score });
-    playAudio(card);
+    })
+      .then((res) => setScore(res.score))
+      .catch(() => {});
   }
 
   return (
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
-          ライトモード（4択）
+          4択クイズ
         </span>
-        <span className="text-[11px] text-muted-foreground">意味を選ぼう</span>
+        <span className="text-[11px] text-muted-foreground">台湾華語を選ぼう</span>
       </div>
-      <div className="relative mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+      <div className="relative mx-auto mb-3 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
         {card.cutout_url ?? card.placeholder_url ? (
           <img
             src={(card.cutout_url ?? card.placeholder_url)!}
@@ -708,6 +950,9 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         ) : (
           <span className="text-5xl">📦</span>
         )}
+      </div>
+      <div className="mb-4 text-center text-base font-semibold">
+        「{card.meaning_ja}」はどれ？
       </div>
       {picked && (
         <div className="mb-4 text-center">
@@ -727,34 +972,42 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         </div>
       )}
       <ul className="space-y-2">
-        {card.choices.map((c) => {
+        {card.headword_choices.map((c) => {
+          const isAnswer = c === card.headword;
           const isPicked = picked === c;
-          const isCorrect = picked && c === card.meaning_ja;
-          const wrong = isPicked && !showResult?.correct;
+          const showGreen = picked != null && isAnswer;
+          const showRed = isPicked && !isAnswer;
           return (
-            <li key={c}>
+            <li key={c} className="flex items-stretch gap-2">
               <button
                 disabled={!!picked}
-                onClick={() => submit(c === card.meaning_ja, c)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-all
+                onClick={() => submit(c)}
+                className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-3 text-left text-base transition-all
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
-                  ${isCorrect ? "border-green-500/60 bg-green-500/10" : ""}
-                  ${wrong ? "border-red-500/60 bg-red-500/10" : ""}
-                  ${picked && !isPicked && c !== card.meaning_ja ? "opacity-50" : ""}`}
+                  ${showGreen ? "border-green-500/60 bg-green-500/10" : ""}
+                  ${showRed ? "border-red-500/60 bg-red-500/10" : ""}
+                  ${picked && !isPicked && !isAnswer ? "opacity-50" : ""}`}
               >
-                <span>{c}</span>
-                {isCorrect && <Check className="h-4 w-4 text-green-600" />}
-                {wrong && <X className="h-4 w-4 text-red-600" />}
+                <span className="truncate font-medium">{c}</span>
+                {showGreen && <Check className="h-4 w-4 shrink-0 text-green-600" />}
+                {showRed && <X className="h-4 w-4 shrink-0 text-red-600" />}
+              </button>
+              <button
+                onClick={() => playText(c, isAnswer ? card.audio_url : null)}
+                className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
+                aria-label={`${c}の発音`}
+              >
+                <Volume2 className="h-4 w-4" />
               </button>
             </li>
           );
         })}
       </ul>
-      {showResult && (
+      {picked && (
         <div className="mt-5 rounded-2xl bg-secondary/60 p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold">{showResult.correct ? "正解！" : "もう一度覚えよう"}</span>
-            <span className="text-xs text-muted-foreground">スコア {showResult.score}/5</span>
+            <span className="text-sm font-semibold">{correct ? "正解！" : "もう一度覚えよう"}</span>
+            {score != null && <span className="text-xs text-muted-foreground">スコア {score}/5</span>}
           </div>
           {card.example_sentence && (
             <div>

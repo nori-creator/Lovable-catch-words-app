@@ -1,7 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAi } from "./ai-provider.server";
+import { generateStructured, getAi } from "./ai-provider.server";
 
 /**
  * 自動で貯まる共有辞書 (2026-07-14):
@@ -138,8 +137,9 @@ export async function runLexiconAudit(
         `${i + 1}. 「${r.headword}」 注音: ${r.zhuyin ?? "?"} / 拼音: ${r.pinyin ?? "?"} / 意味: ${r.meaning_ja} / 品詞: ${r.pos ?? "?"}`,
     )
     .join("\n");
-  const { experimental_output } = (await generateText({
+  const audit = await generateStructured({
     model: ai.gateway(ai.modelRich),
+    schema: AuditSchema,
     prompt: `あなたは台湾華語(zh-TW・台湾教育部準拠)の辞書校閲者です。以下の辞書エントリを1件ずつ検証してください。
 
 ${listing}
@@ -151,13 +151,12 @@ ${listing}
 - confidence: あなたの判定への確信度 0〜1。少しでも迷いがあれば 0.7 未満にする
 - 大陸中国の発音・簡体字・大陸語彙を「正」としない。台湾の標準を基準にする
 - headword は入力と同じ文字列をそのまま返す`,
-    experimental_output: Output.object({ schema: AuditSchema }) as never,
-  })) as unknown as { experimental_output: z.infer<typeof AuditSchema> };
+  });
 
   let fixed = 0;
   let flagged = 0;
   const byHead = new Map(rows.map((r) => [r.headword, r]));
-  for (const v of experimental_output.verdicts) {
+  for (const v of audit.verdicts) {
     const row = byHead.get(v.headword);
     if (!row) continue;
     let applied = false;
@@ -430,8 +429,9 @@ export async function generateSyntheticCorpus(
   const dayIdx = Math.floor(Date.now() / 86400000);
   const scenes = [0, 1, 2].map((k) => SYNTH_SCENES[(dayIdx + k * 2) % SYNTH_SCENES.length]);
 
-  const { experimental_output } = (await generateText({
+  const out = await generateStructured({
     model: ai.gateway(ai.modelRich),
+    schema: SynthSchema,
     prompt: `あなたは台湾(台北)在住のネイティブです。今日、台湾人が実際に書いたり話したりしそうな自然な短文を40個生成してください。
 
 シーン(均等に): ${scenes.join(" / ")}
@@ -443,10 +443,8 @@ export async function generateSyntheticCorpus(
 
 new_words には、上の文で使った(または今の台湾で流行っている)辞書に載りにくい口語・新語・流行語を最大10個。各語に正確な注音(zhuyin)・拼音・日本語の意味・品詞・使う場面(usage、日本語1文)を必ず付ける。自信のない語は含めない。
 ${candidateWords.length > 0 ? `\n加えて、次はニュース見出しから機械抽出した辞書未収録の候補です。**実在する台湾華語の語だけ**を new_words に含めて正確に定義してください(単なる固有名詞の断片や切り出しミスは無視): ${candidateWords.join("、")}` : ""}`,
-    experimental_output: Output.object({ schema: SynthSchema }) as never,
-  })) as unknown as { experimental_output: z.infer<typeof SynthSchema> };
+  });
 
-  const out = experimental_output;
   const texts = out.sentences.map((s) => s.text).filter(Boolean);
 
   const { heads, maxLen } = await loadHeadwordSet();
@@ -483,7 +481,14 @@ export type SelfImproveStep = { step: string; ok: boolean; detail: unknown };
 export async function runSelfImprovement(
   userId: string,
   force = false,
+  opts: { includeCorpus?: boolean } = {},
 ): Promise<{ skipped: boolean; steps: SelfImproveStep[] }> {
+  // C1 コーパス縮退(戦略転換): 毎日の自動実行では「監査(点検)」だけ回し、
+  // ニュース観察(news)とAI合成(synth)の自動蓄積は停止する。単語の使用情報は
+  // カード生成(generateCard)側でAIが生成して詳細欄に出す方針に集約。
+  // 手動実行(管理画面・force=true)はコーパスも含めて全ステップ実行できる
+  // ので、テーブル・データ・ボタンは残したまま「毎日勝手に貯める」のだけ止める。
+  const includeCorpus = opts.includeCorpus ?? force;
   if (!force) {
     const since = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
     const { count } = await supabaseAdmin
@@ -504,19 +509,21 @@ export async function runSelfImprovement(
     record("audit", false, { error: (e as Error).message.slice(0, 300) });
   }
 
-  let candidates: string[] = [];
-  try {
-    const r = await ingestCorpusFromNews();
-    candidates = r.unknown_candidates;
-    record("news", r.titles > 0, r);
-  } catch (e) {
-    record("news", false, { error: (e as Error).message.slice(0, 300) });
-  }
+  if (includeCorpus) {
+    let candidates: string[] = [];
+    try {
+      const r = await ingestCorpusFromNews();
+      candidates = r.unknown_candidates;
+      record("news", r.titles > 0, r);
+    } catch (e) {
+      record("news", false, { error: (e as Error).message.slice(0, 300) });
+    }
 
-  try {
-    record("synth", true, await generateSyntheticCorpus(candidates));
-  } catch (e) {
-    record("synth", false, { error: (e as Error).message.slice(0, 300) });
+    try {
+      record("synth", true, await generateSyntheticCorpus(candidates));
+    } catch (e) {
+      record("synth", false, { error: (e as Error).message.slice(0, 300) });
+    }
   }
 
   for (const s of steps) {

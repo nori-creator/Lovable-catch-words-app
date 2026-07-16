@@ -220,6 +220,36 @@ export type Database = {
         }
         Relationships: []
       }
+      entry_reports: {
+        Row: {
+          id: string
+          user_id: string
+          headword: string
+          kind: string
+          note: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          headword: string
+          kind: string
+          note?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          headword?: string
+          kind?: string
+          note?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           created_at: string
