@@ -5,70 +5,37 @@ import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
-import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MapPin, Share2, Sparkles, Volume2, ScanLine, ChevronsUp } from "lucide-react";
+import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+
+/**
+ * Home = vertical full-screen photo feed (Reels × Apple Photos For You).
+ *
+ * Design choices (see .lovable/plan.md §3):
+ * - 1 sticker per full viewport, snap scrolling → the eye rests on ONE image.
+ * - Ken Burns on each hero → the photo breathes; static becomes cinematic.
+ * - Bottom overlay is minimal: headword (SF Display), pronunciation dot,
+ *   place + relative date. No buttons rows, no numeric streaks.
+ * - Every 5 cards, a soft "Review" card mixes in — variable reward.
+ * - Empty state is a single poetic prompt, not a checklist.
+ */
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
     meta: [
       { title: "ホーム — Catchwords" },
-      { name: "description", content: "今日キャッチした言葉を一冊のスクラップアルバムに。" },
+      { name: "description", content: "きょう、街で出会った言葉たち。" },
     ],
   }),
   component: HomePage,
 });
 
-function dayKey(d: Date) {
-  return d.toLocaleDateString("en-CA"); // YYYY-MM-DD local
-}
-
-/** Offline captures waiting for AI analysis (queued in IndexedDB). */
-function PendingCapturesBanner() {
-  const [pending, setPending] = useState<PendingCapture[]>([]);
-  useEffect(() => {
-    const load = () => {
-      void listPendingCaptures().then(setPending);
-    };
-    load();
-    window.addEventListener("online", load);
-    window.addEventListener("focus", load);
-    return () => {
-      window.removeEventListener("online", load);
-      window.removeEventListener("focus", load);
-    };
-  }, []);
-  if (pending.length === 0) return null;
-  const first = pending[0];
-  return (
-    <Link
-      to="/capture"
-      search={{ pending: first.id }}
-      className="lift mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm"
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200">
-        {first.object_img ? (
-          <img src={first.object_img} alt="解析待ちの写真" className="h-full w-full object-cover" />
-        ) : (
-          <WifiOff className="h-5 w-5 text-amber-700" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-amber-950">📥 解析待ちの写真が {pending.length} 枚</span>
-        <span className="block text-xs text-amber-900/70">タップしてAI解析を再開する</span>
-      </span>
-    </Link>
-  );
-}
-
-const BG_OPTIONS = [
-  { id: "paper", label: "紙", className: "album-bg-paper" },
-  { id: "frame", label: "額", className: "album-bg-frame" },
-  { id: "notebook", label: "ノート", className: "album-bg-notebook" },
-  { id: "cork", label: "コルク", className: "album-bg-cork" },
-] as const;
-
-type BgId = typeof BG_OPTIONS[number]["id"];
+type Card =
+  | { kind: "sticker"; sticker: StickerWithWord; i: number }
+  | { kind: "review"; i: number }
+  | { kind: "recap"; i: number; items: StickerWithWord[] };
 
 function HomePage() {
   const navigate = useNavigate();
@@ -78,218 +45,266 @@ function HomePage() {
   const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
-    // Keep the signed URLs stable across tab switches so the browser cache
-    // can serve the images instead of re-downloading them (roadmap B1).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
 
-
-  const [bg, setBg] = useState<BgId>("paper");
-  useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("album-bg") : null;
-    if (saved && BG_OPTIONS.some((o) => o.id === saved)) setBg(saved as BgId);
-  }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("album-bg", bg);
-  }, [bg]);
-
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate]);
 
-  const today = new Date();
-  const todayKey = dayKey(today);
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, StickerWithWord[]>();
-    for (const s of stickers ?? []) {
-      const k = dayKey(new Date(s.created_at));
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(s);
+  // Sort newest-first, then interleave review / recap cards.
+  const cards = useMemo<Card[]>(() => {
+    const list = [...(stickers ?? [])].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    const out: Card[] = [];
+    list.forEach((s, i) => {
+      out.push({ kind: "sticker", sticker: s, i });
+      if ((i + 1) % 5 === 0) out.push({ kind: "review", i });
+    });
+    // Recap card at position 3 when there are ≥6 stickers.
+    if (list.length >= 6) {
+      out.splice(3, 0, { kind: "recap", i: 3, items: list.slice(0, 8) });
     }
-    return Array.from(map.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+    return out;
   }, [stickers]);
-
-  const todayStickers = grouped.find(([k]) => k === todayKey)?.[1] ?? [];
-  const pastDays = grouped.filter(([k]) => k !== todayKey);
-  const bgClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
 
   return (
     <AppShell>
-      <DayHeader date={today} label="Today's Scrapbook" />
-
-      <PendingCapturesBanner />
-
-      <BackgroundPicker current={bg} onChange={setBg} />
-
-      {isLoading ? (
-        <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
-      ) : todayStickers.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">きょうのページはまだ白紙です。</p>
-          <Link
-            to="/capture"
-            className="lift mt-4 inline-block rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
-          >
-            街でひとつ見つける
-          </Link>
+      <div className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
+        {isLoading && <LoadingCard />}
+        {!isLoading && cards.length === 0 && <EmptyCard />}
+        {cards.map((c, idx) => {
+          if (c.kind === "sticker") {
+            return (
+              <StickerFeedCard
+                key={`s-${c.sticker.id}`}
+                sticker={c.sticker}
+                variant={idx % 2 === 0 ? "a" : "b"}
+                onOpen={() => setOpenId(c.sticker.id)}
+              />
+            );
+          }
+          if (c.kind === "review") return <ReviewFeedCard key={`r-${c.i}`} />;
+          return <RecapFeedCard key={`rc-${c.i}`} items={c.items} />;
+        })}
+        {/* trailing spacer so last card clears FAB */}
+        <div className="feed-card grid h-[100dvh] place-items-center">
+          <div className="text-center text-muted-foreground">
+            <ChevronsUp className="mx-auto h-6 w-6 opacity-50" />
+            <p className="mt-2 text-xs tracking-[0.3em] uppercase">上へ戻る</p>
+          </div>
         </div>
-      ) : (
-        <>
-          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} onOpen={setOpenId} />
-          <div className="mt-4 text-center">
-            <Link
-              to="/journal"
-              className="lift inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
-            >
-              <BookText className="h-4 w-4 text-primary" />
-              今日の日記を書く
-            </Link>
-          </div>
-        </>
-      )}
-
-      {pastDays.length > 0 && (
-        <section className="mt-12 space-y-10">
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Past Pages</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          {pastDays.map(([k, items]) => (
-            <div key={k}>
-              <DayHeader date={new Date(k)} compact />
-              <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={setOpenId} />
-            </div>
-          ))}
-        </section>
-      )}
+      </div>
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
 
-function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: BgId) => void }) {
-  return (
-    <div className="mb-3 flex items-center justify-end gap-1">
-      <ImageIcon className="mr-1 h-3 w-3 text-muted-foreground" />
-      {BG_OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          aria-label={`背景: ${o.label}`}
-          className={`lift-soft h-7 w-7 overflow-hidden rounded-full border ${current === o.id ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
-        >
-          <span className={`block h-full w-full ${o.className}`} />
-        </button>
-      ))}
-    </div>
-  );
-}
+/* ─────────── Cards ─────────── */
 
-function DayHeader({ date, label, compact }: { date: Date; label?: string; compact?: boolean }) {
-  const dateLabel = date.toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+function StickerFeedCard({
+  sticker: s,
+  variant,
+  onOpen,
+}: {
+  sticker: StickerWithWord;
+  variant: "a" | "b";
+  onOpen: () => void;
+}) {
+  const hero = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
+  const rel = relativeDay(new Date(s.created_at));
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playPronounce = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    unlockAudio();
+    haptic("light");
+    Sound.tap();
+    // Best-effort: rely on the sticker sheet for real TTS; here we just chirp.
+    // The full pronunciation flow lives in StickerSheet.
+  };
+
   return (
-    <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
-      {label && (
-        <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
+    <section
+      className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden"
+      onClick={onOpen}
+    >
+      {/* hero */}
+      {hero ? (
+        <div className="absolute inset-0">
+          <img
+            src={hero}
+            alt={s.word.headword}
+            className={`h-full w-full object-cover ${variant === "a" ? "ken-burns-a" : "ken-burns-b"}`}
+            loading="lazy"
+            decoding="async"
+          />
+          {/* Cinematic top + bottom scrim */}
+          <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background/70 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-background via-background/70 to-transparent" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-primary/25 to-background">
+          <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
+        </div>
       )}
-      <h1 className={`${compact ? "mt-1 text-xl" : "mt-2 text-3xl"} font-serif italic tracking-tight`}>
-        {dateLabel}
-      </h1>
-      <p className={`${compact ? "" : "mt-0.5"} text-xs uppercase tracking-[0.25em] text-muted-foreground`}>
-        {weekday}
-      </p>
-      <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
+
+      {/* text overlay */}
+      <div className="pointer-events-none relative z-10 flex h-full w-full max-w-lg flex-col justify-end px-6 pb-40">
+        <div className="pointer-events-auto space-y-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-white/70">
+            {rel}{s.location_name ? ` · ${s.location_name}` : ""}
+          </p>
+          <h2
+            className="font-semibold leading-[1.05] text-white"
+            style={{ fontSize: "clamp(2.6rem, 9vw, 4.5rem)", letterSpacing: "-0.03em" }}
+          >
+            {s.word.headword}
+          </h2>
+          {s.word.reading_zhuyin && (
+            <p className="text-lg text-white/85 tracking-wide">{s.word.reading_zhuyin}</p>
+          )}
+          {s.word.meaning_ja && (
+            <p className="max-w-md text-sm text-white/70">{s.word.meaning_ja}</p>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={playPronounce}
+              className="lift-soft grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md ring-1 ring-white/25"
+              aria-label="発音"
+            >
+              <Volume2 className="h-5 w-5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              className="lift-soft rounded-full bg-white/12 px-4 py-2.5 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/25"
+            >
+              詳しく見る
+            </button>
+            {s.location_name && (
+              <span className="ml-auto flex items-center gap-1 text-[11px] text-white/70">
+                <MapPin className="h-3 w-3" />
+                {s.location_name}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWord[]; bgClass: string; onOpen: (id: string) => void }) {
-  const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
-  const sizes = [
-    "col-span-2 row-span-2",
-    "col-span-1 row-span-2",
-    "col-span-1 row-span-1",
-    "col-span-2 row-span-1",
-    "col-span-1 row-span-2",
-    "col-span-1 row-span-1",
-  ];
-  const tapeColors = ["", "blue", "yellow", "mint"];
-
-  const items = useMemo(
-    () =>
-      stickers.map((s, i) => ({
-        sticker: s,
-        rot: rotations[i % rotations.length],
-        size: sizes[i % sizes.length],
-        z: 10 + (i % 5),
-        tape: tapeColors[i % tapeColors.length],
-      })),
-    [stickers],
-  );
-
+function ReviewFeedCard() {
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-5 shadow-inner sm:p-7 ${bgClass}`}>
-      {/* Decorative washi tape corners */}
-      <span className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
-      <span className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
-
-      <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
-        {items.map(({ sticker: s, rot, size, z, tape }) => {
-          // Album is a memory book: prefer selfie (you + the thing).
-          // Fallback to the plain object photo only when there's no selfie;
-          // ghosts show their placeholder (clearly temporary).
-          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
-          const isPolaroid = !!heroUrl;
-
-          return (
-            <button
-              key={s.id}
-              onClick={() => onOpen(s.id)}
-              className={`group relative block text-left transition-transform hover:scale-[1.03] active:scale-95 ${size}`}
-              style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
-            >
-              {isPolaroid ? (
-                <div className="polaroid relative h-full w-full">
-                  <span className={`washi-tape ${tape}`} style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }} />
-                  <div className="h-[calc(100%-28px)] w-full overflow-hidden">
-                    <img
-                      src={heroUrl!}
-                      alt={`「${s.word.headword}」の思い出`}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/80">
-                    {s.word.headword}
-                  </span>
-                </div>
-              ) : (
-                <div className="grid h-full w-full place-items-center text-4xl">
-                  {s.word.silhouette_emoji ?? "📦"}
-                  <span className="handwritten -mt-1 text-sm text-amber-950/85">{s.word.headword}</span>
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-8 text-right">
-        <span className="handwritten text-base text-amber-900/70">
-          — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
+    <section className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden bg-gradient-to-br from-background via-background to-primary/15">
+      <div className="mx-6 max-w-md text-center">
+        <span className="inline-grid h-14 w-14 place-items-center rounded-full bg-primary/15 text-primary">
+          <Sparkles className="h-6 w-6" />
         </span>
+        <h3 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
+          きょう、覚えているかな。
+        </h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          今の気分でひとつだけ、思い出してみる。
+        </p>
+        <Link
+          to="/review"
+          onClick={() => { Sound.tap(); haptic("medium"); }}
+          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30"
+        >
+          はじめる
+        </Link>
       </div>
-    </div>
+    </section>
   );
 }
 
+function RecapFeedCard({ items }: { items: StickerWithWord[] }) {
+  return (
+    <section className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden">
+      <div className="absolute inset-0 grid grid-cols-4 grid-rows-2 gap-0.5 opacity-70">
+        {items.slice(0, 8).map((s, i) => {
+          const url = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url;
+          return url ? (
+            <img
+              key={s.id}
+              src={url}
+              alt=""
+              className={`h-full w-full object-cover ${i % 2 === 0 ? "ken-burns-a" : "ken-burns-b"}`}
+              loading="lazy"
+            />
+          ) : (
+            <div key={s.id} className="bg-secondary" />
+          );
+        })}
+      </div>
+      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
+      <div className="relative z-10 text-center">
+        <p className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground">This week</p>
+        <h3 className="mt-4 text-4xl font-semibold tracking-tight">
+          あなたの{items.length}枚。
+        </h3>
+        <p className="mt-3 text-sm text-muted-foreground">また会える言葉たち。</p>
+        <button
+          onClick={() => { Sound.tap(); haptic("light"); }}
+          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-2.5 text-xs font-medium text-foreground backdrop-blur-md ring-1 ring-white/20"
+        >
+          <Share2 className="h-4 w-4" />
+          シェアする
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function EmptyCard() {
+  return (
+    <section className="feed-card grid h-[100dvh] place-items-center px-8">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground shadow-2xl shadow-primary/40">
+          <ScanLine className="h-9 w-9" />
+        </div>
+        <h1 className="mt-8 text-3xl font-semibold tracking-tight">まだ、白い海。</h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          街にあるものへカメラをかざすと、
+          <br />
+          最初の言葉がここに現れます。
+        </p>
+        <Link
+          to="/scan"
+          onClick={() => { Sound.tap(); haptic("medium"); }}
+          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30"
+        >
+          <ScanLine className="h-5 w-5" />
+          はじめて出会う
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function LoadingCard() {
+  return (
+    <section className="feed-card grid h-[100dvh] place-items-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </section>
+  );
+}
+
+/* ─────────── utils ─────────── */
+
+function relativeDay(d: Date): string {
+  const now = new Date();
+  const oneDay = 86400000;
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  const cardDay = new Date(d); cardDay.setHours(0, 0, 0, 0);
+  const diff = Math.round((start.getTime() - cardDay.getTime()) / oneDay);
+  if (diff <= 0) return "きょう";
+  if (diff === 1) return "きのう";
+  if (diff < 7) return `${diff}日前`;
+  if (diff < 30) return `${Math.floor(diff / 7)}週前`;
+  return d.toLocaleDateString("ja-JP", { month: "long", day: "numeric" });
+}

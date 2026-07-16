@@ -13,6 +13,9 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanEffect } from "@/components/ScanEffect";
+import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -192,6 +195,8 @@ function ScanPage() {
 
   const doScan = useCallback(async () => {
     if (scanning) return;
+    unlockAudio();
+    haptic("medium");
     setError(null);
     setChip(null);
     setItems(null);
@@ -243,13 +248,31 @@ function ScanPage() {
 
     } catch (e) {
       setError((e as Error).message || "検出に失敗しました");
+      haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
       window.clearTimeout(stageTimer2);
       setScanning(false);
       setScanStage("idle");
+      // Peak-End: reward the wait with a shimmer if anything landed.
+      setTimeout(() => {
+        if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
+          // no-op guard; success sound fires from the items effect below
+        }
+      }, 0);
     }
-  }, [scanning, grabFrame, detectFn, lookupFn, logEvent]);
+  }, [scanning, grabFrame, detectFn, lookupFn, logEvent, items]);
+
+  // Success chime when items arrive.
+  useEffect(() => {
+    if (items && items.length > 0) {
+      Sound.scanSuccess();
+      haptic("success");
+    } else if (items && items.length === 0) {
+      Sound.reviewWrong();
+      haptic("warning");
+    }
+  }, [items]);
 
 
   // ---- tap a dot ----
@@ -425,44 +448,9 @@ function ScanPage() {
             <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
 
-          {/* scanning overlay — multi-stage: 感知→読取→照合 */}
-          {scanning && (
-            <div className="absolute inset-0 grid place-items-center bg-black/50 backdrop-blur-[6px]">
-              {/* candidate probe dots — random positions, appearing/dying to
-                  suggest "the AI is looking around". Purely decorative. */}
-              <div className="pointer-events-none absolute inset-0">
-                {PROBE_DOTS.map((p, i) => (
-                  <span
-                    key={i}
-                    style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${p.delay}ms` }}
-                    className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 opacity-0 shadow-[0_0_12px_rgba(103,232,249,0.9)] animate-[probeBlink_1800ms_ease-in-out_infinite]"
-                  />
-                ))}
-              </div>
-              {/* dual sweep lines */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent animate-[scanline_1.6s_ease-in-out_infinite]" />
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-gradient-to-b from-transparent via-fuchsia-300 to-transparent animate-[scanlineV_2.1s_ease-in-out_infinite]" />
-              {/* corner reticles */}
-              <div className="pointer-events-none absolute inset-4 rounded-2xl border border-white/20" />
-              <ReticleCorners />
-              <div className="relative flex flex-col items-center gap-3 text-white">
-                <div className="relative grid h-16 w-16 place-items-center">
-                  <span className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" />
-                  <span className="absolute inset-2 rounded-full bg-cyan-400/40 animate-[ping_1.5s_ease-in-out_infinite]" />
-                  <ScanLine className="relative h-8 w-8" />
-                </div>
-                <p className="text-sm font-medium tabular-nums">
-                  {scanStage === "sensing" && "シーンを感知中…"}
-                  {scanStage === "reading" && "文字と物体を読み取り中…"}
-                  {scanStage === "matching" && "辞書と照合中…"}
-                </p>
-                <div className="flex gap-1.5">
-                  <StageDot active={scanStage === "sensing"} done={scanStage !== "sensing"} />
-                  <StageDot active={scanStage === "reading"} done={scanStage === "matching"} />
-                  <StageDot active={scanStage === "matching"} done={false} />
-                </div>
-              </div>
-            </div>
+          {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
+          {scanning && scanStage !== "idle" && (
+            <ScanEffect stage={scanStage} />
           )}
 
           {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
