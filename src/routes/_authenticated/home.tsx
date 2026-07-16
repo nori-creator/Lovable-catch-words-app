@@ -213,7 +213,6 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
 }
 
 function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWord[]; bgClass: string; onOpen: (id: string) => void }) {
-  const rotations = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
   const sizes = [
     "col-span-2 row-span-2",
     "col-span-1 row-span-2",
@@ -222,61 +221,51 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
     "col-span-1 row-span-2",
     "col-span-1 row-span-1",
   ];
-  const tapeColors = ["", "blue", "yellow", "mint"];
 
   const items = useMemo(
     () =>
       stickers.map((s, i) => ({
         sticker: s,
-        rot: rotations[i % rotations.length],
         size: sizes[i % sizes.length],
         z: 10 + (i % 5),
-        tape: tapeColors[i % tapeColors.length],
       })),
     [stickers],
   );
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-5 shadow-inner sm:p-7 ${bgClass}`}>
-      {/* Decorative washi tape corners */}
-      <span className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
-      <span className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
-
-      <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
-        {items.map(({ sticker: s, rot, size, z, tape }) => {
+    <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-4 shadow-inner sm:p-6 ${bgClass}`}>
+      <div className="grid auto-rows-[7rem] grid-cols-3 gap-3 sm:auto-rows-[8.5rem] sm:grid-cols-4">
+        {items.map(({ sticker: s, size, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie;
           // ghosts show their placeholder (clearly temporary).
           const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
-          const isPolaroid = !!heroUrl;
 
           return (
             <button
               key={s.id}
               onClick={() => onOpen(s.id)}
-              className={`group relative block text-left transition-transform hover:scale-[1.03] active:scale-95 ${size}`}
-              style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
+              className={`group relative block overflow-hidden rounded-2xl text-left shadow-sm ring-1 ring-black/5 transition-transform hover:scale-[1.02] active:scale-95 ${size}`}
+              style={{ zIndex: z }}
             >
-              {isPolaroid ? (
-                <div className="polaroid relative h-full w-full">
-                  <span className={`washi-tape ${tape}`} style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }} />
-                  <div className="h-[calc(100%-28px)] w-full overflow-hidden">
-                    <img
-                      src={heroUrl!}
-                      alt={`「${s.word.headword}」の思い出`}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/80">
+              {heroUrl ? (
+                <>
+                  <img
+                    src={heroUrl}
+                    alt={`「${s.word.headword}」の思い出`}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                  {/* Word label overlaid on the photo with a legibility scrim */}
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-2 pb-1.5 pt-6 text-sm font-semibold text-white">
                     {s.word.headword}
                   </span>
-                </div>
+                </>
               ) : (
-                <div className="grid h-full w-full place-items-center text-4xl">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-secondary text-4xl">
                   {s.word.silhouette_emoji ?? "📦"}
-                  <span className="handwritten -mt-1 text-sm text-amber-950/85">{s.word.headword}</span>
+                  <span className="text-sm font-semibold text-foreground/80">{s.word.headword}</span>
                 </div>
               )}
             </button>
@@ -284,8 +273,8 @@ function ScrapbookAlbum({ stickers, bgClass, onOpen }: { stickers: StickerWithWo
         })}
       </div>
 
-      <div className="mt-8 text-right">
-        <span className="handwritten text-base text-amber-900/70">
+      <div className="mt-6 text-right">
+        <span className="text-sm text-amber-900/60">
           — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>
       </div>

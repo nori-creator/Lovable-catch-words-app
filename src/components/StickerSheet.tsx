@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock, Trash2, ImageUp } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras, deleteSticker, replaceStickerPhoto } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { CachedImg } from "@/lib/image-cache";
+import { downscaleDataUrl } from "@/lib/cutout";
+import { supabase } from "@/integrations/supabase/client";
+import { CachedImg, putCachedImage } from "@/lib/image-cache";
 
 
 type Props = {
@@ -19,6 +21,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
   const fetchProfile = useServerFn(getMyProfile);
+  const deleteFn = useServerFn(deleteSticker);
+  const replacePhotoFn = useServerFn(replaceStickerPhoto);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState<null | "delete" | "image">(null);
   const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
@@ -65,6 +71,57 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       console.warn("Regenerate failed", e);
     } finally {
       setRegenerating(false);
+    }
+  }
+
+  // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
+  async function handleDelete() {
+    if (!stickerId || busy) return;
+    if (!window.confirm("このカードを削除しますか?この操作は取り消せません。")) return;
+    setBusy("delete");
+    try {
+      await deleteFn({ data: { sticker_id: stickerId } });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      onClose();
+    } catch (e) {
+      console.warn("Delete failed", e);
+      window.alert("削除に失敗しました。");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // B3: 写真を差し替え(file picker → downscale → upload → attach)。
+  async function handleImageFile(file: File) {
+    if (!stickerId || busy) return;
+    setBusy("image");
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(file);
+      });
+      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
+      const blob = await (await fetch(small)).blob();
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Not signed in");
+      const path = `${userId}/${Date.now()}-object.jpg`;
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      void putCachedImage(path, blob);
+      await replacePhotoFn({ data: { sticker_id: stickerId, object_path: path } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+    } catch (e) {
+      console.warn("Image change failed", e);
+      window.alert("画像の変更に失敗しました。");
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -361,6 +418,37 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 </div>
               </a>
             )}
+
+            {/* B3: カード管理(写真の差し替え・削除) */}
+            <div className="mt-5 flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleImageFile(f);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy !== null}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card py-2.5 text-xs font-medium disabled:opacity-60"
+              >
+                {busy === "image" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+                写真を変更
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={busy !== null}
+                className="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 disabled:opacity-60"
+              >
+                {busy === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                削除
+              </button>
+            </div>
           </>
         )}
       </div>

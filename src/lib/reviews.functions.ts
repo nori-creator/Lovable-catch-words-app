@@ -708,3 +708,85 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       unlocked_branch: branch,
     };
   });
+
+// --- B4 スピーキングの足場(MTC式) ------------------------------------------
+// 「白紙で話して」は厳しい。MTCの授業と同じく「習った型を使わせる先生の質問」
+// +「自分の言いたいことに対応する文のパーツ」を提示し、組み合わせて作文させる。
+// 単語レベルの足場(質問+パーツ)は words.extras.speaking_scaffold にキャッシュ
+// して2回目以降ゼロコスト。キャプション(その人の気持ち・思い出)はスティッカー
+// 固有なので毎回そのまま「言いたいことの種」として添える。
+
+export type SpeakingPart = { zh: string; ja: string };
+export type SpeakingScaffold = {
+  question_zh: string;
+  question_ja: string;
+  parts: SpeakingPart[];
+  caption_seed: string | null;
+};
+
+const ScaffoldSchema = z.object({
+  question_zh: z.string(),
+  question_ja: z.string(),
+  parts: z.array(z.object({ zh: z.string(), ja: z.string() })).min(2).max(5),
+});
+
+const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
+
+export const getSpeakingScaffold = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ScaffoldInput.parse(input))
+  .handler(async ({ context, data }): Promise<SpeakingScaffold> => {
+    const { supabase, userId } = context;
+    const { data: st } = await supabase
+      .from("stickers")
+      .select("id, caption, branch_plan, word_id, words(headword, meaning_ja, extras)")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const row = st as unknown as {
+      caption: string | null;
+      branch_plan?: unknown;
+      word_id: string;
+      words: { headword: string; meaning_ja: string; extras?: Record<string, unknown> | null } | null;
+    } | null;
+    if (!row?.words) throw new Error("カードが見つかりません");
+    const w = row.words;
+    const captionSeed = row.caption?.trim() || null;
+
+    // キャッシュヒット: 単語レベルの足場は使い回す(キャプションだけ差し替え)。
+    const cached = (w.extras as { speaking_scaffold?: unknown } | null)?.speaking_scaffold;
+    const cachedParsed = cached
+      ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
+      : null;
+    if (cachedParsed) {
+      return { ...cachedParsed, caption_seed: captionSeed };
+    }
+
+    const ai = getAi();
+    const levelGoal = await getUserLevelGoal(userId);
+    const plan =
+      parseBranchPlan(row.branch_plan) ??
+      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
+    const pattern = resolveBranches(plan, 1).justUnlocked;
+
+    const scaffold = await generateStructured({
+      model: ai.gateway(ai.modelFast),
+      schema: ScaffoldSchema,
+      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。学習者の目標レベルは ${levelGoal}(TOCFL)。
+${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
+次を厳密なJSONで返してください:
+- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
+- question_ja: その質問の日本語訳
+- parts: その質問に答えるための「文のパーツ」を3〜4個。真っ白から作らせず、組み合わせれば一文になる部品を渡す。各パーツは {zh:繁体字の短いフレーズ・型・コロケーション・量詞など, ja:日本語の意味}。${pattern ? `1つは今日の型「${pattern.zh}」を含める。` : ""}「${w.headword}」とよく一緒に使う動詞・量詞・定番チャンクを優先。`,
+    });
+
+    // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold: scaffold };
+      await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
+      await logUsage(supabase, userId, "speaking_feedback");
+    } catch { /* キャッシュ保存の失敗は致命的でない */ }
+
+    return { ...scaffold, caption_seed: captionSeed };
+  });

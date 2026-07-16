@@ -9,6 +9,7 @@ import {
   gradeReview,
   getOverallMemoryStats,
   getSpeakingFeedback,
+  getSpeakingScaffold,
   type DueReviewCard,
   type SpeakingFeedback,
 } from "@/lib/reviews.functions";
@@ -241,6 +242,17 @@ function ReviewPage() {
 function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
   const grade = useServerFn(gradeReview);
   const feedbackFn = useServerFn(getSpeakingFeedback);
+  const scaffoldFn = useServerFn(getSpeakingScaffold);
+
+  // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
+  // フレーズカードはロールプレイなので対象外。lazyに取得し失敗は無視。
+  const { data: scaffold } = useQuery({
+    queryKey: ["speaking-scaffold", card.sticker_id],
+    queryFn: () => scaffoldFn({ data: { sticker_id: card.sticker_id } }),
+    enabled: card.entry_type !== "phrase",
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
 
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
@@ -463,6 +475,45 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
             <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
           )}
           <div className="mt-1 text-[10px] text-muted-foreground">この型を入れて一文話してみよう</div>
+        </div>
+      )}
+
+      {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
+          パーツを組み合わせて質問に答える。 */}
+      {!isPhrase && scaffold && !feedback && (
+        <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">先生の質問</div>
+          <div className="mt-0.5 flex items-start gap-2">
+            <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
+            <button
+              onClick={() => playText(scaffold.question_zh)}
+              className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
+              aria-label="質問を読み上げ"
+            >
+              <Volume2 className="h-3 w-3" />
+            </button>
+          </div>
+          <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
+
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">使えるパーツ</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {scaffold.parts.map((p, i) => (
+              <button
+                key={i}
+                onClick={() => playText(p.zh)}
+                className="rounded-full bg-white px-2.5 py-1 text-left text-[12px] shadow-sm ring-1 ring-sky-200 active:scale-95"
+                title="タップで発音"
+              >
+                <span className="font-medium">{p.zh}</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">{p.ja}</span>
+              </button>
+            ))}
+          </div>
+          {scaffold.caption_seed && (
+            <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
+              💭 あなたのメモ:「{scaffold.caption_seed}」— この気持ちも混ぜてみよう
+            </p>
+          )}
         </div>
       )}
 
