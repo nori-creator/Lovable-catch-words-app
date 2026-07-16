@@ -682,6 +682,9 @@ export const reportWordIssue = createServerFn({ method: "POST" })
         () => {},
         () => {},
       );
+    return { ok: true };
+  });
+
 // --- B3 カード削除 -----------------------------------------------------------
 const DeleteStickerInput = z.object({ sticker_id: z.string().uuid() });
 
