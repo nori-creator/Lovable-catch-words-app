@@ -84,16 +84,18 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         {children}
       </main>
 
-      {/* ─── Breathing scan FAB ─── */}
-      <Link
-        to="/scan"
-        aria-label="スキャン"
-        onClick={() => { unlockAudio(); Sound.tap(); haptic("medium"); }}
-        className="fixed left-1/2 z-40 -translate-x-1/2 rounded-full bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground breathe grid h-16 w-16 place-items-center"
-        style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
-      >
-        <ScanLine className="h-7 w-7 drop-shadow" />
-      </Link>
+      {/* ─── Breathing scan FAB (hidden on the scan page itself) ─── */}
+      {!location.pathname.startsWith("/scan") && (
+        <Link
+          to="/scan"
+          aria-label="スキャン"
+          onClick={() => { unlockAudio(); Sound.tap(); haptic("medium"); }}
+          className="fixed left-1/2 z-40 -translate-x-1/2 rounded-full bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground breathe grid h-16 w-16 place-items-center"
+          style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        >
+          <ScanLine className="h-7 w-7 drop-shadow" />
+        </Link>
+      )}
 
       {/* ─── More sheet ─── */}
       {moreOpen && (
