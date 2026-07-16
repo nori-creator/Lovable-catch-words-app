@@ -164,8 +164,8 @@ function StickerFeedCard({
           >
             {s.word.headword}
           </h2>
-          {s.word.zhuyin && (
-            <p className="text-lg text-white/85 tracking-wide">{s.word.zhuyin}</p>
+          {s.word.reading_zhuyin && (
+            <p className="text-lg text-white/85 tracking-wide">{s.word.reading_zhuyin}</p>
           )}
           {s.word.meaning_ja && (
             <p className="max-w-md text-sm text-white/70">{s.word.meaning_ja}</p>
