@@ -71,6 +71,30 @@ export type Database = {
         }
         Relationships: []
       }
+      corpus_pairs: {
+        Row: {
+          count: number
+          day: string
+          source: string
+          word_a: string
+          word_b: string
+        }
+        Insert: {
+          count?: number
+          day: string
+          source?: string
+          word_a: string
+          word_b: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          source?: string
+          word_a?: string
+          word_b?: string
+        }
+        Relationships: []
+      }
       corpus_stats: {
         Row: {
           count: number
@@ -193,54 +217,6 @@ export type Database = {
           tocfl_level?: number | null
           updated_at?: string
           zhuyin?: string | null
-        }
-        Relationships: []
-      }
-      corpus_pairs: {
-        Row: {
-          word_a: string
-          word_b: string
-          day: string
-          source: string
-          count: number
-        }
-        Insert: {
-          word_a: string
-          word_b: string
-          day: string
-          source?: string
-          count?: number
-        }
-        Update: {
-          word_a?: string
-          word_b?: string
-          day?: string
-          source?: string
-          count?: number
-        }
-        Relationships: []
-      }
-      self_improve_runs: {
-        Row: {
-          id: string
-          step: string
-          ok: boolean
-          detail: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          step: string
-          ok: boolean
-          detail?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          step?: string
-          ok?: boolean
-          detail?: Json | null
-          created_at?: string
         }
         Relationships: []
       }
@@ -797,6 +773,30 @@ export type Database = {
           tap_to_audio_ms?: number | null
           tapped?: boolean
           user_id?: string
+        }
+        Relationships: []
+      }
+      self_improve_runs: {
+        Row: {
+          created_at: string
+          detail: Json | null
+          id: string
+          ok: boolean
+          step: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          ok: boolean
+          step: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          ok?: boolean
+          step?: string
         }
         Relationships: []
       }
