@@ -7,7 +7,6 @@ import { AppShell } from "@/components/AppShell";
 import { detectScan, detectParts, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
-import { preloadCutout } from "@/lib/cutout";
 import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { geocodeLocation } from "@/lib/geocode.functions";
@@ -153,11 +152,8 @@ function ScanPage() {
 
 
 
-  // Warm the cutout model while the user frames the shot, so the first
-  // catch doesn't pay the model download + init cost (roadmap B2).
-  useEffect(() => {
-    preloadCutout();
-  }, []);
+  // B1(NORI指定): 切り抜きは一旦停止中のため、背景除去モデルの事前読み込みは
+  // 行わない(無駄なダウンロードを避け、写真で最速キャッチに集中)。
 
   // GPSウォームアップ(A4): 以前は撮影時に timeout 800ms の getCurrentPosition
   // 一発勝負で、初回フィックスが間に合わず場所がほぼ保存されなかった。
