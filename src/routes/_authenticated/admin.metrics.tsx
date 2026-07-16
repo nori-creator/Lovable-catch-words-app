@@ -161,7 +161,7 @@ function SelfImprovePanel() {
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日自動)
+          <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日=監査のみ)
         </h2>
         <button
           onClick={run}
@@ -179,6 +179,9 @@ function SelfImprovePanel() {
           : "まだ"}
         {" · 人間レビュー待ち "}
         <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>{st?.needs_review ?? 0}</span> 件
+      </p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
         <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">{result}</pre>

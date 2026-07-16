@@ -481,7 +481,14 @@ export type SelfImproveStep = { step: string; ok: boolean; detail: unknown };
 export async function runSelfImprovement(
   userId: string,
   force = false,
+  opts: { includeCorpus?: boolean } = {},
 ): Promise<{ skipped: boolean; steps: SelfImproveStep[] }> {
+  // C1 コーパス縮退(戦略転換): 毎日の自動実行では「監査(点検)」だけ回し、
+  // ニュース観察(news)とAI合成(synth)の自動蓄積は停止する。単語の使用情報は
+  // カード生成(generateCard)側でAIが生成して詳細欄に出す方針に集約。
+  // 手動実行(管理画面・force=true)はコーパスも含めて全ステップ実行できる
+  // ので、テーブル・データ・ボタンは残したまま「毎日勝手に貯める」のだけ止める。
+  const includeCorpus = opts.includeCorpus ?? force;
   if (!force) {
     const since = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
     const { count } = await supabaseAdmin
@@ -502,19 +509,21 @@ export async function runSelfImprovement(
     record("audit", false, { error: (e as Error).message.slice(0, 300) });
   }
 
-  let candidates: string[] = [];
-  try {
-    const r = await ingestCorpusFromNews();
-    candidates = r.unknown_candidates;
-    record("news", r.titles > 0, r);
-  } catch (e) {
-    record("news", false, { error: (e as Error).message.slice(0, 300) });
-  }
+  if (includeCorpus) {
+    let candidates: string[] = [];
+    try {
+      const r = await ingestCorpusFromNews();
+      candidates = r.unknown_candidates;
+      record("news", r.titles > 0, r);
+    } catch (e) {
+      record("news", false, { error: (e as Error).message.slice(0, 300) });
+    }
 
-  try {
-    record("synth", true, await generateSyntheticCorpus(candidates));
-  } catch (e) {
-    record("synth", false, { error: (e as Error).message.slice(0, 300) });
+    try {
+      record("synth", true, await generateSyntheticCorpus(candidates));
+    } catch (e) {
+      record("synth", false, { error: (e as Error).message.slice(0, 300) });
+    }
   }
 
   for (const s of steps) {
