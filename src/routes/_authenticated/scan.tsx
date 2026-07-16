@@ -248,13 +248,31 @@ function ScanPage() {
 
     } catch (e) {
       setError((e as Error).message || "検出に失敗しました");
+      haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
       window.clearTimeout(stageTimer2);
       setScanning(false);
       setScanStage("idle");
+      // Peak-End: reward the wait with a shimmer if anything landed.
+      setTimeout(() => {
+        if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
+          // no-op guard; success sound fires from the items effect below
+        }
+      }, 0);
     }
-  }, [scanning, grabFrame, detectFn, lookupFn, logEvent]);
+  }, [scanning, grabFrame, detectFn, lookupFn, logEvent, items]);
+
+  // Success chime when items arrive.
+  useEffect(() => {
+    if (items && items.length > 0) {
+      Sound.scanSuccess();
+      haptic("success");
+    } else if (items && items.length === 0) {
+      Sound.reviewWrong();
+      haptic("warning");
+    }
+  }, [items]);
 
 
   // ---- tap a dot ----
