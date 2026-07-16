@@ -573,6 +573,88 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
     return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
   });
 
+// --- B5 記憶の状態ビジュアライズ ---------------------------------------------
+export type MemoryWord = {
+  sticker_id: string;
+  headword: string;
+  retention: number; // 0-100(現在の推定記憶率)
+  interval_days: number;
+  repetitions: number;
+  due_at: string | null;
+  days_until_forgot: number | null; // 記憶率が50%を切るまでの日数(既に下回れば0)
+  fresh: boolean; // 覚えたて(repetitions<=2)
+  long_term: boolean; // 長期定着(interval>=30日)
+};
+export type MemoryOverview = {
+  danger: number; // retention < 50
+  fuzzy: number; // 50-80
+  solid: number; // > 80
+  words: MemoryWord[];
+};
+
+const LN2 = Math.log(2);
+function stabilityOf(interval_days: number, ease: number): number {
+  return Math.max(0.5, interval_days * Math.max(1, ease));
+}
+function retentionNow(interval_days: number, ease: number, lastMs: number | null, nowMs: number): number {
+  if (lastMs == null) return 100;
+  const dt = (nowMs - lastMs) / 86400_000;
+  if (dt <= 0) return 100;
+  return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stabilityOf(interval_days, ease))));
+}
+
+export const getMemoryOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<MemoryOverview> => {
+    const { supabase, userId } = context;
+    const { data: rows } = await supabase
+      .from("reviews")
+      .select("sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(words(headword))")
+      .eq("user_id", userId);
+    const now = Date.now();
+    type Row = {
+      sticker_id: string;
+      ease: number;
+      interval_days: number;
+      repetitions: number;
+      last_reviewed_at: string | null;
+      due_at: string | null;
+      stickers: { words: { headword: string } | null } | null;
+    };
+    const words: MemoryWord[] = ((rows ?? []) as unknown as Row[])
+      .filter((r) => r.stickers?.words)
+      .map((r) => {
+        const lastMs = r.last_reviewed_at ? new Date(r.last_reviewed_at).getTime() : null;
+        const retention = Math.round(retentionNow(r.interval_days, r.ease, lastMs, now));
+        // 50%到達日: 100*exp(-dt/stability)=50 → dt = stability*ln2
+        let daysUntilForgot: number | null = null;
+        if (lastMs != null) {
+          const stability = stabilityOf(r.interval_days, r.ease);
+          const dtNow = (now - lastMs) / 86400_000;
+          daysUntilForgot = Math.max(0, Math.round(stability * LN2 - dtNow));
+        }
+        return {
+          sticker_id: r.sticker_id,
+          headword: r.stickers!.words!.headword,
+          retention,
+          interval_days: r.interval_days,
+          repetitions: r.repetitions,
+          due_at: r.due_at,
+          days_until_forgot: daysUntilForgot,
+          fresh: r.repetitions <= 2,
+          long_term: r.interval_days >= 30,
+        };
+      })
+      .sort((a, b) => a.retention - b.retention); // 危険な語を上に
+
+    return {
+      danger: words.filter((w) => w.retention < 50).length,
+      fuzzy: words.filter((w) => w.retention >= 50 && w.retention <= 80).length,
+      solid: words.filter((w) => w.retention > 80).length,
+      words,
+    };
+  });
+
 // --- Speaking-output review feedback (§6) -----------------------------------
 
 const FeedbackInput = z.object({
