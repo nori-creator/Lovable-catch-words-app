@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { claimAudio, stopOtherAudio } from "@/lib/audio";
 import {
   getDueReviews,
   gradeReview,
@@ -44,7 +45,7 @@ function readBool(key: string, def = false) {
 // ---- speech helpers --------------------------------------------------------
 function speakZhTW(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  stopOtherAudio();
   const u = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
   const v =
@@ -59,10 +60,23 @@ let sharedAudio: HTMLAudioElement | null = null;
 function playAudio(card: DueReviewCard) {
   if (card.audio_url) {
     if (!sharedAudio) sharedAudio = new Audio();
+    claimAudio(sharedAudio);
     sharedAudio.src = card.audio_url;
     sharedAudio.play().catch(() => speakZhTW(card.headword));
   } else {
     speakZhTW(card.headword);
+  }
+}
+
+/** A3: 任意のテキスト/音声URLを排他再生(4択の選択肢🔊用)。 */
+function playText(text: string, audioUrl?: string | null) {
+  if (audioUrl) {
+    if (!sharedAudio) sharedAudio = new Audio();
+    claimAudio(sharedAudio);
+    sharedAudio.src = audioUrl;
+    sharedAudio.play().catch(() => speakZhTW(text));
+  } else {
+    speakZhTW(text);
   }
 }
 
@@ -112,12 +126,12 @@ function ReviewPage() {
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
   const lightMode =
     (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
-  function toggleLight() {
-    const next = lightMode ? "speaking" : "choice";
+  function setMode(next: "speaking" | "choice") {
+    if ((lightMode ? "choice" : "speaking") === next) return;
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
-    void updateProfileFn({ data: { review_mode: next as "speaking" | "choice" } })
+    void updateProfileFn({ data: { review_mode: next } })
       .catch(() => {})
       .finally(() => qc.invalidateQueries({ queryKey: ["profile"] }));
   }
@@ -141,13 +155,33 @@ function ReviewPage() {
                 {Math.min(idx, cards.length)} / {cards.length}
               </span>
             )}
-            <button
-              onClick={toggleLight}
-              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
-              title="声を出せない場所用の4択モード"
+            <div
+              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-[11px] font-semibold"
+              role="tablist"
+              aria-label="復習モード"
             >
-              ライト {lightMode ? "ON" : "OFF"}
-            </button>
+              <span
+                aria-hidden
+                className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+              />
+              <button
+                role="tab"
+                aria-selected={!lightMode}
+                onClick={() => setMode("speaking")}
+                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              >
+                🎤 発音
+              </button>
+              <button
+                role="tab"
+                aria-selected={lightMode}
+                onClick={() => setMode("choice")}
+                title="声を出せない場所用の4択モード"
+                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              >
+                👆 4択
+              </button>
+            </div>
           </div>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -672,33 +706,37 @@ function FeedbackView({
 function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => void }) {
   const grade = useServerFn(gradeReview);
   const [picked, setPicked] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState<{ correct: boolean; score: number } | null>(null);
+  const [score, setScore] = useState<number | null>(null);
   const startedAt = useRef<number>(Date.now());
+  // 正誤はクライアントで即時判定する。以前はサーバー応答を待つ間
+  // `!showResult?.correct` が true になり、正解タップでも一瞬❌が出ていた。
+  const correct = picked != null && picked === card.headword;
 
-  async function submit(correct: boolean, pickedValue: string) {
+  function submit(pickedValue: string) {
     if (picked) return;
     setPicked(pickedValue);
-    const res = await grade({
+    playAudio(card);
+    void grade({
       data: {
         review_id: card.review_id,
-        correct,
+        correct: pickedValue === card.headword,
         blur_seen: false,
         response_ms: Date.now() - startedAt.current,
       },
-    });
-    setShowResult({ correct, score: res.score });
-    playAudio(card);
+    })
+      .then((res) => setScore(res.score))
+      .catch(() => {});
   }
 
   return (
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
-          ライトモード（4択）
+          4択クイズ
         </span>
-        <span className="text-[11px] text-muted-foreground">意味を選ぼう</span>
+        <span className="text-[11px] text-muted-foreground">台湾華語を選ぼう</span>
       </div>
-      <div className="relative mx-auto mb-4 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+      <div className="relative mx-auto mb-3 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
         {card.cutout_url ?? card.placeholder_url ? (
           <img
             src={(card.cutout_url ?? card.placeholder_url)!}
@@ -708,6 +746,9 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         ) : (
           <span className="text-5xl">📦</span>
         )}
+      </div>
+      <div className="mb-4 text-center text-base font-semibold">
+        「{card.meaning_ja}」はどれ？
       </div>
       {picked && (
         <div className="mb-4 text-center">
@@ -727,34 +768,42 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         </div>
       )}
       <ul className="space-y-2">
-        {card.choices.map((c) => {
+        {card.headword_choices.map((c) => {
+          const isAnswer = c === card.headword;
           const isPicked = picked === c;
-          const isCorrect = picked && c === card.meaning_ja;
-          const wrong = isPicked && !showResult?.correct;
+          const showGreen = picked != null && isAnswer;
+          const showRed = isPicked && !isAnswer;
           return (
-            <li key={c}>
+            <li key={c} className="flex items-stretch gap-2">
               <button
                 disabled={!!picked}
-                onClick={() => submit(c === card.meaning_ja, c)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-all
+                onClick={() => submit(c)}
+                className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-3 text-left text-base transition-all
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
-                  ${isCorrect ? "border-green-500/60 bg-green-500/10" : ""}
-                  ${wrong ? "border-red-500/60 bg-red-500/10" : ""}
-                  ${picked && !isPicked && c !== card.meaning_ja ? "opacity-50" : ""}`}
+                  ${showGreen ? "border-green-500/60 bg-green-500/10" : ""}
+                  ${showRed ? "border-red-500/60 bg-red-500/10" : ""}
+                  ${picked && !isPicked && !isAnswer ? "opacity-50" : ""}`}
               >
-                <span>{c}</span>
-                {isCorrect && <Check className="h-4 w-4 text-green-600" />}
-                {wrong && <X className="h-4 w-4 text-red-600" />}
+                <span className="truncate font-medium">{c}</span>
+                {showGreen && <Check className="h-4 w-4 shrink-0 text-green-600" />}
+                {showRed && <X className="h-4 w-4 shrink-0 text-red-600" />}
+              </button>
+              <button
+                onClick={() => playText(c, isAnswer ? card.audio_url : null)}
+                className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
+                aria-label={`${c}の発音`}
+              >
+                <Volume2 className="h-4 w-4" />
               </button>
             </li>
           );
         })}
       </ul>
-      {showResult && (
+      {picked && (
         <div className="mt-5 rounded-2xl bg-secondary/60 p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold">{showResult.correct ? "正解！" : "もう一度覚えよう"}</span>
-            <span className="text-xs text-muted-foreground">スコア {showResult.score}/5</span>
+            <span className="text-sm font-semibold">{correct ? "正解！" : "もう一度覚えよう"}</span>
+            {score != null && <span className="text-xs text-muted-foreground">スコア {score}/5</span>}
           </div>
           {card.example_sentence && (
             <div>

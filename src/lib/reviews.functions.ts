@@ -1,8 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateText, Output } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+  generateStructured,
+  getAi,
+  getUserLevelGoal,
+  isProUser,
+  logUsage,
+} from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
@@ -176,6 +182,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
       }
     }
 
+    // A3 レベル連動: 目標レベル以下の辞書語をヘッドワード・ディストラクタの
+    // 追加プールにする(デッキが小さいうちも4択が「全部知らない字」にならない)。
+    let dictPool: string[] = [];
+    try {
+      const levelGoal = await getUserLevelGoal(userId);
+      const lvl = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const pivot = crypto.randomUUID();
+      const { data: dictRows } = await supabaseAdmin
+        .from("dictionary_entries")
+        .select("headword")
+        .eq("language", "zh-TW")
+        .lte("tocfl_level", lvl)
+        .gte("id", pivot)
+        .limit(40);
+      dictPool = shuffle(((dictRows ?? []) as Array<{ headword: string }>).map((d) => d.headword));
+    } catch {
+      /* dictionary pool is optional */
+    }
+
     // Pre-generated AI distractors (best-effort: table may not exist yet).
     const wordIds = rows.map((r) => r.stickers!.words!.id);
     const cached = new Map<string, string[]>();
@@ -226,6 +252,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const headwordDistractors = pickThree(
         w.headword,
         sameCat.map((d) => d.headword),
+        dictPool,
         otherCat.map((d) => d.headword),
         STATIC_HEADWORD_FALLBACK,
       );
@@ -311,26 +338,34 @@ export async function pregenerateDistractors(
 - 学習者が一瞬迷う難易度（同カテゴリの別物がベスト）
 - すでに却下された候補: ${accepted.length ? accepted.join(", ") : "なし"}`;
 
-    const maker = await generateText({
-      model: ai.gateway(ai.modelFast),
-      prompt: makerPrompt,
-      experimental_output: Output.object({ schema: MakerSchema }) as never,
-    });
-    const makerOut = (maker as unknown as { experimental_output?: z.infer<typeof MakerSchema> }).experimental_output;
-    const candidates = makerOut?.distractors ?? [];
+    let candidates: string[] = [];
+    try {
+      const makerOut = await generateStructured({
+        model: ai.gateway(ai.modelFast),
+        prompt: makerPrompt,
+        schema: MakerSchema,
+      });
+      candidates = makerOut.distractors;
+    } catch {
+      continue; // this iteration produced nothing; reviews fall back to the deck
+    }
 
     const checkerPrompt = `以下は単語「${headword}」（正解の意味: ${correctMeaning}）の4択クイズの不正解候補です。
 各候補について、(a) 正解と意味が被っていない (b) 学習者を惑わすが正解とは明確に違う、を満たすかtrue/falseで判定してください。
 候補:
 ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
 
-    const checker = await generateText({
-      model: ai.gateway(ai.modelFast),
-      prompt: checkerPrompt,
-      experimental_output: Output.object({ schema: CheckerSchema }) as never,
-    });
-    const checkOut = (checker as unknown as { experimental_output?: z.infer<typeof CheckerSchema> }).experimental_output;
-    const verdicts = checkOut?.verdicts ?? [];
+    let verdicts: z.infer<typeof CheckerSchema>["verdicts"] = [];
+    try {
+      const checkOut = await generateStructured({
+        model: ai.gateway(ai.modelFast),
+        prompt: checkerPrompt,
+        schema: CheckerSchema,
+      });
+      verdicts = checkOut.verdicts;
+    } catch {
+      /* no checker verdicts — candidates pass unless they duplicate the answer */
+    }
 
     for (let i = 0; i < candidates.length; i++) {
       const v = verdicts[i];
@@ -630,9 +665,11 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
     const ai = getAi();
+    const levelGoal = await getUserLevelGoal(userId);
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
+学習者の目標レベル: ${levelGoal}(TOCFL) — 添削文・お手本の語彙はこのレベル以下に抑える。
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
@@ -641,16 +678,16 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 - correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
 - chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
 - chunk_note: この型の使いどころを日本語で1文。
-- native_note: この単語をネイティブが実際に使う時の気持ち・状況を日本語で1〜2文。
-- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
+- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。日本語2〜3文。
+- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
 - alt_answer: 別の言い方1つ(繁体字)。`;
 
     const pro = await isProUser(userId);
-    const { experimental_output } = await generateText({
+    const feedback = await generateStructured({
       model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
       prompt,
-      experimental_output: Output.object({ schema: FeedbackSchema }) as never,
-    }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };
+      schema: FeedbackSchema,
+    });
 
     // KPI (roadmap §3): speaking reviews feed the admin dashboard.
     await logUsage(supabase, userId, "speaking_feedback");
@@ -659,11 +696,11 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       loop: "speaking_feedback",
       iterations: 1,
       accepted: 1,
-      meta: { headword: w.headword, score: experimental_output.natural_score },
+      meta: { headword: w.headword, score: feedback.natural_score },
     });
 
     return {
-      ...experimental_output,
+      ...feedback,
       headword: w.headword,
       reading_zhuyin: w.reading_zhuyin,
       pinyin: w.pinyin,
