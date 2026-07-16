@@ -9,7 +9,7 @@ import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
@@ -55,50 +55,27 @@ async function cropAround(dataUrl: string, point: [number, number]): Promise<str
   return c.toDataURL("image/jpeg", 0.88);
 }
 
-/**
- * Short synthesized "catch!" sound — WebAudio, no assets.
- * A11: 旧・三角波アルペジオは主張が強かったので、柔らかい「ポン」(短い
- * サイン波のポップ)+高音の「キラン」(倍音を1つ添えた減衰音)に変更。
- * 全体に旧比で音量約-30%・時間も短め。
- */
+/** Short synthesized "catch!" chime — WebAudio, no assets. */
 function playChime() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
-    const t = ctx.currentTime;
-
-    // 「ポン」: 低めのサイン波を素早くピッチダウンさせる水滴風ポップ
-    {
+    const notes = [784, 1175, 1568]; // G5 D6 G6
+    notes.forEach((f, i) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(520, t);
-      o.frequency.exponentialRampToValueAtTime(300, t + 0.12);
-      o.connect(g).connect(ctx.destination);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.15, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-      o.start(t);
-      o.stop(t + 0.2);
-    }
-
-    // 「キラン」: 高いサイン波2音(基音+5度上)を薄く重ねて素早く減衰
-    [1568, 2349].forEach((f, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
+      o.type = "triangle";
       o.frequency.value = f;
       o.connect(g).connect(ctx.destination);
-      const t0 = t + 0.1 + i * 0.05;
+      const t0 = ctx.currentTime + i * 0.09;
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(i === 0 ? 0.1 : 0.06, t0 + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+      g.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
       o.start(t0);
-      o.stop(t0 + 0.32);
+      o.stop(t0 + 0.45);
     });
-
-    setTimeout(() => ctx.close(), 600);
+    setTimeout(() => ctx.close(), 900);
   } catch { /* silent */ }
 }
 
@@ -116,6 +93,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -132,9 +110,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // B1(NORI指定): 切り抜き(背景除去)は一旦停止。タップ領域を切り出したら
-  // すぐ ready にして、今のキャッチ演出のまま最速で図鑑へ追加する。ヒーローと
-  // 保存には切り抜きなしの写真(cropped)をそのまま使う。
+  // Prepare cutout the moment the sheet opens.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -142,21 +118,20 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const cropped = await cropAround(snapshotDataUrl, item.point);
         if (cancelled) return;
         setObjectDataUrl(cropped);
+        const dataUrl = await removeBackgroundSmart(cropped);
+        if (cancelled) return;
+        setCutoutUrl(dataUrl);
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+        setPhase("ready");
       } catch (e) {
-        console.warn("crop failed", e);
-      } finally {
-        if (!cancelled) {
-          if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-          setPhase("ready");
-        }
+        console.warn("cutout failed, using crop", e);
+        setCutoutUrl((prev) => prev ?? objectDataUrl);
+        setPhase("ready");
       }
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 切り抜きを止めたので、ヒーロー/飛翔画像は切り出し写真をそのまま使う。
-  const heroSrc = objectDataUrl;
 
   async function handleSelfie(file: File) {
     const reader = new FileReader();
@@ -232,7 +207,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
 
 
   async function doSave() {
-    if (phase !== "ready" || !objectDataUrl || saving) return;
+    if (phase !== "ready" || !objectDataUrl || !cutoutUrl || saving) return;
     setSaving(true);
     setErr(null);
     try {
@@ -266,12 +241,11 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         void putCachedImage(path, blob);
         return path;
       }
-      // 切り抜き停止中: cutout はアップロードしない(object 写真のみ)。
-      const [object_path, selfie_path] = await Promise.all([
+      const [object_path, cutout_path, selfie_path] = await Promise.all([
         upload(objectDataUrl, "object"),
+        upload(cutoutUrl, "cutout"),
         upload(selfieDataUrl, "selfie"),
       ]);
-      const cutout_path: string | null = null;
 
       let stickerId: string;
       let firstCatch = false;
@@ -372,17 +346,17 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           ref={cutoutBoxRef}
           className="mx-auto mt-2 grid aspect-square w-64 max-w-full place-items-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
         >
-          {heroSrc ? (
+          {cutoutUrl ? (
             <img
-              src={heroSrc}
+              src={cutoutUrl}
               alt={headword}
-              className={`h-full w-full rounded-3xl object-cover ${phase === "ready" ? "cutout-pop" : ""} ${phase === "landing" ? "opacity-0" : ""}`}
+              className={`h-full w-full object-contain ${phase === "ready" ? "cutout-pop" : ""} ${phase === "landing" ? "opacity-0" : ""}`}
             />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">準備中…</p>
+                <p className="text-[11px]">切り抜き中…</p>
               </div>
             </div>
           )}
@@ -463,7 +437,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       </div>
 
       {/* Flying cutout + gold shimmer trail during landing */}
-      {phase === "landing" && heroSrc && (
+      {phase === "landing" && cutoutUrl && (
         <>
           <div
             id="catch-trail"
@@ -480,9 +454,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           </div>
           <img
             ref={flyRef}
-            src={heroSrc ?? undefined}
+            src={cutoutUrl}
             alt=""
-            className="pointer-events-none fixed z-[60] rounded-3xl object-cover drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
+            className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
             style={{ willChange: "transform, opacity", left: 0, top: 0 }}
           />
         </>
@@ -523,7 +497,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       </div>
 
       {/* Ready-state sparkle burst around the cutout — "this is now yours" */}
-      {phase === "ready" && heroSrc && (
+      {phase === "ready" && cutoutUrl && (
         <div className="pointer-events-none absolute left-1/2 top-[8.5rem] -translate-x-1/2">
           {[0, 60, 120, 180, 240, 300].map((deg) => (
             <span

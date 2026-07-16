@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock, Trash2, ImageUp } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker, updateWordExtras, deleteSticker, replaceStickerPhoto } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
-import { getMyProfile } from "@/lib/profile.functions";
-import { downscaleDataUrl } from "@/lib/cutout";
-import { supabase } from "@/integrations/supabase/client";
-import { CachedImg, putCachedImage } from "@/lib/image-cache";
+import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
+import { CachedImg } from "@/lib/image-cache";
 
 
 type Props = {
@@ -20,11 +18,6 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
-  const fetchProfile = useServerFn(getMyProfile);
-  const deleteFn = useServerFn(deleteSticker);
-  const replacePhotoFn = useServerFn(replaceStickerPhoto);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [busy, setBusy] = useState<null | "delete" | "image">(null);
   const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
@@ -32,98 +25,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     enabled: !!stickerId,
     staleTime: 5 * 60 * 1000,
   });
-  const { data: profile } = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => fetchProfile(),
-    staleTime: 60_000,
-  });
-  const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
-
-  // A9: Pro限定の手動再生成。auto-enrichのenrichedRefガードを無視して
-  // generateCard→updateWordExtrasを強制実行し、詳細を作り直す。
-  async function regenerate() {
-    if (!s || regenerating) return;
-    setRegenerating(true);
-    try {
-      const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
-      await saveExtras({
-        data: {
-          word_id: s.word_id,
-          extras: card.extras,
-          patch: {
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-          },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-    } catch (e) {
-      console.warn("Regenerate failed", e);
-    } finally {
-      setRegenerating(false);
-    }
-  }
-
-  // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
-  async function handleDelete() {
-    if (!stickerId || busy) return;
-    if (!window.confirm("このカードを削除しますか?この操作は取り消せません。")) return;
-    setBusy("delete");
-    try {
-      await deleteFn({ data: { sticker_id: stickerId } });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      onClose();
-    } catch (e) {
-      console.warn("Delete failed", e);
-      window.alert("削除に失敗しました。");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // B3: 写真を差し替え(file picker → downscale → upload → attach)。
-  async function handleImageFile(file: File) {
-    if (!stickerId || busy) return;
-    setBusy("image");
-    try {
-      const dataUrl = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result as string);
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(file);
-      });
-      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
-      const blob = await (await fetch(small)).blob();
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Not signed in");
-      const path = `${userId}/${Date.now()}-object.jpg`;
-      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-        contentType: blob.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      void putCachedImage(path, blob);
-      await replacePhotoFn({ data: { sticker_id: stickerId, object_path: path } });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-    } catch (e) {
-      console.warn("Image change failed", e);
-      window.alert("画像の変更に失敗しました。");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   // Auto-enrich word details (collocations, synonyms, etymology, examples, etc.)
   // the first time a word without extras is opened.
@@ -378,24 +283,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               </div>
             )}
 
-            {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
-            {!enriching && (
-              isPro ? (
-                <button
-                  onClick={regenerate}
-                  disabled={regenerating}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-semibold text-primary disabled:opacity-60"
-                >
-                  {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {regenerating ? "再生成中…" : "✨ 解説を再生成"}
-                </button>
-              ) : (
-                <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-xs text-muted-foreground">
-                  <Lock className="h-3.5 w-3.5" />
-                  解説の再生成は Pro 限定
-                </div>
-              )
-            )}
+            <WebImagesSection headword={s.word.headword} meaningJa={s.word.meaning_ja} />
+            <RealUsageSection headword={s.word.headword} />
 
             {s.lat != null && s.lng != null && (
               <a
@@ -418,40 +307,104 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 </div>
               </a>
             )}
-
-            {/* B3: カード管理(写真の差し替え・削除) */}
-            <div className="mt-5 flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleImageFile(f);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={busy !== null}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card py-2.5 text-xs font-medium disabled:opacity-60"
-              >
-                {busy === "image" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
-                写真を変更
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={busy !== null}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 disabled:opacity-60"
-              >
-                {busy === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                削除
-              </button>
-            </div>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * ネットの画像: その単語を最もよく表す画像をWeb検索から表示(開いた時だけ
+ * 取得=コストゼロのまま)。もっと見たい人はGoogle画像検索へ。
+ */
+function WebImagesSection({ headword, meaningJa }: { headword: string; meaningJa: string }) {
+  const searchFn = useServerFn(searchImageCandidates);
+  const [opened, setOpened] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ["web-images", headword],
+    queryFn: async () => (await searchFn({ data: { query: meaningJa || headword } })).candidates,
+    enabled: opened,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+  const candidates: ImageCandidate[] = data ?? [];
+  return (
+    <details className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm" onToggle={(e) => (e.target as HTMLDetailsElement).open && setOpened(true)}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sky-500 text-xs text-white shadow"><Globe className="h-3.5 w-3.5" /></span>
+        ネットの画像
+        <span className="ml-auto text-[10px] font-normal text-muted-foreground">タップで表示</span>
+      </summary>
+      <div className="mt-3">
+        {isLoading ? (
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-secondary" />)}
+          </div>
+        ) : candidates.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {candidates.slice(0, 3).map((c, i) => (
+              <figure key={i} className="relative aspect-square overflow-hidden rounded-xl bg-secondary">
+                <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+                {c.credit?.name && (
+                  <figcaption className="absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">📷 {c.credit.name}</figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
+        )}
+        <a
+          href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
+        >
+          Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * 実際の使われ方: 動画・SNS・辞書・ニュースの中で本当に使われている
+ * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
+ */
+function RealUsageSection({ headword }: { headword: string }) {
+  const q = encodeURIComponent(headword);
+  const links: { label: string; hint: string; href: string; emoji: string }[] = [
+    { emoji: "🎬", label: "YouTubeで聞く", hint: "この単語が話されている動画", href: `https://www.youtube.com/results?search_query=${q}` },
+    { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
+    { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
+    { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
+    { emoji: "📖", label: "萌典(教育部辞書)", hint: "公式辞書の定義・注音", href: `https://www.moedict.tw/${q}` },
+  ];
+  return (
+    <section className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-rose-500 text-xs text-white shadow"><Play className="h-3.5 w-3.5" /></span>
+        実際の使われ方
+      </div>
+      <ul className="grid grid-cols-1 gap-1.5">
+        {links.map((l) => (
+          <li key={l.label}>
+            <a
+              href={l.href}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2.5 rounded-xl bg-secondary/50 px-3 py-2 text-sm transition-colors active:bg-secondary"
+            >
+              <span className="text-base">{l.emoji}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{l.label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{l.hint}</span>
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

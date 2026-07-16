@@ -1,14 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateText, Output } from "ai";
 import { z } from "zod";
-import {
-  assertWithinDailyCap,
-  generateStructured,
-  getAi,
-  getUserLevelGoal,
-  isProUser,
-  logUsage,
-} from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
 
 export type NativePhrase = { zh: string; ja: string; note: string };
 
@@ -115,13 +109,11 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     });
     const pro = await isProUser(userId);
     const richModel = pro ? ai.modelRichPremium : ai.modelRich;
-    const levelGoal = await getUserLevelGoal(userId);
-    const corrected = await generateStructured({
+    const { experimental_output } = await generateText({
       model: ai.gateway(richModel),
-      schema: Schema,
+      experimental_output: Output.object({ schema: Schema }),
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
-        `学習者の目標レベル: ${levelGoal}(TOCFL)。添削・フレーズの語彙はこのレベル以下を優先。\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
         `次を出力:\n` +
@@ -134,8 +126,8 @@ export const correctMyJournal = createServerFn({ method: "POST" })
       user_id: userId,
       entry_date: today,
       user_draft: data.draft,
-      correction: corrected.correction,
-      feedback_ja: corrected.feedback_ja,
+      correction: experimental_output.correction,
+      feedback_ja: experimental_output.feedback_ja,
       used_sticker_ids: stickers.map((s: any) => s.id),
       model: richModel,
     };
@@ -146,7 +138,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
       const { data: row, error } = await supabase
         .from("journal_entries")
         .upsert(
-          { ...baseRow, native_phrases: corrected.native_phrases as never },
+          { ...baseRow, native_phrases: experimental_output.native_phrases as never },
           { onConflict: "user_id,entry_date" },
         )
         .select("*")
@@ -160,7 +152,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
           .select("*")
           .single();
         if (e2) throw new Error(e2.message);
-        inserted = { ...toJournalEntry(row2), native_phrases: corrected.native_phrases };
+        inserted = { ...toJournalEntry(row2), native_phrases: experimental_output.native_phrases };
       } else {
         throw new Error(error.message);
       }

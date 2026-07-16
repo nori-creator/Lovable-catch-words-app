@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateText, Output } from "ai";
 import { z } from "zod";
-import { generateStructured, getAi, logUsage } from "./ai-provider.server";
+import { getAi, logUsage } from "./ai-provider.server";
 
 export type DailyQuest = {
   id: string;
@@ -44,12 +45,12 @@ export const getTodayQuests = createServerFn({ method: "GET" })
     });
     let quests: Array<{ category_key: string; target_word: string; hint_ja: string }>;
     try {
-      const out = await generateStructured({
+      const { experimental_output } = await generateText({
         model: ai.gateway(ai.modelFast),
-        schema: Schema,
+        experimental_output: Output.object({ schema: Schema }),
         prompt: `今日の台湾華語デイリークエスト3つを生成して。街で出会いやすい身近な対象物の華語単語（果物・飲み物・乗り物・店看板など）。各クエスト: category_key, target_word(繁体字), hint_ja(日本語で「街で◯◯を見つけて撮ろう」風)。必ずJSONスキーマに従ってquests配列を3件返す。`,
       });
-      quests = out.quests;
+      quests = experimental_output.quests;
       await logUsage(supabase, userId, "quests");
     } catch {
       // Fallback if AI returns malformed structure

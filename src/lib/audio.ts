@@ -24,35 +24,3 @@ export function primeAudio(el: HTMLAudioElement): void {
     /* priming is best-effort */
   }
 }
-
-/**
- * 排他再生: 発音ボタンが複数箇所(スキャン/カード/復習)にあり、それぞれが
- * 自前の Audio / speechSynthesis を持つため「音声が被る」不具合が出ていた。
- * 再生を始める側は必ず claimAudio(el) を呼ぶ — 直前に鳴っていたものを止めて
- * から自分が「現在の再生者」になる。speechSynthesis を使う側は
- * stopOtherAudio() を speak() の直前に呼ぶ。
- */
-let currentAudio: HTMLAudioElement | null = null;
-
-export function stopOtherAudio(except?: HTMLAudioElement): void {
-  if (currentAudio && currentAudio !== except) {
-    try {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    } catch {
-      /* already detached */
-    }
-  }
-  if (typeof window !== "undefined" && "speechSynthesis" in window) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch {
-      /* noop */
-    }
-  }
-}
-
-export function claimAudio(el: HTMLAudioElement): void {
-  stopOtherAudio(el);
-  currentAudio = el;
-}
