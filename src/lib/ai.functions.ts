@@ -2,7 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+
+  getAi,
+  getUserLevelGoal,
+  isProUser,
+  logUsage,
+  parseJsonFromAiText,
+} from "./ai-provider.server";
 
 const CATEGORY_KEYS = [
   "fruit","vegetable","drink","food","dessert",
@@ -35,18 +43,6 @@ const SuggestionSchema = z.object({
     })
   ).length(5),
 });
-
-function parseJsonFromAiText(text: string) {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) return JSON.parse(fenced[1]);
-
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
-
-  return JSON.parse(trimmed);
-}
 
 // Heuristic post-processor: remap the AI's category_key when it lazily returns
 // "other" for common items, and gracefully bucket close synonyms.
@@ -204,6 +200,7 @@ export const generateCard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ai = getAi();
     await assertWithinDailyCap(context.userId, "card");
+    const levelGoal = await getUserLevelGoal(context.userId);
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -221,7 +218,7 @@ export const generateCard = createServerFn({ method: "POST" })
 - part_of_speech: 品詞（名詞/動詞/形容詞/副詞など日本語表記）
 - level: TOCFLレベル（TOCFL-1〜6 のいずれか）
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか
-- example_sentence: 台湾で日常的に使う自然な例文（繁体字）
+- example_sentence: 台湾で日常的に使う自然な例文（繁体字）。学習者の目標レベルは ${levelGoal} — 例文の語彙・文型はこのレベル以下に抑える
 - example_translation: 例文の日本語訳
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。推測でよいので空文字・空配列で返さない。該当が本当に無いのは antonyms くらい）:
@@ -238,7 +235,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。推測
 - synonym_diff: 主要な類義語との使い分け・ニュアンスの違い（1〜2文、日本語）
 - word_order: この語が入る典型的な語順・文型パターン（例:「把+芒果+切開」のように繁体字パターン+短い日本語説明）
 - study_tips: 日本人学習者向けの勉強のコツ。日本語との違い・発音の注意・声調の覚え方など（1〜2文、日本語）
-- examples_extra: 追加の自然な例文2つ {zh, ja}
+- examples_extra: 追加の自然な例文2つ {zh, ja}（語彙は ${levelGoal} 以下）
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
@@ -346,12 +343,14 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
+    const levelGoal = await getUserLevelGoal(context.userId);
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
         `台湾華語(繁體字)のフレーズカードを作ります。\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
+        `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
         `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
         `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
         `- pinyin: 拼音\n` +

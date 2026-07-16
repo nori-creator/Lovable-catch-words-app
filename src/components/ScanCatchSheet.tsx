@@ -55,27 +55,50 @@ async function cropAround(dataUrl: string, point: [number, number]): Promise<str
   return c.toDataURL("image/jpeg", 0.88);
 }
 
-/** Short synthesized "catch!" chime — WebAudio, no assets. */
+/**
+ * Short synthesized "catch!" sound — WebAudio, no assets.
+ * A11: 旧・三角波アルペジオは主張が強かったので、柔らかい「ポン」(短い
+ * サイン波のポップ)+高音の「キラン」(倍音を1つ添えた減衰音)に変更。
+ * 全体に旧比で音量約-30%・時間も短め。
+ */
 function playChime() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
-    const notes = [784, 1175, 1568]; // G5 D6 G6
-    notes.forEach((f, i) => {
+    const t = ctx.currentTime;
+
+    // 「ポン」: 低めのサイン波を素早くピッチダウンさせる水滴風ポップ
+    {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = "triangle";
+      o.type = "sine";
+      o.frequency.setValueAtTime(520, t);
+      o.frequency.exponentialRampToValueAtTime(300, t + 0.12);
+      o.connect(g).connect(ctx.destination);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.15, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.start(t);
+      o.stop(t + 0.2);
+    }
+
+    // 「キラン」: 高いサイン波2音(基音+5度上)を薄く重ねて素早く減衰
+    [1568, 2349].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
       o.frequency.value = f;
       o.connect(g).connect(ctx.destination);
-      const t0 = ctx.currentTime + i * 0.09;
+      const t0 = t + 0.1 + i * 0.05;
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      g.gain.linearRampToValueAtTime(i === 0 ? 0.1 : 0.06, t0 + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
       o.start(t0);
-      o.stop(t0 + 0.45);
+      o.stop(t0 + 0.32);
     });
-    setTimeout(() => ctx.close(), 900);
+
+    setTimeout(() => ctx.close(), 600);
   } catch { /* silent */ }
 }
 
