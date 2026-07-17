@@ -91,7 +91,7 @@ function ReviewPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
-  const { data: cards, isLoading, refetch, isFetching } = useQuery({
+  const { data: cards, isLoading, refetch } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
     staleTime: 0,
@@ -155,7 +155,7 @@ function ReviewPage() {
         </div>
       </section>
 
-      {isLoading || isFetching ? (
+      {isLoading ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
           <p className="text-sm text-muted-foreground">今日の出題を準備中…</p>

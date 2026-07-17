@@ -50,7 +50,10 @@ function DexPage() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
-  const captured = stickers ?? [];
+  // Memoize so the reference is stable across renders — otherwise `filtered`
+  // and `groups` below recompute on every render (a new `[]`/array identity
+  // invalidates their useMemo deps), re-filtering the whole gallery each time.
+  const captured = useMemo(() => stickers ?? [], [stickers]);
 
   // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
   useEffect(() => {
