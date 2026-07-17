@@ -239,21 +239,26 @@ function RecapFeedCard({ items }: { items: StickerWithWord[] }) {
           );
         })}
       </div>
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-      <div className="relative z-10 text-center">
-        <p className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground">This week</p>
-        <h3 className="mt-4 text-4xl font-semibold tracking-tight">
-          あなたの{items.length}枚。
-        </h3>
-        <p className="mt-3 text-sm text-muted-foreground">また会える言葉たち。</p>
+      <div className="absolute inset-0 bg-[#040814]/75 backdrop-blur-xl" />
+      <div className="reveal-stagger relative z-10 text-center">
+        <p className="font-mono-tight text-[10px] uppercase tracking-[0.4em] text-white/50">This week</p>
+        <p
+          className="font-display mt-3 leading-none text-white"
+          style={{ fontSize: "clamp(6rem, 22vw, 10rem)", color: "var(--accent-gold)" }}
+        >
+          {items.length}
+        </p>
+        <p className="font-display -mt-2 text-2xl italic text-white/85">words caught</p>
+        <p className="mt-4 text-xs tracking-wide text-white/50">また会える言葉たち。</p>
         <button
           onClick={() => { Sound.tap(); haptic("light"); }}
-          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-2.5 text-xs font-medium text-foreground backdrop-blur-md ring-1 ring-white/20"
+          className="press-in lift-glass mt-8 inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-xs font-medium text-white ring-1 ring-white/20"
         >
           <Share2 className="h-4 w-4" />
           シェアする
         </button>
       </div>
+
     </section>
   );
 }
