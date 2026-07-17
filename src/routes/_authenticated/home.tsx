@@ -6,7 +6,7 @@ import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, Share2, Sparkles, Volume2, ScanLine, ChevronsUp } from "lucide-react";
+import { Share2, ScanLine, ChevronsUp } from "lucide-react";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -34,7 +34,6 @@ export const Route = createFileRoute("/_authenticated/home")({
 
 type Card =
   | { kind: "sticker"; sticker: StickerWithWord; i: number }
-  | { kind: "review"; i: number }
   | { kind: "recap"; i: number; items: StickerWithWord[] };
 
 function HomePage() {
@@ -54,26 +53,37 @@ function HomePage() {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate]);
 
-  // Sort newest-first, then interleave review / recap cards.
+  // Newest-first + a single weekly recap at position 3 when ≥ 6 stickers.
+  // Review / Ghost / Locked cards live in Museum + More sheet — the feed
+  // stays pure (Sticker + optional Recap) to avoid clutter.
   const cards = useMemo<Card[]>(() => {
     const list = [...(stickers ?? [])].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-    const out: Card[] = [];
-    list.forEach((s, i) => {
-      out.push({ kind: "sticker", sticker: s, i });
-      if ((i + 1) % 5 === 0) out.push({ kind: "review", i });
-    });
-    // Recap card at position 3 when there are ≥6 stickers.
+    const out: Card[] = list.map((s, i) => ({ kind: "sticker", sticker: s, i }));
     if (list.length >= 6) {
       out.splice(3, 0, { kind: "recap", i: 3, items: list.slice(0, 8) });
     }
     return out;
   }, [stickers]);
 
+  // Fire a subtle chirp as each card snaps into view.
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    let lastIdx = -1;
+    const onScroll = () => {
+      const idx = Math.round(el.scrollTop / el.clientHeight);
+      if (idx !== lastIdx) { lastIdx = idx; Sound.cardEnter(); }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [cards.length]);
+
   return (
     <AppShell>
-      <div className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
+      <div ref={feedRef} className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
         {isLoading && <LoadingCard />}
         {!isLoading && cards.length === 0 && <EmptyCard />}
         {cards.map((c, idx) => {
@@ -87,7 +97,6 @@ function HomePage() {
               />
             );
           }
-          if (c.kind === "review") return <ReviewFeedCard key={`r-${c.i}`} />;
           return <RecapFeedCard key={`rc-${c.i}`} items={c.items} />;
         })}
         {/* trailing spacer so last card clears FAB */}
