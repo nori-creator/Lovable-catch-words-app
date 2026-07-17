@@ -6,7 +6,7 @@ import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, Share2, Sparkles, Volume2, ScanLine, ChevronsUp } from "lucide-react";
+import { Share2, ScanLine, ChevronsUp } from "lucide-react";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -34,7 +34,6 @@ export const Route = createFileRoute("/_authenticated/home")({
 
 type Card =
   | { kind: "sticker"; sticker: StickerWithWord; i: number }
-  | { kind: "review"; i: number }
   | { kind: "recap"; i: number; items: StickerWithWord[] };
 
 function HomePage() {
@@ -54,26 +53,37 @@ function HomePage() {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate]);
 
-  // Sort newest-first, then interleave review / recap cards.
+  // Newest-first + a single weekly recap at position 3 when ≥ 6 stickers.
+  // Review / Ghost / Locked cards live in Museum + More sheet — the feed
+  // stays pure (Sticker + optional Recap) to avoid clutter.
   const cards = useMemo<Card[]>(() => {
     const list = [...(stickers ?? [])].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-    const out: Card[] = [];
-    list.forEach((s, i) => {
-      out.push({ kind: "sticker", sticker: s, i });
-      if ((i + 1) % 5 === 0) out.push({ kind: "review", i });
-    });
-    // Recap card at position 3 when there are ≥6 stickers.
+    const out: Card[] = list.map((s, i) => ({ kind: "sticker", sticker: s, i }));
     if (list.length >= 6) {
       out.splice(3, 0, { kind: "recap", i: 3, items: list.slice(0, 8) });
     }
     return out;
   }, [stickers]);
 
+  // Fire a subtle chirp as each card snaps into view.
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    let lastIdx = -1;
+    const onScroll = () => {
+      const idx = Math.round(el.scrollTop / el.clientHeight);
+      if (idx !== lastIdx) { lastIdx = idx; Sound.cardEnter(); }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [cards.length]);
+
   return (
     <AppShell>
-      <div className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
+      <div ref={feedRef} className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
         {isLoading && <LoadingCard />}
         {!isLoading && cards.length === 0 && <EmptyCard />}
         {cards.map((c, idx) => {
@@ -87,7 +97,6 @@ function HomePage() {
               />
             );
           }
-          if (c.kind === "review") return <ReviewFeedCard key={`r-${c.i}`} />;
           return <RecapFeedCard key={`rc-${c.i}`} items={c.items} />;
         })}
         {/* trailing spacer so last card clears FAB */}
@@ -116,23 +125,45 @@ function StickerFeedCard({
 }) {
   const hero = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
   const rel = relativeDay(new Date(s.created_at));
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [rippling, setRippling] = useState(false);
+  const isReunion = Boolean(s.location_name);
 
-  const playPronounce = async (e: React.MouseEvent) => {
+  const onTap = (e: React.MouseEvent) => {
     e.stopPropagation();
     unlockAudio();
     haptic("light");
     Sound.tap();
-    // Best-effort: rely on the sticker sheet for real TTS; here we just chirp.
-    // The full pronunciation flow lives in StickerSheet.
+    setRippling(true);
+    window.setTimeout(() => setRippling(false), 520);
   };
+
+  const pressTimer = useRef<number | null>(null);
+  const onPressStart = () => {
+    pressTimer.current = window.setTimeout(async () => {
+      haptic("medium");
+      Sound.reunion();
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: s.word.headword,
+            text: `${s.word.headword}${s.word.meaning_ja ? " — " + s.word.meaning_ja : ""}`,
+            url: window.location.href,
+          });
+        }
+      } catch { /* dismissed */ }
+    }, 550);
+  };
+  const clearPress = () => { if (pressTimer.current) { window.clearTimeout(pressTimer.current); pressTimer.current = null; } };
 
   return (
     <section
       className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden"
       onClick={onOpen}
+      onPointerDown={onPressStart}
+      onPointerUp={clearPress}
+      onPointerCancel={clearPress}
+      onPointerLeave={clearPress}
     >
-      {/* hero */}
       {hero ? (
         <div className="absolute inset-0">
           <img
@@ -142,9 +173,7 @@ function StickerFeedCard({
             loading="lazy"
             decoding="async"
           />
-          {/* Cinematic top + bottom scrim */}
-          <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background/70 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-background via-background/70 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-[#040814] via-[#040814]/60 to-transparent" />
         </div>
       ) : (
         <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-primary/25 to-background">
@@ -152,75 +181,44 @@ function StickerFeedCard({
         </div>
       )}
 
-      {/* text overlay */}
-      <div className="pointer-events-none relative z-10 flex h-full w-full max-w-lg flex-col justify-end px-6 pb-40">
-        <div className="pointer-events-auto space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-white/70">
-            {rel}{s.location_name ? ` · ${s.location_name}` : ""}
-          </p>
+      <div className="glass-bar pointer-events-auto absolute inset-x-0 bottom-0 px-6 pb-[max(6.5rem,calc(6rem+env(safe-area-inset-bottom)))] pt-6">
+        <div className="reveal-stagger mx-auto max-w-lg">
+          <div className="flex items-center gap-2 font-mono-tight text-[10px] font-medium uppercase tracking-[0.35em] text-white/60">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: isReunion ? "var(--accent-gold)" : "var(--accent-cyan)" }}
+              aria-label={isReunion ? "再会" : "初遭遇"}
+            />
+            <span>{rel}{s.location_name ? ` · ${s.location_name}` : ""}</span>
+          </div>
           <h2
-            className="font-semibold leading-[1.05] text-white"
-            style={{ fontSize: "clamp(2.6rem, 9vw, 4.5rem)", letterSpacing: "-0.03em" }}
+            onClick={onTap}
+            className="font-display mt-2 cursor-pointer select-none leading-[0.95] text-white"
+            style={{ fontSize: "clamp(3rem, 12vw, 5.5rem)" }}
           >
             {s.word.headword}
           </h2>
-          {s.word.reading_zhuyin && (
-            <p className="text-lg text-white/85 tracking-wide">{s.word.reading_zhuyin}</p>
-          )}
-          {s.word.meaning_ja && (
-            <p className="max-w-md text-sm text-white/70">{s.word.meaning_ja}</p>
-          )}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              onClick={playPronounce}
-              className="lift-soft grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md ring-1 ring-white/25"
-              aria-label="発音"
-            >
-              <Volume2 className="h-5 w-5" />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onOpen(); }}
-              className="lift-soft rounded-full bg-white/12 px-4 py-2.5 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/25"
-            >
-              詳しく見る
-            </button>
-            {s.location_name && (
-              <span className="ml-auto flex items-center gap-1 text-[11px] text-white/70">
-                <MapPin className="h-3 w-3" />
-                {s.location_name}
-              </span>
+          <div className="relative mt-1 h-0.5 w-24 overflow-hidden">
+            {rippling && (
+              <span className="wave-ripple absolute inset-0 block h-full w-full origin-left bg-white/70" />
             )}
           </div>
+          {(s.word.reading_zhuyin || s.word.pinyin) && (
+            <p className="font-mono-tight mt-3 text-[13px] tracking-wider text-white/70">
+              {s.word.reading_zhuyin ?? s.word.pinyin}
+            </p>
+          )}
+          {s.word.meaning_ja && (
+            <p className="mt-2 max-w-md text-[13px] leading-relaxed text-white/60">
+              {s.word.meaning_ja}
+            </p>
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-function ReviewFeedCard() {
-  return (
-    <section className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden bg-gradient-to-br from-background via-background to-primary/15">
-      <div className="mx-6 max-w-md text-center">
-        <span className="inline-grid h-14 w-14 place-items-center rounded-full bg-primary/15 text-primary">
-          <Sparkles className="h-6 w-6" />
-        </span>
-        <h3 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
-          きょう、覚えているかな。
-        </h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          今の気分でひとつだけ、思い出してみる。
-        </p>
-        <Link
-          to="/review"
-          onClick={() => { Sound.tap(); haptic("medium"); }}
-          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30"
-        >
-          はじめる
-        </Link>
-      </div>
-    </section>
-  );
-}
 
 function RecapFeedCard({ items }: { items: StickerWithWord[] }) {
   return (
@@ -241,21 +239,26 @@ function RecapFeedCard({ items }: { items: StickerWithWord[] }) {
           );
         })}
       </div>
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-      <div className="relative z-10 text-center">
-        <p className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground">This week</p>
-        <h3 className="mt-4 text-4xl font-semibold tracking-tight">
-          あなたの{items.length}枚。
-        </h3>
-        <p className="mt-3 text-sm text-muted-foreground">また会える言葉たち。</p>
+      <div className="absolute inset-0 bg-[#040814]/75 backdrop-blur-xl" />
+      <div className="reveal-stagger relative z-10 text-center">
+        <p className="font-mono-tight text-[10px] uppercase tracking-[0.4em] text-white/50">This week</p>
+        <p
+          className="font-display mt-3 leading-none text-white"
+          style={{ fontSize: "clamp(6rem, 22vw, 10rem)", color: "var(--accent-gold)" }}
+        >
+          {items.length}
+        </p>
+        <p className="font-display -mt-2 text-2xl italic text-white/85">words caught</p>
+        <p className="mt-4 text-xs tracking-wide text-white/50">また会える言葉たち。</p>
         <button
           onClick={() => { Sound.tap(); haptic("light"); }}
-          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-2.5 text-xs font-medium text-foreground backdrop-blur-md ring-1 ring-white/20"
+          className="press-in lift-glass mt-8 inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-xs font-medium text-white ring-1 ring-white/20"
         >
           <Share2 className="h-4 w-4" />
           シェアする
         </button>
       </div>
+
     </section>
   );
 }
