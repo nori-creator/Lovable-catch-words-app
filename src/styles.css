@@ -127,7 +127,11 @@
   --surface-2: color-mix(in oklab, var(--card) 92%, var(--foreground) 8%);
   --shadow-elegant: 0 20px 60px -20px color-mix(in oklab, var(--primary) 45%, transparent),
                     0 4px 14px -6px color-mix(in oklab, var(--primary) 20%, transparent);
+  --font-display: "Instrument Serif", "Iowan Old Style", "Apple Garamond", Georgia, serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 }
+.font-display { font-family: var(--font-display); font-feature-settings: "liga","dlig"; letter-spacing: -0.01em; }
+.font-mono-tight { font-family: var(--font-mono); letter-spacing: 0; }
 
 @layer base {
   * {
@@ -318,12 +322,51 @@
 .ken-burns-a { animation: ken-burns-a 14s ease-out both; }
 .ken-burns-b { animation: ken-burns-b 16s ease-in-out both; }
 
-/* Breathing scan FAB */
+/* Breathing scan FAB — slow, meditative "heartbeat" */
 @keyframes breathe {
   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 40%, transparent), 0 18px 40px -14px color-mix(in oklab, var(--primary) 55%, transparent); }
-  50%      { transform: scale(1.05); box-shadow: 0 0 0 18px color-mix(in oklab, var(--primary) 0%, transparent), 0 22px 50px -14px color-mix(in oklab, var(--primary) 65%, transparent); }
+  50%      { transform: scale(1.05); box-shadow: 0 0 0 22px color-mix(in oklab, var(--primary) 0%, transparent), 0 24px 55px -14px color-mix(in oklab, var(--primary) 65%, transparent); }
 }
-.breathe { animation: breathe 3.4s ease-in-out infinite; }
+.breathe { animation: breathe 4s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+
+/* ─── Micro-interactions ─── */
+.lift-glass {
+  transition: backdrop-filter 260ms ease, background-color 260ms ease, transform 220ms cubic-bezier(0.34,1.56,0.64,1);
+  backdrop-filter: blur(12px) saturate(160%);
+}
+.lift-glass:hover { backdrop-filter: blur(20px) saturate(170%); background-color: color-mix(in oklab, var(--foreground) 10%, transparent); transform: translateY(-1px); }
+.lift-glass:active { transform: translateY(0) scale(0.98); transition-duration: 120ms; }
+
+.press-in {
+  transition: transform 120ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 120ms ease;
+}
+.press-in:active { transform: scale(0.97); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+
+@keyframes reveal-up {
+  0% { transform: translateY(12px); opacity: 0; filter: blur(6px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+.reveal-stagger > * { opacity: 0; animation: reveal-up 0.7s cubic-bezier(0.22,1,0.36,1) forwards; }
+.reveal-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.reveal-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.reveal-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.reveal-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.reveal-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.reveal-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Soft frosted bar used in feed overlay */
+.glass-bar {
+  background: color-mix(in oklab, #0a0f1e 55%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Waveform ripple under the pronounce tap */
+@keyframes waveform-ripple {
+  0% { transform: scaleX(0.2); opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+.wave-ripple { animation: waveform-ripple 500ms ease-out forwards; transform-origin: left center; }
 
 /* Segmented nav pill */
 .seg-pill {
