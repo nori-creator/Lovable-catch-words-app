@@ -86,10 +86,16 @@ function noise(dur: number, opts: { hp?: number; lp?: number; gain?: number } = 
 /* ─────────── Sound library ─────────── */
 
 export const Sound = {
-  tap() { tone(900, 0.05, { type: "sine", gain: 0.3 }); },
+  tap() { tone(900, 0.05, { type: "sine", gain: 0.22 }); },
   scanStart() {
     tone(700, 0.18, { type: "sine", from: 700, to: 260, gain: 0.4 });
+    tone(60, 0.6, { type: "sine", from: 80, to: 40, gain: 0.18 });
     noise(0.18, { hp: 500, lp: 2400, gain: 0.05 });
+  },
+  scanReading() {
+    // Low sub-bass texture during the "AI is analyzing" act.
+    tone(55, 0.9, { type: "sine", from: 55, to: 70, gain: 0.14 });
+    noise(0.9, { hp: 200, lp: 900, gain: 0.03 });
   },
   scanPulse() {
     tone(220, 0.12, { type: "triangle", from: 220, to: 340, gain: 0.18 });
@@ -100,13 +106,16 @@ export const Sound = {
     tone(1108, 0.14, { type: "sine", gain: 0.32, delay: 0.06 });
     tone(1318, 0.22, { type: "sine", gain: 0.30, delay: 0.12 });
   },
+  cardEnter() {
+    // Scroll-snap landing chirp with slight random pitch → variable reward.
+    const base = 480 + Math.floor(Math.random() * 200);
+    tone(base, 0.045, { type: "sine", from: base, to: base + 220, gain: 0.11 });
+  },
   capture() {
-    // shutter-y click
     noise(0.06, { hp: 2000, lp: 8000, gain: 0.35 });
     tone(1400, 0.08, { type: "square", from: 1400, to: 500, gain: 0.15 });
   },
   reunion() {
-    // gold shimmer — high sines
     tone(1568, 0.35, { type: "sine", gain: 0.24 });
     tone(2093, 0.45, { type: "sine", gain: 0.20, delay: 0.08 });
     tone(2637, 0.55, { type: "sine", gain: 0.16, delay: 0.16 });
@@ -119,6 +128,6 @@ export const Sound = {
     tone(220, 0.14, { type: "triangle", from: 220, to: 170, gain: 0.24 });
   },
   pageSnap() {
-    tone(500, 0.04, { type: "sine", from: 500, to: 700, gain: 0.15 });
+    tone(500, 0.04, { type: "sine", from: 500, to: 700, gain: 0.12 });
   },
 };
