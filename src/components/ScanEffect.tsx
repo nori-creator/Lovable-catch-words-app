@@ -3,20 +3,20 @@ import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
 /**
- * Vision Pro–style scan overlay — 3-act composition:
+ * Liquid-metal scan overlay (redesign v3).
  *
- *   Act 1 · sensing  — a soft aura converges from the edges toward the center,
- *                       a breathing depth-ring anchors the frame.
- *   Act 2 · reading  — a 12×8 lattice sweep from top to bottom, cells that
- *                       the sweep passes briefly ignite; 3–5 random cells
- *                       lock with corner brackets ("gaze locks"); a sparse
- *                       depth wireframe hints at 3D understanding.
- *   Act 3 · matching — every particle vectors toward the reticle, converging
- *                       into a bright point that the caller then blooms into
- *                       the word card.
+ *   Act 1 · sensing  — a silver dew ripples outward from the center; the
+ *                       camera feed is barely veiled by a breathing sheen.
+ *   Act 2 · reading  — the sheen thickens into a liquid-metal layer; 3–5
+ *                       "gaze points" surface like water indentations; a
+ *                       thin water-line grows along the bottom edge as a
+ *                       progress metaphor.
+ *   Act 3 · matching — the metal draws inward with surface tension toward
+ *                       the target(s); a single bright core detonates just
+ *                       before the caller reveals the words.
  *
- * The parent (scan.tsx) owns the actual detection lifecycle; this component
- * is purely presentational and reacts to the `stage` prop.
+ * All strokes are silver/blue (Deep Ocean primary highlights). No lattices,
+ * no wireframes, no corner brackets — quiet, high-end, "the AI is thinking".
  */
 
 type Stage = "sensing" | "reading" | "matching";
@@ -29,9 +29,8 @@ export function ScanEffect({ stage }: { stage: Stage }) {
   const stageStartRef = useRef<number>(performance.now());
   const pulseTimer = useRef<number>(0);
   const readingSubTimer = useRef<number>(0);
-  const hapticSelTimer = useRef<number>(0);
 
-  // Keep an up-to-date stage in a ref so the RAF loop sees changes without restart.
+  // React to stage changes without restarting the RAF loop.
   useEffect(() => {
     if (stageRef.current !== stage) {
       stageStartRef.current = performance.now();
@@ -44,9 +43,7 @@ export function ScanEffect({ stage }: { stage: Stage }) {
   useEffect(() => {
     Sound.scanStart();
     haptic("light");
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
   useEffect(() => {
@@ -65,50 +62,50 @@ export function ScanEffect({ stage }: { stage: Stage }) {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Time-of-day accent (Deep Ocean palette, subtle drift)
+    // Silver-blue with a warm dusk shift (kept close to primary hue).
     const hour = new Date().getHours();
     const accent =
-      hour >= 5 && hour < 11 ? [180, 240, 255] :   // dawn cyan
-      hour >= 11 && hour < 17 ? [125, 211, 252] :  // day cyan
-      hour >= 17 && hour < 20 ? [255, 190, 200] :  // dusk warm
-      [148, 163, 255];                              // night indigo
-    const rgba = (a: number) => `rgba(${accent[0]}, ${accent[1]}, ${accent[2]}, ${a.toFixed(3)})`;
+      hour >= 17 && hour < 20 ? [230, 210, 235] :   // dusk warm-silver
+      hour >= 20 || hour < 5  ? [200, 220, 255] :   // night cool-silver
+                                 [220, 235, 255];   // day bright-silver
+    const silver = (a: number) => `rgba(${accent[0]}, ${accent[1]}, ${accent[2]}, ${a.toFixed(3)})`;
 
-    // ─────────── particles ───────────
-    type P = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number };
+    // Persistent surface ripples — spawned per act, fade over ~1.6s.
+    type R = { x: number; y: number; born: number; life: number; maxR: number };
+    let ripples: R[] = [];
+    const spawnRipple = (x: number, y: number, maxR: number, life = 1600) => {
+      ripples.push({ x, y, born: performance.now(), life, maxR });
+    };
+
+    // Gaze points that appear during reading — surface indentations.
+    type Gaze = { x: number; y: number; born: number };
+    let gazes: Gaze[] = [];
+    let lastGazeAt = 0;
+
+    // Fine particles that drift toward center during matching.
+    type P = { x: number; y: number; vx: number; vy: number; life: number; max: number };
     const particles: P[] = [];
-    const spawn = () => {
+    const spawnParticle = () => {
       const w = canvas.width, h = canvas.height;
       const cx = w / 2, cy = h / 2;
       const angle = Math.random() * Math.PI * 2;
-      const dist = Math.min(w, h) * (0.35 + Math.random() * 0.2);
+      const dist = Math.min(w, h) * (0.32 + Math.random() * 0.22);
       const x = cx + Math.cos(angle) * dist;
       const y = cy + Math.sin(angle) * dist;
-      const life = 800 + Math.random() * 600;
+      const life = 700 + Math.random() * 500;
       particles.push({
         x, y,
-        vx: (cx - x) * 0.00035,
-        vy: (cy - y) * 0.00035,
+        vx: (cx - x) * 0.0005,
+        vy: (cy - y) * 0.0005,
         life, max: life,
-        size: (1 + Math.random() * 2.2) * dpr,
       });
     };
 
-    // ─────────── gaze-lock cells (Act 2) ───────────
-    type Lock = { col: number; row: number; born: number };
-    let locks: Lock[] = [];
-    let lastLockAt = 0;
-
-    // ─────────── depth wireframe (Act 2) — sparse triangles ───────────
-    const WF_COUNT = 14;
-    const wfPoints: Array<{ x: number; y: number; dx: number; dy: number }> = [];
-    for (let i = 0; i < WF_COUNT; i++) {
-      wfPoints.push({
-        x: Math.random(), y: Math.random(),
-        dx: (Math.random() - 0.5) * 0.00006,
-        dy: (Math.random() - 0.5) * 0.00006,
-      });
-    }
+    // Initial dew ripple
+    setTimeout(() => {
+      const w = canvas.width, h = canvas.height;
+      spawnRipple(w / 2, h / 2, Math.hypot(w, h) * 0.55, 2000);
+    }, 40);
 
     const tick = (now: number) => {
       const w = canvas.width, h = canvas.height;
@@ -117,173 +114,154 @@ export function ScanEffect({ stage }: { stage: Stage }) {
       const st = stageRef.current;
       ctx.clearRect(0, 0, w, h);
 
-      // 1) vignette — deeper during matching for the "reveal" beat
-      const vignetteAlpha = st === "matching" ? 0.85 : st === "reading" ? 0.65 : 0.5;
-      const rg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.08, w / 2, h / 2, Math.max(w, h) * 0.72);
-      rg.addColorStop(0, `rgba(6, 12, 30, ${(vignetteAlpha * 0.4).toFixed(3)})`);
-      rg.addColorStop(1, `rgba(4, 8, 22, ${vignetteAlpha.toFixed(3)})`);
-      ctx.fillStyle = rg;
+      // 1) Global tint — subtle silver veil that thickens by act.
+      const veil = st === "matching" ? 0.30 : st === "reading" ? 0.22 : 0.12;
+      const veilGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+      veilGrad.addColorStop(0, silver(veil * 0.35));
+      veilGrad.addColorStop(0.7, silver(veil));
+      veilGrad.addColorStop(1, "rgba(6, 12, 28, 0.55)");
+      ctx.fillStyle = veilGrad;
       ctx.fillRect(0, 0, w, h);
 
-      // 2) act-specific layers
-      if (st === "sensing") {
-        // Aura converging: draw a ring whose radius shrinks from edge to center
-        const p = Math.min(1, stageT / 700);
-        const maxR = Math.hypot(w, h) * 0.6;
-        const r0 = maxR * (1 - p * 0.65);
-        const auraGrad = ctx.createRadialGradient(w / 2, h / 2, r0 * 0.85, w / 2, h / 2, r0);
-        auraGrad.addColorStop(0, rgba(0));
-        auraGrad.addColorStop(0.7, rgba(0.06 + p * 0.06));
-        auraGrad.addColorStop(1, rgba(0));
-        ctx.fillStyle = auraGrad;
-        ctx.fillRect(0, 0, w, h);
-        // faint thin crosshair
-        ctx.strokeStyle = rgba(0.35);
-        ctx.lineWidth = dpr;
-        const cx = w / 2, cy = h / 2, arm = 18 * dpr;
+      // 2) Ripples (liquid surface)
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        const age = now - rp.born;
+        if (age > rp.life) { ripples.splice(i, 1); continue; }
+        const p = age / rp.life;
+        const r = rp.maxR * (0.05 + p * 0.95);
+        const alpha = (1 - p) * 0.55;
+        ctx.strokeStyle = silver(alpha);
+        ctx.lineWidth = (1.6 - p * 1.2) * dpr;
         ctx.beginPath();
-        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx - 4 * dpr, cy);
-        ctx.moveTo(cx + 4 * dpr, cy); ctx.lineTo(cx + arm, cy);
-        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy - 4 * dpr);
-        ctx.moveTo(cx, cy + 4 * dpr); ctx.lineTo(cx, cy + arm);
+        ctx.arc(rp.x, rp.y, r, 0, Math.PI * 2);
         ctx.stroke();
-      } else if (st === "reading") {
-        // 2a — sparse depth wireframe (triangulated soft mesh)
-        ctx.strokeStyle = rgba(0.16);
-        ctx.lineWidth = Math.max(1, dpr * 0.5);
-        for (const pt of wfPoints) {
-          pt.x = (pt.x + pt.dx * 16 + 1) % 1;
-          pt.y = (pt.y + pt.dy * 16 + 1) % 1;
-        }
-        for (let i = 0; i < wfPoints.length; i++) {
-          const a = wfPoints[i];
-          const b = wfPoints[(i + 3) % wfPoints.length];
-          const c = wfPoints[(i + 7) % wfPoints.length];
+        // inner faint ripple
+        if (p < 0.7) {
+          ctx.strokeStyle = silver(alpha * 0.35);
+          ctx.lineWidth = 0.8 * dpr;
           ctx.beginPath();
-          ctx.moveTo(a.x * w, a.y * h);
-          ctx.lineTo(b.x * w, b.y * h);
-          ctx.lineTo(c.x * w, c.y * h);
-          ctx.closePath();
+          ctx.arc(rp.x, rp.y, r * 0.72, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      // Auto-spawn ripples per act
+      if (st === "sensing" && Math.random() < 0.02) {
+        spawnRipple(w / 2 + (Math.random() - 0.5) * w * 0.15,
+                    h / 2 + (Math.random() - 0.5) * h * 0.15,
+                    Math.min(w, h) * (0.28 + Math.random() * 0.18));
+      }
+      if (st === "reading" && Math.random() < 0.05) {
+        spawnRipple(Math.random() * w, Math.random() * h,
+                    Math.min(w, h) * (0.14 + Math.random() * 0.14), 1200);
+      }
+
+      // 3) Reading: surface indentations (gaze points)
+      if (st === "reading") {
+        if (now - lastGazeAt > 340 && gazes.length < 5) {
+          lastGazeAt = now;
+          gazes.push({
+            x: w * (0.18 + Math.random() * 0.64),
+            y: h * (0.18 + Math.random() * 0.64),
+            born: now,
+          });
+          Sound.tap();
+        }
+        gazes = gazes.filter((g) => now - g.born < 2200);
+        for (const g of gazes) {
+          const age = (now - g.born) / 2200;
+          const rr = (18 + age * 22) * dpr;
+          const alpha = (1 - age) * 0.9;
+          // dark inner "indentation"
+          const ind = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, rr);
+          ind.addColorStop(0, `rgba(4, 8, 22, ${(alpha * 0.55).toFixed(3)})`);
+          ind.addColorStop(0.6, `rgba(4, 8, 22, ${(alpha * 0.15).toFixed(3)})`);
+          ind.addColorStop(1, "rgba(4, 8, 22, 0)");
+          ctx.fillStyle = ind;
+          ctx.beginPath();
+          ctx.arc(g.x, g.y, rr, 0, Math.PI * 2);
+          ctx.fill();
+          // silver rim
+          ctx.strokeStyle = silver(alpha * 0.7);
+          ctx.lineWidth = 1.2 * dpr;
+          ctx.beginPath();
+          ctx.arc(g.x, g.y, rr * 0.9, 0, Math.PI * 2);
           ctx.stroke();
         }
 
-        // 2b — 12×8 lattice
-        const cols = 8, rows = 12;
-        const cw = w / cols, ch = h / rows;
-        ctx.lineWidth = Math.max(1, dpr * 0.6);
-        ctx.strokeStyle = rgba(0.14);
-        for (let c = 0; c <= cols; c++) {
-          ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, h); ctx.stroke();
-        }
-        for (let r = 0; r <= rows; r++) {
-          ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(w, r * ch); ctx.stroke();
-        }
-
-        // 2c — sweep line (top→bottom, 900ms, loop)
-        const sweepPhase = (stageT % 1100) / 1100;
-        const sy = sweepPhase * h;
-        const swBand = 70 * dpr;
-        const grad = ctx.createLinearGradient(0, sy - swBand, 0, sy + swBand);
-        grad.addColorStop(0, rgba(0));
-        grad.addColorStop(0.5, rgba(0.55));
-        grad.addColorStop(1, rgba(0));
+        // Water-line progress (bottom) — loops through 3 phases.
+        const phase = (stageT % 1600) / 1600;
+        const lineY = h - 22 * dpr;
+        const grad = ctx.createLinearGradient(0, lineY, w, lineY);
+        grad.addColorStop(0, silver(0));
+        grad.addColorStop(Math.max(0, phase - 0.15), silver(0));
+        grad.addColorStop(phase, silver(0.9));
+        grad.addColorStop(Math.min(1, phase + 0.15), silver(0));
+        grad.addColorStop(1, silver(0));
         ctx.fillStyle = grad;
-        ctx.fillRect(0, sy - swBand, w, swBand * 2);
+        ctx.fillRect(0, lineY, w, 1.5 * dpr);
+      }
 
-        // 2d — ignite cells the sweep just passed
-        const passedRow = Math.floor(sy / ch);
-        if (passedRow >= 0 && passedRow < rows) {
-          for (let c = 0; c < cols; c++) {
-            if (((c + passedRow) * 37 + Math.floor(elapsed / 60)) % 5 === 0) {
-              ctx.fillStyle = rgba(0.10);
-              ctx.fillRect(c * cw + 1, passedRow * ch + 1, cw - 2, ch - 2);
-            }
-          }
-        }
-
-        // 2e — periodically spawn gaze-locks
-        if (now - lastLockAt > 260 && locks.length < 4) {
-          lastLockAt = now;
-          locks.push({ col: Math.floor(Math.random() * cols), row: Math.floor(Math.random() * rows), born: now });
-        }
-        locks = locks.filter((l) => now - l.born < 900);
-        for (const l of locks) {
-          const age = (now - l.born) / 900;
-          const a = 0.9 * (1 - age);
-          const x = l.col * cw, y = l.row * ch;
-          const bl = 10 * dpr;
-          ctx.strokeStyle = rgba(a);
-          ctx.lineWidth = 1.6 * dpr;
-          // 4 corner brackets
-          ctx.beginPath();
-          ctx.moveTo(x, y + bl); ctx.lineTo(x, y); ctx.lineTo(x + bl, y);
-          ctx.moveTo(x + cw - bl, y); ctx.lineTo(x + cw, y); ctx.lineTo(x + cw, y + bl);
-          ctx.moveTo(x + cw, y + ch - bl); ctx.lineTo(x + cw, y + ch); ctx.lineTo(x + cw - bl, y + ch);
-          ctx.moveTo(x + bl, y + ch); ctx.lineTo(x, y + ch); ctx.lineTo(x, y + ch - bl);
-          ctx.stroke();
-        }
-      } else {
-        // matching — a bright converging point + halo
-        const p = Math.min(1, stageT / 500);
+      // 4) Matching: converging mercury
+      if (st === "matching") {
+        const p = Math.min(1, stageT / 700);
         const cx = w / 2, cy = h / 2;
-        // halo
-        const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, (60 + 120 * p) * dpr);
-        halo.addColorStop(0, rgba(0.55 * (1 - p) + 0.15));
-        halo.addColorStop(1, rgba(0));
+
+        // Halo bloom
+        const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, (80 + 160 * p) * dpr);
+        halo.addColorStop(0, silver(0.7 * (1 - p) + 0.15));
+        halo.addColorStop(0.5, silver(0.3 * (1 - p) + 0.08));
+        halo.addColorStop(1, silver(0));
         ctx.fillStyle = halo;
         ctx.fillRect(0, 0, w, h);
-        // bright core
+
+        // Bright core
         ctx.beginPath();
-        ctx.arc(cx, cy, (4 + 10 * (1 - p)) * dpr, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${(0.6 + 0.35 * p).toFixed(3)})`;
+        ctx.arc(cx, cy, (6 + 14 * (1 - p)) * dpr, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${(0.55 + 0.4 * p).toFixed(3)})`;
         ctx.fill();
+
+        // Particles vector inward
+        if (particles.length < 60 && Math.random() < 0.7) spawnParticle();
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const pt = particles[i];
+          pt.vx += (cx - pt.x) * 0.00012;
+          pt.vy += (cy - pt.y) * 0.00012;
+          pt.x += pt.vx * 16;
+          pt.y += pt.vy * 16;
+          pt.life -= 16;
+          const near = Math.hypot(pt.x - cx, pt.y - cy) < 8 * dpr;
+          if (pt.life <= 0 || near) { particles.splice(i, 1); continue; }
+          const a = Math.max(0, pt.life / pt.max);
+          ctx.beginPath();
+          ctx.fillStyle = silver(a * 0.85);
+          ctx.arc(pt.x, pt.y, 1.4 * dpr, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
-      // 3) particles — attracted more strongly during matching
-      if (st !== "matching" && particles.length < 80 && Math.random() < 0.65) spawn();
-      const attract = st === "matching" ? 0.06 : 0.014;
-      const cx = w / 2, cy = h / 2;
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const pt = particles[i];
-        pt.vx += (cx - pt.x) * attract * 0.001;
-        pt.vy += (cy - pt.y) * attract * 0.001;
-        pt.x += pt.vx * 16;
-        pt.y += pt.vy * 16;
-        pt.life -= 16;
-        const near = Math.hypot(pt.x - cx, pt.y - cy) < 6 * dpr;
-        if (pt.life <= 0 || (st === "matching" && near)) { particles.splice(i, 1); continue; }
-        const a = Math.max(0, pt.life / pt.max);
-        ctx.beginPath();
-        ctx.fillStyle = rgba(a * 0.9);
-        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // 4) breathing depth-ring (always visible, tightens in matching)
-      const baseR = st === "matching" ? 24 * dpr : 40 * dpr;
-      const rc = baseR + Math.sin(elapsed / 260) * 5 * dpr;
-      ctx.strokeStyle = rgba(0.7);
-      ctx.lineWidth = 1.4 * dpr;
+      // 5) Breathing depth-ring (always) — tighter in matching.
+      const baseR = st === "matching" ? 22 * dpr : 44 * dpr;
+      const rc = baseR + Math.sin(elapsed / 260) * 4 * dpr;
+      ctx.strokeStyle = silver(0.55);
+      ctx.lineWidth = 1.2 * dpr;
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, rc, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.strokeStyle = silver(0.15);
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, rc + 14 * dpr, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(0.22);
       ctx.stroke();
 
-      // audio + haptic timers
-      if (elapsed - pulseTimer.current > 700) {
+      // Sound timers
+      if (elapsed - pulseTimer.current > 900) {
         pulseTimer.current = elapsed;
-        Sound.scanPulse();
+        if (st !== "matching") Sound.scanPulse();
       }
-      if (st === "reading" && elapsed - readingSubTimer.current > 900) {
+      if (st === "reading" && elapsed - readingSubTimer.current > 1400) {
         readingSubTimer.current = elapsed;
         Sound.scanReading();
-      }
-      if (st === "reading" && elapsed - hapticSelTimer.current > 260) {
-        hapticSelTimer.current = elapsed;
-        haptic("selection");
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -297,27 +275,30 @@ export function ScanEffect({ stage }: { stage: Stage }) {
   }, []);
 
   const label =
-    stage === "sensing" ? "シーンを感知しています" :
-    stage === "reading" ? "対象を解析しています" :
-    "辞書と照合しています";
+    stage === "sensing" ? "銀の露をひろげています" :
+    stage === "reading" ? "世界を読んでいます" :
+    "言葉が結晶化します";
 
   return (
     <div className="absolute inset-0 overflow-hidden">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-2">
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-2.5">
         <div className="flex gap-1.5">
           {(["sensing", "reading", "matching"] as const).map((s) => (
             <span
               key={s}
-              className="h-1 rounded-full transition-all duration-300"
+              className="h-[2px] rounded-full transition-all duration-500"
               style={{
-                width: stage === s ? 24 : 10,
-                background: stage === s ? "rgba(125,211,252,0.95)" : "rgba(125,211,252,0.28)",
+                width: stage === s ? 28 : 8,
+                background: stage === s ? "rgba(220,235,255,0.95)" : "rgba(220,235,255,0.25)",
               }}
             />
           ))}
         </div>
-        <p className="font-mono-tight text-[10px] tracking-[0.32em] text-white/85 uppercase">
+        <p
+          className="font-display text-[15px] italic text-white/90"
+          style={{ textShadow: "0 1px 8px rgba(0,0,0,0.35)" }}
+        >
           {label}
         </p>
       </div>
