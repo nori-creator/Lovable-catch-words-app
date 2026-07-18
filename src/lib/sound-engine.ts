@@ -130,4 +130,16 @@ export const Sound = {
   pageSnap() {
     tone(500, 0.04, { type: "sine", from: 500, to: 700, gain: 0.12 });
   },
+  /** Crystallization ping — a single high shimmer as characters solidify. */
+  crystalize() {
+    tone(2400, 0.18, { type: "sine", from: 2400, to: 3200, gain: 0.16 });
+    tone(3600, 0.14, { type: "sine", gain: 0.09, delay: 0.05 });
+    noise(0.10, { hp: 4000, lp: 12000, gain: 0.03 });
+  },
+  /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
+  shelfLand() {
+    tone(160, 0.09, { type: "triangle", from: 220, to: 140, gain: 0.22 });
+    tone(80, 0.14, { type: "sine", from: 90, to: 60, gain: 0.14, delay: 0.02 });
+    noise(0.06, { hp: 800, lp: 3000, gain: 0.04 });
+  },
 };
