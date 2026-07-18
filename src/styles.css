@@ -384,7 +384,120 @@
     radial-gradient(45% 40% at 0% 90%, color-mix(in oklab, var(--primary) 15%, transparent) 0%, transparent 70%);
 }
 
+/* ═══════════ Liquid-metal scan (Act 1-3) & crystallization ═══════════ */
+
+@keyframes liquid-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-1.5%, 1%) scale(1.02); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.liquid-drift { animation: liquid-drift 6s ease-in-out infinite; }
+
+@keyframes liquid-ripple {
+  0%   { transform: scale(0.2); opacity: 0.9; }
+  60%  { opacity: 0.35; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.liquid-ripple { animation: liquid-ripple 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+@keyframes crystal-char {
+  0%   { transform: translateY(6px) scale(0.6); filter: blur(8px) brightness(1.8); letter-spacing: 0.5em; opacity: 0; }
+  60%  { transform: translateY(0) scale(1.05); filter: blur(0.4px) brightness(1.15); letter-spacing: 0.02em; opacity: 1; }
+  100% { transform: translateY(0) scale(1); filter: blur(0) brightness(1); letter-spacing: 0; opacity: 1; }
+}
+.crystal-in > * {
+  display: inline-block;
+  opacity: 0;
+  animation: crystal-char 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  text-shadow:
+    0.5px 0 0 rgba(120, 200, 255, 0.35),
+   -0.5px 0 0 rgba(255, 180, 200, 0.28);
+}
+.crystal-in > *:nth-child(1) { animation-delay: 0ms; }
+.crystal-in > *:nth-child(2) { animation-delay: 80ms; }
+.crystal-in > *:nth-child(3) { animation-delay: 160ms; }
+.crystal-in > *:nth-child(4) { animation-delay: 240ms; }
+.crystal-in > *:nth-child(5) { animation-delay: 320ms; }
+.crystal-in > *:nth-child(6) { animation-delay: 400ms; }
+.crystal-in > *:nth-child(7) { animation-delay: 480ms; }
+.crystal-in > *:nth-child(8) { animation-delay: 560ms; }
+
+/* ═══════════ Collector's Cabinet ═══════════ */
+
+/* A single square slot in the shelf — hairline divider, no wood texture. */
+.cab-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--card) 92%, var(--foreground) 4%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent),
+    inset 0 -6px 12px -8px color-mix(in oklab, var(--foreground) 10%, transparent);
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 300ms ease;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+.cab-slot:hover {
+  transform: translateY(-4px) rotateX(3deg);
+  box-shadow:
+    0 20px 40px -20px color-mix(in oklab, var(--foreground) 40%, transparent),
+    0 6px 12px -6px color-mix(in oklab, var(--foreground) 25%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+.cab-slot:active { transform: translateY(-1px) scale(0.98); transition-duration: 140ms; }
+.cab-slot.empty {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in oklab, var(--foreground) 3%, transparent) 0 4px,
+      transparent 4px 10px
+    ),
+    color-mix(in oklab, var(--card) 88%, var(--foreground) 4%);
+}
+.cab-slot.reunion::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, var(--accent-gold), transparent 40%, var(--accent-gold));
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Hairline shelf divider */
+.shelf-rule {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 15%,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 85%,
+    transparent 100%);
+}
+
+/* Shelf gentle tilt when a new card lands */
+@keyframes shelf-tilt {
+  0%, 100% { transform: rotate(0); }
+  30%      { transform: rotate(0.4deg); }
+  60%      { transform: rotate(-0.25deg); }
+}
+.shelf-tilt { animation: shelf-tilt 0.55s ease-out; transform-origin: center top; }
+
+/* Slot ignition when a new sticker seats */
+@keyframes slot-ignite {
+  0%   { box-shadow: inset 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent); }
+  50%  { box-shadow: inset 0 0 24px 4px color-mix(in oklab, var(--primary) 55%, transparent); }
+  100% { box-shadow: inset 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent); }
+}
+.slot-ignite { animation: slot-ignite 0.9s ease-out; }
+
 /* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
-  .ken-burns-a, .ken-burns-b, .breathe, .pulse-ring, .shimmer-sweep::after { animation: none !important; }
+  .ken-burns-a, .ken-burns-b, .breathe, .pulse-ring, .shimmer-sweep::after,
+  .liquid-drift, .liquid-ripple, .crystal-in > *, .slot-ignite, .shelf-tilt { animation: none !important; }
+  .crystal-in > * { opacity: 1; }
 }
