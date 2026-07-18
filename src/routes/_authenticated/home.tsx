@@ -1,40 +1,41 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ScanLine } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Share2, ScanLine, ChevronsUp } from "lucide-react";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
 /**
- * Home = vertical full-screen photo feed (Reels × Apple Photos For You).
+ * Home = Collector's Cabinet (redesign v3).
  *
- * Design choices (see .lovable/plan.md §3):
- * - 1 sticker per full viewport, snap scrolling → the eye rests on ONE image.
- * - Ken Burns on each hero → the photo breathes; static becomes cinematic.
- * - Bottom overlay is minimal: headword (SF Display), pronunciation dot,
- *   place + relative date. No buttons rows, no numeric streaks.
- * - Every 5 cards, a soft "Review" card mixes in — variable reward.
- * - Empty state is a single poetic prompt, not a checklist.
+ * Metaphor: a watchmaker's display case / a wine cellar / a fountain-pen
+ * collection. Each catch is one square slot. Rows are hairline-divided
+ * "shelves" grouped by time (今日 / 今週 / 月別). The eye reads a curated,
+ * ownership-heavy artifact — not a feed.
+ *
+ * Rules embodied here (see .lovable/plan.md §1-2):
+ *   • Zero streak numbers, XP, %, rarity, ゲージ, gamified badges.
+ *   • Exactly one poetic number per week ("今週 N").
+ *   • Gold used <1% area — only the reunion slot's hairline border.
+ *   • Today's Catch is the single anchor; everything else is quiet grid.
+ *   • Empty slots (Zeigarnik) hint at nearby-scanned but uncaught words.
+ *   • Instrument Serif for words; Inter for chrome; Mono for dates.
  */
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
     meta: [
-      { title: "ホーム — Catchwords" },
-      { name: "description", content: "きょう、街で出会った言葉たち。" },
+      { title: "コレクション — Catchwords" },
+      { name: "description", content: "きょう、街で出会った言葉たちが並ぶ、自分だけの陳列棚。" },
     ],
   }),
   component: HomePage,
 });
-
-type Card =
-  | { kind: "sticker"; sticker: StickerWithWord; i: number }
-  | { kind: "recap"; i: number; items: StickerWithWord[] };
 
 function HomePage() {
   const navigate = useNavigate();
@@ -53,92 +54,207 @@ function HomePage() {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
   }, [profile, navigate]);
 
-  // Newest-first + a single weekly recap at position 3 when ≥ 6 stickers.
-  // Review / Ghost / Locked cards live in Museum + More sheet — the feed
-  // stays pure (Sticker + optional Recap) to avoid clutter.
-  const cards = useMemo<Card[]>(() => {
-    const list = [...(stickers ?? [])].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-    const out: Card[] = list.map((s, i) => ({ kind: "sticker", sticker: s, i }));
-    if (list.length >= 6) {
-      out.splice(3, 0, { kind: "recap", i: 3, items: list.slice(0, 8) });
-    }
-    return out;
-  }, [stickers]);
+  const grouped = useMemo(() => groupByShelf(stickers ?? []), [stickers]);
+  const weekCount = grouped.week.length + (grouped.today ? 1 : 0);
 
-  // Fire a subtle chirp as each card snaps into view.
-  const feedRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el) return;
-    let lastIdx = -1;
-    const onScroll = () => {
-      const idx = Math.round(el.scrollTop / el.clientHeight);
-      if (idx !== lastIdx) { lastIdx = idx; Sound.cardEnter(); }
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [cards.length]);
+  // The most recent sticker id — used to ignite that slot on entry.
+  const latestId = grouped.today?.id ?? grouped.week[0]?.id ?? null;
 
   return (
     <AppShell>
-      <div ref={feedRef} className="feed-scroll h-[100dvh] w-full overflow-y-scroll pt-0">
-        {isLoading && <LoadingCard />}
-        {!isLoading && cards.length === 0 && <EmptyCard />}
-        {cards.map((c, idx) => {
-          if (c.kind === "sticker") {
-            return (
-              <StickerFeedCard
-                key={`s-${c.sticker.id}`}
-                sticker={c.sticker}
-                variant={idx % 2 === 0 ? "a" : "b"}
-                onOpen={() => setOpenId(c.sticker.id)}
-              />
-            );
-          }
-          return <RecapFeedCard key={`rc-${c.i}`} items={c.items} />;
-        })}
-        {/* trailing spacer so last card clears FAB */}
-        <div className="feed-card grid h-[100dvh] place-items-center">
-          <div className="text-center text-muted-foreground">
-            <ChevronsUp className="mx-auto h-6 w-6 opacity-50" />
-            <p className="mt-2 text-xs tracking-[0.3em] uppercase">上へ戻る</p>
+      <div className="mx-auto max-w-4xl px-5 pb-32 pt-[max(4.5rem,env(safe-area-inset-top))]">
+        {/* Header — quiet, editorial */}
+        <CabinetHeader weekCount={weekCount} />
+
+        {isLoading ? (
+          <div className="mt-20 grid place-items-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        </div>
+        ) : !grouped.today && grouped.week.length === 0 && grouped.months.length === 0 ? (
+          <EmptyCabinet />
+        ) : (
+          <>
+            {grouped.today && (
+              <TodayShelf sticker={grouped.today} onOpen={() => setOpenId(grouped.today!.id)} />
+            )}
+
+            {grouped.week.length > 0 && (
+              <Shelf
+                label="今週"
+                stickers={grouped.week}
+                onOpen={setOpenId}
+                igniteId={latestId}
+              />
+            )}
+
+            {grouped.months.map(([label, list]) => (
+              <Shelf key={label} label={label} stickers={list} onOpen={setOpenId} />
+            ))}
+          </>
+        )}
       </div>
+
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
 
-/* ─────────── Cards ─────────── */
+/* ─────────── Header ─────────── */
 
-function StickerFeedCard({
-  sticker: s,
-  variant,
-  onOpen,
-}: {
-  sticker: StickerWithWord;
-  variant: "a" | "b";
-  onOpen: () => void;
-}) {
-  const hero = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
-  const rel = relativeDay(new Date(s.created_at));
-  const [rippling, setRippling] = useState(false);
-  const isReunion = Boolean(s.location_name);
+function CabinetHeader({ weekCount }: { weekCount: number }) {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("ja-JP", {
+    year: "numeric", month: "long", day: "numeric", weekday: "long",
+  });
+  return (
+    <header className="mb-8 flex items-end justify-between">
+      <div className="min-w-0">
+        <p className="font-mono-tight text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+          Collection
+        </p>
+        <h1 className="font-display mt-1 text-4xl italic leading-none tracking-tight">
+          きょうの棚
+        </h1>
+        <p className="font-mono-tight mt-2 text-[11px] text-muted-foreground">
+          {dateStr}
+        </p>
+      </div>
+      {weekCount > 0 && (
+        <div className="shrink-0 text-right">
+          <p className="font-mono-tight text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+            This week
+          </p>
+          <p className="font-display -mt-1 text-4xl italic leading-none tracking-tight">
+            {weekCount}
+          </p>
+        </div>
+      )}
+    </header>
+  );
+}
 
-  const onTap = (e: React.MouseEvent) => {
-    e.stopPropagation();
+/* ─────────── Today's anchor ─────────── */
+
+function TodayShelf({ sticker: s, onOpen }: { sticker: StickerWithWord; onOpen: () => void }) {
+  const hero = s.object_url ?? s.cutout_url ?? s.selfie_url ?? s.placeholder_url;
+  const isReunion = (s.encounter_count ?? 0) > 1;
+  const onClick = () => {
     unlockAudio();
-    haptic("light");
     Sound.tap();
-    setRippling(true);
-    window.setTimeout(() => setRippling(false), 520);
+    haptic("light");
+    onOpen();
+  };
+  return (
+    <section className="mb-10">
+      <div className="mb-3 flex items-center gap-3">
+        <div className="shelf-rule flex-1" />
+        <p className="font-mono-tight text-[10px] uppercase tracking-[0.4em] text-muted-foreground">
+          Today's Catch
+        </p>
+        <div className="shelf-rule flex-1" />
+      </div>
+      <button
+        onClick={onClick}
+        className={`cab-slot slot-ignite group block w-full ${isReunion ? "reunion" : ""}`}
+        style={{ aspectRatio: "4 / 3", borderRadius: 12 }}
+        aria-label={s.word.headword}
+      >
+        {hero ? (
+          <img
+            src={hero}
+            alt={s.word.headword}
+            className="ken-burns-a absolute inset-0 h-full w-full object-cover"
+            loading="eager"
+          />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center bg-secondary text-6xl">
+            {s.word.silhouette_emoji ?? "📦"}
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-5 pb-4 pt-16">
+          <h2 className="font-display text-left text-4xl italic leading-none tracking-tight text-white">
+            {s.word.headword}
+          </h2>
+          <p className="font-mono-tight mt-2 text-left text-[11px] tracking-wider text-white/75">
+            {s.word.reading_zhuyin ?? s.word.pinyin ?? ""}
+            {s.location_name && <span className="ml-3 opacity-80">· {s.location_name}</span>}
+          </p>
+        </div>
+      </button>
+    </section>
+  );
+}
+
+/* ─────────── Shelf grid ─────────── */
+
+function Shelf({
+  label,
+  stickers,
+  onOpen,
+  igniteId,
+}: {
+  label: string;
+  stickers: StickerWithWord[];
+  onOpen: (id: string) => void;
+  igniteId?: string | null;
+}) {
+  // Round up to the next multiple of 5 to render 1-2 empty slots at the end.
+  const slots = Math.max(5, Math.ceil((stickers.length + 1) / 5) * 5);
+  const empties = Math.max(0, slots - stickers.length);
+  return (
+    <section className="mb-10">
+      <div className="mb-3 flex items-center gap-3">
+        <p className="font-mono-tight text-[10px] uppercase tracking-[0.4em] text-muted-foreground">
+          {label}
+        </p>
+        <div className="shelf-rule flex-1" />
+        <p className="font-mono-tight text-[10px] tracking-[0.2em] text-muted-foreground/70">
+          {stickers.length}
+        </p>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {stickers.map((s) => (
+          <SlotCard
+            key={s.id}
+            s={s}
+            onOpen={() => onOpen(s.id)}
+            ignite={igniteId === s.id}
+          />
+        ))}
+        {Array.from({ length: empties }).map((_, i) => (
+          <div
+            key={`empty-${i}`}
+            className="cab-slot empty"
+            aria-hidden
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SlotCard({ s, onOpen, ignite }: { s: StickerWithWord; onOpen: () => void; ignite?: boolean }) {
+  const hero =
+    s.object_thumb_url ?? s.object_url ??
+    s.cutout_thumb_url ?? s.cutout_url ??
+    s.selfie_url ?? s.placeholder_url;
+  const isReunion = (s.encounter_count ?? 0) > 1;
+  const pressTimer = useRef<number | null>(null);
+  const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    if (ignite) Sound.shelfLand();
+  }, [ignite]);
+
+  const onClick = () => {
+    unlockAudio();
+    Sound.tap();
+    haptic("light");
+    onOpen();
   };
 
-  const pressTimer = useRef<number | null>(null);
   const onPressStart = () => {
+    setPressed(true);
     pressTimer.current = window.setTimeout(async () => {
       haptic("medium");
       Sound.reunion();
@@ -150,164 +266,108 @@ function StickerFeedCard({
             url: window.location.href,
           });
         }
-      } catch { /* dismissed */ }
-    }, 550);
+      } catch { /* ignore */ }
+    }, 600);
   };
-  const clearPress = () => { if (pressTimer.current) { window.clearTimeout(pressTimer.current); pressTimer.current = null; } };
+  const clearPress = () => {
+    setPressed(false);
+    if (pressTimer.current) { window.clearTimeout(pressTimer.current); pressTimer.current = null; }
+  };
 
   return (
-    <section
-      className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden"
-      onClick={onOpen}
+    <button
+      onClick={onClick}
       onPointerDown={onPressStart}
       onPointerUp={clearPress}
       onPointerCancel={clearPress}
       onPointerLeave={clearPress}
+      className={`cab-slot text-left ${isReunion ? "reunion" : ""} ${ignite ? "slot-ignite" : ""} ${pressed ? "scale-[0.98]" : ""}`}
+      aria-label={s.word.headword}
     >
       {hero ? (
-        <div className="absolute inset-0">
-          <img
-            src={hero}
-            alt={s.word.headword}
-            className={`h-full w-full object-cover ${variant === "a" ? "ken-burns-a" : "ken-burns-b"}`}
-            loading="lazy"
-            decoding="async"
-          />
-          <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-[#040814] via-[#040814]/60 to-transparent" />
-        </div>
+        <img
+          src={hero}
+          alt={s.word.headword}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
-        <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-primary/25 to-background">
-          <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
+        <div className="absolute inset-0 grid place-items-center bg-secondary text-2xl">
+          {s.word.silhouette_emoji ?? "·"}
         </div>
       )}
-
-      <div className="glass-bar pointer-events-auto absolute inset-x-0 bottom-0 px-6 pb-[max(6.5rem,calc(6rem+env(safe-area-inset-bottom)))] pt-6">
-        <div className="reveal-stagger mx-auto max-w-lg">
-          <div className="flex items-center gap-2 font-mono-tight text-[10px] font-medium uppercase tracking-[0.35em] text-white/60">
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ background: isReunion ? "var(--accent-gold)" : "var(--accent-cyan)" }}
-              aria-label={isReunion ? "再会" : "初遭遇"}
-            />
-            <span>{rel}{s.location_name ? ` · ${s.location_name}` : ""}</span>
-          </div>
-          <h2
-            onClick={onTap}
-            className="font-display mt-2 cursor-pointer select-none leading-[0.95] text-white"
-            style={{ fontSize: "clamp(3rem, 12vw, 5.5rem)" }}
-          >
-            {s.word.headword}
-          </h2>
-          <div className="relative mt-1 h-0.5 w-24 overflow-hidden">
-            {rippling && (
-              <span className="wave-ripple absolute inset-0 block h-full w-full origin-left bg-white/70" />
-            )}
-          </div>
-          {(s.word.reading_zhuyin || s.word.pinyin) && (
-            <p className="font-mono-tight mt-3 text-[13px] tracking-wider text-white/70">
-              {s.word.reading_zhuyin ?? s.word.pinyin}
-            </p>
-          )}
-          {s.word.meaning_ja && (
-            <p className="mt-2 max-w-md text-[13px] leading-relaxed text-white/60">
-              {s.word.meaning_ja}
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-
-function RecapFeedCard({ items }: { items: StickerWithWord[] }) {
-  return (
-    <section className="feed-card relative grid h-[100dvh] place-items-center overflow-hidden">
-      <div className="absolute inset-0 grid grid-cols-4 grid-rows-2 gap-0.5 opacity-70">
-        {items.slice(0, 8).map((s, i) => {
-          const url = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url;
-          return url ? (
-            <img
-              key={s.id}
-              src={url}
-              alt=""
-              className={`h-full w-full object-cover ${i % 2 === 0 ? "ken-burns-a" : "ken-burns-b"}`}
-              loading="lazy"
-            />
-          ) : (
-            <div key={s.id} className="bg-secondary" />
-          );
-        })}
-      </div>
-      <div className="absolute inset-0 bg-[#040814]/75 backdrop-blur-xl" />
-      <div className="reveal-stagger relative z-10 text-center">
-        <p className="font-mono-tight text-[10px] uppercase tracking-[0.4em] text-white/50">This week</p>
-        <p
-          className="font-display mt-3 leading-none text-white"
-          style={{ fontSize: "clamp(6rem, 22vw, 10rem)", color: "var(--accent-gold)" }}
-        >
-          {items.length}
+      {/* Bottom caption: minimal, mono, only appears on hover to keep the shelf still */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:opacity-100">
+        <p className="font-mono-tight truncate text-[9px] font-medium tracking-tight text-white/95">
+          {s.word.headword}
         </p>
-        <p className="font-display -mt-2 text-2xl italic text-white/85">words caught</p>
-        <p className="mt-4 text-xs tracking-wide text-white/50">また会える言葉たち。</p>
-        <button
-          onClick={() => { Sound.tap(); haptic("light"); }}
-          className="press-in lift-glass mt-8 inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-xs font-medium text-white ring-1 ring-white/20"
-        >
-          <Share2 className="h-4 w-4" />
-          シェアする
-        </button>
       </div>
-
-    </section>
+    </button>
   );
 }
 
-function EmptyCard() {
+/* ─────────── Empty state ─────────── */
+
+function EmptyCabinet() {
   return (
-    <section className="feed-card grid h-[100dvh] place-items-center px-8">
-      <div className="max-w-sm text-center">
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground shadow-2xl shadow-primary/40">
-          <ScanLine className="h-9 w-9" />
-        </div>
-        <h1 className="mt-8 text-3xl font-semibold tracking-tight">まだ、白い海。</h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          街にあるものへカメラをかざすと、
-          <br />
-          最初の言葉がここに現れます。
-        </p>
-        <Link
-          to="/scan"
-          onClick={() => { Sound.tap(); haptic("medium"); }}
-          className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30"
-        >
-          <ScanLine className="h-5 w-5" />
-          はじめて出会う
-        </Link>
+    <div className="mt-16 text-center">
+      <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-border bg-card shadow-sm">
+        <ScanLine className="h-6 w-6 text-muted-foreground" />
       </div>
-    </section>
+      <h2 className="font-display mt-8 text-3xl italic leading-none tracking-tight">
+        まだ、白い棚。
+      </h2>
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+        街のものへカメラをかざすと、
+        <br />
+        最初の一枚がこの棚に収まります。
+      </p>
+      <Link
+        to="/scan"
+        onClick={() => { Sound.tap(); haptic("medium"); }}
+        className="lift mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/25"
+      >
+        <ScanLine className="h-4 w-4" />
+        はじめて出会う
+      </Link>
+    </div>
   );
 }
 
-function LoadingCard() {
-  return (
-    <section className="feed-card grid h-[100dvh] place-items-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </section>
+/* ─────────── grouping ─────────── */
+
+type Grouped = {
+  today: StickerWithWord | null;
+  week: StickerWithWord[];
+  months: Array<[string, StickerWithWord[]]>;
+};
+
+function groupByShelf(all: StickerWithWord[]): Grouped {
+  const sorted = [...all].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
-}
-
-/* ─────────── utils ─────────── */
-
-function relativeDay(d: Date): string {
   const now = new Date();
-  const oneDay = 86400000;
-  const start = new Date(now); start.setHours(0, 0, 0, 0);
-  const cardDay = new Date(d); cardDay.setHours(0, 0, 0, 0);
-  const diff = Math.round((start.getTime() - cardDay.getTime()) / oneDay);
-  if (diff <= 0) return "きょう";
-  if (diff === 1) return "きのう";
-  if (diff < 7) return `${diff}日前`;
-  if (diff < 30) return `${Math.floor(diff / 7)}週前`;
-  return d.toLocaleDateString("ja-JP", { month: "long", day: "numeric" });
+  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+  const startOfWeek = new Date(startOfToday); startOfWeek.setDate(startOfWeek.getDate() - 7);
+
+  let today: StickerWithWord | null = null;
+  const week: StickerWithWord[] = [];
+  const olderMap = new Map<string, StickerWithWord[]>();
+
+  for (const s of sorted) {
+    const t = new Date(s.created_at);
+    if (!today && t >= startOfToday) {
+      today = s;
+      continue;
+    }
+    if (t >= startOfWeek) {
+      week.push(s);
+      continue;
+    }
+    const label = t.toLocaleDateString("ja-JP", { year: "numeric", month: "long" });
+    if (!olderMap.has(label)) olderMap.set(label, []);
+    olderMap.get(label)!.push(s);
+  }
+  return { today, week, months: Array.from(olderMap.entries()) };
 }
