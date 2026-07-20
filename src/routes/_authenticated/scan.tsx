@@ -461,16 +461,18 @@ function ScanPage() {
             const isText = it.kind === "text";
             const expanded = subItems.some((s) => s.parentId === it.id);
             const state = dotStateFor(it.headword, scanCtx);
-            // apple-design: quiet, mostly-monochrome glass markers. The loud
-            // cyan/magenta dots are gone — a marker is a soft white light on
-            // the world; gold is reserved for the meaningful reunion state, and
-            // "already have it" reads as a calm, dimmed check.
+            // apple-design: three soft glass "lights", one per state —
+            //   new (未発見)                      → white
+            //   owned (スキャン済み=写真あり)       → green
+            //   reunion (文字/音声で登録・写真なし) → amber
+            // All share the same glow + ring treatment so they read as one
+            // family rather than loud, clashing dots.
             const marker =
-              state === "reunion"
-                ? "bg-amber-300/90 ring-amber-100/70 shadow-[0_0_12px_3px_rgba(251,191,36,0.55)]"
-                : state === "owned"
-                  ? "bg-white/45 ring-white/40"
-                  : "bg-white ring-white/50 shadow-[0_0_10px_2px_rgba(255,255,255,0.45)]";
+              state === "owned"
+                ? "bg-emerald-400 ring-emerald-100/70 shadow-[0_0_10px_2px_rgba(52,211,153,0.5)]"
+                : state === "reunion"
+                  ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
+                  : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
             return (
               <button
                 key={it.id}
@@ -493,7 +495,7 @@ function ScanPage() {
                 )}
                 {state === "owned" && (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <Check className="h-3 w-3 text-foreground/60" strokeWidth={3} />
+                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
                   </span>
                 )}
                 {state === "new" && (
@@ -572,8 +574,9 @@ function ScanPage() {
           {/* legend */}
           {ready && !snapshot && !scanning && (
             <div className="absolute left-3 top-3 flex gap-2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white backdrop-blur">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white ring-1 ring-white/50" />モノ</span>
-              <span className="flex items-center gap-1"><span className="grid h-3 w-3 place-items-center rounded-full bg-white text-[7px] font-bold leading-none text-black">A</span>文字</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white" />新しい</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />スキャン済み</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />未撮影</span>
             </div>
           )}
 
@@ -654,7 +657,7 @@ function ScanPage() {
                 >
                   <span
                     className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      st === "reunion" ? "bg-amber-300" : st === "owned" ? "bg-foreground/30" : "bg-primary"
+                      st === "owned" ? "bg-emerald-400" : st === "reunion" ? "bg-amber-400" : "bg-sky-400"
                     }`}
                   />
                   <span className="min-w-0 flex-1">

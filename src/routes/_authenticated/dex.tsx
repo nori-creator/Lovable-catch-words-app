@@ -4,9 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
+import { synthesizeSpeech } from "@/lib/tts.functions";
 import { CachedImg } from "@/lib/image-cache";
-import { useMemo, useState, useEffect, useRef } from "react";
-import { LayoutGrid, List, Map as MapIcon, Search, X } from "lucide-react";
+import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/dex")({
@@ -253,10 +254,13 @@ function DexPage() {
             ) : (
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                 {items.map((s, i) => (
-                  <li key={s.id} className={i > 0 ? "border-t border-border" : ""}>
+                  <li
+                    key={s.id}
+                    className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
+                  >
                     <button
                       onClick={() => setOpenId(s.id)}
-                      className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
+                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
                     >
                       <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
@@ -293,6 +297,8 @@ function DexPage() {
                         </div>
                       </div>
                     </button>
+                    {/* 発音ボタンは右側に (縦並びリスト) */}
+                    <PronounceButton text={s.word.headword} />
                   </li>
                 ))}
               </ul>
@@ -317,6 +323,44 @@ function DexPage() {
         .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 900ms ease-out 300ms both; }
       `}</style>
     </AppShell>
+  );
+}
+
+/** Small pronunciation button (server TTS with a device-voice fallback). */
+function PronounceButton({ text }: { text: string }) {
+  const ttsFn = useServerFn(synthesizeSpeech);
+  const [loading, setLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  async function play(e: ReactMouseEvent) {
+    e.stopPropagation();
+    if (loading) return;
+    setLoading(true);
+    try {
+      if (!audioRef.current) audioRef.current = new Audio();
+      const { audio_url } = await ttsFn({ data: { text } });
+      audioRef.current.src = audio_url;
+      await audioRef.current.play();
+    } catch {
+      // Server TTS may be unavailable — fall back to the on-device voice so
+      // the button always speaks.
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "zh-TW";
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      onClick={play}
+      aria-label={`「${text}」の発音を再生`}
+      className="press-in grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-[18px] w-[18px]" />}
+    </button>
   );
 }
 
