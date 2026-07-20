@@ -365,7 +365,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">切り抜き中…</p>
+                <p className="text-[11px]">分析中…</p>
               </div>
             </div>
           )}

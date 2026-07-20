@@ -560,7 +560,7 @@ function CapturePage() {
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 animate-pulse" />
-              <span className="font-semibold">{mode === "text" ? "意味と例文を生成中..." : "AIが切り抜き中..."}</span>
+              <span className="font-semibold">{mode === "text" ? "意味と例文を生成中..." : "AIが分析中..."}</span>
             </div>
             <p className="text-sm text-white/80">少しだけ待ってね</p>
           </div>

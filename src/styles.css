@@ -158,7 +158,10 @@
       radial-gradient(40% 30% at 100% 100%, color-mix(in oklab, var(--primary) 6%, transparent) 0%, transparent 70%);
     background-attachment: fixed;
     color: var(--color-foreground);
+    /* apple-design §7 (craft): crisp, evenly-weighted text on every platform. */
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     letter-spacing: -0.011em;
