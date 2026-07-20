@@ -110,7 +110,12 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // Prepare cutout the moment the sheet opens.
+  // Show the photo and enable saving the instant we have a crop — the
+  // background cutout is a best-effort *visual upgrade*, never a gate on the
+  // catch. (Previously the sheet spun "分析中" until background removal finished,
+  // and the save button + doSave both required the cutout, so a slow/absent
+  // remove.bg model left the word impossible to file. The scan doesn't cut
+  // anything out, so there's nothing to wait for.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -118,14 +123,15 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         const cropped = await cropAround(snapshotDataUrl, item.point);
         if (cancelled) return;
         setObjectDataUrl(cropped);
-        const dataUrl = await removeBackgroundSmart(cropped);
-        if (cancelled) return;
-        setCutoutUrl(dataUrl);
+        setPhase("ready"); // ready as soon as the photo exists
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-        setPhase("ready");
+        // Fire-and-forget: upgrade the hero to a transparent cutout if/when it
+        // finishes. Failure or slowness is invisible — the crop already shows.
+        void removeBackgroundSmart(cropped)
+          .then((dataUrl) => { if (!cancelled) setCutoutUrl(dataUrl); })
+          .catch(() => {});
       } catch (e) {
-        console.warn("cutout failed, using crop", e);
-        setCutoutUrl((prev) => prev ?? objectDataUrl);
+        console.warn("crop failed", e);
         setPhase("ready");
       }
     })();
@@ -216,13 +222,20 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
 
 
   async function doSave() {
-    if (phase !== "ready" || !objectDataUrl || !cutoutUrl || saving) return;
+    if (!objectDataUrl || saving) return; // cutout is optional — never block on it
     setSaving(true);
     setErr(null);
     try {
       // §3.3 acceptance: the prefetched card is reused — no additional AI call
       // here. A reunion upgrade doesn't need the card at all (word exists).
-      const card = upgrade ? null : await cardPromise;
+      // Don't hang on it: if the AI card is slow or failed, we file the word
+      // from the verified dictionary instead (details enrich later).
+      const card: GeneratedCard | null = upgrade
+        ? null
+        : await Promise.race<GeneratedCard | null>([
+            cardPromise.catch(() => null),
+            new Promise<null>((r) => setTimeout(() => r(null), 8000)),
+          ]);
 
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
@@ -284,10 +297,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         }).catch(() => {});
         stickerId = upgrade.sticker_id;
       } else {
-        if (!card) throw new Error("カード情報の生成に失敗しました");
-        const res = await saveFn({
-          data: {
-            word: {
+        const meaning = card?.meaning_ja || dict?.meaning_ja || item.meaning_ja;
+        if (!meaning) throw new Error("単語情報を取得できませんでした");
+        const word = card
+          ? {
               headword,
               reading_zhuyin: dict?.zhuyin || card.reading_zhuyin,
               pinyin: dict?.pinyin || card.pinyin,
@@ -298,7 +311,22 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
               example_sentence: card.example_sentence,
               example_translation: card.example_translation,
               extras: card.extras,
-            },
+            }
+          : {
+              // Dictionary-only fallback — enough to file the catch now.
+              headword,
+              reading_zhuyin: dict?.zhuyin || item.zhuyin || "",
+              pinyin: dict?.pinyin || item.pinyin || "",
+              meaning_ja: meaning,
+              part_of_speech: dict?.pos || "名詞",
+              level: "TOCFL-2",
+              category_key: "other",
+              example_sentence: "",
+              example_translation: "",
+            };
+        const res = await saveFn({
+          data: {
+            word,
             language: "zh-TW",
             object_path,
             cutout_path,
@@ -355,17 +383,17 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           ref={cutoutBoxRef}
           className="mx-auto mt-2 grid aspect-square w-64 max-w-full place-items-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
         >
-          {cutoutUrl ? (
+          {(cutoutUrl ?? objectDataUrl) ? (
             <img
-              src={cutoutUrl}
+              src={(cutoutUrl ?? objectDataUrl)!}
               alt={headword}
-              className={`h-full w-full object-contain ${phase === "ready" ? "cutout-pop" : ""} ${phase === "landing" ? "opacity-0" : ""}`}
+              className={`h-full w-full object-contain ${cutoutUrl ? "cutout-pop" : "rounded-3xl object-cover"} ${phase === "landing" ? "opacity-0" : ""}`}
             />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">分析中…</p>
+                <p className="text-[11px]">読み込み中…</p>
               </div>
             </div>
           )}
@@ -436,7 +464,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
 
           <button
             onClick={doSave}
-            disabled={phase !== "ready" || saving}
+            disabled={!objectDataUrl || saving}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : phase === "done" ? <Check className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
@@ -445,8 +473,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         </div>
       </div>
 
-      {/* Flying cutout + gold shimmer trail during landing */}
-      {phase === "landing" && cutoutUrl && (
+      {/* Flying cutout (or the plain crop if the cutout isn't ready) during landing */}
+      {phase === "landing" && (cutoutUrl ?? objectDataUrl) && (
         <>
           <div
             id="catch-trail"
@@ -463,7 +491,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           </div>
           <img
             ref={flyRef}
-            src={cutoutUrl}
+            src={(cutoutUrl ?? objectDataUrl)!}
             alt=""
             className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
             style={{ willChange: "transform, opacity", left: 0, top: 0 }}

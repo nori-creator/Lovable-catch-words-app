@@ -459,14 +459,16 @@ function ScanPage() {
             const isText = it.kind === "text";
             const expanded = subItems.some((s) => s.parentId === it.id);
             const state = dotStateFor(it.headword, scanCtx);
-            const fill =
+            // apple-design: quiet, mostly-monochrome glass markers. The loud
+            // cyan/magenta dots are gone — a marker is a soft white light on
+            // the world; gold is reserved for the meaningful reunion state, and
+            // "already have it" reads as a calm, dimmed check.
+            const marker =
               state === "reunion"
-                ? "bg-amber-400" // 金色: 前に調べたゴーストとの再会 (§3.1b)
+                ? "bg-amber-300/90 ring-amber-100/70 shadow-[0_0_12px_3px_rgba(251,191,36,0.55)]"
                 : state === "owned"
-                  ? "bg-white/80"
-                  : isText
-                    ? "bg-fuchsia-500" // text = マゼンタ (§3.4)
-                    : "bg-cyan-400";
+                  ? "bg-white/45 ring-white/40"
+                  : "bg-white ring-white/50 shadow-[0_0_10px_2px_rgba(255,255,255,0.45)]";
             return (
               <button
                 key={it.id}
@@ -477,30 +479,26 @@ function ScanPage() {
               >
                 <span
                   className={[
-                    "block rounded-full shadow-lg ring-2",
-                    state === "reunion" ? "ring-amber-200" : "ring-white/90",
-                    state === "owned" ? "h-5 w-5 opacity-90" : "h-6 w-6",
-                    fill,
-                    low ? "opacity-80" : "",
-                    expanded ? "ring-amber-300" : "",
+                    "block rounded-full ring-1 backdrop-blur-[1px] transition-all",
+                    state === "owned" ? "h-4 w-4" : "h-4 w-4",
+                    marker,
+                    low ? "opacity-70" : "",
+                    expanded ? "ring-2 ring-amber-200/80" : "",
                   ].join(" ")}
                 />
                 {isText && state !== "owned" && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-black text-white">A</span>
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[9px] font-bold text-foreground/70">A</span>
                 )}
                 {state === "owned" && (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={3.5} />
+                    <Check className="h-3 w-3 text-foreground/60" strokeWidth={3} />
                   </span>
                 )}
                 {state === "new" && (
-                  <span className="pointer-events-none absolute -inset-1.5 animate-ping rounded-full bg-white/40" />
+                  <span className="pointer-events-none absolute -inset-1 animate-ping rounded-full bg-white/30" />
                 )}
                 {state === "reunion" && (
-                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/50 blur-sm" />
-                )}
-                {state !== "new" && state !== "reunion" && (
-                  <span className="pointer-events-none absolute -inset-2 rounded-full bg-white/25 blur-md" />
+                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/40 blur-sm" />
                 )}
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
