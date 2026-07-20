@@ -21,6 +21,8 @@ import { downscaleDataUrl } from "@/lib/cutout";
 
 type Props = {
   initialMode: "text" | "voice";
+  /** Prefill the search box — e.g. a word typed on the scan screen's fallback. */
+  initialText?: string;
   onClose: () => void;
 };
 
@@ -50,7 +52,7 @@ function guessIsPhrase(text: string): boolean {
   return t.length >= 5 || /[、。！？!?,]/.test(t);
 }
 
-export function InputCatchSheet({ initialMode, onClose }: Props) {
+export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cardFn = useServerFn(generateCard);
@@ -61,7 +63,7 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
   const saveGhostFn = useServerFn(saveGhostSticker);
 
   const [step, setStep] = useState<Step>("input");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText ?? "");
   const [isPhrase, setIsPhrase] = useState(false);
   const [phraseTouched, setPhraseTouched] = useState(false);
   const [scene, setScene] = useState("");

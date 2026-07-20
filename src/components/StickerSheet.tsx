@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink, RefreshCw } from "lucide-react";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
@@ -69,6 +69,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         await qc.invalidateQueries({ queryKey: ["stickers"] });
       } catch (e) {
         console.warn("Enrichment failed", e);
+        // Let a later reopen retry instead of leaving the word details blank
+        // forever (words filed fast from the dictionary start with no extras).
+        enrichedRef.current.delete(s.word_id);
       } finally {
         setEnriching(false);
       }
@@ -320,50 +323,62 @@ export function StickerSheet({ stickerId, onClose }: Props) {
  */
 function WebImagesSection({ headword, meaningJa }: { headword: string; meaningJa: string }) {
   const searchFn = useServerFn(searchImageCandidates);
-  const [opened, setOpened] = useState(false);
-  const { data, isLoading } = useQuery({
-    queryKey: ["web-images", headword],
-    queryFn: async () => (await searchFn({ data: { query: meaningJa || headword } })).candidates,
-    enabled: opened,
+  // 「別の画像」を押すたびに検索語を変えて新しい候補を取りに行く。
+  const queries = [meaningJa || headword, headword, `${headword} ${meaningJa}`.trim()].filter(Boolean);
+  const [round, setRound] = useState(0);
+  const query = queries[round % queries.length] || headword;
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["web-images", headword, round],
+    queryFn: async () => (await searchFn({ data: { query } })).candidates,
     staleTime: 24 * 60 * 60 * 1000,
   });
   const candidates: ImageCandidate[] = data ?? [];
   return (
-    <details className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm" onToggle={(e) => (e.target as HTMLDetailsElement).open && setOpened(true)}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sky-500 text-xs text-white shadow"><Globe className="h-3.5 w-3.5" /></span>
-        ネットの画像
-        <span className="ml-auto text-[10px] font-normal text-muted-foreground">タップで表示</span>
-      </summary>
-      <div className="mt-3">
-        {isLoading ? (
-          <div className="grid grid-cols-3 gap-2">
-            {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-secondary" />)}
-          </div>
-        ) : candidates.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2">
-            {candidates.slice(0, 3).map((c, i) => (
-              <figure key={i} className="relative aspect-square overflow-hidden rounded-xl bg-secondary">
-                <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
-                {c.credit?.name && (
-                  <figcaption className="absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">📷 {c.credit.name}</figcaption>
-                )}
-              </figure>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
-        )}
-        <a
-          href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
+    <section className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sky-500 text-xs text-white shadow">
+          <Globe className="h-3.5 w-3.5" />
+        </span>
+        画像
+        <button
+          onClick={() => setRound((r) => r + 1)}
+          disabled={isFetching}
+          className="press-in ml-auto inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground disabled:opacity-50"
         >
-          Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
-        </a>
+          <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} /> 別の画像
+        </button>
       </div>
-    </details>
+      {isLoading ? (
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-xl bg-secondary" />
+          ))}
+        </div>
+      ) : candidates.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {candidates.slice(0, 6).map((c, i) => (
+            <figure key={`${round}-${i}`} className="relative aspect-square overflow-hidden rounded-xl bg-secondary">
+              <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+              {c.credit?.name && (
+                <figcaption className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-1 text-[8px] text-white">
+                  📷 {c.credit.name}
+                </figcaption>
+              )}
+            </figure>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
+      )}
+      <a
+        href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
+      >
+        Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
+      </a>
+    </section>
   );
 }
 
