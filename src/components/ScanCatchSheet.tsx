@@ -149,6 +149,15 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     setPhase("landing");
     playChime();
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([18, 40, 60]);
+    // §14 reduced motion: the full-screen fly-to-cabinet flight is exactly the
+    // vestibular motion to avoid — keep the chime/haptic, skip the travel.
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      await new Promise((r) => setTimeout(r, 500));
+      return;
+    }
     // give the fly image one frame to mount
     await new Promise((r) => setTimeout(r, 30));
     const startEl = cutoutBoxRef.current;

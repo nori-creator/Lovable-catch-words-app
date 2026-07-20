@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 /**
  * Liquid-metal scan overlay (redesign v3).
@@ -29,6 +30,8 @@ export function ScanEffect({ stage }: { stage: Stage }) {
   const stageStartRef = useRef<number>(performance.now());
   const pulseTimer = useRef<number>(0);
   const readingSubTimer = useRef<number>(0);
+  const reduced = usePrefersReducedMotion();
+  const calmRedrawRef = useRef<(() => void) | null>(null);
 
   // React to stage changes without restarting the RAF loop.
   useEffect(() => {
@@ -37,6 +40,9 @@ export function ScanEffect({ stage }: { stage: Stage }) {
       stageRef.current = stage;
       if (stage === "reading") { Sound.scanReading(); haptic("selection"); }
       if (stage === "matching") { haptic("light"); }
+      // Under reduced motion there's no rAF loop, so repaint the calm frame
+      // whose veil weight depends on the current stage.
+      calmRedrawRef.current?.();
     }
   }, [stage]);
 
@@ -59,7 +65,8 @@ export function ScanEffect({ stage }: { stage: Stage }) {
       canvas.height = Math.floor(r.height * dpr);
     };
     resize();
-    const ro = new ResizeObserver(resize);
+    const onResize = () => { resize(); if (reduced) calmRedrawRef.current?.(); };
+    const ro = new ResizeObserver(onResize);
     ro.observe(canvas);
 
     // Silver-blue with a warm dusk shift (kept close to primary hue).
@@ -70,9 +77,34 @@ export function ScanEffect({ stage }: { stage: Stage }) {
                                  [220, 235, 255];   // day bright-silver
     const silver = (a: number) => `rgba(${accent[0]}, ${accent[1]}, ${accent[2]}, ${a.toFixed(3)})`;
 
+    // §14 reduced motion: skip the rAF loop (ripples, gaze points, converging
+    // particles, breathing) entirely. Draw one calm veil + ring, re-render only
+    // on stage change / resize — a non-vestibular, static equivalent.
+    if (reduced) {
+      const drawCalm = () => {
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        const veil = stageRef.current === "matching" ? 0.30 : stageRef.current === "reading" ? 0.22 : 0.12;
+        const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+        g.addColorStop(0, silver(veil * 0.35));
+        g.addColorStop(0.7, silver(veil));
+        g.addColorStop(1, "rgba(6, 12, 28, 0.55)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = silver(0.5);
+        ctx.lineWidth = 1.2 * dpr;
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, 40 * dpr, 0, Math.PI * 2);
+        ctx.stroke();
+      };
+      calmRedrawRef.current = drawCalm;
+      drawCalm();
+      return () => { ro.disconnect(); calmRedrawRef.current = null; };
+    }
+
     // Persistent surface ripples — spawned per act, fade over ~1.6s.
     type R = { x: number; y: number; born: number; life: number; maxR: number };
-    let ripples: R[] = [];
+    const ripples: R[] = [];
     const spawnRipple = (x: number, y: number, maxR: number, life = 1600) => {
       ripples.push({ x, y, born: performance.now(), life, maxR });
     };
@@ -272,7 +304,8 @@ export function ScanEffect({ stage }: { stage: Stage }) {
       ro.disconnect();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduced]);
 
   const label =
     stage === "sensing" ? "銀の露をひろげています" :
