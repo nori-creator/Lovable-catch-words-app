@@ -139,6 +139,13 @@
 .font-display { font-family: var(--font-display); font-feature-settings: "liga","dlig"; letter-spacing: -0.01em; }
 .font-mono-tight { font-family: var(--font-mono); letter-spacing: 0; }
 
+/* §15 Typography — tracking is size-specific, never one value for all sizes.
+   Large display text reads too loose as it grows, so it takes negative tracking
+   and tight leading; small caps labels want the opposite (use Tailwind
+   `tracking-[0.25em]` etc.). Body stays near 0 (see `body`). */
+.text-display { letter-spacing: -0.03em; line-height: 1.02; }
+.text-headline { letter-spacing: -0.02em; line-height: 1.12; }
+
 @layer base {
   * {
     border-color: var(--color-border);

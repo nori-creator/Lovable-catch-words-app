@@ -12,6 +12,7 @@ import {
   type SpeakingFeedback,
 } from "@/lib/reviews.functions";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { SwipeCard } from "@/components/SwipeCard";
 import {
   Eye,
   Sparkles,
@@ -134,7 +135,7 @@ function ReviewPage() {
     <AppShell title="復習">
       <section className="mb-4">
         <div className="flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">きょうの復習</h1>
+          <h1 className="text-2xl font-semibold leading-[1.1] tracking-[-0.02em]">きょうの復習</h1>
           <div className="flex items-center gap-3">
             {cards && (
               <span className="text-xs text-muted-foreground">
@@ -366,6 +367,10 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
   }
 
   return (
+    <SwipeCard
+      enabled={!loading}
+      onSwipe={() => commitAndNext(feedback ? "success" : "skip")}
+    >
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
@@ -530,6 +535,7 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
         />
       )}
     </article>
+    </SwipeCard>
   );
 }
 
@@ -691,6 +697,7 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
   }
 
   return (
+    <SwipeCard enabled={!!showResult} onSwipe={onNext}>
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
@@ -771,6 +778,7 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
         </div>
       )}
     </article>
+    </SwipeCard>
   );
 }
 

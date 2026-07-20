@@ -106,7 +106,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const hasSelfie = !!s?.selfie_url;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md">
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <span className="pl-1 text-xs font-medium text-muted-foreground">
@@ -132,7 +132,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
       {/* Settings panel — slides down from top */}
       <div
-        className={`fixed left-0 right-0 top-[52px] z-20 transition-all duration-300 ease-out ${
+        className={`fixed left-0 right-0 top-[52px] z-20 transition-all duration-300 [transition-timing-function:var(--ease-ios)] ${
           editing ? "translate-y-0 opacity-100" : "-translate-y-4 pointer-events-none opacity-0"
         }`}
       >

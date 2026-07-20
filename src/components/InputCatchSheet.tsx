@@ -258,7 +258,7 @@ export function InputCatchSheet({ initialMode, onClose }: Props) {
   const verified = !!dict && dict.source === "verified";
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md animate-in fade-in duration-200" role="dialog">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog">
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
           <Ghost className="h-3.5 w-3.5" /> 入力キャッチ
