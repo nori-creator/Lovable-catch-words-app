@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Keyboard, Loader2, Mic, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown } from "lucide-react";
+import { Camera, Check, Keyboard, Loader2, Mic, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { detectScan, detectParts, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
 import { synthesizeSpeech } from "@/lib/tts.functions";
@@ -130,6 +130,8 @@ function ScanPage() {
   const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
+  const [inputCatchText, setInputCatchText] = useState("");
+  const [manualQuery, setManualQuery] = useState("");
   const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
 
   // Dev metrics overlay — gated so it doesn't pollute normal use.
@@ -459,14 +461,16 @@ function ScanPage() {
             const isText = it.kind === "text";
             const expanded = subItems.some((s) => s.parentId === it.id);
             const state = dotStateFor(it.headword, scanCtx);
-            const fill =
+            // apple-design: quiet, mostly-monochrome glass markers. The loud
+            // cyan/magenta dots are gone — a marker is a soft white light on
+            // the world; gold is reserved for the meaningful reunion state, and
+            // "already have it" reads as a calm, dimmed check.
+            const marker =
               state === "reunion"
-                ? "bg-amber-400" // 金色: 前に調べたゴーストとの再会 (§3.1b)
+                ? "bg-amber-300/90 ring-amber-100/70 shadow-[0_0_12px_3px_rgba(251,191,36,0.55)]"
                 : state === "owned"
-                  ? "bg-white/80"
-                  : isText
-                    ? "bg-fuchsia-500" // text = マゼンタ (§3.4)
-                    : "bg-cyan-400";
+                  ? "bg-white/45 ring-white/40"
+                  : "bg-white ring-white/50 shadow-[0_0_10px_2px_rgba(255,255,255,0.45)]";
             return (
               <button
                 key={it.id}
@@ -477,30 +481,26 @@ function ScanPage() {
               >
                 <span
                   className={[
-                    "block rounded-full shadow-lg ring-2",
-                    state === "reunion" ? "ring-amber-200" : "ring-white/90",
-                    state === "owned" ? "h-5 w-5 opacity-90" : "h-6 w-6",
-                    fill,
-                    low ? "opacity-80" : "",
-                    expanded ? "ring-amber-300" : "",
+                    "block rounded-full ring-1 backdrop-blur-[1px] transition-all",
+                    state === "owned" ? "h-4 w-4" : "h-4 w-4",
+                    marker,
+                    low ? "opacity-70" : "",
+                    expanded ? "ring-2 ring-amber-200/80" : "",
                   ].join(" ")}
                 />
                 {isText && state !== "owned" && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[10px] font-black text-white">A</span>
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[9px] font-bold text-foreground/70">A</span>
                 )}
                 {state === "owned" && (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={3.5} />
+                    <Check className="h-3 w-3 text-foreground/60" strokeWidth={3} />
                   </span>
                 )}
                 {state === "new" && (
-                  <span className="pointer-events-none absolute -inset-1.5 animate-ping rounded-full bg-white/40" />
+                  <span className="pointer-events-none absolute -inset-1 animate-ping rounded-full bg-white/30" />
                 )}
                 {state === "reunion" && (
-                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/50 blur-sm" />
-                )}
-                {state !== "new" && state !== "reunion" && (
-                  <span className="pointer-events-none absolute -inset-2 rounded-full bg-white/25 blur-md" />
+                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/40 blur-sm" />
                 )}
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
@@ -536,24 +536,44 @@ function ScanPage() {
             </div>
           )}
 
-          {/* empty state after scan — always offer the typed escape hatch (§2 onboarding) */}
+          {/* empty state after scan — revive the native-language search field
+              (§2 onboarding escape hatch): type a word (Japanese is fine). */}
           {items && items.length === 0 && !scanning && (
-            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/90 p-3 text-center text-sm shadow-lg">
-              <p>何も検出できませんでした。文字や物にもう少し近づいてみて。</p>
-              <button
-                onClick={() => setInputCatchOpen("text")}
-                className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground active:scale-95"
+            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/95 p-3 text-sm shadow-lg backdrop-blur">
+              <p className="text-center text-muted-foreground">
+                候補がないときは、単語で検索（日本語でもOK）
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = manualQuery.trim();
+                  if (!q) return;
+                  setInputCatchText(q);
+                  setInputCatchOpen("text");
+                }}
+                className="mt-2 flex gap-2"
               >
-                文字入力で調べる
-              </button>
+                <input
+                  value={manualQuery}
+                  onChange={(e) => setManualQuery(e.target.value)}
+                  placeholder="例: マンゴー / 芒果"
+                  className="min-w-0 flex-1 rounded-full border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <button
+                  type="submit"
+                  className="press-in inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                >
+                  <Search className="h-4 w-4" /> 調べる
+                </button>
+              </form>
             </div>
           )}
 
           {/* legend */}
           {ready && !snapshot && !scanning && (
             <div className="absolute left-3 top-3 flex gap-2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white backdrop-blur">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-400" />モノ</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-fuchsia-500" />文字</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white ring-1 ring-white/50" />モノ</span>
+              <span className="flex items-center gap-1"><span className="grid h-3 w-3 place-items-center rounded-full bg-white text-[7px] font-bold leading-none text-black">A</span>文字</span>
             </div>
           )}
 
@@ -615,6 +635,46 @@ function ScanPage() {
 
         {error && (
           <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
+        )}
+
+        {/* 候補リスト(羅列): カメラ上の単語ラベル(上)に加え、下に一覧でも見せる。
+            タップでカメラ上のドットと同じチップを開く。 */}
+        {items && items.length > 0 && !scanning && (
+          <div className="space-y-1.5">
+            <p className="px-1 text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+              見つかった単語
+            </p>
+            {items.map((it) => {
+              const st = dotStateFor(it.headword, scanCtx);
+              return (
+                <button
+                  key={it.id}
+                  onClick={() => openChip(it)}
+                  className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      st === "reunion" ? "bg-amber-300" : st === "owned" ? "bg-foreground/30" : "bg-primary"
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="truncate text-base font-semibold">{it.headword}</span>
+                      {it.zhuyin && <span className="shrink-0 text-[11px] text-muted-foreground">{it.zhuyin}</span>}
+                    </span>
+                    {it.meaning_ja && (
+                      <span className="block truncate text-xs text-muted-foreground">{it.meaning_ja}</span>
+                    )}
+                  </span>
+                  {st === "owned" ? (
+                    <Check className="h-4 w-4 shrink-0 text-foreground/50" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {/* chip / mini card */}
@@ -695,7 +755,11 @@ function ScanPage() {
       )}
 
       {inputCatchOpen && (
-        <InputCatchSheet initialMode={inputCatchOpen} onClose={() => setInputCatchOpen(null)} />
+        <InputCatchSheet
+          initialMode={inputCatchOpen}
+          initialText={inputCatchText}
+          onClose={() => { setInputCatchOpen(null); setInputCatchText(""); setManualQuery(""); }}
+        />
       )}
 
       <style>{`
