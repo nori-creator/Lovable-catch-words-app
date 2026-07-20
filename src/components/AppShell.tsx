@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 
 /**
  * New shell (redesign v2):
@@ -90,7 +91,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           to="/scan"
           aria-label="スキャン"
           onClick={() => { unlockAudio(); Sound.tap(); haptic("medium"); }}
-          className="fixed left-1/2 z-40 -translate-x-1/2 rounded-full bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground breathe grid h-16 w-16 place-items-center"
+          className="fixed left-1/2 z-40 -translate-x-1/2 rounded-full bg-gradient-to-br from-primary to-[color:oklch(0.75_0.18_240)] text-primary-foreground breathe grid h-16 w-16 place-items-center transition-[filter] duration-100 active:brightness-90"
           style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
         >
           <ScanLine className="h-7 w-7 drop-shadow" />
@@ -98,9 +99,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       )}
 
       {/* ─── More sheet ─── */}
-      {moreOpen && (
-        <MoreSheet onClose={() => setMoreOpen(false)} />
-      )}
+      <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
     </div>
   );
 }
@@ -111,7 +110,9 @@ function SegLink({ to, label, active }: { to: Path; label: string; active: boole
       to={to}
       onClick={() => { Sound.pageSnap(); haptic("selection"); }}
       className={[
-        "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+        // §1 Response: respond on press (active) with an instant, snappy scale —
+        // not only on release. Springy overshoot is fine here, it's a tap.
+        "rounded-full px-4 py-1.5 text-sm font-medium transition-transform duration-150 active:scale-[0.94]",
         active
           ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
           : "text-foreground/70 hover:text-foreground",
@@ -122,29 +123,24 @@ function SegLink({ to, label, active }: { to: Path; label: string; active: boole
   );
 }
 
-function MoreSheet({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [onClose]);
+/**
+ * More sheet — a vaul (Drawer) bottom sheet so it tracks the finger 1:1, hands
+ * off release velocity, and projects momentum on dismiss (apple-design §4–§6),
+ * and stays grabbable/reversible mid-flight (§3). The surface is a real
+ * translucent material (§12: .app-sheet) that materializes in (§12), and it
+ * enters/exits along the same vertical path (§7).
+ */
+function MoreSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-fade-in" />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg rounded-t-[2rem] border-t border-white/10 bg-card p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl animate-slide-in-right"
-        style={{ animation: "fade-in 0.25s ease-out, float-up 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}
-      >
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-foreground/20" />
+    <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
+      <DrawerContent className="app-sheet material-in mx-auto max-w-lg rounded-t-[2rem] border-0 p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="grid grid-cols-4 gap-2">
           {MORE_LINKS.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
-              onClick={() => { Sound.tap(); haptic("light"); onClose(); }}
-              className="lift-soft flex flex-col items-center gap-1.5 rounded-2xl bg-secondary/60 px-2 py-4 text-center"
+              onClick={() => { Sound.tap(); haptic("light"); onOpenChange(false); }}
+              className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary/60 px-2 py-4 text-center transition-transform duration-150 active:scale-[0.96]"
             >
               <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary/25 to-primary/5 text-primary">
                 <Icon className="h-5 w-5" />
@@ -153,8 +149,8 @@ function MoreSheet({ onClose }: { onClose: () => void }) {
             </Link>
           ))}
         </div>
-      </div>
-    </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
