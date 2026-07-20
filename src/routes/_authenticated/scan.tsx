@@ -10,7 +10,6 @@ import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { preloadCutout } from "@/lib/cutout";
 import { primeAudio } from "@/lib/audio";
 import { logAppEvent } from "@/lib/metrics.functions";
-import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
@@ -127,7 +126,6 @@ function ScanPage() {
   const [partsMs, setPartsMs] = useState<number | null>(null);
   const [lookupMs, setLookupMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
-  const [detailOpen, setDetailOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
   const [inputCatchText, setInputCatchText] = useState("");
@@ -348,7 +346,7 @@ function ScanPage() {
   const reset = useCallback(() => {
     setItems(null); setSubItems([]); setSnapshot(null); setChip(null); setEntries({});
     setDetectMs(null); setPartsMs(null); setLookupMs(null); setTapToAudioMs(null);
-    setDetailOpen(null); setCatchOpen(null); setExpandingId(null);
+    setCatchOpen(null); setExpandingId(null);
     prefetchRef.current.clear();
     prefetchTimingRef.current.clear();
   }, []);
@@ -429,6 +427,13 @@ function ScanPage() {
   const displayPos = chosenDict?.pos ?? chip?.item.pos ?? "";
   const verified = Boolean(chosenDict && chosenDict.source === "verified");
 
+  // Only surface target-language (Chinese) words as candidates — drop English
+  // and other non-learning-language detections from the dots and the list.
+  const visibleItems = useMemo(
+    () => (items ?? []).filter((it) => /[㐀-鿿豈-﫿]/.test(it.headword)),
+    [items],
+  );
+
   return (
     <AppShell title="スキャン">
       <div className="space-y-3">
@@ -456,7 +461,7 @@ function ScanPage() {
           )}
 
           {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
-          {items && items.map((it) => {
+          {visibleItems.map((it) => {
             const low = it.confidence < 0.75;
             const isText = it.kind === "text";
             const expanded = subItems.some((s) => s.parentId === it.id);
@@ -540,7 +545,7 @@ function ScanPage() {
 
           {/* empty state after scan — revive the native-language search field
               (§2 onboarding escape hatch): type a word (Japanese is fine). */}
-          {items && items.length === 0 && !scanning && (
+          {items && visibleItems.length === 0 && !scanning && (
             <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/95 p-3 text-sm shadow-lg backdrop-blur">
               <p className="text-center text-muted-foreground">
                 候補がないときは、単語で検索（日本語でもOK）
@@ -636,18 +641,49 @@ function ScanPage() {
           )}
         </div>
 
+        {/* 単語検索: スキャンで拾えない語を、母語(日本語)でも学習言語でも直接調べる */}
+        {!snapshot && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const q = manualQuery.trim();
+              if (!q) return;
+              setInputCatchText(q);
+              setInputCatchOpen("text");
+            }}
+            className="flex gap-2"
+          >
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={manualQuery}
+                onChange={(e) => setManualQuery(e.target.value)}
+                placeholder="単語を検索（日本語・台湾華語どちらでもOK）"
+                className="w-full rounded-full border border-border bg-card py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!manualQuery.trim()}
+              className="press-in inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              調べる
+            </button>
+          </form>
+        )}
+
         {error && (
           <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
         )}
 
         {/* 候補リスト(羅列): カメラ上の単語ラベル(上)に加え、下に一覧でも見せる。
             タップでカメラ上のドットと同じチップを開く。 */}
-        {items && items.length > 0 && !scanning && (
+        {visibleItems.length > 0 && !scanning && (
           <div className="space-y-1.5">
             <p className="px-1 text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
               見つかった単語
             </p>
-            {items.map((it) => {
+            {visibleItems.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
               return (
                 <button
@@ -698,12 +734,6 @@ function ScanPage() {
             onPickCandidate={(h) => pickCandidate(h, chip.item)}
             onPlay={() => playAudio(displayHeadword, chip.item)}
             onExpand={() => expandParts(chip.item)}
-            onDetail={() => {
-              if (!chip.chosenHeadword) return;
-              // Prefetch is already running (started at tap). Reuse the same promise.
-              startPrefetch(chip.chosenHeadword);
-              setDetailOpen({ headword: chip.chosenHeadword, item: chip.item });
-            }}
             onCatch={() => {
               if (!chip.chosenHeadword || !snapshot) return;
               startPrefetch(chip.chosenHeadword);
@@ -730,15 +760,6 @@ function ScanPage() {
       </div>
 
 
-      {detailOpen && (
-        <ScanDetailSheet
-          headword={detailOpen.headword}
-          item={detailOpen.item}
-          dict={entries[detailOpen.headword]}
-          cardPromise={startPrefetch(detailOpen.headword)}
-          onClose={() => setDetailOpen(null)}
-        />
-      )}
 
       {catchOpen && snapshot && (
         <ScanCatchSheet
@@ -785,7 +806,7 @@ function ScanPage() {
 
 function ScanChip({
   headword, zhuyin, pinyin, meaning, pos, verified, state, foundAt, candidates, expanding, canExpand,
-  onPickCandidate, onPlay, onExpand, onDetail, onCatch, onClose,
+  onPickCandidate, onPlay, onExpand, onCatch, onClose,
 }: {
   headword: string;
   zhuyin: string;
@@ -802,7 +823,6 @@ function ScanChip({
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
   onExpand: () => void;
-  onDetail: () => void;
   onCatch: () => void;
   onClose: () => void;
 }) {
@@ -890,12 +910,6 @@ function ScanChip({
             {expanding ? "解析中…" : "細かく"}
           </button>
         )}
-        <button
-          onClick={onDetail}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground active:scale-95"
-        >
-          <Sparkles className="h-4 w-4" /> 詳しく
-        </button>
         <button
           onClick={onCatch}
           className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95"

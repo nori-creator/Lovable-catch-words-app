@@ -498,25 +498,13 @@ export async function runSelfImprovement(
   const steps: SelfImproveStep[] = [];
   const record = (step: string, ok: boolean, detail: unknown) => steps.push({ step, ok, detail });
 
+  // 自己改善は辞書監査のみ。かつての「ニュースRSS観察」「AI合成コーパス
+  // (台湾人の今日の言葉)→コロケーション生成」は廃止した(不要な生成・コスト
+  // ・低品質データの元だった)。
   try {
     record("audit", true, await runLexiconAudit(10));
   } catch (e) {
     record("audit", false, { error: (e as Error).message.slice(0, 300) });
-  }
-
-  let candidates: string[] = [];
-  try {
-    const r = await ingestCorpusFromNews();
-    candidates = r.unknown_candidates;
-    record("news", r.titles > 0, r);
-  } catch (e) {
-    record("news", false, { error: (e as Error).message.slice(0, 300) });
-  }
-
-  try {
-    record("synth", true, await generateSyntheticCorpus(candidates));
-  } catch (e) {
-    record("synth", false, { error: (e as Error).message.slice(0, 300) });
   }
 
   for (const s of steps) {

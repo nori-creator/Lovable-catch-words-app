@@ -9,7 +9,7 @@ import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, makeThumbBlob, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
@@ -93,7 +93,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
-  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
+  // Cutout is disabled — always null; the plain crop (objectDataUrl) is used.
+  const [cutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -125,11 +126,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         setObjectDataUrl(cropped);
         setPhase("ready"); // ready as soon as the photo exists
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-        // Fire-and-forget: upgrade the hero to a transparent cutout if/when it
-        // finishes. Failure or slowness is invisible — the crop already shows.
-        void removeBackgroundSmart(cropped)
-          .then((dataUrl) => { if (!cancelled) setCutoutUrl(dataUrl); })
-          .catch(() => {});
+        // Background removal (cutout) is fully disabled for now — the scan
+        // never cuts anything out; the plain crop is what we keep and show.
       } catch (e) {
         console.warn("crop failed", e);
         setPhase("ready");
