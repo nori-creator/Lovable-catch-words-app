@@ -4,10 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
-import { synthesizeSpeech } from "@/lib/tts.functions";
+import { speakZhTW } from "@/lib/speak";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
-import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, Loader2 } from "lucide-react";
+import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/dex")({
@@ -326,32 +326,11 @@ function DexPage() {
   );
 }
 
-/** Small pronunciation button (server TTS with a device-voice fallback). */
+/** Small pronunciation button — free on-device Taiwan-Mandarin voice. */
 function PronounceButton({ text }: { text: string }) {
-  const ttsFn = useServerFn(synthesizeSpeech);
-  const [loading, setLoading] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  async function play(e: ReactMouseEvent) {
+  function play(e: ReactMouseEvent) {
     e.stopPropagation();
-    if (loading) return;
-    setLoading(true);
-    try {
-      if (!audioRef.current) audioRef.current = new Audio();
-      const { audio_url } = await ttsFn({ data: { text } });
-      audioRef.current.src = audio_url;
-      await audioRef.current.play();
-    } catch {
-      // Server TTS may be unavailable — fall back to the on-device voice so
-      // the button always speaks.
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "zh-TW";
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      }
-    } finally {
-      setLoading(false);
-    }
+    speakZhTW(text);
   }
   return (
     <button
@@ -359,7 +338,7 @@ function PronounceButton({ text }: { text: string }) {
       aria-label={`「${text}」の発音を再生`}
       className="press-in grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-[18px] w-[18px]" />}
+      <Volume2 className="h-[18px] w-[18px]" />
     </button>
   );
 }
