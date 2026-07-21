@@ -44,18 +44,18 @@ function PendingCapturesBanner() {
     <Link
       to="/capture"
       search={{ pending: first.id }}
-      className="press-in mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm"
+      className="press-in mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/40"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200">
+      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
         {first.object_img ? (
           <img src={first.object_img} alt="解析待ちの写真" className="h-full w-full object-cover" />
         ) : (
-          <WifiOff className="h-5 w-5 text-amber-700" />
+          <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-amber-950">📥 解析待ちの写真が {pending.length} 枚</span>
-        <span className="block text-xs text-amber-900/70">タップしてAI解析を再開する</span>
+        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">📥 解析待ちの写真が {pending.length} 枚</span>
+        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">タップしてAI解析を再開する</span>
       </span>
     </Link>
   );
@@ -128,9 +128,10 @@ function HomePage() {
       ) : todayStickers.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">きょうのページはまだ白紙です。</p>
+          <p className="mt-1 text-xs text-muted-foreground">街の看板やメニューをかざすと、最初の一枚がここに貼られます。</p>
           <Link
             to="/capture"
-            className="press-in mt-4 inline-block rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
+            className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
           >
             街でひとつ見つける
           </Link>
@@ -172,16 +173,20 @@ function HomePage() {
 
 function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: BgId) => void }) {
   return (
-    <div className="mb-3 flex items-center justify-end gap-1">
-      <ImageIcon className="mr-1 h-3 w-3 text-muted-foreground" />
+    <div className="mb-3 flex items-center justify-end">
+      <ImageIcon aria-hidden className="mr-1 h-3 w-3 text-muted-foreground" />
+      {/* §11: keep the swatch small but pad the tap target to the 44px floor. */}
       {BG_OPTIONS.map((o) => (
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
           aria-label={`背景: ${o.label}`}
-          className={`press-in h-7 w-7 overflow-hidden rounded-full border ${current === o.id ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
+          aria-pressed={current === o.id}
+          className="press-in grid h-11 w-11 place-items-center rounded-full"
         >
-          <span className={`block h-full w-full ${o.className}`} />
+          <span
+            className={`block h-7 w-7 overflow-hidden rounded-full border ${o.className} ${current === o.id ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
+          />
         </button>
       ))}
     </div>
@@ -250,8 +255,8 @@ function ScrapbookAlbum({
   return (
     <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-5 shadow-inner sm:p-7 ${bgClass}`}>
       {/* Decorative washi tape corners */}
-      <span className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
-      <span className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
+      <span aria-hidden className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
+      <span aria-hidden className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
 
       <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z, tape }) => {
@@ -267,12 +272,13 @@ function ScrapbookAlbum({
               onClick={() => onOpen(s.id)}
               // §1 Response: react on press. Springy overshoot (§4) suits lifting
               // a paper photo off the page — a physical, tactile moment.
-              className={`group relative block text-left transition-transform duration-200 [transition-timing-function:var(--spring-bounce)] hover:scale-[1.03] active:scale-95 ${size}`}
+              className={`group relative block text-left transition-transform duration-200 [transition-timing-function:var(--spring-bounce)] hover:scale-[1.03] active:scale-95 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100 ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
               {isPolaroid ? (
                 <div className="polaroid relative h-full w-full">
                   <span
+                    aria-hidden
                     className={`washi-tape ${tape}`}
                     style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }}
                   />
