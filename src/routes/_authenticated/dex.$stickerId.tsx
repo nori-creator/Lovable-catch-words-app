@@ -37,7 +37,7 @@ function StickerDetailPage() {
 
   return (
     <AppShell title="カード">
-      <Link to="/dex" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link to="/dex" className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> 図鑑へ戻る
       </Link>
 
@@ -50,7 +50,16 @@ function StickerDetailPage() {
           {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
           <div
             className="perspective-[1200px] mb-4"
+            role="button"
+            tabIndex={0}
+            aria-label={flipped ? "写真の表に戻す" : "自撮りを見る"}
             onClick={() => setFlipped((f) => !f)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setFlipped((f) => !f);
+              }
+            }}
           >
             <div
               className={`card-flip relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl cursor-pointer ${flipped ? "flipped" : ""}`}
@@ -142,7 +151,7 @@ function StickerDetailPage() {
             </div>
             <div className="mt-2 text-lg font-medium">{s.word.meaning_ja}</div>
             {s.word.part_of_speech && (
-              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200">
+              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
                 {s.word.part_of_speech}
               </span>
             )}

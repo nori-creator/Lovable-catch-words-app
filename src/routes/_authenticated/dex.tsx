@@ -43,7 +43,7 @@ function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
-  const { data: stickers } = useQuery({
+  const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     // Keep the signed URLs stable across tab switches so the browser cache
@@ -127,11 +127,12 @@ function DexPage() {
               key={v}
               onClick={() => setView(v)}
               aria-label={label}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
+              aria-pressed={view === v}
+              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-[18px] w-[18px]" />
             </button>
           ))}
         </div>
@@ -139,18 +140,20 @@ function DexPage() {
 
       {view !== "map" && (
         <div className="relative mb-4">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="単語・読み・意味で検索"
-            className="rounded-full pl-9 pr-9"
+            aria-label="図鑑を検索"
+            className="rounded-full pl-9 pr-11"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              aria-label="クリア"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-secondary"
+              aria-label="検索をクリア"
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
             >
               <X className="h-4 w-4" />
             </button>
@@ -160,12 +163,21 @@ function DexPage() {
 
       {view === "map" ? (
         <DexMap stickers={captured} />
+      ) : isLoading && captured.length === 0 ? (
+        // §8: show the shape of the content while it loads — never flash the
+        // "empty" state before the first fetch resolves.
+        <div className="grid grid-cols-3 gap-2.5" aria-hidden>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
+          ))}
+        </div>
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">まだ何もキャッチしていません。</p>
+          <p className="mt-1 text-xs text-muted-foreground">カメラで街の言葉をかざすと、ここに図鑑が育ちます。</p>
           <Link
             to="/capture"
-            className="lift mt-3 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
           >
             最初の一枚を撮る
           </Link>
@@ -197,7 +209,7 @@ function DexPage() {
                     >
                       <div
                         id={`dex-cell-${s.id}`}
-                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
+                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${
                           isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
                         } ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
                       >
@@ -321,6 +333,10 @@ function DexPage() {
           100% { opacity: 0; }
         }
         .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 900ms ease-out 300ms both; }
+        @media (prefers-reduced-motion: reduce) {
+          .slam-in { animation: none; }
+          .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
+        }
       `}</style>
     </AppShell>
   );
@@ -337,7 +353,7 @@ function PronounceButton({ text }: { text: string }) {
     <button
       onClick={play}
       aria-label={`「${text}」の発音を再生`}
-      className="press-in grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+      className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
     >
       <Volume2 className="h-[18px] w-[18px]" />
     </button>

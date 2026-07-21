@@ -611,5 +611,8 @@
 
   /* §12: keep a gentle non-vestibular cross-fade for glass sheets — no slide/scale. */
   .material-in { animation: none !important; transition: opacity 200ms ease; }
+
+  /* A 3D rotate is vestibular — flip instantly instead of spinning the card. */
+  .card-flip { transition: none !important; }
 }
 @keyframes reduced-fade-in { from { opacity: 0; } to { opacity: 1; } }
