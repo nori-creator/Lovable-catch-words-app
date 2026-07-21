@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Volume2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { speakZhTW } from "@/lib/speak";
+import { usePronounce } from "@/lib/use-pronounce";
 
 export type WordExtras = {
   collocations?: string[];
@@ -217,10 +217,11 @@ export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autopla
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const autoplayedRef = useRef(false);
+  const pronounce = usePronounce();
 
-  // Free, on-device Taiwan-Mandarin voice — no server, no Lovable gateway.
+  // Accurate native Taiwan voice (server cmn-TW) with a device-voice fallback.
   function play() {
-    speakZhTW(word.headword);
+    void pronounce(word.headword);
   }
 
   useEffect(() => {

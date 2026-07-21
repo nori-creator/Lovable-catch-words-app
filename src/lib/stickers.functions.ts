@@ -269,7 +269,7 @@ export const getSticker = createServerFn({ method: "GET" })
     // attached to a post the viewer may see (public / friends-mutual / own).
     // Without this check any authenticated user with a sticker UUID could
     // read private lat/lng/caption for un-posted stickers.
-    let isOwner = !!row;
+    const isOwner = !!row;
     if (!row) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       // Find any post referencing this sticker that the viewer can see.
@@ -613,5 +613,38 @@ export const updateWordExtras = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin.from("words").update(update as never).eq("id", data.word_id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// --- User feedback: report a wrong word (§ self-improvement) -----------------
+//
+// Captures user-reported issues into ai_runs (loop="word_report") so the
+// human/AI improvement loop has real signal. The AI auto-fix (regenerating the
+// card) is driven client-side via generateCard + updateWordExtras; this just
+// records that a report happened, for review and metrics.
+const ReportInput = z.object({
+  word_id: z.string().uuid(),
+  headword: z.string().min(1).max(64),
+  note: z.string().max(300).optional().default(""),
+});
+
+export const reportWordIssue = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ReportInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    await supabase
+      .from("ai_runs")
+      .insert({
+        user_id: userId,
+        loop: "word_report",
+        iterations: 1,
+        accepted: 0,
+        meta: { word_id: data.word_id, headword: data.headword, note: data.note },
+      })
+      .then(
+        () => {},
+        () => {},
+      );
     return { ok: true };
   });

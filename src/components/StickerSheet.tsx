@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink, RefreshCw } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink, RefreshCw, Flag } from "lucide-react";
+import { toast } from "sonner";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras, reportWordIssue } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { CachedImg } from "@/lib/image-cache";
@@ -18,6 +19,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
+  const reportFn = useServerFn(reportWordIssue);
+  const [reporting, setReporting] = useState(false);
   const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
@@ -107,6 +110,37 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   if (!stickerId) return null;
 
   const hasSelfie = !!s?.selfie_url;
+
+  // 間違い報告: AIが単語を作り直し(自動修正)、報告も記録する(ユーザーFB)。
+  async function reportIssue() {
+    if (!s || reporting) return;
+    setReporting(true);
+    try {
+      const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+      await saveExtras({
+        data: {
+          word_id: s.word_id,
+          extras: card.extras,
+          patch: {
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+          },
+        },
+      });
+      await reportFn({ data: { word_id: s.word_id, headword: s.word.headword } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success("報告ありがとう。AIが作り直しました");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "報告に失敗しました");
+    } finally {
+      setReporting(false);
+    }
+  }
 
   return (
     <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md">
@@ -288,6 +322,18 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
             <WebImagesSection headword={s.word.headword} meaningJa={s.word.meaning_ja} />
             <RealUsageSection headword={s.word.headword} />
+
+            {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
+            <div className="mt-4 text-center">
+              <button
+                onClick={reportIssue}
+                disabled={reporting}
+                className="press-in inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground disabled:opacity-60"
+              >
+                {reporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
+                {reporting ? "AIが作り直し中…" : "意味や発音が変？ 報告してAIに直させる"}
+              </button>
+            </div>
 
             {s.lat != null && s.lng != null && (
               <a

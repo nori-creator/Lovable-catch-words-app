@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
-import { speakZhTW } from "@/lib/speak";
+import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2 } from "lucide-react";
@@ -326,11 +326,12 @@ function DexPage() {
   );
 }
 
-/** Small pronunciation button — free on-device Taiwan-Mandarin voice. */
+/** Small pronunciation button — accurate server voice, device-voice fallback. */
 function PronounceButton({ text }: { text: string }) {
+  const pronounce = usePronounce();
   function play(e: ReactMouseEvent) {
     e.stopPropagation();
-    speakZhTW(text);
+    void pronounce(text);
   }
   return (
     <button

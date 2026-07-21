@@ -23,6 +23,55 @@ const Input = z.object({
  * URL afterwards. If the bucket doesn't exist yet (migration not applied) we
  * fall back to returning a base64 data URL so playback still works.
  */
+// Native Taiwan-Mandarin neural voice (Google Cloud TTS). One consistent,
+// accurate accent for every device — the same MP3 is served to iPhone and
+// Android alike, so pronunciation never depends on which voices a phone ships.
+const GOOGLE_TTS_VOICE = process.env.GOOGLE_TTS_VOICE ?? "cmn-TW-Wavenet-A";
+
+/**
+ * Synthesize `text` to MP3 bytes in native Taiwan Mandarin.
+ * - Preferred: Google Cloud Text-to-Speech (cmn-TW neural) when
+ *   GOOGLE_TTS_API_KEY is set — the most accurate Taiwan accent, all devices.
+ * - Fallback: any OpenAI-compatible /audio/speech server (getTts()).
+ * Throws when no server TTS is configured; callers keep a device-voice fallback.
+ */
+async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
+  const gKey = process.env.GOOGLE_TTS_API_KEY;
+  if (gKey) {
+    const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode: "cmn-TW", name: GOOGLE_TTS_VOICE },
+        audioConfig: { audioEncoding: "MP3", speakingRate: speed },
+      }),
+    });
+    if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`);
+    const json = (await res.json()) as { audioContent?: string };
+    if (!json.audioContent) throw new Error("TTS empty response");
+    const bin = atob(json.audioContent);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  const tts = getTts();
+  const res = await fetch(tts.url, {
+    method: "POST",
+    headers: tts.headers,
+    body: JSON.stringify({
+      model: tts.model,
+      input: text,
+      voice: TTS_VOICE_DEFAULT,
+      response_format: "mp3",
+      speed,
+      instructions: TTS_INSTRUCTIONS,
+    }),
+  });
+  if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 export const synthesizeSpeech = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => Input.parse(input))
@@ -36,24 +85,7 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
 
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
     await assertWithinDailyCap(userId, "tts");
-    const tts = getTts();
-    const res = await fetch(tts.url, {
-      method: "POST",
-      headers: tts.headers,
-      body: JSON.stringify({
-        model: tts.model,
-        input: data.text,
-        voice: data.voice,
-        response_format: "mp3",
-        speed: data.speed,
-        instructions: TTS_INSTRUCTIONS,
-      }),
-    });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`TTS failed: ${res.status} ${t}`);
-    }
-    const buf = new Uint8Array(await res.arrayBuffer());
+    const buf = await synthesizeMp3(data.text, data.speed);
     await logUsage(supabase, userId, "tts");
 
     // Cache writes go through the service role: the shared tts cache must not
@@ -122,7 +154,6 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       .limit(data.batch);
     if (error) throw new Error(error.message);
 
-    const tts = getTts();
     const deadline = Date.now() + 40_000; // stay inside the server-fn window
     let done = 0;
     let failed = 0;
@@ -135,20 +166,7 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
         // Reuse audio already cached by on-demand taps.
         const { data: existing } = await supabaseAdmin.storage.from("tts").createSignedUrl(path, 60);
         if (!existing?.signedUrl) {
-          const res = await fetch(tts.url, {
-            method: "POST",
-            headers: tts.headers,
-            body: JSON.stringify({
-              model: tts.model,
-              input: entry.headword,
-              voice: TTS_VOICE_DEFAULT,
-              response_format: "mp3",
-              speed: DEFAULT_SPEED,
-              instructions: TTS_INSTRUCTIONS,
-            }),
-          });
-          if (!res.ok) throw new Error(`TTS ${res.status}`);
-          const buf = new Uint8Array(await res.arrayBuffer());
+          const buf = await synthesizeMp3(entry.headword, DEFAULT_SPEED);
           const { error: upErr } = await supabaseAdmin.storage
             .from("tts")
             .upload(path, buf, { contentType: "audio/mpeg", upsert: true });
