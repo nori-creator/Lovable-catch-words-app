@@ -198,36 +198,6 @@ function SelfImprovePanel() {
         </details>
       )}
 
-      {(st?.top_pairs.length ?? 0) > 0 && (
-        <div className="mt-3">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            よく一緒に使われる組み合わせ(今週)
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {st!.top_pairs.map((p) => (
-              <span key={p.pair} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-                {p.pair} <span className="text-muted-foreground">{p.count}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(st?.top_words.length ?? 0) > 0 && (
-        <div className="mt-3">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            今週の台湾ニュース頻出語(独自コーパス)
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {st!.top_words.map((w) => (
-              <span key={w.word} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-                {w.word} <span className="text-muted-foreground">{w.count}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {(st?.audits.length ?? 0) > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-[11px] text-muted-foreground">直近の監査結果</summary>
@@ -327,7 +297,9 @@ function TtsPregenPanel() {
       </p>
       {errors.length > 0 && (
         <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-[11px] text-destructive">
-          {errors.join(" / ")}
+          {errors.some((e) => e.includes("402"))
+            ? "音声の一括生成にはクレジット/課金が必要です（402 Payment Required）。Lovableのプラン設定を確認してください。単語の発音は端末の音声で代替されるので、アプリ内の再生は動きます。"
+            : errors.join(" / ")}
         </p>
       )}
     </section>

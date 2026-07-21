@@ -4,9 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers } from "@/lib/stickers.functions";
+import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
-import { useMemo, useState, useEffect, useRef } from "react";
-import { LayoutGrid, List, Map as MapIcon, Search, X } from "lucide-react";
+import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/dex")({
@@ -42,7 +43,7 @@ function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
-  const { data: stickers } = useQuery({
+  const { data: stickers, isLoading } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     // Keep the signed URLs stable across tab switches so the browser cache
@@ -126,11 +127,12 @@ function DexPage() {
               key={v}
               onClick={() => setView(v)}
               aria-label={label}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
+              aria-pressed={view === v}
+              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-[18px] w-[18px]" />
             </button>
           ))}
         </div>
@@ -138,18 +140,20 @@ function DexPage() {
 
       {view !== "map" && (
         <div className="relative mb-4">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="単語・読み・意味で検索"
-            className="rounded-full pl-9 pr-9"
+            aria-label="図鑑を検索"
+            className="rounded-full pl-9 pr-11"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              aria-label="クリア"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-secondary"
+              aria-label="検索をクリア"
+              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
             >
               <X className="h-4 w-4" />
             </button>
@@ -159,12 +163,21 @@ function DexPage() {
 
       {view === "map" ? (
         <DexMap stickers={captured} />
+      ) : isLoading && captured.length === 0 ? (
+        // §8: show the shape of the content while it loads — never flash the
+        // "empty" state before the first fetch resolves.
+        <div className="grid grid-cols-3 gap-2.5" aria-hidden>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
+          ))}
+        </div>
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">まだ何もキャッチしていません。</p>
+          <p className="mt-1 text-xs text-muted-foreground">カメラで街の言葉をかざすと、ここに図鑑が育ちます。</p>
           <Link
             to="/capture"
-            className="lift mt-3 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
           >
             最初の一枚を撮る
           </Link>
@@ -196,7 +209,7 @@ function DexPage() {
                     >
                       <div
                         id={`dex-cell-${s.id}`}
-                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 ${
+                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${
                           isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
                         } ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
                       >
@@ -253,10 +266,13 @@ function DexPage() {
             ) : (
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                 {items.map((s, i) => (
-                  <li key={s.id} className={i > 0 ? "border-t border-border" : ""}>
+                  <li
+                    key={s.id}
+                    className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
+                  >
                     <button
                       onClick={() => setOpenId(s.id)}
-                      className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40 active:bg-accent/60"
+                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
                     >
                       <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
                         {s.cutout_url ? (
@@ -293,6 +309,8 @@ function DexPage() {
                         </div>
                       </div>
                     </button>
+                    {/* 発音ボタンは右側に (縦並びリスト) */}
+                    <PronounceButton text={s.word.headword} />
                   </li>
                 ))}
               </ul>
@@ -315,8 +333,30 @@ function DexPage() {
           100% { opacity: 0; }
         }
         .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 900ms ease-out 300ms both; }
+        @media (prefers-reduced-motion: reduce) {
+          .slam-in { animation: none; }
+          .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
+        }
       `}</style>
     </AppShell>
+  );
+}
+
+/** Small pronunciation button — accurate server voice, device-voice fallback. */
+function PronounceButton({ text }: { text: string }) {
+  const pronounce = usePronounce();
+  function play(e: ReactMouseEvent) {
+    e.stopPropagation();
+    void pronounce(text);
+  }
+  return (
+    <button
+      onClick={play}
+      aria-label={`「${text}」の発音を再生`}
+      className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+    >
+      <Volume2 className="h-[18px] w-[18px]" />
+    </button>
   );
 }
 
@@ -377,8 +417,14 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
   const pinIconCache = useRef<Map<string, string | null>>(new Map());
-  const browserKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
-  const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
+  // Lovable-free first: prefer a plain VITE_ key, fall back to Lovable's
+  // connector-injected name so it keeps working during the migration.
+  const browserKey =
+    import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ??
+    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+  const channel =
+    import.meta.env.VITE_GOOGLE_MAPS_TRACKING_ID ??
+    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
 
   useEffect(() => {
     if (!browserKey) return;
@@ -461,8 +507,19 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stickers]);
 
+  // Tapping a photo below pans+zooms the map to where it was caught.
+  function focusOnMap(s: (typeof stickers)[number]) {
+    if (s.lat == null || s.lng == null) return;
+    const map = mapInstance.current as { panTo: (l: object) => void; setZoom: (z: number) => void } | null;
+    if (map) {
+      map.panTo({ lat: s.lat, lng: s.lng });
+      map.setZoom(17);
+    }
+    mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const withLoc = stickers.filter((s) => s.lat != null && s.lng != null);
-  const recent = withLoc.slice(0, 6);
+  const recent = withLoc.slice(0, 12);
 
   if (!browserKey) {
     return (
@@ -485,18 +542,40 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
 
       {recent.length > 0 && (
         <section className="mt-5">
-          <h3 className="mb-2 text-sm font-semibold tracking-tight">最近キャッチした場所</h3>
-          <div className="grid grid-cols-3 gap-2">
-            {recent.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } })}
-                className="lift flex flex-col items-center rounded-2xl border border-border bg-card p-3 text-center"
-              >
-                <span className="text-2xl">{s.word.silhouette_emoji ?? "📍"}</span>
-                <span className="mt-1 text-xs font-medium">{s.word.headword}</span>
-              </button>
-            ))}
+          <h3 className="mb-1 text-sm font-semibold tracking-tight">キャッチした場所</h3>
+          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで地図がその場所へズーム。地図上のピンをタップで単語の詳細へ。</p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {recent.map((s) => {
+              const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => focusOnMap(s)}
+                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
+                  aria-label={`「${s.word.headword}」の場所を地図で見る`}
+                >
+                  <div className="aspect-square w-full overflow-hidden bg-secondary">
+                    {thumb ? (
+                      <CachedImg
+                        src={thumb}
+                        alt={`「${s.word.headword}」の写真`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="grid h-full w-full place-items-center text-2xl">
+                        {s.word.silhouette_emoji ?? "📍"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1.5">
+                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="truncate text-xs font-medium">{s.word.headword}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

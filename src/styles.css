@@ -436,6 +436,37 @@
   }
 }
 
+/* apple-design §2 — the third and fourth color variants: high-contrast light &
+   high-contrast dark. When the user asks for more contrast we darken/lighten the
+   secondary labels to clear the 4.5:1 body floor, and strengthen every hairline
+   border and input outline so structure reads without relying on subtle tints. */
+@media (prefers-contrast: more) {
+  :root {
+    --foreground: oklch(0.12 0.02 250);
+    --muted-foreground: oklch(0.36 0.02 255); /* was 0.5 — now ≥4.5:1 on muted */
+    --card-foreground: oklch(0.12 0.02 250);
+    --popover-foreground: oklch(0.12 0.02 250);
+    --secondary-foreground: oklch(0.16 0.03 255);
+    --accent-foreground: oklch(0.18 0.08 255);
+    --border: oklch(0.72 0.02 250);            /* darker hairlines */
+    --input: oklch(0.66 0.02 250);
+    --ring: oklch(0.52 0.22 255);
+    --primary: oklch(0.55 0.22 255);           /* deeper blue → stronger contrast */
+  }
+  .dark {
+    --foreground: oklch(0.99 0.003 240);
+    --muted-foreground: oklch(0.84 0.03 258);  /* was 0.72 — brighter secondary */
+    --card-foreground: oklch(0.99 0.003 240);
+    --popover-foreground: oklch(0.99 0.003 240);
+    --secondary-foreground: oklch(0.99 0 0);
+    --accent-foreground: oklch(0.99 0 0);
+    --border: oklch(1 0 0 / 30%);              /* visible edges on dark */
+    --input: oklch(1 0 0 / 34%);
+    --ring: oklch(0.82 0.16 258);
+    --primary: oklch(0.74 0.19 258);
+  }
+}
+
 /* Deep-ocean body ambience (only in dark) */
 .dark body {
   background-image:
@@ -555,12 +586,33 @@
 }
 .slot-ignite { animation: slot-ignite 0.9s ease-out; }
 
-/* Reduce motion */
+/* Reduce motion (apple-design Part VI) — reduced motion is not *no* feedback: we
+   drop vestibular slide/scale/parallax/overshoot but keep a short opacity fade so
+   entrances still read. Every transform-driven entrance is neutralised here. */
 @media (prefers-reduced-motion: reduce) {
   .ken-burns-a, .ken-burns-b, .breathe, .pulse-ring, .shimmer-sweep::after,
-  .liquid-drift, .liquid-ripple, .crystal-in > *, .slot-ignite, .shelf-tilt { animation: none !important; }
+  .liquid-drift, .liquid-ripple, .crystal-in > *, .slot-ignite, .shelf-tilt,
+  .wave-ripple { animation: none !important; }
   .crystal-in > * { opacity: 1; }
-  /* §14: keep a gentle non-vestibular cross-fade for sheets — no slide/scale. */
-  .material-in { animation: none !important; }
-  .material-in { transition: opacity 200ms ease; }
+
+  /* Entrance animations → a gentle non-vestibular cross-fade, no translate/scale. */
+  .pop-in, .float-up, .hero-pop, .reveal-stagger > * {
+    animation: reduced-fade-in 200ms ease both !important;
+  }
+  .reveal-stagger > * { animation-delay: 0ms !important; }
+
+  /* Momentum/lift micro-interactions stop translating; they only tint on press. */
+  .lift, .lift-soft, .lift-glass, .cab-slot, .press-in {
+    transition: background-color 160ms ease, box-shadow 160ms ease !important;
+  }
+  .lift:hover, .lift-soft:hover, .lift-glass:hover, .cab-slot:hover,
+  .lift:active, .lift-soft:active, .lift-glass:active, .cab-slot:active,
+  .press-in:active { transform: none !important; }
+
+  /* §12: keep a gentle non-vestibular cross-fade for glass sheets — no slide/scale. */
+  .material-in { animation: none !important; transition: opacity 200ms ease; }
+
+  /* A 3D rotate is vestibular — flip instantly instead of spinning the card. */
+  .card-flip { transition: none !important; }
 }
+@keyframes reduced-fade-in { from { opacity: 0; } to { opacity: 1; } }

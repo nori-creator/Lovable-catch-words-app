@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink, RefreshCw } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Globe, Play, ExternalLink, RefreshCw, Flag } from "lucide-react";
+import { toast } from "sonner";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { getSticker, updateWordExtras } from "@/lib/stickers.functions";
+import { getSticker, updateWordExtras, reportWordIssue } from "@/lib/stickers.functions";
 import { generateCard } from "@/lib/ai.functions";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { CachedImg } from "@/lib/image-cache";
@@ -18,6 +19,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
+  const reportFn = useServerFn(reportWordIssue);
+  const [reporting, setReporting] = useState(false);
   const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
@@ -108,8 +111,39 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
   const hasSelfie = !!s?.selfie_url;
 
+  // 間違い報告: AIが単語を作り直し(自動修正)、報告も記録する(ユーザーFB)。
+  async function reportIssue() {
+    if (!s || reporting) return;
+    setReporting(true);
+    try {
+      const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+      await saveExtras({
+        data: {
+          word_id: s.word_id,
+          extras: card.extras,
+          patch: {
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+          },
+        },
+      });
+      await reportFn({ data: { word_id: s.word_id, headword: s.word.headword } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success("報告ありがとう。AIが作り直しました");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "報告に失敗しました");
+    } finally {
+      setReporting(false);
+    }
+  }
+
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : "カード"}>
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <span className="pl-1 text-xs font-medium text-muted-foreground">
@@ -119,14 +153,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <button
             onClick={() => setEditing((v) => !v)}
             aria-label="表示項目を編集"
-            className={`lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
+            className={`lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
             <Settings2 className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
             aria-label="閉じる"
-            className="lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card"
+            className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
           >
             <X className="h-4 w-4" />
           </button>
@@ -144,10 +178,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             <p className="text-xs font-semibold text-muted-foreground">表示する項目と順番</p>
             <button
               onClick={() => setEditing(false)}
-              className="lift-soft inline-flex h-7 w-7 items-center justify-center rounded-full bg-secondary"
-              aria-label="閉じる"
+              className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
+              aria-label="編集を閉じる"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="h-4 w-4" />
             </button>
           </div>
           {s && <WordCardSectionsEditor />}
@@ -164,7 +198,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
               className="perspective-1200 mb-4"
+              role={hasSelfie ? "button" : undefined}
+              tabIndex={hasSelfie ? 0 : undefined}
+              aria-label={hasSelfie ? (flipped ? "写真の表に戻す" : "自撮りを見る") : undefined}
               onClick={() => hasSelfie && setFlipped((f) => !f)}
+              onKeyDown={(e) => {
+                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  setFlipped((f) => !f);
+                }
+              }}
             >
               <div
                 className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
@@ -288,6 +331,18 @@ export function StickerSheet({ stickerId, onClose }: Props) {
 
             <WebImagesSection headword={s.word.headword} meaningJa={s.word.meaning_ja} />
             <RealUsageSection headword={s.word.headword} />
+
+            {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
+            <div className="mt-4 text-center">
+              <button
+                onClick={reportIssue}
+                disabled={reporting}
+                className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-60"
+              >
+                {reporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
+                {reporting ? "AIが作り直し中…" : "意味や発音が変？ 報告してAIに直させる"}
+              </button>
+            </div>
 
             {s.lat != null && s.lng != null && (
               <a

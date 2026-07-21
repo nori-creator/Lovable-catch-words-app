@@ -19,7 +19,7 @@ const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
-const GOOGLE_DEFAULT_MODEL = "gemini-3-flash-preview";
+const GOOGLE_DEFAULT_MODEL = "gemini-2.5-flash";
 
 export type AiConfig = {
   provider: "lovable" | "google" | "openai-compatible";
@@ -35,10 +35,13 @@ function detectProvider(): AiConfig["provider"] {
   if (explicit === "google" || explicit === "openai-compatible" || explicit === "lovable") {
     return explicit;
   }
-  if (process.env.LOVABLE_API_KEY) return "lovable";
+  // Lovable-free by default: prefer a direct provider. Lovable is opt-in only
+  // (AI_PROVIDER=lovable), so a leftover LOVABLE_API_KEY from the old hosting
+  // never silently routes AI through the (now unsubscribed) gateway.
   if (process.env.GEMINI_API_KEY) return "google";
   if (process.env.AI_BASE_URL && process.env.AI_API_KEY) return "openai-compatible";
-  return "lovable";
+  if (process.env.LOVABLE_API_KEY) return "lovable";
+  return "google"; // getAi() throws a clear "set GEMINI_API_KEY" if it's missing
 }
 
 export function getAi(): AiConfig {

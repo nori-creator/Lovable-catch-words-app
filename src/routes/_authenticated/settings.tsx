@@ -111,15 +111,15 @@ function SettingsPage() {
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">言語</h3>
           <div className="space-y-3">
             <div>
-              <Label>学習言語</Label>
-              <select className="w-full rounded-md border border-input bg-background p-2 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
+              <Label htmlFor="lang-target">学習言語</Label>
+              <select id="lang-target" aria-label="学習言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
                 <option value="zh-TW">台湾華語 (zh-TW)</option>
                 <option value="en">英語 (en)</option>
               </select>
             </div>
             <div>
-              <Label>目標レベル</Label>
-              <select className="w-full rounded-md border border-input bg-background p-2 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
+              <Label htmlFor="lang-level">目標レベル</Label>
+              <select id="lang-level" aria-label="目標レベル" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
                 <option value="TOCFL-1">TOCFL Level 1</option>
                 <option value="TOCFL-2">TOCFL Level 2</option>
                 <option value="TOCFL-3">TOCFL Level 3</option>
@@ -127,15 +127,15 @@ function SettingsPage() {
               </select>
             </div>
             <div>
-              <Label>母語</Label>
-              <select className="w-full rounded-md border border-input bg-background p-2 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
+              <Label htmlFor="lang-native">母語</Label>
+              <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
                 <option value="ja">日本語</option>
                 <option value="en">English</option>
               </select>
             </div>
             <div>
-              <Label>表示言語</Label>
-              <select className="w-full rounded-md border border-input bg-background p-2 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
+              <Label htmlFor="lang-ui">表示言語</Label>
+              <select id="lang-ui" aria-label="表示言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
                 <option value="ja">日本語</option>
                 <option value="en">English</option>
               </select>
@@ -151,7 +151,8 @@ function SettingsPage() {
               <button
                 key={v}
                 onClick={() => setReviewMode(v)}
-                className={`rounded-full border py-1.5 text-sm ${reviewMode === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                aria-pressed={reviewMode === v}
+                className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewMode === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
                 {v === "speaking" ? "🎤 スピーキング" : "👆 4択(ライト)"}
               </button>
@@ -167,7 +168,8 @@ function SettingsPage() {
                 <button
                   key={v}
                   onClick={() => setStrictness(v)}
-                  className={`rounded-full border py-1.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                  aria-pressed={strictness === v}
+                  className={`min-h-11 rounded-full border py-2.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
                 >
                   {v === "easy" ? "やさしい" : v === "normal" ? "ふつう" : "きびしい"}
                 </button>
@@ -186,7 +188,8 @@ function SettingsPage() {
               <button
                 key={v}
                 onClick={() => setTheme(v)}
-                className={`rounded-full border py-1.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                aria-pressed={theme === v}
+                className={`min-h-11 rounded-full border py-2.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
                 {v === "light" ? "ライト" : v === "dark" ? "ダーク" : "システム"}
               </button>
@@ -384,13 +387,17 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
         <div className="text-sm font-medium">{label}</div>
         <div className="text-[11px] text-muted-foreground">{hint}</div>
       </div>
+      {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
       <button
         onClick={() => onChange(!value)}
         role="switch"
         aria-checked={value}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}
+        aria-label={label}
+        className="grid h-11 w-11 shrink-0 place-items-center"
       >
-        <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0"}`} />
+        <span className={`relative block h-6 w-11 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}>
+          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0"} motion-reduce:transition-none`} />
+        </span>
       </button>
     </div>
   );

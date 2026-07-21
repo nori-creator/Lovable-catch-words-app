@@ -260,7 +260,7 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
   const verified = !!dict && dict.source === "verified";
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="入力キャッチ">
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
           <Ghost className="h-3.5 w-3.5" /> 入力キャッチ
@@ -268,7 +268,7 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
         <button
           onClick={onClose}
           aria-label="閉じる"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card active:scale-95"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:scale-95 motion-reduce:active:scale-100"
         >
           <X className="h-4 w-4" />
         </button>

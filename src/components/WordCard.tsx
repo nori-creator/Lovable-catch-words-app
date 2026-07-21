@@ -1,9 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Loader2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { synthesizeSpeech } from "@/lib/tts.functions";
-import { primeAudio } from "@/lib/audio";
+import { Volume2, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
+import { usePronounce } from "@/lib/use-pronounce";
 
 export type WordExtras = {
   collocations?: string[];
@@ -218,51 +216,18 @@ export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autopla
 );
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
-  const ttsFn = useServerFn(synthesizeSpeech);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoplayedRef = useRef(false);
+  const pronounce = usePronounce();
 
-  async function ensureAudio() {
-    if (audioUrl) return audioUrl;
-    setLoading(true);
-    try {
-      const r = await ttsFn({ data: { text: word.headword } });
-      setAudioUrl(r.audio_url);
-      return r.audio_url;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function play() {
-    // Prime synchronously inside the gesture — see src/lib/audio.ts.
-    if (!audioRef.current) audioRef.current = new Audio();
-    primeAudio(audioRef.current);
-    try {
-      const url = await ensureAudio();
-      audioRef.current.src = url;
-      audioRef.current.onplay = () => setPlaying(true);
-      audioRef.current.onended = () => setPlaying(false);
-      audioRef.current.onpause = () => setPlaying(false);
-      await audioRef.current.play();
-    } catch (e) {
-      console.warn("TTS playback failed", e);
-      if ("speechSynthesis" in window) {
-        const u = new SpeechSynthesisUtterance(word.headword);
-        u.lang = "zh-TW";
-        speechSynthesis.cancel();
-        speechSynthesis.speak(u);
-      }
-    }
+  // Accurate native Taiwan voice (server cmn-TW) with a device-voice fallback.
+  function play() {
+    void pronounce(word.headword);
   }
 
   useEffect(() => {
     if (!autoplay || autoplayedRef.current) return;
     autoplayedRef.current = true;
-    const t = setTimeout(() => { play().catch(() => {}); }, 400);
+    const t = setTimeout(play, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word.headword]);
@@ -276,9 +241,9 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             <button
               onClick={play}
               aria-label="発音を再生"
-              className={`lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ${playing ? "animate-pulse" : ""}`}
+              className="lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-5 w-5" />}
+              <Volume2 className="h-5 w-5" />
             </button>
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
