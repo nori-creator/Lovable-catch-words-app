@@ -143,7 +143,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   }
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : "カード"}>
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <span className="pl-1 text-xs font-medium text-muted-foreground">
@@ -153,14 +153,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <button
             onClick={() => setEditing((v) => !v)}
             aria-label="表示項目を編集"
-            className={`lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
+            className={`lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
             <Settings2 className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
             aria-label="閉じる"
-            className="lift-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card"
+            className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
           >
             <X className="h-4 w-4" />
           </button>
@@ -178,10 +178,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             <p className="text-xs font-semibold text-muted-foreground">表示する項目と順番</p>
             <button
               onClick={() => setEditing(false)}
-              className="lift-soft inline-flex h-7 w-7 items-center justify-center rounded-full bg-secondary"
-              aria-label="閉じる"
+              className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
+              aria-label="編集を閉じる"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="h-4 w-4" />
             </button>
           </div>
           {s && <WordCardSectionsEditor />}
@@ -198,7 +198,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
               className="perspective-1200 mb-4"
+              role={hasSelfie ? "button" : undefined}
+              tabIndex={hasSelfie ? 0 : undefined}
+              aria-label={hasSelfie ? (flipped ? "写真の表に戻す" : "自撮りを見る") : undefined}
               onClick={() => hasSelfie && setFlipped((f) => !f)}
+              onKeyDown={(e) => {
+                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  setFlipped((f) => !f);
+                }
+              }}
             >
               <div
                 className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
@@ -328,7 +337,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               <button
                 onClick={reportIssue}
                 disabled={reporting}
-                className="press-in inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground disabled:opacity-60"
+                className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-60"
               >
                 {reporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
                 {reporting ? "AIが作り直し中…" : "意味や発音が変？ 報告してAIに直させる"}

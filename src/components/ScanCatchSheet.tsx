@@ -362,14 +362,14 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200" role="dialog">
+    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="キャッチ">
       <div className="flex items-center justify-between px-3 py-2">
         <span className="pl-1 text-xs font-medium text-white/80">キャッチ</span>
         {phase === "ready" && !saving && (
           <button
             onClick={onClose}
             aria-label="閉じる"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white active:scale-95"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white active:scale-95 motion-reduce:active:scale-100"
           >
             <X className="h-4 w-4" />
           </button>
