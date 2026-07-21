@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
 
@@ -244,25 +244,23 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const pro = await isProUser(context.userId);
-    let card: z.infer<typeof CardSchema>;
-    try {
-      const result = await generateText({
-        model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
-        prompt,
-        experimental_output: Output.object({ schema: CardSchema }) as never,
-      });
-      const out = (result as unknown as { experimental_output?: z.infer<typeof CardSchema> }).experimental_output;
-      card = out ?? CardSchema.parse(parseJsonFromAiText(result.text));
-    } catch (error) {
-      const { NoObjectGeneratedError } = await import("ai");
-      const errText = (error as { text?: string } | null)?.text;
-      if (NoObjectGeneratedError.isInstance(error) && typeof errText === "string") {
-        try { card = CardSchema.parse(parseJsonFromAiText(errText)); }
-        catch { throw new Error("AI did not return a structured card"); }
-      } else {
-        throw error;
-      }
-    }
+    // Plain text + robust JSON parse (like suggestWords). We deliberately do NOT
+    // use experimental_output / response_format=json_schema here: Gemini's
+    // OpenAI-compatible endpoint rejects many json_schema shapes with a 400,
+    // which threw the whole call and left every caught word with empty extras
+    // (only 意味・例文 from the verified dictionary showed). A JSON-only
+    // instruction + tolerant parse works across providers.
+    const result = await generateText({
+      model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
+      prompt: `${prompt}
+
+**出力は JSON オブジェクトだけ**（前置き・説明・マークダウンのコードフェンスは不要）。キーは次の通り:
+{"headword_zh","reading_zhuyin","pinyin","meaning_ja","part_of_speech","level","category_key","example_sentence","example_translation","extras":{"collocations":[],"synonyms":[],"antonyms":[],"etymology":"","radicals":"","mnemonic":"","trivia":"","common_situation":"","usage_note":"","register_note":"","synonym_diff":"","word_order":"","study_tips":"","examples_extra":[{"zh":"","ja":""}]}}`,
+    });
+    const card = (() => {
+      try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
+      catch { throw new Error("AI did not return a structured card"); }
+    })();
     await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
     // 入力キャッチ・派生キャッチで生まれた語も共有辞書に蓄積(SNS/日常語彙)。
@@ -313,24 +311,25 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
     const ai = getAi();
     await assertWithinDailyCap(context.userId, "phrase_card");
+    // Plain text + tolerant parse (see generateCard) — avoid json_schema output
+    // that Gemini's OpenAI-compatible endpoint rejects.
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
         `台湾華語(繁體字)のフレーズカードを作ります。\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
-        `\n次をJSONで出力:\n` +
+        `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
         `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
         `- pinyin: 拼音\n` +
         `- meaning_ja: 日本語の意味(簡潔に)\n` +
         `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、日本語)\n` +
         `- common_situation: 最もよくある場面(1文、日本語)\n` +
         `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: 日本語訳}。` +
-        `例:「請稍等」→「好、謝謝」`,
-      experimental_output: Output.object({ schema: PhraseCardSchema }) as never,
+        `例:「請稍等」→「好、謝謝」\n` +
+        `形式: {"reading_zhuyin":"","pinyin":"","meaning_ja":"","usage_note":"","common_situation":"","replies":[{"zh":"","ja":""}]}`,
     });
-    const out = (result as unknown as { experimental_output?: GeneratedPhraseCard }).experimental_output;
-    const card = out ?? (() => {
+    const card = (() => {
       try { return PhraseCardSchema.parse(parseJsonFromAiText(result.text)); }
       catch { throw new Error("AI did not return a structured phrase card"); }
     })();
