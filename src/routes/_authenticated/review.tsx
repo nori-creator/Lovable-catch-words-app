@@ -68,12 +68,14 @@ function playAudio(card: DueReviewCard) {
 }
 
 // ---- POS color map ---------------------------------------------------------
+// §2: the chunk pills carry the POS letter as text, so colour is a second cue,
+// not the only one. Each keeps a dark variant so it adapts to the night theme.
 const POS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  S: { bg: "bg-sky-100", text: "text-sky-900", label: "主語" },
-  V: { bg: "bg-rose-100", text: "text-rose-900", label: "動詞" },
-  O: { bg: "bg-emerald-100", text: "text-emerald-900", label: "目的語" },
-  M: { bg: "bg-amber-100", text: "text-amber-900", label: "修飾" },
-  C: { bg: "bg-violet-100", text: "text-violet-900", label: "接続" },
+  S: { bg: "bg-sky-100 dark:bg-sky-500/25", text: "text-sky-900 dark:text-sky-100", label: "主語" },
+  V: { bg: "bg-rose-100 dark:bg-rose-500/25", text: "text-rose-900 dark:text-rose-100", label: "動詞" },
+  O: { bg: "bg-emerald-100 dark:bg-emerald-500/25", text: "text-emerald-900 dark:text-emerald-100", label: "目的語" },
+  M: { bg: "bg-amber-100 dark:bg-amber-500/25", text: "text-amber-900 dark:text-amber-100", label: "修飾" },
+  C: { bg: "bg-violet-100 dark:bg-violet-500/25", text: "text-violet-900 dark:text-violet-100", label: "接続" },
 };
 
 export const Route = createFileRoute("/_authenticated/review")({
@@ -144,7 +146,8 @@ function ReviewPage() {
             )}
             <button
               onClick={toggleLight}
-              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
+              aria-pressed={lightMode}
+              className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1 text-[11px] font-medium ${lightMode ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}
               title="声を出せない場所用の4択モード"
             >
               ライト {lightMode ? "ON" : "OFF"}
@@ -439,17 +442,17 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
 
       {/* Hint reveal */}
       {hintShown && (
-        <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
+        <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30">
           <div className="text-xl font-bold">{card.headword}</div>
           <div className="text-xs text-muted-foreground">
             {card.reading_zhuyin} {card.pinyin && `· ${card.pinyin}`}
           </div>
           <button
             onClick={() => playAudio(card)}
-            className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"
-            aria-label="発音"
+            className="ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+            aria-label="発音を再生"
           >
-            <Volume2 className="h-3.5 w-3.5" />
+            <Volume2 className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -479,7 +482,7 @@ function SpeakingCard({ card, onNext }: { card: DueReviewCard; onNext: () => voi
             <button
               onClick={useHint}
               disabled={hintShown || loading}
-              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] ${hintShown ? "border-amber-300 bg-amber-50 text-amber-700" : "border-border bg-background text-muted-foreground hover:bg-accent/40"}`}
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] ${hintShown ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300" : "border-border bg-background text-muted-foreground hover:bg-accent/40"}`}
             >
               <Lightbulb className="h-5 w-5" />
               {hintShown ? "ヒント使用" : "ヒント"}
@@ -561,7 +564,7 @@ function FeedbackView({
   return (
     <div className="mt-5 space-y-4">
       {/* Header verdict */}
-      <div className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200" : "bg-rose-50 ring-1 ring-rose-200"}`}>
+      <div className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30" : "bg-rose-50 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:ring-rose-400/30"}`}>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">
             {goodTarget && score >= 4 ? "自然！" : goodTarget ? "通じるけど、もう一歩" : `「${card.headword}」を使ってみよう`}
@@ -589,7 +592,7 @@ function FeedbackView({
           <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
           <button
             onClick={() => speakZhTW(feedback.corrected)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
             aria-label="添削文を聞く"
           >
             <Volume2 className="h-4 w-4" />
@@ -599,7 +602,7 @@ function FeedbackView({
       </div>
 
       {/* Chunk = 型 with POS colors (+ word-tree unlock, §6) */}
-      <div className="rounded-2xl bg-white p-3 ring-1 ring-border">
+      <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">型</span>
           {feedback.unlocked_branch && (
@@ -630,24 +633,24 @@ function FeedbackView({
       </div>
 
       {/* Native feel */}
-      <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900">ネイティブの気持ち</div>
-        <p className="text-sm text-indigo-950">{feedback.native_note}</p>
+      <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">ネイティブの気持ち</div>
+        <p className="text-sm text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
       </div>
 
       {/* Model answers */}
-      <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900">お手本</div>
+      <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">お手本</div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-sm">{feedback.model_answer}</div>
-          <button onClick={() => speakZhTW(feedback.model_answer)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-emerald-700" aria-label="お手本を聞く">
-            <Volume2 className="h-3.5 w-3.5" />
+          <button onClick={() => speakZhTW(feedback.model_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="お手本を聞く">
+            <Volume2 className="h-4 w-4" />
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 text-sm text-emerald-900/80">別の言い方: {feedback.alt_answer}</div>
-          <button onClick={() => speakZhTW(feedback.alt_answer)} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-emerald-700" aria-label="別の言い方を聞く">
-            <Volume2 className="h-3.5 w-3.5" />
+          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">別の言い方: {feedback.alt_answer}</div>
+          <button onClick={() => speakZhTW(feedback.alt_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="別の言い方を聞く">
+            <Volume2 className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -722,8 +725,8 @@ function LightModeCard({ card, onNext }: { card: DueReviewCard; onNext: () => vo
             <div className="text-3xl font-bold tracking-tight">{card.headword}</div>
             <button
               onClick={() => playAudio(card)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary"
-              aria-label="発音"
+              className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary"
+              aria-label="発音を再生"
             >
               <Volume2 className="h-4 w-4" />
             </button>
@@ -812,7 +815,7 @@ function EmptyState() {
     <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
       <p className="text-sm text-muted-foreground">今日復習する単語はありません。</p>
       <p className="mt-1 text-xs text-muted-foreground">新しい単語をキャッチすると、10分後に最初の復習が出ます。</p>
-      <Link to="/capture" className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">
+      <Link to="/capture" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
         撮りに行く
       </Link>
     </div>
@@ -825,7 +828,7 @@ function DoneState({ onAgain }: { onAgain: () => void }) {
       <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
       <p className="text-sm font-medium">今日のノルマ、達成！</p>
       <p className="mt-1 text-xs text-muted-foreground">また明日の復習で会いましょう。</p>
-      <button onClick={onAgain} className="mt-4 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">
+      <button onClick={onAgain} className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
         もう一度出す
       </button>
       <div className="mt-2 text-[10px] text-muted-foreground">
