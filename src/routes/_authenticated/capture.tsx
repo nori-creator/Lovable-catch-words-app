@@ -1,163 +1,154 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Check, Keyboard, Loader2, Mic, ScanLine, Volume2, X, RotateCcw, BookOpen, Sparkles, Plus, Bug, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { ImagePicker } from "@/components/ImagePicker";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, RotateCcw, Sparkles, Check, Keyboard, PartyPopper, WifiOff } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { suggestWords, generateCard } from "@/lib/ai.functions";
-import { geocodeLocation } from "@/lib/geocode.functions";
-import { saveSticker } from "@/lib/stickers.functions";
-import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
-import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
-import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
-import { putCachedImage } from "@/lib/image-cache";
-import { WordCard } from "@/components/WordCard";
+import { detectScan, detectParts, getScanContext, lookupHeadwords, markScanTap, type DetectedItem, type DictionaryEntry, type ScanContext } from "@/lib/scan.functions";
+import { synthesizeSpeech } from "@/lib/tts.functions";
+import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
+import { preloadCutout } from "@/lib/cutout";
+import { primeAudio } from "@/lib/audio";
+import { logAppEvent } from "@/lib/metrics.functions";
+import { ScanCatchSheet } from "@/components/ScanCatchSheet";
+import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanEffect } from "@/components/ScanEffect";
+import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/capture")({
-  validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
-    const out: { word?: string; pending?: string } = {};
+  validateSearch: (search: Record<string, unknown>): { word?: string } => {
+    const out: { word?: string } = {};
     // 派生キャッチ: /capture?word=咖啡 で文字入力フローを自動実行
     if (typeof search.word === "string" && search.word) out.word = search.word;
-    // オフラインキューからの復元: /capture?pending=<id>
-    if (typeof search.pending === "string" && search.pending) out.pending = search.pending;
     return out;
   },
+  component: ScanPage,
   head: () => ({
-    meta: [
-      { title: "集める — Catchwords" },
-      { name: "description", content: "写真でも文字入力でも、見つけた言葉をすぐに図鑑へ。" },
-    ],
+    meta: [{ title: "カメラ | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
-  component: CapturePage,
 });
 
-type Mode = "photo" | "text";
-type Step =
-  | "mode"
-  | "object"
-  | "selfie"
-  | "processing"
-  | "select"
-  | "textInput"
-  | "imagePick"
-  | "card"
-  | "saving"
-  | "reencounter"
-  | "offlineSaved";
-
-type Suggestion = {
-  headword: string;
-  reading_zhuyin: string;
-  pinyin: string;
-  meaning_ja: string;
-  category_key: string;
+// § metrics — a tiny bus so the Catch flow can report catch_ms back here
+// without prop-drilling. Only meaningful when dev overlay is on.
+type Metrics = {
+  detect_ms: number | null;
+  parts_ms: number | null;
+  lookup_ms: number | null;
+  tap_to_audio_ms: number | null;
+  prefetch_ms: number | null;
+  catch_ms: number | null;
 };
 
-type CardData = {
-  reading_zhuyin: string;
-  pinyin: string;
-  meaning_ja: string;
-  part_of_speech: string;
-  level: string;
-  category_key: string;
-  example_sentence: string;
-  example_translation: string;
-  extras?: {
-    collocations: string[];
-    synonyms: string[];
-    antonyms: string[];
-    etymology: string;
-    radicals: string;
-    mnemonic: string;
-    trivia: string;
-    common_situation: string;
-    usage_note: string;
-    examples_extra: { zh: string; ja: string }[];
-  };
+
+
+type ChipState = {
+  item: DetectedItem;
+  chosenHeadword: string; // may switch after picking a candidate
+  showingCandidates: boolean;
 };
 
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+/** §3.1b discovery radar: how this word relates to the user's collection. */
+type DotState = "new" | "reunion" | "owned" | "seen";
+
+type ScanCtx = { owned: ScanContext["owned"]; tappedSet: Set<string> };
+
+const normHead = (s: string) => s.normalize("NFC").trim();
+
+function dotStateFor(headword: string, ctx: ScanCtx | undefined): DotState {
+  if (!ctx) return "seen";
+  const key = normHead(headword);
+  const entry = ctx.owned[key];
+  if (entry) return entry.has_photo ? "owned" : "reunion";
+  if (ctx.tappedSet.has(key)) return "seen";
+  return "new";
 }
 
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl);
-  return await res.blob();
+function daysAgo(iso: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
 }
 
-/**
- * Canvas re-encode: shrinks the image AND strips EXIF metadata (GPS etc.)
- * embedded by the camera, so uploads and AI calls never leak it.
- */
-async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): Promise<string> {
-  if (typeof document === "undefined") return dataUrl;
-  try {
-    const img = new Image();
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("image load failed"));
-      img.src = dataUrl;
-    });
-    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * scale));
-    const h = Math.max(1, Math.round(img.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return dataUrl;
-    ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return dataUrl;
-  }
-}
+// A sub-item is a §3.5 part detection whose normalized coords have already
+// been remapped into the parent frame (0..1000). We keep the parent id and
+// tag it so the renderer can draw it as a smaller "child" dot.
+type SubItem = DetectedItem & { parentId: string; sub: true };
 
-function CapturePage() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { word: wordParam, pending: pendingParam } = Route.useSearch();
-  const [mode, setMode] = useState<Mode>("photo");
-  const [step, setStep] = useState<Step>("object");
-  const [objectImg, setObjectImg] = useState<string | null>(null);
-  const [cutoutImg, setCutoutImg] = useState<string | null>(null);
-  const [selfieImg, setSelfieImg] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [selectedHead, setSelectedHead] = useState<string>("");
-  const [manualWord, setManualWord] = useState<string>("");
-  const [card, setCard] = useState<CardData | null>(null);
-  const [caption, setCaption] = useState("");
-  const [loc, setLoc] = useState<{ lat: number; lng: number; name: string | null } | null>(null);
-  const [flipped, setFlipped] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reenc, setReenc] = useState<OwnedWord | null>(null);
-  const [reencRevealed, setReencRevealed] = useState(false);
-  const [reencResult, setReencResult] = useState<{ recalled: boolean; encounter_count: number; next_due_at: string | null } | null>(null);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const selfieInputRef = useRef<HTMLInputElement | null>(null);
-  const autoOpenedRef = useRef(false);
-  const selfieAutoOpenedRef = useRef(false);
-  const handledParamRef = useRef<string | null>(null);
-
-  const suggestFn = useServerFn(suggestWords);
+function ScanPage() {
+  const detectFn = useServerFn(detectScan);
+  const partsFn = useServerFn(detectParts);
+  const lookupFn = useServerFn(lookupHeadwords);
+  const tapFn = useServerFn(markScanTap);
+  const ttsFn = useServerFn(synthesizeSpeech);
   const cardFn = useServerFn(generateCard);
-  const geocodeFn = useServerFn(geocodeLocation);
-  const saveFn = useServerFn(saveSticker);
-  const ownedFn = useServerFn(checkOwnedWord);
-  const encounterFn = useServerFn(recordEncounter);
+  const scanCtxFn = useServerFn(getScanContext);
+  const logEvent = useServerFn(logAppEvent);
+
+  // §3.1b: the user's collection, cached lightly for dot-state matching.
+  const { data: rawScanCtx } = useQuery({
+    queryKey: ["scan-context"],
+    queryFn: () => scanCtxFn(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const scanCtx = useMemo<ScanCtx | undefined>(
+    () => (rawScanCtx ? { owned: rawScanCtx.owned, tappedSet: new Set(rawScanCtx.tapped) } : undefined),
+    [rawScanCtx],
+  );
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // §3.3 プリフェッチ: タップされた語だけ generateCard をバックグラウンド起動し、
+  // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
+  // 物体の詳細生成は行わない(コスト10倍防止)。
+  const prefetchRef = useRef<Map<string, Promise<GeneratedCard>>>(new Map());
+  const prefetchTimingRef = useRef<Map<string, number>>(new Map());
+  const startPrefetch = useCallback((headword: string): Promise<GeneratedCard> => {
+    const cache = prefetchRef.current;
+    const hit = cache.get(headword);
+    if (hit) return hit;
+    const t0 = performance.now();
+    const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+    cache.set(headword, p);
+    p.then(() => {
+      prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
+    }).catch(() => { cache.delete(headword); });
+    return p;
+  }, [cardFn]);
+
+
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
+  const [items, setItems] = useState<DetectedItem[] | null>(null);
+  const [subItems, setSubItems] = useState<SubItem[]>([]);
+  const [expandingId, setExpandingId] = useState<string | null>(null); // parent id currently loading parts
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
+  const [chip, setChip] = useState<ChipState | null>(null);
+  const [detectMs, setDetectMs] = useState<number | null>(null);
+  const [partsMs, setPartsMs] = useState<number | null>(null);
+  const [lookupMs, setLookupMs] = useState<number | null>(null);
+  const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
+  const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
+  const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
+  const [inputCatchText, setInputCatchText] = useState("");
+  const [manualQuery, setManualQuery] = useState("");
+  const [scanLoc, setScanLoc] = useState<{ lat: number | null; lng: number | null; name: string | null }>({ lat: null, lng: null, name: null });
+
+  // Dev metrics overlay — gated so it doesn't pollute normal use.
+  const [devOn, setDevOn] = useState(false);
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("dev");
+      const ls = window.localStorage.getItem("catchwords_dev");
+      if (q === "1" || ls === "1") setDevOn(true);
+    } catch { /* ignore */ }
+  }, []);
+
+
 
   // Warm the cutout model while the user frames the shot, so the first
   // catch doesn't pay the model download + init cost (roadmap B2).
@@ -165,651 +156,894 @@ function CapturePage() {
     preloadCutout();
   }, []);
 
-  // Auto-open the rear camera when landing on /capture (unless we arrived
-  // with a derived-catch word or an offline-queue restore).
+  // 派生キャッチ: /capture?word=◯◯ で文字入力フローを自動オープン
+  const search = Route.useSearch();
   useEffect(() => {
-    if (autoOpenedRef.current) return;
-    if (step !== "object") return;
-    if (wordParam || pendingParam) return;
-    autoOpenedRef.current = true;
-    const t = setTimeout(() => cameraInputRef.current?.click(), 60);
-    return () => clearTimeout(t);
-  }, [step, wordParam, pendingParam]);
-
-  // Derived catch: /capture?word=◯◯ (tapped a collocation/synonym on a card).
-  useEffect(() => {
-    if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
-    handledParamRef.current = `w:${wordParam}`;
-    setMode("text");
-    setManualWord(wordParam);
-    tryGetLocation();
-    void confirmWord(wordParam);
+    if (search.word) {
+      setInputCatchText(search.word);
+      setInputCatchOpen("text");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wordParam]);
+  }, [search.word]);
 
-  // Offline-queue restore: /capture?pending=<id>.
+  // ---- camera lifecycle ----
   useEffect(() => {
-    if (!pendingParam || handledParamRef.current === `p:${pendingParam}`) return;
-    handledParamRef.current = `p:${pendingParam}`;
-    void (async () => {
-      const item = await getPendingCapture(pendingParam);
-      if (!item) {
-        toast.error("保存されていた写真が見つかりませんでした");
-        return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 1280 } },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setReady(true);
+      } catch (e) {
+        setError((e as Error).message || "カメラを起動できませんでした");
       }
-      setPendingId(item.id);
-      setObjectImg(item.object_img);
-      setSelfieImg(item.selfie_img);
-      if (item.lat != null && item.lng != null) {
-        setLoc({ lat: item.lat, lng: item.lng, name: item.location_name });
-      }
-      await runAi(item.object_img);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingParam]);
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
 
-  // Auto-open front camera as soon as the selfie step begins.
+  // ---- capture + downscale to longest side 1024 ----
+  const grabFrame = useCallback((): string | null => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return null;
+    const longest = Math.max(v.videoWidth, v.videoHeight);
+    const scale = Math.min(1, 1024 / longest);
+    const w = Math.round(v.videoWidth * scale);
+    const h = Math.round(v.videoHeight * scale);
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(v, 0, 0, w, h);
+    return c.toDataURL("image/jpeg", 0.82);
+  }, []);
+
+  const doScan = useCallback(async () => {
+    if (scanning) return;
+    unlockAudio();
+    haptic("medium");
+    setError(null);
+    setChip(null);
+    setItems(null);
+    setSubItems([]);
+    setEntries({});
+    setDetectMs(null);
+    setPartsMs(null);
+    setLookupMs(null);
+    setTapToAudioMs(null);
+    const frame = grabFrame();
+    if (!frame) { setError("フレームを取得できませんでした"); return; }
+    setSnapshot(frame);
+    setScanning(true);
+    // KPI: first scan ever (localStorage-deduped).
+    try {
+      if (!localStorage.getItem("kpi-first-scan")) {
+        localStorage.setItem("kpi-first-scan", "1");
+        void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+    setScanStage("sensing");
+    // Cycle status text so the wait feels intentional. Cleared in finally.
+    const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
+    const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
+    const t0 = performance.now();
+    try {
+      // location best-effort (§3.7)
+      let lat: number | null = null, lng: number | null = null;
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 800, maximumAge: 60000 });
+        });
+        lat = pos.coords.latitude; lng = pos.coords.longitude;
+      } catch { /* ignore */ }
+      setScanLoc({ lat, lng, name: null });
+
+      const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
+      const dt = Math.round(performance.now() - t0);
+      setDetectMs(dt);
+      setItems(items);
+
+      if (items.length > 0) {
+        setScanStage("matching");
+        const tl = performance.now();
+        const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
+        setLookupMs(Math.round(performance.now() - tl));
+        setEntries(entries);
+      }
+
+    } catch (e) {
+      setError((e as Error).message || "検出に失敗しました");
+      haptic("warning");
+    } finally {
+      window.clearTimeout(stageTimer1);
+      window.clearTimeout(stageTimer2);
+      setScanning(false);
+      setScanStage("idle");
+      // Peak-End: reward the wait with a shimmer if anything landed.
+      setTimeout(() => {
+        if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
+          // no-op guard; success sound fires from the items effect below
+        }
+      }, 0);
+    }
+  }, [scanning, grabFrame, detectFn, lookupFn, logEvent, items]);
+
+  // Success chime when items arrive.
   useEffect(() => {
-    if (step !== "selfie") { selfieAutoOpenedRef.current = false; return; }
-    if (selfieAutoOpenedRef.current) return;
-    selfieAutoOpenedRef.current = true;
-    const t = setTimeout(() => selfieInputRef.current?.click(), 120);
-    return () => clearTimeout(t);
-  }, [step]);
-
-
-  async function handleObjectFile(file: File) {
-    const url = await fileToDataUrl(file);
-    const compressed = await compressImage(url, 1600);
-    setObjectImg(compressed);
-    setStep("selfie");
-  }
-
-  async function handleSelfieFile(file: File | null) {
-    if (file) {
-      const url = await fileToDataUrl(file);
-      setSelfieImg(await compressImage(url, 1280));
+    if (items && items.length > 0) {
+      Sound.scanSuccess();
+      haptic("success");
+    } else if (items && items.length === 0) {
+      Sound.reviewWrong();
+      haptic("warning");
     }
-    await runAi();
-  }
+  }, [items]);
 
-  function tryGetLocation() {
-    if (loc || !("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { location_name } = await geocodeFn({ data: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
-          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: location_name });
-        } catch {
-          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null });
-        }
-      },
-      () => {},
-      { timeout: 5000 }
-    );
-  }
 
-  async function runAi(imgOverride?: string) {
-    const img = imgOverride ?? objectImg;
-    if (!img) return;
-    setStep("processing");
-    setError(null);
-    tryGetLocation();
-
-    try {
-      // The AI only needs a small image — shrinking it cuts upload time and cost.
-      const aiImage = await compressImage(img, 768, 0.8);
-      const [cutoutRes, suggestRes] = await Promise.all([
-        removeBackgroundSmart(img).catch((e) => {
-          console.warn("background removal failed, using original", e);
-          return img;
-        }),
-        suggestFn({ data: { imageBase64: aiImage, targetLanguage: "zh-TW" } }),
-      ]);
-      setCutoutImg(cutoutRes);
-      setSuggestions(suggestRes.suggestions);
-      setStep("select");
-    } catch (e) {
-      console.error(e);
-      // Offline? Keep the shot: queue it locally and analyze when back online.
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const saved = await enqueueCapture({
-          object_img: img,
-          selfie_img: selfieImg,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-          location_name: loc?.name ?? null,
-        });
-        if (saved) {
-          setStep("offlineSaved");
-          return;
-        }
-      }
-      setError(e instanceof Error ? e.message : "AI処理に失敗しました");
-      setStep("object");
-      toast.error("AI処理に失敗しました。もう一度お試しください。");
+  // ---- tap a dot ----
+  const openChip = useCallback((item: DetectedItem) => {
+    const lowConf = item.confidence < 0.75 && item.alternatives.length > 0;
+    setChip({ item, chosenHeadword: item.headword, showingCandidates: lowConf });
+    if (!lowConf) {
+      void playAudio(item.headword, item);
+      // §3.3 プリフェッチ: バックグラウンドで詳細カード生成を開始。
+      startPrefetch(item.headword);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startPrefetch]);
 
-  async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
-    setSelectedHead(head);
-    setStep("processing");
+  const pickCandidate = useCallback(async (headword: string, item: DetectedItem) => {
+    setChip({ item, chosenHeadword: headword, showingCandidates: false });
+    // fetch dict entry for the newly-chosen headword if not cached
+    if (!entries[headword]) {
+      try {
+        const { entries: e } = await lookupFn({ data: { headwords: [headword] } });
+        setEntries((prev) => ({ ...prev, ...e }));
+      } catch { /* noop */ }
+    }
+    void playAudio(headword, item);
+    // 候補確定後にプリフェッチ開始(誤選択で無駄打ちしないため候補選択より後)。
+    startPrefetch(headword);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, lookupFn, startPrefetch]);
 
-    // Already caught this word? Then this is a re-encounter — the best review
-    // moment there is — not a duplicate sticker.
+
+  const playAudio = useCallback(async (headword: string, item: DetectedItem) => {
+    // Must run synchronously inside the tap gesture, before any await —
+    // otherwise iOS rejects the later .play() and the button stays silent.
+    if (!audioRef.current) audioRef.current = new Audio();
+    primeAudio(audioRef.current);
+    const t0 = performance.now();
+    // タップ記録は音声再生開始後に1回だけ送る(tap_to_audio_msを同梱、§7)。
+    const reportTap = (ms: number) => {
+      setTapToAudioMs(ms);
+      void tapFn({ data: { headword, tap_to_audio_ms: ms } }).catch(() => {});
+    };
     try {
-      const { owned } = await ownedFn({ data: { headword: head, language: "zh-TW" } });
-      if (owned) {
-        setReenc(owned);
-        setReencRevealed(false);
-        setReencResult(null);
-        setStep("reencounter");
-        return;
+      const dict = entries[headword];
+      let url: string;
+      if (dict?.audio_url) {
+        // §4.3 事前生成音声: 署名URLが手元にあるのでサーバー往復ゼロで即再生。
+        url = dict.audio_url;
+      } else {
+        const r = await ttsFn({ data: { text: headword } });
+        url = r.audio_url;
       }
+      if (!audioRef.current) audioRef.current = new Audio();
+      audioRef.current.src = url;
+      await audioRef.current.play();
+      reportTap(Math.round(performance.now() - t0));
     } catch {
-      // Ownership check is best-effort; fall through to the normal flow.
-    }
-
-    try {
-      if (hint) {
-        setCard({
-          reading_zhuyin: hint.reading_zhuyin,
-          pinyin: hint.pinyin,
-          meaning_ja: hint.meaning_ja,
-          part_of_speech: "名詞",
-          level: "TOCFL-2",
-          category_key: hint.category_key,
-          example_sentence: "",
-          example_translation: "",
-        });
-        cardFn({ data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key } })
-          .then((c) => setCard(c))
-          .catch(() => {});
+      // fall back to browser TTS
+      if ("speechSynthesis" in window) {
+        const u = new SpeechSynthesisUtterance(headword);
+        u.lang = "zh-TW";
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+        reportTap(Math.round(performance.now() - t0));
       } else {
-        const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
-        setCard(c);
+        void tapFn({ data: { headword } }).catch(() => {});
       }
-      // Text-input path needs to pick an image next
-      if (mode === "text" && !objectImg && !opts?.skipImagePick) {
-        setStep("imagePick");
-      } else {
-        setStep("card");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("カード生成に失敗しました");
-      setStep(mode === "text" ? "textInput" : "select");
     }
-  }
+    void item;
+  }, [entries, ttsFn, tapFn]);
 
-  function onImagePicked(dataUrl: string) {
-    setObjectImg(dataUrl);
-    setCutoutImg(dataUrl);
-    setStep("card");
-  }
+  const reset = useCallback(() => {
+    setItems(null); setSubItems([]); setSnapshot(null); setChip(null); setEntries({});
+    setDetectMs(null); setPartsMs(null); setLookupMs(null); setTapToAudioMs(null);
+    setCatchOpen(null); setExpandingId(null);
+    prefetchRef.current.clear();
+    prefetchTimingRef.current.clear();
+  }, []);
 
-  async function handleSave() {
-    if (!card || !selectedHead) return;
-    setStep("saving");
+  // ---- §3.5 「+細かく」: crop a region around the parent tap point and run a
+  // second (parts-only) detection. Coords come back in the cropped 0..1000
+  // frame; we remap into the parent frame before storing so the same dot
+  // renderer can draw them.
+  const expandParts = useCallback(async (parent: DetectedItem) => {
+    if (!snapshot || expandingId) return;
+    // Skip if we already have children for this parent
+    if (subItems.some((s) => s.parentId === parent.id)) return;
+    setExpandingId(parent.id);
+    const t0 = performance.now();
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Not signed in");
+      // Crop a square around the tap point ~40% of the shortest side.
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("img")); img.src = snapshot; });
+      const cx = (parent.point[0] / 1000) * img.width;
+      const cy = (parent.point[1] / 1000) * img.height;
+      const side = Math.min(img.width, img.height) * 0.42;
+      const x = Math.max(0, Math.min(img.width - side, cx - side / 2));
+      const y = Math.max(0, Math.min(img.height - side, cy - side / 2));
+      const c = document.createElement("canvas");
+      c.width = c.height = Math.round(side);
+      const ctx = c.getContext("2d");
+      if (!ctx) throw new Error("canvas");
+      ctx.drawImage(img, x, y, side, side, 0, 0, c.width, c.height);
+      const cropDataUrl = c.toDataURL("image/jpeg", 0.85);
 
-      const ts = Date.now();
-      async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
-        if (!dataUrl) return null;
-        const blob = await dataUrlToBlob(dataUrl);
-        const ext = blob.type.includes("png") ? "png" : "jpg";
-        const path = `${userId}/${ts}-${kind}.${ext}`;
-        const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
-        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-          contentType: blob.type,
-          upsert: false,
-        });
-        if (error) throw error;
-        // Grid thumbnail alongside — best-effort, the grid falls back to the
-        // original when it's missing (old stickers, encode failure).
-        const thumb = await thumbPromise;
-        if (thumb) {
-          await supabase.storage
-            .from("stickers")
-            .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
-            .catch(() => {});
-          void putCachedImage(thumbPath(path), thumb);
-        }
-        // Prime the device cache so the dex shows this image instantly,
-        // without ever downloading what we just uploaded.
-        void putCachedImage(path, blob);
-        return path;
+      const { items: parts } = await partsFn({ data: { imageBase64: cropDataUrl, parentHeadword: parent.headword } });
+      setPartsMs(Math.round(performance.now() - t0));
+
+      // Remap normalized crop coords → parent-frame normalized coords.
+      // Crop region in parent-frame normalized units:
+      const rx0 = (x / img.width) * 1000;
+      const ry0 = (y / img.height) * 1000;
+      const rw = (side / img.width) * 1000;
+      const rh = (side / img.height) * 1000;
+      const mapped: SubItem[] = parts.map((p) => ({
+        ...p,
+        parentId: parent.id,
+        sub: true,
+        point: [rx0 + (p.point[0] / 1000) * rw, ry0 + (p.point[1] / 1000) * rh],
+      }));
+      setSubItems((prev) => [...prev, ...mapped]);
+
+      // Lookup verified dict entries for the sub-parts so chips can badge them
+      if (mapped.length > 0) {
+        try {
+          const { entries: e } = await lookupFn({ data: { headwords: mapped.map((m) => m.headword) } });
+          setEntries((prev) => ({ ...prev, ...e }));
+        } catch { /* noop */ }
       }
-
-      const [object_path, cutout_path, selfie_path] = await Promise.all([
-        upload(objectImg, "object"),
-        upload(cutoutImg, "cutout"),
-        upload(selfieImg, "selfie"),
-      ]);
-
-      const res = await saveFn({
-        data: {
-          word: {
-            headword: selectedHead,
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            meaning_ja: card.meaning_ja,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            category_key: card.category_key,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            extras: card.extras,
-          },
-          language: "zh-TW",
-          object_path,
-          cutout_path,
-          selfie_path,
-          caption: caption || null,
-          location_name: loc?.name ?? null,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-        },
-      });
-
-      await queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      if (pendingId) await removePendingCapture(pendingId);
-      toast.success("ステッカーを図鑑に追加しました！");
-      navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
-      setStep("card");
+      setError((e as Error).message || "詳細検出に失敗しました");
+    } finally {
+      setExpandingId(null);
     }
-  }
+  }, [snapshot, expandingId, subItems, partsFn, lookupFn]);
 
-  function reset() {
-    setMode("photo");
-    setStep("object");
-    setObjectImg(null);
-    setCutoutImg(null);
-    setSelfieImg(null);
-    setSuggestions([]);
-    setSelectedHead("");
-    setManualWord("");
-    setCard(null);
-    setCaption("");
-    setFlipped(false);
-    setError(null);
-    setReenc(null);
-    setReencRevealed(false);
-    setReencResult(null);
-    setPendingId(null);
-  }
 
-  async function answerReencounter(recalled: boolean) {
-    if (!reenc || reencResult) return;
-    try {
-      const res = await encounterFn({
-        data: {
-          sticker_id: reenc.sticker_id,
-          recalled,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-          location_name: loc?.name ?? null,
-        },
-      });
-      setReencResult({ recalled, encounter_count: res.encounter_count, next_due_at: res.next_due_at });
-      await queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      await queryClient.invalidateQueries({ queryKey: ["reviews-due"] });
-    } catch (e) {
-      console.error(e);
-      toast.error("記録に失敗しました");
-    }
-  }
+
+  // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
+  const boxSize = useBoxSize(boxRef);
+  const dotStyle = useCallback((it: DetectedItem): React.CSSProperties => {
+    const [x, y] = it.point;
+    const left = (x / 1000) * boxSize.w;
+    const top = (y / 1000) * boxSize.h;
+    return { left, top };
+  }, [boxSize]);
+
+  const chosenDict = chip ? entries[chip.chosenHeadword] : undefined;
+  const displayHeadword = chip?.chosenHeadword ?? "";
+  const displayZhuyin = chosenDict?.zhuyin ?? chip?.item.zhuyin ?? "";
+  const displayPinyin = chosenDict?.pinyin ?? chip?.item.pinyin ?? "";
+  const displayMeaning = chosenDict?.meaning_ja ?? chip?.item.meaning_ja ?? "";
+  const displayPos = chosenDict?.pos ?? chip?.item.pos ?? "";
+  const verified = Boolean(chosenDict && chosenDict.source === "verified");
+
+  // Only surface target-language (Chinese) words as candidates — drop English
+  // and other non-learning-language detections from the dots and the list.
+  const visibleItems = useMemo(
+    () => (items ?? []).filter((it) => /[㐀-鿿豈-﫿]/.test(it.headword)),
+    [items],
+  );
 
   return (
-    <AppShell title="集める">
-      {step === "object" && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">写真で集める</h2>
-            <p className="mt-1 text-sm text-muted-foreground">街で見つけたモノにカメラを向けてみてください。</p>
-          </div>
-          <label className="block">
-            <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
-              <div className="flex flex-col items-center gap-2">
-                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
-                  <Camera className="h-8 w-8" />
+    <AppShell title="スキャン">
+      <div className="space-y-3">
+        <div
+          ref={boxRef}
+          className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-black shadow-lg ring-1 ring-black/10"
+        >
+          {/* live camera */}
+          {!snapshot && (
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+          {/* frozen snapshot after scan */}
+          {snapshot && (
+            <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          )}
+
+          {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
+          {scanning && scanStage !== "idle" && (
+            <ScanEffect stage={scanStage} />
+          )}
+
+          {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
+          {visibleItems.map((it) => {
+            const low = it.confidence < 0.75;
+            const isText = it.kind === "text";
+            const expanded = subItems.some((s) => s.parentId === it.id);
+            const state = dotStateFor(it.headword, scanCtx);
+            // apple-design: three soft glass "lights", one per state —
+            //   new (未発見)                      → white
+            //   owned (スキャン済み=写真あり)       → green
+            //   reunion (文字/音声で登録・写真なし) → amber
+            // All share the same glow + ring treatment so they read as one
+            // family rather than loud, clashing dots.
+            const marker =
+              state === "owned"
+                ? "bg-emerald-400 ring-emerald-100/70 shadow-[0_0_10px_2px_rgba(52,211,153,0.5)]"
+                : state === "reunion"
+                  ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
+                  : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
+            return (
+              <button
+                key={it.id}
+                onClick={() => openChip(it)}
+                style={dotStyle(it)}
+                // §11: the dot is 16px but the tap target is padded to the 44px
+                // floor — these on-camera markers are the primary interaction.
+                className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
+                aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? "取得済み" : state === "reunion" ? "未撮影" : "新しい"}`}
+              >
+                <span
+                  className={[
+                    "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
+                    marker,
+                    low ? "opacity-70" : "",
+                    expanded ? "ring-2 ring-amber-200/80" : "",
+                  ].join(" ")}
+                />
+                {isText && state !== "owned" && (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[9px] font-bold text-foreground/70">A</span>
+                )}
+                {state === "owned" && (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                  </span>
+                )}
+                {state === "new" && (
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-white/30 motion-reduce:animate-none" />
+                )}
+                {state === "reunion" && (
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-amber-300/40 blur-sm motion-reduce:animate-none" />
+                )}
+                {low && (
+                  <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
+                )}
+                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる */}
+                <span className="pointer-events-none absolute top-full mt-1 left-1/2 max-w-[140px] -translate-x-1/2 truncate whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
+                  {it.headword}
+                  {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
                 </span>
-                <span className="text-sm font-medium">タップして撮影</span>
-              </div>
-            </div>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleObjectFile(e.target.files[0])}
-            />
-          </label>
-
-          <div className="flex items-center gap-3 pt-2">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">または</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <button
-            onClick={() => { setMode("text"); setStep("textInput"); }}
-            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
-          >
-            <Keyboard className="h-4 w-4" />
-            単語を文字で入力
-          </button>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
-      )}
-
-      {step === "selfie" && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 2: 自撮りを撮る（任意）</h2>
-          <p className="text-sm text-muted-foreground">対象物と一緒に自分も撮ると、後で振り返るときに記憶が蘇ります。</p>
-          {objectImg && (
-            <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
-              <img src={objectImg} alt="object" className="h-full w-full object-cover" />
-            </div>
-          )}
-          <label className="block">
-            <div className="grid aspect-[3/4] place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary">
-              <div className="flex flex-col items-center gap-2">
-                <Camera className="h-10 w-10" />
-                <span className="text-sm">自撮りを追加</span>
-              </div>
-            </div>
-            <input
-              ref={selfieInputRef}
-              type="file"
-              accept="image/*"
-              capture="user"
-              className="hidden"
-              onChange={(e) => handleSelfieFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => handleSelfieFile(null)} className="flex-1">
-              スキップして次へ
-            </Button>
-            <Button variant="ghost" onClick={reset}>
-              <RotateCcw className="mr-1 h-4 w-4" /> やり直す
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "processing" && (
-        <div className="fixed inset-0 z-50 bg-black">
-          {objectImg && (
-            <img
-              src={objectImg}
-              alt="processing"
-              className="absolute inset-0 h-full w-full object-cover opacity-70"
-            />
-          )}
-          <div className="absolute inset-0 shimmer-sweep" />
-          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 animate-pulse" />
-              <span className="font-semibold">{mode === "text" ? "意味と例文を生成中..." : "AIが分析中..."}</span>
-            </div>
-            <p className="text-sm text-white/80">少しだけ待ってね</p>
-          </div>
-        </div>
-      )}
-
-      {step === "select" && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 3: 単語を選ぶ</h2>
-          <div className="flex gap-3">
-            {cutoutImg && (
-              <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
-                <img src={cutoutImg} alt="cutout" className="h-full w-full object-contain pop-in" />
-              </div>
-            )}
-            <p className="text-sm text-muted-foreground">AIが候補を提案しました。学びたい単語を選んでください。</p>
-          </div>
-          <div className="grid gap-2">
-            {suggestions.map((s) => (
-              <button
-                key={s.headword}
-                onClick={() => confirmWord(s.headword, s, { skipImagePick: true })}
-                className="lift flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
-              >
-                <div>
-                  <div className="text-base font-semibold">{s.headword}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.reading_zhuyin || s.pinyin} · {s.meaning_ja}
-                  </div>
-                </div>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">{s.category_key}</span>
               </button>
-            ))}
-          </div>
-          <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-            <Label htmlFor="manual" className="text-xs text-muted-foreground">違う単語を入力</Label>
-            <div className="mt-1 flex gap-2">
-              <Input
-                id="manual"
-                value={manualWord}
-                onChange={(e) => setManualWord(e.target.value)}
-                placeholder="例: 椅子"
-              />
-              <Button
-                disabled={!manualWord.trim()}
-                onClick={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
-              >
-                これにする
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {step === "textInput" && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">単語を入力</h2>
-          <p className="text-sm text-muted-foreground">中国語（繁体字）か日本語、どちらでもOK。AIが意味と例文を作ります。</p>
-          <div>
-            <Label htmlFor="word" className="text-xs text-muted-foreground">単語</Label>
-            <Input
-              id="word"
-              value={manualWord}
-              onChange={(e) => setManualWord(e.target.value)}
-              placeholder="例: 咖啡 / コーヒー"
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">戻る</Button>
-            <Button disabled={!manualWord.trim()} onClick={() => { tryGetLocation(); confirmWord(manualWord.trim()); }} className="flex-1">
-              次へ <Sparkles className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "imagePick" && card && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">この単語の画像を選ぶ</h2>
-          <div className="rounded-2xl border border-border bg-card p-3">
-            <div className="text-xl font-semibold">{selectedHead}</div>
-            <div className="text-xs text-muted-foreground">{card.reading_zhuyin} · {card.meaning_ja}</div>
-          </div>
-          <ImagePicker query={selectedHead} onPicked={onImagePicked} />
-          <button onClick={() => setStep("textInput")} className="text-xs text-muted-foreground underline">単語を変える</button>
-        </div>
-      )}
-
-      {step === "card" && card && (
-        <div className="space-y-4">
-          <div
-            className="perspective-[1200px]"
-            onClick={() => setFlipped((f) => !f)}
-          >
-            <div
-              className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
+            );
+          })}
+          {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
+          {subItems.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => openChip(s)}
+              style={dotStyle(s)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
+              aria-label={`${s.headword}（部品）`}
             >
-              <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
-                <div className="grid h-full place-items-center p-6">
-                  {cutoutImg ? (
-                    <img src={cutoutImg} alt={selectedHead} className="max-h-full max-w-full object-contain pop-in" />
-                  ) : objectImg ? (
-                    <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
-              </div>
-              <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-                {selfieImg ? (
-                  <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
-                )}
-              </div>
+              <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
+            </button>
+          ))}
+          {/* parts loader (§3.5) — subtle pulse over the parent region */}
+          {expandingId && items?.find((i) => i.id === expandingId) && (
+            <div
+              style={dotStyle(items.find((i) => i.id === expandingId)!)}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+            >
+              <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
             </div>
-          </div>
-          <p className="text-center text-[11px] text-muted-foreground">画像をタップで自撮りにフリップ</p>
-
-          <WordCard
-            word={{
-              headword: selectedHead,
-              reading_zhuyin: card.reading_zhuyin,
-              pinyin: card.pinyin,
-              meaning_ja: card.meaning_ja,
-              part_of_speech: card.part_of_speech,
-              level: card.level,
-              example_sentence: card.example_sentence,
-              example_translation: card.example_translation,
-              extras: card.extras ?? null,
-            }}
-          />
-
-          <div>
-            <Label htmlFor="caption" className="text-xs text-muted-foreground">一言メモ（任意）</Label>
-            <Textarea id="caption" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="どんな場面で出会った？" rows={2} />
-          </div>
-
-          {loc?.name && (
-            <p className="text-xs text-muted-foreground">📍 {loc.name}</p>
           )}
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">
-              やり直す
-            </Button>
-            <Button onClick={handleSave} className="lift flex-1">
-              <Check className="mr-1 h-4 w-4" /> 図鑑に追加
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "saving" && (
-        <div className="grid place-items-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">保存中...</p>
-        </div>
-      )}
-
-      {step === "reencounter" && reenc && (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-amber-300/60 bg-gradient-to-br from-amber-50 to-white p-5 text-center shadow-lg">
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-xs font-bold text-amber-950">
-              <PartyPopper className="h-3.5 w-3.5" /> 再会！
+          {/* empty state after scan — revive the native-language search field
+              (§2 onboarding escape hatch): type a word (Japanese is fine). */}
+          {items && visibleItems.length === 0 && !scanning && (
+            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-card/95 p-3 text-sm text-card-foreground shadow-lg backdrop-blur">
+              <p className="text-center text-muted-foreground">
+                候補がないときは、単語で検索（日本語でもOK）
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = manualQuery.trim();
+                  if (!q) return;
+                  setInputCatchText(q);
+                  setInputCatchOpen("text");
+                }}
+                className="mt-2 flex gap-2"
+              >
+                <input
+                  value={manualQuery}
+                  onChange={(e) => setManualQuery(e.target.value)}
+                  placeholder="例: マンゴー / 芒果"
+                  className="min-w-0 flex-1 rounded-full border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <button
+                  type="submit"
+                  className="press-in inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                >
+                  <Search className="h-4 w-4" /> 調べる
+                </button>
+              </form>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              この言葉、{new Date(reenc.taken_at).toLocaleDateString("ja-JP")}
-              {reenc.location_name ? `に ${reenc.location_name} で` : "に"}ゲットしています。
-            </p>
-            {reenc.cutout_url && (
-              <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5">
-                <img src={reenc.cutout_url} alt={reenc.headword} className="h-full w-full object-contain p-2" />
-              </div>
-            )}
-            <div className="text-3xl font-bold tracking-tight">{reenc.headword}</div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
-            </div>
+          )}
 
-            {!reencRevealed ? (
+          {/* legend */}
+          {ready && !snapshot && !scanning && (
+            <div className="absolute left-3 top-3 flex gap-2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white backdrop-blur">
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white" />新しい</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />スキャン済み</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />未撮影</span>
+            </div>
+          )}
+
+          {/* compact metrics badge (always visible after a scan) */}
+          {(detectMs !== null || tapToAudioMs !== null) && (
+            <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
+              {detectMs !== null && <span>検出 {detectMs}ms</span>}
+              {tapToAudioMs !== null && <span className="ml-2">音声 {tapToAudioMs}ms</span>}
+            </div>
+          )}
+        </div>
+
+
+        {/* controls */}
+        <div className="flex items-center justify-center gap-3">
+          {!snapshot ? (
+            <>
               <button
-                onClick={() => setReencRevealed(true)}
-                className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-sm font-semibold text-amber-900"
+                onClick={() => setInputCatchOpen("text")}
+                aria-label="文字入力でキャッチ"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
               >
-                意味、覚えてる？ — タップして答え合わせ
+                <Keyboard className="h-5 w-5" />
               </button>
-            ) : (
-              <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
-                <p className="text-lg font-semibold">{reenc.meaning_ja}</p>
-                {!reencResult ? (
-                  <div className="mt-3 flex gap-2">
-                    <Button onClick={() => answerReencounter(true)} className="flex-1">
-                      覚えてた！
-                    </Button>
-                    <Button variant="outline" onClick={() => answerReencounter(false)} className="flex-1">
-                      忘れてた…
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-2 text-sm">
-                    <p className="font-semibold">
-                      {reencResult.recalled ? "現実世界での復習、最強です 🎉" : "大丈夫、明日また出題します"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      再会 {reencResult.encounter_count} 回目
-                      {reencResult.next_due_at &&
-                        ` · 次の復習: ${new Date(reencResult.next_due_at).toLocaleDateString("ja-JP")}`}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> 別のものを撮る
-            </Button>
-            {reencResult && (
-              <Button
-                onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })}
-                className="flex-1"
+              <button
+                onClick={doScan}
+                disabled={!ready || scanning}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
               >
-                図鑑で見る
-              </Button>
-            )}
-          </div>
+                {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
+                スキャン
+              </button>
+              <button
+                onClick={() => setInputCatchOpen("voice")}
+                aria-label="聞こえたフレーズを復唱してキャッチ"
+                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
+              >
+                <Mic className="h-5 w-5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={reset}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground shadow"
+              >
+                <RotateCcw className="h-4 w-4" /> もう一度
+              </button>
+              <button
+                onClick={doScan}
+                disabled={scanning}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow"
+              >
+                <Camera className="h-4 w-4" /> 再スキャン
+              </button>
+            </>
+          )}
         </div>
+
+        {/* 単語検索: スキャンで拾えない語を、母語(日本語)でも学習言語でも直接調べる */}
+        {!snapshot && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const q = manualQuery.trim();
+              if (!q) return;
+              setInputCatchText(q);
+              setInputCatchOpen("text");
+            }}
+            className="flex gap-2"
+          >
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={manualQuery}
+                onChange={(e) => setManualQuery(e.target.value)}
+                placeholder="単語を検索（日本語・台湾華語どちらでもOK）"
+                className="w-full rounded-full border border-border bg-card py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!manualQuery.trim()}
+              className="press-in inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              調べる
+            </button>
+          </form>
+        )}
+
+        {error && (
+          <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
+        )}
+
+        {/* 候補リスト(羅列): カメラ上の単語ラベル(上)に加え、下に一覧でも見せる。
+            タップでカメラ上のドットと同じチップを開く。 */}
+        {visibleItems.length > 0 && !scanning && (
+          <div className="space-y-1.5">
+            <p className="px-1 text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+              見つかった単語
+            </p>
+            {visibleItems.map((it) => {
+              const st = dotStateFor(it.headword, scanCtx);
+              return (
+                <button
+                  key={it.id}
+                  onClick={() => openChip(it)}
+                  className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      st === "owned" ? "bg-emerald-400" : st === "reunion" ? "bg-amber-400" : "bg-sky-400"
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="truncate text-base font-semibold">{it.headword}</span>
+                      {it.zhuyin && <span className="shrink-0 text-[11px] text-muted-foreground">{it.zhuyin}</span>}
+                    </span>
+                    {it.meaning_ja && (
+                      <span className="block truncate text-xs text-muted-foreground">{it.meaning_ja}</span>
+                    )}
+                  </span>
+                  {/* §2: don't lean on colour alone — reunion carries a text tag,
+                      owned a check, new a chevron. */}
+                  {st === "owned" ? (
+                    <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                      <Check className="h-3.5 w-3.5" /> 取得済み
+                    </span>
+                  ) : st === "reunion" ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                      未撮影
+                    </span>
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* chip / mini card */}
+        {chip && (
+          <ScanChip
+            headword={displayHeadword}
+            zhuyin={displayZhuyin}
+            pinyin={displayPinyin}
+            meaning={displayMeaning}
+            pos={displayPos}
+            verified={verified}
+            state={dotStateFor(displayHeadword, scanCtx)}
+            foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
+            item={chip.item}
+            candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
+            expanding={expandingId === chip.item.id}
+            canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
+            onPickCandidate={(h) => pickCandidate(h, chip.item)}
+            onPlay={() => playAudio(displayHeadword, chip.item)}
+            onExpand={() => expandParts(chip.item)}
+            onCatch={() => {
+              if (!chip.chosenHeadword || !snapshot) return;
+              startPrefetch(chip.chosenHeadword);
+              setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
+            onClose={() => setChip(null)}
+          />
+        )}
+
+        {/* Dev metrics panel (?dev=1 or localStorage.catchwords_dev=1) */}
+        {devOn && (
+          <DevMetrics
+            values={{
+              detect_ms: detectMs,
+              parts_ms: partsMs,
+              lookup_ms: lookupMs,
+              tap_to_audio_ms: tapToAudioMs,
+              prefetch_ms: chip ? (prefetchTimingRef.current.get(chip.chosenHeadword) ?? null) : null,
+              catch_ms: null,
+            }}
+            targets={SCAN_TARGETS}
+          />
+        )}
+      </div>
+
+
+
+      {catchOpen && snapshot && (
+        <ScanCatchSheet
+          snapshotDataUrl={snapshot}
+          item={catchOpen.item}
+          headword={catchOpen.headword}
+          dict={entries[catchOpen.headword]}
+          cardPromise={startPrefetch(catchOpen.headword)}
+          loc={scanLoc}
+          upgrade={(() => {
+            // §5.3: catching a gold (ghost) dot upgrades the existing sticker.
+            const entry = scanCtx?.owned[normHead(catchOpen.headword)];
+            return entry && !entry.has_photo ? { sticker_id: entry.sticker_id } : null;
+          })()}
+          onClose={() => setCatchOpen(null)}
+        />
       )}
 
-      {step === "offlineSaved" && (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-border bg-card p-8 text-center">
-            <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="text-base font-semibold">オフラインなので写真だけ保存しました</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              電波が戻ったら、ホームの「解析待ち」から続きができます。撮った瞬間は逃していません。
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
-              ホームへ
-            </Button>
-            <Button onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> もう一枚撮る
-            </Button>
-          </div>
-        </div>
+      {inputCatchOpen && (
+        <InputCatchSheet
+          initialMode={inputCatchOpen}
+          initialText={inputCatchText}
+          onClose={() => { setInputCatchOpen(null); setInputCatchText(""); setManualQuery(""); }}
+        />
       )}
+
+      <style>{`
+        @keyframes scanline { 0% { transform: translateY(0); opacity: 0.2; } 50% { transform: translateY(400px); opacity: 1; } 100% { transform: translateY(0); opacity: 0.2; } }
+        @keyframes scanlineV { 0% { transform: translateX(0); opacity: 0.2; } 50% { transform: translateX(300px); opacity: 1; } 100% { transform: translateX(0); opacity: 0.2; } }
+        @keyframes probeBlink {
+          0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+          40%      { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+          70%      { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+        }
+        @keyframes partsPulse {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
+          50%      { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+        }
+      `}</style>
     </AppShell>
   );
+}
+
+
+function ScanChip({
+  headword, zhuyin, pinyin, meaning, pos, verified, state, foundAt, candidates, expanding, canExpand,
+  onPickCandidate, onPlay, onExpand, onCatch, onClose,
+}: {
+  headword: string;
+  zhuyin: string;
+  pinyin: string;
+  meaning: string;
+  pos: string;
+  verified: boolean;
+  state: DotState;
+  foundAt: string | null;
+  item: DetectedItem;
+  candidates: string[];
+  expanding: boolean;
+  canExpand: boolean;
+  onPickCandidate: (h: string) => void;
+  onPlay: () => void;
+  onExpand: () => void;
+  onCatch: () => void;
+  onClose: () => void;
+}) {
+  if (candidates.length > 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-medium text-muted-foreground">どちらですか?</p>
+          <button onClick={onClose} aria-label="閉じる" className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-muted-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {candidates.map((c) => (
+            <button
+              key={c}
+              onClick={() => onPickCandidate(c)}
+              className="rounded-full bg-amber-100 px-4 py-2.5 text-base font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+            >
+              {c}?
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`rounded-2xl border p-4 shadow-md ${
+      state === "reunion"
+        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50 dark:border-amber-400/30 dark:from-amber-500/10 dark:to-yellow-500/5"
+        : "border-border bg-gradient-to-br from-card to-sky-50/50 dark:to-sky-500/5"
+    }`}>
+      {state === "reunion" && foundAt && (
+        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
+          ✨ {daysAgo(foundAt)}日前に調べた「{headword}」だ! 撮って図鑑を完成させよう
+        </p>
+      )}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">{headword}</h2>
+            {state === "owned" && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                <Check className="h-3 w-3 text-emerald-600" /> 取得済み
+              </span>
+            )}
+            {verified ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/30">
+                ✓ 検証済み
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                AI生成・未検証
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {zhuyin} {pinyin && <span className="ml-2">{pinyin}</span>}
+          </div>
+          <p className="mt-2 text-base font-medium">{meaning}</p>
+          {pos && (
+            <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
+              {pos}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onPlay}
+          aria-label="発音を再生"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 motion-reduce:active:scale-100"
+        >
+          <Volume2 className="h-5 w-5" />
+        </button>
+        <button onClick={onClose} aria-label="閉じる" className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {canExpand && (
+          <button
+            onClick={onExpand}
+            disabled={expanding}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+            title="この物体を構成する部品を追加検出"
+          >
+            {expanding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {expanding ? "解析中…" : "細かく"}
+          </button>
+        )}
+        <button
+          onClick={onCatch}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
+        >
+          <BookOpen className="h-4 w-4" /> キャッチ
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ---- helper micro-components for loader / dev overlay ----
+
+const PROBE_DOTS: { x: number; y: number; delay: number }[] = [
+  { x: 22, y: 18, delay: 0 },   { x: 78, y: 24, delay: 250 },
+  { x: 62, y: 46, delay: 500 }, { x: 30, y: 60, delay: 750 },
+  { x: 82, y: 66, delay: 1000 },{ x: 46, y: 80, delay: 1250 },
+  { x: 18, y: 40, delay: 350 }, { x: 70, y: 82, delay: 600 },
+];
+
+function ReticleCorners() {
+  const base = "pointer-events-none absolute h-4 w-4 border-white/70";
+  return (
+    <>
+      <span className={`${base} left-4 top-4 border-l-2 border-t-2 rounded-tl`} />
+      <span className={`${base} right-4 top-4 border-r-2 border-t-2 rounded-tr`} />
+      <span className={`${base} left-4 bottom-4 border-l-2 border-b-2 rounded-bl`} />
+      <span className={`${base} right-4 bottom-4 border-r-2 border-b-2 rounded-br`} />
+    </>
+  );
+}
+
+function StageDot({ active, done }: { active: boolean; done: boolean }) {
+  return (
+    <span
+      className={[
+        "h-1.5 rounded-full transition-all duration-300",
+        active ? "w-6 bg-cyan-300" : done ? "w-1.5 bg-cyan-500" : "w-1.5 bg-white/30",
+      ].join(" ")}
+    />
+  );
+}
+
+// §9 targets (MVP pass line). Values in ms.
+const SCAN_TARGETS = {
+  detect_ms: 2500,
+  parts_ms: 2500,
+  lookup_ms: 400,
+  tap_to_audio_ms: 1000,
+  prefetch_ms: 3000,
+  catch_ms: 8000,
+} as const;
+
+function DevMetrics({ values, targets }: { values: Metrics; targets: Record<keyof Metrics, number> }) {
+  const [open, setOpen] = useState(true);
+  const rows: { key: keyof Metrics; label: string }[] = [
+    { key: "detect_ms",       label: "検出 (§9 ≤2500ms)" },
+    { key: "parts_ms",        label: "+細かく (§3.5)" },
+    { key: "lookup_ms",       label: "辞書照合" },
+    { key: "tap_to_audio_ms", label: "タップ→音声 (§9 ≤1000ms)" },
+    { key: "prefetch_ms",     label: "詳細プリフェッチ (§9 ≤500ms表示)" },
+    { key: "catch_ms",        label: "キャッチ完了" },
+  ];
+  return (
+    <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-xs">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 text-amber-900 font-semibold">
+        <span className="flex items-center gap-1.5"><Bug className="h-3.5 w-3.5" /> 開発者計測 (§9)</span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1">
+          {rows.map((r) => {
+            const v = values[r.key];
+            const t = targets[r.key];
+            const ok = v !== null && v <= t;
+            const bad = v !== null && v > t;
+            return (
+              <li key={r.key} className="flex items-center justify-between gap-2">
+                <span className="text-amber-950/80">{r.label}</span>
+                <span className={`tabular-nums font-mono ${ok ? "text-emerald-700" : bad ? "text-red-700" : "text-muted-foreground"}`}>
+                  {v === null ? "—" : `${v}ms`}
+                  <span className="ml-1 text-[10px] opacity-60">/ {t}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="mt-2 text-[10px] text-amber-900/70">
+        表示切替: <code>?dev=1</code> か <code>localStorage.catchwords_dev=1</code>
+      </p>
+    </div>
+  );
+}
+
+
+
+function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setSize({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    setSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, [ref]);
+  return size;
 }

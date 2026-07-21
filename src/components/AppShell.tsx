@@ -6,14 +6,14 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
-type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/capture" | "/review" | "/settings"; label: string; icon: typeof Home };
 
 // 5-item bottom nav (roadmap B5): the center slot is the one big camera
 // entrance — scan (かざす=調べる) with the catch/keyboard entrances inside it.
 const items: Item[] = [
   { to: "/home", label: "ホーム", icon: Home },
   { to: "/dex", label: "図鑑", icon: BookOpen },
-  { to: "/scan", label: "カメラ", icon: ScanLine },
+  { to: "/capture", label: "カメラ", icon: ScanLine },
   { to: "/review", label: "復習", icon: Sparkles },
   { to: "/settings", label: "設定", icon: Settings },
 ];
@@ -60,7 +60,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
         <ul className="mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
           {items.map(({ to, label, icon: Icon }) => {
-            const isScan = to === "/scan";
+            const isScan = to === "/capture";
             return (
               <li key={to} className="flex-1">
                 <Link
