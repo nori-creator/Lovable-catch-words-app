@@ -483,13 +483,14 @@ function ScanPage() {
                 key={it.id}
                 onClick={() => openChip(it)}
                 style={dotStyle(it)}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 grid place-items-center transition-transform active:scale-90`}
-                aria-label={it.headword}
+                // §11: the dot is 16px but the tap target is padded to the 44px
+                // floor — these on-camera markers are the primary interaction.
+                className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
+                aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? "取得済み" : state === "reunion" ? "未撮影" : "新しい"}`}
               >
                 <span
                   className={[
-                    "block rounded-full ring-1 backdrop-blur-[1px] transition-all",
-                    state === "owned" ? "h-4 w-4" : "h-4 w-4",
+                    "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
                     marker,
                     low ? "opacity-70" : "",
                     expanded ? "ring-2 ring-amber-200/80" : "",
@@ -504,10 +505,10 @@ function ScanPage() {
                   </span>
                 )}
                 {state === "new" && (
-                  <span className="pointer-events-none absolute -inset-1 animate-ping rounded-full bg-white/30" />
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-white/30 motion-reduce:animate-none" />
                 )}
                 {state === "reunion" && (
-                  <span className="pointer-events-none absolute -inset-2 animate-pulse rounded-full bg-amber-300/40 blur-sm" />
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-amber-300/40 blur-sm motion-reduce:animate-none" />
                 )}
                 {low && (
                   <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[9px] font-bold text-black">?</span>
@@ -526,11 +527,11 @@ function ScanPage() {
               key={s.id}
               onClick={() => openChip(s)}
               style={dotStyle(s)}
-              className="absolute -translate-x-1/2 -translate-y-1/2 grid place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300"
-              aria-label={s.headword}
+              className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
+              aria-label={`${s.headword}（部品）`}
             >
               <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
-              <span className="pointer-events-none absolute -inset-2 rounded-full border border-dashed border-amber-300/70" />
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
             </button>
           ))}
           {/* parts loader (§3.5) — subtle pulse over the parent region */}
@@ -546,7 +547,7 @@ function ScanPage() {
           {/* empty state after scan — revive the native-language search field
               (§2 onboarding escape hatch): type a word (Japanese is fine). */}
           {items && visibleItems.length === 0 && !scanning && (
-            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-white/95 p-3 text-sm shadow-lg backdrop-blur">
+            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-card/95 p-3 text-sm text-card-foreground shadow-lg backdrop-blur">
               <p className="text-center text-muted-foreground">
                 候補がないときは、単語で検索（日本語でもOK）
               </p>
@@ -568,7 +569,7 @@ function ScanPage() {
                 />
                 <button
                   type="submit"
-                  className="press-in inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                  className="press-in inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
                 >
                   <Search className="h-4 w-4" /> 調べる
                 </button>
@@ -626,14 +627,14 @@ function ScanPage() {
             <>
               <button
                 onClick={reset}
-                className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground shadow"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground shadow"
               >
                 <RotateCcw className="h-4 w-4" /> もう一度
               </button>
               <button
                 onClick={doScan}
                 disabled={scanning}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow"
               >
                 <Camera className="h-4 w-4" /> 再スキャン
               </button>
@@ -705,8 +706,16 @@ function ScanPage() {
                       <span className="block truncate text-xs text-muted-foreground">{it.meaning_ja}</span>
                     )}
                   </span>
+                  {/* §2: don't lean on colour alone — reunion carries a text tag,
+                      owned a check, new a chevron. */}
                   {st === "owned" ? (
-                    <Check className="h-4 w-4 shrink-0 text-foreground/50" />
+                    <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                      <Check className="h-3.5 w-3.5" /> 取得済み
+                    </span>
+                  ) : st === "reunion" ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                      未撮影
+                    </span>
                   ) : (
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
@@ -831,14 +840,14 @@ function ScanChip({
       <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium text-muted-foreground">どちらですか?</p>
-          <button onClick={onClose} className="text-muted-foreground"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="閉じる" className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-muted-foreground"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex flex-wrap gap-2">
           {candidates.map((c) => (
             <button
               key={c}
               onClick={() => onPickCandidate(c)}
-              className="rounded-full bg-amber-100 px-3 py-1.5 text-base font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95"
+              className="rounded-full bg-amber-100 px-4 py-2.5 text-base font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
             >
               {c}?
             </button>
@@ -850,11 +859,11 @@ function ScanChip({
   return (
     <div className={`rounded-2xl border p-4 shadow-md ${
       state === "reunion"
-        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50"
-        : "border-border bg-gradient-to-br from-card to-sky-50/50"
+        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50 dark:border-amber-400/30 dark:from-amber-500/10 dark:to-yellow-500/5"
+        : "border-border bg-gradient-to-br from-card to-sky-50/50 dark:to-sky-500/5"
     }`}>
       {state === "reunion" && foundAt && (
-        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900">
+        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
           ✨ {daysAgo(foundAt)}日前に調べた「{headword}」だ! 撮って図鑑を完成させよう
         </p>
       )}
@@ -868,11 +877,11 @@ function ScanChip({
               </span>
             )}
             {verified ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/30">
                 ✓ 検証済み
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
                 AI生成・未検証
               </span>
             )}
@@ -882,7 +891,7 @@ function ScanChip({
           </div>
           <p className="mt-2 text-base font-medium">{meaning}</p>
           {pos && (
-            <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200">
+            <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
               {pos}
             </span>
           )}
@@ -890,11 +899,11 @@ function ScanChip({
         <button
           onClick={onPlay}
           aria-label="発音を再生"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 motion-reduce:active:scale-100"
         >
           <Volume2 className="h-5 w-5" />
         </button>
-        <button onClick={onClose} aria-label="閉じる" className="p-1 text-muted-foreground">
+        <button onClick={onClose} aria-label="閉じる" className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -903,7 +912,7 @@ function ScanChip({
           <button
             onClick={onExpand}
             disabled={expanding}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
             title="この物体を構成する部品を追加検出"
           >
             {expanding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
@@ -912,7 +921,7 @@ function ScanChip({
         )}
         <button
           onClick={onCatch}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95"
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
         >
           <BookOpen className="h-4 w-4" /> キャッチ
         </button>
