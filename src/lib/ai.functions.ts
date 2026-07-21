@@ -244,16 +244,25 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const pro = await isProUser(context.userId);
-    const result = await generateText({
-      model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
-      prompt,
-      experimental_output: Output.object({ schema: CardSchema }) as never,
-    });
-    const out = (result as unknown as { experimental_output?: z.infer<typeof CardSchema> }).experimental_output;
-    const card = out ?? (() => {
-      try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
-      catch { throw new Error("AI did not return a structured card"); }
-    })();
+    let card: z.infer<typeof CardSchema>;
+    try {
+      const result = await generateText({
+        model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
+        prompt,
+        experimental_output: Output.object({ schema: CardSchema }) as never,
+      });
+      const out = (result as unknown as { experimental_output?: z.infer<typeof CardSchema> }).experimental_output;
+      card = out ?? CardSchema.parse(parseJsonFromAiText(result.text));
+    } catch (error) {
+      const { NoObjectGeneratedError } = await import("ai");
+      const errText = (error as { text?: string } | null)?.text;
+      if (NoObjectGeneratedError.isInstance(error) && typeof errText === "string") {
+        try { card = CardSchema.parse(parseJsonFromAiText(errText)); }
+        catch { throw new Error("AI did not return a structured card"); }
+      } else {
+        throw error;
+      }
+    }
     await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
     // 入力キャッチ・派生キャッチで生まれた語も共有辞書に蓄積(SNS/日常語彙)。
