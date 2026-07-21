@@ -43,7 +43,7 @@ function OnboardingPage() {
       });
       void logEvent({ data: { kind: "onboarding_done" } }).catch(() => {});
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      navigate({ to: "/scan", replace: true });
+      navigate({ to: "/capture", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "開始に失敗しました");
       setStarting(false);
