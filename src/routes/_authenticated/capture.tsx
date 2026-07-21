@@ -17,9 +17,15 @@ import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/capture")({
+  validateSearch: (search: Record<string, unknown>): { word?: string } => {
+    const out: { word?: string } = {};
+    // 派生キャッチ: /capture?word=咖啡 で文字入力フローを自動実行
+    if (typeof search.word === "string" && search.word) out.word = search.word;
+    return out;
+  },
   component: ScanPage,
   head: () => ({
-    meta: [{ title: "スキャン | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
+    meta: [{ title: "カメラ | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
 });
 
