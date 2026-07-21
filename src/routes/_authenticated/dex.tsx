@@ -7,7 +7,7 @@ import { listMyStickers } from "@/lib/stickers.functions";
 import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
-import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2 } from "lucide-react";
+import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/dex")({
@@ -485,8 +485,19 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stickers]);
 
+  // Tapping a photo below pans+zooms the map to where it was caught.
+  function focusOnMap(s: (typeof stickers)[number]) {
+    if (s.lat == null || s.lng == null) return;
+    const map = mapInstance.current as { panTo: (l: object) => void; setZoom: (z: number) => void } | null;
+    if (map) {
+      map.panTo({ lat: s.lat, lng: s.lng });
+      map.setZoom(17);
+    }
+    mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const withLoc = stickers.filter((s) => s.lat != null && s.lng != null);
-  const recent = withLoc.slice(0, 6);
+  const recent = withLoc.slice(0, 12);
 
   if (!browserKey) {
     return (
@@ -509,18 +520,40 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
 
       {recent.length > 0 && (
         <section className="mt-5">
-          <h3 className="mb-2 text-sm font-semibold tracking-tight">最近キャッチした場所</h3>
-          <div className="grid grid-cols-3 gap-2">
-            {recent.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } })}
-                className="lift flex flex-col items-center rounded-2xl border border-border bg-card p-3 text-center"
-              >
-                <span className="text-2xl">{s.word.silhouette_emoji ?? "📍"}</span>
-                <span className="mt-1 text-xs font-medium">{s.word.headword}</span>
-              </button>
-            ))}
+          <h3 className="mb-1 text-sm font-semibold tracking-tight">キャッチした場所</h3>
+          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで地図がその場所へズーム。地図上のピンをタップで単語の詳細へ。</p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {recent.map((s) => {
+              const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => focusOnMap(s)}
+                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
+                  aria-label={`「${s.word.headword}」の場所を地図で見る`}
+                >
+                  <div className="aspect-square w-full overflow-hidden bg-secondary">
+                    {thumb ? (
+                      <CachedImg
+                        src={thumb}
+                        alt={`「${s.word.headword}」の写真`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="grid h-full w-full place-items-center text-2xl">
+                        {s.word.silhouette_emoji ?? "📍"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1.5">
+                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="truncate text-xs font-medium">{s.word.headword}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
