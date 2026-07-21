@@ -482,14 +482,50 @@ export async function upsertWord(
       word.meaning_ja,
       categoryKey,
     ).catch(() => {});
-  } else if (word.extras) {
-    // Update extras for existing word if AI generated new ones
-    await supabase
+  } else if (word.extras && hasExtrasContent(word.extras)) {
+    // Update extras for an existing word when the AI generated rich ones.
+    //
+    // The words UPDATE RLS policy only covers source='ai', so writing through
+    // the user client silently updated 0 rows for verified dictionary words —
+    // that is why a caught TOCFL word showed only 意味 + 例文 and none of the
+    // rich sections (コロケーション/類義語/語源/覚え方…): its extras never
+    // persisted. Write via the service role instead, and — like reportWordIssue,
+    // keeping constitution §2-1 intact — only ever touch the `extras` supplement
+    // (the UI already labels it AI-generated), never verified base fields.
+    // Merge over any existing extras so a sparser later catch can't wipe a
+    // richer earlier one.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cur } = await supabaseAdmin
       .from("words")
-      .update({ extras: word.extras as never })
-      .eq("id", wordId);
+      .select("extras")
+      .eq("id", wordId)
+      .maybeSingle();
+    const merged = mergeExtras(cur?.extras as WordExtrasDTO | null, word.extras);
+    await supabaseAdmin.from("words").update({ extras: merged as never }).eq("id", wordId);
   }
   return wordId;
+}
+
+/** True when an extras object carries at least one non-empty field. */
+function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
+  if (!e) return false;
+  return Object.values(e).some((v) =>
+    Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim() !== "" : v != null,
+  );
+}
+
+/** Merge incoming extras over existing: a non-empty incoming field wins, an
+ *  empty one keeps whatever was already stored (never regress a rich card). */
+function mergeExtras(
+  existing: WordExtrasDTO | null | undefined,
+  incoming: Partial<WordExtrasDTO>,
+): WordExtrasDTO {
+  const out: Record<string, unknown> = { ...(existing ?? {}) };
+  for (const [k, v] of Object.entries(incoming)) {
+    const nonEmpty = Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim() !== "" : v != null;
+    if (nonEmpty) out[k] = v;
+  }
+  return out as WordExtrasDTO;
 }
 
 export const saveSticker = createServerFn({ method: "POST" })
