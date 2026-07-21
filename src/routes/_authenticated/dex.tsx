@@ -401,8 +401,14 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
   const pinIconCache = useRef<Map<string, string | null>>(new Map());
-  const browserKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
-  const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
+  // Lovable-free first: prefer a plain VITE_ key, fall back to Lovable's
+  // connector-injected name so it keeps working during the migration.
+  const browserKey =
+    import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ??
+    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+  const channel =
+    import.meta.env.VITE_GOOGLE_MAPS_TRACKING_ID ??
+    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
 
   useEffect(() => {
     if (!browserKey) return;
