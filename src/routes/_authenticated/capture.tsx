@@ -156,6 +156,16 @@ function ScanPage() {
     preloadCutout();
   }, []);
 
+  // 派生キャッチ: /capture?word=◯◯ で文字入力フローを自動オープン
+  const search = Route.useSearch();
+  useEffect(() => {
+    if (search.word) {
+      setInputCatchText(search.word);
+      setInputCatchOpen("text");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.word]);
+
   // ---- camera lifecycle ----
   useEffect(() => {
     let cancelled = false;
