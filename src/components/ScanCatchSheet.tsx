@@ -188,9 +188,12 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     void fly.offsetWidth;
 
     // --- 第1幕: 画面いっぱいに「バン」と拡大 + 単語ドーン ---------------------
+    // 画像全体が画面いっぱいに広がるように、ビューポート幅いっぱいまで拡大する
+    // (以前の 0.9×短辺 だと横に余白が残っていた)。fly は object-contain なので
+    // 正方形の写真も全体が見えたまま画面幅まで広がる。
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const heroScale = (Math.min(vw, vh) * 0.9) / Math.max(from.width, 1);
+    const heroScale = (vw * 1.0) / Math.max(from.width, 1);
     const dxHero = vw / 2 - fromCx;
     const dyHero = vh * 0.42 - fromCy;
     fly.style.transition = "transform 460ms cubic-bezier(0.2, 0.9, 0.3, 1.18)";
