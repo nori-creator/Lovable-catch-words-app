@@ -224,7 +224,7 @@ export const generateCard = createServerFn({ method: "POST" })
 - example_sentence: 台湾で日常的に使う自然な例文（繁体字）
 - example_translation: 例文の日本語訳
 
-extras 項目（できる限り埋めること、不明な場合は空配列または空文字で可）:
+extras 項目（**すべて具体的な内容で必ず埋めること**。推測でよいので空文字・空配列で返さない。該当が本当に無いのは antonyms くらい）:
 - collocations: 一緒に使われる典型的なコロケーション3〜5個（繁体字）
 - synonyms: 類義語2〜4個（繁体字）
 - antonyms: 反義語1〜3個（繁体字）
@@ -244,23 +244,56 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const pro = await isProUser(context.userId);
+    const model = ai.gateway(pro ? ai.modelRichPremium : ai.modelRich);
     // Plain text + robust JSON parse (like suggestWords). We deliberately do NOT
     // use experimental_output / response_format=json_schema here: Gemini's
     // OpenAI-compatible endpoint rejects many json_schema shapes with a 400,
-    // which threw the whole call and left every caught word with empty extras
-    // (only 意味・例文 from the verified dictionary showed). A JSON-only
-    // instruction + tolerant parse works across providers.
-    const result = await generateText({
-      model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
-      prompt: `${prompt}
+    // which threw the whole call and left every caught word with empty extras.
+    //
+    // 重要(2026-07-16の不具合修正): 以前はここで「全項目が空のJSONテンプレート」を
+    // 例として渡していたため、gemini-3-flash がその空テンプレートをそのまま返し、
+    // 27/29語の extras が空(意味しか出ない)になっていた。空の例は絶対に見せず、
+    // 「各キーを内容で埋めた1つのJSONだけ返す」と指示する。念のため、返ってきた
+    // extras がほぼ空なら1回だけ強めに再生成する。
+    const jsonTail =
+      `\n\n**出力は上記をすべて内容で埋めた JSON オブジェクト1つだけ**` +
+      `（前置き・説明・コードフェンス不要）。含めるキー: ` +
+      `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
+      `category_key / example_sentence / example_translation / ` +
+      `extras{ collocations, synonyms, antonyms, etymology, radicals, mnemonic, ` +
+      `trivia, common_situation, usage_note, register_note, synonym_diff, ` +
+      `word_order, study_tips, examples_extra[{zh,ja}] }。` +
+      `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
-**出力は JSON オブジェクトだけ**（前置き・説明・マークダウンのコードフェンスは不要）。キーは次の通り:
-{"headword_zh","reading_zhuyin","pinyin","meaning_ja","part_of_speech","level","category_key","example_sentence","example_translation","extras":{"collocations":[],"synonyms":[],"antonyms":[],"etymology":"","radicals":"","mnemonic":"","trivia":"","common_situation":"","usage_note":"","register_note":"","synonym_diff":"","word_order":"","study_tips":"","examples_extra":[{"zh":"","ja":""}]}}`,
-    });
-    const card = (() => {
+    const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
+      const result = await generateText({ model, prompt: `${prompt}${jsonTail}${extraPush}` });
       try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
       catch { throw new Error("AI did not return a structured card"); }
-    })();
+    };
+    const extrasLookEmpty = (c: GeneratedCard): boolean => {
+      const e = c.extras;
+      if (!e) return true;
+      const filled = [
+        e.common_situation, e.usage_note, e.register_note, e.synonym_diff,
+        e.word_order, e.study_tips, e.etymology, e.mnemonic, e.trivia,
+      ].some((v) => !!v && v.trim().length > 0) ||
+        (e.collocations?.length ?? 0) > 0 ||
+        (e.synonyms?.length ?? 0) > 0 ||
+        (e.examples_extra?.length ?? 0) > 0;
+      return !filled;
+    };
+    let card = await genOnce();
+    if (extrasLookEmpty(card)) {
+      // 1回だけ、空を明確に禁止して作り直す。
+      try {
+        const retry = await genOnce(
+          `\n\n前回 extras が空で不十分でした。今回は collocations / common_situation / ` +
+          `register_note / word_order / study_tips / examples_extra を含め、` +
+          `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
+        );
+        if (!extrasLookEmpty(retry)) card = retry;
+      } catch { /* keep the first result */ }
+    }
     await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
     // 入力キャッチ・派生キャッチで生まれた語も共有辞書に蓄積(SNS/日常語彙)。
