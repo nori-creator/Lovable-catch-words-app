@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { synthesizeSpeech } from "@/lib/tts.functions";
 import { speakZhTW } from "@/lib/speak";
+import { claimAudio, primeAudio } from "@/lib/audio";
 
 /**
  * Accuracy-first pronunciation.
@@ -20,6 +21,9 @@ export function usePronounce(): (text: string) => Promise<void> {
   return async function pronounce(text: string) {
     const word = text.trim();
     if (!word) return;
+    // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
+    if (!elRef.current) elRef.current = new Audio();
+    primeAudio(elRef.current);
     try {
       let url = cache.current.get(word);
       if (!url) {
@@ -30,7 +34,9 @@ export function usePronounce(): (text: string) => Promise<void> {
         }
       }
       if (url) {
-        if (!elRef.current) elRef.current = new Audio();
+        // 音声の被り対策: このフックは画面ごとに別インスタンスなので、各自が
+        // 自前の Audio を持つと重なって鳴る。再生前にグローバルで排他を取る。
+        claimAudio(elRef.current);
         elRef.current.src = url;
         await elRef.current.play();
         return;

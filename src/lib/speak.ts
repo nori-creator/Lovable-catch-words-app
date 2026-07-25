@@ -9,6 +9,8 @@
  * offline-ish and for free in the meantime.)
  */
 
+import { stopOtherAudio } from "@/lib/audio";
+
 let cached: SpeechSynthesisVoice | null = null;
 
 function pickVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | null {
@@ -35,7 +37,9 @@ export function speakZhTW(text: string, rate = 0.95): void {
     if (voice) u.voice = voice;
     u.lang = voice?.lang ?? "zh-TW";
     u.rate = rate;
-    synth.cancel();
+    // 音声の被り対策: 直前に鳴っている <audio>(サーバーTTS)も止めてから話す。
+    // synth.cancel() だけでは Audio 要素は止まらず、二重に聞こえていた。
+    stopOtherAudio();
     synth.speak(u);
   };
 

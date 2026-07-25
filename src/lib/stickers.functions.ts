@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
+import { normalizeCategory } from "./category";
 
 export type WordExtrasDTO = {
   collocations: string[];
@@ -439,9 +440,13 @@ export async function upsertWord(
 
   let wordId: string | undefined = existing?.id;
   if (!wordId) {
-    // Normalize category_key: if the AI proposed one that doesn't exist in the
-    // categories table, fall back to 'other' so the FK doesn't reject the insert.
-    let categoryKey = word.category_key;
+    // カテゴリー正規化(2026-07-23の不具合修正):
+    // 以前はここで「categories 表に無いキー→ other」に落とすだけだった。
+    // 表には20キーしか無くコードは54キーを使っていたため、body/kitchenware/
+    // medicine 等に分類された語がすべて「その他」に潰れていた。
+    // いまは (1) 見出し語から確実に補正 → (2) それでも表に無ければ other、の順。
+    // 表の不足キーは 20260723090000_seed_missing_categories.sql で投入済み。
+    let categoryKey: string = normalizeCategory(word.headword, word.category_key);
     const { data: catRow } = await supabase
       .from("categories")
       .select("key")

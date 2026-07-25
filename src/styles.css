@@ -311,6 +311,116 @@
 
 .handwritten { font-family: "Caveat","Shadows Into Light","Comic Sans MS",cursive; }
 
+/* ===========================================================================
+   3D アルバム (2026-07-23) — 「リアルに立体的に」
+   本物のフォトアルバムに見せるための3層構成:
+     1) .album-3d       … 本体。奥行き(perspective)の基準+厚みの影
+     2) .album-3d::before/after … 綴じ目の谷と、重なったページの端(小口)
+     3) .photo-3d       … 台紙に貼られた写真。面取り+接地影+持ち上げ
+   すべて CSS のみ(画像アセットなし)。prefers-reduced-motion では
+   傾き・持ち上げを止め、平面として静止させる。
+   =========================================================================== */
+.album-3d {
+  position: relative;
+  /* 子(写真)を3D空間に置くための視点。値が小さいほどパースが強い */
+  perspective: 1400px;
+  perspective-origin: 50% 30%;
+  transform-style: preserve-3d;
+  /* 本の厚み: 下に向かって重なる複数の影で「紙束」を作る */
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    0 1px 0 rgba(0,0,0,0.10),
+    0 2px 0 #efe6cf, 0 3px 0 rgba(0,0,0,0.06),
+    0 4px 0 #e8dcc0, 0 5px 0 rgba(0,0,0,0.05),
+    0 7px 0 #e0d3b4, 0 8px 0 rgba(0,0,0,0.04),
+    0 18px 28px -8px rgba(76,55,26,0.35),
+    0 40px 60px -24px rgba(76,55,26,0.28);
+}
+/* 綴じ目(左側の谷)— 中央でページが沈む陰影 */
+.album-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34px;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg,
+      rgba(76,55,26,0.28) 0%,
+      rgba(76,55,26,0.12) 38%,
+      rgba(255,255,255,0.22) 72%,
+      rgba(0,0,0,0) 100%);
+  z-index: 1;
+}
+/* 小口(右下)— 重なったページの断面 */
+.album-3d::after {
+  content: "";
+  position: absolute;
+  right: 0; bottom: 0; left: 34px;
+  height: 10px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255,255,255,0.55) 0 1px,
+    rgba(120,95,55,0.16) 1px 2px);
+  border-bottom-right-radius: inherit;
+  z-index: 1;
+}
+
+/* 台紙に貼られた写真 — 面取り+接地影で厚みを出す */
+.photo-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  background: linear-gradient(160deg, #fffefa 0%, #fdf9ee 55%, #f3ead6 100%);
+  padding: 7px 7px 26px;
+  border-radius: 3px;
+  box-shadow:
+    /* 面取り(上が明るく下が暗い=光が上から) */
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(120,95,55,0.18),
+    inset 1px 0 0 rgba(255,255,255,0.6),
+    inset -1px 0 0 rgba(120,95,55,0.10),
+    /* 接地影(近い硬い影)+ 環境影(遠いぼけた影) */
+    0 1px 2px rgba(60,42,18,0.28),
+    0 6px 10px -2px rgba(60,42,18,0.24),
+    0 14px 22px -8px rgba(60,42,18,0.22);
+  transition: transform 260ms var(--spring-bounce, cubic-bezier(0.34,1.56,0.64,1)),
+              box-shadow 260ms ease;
+  will-change: transform;
+}
+.photo-3d img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 1px; }
+/* 写真面のわずかな光沢(斜めのハイライト) */
+.photo-3d::after {
+  content: "";
+  position: absolute;
+  inset: 7px 7px 26px;
+  pointer-events: none;
+  border-radius: 1px;
+  background: linear-gradient(115deg,
+    rgba(255,255,255,0.34) 0%,
+    rgba(255,255,255,0.10) 22%,
+    rgba(255,255,255,0) 46%);
+  mix-blend-mode: screen;
+}
+/* 触ると台紙から浮き上がる(手前へ+わずかに起きる) */
+.album-3d .photo-lift:hover .photo-3d {
+  transform: translateZ(26px) rotateX(6deg) scale(1.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(120,95,55,0.18),
+    0 2px 3px rgba(60,42,18,0.24),
+    0 16px 24px -4px rgba(60,42,18,0.30),
+    0 34px 48px -14px rgba(60,42,18,0.26);
+}
+.album-3d .photo-lift:active .photo-3d {
+  transform: translateZ(10px) rotateX(2deg) scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-3d { transition: none; }
+  .album-3d .photo-lift:hover .photo-3d,
+  .album-3d .photo-lift:active .photo-3d { transform: none; }
+}
+
 /* Soft paper texture overlay (subtle noise via gradients) */
 .album-bg-paper {
   background:
