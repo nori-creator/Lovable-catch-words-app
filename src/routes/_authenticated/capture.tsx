@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
-import { ImagePicker } from "@/components/ImagePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +18,8 @@ import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/o
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
+import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
@@ -69,18 +70,7 @@ type CardData = {
   category_key: string;
   example_sentence: string;
   example_translation: string;
-  extras?: {
-    collocations: string[];
-    synonyms: string[];
-    antonyms: string[];
-    etymology: string;
-    radicals: string;
-    mnemonic: string;
-    trivia: string;
-    common_situation: string;
-    usage_note: string;
-    examples_extra: { zh: string; ja: string }[];
-  };
+  extras?: import("@/lib/extras").WordExtrasDTO;
 };
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -126,10 +116,13 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 }
 
 function CapturePage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { word: wordParam, pending: pendingParam } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("photo");
+  // 文字入力キャッチはアプリ共通の InputCatchSheet に統一(重複UIの解消)。
+  const [inputSheet, setInputSheet] = useState<null | { text?: string; auto?: boolean }>(null);
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
@@ -176,14 +169,12 @@ function CapturePage() {
     return () => clearTimeout(t);
   }, [step, wordParam, pendingParam]);
 
-  // Derived catch: /capture?word=◯◯ (tapped a collocation/synonym on a card).
+  // Derived catch: /capture?word=◯◯ — 共通の入力キャッチシートで即調べる。
   useEffect(() => {
     if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
     handledParamRef.current = `w:${wordParam}`;
-    setMode("text");
-    setManualWord(wordParam);
     tryGetLocation();
-    void confirmWord(wordParam);
+    setInputSheet({ text: wordParam, auto: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
 
@@ -329,23 +320,12 @@ function CapturePage() {
         const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
         setCard(c);
       }
-      // Text-input path needs to pick an image next
-      if (mode === "text" && !objectImg && !opts?.skipImagePick) {
-        setStep("imagePick");
-      } else {
-        setStep("card");
-      }
+      setStep("card");
     } catch (e) {
       console.error(e);
       toast.error("カード生成に失敗しました");
-      setStep(mode === "text" ? "textInput" : "select");
+      setStep("select");
     }
-  }
-
-  function onImagePicked(dataUrl: string) {
-    setObjectImg(dataUrl);
-    setCutoutImg(dataUrl);
-    setStep("card");
   }
 
   async function handleSave() {
@@ -471,8 +451,8 @@ function CapturePage() {
       {step === "object" && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">写真で集める</h2>
-            <p className="mt-1 text-sm text-muted-foreground">街で見つけたモノにカメラを向けてみてください。</p>
+            <h2 className="text-xl font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("capture.photoHint")}</p>
           </div>
           <label className="block">
             <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
@@ -480,7 +460,7 @@ function CapturePage() {
                 <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
                   <Camera className="h-8 w-8" />
                 </span>
-                <span className="text-sm font-medium">タップして撮影</span>
+                <span className="text-sm font-medium">{t("capture.tapToShoot")}</span>
               </div>
             </div>
             <input
@@ -495,16 +475,16 @@ function CapturePage() {
 
           <div className="flex items-center gap-3 pt-2">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">または</span>
+            <span className="text-xs text-muted-foreground">{t("capture.or")}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
 
           <button
-            onClick={() => { setMode("text"); setStep("textInput"); }}
+            onClick={() => setInputSheet({})}
             className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
           >
             <Keyboard className="h-4 w-4" />
-            単語を文字で入力
+            {t("capture.typeWord")}
           </button>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -612,41 +592,6 @@ function CapturePage() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
-
-      {step === "textInput" && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">単語を入力</h2>
-          <p className="text-sm text-muted-foreground">中国語（繁体字）か日本語、どちらでもOK。AIが意味と例文を作ります。</p>
-          <div>
-            <Label htmlFor="word" className="text-xs text-muted-foreground">単語</Label>
-            <Input
-              id="word"
-              value={manualWord}
-              onChange={(e) => setManualWord(e.target.value)}
-              placeholder="例: 咖啡 / コーヒー"
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">戻る</Button>
-            <Button disabled={!manualWord.trim()} onClick={() => { tryGetLocation(); confirmWord(manualWord.trim()); }} className="flex-1">
-              次へ <Sparkles className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "imagePick" && card && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">この単語の画像を選ぶ</h2>
-          <div className="rounded-2xl border border-border bg-card p-3">
-            <div className="text-xl font-semibold">{selectedHead}</div>
-            <div className="text-xs text-muted-foreground">{card.reading_zhuyin} · {card.meaning_ja}</div>
-          </div>
-          <ImagePicker query={selectedHead} onPicked={onImagePicked} />
-          <button onClick={() => setStep("textInput")} className="text-xs text-muted-foreground underline">単語を変える</button>
         </div>
       )}
 
@@ -809,6 +754,14 @@ function CapturePage() {
             </Button>
           </div>
         </div>
+      )}
+      {inputSheet && (
+        <InputCatchSheet
+          initialMode="text"
+          initialText={inputSheet.text}
+          autoLookup={inputSheet.auto}
+          onClose={() => setInputSheet(null)}
+        />
       )}
     </AppShell>
   );

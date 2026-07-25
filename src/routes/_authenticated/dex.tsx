@@ -9,6 +9,7 @@ import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -40,6 +41,7 @@ declare global {
 }
 
 function DexPage() {
+  const t = useT();
   const fetchStickers = useServerFn(listMyStickers);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
@@ -121,12 +123,12 @@ function DexPage() {
     <AppShell title="図鑑">
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
-          <h2 className="text-base font-semibold tracking-tight">あなたの図鑑</h2>
+          <h2 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h2>
           {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
           <p className="text-xs text-muted-foreground">
-            見つけた <span className="font-semibold text-foreground">{captured.length}</span>
+            {t("dex.found")} <span className="font-semibold text-foreground">{captured.length}</span>
             <span className="mx-1.5">·</span>
-            捕まえた <span className="font-semibold text-foreground">{captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url).length}</span>
+            {t("dex.caught")} <span className="font-semibold text-foreground">{captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url).length}</span>
           </p>
         </div>
         <div className="flex gap-1 rounded-full bg-secondary p-1">
@@ -157,7 +159,7 @@ function DexPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="単語・読み・意味で検索"
+            placeholder={t("dex.search")}
             aria-label="図鑑を検索"
             className="rounded-full pl-9 pr-11"
           />
@@ -177,8 +179,8 @@ function DexPage() {
       {view !== "map" && captured.length > 0 && (
         <div className="mb-3 flex gap-1.5">
           {([
-            ["category", "カテゴリ"],
-            ["pos", "品詞"],
+            ["category", t("dex.category")],
+            ["pos", t("dex.pos")],
           ] as const).map(([g, label]) => (
             <button
               key={g}
@@ -194,7 +196,7 @@ function DexPage() {
       )}
 
       {view === "map" ? (
-        <DexMap stickers={captured} />
+        <DexMap stickers={captured} onOpen={setOpenId} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -307,7 +309,16 @@ function DexPage() {
                       className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
                     >
                       <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
-                        {s.cutout_url ? (
+                        {/* 撮った元の写真をそのまま見せる(絵文字の段ボールは最終手段) */}
+                        {s.object_thumb_url ?? s.object_url ? (
+                          <CachedImg
+                            src={(s.object_thumb_url ?? s.object_url)!}
+                            alt={`「${s.word.headword}」の写真`}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : s.cutout_url ? (
                           <CachedImg
                             src={s.cutout_thumb_url ?? s.cutout_url}
                             alt={`「${s.word.headword}」のステッカー`}
@@ -443,7 +454,13 @@ async function photoPinIcon(url: string): Promise<string | null> {
   }
 }
 
-function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
+function DexMap({
+  stickers,
+  onOpen,
+}: {
+  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  onOpen: (id: string) => void;
+}) {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<unknown>(null);
@@ -575,37 +592,45 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
       {recent.length > 0 && (
         <section className="mt-5">
           <h3 className="mb-1 text-sm font-semibold tracking-tight">キャッチした場所</h3>
-          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで地図がその場所へズーム。地図上のピンをタップで単語の詳細へ。</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで単語の詳細へ。📍で地図がその場所へズーム。</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
               const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
               return (
-                <button
+                <div
                   key={s.id}
-                  onClick={() => focusOnMap(s)}
-                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
-                  aria-label={`「${s.word.headword}」の場所を地図で見る`}
+                  className="press-in relative overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
                 >
-                  <div className="aspect-square w-full overflow-hidden bg-secondary">
-                    {thumb ? (
-                      <CachedImg
-                        src={thumb}
-                        alt={`「${s.word.headword}」の写真`}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="grid h-full w-full place-items-center text-2xl">
-                        {s.word.silhouette_emoji ?? "📍"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-1.5">
-                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span className="truncate text-xs font-medium">{s.word.headword}</span>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => onOpen(s.id)}
+                    className="block w-full text-left"
+                    aria-label={`「${s.word.headword}」の詳細を開く`}
+                  >
+                    <div className="aspect-square w-full overflow-hidden bg-secondary">
+                      {thumb ? (
+                        <CachedImg
+                          src={thumb}
+                          alt={`「${s.word.headword}」の写真`}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="grid h-full w-full place-items-center text-2xl">
+                          {s.word.silhouette_emoji ?? "📍"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate px-2 py-1.5 text-xs font-medium">{s.word.headword}</div>
+                  </button>
+                  <button
+                    onClick={() => focusOnMap(s)}
+                    aria-label={`「${s.word.headword}」の場所を地図で見る`}
+                    className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-black/45 text-white backdrop-blur active:scale-95"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               );
             })}
           </div>

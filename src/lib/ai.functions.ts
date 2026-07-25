@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, normalizeCategory } from "./category";
+import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
 import {
   assertWithinDailyCap,
 
@@ -104,26 +105,7 @@ const CardInput = z.object({
   hintCategory: z.string().optional(),
 });
 
-const ExtrasSchema = z.object({
-  collocations: z.array(z.string()).default([]),
-  synonyms: z.array(z.string()).default([]),
-  antonyms: z.array(z.string()).default([]),
-  etymology: z.string().default(""),
-  radicals: z.string().default(""),
-  mnemonic: z.string().default(""),
-  trivia: z.string().default(""),
-  common_situation: z.string().default(""),
-  usage_note: z.string().default(""),
-  // コーパス風の使用情報(2026-07-13): 頻度・レジスター・類義語との違い・語順・学習tips
-  register_note: z.string().default(""),
-  synonym_diff: z.string().default(""),
-  word_order: z.string().default(""),
-  study_tips: z.string().default(""),
-  examples_extra: z.array(z.object({
-    zh: z.string(),
-    ja: z.string(),
-  })).default([]),
-});
+// extras の形は src/lib/extras.ts が唯一の定義(共有)。
 
 const CardSchema = z.object({
   // 入力が日本語だった場合に解決された台湾華語の見出し語(繁体字)。
@@ -136,12 +118,7 @@ const CardSchema = z.object({
   category_key: z.enum(CATEGORY_KEYS),
   example_sentence: z.string(),
   example_translation: z.string(),
-  extras: ExtrasSchema.default(() => ({
-    collocations: [], synonyms: [], antonyms: [],
-    etymology: "", radicals: "", mnemonic: "", trivia: "",
-    common_situation: "", usage_note: "", examples_extra: [],
-    register_note: "", synonym_diff: "", word_order: "", study_tips: "",
-  })),
+  extras: ExtrasSchema.default(() => emptyExtras()),
 
 });
 
@@ -168,30 +145,34 @@ export const generateCard = createServerFn({ method: "POST" })
 - reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。
 - pinyin: 拼音
 - meaning_ja: 日本語の意味（簡潔に）
-- part_of_speech: 品詞（名詞/動詞/形容詞/副詞など日本語表記）
+- part_of_speech: 台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。
+  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。
 - level: TOCFLレベル（TOCFL-1〜6 のいずれか）
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
   **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
   横断歩道・道路・信号→street、店→shop、交通機関→transport を必ず使う。
-- example_sentence: 台湾で日常的に使う自然な例文（繁体字）。学習者の目標レベルは ${levelGoal} — 例文の語彙・文型はこのレベル以下に抑える
+- example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
 - example_translation: 例文の日本語訳
 
-extras 項目（**すべて具体的な内容で必ず埋めること**。推測でよいので空文字・空配列で返さない。該当が本当に無いのは antonyms くらい）:
-- collocations: 一緒に使われる典型的なコロケーション3〜5個（繁体字）
-- synonyms: 類義語2〜4個（繁体字）
-- antonyms: 反義語1〜3個（繁体字）
+extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
+
+チャンク分解の共通ルール: parts/chunks は {text: 繁体字パーツ, pos: 役割} の配列。
+pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞) を使う。
+「${data.headword}」自体は必ずどれかのパーツとして含める。
+
+- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い日本語説明}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"O"}]。よく使う動詞・量詞・定番チャンクを優先。
+- example_chunks: example_sentence をパーツ分解した [{text,pos}]
+- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短い日本語), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+- usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文の日本語で
+- frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
+- register_tag: "口語" / "書面" / "口語・書面" のどれか
+- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い日本語説明}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
+- pronunciation_tips: **日本人が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、日本語）。この語の声調の型、有気音/無気音（ㄆvsㄅ等）、そり舌（ㄓㄔㄕ）、鼻音韻尾（-n/-ng）、カタカナ読みに引きずられる誤りなど、該当するものを具体的に
+- taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、日本語）
 - radicals: 部首と意味の説明（1文、日本語）
 - mnemonic: 記憶に残るひとことフレーズ・覚え方（日本語）
-- trivia: 台湾文化の雑学・面白い豆知識（1〜2文、日本語）
-- common_situation: ネイティブが最もよく使う場面・状況（1〜2文、日本語）
-- usage_note: 注意したい語法・誤用しやすいポイント（1〜2文、日本語）
-- register_note: 使用頻度とレジスター。話し言葉/書き言葉のどちらで多いか、日常会話・看板・メニュー・新聞・ニュースのどこで最もよく出会うか（1〜2文、日本語。例:「会話で非常によく使う。新聞ではより硬い◯◯が好まれる」）
-- synonym_diff: 主要な類義語との使い分け・ニュアンスの違い（1〜2文、日本語）
-- word_order: この語が入る典型的な語順・文型パターン（例:「把+芒果+切開」のように繁体字パターン+短い日本語説明）
-- study_tips: 日本人学習者向けの勉強のコツ。日本語との違い・発音の注意・声調の覚え方など（1〜2文、日本語）
-- examples_extra: 追加の自然な例文2つ {zh, ja}（語彙は ${levelGoal} 以下）
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
@@ -213,9 +194,10 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / example_sentence / example_translation / ` +
-      `extras{ collocations, synonyms, antonyms, etymology, radicals, mnemonic, ` +
-      `trivia, common_situation, usage_note, register_note, synonym_diff, ` +
-      `word_order, study_tips, examples_extra[{zh,ja}] }。` +
+      `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
+      `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
+      `frequency_level, register_tag, related_words[{word,kind,note}], ` +
+      `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
@@ -227,11 +209,11 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       const e = c.extras;
       if (!e) return true;
       const filled = [
-        e.common_situation, e.usage_note, e.register_note, e.synonym_diff,
-        e.word_order, e.study_tips, e.etymology, e.mnemonic, e.trivia,
+        e.usage_context, e.pronunciation_tips, e.taiwan_note,
+        e.etymology, e.mnemonic,
       ].some((v) => !!v && v.trim().length > 0) ||
-        (e.collocations?.length ?? 0) > 0 ||
-        (e.synonyms?.length ?? 0) > 0 ||
+        (e.usage_chunks?.length ?? 0) > 0 ||
+        (e.related_words?.length ?? 0) > 0 ||
         (e.examples_extra?.length ?? 0) > 0;
       return !filled;
     };
@@ -240,8 +222,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       // 1回だけ、空を明確に禁止して作り直す。
       try {
         const retry = await genOnce(
-          `\n\n前回 extras が空で不十分でした。今回は collocations / common_situation / ` +
-          `register_note / word_order / study_tips / examples_extra を含め、` +
+          `\n\n前回 extras が空で不十分でした。今回は usage_chunks / usage_context / ` +
+          `related_words / pronunciation_tips / taiwan_note / examples_extra を含め、` +
           `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
         );
         if (!extrasLookEmpty(retry)) card = retry;
@@ -258,7 +240,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
           pinyin: card.pinyin,
           meaning_ja: card.meaning_ja,
           pos: card.part_of_speech,
-          taiwan_usage: card.extras?.common_situation || null,
+          taiwan_usage: card.extras?.usage_context || card.extras?.common_situation || null,
         },
       ]),
     );
@@ -323,4 +305,170 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     })();
     await logUsage(context.supabase, context.userId, "phrase_card");
     return card;
+  });
+
+// --- Pro: 項目別ワンタッチ再生成 (2026-07-25) --------------------------------
+// カード全体の作り直しではなく、気に入らない1項目だけをAIに作り直させる。
+// words は共有テーブルなので updateWordExtras と同じ所有チェック
+// (この語のステッカーを持つユーザーのみ)+Pro 限定+日次キャップ。
+
+const REGEN_SECTIONS = [
+  "meaning",
+  "usage_context",
+  "example",
+  "examples_extra",
+  "usage_chunks",
+  "related_words",
+  "pronunciation_tips",
+  "etymology",
+  "mnemonic",
+  "taiwan_note",
+] as const;
+export type RegenSection = (typeof REGEN_SECTIONS)[number];
+
+const RegenInput = z.object({
+  word_id: z.string().uuid(),
+  section: z.enum(REGEN_SECTIONS),
+});
+
+const CHUNK_RULE =
+  `チャンクは {text: 繁体字パーツ, pos: 役割} の配列。pos は S/V(V1,V2)/O(O1,O2)/M/C/Ptc。`;
+
+export const regenerateCardSection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => RegenInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { isProUser: proCheck, getUserLevelGoal: lvl } = await import("./ai-provider.server");
+    if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
+    await assertWithinDailyCap(userId, "card");
+
+    // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
+    const { data: owned } = await supabase
+      .from("stickers")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("word_id", data.word_id)
+      .limit(1)
+      .maybeSingle();
+    if (!owned) throw new Error("この単語を編集する権限がありません");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: word, error } = await supabaseAdmin
+      .from("words")
+      .select("id, headword, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras")
+      .eq("id", data.word_id)
+      .maybeSingle();
+    if (error || !word) throw new Error("単語が見つかりません");
+
+    const levelGoal = await lvl(userId);
+    const head = word.headword as string;
+    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、日本人学習者向けカードの一項目だけを作り直します。学習者の目標レベル: ${levelGoal}(TOCFL) — 語彙はこのレベル以下。出力はJSONオブジェクト1つだけ(前置き不要)。`;
+
+    // 各項目のプロンプトと出力形。extras へのマージで反映する。
+    const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
+      meaning: {
+        prompt: `${base}\n{"meaning_ja": "日本語の意味(簡潔に、複数の意味があれば「/」区切り)"}`,
+        schema: z.object({ meaning_ja: z.string().min(1) }),
+      },
+      usage_context: {
+        prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面"}`,
+        schema: z.object({
+          usage_context: z.string(),
+          frequency_level: z.number().int().min(1).max(5).catch(3),
+          register_tag: z.string().catch(""),
+        }),
+      },
+      example: {
+        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"日本語訳","example_chunks":[{"text":"","pos":""}]}`,
+        schema: z.object({
+          example_sentence: z.string().min(1),
+          example_translation: z.string().catch(""),
+          example_chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
+        }),
+      },
+      examples_extra: {
+        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+        schema: z.object({
+          examples_extra: z.array(z.object({
+            zh: z.string(), ja: z.string().catch(""), scene: z.string().catch(""),
+            chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
+          })).min(1),
+        }),
+      },
+      usage_chunks: {
+        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        schema: z.object({
+          usage_chunks: z.array(z.object({
+            parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+            ja: z.string().catch(""),
+          })).min(1),
+        }),
+      },
+      related_words: {
+        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"繁体字","kind":"syn|ant|rel","note":"短い日本語"}]}`,
+        schema: z.object({
+          related_words: z.array(z.object({
+            word: z.string(),
+            kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
+            note: z.string().catch(""),
+          })).min(1),
+        }),
+      },
+      pronunciation_tips: {
+        prompt: `${base}\n日本人が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文。声調の型・有気音/無気音・そり舌(ㄓㄔㄕ)・鼻音韻尾(-n/-ng)・カタカナ読みの罠など該当するものを具体的に。\n{"pronunciation_tips":""}`,
+        schema: z.object({ pronunciation_tips: z.string().min(1) }),
+      },
+      etymology: {
+        prompt: `${base}\n{"etymology":"漢字の語源・成り立ち(1〜2文)","radicals":"部首と意味(1文)"}`,
+        schema: z.object({ etymology: z.string().min(1), radicals: z.string().catch("") }),
+      },
+      mnemonic: {
+        prompt: `${base}\n{"mnemonic":"記憶に残るひとことフレーズ・覚え方(日本語)"}`,
+        schema: z.object({ mnemonic: z.string().min(1) }),
+      },
+      taiwan_note: {
+        prompt: `${base}\n{"taiwan_note":"台湾ならではの一言雑学(文化・習慣・歴史・流行)1〜2文+誤用しやすい語法があれば1文"}`,
+        schema: z.object({ taiwan_note: z.string().min(1) }),
+      },
+    };
+
+    const { prompt, schema } = spec[data.section];
+    const ai = getAi();
+    const result = await generateText({ model: ai.gateway(ai.modelRichPremium), prompt });
+    let out: Record<string, unknown>;
+    try {
+      out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;
+    } catch {
+      throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
+    }
+
+    // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。
+    const baseUpdate: Record<string, unknown> = {};
+    const extrasPatch: Record<string, unknown> = { ...out };
+    if (data.section === "meaning") {
+      delete extrasPatch.meaning_ja;
+      if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;
+    }
+    if (data.section === "example") {
+      delete extrasPatch.example_sentence;
+      delete extrasPatch.example_translation;
+      if (word.source !== "verified") {
+        baseUpdate.example_sentence = out.example_sentence;
+        baseUpdate.example_translation = out.example_translation;
+      }
+    }
+
+    const merged = mergeExtras(
+      (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
+      extrasPatch as Parameters<typeof mergeExtras>[1],
+    );
+    const { error: upErr } = await supabaseAdmin
+      .from("words")
+      .update({ ...baseUpdate, extras: merged as never } as never)
+      .eq("id", data.word_id);
+    if (upErr) throw new Error(upErr.message);
+
+    await logUsage(context.supabase, userId, "card");
+    return { ok: true, section: data.section };
   });

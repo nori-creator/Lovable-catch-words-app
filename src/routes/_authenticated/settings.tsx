@@ -5,15 +5,16 @@ import { AppShell } from "@/components/AppShell";
 import { deleteMyAccount, getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
-import { exportMyDeck } from "@/lib/words.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
+import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
+import { useT, setUiLang } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Download, Loader2, Trash2 } from "lucide-react";
+import { LogOut, Loader2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 function SettingsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();
@@ -36,33 +38,12 @@ function SettingsPage() {
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
   const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const exportFn = useServerFn(exportMyDeck);
-
-  async function handleExport() {
-    setExporting(true);
-    try {
-      const { tsv, count } = await exportFn();
-      const blob = new Blob([tsv], { type: "text/tab-separated-values;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `catchwords-deck-${new Date().toISOString().slice(0, 10)}.tsv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`${count}枚のカードを書き出しました`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "エクスポートに失敗しました");
-    } finally {
-      setExporting(false);
-    }
-  }
-
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
     setNativeLanguage(profile.native_language);
     setUiLanguage(profile.ui_language);
+    setUiLang(profile.ui_language === "en" ? "en" : "ja");
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
@@ -85,8 +66,9 @@ function SettingsPage() {
           review_mode: reviewMode,
         },
       });
+      setUiLang(uiLanguage === "en" ? "en" : "ja");
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      toast.success("保存しました");
+      toast.success(t("settings.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -98,27 +80,27 @@ function SettingsPage() {
     <AppShell title="設定">
       <div className="space-y-4">
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">プロフィール</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.profile")}</h3>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="dn">表示名</Label>
+              <Label htmlFor="dn">{t("settings.displayName")}</Label>
               <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">言語</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.language")}</h3>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="lang-target">学習言語</Label>
+              <Label htmlFor="lang-target">{t("settings.targetLang")}</Label>
               <select id="lang-target" aria-label="学習言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
                 <option value="zh-TW">台湾華語 (zh-TW)</option>
                 <option value="en">英語 (en)</option>
               </select>
             </div>
             <div>
-              <Label htmlFor="lang-level">目標レベル</Label>
+              <Label htmlFor="lang-level">{t("settings.levelGoal")}</Label>
               <select id="lang-level" aria-label="目標レベル" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
                 <option value="TOCFL-1">TOCFL Level 1</option>
                 <option value="TOCFL-2">TOCFL Level 2</option>
@@ -126,15 +108,16 @@ function SettingsPage() {
                 <option value="TOCFL-4">TOCFL Level 4</option>
               </select>
             </div>
+            <PhoneticRow />
             <div>
-              <Label htmlFor="lang-native">母語</Label>
+              <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
               <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
                 <option value="ja">日本語</option>
                 <option value="en">English</option>
               </select>
             </div>
             <div>
-              <Label htmlFor="lang-ui">表示言語</Label>
+              <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>
               <select id="lang-ui" aria-label="表示言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
                 <option value="ja">日本語</option>
                 <option value="en">English</option>
@@ -144,7 +127,7 @@ function SettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">学習設定</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.study")}</h3>
           <Label>復習モード</Label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             {(["speaking", "choice"] as const).map((v) => (
@@ -181,8 +164,8 @@ function SettingsPage() {
 
 
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">外観</h3>
-          <Label>テーマ</Label>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.appearance")}</h3>
+          <Label>{t("settings.theme")}</Label>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {(["light", "dark", "system"] as const).map((v) => (
               <button
@@ -198,24 +181,8 @@ function SettingsPage() {
         </div>
 
         <Button className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? "保存中..." : "保存"}
+          {saving ? t("settings.saving") : t("settings.save")}
         </Button>
-
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-1 text-sm font-semibold text-muted-foreground">データ</h3>
-          <p className="mb-3 text-xs text-muted-foreground">
-            集めた単語をタブ区切りテキストで書き出します（Ankiにそのままインポートでき、Excelでも開けます）。
-          </p>
-          <Button
-            variant="outline"
-            className="w-full"
-            disabled={exporting}
-            onClick={handleExport}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {exporting ? "書き出し中..." : "デッキをエクスポート（Anki / TSV）"}
-          </Button>
-        </div>
 
         <DeveloperPanel />
 
@@ -230,12 +197,40 @@ function SettingsPage() {
             navigate({ to: "/auth", replace: true, search: { next: "" } });
           }}
         >
-          <LogOut className="mr-2 h-4 w-4" /> サインアウト
+          <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
         </Button>
 
         <DangerZone />
       </div>
     </AppShell>
+  );
+}
+
+/** 発音表記: 注音かピンインのどちらか一方だけを全画面で表示する。 */
+function PhoneticRow() {
+  const pref = usePhoneticPref();
+  return (
+    <div>
+      <Label>発音表記</Label>
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        {([
+          ["zhuyin", "ㄅㄆㄇ 注音"],
+          ["pinyin", "abc ピンイン"],
+        ] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setPhoneticPref(v)}
+            aria-pressed={pref === v}
+            className={`min-h-11 rounded-full border py-2.5 text-sm ${pref === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        図鑑・復習・詳細カードなどアプリ全体で、選んだ表記だけを表示します。
+      </p>
+    </div>
   );
 }
 
@@ -278,7 +273,7 @@ function DangerZone() {
       <div className="mt-3 space-y-3">
         <p className="text-xs text-muted-foreground">
           集めた単語カード・写真・復習の記録・日記など、すべてのデータが完全に削除されます。
-          この操作は取り消せません。カードを残したい場合は、先に上の「デッキをエクスポート」で書き出してください。
+          この操作は取り消せません。
         </p>
         <div>
           <Label htmlFor="del-confirm">確認のため「削除」と入力してください</Label>

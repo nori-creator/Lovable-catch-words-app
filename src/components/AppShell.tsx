@@ -3,23 +3,26 @@ import { useServerFn } from "@tanstack/react-start";
 import { Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
+import { useT } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
-type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; label: string; icon: typeof Home };
+type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; labelKey: string; icon: typeof Home };
 
 // 5-item bottom nav (roadmap B5): the center slot is the one big camera
 // entrance — scan (かざす=調べる) with the catch/keyboard entrances inside it.
+// ラベルは表示言語設定(ja/en)に従う。
 const items: Item[] = [
-  { to: "/home", label: "ホーム", icon: Home },
-  { to: "/dex", label: "図鑑", icon: BookOpen },
-  { to: "/scan", label: "カメラ", icon: ScanLine },
-  { to: "/review", label: "復習", icon: Sparkles },
-  { to: "/settings", label: "設定", icon: Settings },
+  { to: "/home", labelKey: "nav.home", icon: Home },
+  { to: "/dex", labelKey: "nav.dex", icon: BookOpen },
+  { to: "/scan", labelKey: "nav.camera", icon: ScanLine },
+  { to: "/review", labelKey: "nav.review", icon: Sparkles },
+  { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const logEvent = useServerFn(logAppEvent);
+  const t = useT();
 
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {
@@ -59,7 +62,8 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           surface; reduced-transparency/contrast collapse it to solid). */}
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
         <ul className="mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
-          {items.map(({ to, label, icon: Icon }) => {
+          {items.map(({ to, labelKey, icon: Icon }) => {
+            const label = t(labelKey);
             const isScan = to === "/scan";
             return (
               <li key={to} className="flex-1">

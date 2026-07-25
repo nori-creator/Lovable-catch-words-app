@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateCard, generatePhraseCard, type GeneratedCard, type GeneratedPhraseCard } from "@/lib/ai.functions";
 import { lookupHeadwords, type DictionaryEntry } from "@/lib/scan.functions";
 import { saveGhostSticker } from "@/lib/ghost.functions";
+import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from "@/lib/images.functions";
+import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { downscaleDataUrl } from "@/lib/cutout";
 
 /**
@@ -22,6 +24,8 @@ type Props = {
   initialMode: "text" | "voice";
   /** Prefill the search box — e.g. a word typed on the scan screen's fallback. */
   initialText?: string;
+  /** 派生キャッチ(?word=◯◯)用: 開いたら即AIで調べる。 */
+  autoLookup?: boolean;
   onClose: () => void;
 };
 
@@ -51,7 +55,7 @@ function guessIsPhrase(text: string): boolean {
   return t.length >= 5 || /[、。！？!?,]/.test(t);
 }
 
-export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
+export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cardFn = useServerFn(generateCard);
@@ -69,8 +73,14 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
   const [card, setCard] = useState<GeneratedCard | null>(null);
   const [phraseCard, setPhraseCard] = useState<GeneratedPhraseCard | null>(null);
   const [dict, setDict] = useState<DictionaryEntry | null>(null);
-  // B2: 自動仮画像(Unsplash)を廃止。ユーザーが自分の画像を任意で添付する。
+  // 画像: ユーザー添付が最優先。無ければWeb検索の候補から自動で仮画像を
+  // 添付する(タップでワンタッチ変更可)。B2で一度廃止したがNORI指定で復活。
   const [attachedDataUrl, setAttachedDataUrl] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<ImageCandidate[]>([]);
+  const [picked, setPicked] = useState(0);
+  const searchImagesFn = useServerFn(searchImageCandidates);
+  const fetchImageFn = useServerFn(fetchImageAsDataUrl);
+  const phonetic = usePhoneticPref();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
   const canSpeak = srAvailable();
@@ -86,6 +96,15 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
   useEffect(() => {
     if (initialMode === "voice" && canSpeak) {
       const t = setTimeout(() => toggleRecord(), 350);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 派生キャッチ: 語が渡されて来たら、開いた瞬間にそのまま調べる。
+  useEffect(() => {
+    if (autoLookup && initialText?.trim()) {
+      const t = setTimeout(() => { void lookupAndGenerate(); }, 150);
       return () => clearTimeout(t);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +153,10 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
         setDict(lk.entries[resolved] ?? null);
         setCard(c);
         if (resolved !== headword) setText(resolved);
+        // 仮画像候補をWeb検索(失敗しても保存は続行できる)。
+        void searchImagesFn({ data: { query: c.meaning_ja || resolved } })
+          .then(({ candidates: cands }) => { setCandidates(cands); setPicked(0); })
+          .catch(() => {});
       }
       setStep("preview");
     } catch (e) {
@@ -161,9 +184,11 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
     setStep("saving");
     setErr(null);
     try {
-      // B2: 自動仮画像は廃止。ユーザーが添付した画像があればそれを実写として
-      // 使う(なければ画像なしのゴーストのまま=実物に出会って完成させる)。
+      // ユーザーが添付した画像があればそれを実写として使う。無ければ
+      // Web検索の候補を仮画像(placeholder)として自動添付する。
       let object_path: string | null = null;
+      let placeholder_path: string | null = null;
+      let placeholder_credit: { name?: string; link?: string; source: string } | null = null;
       if (attachedDataUrl) {
         try {
           const blob = await (await fetch(attachedDataUrl)).blob();
@@ -178,6 +203,29 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
             if (!error) object_path = path;
           }
         } catch { /* 画像なしでも保存は続行 */ }
+      } else if (!isPhrase && candidates[picked]) {
+        // 仮画像: サーバー経由で取得(CORS回避)→自分のフォルダにアップロード。
+        try {
+          const cand = candidates[picked];
+          const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
+          const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
+          const blob = await (await fetch(small)).blob();
+          const { data: userData } = await supabase.auth.getUser();
+          const userId = userData.user?.id;
+          if (userId) {
+            const path = `${userId}/${Date.now()}-placeholder.jpg`;
+            const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+              contentType: blob.type,
+              upsert: false,
+            });
+            if (!error) {
+              placeholder_path = path;
+              placeholder_credit = cand.credit
+                ? { ...cand.credit, source: cand.source }
+                : { source: cand.source };
+            }
+          }
+        } catch { /* 仮画像は任意 — 失敗しても保存は続行 */ }
       }
 
       const word = isPhrase
@@ -227,8 +275,8 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
           capture_type: initialMode === "voice" && canSpeak ? "voice" : "text",
           caption: isPhrase && scene ? scene : null,
           object_path,
-          placeholder_path: null,
-          placeholder_credit: null,
+          placeholder_path,
+          placeholder_credit,
         },
       });
 
@@ -273,7 +321,7 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
               授業で習った・聞こえた・動画で見た言葉を、写真がなくても図鑑に。
             </p>
 
-            {canSpeak && (
+            {canSpeak && initialMode === "voice" && (
               <button
                 onClick={toggleRecord}
                 disabled={step === "loading"}
@@ -286,10 +334,10 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
               </button>
             )}
             <p className="text-center text-[11px] text-muted-foreground">
-              {canSpeak
+              {initialMode === "voice" && canSpeak
                 ? listening
                   ? "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう"
-                  : "マイクで復唱するか、下に入力(日本語でもOK — 台湾華語に自動変換)"
+                  : "マイクで復唱するか、下の欄で認識結果を直せます"
                 : "台湾華語でも日本語でもOK(日本語は自動で台湾華語に変換されます)"}
             </p>
 
@@ -363,6 +411,8 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
             >
               {attachedDataUrl ? (
                 <img src={attachedDataUrl} alt="添付画像" className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
+              ) : !isPhrase && candidates[picked] ? (
+                <img src={candidates[picked].thumb} alt="仮画像(ネット検索)" className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
               ) : (
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
@@ -374,9 +424,25 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
             </button>
             <p className="text-center text-[11px] text-muted-foreground">
               {attachedDataUrl
-                ? "タップで画像を変更"
-                : "画像なしでもOK。実物に出会うと図鑑で金色に光ります"}
+                ? "タップで自分の画像に変更"
+                : candidates.length > 0
+                  ? "仮画像はネット検索から自動添付。下の候補タップでワンタッチ変更"
+                  : "画像なしでもOK。実物に出会うと図鑑で金色に光ります"}
             </p>
+            {!attachedDataUrl && candidates.length > 1 && (
+              <div className="flex justify-center gap-2">
+                {candidates.slice(0, 4).map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPicked(i)}
+                    aria-pressed={picked === i}
+                    className={`h-14 w-14 overflow-hidden rounded-xl ring-2 transition ${picked === i ? "ring-primary" : "ring-transparent opacity-70"}`}
+                  >
+                    <img src={c.thumb} alt={`候補${i + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-baseline gap-2">
@@ -388,8 +454,9 @@ export function InputCatchSheet({ initialMode, initialText, onClose }: Props) {
                 )}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {isPhrase ? phraseCard?.reading_zhuyin : dict?.zhuyin || card?.reading_zhuyin}
-                <span className="ml-2">{isPhrase ? phraseCard?.pinyin : dict?.pinyin || card?.pinyin}</span>
+                {isPhrase
+                  ? pickReading(phonetic, phraseCard?.reading_zhuyin, phraseCard?.pinyin)
+                  : pickReading(phonetic, dict?.zhuyin || card?.reading_zhuyin, dict?.pinyin || card?.pinyin)}
               </p>
               <p className="mt-2 text-base font-medium">
                 {isPhrase ? phraseCard?.meaning_ja : dict?.meaning_ja || card?.meaning_ja}

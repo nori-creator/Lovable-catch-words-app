@@ -694,36 +694,6 @@ function ScanPage() {
           )}
         </div>
 
-        {/* 単語検索: スキャンで拾えない語を、母語(日本語)でも学習言語でも直接調べる */}
-        {!snapshot && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const q = manualQuery.trim();
-              if (!q) return;
-              setInputCatchText(q);
-              setInputCatchOpen("text");
-            }}
-            className="flex gap-2"
-          >
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={manualQuery}
-                onChange={(e) => setManualQuery(e.target.value)}
-                placeholder="単語を検索（日本語・台湾華語どちらでもOK）"
-                className="w-full rounded-full border border-border bg-card py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!manualQuery.trim()}
-              className="press-in inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-            >
-              調べる
-            </button>
-          </form>
-        )}
 
         {error && (
           <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
@@ -843,6 +813,7 @@ function ScanPage() {
         <InputCatchSheet
           initialMode={inputCatchOpen}
           initialText={inputCatchText}
+          autoLookup={!!inputCatchText}
           onClose={() => { setInputCatchOpen(null); setInputCatchText(""); setManualQuery(""); }}
         />
       )}

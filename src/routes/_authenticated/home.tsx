@@ -117,7 +117,7 @@ function HomePage() {
 
   return (
     <AppShell>
-      <DayHeader date={today} label="Today's Scrapbook" />
+      <DayHeader date={today} />
 
       <PendingCapturesBanner />
 
@@ -229,7 +229,6 @@ const ALBUM_SIZES = [
   "col-span-1 row-span-2",
   "col-span-1 row-span-1",
 ];
-const ALBUM_TAPES = ["", "blue", "yellow", "mint"];
 
 function ScrapbookAlbum({
   stickers,
@@ -247,23 +246,17 @@ function ScrapbookAlbum({
         rot: ALBUM_ROTATIONS[i % ALBUM_ROTATIONS.length],
         size: ALBUM_SIZES[i % ALBUM_SIZES.length],
         z: 10 + (i % 5),
-        tape: ALBUM_TAPES[i % ALBUM_TAPES.length],
       })),
     [stickers],
   );
 
   return (
-    // 3D アルバム: .album-3d が奥行きの基準(perspective)と本の厚み・綴じ目を作り、
-    // 各写真は .photo-3d として台紙に貼られ、触ると手前へ浮き上がる。
-    <div
-      className={`album-3d relative rounded-3xl border border-amber-900/15 p-5 pl-9 sm:p-7 sm:pl-12 ${bgClass}`}
-    >
-      {/* Decorative washi tape corners (綴じ目より手前に重ねる) */}
-      <span aria-hidden className="washi-tape blue z-[2]" style={{ top: 8, left: 42, transform: "rotate(-14deg)" }} />
-      <span aria-hidden className="washi-tape yellow z-[2]" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
-
-      <div className="relative z-[2] grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
-        {items.map(({ sticker: s, rot, size, z, tape }) => {
+    // リアル・アルバム: .album-page が紙の繊維と周辺減光を持つ台紙。
+    // 各写真は白フチの印画紙(.photo-print)を三角コーナーで留める —
+    // 子供の頃のアルバムの再現。本の厚み表現は廃止(NORI指定)。
+    <div className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass}`}>
+      <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
+        {items.map(({ sticker: s, rot, size, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie;
           // ghosts show their placeholder (clearly temporary).
@@ -273,19 +266,17 @@ function ScrapbookAlbum({
             <button
               key={s.id}
               onClick={() => onOpen(s.id)}
-              // §1 Response: react on press. 傾きは外側で持ち、内側の .photo-3d が
-              // Z方向に持ち上がる — 紙の写真を台紙からめくる感触。
+              // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
               className={`photo-lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
-              {heroUrl ? (
-                <div className="photo-3d relative h-full w-full">
-                  <span
-                    aria-hidden
-                    className={`washi-tape ${tape}`}
-                    style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)", zIndex: 3 }}
-                  />
-                  <div className="h-[calc(100%-26px)] w-full overflow-hidden">
+              <div className="photo-print h-full w-full">
+                <span aria-hidden className="photo-corner tl" />
+                <span aria-hidden className="photo-corner tr" />
+                <span aria-hidden className="photo-corner bl" />
+                <span aria-hidden className="photo-corner br" />
+                {heroUrl ? (
+                  <div className="h-full w-full overflow-hidden">
                     <img
                       src={heroUrl}
                       alt={`「${s.word.headword}」の思い出`}
@@ -294,27 +285,22 @@ function ScrapbookAlbum({
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/80">
-                    {s.word.headword}
-                  </span>
-                </div>
-              ) : (
-                // 写真なし(ゴースト): シルエットを彫り込んだ台紙として立体表現
-                <div className="photo-3d grid h-full w-full place-items-center">
-                  <span className="text-4xl drop-shadow-[0_2px_2px_rgba(60,42,18,0.25)]">
-                    {s.word.silhouette_emoji ?? "📦"}
-                  </span>
-                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/85">
-                    {s.word.headword}
-                  </span>
-                </div>
-              )}
+                ) : (
+                  // 写真なし(ゴースト): 印画紙の空きスペースにシルエット
+                  <div className="grid h-full w-full place-items-center">
+                    <span className="text-4xl opacity-80">{s.word.silhouette_emoji ?? "📦"}</span>
+                  </div>
+                )}
+                <span className="handwritten absolute inset-x-0 bottom-[2%] text-center text-sm text-stone-700/90">
+                  {s.word.headword}
+                </span>
+              </div>
             </button>
           );
         })}
       </div>
 
-      <div className="relative z-[2] mt-8 text-right">
+      <div className="relative mt-8 text-right">
         <span className="handwritten text-base text-amber-900/70">
           — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>
