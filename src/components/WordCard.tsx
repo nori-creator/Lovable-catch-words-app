@@ -1,28 +1,18 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Eye, EyeOff, ChevronUp, ChevronDown, ExternalLink, Flag } from "lucide-react";
+import { Volume2, Eye, EyeOff, ChevronUp, ChevronDown, ExternalLink, Flag, RefreshCw, Loader2 } from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { reportEntry } from "@/lib/reports.functions";
+import { regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
+import { posDisplay } from "@/lib/pos";
+import { Reading } from "@/lib/phonetic";
+import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import type { WordExtrasDTO } from "@/lib/extras";
 
-export type WordExtras = {
-  collocations?: string[];
-  synonyms?: string[];
-  antonyms?: string[];
-  etymology?: string;
-  radicals?: string;
-  mnemonic?: string;
-  trivia?: string;
-  common_situation?: string;
-  usage_note?: string;
-  register_note?: string;
-  synonym_diff?: string;
-  word_order?: string;
-  study_tips?: string;
-  examples_extra?: { zh: string; ja: string }[];
-};
+// 後方互換の別名(以前この型はここで定義されていた)。
+export type WordExtras = Partial<WordExtrasDTO>;
 
 export type WordCardData = {
   headword: string;
@@ -36,44 +26,59 @@ export type WordCardData = {
   extras?: WordExtras | null;
 };
 
+/**
+ * 2026-07-25 再構成: 似た項目を統合して「ネイティブがどう使うか」を
+ * 視覚(チャンク色分け)で見せる構成に。
+ *   コロケーション+語順・型      → usage_chunks(使い方チャンク)
+ *   類義語・反義語+類義語との違い → related_words(にてる言葉)
+ *   使う場面+頻度・どこで使う    → usage_context(頻度・使う場面)
+ *   勉強のコツ                    → pronunciation_tips(発音のコツ)
+ *   雑学+語法ノート              → taiwan_note(台湾メモ)
+ */
 type SectionId =
   | "meaning"
   | "web_images"
-  | "common_situation"
-  | "register_note"
+  | "usage_context"
   | "example"
   | "examples_extra"
-  | "collocations"
-  | "word_order"
-  | "synonyms"
-  | "synonym_diff"
+  | "usage_chunks"
+  | "related_words"
+  | "pronunciation_tips"
   | "etymology"
   | "mnemonic"
-  | "study_tips"
-  | "trivia"
-  | "usage_note"
+  | "taiwan_note"
   | "real_usage";
 
 const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "meaning", label: "意味" },
   { id: "web_images", label: "ネットの画像" },
-  { id: "common_situation", label: "使う場面" },
-  { id: "register_note", label: "頻度・どこで使う" },
+  { id: "usage_context", label: "頻度・使う場面" },
   { id: "example", label: "例文" },
   { id: "examples_extra", label: "追加の例文" },
-  { id: "collocations", label: "コロケーション" },
-  { id: "word_order", label: "語順・型" },
-  { id: "synonyms", label: "類義語・反義語" },
-  { id: "synonym_diff", label: "類義語との違い" },
+  { id: "usage_chunks", label: "使い方チャンク" },
+  { id: "related_words", label: "にてる言葉・関連語" },
+  { id: "pronunciation_tips", label: "発音のコツ" },
   { id: "etymology", label: "語源・部首" },
   { id: "mnemonic", label: "覚え方" },
-  { id: "study_tips", label: "勉強のコツ" },
-  { id: "trivia", label: "雑学" },
-  { id: "usage_note", label: "語法ノート" },
+  { id: "taiwan_note", label: "台湾メモ" },
   { id: "real_usage", label: "実際の使われ方" },
 ];
 
-const PREF_KEY = "wordcard-prefs-v2";
+/** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
+const REGEN_SECTIONS: SectionId[] = [
+  "meaning",
+  "usage_context",
+  "example",
+  "examples_extra",
+  "usage_chunks",
+  "related_words",
+  "pronunciation_tips",
+  "etymology",
+  "mnemonic",
+  "taiwan_note",
+];
+
+const PREF_KEY = "wordcard-prefs-v3";
 const PREF_EVENT = "wordcard-prefs-changed";
 
 type Prefs = { order: SectionId[]; hidden: SectionId[] };
@@ -159,74 +164,81 @@ export function WordCardSectionsEditor() {
 }
 
 const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string; icon: string; title: string }> = {
-  meaning:          { bg: "bg-sky-50",     ring: "ring-sky-200",     chip: "bg-sky-500",     icon: "📖", title: "text-sky-900" },
-  common_situation: { bg: "bg-amber-50",   ring: "ring-amber-200",   chip: "bg-amber-500",   icon: "🗣️", title: "text-amber-900" },
-  register_note:    { bg: "bg-cyan-50",    ring: "ring-cyan-200",    chip: "bg-cyan-600",    icon: "📊", title: "text-cyan-900" },
-  word_order:       { bg: "bg-lime-50",    ring: "ring-lime-200",    chip: "bg-lime-600",    icon: "🧩", title: "text-lime-900" },
-  synonym_diff:     { bg: "bg-indigo-50/70", ring: "ring-indigo-200", chip: "bg-indigo-400", icon: "⚖️", title: "text-indigo-900" },
-  study_tips:       { bg: "bg-pink-50",    ring: "ring-pink-200",    chip: "bg-pink-500",    icon: "🎯", title: "text-pink-900" },
-  example:          { bg: "bg-emerald-50", ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
-  examples_extra:   { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
-  collocations:     { bg: "bg-rose-50",    ring: "ring-rose-200",    chip: "bg-rose-500",    icon: "🔗", title: "text-rose-900" },
-  synonyms:         { bg: "bg-indigo-50",  ring: "ring-indigo-200",  chip: "bg-indigo-500",  icon: "🪞", title: "text-indigo-900" },
-  etymology:        { bg: "bg-stone-50",   ring: "ring-stone-200",   chip: "bg-stone-600",   icon: "🏛️", title: "text-stone-900" },
-  mnemonic:         { bg: "bg-fuchsia-50", ring: "ring-fuchsia-200", chip: "bg-fuchsia-500", icon: "💡", title: "text-fuchsia-900" },
-  trivia:           { bg: "bg-teal-50",    ring: "ring-teal-200",    chip: "bg-teal-500",    icon: "✨", title: "text-teal-900" },
-  usage_note:       { bg: "bg-orange-50",  ring: "ring-orange-200",  chip: "bg-orange-500",  icon: "⚠️", title: "text-orange-900" },
-  web_images:       { bg: "bg-sky-50/70",  ring: "ring-sky-200",     chip: "bg-sky-600",     icon: "🌐", title: "text-sky-900" },
-  real_usage:       { bg: "bg-rose-50/70", ring: "ring-rose-200",    chip: "bg-rose-600",    icon: "🎬", title: "text-rose-900" },
+  meaning:            { bg: "bg-sky-50",       ring: "ring-sky-200",     chip: "bg-sky-500",     icon: "📖", title: "text-sky-900" },
+  web_images:         { bg: "bg-sky-50/70",    ring: "ring-sky-200",     chip: "bg-sky-600",     icon: "🌐", title: "text-sky-900" },
+  usage_context:      { bg: "bg-cyan-50",      ring: "ring-cyan-200",    chip: "bg-cyan-600",    icon: "📊", title: "text-cyan-900" },
+  example:            { bg: "bg-emerald-50",   ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
+  examples_extra:     { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
+  usage_chunks:       { bg: "bg-lime-50",      ring: "ring-lime-200",    chip: "bg-lime-600",    icon: "🧩", title: "text-lime-900" },
+  related_words:      { bg: "bg-indigo-50",    ring: "ring-indigo-200",  chip: "bg-indigo-500",  icon: "🪞", title: "text-indigo-900" },
+  pronunciation_tips: { bg: "bg-pink-50",      ring: "ring-pink-200",    chip: "bg-pink-500",    icon: "🗣️", title: "text-pink-900" },
+  etymology:          { bg: "bg-stone-50",     ring: "ring-stone-200",   chip: "bg-stone-600",   icon: "🏛️", title: "text-stone-900" },
+  mnemonic:           { bg: "bg-fuchsia-50",   ring: "ring-fuchsia-200", chip: "bg-fuchsia-500", icon: "💡", title: "text-fuchsia-900" },
+  taiwan_note:        { bg: "bg-teal-50",      ring: "ring-teal-200",    chip: "bg-teal-500",    icon: "🇹🇼", title: "text-teal-900" },
+  real_usage:         { bg: "bg-rose-50/70",   ring: "ring-rose-200",    chip: "bg-rose-600",    icon: "🎬", title: "text-rose-900" },
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
 
-export const WordCard = forwardRef<WordCardHandle, { word: WordCardData; autoplay?: boolean }>(
-  function WordCard({ word, autoplay = true }, ref) {
-    const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
-    usePrefsSync(setPrefs);
+export const WordCard = forwardRef<
+  WordCardHandle,
+  {
+    word: WordCardData;
+    autoplay?: boolean;
+    /** 指定すると Pro の項目別ワンタッチ再生成が有効になる。 */
+    wordId?: string;
+    isPro?: boolean;
+  }
+>(function WordCard({ word, autoplay = true, wordId, isPro = false }, ref) {
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+  usePrefsSync(setPrefs);
 
-    // Kept for API compatibility — the editor now lives outside the card.
-    useImperativeHandle(ref, () => ({
-      toggleEditing: () => {},
-      isEditing: () => false,
-    }), []);
+  // Kept for API compatibility — the editor now lives outside the card.
+  useImperativeHandle(ref, () => ({
+    toggleEditing: () => {},
+    isEditing: () => false,
+  }), []);
 
-    const ex = word.extras ?? {};
-    const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
+  const ex = word.extras ?? {};
+  const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
 
-    const hasContent = (id: SectionId): boolean => {
-      switch (id) {
-        case "meaning": return !!word.meaning_ja;
-        case "common_situation": return !!ex.common_situation;
-        case "register_note": return !!ex.register_note;
-        case "word_order": return !!ex.word_order;
-        case "synonym_diff": return !!ex.synonym_diff;
-        case "study_tips": return !!ex.study_tips;
-        case "example": return !!word.example_sentence;
-        case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
-        case "collocations": return (ex.collocations?.length ?? 0) > 0;
-        case "synonyms": return (ex.synonyms?.length ?? 0) > 0 || (ex.antonyms?.length ?? 0) > 0;
-        case "etymology": return !!ex.etymology || !!ex.radicals;
-        case "mnemonic": return !!ex.mnemonic;
-        case "trivia": return !!ex.trivia;
-        case "usage_note": return !!ex.usage_note;
-        // 外部データのセクションは常に描画できる(A10)。
-        case "web_images": return true;
-        case "real_usage": return true;
-      }
-    };
+  const hasContent = (id: SectionId): boolean => {
+    switch (id) {
+      case "meaning": return !!word.meaning_ja;
+      case "usage_context":
+        return !!(ex.usage_context || ex.register_note || ex.common_situation || ex.frequency_level);
+      case "example": return !!word.example_sentence;
+      case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
+      case "usage_chunks":
+        return (ex.usage_chunks?.length ?? 0) > 0 || (ex.collocations?.length ?? 0) > 0 || !!ex.word_order;
+      case "related_words":
+        return (
+          (ex.related_words?.length ?? 0) > 0 ||
+          (ex.synonyms?.length ?? 0) > 0 ||
+          (ex.antonyms?.length ?? 0) > 0 ||
+          !!ex.synonym_diff
+        );
+      case "pronunciation_tips": return !!(ex.pronunciation_tips || ex.study_tips);
+      case "etymology": return !!ex.etymology || !!ex.radicals;
+      case "mnemonic": return !!ex.mnemonic;
+      case "taiwan_note": return !!(ex.taiwan_note || ex.trivia || ex.usage_note);
+      // 外部データのセクションは常に描画できる(A10)。
+      case "web_images": return true;
+      case "real_usage": return true;
+    }
+  };
 
-    return (
-      <div className="space-y-3">
-        <HeaderRow word={word} autoplay={autoplay} />
-        <div className="grid gap-3">
-          {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
-            <SectionCard key={id} id={id} word={word} />
-          ))}
-        </div>
+  return (
+    <div className="space-y-3">
+      <HeaderRow word={word} autoplay={autoplay} />
+      <div className="grid gap-3">
+        {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
+          <SectionCard key={id} id={id} word={word} wordId={wordId} isPro={isPro} />
+        ))}
       </div>
-    );
-  },
-);
+    </div>
+  );
+});
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const autoplayedRef = useRef(false);
@@ -260,13 +272,13 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             </button>
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
-            {word.reading_zhuyin} {word.pinyin && <span className="ml-2">{word.pinyin}</span>}
+            <Reading zhuyin={word.reading_zhuyin} pinyin={word.pinyin} />
           </div>
           {(word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {word.part_of_speech && (
                 <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200">
-                  {word.part_of_speech}
+                  {posDisplay(word.part_of_speech)}
                 </span>
               )}
               {word.level && (
@@ -334,10 +346,39 @@ function ReportButton({ headword }: { headword: string }) {
   );
 }
 
-function SectionCard({ id, word }: { id: SectionId; word: WordCardData }) {
+function SectionCard({
+  id,
+  word,
+  wordId,
+  isPro,
+}: {
+  id: SectionId;
+  word: WordCardData;
+  wordId?: string;
+  isPro?: boolean;
+}) {
   const t = SECTION_THEME[id];
   const label = ALL_SECTIONS.find((s) => s.id === id)?.label ?? id;
   const ex = word.extras ?? {};
+  const regenFn = useServerFn(regenerateCardSection);
+  const qc = useQueryClient();
+  const [regenerating, setRegenerating] = useState(false);
+  const canRegen = !!wordId && !!isPro && REGEN_SECTIONS.includes(id);
+
+  // Pro: この項目だけをワンタッチで作り直す。
+  async function regen() {
+    if (!canRegen || regenerating) return;
+    setRegenerating(true);
+    try {
+      await regenFn({ data: { word_id: wordId!, section: id as RegenSection } });
+      await qc.invalidateQueries({ queryKey: ["sticker"] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+    } catch (e) {
+      console.warn("Section regen failed", e);
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   return (
     <section className={`lift rounded-2xl ${t.bg} ring-1 ${t.ring} p-4 shadow-sm`}>
@@ -346,9 +387,34 @@ function SectionCard({ id, word }: { id: SectionId; word: WordCardData }) {
           {t.icon}
         </span>
         <h3 className={`text-xs font-semibold uppercase tracking-wider ${t.title}`}>{label}</h3>
+        {canRegen && (
+          <button
+            onClick={regen}
+            disabled={regenerating}
+            aria-label={`「${label}」を再生成`}
+            title="この項目をAIで作り直す(Pro)"
+            className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-white/60 hover:text-foreground disabled:opacity-60"
+          >
+            {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          </button>
+        )}
       </div>
       <Body id={id} word={word} ex={ex} />
     </section>
+  );
+}
+
+/** 頻度メーター(1〜5)。 */
+function FrequencyMeter({ level }: { level: number }) {
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-label={`頻度 ${level}/5`}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span
+          key={i}
+          className={`h-2 w-3.5 rounded-sm ${i <= level ? "bg-cyan-500" : "bg-cyan-200/60"}`}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -356,55 +422,137 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
   switch (id) {
     case "meaning":
       return <p className="text-base font-medium text-foreground">{word.meaning_ja}</p>;
-    case "common_situation":
-      return <p className="text-sm leading-relaxed">{ex.common_situation}</p>;
-    case "example":
+
+    case "usage_context": {
+      // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
+      const text = ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
       return (
-        <div className="space-y-1">
-          <p className="text-base">{word.example_sentence}</p>
-          <p className="text-xs text-muted-foreground">{word.example_translation}</p>
+        <div className="space-y-2">
+          {(ex.frequency_level || ex.register_tag) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {ex.frequency_level != null && ex.frequency_level > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium text-cyan-900 ring-1 ring-cyan-200">
+                  頻度 <FrequencyMeter level={ex.frequency_level} />
+                </span>
+              )}
+              {ex.register_tag && (
+                <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium text-cyan-900 ring-1 ring-cyan-200">
+                  {ex.register_tag}
+                </span>
+              )}
+            </div>
+          )}
+          {text && <p className="text-sm leading-relaxed">{text}</p>}
         </div>
       );
+    }
+
+    case "example":
+      return (
+        <div className="space-y-1.5">
+          {(ex.example_chunks?.length ?? 0) > 0 ? (
+            <ChunkPills parts={ex.example_chunks!} />
+          ) : (
+            <p className="text-base">{word.example_sentence}</p>
+          )}
+          <p className="text-xs text-muted-foreground">{word.example_translation}</p>
+          {(ex.example_chunks?.length ?? 0) > 0 && <ChunkLegend />}
+        </div>
+      );
+
     case "examples_extra":
       return (
         <ul className="space-y-2">
           {(ex.examples_extra ?? []).map((e, i) => (
-            <li key={i} className="rounded-xl bg-white/60 p-2">
-              <p className="text-sm">{e.zh}</p>
-              <p className="text-[11px] text-muted-foreground">{e.ja}</p>
+            <li key={i} className="rounded-xl bg-white/60 p-2.5">
+              {e.scene && (
+                <p className="mb-1 text-[10px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
+              )}
+              {(e.chunks?.length ?? 0) > 0 ? (
+                <ChunkPills parts={e.chunks!} size="sm" />
+              ) : (
+                <p className="text-sm">{e.zh}</p>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">{e.ja}</p>
             </li>
           ))}
         </ul>
       );
-    case "collocations":
-      return (
-        <div>
-          <div className="flex flex-wrap gap-1.5">
-            {(ex.collocations ?? []).map((c, i) => (
-              <CatchPill key={i}>{c}</CatchPill>
+
+    case "usage_chunks": {
+      // ネイティブがこの単語をどう組み合わせるか — 型をパーツ色分けで。
+      const chunks = ex.usage_chunks ?? [];
+      if (chunks.length > 0) {
+        return (
+          <div className="space-y-2">
+            {chunks.map((c, i) => (
+              <div key={i} className="rounded-xl bg-white/60 p-2.5">
+                <ChunkPills parts={c.parts} size="sm" />
+                {c.ja && <p className="mt-1 text-[11px] text-muted-foreground">{c.ja}</p>}
+              </div>
             ))}
+            <ChunkLegend />
           </div>
-          <DerivedCatchHint />
-        </div>
-      );
-    case "synonyms":
+        );
+      }
+      // 旧データ: コロケーション+語順テキストのフォールバック。
       return (
-        <div className="space-y-2 text-sm">
-          {(ex.synonyms?.length ?? 0) > 0 && (
-            <div>
-              <span className="mr-2 text-[11px] text-muted-foreground">類義</span>
-              {ex.synonyms!.map((s, i) => <CatchPill key={i}>{s}</CatchPill>)}
+        <div className="space-y-2">
+          {(ex.collocations?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {ex.collocations!.map((c, i) => (
+                <span key={i} className="rounded-full bg-white/70 px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-black/5">
+                  {c}
+                </span>
+              ))}
             </div>
           )}
-          {(ex.antonyms?.length ?? 0) > 0 && (
-            <div>
-              <span className="mr-2 text-[11px] text-muted-foreground">反義</span>
-              {ex.antonyms!.map((s, i) => <CatchPill key={i} tone="rose">{s}</CatchPill>)}
-            </div>
-          )}
-          <DerivedCatchHint />
+          {ex.word_order && <p className="text-sm leading-relaxed">{ex.word_order}</p>}
         </div>
       );
+    }
+
+    case "related_words": {
+      const rel = ex.related_words ?? [];
+      const groups: Array<{ kind: "syn" | "ant" | "rel"; label: string; tone: string }> = [
+        { kind: "syn", label: "類義", tone: "bg-white/70 text-foreground" },
+        { kind: "ant", label: "反義", tone: "bg-rose-100 text-rose-900" },
+        { kind: "rel", label: "関連", tone: "bg-indigo-100 text-indigo-900" },
+      ];
+      const legacySyn = (ex.synonyms ?? []).map((w) => ({ word: w, kind: "syn" as const, note: "" }));
+      const legacyAnt = (ex.antonyms ?? []).map((w) => ({ word: w, kind: "ant" as const, note: "" }));
+      const all = rel.length > 0 ? rel : [...legacySyn, ...legacyAnt];
+      return (
+        <div className="space-y-2.5 text-sm">
+          {groups.map(({ kind, label, tone }) => {
+            const items = all.filter((r) => r.kind === kind);
+            if (items.length === 0) return null;
+            return (
+              <div key={kind}>
+                <span className="mr-2 text-[11px] text-muted-foreground">{label}</span>
+                <div className="mt-1 space-y-1">
+                  {items.map((r, i) => (
+                    <div key={i} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-black/5 ${tone}`}>
+                        {r.word}
+                      </span>
+                      {r.note && <span className="text-[11px] text-muted-foreground">{r.note}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {ex.synonym_diff && rel.length === 0 && (
+            <p className="rounded-xl bg-white/60 p-2 text-xs leading-relaxed">{ex.synonym_diff}</p>
+          )}
+        </div>
+      );
+    }
+
+    case "pronunciation_tips":
+      return <p className="text-sm leading-relaxed">{ex.pronunciation_tips || ex.study_tips}</p>;
+
     case "etymology":
       return (
         <div className="space-y-1 text-sm leading-relaxed">
@@ -412,20 +560,24 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
           {ex.radicals && <p className="text-xs text-muted-foreground">部首: {ex.radicals}</p>}
         </div>
       );
-    case "register_note":
-      return <p className="text-sm leading-relaxed">{ex.register_note}</p>;
-    case "word_order":
-      return <p className="text-sm leading-relaxed">{ex.word_order}</p>;
-    case "synonym_diff":
-      return <p className="text-sm leading-relaxed">{ex.synonym_diff}</p>;
-    case "study_tips":
-      return <p className="text-sm leading-relaxed">{ex.study_tips}</p>;
+
     case "mnemonic":
       return <p className="text-sm italic leading-relaxed">「{ex.mnemonic}」</p>;
-    case "trivia":
-      return <p className="text-sm leading-relaxed">{ex.trivia}</p>;
-    case "usage_note":
-      return <p className="text-sm leading-relaxed">{ex.usage_note}</p>;
+
+    case "taiwan_note":
+      return (
+        <div className="space-y-1.5 text-sm leading-relaxed">
+          {ex.taiwan_note ? (
+            <p>{ex.taiwan_note}</p>
+          ) : (
+            <>
+              {ex.trivia && <p>{ex.trivia}</p>}
+              {ex.usage_note && <p className="text-xs text-muted-foreground">⚠️ {ex.usage_note}</p>}
+            </>
+          )}
+        </div>
+      );
+
     case "web_images":
       return <WebImagesBody headword={word.headword} meaningJa={word.meaning_ja} />;
     case "real_usage":
@@ -512,26 +664,4 @@ function RealUsageBody({ headword }: { headword: string }) {
       ))}
     </ul>
   );
-}
-
-/**
- * Derived catch: every related word on a card is itself catchable. Tapping a
- * pill jumps to /capture?word=◯◯ which runs the text-capture flow — this is
- * how verbs/adjectives get collected even though photos mostly yield nouns.
- */
-function CatchPill({ children, tone = "default" }: { children: string; tone?: "default" | "rose" }) {
-  return (
-    <Link
-      to="/capture"
-      search={{ word: children }}
-      className={`mr-1 mb-1 inline-block rounded-full px-2.5 py-1 text-[12px] font-medium ${tone === "rose" ? "bg-rose-100 text-rose-900" : "bg-white/70 text-foreground"} shadow-sm ring-1 ring-black/5 transition-transform active:scale-95`}
-    >
-      {children}
-      <span className="ml-1 opacity-50">＋</span>
-    </Link>
-  );
-}
-
-function DerivedCatchHint() {
-  return <p className="mt-2 text-[10px] text-muted-foreground">タップでこの言葉もゲットできます</p>;
 }

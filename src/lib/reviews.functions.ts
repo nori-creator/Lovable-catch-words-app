@@ -52,9 +52,13 @@ export type DueReviewCard = {
   ease: number;
   interval_days: number;
   repetitions: number;
+  /** 現在の推定記憶率 0-100(記憶レベルバッジ用)。 */
+  retention: number;
   mode: ReviewMode;
   choices: string[]; // 4 meaning_ja options (shuffled); correct = meaning_ja
   headword_choices: string[]; // 4 headword options for reverse mode
+  /** 4択の各選択肢の読み(注音・拼音)。表示は端末の表記設定に従う。 */
+  headword_choice_infos: Array<{ headword: string; zhuyin: string | null; pinyin: string | null }>;
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -75,6 +79,11 @@ function modeFor(repetitions: number): ReviewMode {
 
 const STATIC_MEANING_FALLBACK = ["別の物体", "場所の名前", "人物の役職"];
 const STATIC_HEADWORD_FALLBACK = ["蘋果", "公車", "雨傘"];
+const STATIC_HEADWORD_READINGS: Record<string, { zhuyin: string; pinyin: string }> = {
+  蘋果: { zhuyin: "ㄆㄧㄥˊ ㄍㄨㄛˇ", pinyin: "píngguǒ" },
+  公車: { zhuyin: "ㄍㄨㄥ ㄔㄜ", pinyin: "gōngchē" },
+  雨傘: { zhuyin: "ㄩˇ ㄙㄢˇ", pinyin: "yǔsǎn" },
+};
 
 /**
  * Pick 3 distractors without any AI call. Priority:
@@ -101,7 +110,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
     let { data, error } = await supabase
       .from("reviews")
       .select(dueSelect(true))
@@ -113,7 +122,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       ({ data, error } = (await supabase
         .from("reviews")
         .select(
-          "id, sticker_id, ease, interval_days, repetitions, blur_seen, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+          "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
         )
         .eq("user_id", userId)
         .lte("due_at", nowIso)
@@ -129,6 +138,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       interval_days: number;
       repetitions: number;
       blur_seen: boolean;
+      last_reviewed_at: string | null;
       stickers: {
         cutout_image_url: string | null;
         caption: string | null;
@@ -169,10 +179,10 @@ export const getDueReviews = createServerFn({ method: "GET" })
     // The user's own deck is the distractor pool — zero AI calls at review time.
     const { data: deckRows } = await supabase
       .from("stickers")
-      .select("words(id, headword, meaning_ja, category_key)")
+      .select("words(id, headword, meaning_ja, category_key, reading_zhuyin, pinyin)")
       .eq("user_id", userId)
       .limit(500);
-    type DeckWord = { id: string; headword: string; meaning_ja: string; category_key: string | null };
+    type DeckWord = { id: string; headword: string; meaning_ja: string; category_key: string | null; reading_zhuyin?: string | null; pinyin?: string | null };
     const deck: DeckWord[] = [];
     const seen = new Set<string>();
     for (const r of (deckRows ?? []) as unknown as Array<{ words: DeckWord | null }>) {
@@ -185,6 +195,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
     // A3 レベル連動: 目標レベル以下の辞書語をヘッドワード・ディストラクタの
     // 追加プールにする(デッキが小さいうちも4択が「全部知らない字」にならない)。
     let dictPool: string[] = [];
+    // 4択の選択肢に読み(注音/拼音)を出すための逆引き表。
+    const readingByHead = new Map<string, { zhuyin: string | null; pinyin: string | null }>();
     try {
       const levelGoal = await getUserLevelGoal(userId);
       const lvl = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
@@ -192,12 +204,14 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const pivot = crypto.randomUUID();
       const { data: dictRows } = await supabaseAdmin
         .from("dictionary_entries")
-        .select("headword")
+        .select("headword, zhuyin, pinyin")
         .eq("language", "zh-TW")
         .lte("tocfl_level", lvl)
         .gte("id", pivot)
         .limit(40);
-      dictPool = shuffle(((dictRows ?? []) as Array<{ headword: string }>).map((d) => d.headword));
+      const dicts = (dictRows ?? []) as Array<{ headword: string; zhuyin: string | null; pinyin: string | null }>;
+      for (const d of dicts) readingByHead.set(d.headword, { zhuyin: d.zhuyin, pinyin: d.pinyin });
+      dictPool = shuffle(dicts.map((d) => d.headword));
     } catch {
       /* dictionary pool is optional */
     }
@@ -257,6 +271,19 @@ export const getDueReviews = createServerFn({ method: "GET" })
         STATIC_HEADWORD_FALLBACK,
       );
 
+      // デッキ語の読みも逆引き表へ(4択の注音表示用)。
+      for (const d of deck) {
+        if (!readingByHead.has(d.headword)) {
+          readingByHead.set(d.headword, { zhuyin: d.reading_zhuyin ?? null, pinyin: d.pinyin ?? null });
+        }
+      }
+      readingByHead.set(w.headword, { zhuyin: w.reading_zhuyin, pinyin: w.pinyin });
+      for (const [h, r] of Object.entries(STATIC_HEADWORD_READINGS)) {
+        if (!readingByHead.has(h)) readingByHead.set(h, r);
+      }
+      const headwordChoices = shuffle([w.headword, ...headwordDistractors]);
+      const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+
       const cutoutPath = row.stickers!.cutout_image_url;
       // The branch this review will unlock = today's designated pattern.
       // Mirrors getSpeakingFeedback's selection so task and feedback agree.
@@ -290,9 +317,15 @@ export const getDueReviews = createServerFn({ method: "GET" })
         ease: row.ease,
         interval_days: row.interval_days,
         repetitions: row.repetitions,
+        retention: Math.round(retentionNow(row.interval_days, row.ease, lastMs, Date.now())),
         mode: modeFor(row.repetitions),
         choices: shuffle([w.meaning_ja, ...meaningDistractors]),
-        headword_choices: shuffle([w.headword, ...headwordDistractors]),
+        headword_choices: headwordChoices,
+        headword_choice_infos: headwordChoices.map((h) => ({
+          headword: h,
+          zhuyin: readingByHead.get(h)?.zhuyin ?? null,
+          pinyin: readingByHead.get(h)?.pinyin ?? null,
+        })),
       };
     });
   });
@@ -663,7 +696,8 @@ const FeedbackInput = z.object({
   hint_used: z.boolean().default(false),
 });
 
-const PosEnum = z.enum(["S", "V", "O", "M", "C"]);
+// 詳しい役割: 動詞・目的語は V1/V2, O1/O2 のように区別できる(連動文など)。
+const PosEnum = z.enum(["S", "V", "V1", "V2", "O", "O1", "O2", "M", "Adv", "C", "Prep", "Ptc"]);
 export type SpeakingPos = z.infer<typeof PosEnum>;
 
 const FeedbackSchema = z.object({
@@ -676,6 +710,8 @@ const FeedbackSchema = z.object({
     .min(1)
     .max(12),
   chunk_note: z.string(),
+  /** なぜこの語順になるのか — 台湾華語の語順ルールの短い解説(日本語)。 */
+  word_order_rule: z.string(),
   native_note: z.string(),
   model_answer: z.string(),
   alt_answer: z.string(),
@@ -758,8 +794,9 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 - natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
 - used_target: 「${w.headword}」を(活用形含め)使っているか。
 - correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
-- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
-- chunk_note: この型の使いどころを日本語で1文。
+- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
+- chunk_note: この構文の使いどころを日本語で1文。
+- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを日本語1〜2文で解説(例:「中国語は S+時間+場所+V+O の順。日本語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
 - native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。日本語2〜3文。
 - model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
 - alt_answer: 別の言い方1つ(繁体字)。`;
@@ -836,7 +873,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const captionSeed = row.caption?.trim() || null;
 
     // キャッシュヒット: 単語レベルの足場は使い回す(キャプションだけ差し替え)。
-    const cached = (w.extras as { speaking_scaffold?: unknown } | null)?.speaking_scaffold;
+    const cached = (w.extras as { speaking_scaffold_v2?: unknown } | null)?.speaking_scaffold_v2;
     const cachedParsed = cached
       ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
       : null;
@@ -859,13 +896,16 @@ ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : 
 次を厳密なJSONで返してください:
 - question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
 - question_ja: その質問の日本語訳
-- parts: その質問に答えるための「文のパーツ」を3〜4個。真っ白から作らせず、組み合わせれば一文になる部品を渡す。各パーツは {zh:繁体字の短いフレーズ・型・コロケーション・量詞など, ja:日本語の意味}。${pattern ? `1つは今日の型「${pattern.zh}」を含める。` : ""}「${w.headword}」とよく一緒に使う動詞・量詞・定番チャンクを優先。`,
+- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja}。
+  **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
+  出すのは (a) スロット付きの型(例:「我要用◯◯…」)、(b)「${w.headword}」とよく使う動詞・量詞のコロケーション1つ、(c) 使えそうな文法・語法ポイント(例:「用+道具+動詞」) のうち2〜3個。
+  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。`,
     });
 
     // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold: scaffold };
+      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold_v2: scaffold };
       await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
       await logUsage(supabase, userId, "speaking_feedback");
     } catch { /* キャッシュ保存の失敗は致命的でない */ }

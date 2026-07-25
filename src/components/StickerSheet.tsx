@@ -53,6 +53,23 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
 
+  // 写真の長押し(550ms)で変更 — ボタンを探さなくても、変えたい写真そのものを
+  // 押さえれば変えられる。長押し成立後のクリックはフリップさせない。
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  function heroPressStart() {
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+      if (window.confirm("この写真を変更しますか?")) fileInputRef.current?.click();
+    }, 550);
+  }
+  function heroPressEnd() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
   // A9: Pro限定の手動再生成。auto-enrichのenrichedRefガードを無視して
   // generateCard→updateWordExtrasを強制実行し、詳細を作り直す。
   async function regenerate() {
@@ -302,7 +319,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               role={hasSelfie ? "button" : undefined}
               tabIndex={hasSelfie ? 0 : undefined}
               aria-label={hasSelfie ? (flipped ? "写真の表に戻す" : "自撮りを見る") : undefined}
-              onClick={() => hasSelfie && setFlipped((f) => !f)}
+              onClick={() => {
+                if (longPressFired.current) { longPressFired.current = false; return; }
+                if (hasSelfie) setFlipped((f) => !f);
+              }}
+              onPointerDown={heroPressStart}
+              onPointerUp={heroPressEnd}
+              onPointerLeave={heroPressEnd}
+              onPointerCancel={heroPressEnd}
+              onContextMenu={(e) => e.preventDefault()}
               onKeyDown={(e) => {
                 if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
                   e.preventDefault();
@@ -421,6 +446,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 example_translation: s.word.example_translation,
                 extras: s.word.extras,
               }}
+              wordId={s.word_id}
+              isPro={isPro}
             />
 
             {enriching && (

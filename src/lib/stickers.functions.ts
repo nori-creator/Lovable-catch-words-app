@@ -4,23 +4,16 @@ import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
+import {
+  ExtrasSchema,
+  normalizeExtras,
+  hasExtrasContent,
+  mergeExtras,
+  type WordExtrasDTO,
+} from "./extras";
 
-export type WordExtrasDTO = {
-  collocations: string[];
-  synonyms: string[];
-  antonyms: string[];
-  etymology: string;
-  radicals: string;
-  mnemonic: string;
-  trivia: string;
-  common_situation: string;
-  usage_note: string;
-  register_note: string;
-  synonym_diff: string;
-  word_order: string;
-  study_tips: string;
-  examples_extra: { zh: string; ja: string }[];
-};
+// WordExtrasDTO / extras の正規化は src/lib/extras.ts に一本化(re-export)。
+export type { WordExtrasDTO } from "./extras";
 
 export type PlaceholderCredit = { name?: string; link?: string; source?: string };
 
@@ -64,34 +57,6 @@ export type StickerWithWord = {
   };
 };
 
-function normalizeExtras(raw: unknown): WordExtrasDTO | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const arrStr = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  const str = (v: unknown): string => typeof v === "string" ? v : "";
-  const exExtra = Array.isArray(r.examples_extra)
-    ? r.examples_extra
-        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
-        .map((x) => ({ zh: str(x.zh), ja: str(x.ja) }))
-        .filter((x) => x.zh || x.ja)
-    : [];
-  return {
-    collocations: arrStr(r.collocations),
-    synonyms: arrStr(r.synonyms),
-    antonyms: arrStr(r.antonyms),
-    etymology: str(r.etymology),
-    radicals: str(r.radicals),
-    mnemonic: str(r.mnemonic),
-    trivia: str(r.trivia),
-    common_situation: str(r.common_situation),
-    usage_note: str(r.usage_note),
-    register_note: str(r.register_note),
-    synonym_diff: str(r.synonym_diff),
-    word_order: str(r.word_order),
-    study_tips: str(r.study_tips),
-    examples_extra: exExtra,
-  };
-}
 
 type SignedUrlsClient = {
   storage: {
@@ -389,22 +354,7 @@ const SaveStickerInput = z.object({
     category_key: z.string().min(1),
     example_sentence: z.string().optional().default(""),
     example_translation: z.string().optional().default(""),
-    extras: z.object({
-      collocations: z.array(z.string()).default([]),
-      synonyms: z.array(z.string()).default([]),
-      antonyms: z.array(z.string()).default([]),
-      etymology: z.string().default(""),
-      radicals: z.string().default(""),
-      mnemonic: z.string().default(""),
-      trivia: z.string().default(""),
-      common_situation: z.string().default(""),
-      usage_note: z.string().default(""),
-      register_note: z.string().default(""),
-      synonym_diff: z.string().default(""),
-      word_order: z.string().default(""),
-      study_tips: z.string().default(""),
-      examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
-    }).optional(),
+    extras: ExtrasSchema.optional(),
   }),
   language: z.string().default("zh-TW"),
   object_path: z.string().nullable().optional(),
@@ -511,27 +461,6 @@ export async function upsertWord(
   return wordId;
 }
 
-/** True when an extras object carries at least one non-empty field. */
-function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
-  if (!e) return false;
-  return Object.values(e).some((v) =>
-    Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim() !== "" : v != null,
-  );
-}
-
-/** Merge incoming extras over existing: a non-empty incoming field wins, an
- *  empty one keeps whatever was already stored (never regress a rich card). */
-function mergeExtras(
-  existing: WordExtrasDTO | null | undefined,
-  incoming: Partial<WordExtrasDTO>,
-): WordExtrasDTO {
-  const out: Record<string, unknown> = { ...(existing ?? {}) };
-  for (const [k, v] of Object.entries(incoming)) {
-    const nonEmpty = Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim() !== "" : v != null;
-    if (nonEmpty) out[k] = v;
-  }
-  return out as WordExtrasDTO;
-}
 
 export const saveSticker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -588,22 +517,7 @@ export const saveSticker = createServerFn({ method: "POST" })
 
 const UpdateExtrasInput = z.object({
   word_id: z.string().uuid(),
-  extras: z.object({
-    collocations: z.array(z.string()).default([]),
-    synonyms: z.array(z.string()).default([]),
-    antonyms: z.array(z.string()).default([]),
-    etymology: z.string().default(""),
-    radicals: z.string().default(""),
-    mnemonic: z.string().default(""),
-    trivia: z.string().default(""),
-    common_situation: z.string().default(""),
-    usage_note: z.string().default(""),
-    register_note: z.string().default(""),
-    synonym_diff: z.string().default(""),
-    word_order: z.string().default(""),
-    study_tips: z.string().default(""),
-    examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
-  }),
+  extras: ExtrasSchema,
   patch: z.object({
     reading_zhuyin: z.string().optional(),
     pinyin: z.string().optional(),

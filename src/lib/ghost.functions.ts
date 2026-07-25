@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { upsertWord } from "./stickers.functions";
+import { ExtrasSchema } from "./extras";
 import { buildBranchPlan } from "./wordtree";
 
 /**
@@ -11,22 +12,7 @@ import { buildBranchPlan } from "./wordtree";
  * reunion catch swaps the placeholder for the user's own photo.
  */
 
-const ExtrasSchema = z.object({
-  collocations: z.array(z.string()).default([]),
-  synonyms: z.array(z.string()).default([]),
-  antonyms: z.array(z.string()).default([]),
-  etymology: z.string().default(""),
-  radicals: z.string().default(""),
-  mnemonic: z.string().default(""),
-  trivia: z.string().default(""),
-  common_situation: z.string().default(""),
-  usage_note: z.string().default(""),
-  register_note: z.string().default(""),
-  synonym_diff: z.string().default(""),
-  word_order: z.string().default(""),
-  study_tips: z.string().default(""),
-  examples_extra: z.array(z.object({ zh: z.string(), ja: z.string() })).default([]),
-});
+// extras の形は src/lib/extras.ts の共有スキーマを使う。
 
 const GhostInput = z.object({
   word: z.object({
