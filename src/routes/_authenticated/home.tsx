@@ -253,38 +253,41 @@ function ScrapbookAlbum({
   );
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-amber-900/10 p-5 shadow-inner sm:p-7 ${bgClass}`}>
-      {/* Decorative washi tape corners */}
-      <span aria-hidden className="washi-tape blue" style={{ top: 8, left: 18, transform: "rotate(-14deg)" }} />
-      <span aria-hidden className="washi-tape yellow" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
+    // 3D アルバム: .album-3d が奥行きの基準(perspective)と本の厚み・綴じ目を作り、
+    // 各写真は .photo-3d として台紙に貼られ、触ると手前へ浮き上がる。
+    <div
+      className={`album-3d relative rounded-3xl border border-amber-900/15 p-5 pl-9 sm:p-7 sm:pl-12 ${bgClass}`}
+    >
+      {/* Decorative washi tape corners (綴じ目より手前に重ねる) */}
+      <span aria-hidden className="washi-tape blue z-[2]" style={{ top: 8, left: 42, transform: "rotate(-14deg)" }} />
+      <span aria-hidden className="washi-tape yellow z-[2]" style={{ top: 14, right: 22, transform: "rotate(18deg)" }} />
 
-      <div className="grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
+      <div className="relative z-[2] grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z, tape }) => {
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie;
           // ghosts show their placeholder (clearly temporary).
           const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
-          const isPolaroid = !!heroUrl;
 
           return (
             <button
               key={s.id}
               onClick={() => onOpen(s.id)}
-              // §1 Response: react on press. Springy overshoot (§4) suits lifting
-              // a paper photo off the page — a physical, tactile moment.
-              className={`group relative block text-left transition-transform duration-200 [transition-timing-function:var(--spring-bounce)] hover:scale-[1.03] active:scale-95 motion-reduce:transition-none motion-reduce:hover:scale-100 motion-reduce:active:scale-100 ${size}`}
+              // §1 Response: react on press. 傾きは外側で持ち、内側の .photo-3d が
+              // Z方向に持ち上がる — 紙の写真を台紙からめくる感触。
+              className={`photo-lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
-              {isPolaroid ? (
-                <div className="polaroid relative h-full w-full">
+              {heroUrl ? (
+                <div className="photo-3d relative h-full w-full">
                   <span
                     aria-hidden
                     className={`washi-tape ${tape}`}
-                    style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)" }}
+                    style={{ top: -8, left: "50%", transform: "translateX(-50%) rotate(-4deg)", zIndex: 3 }}
                   />
-                  <div className="h-[calc(100%-28px)] w-full overflow-hidden">
+                  <div className="h-[calc(100%-26px)] w-full overflow-hidden">
                     <img
-                      src={heroUrl!}
+                      src={heroUrl}
                       alt={`「${s.word.headword}」の思い出`}
                       loading="lazy"
                       decoding="async"
@@ -296,9 +299,14 @@ function ScrapbookAlbum({
                   </span>
                 </div>
               ) : (
-                <div className="grid h-full w-full place-items-center text-4xl">
-                  {s.word.silhouette_emoji ?? "📦"}
-                  <span className="handwritten -mt-1 text-sm text-amber-950/85">{s.word.headword}</span>
+                // 写真なし(ゴースト): シルエットを彫り込んだ台紙として立体表現
+                <div className="photo-3d grid h-full w-full place-items-center">
+                  <span className="text-4xl drop-shadow-[0_2px_2px_rgba(60,42,18,0.25)]">
+                    {s.word.silhouette_emoji ?? "📦"}
+                  </span>
+                  <span className="handwritten absolute inset-x-0 bottom-1 text-center text-sm text-amber-950/85">
+                    {s.word.headword}
+                  </span>
                 </div>
               )}
             </button>
@@ -306,7 +314,7 @@ function ScrapbookAlbum({
         })}
       </div>
 
-      <div className="mt-8 text-right">
+      <div className="relative z-[2] mt-8 text-right">
         <span className="handwritten text-base text-amber-900/70">
           — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
         </span>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
+import { stopOtherAudio } from "@/lib/audio";
 
 type Props = {
   headword: string;
@@ -49,7 +50,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
       setError("このブラウザは音声合成に対応していません");
       return;
     }
-    window.speechSynthesis.cancel();
+    stopOtherAudio();
     const u = new SpeechSynthesisUtterance(headword);
     const v = pickVoice();
     if (v) u.voice = v;

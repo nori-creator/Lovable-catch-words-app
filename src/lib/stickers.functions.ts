@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
+import { normalizeCategory } from "./category";
 
 export type WordExtrasDTO = {
   collocations: string[];
@@ -439,9 +440,13 @@ export async function upsertWord(
 
   let wordId: string | undefined = existing?.id;
   if (!wordId) {
-    // Normalize category_key: if the AI proposed one that doesn't exist in the
-    // categories table, fall back to 'other' so the FK doesn't reject the insert.
-    let categoryKey = word.category_key;
+    // カテゴリー正規化(2026-07-23の不具合修正):
+    // 以前はここで「categories 表に無いキー→ other」に落とすだけだった。
+    // 表には20キーしか無くコードは54キーを使っていたため、body/kitchenware/
+    // medicine 等に分類された語がすべて「その他」に潰れていた。
+    // いまは (1) 見出し語から確実に補正 → (2) それでも表に無ければ other、の順。
+    // 表の不足キーは 20260723090000_seed_missing_categories.sql で投入済み。
+    let categoryKey: string = normalizeCategory(word.headword, word.category_key);
     const { data: catRow } = await supabase
       .from("categories")
       .select("key")
@@ -682,5 +687,84 @@ export const reportWordIssue = createServerFn({ method: "POST" })
         () => {},
         () => {},
       );
+    return { ok: true };
+  });
+
+// --- B3 カード削除 -----------------------------------------------------------
+const DeleteStickerInput = z.object({ sticker_id: z.string().uuid() });
+
+/**
+ * 図鑑カードの削除。所有者のみ。stickers を消すと reviews/encounters/
+ * review_history は FK で連鎖削除される(deleteMyAccount で検証済みの順序)。
+ * 画像は自分のフォルダ配下だけ storage から掃除する。共有 words は残す
+ * (他ユーザーのカードが参照している可能性があるため)。
+ */
+export const deleteSticker = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => DeleteStickerInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { data: st, error: readErr } = await supabase
+      .from("stickers")
+      .select("id, object_image_url, cutout_image_url, selfie_image_url")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!st) throw new Error("このカードは削除できません");
+
+    // Storage cleanup: only paths under the caller's own folder.
+    const row = st as { object_image_url: string | null; cutout_image_url: string | null; selfie_image_url: string | null };
+    const paths = [row.object_image_url, row.cutout_image_url, row.selfie_image_url]
+      .filter((p): p is string => !!p && p.startsWith(`${userId}/`));
+    // thumbnails share the origin path with a suffix (cutout.ts:thumbPath).
+    const withThumbs = paths.flatMap((p) => [p, `${p}.thumb.webp`]);
+    if (withThumbs.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from("stickers").remove(withThumbs).catch(() => {});
+    }
+
+    const { error } = await supabase
+      .from("stickers")
+      .delete()
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// --- B3 写真の差し替え -------------------------------------------------------
+const ReplacePhotoInput = z.object({
+  sticker_id: z.string().uuid(),
+  object_path: z.string().min(1),
+});
+
+/**
+ * 図鑑カードの実写を差し替える。object_image_url を更新し、古い切り抜きは
+ * 消す(新しい写真から作り直せる)。自撮り・キャプション・場所は保持。
+ * attachPhotoToSticker と違い selfie を消さないので通常カードの写真変更向け。
+ */
+export const replaceStickerPhoto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ReplacePhotoInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    if (!data.object_path.startsWith(`${userId}/`)) {
+      throw new Error("不正な画像パスです");
+    }
+    const patch = {
+      object_image_url: data.object_path,
+      cutout_image_url: null,
+      taken_at: new Date().toISOString(),
+    };
+    let res = await supabase
+      .from("stickers")
+      .update({ ...patch, capture_type: "photo", placeholder_image_url: null, placeholder_credit: null })
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (res.error && /capture_type|placeholder/.test(res.error.message)) {
+      res = await supabase.from("stickers").update(patch).eq("id", data.sticker_id).eq("user_id", userId);
+    }
+    if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });

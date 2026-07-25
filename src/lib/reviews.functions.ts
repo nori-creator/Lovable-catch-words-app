@@ -1,8 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateText, Output } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+  generateStructured,
+  getAi,
+  getUserLevelGoal,
+  isProUser,
+  logUsage,
+} from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 
@@ -176,6 +182,26 @@ export const getDueReviews = createServerFn({ method: "GET" })
       }
     }
 
+    // A3 レベル連動: 目標レベル以下の辞書語をヘッドワード・ディストラクタの
+    // 追加プールにする(デッキが小さいうちも4択が「全部知らない字」にならない)。
+    let dictPool: string[] = [];
+    try {
+      const levelGoal = await getUserLevelGoal(userId);
+      const lvl = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const pivot = crypto.randomUUID();
+      const { data: dictRows } = await supabaseAdmin
+        .from("dictionary_entries")
+        .select("headword")
+        .eq("language", "zh-TW")
+        .lte("tocfl_level", lvl)
+        .gte("id", pivot)
+        .limit(40);
+      dictPool = shuffle(((dictRows ?? []) as Array<{ headword: string }>).map((d) => d.headword));
+    } catch {
+      /* dictionary pool is optional */
+    }
+
     // Pre-generated AI distractors (best-effort: table may not exist yet).
     const wordIds = rows.map((r) => r.stickers!.words!.id);
     const cached = new Map<string, string[]>();
@@ -226,6 +252,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const headwordDistractors = pickThree(
         w.headword,
         sameCat.map((d) => d.headword),
+        dictPool,
         otherCat.map((d) => d.headword),
         STATIC_HEADWORD_FALLBACK,
       );
@@ -311,26 +338,34 @@ export async function pregenerateDistractors(
 - 学習者が一瞬迷う難易度（同カテゴリの別物がベスト）
 - すでに却下された候補: ${accepted.length ? accepted.join(", ") : "なし"}`;
 
-    const maker = await generateText({
-      model: ai.gateway(ai.modelFast),
-      prompt: makerPrompt,
-      experimental_output: Output.object({ schema: MakerSchema }) as never,
-    });
-    const makerOut = (maker as unknown as { experimental_output?: z.infer<typeof MakerSchema> }).experimental_output;
-    const candidates = makerOut?.distractors ?? [];
+    let candidates: string[] = [];
+    try {
+      const makerOut = await generateStructured({
+        model: ai.gateway(ai.modelFast),
+        prompt: makerPrompt,
+        schema: MakerSchema,
+      });
+      candidates = makerOut.distractors;
+    } catch {
+      continue; // this iteration produced nothing; reviews fall back to the deck
+    }
 
     const checkerPrompt = `以下は単語「${headword}」（正解の意味: ${correctMeaning}）の4択クイズの不正解候補です。
 各候補について、(a) 正解と意味が被っていない (b) 学習者を惑わすが正解とは明確に違う、を満たすかtrue/falseで判定してください。
 候補:
 ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
 
-    const checker = await generateText({
-      model: ai.gateway(ai.modelFast),
-      prompt: checkerPrompt,
-      experimental_output: Output.object({ schema: CheckerSchema }) as never,
-    });
-    const checkOut = (checker as unknown as { experimental_output?: z.infer<typeof CheckerSchema> }).experimental_output;
-    const verdicts = checkOut?.verdicts ?? [];
+    let verdicts: z.infer<typeof CheckerSchema>["verdicts"] = [];
+    try {
+      const checkOut = await generateStructured({
+        model: ai.gateway(ai.modelFast),
+        prompt: checkerPrompt,
+        schema: CheckerSchema,
+      });
+      verdicts = checkOut.verdicts;
+    } catch {
+      /* no checker verdicts — candidates pass unless they duplicate the answer */
+    }
 
     for (let i = 0; i < candidates.length; i++) {
       const v = verdicts[i];
@@ -538,6 +573,88 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
     return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
   });
 
+// --- B5 記憶の状態ビジュアライズ ---------------------------------------------
+export type MemoryWord = {
+  sticker_id: string;
+  headword: string;
+  retention: number; // 0-100(現在の推定記憶率)
+  interval_days: number;
+  repetitions: number;
+  due_at: string | null;
+  days_until_forgot: number | null; // 記憶率が50%を切るまでの日数(既に下回れば0)
+  fresh: boolean; // 覚えたて(repetitions<=2)
+  long_term: boolean; // 長期定着(interval>=30日)
+};
+export type MemoryOverview = {
+  danger: number; // retention < 50
+  fuzzy: number; // 50-80
+  solid: number; // > 80
+  words: MemoryWord[];
+};
+
+const LN2 = Math.log(2);
+function stabilityOf(interval_days: number, ease: number): number {
+  return Math.max(0.5, interval_days * Math.max(1, ease));
+}
+function retentionNow(interval_days: number, ease: number, lastMs: number | null, nowMs: number): number {
+  if (lastMs == null) return 100;
+  const dt = (nowMs - lastMs) / 86400_000;
+  if (dt <= 0) return 100;
+  return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stabilityOf(interval_days, ease))));
+}
+
+export const getMemoryOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<MemoryOverview> => {
+    const { supabase, userId } = context;
+    const { data: rows } = await supabase
+      .from("reviews")
+      .select("sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(words(headword))")
+      .eq("user_id", userId);
+    const now = Date.now();
+    type Row = {
+      sticker_id: string;
+      ease: number;
+      interval_days: number;
+      repetitions: number;
+      last_reviewed_at: string | null;
+      due_at: string | null;
+      stickers: { words: { headword: string } | null } | null;
+    };
+    const words: MemoryWord[] = ((rows ?? []) as unknown as Row[])
+      .filter((r) => r.stickers?.words)
+      .map((r) => {
+        const lastMs = r.last_reviewed_at ? new Date(r.last_reviewed_at).getTime() : null;
+        const retention = Math.round(retentionNow(r.interval_days, r.ease, lastMs, now));
+        // 50%到達日: 100*exp(-dt/stability)=50 → dt = stability*ln2
+        let daysUntilForgot: number | null = null;
+        if (lastMs != null) {
+          const stability = stabilityOf(r.interval_days, r.ease);
+          const dtNow = (now - lastMs) / 86400_000;
+          daysUntilForgot = Math.max(0, Math.round(stability * LN2 - dtNow));
+        }
+        return {
+          sticker_id: r.sticker_id,
+          headword: r.stickers!.words!.headword,
+          retention,
+          interval_days: r.interval_days,
+          repetitions: r.repetitions,
+          due_at: r.due_at,
+          days_until_forgot: daysUntilForgot,
+          fresh: r.repetitions <= 2,
+          long_term: r.interval_days >= 30,
+        };
+      })
+      .sort((a, b) => a.retention - b.retention); // 危険な語を上に
+
+    return {
+      danger: words.filter((w) => w.retention < 50).length,
+      fuzzy: words.filter((w) => w.retention >= 50 && w.retention <= 80).length,
+      solid: words.filter((w) => w.retention > 80).length,
+      words,
+    };
+  });
+
 // --- Speaking-output review feedback (§6) -----------------------------------
 
 const FeedbackInput = z.object({
@@ -630,9 +747,11 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
     const ai = getAi();
+    const levelGoal = await getUserLevelGoal(userId);
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
+学習者の目標レベル: ${levelGoal}(TOCFL) — 添削文・お手本の語彙はこのレベル以下に抑える。
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
@@ -641,16 +760,16 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 - correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
 - chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posはS(主語)/V(動詞)/O(目的語)/M(修飾)/C(接続・助詞)のいずれか。3〜8個程度。
 - chunk_note: この型の使いどころを日本語で1文。
-- native_note: この単語をネイティブが実際に使う時の気持ち・状況を日本語で1〜2文。
-- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字)。
+- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。日本語2〜3文。
+- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
 - alt_answer: 別の言い方1つ(繁体字)。`;
 
     const pro = await isProUser(userId);
-    const { experimental_output } = await generateText({
+    const feedback = await generateStructured({
       model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
       prompt,
-      experimental_output: Output.object({ schema: FeedbackSchema }) as never,
-    }) as unknown as { experimental_output: z.infer<typeof FeedbackSchema> };
+      schema: FeedbackSchema,
+    });
 
     // KPI (roadmap §3): speaking reviews feed the admin dashboard.
     await logUsage(supabase, userId, "speaking_feedback");
@@ -659,15 +778,97 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       loop: "speaking_feedback",
       iterations: 1,
       accepted: 1,
-      meta: { headword: w.headword, score: experimental_output.natural_score },
+      meta: { headword: w.headword, score: feedback.natural_score },
     });
 
     return {
-      ...experimental_output,
+      ...feedback,
       headword: w.headword,
       reading_zhuyin: w.reading_zhuyin,
       pinyin: w.pinyin,
       meaning_ja: w.meaning_ja,
       unlocked_branch: branch,
     };
+  });
+
+// --- B4 スピーキングの足場(MTC式) ------------------------------------------
+// 「白紙で話して」は厳しい。MTCの授業と同じく「習った型を使わせる先生の質問」
+// +「自分の言いたいことに対応する文のパーツ」を提示し、組み合わせて作文させる。
+// 単語レベルの足場(質問+パーツ)は words.extras.speaking_scaffold にキャッシュ
+// して2回目以降ゼロコスト。キャプション(その人の気持ち・思い出)はスティッカー
+// 固有なので毎回そのまま「言いたいことの種」として添える。
+
+export type SpeakingPart = { zh: string; ja: string };
+export type SpeakingScaffold = {
+  question_zh: string;
+  question_ja: string;
+  parts: SpeakingPart[];
+  caption_seed: string | null;
+};
+
+const ScaffoldSchema = z.object({
+  question_zh: z.string(),
+  question_ja: z.string(),
+  parts: z.array(z.object({ zh: z.string(), ja: z.string() })).min(2).max(5),
+});
+
+const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
+
+export const getSpeakingScaffold = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ScaffoldInput.parse(input))
+  .handler(async ({ context, data }): Promise<SpeakingScaffold> => {
+    const { supabase, userId } = context;
+    const { data: st } = await supabase
+      .from("stickers")
+      .select("id, caption, branch_plan, word_id, words(headword, meaning_ja, extras)")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const row = st as unknown as {
+      caption: string | null;
+      branch_plan?: unknown;
+      word_id: string;
+      words: { headword: string; meaning_ja: string; extras?: Record<string, unknown> | null } | null;
+    } | null;
+    if (!row?.words) throw new Error("カードが見つかりません");
+    const w = row.words;
+    const captionSeed = row.caption?.trim() || null;
+
+    // キャッシュヒット: 単語レベルの足場は使い回す(キャプションだけ差し替え)。
+    const cached = (w.extras as { speaking_scaffold?: unknown } | null)?.speaking_scaffold;
+    const cachedParsed = cached
+      ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
+      : null;
+    if (cachedParsed) {
+      return { ...cachedParsed, caption_seed: captionSeed };
+    }
+
+    const ai = getAi();
+    const levelGoal = await getUserLevelGoal(userId);
+    const plan =
+      parseBranchPlan(row.branch_plan) ??
+      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
+    const pattern = resolveBranches(plan, 1).justUnlocked;
+
+    const scaffold = await generateStructured({
+      model: ai.gateway(ai.modelFast),
+      schema: ScaffoldSchema,
+      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。学習者の目標レベルは ${levelGoal}(TOCFL)。
+${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
+次を厳密なJSONで返してください:
+- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
+- question_ja: その質問の日本語訳
+- parts: その質問に答えるための「文のパーツ」を3〜4個。真っ白から作らせず、組み合わせれば一文になる部品を渡す。各パーツは {zh:繁体字の短いフレーズ・型・コロケーション・量詞など, ja:日本語の意味}。${pattern ? `1つは今日の型「${pattern.zh}」を含める。` : ""}「${w.headword}」とよく一緒に使う動詞・量詞・定番チャンクを優先。`,
+    });
+
+    // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold: scaffold };
+      await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
+      await logUsage(supabase, userId, "speaking_feedback");
+    } catch { /* キャッシュ保存の失敗は致命的でない */ }
+
+    return { ...scaffold, caption_seed: captionSeed };
   });

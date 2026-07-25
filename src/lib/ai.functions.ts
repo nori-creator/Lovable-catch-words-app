@@ -2,20 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, isProUser, logUsage } from "./ai-provider.server";
+import { CATEGORY_KEYS, normalizeCategory } from "./category";
+import {
+  assertWithinDailyCap,
 
-const CATEGORY_KEYS = [
-  "fruit","vegetable","drink","food","dessert",
-  "vehicle","transport","animal","plant","flower",
-  "building","street","sign","shop","home","furniture","appliance","kitchenware","tool",
-  "clothes","accessory","shoes","bag","jewelry",
-  "stationery","book","tech","gadget","toy","game","sport","instrument",
-  "nature","weather","sky","water","mountain",
-  "body","face","hand","clothing_part",
-  "person","family","job",
-  "art","decoration","character","symbol","color","shape",
-  "money","document","medicine","other",
-] as const;
+  getAi,
+  getUserLevelGoal,
+  isProUser,
+  logUsage,
+  parseJsonFromAiText,
+} from "./ai-provider.server";
 
 const SuggestInput = z.object({
   // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
@@ -35,53 +31,6 @@ const SuggestionSchema = z.object({
     })
   ).length(5),
 });
-
-function parseJsonFromAiText(text: string) {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) return JSON.parse(fenced[1]);
-
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
-
-  return JSON.parse(trimmed);
-}
-
-// Heuristic post-processor: remap the AI's category_key when it lazily returns
-// "other" for common items, and gracefully bucket close synonyms.
-function normalizeCategory(headword: string, cat: string): typeof CATEGORY_KEYS[number] {
-  const h = headword.trim();
-  const rules: Array<[RegExp, typeof CATEGORY_KEYS[number]]> = [
-    [/^(手|腳|脚|頭|頭髮|髮|眼|眼睛|耳|耳朵|鼻|嘴|嘴巴|臉|舌|牙|牙齒|指|手指|腳趾|肩|膝|膝蓋|肚|肚子|背|胸|腰|脖|脖子)$/, "body"],
-    [/(滑鼠|鍵盤|電腦|筆電|螢幕|手機|平板|耳機|喇叭|路由器|插頭|充電器|相機|相機|USB)/, "tech"],
-    [/(汽車|車|機車|摩托車|腳踏車|自行車|捷運|公車|火車|高鐵|飛機|船)/, "transport"],
-    [/(狗|貓|鳥|魚|兔子|老鼠|馬|牛|羊|豬|雞|鴨|熊)/, "animal"],
-    [/(蘋果|香蕉|橘子|柳丁|葡萄|草莓|西瓜|芒果|鳳梨|木瓜|桃|梨|柿子|檸檬)/, "fruit"],
-    [/(高麗菜|白菜|菠菜|紅蘿蔔|馬鈴薯|洋蔥|番茄|茄子|青椒|大蒜|薑|蔥)/, "vegetable"],
-    [/(咖啡|茶|奶茶|果汁|可樂|水|礦泉水|牛奶|豆漿|啤酒)/, "drink"],
-    [/(三明治|飯|麵|包子|餃子|炒飯|炒麵|便當|漢堡|披薩|蛋餅|蔥抓餅|滷肉飯)/, "food"],
-    [/(蛋糕|布丁|冰淇淋|甜甜圈|巧克力|餅乾|糖果|奶酪)/, "dessert"],
-    [/(花|玫瑰|櫻花|向日葵|鬱金香|百合)$/, "flower"],
-    [/(樹|竹|草|葉)$/, "plant"],
-    [/(椅子|桌子|沙發|床|櫃子|書架|燈)$/, "furniture"],
-    [/(冰箱|洗衣機|微波爐|電視|冷氣|烤箱|吹風機)/, "appliance"],
-    [/(鍋|平底鍋|刀|叉|筷子|湯匙|盤子|碗|杯子)$/, "kitchenware"],
-    [/(衣服|襯衫|T恤|外套|夾克|大衣|褲子|裙子|洋裝|毛衣|帽子)$/, "clothes"],
-    [/(鞋|鞋子|運動鞋|拖鞋|靴子|高跟鞋)$/, "shoes"],
-    [/(包包|背包|皮包|錢包|手提袋)$/, "bag"],
-    [/(項鍊|戒指|耳環|手鍊|手錶)$/, "jewelry"],
-    [/(筆|鉛筆|原子筆|橡皮擦|尺|剪刀|膠水|筆記本|課本)$/, "stationery"],
-    [/(書|小說|字典|漫畫|雜誌)$/, "book"],
-    [/(硬幣|紙鈔|錢|信用卡)$/, "money"],
-    [/(招牌|標誌|標示|指示牌|路牌)/, "sign"],
-    [/(藥|藥品|口罩|OK繃|繃帶)/, "medicine"],
-  ];
-  for (const [re, key] of rules) if (re.test(h)) return key;
-  const c = cat as typeof CATEGORY_KEYS[number];
-  if (CATEGORY_KEYS.includes(c)) return c;
-  return "other";
-}
 
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -204,6 +153,7 @@ export const generateCard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ai = getAi();
     await assertWithinDailyCap(context.userId, "card");
+    const levelGoal = await getUserLevelGoal(context.userId);
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -220,8 +170,11 @@ export const generateCard = createServerFn({ method: "POST" })
 - meaning_ja: 日本語の意味（簡潔に）
 - part_of_speech: 品詞（名詞/動詞/形容詞/副詞など日本語表記）
 - level: TOCFLレベル（TOCFL-1〜6 のいずれか）
-- category_key: ${CATEGORY_KEYS.join("/")} のどれか
-- example_sentence: 台湾で日常的に使う自然な例文（繁体字）
+- category_key: ${CATEGORY_KEYS.join("/")} のどれか。
+  **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
+  化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
+  横断歩道・道路・信号→street、店→shop、交通機関→transport を必ず使う。
+- example_sentence: 台湾で日常的に使う自然な例文（繁体字）。学習者の目標レベルは ${levelGoal} — 例文の語彙・文型はこのレベル以下に抑える
 - example_translation: 例文の日本語訳
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。推測でよいので空文字・空配列で返さない。該当が本当に無いのは antonyms くらい）:
@@ -238,7 +191,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。推測
 - synonym_diff: 主要な類義語との使い分け・ニュアンスの違い（1〜2文、日本語）
 - word_order: この語が入る典型的な語順・文型パターン（例:「把+芒果+切開」のように繁体字パターン+短い日本語説明）
 - study_tips: 日本人学習者向けの勉強のコツ。日本語との違い・発音の注意・声調の覚え方など（1〜2文、日本語）
-- examples_extra: 追加の自然な例文2つ {zh, ja}
+- examples_extra: 追加の自然な例文2つ {zh, ja}（語彙は ${levelGoal} 以下）
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
@@ -346,12 +299,14 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
+    const levelGoal = await getUserLevelGoal(context.userId);
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
         `台湾華語(繁體字)のフレーズカードを作ります。\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
+        `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
         `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
         `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
         `- pinyin: 拼音\n` +
