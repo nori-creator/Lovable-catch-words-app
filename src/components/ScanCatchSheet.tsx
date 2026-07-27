@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Camera, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { speakCatchLine } from "@/lib/catch-voice";
 import { supabase } from "@/integrations/supabase/client";
 import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
@@ -227,7 +228,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (wordEl) wordEl.classList.add("hero-word-play");
     await new Promise((r) => setTimeout(r, 460));
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(30);
-    await new Promise((r) => setTimeout(r, 480)); // 見せ場のタメ
+    // 空中で一瞬止まるこの「タメ」で決め台詞が鳴る(毎回ランダムな声)。
+    // ここが体験のピーク — 音・振動・拡大が同時に来る瞬間。
+    speakCatchLine(headword);
+    await new Promise((r) => setTimeout(r, 900)); // 決め台詞を聴かせるタメ
 
     // --- 第2幕: ふわっと上に抜けて図鑑ページへ(着弾は図鑑側の slam-in) -----
     if (wordEl) wordEl.classList.remove("hero-word-play");

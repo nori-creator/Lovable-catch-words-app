@@ -21,7 +21,98 @@ const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
-const GOOGLE_DEFAULT_MODEL = "gemini-2.5-flash";
+// 「最新の Gemini を自動で使う」: -latest エイリアスは Google 側が最新の
+// 安定版を指し続けるので、モデル名を追い続けなくても新版に乗り換わる。
+const GOOGLE_DEFAULT_FAST = "gemini-flash-latest";
+const GOOGLE_DEFAULT_RICH = "gemini-flash-latest";
+/** 課金ユーザー向け: Gemini Pro(最新)。 */
+const GOOGLE_DEFAULT_PREMIUM = "gemini-pro-latest";
+
+/**
+ * 実行時のモデル切替(app_config.key='ai_models')。
+ * 管理画面から provider / モデル名を書き換えられるので、ChatGPT・Claude・
+ * DeepSeek・Kimi へ再デプロイなしで乗り換えられる。env はフォールバック。
+ */
+export type AiModelOverride = {
+  provider?: string;
+  base_url?: string;
+  /** APIキーは env 名で参照する(鍵そのものはDBに置かない)。 */
+  api_key_env?: string;
+  fast?: string;
+  rich?: string;
+  rich_premium?: string;
+};
+
+let overrideCache: { at: number; value: AiModelOverride | null } = { at: 0, value: null };
+
+/** 30秒キャッシュ付きでモデル上書き設定を読む(呼び出しごとのDB往復を避ける)。 */
+export async function getAiModelOverride(): Promise<AiModelOverride | null> {
+  const now = Date.now();
+  if (now - overrideCache.at < 30_000) return overrideCache.value;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // app_config は生成済みの型定義より新しいテーブル(マイグレーション
+    // 20260727100000)。型を再生成するまでは緩いクライアントとして扱う。
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: unknown }> };
+        };
+      };
+    };
+    const { data } = await db
+      .from("app_config")
+      .select("value")
+      .eq("key", "ai_models")
+      .maybeSingle();
+    const value = ((data as { value?: AiModelOverride } | null)?.value ?? null) as AiModelOverride | null;
+    overrideCache = { at: now, value };
+    return value;
+  } catch {
+    overrideCache = { at: now, value: null };
+    return null;
+  }
+}
+
+/** 既知プロバイダの OpenAI 互換エンドポイント。 */
+export const PROVIDER_PRESETS: Record<string, { base_url: string; api_key_env: string; label: string }> = {
+  google: { base_url: GOOGLE_BASE_URL, api_key_env: "GEMINI_API_KEY", label: "Google Gemini" },
+  openai: { base_url: "https://api.openai.com/v1", api_key_env: "OPENAI_API_KEY", label: "OpenAI (ChatGPT)" },
+  anthropic: { base_url: "https://api.anthropic.com/v1", api_key_env: "ANTHROPIC_API_KEY", label: "Anthropic Claude" },
+  deepseek: { base_url: "https://api.deepseek.com/v1", api_key_env: "DEEPSEEK_API_KEY", label: "DeepSeek" },
+  kimi: { base_url: "https://api.moonshot.ai/v1", api_key_env: "MOONSHOT_API_KEY", label: "Kimi (Moonshot)" },
+  lovable: { base_url: LOVABLE_BASE_URL, api_key_env: "LOVABLE_API_KEY", label: "Lovable Gateway" },
+};
+
+/**
+ * app_config の上書きがあればそれを使って AiConfig を組む。
+ * 上書きが無い/キーが無いときは env ベースの getAi() に落ちる。
+ */
+export async function getAiRuntime(): Promise<AiConfig> {
+  const ov = await getAiModelOverride();
+  if (!ov?.provider) return getAi();
+  const preset = PROVIDER_PRESETS[ov.provider];
+  const baseURL = ov.base_url ?? preset?.base_url;
+  const keyEnv = ov.api_key_env ?? preset?.api_key_env;
+  const key = keyEnv ? process.env[keyEnv] : undefined;
+  if (!baseURL || !key) return getAi(); // 設定が不完全なら安全に env 側へ
+  const fast = ov.fast ?? GOOGLE_DEFAULT_FAST;
+  const rich = ov.rich ?? fast;
+  return {
+    provider: "openai-compatible",
+    gateway: createOpenAICompatible({
+      name: ov.provider,
+      baseURL,
+      headers:
+        ov.provider === "anthropic"
+          ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
+          : { Authorization: `Bearer ${key}` },
+    }),
+    modelFast: fast,
+    modelRich: rich,
+    modelRichPremium: ov.rich_premium ?? rich,
+  };
+}
 
 export type AiConfig = {
   provider: "lovable" | "google" | "openai-compatible";
@@ -59,10 +150,10 @@ export function getAi(): AiConfig {
         baseURL: GOOGLE_BASE_URL,
         headers: { Authorization: `Bearer ${key}` },
       }),
-      modelFast: process.env.AI_MODEL_FAST ?? GOOGLE_DEFAULT_MODEL,
-      modelRich: process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_MODEL,
-      modelRichPremium:
-        process.env.AI_MODEL_RICH_PREMIUM ?? process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_MODEL,
+      modelFast: process.env.AI_MODEL_FAST ?? GOOGLE_DEFAULT_FAST,
+      modelRich: process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_RICH,
+      // 課金ユーザーは Gemini Pro(最新)。env で上書きも可能。
+      modelRichPremium: process.env.AI_MODEL_RICH_PREMIUM ?? GOOGLE_DEFAULT_PREMIUM,
     };
   }
 
@@ -200,10 +291,47 @@ export async function isProUser(userId: string): Promise<boolean> {
       .eq("id", userId)
       .maybeSingle();
     if (error) return false;
-    return (data as { plan?: string } | null)?.plan === "pro";
+    if ((data as { plan?: string } | null)?.plan === "pro") return true;
+    // 開発者(admin)は Pro 扱い — 課金機能を自分で試せないと検証できない。
+    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", {
+      _user_id: userId,
+      _role: "admin",
+    });
+    return Boolean(isAdmin);
   } catch {
     return false;
   }
+}
+
+/**
+ * 学習者の現在レベルと目標レベル(TOCFL)。生成物の語彙・文法は
+ * 「現在レベル〜目標レベル」の帯に収めるのが最も伸びる(i+1)。
+ * current_level が未設定なら目標の1つ下を現在とみなす。
+ */
+export async function getUserLevels(userId: string): Promise<{ current: string; goal: string }> {
+  const goal = await getUserLevelGoal(userId);
+  const goalNum = Number(goal.match(/(\d)/)?.[1] ?? 2);
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("current_level")
+      .eq("id", userId)
+      .maybeSingle();
+    const cur = (data as { current_level?: string | null } | null)?.current_level;
+    if (cur && cur.trim()) return { current: cur, goal };
+  } catch { /* 列が無い環境ではフォールバック */ }
+  return { current: `TOCFL-${Math.max(1, goalNum - 1)}`, goal };
+}
+
+/** プロンプトに差し込むレベル指示の共通文(現在→目標の帯に収める)。 */
+export async function levelInstruction(userId: string): Promise<string> {
+  const { current, goal } = await getUserLevels(userId);
+  return (
+    `学習者の現在レベル: ${current}、目標レベル: ${goal}(TOCFL)。` +
+    `語彙・文法は ${current} を土台に ${goal} までの範囲で選び、` +
+    `${goal} を超える難語・難構文は使わない(どうしても必要なら短い注釈を添える)。`
+  );
 }
 
 /**

@@ -26,6 +26,8 @@ const UpdateInput = z.object({
   ui_language: z.string().optional(),
   target_language: z.string().optional(),
   level_goal: z.string().optional(),
+  /** TOCFL の現在レベル(生成物の語彙帯を現在→目標に収めるのに使う)。 */
+  current_level: z.string().optional(),
   pronunciation_strictness: z.enum(["easy", "normal", "strict"]).optional(),
   review_mode: z.enum(["speaking", "choice"]).optional(),
   onboarded: z.boolean().optional(),
@@ -36,7 +38,18 @@ export const updateMyProfile = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => UpdateInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase.from("profiles").update(data).eq("id", userId);
+    // current_level は生成済みの型定義より新しい列(マイグレーション
+    // 20260727100000)。型を再生成するまでは緩いクライアントとして扱う。
+    const { error } = await (supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    })
+      .from("profiles")
+      .update(data as Record<string, unknown>)
+      .eq("id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

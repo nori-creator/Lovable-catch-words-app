@@ -19,6 +19,8 @@ import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "
 import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
+import { ScanEffect } from "@/components/ScanEffect";
+import { speakCatchLine } from "@/lib/catch-voice";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
@@ -364,10 +366,12 @@ function CapturePage() {
         return path;
       }
 
+      // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
+      // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
       const [object_path, cutout_path, selfie_path] = await Promise.all([
         upload(objectImg, "object"),
-        upload(cutoutImg, "cutout"),
-        upload(selfieImg, "selfie"),
+        upload(cutoutImg, "cutout").catch(() => null),
+        upload(selfieImg, "selfie").catch(() => null),
       ]);
 
       const res = await saveFn({
@@ -395,10 +399,12 @@ function CapturePage() {
         },
       });
 
-      await queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      if (pendingId) await removePendingCapture(pendingId);
-      toast.success("ステッカーを図鑑に追加しました！");
-      navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
+      // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+      void queryClient.invalidateQueries({ queryKey: ["stickers"] });
+      if (pendingId) void removePendingCapture(pendingId);
+      // 決め台詞ボイス + 図鑑ページで「ドンッ」と着弾する演出へ。
+      speakCatchLine(selectedHead);
+      navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
@@ -528,22 +534,17 @@ function CapturePage() {
       )}
 
       {step === "processing" && (
+        // 分析中もフルスクリーン。撮った写真の上でスキャン演出が走る
+        // (「少しだけ待ってね」のような待たせる文言は出さない)。
         <div className="fixed inset-0 z-50 bg-black">
           {objectImg && (
             <img
               src={objectImg}
-              alt="processing"
-              className="absolute inset-0 h-full w-full object-cover opacity-70"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
             />
           )}
-          <div className="absolute inset-0 shimmer-sweep" />
-          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 animate-pulse" />
-              <span className="font-semibold">{mode === "text" ? "意味と例文を生成中..." : "AIが分析中..."}</span>
-            </div>
-            <p className="text-sm text-white/80">少しだけ待ってね</p>
-          </div>
+          <ScanEffect stage="reading" />
         </div>
       )}
 
@@ -659,9 +660,25 @@ function CapturePage() {
       )}
 
       {step === "saving" && (
-        <div className="grid place-items-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">保存中...</p>
+        // 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
+          {(cutoutImg ?? objectImg) && (
+            <img
+              src={(cutoutImg ?? objectImg)!}
+              alt=""
+              className="catch-rise max-h-[52vh] max-w-[78vw] rounded-2xl object-contain shadow-2xl"
+            />
+          )}
+          <p className="mt-6 text-lg font-bold tracking-tight">{selectedHead}</p>
+          <style>{`
+            @keyframes catchRise {
+              0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
+              45%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
+              100% { transform: translateY(-14px) scale(1.02); opacity: 1; }
+            }
+            .catch-rise { animation: catchRise 620ms var(--ease-out-soft) both; }
+            @media (prefers-reduced-motion: reduce) { .catch-rise { animation: none; } }
+          `}</style>
         </div>
       )}
 

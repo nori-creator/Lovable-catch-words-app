@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock, Flag, Trash2, ImageUp } from "lucide-react";
+import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock, Flag, Trash2, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import {
@@ -10,7 +10,9 @@ import {
   reportWordIssue,
   deleteSticker,
   replaceStickerPhoto,
+  setStickerPlaceholder,
 } from "@/lib/stickers.functions";
+import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functions";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
@@ -34,6 +36,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<null | "delete" | "image">(null);
+  // 削除の誤操作防止: 1回目のタップで「本当に削除?」に変わり、4秒で元に戻る。
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  useEffect(() => {
+    if (!deleteArmed) return;
+    const t = setTimeout(() => setDeleteArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [deleteArmed]);
   const qc = useQueryClient();
   const { data: s, isLoading } = useQuery({
     queryKey: ["sticker", stickerId],
@@ -52,6 +61,49 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const [enriching, setEnriching] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
+
+  // 画像なしカード(段ボール絵)の根絶: 詳細を開いた時に1枚も画像が無ければ、
+  // Web検索の画像を仮画像として自動添付する(1回だけ・失敗しても致命的でない)。
+  const searchImagesFn = useServerFn(searchImageCandidates);
+  const fetchImageFn = useServerFn(fetchImageAsDataUrl);
+  const setPlaceholderFn = useServerFn(setStickerPlaceholder);
+  const autoImgRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!s || s.object_url || s.cutout_url || s.selfie_url || s.placeholder_url) return;
+    if (autoImgRef.current.has(s.id)) return;
+    autoImgRef.current.add(s.id);
+    void (async () => {
+      try {
+        const { candidates } = await searchImagesFn({
+          data: { query: s.word.meaning_ja || s.word.headword },
+        });
+        const cand = candidates[0];
+        if (!cand) return;
+        const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
+        const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
+        const blob = await (await fetch(small)).blob();
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData.user?.id;
+        if (!userId) return;
+        const path = `${userId}/${Date.now()}-placeholder.jpg`;
+        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+          contentType: blob.type,
+          upsert: false,
+        });
+        if (error) return;
+        void putCachedImage(path, blob);
+        await setPlaceholderFn({
+          data: {
+            sticker_id: s.id,
+            placeholder_path: path,
+            placeholder_credit: cand.credit ? { ...cand.credit, source: cand.source } : { source: cand.source },
+          },
+        });
+        await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+      } catch { /* 仮画像は任意 */ }
+    })();
+  }, [s, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
 
   // 写真の長押し(550ms)で変更 — ボタンを探さなくても、変えたい写真そのものを
   // 押さえれば変えられる。長押し成立後のクリックはフリップさせない。
@@ -103,7 +155,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
   async function handleDelete() {
     if (!stickerId || busy) return;
-    if (!window.confirm("このカードを削除しますか?この操作は取り消せません。")) return;
+    if (!deleteArmed) { setDeleteArmed(true); return; }
+    if (!window.confirm("本当に削除しますか?この操作は取り消せません。")) { setDeleteArmed(false); return; }
+    setDeleteArmed(false);
     setBusy("delete");
     try {
       await deleteFn({ data: { sticker_id: stickerId } });
@@ -375,10 +429,21 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       )}
                     </>
                   ) : (
-                    <div className="grid h-full w-full place-items-center bg-secondary text-7xl">
-                      {s.word.silhouette_emoji ?? "📦"}
+                    <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
+                      <span className="text-xs text-muted-foreground">🌐 画像をネットから探しています…</span>
                     </div>
                   )}
+                  {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    aria-label="写真を変更"
+                    className="absolute bottom-2 left-2 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition active:scale-95"
+                  >
+                    {busy === "image" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  </button>
                   {hasSelfie && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                       タップで自撮りへ
@@ -510,8 +575,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               </a>
             )}
 
-            {/* B3: カード管理(写真の差し替え・削除) */}
-            <div className="mt-5 flex gap-2">
+            {/* カード管理: 写真の変更は写真上の📷アイコン/長押し。削除は2段階。 */}
+            <div className="mt-5 flex justify-end">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -524,20 +589,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 }}
               />
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={busy !== null}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card py-2.5 text-xs font-medium disabled:opacity-60"
-              >
-                {busy === "image" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
-                写真を変更
-              </button>
-              <button
                 onClick={handleDelete}
                 disabled={busy !== null}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 disabled:opacity-60"
+                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                  deleteArmed
+                    ? "border-red-500 bg-red-600 text-white"
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}
               >
                 {busy === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                削除
+                {deleteArmed ? "もう一度タップで削除" : "削除"}
               </button>
             </div>
           </>

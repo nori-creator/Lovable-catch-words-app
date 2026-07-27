@@ -35,10 +35,33 @@ const GOOGLE_TTS_VOICE = process.env.GOOGLE_TTS_VOICE ?? "cmn-TW-Wavenet-A";
  * - Fallback: any OpenAI-compatible /audio/speech server (getTts()).
  * Throws when no server TTS is configured; callers keep a device-voice fallback.
  */
+/** レート制限(429)・一時的な5xxは待って再試行する。 */
+async function fetchWithBackoff(
+  url: string,
+  init: RequestInit,
+  attempts = 4,
+): Promise<Response> {
+  let lastStatus = 0;
+  let lastBody = "";
+  for (let i = 0; i < attempts; i++) {
+    const res = await fetch(url, init);
+    if (res.ok) return res;
+    lastStatus = res.status;
+    lastBody = await res.text().catch(() => "");
+    const retryable = res.status === 429 || res.status === 503 || res.status >= 500;
+    if (!retryable || i === attempts - 1) break;
+    // Retry-After があれば従い、無ければ 0.8s → 1.6s → 3.2s。
+    const ra = Number(res.headers.get("retry-after"));
+    const waitMs = Number.isFinite(ra) && ra > 0 ? ra * 1000 : 800 * 2 ** i;
+    await new Promise((r) => setTimeout(r, Math.min(waitMs, 6000)));
+  }
+  throw new Error(`TTS ${lastStatus} ${lastBody.slice(0, 160)}`);
+}
+
 async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
   const gKey = process.env.GOOGLE_TTS_API_KEY;
   if (gKey) {
-    const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
+    const res = await fetchWithBackoff(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -47,7 +70,6 @@ async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
         audioConfig: { audioEncoding: "MP3", speakingRate: speed },
       }),
     });
-    if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`);
     const json = (await res.json()) as { audioContent?: string };
     if (!json.audioContent) throw new Error("TTS empty response");
     const bin = atob(json.audioContent);
@@ -56,7 +78,7 @@ async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
     return out;
   }
   const tts = getTts();
-  const res = await fetch(tts.url, {
+  const res = await fetchWithBackoff(tts.url, {
     method: "POST",
     headers: tts.headers,
     body: JSON.stringify({
@@ -68,7 +90,6 @@ async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
       instructions: TTS_INSTRUCTIONS,
     }),
   });
-  if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`);
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -159,8 +180,11 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
     let failed = 0;
     const errors: string[] = [];
 
+    let consecutiveRateLimited = 0;
     for (const entry of entries ?? []) {
       if (Date.now() > deadline) break;
+      // 429が3連続したらこのバッチは中断 — 叩き続けても失敗が増えるだけ。
+      if (consecutiveRateLimited >= 3) break;
       try {
         const path = await ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, entry.headword);
         // Reuse audio already cached by on-demand taps.
@@ -178,9 +202,13 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
           .eq("id", entry.id);
         if (dbErr) throw new Error(`db: ${dbErr.message}`);
         done += 1;
+        consecutiveRateLimited = 0;
       } catch (e) {
         failed += 1;
-        if (errors.length < 3) errors.push(`${entry.headword}: ${(e as Error).message}`);
+        const msg = (e as Error).message;
+        if (/\b429\b|rate_limited/i.test(msg)) consecutiveRateLimited += 1;
+        else consecutiveRateLimited = 0;
+        if (errors.length < 3) errors.push(`${entry.headword}: ${msg}`);
       }
     }
 

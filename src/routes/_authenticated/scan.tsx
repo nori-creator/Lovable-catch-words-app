@@ -15,6 +15,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -459,6 +460,7 @@ function ScanPage() {
 
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
+  const t = useT();
   const boxSize = useBoxSize(boxRef);
   const dotStyle = useCallback((it: DetectedItem): React.CSSProperties => {
     const [x, y] = it.point;
@@ -485,9 +487,14 @@ function ScanPage() {
   return (
     <AppShell title="スキャン">
       <div className="space-y-3">
+        {/*
+          カメラは画面いっぱい(フルスクリーン)。世界をスキャンしている感覚は
+          小さな窓では出ない — 上下のUIだけをオーバーレイで重ねる。
+          スクロールを持つ候補リストは、この下の通常フローに残す。
+        */}
         <div
           ref={boxRef}
-          className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-black shadow-lg ring-1 ring-black/10"
+          className="fixed inset-0 z-20 overflow-hidden bg-black"
         >
           {/* live camera */}
           {!snapshot && (
@@ -596,48 +603,6 @@ function ScanPage() {
             </div>
           )}
 
-          {/* empty state after scan — revive the native-language search field
-              (§2 onboarding escape hatch): type a word (Japanese is fine). */}
-          {items && visibleItems.length === 0 && !scanning && (
-            <div className="absolute inset-x-4 bottom-24 rounded-2xl bg-card/95 p-3 text-sm text-card-foreground shadow-lg backdrop-blur">
-              <p className="text-center text-muted-foreground">
-                候補がないときは、単語で検索（日本語でもOK）
-              </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const q = manualQuery.trim();
-                  if (!q) return;
-                  setInputCatchText(q);
-                  setInputCatchOpen("text");
-                }}
-                className="mt-2 flex gap-2"
-              >
-                <input
-                  value={manualQuery}
-                  onChange={(e) => setManualQuery(e.target.value)}
-                  placeholder="例: マンゴー / 芒果"
-                  className="min-w-0 flex-1 rounded-full border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-                />
-                <button
-                  type="submit"
-                  className="press-in inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                >
-                  <Search className="h-4 w-4" /> 調べる
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* legend */}
-          {ready && !snapshot && !scanning && (
-            <div className="absolute left-3 top-3 flex gap-2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white backdrop-blur">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white" />新しい</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />スキャン済み</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />未撮影</span>
-            </div>
-          )}
-
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
             <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
@@ -648,63 +613,127 @@ function ScanPage() {
         </div>
 
 
-        {/* controls */}
-        <div className="flex items-center justify-center gap-3">
-          {!snapshot ? (
-            <>
-              <button
-                onClick={() => setInputCatchOpen("text")}
-                aria-label="文字入力でキャッチ"
-                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
-              >
-                <Keyboard className="h-5 w-5" />
-              </button>
-              <button
-                onClick={doScan}
-                disabled={!ready || scanning}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
-              >
-                {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
-                スキャン
-              </button>
-              <button
-                onClick={() => setInputCatchOpen("voice")}
-                aria-label="聞こえたフレーズを復唱してキャッチ"
-                className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition active:scale-95"
-              >
-                <Mic className="h-5 w-5" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={reset}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground shadow"
-              >
-                <RotateCcw className="h-4 w-4" /> もう一度
-              </button>
-              <button
-                onClick={doScan}
-                disabled={scanning}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow"
-              >
-                <Camera className="h-4 w-4" /> 再スキャン
-              </button>
-            </>
-          )}
-        </div>
+        {/*
+          カメラの上に重ねる操作シート。順番が体験を決める:
+            1) タップした単語のチップ(キャッチボタン)が最前面・一番上
+               — 以前はリストの下にあり、スクロールしないと押せなかった
+            2) スキャンボタンと母語の検索欄(常設)
+            3) 見つかった単語の一覧(スクロール可)
+        */}
+        <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4">
+          {/* 1) チップ: ドットをタップした単語 — 常に一番上・すぐキャッチできる */}
+        {chip && (
+          <ScanChip
+            headword={displayHeadword}
+            zhuyin={displayZhuyin}
+            pinyin={displayPinyin}
+            meaning={displayMeaning}
+            pos={displayPos}
+            verified={verified}
+            state={dotStateFor(displayHeadword, scanCtx)}
+            foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
+            item={chip.item}
+            candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
+            expanding={expandingId === chip.item.id}
+            canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
+            onPickCandidate={(h) => pickCandidate(h, chip.item)}
+            onPlay={() => playAudio(displayHeadword, chip.item)}
+            onExpand={() => expandParts(chip.item)}
+            onCatch={() => {
+              if (!chip.chosenHeadword || !snapshot) return;
+              startPrefetch(chip.chosenHeadword);
+              setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
+            }}
+            onClose={() => setChip(null)}
+          />
+        )}
 
 
         {error && (
           <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
         )}
 
-        {/* 候補リスト(羅列): カメラ上の単語ラベル(上)に加え、下に一覧でも見せる。
-            タップでカメラ上のドットと同じチップを開く。 */}
-        {visibleItems.length > 0 && !scanning && (
+
+          {/* 2) 操作: スキャン + 母語で調べる欄(常設)。
+              細かいアイコンボタン(⌨/🎤)は廃止 — 「候補に無いものは自分の
+              言葉で調べる」の一本道にする。音声入力は検索欄の🎤から。 */}
+        <div className="flex items-center justify-center gap-3">
+          {!snapshot ? (
+            <div className="w-full space-y-2">
+              <div className="flex justify-center">
+                <button
+                  onClick={doScan}
+                  disabled={!ready || scanning}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-base font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:opacity-50"
+                >
+                  {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
+                  {t("scan.button")}
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = manualQuery.trim();
+                  if (!q) return;
+                  setInputCatchText(q);
+                  setInputCatchOpen("text");
+                }}
+                className="flex gap-2"
+              >
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={manualQuery}
+                    onChange={(e) => setManualQuery(e.target.value)}
+                    placeholder={t("scan.searchPlaceholder")}
+                    className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-sm shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInputCatchOpen("voice")}
+                  aria-label={t("scan.voiceLabel")}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-background/90 text-muted-foreground shadow-lg backdrop-blur transition active:scale-95"
+                >
+                  <Mic className="h-4 w-4" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!manualQuery.trim()}
+                  className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg disabled:opacity-50"
+                >
+                  {t("scan.searchGo")}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={reset}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground shadow"
+              >
+                <RotateCcw className="h-4 w-4" /> {t("scan.again")}
+              </button>
+              <button
+                onClick={doScan}
+                disabled={scanning}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow"
+              >
+                <Camera className="h-4 w-4" /> {t("scan.rescan")}
+              </button>
+            </>
+          )}
+        </div>
+
+
+
+          {/* 3) 見つかった単語(スクロールできるガラスのシート) */}
+          {visibleItems.length > 0 && !scanning && (
+            <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/80 p-1.5 shadow-lg backdrop-blur-xl">
+            {(
           <div className="space-y-1.5">
             <p className="px-1 text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
-              見つかった単語
+              {t("scan.found")}
             </p>
             {visibleItems.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
@@ -732,11 +761,11 @@ function ScanPage() {
                       owned a check, new a chevron. */}
                   {st === "owned" ? (
                     <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-                      <Check className="h-3.5 w-3.5" /> 取得済み
+                      <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
                     </span>
                   ) : st === "reunion" ? (
                     <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
-                      未撮影
+                      {t("scan.reunion")}
                     </span>
                   ) : (
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -747,32 +776,10 @@ function ScanPage() {
           </div>
         )}
 
-        {/* chip / mini card */}
-        {chip && (
-          <ScanChip
-            headword={displayHeadword}
-            zhuyin={displayZhuyin}
-            pinyin={displayPinyin}
-            meaning={displayMeaning}
-            pos={displayPos}
-            verified={verified}
-            state={dotStateFor(displayHeadword, scanCtx)}
-            foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
-            item={chip.item}
-            candidates={chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []}
-            expanding={expandingId === chip.item.id}
-            canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
-            onPickCandidate={(h) => pickCandidate(h, chip.item)}
-            onPlay={() => playAudio(displayHeadword, chip.item)}
-            onExpand={() => expandParts(chip.item)}
-            onCatch={() => {
-              if (!chip.chosenHeadword || !snapshot) return;
-              startPrefetch(chip.chosenHeadword);
-              setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
-            }}
-            onClose={() => setChip(null)}
-          />
-        )}
+
+            </div>
+          )}
+        </div>
 
         {/* Dev metrics panel (?dev=1 or localStorage.catchwords_dev=1) */}
         {devOn && (

@@ -6,6 +6,7 @@ import {
   generateStructured,
   getAi,
   getUserLevelGoal,
+  levelInstruction,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -116,12 +117,13 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const pro = await isProUser(userId);
     const richModel = pro ? ai.modelRichPremium : ai.modelRich;
     const levelGoal = await getUserLevelGoal(userId);
+    const levelRule = await levelInstruction(userId);
     const corrected = await generateStructured({
       model: ai.gateway(richModel),
       schema: Schema,
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
-        `学習者の目標レベル: ${levelGoal}(TOCFL)。添削・フレーズの語彙はこのレベル以下を優先。\n` +
+        `${levelRule}\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
         `次を出力:\n` +

@@ -682,3 +682,36 @@ export const replaceStickerPhoto = createServerFn({ method: "POST" })
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
+
+// --- 画像なしカードへの仮画像の自動添付 (2026-07-27) -------------------------
+// 段ボール絵(絵文字)のカードを無くす: 詳細を開いた時に画像が1枚も無ければ、
+// クライアントがWeb検索画像をアップロードしてここに登録する。
+const SetPlaceholderInput = z.object({
+  sticker_id: z.string().uuid(),
+  placeholder_path: z.string(),
+  placeholder_credit: z
+    .object({ name: z.string().optional(), link: z.string().optional(), source: z.string() })
+    .nullable()
+    .optional(),
+});
+
+export const setStickerPlaceholder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => SetPlaceholderInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    // Path-spoofing guard: only paths under the caller's own uid folder.
+    if (!data.placeholder_path.startsWith(`${userId}/`)) {
+      throw new Error("不正な画像パスです");
+    }
+    const { error } = await supabase
+      .from("stickers")
+      .update({
+        placeholder_image_url: data.placeholder_path,
+        placeholder_credit: (data.placeholder_credit ?? null) as never,
+      })
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
