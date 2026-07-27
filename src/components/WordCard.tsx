@@ -8,6 +8,7 @@ import { reportEntry } from "@/lib/reports.functions";
 import { regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
+import { useT } from "@/lib/i18n";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -50,6 +51,7 @@ type SectionId =
   | "taiwan_note"
   | "real_usage";
 
+/** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
 const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "meaning", label: "意味" },
   { id: "web_images", label: "ネットの画像" },
@@ -124,6 +126,7 @@ function usePrefsSync(setPrefs: (p: Prefs) => void) {
 }
 
 export function WordCardSectionsEditor() {
+  const t = useT();
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
@@ -148,7 +151,7 @@ export function WordCardSectionsEditor() {
         const visible = isVisible(id);
         return (
           <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs">
-            <span className={visible ? "" : "text-muted-foreground line-through"}>{meta.label}</span>
+            <span className={visible ? "" : "text-muted-foreground line-through"}>{t(`card.${meta.id}`)}</span>
             <span className="flex gap-1">
               <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
                 <ChevronUp className="h-3.5 w-3.5" />
@@ -306,6 +309,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
  * ランダム抜き打ちだけでは拾えない実利用者の指摘を集める恒久ルート。
  */
 function ReportButton({ headword }: { headword: string }) {
+  const t = useT();
   const reportFn = useServerFn(reportEntry);
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
@@ -323,7 +327,7 @@ function ReportButton({ headword }: { headword: string }) {
     } catch { /* 報告失敗は致命的でない */ }
   }
   if (sent) {
-    return <span className="text-[11px] text-muted-foreground">🙏 報告ありがとうございます</span>;
+    return <span className="text-[11px] text-muted-foreground">{t("card.reportThanks")}</span>;
   }
   return (
     <span className="relative ml-auto">
@@ -332,11 +336,11 @@ function ReportButton({ headword }: { headword: string }) {
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
         aria-label="この語の誤りを報告"
       >
-        <Flag className="h-3 w-3" /> 報告
+        <Flag className="h-3 w-3" /> {t("card.report")}
       </button>
       {open && (
         <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-card p-1.5 shadow-xl">
-          <p className="px-2 py-1 text-[10px] text-muted-foreground">どこが違う?</p>
+          <p className="px-2 py-1 text-[10px] text-muted-foreground">{t("card.reportWhat")}</p>
           {kinds.map((k) => (
             <button
               key={k.kind}
@@ -363,8 +367,9 @@ function SectionCard({
   wordId?: string;
   isPro?: boolean;
 }) {
-  const t = SECTION_THEME[id];
-  const label = ALL_SECTIONS.find((s) => s.id === id)?.label ?? id;
+  const theme = SECTION_THEME[id];
+  const t = useT();
+  const label = t(`card.${id}`);
   const ex = word.extras ?? {};
   const regenFn = useServerFn(regenerateCardSection);
   const qc = useQueryClient();
@@ -387,25 +392,25 @@ function SectionCard({
   }
 
   return (
-    <section className={`lift rounded-2xl ${t.bg} ring-1 ${t.ring} p-4 shadow-sm`}>
+    <section className={`lift rounded-2xl ${theme.bg} ring-1 ${theme.ring} p-4 shadow-sm`}>
       <div className="mb-2 flex items-center gap-2">
-        <span className={`grid h-6 w-6 place-items-center rounded-full ${t.chip} text-xs text-white shadow`}>
-          {t.icon}
+        <span className={`grid h-6 w-6 place-items-center rounded-full ${theme.chip} text-xs text-white shadow`}>
+          {theme.icon}
         </span>
-        <h3 className={`text-xs font-semibold uppercase tracking-wider ${t.title}`}>{label}</h3>
+        <h3 className={`text-xs font-semibold uppercase tracking-wider ${theme.title}`}>{label}</h3>
         {canRegen && (
           <button
             onClick={regen}
             disabled={regenerating}
-            aria-label={`「${label}」を再生成`}
-            title="この項目をAIで作り直す(Pro)"
+            aria-label={`${label}: ${t("card.regen")}`}
+            title={t("card.regen")}
             className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-white/60 hover:text-foreground disabled:opacity-60"
           >
             {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           </button>
         )}
       </div>
-      <Body id={id} word={word} ex={ex} />
+      <Body id={id} word={word} ex={ex} t={t} />
     </section>
   );
 }
@@ -424,7 +429,17 @@ function FrequencyMeter({ level }: { level: number }) {
   );
 }
 
-function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExtras }) {
+function Body({
+  id,
+  word,
+  ex,
+  t,
+}: {
+  id: SectionId;
+  word: WordCardData;
+  ex: WordExtras;
+  t: (k: string) => string;
+}) {
   switch (id) {
     case "meaning":
       return <p className="text-base font-medium text-foreground">{word.meaning_ja}</p>;
@@ -438,7 +453,7 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
             <div className="flex flex-wrap items-center gap-2">
               {ex.frequency_level != null && ex.frequency_level > 0 && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium text-cyan-900 ring-1 ring-cyan-200">
-                  頻度 <FrequencyMeter level={ex.frequency_level} />
+                  {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
                 </span>
               )}
               {ex.register_tag && (
@@ -526,9 +541,9 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
     case "related_words": {
       const rel = ex.related_words ?? [];
       const groups: Array<{ kind: "syn" | "ant" | "rel"; label: string; tone: string }> = [
-        { kind: "syn", label: "類義", tone: "bg-white/70 text-foreground" },
-        { kind: "ant", label: "反義", tone: "bg-rose-100 text-rose-900" },
-        { kind: "rel", label: "関連", tone: "bg-indigo-100 text-indigo-900" },
+        { kind: "syn", label: t("card.synonym"), tone: "bg-white/70 text-foreground" },
+        { kind: "ant", label: t("card.antonym"), tone: "bg-rose-100 text-rose-900" },
+        { kind: "rel", label: t("card.relatedTag"), tone: "bg-indigo-100 text-indigo-900" },
       ];
       const legacySyn = (ex.synonyms ?? []).map((w) => ({ word: w, kind: "syn" as const, note: "" }));
       const legacyAnt = (ex.antonyms ?? []).map((w) => ({ word: w, kind: "ant" as const, note: "" }));
@@ -568,7 +583,7 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
       return (
         <div className="space-y-1 text-sm leading-relaxed">
           {ex.etymology && <p>{ex.etymology}</p>}
-          {ex.radicals && <p className="text-xs text-muted-foreground">部首: {ex.radicals}</p>}
+          {ex.radicals && <p className="text-xs text-muted-foreground">{t("card.radicals")}: {ex.radicals}</p>}
         </div>
       );
 
@@ -635,6 +650,7 @@ function MeasureWordRow({
  * 結果は24hキャッシュされるので実コストは初回検索のみ。
  */
 function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: string }) {
+  const t = useT();
   const searchFn = useServerFn(searchImageCandidates);
   const { data, isLoading } = useQuery({
     queryKey: ["web-images", headword],
@@ -660,7 +676,7 @@ function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: s
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">画像が見つかりませんでした。</p>
+        <p className="text-xs text-muted-foreground">{t("card.noImages")}</p>
       )}
       <a
         href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
@@ -668,7 +684,7 @@ function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: s
         rel="noreferrer"
         className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
       >
-        Google画像検索で「{headword}」を見る <ExternalLink className="h-3 w-3" />
+        {t("card.searchGoogle")}「{headword}」<ExternalLink className="h-3 w-3" />
       </a>
     </div>
   );

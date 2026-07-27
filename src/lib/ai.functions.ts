@@ -9,6 +9,7 @@ import {
 
   getAi,
   getUserLevelGoal,
+  levelInstruction,
   isProUser,
   logUsage,
   parseJsonFromAiText,
@@ -131,10 +132,13 @@ export const generateCard = createServerFn({ method: "POST" })
     const ai = getAi();
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
+    const levelRule = await levelInstruction(context.userId);
 
     const prompt =
       data.targetLanguage === "zh-TW"
         ? `「${data.headword}」について、日本人学習者向けの台湾華語(繁体字)語彙カードを生成してください。
+
+${levelRule}
 
 入力語の扱い:
 - 入力が台湾華語なら headword_zh にそのまま繁体字で入れる。
@@ -284,10 +288,11 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
     const levelGoal = await getUserLevelGoal(context.userId);
+    const levelRule = await levelInstruction(context.userId);
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
-        `台湾華語(繁體字)のフレーズカードを作ります。\n` +
+        `台湾華語(繁體字)のフレーズカードを作ります。\n${levelRule}\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
         `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
@@ -342,7 +347,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { isProUser: proCheck, getUserLevelGoal: lvl } = await import("./ai-provider.server");
+    const { isProUser: proCheck, levelInstruction: lvl } = await import("./ai-provider.server");
     if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
     await assertWithinDailyCap(userId, "card");
 
@@ -364,9 +369,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !word) throw new Error("単語が見つかりません");
 
-    const levelGoal = await lvl(userId);
+    const levelRule = await lvl(userId);
     const head = word.headword as string;
-    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、日本人学習者向けカードの一項目だけを作り直します。学習者の目標レベル: ${levelGoal}(TOCFL) — 語彙はこのレベル以下。出力はJSONオブジェクト1つだけ(前置き不要)。`;
+    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、日本人学習者向けカードの一項目だけを作り直します。${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
     const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {

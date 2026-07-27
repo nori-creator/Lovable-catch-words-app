@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { initUiTheme } from "@/lib/ui-theme";
 
 function NotFoundComponent() {
   return (
@@ -157,6 +158,11 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  // 開発者が選んだUIテーマ(CSS変数)を最初の描画直後に適用する。
+  useEffect(() => {
+    initUiTheme();
+  }, []);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {

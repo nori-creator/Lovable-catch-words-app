@@ -278,6 +278,7 @@ function memWordOf(card: DueReviewCard): MemoryWord {
 
 /** 記憶レベル6段階の帯+件数チップ(復習ページを開いた瞬間に見える)。 */
 function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
+  const t = useT();
   const counts = MEMORY_LEVELS.map(
     (lv) => words.filter((w) => memoryLevel(w.retention, w.interval_days, w.repetitions).level === lv.level).length,
   );
@@ -296,7 +297,7 @@ function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
           counts[i] > 0 ? (
             <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
               <span className={`inline-block h-2 w-2 rounded-full ${lv.bar}`} />
-              {lv.label} <b>{counts[i]}</b>
+              {t(lv.labelKey)} <b>{counts[i]}</b>
             </span>
           ) : null,
         )}
@@ -307,15 +308,16 @@ function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
 
 /** 出題カード右上の記憶バッジ — この単語の今の状態がパッと見え、タップで曲線へ。 */
 function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?: () => void }) {
+  const t = useT();
   const lv = memoryLevel(card.retention, card.interval_days, card.repetitions);
   return (
     <button
       onClick={onOpen}
-      aria-label={`記憶の状態: ${lv.label} ${card.retention}% — タップで忘却曲線`}
+      aria-label={`${t(lv.labelKey)} ${card.retention}%`}
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${lv.chip} active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-      {lv.label} {card.retention}%
+      {t(lv.labelKey)} {card.retention}%
     </button>
   );
 }
@@ -327,6 +329,7 @@ function MemoryOverviewPanel({
   overview: { danger: number; fuzzy: number; solid: number; words: MemoryWord[] };
   onOpenWord: (w: MemoryWord) => void;
 }) {
+  const t = useT();
   if (overview.words.length === 0) return null;
   return (
     <div className="mt-3">
@@ -346,7 +349,7 @@ function MemoryOverviewPanel({
                 </span>
                 <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${lv.text}`}>{w.retention}%</span>
                 <span className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[9px] font-medium ${lv.chip}`}>
-                  {w.fresh && lv.level >= 3 ? "覚えたて" : lv.label}
+                  {t(lv.labelKey)}
                 </span>
               </button>
             </li>
@@ -367,6 +370,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     queryFn: () => histFn({ data: { sticker_id: word.sticker_id } }),
     staleTime: 60_000,
   });
+  const t = useT();
   const lv = memoryLevel(word.retention, word.interval_days, word.repetitions);
 
   /**
@@ -439,7 +443,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     : "—";
   const daysUntilForgot = word.days_until_forgot ?? forgetDay;
   const bestLabel =
-    bestDay == null ? null : bestDay <= 0 ? "今日" : `${bestDay}日後`;
+    bestDay == null ? null : bestDay <= 0 ? t("memory.today") : `${bestDay}${t("memory.daysLater")}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -455,10 +459,10 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}>
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-            {lv.label} · 記憶率 {word.retention}%
+            {t(lv.labelKey)} · {word.retention}%
           </span>
           <span className="text-muted-foreground">
-            復習 <b className="text-foreground">{word.repetitions}</b> 回
+            {t("memory.reviews")} <b className="text-foreground">{word.repetitions}</b> {t("memory.times")}
           </span>
         </div>
 
@@ -500,17 +504,17 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         {/* 数字で読める予測 */}
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">ベスト復習</div>
+            <div className="text-[9px] text-muted-foreground">{t("memory.bestReview")}</div>
             <div className="text-sm font-bold text-emerald-600">{bestLabel ?? "—"}</div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">50%を切る</div>
+            <div className="text-[9px] text-muted-foreground">{t("memory.forgetIn")}</div>
             <div className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-red-600" : ""}`}>
-              {daysUntilForgot != null ? `${daysUntilForgot}日後` : "—"}
+              {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
             </div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">次の出題</div>
+            <div className="text-[9px] text-muted-foreground">{t("memory.nextDue")}</div>
             <div className="text-sm font-bold">{dueLabel}</div>
           </div>
         </div>
@@ -1062,6 +1066,7 @@ function LightModeCard({
   onOpenMemory?: () => void;
 }) {
   const grade = useServerFn(gradeReview);
+  const t = useT();
   const phonetic = usePhoneticPref();
   const [picked, setPicked] = useState<string | null>(null);
   const [score, setScore] = useState<number | null>(null);
@@ -1097,7 +1102,7 @@ function LightModeCard({
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
       <div className="mb-2 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
-          4択クイズ
+          {t("review.quizTag")}
         </span>
         <CardMemoryBadge card={card} onOpen={onOpenMemory} />
       </div>
@@ -1159,7 +1164,7 @@ function LightModeCard({
       {picked && (
         <div className="mt-4 rounded-2xl bg-secondary/60 p-4">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-sm font-semibold">{correct ? "正解！" : "もう一度覚えよう"}</span>
+            <span className="text-sm font-semibold">{correct ? t("review.correct") : t("review.tryAgain")}</span>
             {score != null && <span className="text-xs text-muted-foreground">スコア {score}/5</span>}
           </div>
           <div className="mb-2 flex items-center gap-2">
@@ -1185,7 +1190,7 @@ function LightModeCard({
             onClick={onNext}
             className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
           >
-            次へ
+            {t("review.next")}
           </button>
         </div>
       )}

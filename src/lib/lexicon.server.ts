@@ -73,19 +73,36 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
 //  = ユーザーが1人でも使えば毎日自動で賢くなる。手動実行は管理画面から。
 // ============================================================================
 
-const AuditSchema = z.object({
-  verdicts: z.array(
-    z.object({
-      headword: z.string(),
-      ok: z.boolean(),
-      zhuyin: z.string().default(""),
-      pinyin: z.string().default(""),
-      meaning_ja: z.string().default(""),
-      note: z.string().default(""),
-      confidence: z.number().min(0).max(1).default(0.5),
-    }),
-  ),
+const VerdictSchema = z.object({
+  headword: z.string(),
+  ok: z.coerce.boolean(),
+  zhuyin: z.string().catch(""),
+  pinyin: z.string().catch(""),
+  meaning_ja: z.string().catch(""),
+  note: z.string().catch(""),
+  confidence: z.coerce.number().min(0).max(1).catch(0.5),
 });
+
+/**
+ * 監査の出力。モデルは指示しても
+ *   [ {...}, {...} ]            (配列を直接)
+ *   { items: [...] } / { results: [...] }
+ * を返すことがあり、以前は object 決め打ちで parse が落ちて
+ * 「audit: invalid_type」になり毎日の点検が丸ごと失敗していた。
+ * どの形で来ても verdicts に正規化する。
+ */
+const AuditSchema = z.preprocess(
+  (raw) => {
+    if (Array.isArray(raw)) return { verdicts: raw };
+    if (raw && typeof raw === "object") {
+      const o = raw as Record<string, unknown>;
+      const arr = o.verdicts ?? o.items ?? o.results ?? o.entries ?? o.data;
+      if (Array.isArray(arr)) return { verdicts: arr };
+    }
+    return raw;
+  },
+  z.object({ verdicts: z.array(VerdictSchema) }),
+);
 
 type LexRow = {
   id: string;

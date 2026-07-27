@@ -13,6 +13,9 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
+import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
+import { DEFAULT_LINES, loadLines, saveLines, isVoiceEnabled, setVoiceEnabled, speakCatchLine, type VoiceLine } from "@/lib/catch-voice";
+import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
 
@@ -35,6 +38,7 @@ function SettingsPage() {
   const [uiLanguage, setUiLanguage] = useState("ja");
   const [targetLanguage, setTargetLanguage] = useState("zh-TW");
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
+  const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
   const [saving, setSaving] = useState(false);
@@ -46,6 +50,9 @@ function SettingsPage() {
     setUiLang(profile.ui_language === "en" ? "en" : "ja");
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
+    setCurrentLevel(
+      ((profile as { current_level?: string | null }).current_level ?? "") || "TOCFL-1",
+    );
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
     setReviewMode(
       ((profile as { review_mode?: string }).review_mode as "speaking" | "choice") ?? "speaking",
@@ -62,6 +69,7 @@ function SettingsPage() {
           ui_language: uiLanguage,
           target_language: targetLanguage,
           level_goal: levelGoal,
+          current_level: currentLevel,
           pronunciation_strictness: strictness,
           review_mode: reviewMode,
         },
@@ -100,12 +108,29 @@ function SettingsPage() {
               </select>
             </div>
             <div>
+              <Label htmlFor="lang-cur">{t("settings.currentLevel")}</Label>
+              <select
+                id="lang-cur"
+                aria-label={t("settings.currentLevel")}
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                value={currentLevel}
+                onChange={(e) => setCurrentLevel(e.target.value)}
+              >
+                {["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6"].map((lv) => (
+                  <option key={lv} value={lv}>{lv.replace("TOCFL-", "TOCFL Level ")}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.levelHint")}</p>
+            </div>
+            <div>
               <Label htmlFor="lang-level">{t("settings.levelGoal")}</Label>
               <select id="lang-level" aria-label="目標レベル" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
                 <option value="TOCFL-1">TOCFL Level 1</option>
                 <option value="TOCFL-2">TOCFL Level 2</option>
                 <option value="TOCFL-3">TOCFL Level 3</option>
                 <option value="TOCFL-4">TOCFL Level 4</option>
+                <option value="TOCFL-5">TOCFL Level 5</option>
+                <option value="TOCFL-6">TOCFL Level 6</option>
               </select>
             </div>
             <PhoneticRow />
@@ -184,6 +209,7 @@ function SettingsPage() {
           {saving ? t("settings.saving") : t("settings.save")}
         </Button>
 
+        <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
 
         <Button
@@ -406,5 +432,293 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
         </span>
       </button>
     </div>
+  );
+}
+
+// ============================================================================
+// 開発者(admin)専用セクション — 一般ユーザーには一切見えない。
+//  1. UIテーマの比較(現行は必ず残す)
+//  2. キャッチの決め台詞ボイス(追加・削除・試聴)
+//  3. AIモデルの切替(Gemini/ChatGPT/Claude/DeepSeek/Kimi)
+// ============================================================================
+function AdminOnlySection() {
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+  if (!adm?.isAdmin) return null;
+  return (
+    <div className="space-y-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+        開発者専用(あなたにしか表示されません)
+      </p>
+      <UiThemePicker />
+      <CatchVoicePanel />
+      <AiModelPanel />
+    </div>
+  );
+}
+
+/** UIテーマの比較。現行(default)は削除・変更しない前提で先頭に固定。 */
+function UiThemePicker() {
+  const [theme, setTheme] = useState<UiThemeId>("default");
+  useEffect(() => { setTheme(getUiTheme()); }, []);
+  function pick(id: UiThemeId) {
+    setTheme(id);
+    setUiTheme(id);
+  }
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4" open>
+      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        UIテーマを比較 <span className="ml-1 text-[11px] font-normal text-muted-foreground">({UI_THEMES.length}種)</span>
+      </summary>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        タップで即切り替わります。「現行」に戻せばいつでも元のデザインです。
+      </p>
+      <ul className="mt-3 space-y-1.5">
+        {UI_THEMES.map((t) => (
+          <li key={t.id}>
+            <button
+              onClick={() => pick(t.id)}
+              aria-pressed={theme === t.id}
+              className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition ${
+                theme === t.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border"
+              }`}
+            >
+              <span className="flex shrink-0 overflow-hidden rounded-lg ring-1 ring-black/10">
+                {t.swatch.map((c) => (
+                  <span key={c} className="block h-9 w-4" style={{ background: c }} />
+                ))}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">
+                  {t.name}
+                  {t.id === "default" && (
+                    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                      保持
+                    </span>
+                  )}
+                </span>
+                <span className="block text-[11px] leading-snug text-muted-foreground">{t.concept}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** キャッチの決め台詞ボイス: 一覧・試聴・追加・削除・ON/OFF。 */
+function CatchVoicePanel() {
+  const [lines, setLines] = useState<VoiceLine[]>([]);
+  const [enabled, setEnabled] = useState(true);
+  const [tpl, setTpl] = useState("{w}、ゲットだぜ!");
+  const [lang, setLang] = useState<"ja" | "zh-TW">("ja");
+  const [pitch, setPitch] = useState(1.2);
+  const [rate, setRate] = useState(1);
+
+  useEffect(() => {
+    setLines(loadLines());
+    setEnabled(isVoiceEnabled());
+  }, []);
+
+  function persist(next: VoiceLine[]) {
+    setLines(next);
+    saveLines(next);
+  }
+  function add() {
+    if (!tpl.includes("{w}")) {
+      toast.error("台詞には {w}(単語)を含めてください");
+      return;
+    }
+    const line: VoiceLine = {
+      id: `custom-${Date.now()}`,
+      template: tpl.trim(),
+      lang,
+      pitch,
+      rate,
+      label: tpl.replace("{w}", "◯").slice(0, 16),
+    };
+    persist([...lines, line]);
+    toast.success("台詞を追加しました");
+  }
+
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        キャッチの決め台詞ボイス <span className="ml-1 text-[11px] font-normal text-muted-foreground">({lines.length})</span>
+      </summary>
+
+      <div className="mt-3">
+        <ToggleRow
+          label="決め台詞を鳴らす"
+          hint="図鑑に追加する瞬間、空中で止まったタイミングでランダムに再生します。"
+          value={enabled}
+          onChange={(v) => { setEnabled(v); setVoiceEnabled(v); }}
+        />
+      </div>
+
+      <ul className="mt-3 space-y-1">
+        {lines.map((l) => (
+          <li key={l.id} className="flex items-center gap-2 rounded-lg bg-secondary/60 px-2 py-1.5">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium">{l.template.replace("{w}", "芒果")}</span>
+              <span className="block text-[10px] text-muted-foreground">
+                {l.lang === "ja" ? "日本語" : "台湾華語"} · 高さ {l.pitch} · 速さ {l.rate}
+              </span>
+            </span>
+            <button
+              onClick={() => speakCatchLine("芒果", l)}
+              aria-label="試聴"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-primary"
+            >
+              ▶
+            </button>
+            <button
+              onClick={() => persist(lines.filter((x) => x.id !== l.id))}
+              aria-label="削除"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 space-y-2 rounded-xl border border-dashed border-border p-2">
+        <Label className="text-xs">台詞を追加(&#123;w&#125; が単語に置き換わります)</Label>
+        <Input value={tpl} onChange={(e) => setTpl(e.target.value)} placeholder="{w}、ゲットだぜ!" />
+        <div className="flex gap-2">
+          <select
+            aria-label="言語"
+            value={lang}
+            onChange={(e) => setLang(e.target.value as "ja" | "zh-TW")}
+            className="min-h-11 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="ja">日本語</option>
+            <option value="zh-TW">台湾華語</option>
+          </select>
+          <label className="flex flex-1 items-center gap-1 text-[11px]">
+            高さ
+            <input
+              type="range" min={0.4} max={2} step={0.1} value={pitch}
+              onChange={(e) => setPitch(Number(e.target.value))}
+              className="min-w-0 flex-1"
+            />
+          </label>
+          <label className="flex flex-1 items-center gap-1 text-[11px]">
+            速さ
+            <input
+              type="range" min={0.5} max={1.6} step={0.05} value={rate}
+              onChange={(e) => setRate(Number(e.target.value))}
+              className="min-w-0 flex-1"
+            />
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => speakCatchLine("芒果", { id: "preview", template: tpl, lang, pitch, rate, label: "" })}>
+            試聴
+          </Button>
+          <Button className="flex-1" onClick={add}>追加</Button>
+        </div>
+        <button
+          onClick={() => { persist(DEFAULT_LINES); toast.success("既定の台詞に戻しました"); }}
+          className="w-full text-[11px] text-muted-foreground underline"
+        >
+          既定の10種に戻す
+        </button>
+      </div>
+    </details>
+  );
+}
+
+/** AIモデルの切替。鍵は環境変数のまま、モデル名と提供元だけを差し替える。 */
+function AiModelPanel() {
+  const getFn = useServerFn(getAiModelConfig);
+  const setFn = useServerFn(setAiModelConfig);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["ai-model-config"], queryFn: () => getFn(), staleTime: 30_000 });
+  const [provider, setProvider] = useState("");
+  const [fast, setFast] = useState("");
+  const [rich, setRich] = useState("");
+  const [premium, setPremium] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setProvider(data.config.provider ?? "");
+    setFast(data.config.fast ?? "");
+    setRich(data.config.rich ?? "");
+    setPremium(data.config.rich_premium ?? "");
+  }, [data]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await setFn({ data: { config: { provider, fast, rich, rich_premium: premium } } });
+      await qc.invalidateQueries({ queryKey: ["ai-model-config"] });
+      toast.success("AIモデルを切り替えました(次のリクエストから有効)");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        使うAIを切り替える
+      </summary>
+
+      {data?.effective && (
+        <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-[11px] leading-relaxed">
+          <div className="font-semibold">いま動いている設定</div>
+          <div className="text-muted-foreground">
+            提供元 {data.effective.provider} / 速い系 {data.effective.fast} / 詳しい系 {data.effective.rich}
+            {" / "}Pro {data.effective.rich_premium}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2">
+        <div>
+          <Label className="text-xs">提供元</Label>
+          <select
+            aria-label="AI提供元"
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">環境変数のまま(既定)</option>
+            {(data?.presets ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}{p.key_present ? "" : `(${p.api_key_env} 未設定)`}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            APIキーは環境変数に置いたまま切り替わります(DBに鍵は保存しません)。
+          </p>
+        </div>
+        <div>
+          <Label className="text-xs">速い系(スキャン・候補・4択の生成)</Label>
+          <Input value={fast} onChange={(e) => setFast(e.target.value)} placeholder="gemini-flash-latest" />
+        </div>
+        <div>
+          <Label className="text-xs">詳しい系(カード・添削)</Label>
+          <Input value={rich} onChange={(e) => setRich(e.target.value)} placeholder="gemini-flash-latest" />
+        </div>
+        <div>
+          <Label className="text-xs">Pro ユーザー用</Label>
+          <Input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="gemini-pro-latest" />
+        </div>
+        <Button className="w-full" onClick={save} disabled={saving}>
+          {saving ? "保存中..." : "この設定で動かす"}
+        </Button>
+        <p className="text-[10px] text-muted-foreground">
+          モデル名に <code>-latest</code> を使うと、提供元が新しい安定版を出すたび自動で最新に乗り換わります。
+        </p>
+      </div>
+    </details>
   );
 }

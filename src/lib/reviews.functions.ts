@@ -6,6 +6,7 @@ import {
   generateStructured,
   getAi,
   getUserLevelGoal,
+  levelInstruction,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -818,11 +819,12 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
     const ai = getAi();
+    const levelRule = await levelInstruction(userId);
     const levelGoal = await getUserLevelGoal(userId);
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
-学習者の目標レベル: ${levelGoal}(TOCFL) — 添削文・お手本の語彙はこのレベル以下に抑える。
+${levelRule}
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
@@ -917,7 +919,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     }
 
     const ai = getAi();
-    const levelGoal = await getUserLevelGoal(userId);
+    const levelRule = await levelInstruction(userId);
     const plan =
       parseBranchPlan(row.branch_plan) ??
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
@@ -926,7 +928,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const scaffold = await generateStructured({
       model: ai.gateway(ai.modelFast),
       schema: ScaffoldSchema,
-      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。学習者の目標レベルは ${levelGoal}(TOCFL)。
+      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
 次を厳密なJSONで返してください:
 - question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。

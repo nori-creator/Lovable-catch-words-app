@@ -196,7 +196,7 @@ function DexPage() {
       )}
 
       {view === "map" ? (
-        <DexMap stickers={captured} onOpen={setOpenId} />
+        <DexMap stickers={captured} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -454,13 +454,7 @@ async function photoPinIcon(url: string): Promise<string | null> {
   }
 }
 
-function DexMap({
-  stickers,
-  onOpen,
-}: {
-  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
-  onOpen: (id: string) => void;
-}) {
+function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<unknown>(null);
@@ -512,14 +506,36 @@ function DexMap({
     }
     markersRef.current = [];
     const bounds = new g.LatLngBounds();
+    // 同じ場所で撮った写真はピンが完全に重なってタップできない。
+    // 座標を約11m格子に丸めてグループ化し、2枚目以降を円形に散らす
+    // (spiderfy)。散らす半径はズームに依らない実距離で決める。
+    const groups = new Map<string, number>();
+    const keyOf = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
     for (const s of stickers) {
       if (s.lat == null || s.lng == null) continue;
       const emoji = s.word.silhouette_emoji ?? "📍";
       const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
         `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`
       )}`;
+      // このグループで何枚目か → 角度をずらして配置
+      const gk = keyOf(s.lat, s.lng);
+      const idx = groups.get(gk) ?? 0;
+      groups.set(gk, idx + 1);
+      let posLat = s.lat;
+      let posLng = s.lng;
+      if (idx > 0) {
+        const ring = Math.ceil(idx / 8);              // 8個ごとに外側の輪へ
+        const slot = (idx - 1) % 8;
+        const angle = (slot / 8) * Math.PI * 2 + ring * 0.4;
+        const meters = 14 * ring;                      // 14m, 28m, …
+        const dLat = (meters * Math.cos(angle)) / 111_320;
+        const dLng =
+          (meters * Math.sin(angle)) / (111_320 * Math.max(0.2, Math.cos((s.lat * Math.PI) / 180)));
+        posLat += dLat;
+        posLng += dLng;
+      }
       const marker = new g.Marker({
-        position: { lat: s.lat, lng: s.lng },
+        position: { lat: posLat, lng: posLng },
         map: mapInstance.current,
         title: s.word.headword,
         icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
@@ -543,7 +559,7 @@ function DexMap({
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
         navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
       });
-      bounds.extend({ lat: s.lat, lng: s.lng });
+      bounds.extend({ lat: posLat, lng: posLng });
       markersRef.current.push(marker);
     }
     if (!bounds.isEmpty()) {
@@ -592,45 +608,37 @@ function DexMap({
       {recent.length > 0 && (
         <section className="mt-5">
           <h3 className="mb-1 text-sm font-semibold tracking-tight">キャッチした場所</h3>
-          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで単語の詳細へ。📍で地図がその場所へズーム。</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで地図がその場所へズーム。地図上の丸い写真をタップで単語の詳細へ。</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
               const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
               return (
-                <div
+                <button
                   key={s.id}
-                  className="press-in relative overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
+                  onClick={() => focusOnMap(s)}
+                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
+                  aria-label={`「${s.word.headword}」の場所を地図で見る`}
                 >
-                  <button
-                    onClick={() => onOpen(s.id)}
-                    className="block w-full text-left"
-                    aria-label={`「${s.word.headword}」の詳細を開く`}
-                  >
-                    <div className="aspect-square w-full overflow-hidden bg-secondary">
-                      {thumb ? (
-                        <CachedImg
-                          src={thumb}
-                          alt={`「${s.word.headword}」の写真`}
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="grid h-full w-full place-items-center text-2xl">
-                          {s.word.silhouette_emoji ?? "📍"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="truncate px-2 py-1.5 text-xs font-medium">{s.word.headword}</div>
-                  </button>
-                  <button
-                    onClick={() => focusOnMap(s)}
-                    aria-label={`「${s.word.headword}」の場所を地図で見る`}
-                    className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-black/45 text-white backdrop-blur active:scale-95"
-                  >
-                    <MapPin className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                  <div className="aspect-square w-full overflow-hidden bg-secondary">
+                    {thumb ? (
+                      <CachedImg
+                        src={thumb}
+                        alt={`「${s.word.headword}」の写真`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="grid h-full w-full place-items-center text-2xl">
+                        {s.word.silhouette_emoji ?? "📍"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1.5">
+                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="truncate text-xs font-medium">{s.word.headword}</span>
+                  </div>
+                </button>
               );
             })}
           </div>

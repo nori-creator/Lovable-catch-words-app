@@ -9,6 +9,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
 import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -72,6 +73,7 @@ const BG_OPTIONS = [
 type BgId = (typeof BG_OPTIONS)[number]["id"];
 
 function HomePage() {
+  const t = useT();
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
@@ -128,13 +130,13 @@ function HomePage() {
         <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
       ) : todayStickers.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">きょうのページはまだ白紙です。</p>
-          <p className="mt-1 text-xs text-muted-foreground">街の看板やメニューをかざすと、最初の一枚がここに貼られます。</p>
+          <p className="text-sm text-muted-foreground">{t("home.emptyTitle")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("home.emptyHint")}</p>
           <Link
             to="/capture"
             className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
           >
-            街でひとつ見つける
+            {t("home.emptyCta")}
           </Link>
         </div>
       ) : (
@@ -146,7 +148,7 @@ function HomePage() {
               className="press-in inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
             >
               <BookText className="h-4 w-4 text-primary" />
-              今日の日記を書く
+              {t("home.journal")}
             </Link>
           </div>
         </>
@@ -156,7 +158,7 @@ function HomePage() {
         <section className="mt-12 space-y-10">
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Past Pages</span>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{t("home.pastPages")}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
           {pastDays.map(([k, items]) => (
@@ -173,6 +175,7 @@ function HomePage() {
 }
 
 function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: BgId) => void }) {
+  const t = useT();
   return (
     <div className="mb-3 flex items-center justify-end">
       <ImageIcon aria-hidden className="mr-1 h-3 w-3 text-muted-foreground" />
@@ -181,7 +184,7 @@ function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: 
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
-          aria-label={`背景: ${o.label}`}
+          aria-label={`${t("home.background")}: ${o.label}`}
           aria-pressed={current === o.id}
           className="press-in grid h-11 w-11 place-items-center rounded-full"
         >
@@ -240,6 +243,7 @@ function ScrapbookAlbum({
   bgClass: string;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const items = useMemo(
     () =>
       stickers.map((s, i) => ({
@@ -304,7 +308,7 @@ function ScrapbookAlbum({
 
       <div className="relative mt-8 text-right">
         <span className="handwritten text-base text-amber-900/70">
-          — {stickers.length} {stickers.length === 1 ? "memory" : "memories"} caught
+          — {stickers.length} {t("home.memories")}
         </span>
       </div>
     </div>
