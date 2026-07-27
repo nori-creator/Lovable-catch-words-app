@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { CachedImg } from "@/lib/image-cache";
 import { getMyProfile } from "@/lib/profile.functions";
 import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
@@ -277,12 +278,12 @@ function ScrapbookAlbum({
                 <span aria-hidden className="photo-corner br" />
                 {heroUrl ? (
                   <div className="h-full w-full overflow-hidden">
-                    <img
+                    <CachedImg
                       src={heroUrl}
                       alt={`「${s.word.headword}」の思い出`}
                       loading="lazy"
                       decoding="async"
-                      className="h-full w-full object-cover"
+                      className="block h-full w-full object-cover"
                     />
                   </div>
                 ) : (
@@ -291,7 +292,8 @@ function ScrapbookAlbum({
                     <span className="text-4xl opacity-80">{s.word.silhouette_emoji ?? "📦"}</span>
                   </div>
                 )}
-                <span className="handwritten absolute inset-x-0 bottom-[2%] text-center text-sm text-stone-700/90">
+                {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
+                <span className="handwritten absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90">
                   {s.word.headword}
                 </span>
               </div>

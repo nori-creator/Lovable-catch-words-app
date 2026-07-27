@@ -184,7 +184,7 @@ function SettingsPage() {
           {saving ? t("settings.saving") : t("settings.save")}
         </Button>
 
-        <DeveloperPanel />
+        <AdminOnlyDeveloperPanel />
 
         <Button
           variant="outline"
@@ -306,6 +306,17 @@ function DangerZone() {
   );
 }
 
+/**
+ * 開発者パネルは管理者だけに見せる(一般ユーザーには計測値は無意味で、
+ * 「遅い」という印象だけが残る)。admin判定が返るまでは何も描かない。
+ */
+function AdminOnlyDeveloperPanel() {
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+  if (!adm?.isAdmin) return null;
+  return <DeveloperPanel />;
+}
+
 /** §7: median speeds over the last 20 scans vs. the spec targets. */
 function DeveloperPanel() {
   const metricsFn = useServerFn(getMyScanMetrics);
@@ -336,8 +347,8 @@ function DeveloperPanel() {
         開発者(速度計測)
       </summary>
       <div className="mt-3 space-y-2">
-        {row("スキャン検出(中央値)", m?.detect_ms_median, 2500)}
-        {row("タップ→音声再生(中央値)", m?.tap_to_audio_ms_median, 1000)}
+        {row("スキャン検出(中央値)", m?.detect_ms_median, 1200)}
+        {row("タップ→音声再生(中央値)", m?.tap_to_audio_ms_median, 400)}
         <p className="text-[10px] text-muted-foreground">直近{m?.samples ?? 0}回のスキャンから算出(仕様§9の合格ライン)</p>
         {adm?.isAdmin && (
           <Link to="/admin/metrics" className="block text-xs text-primary underline">

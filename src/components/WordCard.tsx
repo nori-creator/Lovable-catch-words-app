@@ -42,6 +42,7 @@ type SectionId =
   | "example"
   | "examples_extra"
   | "usage_chunks"
+  | "measure_words"
   | "related_words"
   | "pronunciation_tips"
   | "etymology"
@@ -56,6 +57,7 @@ const ALL_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "example", label: "例文" },
   { id: "examples_extra", label: "追加の例文" },
   { id: "usage_chunks", label: "使い方チャンク" },
+  { id: "measure_words", label: "量詞" },
   { id: "related_words", label: "にてる言葉・関連語" },
   { id: "pronunciation_tips", label: "発音のコツ" },
   { id: "etymology", label: "語源・部首" },
@@ -67,10 +69,12 @@ const ALL_SECTIONS: { id: SectionId; label: string }[] = [
 /** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
 const REGEN_SECTIONS: SectionId[] = [
   "meaning",
+  "measure_words",
   "usage_context",
   "example",
   "examples_extra",
   "usage_chunks",
+  "measure_words",
   "related_words",
   "pronunciation_tips",
   "etymology",
@@ -78,7 +82,7 @@ const REGEN_SECTIONS: SectionId[] = [
   "taiwan_note",
 ];
 
-const PREF_KEY = "wordcard-prefs-v3";
+const PREF_KEY = "wordcard-prefs-v4";
 const PREF_EVENT = "wordcard-prefs-changed";
 
 type Prefs = { order: SectionId[]; hidden: SectionId[] };
@@ -170,6 +174,7 @@ const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string;
   example:            { bg: "bg-emerald-50",   ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
   examples_extra:     { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
   usage_chunks:       { bg: "bg-lime-50",      ring: "ring-lime-200",    chip: "bg-lime-600",    icon: "🧩", title: "text-lime-900" },
+  measure_words:      { bg: "bg-violet-50",    ring: "ring-violet-200",  chip: "bg-violet-500",  icon: "🔢", title: "text-violet-900" },
   related_words:      { bg: "bg-indigo-50",    ring: "ring-indigo-200",  chip: "bg-indigo-500",  icon: "🪞", title: "text-indigo-900" },
   pronunciation_tips: { bg: "bg-pink-50",      ring: "ring-pink-200",    chip: "bg-pink-500",    icon: "🗣️", title: "text-pink-900" },
   etymology:          { bg: "bg-stone-50",     ring: "ring-stone-200",   chip: "bg-stone-600",   icon: "🏛️", title: "text-stone-900" },
@@ -211,6 +216,7 @@ export const WordCard = forwardRef<
       case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
       case "usage_chunks":
         return (ex.usage_chunks?.length ?? 0) > 0 || (ex.collocations?.length ?? 0) > 0 || !!ex.word_order;
+      case "measure_words": return (ex.measure_words?.length ?? 0) > 0;
       case "related_words":
         return (
           (ex.related_words?.length ?? 0) > 0 ||
@@ -448,15 +454,12 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
     }
 
     case "example":
+      // 品詞ごとの色分けは外し、元のプレーンな例文表示に戻す
+      // (色分けは「使い方チャンク」だけに残す)。
       return (
-        <div className="space-y-1.5">
-          {(ex.example_chunks?.length ?? 0) > 0 ? (
-            <ChunkPills parts={ex.example_chunks!} />
-          ) : (
-            <p className="text-base">{word.example_sentence}</p>
-          )}
+        <div className="space-y-1">
+          <p className="text-base">{word.example_sentence}</p>
           <p className="text-xs text-muted-foreground">{word.example_translation}</p>
-          {(ex.example_chunks?.length ?? 0) > 0 && <ChunkLegend />}
         </div>
       );
 
@@ -464,16 +467,12 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
       return (
         <ul className="space-y-2">
           {(ex.examples_extra ?? []).map((e, i) => (
-            <li key={i} className="rounded-xl bg-white/60 p-2.5">
+            <li key={i} className="rounded-xl bg-white/60 p-2">
               {e.scene && (
                 <p className="mb-1 text-[10px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
               )}
-              {(e.chunks?.length ?? 0) > 0 ? (
-                <ChunkPills parts={e.chunks!} size="sm" />
-              ) : (
-                <p className="text-sm">{e.zh}</p>
-              )}
-              <p className="mt-1 text-[11px] text-muted-foreground">{e.ja}</p>
+              <p className="text-sm">{e.zh}</p>
+              <p className="text-[11px] text-muted-foreground">{e.ja}</p>
             </li>
           ))}
         </ul>
@@ -511,6 +510,18 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
         </div>
       );
     }
+
+    case "measure_words":
+      // 名詞の量詞。複数あるときは使い分けを添え、読み+発音ボタンをつける。
+      return (
+        <ul className="space-y-1.5">
+          {(ex.measure_words ?? []).map((m, i) => (
+            <li key={i} className="flex items-start gap-2 rounded-xl bg-white/60 px-3 py-2">
+              <MeasureWordRow word={m.word} zhuyin={m.zhuyin} pinyin={m.pinyin} note={m.note} />
+            </li>
+          ))}
+        </ul>
+      );
 
     case "related_words": {
       const rel = ex.related_words ?? [];
@@ -585,6 +596,39 @@ function Body({ id, word, ex }: { id: SectionId; word: WordCardData; ex: WordExt
   }
 }
 
+/** 量詞1件: 「一張」+読み+発音ボタン+使い分けノート。 */
+function MeasureWordRow({
+  word,
+  zhuyin,
+  pinyin,
+  note,
+}: {
+  word: string;
+  zhuyin?: string;
+  pinyin?: string;
+  note?: string;
+}) {
+  const pronounce = usePronounce();
+  return (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[15px] font-semibold">{word}</span>
+          <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-[11px] text-muted-foreground" />
+        </span>
+        {note && <span className="mt-0.5 block text-[11px] text-muted-foreground">{note}</span>}
+      </span>
+      <button
+        onClick={() => void pronounce(word)}
+        aria-label={`「${word}」の発音`}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/80 text-violet-700 shadow-sm ring-1 ring-black/5 active:scale-95"
+      >
+        <Volume2 className="h-3.5 w-3.5" />
+      </button>
+    </>
+  );
+}
+
 /**
  * ネットの画像(A10): その単語を最もよく表すWeb画像を**開いた瞬間に**表示する
  * (以前はStickerSheetの折りたたみで、タップしないと出なかった)。
@@ -641,7 +685,7 @@ function RealUsageBody({ headword }: { headword: string }) {
     { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
     { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
     { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
-    { emoji: "📖", label: "萌典(教育部辞書)", hint: "公式辞書の定義・注音", href: `https://www.moedict.tw/${q}` },
+    { emoji: "📖", label: "教育部國語辭典簡編本", hint: "台湾教育部の公式辞書(定義・注音)", href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}` },
   ];
   return (
     <ul className="grid grid-cols-1 gap-1.5">

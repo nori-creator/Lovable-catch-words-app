@@ -531,6 +531,8 @@ export type StickerMemoryHistory = {
     ease_after: number;
   }>;
   current: { ease: number; interval_days: number; last_reviewed_at: string | null; due_at: string | null } | null;
+  /** 未復習でも曲線を引くための起点(この単語をキャッチした日)。 */
+  taken_at: string | null;
 };
 
 export const getStickerMemoryHistory = createServerFn({ method: "GET" })
@@ -538,7 +540,7 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ sticker_id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }): Promise<StickerMemoryHistory> => {
     const { supabase, userId } = context;
-    const [{ data: hist }, { data: rev }] = await Promise.all([
+    const [{ data: hist }, { data: rev }, { data: st }] = await Promise.all([
       supabase
         .from("review_history")
         .select("reviewed_at, score, interval_days_after, ease_after")
@@ -551,6 +553,12 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
         .eq("user_id", userId)
         .eq("sticker_id", data.sticker_id)
         .maybeSingle(),
+      supabase
+        .from("stickers")
+        .select("taken_at")
+        .eq("user_id", userId)
+        .eq("id", data.sticker_id)
+        .maybeSingle(),
     ]);
     return {
       history: hist ?? [],
@@ -562,6 +570,7 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
             due_at: rev.due_at,
           }
         : null,
+      taken_at: (st as { taken_at?: string | null } | null)?.taken_at ?? null,
     };
   });
 
@@ -578,9 +587,23 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows } = await supabase
       .from("reviews")
-      .select("ease, interval_days, last_reviewed_at, due_at")
+      .select("ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
       .eq("user_id", userId);
-    const cards = rows ?? [];
+    type StatRow = {
+      ease: number;
+      interval_days: number;
+      last_reviewed_at: string | null;
+      due_at: string | null;
+      stickers?: { taken_at?: string | null } | null;
+    };
+    // 未復習でも「出会った日」を起点に科学的な減衰を描く(以前はこの行が
+    // last_reviewed_at=null で 100% 固定になり、線が消えていた)。
+    const cards = ((rows ?? []) as unknown as StatRow[]).map((r) => ({
+      ease: r.ease,
+      interval_days: r.interval_days,
+      last_reviewed_at: r.last_reviewed_at ?? r.stickers?.taken_at ?? null,
+      due_at: r.due_at,
+    }));
     const now = Date.now();
     const dueNow = cards.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
 
@@ -617,6 +640,11 @@ export type MemoryWord = {
   days_until_forgot: number | null; // 記憶率が50%を切るまでの日数(既に下回れば0)
   fresh: boolean; // 覚えたて(repetitions<=2)
   long_term: boolean; // 長期定着(interval>=30日)
+  /** 記憶の起点(最終復習 or 未復習ならキャッチ日)。曲線の描画に使う。 */
+  anchor_at: string | null;
+  /** 現在の安定度(日) — 記憶率が 1/e に落ちるまでの時間。 */
+  stability_days: number;
+  ease: number;
 };
 export type MemoryOverview = {
   danger: number; // retention < 50
@@ -642,7 +670,7 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows } = await supabase
       .from("reviews")
-      .select("sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(words(headword))")
+      .select("sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword))")
       .eq("user_id", userId);
     const now = Date.now();
     type Row = {
@@ -652,18 +680,22 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
       repetitions: number;
       last_reviewed_at: string | null;
       due_at: string | null;
-      stickers: { words: { headword: string } | null } | null;
+      stickers: { taken_at?: string | null; words: { headword: string } | null } | null;
     };
     const words: MemoryWord[] = ((rows ?? []) as unknown as Row[])
       .filter((r) => r.stickers?.words)
       .map((r) => {
-        const lastMs = r.last_reviewed_at ? new Date(r.last_reviewed_at).getTime() : null;
-        const retention = Math.round(retentionNow(r.interval_days, r.ease, lastMs, now));
+        // 未復習(last_reviewed_at が null)でも曲線を描く: 記憶の起点は
+        // 「その単語に出会った瞬間」= sticker.taken_at。学習直後の記憶は
+        // 1日前後で急速に落ちるので、初期安定度は interval_days(=1)ベース。
+        const anchorIso = r.last_reviewed_at ?? r.stickers?.taken_at ?? null;
+        const anchorMs = anchorIso ? new Date(anchorIso).getTime() : null;
+        const stability = stabilityOf(r.interval_days, r.ease);
+        const retention = Math.round(retentionNow(r.interval_days, r.ease, anchorMs, now));
         // 50%到達日: 100*exp(-dt/stability)=50 → dt = stability*ln2
         let daysUntilForgot: number | null = null;
-        if (lastMs != null) {
-          const stability = stabilityOf(r.interval_days, r.ease);
-          const dtNow = (now - lastMs) / 86400_000;
+        if (anchorMs != null) {
+          const dtNow = (now - anchorMs) / 86400_000;
           daysUntilForgot = Math.max(0, Math.round(stability * LN2 - dtNow));
         }
         return {
@@ -676,6 +708,9 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
           days_until_forgot: daysUntilForgot,
           fresh: r.repetitions <= 2,
           long_term: r.interval_days >= 30,
+          anchor_at: anchorIso,
+          stability_days: stability,
+          ease: r.ease,
         };
       })
       .sort((a, b) => a.retention - b.retention); // 危険な語を上に

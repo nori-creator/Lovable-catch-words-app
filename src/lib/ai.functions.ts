@@ -168,6 +168,7 @@ pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い日本語説明}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
+- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短い日本語で)}。名詞でなければ空配列
 - pronunciation_tips: **日本人が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、日本語）。この語の声調の型、有気音/無気音（ㄆvsㄅ等）、そり舌（ㄓㄔㄕ）、鼻音韻尾（-n/-ng）、カタカナ読みに引きずられる誤りなど、該当するものを具体的に
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、日本語）
@@ -197,6 +198,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
       `frequency_level, register_tag, related_words[{word,kind,note}], ` +
+      `measure_words[{word,zhuyin,pinyin,note}], ` +
       `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
@@ -314,6 +316,7 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
 
 const REGEN_SECTIONS = [
   "meaning",
+  "measure_words",
   "usage_context",
   "example",
   "examples_extra",
@@ -370,6 +373,17 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       meaning: {
         prompt: `${base}\n{"meaning_ja": "日本語の意味(簡潔に、複数の意味があれば「/」区切り)"}`,
         schema: z.object({ meaning_ja: z.string().min(1) }),
+      },
+      measure_words: {
+        prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
+        schema: z.object({
+          measure_words: z.array(z.object({
+            word: z.string(),
+            zhuyin: z.string().catch(""),
+            pinyin: z.string().catch(""),
+            note: z.string().catch(""),
+          })).min(1),
+        }),
       },
       usage_context: {
         prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面"}`,

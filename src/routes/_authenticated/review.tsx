@@ -20,6 +20,7 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
 import { SwipeCard } from "@/components/SwipeCard";
 import {
@@ -131,6 +132,7 @@ function ReviewPage() {
 
   const [idx, setIdx] = useState(0);
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
+  const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
   const lightMode =
@@ -196,9 +198,29 @@ function ReviewPage() {
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
         </div>
-        {/* 記憶レベルの全体サマリー: ページを開いた瞬間に「どの色が何単語か」が見える */}
+        {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
+            バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
         {memOverview && memOverview.words.length > 0 && (
-          <MemoryLevelSummary words={memOverview.words} />
+          <>
+            <button
+              onClick={() => setMemListOpen((v) => !v)}
+              aria-expanded={memListOpen}
+              className="w-full text-left"
+            >
+              <MemoryLevelSummary words={memOverview.words} />
+            </button>
+            {memListOpen && (
+              <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
+                <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
+                <div className="mt-3 border-t border-border pt-2">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    全体の記憶率(前後2週間)
+                  </p>
+                  {memStats && <MiniRetentionGraph series={memStats.series} />}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -229,30 +251,6 @@ function ReviewPage() {
         )
       ) : null}
 
-      {/* Memory state lives BELOW the cards, collapsed — the first thing on
-          this screen is always the review itself (no scrolling to start). */}
-      {memStats && memStats.total_cards > 0 && (
-        <details className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <Brain className="h-4 w-4 text-primary" /> 記憶の状態
-            </span>
-            <span className="text-xs text-muted-foreground">
-              平均 <span className="font-semibold text-foreground">{memStats.avg_retention}%</span> · 復習待ち {memStats.due_now}
-            </span>
-          </summary>
-          {memOverview && (
-            <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
-          )}
-          <div className="mt-4">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              全体の記憶率(前後2週間)
-            </p>
-            <MiniRetentionGraph series={memStats.series} />
-          </div>
-        </details>
-      )}
-
       {memModal && <ForgettingCurveModal word={memModal} onClose={() => setMemModal(null)} />}
     </AppShell>
   );
@@ -272,6 +270,9 @@ function memWordOf(card: DueReviewCard): MemoryWord {
     days_until_forgot: null,
     fresh: card.repetitions <= 2,
     long_term: card.interval_days >= 30,
+    anchor_at: card.taken_at,
+    stability_days: Math.max(0.5, card.interval_days * Math.max(1, card.ease)),
+    ease: card.ease,
   };
 }
 
@@ -368,59 +369,77 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
   });
   const lv = memoryLevel(word.retention, word.interval_days, word.repetitions);
 
-  // 過去の復習履歴+未来予測をつないだ忘却曲線。
-  // 各復習の瞬間に記憶率は100%へ垂直に跳ね上がり、その後は
-  // その時点の安定度(interval×ease)で指数減衰する。
-  const { series, reviewDays, forgetDay } = useMemo(() => {
+  /**
+   * 記憶保持率のモデル(Ebbinghaus × SM-2):
+   *   R(t) = exp(-t / S)      S = 安定度(日) = interval_days × ease
+   * 復習した瞬間に R は 100% へ垂直回復し、正解ほど S が伸びる(坂が緩む)。
+   * **復習履歴が無くても** 「出会った日(taken_at)」を起点に実線を描く —
+   * これが「まだテストしてないのに線が出ない」問題の原因だった。
+   */
+  const { series, reviewDays, forgetDay, bestDay } = useMemo(() => {
     const nowMs = Date.now();
     const day = 86400_000;
-    const hist = (data?.history ?? []).slice().sort(
-      (a, b) => new Date(a.reviewed_at).getTime() - new Date(b.reviewed_at).getTime(),
-    );
-    const cur = data?.current;
-    type Pt = { d: number; r: number | null };
-    const out: Pt[] = [];
-    const revDays: number[] = [];
-
     const stabilityOf = (interval: number, ease: number) => Math.max(0.5, interval * Math.max(1, ease));
-    const events = hist.map((h) => ({
+
+    const hist = (data?.history ?? [])
+      .slice()
+      .sort((a, b) => new Date(a.reviewed_at).getTime() - new Date(b.reviewed_at).getTime());
+    const cur = data?.current;
+
+    // 記憶イベント列: 復習履歴があればそれ、無ければ「出会った日」1点。
+    const events: Array<{ t: number; stability: number }> = hist.map((h) => ({
       t: new Date(h.reviewed_at).getTime(),
       stability: stabilityOf(h.interval_days_after, h.ease_after),
     }));
-    // 履歴が無い場合は現在の状態だけで未来を引く。
-    if (events.length === 0 && cur?.last_reviewed_at) {
-      events.push({
-        t: new Date(cur.last_reviewed_at).getTime(),
-        stability: stabilityOf(cur.interval_days, cur.ease),
-      });
+    if (events.length === 0) {
+      const anchorIso = cur?.last_reviewed_at ?? data?.taken_at ?? word.anchor_at;
+      if (anchorIso) {
+        events.push({
+          t: new Date(anchorIso).getTime(),
+          stability: word.stability_days || stabilityOf(word.interval_days, word.ease),
+        });
+      }
     }
-    if (events.length === 0) return { series: [] as Pt[], reviewDays: [] as number[], forgetDay: null as number | null };
+    if (events.length === 0) {
+      return { series: [], reviewDays: [], forgetDay: null, bestDay: null } as {
+        series: Array<{ d: number; r: number | null }>;
+        reviewDays: number[];
+        forgetDay: number | null;
+        bestDay: number | null;
+      };
+    }
 
-    const firstD = Math.max(-30, Math.floor((events[0].t - nowMs) / day));
-    for (const e of events) revDays.push(Math.round((e.t - nowMs) / day));
-
+    const revDays = events.map((e) => Math.round((e.t - nowMs) / day));
+    const firstD = Math.max(-45, Math.min(0, revDays[0]));
+    const out: Array<{ d: number; r: number | null }> = [];
     let forget: number | null = null;
-    for (let d = firstD; d <= 30; d++) {
+    for (let d = firstD; d <= 45; d++) {
       const at = nowMs + d * day;
-      // この時点より前の直近の復習を探す
       let last: { t: number; stability: number } | null = null;
       for (const e of events) if (e.t <= at) last = e;
       if (!last) { out.push({ d, r: null }); continue; }
-      const dt = (at - last.t) / day;
+      const dt = Math.max(0, (at - last.t) / day);
       const r = Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-dt / last.stability))));
-      // 復習した日は100%に跳ねる(垂直回復を見せる)
-      const isReviewDay = revDays.includes(d);
-      out.push({ d, r: isReviewDay ? 100 : r });
+      out.push({ d, r: revDays.includes(d) ? 100 : r });
       if (forget == null && d >= 0 && r < 50) forget = d;
     }
-    return { series: out, reviewDays: revDays, forgetDay: forget };
-  }, [data]);
+
+    // 最適な復習日 = 保持率 ≒ 85%(想起にひと手間かかるが失敗しない)。
+    // 「思い出す努力」が最大の定着を生む desirable difficulty の狙い目。
+    const lastEvent = events[events.length - 1];
+    const targetDay = Math.round(
+      (lastEvent.t - nowMs) / day + lastEvent.stability * Math.log(1 / 0.85),
+    );
+    return { series: out, reviewDays: revDays, forgetDay: forget, bestDay: targetDay };
+  }, [data, word]);
 
   const dueAt = word.due_at ?? data?.current?.due_at ?? null;
   const dueLabel = dueAt
     ? new Date(dueAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
     : "—";
   const daysUntilForgot = word.days_until_forgot ?? forgetDay;
+  const bestLabel =
+    bestDay == null ? null : bestDay <= 0 ? "今日" : `${bestDay}日後`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -431,22 +450,22 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+
+        {/* 現在の状態 */}
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}>
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
             {lv.label} · 記憶率 {word.retention}%
           </span>
-          <span className="text-muted-foreground">次の復習: <b className="text-foreground">{dueLabel}</b></span>
-          {daysUntilForgot != null && (
-            <span className="text-muted-foreground">
-              あと <b className={daysUntilForgot <= 2 ? "text-red-600" : "text-foreground"}>{daysUntilForgot}日</b> で忘却ライン(50%)
-            </span>
-          )}
+          <span className="text-muted-foreground">
+            復習 <b className="text-foreground">{word.repetitions}</b> 回
+          </span>
         </div>
+
         {series.length > 0 ? (
           <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <LineChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="d"
@@ -456,29 +475,51 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
                 />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
                 <Tooltip
-                  formatter={(v: number) => [`${v}%`, "記憶率"]}
+                  formatter={(v: number) => [`${v}%`, "記憶保持率"]}
                   labelFormatter={(l: number) => (l === 0 ? "今日" : l > 0 ? `${l}日後` : `${-l}日前`)}
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
                 />
-                <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "忘却ライン", position: "insideBottomRight", fontSize: 9, fill: "#ef4444" }} />
+                {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
+                <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
+                <ReferenceLine y={85} stroke="#10b981" strokeDasharray="2 4" />
                 <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="2 4" />
+                {bestDay != null && bestDay >= 0 && bestDay <= 45 && (
+                  <ReferenceLine x={bestDay} stroke="#10b981" strokeWidth={1.5} />
+                )}
                 {reviewDays.map((d) => (
                   <ReferenceDot key={d} x={d} y={100} r={3.5} fill="hsl(var(--primary))" stroke="#fff" />
                 ))}
-                <Line type="monotone" dataKey="r" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} connectNulls />
+                <Line type="monotone" dataKey="r" stroke="hsl(var(--primary))" strokeWidth={2.2} dot={false} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-8 text-center text-xs text-muted-foreground">まだ復習履歴がありません。</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">記憶データを準備中です。</p>
         )}
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          ● は復習した日 — そのたびに記憶率は100%へ垂直に回復し、忘れるまでの坂がゆるやかになります。
-          {word.long_term
-            ? " すでに長期記憶に入りつつあります。"
-            : daysUntilForgot != null && daysUntilForgot <= 2
-              ? " 今日復習するのが一番効率的です。"
-              : " 赤い線(50%)を切る前に復習すると、少ない回数で長く覚えられます。"}
+
+        {/* 数字で読める予測 */}
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-secondary/60 p-2">
+            <div className="text-[9px] text-muted-foreground">ベスト復習</div>
+            <div className="text-sm font-bold text-emerald-600">{bestLabel ?? "—"}</div>
+          </div>
+          <div className="rounded-xl bg-secondary/60 p-2">
+            <div className="text-[9px] text-muted-foreground">50%を切る</div>
+            <div className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-red-600" : ""}`}>
+              {daysUntilForgot != null ? `${daysUntilForgot}日後` : "—"}
+            </div>
+          </div>
+          <div className="rounded-xl bg-secondary/60 p-2">
+            <div className="text-[9px] text-muted-foreground">次の出題</div>
+            <div className="text-sm font-bold">{dueLabel}</div>
+          </div>
+        </div>
+
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          曲線は保持率 R = e<sup>−t/S</sup>(S = 間隔 × 定着度)。● の復習ごとに 100% へ回復し、
+          正解すると S が伸びて坂が緩やかになります。
+          {" "}
+          <b className="text-emerald-600">緑の線(85%)</b>付近が、思い出す努力が効く一番おいしい復習タイミングです。
         </p>
       </div>
     </div>
@@ -690,7 +731,7 @@ function SpeakingCard({
       {/* Photo — the word itself stays hidden until hint */}
       <div className="relative mx-auto mb-2 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
         {heroUrl ? (
-          <img
+          <CachedImg
             src={heroUrl}
             alt="復習対象"
             className={`h-full w-full object-contain p-4 ${isGhostImage ? "opacity-70 grayscale" : ""}`}
@@ -1060,24 +1101,23 @@ function LightModeCard({
         </span>
         <CardMemoryBadge card={card} onOpen={onOpenMemory} />
       </div>
-      <div className="mb-3 flex items-center gap-3">
-        <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-2xl bg-secondary">
-          {card.cutout_url ?? card.placeholder_url ? (
-            <img
-              src={(card.cutout_url ?? card.placeholder_url)!}
-              alt="復習対象"
-              className={`h-full w-full object-cover ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
-            />
-          ) : (
-            <span className="text-3xl">📦</span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-base font-semibold leading-snug">「{card.meaning_ja}」はどれ?</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">台湾華語を選ぼう</div>
-        </div>
+      {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
+          画面高に連動させ(最大32vh)、小さい端末でも選択肢が隠れない。 */}
+      <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
+        {card.cutout_url ?? card.placeholder_url ? (
+          <CachedImg
+            src={(card.cutout_url ?? card.placeholder_url)!}
+            alt="復習対象"
+            className={`h-full max-h-[32vh] w-full object-contain ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
+          />
+        ) : (
+          <div className="grid h-32 w-full place-items-center text-4xl">📦</div>
+        )}
       </div>
-      <ul className="space-y-2">
+      <div className="mb-2.5 text-center">
+        <div className="text-base font-semibold leading-snug">「{card.meaning_ja}」はどれ?</div>
+      </div>
+      <ul className="space-y-1.5">
         {infos.map((info) => {
           const c = info.headword;
           const isAnswer = c === card.headword;
@@ -1090,7 +1130,7 @@ function LightModeCard({
               <button
                 disabled={!!picked}
                 onClick={() => submit(c)}
-                className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2.5 text-left transition-all
+                className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-all
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-green-500/60 bg-green-500/10" : ""}
                   ${showRed ? "border-red-500/60 bg-red-500/10" : ""}

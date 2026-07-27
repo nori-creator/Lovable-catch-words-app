@@ -345,7 +345,8 @@
 .photo-print {
   position: relative;
   background: linear-gradient(170deg, #ffffff 0%, #fbf8f1 70%, #f4efe2 100%);
-  padding: 5.5% 5.5% 14%;
+  /* 白フチは固定px — %だと幅基準になり、縦長タイルで写真が文字帯に食み出す */
+  padding: 6px 6px 26px;
   border-radius: 1.5px;
   box-shadow:
     0 1px 1.5px rgba(60, 42, 18, 0.35),      /* 接地(紙の薄さが出る硬い影) */
@@ -365,7 +366,7 @@
 .photo-print::after {
   content: "";
   position: absolute;
-  inset: 5.5% 5.5% 14%;
+  inset: 6px 6px 26px;
   pointer-events: none;
   background:
     linear-gradient(118deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.06) 24%, transparent 45%),

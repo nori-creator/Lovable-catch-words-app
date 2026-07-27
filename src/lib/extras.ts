@@ -67,6 +67,17 @@ export const ExtrasSchema = z.object({
   example_chunks: z.array(ChunkPartSchema).catch([]),
   /** 類義語・反義語・関連語(使い分けノート付き)。 */
   related_words: z.array(RelatedWordSchema).catch([]),
+  /** 量詞(名詞のみ)。複数ある場合は使い分けノート付き。 */
+  measure_words: z
+    .array(
+      z.object({
+        word: z.string(),
+        zhuyin: z.string().catch(""),
+        pinyin: z.string().catch(""),
+        note: z.string().catch(""),
+      }),
+    )
+    .catch([]),
   /** 日本人向けの発音のコツ(声調・有気音・そり舌・鼻音韻尾など)。 */
   pronunciation_tips: z.string().catch(""),
   /** 台湾での一言雑学(文化・習慣・歴史・流行)+語法の注意。 */
