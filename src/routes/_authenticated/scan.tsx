@@ -101,6 +101,16 @@ function ScanPage() {
   );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // ズーム(1 = 等倍)。端末が対応していれば光学/デジタルズーム、
+  // 非対応なら CSS の scale で代用する。
+  const [zoom, setZoom] = useState(1);
+  const [zoomMax, setZoomMax] = useState(1);
+  const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  // 音声入力はこの画面のまま行う(別シートに飛ばさない)。
+  // 認識結果は検索欄に入り、そのまま「調べる」で確定できる。
+  const [voiceListening, setVoiceListening] = useState(false);
+  const voiceRecogRef = useRef<{ stop: () => void } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -194,6 +204,17 @@ function ScanPage() {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {});
         }
+        // ズームの可否を調べる。対応端末は track のズーム(画質が落ちない)、
+        // 非対応端末は CSS の拡大でフォールバックする。
+        const track = stream.getVideoTracks()[0];
+        const caps = (track?.getCapabilities?.() ?? {}) as { zoom?: { min: number; max: number; step?: number } };
+        if (caps.zoom) {
+          zoomCapsRef.current = { min: caps.zoom.min, max: Math.min(caps.zoom.max, caps.zoom.min * 6) };
+          setZoomMax(zoomCapsRef.current.max);
+        } else {
+          zoomCapsRef.current = null;
+          setZoomMax(4); // CSS拡大の上限
+        }
         setReady(true);
       } catch (e) {
         setError((e as Error).message || "カメラを起動できませんでした");
@@ -205,6 +226,75 @@ function ScanPage() {
       streamRef.current = null;
     };
   }, []);
+
+  /** ズーム値をカメラ(または表示)に反映する。 */
+  const applyZoom = useCallback((next: number) => {
+    const caps = zoomCapsRef.current;
+    const max = caps ? caps.max : 4;
+    const min = caps ? caps.min : 1;
+    const z = Math.max(min, Math.min(max, next));
+    setZoom(z);
+    if (caps) {
+      const track = streamRef.current?.getVideoTracks()[0];
+      // applyConstraints は非同期。失敗しても CSS 側で見た目は追従する。
+      void track?.applyConstraints?.({ advanced: [{ zoom: z }] } as never).catch(() => {});
+    }
+  }, []);
+
+  // ピンチでズーム(2本指)。1本指のタップはドットの操作なので触らない。
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 2) return;
+    const [a, b] = [e.touches[0], e.touches[1]];
+    pinchRef.current = {
+      startDist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+      startZoom: zoom,
+    };
+  }, [zoom]);
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    const p = pinchRef.current;
+    if (!p || e.touches.length !== 2) return;
+    const [a, b] = [e.touches[0], e.touches[1]];
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    applyZoom(p.startZoom * (dist / Math.max(1, p.startDist)));
+  }, [applyZoom]);
+  const onTouchEnd = useCallback(() => { pinchRef.current = null; }, []);
+
+  /** その場の音声入力: 認識結果を検索欄へ流し込む(画面遷移なし)。 */
+  const toggleVoice = useCallback(() => {
+    if (voiceListening) {
+      voiceRecogRef.current?.stop();
+      setVoiceListening(false);
+      return;
+    }
+    const w = window as unknown as {
+      SpeechRecognition?: new () => unknown;
+      webkitSpeechRecognition?: new () => unknown;
+    };
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) {
+      setError("この端末は音声入力に対応していません。文字で入力してください。");
+      return;
+    }
+    const rec = new SR() as {
+      lang: string; interimResults: boolean; continuous: boolean; maxAlternatives: number;
+      onresult: (e: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void;
+      onend: () => void; onerror: () => void; start: () => void; stop: () => void;
+    };
+    rec.lang = "cmn-Hant-TW";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      let text = "";
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+      setManualQuery(text.trim());
+    };
+    rec.onend = () => setVoiceListening(false);
+    rec.onerror = () => setVoiceListening(false);
+    voiceRecogRef.current = rec;
+    setVoiceListening(true);
+    rec.start();
+  }, [voiceListening]);
 
   // ---- capture + downscale to longest side 1024 ----
   const grabFrame = useCallback((): string | null => {
@@ -462,12 +552,22 @@ function ScanPage() {
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
   const t = useT();
   const boxSize = useBoxSize(boxRef);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const sheetSize = useBoxSize(sheetRef);
+  /**
+   * ドット(光のボタン)の配置。
+   * スキャン後は下からシートが せり上がるので、そのままだと下半分のドットが
+   * シートの裏に隠れて**押せなくなる**。写真の見える範囲(= シートの上端まで)
+   * にドットを収め、常にすべてのドットをタップできるようにする。
+   */
   const dotStyle = useCallback((it: DetectedItem): React.CSSProperties => {
     const [x, y] = it.point;
+    const reserved = snapshot ? sheetSize.h + 24 : 0;
+    const usableH = Math.max(120, boxSize.h - reserved);
     const left = (x / 1000) * boxSize.w;
-    const top = (y / 1000) * boxSize.h;
+    const top = (y / 1000) * usableH;
     return { left, top };
-  }, [boxSize]);
+  }, [boxSize, sheetSize.h, snapshot]);
 
   const chosenDict = chip ? entries[chip.chosenHeadword] : undefined;
   const displayHeadword = chip?.chosenHeadword ?? "";
@@ -485,7 +585,7 @@ function ScanPage() {
   );
 
   return (
-    <AppShell title="スキャン">
+    <AppShell title={t("nav.camera")}>
       <div className="space-y-3">
         {/*
           カメラは画面いっぱい(フルスクリーン)。世界をスキャンしている感覚は
@@ -495,6 +595,9 @@ function ScanPage() {
         <div
           ref={boxRef}
           className="fixed inset-0 z-20 overflow-hidden bg-black"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         >
           {/* live camera */}
           {!snapshot && (
@@ -503,11 +606,20 @@ function ScanPage() {
               playsInline
               muted
               className="absolute inset-0 h-full w-full object-cover"
+              // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
+              style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
             />
           )}
           {/* frozen snapshot after scan */}
           {snapshot && (
-            <img src={snapshot} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            // 写真もドットと同じ「シートの上」の範囲に収める。
+            // こうしておくと座標と見た目がずれない。
+            <img
+              src={snapshot}
+              alt=""
+              className="absolute inset-x-0 top-0 w-full object-cover"
+              style={{ height: `calc(100% - ${sheetSize.h + 24}px)` }}
+            />
           )}
 
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
@@ -603,6 +715,26 @@ function ScanPage() {
             </div>
           )}
 
+          {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
+          {!snapshot && ready && zoomMax > 1 && (
+            <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2">
+              <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
+                {zoom.toFixed(1)}×
+              </span>
+              <input
+                type="range"
+                aria-label={t("scan.zoom")}
+                min={zoomCapsRef.current?.min ?? 1}
+                max={zoomMax}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => applyZoom(Number(e.target.value))}
+                className="h-40 w-11 cursor-pointer accent-white"
+                style={{ writingMode: "vertical-lr", direction: "rtl" }}
+              />
+            </div>
+          )}
+
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
             <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
@@ -620,7 +752,10 @@ function ScanPage() {
             2) スキャンボタンと母語の検索欄(常設)
             3) 見つかった単語の一覧(スクロール可)
         */}
-        <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4">
+        <div
+          ref={sheetRef}
+          className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+        >
           {/* 1) チップ: ドットをタップした単語 — 常に一番上・すぐキャッチできる */}
         {chip && (
           <ScanChip
@@ -685,15 +820,20 @@ function ScanPage() {
                   <input
                     value={manualQuery}
                     onChange={(e) => setManualQuery(e.target.value)}
-                    placeholder={t("scan.searchPlaceholder")}
+                    placeholder={voiceListening ? t("scan.listening") : t("scan.searchPlaceholder")}
                     className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-sm shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => setInputCatchOpen("voice")}
+                  onClick={toggleVoice}
                   aria-label={t("scan.voiceLabel")}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-background/90 text-muted-foreground shadow-lg backdrop-blur transition active:scale-95"
+                  aria-pressed={voiceListening}
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border shadow-lg backdrop-blur transition active:scale-95 ${
+                    voiceListening
+                      ? "animate-pulse border-red-400 bg-red-500 text-white"
+                      : "border-border bg-background/90 text-muted-foreground"
+                  }`}
                 >
                   <Mic className="h-4 w-4" />
                 </button>

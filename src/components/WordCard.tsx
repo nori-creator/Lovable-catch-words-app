@@ -196,8 +196,10 @@ export const WordCard = forwardRef<
     /** 指定すると Pro の項目別ワンタッチ再生成が有効になる。 */
     wordId?: string;
     isPro?: boolean;
+    /** ネット画像を「この画像にする」で選んだとき(カードの写真に採用)。 */
+    onPickImage?: (url: string) => void | Promise<void>;
   }
->(function WordCard({ word, autoplay = true, wordId, isPro = false }, ref) {
+>(function WordCard({ word, autoplay = true, wordId, isPro = false, onPickImage }, ref) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
 
@@ -210,6 +212,11 @@ export const WordCard = forwardRef<
   const ex = word.extras ?? {};
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
 
+  /**
+   * 中身があるか。**表示するかどうかの判定には使わない** —
+   * 項目は常に全部並べ、空のときは「未生成」の枠と生成ボタンを出す
+   * (以前は空項目を丸ごと隠していたため「項目が消えた」ように見えていた)。
+   */
   const hasContent = (id: SectionId): boolean => {
     switch (id) {
       case "meaning": return !!word.meaning_ja;
@@ -241,8 +248,16 @@ export const WordCard = forwardRef<
     <div className="space-y-3">
       <HeaderRow word={word} autoplay={autoplay} />
       <div className="grid gap-3">
-        {prefs.order.filter((id) => isVisible(id) && hasContent(id)).map((id) => (
-          <SectionCard key={id} id={id} word={word} wordId={wordId} isPro={isPro} />
+        {prefs.order.filter(isVisible).map((id) => (
+          <SectionCard
+            key={id}
+            id={id}
+            word={word}
+            wordId={wordId}
+            isPro={isPro}
+            empty={!hasContent(id)}
+            onPickImage={onPickImage}
+          />
         ))}
       </div>
     </div>
@@ -361,11 +376,16 @@ function SectionCard({
   word,
   wordId,
   isPro,
+  empty,
+  onPickImage,
 }: {
   id: SectionId;
   word: WordCardData;
   wordId?: string;
   isPro?: boolean;
+  /** 中身がまだ無い(AIが未生成)。枠は出し、生成ボタンを見せる。 */
+  empty?: boolean;
+  onPickImage?: (url: string) => void | Promise<void>;
 }) {
   const theme = SECTION_THEME[id];
   const t = useT();
@@ -375,10 +395,12 @@ function SectionCard({
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
   const canRegen = !!wordId && !!isPro && REGEN_SECTIONS.includes(id);
+  // 未生成の項目は誰でも1回は作れる(Proでなくても「作る」ボタンは出す)。
+  const canGenerate = !!wordId && REGEN_SECTIONS.includes(id);
 
   // Pro: この項目だけをワンタッチで作り直す。
   async function regen() {
-    if (!canRegen || regenerating) return;
+    if (!wordId || regenerating) return;
     setRegenerating(true);
     try {
       await regenFn({ data: { word_id: wordId!, section: id as RegenSection } });
@@ -410,8 +432,53 @@ function SectionCard({
           </button>
         )}
       </div>
-      <Body id={id} word={word} ex={ex} t={t} />
+      {empty ? (
+        <EmptySection
+          label={label}
+          canGenerate={canGenerate}
+          generating={regenerating}
+          onGenerate={regen}
+          t={t}
+        />
+      ) : (
+        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+      )}
     </section>
+  );
+}
+
+/**
+ * まだ生成されていない項目。空でも枠は必ず見せ、
+ * 「何が入る場所なのか」と「作る手段」をその場に置く。
+ */
+function EmptySection({
+  label,
+  canGenerate,
+  generating,
+  onGenerate,
+  t,
+}: {
+  label: string;
+  canGenerate: boolean;
+  generating: boolean;
+  onGenerate: () => void;
+  t: (k: string) => string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-black/10 bg-white/40 px-3 py-2.5">
+      <span className="text-[11px] text-muted-foreground">{t("card.notYet")}</span>
+      {canGenerate && (
+        <button
+          onClick={onGenerate}
+          disabled={generating}
+          aria-label={`${label}: ${t("card.generate")}`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
+        >
+          {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {t("card.generate")}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -434,11 +501,13 @@ function Body({
   word,
   ex,
   t,
+  onPickImage,
 }: {
   id: SectionId;
   word: WordCardData;
   ex: WordExtras;
   t: (k: string) => string;
+  onPickImage?: (url: string) => void | Promise<void>;
 }) {
   switch (id) {
     case "meaning":
@@ -605,7 +674,9 @@ function Body({
       );
 
     case "web_images":
-      return <WebImagesBody headword={word.headword} meaningJa={word.meaning_ja} />;
+      return (
+        <WebImagesBody headword={word.headword} meaningJa={word.meaning_ja} onPickImage={onPickImage} />
+      );
     case "real_usage":
       return <RealUsageBody headword={word.headword} />;
   }
@@ -649,28 +720,68 @@ function MeasureWordRow({
  * (以前はStickerSheetの折りたたみで、タップしないと出なかった)。
  * 結果は24hキャッシュされるので実コストは初回検索のみ。
  */
-function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: string }) {
+function WebImagesBody({
+  headword,
+  meaningJa,
+  onPickImage,
+}: {
+  headword: string;
+  meaningJa: string;
+  onPickImage?: (url: string) => void | Promise<void>;
+}) {
   const t = useT();
   const searchFn = useServerFn(searchImageCandidates);
-  const { data, isLoading } = useQuery({
-    queryKey: ["web-images", headword],
-    queryFn: async () => (await searchFn({ data: { query: meaningJa || headword } })).candidates,
+  // 「別の画像」を押すたびに検索し直す(seed をキーに入れてキャッシュを外す)。
+  const [seed, setSeed] = useState(0);
+  const [picking, setPicking] = useState<string | null>(null);
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["web-images", headword, seed],
+    queryFn: async () =>
+      (await searchFn({ data: { query: seed === 0 ? meaningJa || headword : `${meaningJa || headword} ${headword}` } }))
+        .candidates,
     staleTime: 24 * 60 * 60 * 1000,
   });
-  const candidates: ImageCandidate[] = data ?? [];
+  const all: ImageCandidate[] = data ?? [];
+  // 再検索のたびに違う3枚を見せる(候補は最大6件返る)。
+  const offset = seed % Math.max(1, Math.ceil(all.length / 3));
+  const candidates = all.slice(offset * 3, offset * 3 + 3);
+  const shown = candidates.length > 0 ? candidates : all.slice(0, 3);
+
+  async function pick(url: string) {
+    if (!onPickImage || picking) return;
+    setPicking(url);
+    try {
+      await onPickImage(url);
+    } finally {
+      setPicking(null);
+    }
+  }
+
   return (
     <div>
       {isLoading ? (
         <div className="grid grid-cols-3 gap-2">
           {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/60" />)}
         </div>
-      ) : candidates.length > 0 ? (
+      ) : shown.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
-          {candidates.slice(0, 3).map((c, i) => (
-            <figure key={i} className="relative aspect-square overflow-hidden rounded-xl bg-white/60">
-              <img src={c.url} alt={`「${headword}」のイメージ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+          {shown.map((c, i) => (
+            <figure key={`${c.url}-${i}`} className="relative aspect-square overflow-hidden rounded-xl bg-white/60">
+              <img src={c.url} alt={`${headword} ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+              {onPickImage && (
+                <button
+                  onClick={() => void pick(c.url)}
+                  disabled={picking !== null}
+                  className="absolute inset-0 grid place-items-center bg-black/0 text-[10px] font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
+                  aria-label={t("card.useThisImage")}
+                >
+                  {picking === c.url ? <Loader2 className="h-4 w-4 animate-spin" /> : t("card.useThisImage")}
+                </button>
+              )}
               {c.credit?.name && (
-                <figcaption className="absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">📷 {c.credit.name}</figcaption>
+                <figcaption className="pointer-events-none absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">
+                  📷 {c.credit.name}
+                </figcaption>
               )}
             </figure>
           ))}
@@ -678,14 +789,28 @@ function WebImagesBody({ headword, meaningJa }: { headword: string; meaningJa: s
       ) : (
         <p className="text-xs text-muted-foreground">{t("card.noImages")}</p>
       )}
-      <a
-        href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-2 inline-flex items-center gap-1 text-xs text-primary underline"
-      >
-        {t("card.searchGoogle")}「{headword}」<ExternalLink className="h-3 w-3" />
-      </a>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          onClick={() => setSeed((v) => v + 1)}
+          disabled={isFetching}
+          className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
+        >
+          {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {t("card.otherImages")}
+        </button>
+        <a
+          href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-primary underline"
+        >
+          {t("card.searchGoogle")} <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+      {onPickImage && (
+        <p className="mt-1 text-[10px] text-muted-foreground">{t("card.useThisImage")} — {t("card.changePhoto")}</p>
+      )}
     </div>
   );
 }

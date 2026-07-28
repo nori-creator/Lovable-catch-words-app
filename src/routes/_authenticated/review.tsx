@@ -156,7 +156,7 @@ function ReviewPage() {
   }, [cards, idx]);
 
   return (
-    <AppShell title="復習">
+    <AppShell title={t("title.review")}>
       <section className="mb-4">
         <div className="flex items-baseline justify-between">
           <h1 className="text-2xl font-semibold leading-[1.1] tracking-[-0.02em]">{t("review.today")}</h1>
@@ -227,7 +227,7 @@ function ReviewPage() {
       {isLoading ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-sm text-muted-foreground">今日の出題を準備中…</p>
+          <p className="text-sm text-muted-foreground">{t("review.preparing")}</p>
         </div>
       ) : !cards?.length ? (
         <EmptyState />
@@ -470,35 +470,43 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
           <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
                 <XAxis
                   dataKey="d"
                   tickFormatter={(v: number) => (v === 0 ? "今日" : v > 0 ? `+${v}d` : `${v}d`)}
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="#64748b"
                   fontSize={10}
                 />
-                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
                 <Tooltip
                   formatter={(v: number) => [`${v}%`, "記憶保持率"]}
                   labelFormatter={(l: number) => (l === 0 ? "今日" : l > 0 ? `${l}日後` : `${-l}日前`)}
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+                  contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
                 />
                 {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
                 <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
                 <ReferenceLine y={85} stroke="#10b981" strokeDasharray="2 4" />
-                <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="2 4" />
+                <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="2 4" />
                 {bestDay != null && bestDay >= 0 && bestDay <= 45 && (
                   <ReferenceLine x={bestDay} stroke="#10b981" strokeWidth={1.5} />
                 )}
                 {reviewDays.map((d) => (
-                  <ReferenceDot key={d} x={d} y={100} r={3.5} fill="hsl(var(--primary))" stroke="#fff" />
+                  <ReferenceDot key={d} x={d} y={100} r={3.5} fill="#2563eb" stroke="#fff" />
                 ))}
-                <Line type="monotone" dataKey="r" stroke="hsl(var(--primary))" strokeWidth={2.2} dot={false} connectNulls />
+                <Line
+                  type="monotone"
+                  dataKey="r"
+                  stroke="#2563eb"
+                  strokeWidth={2.4}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-8 text-center text-xs text-muted-foreground">記憶データを準備中です。</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">{t("review.memoryLoading")}</p>
         )}
 
         {/* 数字で読める予測 */}
@@ -545,6 +553,7 @@ function SpeakingCard({
   const grade = useServerFn(gradeReview);
   const feedbackFn = useServerFn(getSpeakingFeedback);
   const scaffoldFn = useServerFn(getSpeakingScaffold);
+  const t = useT();
   const phonetic = usePhoneticPref();
 
   // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
@@ -571,6 +580,7 @@ function SpeakingCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const videoStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
@@ -617,6 +627,7 @@ function SpeakingCard({
     } catch { /* denied */ }
   }
   function stopVideo() {
+    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -654,16 +665,31 @@ function SpeakingCard({
       }
       setTranscript((finalText + interim).trim());
     };
-    rec.onend = () => { setListening(false); stopVideo(); };
+    rec.onend = () => {
+      setListening(false);
+      stopVideo();
+      // 1文字も取れなかった時は黙って終わらせない(録画だけ回って
+      // 気づかない、が一番困る)。テキスト欄で直せることを伝える。
+      if (!finalText.trim()) {
+        setError("音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。");
+      }
+    };
     rec.onerror = () => { setListening(false); stopVideo(); };
     recogRef.current = rec;
     startedAt.current = Date.now();
     setListening(true);
-    startVideo();
+    // **順番が重要**: 先に音声認識を始める。
+    // getUserMedia({audio:true}) が先にマイクを掴むと、Android Chrome では
+    // SpeechRecognition が結果を返さなくなり「録画だけされて文字が出ない」
+    // 状態になっていた。認識を起動してから 350ms 後にカメラを開始する。
     rec.start();
+    if (videoOn) {
+      videoStartTimer.current = setTimeout(() => { void startVideo(); }, 350);
+    }
   }
 
   function stopListen() {
+    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
     recogRef.current?.stop();
     setListening(false);
     stopVideo();
@@ -722,11 +748,11 @@ function SpeakingCard({
     <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-          <Mic className="h-3.5 w-3.5" /> {isPhrase ? "ロールプレイ" : "はなす"}
+          <Mic className="h-3.5 w-3.5" /> {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">
-            {isPhrase ? "この場面、どう返す?" : "この時のことを、単語を使って一文で"}
+            {isPhrase ? t("review.promptPhrase") : t("review.promptSpeak")}
           </span>
           <CardMemoryBadge card={card} onOpen={onOpenMemory} />
         </div>
@@ -745,7 +771,7 @@ function SpeakingCard({
         )}
         {isGhostImage && (
           <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
-            👻 仮の画像
+            {t("review.tempImage")}
           </span>
         )}
       </div>
@@ -765,7 +791,7 @@ function SpeakingCard({
       {/* Phrase cards: the scene is the front of the card (§5.2) */}
       {isPhrase && card.caption && (
         <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-sm">
-          <span className="text-xs text-muted-foreground">シーン: </span>
+          <span className="text-xs text-muted-foreground">{t("review.scene")}</span>
           {card.caption}
         </p>
       )}
@@ -775,7 +801,7 @@ function SpeakingCard({
           思い出す練習は守る。ヒント後は全体を表示。 */}
       {!isPhrase && card.prompt_pattern && (
         <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">今日の型</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("review.todaysPattern")}</div>
           <div className="mt-1 text-lg font-bold tracking-wide">
             {hintShown
               ? card.prompt_pattern.zh
@@ -784,7 +810,7 @@ function SpeakingCard({
           {card.prompt_pattern.ja && (
             <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
           )}
-          <div className="mt-1 text-[10px] text-muted-foreground">この型を入れて一文話してみよう</div>
+          <div className="mt-1 text-[10px] text-muted-foreground">{t("review.usePattern")}</div>
         </div>
       )}
 
@@ -792,7 +818,7 @@ function SpeakingCard({
           パーツを組み合わせて質問に答える。 */}
       {!isPhrase && scaffold && !feedback && (
         <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">先生の質問</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">{t("review.teacherQ")}</div>
           <div className="mt-0.5 flex items-start gap-2">
             <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
             <button
@@ -805,7 +831,7 @@ function SpeakingCard({
           </div>
           <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
 
-          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">ヒント(型・チャンク・文法)</div>
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">{t("review.hintsLabel")}</div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {scaffold.parts.map((p, i) => (
               <button
@@ -821,10 +847,10 @@ function SpeakingCard({
           </div>
           {scaffold.caption_seed && (
             <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
-              💭 あなたのメモ:「{scaffold.caption_seed}」— この気持ちも混ぜてみよう
+              {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
             </p>
           )}
-          <p className="mt-1.5 text-[10px] text-sky-800/70">これを使って自分の一文を組み立ててみよう(答えはまだ見せません)</p>
+          <p className="mt-1.5 text-[10px] text-sky-800/70">{t("review.buildYourOwn")}</p>
         </div>
       )}
 
@@ -873,14 +899,14 @@ function SpeakingCard({
               className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] ${hintShown ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300" : "border-border bg-background text-muted-foreground hover:bg-accent/40"}`}
             >
               <Lightbulb className="h-5 w-5" />
-              {hintShown ? "ヒント使用" : "ヒント"}
+              {hintShown ? t("review.hintUsed") : t("review.hint")}
             </button>
           </div>
 
           <textarea
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
-            placeholder={listening ? "聞き取り中…" : "音声認識のミスはここで直せます（直接入力もOK）"}
+            placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
             className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
             dir="auto"
           />
@@ -893,16 +919,16 @@ function SpeakingCard({
               className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               {loading ? (
-                <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> AIが添削中…</span>
+                <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t("review.grading")}</span>
               ) : (
-                "送信してフィードバック"
+                t("review.submit")
               )}
             </button>
             <button
               onClick={() => commitAndNext("skip")}
               className="rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground"
             >
-              スキップ
+              {t("review.skip")}
             </button>
           </div>
         </div>
@@ -947,6 +973,7 @@ function FeedbackView({
   onRetry: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const goodTarget = feedback.used_target;
   const score = feedback.natural_score;
   return (
@@ -955,9 +982,13 @@ function FeedbackView({
       <div className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30" : "bg-rose-50 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:ring-rose-400/30"}`}>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">
-            {goodTarget && score >= 4 ? "自然！" : goodTarget ? "通じるけど、もう一歩" : `「${card.headword}」を使ってみよう`}
+            {goodTarget && score >= 4
+              ? t("review.natural")
+              : goodTarget
+                ? t("review.almost")
+                : `「${card.headword}」${t("review.useTarget")}`}
           </span>
-          <span className="text-xs text-muted-foreground">自然さ {score}/5</span>
+          <span className="text-xs text-muted-foreground">{t("review.naturalness")} {score}/5</span>
         </div>
       </div>
 
@@ -965,7 +996,7 @@ function FeedbackView({
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            自分の発話を見返す
+            {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
         </div>
@@ -973,9 +1004,9 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">あなた</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.you")}</div>
         <div className="text-sm">{transcript}</div>
-        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">添削</div>
+        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.corrected")}</div>
         <div className="flex items-start gap-2">
           <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
           <button
@@ -992,10 +1023,10 @@ function FeedbackView({
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">文の組み立て</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.sentenceBuild")}</span>
           {feedback.unlocked_branch && (
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-              🌿 新しい枝が解禁
+              {t("review.newBranch")}
             </span>
           )}
           <span className="text-xs text-muted-foreground">{feedback.chunk_note}</span>
@@ -1004,7 +1035,7 @@ function FeedbackView({
         <ChunkLegend />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">なぜこの語順?</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.whyOrder")}</div>
             <p className="mt-0.5 text-xs leading-relaxed">{feedback.word_order_rule}</p>
           </div>
         )}
@@ -1012,13 +1043,13 @@ function FeedbackView({
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">ネイティブの気持ち</div>
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">{t("review.nativeFeel")}</div>
         <p className="text-sm text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
       </div>
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">お手本</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">{t("review.model")}</div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-sm">{feedback.model_answer}</div>
           <button onClick={() => speakZhTW(feedback.model_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="お手本を聞く">
@@ -1026,7 +1057,7 @@ function FeedbackView({
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">別の言い方: {feedback.alt_answer}</div>
+          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">{t("review.altWay")}{feedback.alt_answer}</div>
           <button onClick={() => speakZhTW(feedback.alt_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="別の言い方を聞く">
             <Volume2 className="h-4 w-4" />
           </button>
@@ -1039,7 +1070,7 @@ function FeedbackView({
             onClick={onRetry}
             className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-sm font-semibold text-primary"
           >
-            <Repeat className="mr-1 inline h-4 w-4" /> 型を使ってもう一度
+            <Repeat className="mr-1 inline h-4 w-4" /> {t("review.retryPattern")}
           </button>
         )}
         <button
@@ -1165,7 +1196,7 @@ function LightModeCard({
         <div className="mt-4 rounded-2xl bg-secondary/60 p-4">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-sm font-semibold">{correct ? t("review.correct") : t("review.tryAgain")}</span>
-            {score != null && <span className="text-xs text-muted-foreground">スコア {score}/5</span>}
+            {score != null && <span className="text-xs text-muted-foreground">{t("review.naturalness")} {score}/5</span>}
           </div>
           <div className="mb-2 flex items-center gap-2">
             <span className="text-2xl font-bold tracking-tight">{card.headword}</span>
@@ -1207,17 +1238,17 @@ function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; av
     <div className="h-32 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
-          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
+          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="#64748b" fontSize={10} />
+          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
             formatter={(v: number) => [`${v}%`, "平均記憶率"]}
             labelFormatter={(l) => (l === 0 ? "今日" : `${l > 0 ? "+" : ""}${l}日`)}
-            contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+            contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
           />
-          <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
-          <ReferenceLine y={80} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
-          <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+          <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="4 4" />
+          <ReferenceLine y={80} stroke="#64748b" strokeDasharray="2 4" />
+          <Line type="monotone" dataKey="avg_retention" stroke="#2563eb" strokeWidth={2.4} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -1225,29 +1256,31 @@ function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; av
 }
 
 function EmptyState() {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
-      <p className="text-sm text-muted-foreground">今日復習する単語はありません。</p>
-      <p className="mt-1 text-xs text-muted-foreground">新しい単語をキャッチすると、10分後に最初の復習が出ます。</p>
+      <p className="text-sm text-muted-foreground">{t("review.empty")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("review.emptyHint")}</p>
       <Link to="/capture" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
-        撮りに行く
+        {t("review.goCatch")}
       </Link>
     </div>
   );
 }
 
 function DoneState({ onAgain }: { onAgain: () => void }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-8 text-center">
       <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
-      <p className="text-sm font-medium">今日のノルマ、達成！</p>
-      <p className="mt-1 text-xs text-muted-foreground">また明日の復習で会いましょう。</p>
+      <p className="text-sm font-medium">{t("review.doneTitle")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("review.doneHint")}</p>
       <button onClick={onAgain} className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
-        もう一度出す
+        {t("review.again")}
       </button>
       <div className="mt-2 text-[10px] text-muted-foreground">
         <Video className="mr-1 inline h-3 w-3" />
-        設定で「録画」をONにすると、話した時の自撮り動画も残せます
+        {t("review.videoTip")}
       </div>
     </div>
   );

@@ -66,7 +66,7 @@ const PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習ア
 厳守ルール:
 - 出力は下記スキーマに厳密に従うJSONオブジェクトのみ。前置き・後書き・コードフェンス禁止。
 - 台湾教育部準拠の正式な繁体字を使用。大陸簡体字・大陸独自語彙は禁止(例: 出租车✗ → 計程車○)。
-- TOCFL 1〜3レベルの語を優先。学習価値の低いもの(壁・空・地面など)は返さない。
+- 学習者のレベルに合う語を優先(下の「レベル指示」に従う)。学習価値の低いもの(壁・空・地面など)は返さない。
 - kind=text は看板・メニュー・商品ラベルなど「写っている文字そのもの」。推測で足したり書き換えたりしない。
 - point は画像を 0〜1000 に正規化した座標 [x, y]。**必ずその物体の見えている塊の重心**に置く
   (左上が [0,0]、右下が [1000,1000]、x=横、y=縦。x と y を絶対に入れ替えない)。
@@ -112,6 +112,9 @@ export const detectScan = createServerFn({ method: "POST" })
     const ai = getAi();
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "scan_detect");
+    const { levelInstruction, explanationLanguageRule } = await import("./ai-provider.server");
+    const levelRule = await levelInstruction(userId);
+    const langRule = await explanationLanguageRule(userId);
 
     const imageInput = data.imageBase64.startsWith("data:")
       ? data.imageBase64
@@ -126,7 +129,7 @@ export const detectScan = createServerFn({ method: "POST" })
           {
             role: "user",
             content: [
-              { type: "text", text: PROMPT },
+              { type: "text", text: `${PROMPT}\n\nレベル指示: ${levelRule}\n${langRule}` },
               { type: "image", image: imageInput },
             ],
           },

@@ -18,6 +18,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
+import { useT } from "@/lib/i18n";
 
 
 type Props = {
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function StickerSheet({ stickerId, onClose }: Props) {
+  const t = useT();
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
@@ -105,6 +107,33 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     })();
   }, [s, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
 
+  /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
+  async function applyWebImage(url: string) {
+    if (!stickerId) return;
+    try {
+      const { dataUrl } = await fetchImageFn({ data: { url } });
+      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
+      const blob = await (await fetch(small)).blob();
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) return;
+      const path = `${userId}/${Date.now()}-object.jpg`;
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      void putCachedImage(path, blob);
+      await replacePhotoFn({ data: { sticker_id: stickerId, object_path: path } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success(t("card.imageSet"));
+    } catch (e) {
+      console.warn("Apply web image failed", e);
+      toast.error(t("card.photoFailed"));
+    }
+  }
+
   // 写真の長押し(550ms)で変更 — ボタンを探さなくても、変えたい写真そのものを
   // 押さえれば変えられる。長押し成立後のクリックはフリップさせない。
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,7 +143,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-      if (window.confirm("この写真を変更しますか?")) fileInputRef.current?.click();
+      if (window.confirm(t("card.changePhotoConfirm"))) fileInputRef.current?.click();
     }, 550);
   }
   function heroPressEnd() {
@@ -156,7 +185,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   async function handleDelete() {
     if (!stickerId || busy) return;
     if (!deleteArmed) { setDeleteArmed(true); return; }
-    if (!window.confirm("本当に削除しますか?この操作は取り消せません。")) { setDeleteArmed(false); return; }
+    if (!window.confirm(t("card.deleteConfirmDialog"))) { setDeleteArmed(false); return; }
     setDeleteArmed(false);
     setBusy("delete");
     try {
@@ -165,7 +194,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       onClose();
     } catch (e) {
       console.warn("Delete failed", e);
-      window.alert("削除に失敗しました。");
+      window.alert(t("card.deleteFailed"));
     } finally {
       setBusy(null);
     }
@@ -199,7 +228,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       await qc.invalidateQueries({ queryKey: ["stickers"] });
     } catch (e) {
       console.warn("Image change failed", e);
-      window.alert("画像の変更に失敗しました。");
+      window.alert(t("card.photoFailed"));
     } finally {
       setBusy(null);
     }
@@ -306,9 +335,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       await reportFn({ data: { word_id: s.word_id, headword: s.word.headword } });
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
       await qc.invalidateQueries({ queryKey: ["stickers"] });
-      toast.success("報告ありがとう。AIが作り直しました");
+      toast.success(t("card.reportDone"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "報告に失敗しました");
+      toast.error(e instanceof Error ? e.message : t("card.reportFailed"));
     } finally {
       setReporting(false);
     }
@@ -324,14 +353,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing((v) => !v)}
-            aria-label="表示項目を編集"
+            aria-label={t("card.sections")}
             className={`lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
             <Settings2 className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
-            aria-label="閉じる"
+            aria-label={t("common.close")}
             className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
           >
             <X className="h-4 w-4" />
@@ -347,7 +376,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       >
         <div className="mx-3 mt-2 rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">表示する項目と順番</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t("card.sections")}</p>
             <button
               onClick={() => setEditing(false)}
               className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
@@ -370,12 +399,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
               className="perspective-1200 mb-4"
-              role={hasSelfie ? "button" : undefined}
-              tabIndex={hasSelfie ? 0 : undefined}
-              aria-label={hasSelfie ? (flipped ? "写真の表に戻す" : "自撮りを見る") : undefined}
+              role="button"
+              tabIndex={0}
+              aria-label={flipped ? t("card.flipBack") : t("card.flipToSelfie")}
               onClick={() => {
+                // 長押し(写真の変更)が成立した後のクリックは無視する。
                 if (longPressFired.current) { longPressFired.current = false; return; }
-                if (hasSelfie) setFlipped((f) => !f);
+                // 自撮りが無くてもクルッと回す — 裏面が「自撮りを足す場所」になる。
+                setFlipped((f) => !f);
               }}
               onPointerDown={heroPressStart}
               onPointerUp={heroPressEnd}
@@ -383,14 +414,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               onPointerCancel={heroPressEnd}
               onContextMenu={(e) => e.preventDefault()}
               onKeyDown={(e) => {
-                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   setFlipped((f) => !f);
                 }
               }}
             >
               <div
-                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-[4/5] w-full cursor-pointer ${flipped ? "flipped" : ""}`}
               >
                 {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
@@ -415,7 +446,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                         className="absolute inset-0 h-full w-full object-cover opacity-70 grayscale"
                       />
                       <span className="absolute left-3 top-3 rounded-full bg-foreground/70 px-2.5 py-1 text-[11px] font-semibold text-background">
-                        👻 仮の画像 — 実物に出会って完成させよう
+                        {t("card.tempImage")}
                       </span>
                       {s.placeholder_credit?.name && (
                         <a
@@ -430,7 +461,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     </>
                   ) : (
                     <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
-                      <span className="text-xs text-muted-foreground">🌐 画像をネットから探しています…</span>
+                      <span className="text-xs text-muted-foreground">{t("card.findingImage")}</span>
                     </div>
                   )}
                   {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
@@ -439,29 +470,30 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       e.stopPropagation();
                       fileInputRef.current?.click();
                     }}
-                    aria-label="写真を変更"
+                    aria-label={t("card.changePhoto")}
                     className="absolute bottom-2 left-2 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition active:scale-95"
                   >
                     {busy === "image" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                   </button>
-                  {hasSelfie && (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
-                      タップで自撮りへ
-                    </span>
-                  )}
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                    {t("card.flipToSelfie")}
+                  </span>
                 </div>
 
                 {/* Back: the selfie (you + the thing) */}
                 <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
                   {hasSelfie ? (
                     <>
-                      <img src={s.selfie_url!} alt="撮影者の自撮り" className="absolute inset-0 h-full w-full object-cover" />
+                      <img src={s.selfie_url!} alt={t("card.selfie")} className="absolute inset-0 h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
-                        タップで戻る
+                        {t("card.flipBack")}
                       </span>
                     </>
                   ) : (
-                    <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
+                    <div className="grid h-full place-items-center gap-1 text-center text-sm text-muted-foreground">
+                      <span>{t("card.noSelfie")}</span>
+                      <span className="text-[11px]">{t("card.flipBack")}</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -492,7 +524,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
                   >
                     <MapPin className="h-3.5 w-3.5" />
-                    {s.location_name ?? "地図で開く"}
+                    {s.location_name ?? t("card.openMap")}
                   </a>
                 )}
               </div>
@@ -513,12 +545,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               }}
               wordId={s.word_id}
               isPro={isPro}
+              onPickImage={applyWebImage}
             />
 
             {enriching && (
               <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-xs text-primary">
                 <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                詳しい解説をAIが準備中…
+                {t("card.preparing")}
               </div>
             )}
 
@@ -531,12 +564,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-semibold text-primary disabled:opacity-60"
                 >
                   {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {regenerating ? "再生成中…" : "✨ 解説を再生成"}
+                  {regenerating ? t("card.regenerating") : t("card.regenAll")}
                 </button>
               ) : (
                 <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-xs text-muted-foreground">
                   <Lock className="h-3.5 w-3.5" />
-                  解説の再生成は Pro 限定
+                  {t("card.regenPro")}
                 </div>
               )
             )}
@@ -549,7 +582,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-60"
               >
                 {reporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
-                {reporting ? "AIが作り直し中…" : "意味や発音が変？ 報告してAIに直させる"}
+                {reporting ? t("card.reportFixing") : t("card.reportPrompt")}
               </button>
             </div>
 
@@ -570,7 +603,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}
                   </span>
-                  <span className="text-primary">Google マップで開く →</span>
+                  <span className="text-primary">{t("card.openMapsLabel")}</span>
                 </div>
               </a>
             )}
@@ -598,7 +631,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 }`}
               >
                 {busy === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                {deleteArmed ? "もう一度タップで削除" : "削除"}
+                {deleteArmed ? t("card.deleteConfirm") : t("card.delete")}
               </button>
             </div>
           </>

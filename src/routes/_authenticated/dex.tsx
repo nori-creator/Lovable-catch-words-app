@@ -120,7 +120,7 @@ function DexPage() {
   }, [filtered, groupMode]);
 
   return (
-    <AppShell title="図鑑">
+    <AppShell title={t("title.dex")}>
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
           <h2 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h2>
@@ -133,9 +133,9 @@ function DexPage() {
         </div>
         <div className="flex gap-1 rounded-full bg-secondary p-1">
           {([
-            ["gallery", LayoutGrid, "ギャラリー表示"],
-            ["list", List, "リスト表示"],
-            ["map", MapIcon, "地図表示"],
+            ["gallery", LayoutGrid, t("dex.gallery")],
+            ["list", List, t("dex.list")],
+            ["map", MapIcon, t("dex.map")],
           ] as const).map(([v, Icon, label]) => (
             <button
               key={v}
@@ -160,13 +160,13 @@ function DexPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("dex.search")}
-            aria-label="図鑑を検索"
+            aria-label={t("dex.searchAria")}
             className="rounded-full pl-9 pr-11"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              aria-label="検索をクリア"
+              aria-label={t("dex.clearSearch")}
               className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
             >
               <X className="h-4 w-4" />
@@ -196,7 +196,7 @@ function DexPage() {
       )}
 
       {view === "map" ? (
-        <DexMap stickers={captured} />
+        <DexMap stickers={captured} onOpen={setOpenId} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -207,18 +207,18 @@ function DexPage() {
         </div>
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">まだ何もキャッチしていません。</p>
-          <p className="mt-1 text-xs text-muted-foreground">カメラで街の言葉をかざすと、ここに図鑑が育ちます。</p>
+          <p className="text-sm text-muted-foreground">{t("dex.emptyTitle")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("dex.emptyHint")}</p>
           <Link
             to="/capture"
             className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
           >
-            最初の一枚を撮る
+            {t("dex.emptyCta")}
           </Link>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">「{search}」に一致する単語はありません。</p>
+          <p className="text-sm text-muted-foreground">「{search}」{t("dex.noMatch")}</p>
         </div>
       ) : (
         groups.map(([key, items]) => (
@@ -454,9 +454,19 @@ async function photoPinIcon(url: string): Promise<string | null> {
   }
 }
 
-function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
-  const navigate = useNavigate();
+function DexMap({
+  stickers,
+  onOpen,
+}: {
+  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  onOpen: (id: string) => void;
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // renderMarkers はマウント時のクロージャを使い回すので、最新の onOpen を
+  // ref 経由で参照する(古い関数を掴んだままにしない)。
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
+  const t = useT();
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
   const pinIconCache = useRef<Map<string, string | null>>(new Map());
@@ -556,8 +566,12 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
           });
         });
       }
+      // マーカー(丸い写真)のタップで単語の詳細を開く。
+      // 以前はルート遷移(/dex/$stickerId)にしていたが、地図の再マウントで
+      // 画面が戻ってしまい「タップしても飛ばない」状態になっていた。
+      // 同じ画面の上にシートを重ねる方式に変更して確実に開くようにする。
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
-        navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
+        onOpenRef.current(s.id);
       });
       bounds.extend({ lat: posLat, lng: posLng });
       markersRef.current.push(marker);
@@ -589,7 +603,7 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
   if (!browserKey) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        地図の連携が完了していません。
+        {t("dex.mapUnavailable")}
       </div>
     );
   }
@@ -601,14 +615,14 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
         className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
       />
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-        <span>場所付きの単語</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{withLoc.length} 件</span>
+        <span>{t("dex.withLocation")}</span>
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{withLoc.length} {t("dex.items")}</span>
       </div>
 
       {recent.length > 0 && (
         <section className="mt-5">
-          <h3 className="mb-1 text-sm font-semibold tracking-tight">キャッチした場所</h3>
-          <p className="mb-2 text-[11px] text-muted-foreground">写真をタップで地図がその場所へズーム。地図上の丸い写真をタップで単語の詳細へ。</p>
+          <h3 className="mb-1 text-sm font-semibold tracking-tight">{t("dex.placesTitle")}</h3>
+          <p className="mb-2 text-[11px] text-muted-foreground">{t("dex.placesHint")}</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
               const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;

@@ -7,6 +7,7 @@ import {
   getAi,
   getUserLevelGoal,
   levelInstruction,
+  explanationLanguageRule,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -820,8 +821,9 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
 
     const ai = getAi();
     const levelRule = await levelInstruction(userId);
+    const langRule = await explanationLanguageRule(userId);
     const levelGoal = await getUserLevelGoal(userId);
-    const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
+    const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
 ${levelRule}
@@ -843,6 +845,8 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
       prompt,
       schema: FeedbackSchema,
+      // Proモデルが使えない環境でも添削が止まらないように
+      fallbackModel: ai.gateway(ai.modelFast),
     });
 
     // KPI (roadmap §3): speaking reviews feed the admin dashboard.
@@ -920,6 +924,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
 
     const ai = getAi();
     const levelRule = await levelInstruction(userId);
+    const langRule = await explanationLanguageRule(userId);
     const plan =
       parseBranchPlan(row.branch_plan) ??
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
@@ -928,7 +933,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const scaffold = await generateStructured({
       model: ai.gateway(ai.modelFast),
       schema: ScaffoldSchema,
-      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
+      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。${langRule}学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
 次を厳密なJSONで返してください:
 - question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。

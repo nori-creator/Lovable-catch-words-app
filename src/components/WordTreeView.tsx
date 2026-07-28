@@ -84,7 +84,7 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
           className="pointer-events-none absolute inset-0 rounded-full opacity-70"
           style={{
             background:
-              "radial-gradient(closest-side, hsl(var(--primary) / 0.10), transparent 70%)",
+              "radial-gradient(closest-side, color-mix(in oklab, var(--primary) 10%, transparent), transparent 70%)",
           }}
         />
 
@@ -139,7 +139,7 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
                 className="pointer-events-none absolute -inset-2 rounded-full"
                 style={{
                   background:
-                    "conic-gradient(from 0deg, hsl(var(--primary) / 0.35), transparent 60%, hsl(var(--primary) / 0.35))",
+                    "conic-gradient(from 0deg, color-mix(in oklab, var(--primary) 35%, transparent), transparent 60%, color-mix(in oklab, var(--primary) 35%, transparent))",
                   animation: "wt-spin 6s linear infinite",
                   filter: "blur(6px)",
                 }}

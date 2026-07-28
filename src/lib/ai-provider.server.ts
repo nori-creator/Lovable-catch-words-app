@@ -21,12 +21,15 @@ const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
-// 「最新の Gemini を自動で使う」: -latest エイリアスは Google 側が最新の
-// 安定版を指し続けるので、モデル名を追い続けなくても新版に乗り換わる。
-const GOOGLE_DEFAULT_FAST = "gemini-flash-latest";
-const GOOGLE_DEFAULT_RICH = "gemini-flash-latest";
-/** 課金ユーザー向け: Gemini Pro(最新)。 */
-const GOOGLE_DEFAULT_PREMIUM = "gemini-pro-latest";
+// 既定モデル。**OpenAI互換エンドポイントに実在するIDだけを書く**。
+// 2026-07-27の障害: `-latest` エイリアス(gemini-flash-latest 等)は
+// このエンドポイントでは解決されず 404 "Not Found" を返し、
+// カード生成とスピーキング添削が全滅した。最新版へ乗り換えたいときは
+// 設定の「使うAIを切り替える」から明示的に指定する(env でも可)。
+const GOOGLE_DEFAULT_FAST = "gemini-2.5-flash";
+const GOOGLE_DEFAULT_RICH = "gemini-2.5-flash";
+/** 課金ユーザー向け: Gemini Pro。 */
+const GOOGLE_DEFAULT_PREMIUM = "gemini-2.5-pro";
 
 /**
  * 実行時のモデル切替(app_config.key='ai_models')。
@@ -112,6 +115,31 @@ export async function getAiRuntime(): Promise<AiConfig> {
     modelRich: rich,
     modelRichPremium: ov.rich_premium ?? rich,
   };
+}
+
+/**
+ * モデルIDが存在しないと provider は 404 "Not Found" を返し、その機能が
+ * まるごと死ぬ(2026-07-27の障害)。**モデル指定ミスでアプリを止めない**ため、
+ * 404/400 のときだけ既知の安定モデルで1回だけやり直すラッパー。
+ *
+ * 使い方: `withModelFallback(ai, ai.modelRichPremium, (m) => generateText({model: ai.gateway(m), ...}))`
+ */
+export async function withModelFallback<T>(
+  ai: AiConfig,
+  preferred: string,
+  run: (model: string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await run(preferred);
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    const looksMissingModel =
+      /not found|404|does not exist|unknown model|invalid model|unsupported model/i.test(msg);
+    const fallback = ai.provider === "google" ? GOOGLE_DEFAULT_FAST : ai.modelRich;
+    if (!looksMissingModel || fallback === preferred) throw e;
+    console.warn(`[ai] model "${preferred}" unavailable (${msg.slice(0, 120)}) — falling back to "${fallback}"`);
+    return await run(fallback);
+  }
 }
 
 export type AiConfig = {
@@ -226,6 +254,8 @@ export async function generateStructured<S extends z.ZodTypeAny>(opts: {
   model: Parameters<typeof generateText>[0]["model"];
   prompt: string;
   schema: S;
+  /** モデルが存在しない(404)ときに1度だけ使う代替モデル。 */
+  fallbackModel?: Parameters<typeof generateText>[0]["model"];
 }): Promise<z.infer<S>> {
   try {
     const result = await generateText({
@@ -248,14 +278,24 @@ export async function generateStructured<S extends z.ZodTypeAny>(opts: {
     /* the call itself failed — retry once in plain-text mode */
   }
 
-  const retry = await generateText({
-    model: opts.model,
-    prompt:
-      `${opts.prompt}\n\n` +
-      `重要: 出力は要求されたキーを持つ有効なJSONオブジェクトのみ。` +
-      `説明文・前置き・後書きは一切書かない(\`\`\`jsonフェンスは可)。`,
-  });
-  return opts.schema.parse(parseJsonFromAiText(retry.text));
+  // 最後の砦: プレーンテキストでもう一度。モデルIDが無効(404)なら
+  // fallbackModel で1回だけ試す — モデル指定ミスで機能を殺さない。
+  const plainPrompt =
+    `${opts.prompt}\n\n` +
+    `重要: 出力は要求されたキーを持つ有効なJSONオブジェクトのみ。` +
+    `説明文・前置き・後書きは一切書かない(\`\`\`jsonフェンスは可)。`;
+  try {
+    const retry = await generateText({ model: opts.model, prompt: plainPrompt });
+    return opts.schema.parse(parseJsonFromAiText(retry.text));
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (!opts.fallbackModel || !/not found|404|does not exist|unknown model|invalid model/i.test(msg)) {
+      throw e;
+    }
+    console.warn(`[ai] structured call fell back to the safe model (${msg.slice(0, 120)})`);
+    const retry = await generateText({ model: opts.fallbackModel, prompt: plainPrompt });
+    return opts.schema.parse(parseJsonFromAiText(retry.text));
+  }
 }
 
 /**
@@ -324,13 +364,56 @@ export async function getUserLevels(userId: string): Promise<{ current: string; 
   return { current: `TOCFL-${Math.max(1, goalNum - 1)}`, goal };
 }
 
+/**
+ * 解説文をどの言語で書くか。設定の「表示言語」(profiles.ui_language)に従う。
+ * 学習対象の台湾華語はそのまま、**説明・訳だけ**をこの言語で書かせる。
+ */
+export async function getExplanationLanguage(userId: string): Promise<"ja" | "en"> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("ui_language")
+      .eq("id", userId)
+      .maybeSingle();
+    return (data as { ui_language?: string } | null)?.ui_language === "en" ? "en" : "ja";
+  } catch {
+    return "ja";
+  }
+}
+
+/** プロンプトに差し込む「解説の言語」指示。 */
+export async function explanationLanguageRule(userId: string): Promise<string> {
+  const lang = await getExplanationLanguage(userId);
+  return lang === "en"
+    ? `**Write every explanation, meaning, translation and note in English.** ` +
+      `Only the Taiwanese Mandarin (zh-TW) words, example sentences and readings stay in Chinese. ` +
+      `Do not write any Japanese.`
+    : `解説・意味・訳・注記はすべて日本語で書く(台湾華語の見出し語・例文・読みはそのまま)。`;
+}
+
 /** プロンプトに差し込むレベル指示の共通文(現在→目標の帯に収める)。 */
 export async function levelInstruction(userId: string): Promise<string> {
   const { current, goal } = await getUserLevels(userId);
+  const n = Number(goal.match(/(\d)/)?.[1] ?? 2);
+  // TOCFL(華語文能力測驗)の各級がどの範囲かを具体的に書く。
+  // 「レベルに合わせて」だけではモデルが解釈を揺らすので、
+  // 語彙量・文法・話題まで明示して再現性を持たせる。
+  const BANDS: Record<number, string> = {
+    1: "入門級(準備級1級・語彙約500語)。基本文型 是/有/在、SVO、簡単な疑問詞。",
+    2: "基礎級(準備級2級・語彙約1000語)。了/過/在〜、比較句、能願動詞(會/能/可以)。",
+    3: "進階級(第1級・語彙約2500語)。把構文、被構文、複文(因為…所以)、程度補語。",
+    4: "高階級(第2級・語彙約5000語)。方向補語・可能補語、書面語彙、接続詞の使い分け。",
+    5: "流利級(第3級・語彙約8000語)。成語・慣用句、抽象的な議論、書面体。",
+    6: "精通級(第4級・語彙約8000語超)。専門的・文学的表現、含意の強い言い回し。",
+  };
   return (
-    `学習者の現在レベル: ${current}、目標レベル: ${goal}(TOCFL)。` +
-    `語彙・文法は ${current} を土台に ${goal} までの範囲で選び、` +
-    `${goal} を超える難語・難構文は使わない(どうしても必要なら短い注釈を添える)。`
+    `学習者の現在レベル: ${current}、目標レベル: ${goal}(TOCFL 華語文能力測驗)。` +
+    `目標レベルの目安 — ${BANDS[n] ?? BANDS[2]} ` +
+    `**語彙・文法・話題は必ずこの範囲に収める**。台湾教育部の語彙表・` +
+    `TOCFL公式語彙表に無いような難語や、目標級より上の文法(補語の複雑な用法、` +
+    `成語など)は使わない。どうしても必要なときだけ短い注釈を添える。` +
+    `例文は現在レベル(${current})でも読めることを優先する。`
   );
 }
 
