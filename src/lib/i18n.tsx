@@ -295,6 +295,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "AIモデルを切り替えました(次のリクエストから有効)",
     en: "AI models switched (effective from the next request)",
   },
+  "settings.nativeLangHint": {
+    ja: "台湾華語のつまずき方は母語で変わります。発音のコツ・復習の添削・日記の添削が、この母語に合わせて最適化されます。",
+    en: "Where Mandarin trips you up depends on your first language. Pronunciation tips, review feedback and journal corrections all adapt to it.",
+  },
   "settings.aiKeys": { ja: "APIキーの検出状況", en: "API key detection" },
   "settings.aiKeyFound": { ja: "検出", en: "found" },
   "settings.aiKeyMissing": { ja: "未設定", en: "not set" },

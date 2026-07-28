@@ -10,6 +10,7 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  l1Rule,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -826,11 +827,14 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     const langRule = await explanationLanguageRule(userId);
     // 本文の「日本語で」という指示が langRule と矛盾しないよう言語名を差し替える。
     const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // 母語ごとの干渉(語順・アスペクト・発音)を添削の観点に入れる。
+    const l1 = await l1Rule(userId, "both");
     const levelGoal = await getUserLevelGoal(userId);
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
 ${levelRule}
+${l1}
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
@@ -839,7 +843,7 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 - correction_note: 何をどう直したか、なぜ不自然だったかを${NL}で1〜2文。
 - chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
 - chunk_note: この構文の使いどころを${NL}で1文。
-- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを${NL}1〜2文で解説(例:「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
+- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを${NL}1〜2文で解説。**学習者の母語と違う点**があればそこを名指しで説明する(例:「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
 - native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。${NL}2〜3文。
 - model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
 - alt_answer: 別の言い方1つ(繁体字)。`;

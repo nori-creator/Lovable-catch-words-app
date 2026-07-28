@@ -502,6 +502,46 @@ export async function getExplanationLanguage(userId: string): Promise<"ja" | "en
   }
 }
 
+/**
+ * 学習者の母語(L1)を読む。台湾華語のどこで転ぶかは母語で全く違うので、
+ * 発音のコツ・添削の解説をここで切り替える。
+ */
+export async function getLearnerL1(userId: string): Promise<import("./l1").L1Info> {
+  const { l1Info } = await import("./l1");
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("native_language")
+      .eq("id", userId)
+      .maybeSingle();
+    return l1Info((data as { native_language?: string } | null)?.native_language);
+  } catch {
+    return l1Info("ja");
+  }
+}
+
+/**
+ * プロンプトに差し込む「この学習者の母語ではここで転ぶ」指示。
+ * 抽象的に「母語に配慮して」と書くとモデルの解釈が揺れるので、
+ * 音韻・文法の干渉項目を具体的に書き下して渡す。
+ */
+export async function l1Rule(userId: string, kind: "pronunciation" | "grammar" | "both" = "both"): Promise<string> {
+  const info = await getLearnerL1(userId);
+  const parts = [`学習者の母語は${info.labelJa}(${info.speakerJa})。`];
+  if (kind === "pronunciation" || kind === "both") {
+    parts.push(`【${info.labelJa}話者の発音のつまずき】${info.pronunciation}`);
+  }
+  if (kind === "grammar" || kind === "both") {
+    parts.push(`【${info.labelJa}話者の文法のつまずき】${info.grammar}`);
+  }
+  parts.push(
+    `**この学習者に当てはまる項目だけ**を選んで具体的に書く。当てはまらない項目は書かない。` +
+    `母語が有利に働く点があれば「ここは得意なので活かせる」と伝える。`,
+  );
+  return parts.join("\n");
+}
+
 /** プロンプトに差し込む「解説の言語」指示。 */
 export async function explanationLanguageRule(userId: string): Promise<string> {
   const lang = await getExplanationLanguage(userId);

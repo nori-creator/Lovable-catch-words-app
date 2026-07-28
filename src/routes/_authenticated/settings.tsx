@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
+import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -135,10 +136,16 @@ function SettingsPage() {
             <PhoneticRow />
             <div>
               <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
+              {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
+                  変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
               <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
-                <option value="ja">{t("settings.langJa")}</option>
-                <option value="en">{t("settings.langEn")}</option>
+                {L1_ORDER.map((code) => (
+                  <option key={code} value={code}>
+                    {uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa}
+                  </option>
+                ))}
               </select>
+              <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.nativeLangHint")}</p>
             </div>
             <div>
               <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>

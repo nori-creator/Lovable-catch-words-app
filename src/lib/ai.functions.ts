@@ -13,6 +13,8 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  getLearnerL1,
+  l1Rule,
   isProUser,
   logUsage,
   parseJsonFromAiText,
@@ -148,7 +150,10 @@ export const generateCard = createServerFn({ method: "POST" })
     // 説明文の言語名をここで差し替えて矛盾を無くす。
     const explainLang = await getExplanationLanguage(context.userId);
     const NL = explainLang === "en" ? "英語" : "日本語";
-    const learnerL1 = explainLang === "en" ? "英語話者" : "日本語話者";
+    // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
+    // 設定の母語から具体的な干渉項目を流し込む。
+    const l1 = await l1Rule(context.userId, "pronunciation");
+    const learnerL1 = (await getLearnerL1(context.userId)).speakerJa;
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -190,7 +195,7 @@ pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
-- pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。この語の声調の型、有気音/無気音（ㄆvsㄅ等）、そり舌（ㄓㄔㄕ）、鼻音韻尾（-n/-ng）、母語の音に引きずられる誤りなど、該当するものを具体的に
+- pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  この語の声調の型と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
 - radicals: 部首と意味の説明（1文、${NL}）
@@ -399,7 +404,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
     const regenLang = await getExplanationLanguage(userId);
     const NL = regenLang === "en" ? "英語" : "日本語";
-    const learnerL1 = regenLang === "en" ? "英語話者" : "日本語話者";
+    const l1Pron = await l1Rule(userId, "pronunciation");
+    const learnerL1 = (await getLearnerL1(userId)).speakerJa;
     const head = word.headword as string;
     const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
@@ -465,7 +471,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       pronunciation_tips: {
-        prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。声調の型・有気音/無気音・そり舌(ㄓㄔㄕ)・鼻音韻尾(-n/-ng)・母語の音に引きずられる罠など該当するものを具体的に。\n{"pronunciation_tips":""}`,
+        prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。\n${l1Pron}\nこの語に実際に当てはまるものだけを具体的に。\n{"pronunciation_tips":""}`,
         schema: z.object({ pronunciation_tips: z.string().min(1) }),
       },
       etymology: {

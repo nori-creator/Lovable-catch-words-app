@@ -10,6 +10,7 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  l1Rule,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -124,12 +125,14 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const langRule = await explanationLanguageRule(userId);
     // 本文中の「日本語で」を表示言語に合わせる(#65)。
     const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // 日記の間違い方も母語で決まる(SOVの語順、冠詞、動詞活用…)。
+    const l1 = await l1Rule(userId, "grammar");
     const corrected = await generateStructured({
       model: ai.gateway(richModel),
       schema: Schema,
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
-        `${langRule}\n${levelRule}\n` +
+        `${langRule}\n${levelRule}\n${l1}\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
         `次を出力:\n` +
