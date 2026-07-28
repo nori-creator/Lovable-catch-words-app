@@ -843,6 +843,8 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
       prompt,
       schema: FeedbackSchema,
+      // Proモデルが使えない環境でも添削が止まらないように
+      fallbackModel: ai.gateway(ai.modelFast),
     });
 
     // KPI (roadmap §3): speaking reviews feed the admin dashboard.

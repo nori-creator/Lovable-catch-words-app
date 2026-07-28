@@ -20,7 +20,7 @@ import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
-import { speakCatchLine } from "@/lib/catch-voice";
+import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
@@ -119,6 +119,7 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 
 function CapturePage() {
   const t = useT();
+  const pronounce = usePronounce();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { word: wordParam, pending: pendingParam } = Route.useSearch();
@@ -402,8 +403,8 @@ function CapturePage() {
       // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
       void queryClient.invalidateQueries({ queryKey: ["stickers"] });
       if (pendingId) void removePendingCapture(pendingId);
-      // 決め台詞ボイス + 図鑑ページで「ドンッ」と着弾する演出へ。
-      speakCatchLine(selectedHead);
+      // 単語の発音 + 図鑑ページで「ドンッ」と着弾する演出へ。
+      void pronounce(selectedHead);
       navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);

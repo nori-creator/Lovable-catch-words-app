@@ -13,6 +13,7 @@ import {
   isProUser,
   logUsage,
   parseJsonFromAiText,
+  withModelFallback,
 } from "./ai-provider.server";
 
 const SuggestInput = z.object({
@@ -183,7 +184,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
 
     const pro = await isProUser(context.userId);
-    const model = ai.gateway(pro ? ai.modelRichPremium : ai.modelRich);
+    const preferredModel = pro ? ai.modelRichPremium : ai.modelRich;
     // Plain text + robust JSON parse (like suggestWords). We deliberately do NOT
     // use experimental_output / response_format=json_schema here: Gemini's
     // OpenAI-compatible endpoint rejects many json_schema shapes with a 400,
@@ -207,7 +208,10 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
-      const result = await generateText({ model, prompt: `${prompt}${jsonTail}${extraPush}` });
+      // モデルIDが無効なら安全なモデルへ自動フォールバック(404で機能を殺さない)
+      const result = await withModelFallback(ai, preferredModel, (m) =>
+        generateText({ model: ai.gateway(m), prompt: `${prompt}${jsonTail}${extraPush}` }),
+      );
       try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
       catch { throw new Error("AI did not return a structured card"); }
     };
@@ -454,7 +458,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
 
     const { prompt, schema } = spec[data.section];
     const ai = getAi();
-    const result = await generateText({ model: ai.gateway(ai.modelRichPremium), prompt });
+    const result = await withModelFallback(ai, ai.modelRichPremium, (m) =>
+      generateText({ model: ai.gateway(m), prompt }),
+    );
     let out: Record<string, unknown>;
     try {
       out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;

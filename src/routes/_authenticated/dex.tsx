@@ -196,7 +196,7 @@ function DexPage() {
       )}
 
       {view === "map" ? (
-        <DexMap stickers={captured} />
+        <DexMap stickers={captured} onOpen={setOpenId} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -454,9 +454,18 @@ async function photoPinIcon(url: string): Promise<string | null> {
   }
 }
 
-function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>> }) {
-  const navigate = useNavigate();
+function DexMap({
+  stickers,
+  onOpen,
+}: {
+  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  onOpen: (id: string) => void;
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // renderMarkers はマウント時のクロージャを使い回すので、最新の onOpen を
+  // ref 経由で参照する(古い関数を掴んだままにしない)。
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
   const pinIconCache = useRef<Map<string, string | null>>(new Map());
@@ -556,8 +565,12 @@ function DexMap({ stickers }: { stickers: NonNullable<Awaited<ReturnType<typeof 
           });
         });
       }
+      // マーカー(丸い写真)のタップで単語の詳細を開く。
+      // 以前はルート遷移(/dex/$stickerId)にしていたが、地図の再マウントで
+      // 画面が戻ってしまい「タップしても飛ばない」状態になっていた。
+      // 同じ画面の上にシートを重ねる方式に変更して確実に開くようにする。
       (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
-        navigate({ to: "/dex/$stickerId", params: { stickerId: s.id } });
+        onOpenRef.current(s.id);
       });
       bounds.extend({ lat: posLat, lng: posLng });
       markersRef.current.push(marker);

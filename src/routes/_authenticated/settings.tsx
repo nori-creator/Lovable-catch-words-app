@@ -14,7 +14,6 @@ import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
-import { DEFAULT_LINES, loadLines, saveLines, isVoiceEnabled, setVoiceEnabled, speakCatchLine, type VoiceLine } from "@/lib/catch-voice";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
@@ -451,7 +450,6 @@ function AdminOnlySection() {
         開発者専用(あなたにしか表示されません)
       </p>
       <UiThemePicker />
-      <CatchVoicePanel />
       <AiModelPanel />
     </div>
   );
@@ -503,130 +501,6 @@ function UiThemePicker() {
           </li>
         ))}
       </ul>
-    </details>
-  );
-}
-
-/** キャッチの決め台詞ボイス: 一覧・試聴・追加・削除・ON/OFF。 */
-function CatchVoicePanel() {
-  const [lines, setLines] = useState<VoiceLine[]>([]);
-  const [enabled, setEnabled] = useState(true);
-  const [tpl, setTpl] = useState("{w}、ゲットだぜ!");
-  const [lang, setLang] = useState<"ja" | "zh-TW">("ja");
-  const [pitch, setPitch] = useState(1.2);
-  const [rate, setRate] = useState(1);
-
-  useEffect(() => {
-    setLines(loadLines());
-    setEnabled(isVoiceEnabled());
-  }, []);
-
-  function persist(next: VoiceLine[]) {
-    setLines(next);
-    saveLines(next);
-  }
-  function add() {
-    if (!tpl.includes("{w}")) {
-      toast.error("台詞には {w}(単語)を含めてください");
-      return;
-    }
-    const line: VoiceLine = {
-      id: `custom-${Date.now()}`,
-      template: tpl.trim(),
-      lang,
-      pitch,
-      rate,
-      label: tpl.replace("{w}", "◯").slice(0, 16),
-    };
-    persist([...lines, line]);
-    toast.success("台詞を追加しました");
-  }
-
-  return (
-    <details className="rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        キャッチの決め台詞ボイス <span className="ml-1 text-[11px] font-normal text-muted-foreground">({lines.length})</span>
-      </summary>
-
-      <div className="mt-3">
-        <ToggleRow
-          label="決め台詞を鳴らす"
-          hint="図鑑に追加する瞬間、空中で止まったタイミングでランダムに再生します。"
-          value={enabled}
-          onChange={(v) => { setEnabled(v); setVoiceEnabled(v); }}
-        />
-      </div>
-
-      <ul className="mt-3 space-y-1">
-        {lines.map((l) => (
-          <li key={l.id} className="flex items-center gap-2 rounded-lg bg-secondary/60 px-2 py-1.5">
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium">{l.template.replace("{w}", "芒果")}</span>
-              <span className="block text-[10px] text-muted-foreground">
-                {l.lang === "ja" ? "日本語" : "台湾華語"} · 高さ {l.pitch} · 速さ {l.rate}
-              </span>
-            </span>
-            <button
-              onClick={() => speakCatchLine("芒果", l)}
-              aria-label="試聴"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-primary"
-            >
-              ▶
-            </button>
-            <button
-              onClick={() => persist(lines.filter((x) => x.id !== l.id))}
-              aria-label="削除"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-3 space-y-2 rounded-xl border border-dashed border-border p-2">
-        <Label className="text-xs">台詞を追加(&#123;w&#125; が単語に置き換わります)</Label>
-        <Input value={tpl} onChange={(e) => setTpl(e.target.value)} placeholder="{w}、ゲットだぜ!" />
-        <div className="flex gap-2">
-          <select
-            aria-label="言語"
-            value={lang}
-            onChange={(e) => setLang(e.target.value as "ja" | "zh-TW")}
-            className="min-h-11 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-          >
-            <option value="ja">日本語</option>
-            <option value="zh-TW">台湾華語</option>
-          </select>
-          <label className="flex flex-1 items-center gap-1 text-[11px]">
-            高さ
-            <input
-              type="range" min={0.4} max={2} step={0.1} value={pitch}
-              onChange={(e) => setPitch(Number(e.target.value))}
-              className="min-w-0 flex-1"
-            />
-          </label>
-          <label className="flex flex-1 items-center gap-1 text-[11px]">
-            速さ
-            <input
-              type="range" min={0.5} max={1.6} step={0.05} value={rate}
-              onChange={(e) => setRate(Number(e.target.value))}
-              className="min-w-0 flex-1"
-            />
-          </label>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => speakCatchLine("芒果", { id: "preview", template: tpl, lang, pitch, rate, label: "" })}>
-            試聴
-          </Button>
-          <Button className="flex-1" onClick={add}>追加</Button>
-        </div>
-        <button
-          onClick={() => { persist(DEFAULT_LINES); toast.success("既定の台詞に戻しました"); }}
-          className="w-full text-[11px] text-muted-foreground underline"
-        >
-          既定の10種に戻す
-        </button>
-      </div>
     </details>
   );
 }

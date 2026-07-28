@@ -470,30 +470,38 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
           <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
                 <XAxis
                   dataKey="d"
                   tickFormatter={(v: number) => (v === 0 ? "今日" : v > 0 ? `+${v}d` : `${v}d`)}
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="#64748b"
                   fontSize={10}
                 />
-                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
                 <Tooltip
                   formatter={(v: number) => [`${v}%`, "記憶保持率"]}
                   labelFormatter={(l: number) => (l === 0 ? "今日" : l > 0 ? `${l}日後` : `${-l}日前`)}
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+                  contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
                 />
                 {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
                 <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
                 <ReferenceLine y={85} stroke="#10b981" strokeDasharray="2 4" />
-                <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="2 4" />
+                <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="2 4" />
                 {bestDay != null && bestDay >= 0 && bestDay <= 45 && (
                   <ReferenceLine x={bestDay} stroke="#10b981" strokeWidth={1.5} />
                 )}
                 {reviewDays.map((d) => (
-                  <ReferenceDot key={d} x={d} y={100} r={3.5} fill="hsl(var(--primary))" stroke="#fff" />
+                  <ReferenceDot key={d} x={d} y={100} r={3.5} fill="#2563eb" stroke="#fff" />
                 ))}
-                <Line type="monotone" dataKey="r" stroke="hsl(var(--primary))" strokeWidth={2.2} dot={false} connectNulls />
+                <Line
+                  type="monotone"
+                  dataKey="r"
+                  stroke="#2563eb"
+                  strokeWidth={2.4}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -571,6 +579,7 @@ function SpeakingCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const videoStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
@@ -617,6 +626,7 @@ function SpeakingCard({
     } catch { /* denied */ }
   }
   function stopVideo() {
+    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -654,16 +664,31 @@ function SpeakingCard({
       }
       setTranscript((finalText + interim).trim());
     };
-    rec.onend = () => { setListening(false); stopVideo(); };
+    rec.onend = () => {
+      setListening(false);
+      stopVideo();
+      // 1文字も取れなかった時は黙って終わらせない(録画だけ回って
+      // 気づかない、が一番困る)。テキスト欄で直せることを伝える。
+      if (!finalText.trim()) {
+        setError("音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。");
+      }
+    };
     rec.onerror = () => { setListening(false); stopVideo(); };
     recogRef.current = rec;
     startedAt.current = Date.now();
     setListening(true);
-    startVideo();
+    // **順番が重要**: 先に音声認識を始める。
+    // getUserMedia({audio:true}) が先にマイクを掴むと、Android Chrome では
+    // SpeechRecognition が結果を返さなくなり「録画だけされて文字が出ない」
+    // 状態になっていた。認識を起動してから 350ms 後にカメラを開始する。
     rec.start();
+    if (videoOn) {
+      videoStartTimer.current = setTimeout(() => { void startVideo(); }, 350);
+    }
   }
 
   function stopListen() {
+    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
     recogRef.current?.stop();
     setListening(false);
     stopVideo();
@@ -1207,17 +1232,17 @@ function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; av
     <div className="h-32 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="hsl(var(--muted-foreground))" fontSize={10} />
-          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="hsl(var(--muted-foreground))" fontSize={10} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
+          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="#64748b" fontSize={10} />
+          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
             formatter={(v: number) => [`${v}%`, "平均記憶率"]}
             labelFormatter={(l) => (l === 0 ? "今日" : `${l > 0 ? "+" : ""}${l}日`)}
-            contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+            contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
           />
-          <ReferenceLine x={0} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
-          <ReferenceLine y={80} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
-          <Line type="monotone" dataKey="avg_retention" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+          <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="4 4" />
+          <ReferenceLine y={80} stroke="#64748b" strokeDasharray="2 4" />
+          <Line type="monotone" dataKey="avg_retention" stroke="#2563eb" strokeWidth={2.4} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

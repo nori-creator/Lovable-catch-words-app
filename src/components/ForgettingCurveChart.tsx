@@ -160,27 +160,27 @@ export function ForgettingCurveChart({
       <div className="h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: -16 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
             <XAxis
               dataKey="t"
               type="number"
               domain={["dataMin", "dataMax"]}
               tickFormatter={(v) => `${Math.round(v)}d`}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="#64748b"
               fontSize={10}
             />
             <YAxis
               domain={[0, 100]}
               tickFormatter={(v) => `${v}%`}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="#64748b"
               fontSize={10}
             />
             <Tooltip
               formatter={(v: number) => [`${v}%`, "記憶率"]}
               labelFormatter={(l) => `${Math.round(Number(l))}日`}
               contentStyle={{
-                background: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
+                background: "rgba(255,255,255,0.96)",
+                border: "1px solid rgba(120,130,150,0.28)",
                 borderRadius: 12,
                 fontSize: 12,
               }}
@@ -209,7 +209,7 @@ export function ForgettingCurveChart({
                     cy={cy}
                     r={4}
                     fill={stroke}
-                    stroke="hsl(var(--background))"
+                    stroke="#64748b"
                     strokeWidth={2}
                   />
                 );

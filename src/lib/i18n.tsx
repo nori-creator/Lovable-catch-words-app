@@ -89,6 +89,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "scan.owned": { ja: "取得済み", en: "Collected" },
   "scan.reunion": { ja: "未撮影", en: "No photo yet" },
   "scan.catch": { ja: "キャッチ", en: "Catch" },
+  "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…" },
+  "scan.zoom": { ja: "ズーム", en: "Zoom" },
+  "scan.listening": { ja: "聞き取り中…", en: "Listening…" },
+  "scan.speakNow": { ja: "話しかけてください", en: "Speak now" },
   // --- review extras ---
   "review.empty": { ja: "今日復習する単語はありません。", en: "Nothing to review today." },
   "review.emptyHint": {
@@ -168,6 +172,81 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "home.pastPages": { ja: "Past Pages", en: "Past Pages" },
   "home.memories": { ja: "枚の思い出", en: "memories caught" },
   "home.background": { ja: "背景", en: "Background" },
+  // --- common ---
+  "common.close": { ja: "閉じる", en: "Close" },
+  "common.cancel": { ja: "キャンセル", en: "Cancel" },
+  "common.retry": { ja: "もう一度", en: "Retry" },
+  // --- word card (extra) ---
+  "card.notYet": { ja: "まだ作られていません", en: "Not generated yet" },
+  "card.generate": { ja: "作る", en: "Generate" },
+  "card.flipToSelfie": { ja: "タップで自撮りへ", en: "Tap to flip to selfie" },
+  "card.flipBack": { ja: "タップで戻る", en: "Tap to flip back" },
+  "card.selfie": { ja: "自撮り", en: "Selfie" },
+  "card.noSelfie": { ja: "自撮りはまだありません", en: "No selfie yet" },
+  "card.changePhotoConfirm": { ja: "この写真を変更しますか?", en: "Change this photo?" },
+  "card.deleteConfirmDialog": {
+    ja: "本当に削除しますか?この操作は取り消せません。",
+    en: "Delete this card? This cannot be undone.",
+  },
+  "card.deleteFailed": { ja: "削除に失敗しました。", en: "Could not delete." },
+  "card.photoFailed": { ja: "画像の変更に失敗しました。", en: "Could not change the photo." },
+  "card.tempImage": {
+    ja: "👻 仮の画像 — 実物に出会って完成させよう",
+    en: "👻 Stand-in image — meet the real thing to complete it",
+  },
+  "card.findingImage": { ja: "🌐 画像をネットから探しています…", en: "🌐 Finding an image online…" },
+  "card.regenerating": { ja: "再生成中…", en: "Regenerating…" },
+  "card.reportPrompt": {
+    ja: "意味や発音が変? 報告してAIに直させる",
+    en: "Wrong meaning or reading? Report and let AI fix it",
+  },
+  "card.reportFixing": { ja: "AIが作り直し中…", en: "AI is rebuilding…" },
+  "card.reportDone": { ja: "報告ありがとう。AIが作り直しました", en: "Thanks — AI rebuilt this card" },
+  "card.reportFailed": { ja: "報告に失敗しました", en: "Could not send the report" },
+  "card.otherImages": { ja: "別の画像", en: "Other images" },
+  "card.useThisImage": { ja: "この画像にする", en: "Use this image" },
+  "card.imageSet": { ja: "画像を変更しました", en: "Photo updated" },
+  "card.openMap": { ja: "地図で開く", en: "Open in Maps" },
+  "card.openGoogleMaps": { ja: "Google マップで開く →", en: "Open in Google Maps →" },
+  "card.photoSpot": { ja: "撮影地", en: "Where it was caught" },
+  // --- input catch ---
+  "input.title": { ja: "入力キャッチ", en: "Type / speak a word" },
+  "input.lead": {
+    ja: "授業で習った・聞こえた・動画で見た言葉を、写真がなくても図鑑に。",
+    en: "Add a word you heard in class or saw in a video — no photo needed.",
+  },
+  "input.listening": {
+    ja: "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう",
+    en: "Listening… repeat the phrase you heard",
+  },
+  "input.micHint": { ja: "マイクで復唱するか、下の欄で認識結果を直せます", en: "Speak, or fix the text below" },
+  "input.textHint": {
+    ja: "台湾華語でも日本語でもOK(日本語は自動で台湾華語に変換されます)",
+    en: "Type in Mandarin or your own language — we'll convert it",
+  },
+  "input.word": { ja: "単語", en: "Word" },
+  "input.phrase": { ja: "フレーズ", en: "Phrase" },
+  "input.scene": { ja: "シーン: どこで・誰が・何と言った?(任意)", en: "Scene: where / who / what was said (optional)" },
+  "input.lookup": { ja: "調べてカードにする", en: "Look up & make a card" },
+  "input.looking": { ja: "辞書とAIが調べています…", en: "Checking the dictionary and AI…" },
+  "input.attach": { ja: "画像を添付(任意)", en: "Attach an image (optional)" },
+  "input.attachChange": { ja: "タップで自分の画像に変更", en: "Tap to use your own photo" },
+  "input.autoImage": {
+    ja: "仮画像はネット検索から自動添付。下の候補タップでワンタッチ変更",
+    en: "Stand-in image auto-picked from the web — tap a thumbnail to swap",
+  },
+  "input.noImageOk": {
+    ja: "画像なしでもOK。実物に出会うと図鑑で金色に光ります",
+    en: "No image is fine — it turns gold when you meet the real thing",
+  },
+  "input.save": { ja: "ゴーストとして図鑑に入れる", en: "Add to the dex as a ghost" },
+  "input.saveHint": {
+    ja: "実物に出会ってスキャンすると金色に光り、撮影で図鑑が完成します。",
+    en: "Scan the real thing later and this card turns gold.",
+  },
+  "input.verified": { ja: "✓ 検証済み", en: "✓ Verified" },
+  "input.aiGenerated": { ja: "AI生成", en: "AI-generated" },
+  "input.replies": { ja: "返し方の例", en: "How to reply" },
 };
 
 export function useUiLang(): UiLang {

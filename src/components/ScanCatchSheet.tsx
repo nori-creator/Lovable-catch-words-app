@@ -4,7 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Camera, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { speakCatchLine } from "@/lib/catch-voice";
 import { supabase } from "@/integrations/supabase/client";
 import { saveSticker } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
@@ -12,6 +11,7 @@ import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
 import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
+import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 
@@ -127,6 +127,11 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const cutoutBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
+  // 演出中に単語の発音を鳴らすため、フックの結果を ref に保持しておく
+  // (runLandingAnimation は非フック関数なので直接は呼べない)。
+  const pronounce = usePronounce();
+  const pronounceRef = useRef(pronounce);
+  pronounceRef.current = pronounce;
 
   // Body scroll lock
   useEffect(() => {
@@ -228,10 +233,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     if (wordEl) wordEl.classList.add("hero-word-play");
     await new Promise((r) => setTimeout(r, 460));
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(30);
-    // 空中で一瞬止まるこの「タメ」で決め台詞が鳴る(毎回ランダムな声)。
-    // ここが体験のピーク — 音・振動・拡大が同時に来る瞬間。
-    speakCatchLine(headword);
-    await new Promise((r) => setTimeout(r, 900)); // 決め台詞を聴かせるタメ
+    // 空中で一瞬止まるこの「タメ」で、その単語の発音が流れる。
+    // ここが体験のピーク — 拡大・振動・発音が同時に来る瞬間。
+    void pronounceRef.current?.(headword);
+    await new Promise((r) => setTimeout(r, 850)); // 発音を聴かせるタメ
 
     // --- 第2幕: ふわっと上に抜けて図鑑ページへ(着弾は図鑑側の slam-in) -----
     if (wordEl) wordEl.classList.remove("hero-word-play");
@@ -587,7 +592,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         .cutout-pop { animation: cutoutPop 560ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
         @keyframes dexImpact {
           0%   { transform: scale(1); filter: brightness(1); }
-          25%  { transform: scale(1.35); filter: brightness(1.5) drop-shadow(0 0 12px hsl(var(--primary))); }
+          25%  { transform: scale(1.35); filter: brightness(1.5) drop-shadow(0 0 12px #2563eb); }
           60%  { transform: scale(0.92); }
           100% { transform: scale(1); filter: brightness(1); }
         }

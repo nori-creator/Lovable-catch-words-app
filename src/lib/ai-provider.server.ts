@@ -21,12 +21,15 @@ const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
-// 「最新の Gemini を自動で使う」: -latest エイリアスは Google 側が最新の
-// 安定版を指し続けるので、モデル名を追い続けなくても新版に乗り換わる。
-const GOOGLE_DEFAULT_FAST = "gemini-flash-latest";
-const GOOGLE_DEFAULT_RICH = "gemini-flash-latest";
-/** 課金ユーザー向け: Gemini Pro(最新)。 */
-const GOOGLE_DEFAULT_PREMIUM = "gemini-pro-latest";
+// 既定モデル。**OpenAI互換エンドポイントに実在するIDだけを書く**。
+// 2026-07-27の障害: `-latest` エイリアス(gemini-flash-latest 等)は
+// このエンドポイントでは解決されず 404 "Not Found" を返し、
+// カード生成とスピーキング添削が全滅した。最新版へ乗り換えたいときは
+// 設定の「使うAIを切り替える」から明示的に指定する(env でも可)。
+const GOOGLE_DEFAULT_FAST = "gemini-2.5-flash";
+const GOOGLE_DEFAULT_RICH = "gemini-2.5-flash";
+/** 課金ユーザー向け: Gemini Pro。 */
+const GOOGLE_DEFAULT_PREMIUM = "gemini-2.5-pro";
 
 /**
  * 実行時のモデル切替(app_config.key='ai_models')。
@@ -112,6 +115,31 @@ export async function getAiRuntime(): Promise<AiConfig> {
     modelRich: rich,
     modelRichPremium: ov.rich_premium ?? rich,
   };
+}
+
+/**
+ * モデルIDが存在しないと provider は 404 "Not Found" を返し、その機能が
+ * まるごと死ぬ(2026-07-27の障害)。**モデル指定ミスでアプリを止めない**ため、
+ * 404/400 のときだけ既知の安定モデルで1回だけやり直すラッパー。
+ *
+ * 使い方: `withModelFallback(ai, ai.modelRichPremium, (m) => generateText({model: ai.gateway(m), ...}))`
+ */
+export async function withModelFallback<T>(
+  ai: AiConfig,
+  preferred: string,
+  run: (model: string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await run(preferred);
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    const looksMissingModel =
+      /not found|404|does not exist|unknown model|invalid model|unsupported model/i.test(msg);
+    const fallback = ai.provider === "google" ? GOOGLE_DEFAULT_FAST : ai.modelRich;
+    if (!looksMissingModel || fallback === preferred) throw e;
+    console.warn(`[ai] model "${preferred}" unavailable (${msg.slice(0, 120)}) — falling back to "${fallback}"`);
+    return await run(fallback);
+  }
 }
 
 export type AiConfig = {
@@ -226,6 +254,8 @@ export async function generateStructured<S extends z.ZodTypeAny>(opts: {
   model: Parameters<typeof generateText>[0]["model"];
   prompt: string;
   schema: S;
+  /** モデルが存在しない(404)ときに1度だけ使う代替モデル。 */
+  fallbackModel?: Parameters<typeof generateText>[0]["model"];
 }): Promise<z.infer<S>> {
   try {
     const result = await generateText({
@@ -248,14 +278,24 @@ export async function generateStructured<S extends z.ZodTypeAny>(opts: {
     /* the call itself failed — retry once in plain-text mode */
   }
 
-  const retry = await generateText({
-    model: opts.model,
-    prompt:
-      `${opts.prompt}\n\n` +
-      `重要: 出力は要求されたキーを持つ有効なJSONオブジェクトのみ。` +
-      `説明文・前置き・後書きは一切書かない(\`\`\`jsonフェンスは可)。`,
-  });
-  return opts.schema.parse(parseJsonFromAiText(retry.text));
+  // 最後の砦: プレーンテキストでもう一度。モデルIDが無効(404)なら
+  // fallbackModel で1回だけ試す — モデル指定ミスで機能を殺さない。
+  const plainPrompt =
+    `${opts.prompt}\n\n` +
+    `重要: 出力は要求されたキーを持つ有効なJSONオブジェクトのみ。` +
+    `説明文・前置き・後書きは一切書かない(\`\`\`jsonフェンスは可)。`;
+  try {
+    const retry = await generateText({ model: opts.model, prompt: plainPrompt });
+    return opts.schema.parse(parseJsonFromAiText(retry.text));
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (!opts.fallbackModel || !/not found|404|does not exist|unknown model|invalid model/i.test(msg)) {
+      throw e;
+    }
+    console.warn(`[ai] structured call fell back to the safe model (${msg.slice(0, 120)})`);
+    const retry = await generateText({ model: opts.fallbackModel, prompt: plainPrompt });
+    return opts.schema.parse(parseJsonFromAiText(retry.text));
+  }
 }
 
 /**
