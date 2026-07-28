@@ -585,7 +585,7 @@ function ScanPage() {
   );
 
   return (
-    <AppShell title="スキャン">
+    <AppShell title={t("nav.camera")}>
       <div className="space-y-3">
         {/*
           カメラは画面いっぱい(フルスクリーン)。世界をスキャンしている感覚は

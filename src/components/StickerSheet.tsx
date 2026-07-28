@@ -524,7 +524,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
                   >
                     <MapPin className="h-3.5 w-3.5" />
-                    {s.location_name ?? "地図で開く"}
+                    {s.location_name ?? t("card.openMap")}
                   </a>
                 )}
               </div>
@@ -603,7 +603,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}
                   </span>
-                  <span className="text-primary">Google マップで開く →</span>
+                  <span className="text-primary">{t("card.openMapsLabel")}</span>
                 </div>
               </a>
             )}

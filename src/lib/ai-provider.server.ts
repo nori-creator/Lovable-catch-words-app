@@ -364,6 +364,34 @@ export async function getUserLevels(userId: string): Promise<{ current: string; 
   return { current: `TOCFL-${Math.max(1, goalNum - 1)}`, goal };
 }
 
+/**
+ * 解説文をどの言語で書くか。設定の「表示言語」(profiles.ui_language)に従う。
+ * 学習対象の台湾華語はそのまま、**説明・訳だけ**をこの言語で書かせる。
+ */
+export async function getExplanationLanguage(userId: string): Promise<"ja" | "en"> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("ui_language")
+      .eq("id", userId)
+      .maybeSingle();
+    return (data as { ui_language?: string } | null)?.ui_language === "en" ? "en" : "ja";
+  } catch {
+    return "ja";
+  }
+}
+
+/** プロンプトに差し込む「解説の言語」指示。 */
+export async function explanationLanguageRule(userId: string): Promise<string> {
+  const lang = await getExplanationLanguage(userId);
+  return lang === "en"
+    ? `**Write every explanation, meaning, translation and note in English.** ` +
+      `Only the Taiwanese Mandarin (zh-TW) words, example sentences and readings stay in Chinese. ` +
+      `Do not write any Japanese.`
+    : `解説・意味・訳・注記はすべて日本語で書く(台湾華語の見出し語・例文・読みはそのまま)。`;
+}
+
 /** プロンプトに差し込むレベル指示の共通文(現在→目標の帯に収める)。 */
 export async function levelInstruction(userId: string): Promise<string> {
   const { current, goal } = await getUserLevels(userId);

@@ -27,6 +27,7 @@ function dayKey(d: Date) {
 
 /** Offline captures waiting for AI analysis (queued in IndexedDB). */
 function PendingCapturesBanner() {
+  const t = useT();
   const [pending, setPending] = useState<PendingCapture[]>([]);
   useEffect(() => {
     const load = () => {
@@ -56,8 +57,8 @@ function PendingCapturesBanner() {
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">📥 解析待ちの写真が {pending.length} 枚</span>
-        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">タップしてAI解析を再開する</span>
+        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">📥 {t("home.pendingCount")}: {pending.length}</span>
+        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">{t("home.pendingCta")}</span>
       </span>
     </Link>
   );

@@ -10,6 +10,7 @@ import { lookupHeadwords, type DictionaryEntry } from "@/lib/scan.functions";
 import { saveGhostSticker } from "@/lib/ghost.functions";
 import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from "@/lib/images.functions";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 
 /**
@@ -81,6 +82,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const phonetic = usePhoneticPref();
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
   const canSpeak = srAvailable();
@@ -300,14 +302,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const verified = !!dict && dict.source === "verified";
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="入力キャッチ">
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={t("input.title")}>
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
-          <Ghost className="h-3.5 w-3.5" /> 入力キャッチ
+          <Ghost className="h-3.5 w-3.5" /> {t("input.title")}
         </span>
         <button
           onClick={onClose}
-          aria-label="閉じる"
+          aria-label={t("common.close")}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:scale-95 motion-reduce:active:scale-100"
         >
           <X className="h-4 w-4" />
@@ -318,7 +320,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         {(step === "input" || step === "loading") && (
           <div className="mx-auto max-w-sm space-y-4">
             <p className="text-center text-sm text-muted-foreground">
-              授業で習った・聞こえた・動画で見た言葉を、写真がなくても図鑑に。
+              {t("input.lead")}
             </p>
 
             {canSpeak && initialMode === "voice" && (
@@ -336,9 +338,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             <p className="text-center text-[11px] text-muted-foreground">
               {initialMode === "voice" && canSpeak
                 ? listening
-                  ? "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう"
-                  : "マイクで復唱するか、下の欄で認識結果を直せます"
-                : "台湾華語でも日本語でもOK(日本語は自動で台湾華語に変換されます)"}
+                  ? t("input.listening")
+                  : t("input.micHint")
+                : t("input.textHint")}
             </p>
 
             <div className="relative">
@@ -363,7 +365,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                     isPhrase === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
                   }`}
                 >
-                  {v ? "フレーズ" : "単語"}
+                  {v ? t("input.phrase") : t("input.word")}
                 </button>
               ))}
             </div>
@@ -372,7 +374,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               <input
                 value={scene}
                 onChange={(e) => setScene(e.target.value)}
-                placeholder="シーン: どこで・誰が・何と言った?(任意)"
+                placeholder={t("input.scene")}
                 className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-sm outline-none focus:ring-2 focus:ring-primary/40"
               />
             )}
@@ -385,7 +387,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
               {step === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-              {step === "loading" ? "辞書とAIが調べています…" : "調べてカードにする"}
+              {step === "loading" ? t("input.looking") : t("input.lookup")}
             </button>
           </div>
         )}
@@ -417,17 +419,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
                     <Ghost className="mx-auto h-10 w-10" />
-                    <span className="mt-1 block text-[11px]">画像を添付(任意)</span>
+                    <span className="mt-1 block text-[11px]">{t("input.attach")}</span>
                   </div>
                 </div>
               )}
             </button>
             <p className="text-center text-[11px] text-muted-foreground">
               {attachedDataUrl
-                ? "タップで自分の画像に変更"
+                ? t("input.attachChange")
                 : candidates.length > 0
-                  ? "仮画像はネット検索から自動添付。下の候補タップでワンタッチ変更"
-                  : "画像なしでもOK。実物に出会うと図鑑で金色に光ります"}
+                  ? t("input.autoImage")
+                  : t("input.noImageOk")}
             </p>
             {!attachedDataUrl && candidates.length > 1 && (
               <div className="flex justify-center gap-2">
@@ -448,9 +450,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               <div className="flex items-baseline gap-2">
                 <h2 className="text-2xl font-bold tracking-tight">{text.trim()}</h2>
                 {verified ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">✓ 検証済み</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">{t("input.verified")}</span>
                 ) : (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">AI生成</span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">{t("input.aiGenerated")}</span>
                 )}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -465,7 +467,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               {isPhrase && phraseCard && (
                 <div className="mt-3 border-t border-border pt-3">
                   {scene && <p className="text-xs text-muted-foreground">シーン: {scene}</p>}
-                  <p className="mt-1 text-xs font-semibold text-muted-foreground">返し方の例</p>
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">{t("input.replies")}</p>
                   <ul className="mt-1 space-y-1">
                     {phraseCard.replies.map((r, i) => (
                       <li key={i} className="rounded-lg bg-secondary/60 px-3 py-1.5 text-sm">
@@ -495,10 +497,10 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
               {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Ghost className="h-5 w-5" />}
-              ゴーストとして図鑑に入れる
+              {t("input.save")}
             </button>
             <p className="text-center text-[11px] text-muted-foreground">
-              実物に出会ってスキャンすると金色に光り、撮影で図鑑が完成します。
+              {t("input.saveHint")}
             </p>
           </div>
         )}

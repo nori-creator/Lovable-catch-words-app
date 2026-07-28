@@ -454,7 +454,7 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title="集める">
+    <AppShell title={t("title.capture")}>
       {step === "object" && (
         <div className="space-y-4">
           <div>
@@ -500,8 +500,8 @@ function CapturePage() {
 
       {step === "selfie" && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 2: 自撮りを撮る（任意）</h2>
-          <p className="text-sm text-muted-foreground">対象物と一緒に自分も撮ると、後で振り返るときに記憶が蘇ります。</p>
+          <h2 className="text-xl font-semibold tracking-tight">{t("capture.selfieTitle")}</h2>
+          <p className="text-sm text-muted-foreground">{t("capture.selfieHint")}</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
               <img src={objectImg} alt="object" className="h-full w-full object-cover" />
@@ -511,7 +511,7 @@ function CapturePage() {
             <div className="grid aspect-[3/4] place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary">
               <div className="flex flex-col items-center gap-2">
                 <Camera className="h-10 w-10" />
-                <span className="text-sm">自撮りを追加</span>
+                <span className="text-sm">{t("capture.addSelfie")}</span>
               </div>
             </div>
             <input
@@ -525,10 +525,10 @@ function CapturePage() {
           </label>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => handleSelfieFile(null)} className="flex-1">
-              スキップして次へ
+              {t("capture.skipNext")}
             </Button>
             <Button variant="ghost" onClick={reset}>
-              <RotateCcw className="mr-1 h-4 w-4" /> やり直す
+              <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.redo")}
             </Button>
           </div>
         </div>
@@ -551,14 +551,14 @@ function CapturePage() {
 
       {step === "select" && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">ステップ 3: 単語を選ぶ</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
           <div className="flex gap-3">
             {cutoutImg && (
               <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
                 <img src={cutoutImg} alt="cutout" className="h-full w-full object-contain pop-in" />
               </div>
             )}
-            <p className="text-sm text-muted-foreground">AIが候補を提案しました。学びたい単語を選んでください。</p>
+            <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
           </div>
           <div className="grid gap-2">
             {suggestions.map((s) => (
@@ -578,7 +578,7 @@ function CapturePage() {
             ))}
           </div>
           <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-            <Label htmlFor="manual" className="text-xs text-muted-foreground">違う単語を入力</Label>
+            <Label htmlFor="manual" className="text-xs text-muted-foreground">{t("capture.otherWord")}</Label>
             <div className="mt-1 flex gap-2">
               <Input
                 id="manual"
@@ -590,7 +590,7 @@ function CapturePage() {
                 disabled={!manualWord.trim()}
                 onClick={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
               >
-                これにする
+                {t("capture.useThis")}
               </Button>
             </div>
           </div>
@@ -619,12 +619,12 @@ function CapturePage() {
                 {selfieImg ? (
                   <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
+                  <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("capture.noSelfie")}</div>
                 )}
               </div>
             </div>
           </div>
-          <p className="text-center text-[11px] text-muted-foreground">画像をタップで自撮りにフリップ</p>
+          <p className="text-center text-[11px] text-muted-foreground">{t("capture.flipHint")}</p>
 
           <WordCard
             word={{
@@ -641,8 +641,8 @@ function CapturePage() {
           />
 
           <div>
-            <Label htmlFor="caption" className="text-xs text-muted-foreground">一言メモ（任意）</Label>
-            <Textarea id="caption" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="どんな場面で出会った？" rows={2} />
+            <Label htmlFor="caption" className="text-xs text-muted-foreground">{t("capture.note")}</Label>
+            <Textarea id="caption" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t("capture.notePlaceholder")} rows={2} />
           </div>
 
           {loc?.name && (
@@ -651,10 +651,10 @@ function CapturePage() {
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={reset} className="flex-1">
-              やり直す
+              {t("capture.redo")}
             </Button>
             <Button onClick={handleSave} className="lift flex-1">
-              <Check className="mr-1 h-4 w-4" /> 図鑑に追加
+              <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
             </Button>
           </div>
         </div>
@@ -687,7 +687,7 @@ function CapturePage() {
         <div className="space-y-4">
           <div className="rounded-3xl border border-amber-300/60 bg-gradient-to-br from-amber-50 to-white p-5 text-center shadow-lg">
             <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-xs font-bold text-amber-950">
-              <PartyPopper className="h-3.5 w-3.5" /> 再会！
+              <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               この言葉、{new Date(reenc.taken_at).toLocaleDateString("ja-JP")}
@@ -708,7 +708,7 @@ function CapturePage() {
                 onClick={() => setReencRevealed(true)}
                 className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-sm font-semibold text-amber-900"
               >
-                意味、覚えてる？ — タップして答え合わせ
+                {t("capture.rememberQ")}
               </button>
             ) : (
               <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
@@ -716,16 +716,16 @@ function CapturePage() {
                 {!reencResult ? (
                   <div className="mt-3 flex gap-2">
                     <Button onClick={() => answerReencounter(true)} className="flex-1">
-                      覚えてた！
+                      {t("capture.remembered")}
                     </Button>
                     <Button variant="outline" onClick={() => answerReencounter(false)} className="flex-1">
-                      忘れてた…
+                      {t("capture.forgot")}
                     </Button>
                   </div>
                 ) : (
                   <div className="mt-3 space-y-2 text-sm">
                     <p className="font-semibold">
-                      {reencResult.recalled ? "現実世界での復習、最強です 🎉" : "大丈夫、明日また出題します"}
+                      {reencResult.recalled ? t("capture.reviewBest") : t("capture.willAsk")}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       再会 {reencResult.encounter_count} 回目
@@ -740,14 +740,14 @@ function CapturePage() {
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> 別のものを撮る
+              <Camera className="mr-1 h-4 w-4" /> {t("capture.shootAnother")}
             </Button>
             {reencResult && (
               <Button
                 onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })}
                 className="flex-1"
               >
-                図鑑で見る
+                {t("capture.seeInDex")}
               </Button>
             )}
           </div>
@@ -758,17 +758,17 @@ function CapturePage() {
         <div className="space-y-4">
           <div className="rounded-3xl border border-border bg-card p-8 text-center">
             <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="text-base font-semibold">オフラインなので写真だけ保存しました</p>
+            <p className="text-base font-semibold">{t("capture.offlineTitle")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              電波が戻ったら、ホームの「解析待ち」から続きができます。撮った瞬間は逃していません。
+              {t("capture.offlineHint")}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
-              ホームへ
+              {t("capture.toHome")}
             </Button>
             <Button onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> もう一枚撮る
+              <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
             </Button>
           </div>
         </div>

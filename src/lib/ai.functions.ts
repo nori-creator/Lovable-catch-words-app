@@ -10,6 +10,7 @@ import {
   getAi,
   getUserLevelGoal,
   levelInstruction,
+  explanationLanguageRule,
   isProUser,
   logUsage,
   parseJsonFromAiText,
@@ -134,11 +135,13 @@ export const generateCard = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
+    const langRule = await explanationLanguageRule(context.userId);
 
     const prompt =
       data.targetLanguage === "zh-TW"
-        ? `「${data.headword}」について、日本人学習者向けの台湾華語(繁体字)語彙カードを生成してください。
+        ? `「${data.headword}」について、台湾華語(繁体字)の語彙カードを生成してください。
 
+${langRule}
 ${levelRule}
 
 入力語の扱い:
@@ -149,7 +152,7 @@ ${levelRule}
 - headword_zh: 上記ルールで決めた台湾華語の見出し語(繁体字)
 - reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。
 - pinyin: 拼音
-- meaning_ja: 日本語の意味（簡潔に）
+- meaning_ja: 意味（簡潔に。**解説の言語**で書く — 英語設定なら英語で）
 - part_of_speech: 台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。
   V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。
 - level: TOCFLレベル（TOCFL-1〜6 のいずれか）
@@ -293,10 +296,11 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     // that Gemini's OpenAI-compatible endpoint rejects.
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
+    const langRule = await explanationLanguageRule(context.userId);
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
-        `台湾華語(繁體字)のフレーズカードを作ります。\n${levelRule}\n` +
+        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
         `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
@@ -351,7 +355,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { isProUser: proCheck, levelInstruction: lvl } = await import("./ai-provider.server");
+    const { isProUser: proCheck, levelInstruction: lvl, explanationLanguageRule: langFn } =
+      await import("./ai-provider.server");
     if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
     await assertWithinDailyCap(userId, "card");
 
@@ -374,8 +379,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     if (error || !word) throw new Error("単語が見つかりません");
 
     const levelRule = await lvl(userId);
+    const langRule = await langFn(userId);
     const head = word.headword as string;
-    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、日本人学習者向けカードの一項目だけを作り直します。${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
+    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
     const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
