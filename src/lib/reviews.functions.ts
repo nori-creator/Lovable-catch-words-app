@@ -9,6 +9,7 @@ import {
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
+  getExplanationLanguage,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -877,7 +878,17 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 // して2回目以降ゼロコスト。キャプション(その人の気持ち・思い出)はスティッカー
 // 固有なので毎回そのまま「言いたいことの種」として添える。
 
-export type SpeakingPart = { zh: string; ja: string };
+/** ヒント1つの種類。表示の見出し(チャンク/フレーズ/文法)に使う。 */
+export type SpeakingPartKind = "chunk" | "phrase" | "grammar";
+
+export type SpeakingPart = {
+  zh: string;
+  /** 母語訳・説明。UI言語(日本語/英語)で書かれる。 */
+  ja: string;
+  kind: SpeakingPartKind;
+  /** 品詞色分け用の分解(単語詳細のチャンクと同じ体系)。空なら zh をそのまま出す。 */
+  chunks: { text: string; pos: string }[];
+};
 export type SpeakingScaffold = {
   question_zh: string;
   question_ja: string;
@@ -888,7 +899,19 @@ export type SpeakingScaffold = {
 const ScaffoldSchema = z.object({
   question_zh: z.string(),
   question_ja: z.string(),
-  parts: z.array(z.object({ zh: z.string(), ja: z.string() })).min(2).max(5),
+  parts: z
+    .array(
+      z.object({
+        zh: z.string(),
+        ja: z.string(),
+        kind: z.enum(["chunk", "phrase", "grammar"]).catch("chunk"),
+        chunks: z
+          .array(z.object({ text: z.string(), pos: z.string().catch("") }))
+          .catch([]),
+      }),
+    )
+    .min(2)
+    .max(5),
 });
 
 const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
@@ -914,8 +937,11 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const w = row.words;
     const captionSeed = row.caption?.trim() || null;
 
-    // キャッシュヒット: 単語レベルの足場は使い回す(キャプションだけ差し替え)。
-    const cached = (w.extras as { speaking_scaffold_v2?: unknown } | null)?.speaking_scaffold_v2;
+    // キャッシュは**表示言語ごと**に分ける(英語設定なら英語の足場を出す)。
+    // 言語を切り替えたときに日本語のヒントが残るのを防ぐ。
+    const lang = await getExplanationLanguage(userId);
+    const cacheKey = `speaking_scaffold_v3_${lang}`;
+    const cached = (w.extras as Record<string, unknown> | null)?.[cacheKey];
     const cachedParsed = cached
       ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
       : null;
@@ -938,17 +964,25 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
 次を厳密なJSONで返してください:
 - question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
-- question_ja: その質問の日本語訳
-- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja}。
+- question_ja: その質問の訳(解説言語で)
+- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja, kind, chunks}。
   **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
-  出すのは (a) スロット付きの型(例:「我要用◯◯…」)、(b)「${w.headword}」とよく使う動詞・量詞のコロケーション1つ、(c) 使えそうな文法・語法ポイント(例:「用+道具+動詞」) のうち2〜3個。
-  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。`,
+  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。
+  - kind は次のどれか:
+    "chunk" =「${w.headword}」とよく一緒に使う動詞・量詞のコロケーション(例「喝一杯◯◯」)
+    "phrase" = スロット付きの型・言い回し(例「我要用◯◯…」)
+    "grammar" = 文法・語法のポイント(例「用+道具+動詞」)
+  - zh は繁体字。ja はその訳・使いどころを1行で(解説言語で)。
+  - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。pos は台湾の詞類表の
+    役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)
+    Conj/Prep(接続・介詞) Ptc(助詞) Det(限定詞)。◯や…のスロットは pos を "" にする。
+    chunks の text を順に繋ぐと zh に一致すること。`,
     });
 
     // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold_v2: scaffold };
+      const nextExtras = { ...(w.extras ?? {}), [cacheKey]: scaffold };
       await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
       await logUsage(supabase, userId, "speaking_feedback");
     } catch { /* キャッシュ保存の失敗は致命的でない */ }

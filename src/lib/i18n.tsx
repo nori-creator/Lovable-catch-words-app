@@ -391,6 +391,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "音声認識のミスはここで直せます(直接入力もOK)",
     en: "Fix any speech-recognition slips here (or just type)",
   },
+  "review.partKind.chunk": { ja: "チャンク", en: "Chunk" },
+  "review.partKind.phrase": { ja: "フレーズ", en: "Phrase" },
+  "review.partKind.grammar": { ja: "文法", en: "Grammar" },
+  "review.playHint": { ja: "このヒントを読み上げ", en: "Play this hint" },
   "review.watchYourself": { ja: "自分の発話を見返す", en: "Watch yourself" },
   "review.videoNoAudio": {
     ja: "録画は映像のみです(マイクは音声認識が使うため)。話した内容は下のテキストで確認できます。",

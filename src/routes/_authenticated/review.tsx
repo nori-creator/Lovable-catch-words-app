@@ -32,7 +32,6 @@ import {
   Brain,
   Mic,
   Square,
-  Lightbulb,
   Loader2,
   Video,
   Repeat,
@@ -568,7 +567,6 @@ function SpeakingCard({
 
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
-  const [hintShown, setHintShown] = useState(false);
   const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -696,18 +694,13 @@ function SpeakingCard({
     stopVideo();
   }
 
-  function useHint() {
-    setHintShown(true);
-    playAudio(card);
-  }
-
   async function submit() {
     if (!transcript.trim() || loading) return;
     setLoading(true);
     setError(null);
     try {
       const fb = await feedbackFn({
-        data: { sticker_id: card.sticker_id, transcript: transcript.trim(), hint_used: hintShown },
+        data: { sticker_id: card.sticker_id, transcript: transcript.trim(), hint_used: false },
       });
       setFeedback(fb);
     } catch (e) {
@@ -725,14 +718,15 @@ function SpeakingCard({
     // target word, natural enough) — the honest-grading idea from main.
     const objectiveOk =
       !!feedback && feedback.used_target && feedback.natural_score >= 3;
+    // ヒント(答え表示)は廃止したので "hint" 判定は無くなった。
     const result: "success" | "hint" | "skip" =
-      kind === "skip" ? "skip" : hintShown ? "hint" : objectiveOk ? "success" : "skip";
+      kind === "skip" ? "skip" : objectiveOk ? "success" : "skip";
     try {
       await grade({
         data: {
           review_id: card.review_id,
           correct: result === "success",
-          blur_seen: hintShown,
+          blur_seen: false,
           response_ms: Date.now() - startedAt.current,
           result,
         },
@@ -798,15 +792,13 @@ function SpeakingCard({
       )}
 
       {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
-          使う型を1つ指定して、その型で言わせる。単語部分は伏せ字にして
-          思い出す練習は守る。ヒント後は全体を表示。 */}
+          使う型を1つ指定して、その型で言わせる。単語部分は伏せ字のまま
+          (答えを見せない)。答え合わせは添削画面で。 */}
       {!isPhrase && card.prompt_pattern && (
         <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("review.todaysPattern")}</div>
-          <div className="mt-1 text-lg font-bold tracking-wide">
-            {hintShown
-              ? card.prompt_pattern.zh
-              : card.prompt_pattern.zh.split(card.headword).join("◯".repeat(Math.max(1, card.headword.length)))}
+          <div className="mt-1 text-xl font-bold leading-snug tracking-wide">
+            {card.prompt_pattern.zh.split(card.headword).join("◯".repeat(Math.max(1, card.headword.length)))}
           </div>
           {card.prompt_pattern.ja && (
             <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
@@ -833,19 +825,38 @@ function SpeakingCard({
           <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
 
           <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">{t("review.hintsLabel")}</div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+          {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
+              単語詳細のチャンクと同じ体系(ChunkPills)で統一する。 */}
+          <ol className="mt-1.5 space-y-2">
             {scaffold.parts.map((p, i) => (
-              <button
-                key={i}
-                onClick={() => playText(p.zh)}
-                className="rounded-full bg-white px-2.5 py-1 text-left text-[12px] shadow-sm ring-1 ring-sky-200 active:scale-95"
-                title="タップで発音"
-              >
-                <span className="font-medium">{p.zh}</span>
-                <span className="ml-1 text-[10px] text-muted-foreground">{p.ja}</span>
-              </button>
+              <li key={i} className="rounded-xl bg-white/90 p-2.5 shadow-sm ring-1 ring-sky-200">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                    {t(`review.partKind.${p.kind}`)}
+                  </span>
+                  <button
+                    onClick={() => playText(p.zh)}
+                    className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
+                    aria-label={t("review.playHint")}
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="mt-1.5">
+                  {p.chunks.length > 0 ? (
+                    <ChunkPills parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))} size="lg" />
+                  ) : (
+                    <span className="text-lg font-bold leading-snug tracking-wide">{p.zh}</span>
+                  )}
+                </div>
+                {p.ja && <p className="mt-1 text-[11px] leading-relaxed text-sky-900/70">{p.ja}</p>}
+              </li>
             ))}
-          </div>
+          </ol>
+          <ChunkLegend />
           {scaffold.caption_seed && (
             <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
               {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
@@ -855,22 +866,9 @@ function SpeakingCard({
         </div>
       )}
 
-      {/* Hint reveal */}
-      {hintShown && (
-        <div className="mb-3 flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30">
-          <div className="text-xl font-bold">{card.headword}</div>
-          <div className="text-xs text-muted-foreground">
-            {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-          </div>
-          <button
-            onClick={() => playAudio(card)}
-            className="ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-            aria-label="発音を再生"
-          >
-            <Volume2 className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {/* 「ヒント(答えを見る)」ボタンは廃止(2026-07-28)。
+          答えが出てしまうと思い出す練習にならない。代わりに上の①②③の
+          足場(型・コロケーション・文法)だけで自分の言葉を組み立てる。 */}
 
       {/* Video preview (opt-in) */}
       {videoOn && listening && (
@@ -893,14 +891,6 @@ function SpeakingCard({
               aria-label={listening ? "停止" : "録音"}
             >
               {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
-            </button>
-            <button
-              onClick={useHint}
-              disabled={hintShown || loading}
-              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] ${hintShown ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300" : "border-border bg-background text-muted-foreground hover:bg-accent/40"}`}
-            >
-              <Lightbulb className="h-5 w-5" />
-              {hintShown ? t("review.hintUsed") : t("review.hint")}
             </button>
           </div>
 
