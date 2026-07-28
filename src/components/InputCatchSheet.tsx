@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Ghost, Keyboard, Loader2, Mic, Search, Square, X } from "lucide-react";
+import { ImagePlus, Keyboard, Loader2, Mic, Search, Sparkles, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { generateCard, generatePhraseCard, type GeneratedCard, type GeneratedPhraseCard } from "@/lib/ai.functions";
@@ -305,7 +305,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={t("input.title")}>
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
-          <Ghost className="h-3.5 w-3.5" /> {t("input.title")}
+          <Keyboard className="h-3.5 w-3.5" /> {t("input.title")}
         </span>
         <button
           onClick={onClose}
@@ -394,8 +394,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
         {(step === "preview" || step === "saving") && (
           <div className="mx-auto max-w-sm space-y-4">
-            {/* B2: 自動仮画像は廃止。ユーザーが自分の画像を任意で添付できる。
-                添付なしなら画像なしのゴースト(実物に出会って完成させる)。 */}
+            {/* 画像はネット検索から自動で入る(#67)。自分の画像を添付したい
+                ときはここをタップ。候補は下のサムネイルから選び直せる。 */}
             <input
               ref={fileInputRef}
               type="file"
@@ -414,11 +414,11 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               {attachedDataUrl ? (
                 <img src={attachedDataUrl} alt="添付画像" className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
               ) : !isPhrase && candidates[picked] ? (
-                <img src={candidates[picked].thumb} alt="仮画像(ネット検索)" className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
+                <img src={candidates[picked].thumb} alt="ネット検索の画像" className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
               ) : (
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
-                    <Ghost className="mx-auto h-10 w-10" />
+                    <ImagePlus className="mx-auto h-10 w-10" />
                     <span className="mt-1 block text-[11px]">{t("input.attach")}</span>
                   </div>
                 </div>
@@ -496,7 +496,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               disabled={step === "saving"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
-              {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Ghost className="h-5 w-5" />}
+              {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
               {t("input.save")}
             </button>
             <p className="text-center text-[11px] text-muted-foreground">

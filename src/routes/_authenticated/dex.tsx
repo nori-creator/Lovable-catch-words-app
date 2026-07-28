@@ -243,9 +243,7 @@ function DexPage() {
                     >
                       <div
                         id={`dex-cell-${s.id}`}
-                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${
-                          isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
-                        } ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
+                        className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
                       >
                         {photo ? (
                           <CachedImg
@@ -263,23 +261,23 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-2"
                           />
-                        ) : isGhost(s) && s.placeholder_url ? (
+                        ) : s.placeholder_url ? (
+                          // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
                           <CachedImg
                             src={s.placeholder_url}
-                            alt={`「${s.word.headword}」の仮画像`}
+                            alt={`「${s.word.headword}」の画像`}
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full object-cover opacity-60 grayscale"
+                            className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className={`grid h-full place-items-center text-4xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
-                            {s.word.silhouette_emoji ?? "📦"}
+                          // 画像がまだ無いときは静かなプレースホルダ。
+                          // 詳細を開くとネット画像が自動で入る。
+                          <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
+                            <span className="text-base font-semibold text-muted-foreground">
+                              {s.word.headword}
+                            </span>
                           </div>
-                        )}
-                        {isGhost(s) && (
-                          <span className="absolute left-1.5 top-1.5 rounded-full bg-foreground/60 px-1.5 py-0.5 text-[9px] font-semibold text-background">
-                            👻 仮
-                          </span>
                         )}
                         {s.encounter_count > 0 && (
                           <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-amber-950 shadow">
@@ -308,8 +306,8 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
                     >
-                      <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
-                        {/* 撮った元の写真をそのまま見せる(絵文字の段ボールは最終手段) */}
+                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                        {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
                         {s.object_thumb_url ?? s.object_url ? (
                           <CachedImg
                             src={(s.object_thumb_url ?? s.object_url)!}
@@ -326,16 +324,18 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
-                        ) : isGhost(s) && s.placeholder_url ? (
+                        ) : s.placeholder_url ? (
                           <CachedImg
                             src={s.placeholder_url}
                             alt=""
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full object-cover opacity-60 grayscale"
+                            className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className={`text-2xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>{s.word.silhouette_emoji ?? "📦"}</span>
+                          <span className="px-1 text-center text-[11px] font-semibold text-muted-foreground">
+                            {s.word.headword}
+                          </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -660,11 +660,6 @@ function DexMap({
       )}
     </>
   );
-}
-
-/** Ghost card (§5.3): caught by text/voice, no real photo yet. */
-function isGhost(s: { capture_type: string; cutout_url: string | null; object_url: string | null }): boolean {
-  return s.capture_type !== "photo" && !s.cutout_url && !s.object_url;
 }
 
 // B6: 品詞グルーピング。part_of_speech(日本語表記)を代表的なバケツに正規化。

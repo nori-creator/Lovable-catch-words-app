@@ -6,10 +6,14 @@ import { ExtrasSchema } from "./extras";
 import { buildBranchPlan } from "./wordtree";
 
 /**
- * Ghost cards (§5.2/5.3): catches without a photo — typed or repeated back
- * from something heard. They live in the dex as ghosts (placeholder image,
- * clearly marked 仮) until the word is met in the real world and the golden
- * reunion catch swaps the placeholder for the user's own photo.
+ * Catches without a photo of your own — typed, or repeated back from
+ * something heard.
+ *
+ * 2026-07-28: 「ゴースト」表示(段ボール絵・👻仮バッジ・グレースケール)は
+ * **完全に廃止**した。写真が無いカードにはネット検索の画像が自動で入り、
+ * 図鑑では普通のカードとして並ぶ(気に入らなければ詳細画面で選び直せる)。
+ * 実物に出会って撮ると、その写真が正としてネット画像を置き換える
+ * (金色の再会キャッチ)。
  */
 
 // extras の形は src/lib/extras.ts の共有スキーマを使う。

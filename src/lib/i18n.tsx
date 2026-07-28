@@ -190,9 +190,9 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "card.deleteFailed": { ja: "削除に失敗しました。", en: "Could not delete." },
   "card.photoFailed": { ja: "画像の変更に失敗しました。", en: "Could not change the photo." },
-  "card.tempImage": {
-    ja: "👻 仮の画像 — 実物に出会って完成させよう",
-    en: "👻 Stand-in image — meet the real thing to complete it",
+  "card.pickAnotherImage": {
+    ja: "この画像が違うときは、別の画像を選べます",
+    en: "Not the right picture? Pick another one",
   },
   "card.findingImage": { ja: "🌐 画像をネットから探しています…", en: "🌐 Finding an image online…" },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…" },
@@ -232,14 +232,14 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "input.attach": { ja: "画像を添付(任意)", en: "Attach an image (optional)" },
   "input.attachChange": { ja: "タップで自分の画像に変更", en: "Tap to use your own photo" },
   "input.autoImage": {
-    ja: "仮画像はネット検索から自動添付。下の候補タップでワンタッチ変更",
-    en: "Stand-in image auto-picked from the web — tap a thumbnail to swap",
+    ja: "画像はネット検索から自動で入ります。下の候補タップでワンタッチ変更",
+    en: "An image is added automatically from the web — tap a thumbnail to swap",
   },
   "input.noImageOk": {
-    ja: "画像なしでもOK。実物に出会うと図鑑で金色に光ります",
-    en: "No image is fine — it turns gold when you meet the real thing",
+    ja: "画像なしでもOK。あとから詳細画面で選び直せます",
+    en: "No image is fine — you can pick one later from the card",
   },
-  "input.save": { ja: "ゴーストとして図鑑に入れる", en: "Add to the dex as a ghost" },
+  "input.save": { ja: "図鑑に入れる", en: "Add to the dex" },
   "input.saveHint": {
     ja: "実物に出会ってスキャンすると金色に光り、撮影で図鑑が完成します。",
     en: "Scan the real thing later and this card turns gold.",
@@ -386,7 +386,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "review.mixFeeling": { ja: "— この気持ちも混ぜてみよう", en: "— work this feeling in too" },
   "review.promptSpeak": { ja: "この時のことを、単語を使って一文で", en: "Say one sentence about this moment" },
   "review.promptPhrase": { ja: "この場面、どう返す?", en: "How would you reply here?" },
-  "review.tempImage": { ja: "👻 仮の画像", en: "👻 Stand-in image" },
   "review.recognitionHint": {
     ja: "音声認識のミスはここで直せます(直接入力もOK)",
     en: "Fix any speech-recognition slips here (or just type)",

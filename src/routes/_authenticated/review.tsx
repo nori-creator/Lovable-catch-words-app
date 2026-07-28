@@ -585,7 +585,6 @@ function SpeakingCard({
   const isPhrase = card.entry_type === "phrase";
   // Ghost cards (§5.3): the placeholder stands in until a real photo exists.
   const heroUrl = card.cutout_url ?? card.placeholder_url;
-  const isGhostImage = !card.cutout_url && !!card.placeholder_url;
   const takenLabel = card.taken_at
     ? new Date(card.taken_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
     : null;
@@ -759,14 +758,11 @@ function SpeakingCard({
           <CachedImg
             src={heroUrl}
             alt="復習対象"
-            className={`h-full w-full object-contain p-4 ${isGhostImage ? "opacity-70 grayscale" : ""}`}
+            className="h-full w-full object-contain p-4"
           />
         ) : (
-          <span className="text-5xl">📦</span>
-        )}
-        {isGhostImage && (
-          <span className="absolute left-2 top-2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-semibold text-background">
-            {t("review.tempImage")}
+          <span className="px-3 text-center text-lg font-semibold text-muted-foreground">
+            {card.meaning_ja}
           </span>
         )}
       </div>
@@ -1138,10 +1134,12 @@ function LightModeCard({
           <CachedImg
             src={(card.cutout_url ?? card.placeholder_url)!}
             alt="復習対象"
-            className={`h-full max-h-[32vh] w-full object-contain ${!card.cutout_url ? "opacity-70 grayscale" : ""}`}
+            className="h-full max-h-[32vh] w-full object-contain"
           />
         ) : (
-          <div className="grid h-32 w-full place-items-center text-4xl">📦</div>
+          <div className="grid h-32 w-full place-items-center px-3 text-center text-base font-semibold text-muted-foreground">
+            {card.meaning_ja}
+          </div>
         )}
       </div>
       <div className="mb-2.5 text-center">

@@ -383,7 +383,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
         toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
       } else {
-        toast.success(upgrade ? "再会! ゴーストが本物になりました✨" : "図鑑に1体増えました！");
+        toast.success(upgrade ? "再会! 自分の写真になりました✨" : "図鑑に1体増えました！");
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
       setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
