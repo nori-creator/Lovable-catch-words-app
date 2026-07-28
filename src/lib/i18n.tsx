@@ -320,8 +320,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.deleteAccount": { ja: "アカウントを削除", en: "Delete account" },
   "settings.videoLabel": { ja: "録画(インカメ)", en: "Record video (front camera)" },
   "settings.videoHint": {
-    ja: "スピーキング復習中、自分の姿を録画してあとで見返せます。この端末のみに保存。",
-    en: "Record yourself during speaking review and watch it back. Stored on this device only.",
+    ja: "スピーキング復習中、自分の姿を録画してあとで見返せます。この端末のみに保存。映像のみ(マイクは音声認識が使います)。",
+    en: "Record yourself during speaking review and watch it back. Stored on this device only. Video only — the mic is reserved for speech recognition.",
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
@@ -392,6 +392,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "Fix any speech-recognition slips here (or just type)",
   },
   "review.watchYourself": { ja: "自分の発話を見返す", en: "Watch yourself" },
+  "review.videoNoAudio": {
+    ja: "録画は映像のみです(マイクは音声認識が使うため)。話した内容は下のテキストで確認できます。",
+    en: "Video only — the mic is reserved for speech recognition. Your words appear as text below.",
+  },
   "review.you": { ja: "あなた", en: "You" },
   "review.corrected": { ja: "添削", en: "Corrected" },
   "review.sentenceBuild": { ja: "文の組み立て", en: "Sentence structure" },

@@ -610,9 +610,13 @@ function SpeakingCard({
   async function startVideo() {
     if (!videoOn) return;
     try {
-      // audio:true — without it every recording was silent. SpeechRecognition
-      // and MediaRecorder can share the mic on all supported browsers.
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+      // **audio: false が必須**(2026-07-28)。
+      // getUserMedia でマイクを掴むと Android Chrome / iOS Safari では
+      // SpeechRecognition が結果を1文字も返さなくなり、「録画だけされて
+      // 文字が出ない」状態になっていた。開始順を入れ替えても直らなかった。
+      // 音声認識(=学習の本体)を優先し、録画は映像だけにする。
+      // 発音は認識結果のテキストとAI添削で確認できる。
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       const rec = new MediaRecorder(stream);
@@ -678,14 +682,11 @@ function SpeakingCard({
     recogRef.current = rec;
     startedAt.current = Date.now();
     setListening(true);
-    // **順番が重要**: 先に音声認識を始める。
-    // getUserMedia({audio:true}) が先にマイクを掴むと、Android Chrome では
-    // SpeechRecognition が結果を返さなくなり「録画だけされて文字が出ない」
-    // 状態になっていた。認識を起動してから 350ms 後にカメラを開始する。
+    // 音声認識が先。マイクは認識だけが使う。
     rec.start();
-    if (videoOn) {
-      videoStartTimer.current = setTimeout(() => { void startVideo(); }, 350);
-    }
+    // 録画は音声トラックを取らない(startVideo 参照)ので、マイクの
+    // 取り合いは起きない。待たずに同時に始めて録り逃しを無くす。
+    if (videoOn) void startVideo();
   }
 
   function stopListen() {
@@ -992,13 +993,16 @@ function FeedbackView({
         </div>
       </div>
 
-      {/* Your recording — watch yourself say it (with sound) */}
+      {/* Your recording — video only; the mic belongs to speech recognition */}
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
+          <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+            {t("review.videoNoAudio")}
+          </p>
         </div>
       )}
 
