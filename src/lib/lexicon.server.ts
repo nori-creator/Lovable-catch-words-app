@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { generateStructured, getAi } from "./ai-provider.server";
+import { generateStructured, getAi, getAiFor } from "./ai-provider.server";
 
 /**
  * 自動で貯まる共有辞書 (2026-07-14):
@@ -147,7 +147,7 @@ export async function runLexiconAudit(
   const rows = [...aiRows, ...verifiedRows];
   if (rows.length === 0) return { checked: 0, fixed: 0, flagged: 0 };
 
-  const ai = getAi();
+  const ai = await getAiFor("audit");
   const listing = rows
     .map(
       (r, i) =>

@@ -5,6 +5,7 @@ import {
   assertWithinDailyCap,
   generateStructured,
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
@@ -360,7 +361,7 @@ export async function pregenerateDistractors(
   correctMeaning: string,
   categoryKey: string | null,
 ): Promise<void> {
-  const ai = getAi();
+  const ai = await getAiFor("review");
   const accepted: string[] = [];
   let iter = 0;
   const MAX = 2;
@@ -819,7 +820,7 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
     const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
-    const ai = getAi();
+    const ai = await getAiFor("review");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
     const levelGoal = await getUserLevelGoal(userId);
@@ -922,7 +923,7 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
       return { ...cachedParsed, caption_seed: captionSeed };
     }
 
-    const ai = getAi();
+    const ai = await getAiFor("review");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
     const plan =

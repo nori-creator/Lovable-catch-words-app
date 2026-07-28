@@ -8,6 +8,7 @@ import {
   assertWithinDailyCap,
 
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
@@ -40,7 +41,7 @@ export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "suggest");
     // レベルはクライアントの申告ではなく**プロフィールを正**とする
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
@@ -136,7 +137,7 @@ export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CardInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
@@ -295,7 +296,7 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PhraseInput.parse(input))
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
-    const ai = getAi();
+    const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
@@ -468,7 +469,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     };
 
     const { prompt, schema } = spec[data.section];
-    const ai = getAi();
+    const ai = await getAiFor("card");
     const result = await withModelFallback(ai, ai.modelRichPremium, (m) =>
       generateText({ model: ai.gateway(m), prompt }),
     );

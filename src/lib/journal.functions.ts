@@ -5,6 +5,7 @@ import {
   assertWithinDailyCap,
   generateStructured,
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
@@ -103,7 +104,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     await assertWithinDailyCap(userId, "correction");
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
 
-    const ai = getAi();
+    const ai = await getAiFor("journal");
 
     // Roadmap B6: no full model-diary. Correction + "ネイティブならこう言う"
     // phrases + an explanation of the sentence patterns actually used.

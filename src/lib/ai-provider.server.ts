@@ -44,7 +44,31 @@ export type AiModelOverride = {
   fast?: string;
   rich?: string;
   rich_premium?: string;
+  /**
+   * 機能ごとの上書き(βテスト〜ローンチで使い分けるための仕組み)。
+   * 例: スキャンは速い Gemini Flash、カード生成は Claude、
+   *     添削は GPT… のように機能単位で別のAIに振り分けられる。
+   * 各値は "provider:model"(例 "anthropic:claude-sonnet-4-5")または
+   * モデル名だけ(既定プロバイダを使う)。
+   */
+  features?: Partial<Record<AiFeature, string>>;
 };
+
+/** モデルを割り当てられる機能の単位。 */
+export type AiFeature =
+  | "scan"        // カメラのスキャン検出・候補提案(速さ最優先)
+  | "card"        // 単語カードの生成・項目再生成
+  | "review"      // スピーキング添削・ヒント
+  | "journal"     // 日記の添削
+  | "audit";      // 自己改善の点検
+
+export const AI_FEATURES: { id: AiFeature; label: string }[] = [
+  { id: "scan", label: "スキャン(速さ優先)" },
+  { id: "card", label: "単語カード生成" },
+  { id: "review", label: "復習の添削・ヒント" },
+  { id: "journal", label: "日記の添削" },
+  { id: "audit", label: "自己改善の点検" },
+];
 
 let overrideCache: { at: number; value: AiModelOverride | null } = { at: 0, value: null };
 
@@ -96,8 +120,8 @@ export async function getAiRuntime(): Promise<AiConfig> {
   if (!ov?.provider) return getAi();
   const preset = PROVIDER_PRESETS[ov.provider];
   const baseURL = ov.base_url ?? preset?.base_url;
-  const keyEnv = ov.api_key_env ?? preset?.api_key_env;
-  const key = keyEnv ? process.env[keyEnv] : undefined;
+  const keyEnv = ov.api_key_env;
+  const key = keyEnv ? process.env[keyEnv] : findKey(ov.provider)?.value;
   if (!baseURL || !key) return getAi(); // 設定が不完全なら安全に env 側へ
   const fast = ov.fast ?? GOOGLE_DEFAULT_FAST;
   const rich = ov.rich ?? fast;
@@ -114,6 +138,49 @@ export async function getAiRuntime(): Promise<AiConfig> {
     modelFast: fast,
     modelRich: rich,
     modelRichPremium: ov.rich_premium ?? rich,
+  };
+}
+
+/**
+ * 機能ごとの AI を解決する。
+ *
+ * 優先順位: app_config.features[feature] → app_config の provider/model →
+ * 環境変数(getAi)。"provider:model" 形式ならそのプロバイダへ丸ごと切り替える。
+ * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
+ */
+export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
+  const base = await getAiRuntime();
+  const ov = await getAiModelOverride();
+  const spec = ov?.features?.[feature];
+  if (!spec) return base;
+
+  const [maybeProvider, ...rest] = spec.split(":");
+  const model = rest.length > 0 ? rest.join(":") : spec;
+  const providerId = rest.length > 0 ? maybeProvider : null;
+
+  if (!providerId) {
+    // モデル名だけ: 現在のプロバイダのまま、モデルだけ差し替える。
+    return { ...base, modelFast: model, modelRich: model, modelRichPremium: model };
+  }
+  const preset = PROVIDER_PRESETS[providerId];
+  const key = findKey(providerId)?.value;
+  if (!preset || !key) {
+    console.warn(`[ai] feature "${feature}" wants ${providerId} but no key — using the default provider`);
+    return base;
+  }
+  return {
+    provider: "openai-compatible",
+    gateway: createOpenAICompatible({
+      name: providerId,
+      baseURL: preset.base_url,
+      headers:
+        providerId === "anthropic"
+          ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
+          : { Authorization: `Bearer ${key}` },
+    }),
+    modelFast: model,
+    modelRich: model,
+    modelRichPremium: model,
   };
 }
 
@@ -142,6 +209,15 @@ export async function withModelFallback<T>(
   }
 }
 
+/**
+ * キーが1つも無いときの文言。**何をどこに入れれば直るか**まで書く
+ * (以前は "Missing GEMINI_API_KEY" だけで、利用者には何も分からなかった)。
+ */
+export const MISSING_KEY_MESSAGE =
+  "AIキーが未設定です。デプロイ環境の環境変数に GEMINI_API_KEY" +
+  "(Google AI Studio のキー)を追加してください。" +
+  "OPENAI_API_KEY / ANTHROPIC_API_KEY / DEEPSEEK_API_KEY / MOONSHOT_API_KEY でも動きます。";
+
 export type AiConfig = {
   provider: "lovable" | "google" | "openai-compatible";
   gateway: ReturnType<typeof createOpenAICompatible>;
@@ -151,26 +227,74 @@ export type AiConfig = {
   modelRichPremium: string;
 };
 
+/**
+ * 各プロバイダのAPIキーを環境変数から探す。
+ *
+ * 2026-07-28の障害: 本番で `AI_PROVIDER=google` なのに `GEMINI_API_KEY` が
+ * 無く、**スキャンが丸ごと失敗**した。原因の半分は「キー名が1つに決め打ち」
+ * だったこと(Google AI Studio のキーは GOOGLE_API_KEY 等の名前で置かれる
+ * ことが多い)。ここで**よくある別名も全部見る**。
+ */
+const KEY_ALIASES: Record<string, string[]> = {
+  google: [
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GOOGLE_AI_STUDIO_API_KEY",
+    "GEMINI_KEY",
+  ],
+  openai: ["OPENAI_API_KEY"],
+  anthropic: ["ANTHROPIC_API_KEY"],
+  deepseek: ["DEEPSEEK_API_KEY"],
+  kimi: ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+  lovable: ["LOVABLE_API_KEY"],
+  "openai-compatible": ["AI_API_KEY"],
+};
+
+/** そのプロバイダのキーを見つけて返す(見つからなければ null)。 */
+export function findKey(provider: string): { env: string; value: string } | null {
+  for (const name of KEY_ALIASES[provider] ?? []) {
+    const v = process.env[name];
+    if (v && v.trim()) return { env: name, value: v.trim() };
+  }
+  return null;
+}
+
+/** どのプロバイダが今すぐ使えるか(診断パネル用)。 */
+export function availableProviders(): Array<{ id: string; key_env: string | null }> {
+  return Object.keys(KEY_ALIASES).map((id) => {
+    const found = findKey(id);
+    return { id, key_env: found?.env ?? null };
+  });
+}
+
+/**
+ * 使うプロバイダを決める。
+ * **キーが無いプロバイダは選ばない** — AI_PROVIDER の指定があっても、
+ * そのキーが無ければ使える別のプロバイダに自動で移る。
+ * 1つのキーの欠落でアプリ全体が止まらないようにするための最重要ルール。
+ */
 function detectProvider(): AiConfig["provider"] {
   const explicit = process.env.AI_PROVIDER;
-  if (explicit === "google" || explicit === "openai-compatible" || explicit === "lovable") {
-    return explicit;
+  if (explicit === "openai-compatible") {
+    if (process.env.AI_BASE_URL && findKey("openai-compatible")) return "openai-compatible";
+  } else if (explicit === "google" || explicit === "lovable") {
+    if (findKey(explicit)) return explicit;
+    console.warn(`[ai] AI_PROVIDER=${explicit} but no API key found — falling back to whatever is configured`);
   }
-  // Lovable-free by default: prefer a direct provider. Lovable is opt-in only
-  // (AI_PROVIDER=lovable), so a leftover LOVABLE_API_KEY from the old hosting
-  // never silently routes AI through the (now unsubscribed) gateway.
-  if (process.env.GEMINI_API_KEY) return "google";
-  if (process.env.AI_BASE_URL && process.env.AI_API_KEY) return "openai-compatible";
-  if (process.env.LOVABLE_API_KEY) return "lovable";
-  return "google"; // getAi() throws a clear "set GEMINI_API_KEY" if it's missing
+  // 指定が無い/指定先のキーが無い → 実際にキーがあるものを順に選ぶ。
+  if (findKey("google")) return "google";
+  if (process.env.AI_BASE_URL && findKey("openai-compatible")) return "openai-compatible";
+  if (findKey("lovable")) return "lovable";
+  return "google"; // 何も無い: getAi() が設定手順つきのエラーを投げる
 }
 
 export function getAi(): AiConfig {
   const provider = detectProvider();
 
   if (provider === "google") {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("Missing GEMINI_API_KEY (AI_PROVIDER=google)");
+    const key = findKey("google")?.value;
+    if (!key) throw new Error(MISSING_KEY_MESSAGE);
     return {
       provider,
       gateway: createOpenAICompatible({
@@ -180,17 +304,17 @@ export function getAi(): AiConfig {
       }),
       modelFast: process.env.AI_MODEL_FAST ?? GOOGLE_DEFAULT_FAST,
       modelRich: process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_RICH,
-      // 課金ユーザーは Gemini Pro(最新)。env で上書きも可能。
+      // 課金ユーザーは Gemini Pro。env で上書きも可能。
       modelRichPremium: process.env.AI_MODEL_RICH_PREMIUM ?? GOOGLE_DEFAULT_PREMIUM,
     };
   }
 
   if (provider === "openai-compatible") {
     const baseURL = process.env.AI_BASE_URL;
-    const key = process.env.AI_API_KEY;
+    const key = findKey("openai-compatible")?.value;
     const model = process.env.AI_MODEL_RICH ?? process.env.AI_MODEL_FAST;
-    if (!baseURL || !key) throw new Error("Missing AI_BASE_URL / AI_API_KEY (AI_PROVIDER=openai-compatible)");
-    if (!model) throw new Error("Set AI_MODEL_FAST / AI_MODEL_RICH for AI_PROVIDER=openai-compatible");
+    if (!baseURL || !key) throw new Error(MISSING_KEY_MESSAGE);
+    if (!model) throw new Error("AI_MODEL_FAST / AI_MODEL_RICH を設定してください(AI_PROVIDER=openai-compatible)");
     return {
       provider,
       gateway: createOpenAICompatible({
@@ -204,12 +328,8 @@ export function getAi(): AiConfig {
     };
   }
 
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) {
-    throw new Error(
-      "AIキーが設定されていません。LOVABLE_API_KEY か、AI_PROVIDER=google + GEMINI_API_KEY を .env に設定してください。",
-    );
-  }
+  const key = findKey("lovable")?.value;
+  if (!key) throw new Error(MISSING_KEY_MESSAGE);
   return {
     provider: "lovable",
     gateway: createOpenAICompatible({
