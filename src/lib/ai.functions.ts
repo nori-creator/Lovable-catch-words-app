@@ -42,12 +42,17 @@ export const suggestWords = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ai = getAi();
     await assertWithinDailyCap(context.userId, "suggest");
+    // レベルはクライアントの申告ではなく**プロフィールを正**とする
+    // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
+    const levelRule = await levelInstruction(context.userId);
+    const langRule = await explanationLanguageRule(context.userId);
 
     const prompt =
       data.targetLanguage === "zh-TW"
         ? `この画像から、台湾華語の学習対象として有用な名詞を5つ選んでください。
 - 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
-- 学習者目標レベル: ${data.levelGoal}（TOCFL）。これ以下の難易度を優先
+${levelRule}
+${langRule}
 - 画像に明確に写っているものだけ
 
 **カテゴリ分類ルール（厳守）:**
