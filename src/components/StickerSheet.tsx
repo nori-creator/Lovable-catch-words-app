@@ -18,7 +18,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 
 
 type Props = {
@@ -28,6 +28,7 @@ type Props = {
 
 export function StickerSheet({ stickerId, onClose }: Props) {
   const t = useT();
+  const uiLang = useUiLang();
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
@@ -169,6 +170,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             level: card.level,
             example_sentence: card.example_sentence,
             example_translation: card.example_translation,
+            meaning_ja: card.meaning_ja,
           },
         },
       });
@@ -248,9 +250,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
     const missingNewFields =
       !ex || (!ex.register_note && !ex.synonym_diff && !ex.word_order && !ex.study_tips);
-    if (!isEmpty && !missingNewFields) return;
-    if (enrichedRef.current.has(s.word_id)) return;
-    enrichedRef.current.add(s.word_id);
+    // #65: 表示言語を切り替えたら解説もその言語にする。
+    // extras.explain_lang が今の言語と違う(または空=旧データ)なら作り直す。
+    // 生成は言語ごとに1回だけで、以後は保存された解説をそのまま出す。
+    const wrongLanguage = !!ex && (ex.explain_lang || "ja") !== uiLang;
+    if (!isEmpty && !missingNewFields && !wrongLanguage) return;
+    // 言語を含めたキー: 表示言語を切り替えたら同じ語でももう一度作る。
+    const guardKey = `${s.word_id}:${uiLang}`;
+    if (enrichedRef.current.has(guardKey)) return;
+    enrichedRef.current.add(guardKey);
     setEnriching(true);
     (async () => {
       try {
@@ -266,6 +274,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               level: card.level,
               example_sentence: card.example_sentence,
               example_translation: card.example_translation,
+              meaning_ja: card.meaning_ja,
             },
           },
         });
@@ -275,12 +284,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         console.warn("Enrichment failed", e);
         // Let a later reopen retry instead of leaving the word details blank
         // forever (words filed fast from the dictionary start with no extras).
-        enrichedRef.current.delete(s.word_id);
+        enrichedRef.current.delete(guardKey);
       } finally {
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc]);
+  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang]);
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -329,6 +338,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             level: card.level,
             example_sentence: card.example_sentence,
             example_translation: card.example_translation,
+            meaning_ja: card.meaning_ja,
           },
         },
       });

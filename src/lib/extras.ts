@@ -82,6 +82,12 @@ export const ExtrasSchema = z.object({
   pronunciation_tips: z.string().catch(""),
   /** 台湾での一言雑学(文化・習慣・歴史・流行)+語法の注意。 */
   taiwan_note: z.string().catch(""),
+  /**
+   * この解説を**どの言語で書いたか**("ja" / "en")。
+   * 設定の表示言語を英語に変えたとき、日本語のまま残った古い解説を
+   * 自動で作り直すための目印(空=言語不明の旧データ=日本語とみなす)。
+   */
+  explain_lang: z.string().catch(""),
 });
 
 export type WordExtrasDTO = z.infer<typeof ExtrasSchema>;
@@ -100,8 +106,15 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
 /** True when an extras object carries at least one non-empty field. */
 export function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
   if (!e) return false;
-  return Object.values(e).some((v) =>
-    Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim().length > 0 : v != null,
+  // explain_lang は内容ではなく目印なので「中身がある」判定から外す。
+  return Object.entries(e).some(([k, v]) =>
+    k === "explain_lang"
+      ? false
+      : Array.isArray(v)
+        ? v.length > 0
+        : typeof v === "string"
+          ? v.trim().length > 0
+          : v != null,
   );
 }
 
