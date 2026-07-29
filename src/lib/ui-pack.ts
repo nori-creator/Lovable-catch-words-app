@@ -20,6 +20,8 @@
  * パックの見た目は pack-styles.css に**ゼロから書き起こす**。
  */
 
+import { useEffect, useState } from "react";
+
 export type PackId =
   | "origin"
   | "card"
@@ -301,6 +303,33 @@ export function setUiPack(id: PackId) {
 /** アプリ起動時に保存済みパックを適用する。 */
 export function initUiPack() {
   applyUiPack(getUiPack());
+}
+
+/**
+ * いま選ばれているレイアウト種別を返す。
+ *
+ * **album を返す間は、呼び出し側は既存のJSXをそのまま描くこと。**
+ * これが「現行を壊さない」ための約束。パック側の分岐に入るのは
+ * album 以外を選んだときだけ。
+ */
+export function useUiLayout(): LayoutId {
+  const [layout, setLayout] = useSyncExternalStoreShim();
+  return layout;
+}
+
+/**
+ * localStorage は React の外にある状態なので、購読して再描画させる。
+ * useSyncExternalStore を直接使うと SSR で初期値が食い違うため、
+ * 「サーバでは必ず album、クライアントで載せ替える」形にしている。
+ */
+function useSyncExternalStoreShim(): [LayoutId, (l: LayoutId) => void] {
+  const [layout, setLayout] = useState<LayoutId>("album");
+  useEffect(() => {
+    const read = () => setLayout(packMeta(getUiPack()).layout);
+    read();
+    return subscribeUiPack(read);
+  }, []);
+  return [layout, setLayout];
 }
 
 /** パック変更を購読する(React 側のフックから使う)。 */

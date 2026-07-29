@@ -10,6 +10,7 @@ import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEven
 import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
+import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -72,6 +73,8 @@ function DexPage() {
   }, [justCaught, navigate, captured.length]);
 
   const [view, setView] = useState<ViewMode>("gallery");
+  // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
+  const layout = useUiLayout();
   const [groupMode, setGroupMode] = useState<GroupMode>("category");
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -228,7 +231,11 @@ function DexPage() {
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 
-            {view === "gallery" ? (
+            {view === "gallery" && layout !== "album" ? (
+              // 見た目パックが選ばれているときだけ、別の並べ方で描く。
+              // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
+              <PackGallery items={items} justCaught={justCaught} onOpen={setOpenId} layout={layout} />
+            ) : view === "gallery" ? (
               // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
               // 表示される3列グリッド+下端のグラデーションに単語名。
               <div className="grid grid-cols-3 gap-2.5">
@@ -452,6 +459,62 @@ async function photoPinIcon(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * 見た目パックが選ばれているときの図鑑の並べ方。
+ *
+ * **現行(album)ではこの関数は呼ばれない。** 上の分岐で既存のJSXを
+ * そのまま通しているので、現行デザインは一切通らない経路になっている。
+ *
+ * 中身は実際に撮った写真のまま。見せ方(並べ方・枠・文字の置き方)だけを
+ * pack-styles.css 側の .pk-* が塗り替える。
+ */
+function PackGallery({
+  items,
+  justCaught,
+  onOpen,
+  layout,
+}: {
+  items: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  justCaught?: string;
+  onOpen: (id: string) => void;
+  layout: LayoutId;
+}) {
+  return (
+    <div className="pk-collection" data-layout={layout}>
+      {items.map((s) => {
+        const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_thumb_url ?? s.cutout_url ?? s.placeholder_url;
+        return (
+          <button
+            key={s.id}
+            id={`dex-cell-${s.id}`}
+            onClick={() => onOpen(s.id)}
+            className={`pk-tile text-left ${s.id === justCaught ? "ring-2 ring-amber-400" : ""}`}
+          >
+            <span className="pk-tile-media">
+              {photo ? (
+                <CachedImg
+                  src={photo}
+                  alt={`「${s.word.headword}」の写真`}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                // 写真がまだ無いときは単語そのものを見せる(段ボール絵は使わない)。
+                <span className="pk-tile-emoji">{s.word.headword.slice(0, 2)}</span>
+              )}
+              {s.encounter_count > 0 && <span className="pk-tile-badge">×{s.encounter_count}</span>}
+            </span>
+            <span className="pk-tile-body">
+              <span className="pk-tile-word">{s.word.headword}</span>
+              <span className="pk-tile-sub">{s.word.meaning_ja || s.word.reading_zhuyin}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function DexMap({
