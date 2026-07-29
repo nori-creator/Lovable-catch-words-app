@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Catchwords</string>
+    <string name="title_activity_main">Catchwords</string>
+    <string name="package_name">app.catchwords.taiwan</string>
+    <string name="custom_url_scheme">app.catchwords.taiwan</string>
+</resources>

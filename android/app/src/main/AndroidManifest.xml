@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!--
+      許可(パーミッション)= 「この機能を使わせてください」と端末に申告するもの。
+      ここに書いていない機能はアプリから触れない。
+      実際に使う瞬間に、端末が利用者へ確認ダイアログを出す。
+    -->
+
+    <!-- 通信。サーバー上のアプリを表示するので必須。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- スキャン(街の言葉を撮る)。このアプリの中心機能。 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 復習の発話チェック(話した内容を文字にする)。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!--
+      位置情報。「撮った場所」を地図に残すため。
+      COARSE(おおよそ)も併記しておくと、利用者が精度を落として許可できる。
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 「ここで撮ったこれ覚えてる?」の通知(Android 13以降は明示が必要)。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      カメラが無い端末(一部のタブレット)でもインストールできるようにする。
+      required="true" にすると、そうした端末はストアに表示されなくなる。
+    -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+</manifest>

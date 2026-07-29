@@ -1,0 +1,72 @@
+# Android のAPKを自動で作る。
+#
+# ## これが何をするものか
+# APK = Androidにアプリを入れるための1つのファイル。
+# 本来はMacやWindowsに Android Studio を入れて作るものだが、
+# この設定を置いておくと **GitHub 側のパソコンが代わりに作ってくれる**。
+# あなたは出来上がったファイルをダウンロードして友達に渡すだけでよい。
+#
+# ## 使い方
+# 1. GitHub のこのリポジトリを開く
+# 2. 上の「Actions」タブ → 左の「Android APK」を選ぶ
+# 3. 右の「Run workflow」ボタンを押す(5〜10分待つ)
+# 4. 終わったら実行結果の画面の下にある「Artifacts」から
+#    catchwords-debug-apk をダウンロード
+# 5. 解凍して出てくる .apk を友達に送る
+#    (友達側は「提供元不明のアプリ」を一度だけ許可する必要がある)
+#
+# ## 注意
+# ここで作るのは「デバッグ版」= 動作確認用。ストアに出すときは
+# 署名(あなたのものだと証明する電子印)を付けた「リリース版」が要る。
+# その手順は docs/design/13-launch-roadmap.md に書く。
+
+name: Android APK
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "capacitor.config.ts"
+      - ".github/workflows/android-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # Android のビルドには Java が要る。
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: 依存パッケージを入れる
+        run: npm ci
+
+      - name: Webアプリをビルドする
+        run: npm run build
+
+      # ビルドした画面ファイルを Android プロジェクト側へ写す。
+      - name: Capacitor を同期する
+        run: npx cap sync android
+
+      - name: APK を作る
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: APK を成果物として上げる
+        uses: actions/upload-artifact@v4
+        with:
+          name: catchwords-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
