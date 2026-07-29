@@ -29,7 +29,7 @@
 .pk-app {
   --pk-bg: #ffffff;
   --pk-fg: #0b0d12;
-  --pk-dim: #6b7280;
+  --pk-dim: #565d6b;
   --pk-surface: #f5f6f8;
   --pk-line: rgba(0, 0, 0, 0.08);
   --pk-accent: #1d6ef5;
@@ -216,8 +216,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
-  padding: 0 18px;
+  /* 44px は指で確実に押せる最小寸法。全パックで下回っていた。 */
+  min-height: 44px;
+  padding: 0 20px;
   border: 0;
   border-radius: 999px;
   background: var(--pk-accent);
@@ -264,6 +265,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  /* タブも44px。アイコン+文字で36pxしかなく、指で外しやすかった。 */
+  min-height: 44px;
   gap: 4px;
   font-size: 10px;
   font-weight: 500;
@@ -591,10 +595,10 @@
 .pk-app[data-ui-pack="sticker"] {
   --pk-bg: #fff7e8;
   --pk-fg: #4a2f1e;
-  --pk-dim: #a5806a;
+  --pk-dim: #7a5342;
   --pk-surface: #ffffff;
   --pk-line: rgba(180, 130, 90, 0.28);
-  --pk-accent: #ff6b9d;
+  --pk-accent: #c9316a;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 16px;
   --pk-gap: 12px;
@@ -628,7 +632,7 @@
 }
 
 [data-ui-pack="sticker"] .pk-btn {
-  box-shadow: 0 4px 0 #d94f7d;
+  box-shadow: 0 4px 0 #96214d;
   font-family: var(--pk-font-display);
   font-weight: 800;
 }
@@ -808,7 +812,7 @@
 .pk-app[data-ui-pack="museum"] {
   --pk-bg: #f7f6f3;
   --pk-fg: #232323;
-  --pk-dim: #8a857c;
+  --pk-dim: #66625a;
   --pk-surface: #ffffff;
   --pk-line: rgba(0, 0, 0, 0.1);
   --pk-accent: #2b2b2b;
@@ -870,10 +874,10 @@
 .pk-app[data-ui-pack="artspace"] {
   --pk-bg: #f2f0eb;
   --pk-fg: #111111;
-  --pk-dim: #6d6a63;
+  --pk-dim: #55524c;
   --pk-surface: #ffffff;
   --pk-line: #111111;
-  --pk-accent: #ff3b18;
+  --pk-accent: #c62409;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 0px;
   --pk-gap: 14px;
@@ -928,10 +932,10 @@
 .pk-app[data-ui-pack="photofeed"] {
   --pk-bg: #ffffff;
   --pk-fg: #16181d;
-  --pk-dim: #8e8e93;
+  --pk-dim: #6a6a70;
   --pk-surface: #fafafa;
   --pk-line: #dbdbdb;
-  --pk-accent: #e1306c;
+  --pk-accent: #c31f57;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 0px;
   --pk-gap: 2px;
@@ -990,7 +994,7 @@
 
 [data-ui-pack="photofeed"] .pk-btn {
   border-radius: 8px;
-  background: #0095f6;
+  background: #0b6fd0;
   font-weight: 600;
 }
 
@@ -1107,7 +1111,7 @@
 
 [data-ui-pack="vfeed"] .pk-btn {
   border-radius: 6px;
-  background: #fe2c55;
+  background: #c9173a;
   color: #fff;
 }
 
@@ -1124,7 +1128,7 @@
   --pk-dim: #aaaaaa;
   --pk-surface: #1c1c1c;
   --pk-line: rgba(255, 255, 255, 0.13);
-  --pk-accent: #ff0033;
+  --pk-accent: #ff3355;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 10px;
   --pk-shadow: none;
@@ -1149,14 +1153,14 @@
 [data-ui-pack="library"] .pk-tile-word { font-size: 12px; white-space: normal; }
 [data-ui-pack="library"] .pk-tile-sub { font-size: 10px; }
 
-[data-ui-pack="library"] .pk-btn { border-radius: 999px; }
+[data-ui-pack="library"] .pk-btn { border-radius: 999px; background: #b8001f; }
 
 /* === Timeline — 高密度の1列 ============================================= */
 [data-ui-pack="timeline"] .pk-app,
 .pk-app[data-ui-pack="timeline"] {
   --pk-bg: #000000;
   --pk-fg: #e7e9ea;
-  --pk-dim: #71767b;
+  --pk-dim: #8b9198;
   --pk-surface: #16181c;
   --pk-line: #2f3336;
   --pk-accent: #1d9bf0;
@@ -1178,17 +1182,17 @@
   letter-spacing: 0.02em;
 }
 
-[data-ui-pack="timeline"] .pk-btn { font-weight: 700; }
+[data-ui-pack="timeline"] .pk-btn { font-weight: 700; background: #1272b8; }
 
 /* === Social Wall — 角丸カードが積まれる ================================= */
 [data-ui-pack="wall"] .pk-app,
 .pk-app[data-ui-pack="wall"] {
   --pk-bg: #f0f2f5;
   --pk-fg: #050505;
-  --pk-dim: #65676b;
+  --pk-dim: #5b5d61;
   --pk-surface: #ffffff;
   --pk-line: #ced0d4;
-  --pk-accent: #1877f2;
+  --pk-accent: #1461c9;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 10px;
   --pk-gap: 10px;
@@ -1224,10 +1228,10 @@
 .pk-app[data-ui-pack="streaming"] {
   --pk-bg: #141414;
   --pk-fg: #ffffff;
-  --pk-dim: #b3b3b3;
+  --pk-dim: #b8b8b8;
   --pk-surface: #1f1f1f;
   --pk-line: rgba(255, 255, 255, 0.14);
-  --pk-accent: #e50914;
+  --pk-accent: #f6323d;
   --pk-on-accent: #ffffff;
   --pk-tile-radius: 4px;
   --pk-gap: 6px;
@@ -1269,7 +1273,7 @@
 [data-ui-pack="streaming"] .pk-tile-word { font-size: 11px; }
 [data-ui-pack="streaming"] .pk-tile-sub { font-size: 9px; }
 
-[data-ui-pack="streaming"] .pk-btn { border-radius: 4px; font-weight: 700; }
+[data-ui-pack="streaming"] .pk-btn { border-radius: 4px; font-weight: 700; background: #b3060f; }
 
 [data-ui-pack="streaming"] .pk-nav { background: #141414; }
 
@@ -1278,7 +1282,7 @@
 .pk-app[data-ui-pack="darkroom"] {
   --pk-bg: #140f11;
   --pk-fg: #f0d9d2;
-  --pk-dim: #a8776c;
+  --pk-dim: #b98a7e;
   --pk-surface: #241a1d;
   --pk-line: rgba(224, 86, 63, 0.3);
   --pk-accent: #e0563f;
@@ -1320,7 +1324,7 @@
   color: #3b2c26;
 }
 [data-ui-pack="darkroom"] .pk-tile-word { font-size: 13px; color: #2f231e; }
-[data-ui-pack="darkroom"] .pk-tile-sub { color: #7a655b; font-size: 9px; }
+[data-ui-pack="darkroom"] .pk-tile-sub { color: #63504a; font-size: 10px; }
 
 [data-ui-pack="darkroom"] .pk-btn { border-radius: 2px; }
 
