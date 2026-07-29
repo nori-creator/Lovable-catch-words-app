@@ -153,7 +153,11 @@ export const generateCard = createServerFn({ method: "POST" })
     // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
     // 設定の母語から具体的な干渉項目を流し込む。
     const l1 = await l1Rule(context.userId, "pronunciation");
-    const learnerL1 = (await getLearnerL1(context.userId)).speakerJa;
+    // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
+    // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
+    const l1Gram = await l1Rule(context.userId, "wordorder");
+    const l1Info = await getLearnerL1(context.userId);
+    const learnerL1 = l1Info.speakerJa;
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -188,6 +192,8 @@ pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
 - usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"O"}]。よく使う動詞・量詞・定番チャンクを優先。
+  **${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先して選ぶ**。該当する型があれば ja の説明に「母語だとこう言いたくなるが中国語ではこの順」と一言添える。
+${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
 - examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
@@ -281,7 +287,9 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       category_key: normalizeCategory(resolvedHead, card.category_key),
       // どの言語で書いた解説かを刻む。表示言語を切り替えたときに
       // 古い言語のカードだけを作り直せる(#65)。
-      extras: { ...card.extras, explain_lang: explainLang },
+      // あわせて**どの母語向けに書いたか**も刻む。発音のコツと語順の説明は
+      // 母語ごとに中身が変わるので、母語を変えたら作り直す必要がある。
+      extras: { ...card.extras, explain_lang: explainLang, explain_l1: l1Info.code },
     };
   });
 
@@ -318,20 +326,25 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
     const langRule = await explanationLanguageRule(context.userId);
+    // 説明文の言語名。以前ここが「日本語」固定で、英語設定と矛盾していた。
+    const explainLang = await getExplanationLanguage(context.userId);
+    const NL = explainLang === "en" ? "英語" : "日本語";
+    // フレーズの返し方も母語で崩れ方が違う(語順・助詞・丁寧さの出し方)。
+    const l1Gram = await l1Rule(context.userId, "wordorder");
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
-        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n` +
+        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n${l1Gram}\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
         `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
         `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
         `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
         `- pinyin: 拼音\n` +
-        `- meaning_ja: 日本語の意味(簡潔に)\n` +
-        `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、日本語)\n` +
-        `- common_situation: 最もよくある場面(1文、日本語)\n` +
-        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: 日本語訳}。` +
+        `- meaning_ja: 意味(簡潔に、${NL}で)\n` +
+        `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、${NL})\n` +
+        `- common_situation: 最もよくある場面(1文、${NL})\n` +
+        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: ${NL}訳}。` +
         `例:「請稍等」→「好、謝謝」\n` +
         `形式: {"reading_zhuyin":"","pinyin":"","meaning_ja":"","usage_note":"","common_situation":"","replies":[{"zh":"","ja":""}]}`,
     });
@@ -405,6 +418,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     const regenLang = await getExplanationLanguage(userId);
     const NL = regenLang === "en" ? "英語" : "日本語";
     const l1Pron = await l1Rule(userId, "pronunciation");
+    // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
+    // 一括生成(generateCard)と同じ観点になるようにする。
+    const l1Gram = await l1Rule(userId, "wordorder");
     const learnerL1 = (await getLearnerL1(userId)).speakerJa;
     const head = word.headword as string;
     const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
@@ -452,7 +468,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z.array(z.object({
             parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),

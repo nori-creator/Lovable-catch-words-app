@@ -59,6 +59,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     staleTime: 60_000,
   });
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
+  // 母語。発音のコツと語順の説明はこれで中身が変わるので、
+  // 変えたら解説を作り直す(下の useEffect)。
+  const nativeLang =
+    (profile as { native_language?: string } | null | undefined)?.native_language || "ja";
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
@@ -303,9 +307,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // extras.explain_lang が今の言語と違う(または空=旧データ)なら作り直す。
     // 生成は言語ごとに1回だけで、以後は保存された解説をそのまま出す。
     const wrongLanguage = !!ex && (ex.explain_lang || "ja") !== uiLang;
-    if (!isEmpty && !missingNewFields && !wrongLanguage) return;
-    // 言語を含めたキー: 表示言語を切り替えたら同じ語でももう一度作る。
-    const guardKey = `${s.word_id}:${uiLang}`;
+    // 母語を変えたときも作り直す。日本語話者向けに書いた「有気音の区別が無い」
+    // という発音のコツは、韓国語話者にはそのまま当てはまらない。
+    const wrongL1 = !!ex && (ex.explain_l1 || "ja") !== nativeLang;
+    if (!isEmpty && !missingNewFields && !wrongLanguage && !wrongL1) return;
+    // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
+    const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
     enrichedRef.current.add(guardKey);
     setEnriching(true);
@@ -338,7 +345,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang]);
+  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang]);
 
   // reset flip when sticker changes
   useEffect(() => {

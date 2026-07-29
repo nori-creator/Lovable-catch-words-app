@@ -526,20 +526,20 @@ export async function getLearnerL1(userId: string): Promise<import("./l1").L1Inf
  * 抽象的に「母語に配慮して」と書くとモデルの解釈が揺れるので、
  * 音韻・文法の干渉項目を具体的に書き下して渡す。
  */
-export async function l1Rule(userId: string, kind: "pronunciation" | "grammar" | "both" = "both"): Promise<string> {
-  const info = await getLearnerL1(userId);
-  const parts = [`学習者の母語は${info.labelJa}(${info.speakerJa})。`];
-  if (kind === "pronunciation" || kind === "both") {
-    parts.push(`【${info.labelJa}話者の発音のつまずき】${info.pronunciation}`);
-  }
-  if (kind === "grammar" || kind === "both") {
-    parts.push(`【${info.labelJa}話者の文法のつまずき】${info.grammar}`);
-  }
-  parts.push(
-    `**この学習者に当てはまる項目だけ**を選んで具体的に書く。当てはまらない項目は書かない。` +
-    `母語が有利に働く点があれば「ここは得意なので活かせる」と伝える。`,
-  );
-  return parts.join("\n");
+export async function l1Rule(
+  userId: string,
+  kind: import("./l1").L1RuleKind = "both",
+): Promise<string> {
+  const [info, { formatL1Rule }] = await Promise.all([getLearnerL1(userId), import("./l1")]);
+  return formatL1Rule(info, kind);
+}
+
+/**
+ * その学習者の母語コード。extras に「どの母語向けに書いた解説か」を
+ * 記録して、母語を変えたときに作り直せるようにするために使う。
+ */
+export async function getLearnerL1Code(userId: string): Promise<string> {
+  return (await getLearnerL1(userId)).code;
 }
 
 /** プロンプトに差し込む「解説の言語」指示。 */

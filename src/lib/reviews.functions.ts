@@ -11,6 +11,7 @@ import {
   explanationLanguageRule,
   getExplanationLanguage,
   l1Rule,
+  getLearnerL1Code,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -943,10 +944,13 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const w = row.words;
     const captionSeed = row.caption?.trim() || null;
 
-    // キャッシュは**表示言語ごと**に分ける(英語設定なら英語の足場を出す)。
-    // 言語を切り替えたときに日本語のヒントが残るのを防ぐ。
+    // キャッシュは**表示言語 × 母語**ごとに分ける。
+    // 表示言語: 英語設定なら英語の足場を出す(日本語のヒントが残るのを防ぐ)。
+    // 母語: grammar のヒントが母語の弱点に合わせて変わるので、母語を
+    // 切り替えたら別の足場になる。v4 で母語を鍵に加えた。
     const lang = await getExplanationLanguage(userId);
-    const cacheKey = `speaking_scaffold_v3_${lang}`;
+    const l1Code = await getLearnerL1Code(userId);
+    const cacheKey = `speaking_scaffold_v4_${lang}_${l1Code}`;
     const cached = (w.extras as Record<string, unknown> | null)?.[cacheKey];
     const cachedParsed = cached
       ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
@@ -958,6 +962,9 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const ai = await getAiFor("review");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
+    // 足場の "grammar" ヒントは、その母語話者が実際に崩す所を突くほど効く。
+    // 英語話者には「時間・場所は動詞の前」、日本語話者には「了は過去形ではない」。
+    const l1Order = await l1Rule(userId, "wordorder");
     const plan =
       parseBranchPlan(row.branch_plan) ??
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
@@ -977,7 +984,9 @@ ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : 
   - kind は次のどれか:
     "chunk" =「${w.headword}」とよく一緒に使う動詞・量詞のコロケーション(例「喝一杯◯◯」)
     "phrase" = スロット付きの型・言い回し(例「我要用◯◯…」)
-    "grammar" = 文法・語法のポイント(例「用+道具+動詞」)
+    "grammar" = 文法・語法のポイント(例「用+道具+動詞」)。
+      **この学習者の母語で実際に崩れる所**を優先して選ぶ:
+${l1Order}
   - zh は繁体字。ja はその訳・使いどころを1行で(解説言語で)。
   - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。pos は台湾の詞類表の
     役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)
