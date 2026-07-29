@@ -6,6 +6,7 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { useT } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 
 type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; labelKey: string; icon: typeof Home };
 
@@ -56,6 +57,10 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+
+      {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
+          設定でONにした人だけ動く(既定はOFF)。 */}
+      <PlaceMemoryWatcher />
 
       {/* Bottom tab bar — a floating translucent material (§12: .app-sheet gives
           the glass, a bright top edge, and an upward shadow because it's a large

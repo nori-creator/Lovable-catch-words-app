@@ -16,6 +16,11 @@ import { useT, setUiLang } from "@/lib/i18n";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
+import {
+  isPlaceReminderEnabled,
+  setPlaceReminderEnabled,
+  requestNotificationPermission,
+} from "@/lib/place-reminder";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
@@ -192,6 +197,7 @@ function SettingsPage() {
             </div>
           </div>
           <VideoRecordingToggle />
+          <PlaceReminderToggle />
         </div>
 
 
@@ -417,6 +423,48 @@ function VideoRecordingToggle() {
         hint={t("settings.videoHint")}
         value={video}
         onChange={toggle}
+      />
+    </div>
+  );
+}
+
+/**
+ * 場所による思い出しのスイッチ。
+ *
+ * 既定はOFF。位置情報は**本人が明示的にONにしたときだけ**取りに行く。
+ * ONにした瞬間に通知の許可も求める(後から別の画面で聞かれるより分かりやすい)。
+ * 許可されなければスイッチは自動でOFFに戻す — 「ONなのに鳴らない」が
+ * 一番わかりにくい壊れ方なので、状態が嘘をつかないようにする。
+ */
+function PlaceReminderToggle() {
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setOn(isPlaceReminderEnabled());
+  }, []);
+  async function toggle(val: boolean) {
+    if (!val) {
+      setOn(false);
+      setPlaceReminderEnabled(false);
+      return;
+    }
+    setBusy(true);
+    const ok = await requestNotificationPermission();
+    setBusy(false);
+    setOn(ok);
+    setPlaceReminderEnabled(ok);
+  }
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <ToggleRow
+        label="場所で思い出す"
+        hint={
+          busy
+            ? "許可を確認しています…"
+            : "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。"
+        }
+        value={on}
+        onChange={(v) => void toggle(v)}
       />
     </div>
   );
