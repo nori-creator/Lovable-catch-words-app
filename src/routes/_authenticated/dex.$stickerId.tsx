@@ -74,15 +74,13 @@ function StickerDetailPage() {
                 ) : s.cutout_url ? (
                   <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
                 ) : s.placeholder_url ? (
+                  // ネット画像。仮扱いせず普通の絵として見せる(#67)。
                   <>
                     <img
                       src={s.placeholder_url}
-                      alt={`「${s.word.headword}」の仮画像`}
-                      className="absolute inset-0 h-full w-full object-cover opacity-70 grayscale"
+                      alt={`「${s.word.headword}」の画像`}
+                      className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
-                    <span className="absolute left-3 top-3 rounded-full bg-foreground/70 px-2.5 py-1 text-[11px] font-semibold text-background">
-                      👻 仮の画像 — 実物に出会って完成させよう
-                    </span>
                     {s.placeholder_credit?.name && (
                       <a
                         href={s.placeholder_credit.link}
@@ -96,7 +94,9 @@ function StickerDetailPage() {
                     )}
                   </>
                 ) : (
-                  <span className="text-7xl">{s.word.silhouette_emoji ?? "📦"}</span>
+                  <span className="px-4 text-center text-3xl font-semibold text-muted-foreground">
+                    {s.word.headword}
+                  </span>
                 )}
                 {s.selfie_url && (
                   <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">

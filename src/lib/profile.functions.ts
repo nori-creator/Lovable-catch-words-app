@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { L1_ORDER } from "@/lib/l1";
 
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -22,7 +23,12 @@ export const getMyProfile = createServerFn({ method: "GET" })
 const UpdateInput = z.object({
   display_name: z.string().min(1).max(60).optional(),
   avatar_url: z.string().url().nullable().optional(),
-  native_language: z.string().optional(),
+  /**
+   * 母語。L1_ORDER にある12言語のみ。以前は自由文字列で、綴りを間違えても
+   * 保存でき、読み側が黙って日本語にフォールバックしていた(=間違った母語
+   * 向けの発音のコツが出るのに気づけない)。ここで弾く。
+   */
+  native_language: z.enum(L1_ORDER).optional(),
   ui_language: z.string().optional(),
   target_language: z.string().optional(),
   level_goal: z.string().optional(),

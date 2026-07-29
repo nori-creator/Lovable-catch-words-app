@@ -10,11 +10,15 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+// 見た目パック。すべてのセレクタが [data-ui-pack] の下にあるので、
+// 現行(origin)では属性が付かず1つも当たらない = 現行デザインは不変。
+import packCss from "../pack-styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { initUiTheme } from "@/lib/ui-theme";
+import { initUiPack } from "@/lib/ui-pack";
 
 function NotFoundComponent() {
   return (
@@ -103,6 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "stylesheet", href: packCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -159,9 +164,10 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
-  // 開発者が選んだUIテーマ(CSS変数)を最初の描画直後に適用する。
+  // 開発者が選んだUIテーマ(CSS変数)と見た目パックを最初の描画直後に適用する。
   useEffect(() => {
     initUiTheme();
+    initUiPack();
   }, []);
 
   useEffect(() => {

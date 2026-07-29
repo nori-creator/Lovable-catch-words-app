@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAi, logUsage } from "./ai-provider.server";
+import { assertWithinDailyCap, getAi, getAiFor, logUsage } from "./ai-provider.server";
 
 /**
  * Scan-First MVP §3.2 — one AI call combines object detection + OCR and returns
@@ -109,7 +109,7 @@ export const detectScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DetectInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("scan");
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "scan_detect");
     const { levelInstruction, explanationLanguageRule } = await import("./ai-provider.server");
@@ -205,7 +205,7 @@ export const detectParts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DetectPartsInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "scan_parts");
     const imageInput = data.imageBase64.startsWith("data:")
       ? data.imageBase64

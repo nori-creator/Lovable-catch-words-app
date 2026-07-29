@@ -13,7 +13,9 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
+import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
+import { ThemeLabButton } from "@/components/ThemeLab";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
@@ -135,10 +137,16 @@ function SettingsPage() {
             <PhoneticRow />
             <div>
               <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
+              {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
+                  変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
               <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
-                <option value="ja">{t("settings.langJa")}</option>
-                <option value="en">{t("settings.langEn")}</option>
+                {L1_ORDER.map((code) => (
+                  <option key={code} value={code}>
+                    {uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa}
+                  </option>
+                ))}
               </select>
+              <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.nativeLangHint")}</p>
             </div>
             <div>
               <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>
@@ -453,6 +461,7 @@ function AdminOnlySection() {
       <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
         {t("settings.devOnly")}
       </p>
+      <ThemeLabButton />
       <UiThemePicker />
       <AiModelPanel />
     </div>
@@ -521,6 +530,7 @@ function AiModelPanel() {
   const [fast, setFast] = useState("");
   const [rich, setRich] = useState("");
   const [premium, setPremium] = useState("");
+  const [features, setFeatures] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -529,12 +539,13 @@ function AiModelPanel() {
     setFast(data.config.fast ?? "");
     setRich(data.config.rich ?? "");
     setPremium(data.config.rich_premium ?? "");
+    setFeatures({ ...(data.config.features ?? {}) });
   }, [data]);
 
   async function save() {
     setSaving(true);
     try {
-      await setFn({ data: { config: { provider, fast, rich, rich_premium: premium } } });
+      await setFn({ data: { config: { provider, fast, rich, rich_premium: premium, features } } });
       await qc.invalidateQueries({ queryKey: ["ai-model-config"] });
       toast.success(t("settings.aiApplied"));
     } catch (e) {
@@ -560,6 +571,30 @@ function AiModelPanel() {
         </div>
       )}
 
+      {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
+          「どのキーが実際に見えているか」を最初に出す。 */}
+      <div className="mt-2 rounded-xl border border-border p-2 text-[11px] leading-relaxed">
+        <div className="font-semibold">{t("settings.aiKeys")}</div>
+        <ul className="mt-1 space-y-0.5">
+          {(data?.presets ?? []).map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-2">
+              <span className="truncate">{p.label}</span>
+              <span className={p.key_present ? "text-emerald-600" : "text-muted-foreground"}>
+                {p.key_present
+                  ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
+                  : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.aiKeysHint")}</p>
+        {data?.keyError && (
+          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-[10px] text-destructive">
+            {data.keyError}
+          </p>
+        )}
+      </div>
+
       <div className="mt-3 space-y-2">
         <div>
           <Label className="text-xs">{t("settings.aiProvider")}</Label>
@@ -582,22 +617,39 @@ function AiModelPanel() {
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiFast")}</Label>
-          <Input value={fast} onChange={(e) => setFast(e.target.value)} placeholder="gemini-flash-latest" />
+          <Input value={fast} onChange={(e) => setFast(e.target.value)} placeholder="gemini-2.5-flash" />
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiRich")}</Label>
-          <Input value={rich} onChange={(e) => setRich(e.target.value)} placeholder="gemini-flash-latest" />
+          <Input value={rich} onChange={(e) => setRich(e.target.value)} placeholder="gemini-2.5-flash" />
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiPremium")}</Label>
-          <Input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="gemini-pro-latest" />
+          <Input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="gemini-2.5-pro" />
         </div>
+
+        {/* βテスト〜ローンチで「機能ごとに別のAI」を試せるようにする。 */}
+        <div className="rounded-xl border border-border p-2">
+          <div className="text-xs font-semibold">{t("settings.aiPerFeature")}</div>
+          <div className="mt-2 space-y-2">
+            {(data?.features ?? []).map((f) => (
+              <div key={f.id}>
+                <Label className="text-[11px]">{t(`settings.aiFeature.${f.id}`)}</Label>
+                <Input
+                  value={features[f.id] ?? ""}
+                  onChange={(e) => setFeatures((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                  placeholder={t("settings.aiEnvDefault")}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
+        </div>
+
         <Button className="w-full" onClick={save} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.aiApply")}
         </Button>
-        <p className="text-[10px] text-muted-foreground">
-          モデル名に <code>-latest</code> を使うと、提供元が新しい安定版を出すたび自動で最新に乗り換わります。
-        </p>
+        <p className="text-[10px] text-muted-foreground">{t("settings.aiModelNote")}</p>
       </div>
     </details>
   );

@@ -5,9 +5,13 @@ import {
   assertWithinDailyCap,
   generateStructured,
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
+  getExplanationLanguage,
+  l1Rule,
+  getLearnerL1Code,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -360,14 +364,14 @@ export async function pregenerateDistractors(
   correctMeaning: string,
   categoryKey: string | null,
 ): Promise<void> {
-  const ai = getAi();
+  const ai = await getAiFor("review");
   const accepted: string[] = [];
   let iter = 0;
   const MAX = 2;
 
   while (accepted.length < 3 && iter < MAX) {
     iter++;
-    const makerPrompt = `台湾華語の単語「${headword}」（意味: ${correctMeaning}${categoryKey ? `、カテゴリ: ${categoryKey}` : ""}）の4択クイズ用に、もっともらしいが間違っている日本語の意味を3つ作ってください。
+    const makerPrompt = `台湾華語の単語「${headword}」（意味: ${correctMeaning}${categoryKey ? `、カテゴリ: ${categoryKey}` : ""}）の4択クイズ用に、もっともらしいが間違っている意味を3つ作ってください。**正解「${correctMeaning}」と同じ言語で書く**(正解が英語なら英語、日本語なら日本語)。
 - 正解「${correctMeaning}」と同義語/言い換えは禁止
 - 文字数は正解と同程度
 - 学習者が一瞬迷う難易度（同カテゴリの別物がベスト）
@@ -819,24 +823,29 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
     const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
 
-    const ai = getAi();
+    const ai = await getAiFor("review");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
+    // 本文の「日本語で」という指示が langRule と矛盾しないよう言語名を差し替える。
+    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // 母語ごとの干渉(語順・アスペクト・発音)を添削の観点に入れる。
+    const l1 = await l1Rule(userId, "both");
     const levelGoal = await getUserLevelGoal(userId);
     const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
 ${levelRule}
+${l1}
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
 - corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
 - natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
 - used_target: 「${w.headword}」を(活用形含め)使っているか。
-- correction_note: 何をどう直したか、なぜ不自然だったかを日本語で1〜2文。
+- correction_note: 何をどう直したか、なぜ不自然だったかを${NL}で1〜2文。
 - chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
-- chunk_note: この構文の使いどころを日本語で1文。
-- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを日本語1〜2文で解説(例:「中国語は S+時間+場所+V+O の順。日本語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
-- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。日本語2〜3文。
+- chunk_note: この構文の使いどころを${NL}で1文。
+- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを${NL}1〜2文で解説。**学習者の母語と違う点**があればそこを名指しで説明する(例:「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
+- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。${NL}2〜3文。
 - model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
 - alt_answer: 別の言い方1つ(繁体字)。`;
 
@@ -876,7 +885,17 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
 // して2回目以降ゼロコスト。キャプション(その人の気持ち・思い出)はスティッカー
 // 固有なので毎回そのまま「言いたいことの種」として添える。
 
-export type SpeakingPart = { zh: string; ja: string };
+/** ヒント1つの種類。表示の見出し(チャンク/フレーズ/文法)に使う。 */
+export type SpeakingPartKind = "chunk" | "phrase" | "grammar";
+
+export type SpeakingPart = {
+  zh: string;
+  /** 母語訳・説明。UI言語(日本語/英語)で書かれる。 */
+  ja: string;
+  kind: SpeakingPartKind;
+  /** 品詞色分け用の分解(単語詳細のチャンクと同じ体系)。空なら zh をそのまま出す。 */
+  chunks: { text: string; pos: string }[];
+};
 export type SpeakingScaffold = {
   question_zh: string;
   question_ja: string;
@@ -887,7 +906,19 @@ export type SpeakingScaffold = {
 const ScaffoldSchema = z.object({
   question_zh: z.string(),
   question_ja: z.string(),
-  parts: z.array(z.object({ zh: z.string(), ja: z.string() })).min(2).max(5),
+  parts: z
+    .array(
+      z.object({
+        zh: z.string(),
+        ja: z.string(),
+        kind: z.enum(["chunk", "phrase", "grammar"]).catch("chunk"),
+        chunks: z
+          .array(z.object({ text: z.string(), pos: z.string().catch("") }))
+          .catch([]),
+      }),
+    )
+    .min(2)
+    .max(5),
 });
 
 const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
@@ -913,8 +944,14 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const w = row.words;
     const captionSeed = row.caption?.trim() || null;
 
-    // キャッシュヒット: 単語レベルの足場は使い回す(キャプションだけ差し替え)。
-    const cached = (w.extras as { speaking_scaffold_v2?: unknown } | null)?.speaking_scaffold_v2;
+    // キャッシュは**表示言語 × 母語**ごとに分ける。
+    // 表示言語: 英語設定なら英語の足場を出す(日本語のヒントが残るのを防ぐ)。
+    // 母語: grammar のヒントが母語の弱点に合わせて変わるので、母語を
+    // 切り替えたら別の足場になる。v4 で母語を鍵に加えた。
+    const lang = await getExplanationLanguage(userId);
+    const l1Code = await getLearnerL1Code(userId);
+    const cacheKey = `speaking_scaffold_v4_${lang}_${l1Code}`;
+    const cached = (w.extras as Record<string, unknown> | null)?.[cacheKey];
     const cachedParsed = cached
       ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
       : null;
@@ -922,9 +959,12 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
       return { ...cachedParsed, caption_seed: captionSeed };
     }
 
-    const ai = getAi();
+    const ai = await getAiFor("review");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
+    // 足場の "grammar" ヒントは、その母語話者が実際に崩す所を突くほど効く。
+    // 英語話者には「時間・場所は動詞の前」、日本語話者には「了は過去形ではない」。
+    const l1Order = await l1Rule(userId, "wordorder");
     const plan =
       parseBranchPlan(row.branch_plan) ??
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
@@ -937,17 +977,27 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
 次を厳密なJSONで返してください:
 - question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
-- question_ja: その質問の日本語訳
-- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja}。
+- question_ja: その質問の訳(解説言語で)
+- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja, kind, chunks}。
   **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
-  出すのは (a) スロット付きの型(例:「我要用◯◯…」)、(b)「${w.headword}」とよく使う動詞・量詞のコロケーション1つ、(c) 使えそうな文法・語法ポイント(例:「用+道具+動詞」) のうち2〜3個。
-  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。`,
+  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。
+  - kind は次のどれか:
+    "chunk" =「${w.headword}」とよく一緒に使う動詞・量詞のコロケーション(例「喝一杯◯◯」)
+    "phrase" = スロット付きの型・言い回し(例「我要用◯◯…」)
+    "grammar" = 文法・語法のポイント(例「用+道具+動詞」)。
+      **この学習者の母語で実際に崩れる所**を優先して選ぶ:
+${l1Order}
+  - zh は繁体字。ja はその訳・使いどころを1行で(解説言語で)。
+  - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。pos は台湾の詞類表の
+    役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)
+    Conj/Prep(接続・介詞) Ptc(助詞) Det(限定詞)。◯や…のスロットは pos を "" にする。
+    chunks の text を順に繋ぐと zh に一致すること。`,
     });
 
     // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const nextExtras = { ...(w.extras ?? {}), speaking_scaffold_v2: scaffold };
+      const nextExtras = { ...(w.extras ?? {}), [cacheKey]: scaffold };
       await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
       await logUsage(supabase, userId, "speaking_feedback");
     } catch { /* キャッシュ保存の失敗は致命的でない */ }

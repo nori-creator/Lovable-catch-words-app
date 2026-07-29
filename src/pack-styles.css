@@ -1,0 +1,1578 @@
+/* ===========================================================================
+   見た目パック (2026-07-29)
+   ---------------------------------------------------------------------------
+   「全く違うアプリ」を丸ごと切り替えるためのスタイル。開発者だけが使う。
+
+   ## 現行を壊さない仕組み
+   ここのセレクタは**すべて [data-ui-pack="..."] の下にある**。
+   origin パックでは <html> にこの属性を付けないので、
+   このファイルのルールは1つも当たらない = 現行デザインは1行も変わらない。
+
+   ## 既存クラスは一切使わない
+   styles.css の .cab-slot / .polaroid / .crystal-in / .washi-tape などは
+   過去にボツになったデザインなので参照しない。ここは全部書き下ろし。
+
+   ## .pk-* という新しい名前空間
+   全パックが**同じマークアップ**を描き替えるようにしてある。
+   同じ中身が別のアプリに見えることが比較の要なので、
+   マークアップを共通にして CSS だけで差をつける。
+   これらのクラス名は新規なので、既存画面には一切影響しない。
+
+   セレクタは [data-ui-pack] を子孫セレクタで使うため、
+   <html> に付けても、プレビュー用の <div> に付けても同じように効く。
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. 土台 — 全パック共通の骨格。各パックがこの上を塗り替える。
+   --------------------------------------------------------------------------- */
+
+.pk-app {
+  --pk-bg: #ffffff;
+  --pk-fg: #0b0d12;
+  --pk-dim: #565d6b;
+  --pk-surface: #f5f6f8;
+  --pk-line: rgba(0, 0, 0, 0.08);
+  --pk-accent: #1d6ef5;
+  --pk-on-accent: #ffffff;
+  --pk-radius: 14px;
+  --pk-tile-radius: 14px;
+  --pk-gap: 12px;
+  --pk-pad: 16px;
+
+  /* 影は**2枚重ね**にする。密着した硬い影 + 広く柔らかい影。
+     1枚だけの影は「板が浮いている」ようにしか見えず、これが
+     安っぽさの主因のひとつだった。 */
+  --pk-e1: 0 1px 2px rgba(11, 13, 18, 0.06), 0 2px 8px rgba(11, 13, 18, 0.06);
+  --pk-e2: 0 2px 4px rgba(11, 13, 18, 0.08), 0 8px 24px rgba(11, 13, 18, 0.1);
+  --pk-shadow: var(--pk-e1);
+
+  /* 文字の段は「大きさ・太さ・色」の3つを同時に変える。
+     大きさだけ変えても階層は立たない。 */
+  --pk-font: "Inter", system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  --pk-font-display: var(--pk-font);
+  --pk-t-title: 20px;
+  --pk-t-title-w: 700;
+  --pk-t-card: 15px;
+  --pk-t-card-w: 600;
+  --pk-t-sub: 12px;
+  --pk-display-weight: 700;
+  --pk-display-spacing: -0.022em;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pk-bg);
+  color: var(--pk-fg);
+  font-family: var(--pk-font);
+  -webkit-font-smoothing: antialiased;
+  isolation: isolate;
+}
+
+.pk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: var(--pk-pad);
+  padding-bottom: 8px;
+  flex: none;
+}
+
+.pk-title {
+  font-family: var(--pk-font-display);
+  font-weight: var(--pk-t-title-w);
+  letter-spacing: var(--pk-display-spacing);
+  font-size: var(--pk-t-title);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.pk-sub {
+  font-size: var(--pk-t-sub);
+  color: var(--pk-dim);
+  margin: 3px 0 0;
+  line-height: 1.3;
+}
+
+.pk-body {
+  flex: 1;
+  min-height: 0;
+  /* 実機と同じく縦にスクロールする。ここを hidden + 高さ100% にすると
+     件数が増えたときにグリッドの行が圧縮され、絵も文字も潰れる
+     (実際に9件にした瞬間そうなった)。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 var(--pk-pad);
+}
+
+/* 収集物の入れ物。既定は3列グリッド。パックごとに並べ方を変える。 */
+.pk-collection {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--pk-gap);
+  align-content: start;
+}
+
+/* グリッド項目が行の高さまで引き伸ばされると、中の比率が狂う。 */
+.pk-collection > .pk-tile {
+  align-self: start;
+}
+
+/* 1件のカード。全パックでこの中身は同じ。 */
+.pk-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--pk-tile-radius);
+  background: var(--pk-surface);
+  box-shadow: var(--pk-shadow);
+  min-width: 0;
+}
+
+/**
+ * 絵の面。
+ *
+ * ここが安っぽさの最大の原因だった: 平らな一色の上に絵文字を1つ置くと、
+ * 「素材が用意できていないプロトタイプ」に見える。低品質な画像は
+ * チープに見える代表的な兆候そのもの。
+ *
+ * 実アプリではここに**ユーザーが撮った写真**が入る。プレビューでは
+ * それに代えて、ピントの外れた写真のような**多層のメッシュグラデ**を敷く。
+ * 語ごとに色相(--pk-h)をずらすので、並べたときに写真が並んで見える。
+ */
+.pk-tile-media {
+  --pk-h: 210;
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background:
+    radial-gradient(38% 44% at 26% 24%, hsl(var(--pk-h) 78% 74% / 0.95) 0%, transparent 62%),
+    radial-gradient(42% 40% at 78% 70%, hsl(calc(var(--pk-h) + 42) 70% 60% / 0.9) 0%, transparent 58%),
+    radial-gradient(60% 60% at 60% 10%, hsl(calc(var(--pk-h) - 28) 60% 66% / 0.55) 0%, transparent 70%),
+    linear-gradient(152deg, hsl(var(--pk-h) 46% 44%) 0%, hsl(calc(var(--pk-h) + 30) 52% 26%) 100%);
+}
+
+/* 色相を1件ずつずらす。同じ絵が9枚並ぶより、色の違う9枚が並ぶほうが
+   「自分の写真が貯まっている」実感に近い。 */
+.pk-tile:nth-child(9n + 1) .pk-tile-media { --pk-h: 28; }
+.pk-tile:nth-child(9n + 2) .pk-tile-media { --pk-h: 206; }
+.pk-tile:nth-child(9n + 3) .pk-tile-media { --pk-h: 320; }
+.pk-tile:nth-child(9n + 4) .pk-tile-media { --pk-h: 8; }
+.pk-tile:nth-child(9n + 5) .pk-tile-media { --pk-h: 168; }
+.pk-tile:nth-child(9n + 6) .pk-tile-media { --pk-h: 48; }
+.pk-tile:nth-child(9n + 7) .pk-tile-media { --pk-h: 262; }
+.pk-tile:nth-child(9n + 8) .pk-tile-media { --pk-h: 190; }
+.pk-tile:nth-child(9n + 9) .pk-tile-media { --pk-h: 96; }
+
+.pk-tile-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 被写体。落ち影を付けて面から浮かせる — 貼り付けた絵文字に見せない。 */
+.pk-tile-emoji {
+  font-size: clamp(26px, 22cqw, 46px);
+  line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+.pk-tile-media { container-type: inline-size; }
+
+.pk-tile-body {
+  padding: 9px 10px 11px;
+  min-width: 0;
+}
+
+.pk-tile-word {
+  font-family: var(--pk-font-display);
+  font-weight: var(--pk-t-card-w);
+  letter-spacing: var(--pk-display-spacing);
+  font-size: var(--pk-t-card);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pk-tile-sub {
+  font-size: var(--pk-t-sub);
+  font-weight: 400;
+  color: var(--pk-dim);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 主ボタン。押し込みの深さもパックで変える。 */
+.pk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 44px は指で確実に押せる最小寸法。全パックで下回っていた。 */
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pk-accent);
+  color: var(--pk-on-accent);
+  font-family: var(--pk-font);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), filter 140ms ease;
+}
+
+.pk-btn:active {
+  transform: scale(0.96);
+}
+
+.pk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--pk-surface);
+  border: 1px solid var(--pk-line);
+  font-size: 11px;
+  color: var(--pk-dim);
+  white-space: nowrap;
+}
+
+/* 下部のタブバー。 */
+.pk-nav {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in oklab, var(--pk-bg) 82%, transparent);
+  border-top: 1px solid var(--pk-line);
+  backdrop-filter: blur(12px);
+}
+
+.pk-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* タブも44px。アイコン+文字で36pxしかなく、指で外しやすかった。 */
+  min-height: 44px;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--pk-dim);
+  line-height: 1;
+}
+
+/* 線のアイコン。四角い点を置いていた頃はここが一番チープに見えた。 */
+.pk-nav-item svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.72;
+}
+
+.pk-nav-item[data-active="true"] {
+  color: var(--pk-accent);
+  font-weight: 600;
+}
+
+.pk-nav-item[data-active="true"] svg {
+  opacity: 1;
+  stroke-width: 2.1;
+}
+
+/* ---------------------------------------------------------------------------
+   2. レイアウトの型 — 並べ方そのものが変わるもの。
+   --------------------------------------------------------------------------- */
+
+/* アルバム(現行) — プレビューで「現行」を正しく代表させるための型。
+   比較の基準が実物と違うと「今より良いか」を判断できないので、
+   ホームの見え方(傾いた印画紙が台紙に貼られている)に寄せる。
+   ここは data-ui-pack を付けない = origin にも当たる。
+   **実アプリの home.tsx / styles.css には一切触っていない。** */
+.pk-collection[data-layout="album"] {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px 12px;
+  padding-top: 4px;
+}
+.pk-collection[data-layout="album"] .pk-tile {
+  background: #fff;
+  border-radius: 2px;
+  padding: 5px 5px 20px;
+  box-shadow: 0 2px 6px rgba(60, 50, 40, 0.22);
+  transform: rotate(-3deg);
+}
+.pk-collection[data-layout="album"] .pk-tile:nth-child(2n) { transform: rotate(2.5deg); }
+.pk-collection[data-layout="album"] .pk-tile:nth-child(3n) { transform: rotate(-1deg); }
+.pk-collection[data-layout="album"] .pk-tile-media {
+  border-radius: 1px;
+  filter: sepia(0.1) saturate(0.94);
+}
+.pk-collection[data-layout="album"] .pk-tile-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  padding: 0 4px;
+  text-align: center;
+}
+.pk-collection[data-layout="album"] .pk-tile-word {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a4038;
+}
+.pk-collection[data-layout="album"] .pk-tile-sub { display: none; }
+
+/* カード1枚が主役。大きく見せる。 */
+[data-ui-pack] .pk-collection[data-layout="card"] {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+[data-ui-pack] .pk-collection[data-layout="card"] .pk-tile-media {
+  aspect-ratio: 3 / 4;
+}
+
+/* 棚。横長のセルが縦に積まれる。 */
+[data-ui-pack] .pk-collection[data-layout="shelf"] {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+[data-ui-pack] .pk-collection[data-layout="shelf"] .pk-tile {
+  flex-direction: row;
+  align-items: center;
+}
+[data-ui-pack] .pk-collection[data-layout="shelf"] .pk-tile-media {
+  width: 62px;
+  aspect-ratio: 1 / 1;
+  flex: none;
+}
+[data-ui-pack] .pk-collection[data-layout="shelf"] .pk-tile-body {
+  flex: 1;
+  padding: 8px 12px;
+}
+
+/* 隙間の無い正方グリッド。 */
+[data-ui-pack] .pk-collection[data-layout="grid"] {
+  gap: var(--pk-gap);
+}
+
+/* 縦全画面。1件が画面いっぱい。ここだけは高さを埋める。 */
+[data-ui-pack] .pk-body:has(.pk-collection[data-layout="feed-v"]),
+[data-ui-pack] .pk-body:has(.pk-collection[data-layout="map"]) {
+  overflow: hidden;
+  padding: 0;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] {
+  height: 100%;
+  margin: 0 var(--pk-pad) var(--pk-pad);
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] {
+  display: block;
+  overflow: hidden;
+  height: 100%;
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] > .pk-tile,
+[data-ui-pack] .pk-collection[data-layout="map"] > .pk-tile {
+  align-self: stretch;
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] .pk-tile {
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] .pk-tile ~ .pk-tile {
+  display: none;
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] .pk-tile-media {
+  aspect-ratio: auto;
+  height: 100%;
+}
+[data-ui-pack] .pk-collection[data-layout="feed-v"] .pk-tile-body {
+  position: absolute;
+  left: 0;
+  right: 46px;
+  bottom: 10px;
+  padding: 12px;
+}
+
+/* 横スクロールの棚。**複数行に折り返して「棚が積まれている」形にする**。
+   1行だけだと下が空いて未完成に見える(実際にそう見えた)。
+   行の右端がわざと切れることで「横に続く」ことが伝わる。 */
+[data-ui-pack] .pk-collection[data-layout="rail"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 8px;
+  overflow: hidden;
+  align-items: flex-start;
+  align-content: start;
+}
+[data-ui-pack] .pk-collection[data-layout="rail"] .pk-tile {
+  flex: 0 0 calc((100% - 16px) / 2.35);
+}
+[data-ui-pack] .pk-collection[data-layout="rail"] .pk-tile-media {
+  aspect-ratio: 16 / 9;
+}
+
+/* 時系列の1列。高密度。 */
+[data-ui-pack] .pk-collection[data-layout="timeline"] {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+[data-ui-pack] .pk-collection[data-layout="timeline"] .pk-tile {
+  flex-direction: row;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-bottom: 1px solid var(--pk-line);
+  padding: 10px 0;
+}
+[data-ui-pack] .pk-collection[data-layout="timeline"] .pk-tile-media {
+  width: 40px;
+  border-radius: 999px;
+  flex: none;
+}
+[data-ui-pack] .pk-collection[data-layout="timeline"] .pk-tile-body {
+  padding: 0;
+  flex: 1;
+}
+
+/* 地図が主役。 */
+[data-ui-pack] .pk-collection[data-layout="map"] {
+  position: relative;
+  display: block;
+  border-radius: var(--pk-radius);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(255, 255, 255, 0.08), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 26px),
+    var(--pk-surface);
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile {
+  position: absolute;
+  width: 66px;
+  background: transparent;
+  box-shadow: none;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(1) { left: 12%; top: 16%; }
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(2) { left: 54%; top: 38%; }
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(3) { left: 24%; top: 62%; }
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(n + 4) { display: none; }
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile-media {
+  border-radius: 999px;
+  border: 2px solid var(--pk-accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--pk-accent) 25%, transparent);
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile-body {
+  text-align: center;
+  padding: 5px 0 0;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile-sub {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   3. パックごとの見た目 — ここからが本体。全部書き下ろし。
+   --------------------------------------------------------------------------- */
+
+/* === Trading Card — 傾けると箔が走り、レア度で枠が変わる ================== */
+[data-ui-pack="card"] .pk-app,
+.pk-app[data-ui-pack="card"] {
+  --pk-bg: #0d1220;
+  --pk-fg: #f4f7ff;
+  --pk-dim: #93a4c8;
+  --pk-surface: #1a2340;
+  --pk-line: rgba(255, 214, 110, 0.28);
+  --pk-accent: #ffd45e;
+  --pk-on-accent: #241a00;
+  --pk-tile-radius: 12px;
+  --pk-font-display: "Bungee", "Inter", sans-serif;
+  --pk-display-weight: 400;
+  --pk-display-spacing: 0.01em;
+  --pk-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 212, 94, 0.16), transparent 60%),
+    var(--pk-bg);
+}
+
+[data-ui-pack="card"] .pk-tile {
+  border: 2px solid var(--pk-line);
+  background: linear-gradient(160deg, #24305a 0%, #151d36 55%, #1d2547 100%);
+  padding: 4px;
+}
+
+/* 箔。**絵の面の中だけ**に閉じ込める。
+   カード全体に敷くと文字の上に乗って読めなくなる(実際に一度そうなった)。 */
+[data-ui-pack="card"] .pk-tile-media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from 210deg,
+    transparent 0deg,
+    rgba(120, 255, 214, 0.3) 38deg,
+    rgba(255, 214, 94, 0.28) 76deg,
+    rgba(255, 120, 200, 0.26) 116deg,
+    transparent 165deg,
+    transparent 360deg
+  );
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+/* 絵は箔より前に置く。 */
+[data-ui-pack="card"] .pk-tile-emoji,
+[data-ui-pack="card"] .pk-tile-media img {
+  position: relative;
+  z-index: 2;
+}
+
+[data-ui-pack="card"] .pk-tile-media {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 214, 110, 0.35);
+  background: radial-gradient(circle at 50% 42%, #24305a, #0b1020 72%);
+}
+
+/* レア度。3枚目だけ枠を強くして「当たり」を作る。 */
+[data-ui-pack="card"] .pk-tile:nth-child(3n) {
+  border-color: #7fffd4;
+  box-shadow: 0 0 16px rgba(127, 255, 212, 0.35), var(--pk-shadow);
+}
+
+/* 銘板。箔の下に潜らないよう、面を持たせて前に出す。 */
+[data-ui-pack="card"] .pk-tile-body {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  margin-top: 4px;
+  padding: 6px 4px 5px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #1b2444, #101835);
+  border: 1px solid rgba(255, 214, 110, 0.28);
+}
+
+[data-ui-pack="card"] .pk-tile-word {
+  color: #ffe9a8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+[data-ui-pack="card"] .pk-tile-sub {
+  color: #9fb0d8;
+}
+
+[data-ui-pack="card"] .pk-btn {
+  border-radius: 8px;
+  box-shadow: 0 4px 0 #a8791f;
+  font-family: var(--pk-font-display);
+  font-weight: 400;
+}
+[data-ui-pack="card"] .pk-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #a8791f;
+}
+
+/* === Sticker Book — 台紙に貼る。空き枠が埋まる快感 ======================= */
+[data-ui-pack="sticker"] .pk-app,
+.pk-app[data-ui-pack="sticker"] {
+  --pk-bg: #fff7e8;
+  --pk-fg: #4a2f1e;
+  --pk-dim: #7a5342;
+  --pk-surface: #ffffff;
+  --pk-line: rgba(180, 130, 90, 0.28);
+  --pk-accent: #c9316a;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 16px;
+  --pk-gap: 12px;
+  --pk-font-display: "Baloo 2", "Inter", sans-serif;
+  --pk-display-weight: 800;
+  --pk-display-spacing: 0;
+  --pk-shadow: none;
+  /* 台紙の方眼 */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(180, 130, 90, 0.09) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(90deg, rgba(180, 130, 90, 0.09) 0 1px, transparent 1px 22px);
+}
+
+/* シールの白フチ + 段差の影。 */
+[data-ui-pack="sticker"] .pk-tile {
+  border: 4px solid #fff;
+  box-shadow: 0 3px 0 rgba(150, 100, 60, 0.2), 0 5px 12px rgba(150, 100, 60, 0.18);
+  transform: rotate(-2deg);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+[data-ui-pack="sticker"] .pk-tile:nth-child(2n) { transform: rotate(2.5deg); }
+[data-ui-pack="sticker"] .pk-tile:nth-child(3n) { transform: rotate(-0.8deg); }
+/* 貼る瞬間の潰れ。 */
+[data-ui-pack="sticker"] .pk-tile:active { transform: rotate(0deg) scale(0.94); }
+
+[data-ui-pack="sticker"] .pk-tile-media { filter: saturate(1.1) brightness(1.04); }
+
+[data-ui-pack="sticker"] .pk-tile-body {
+  text-align: center;
+  background: #fff;
+}
+
+[data-ui-pack="sticker"] .pk-btn {
+  box-shadow: 0 4px 0 #96214d;
+  font-family: var(--pk-font-display);
+  font-weight: 800;
+}
+[data-ui-pack="sticker"] .pk-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #d94f7d;
+}
+
+/* === Wine Cellar — 暗い木の棚に横たわる =================================== */
+[data-ui-pack="cellar"] .pk-app,
+.pk-app[data-ui-pack="cellar"] {
+  --pk-bg: #17100e;
+  --pk-fg: #efe2d0;
+  --pk-dim: #a68b6f;
+  --pk-surface: #241a15;
+  --pk-line: rgba(184, 137, 74, 0.3);
+  --pk-accent: #b8894a;
+  --pk-on-accent: #1a120c;
+  --pk-tile-radius: 4px;
+  --pk-gap: 8px;
+  --pk-font-display: "Cormorant Garamond", Georgia, serif;
+  --pk-display-weight: 600;
+  --pk-display-spacing: 0.02em;
+  --pk-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* 庫内灯: 上から淡く落ちる光 */
+  background:
+    linear-gradient(180deg, rgba(184, 137, 74, 0.14), transparent 38%),
+    var(--pk-bg);
+}
+
+/* 棚板。セルの下に木の横線を敷く。 */
+[data-ui-pack="cellar"] .pk-tile {
+  border: 1px solid var(--pk-line);
+  border-bottom: 3px solid #3a2a1e;
+  background: linear-gradient(90deg, #2a1e17 0%, #1e1511 100%);
+}
+
+[data-ui-pack="cellar"] .pk-tile-media {
+  border-right: 1px solid var(--pk-line);
+  filter: saturate(0.72) brightness(0.82) sepia(0.18);
+}
+
+/* 瓶の首のラベル。 */
+[data-ui-pack="cellar"] .pk-tile-word {
+  color: #f0dcc0;
+}
+[data-ui-pack="cellar"] .pk-tile-sub {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-ui-pack="cellar"] .pk-btn {
+  border-radius: 2px;
+  border: 1px solid #d8b276;
+  background: transparent;
+  color: #e8cfa4;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* === Watch Case — 起毛のケースに整列 ===================================== */
+[data-ui-pack="watch"] .pk-app,
+.pk-app[data-ui-pack="watch"] {
+  --pk-bg: #0e1526;
+  --pk-fg: #f2ecdd;
+  --pk-dim: #a99a78;
+  --pk-surface: #16203a;
+  --pk-line: rgba(201, 164, 76, 0.35);
+  --pk-accent: #c9a44c;
+  --pk-on-accent: #14100a;
+  --pk-tile-radius: 10px;
+  --pk-gap: 12px;
+  --pk-font-display: "Cormorant Garamond", Georgia, serif;
+  --pk-display-weight: 500;
+  --pk-display-spacing: 0.05em;
+  --pk-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+  /* 起毛(ベロア)の質感 */
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(201, 164, 76, 0.1), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 4px),
+    var(--pk-bg);
+}
+
+/* ケースの窪み。内側に落ちる影で「はまっている」ように見せる。 */
+[data-ui-pack="watch"] .pk-tile {
+  background: #101a30;
+  border: 1px solid var(--pk-line);
+  padding: 8px;
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* 円形の窓。 */
+[data-ui-pack="watch"] .pk-tile-media {
+  border-radius: 999px;
+  border: 2px solid var(--pk-accent);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7);
+  filter: saturate(0.8) brightness(0.88);
+}
+
+[data-ui-pack="watch"] .pk-tile-body {
+  text-align: center;
+  padding: 8px 2px 2px;
+}
+[data-ui-pack="watch"] .pk-tile-word {
+  color: #eddcb4;
+}
+[data-ui-pack="watch"] .pk-tile-sub {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 8px;
+}
+
+[data-ui-pack="watch"] .pk-btn {
+  border-radius: 3px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+/* === Garage — 黒とクローム、スポットライトの展示台 ======================== */
+[data-ui-pack="garage"] .pk-app,
+.pk-app[data-ui-pack="garage"] {
+  --pk-bg: #0b0b0d;
+  --pk-fg: #eeeef2;
+  --pk-dim: #8b8b96;
+  --pk-surface: #17171b;
+  --pk-line: rgba(255, 255, 255, 0.14);
+  --pk-accent: #d8d8dc;
+  --pk-on-accent: #101014;
+  --pk-tile-radius: 6px;
+  --pk-font-display: "Chakra Petch", "Inter", sans-serif;
+  --pk-display-weight: 600;
+  --pk-display-spacing: 0.04em;
+  --pk-shadow: 0 10px 26px rgba(0, 0, 0, 0.75);
+  /* 上からのスポットライト */
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255, 255, 255, 0.13), transparent 70%),
+    var(--pk-bg);
+}
+
+[data-ui-pack="garage"] .pk-tile {
+  background: linear-gradient(180deg, #1c1c21 0%, #0e0e11 100%);
+  border: 1px solid var(--pk-line);
+}
+
+/* 床の反射。 */
+[data-ui-pack="garage"] .pk-tile::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -1px;
+  height: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent);
+  filter: blur(5px);
+  pointer-events: none;
+}
+
+[data-ui-pack="garage"] .pk-tile-media { filter: saturate(0.35) contrast(1.15) brightness(0.9); }
+
+[data-ui-pack="garage"] .pk-tile-word {
+  text-transform: uppercase;
+}
+
+[data-ui-pack="garage"] .pk-btn {
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-family: var(--pk-font-display);
+}
+
+/* === Museum — 白壁に額装。UIが消える ==================================== */
+[data-ui-pack="museum"] .pk-app,
+.pk-app[data-ui-pack="museum"] {
+  --pk-bg: #f7f6f3;
+  --pk-fg: #232323;
+  --pk-dim: #66625a;
+  --pk-surface: #ffffff;
+  --pk-line: rgba(0, 0, 0, 0.1);
+  --pk-accent: #2b2b2b;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 0px;
+  --pk-gap: 18px;
+  --pk-pad: 20px;
+  --pk-font-display: "Cormorant Garamond", Georgia, serif;
+  --pk-display-weight: 400;
+  --pk-display-spacing: 0.01em;
+  --pk-shadow: none;
+}
+
+/* 額縁。細い立体枠 + 壁の落ち影。 */
+[data-ui-pack="museum"] .pk-tile {
+  background: transparent;
+  padding: 0;
+}
+[data-ui-pack="museum"] .pk-tile-media {
+  border: 6px solid #fff;
+  outline: 1px solid rgba(0, 0, 0, 0.16);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+  filter: saturate(0.62) brightness(1.02);
+}
+
+/* 作品脇のキャプション板。 */
+[data-ui-pack="museum"] .pk-tile-body {
+  padding: 9px 0 0;
+  text-align: left;
+}
+[data-ui-pack="museum"] .pk-tile-word {
+  font-style: italic;
+  font-size: 14px;
+}
+[data-ui-pack="museum"] .pk-tile-sub {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-ui-pack="museum"] .pk-btn {
+  border-radius: 0;
+  background: transparent;
+  color: var(--pk-fg);
+  border: 1px solid var(--pk-fg);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+[data-ui-pack="museum"] .pk-nav {
+  background: transparent;
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+/* === Gallery Modern — 極太文字と原色1点、意図的な非対称 ================== */
+[data-ui-pack="artspace"] .pk-app,
+.pk-app[data-ui-pack="artspace"] {
+  --pk-bg: #f2f0eb;
+  --pk-fg: #111111;
+  --pk-dim: #55524c;
+  --pk-surface: #ffffff;
+  --pk-line: #111111;
+  --pk-accent: #c62409;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 0px;
+  --pk-gap: 14px;
+  --pk-font-display: "Archivo Black", "Inter", sans-serif;
+  --pk-display-weight: 400;
+  --pk-display-spacing: -0.03em;
+  --pk-shadow: none;
+}
+
+[data-ui-pack="artspace"] .pk-title {
+  font-size: 22px;
+  text-transform: uppercase;
+  line-height: 0.92;
+}
+
+/* わざと段差をつけて非対称にする。 */
+[data-ui-pack="artspace"] .pk-tile {
+  background: transparent;
+  border: 2px solid var(--pk-line);
+}
+[data-ui-pack="artspace"] .pk-tile:nth-child(2n) {
+  margin-top: 22px;
+}
+[data-ui-pack="artspace"] .pk-tile:nth-child(3n) {
+  background: var(--pk-accent);
+  color: #fff;
+}
+[data-ui-pack="artspace"] .pk-tile:nth-child(3n) .pk-tile-sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-ui-pack="artspace"] .pk-tile-media { filter: grayscale(1) contrast(1.22); }
+[data-ui-pack="artspace"] .pk-tile:nth-child(3n) .pk-tile-media {
+  filter: grayscale(1) contrast(1.3) invert(1);
+}
+
+[data-ui-pack="artspace"] .pk-tile-word {
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+[data-ui-pack="artspace"] .pk-btn {
+  border-radius: 0;
+  text-transform: uppercase;
+  font-family: var(--pk-font-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+/* === Photo Feed — 隙間の無い正方グリッド + 丸いリング =================== */
+[data-ui-pack="photofeed"] .pk-app,
+.pk-app[data-ui-pack="photofeed"] {
+  --pk-bg: #ffffff;
+  --pk-fg: #16181d;
+  --pk-dim: #6a6a70;
+  --pk-surface: #fafafa;
+  --pk-line: #dbdbdb;
+  --pk-accent: #c31f57;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 0px;
+  --pk-gap: 2px;
+  --pk-pad: 12px;
+  --pk-shadow: none;
+}
+
+[data-ui-pack="photofeed"] .pk-tile {
+  background: transparent;
+}
+[data-ui-pack="photofeed"] .pk-tile-media { filter: saturate(1.06); }
+/* 隙間なしのグリッドでは文字を写真に載せる。 */
+[data-ui-pack="photofeed"] .pk-tile-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 6px 5px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.62));
+  color: #fff;
+}
+[data-ui-pack="photofeed"] .pk-tile-word {
+  font-size: 12px;
+  font-weight: 600;
+}
+[data-ui-pack="photofeed"] .pk-tile-sub {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 9px;
+}
+
+/* 上部のストーリー風リング列。 */
+[data-ui-pack="photofeed"] .pk-rings {
+  display: flex;
+  gap: 10px;
+  padding: 0 var(--pk-pad) 10px;
+  flex: none;
+}
+[data-ui-pack="photofeed"] .pk-ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  flex: none;
+  background: conic-gradient(from 0deg, #f9ce34, #ee2a7b, #6228d7, #f9ce34);
+  padding: 2.5px;
+}
+[data-ui-pack="photofeed"] .pk-ring > span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 17px;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+[data-ui-pack="photofeed"] .pk-btn {
+  border-radius: 8px;
+  background: #0b6fd0;
+  font-weight: 600;
+}
+
+/* 他パックではリング列を出さない。 */
+.pk-rings { display: none; }
+
+/* === AR Field — 地図が全面。単語が地面から湧く ========================== */
+[data-ui-pack="arfield"] .pk-app,
+.pk-app[data-ui-pack="arfield"] {
+  --pk-bg: #0f2a3d;
+  --pk-fg: #eafcff;
+  --pk-dim: #8fc3d4;
+  --pk-surface: #16394f;
+  --pk-line: rgba(79, 209, 197, 0.3);
+  --pk-accent: #4fd1c5;
+  --pk-on-accent: #06212c;
+  --pk-tile-radius: 12px;
+  --pk-font-display: "Baloo 2", "Inter", sans-serif;
+  --pk-display-weight: 700;
+  --pk-display-spacing: 0;
+  --pk-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(79, 209, 197, 0.2), transparent 60%),
+    var(--pk-bg);
+}
+
+[data-ui-pack="arfield"] .pk-tile-word {
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* 湧き出しの波紋。 */
+[data-ui-pack="arfield"] .pk-tile::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 33%;
+  width: 74px;
+  height: 74px;
+  margin: -37px 0 0 -37px;
+  border-radius: 999px;
+  border: 2px solid var(--pk-accent);
+  opacity: 0.5;
+  animation: pk-ar-ping 2.4s ease-out infinite;
+  pointer-events: none;
+}
+[data-ui-pack="arfield"] .pk-tile:nth-child(2)::before { animation-delay: 0.8s; }
+[data-ui-pack="arfield"] .pk-tile:nth-child(3)::before { animation-delay: 1.6s; }
+
+@keyframes pk-ar-ping {
+  0% { transform: scale(0.6); opacity: 0.65; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+[data-ui-pack="arfield"] .pk-btn {
+  font-family: var(--pk-font-display);
+  box-shadow: 0 4px 0 #2a9d92;
+}
+[data-ui-pack="arfield"] .pk-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #2a9d92;
+}
+
+/* === Vertical Feed — 1語=1画面 ========================================== */
+[data-ui-pack="vfeed"] .pk-app,
+.pk-app[data-ui-pack="vfeed"] {
+  --pk-bg: #000000;
+  --pk-fg: #ffffff;
+  --pk-dim: rgba(255, 255, 255, 0.7);
+  --pk-surface: #151515;
+  --pk-line: rgba(255, 255, 255, 0.16);
+  --pk-accent: #25f4ee;
+  --pk-on-accent: #000000;
+  --pk-tile-radius: 0px;
+  --pk-pad: 0px;
+  --pk-shadow: none;
+}
+
+[data-ui-pack="vfeed"] .pk-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
+}
+[data-ui-pack="vfeed"] .pk-title { color: #fff; }
+
+[data-ui-pack="vfeed"] .pk-tile-media { filter: saturate(1.08) contrast(1.05); }
+[data-ui-pack="vfeed"] .pk-tile-emoji { font-size: 76px; }
+
+[data-ui-pack="vfeed"] .pk-tile-body {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+[data-ui-pack="vfeed"] .pk-tile-word { font-size: 22px; }
+[data-ui-pack="vfeed"] .pk-tile-sub { font-size: 12px; color: rgba(255, 255, 255, 0.82); }
+
+/* 右端の縦アクション列。 */
+[data-ui-pack="vfeed"] .pk-tile::after {
+  content: "♡  💬  ↗";
+  position: absolute;
+  right: 8px;
+  bottom: 24px;
+  width: 30px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 2;
+  white-space: pre-wrap;
+  word-break: break-all;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+[data-ui-pack="vfeed"] .pk-btn {
+  border-radius: 6px;
+  background: #c9173a;
+  color: #fff;
+}
+
+[data-ui-pack="vfeed"] .pk-nav {
+  background: #000;
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+/* === Video Library — 16:9サムネが横に流れる ============================= */
+[data-ui-pack="library"] .pk-app,
+.pk-app[data-ui-pack="library"] {
+  --pk-bg: #0f0f0f;
+  --pk-fg: #f1f1f1;
+  --pk-dim: #aaaaaa;
+  --pk-surface: #1c1c1c;
+  --pk-line: rgba(255, 255, 255, 0.13);
+  --pk-accent: #ff3355;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 10px;
+  --pk-shadow: none;
+}
+
+[data-ui-pack="library"] .pk-tile { background: transparent; }
+[data-ui-pack="library"] .pk-tile-media { border-radius: 10px; }
+/* 続きから戻れる進捗バー。 */
+[data-ui-pack="library"] .pk-tile-media::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 42%;
+  background: var(--pk-accent);
+}
+[data-ui-pack="library"] .pk-tile:nth-child(2) .pk-tile-media::after { width: 71%; }
+[data-ui-pack="library"] .pk-tile:nth-child(3) .pk-tile-media::after { width: 18%; }
+
+[data-ui-pack="library"] .pk-tile-body { padding: 7px 2px 0; }
+[data-ui-pack="library"] .pk-tile-word { font-size: 12px; white-space: normal; }
+[data-ui-pack="library"] .pk-tile-sub { font-size: 10px; }
+
+[data-ui-pack="library"] .pk-btn { border-radius: 999px; background: #b8001f; }
+
+/* === Timeline — 高密度の1列 ============================================= */
+[data-ui-pack="timeline"] .pk-app,
+.pk-app[data-ui-pack="timeline"] {
+  --pk-bg: #000000;
+  --pk-fg: #e7e9ea;
+  --pk-dim: #8b9198;
+  --pk-surface: #16181c;
+  --pk-line: #2f3336;
+  --pk-accent: #1d9bf0;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 0px;
+  --pk-shadow: none;
+}
+
+[data-ui-pack="timeline"] .pk-tile-media { filter: saturate(0.95); }
+[data-ui-pack="timeline"] .pk-tile-word { font-size: 14px; }
+[data-ui-pack="timeline"] .pk-tile-sub { font-size: 12px; white-space: normal; color: var(--pk-dim); }
+/* 反応の行。 */
+[data-ui-pack="timeline"] .pk-tile-body::after {
+  content: "💬 3    ↺ 1    ♡ 12";
+  display: block;
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--pk-dim);
+  letter-spacing: 0.02em;
+}
+
+[data-ui-pack="timeline"] .pk-btn { font-weight: 700; background: #1272b8; }
+
+/* === Social Wall — 角丸カードが積まれる ================================= */
+[data-ui-pack="wall"] .pk-app,
+.pk-app[data-ui-pack="wall"] {
+  --pk-bg: #f0f2f5;
+  --pk-fg: #050505;
+  --pk-dim: #5b5d61;
+  --pk-surface: #ffffff;
+  --pk-line: #ced0d4;
+  --pk-accent: #1461c9;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 10px;
+  --pk-gap: 10px;
+  --pk-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+[data-ui-pack="wall"] .pk-collection[data-layout="timeline"] .pk-tile {
+  background: var(--pk-surface);
+  border-radius: var(--pk-tile-radius);
+  box-shadow: var(--pk-shadow);
+  border-bottom: 0;
+  padding: 10px;
+  margin-bottom: var(--pk-gap);
+}
+[data-ui-pack="wall"] .pk-tile-media { filter: saturate(1); }
+[data-ui-pack="wall"] .pk-tile-word { font-size: 14px; font-weight: 600; }
+[data-ui-pack="wall"] .pk-tile-sub { white-space: normal; font-size: 12px; }
+/* 反応ボタンの行。 */
+[data-ui-pack="wall"] .pk-tile-body::after {
+  content: "👍 いいね     💬 コメント     ↗ シェア";
+  display: block;
+  margin-top: 9px;
+  padding-top: 7px;
+  border-top: 1px solid var(--pk-line);
+  font-size: 10px;
+  color: var(--pk-dim);
+}
+
+[data-ui-pack="wall"] .pk-btn { border-radius: 6px; font-weight: 700; }
+
+/* === Streaming — 巨大ヒーロー + 横スクロールの行 ======================== */
+[data-ui-pack="streaming"] .pk-app,
+.pk-app[data-ui-pack="streaming"] {
+  --pk-bg: #141414;
+  --pk-fg: #ffffff;
+  --pk-dim: #b8b8b8;
+  --pk-surface: #1f1f1f;
+  --pk-line: rgba(255, 255, 255, 0.14);
+  --pk-accent: #f6323d;
+  --pk-on-accent: #ffffff;
+  --pk-tile-radius: 4px;
+  --pk-gap: 6px;
+  --pk-shadow: none;
+}
+
+/* 上部の全幅ヒーロー。 */
+[data-ui-pack="streaming"] .pk-hero {
+  position: relative;
+  height: 128px;
+  margin: 0 0 12px;
+  display: grid;
+  place-items: end start;
+  padding: 12px 14px;
+  background:
+    linear-gradient(0deg, #141414 4%, transparent 62%),
+    linear-gradient(120deg, #5a1016, #23111a 60%, #141414);
+}
+[data-ui-pack="streaming"] .pk-hero-word {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+.pk-hero { display: none; }
+
+[data-ui-pack="streaming"] .pk-tile { background: transparent; }
+/* ポスターは縦長なので、1行に3枚半だけ覗く幅にする。 */
+[data-ui-pack="streaming"] .pk-collection[data-layout="rail"] .pk-tile {
+  flex: 0 0 calc((100% - 12px) / 3.4);
+}
+/* rail の 16:9 指定より詳細度を上げる。配信サービスのポスターは縦長。 */
+[data-ui-pack="streaming"] .pk-collection[data-layout="rail"] .pk-tile-media {
+  aspect-ratio: 2 / 3;
+  border-radius: 4px;
+  filter: saturate(1.05) contrast(1.06);
+}
+[data-ui-pack="streaming"] .pk-tile-body { padding: 6px 1px 0; }
+[data-ui-pack="streaming"] .pk-tile-word { font-size: 11px; }
+[data-ui-pack="streaming"] .pk-tile-sub { font-size: 9px; }
+
+[data-ui-pack="streaming"] .pk-btn { border-radius: 4px; font-weight: 700; background: #b3060f; }
+
+[data-ui-pack="streaming"] .pk-nav { background: #141414; }
+
+/* === Darkroom — 赤灯だけの暗所。写真が現像されて現れる ================== */
+[data-ui-pack="darkroom"] .pk-app,
+.pk-app[data-ui-pack="darkroom"] {
+  --pk-bg: #140f11;
+  --pk-fg: #f0d9d2;
+  --pk-dim: #b98a7e;
+  --pk-surface: #241a1d;
+  --pk-line: rgba(224, 86, 63, 0.3);
+  --pk-accent: #e0563f;
+  --pk-on-accent: #1a0e0b;
+  --pk-tile-radius: 2px;
+  --pk-gap: 14px;
+  --pk-shadow: none;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(224, 86, 63, 0.16), transparent 62%),
+    var(--pk-bg);
+}
+
+/* 印画紙。白フチを残し、下だけ広く取る(写真プリントの比率)。 */
+[data-ui-pack="darkroom"] .pk-tile {
+  background: #efe6df;
+  padding: 7px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.7);
+}
+/* 印画紙の上では像が明るく出る。暗いままだと空の額縁に見えるので、
+   現像の終点は「はっきり見える」状態にする。 */
+[data-ui-pack="darkroom"] .pk-tile-media {
+  background: #ded2c8;
+  animation: pk-develop 2.6s ease-out both;
+}
+@keyframes pk-develop {
+  0% { filter: brightness(0.25) contrast(1.9) sepia(0.6); }
+  100% { filter: brightness(1) contrast(1.04) sepia(0.14); }
+}
+[data-ui-pack="darkroom"] .pk-tile:nth-child(2) .pk-tile-media { animation-delay: 0.4s; }
+[data-ui-pack="darkroom"] .pk-tile:nth-child(3) .pk-tile-media { animation-delay: 0.8s; }
+[data-ui-pack="darkroom"] .pk-tile:nth-child(4) .pk-tile-media { animation-delay: 1.2s; }
+[data-ui-pack="darkroom"] .pk-tile:nth-child(5) .pk-tile-media { animation-delay: 1.6s; }
+[data-ui-pack="darkroom"] .pk-tile:nth-child(6) .pk-tile-media { animation-delay: 2s; }
+
+/* 印画紙の下の余白に手書きの整理番号のように置く。紙の上なので濃い字。 */
+[data-ui-pack="darkroom"] .pk-tile-body {
+  text-align: center;
+  padding: 7px 4px 2px;
+  color: #3b2c26;
+}
+[data-ui-pack="darkroom"] .pk-tile-word { font-size: 13px; color: #2f231e; }
+[data-ui-pack="darkroom"] .pk-tile-sub { color: #63504a; font-size: 10px; }
+
+[data-ui-pack="darkroom"] .pk-btn { border-radius: 2px; }
+
+/* ---------------------------------------------------------------------------
+   4. アクセシビリティ — 全パックで守る。
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-pack] .pk-tile::before,
+  [data-ui-pack] .pk-tile-media {
+    animation: none !important;
+  }
+  [data-ui-pack] .pk-tile,
+  [data-ui-pack] .pk-btn {
+    transition: none !important;
+  }
+  /* 現像は「見えない」と困るので、完成状態で止める。 */
+  [data-ui-pack="darkroom"] .pk-tile-media {
+    filter: brightness(1) contrast(1.05) sepia(0.12);
+  }
+}
+
+@media (prefers-contrast: more) {
+  [data-ui-pack] .pk-app {
+    --pk-dim: var(--pk-fg);
+    --pk-line: currentColor;
+  }
+  [data-ui-pack] .pk-tile::before {
+    opacity: 0.25;
+  }
+}
+
+/* ===========================================================================
+   5. 実アプリへの適用 — パックを選んだら**アプリ本体の色と形も変わる**。
+   ---------------------------------------------------------------------------
+   ここまでのルールは .pk-* (プレビュー用の名前空間)にしか効かない。
+   それだけだと「これにする」を押してもプレビューが変わるだけで、
+   実際のホームや図鑑は現行のままになってしまう。
+
+   そこで styles.css が定義している**アプリ共通のCSS変数**を、
+   <html data-ui-pack="..."> の下で差し替える。コンポーネントは1つも
+   触らずに、全画面の下地・面・主色・角丸が一斉に変わる。
+
+   origin は属性が付かないので、ここも当たらない = 現行は不変。
+   =========================================================================== */
+
+:root[data-ui-pack="card"] {
+  --background: oklch(0.16 0.045 265); --foreground: oklch(0.96 0.02 90);
+  --card: oklch(0.22 0.05 265); --card-foreground: oklch(0.96 0.02 90);
+  --popover: oklch(0.22 0.05 265); --popover-foreground: oklch(0.96 0.02 90);
+  --primary: oklch(0.86 0.13 88); --primary-foreground: oklch(0.2 0.05 265);
+  --secondary: oklch(0.27 0.055 265); --secondary-foreground: oklch(0.96 0.02 90);
+  --muted: oklch(0.27 0.055 265); --muted-foreground: oklch(0.78 0.04 250);
+  --accent: oklch(0.33 0.07 265); --accent-foreground: oklch(0.96 0.02 90);
+  --border: oklch(0.86 0.13 88 / 26%); --input: oklch(0.86 0.13 88 / 30%);
+  --ring: oklch(0.86 0.13 88); --radius: 0.75rem;
+}
+:root[data-ui-pack="sticker"] {
+  --background: oklch(0.975 0.028 82); --foreground: oklch(0.33 0.05 45);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.33 0.05 45);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.72 0.17 5); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.035 80); --secondary-foreground: oklch(0.36 0.05 45);
+  --muted: oklch(0.95 0.035 80); --muted-foreground: oklch(0.58 0.05 50);
+  --accent: oklch(0.92 0.06 60); --accent-foreground: oklch(0.35 0.06 45);
+  --border: oklch(0.86 0.04 70); --input: oklch(0.9 0.04 70);
+  --ring: oklch(0.72 0.17 5); --radius: 1.25rem;
+}
+:root[data-ui-pack="cellar"] {
+  --background: oklch(0.15 0.02 45); --foreground: oklch(0.93 0.03 70);
+  --card: oklch(0.21 0.028 45); --card-foreground: oklch(0.93 0.03 70);
+  --popover: oklch(0.21 0.028 45);
+  --primary: oklch(0.68 0.09 70); --primary-foreground: oklch(0.16 0.02 45);
+  --secondary: oklch(0.25 0.03 45); --secondary-foreground: oklch(0.93 0.03 70);
+  --muted: oklch(0.25 0.03 45); --muted-foreground: oklch(0.72 0.04 70);
+  --accent: oklch(0.3 0.04 50); --accent-foreground: oklch(0.94 0.03 70);
+  --border: oklch(0.68 0.09 70 / 26%); --input: oklch(0.68 0.09 70 / 30%);
+  --ring: oklch(0.68 0.09 70); --radius: 0.25rem;
+}
+:root[data-ui-pack="watch"] {
+  --background: oklch(0.16 0.04 262); --foreground: oklch(0.94 0.03 88);
+  --card: oklch(0.21 0.045 262); --card-foreground: oklch(0.94 0.03 88);
+  --popover: oklch(0.21 0.045 262);
+  --primary: oklch(0.78 0.11 85); --primary-foreground: oklch(0.17 0.04 262);
+  --secondary: oklch(0.26 0.05 262); --secondary-foreground: oklch(0.94 0.03 88);
+  --muted: oklch(0.26 0.05 262); --muted-foreground: oklch(0.76 0.04 85);
+  --accent: oklch(0.31 0.06 262); --accent-foreground: oklch(0.95 0.03 88);
+  --border: oklch(0.78 0.11 85 / 30%); --input: oklch(0.78 0.11 85 / 32%);
+  --ring: oklch(0.78 0.11 85); --radius: 0.6rem;
+}
+:root[data-ui-pack="garage"] {
+  --background: oklch(0.12 0.003 270); --foreground: oklch(0.96 0 0);
+  --card: oklch(0.18 0.004 270); --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.18 0.004 270);
+  --primary: oklch(0.9 0.004 270); --primary-foreground: oklch(0.13 0.003 270);
+  --secondary: oklch(0.23 0.005 270); --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.23 0.005 270); --muted-foreground: oklch(0.72 0.005 270);
+  --accent: oklch(0.29 0.006 270); --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.85 0.004 270); --radius: 0.35rem;
+}
+:root[data-ui-pack="museum"] {
+  --background: oklch(0.975 0.004 80); --foreground: oklch(0.2 0.005 60);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.2 0.005 60);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.26 0.008 60); --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.006 80); --secondary-foreground: oklch(0.24 0.005 60);
+  --muted: oklch(0.94 0.006 80); --muted-foreground: oklch(0.52 0.006 70);
+  --accent: oklch(0.91 0.01 80); --accent-foreground: oklch(0.24 0.005 60);
+  --border: oklch(0.88 0.008 80); --input: oklch(0.9 0.008 80);
+  --ring: oklch(0.4 0.01 60); --radius: 0rem;
+}
+:root[data-ui-pack="artspace"] {
+  --background: oklch(0.95 0.008 85); --foreground: oklch(0.14 0 0);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.14 0 0);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.62 0.24 32); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.92 0.01 85); --secondary-foreground: oklch(0.14 0 0);
+  --muted: oklch(0.92 0.01 85); --muted-foreground: oklch(0.48 0.008 80);
+  --accent: oklch(0.88 0.02 85); --accent-foreground: oklch(0.14 0 0);
+  --border: oklch(0.14 0 0 / 85%); --input: oklch(0.14 0 0 / 60%);
+  --ring: oklch(0.62 0.24 32); --radius: 0rem;
+}
+:root[data-ui-pack="photofeed"] {
+  --background: oklch(1 0 0); --foreground: oklch(0.16 0.004 260);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.16 0.004 260);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.62 0.19 5); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0.002 260); --secondary-foreground: oklch(0.2 0.004 260);
+  --muted: oklch(0.97 0.002 260); --muted-foreground: oklch(0.6 0.006 260);
+  --accent: oklch(0.95 0.006 260); --accent-foreground: oklch(0.2 0.004 260);
+  --border: oklch(0.89 0.003 260); --input: oklch(0.92 0.003 260);
+  --ring: oklch(0.62 0.19 5); --radius: 0.5rem;
+}
+:root[data-ui-pack="arfield"] {
+  --background: oklch(0.24 0.055 235); --foreground: oklch(0.96 0.02 200);
+  --card: oklch(0.3 0.06 235); --card-foreground: oklch(0.96 0.02 200);
+  --popover: oklch(0.3 0.06 235);
+  --primary: oklch(0.79 0.13 180); --primary-foreground: oklch(0.16 0.05 235);
+  --secondary: oklch(0.34 0.06 235); --secondary-foreground: oklch(0.96 0.02 200);
+  --muted: oklch(0.34 0.06 235); --muted-foreground: oklch(0.79 0.04 205);
+  --accent: oklch(0.39 0.07 230); --accent-foreground: oklch(0.96 0.02 200);
+  --border: oklch(0.79 0.13 180 / 30%); --input: oklch(0.79 0.13 180 / 32%);
+  --ring: oklch(0.79 0.13 180); --radius: 1rem;
+}
+:root[data-ui-pack="vfeed"] {
+  --background: oklch(0 0 0); --foreground: oklch(1 0 0);
+  --card: oklch(0.16 0 0); --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.16 0 0);
+  --primary: oklch(0.84 0.16 195); --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.21 0 0); --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.21 0 0); --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.27 0 0); --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 17%); --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.84 0.16 195); --radius: 0.4rem;
+}
+:root[data-ui-pack="library"] {
+  --background: oklch(0.14 0 0); --foreground: oklch(0.96 0 0);
+  --card: oklch(0.2 0 0); --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.2 0 0);
+  --primary: oklch(0.6 0.25 25); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.25 0 0); --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.25 0 0); --muted-foreground: oklch(0.73 0 0);
+  --accent: oklch(0.3 0 0); --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 14%); --input: oklch(1 0 0 / 17%);
+  --ring: oklch(0.6 0.25 25); --radius: 0.7rem;
+}
+:root[data-ui-pack="timeline"] {
+  --background: oklch(0 0 0); --foreground: oklch(0.93 0.004 250);
+  --card: oklch(0.17 0.006 250); --card-foreground: oklch(0.93 0.004 250);
+  --popover: oklch(0.17 0.006 250);
+  --primary: oklch(0.68 0.16 245); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.22 0.008 250); --secondary-foreground: oklch(0.93 0.004 250);
+  --muted: oklch(0.22 0.008 250); --muted-foreground: oklch(0.62 0.012 250);
+  --accent: oklch(0.27 0.01 250); --accent-foreground: oklch(0.93 0.004 250);
+  --border: oklch(0.32 0.012 250); --input: oklch(0.35 0.012 250);
+  --ring: oklch(0.68 0.16 245); --radius: 1rem;
+}
+:root[data-ui-pack="wall"] {
+  --background: oklch(0.96 0.004 250); --foreground: oklch(0.13 0.004 260);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.13 0.004 260);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.56 0.21 258); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0.006 250); --secondary-foreground: oklch(0.2 0.006 260);
+  --muted: oklch(0.93 0.006 250); --muted-foreground: oklch(0.52 0.01 260);
+  --accent: oklch(0.9 0.02 255); --accent-foreground: oklch(0.2 0.02 260);
+  --border: oklch(0.87 0.006 250); --input: oklch(0.9 0.006 250);
+  --ring: oklch(0.56 0.21 258); --radius: 0.65rem;
+}
+:root[data-ui-pack="streaming"] {
+  --background: oklch(0.15 0 0); --foreground: oklch(1 0 0);
+  --card: oklch(0.2 0 0); --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.2 0 0);
+  --primary: oklch(0.55 0.24 27); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.24 0 0); --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.24 0 0); --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.29 0 0); --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.55 0.24 27); --radius: 0.4rem;
+}
+:root[data-ui-pack="darkroom"] {
+  --background: oklch(0.16 0.015 20); --foreground: oklch(0.94 0.02 30);
+  --card: oklch(0.22 0.02 20); --card-foreground: oklch(0.94 0.02 30);
+  --popover: oklch(0.22 0.02 20);
+  --primary: oklch(0.63 0.18 30); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.26 0.025 20); --secondary-foreground: oklch(0.94 0.02 30);
+  --muted: oklch(0.26 0.025 20); --muted-foreground: oklch(0.74 0.03 30);
+  --accent: oklch(0.32 0.05 25); --accent-foreground: oklch(0.95 0.02 30);
+  --border: oklch(1 0 0 / 13%); --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.63 0.18 30); --radius: 0.2rem;
+}
+
+/* 暗い下地のパックでは、現行の明るい放射グラデが浮いてしまうので消す。 */
+:root[data-ui-pack="card"] body,
+:root[data-ui-pack="cellar"] body,
+:root[data-ui-pack="watch"] body,
+:root[data-ui-pack="garage"] body,
+:root[data-ui-pack="arfield"] body,
+:root[data-ui-pack="vfeed"] body,
+:root[data-ui-pack="library"] body,
+:root[data-ui-pack="timeline"] body,
+:root[data-ui-pack="streaming"] body,
+:root[data-ui-pack="darkroom"] body {
+  background-image: none;
+}
+
+/* 再会バッジ。実画面(図鑑)で使う。 */
+.pk-tile-badge {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 3;
+  border-radius: 999px;
+  background: rgba(255, 200, 60, 0.96);
+  color: #3a2a00;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* 実画面ではボタン要素に .pk-tile が付くので、既定の見た目を打ち消す。 */
+button.pk-tile {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}

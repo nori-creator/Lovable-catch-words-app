@@ -5,9 +5,12 @@ import {
   assertWithinDailyCap,
   generateStructured,
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
+  getExplanationLanguage,
+  l1Rule,
   isProUser,
   logUsage,
 } from "./ai-provider.server";
@@ -103,7 +106,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     await assertWithinDailyCap(userId, "correction");
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
 
-    const ai = getAi();
+    const ai = await getAiFor("journal");
 
     // Roadmap B6: no full model-diary. Correction + "ネイティブならこう言う"
     // phrases + an explanation of the sentence patterns actually used.
@@ -120,18 +123,22 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const levelGoal = await getUserLevelGoal(userId);
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
+    // 本文中の「日本語で」を表示言語に合わせる(#65)。
+    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // 日記の間違い方も母語で決まる(SOVの語順、冠詞、動詞活用…)。
+    const l1 = await l1Rule(userId, "grammar");
     const corrected = await generateStructured({
       model: ai.gateway(richModel),
       schema: Schema,
       prompt:
         `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
-        `${langRule}\n${levelRule}\n` +
+        `${langRule}\n${levelRule}\n${l1}\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
         `次を出力:\n` +
         `- correction: 自然な台湾華語(繁體字)に直した完全版。意図はできるだけ尊重。\n` +
-        `- feedback_ja: どこをなぜ直したかに加え、この日記で使った(または使うべきだった)文型・語順の「型」を日本語で3〜5項目、優しく解説。\n` +
-        `- native_phrases: 学習者が言いたかった気持ちを、台湾のネイティブが実際の会話で使う自然なフレーズ・チャンクで2〜3個。各要素は zh(繁體字フレーズ)、ja(日本語訳)、note(いつ・どんな気持ちで使うか、よく一緒に使う語)。`,
+        `- feedback_ja: どこをなぜ直したかに加え、この日記で使った(または使うべきだった)文型・語順の「型」を${NL}で3〜5項目、優しく解説。\n` +
+        `- native_phrases: 学習者が言いたかった気持ちを、台湾のネイティブが実際の会話で使う自然なフレーズ・チャンクで2〜3個。各要素は zh(繁體字フレーズ)、ja(訳・${NL})、note(いつ・どんな気持ちで使うか、よく一緒に使う語)。`,
     });
 
     const baseRow = {

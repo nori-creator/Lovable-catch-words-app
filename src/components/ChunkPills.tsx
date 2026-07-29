@@ -11,10 +11,16 @@ export function ChunkPills({
   size = "md",
 }: {
   parts: ChunkPart[];
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 }) {
   if (!parts.length) return null;
-  const pad = size === "sm" ? "px-1.5 py-0.5 text-[13px]" : "px-2 py-1 text-sm";
+  // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
+  const pad =
+    size === "sm"
+      ? "px-1.5 py-0.5 text-[13px]"
+      : size === "lg"
+        ? "px-2.5 py-1.5 text-lg leading-snug tracking-wide"
+        : "px-2 py-1 text-sm";
   return (
     <div className="flex flex-wrap gap-1.5">
       {parts.map((c, i) => {
@@ -26,7 +32,9 @@ export function ChunkPills({
             title={st.label}
           >
             {c.text}
-            {c.pos && <span className="ml-1 text-[9px] opacity-60">{c.pos}</span>}
+            {c.pos && (
+              <span className={`ml-1 opacity-60 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>{c.pos}</span>
+            )}
           </span>
         );
       })}

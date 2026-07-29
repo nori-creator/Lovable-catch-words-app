@@ -149,7 +149,9 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
               {photoUrl ? (
                 <img src={photoUrl} alt={headword} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-4xl">{emoji ?? "📦"}</span>
+                <span className="px-1 text-center text-sm font-semibold text-muted-foreground">
+                  {emoji ?? headword}
+                </span>
               )}
             </div>
           </div>

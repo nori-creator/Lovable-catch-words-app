@@ -8,9 +8,13 @@ import {
   assertWithinDailyCap,
 
   getAi,
+  getAiFor,
   getUserLevelGoal,
   levelInstruction,
   explanationLanguageRule,
+  getExplanationLanguage,
+  getLearnerL1,
+  l1Rule,
   isProUser,
   logUsage,
   parseJsonFromAiText,
@@ -40,7 +44,7 @@ export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "suggest");
     // レベルはクライアントの申告ではなく**プロフィールを正**とする
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
@@ -136,11 +140,24 @@ export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CardInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = getAi();
+    const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
     const langRule = await explanationLanguageRule(context.userId);
+    // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
+    // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
+    // 説明文の言語名をここで差し替えて矛盾を無くす。
+    const explainLang = await getExplanationLanguage(context.userId);
+    const NL = explainLang === "en" ? "英語" : "日本語";
+    // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
+    // 設定の母語から具体的な干渉項目を流し込む。
+    const l1 = await l1Rule(context.userId, "pronunciation");
+    // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
+    // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
+    const l1Gram = await l1Rule(context.userId, "wordorder");
+    const l1Info = await getLearnerL1(context.userId);
+    const learnerL1 = l1Info.speakerJa;
 
     const prompt =
       data.targetLanguage === "zh-TW"
@@ -166,7 +183,7 @@ ${levelRule}
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
   横断歩道・道路・信号→street、店→shop、交通機関→transport を必ず使う。
 - example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
-- example_translation: 例文の日本語訳
+- example_translation: 例文の訳(${NL})
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
@@ -174,22 +191,24 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞) を使う。
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
-- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い日本語説明}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"O"}]。よく使う動詞・量詞・定番チャンクを優先。
+- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"O"}]。よく使う動詞・量詞・定番チャンクを優先。
+  **${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先して選ぶ**。該当する型があれば ja の説明に「母語だとこう言いたくなるが中国語ではこの順」と一言添える。
+${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
-- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短い日本語), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
-- usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文の日本語で
+- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+- usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
-- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い日本語説明}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
-- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短い日本語で)}。名詞でなければ空配列
-- pronunciation_tips: **日本人が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、日本語）。この語の声調の型、有気音/無気音（ㄆvsㄅ等）、そり舌（ㄓㄔㄕ）、鼻音韻尾（-n/-ng）、カタカナ読みに引きずられる誤りなど、該当するものを具体的に
-- taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文。誤用しやすい語法の注意があれば1文追加
-- etymology: 漢字の語源・成り立ち（1〜2文、日本語）
-- radicals: 部首と意味の説明（1文、日本語）
-- mnemonic: 記憶に残るひとことフレーズ・覚え方（日本語）
+- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
+- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
+- pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  この語の声調の型と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
+- taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
+- etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
+- radicals: 部首と意味の説明（1文、${NL}）
+- mnemonic: 記憶に残るひとことフレーズ・覚え方（${NL}）
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
-        : `「${data.headword}」(${data.targetLanguage})について、発音、日本語の意味、品詞、レベル、カテゴリ、例文と日本語訳を生成してください。`;
+        : `「${data.headword}」(${data.targetLanguage})について、発音、意味(${NL})、品詞、レベル、カテゴリ、例文とその訳(${NL})を生成してください。`;
 
     const pro = await isProUser(context.userId);
     const preferredModel = pro ? ai.modelRichPremium : ai.modelRich;
@@ -266,6 +285,11 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       ...card,
       headword_zh: resolvedHead,
       category_key: normalizeCategory(resolvedHead, card.category_key),
+      // どの言語で書いた解説かを刻む。表示言語を切り替えたときに
+      // 古い言語のカードだけを作り直せる(#65)。
+      // あわせて**どの母語向けに書いたか**も刻む。発音のコツと語順の説明は
+      // 母語ごとに中身が変わるので、母語を変えたら作り直す必要がある。
+      extras: { ...card.extras, explain_lang: explainLang, explain_l1: l1Info.code },
     };
   });
 
@@ -295,27 +319,32 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PhraseInput.parse(input))
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
-    const ai = getAi();
+    const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
     const langRule = await explanationLanguageRule(context.userId);
+    // 説明文の言語名。以前ここが「日本語」固定で、英語設定と矛盾していた。
+    const explainLang = await getExplanationLanguage(context.userId);
+    const NL = explainLang === "en" ? "英語" : "日本語";
+    // フレーズの返し方も母語で崩れ方が違う(語順・助詞・丁寧さの出し方)。
+    const l1Gram = await l1Rule(context.userId, "wordorder");
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
-        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n` +
+        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n${l1Gram}\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
         `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
         `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
         `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
         `- pinyin: 拼音\n` +
-        `- meaning_ja: 日本語の意味(簡潔に)\n` +
-        `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、日本語)\n` +
-        `- common_situation: 最もよくある場面(1文、日本語)\n` +
-        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: 日本語訳}。` +
+        `- meaning_ja: 意味(簡潔に、${NL}で)\n` +
+        `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、${NL})\n` +
+        `- common_situation: 最もよくある場面(1文、${NL})\n` +
+        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: ${NL}訳}。` +
         `例:「請稍等」→「好、謝謝」\n` +
         `形式: {"reading_zhuyin":"","pinyin":"","meaning_ja":"","usage_note":"","common_situation":"","replies":[{"zh":"","ja":""}]}`,
     });
@@ -385,13 +414,21 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
 
     const levelRule = await lvl(userId);
     const langRule = await langFn(userId);
+    // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
+    const regenLang = await getExplanationLanguage(userId);
+    const NL = regenLang === "en" ? "英語" : "日本語";
+    const l1Pron = await l1Rule(userId, "pronunciation");
+    // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
+    // 一括生成(generateCard)と同じ観点になるようにする。
+    const l1Gram = await l1Rule(userId, "wordorder");
+    const learnerL1 = (await getLearnerL1(userId)).speakerJa;
     const head = word.headword as string;
     const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
     const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
       meaning: {
-        prompt: `${base}\n{"meaning_ja": "日本語の意味(簡潔に、複数の意味があれば「/」区切り)"}`,
+        prompt: `${base}\n{"meaning_ja": "意味(${NL}で簡潔に、複数の意味があれば「/」区切り)"}`,
         schema: z.object({ meaning_ja: z.string().min(1) }),
       },
       measure_words: {
@@ -414,7 +451,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       example: {
-        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"日本語訳","example_chunks":[{"text":"","pos":""}]}`,
+        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
         schema: z.object({
           example_sentence: z.string().min(1),
           example_translation: z.string().catch(""),
@@ -431,7 +468,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z.array(z.object({
             parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
@@ -440,7 +477,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       related_words: {
-        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"繁体字","kind":"syn|ant|rel","note":"短い日本語"}]}`,
+        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"繁体字","kind":"syn|ant|rel","note":"短い説明(${NL})"}]}`,
         schema: z.object({
           related_words: z.array(z.object({
             word: z.string(),
@@ -450,7 +487,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       pronunciation_tips: {
-        prompt: `${base}\n日本人が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文。声調の型・有気音/無気音・そり舌(ㄓㄔㄕ)・鼻音韻尾(-n/-ng)・カタカナ読みの罠など該当するものを具体的に。\n{"pronunciation_tips":""}`,
+        prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。\n${l1Pron}\nこの語に実際に当てはまるものだけを具体的に。\n{"pronunciation_tips":""}`,
         schema: z.object({ pronunciation_tips: z.string().min(1) }),
       },
       etymology: {
@@ -458,7 +495,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ etymology: z.string().min(1), radicals: z.string().catch("") }),
       },
       mnemonic: {
-        prompt: `${base}\n{"mnemonic":"記憶に残るひとことフレーズ・覚え方(日本語)"}`,
+        prompt: `${base}\n{"mnemonic":"記憶に残るひとことフレーズ・覚え方(${NL})"}`,
         schema: z.object({ mnemonic: z.string().min(1) }),
       },
       taiwan_note: {
@@ -468,7 +505,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     };
 
     const { prompt, schema } = spec[data.section];
-    const ai = getAi();
+    const ai = await getAiFor("card");
     const result = await withModelFallback(ai, ai.modelRichPremium, (m) =>
       generateText({ model: ai.gateway(m), prompt }),
     );

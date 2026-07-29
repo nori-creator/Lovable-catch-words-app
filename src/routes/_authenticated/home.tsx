@@ -292,9 +292,9 @@ function ScrapbookAlbum({
                     />
                   </div>
                 ) : (
-                  // 写真なし(ゴースト): 印画紙の空きスペースにシルエット
-                  <div className="grid h-full w-full place-items-center">
-                    <span className="text-4xl opacity-80">{s.word.silhouette_emoji ?? "📦"}</span>
+                  // 画像がまだ無いカード: 単語そのものを見せる(段ボール絵は廃止)
+                  <div className="grid h-full w-full place-items-center px-2 text-center">
+                    <span className="text-lg font-semibold text-muted-foreground">{s.word.headword}</span>
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}

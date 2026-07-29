@@ -82,6 +82,21 @@ export const ExtrasSchema = z.object({
   pronunciation_tips: z.string().catch(""),
   /** 台湾での一言雑学(文化・習慣・歴史・流行)+語法の注意。 */
   taiwan_note: z.string().catch(""),
+  /**
+   * この解説を**どの言語で書いたか**("ja" / "en")。
+   * 設定の表示言語を英語に変えたとき、日本語のまま残った古い解説を
+   * 自動で作り直すための目印(空=言語不明の旧データ=日本語とみなす)。
+   */
+  explain_lang: z.string().catch(""),
+  /**
+   * この解説を**どの母語の学習者向けに書いたか**(L1Code: "ja"/"en"/…)。
+   *
+   * 発音のコツと語順の説明は母語ごとに中身が変わる — 日本語話者には
+   * 「有気音と無気音の区別が無い」、韓国語話者には「f が無い」と書く。
+   * だから母語設定を変えたら、表示言語と同じように作り直す必要がある。
+   * 空=旧データで、母語不明。日本語向けとみなす。
+   */
+  explain_l1: z.string().catch(""),
 });
 
 export type WordExtrasDTO = z.infer<typeof ExtrasSchema>;
@@ -100,8 +115,15 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
 /** True when an extras object carries at least one non-empty field. */
 export function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
   if (!e) return false;
-  return Object.values(e).some((v) =>
-    Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim().length > 0 : v != null,
+  // explain_lang / explain_l1 は内容ではなく目印なので「中身がある」判定から外す。
+  return Object.entries(e).some(([k, v]) =>
+    k === "explain_lang" || k === "explain_l1"
+      ? false
+      : Array.isArray(v)
+        ? v.length > 0
+        : typeof v === "string"
+          ? v.trim().length > 0
+          : v != null,
   );
 }
 

@@ -525,6 +525,9 @@ const UpdateExtrasInput = z.object({
     level: z.string().optional(),
     example_sentence: z.string().optional(),
     example_translation: z.string().optional(),
+    // 表示言語を切り替えたとき、意味と例文訳もその言語に入れ替える。
+    // (verified 語は下の source チェックで従来どおり保護される)
+    meaning_ja: z.string().optional(),
   }).optional(),
 });
 
@@ -554,13 +557,21 @@ export const updateWordExtras = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: word, error: readErr } = await supabaseAdmin
       .from("words")
-      .select("id, source")
+      .select("id, source, extras")
       .eq("id", data.word_id)
       .maybeSingle();
     if (readErr) throw new Error(readErr.message);
     if (!word) throw new Error("単語が見つかりません");
 
-    const update: Record<string, unknown> = { extras: data.extras as never };
+    // ExtrasSchema に無いキー(復習の足場キャッシュ speaking_scaffold_* など)は
+    // parse で落ちてしまう。既存の生 extras に重ねて書き、作り直しのたびに
+    // AI呼び出しを再課金しないようにする。
+    const prevRaw = (word as { extras?: unknown }).extras;
+    const merged =
+      prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+        ? { ...(prevRaw as Record<string, unknown>), ...data.extras }
+        : data.extras;
+    const update: Record<string, unknown> = { extras: merged as never };
     if (data.patch && word.source !== "verified") {
       for (const [k, v] of Object.entries(data.patch)) {
         if (v !== undefined && v !== "") update[k] = v;

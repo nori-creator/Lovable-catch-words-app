@@ -117,6 +117,8 @@ export type AiModelConfig = {
   fast?: string;
   rich?: string;
   rich_premium?: string;
+  /** 機能ごとの割り当て。値は "provider:model" またはモデル名だけ。 */
+  features?: Record<string, string>;
 };
 
 /** 現在のモデル設定+選べるプロバイダのプリセットを返す(admin限定)。 */
@@ -128,7 +130,9 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
       _role: "admin",
     });
     if (!isAdmin) throw new Error("管理者のみ");
-    const { PROVIDER_PRESETS, getAi } = await import("./ai-provider.server");
+    const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi } = await import(
+      "./ai-provider.server"
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as {
       from: (t: string) => {
@@ -141,6 +145,7 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
     const config = ((data as { value?: AiModelConfig } | null)?.value ?? {}) as AiModelConfig;
     // 実際にいま使われている値(env のフォールバックを含む)も見せる。
     let effective: { provider: string; fast: string; rich: string; rich_premium: string } | null = null;
+    let keyError: string | null = null;
     try {
       const ai = getAi();
       effective = {
@@ -149,14 +154,28 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
         rich: ai.modelRich,
         rich_premium: ai.modelRichPremium,
       };
-    } catch { /* キー未設定でも画面は開けるようにする */ }
+    } catch (e) {
+      // キー未設定でも画面は開ける。何が足りないかをそのまま見せる。
+      keyError = e instanceof Error ? e.message : String(e);
+    }
+    // 診断: どのキーが実際に検出できているか(別名を含む)。値は絶対に返さない。
+    const detected = availableProviders();
     const presets = Object.entries(PROVIDER_PRESETS).map(([id, p]) => ({
       id,
       label: p.label,
       api_key_env: p.api_key_env,
-      key_present: Boolean(process.env[p.api_key_env]),
+      /** 見つかったキーの env 名(別名でも可)。null なら未設定。 */
+      key_env_found: detected.find((d) => d.id === id)?.key_env ?? null,
+      key_present: Boolean(detected.find((d) => d.id === id)?.key_env),
     }));
-    return { config, effective, presets };
+    return {
+      config,
+      effective,
+      presets,
+      keyError,
+      ai_provider_env: process.env.AI_PROVIDER ?? null,
+      features: AI_FEATURES,
+    };
   });
 
 /** モデル設定を保存(admin限定)。空文字は未設定として消す。 */
@@ -174,7 +193,19 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
     if (!isAdmin) throw new Error("管理者のみ");
     const clean: AiModelConfig = {};
     for (const [k, v] of Object.entries(data.config)) {
-      if (typeof v === "string" && v.trim()) clean[k as keyof AiModelConfig] = v.trim();
+      if (k === "features") continue; // オブジェクトなので下で個別に扱う
+      if (typeof v === "string" && v.trim()) {
+        (clean as Record<string, string>)[k] = v.trim();
+      }
+    }
+    // 機能ごとの割り当て。空文字は「既定に戻す」なので保存しない。
+    const rawFeatures = data.config.features;
+    if (rawFeatures && typeof rawFeatures === "object") {
+      const features: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rawFeatures)) {
+        if (typeof v === "string" && v.trim()) features[k] = v.trim();
+      }
+      if (Object.keys(features).length > 0) clean.features = features;
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as {

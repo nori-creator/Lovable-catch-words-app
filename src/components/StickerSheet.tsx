@@ -18,7 +18,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 
 
 type Props = {
@@ -28,6 +28,7 @@ type Props = {
 
 export function StickerSheet({ stickerId, onClose }: Props) {
   const t = useT();
+  const uiLang = useUiLang();
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
@@ -58,6 +59,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     staleTime: 60_000,
   });
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
+  // 母語。発音のコツと語順の説明はこれで中身が変わるので、
+  // 変えたら解説を作り直す(下の useEffect)。
+  const nativeLang =
+    (profile as { native_language?: string } | null | undefined)?.native_language || "ja";
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
@@ -70,8 +75,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const setPlaceholderFn = useServerFn(setStickerPlaceholder);
   const autoImgRef = useRef<Set<string>>(new Set());
+  // ネット画像の候補(複数)。自動で1枚目を入れ、残りは「別の画像に変える」
+  // 候補として下に並べる。ユーザーが気に入らなければタップで差し替え。
+  const [webCandidates, setWebCandidates] = useState<{ url: string; credit?: { name?: string; link?: string }; source: string }[]>([]);
+  const [swapping, setSwapping] = useState<string | null>(null);
   useEffect(() => {
-    if (!s || s.object_url || s.cutout_url || s.selfie_url || s.placeholder_url) return;
+    if (!s) return;
+    // 自分の写真があるカードは触らない(候補も出さない)。
+    if (s.object_url || s.cutout_url) return;
     if (autoImgRef.current.has(s.id)) return;
     autoImgRef.current.add(s.id);
     void (async () => {
@@ -79,6 +90,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         const { candidates } = await searchImagesFn({
           data: { query: s.word.meaning_ja || s.word.headword },
         });
+        setWebCandidates(candidates.slice(0, 6));
+        // すでに画像が入っているなら候補を出すだけで自動差し替えはしない。
+        if (s.placeholder_url || s.selfie_url) return;
         const cand = candidates[0];
         if (!cand) return;
         const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
@@ -106,6 +120,46 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       } catch { /* 仮画像は任意 */ }
     })();
   }, [s, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
+
+  /**
+   * 自動で入ったネット画像を、別の候補に差し替える。
+   * 自分で撮った写真ではないので object ではなく placeholder 側を入れ替える
+   * (あとで実物を撮ったときに、その写真が正として上書きされる)。
+   */
+  async function swapWebImage(cand: { url: string; credit?: { name?: string; link?: string }; source: string }) {
+    if (!s || swapping) return;
+    setSwapping(cand.url);
+    try {
+      const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
+      const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
+      const blob = await (await fetch(small)).blob();
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) return;
+      const path = `${userId}/${Date.now()}-placeholder.jpg`;
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      void putCachedImage(path, blob);
+      await setPlaceholderFn({
+        data: {
+          sticker_id: s.id,
+          placeholder_path: path,
+          placeholder_credit: cand.credit ? { ...cand.credit, source: cand.source } : { source: cand.source },
+        },
+      });
+      await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success(t("card.imageSet"));
+    } catch (e) {
+      console.warn("Swap web image failed", e);
+      toast.error(t("card.photoFailed"));
+    } finally {
+      setSwapping(null);
+    }
+  }
 
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
   async function applyWebImage(url: string) {
@@ -169,6 +223,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             level: card.level,
             example_sentence: card.example_sentence,
             example_translation: card.example_translation,
+            meaning_ja: card.meaning_ja,
           },
         },
       });
@@ -248,9 +303,18 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
     const missingNewFields =
       !ex || (!ex.register_note && !ex.synonym_diff && !ex.word_order && !ex.study_tips);
-    if (!isEmpty && !missingNewFields) return;
-    if (enrichedRef.current.has(s.word_id)) return;
-    enrichedRef.current.add(s.word_id);
+    // #65: 表示言語を切り替えたら解説もその言語にする。
+    // extras.explain_lang が今の言語と違う(または空=旧データ)なら作り直す。
+    // 生成は言語ごとに1回だけで、以後は保存された解説をそのまま出す。
+    const wrongLanguage = !!ex && (ex.explain_lang || "ja") !== uiLang;
+    // 母語を変えたときも作り直す。日本語話者向けに書いた「有気音の区別が無い」
+    // という発音のコツは、韓国語話者にはそのまま当てはまらない。
+    const wrongL1 = !!ex && (ex.explain_l1 || "ja") !== nativeLang;
+    if (!isEmpty && !missingNewFields && !wrongLanguage && !wrongL1) return;
+    // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
+    const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
+    if (enrichedRef.current.has(guardKey)) return;
+    enrichedRef.current.add(guardKey);
     setEnriching(true);
     (async () => {
       try {
@@ -266,6 +330,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               level: card.level,
               example_sentence: card.example_sentence,
               example_translation: card.example_translation,
+              meaning_ja: card.meaning_ja,
             },
           },
         });
@@ -275,12 +340,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         console.warn("Enrichment failed", e);
         // Let a later reopen retry instead of leaving the word details blank
         // forever (words filed fast from the dictionary start with no extras).
-        enrichedRef.current.delete(s.word_id);
+        enrichedRef.current.delete(guardKey);
       } finally {
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc]);
+  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang]);
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -329,6 +394,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             level: card.level,
             example_sentence: card.example_sentence,
             example_translation: card.example_translation,
+            meaning_ja: card.meaning_ja,
           },
         },
       });
@@ -438,16 +504,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
                   ) : s.placeholder_url ? (
-                    // Ghost card (§5.3): the stand-in is clearly temporary.
+                    // ネット画像。**仮ではなくカードの絵として普通に見せる**
+                    // (段ボール/ゴースト表現は廃止 2026-07-28)。
+                    // 気に入らなければ下の候補から選び直せる。
                     <>
                       <img
                         src={s.placeholder_url}
-                        alt={`「${s.word.headword}」の仮画像`}
-                        className="absolute inset-0 h-full w-full object-cover opacity-70 grayscale"
+                        alt={`「${s.word.headword}」の画像`}
+                        className="hero-pop absolute inset-0 h-full w-full object-cover"
                       />
-                      <span className="absolute left-3 top-3 rounded-full bg-foreground/70 px-2.5 py-1 text-[11px] font-semibold text-background">
-                        {t("card.tempImage")}
-                      </span>
                       {s.placeholder_credit?.name && (
                         <a
                           href={s.placeholder_credit.link}
@@ -498,6 +563,34 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 </div>
               </div>
             </div>
+
+            {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
+                自分で撮った写真があるカードには出さない(#67)。 */}
+            {!s.object_url && !s.cutout_url && webCandidates.length > 1 && (
+              <section className="mb-4">
+                <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
+                  {t("card.pickAnotherImage")}
+                </div>
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                  {webCandidates.map((c) => (
+                    <button
+                      key={c.url}
+                      onClick={() => void swapWebImage(c)}
+                      disabled={!!swapping}
+                      className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
+                      aria-label={t("card.pickAnotherImage")}
+                    >
+                      <img src={c.url} alt="" className="h-full w-full object-cover" />
+                      {swapping === c.url && (
+                        <span className="absolute inset-0 grid place-items-center bg-black/40">
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* When & Where chip */}
             <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">

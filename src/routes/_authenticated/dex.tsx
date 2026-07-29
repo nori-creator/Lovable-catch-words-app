@@ -10,6 +10,7 @@ import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEven
 import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
+import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -72,6 +73,8 @@ function DexPage() {
   }, [justCaught, navigate, captured.length]);
 
   const [view, setView] = useState<ViewMode>("gallery");
+  // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
+  const layout = useUiLayout();
   const [groupMode, setGroupMode] = useState<GroupMode>("category");
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -228,7 +231,11 @@ function DexPage() {
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 
-            {view === "gallery" ? (
+            {view === "gallery" && layout !== "album" ? (
+              // 見た目パックが選ばれているときだけ、別の並べ方で描く。
+              // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
+              <PackGallery items={items} justCaught={justCaught} onOpen={setOpenId} layout={layout} />
+            ) : view === "gallery" ? (
               // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
               // 表示される3列グリッド+下端のグラデーションに単語名。
               <div className="grid grid-cols-3 gap-2.5">
@@ -243,9 +250,7 @@ function DexPage() {
                     >
                       <div
                         id={`dex-cell-${s.id}`}
-                        className={`relative aspect-square overflow-hidden rounded-2xl shadow-md ring-1 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${
-                          isGhost(s) ? "bg-secondary/70 ring-border border-2 border-dashed border-border" : "bg-white ring-black/5"
-                        } ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
+                        className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
                       >
                         {photo ? (
                           <CachedImg
@@ -263,23 +268,23 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-2"
                           />
-                        ) : isGhost(s) && s.placeholder_url ? (
+                        ) : s.placeholder_url ? (
+                          // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
                           <CachedImg
                             src={s.placeholder_url}
-                            alt={`「${s.word.headword}」の仮画像`}
+                            alt={`「${s.word.headword}」の画像`}
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full object-cover opacity-60 grayscale"
+                            className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className={`grid h-full place-items-center text-4xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>
-                            {s.word.silhouette_emoji ?? "📦"}
+                          // 画像がまだ無いときは静かなプレースホルダ。
+                          // 詳細を開くとネット画像が自動で入る。
+                          <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
+                            <span className="text-base font-semibold text-muted-foreground">
+                              {s.word.headword}
+                            </span>
                           </div>
-                        )}
-                        {isGhost(s) && (
-                          <span className="absolute left-1.5 top-1.5 rounded-full bg-foreground/60 px-1.5 py-0.5 text-[9px] font-semibold text-background">
-                            👻 仮
-                          </span>
                         )}
                         {s.encounter_count > 0 && (
                           <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-amber-950 shadow">
@@ -308,8 +313,8 @@ function DexPage() {
                       onClick={() => setOpenId(s.id)}
                       className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
                     >
-                      <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary ${isGhost(s) ? "border border-dashed border-border" : ""}`}>
-                        {/* 撮った元の写真をそのまま見せる(絵文字の段ボールは最終手段) */}
+                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                        {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
                         {s.object_thumb_url ?? s.object_url ? (
                           <CachedImg
                             src={(s.object_thumb_url ?? s.object_url)!}
@@ -326,16 +331,18 @@ function DexPage() {
                             decoding="async"
                             className="h-full w-full object-contain p-1"
                           />
-                        ) : isGhost(s) && s.placeholder_url ? (
+                        ) : s.placeholder_url ? (
                           <CachedImg
                             src={s.placeholder_url}
                             alt=""
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full object-cover opacity-60 grayscale"
+                            className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className={`text-2xl ${isGhost(s) ? "opacity-50 grayscale" : ""}`}>{s.word.silhouette_emoji ?? "📦"}</span>
+                          <span className="px-1 text-center text-[11px] font-semibold text-muted-foreground">
+                            {s.word.headword}
+                          </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -452,6 +459,62 @@ async function photoPinIcon(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * 見た目パックが選ばれているときの図鑑の並べ方。
+ *
+ * **現行(album)ではこの関数は呼ばれない。** 上の分岐で既存のJSXを
+ * そのまま通しているので、現行デザインは一切通らない経路になっている。
+ *
+ * 中身は実際に撮った写真のまま。見せ方(並べ方・枠・文字の置き方)だけを
+ * pack-styles.css 側の .pk-* が塗り替える。
+ */
+function PackGallery({
+  items,
+  justCaught,
+  onOpen,
+  layout,
+}: {
+  items: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  justCaught?: string;
+  onOpen: (id: string) => void;
+  layout: LayoutId;
+}) {
+  return (
+    <div className="pk-collection" data-layout={layout}>
+      {items.map((s) => {
+        const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_thumb_url ?? s.cutout_url ?? s.placeholder_url;
+        return (
+          <button
+            key={s.id}
+            id={`dex-cell-${s.id}`}
+            onClick={() => onOpen(s.id)}
+            className={`pk-tile text-left ${s.id === justCaught ? "ring-2 ring-amber-400" : ""}`}
+          >
+            <span className="pk-tile-media">
+              {photo ? (
+                <CachedImg
+                  src={photo}
+                  alt={`「${s.word.headword}」の写真`}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                // 写真がまだ無いときは単語そのものを見せる(段ボール絵は使わない)。
+                <span className="pk-tile-emoji">{s.word.headword.slice(0, 2)}</span>
+              )}
+              {s.encounter_count > 0 && <span className="pk-tile-badge">×{s.encounter_count}</span>}
+            </span>
+            <span className="pk-tile-body">
+              <span className="pk-tile-word">{s.word.headword}</span>
+              <span className="pk-tile-sub">{s.word.meaning_ja || s.word.reading_zhuyin}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function DexMap({
@@ -660,11 +723,6 @@ function DexMap({
       )}
     </>
   );
-}
-
-/** Ghost card (§5.3): caught by text/voice, no real photo yet. */
-function isGhost(s: { capture_type: string; cutout_url: string | null; object_url: string | null }): boolean {
-  return s.capture_type !== "photo" && !s.cutout_url && !s.object_url;
 }
 
 // B6: 品詞グルーピング。part_of_speech(日本語表記)を代表的なバケツに正規化。
