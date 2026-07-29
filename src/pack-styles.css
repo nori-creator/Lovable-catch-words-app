@@ -1352,3 +1352,197 @@
     opacity: 0.25;
   }
 }
+
+/* ===========================================================================
+   5. 実アプリへの適用 — パックを選んだら**アプリ本体の色と形も変わる**。
+   ---------------------------------------------------------------------------
+   ここまでのルールは .pk-* (プレビュー用の名前空間)にしか効かない。
+   それだけだと「これにする」を押してもプレビューが変わるだけで、
+   実際のホームや図鑑は現行のままになってしまう。
+
+   そこで styles.css が定義している**アプリ共通のCSS変数**を、
+   <html data-ui-pack="..."> の下で差し替える。コンポーネントは1つも
+   触らずに、全画面の下地・面・主色・角丸が一斉に変わる。
+
+   origin は属性が付かないので、ここも当たらない = 現行は不変。
+   =========================================================================== */
+
+:root[data-ui-pack="card"] {
+  --background: oklch(0.16 0.045 265); --foreground: oklch(0.96 0.02 90);
+  --card: oklch(0.22 0.05 265); --card-foreground: oklch(0.96 0.02 90);
+  --popover: oklch(0.22 0.05 265); --popover-foreground: oklch(0.96 0.02 90);
+  --primary: oklch(0.86 0.13 88); --primary-foreground: oklch(0.2 0.05 265);
+  --secondary: oklch(0.27 0.055 265); --secondary-foreground: oklch(0.96 0.02 90);
+  --muted: oklch(0.27 0.055 265); --muted-foreground: oklch(0.78 0.04 250);
+  --accent: oklch(0.33 0.07 265); --accent-foreground: oklch(0.96 0.02 90);
+  --border: oklch(0.86 0.13 88 / 26%); --input: oklch(0.86 0.13 88 / 30%);
+  --ring: oklch(0.86 0.13 88); --radius: 0.75rem;
+}
+:root[data-ui-pack="sticker"] {
+  --background: oklch(0.975 0.028 82); --foreground: oklch(0.33 0.05 45);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.33 0.05 45);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.72 0.17 5); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.035 80); --secondary-foreground: oklch(0.36 0.05 45);
+  --muted: oklch(0.95 0.035 80); --muted-foreground: oklch(0.58 0.05 50);
+  --accent: oklch(0.92 0.06 60); --accent-foreground: oklch(0.35 0.06 45);
+  --border: oklch(0.86 0.04 70); --input: oklch(0.9 0.04 70);
+  --ring: oklch(0.72 0.17 5); --radius: 1.25rem;
+}
+:root[data-ui-pack="cellar"] {
+  --background: oklch(0.15 0.02 45); --foreground: oklch(0.93 0.03 70);
+  --card: oklch(0.21 0.028 45); --card-foreground: oklch(0.93 0.03 70);
+  --popover: oklch(0.21 0.028 45);
+  --primary: oklch(0.68 0.09 70); --primary-foreground: oklch(0.16 0.02 45);
+  --secondary: oklch(0.25 0.03 45); --secondary-foreground: oklch(0.93 0.03 70);
+  --muted: oklch(0.25 0.03 45); --muted-foreground: oklch(0.72 0.04 70);
+  --accent: oklch(0.3 0.04 50); --accent-foreground: oklch(0.94 0.03 70);
+  --border: oklch(0.68 0.09 70 / 26%); --input: oklch(0.68 0.09 70 / 30%);
+  --ring: oklch(0.68 0.09 70); --radius: 0.25rem;
+}
+:root[data-ui-pack="watch"] {
+  --background: oklch(0.16 0.04 262); --foreground: oklch(0.94 0.03 88);
+  --card: oklch(0.21 0.045 262); --card-foreground: oklch(0.94 0.03 88);
+  --popover: oklch(0.21 0.045 262);
+  --primary: oklch(0.78 0.11 85); --primary-foreground: oklch(0.17 0.04 262);
+  --secondary: oklch(0.26 0.05 262); --secondary-foreground: oklch(0.94 0.03 88);
+  --muted: oklch(0.26 0.05 262); --muted-foreground: oklch(0.76 0.04 85);
+  --accent: oklch(0.31 0.06 262); --accent-foreground: oklch(0.95 0.03 88);
+  --border: oklch(0.78 0.11 85 / 30%); --input: oklch(0.78 0.11 85 / 32%);
+  --ring: oklch(0.78 0.11 85); --radius: 0.6rem;
+}
+:root[data-ui-pack="garage"] {
+  --background: oklch(0.12 0.003 270); --foreground: oklch(0.96 0 0);
+  --card: oklch(0.18 0.004 270); --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.18 0.004 270);
+  --primary: oklch(0.9 0.004 270); --primary-foreground: oklch(0.13 0.003 270);
+  --secondary: oklch(0.23 0.005 270); --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.23 0.005 270); --muted-foreground: oklch(0.72 0.005 270);
+  --accent: oklch(0.29 0.006 270); --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.85 0.004 270); --radius: 0.35rem;
+}
+:root[data-ui-pack="museum"] {
+  --background: oklch(0.975 0.004 80); --foreground: oklch(0.2 0.005 60);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.2 0.005 60);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.26 0.008 60); --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.006 80); --secondary-foreground: oklch(0.24 0.005 60);
+  --muted: oklch(0.94 0.006 80); --muted-foreground: oklch(0.52 0.006 70);
+  --accent: oklch(0.91 0.01 80); --accent-foreground: oklch(0.24 0.005 60);
+  --border: oklch(0.88 0.008 80); --input: oklch(0.9 0.008 80);
+  --ring: oklch(0.4 0.01 60); --radius: 0rem;
+}
+:root[data-ui-pack="artspace"] {
+  --background: oklch(0.95 0.008 85); --foreground: oklch(0.14 0 0);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.14 0 0);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.62 0.24 32); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.92 0.01 85); --secondary-foreground: oklch(0.14 0 0);
+  --muted: oklch(0.92 0.01 85); --muted-foreground: oklch(0.48 0.008 80);
+  --accent: oklch(0.88 0.02 85); --accent-foreground: oklch(0.14 0 0);
+  --border: oklch(0.14 0 0 / 85%); --input: oklch(0.14 0 0 / 60%);
+  --ring: oklch(0.62 0.24 32); --radius: 0rem;
+}
+:root[data-ui-pack="photofeed"] {
+  --background: oklch(1 0 0); --foreground: oklch(0.16 0.004 260);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.16 0.004 260);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.62 0.19 5); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0.002 260); --secondary-foreground: oklch(0.2 0.004 260);
+  --muted: oklch(0.97 0.002 260); --muted-foreground: oklch(0.6 0.006 260);
+  --accent: oklch(0.95 0.006 260); --accent-foreground: oklch(0.2 0.004 260);
+  --border: oklch(0.89 0.003 260); --input: oklch(0.92 0.003 260);
+  --ring: oklch(0.62 0.19 5); --radius: 0.5rem;
+}
+:root[data-ui-pack="arfield"] {
+  --background: oklch(0.24 0.055 235); --foreground: oklch(0.96 0.02 200);
+  --card: oklch(0.3 0.06 235); --card-foreground: oklch(0.96 0.02 200);
+  --popover: oklch(0.3 0.06 235);
+  --primary: oklch(0.79 0.13 180); --primary-foreground: oklch(0.16 0.05 235);
+  --secondary: oklch(0.34 0.06 235); --secondary-foreground: oklch(0.96 0.02 200);
+  --muted: oklch(0.34 0.06 235); --muted-foreground: oklch(0.79 0.04 205);
+  --accent: oklch(0.39 0.07 230); --accent-foreground: oklch(0.96 0.02 200);
+  --border: oklch(0.79 0.13 180 / 30%); --input: oklch(0.79 0.13 180 / 32%);
+  --ring: oklch(0.79 0.13 180); --radius: 1rem;
+}
+:root[data-ui-pack="vfeed"] {
+  --background: oklch(0 0 0); --foreground: oklch(1 0 0);
+  --card: oklch(0.16 0 0); --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.16 0 0);
+  --primary: oklch(0.84 0.16 195); --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.21 0 0); --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.21 0 0); --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.27 0 0); --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 17%); --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.84 0.16 195); --radius: 0.4rem;
+}
+:root[data-ui-pack="library"] {
+  --background: oklch(0.14 0 0); --foreground: oklch(0.96 0 0);
+  --card: oklch(0.2 0 0); --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.2 0 0);
+  --primary: oklch(0.6 0.25 25); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.25 0 0); --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.25 0 0); --muted-foreground: oklch(0.73 0 0);
+  --accent: oklch(0.3 0 0); --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 14%); --input: oklch(1 0 0 / 17%);
+  --ring: oklch(0.6 0.25 25); --radius: 0.7rem;
+}
+:root[data-ui-pack="timeline"] {
+  --background: oklch(0 0 0); --foreground: oklch(0.93 0.004 250);
+  --card: oklch(0.17 0.006 250); --card-foreground: oklch(0.93 0.004 250);
+  --popover: oklch(0.17 0.006 250);
+  --primary: oklch(0.68 0.16 245); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.22 0.008 250); --secondary-foreground: oklch(0.93 0.004 250);
+  --muted: oklch(0.22 0.008 250); --muted-foreground: oklch(0.62 0.012 250);
+  --accent: oklch(0.27 0.01 250); --accent-foreground: oklch(0.93 0.004 250);
+  --border: oklch(0.32 0.012 250); --input: oklch(0.35 0.012 250);
+  --ring: oklch(0.68 0.16 245); --radius: 1rem;
+}
+:root[data-ui-pack="wall"] {
+  --background: oklch(0.96 0.004 250); --foreground: oklch(0.13 0.004 260);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.13 0.004 260);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.56 0.21 258); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0.006 250); --secondary-foreground: oklch(0.2 0.006 260);
+  --muted: oklch(0.93 0.006 250); --muted-foreground: oklch(0.52 0.01 260);
+  --accent: oklch(0.9 0.02 255); --accent-foreground: oklch(0.2 0.02 260);
+  --border: oklch(0.87 0.006 250); --input: oklch(0.9 0.006 250);
+  --ring: oklch(0.56 0.21 258); --radius: 0.65rem;
+}
+:root[data-ui-pack="streaming"] {
+  --background: oklch(0.15 0 0); --foreground: oklch(1 0 0);
+  --card: oklch(0.2 0 0); --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.2 0 0);
+  --primary: oklch(0.55 0.24 27); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.24 0 0); --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.24 0 0); --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.29 0 0); --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.55 0.24 27); --radius: 0.4rem;
+}
+:root[data-ui-pack="darkroom"] {
+  --background: oklch(0.16 0.015 20); --foreground: oklch(0.94 0.02 30);
+  --card: oklch(0.22 0.02 20); --card-foreground: oklch(0.94 0.02 30);
+  --popover: oklch(0.22 0.02 20);
+  --primary: oklch(0.63 0.18 30); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.26 0.025 20); --secondary-foreground: oklch(0.94 0.02 30);
+  --muted: oklch(0.26 0.025 20); --muted-foreground: oklch(0.74 0.03 30);
+  --accent: oklch(0.32 0.05 25); --accent-foreground: oklch(0.95 0.02 30);
+  --border: oklch(1 0 0 / 13%); --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.63 0.18 30); --radius: 0.2rem;
+}
+
+/* 暗い下地のパックでは、現行の明るい放射グラデが浮いてしまうので消す。 */
+:root[data-ui-pack="card"] body,
+:root[data-ui-pack="cellar"] body,
+:root[data-ui-pack="watch"] body,
+:root[data-ui-pack="garage"] body,
+:root[data-ui-pack="arfield"] body,
+:root[data-ui-pack="vfeed"] body,
+:root[data-ui-pack="library"] body,
+:root[data-ui-pack="timeline"] body,
+:root[data-ui-pack="streaming"] body,
+:root[data-ui-pack="darkroom"] body {
+  background-image: none;
+}
