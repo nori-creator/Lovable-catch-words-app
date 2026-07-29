@@ -15,6 +15,7 @@ import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
+import { ThemeLabButton } from "@/components/ThemeLab";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
@@ -460,6 +461,7 @@ function AdminOnlySection() {
       <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
         {t("settings.devOnly")}
       </p>
+      <ThemeLabButton />
       <UiThemePicker />
       <AiModelPanel />
     </div>
