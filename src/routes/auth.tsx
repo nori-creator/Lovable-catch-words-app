@@ -151,14 +151,14 @@ function AuthPage() {
             <button
               type="button"
               onClick={() => setMode("signin")}
-              className={`flex-1 rounded-full py-1.5 ${mode === "signin" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
+              className={`min-h-11 flex-1 rounded-full py-2.5 ${mode === "signin" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
             >
               {t("auth.signin")}
             </button>
             <button
               type="button"
               onClick={() => setMode("signup")}
-              className={`flex-1 rounded-full py-1.5 ${mode === "signup" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
+              className={`min-h-11 flex-1 rounded-full py-2.5 ${mode === "signup" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
             >
               {t("auth.signup")}
             </button>
@@ -202,9 +202,9 @@ function AuthPage() {
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           {t("auth.agreeBefore")}
-          <a href="/terms" className="underline hover:text-foreground">{t("auth.terms")}</a>
+          <a href="/terms" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("auth.terms")}</a>
           {t("auth.agreeMid")}
-          <a href="/privacy" className="underline hover:text-foreground">{t("auth.privacy")}</a>
+          <a href="/privacy" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("auth.privacy")}</a>
           {t("auth.agreeAfter")}
         </p>
       </div>

@@ -128,10 +128,10 @@ function PrivacyPage() {
   const lang = useUiLang();
   return (
     <article className="mx-auto max-w-2xl px-4 py-10">
-      <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("common.back")}</Link>
+      <Link to="/" className="inline-block py-3 -my-3 text-sm text-muted-foreground hover:text-foreground">← {t("common.back")}</Link>
       {lang === "en" ? <PrivacyEn /> : <PrivacyJa />}
       <p className="mt-8 text-xs text-muted-foreground">
-        <Link to="/terms" className="underline">{t("auth.terms")}</Link>
+        <Link to="/terms" className="inline-block py-3 -my-3 underline">{t("auth.terms")}</Link>
       </p>
     </article>
   );

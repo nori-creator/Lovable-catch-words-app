@@ -104,7 +104,7 @@ function ResetPasswordPage() {
           )}
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            <a href="/auth" className="underline hover:text-foreground">{t("rp.backToLogin")}</a>
+            <a href="/auth" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("rp.backToLogin")}</a>
           </p>
         </div>
       </div>
