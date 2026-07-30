@@ -123,7 +123,7 @@ function UserProfilePage() {
                   )}
                   {s.headword && (
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                      <span className="text-[11px] font-semibold text-white">{s.headword}</span>
+                      <span lang="zh-Hant" className="text-[11px] font-semibold text-white">{s.headword}</span>
                     </div>
                   )}
                 </Link>

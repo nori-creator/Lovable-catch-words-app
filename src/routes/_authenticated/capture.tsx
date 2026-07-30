@@ -22,6 +22,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
+import { Zh } from "@/components/Zh";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
@@ -504,7 +505,7 @@ function CapturePage() {
           <p className="text-sm text-muted-foreground">{t("capture.selfieHint")}</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
-              <img src={objectImg} alt="object" className="h-full w-full object-cover" />
+              <img src={objectImg} alt="撮った写真" className="h-full w-full object-cover" />
             </div>
           )}
           <label className="block">
@@ -555,7 +556,7 @@ function CapturePage() {
           <div className="flex gap-3">
             {cutoutImg && (
               <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
-                <img src={cutoutImg} alt="cutout" className="h-full w-full object-contain pop-in" />
+                <img src={cutoutImg} alt="切り抜いた写真" className="h-full w-full object-contain pop-in" />
               </div>
             )}
             <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
@@ -568,9 +569,9 @@ function CapturePage() {
                 className="lift flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
               >
                 <div>
-                  <div className="text-base font-semibold">{s.headword}</div>
+                  <div lang="zh-Hant" className="text-base font-semibold">{s.headword}</div>
                   <div className="text-xs text-muted-foreground">
-                    {s.reading_zhuyin || s.pinyin} · {s.meaning_ja}
+                    <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
                   </div>
                 </div>
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">{s.category_key}</span>
@@ -617,7 +618,7 @@ function CapturePage() {
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
                 {selfieImg ? (
-                  <img src={selfieImg} alt="selfie" className="h-full w-full object-cover" />
+                  <img src={selfieImg} alt="自撮り" className="h-full w-full object-cover" />
                 ) : (
                   <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("capture.noSelfie")}</div>
                 )}
@@ -698,8 +699,8 @@ function CapturePage() {
                 <img src={reenc.cutout_url} alt={reenc.headword} className="h-full w-full object-contain p-2" />
               </div>
             )}
-            <div className="text-3xl font-bold tracking-tight">{reenc.headword}</div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">{reenc.headword}</div>
+            <div lang="zh-Hant" className="mt-1 text-xs text-muted-foreground">
               {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
             </div>
 

@@ -16,6 +16,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { useT } from "@/lib/i18n";
+import { Zh } from "@/components/Zh";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
@@ -684,7 +685,7 @@ function ScanPage() {
                     B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
                 <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-white backdrop-blur-sm">
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
-                  <span className="truncate">
+                  <span lang="zh-Hant" className="truncate">
                     {it.headword}
                     {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
                   </span>
@@ -890,7 +891,7 @@ function ScanPage() {
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">
-                      <span className="truncate text-base font-semibold">{it.headword}</span>
+                      <span lang="zh-Hant" className="truncate text-base font-semibold">{it.headword}</span>
                       {it.zhuyin && <span className="shrink-0 text-[11px] text-muted-foreground">{it.zhuyin}</span>}
                     </span>
                     {it.meaning_ja && (
@@ -1034,13 +1035,13 @@ function ScanChip({
     }`}>
       {state === "reunion" && foundAt && (
         <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
-          ✨ {daysAgo(foundAt)}日前に調べた「{headword}」だ! 撮って図鑑を完成させよう
+          ✨ {daysAgo(foundAt)}日前に調べた「<Zh>{headword}</Zh>」だ! 撮って図鑑を完成させよう
         </p>
       )}
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-2xl font-bold tracking-tight">{headword}</h2>
+            <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">{headword}</h2>
             {state === "owned" && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 <Check className="h-3 w-3 text-emerald-600" /> 取得済み
@@ -1056,7 +1057,7 @@ function ScanChip({
               </span>
             )}
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
+          <div lang="zh-Hant" className="mt-0.5 text-xs text-muted-foreground">
             {zhuyin} {pinyin && <span className="ml-2">{pinyin}</span>}
           </div>
           <p className="mt-2 text-base font-medium">{meaning}</p>

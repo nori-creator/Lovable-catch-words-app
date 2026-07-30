@@ -413,7 +413,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : "カード"}>
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground">
+        <span lang="zh-Hant" className="pl-1 text-xs font-medium text-muted-foreground">
           {s ? s.word.headword : "..."}
         </span>
         <div className="flex items-center gap-2">

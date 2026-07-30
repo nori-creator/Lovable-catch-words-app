@@ -94,7 +94,7 @@ function StickerDetailPage() {
                     )}
                   </>
                 ) : (
-                  <span className="px-4 text-center text-3xl font-semibold text-muted-foreground">
+                  <span lang="zh-Hant" className="px-4 text-center text-3xl font-semibold text-muted-foreground">
                     {s.word.headword}
                   </span>
                 )}
@@ -145,8 +145,8 @@ function StickerDetailPage() {
 
           {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
           <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-            <div className="text-3xl font-bold tracking-tight">{s.word.headword}</div>
-            <div className="mt-1 text-sm text-muted-foreground">
+            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">{s.word.headword}</div>
+            <div lang="zh-Hant" className="mt-1 text-sm text-muted-foreground">
               {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
             </div>
             <div className="mt-2 text-lg font-medium">{s.word.meaning_ja}</div>

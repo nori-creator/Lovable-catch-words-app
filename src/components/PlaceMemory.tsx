@@ -21,6 +21,7 @@ import {
   markNotified,
   notifyMemory,
 } from "@/lib/place-reminder";
+import { Zh } from "@/components/Zh";
 
 export function PlaceMemoryWatcher() {
   const fetchNearby = useServerFn(getNearbyMemories);
@@ -99,7 +100,7 @@ export function PlaceMemoryWatcher() {
           className="min-w-0 flex-1 text-left"
         >
           <span className="block truncate text-sm font-semibold">
-            「{hit.headword}」覚えてる?
+            「<Zh>{hit.headword}</Zh>」覚えてる?
           </span>
           <span className="block truncate text-[11px] text-muted-foreground">
             {when}、{hit.location_name ? `${hit.location_name}で` : "この辺りで"}撮った言葉

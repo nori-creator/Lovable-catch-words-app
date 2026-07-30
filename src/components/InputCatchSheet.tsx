@@ -12,6 +12,7 @@ import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from 
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
+import { Zh } from "@/components/Zh";
 
 /**
  * Input catch (§5.2): the entrance for words you can't photograph — heard in
@@ -471,7 +472,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   <ul className="mt-1 space-y-1">
                     {phraseCard.replies.map((r, i) => (
                       <li key={i} className="rounded-lg bg-secondary/60 px-3 py-1.5 text-sm">
-                        {r.zh} <span className="text-xs text-muted-foreground">— {r.ja}</span>
+                        <Zh>{r.zh}</Zh> <span className="text-xs text-muted-foreground">— {r.ja}</span>
                       </li>
                     ))}
                   </ul>

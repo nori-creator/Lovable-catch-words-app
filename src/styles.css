@@ -2,6 +2,96 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* ───────────────────────────────────────────────────────────────
+   フォントは自前で配る(2026-07-30)
+   以前は Google Fonts から読んでいたが、ネイティブアプリでは困る:
+   - オフラインだとフォントが来ず、デザインが崩れる
+   - 起動ごとに外部へ取りに行くので、初回描画が遅れる
+   - 端末の言語設定や通信状況で見た目が変わる = 再現しない不具合の元
+   latin / latin-ext だけに絞って 340KB。台湾華語(繁体字)は端末内の
+   PingFang TC / Noto Sans CJK TC を使うので Web フォントは要らない。
+   ─────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(/fonts/Inter-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(/fonts/Inter-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url(/fonts/JetBrainsMono-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url(/fonts/JetBrainsMono-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(/fonts/Caveat-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(/fonts/Caveat-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/InstrumentSerif-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/InstrumentSerif-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/InstrumentSerif-400-italic-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/InstrumentSerif-400-italic-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -171,9 +261,19 @@
     letter-spacing: -0.022em;
   }
 
-  /* Traditional Chinese typography refinement */
-  :lang(zh-Hant), .font-zh {
-    font-family: "Noto Sans TC", "PingFang TC", "Hiragino Sans", sans-serif;
+  /* 台湾華語(繁体字)の字形を守るための指定。
+     ここは見た目の好みではなく **正しさ** の問題。同じ文字コードでも
+     日本語フォントと繁体字フォントで字形が違う(直・骨・每・者・戶 など)。
+     日本語フォントで繁体字を出すと、学習者は誤った字形を覚えてしまう。
+
+     - lang="zh-Hant" が付いた要素と .font-zh に適用する
+     - フォールバックに **日本語フォントを入れない**。入れると、繁体字
+       フォントが無い/読み込めない端末で静かに日本語字形へ落ちる
+     - iOS は PingFang TC、Android は Noto Sans CJK TC を持っているので、
+       lang が正しければ Web フォント無しでも正しい字形が出る */
+  :lang(zh-Hant), :lang(zh-TW), .font-zh {
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
+                 "Noto Sans CJK TC", "Source Han Sans TC", sans-serif;
   }
 
   /* apple-design §1 (Response): kill the ~300ms tap delay and the grey mobile
@@ -309,7 +409,10 @@
 .washi-tape.yellow { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 4px, rgba(255,255,255,0.25) 4px 8px), #f5e2a0; }
 .washi-tape.mint { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 4px, rgba(255,255,255,0.25) 4px 8px), #bfe4c9; }
 
-.handwritten { font-family: "Caveat","Shadows Into Light","Comic Sans MS",cursive; }
+/* 手書き風。Caveat は latin だけなので、**欧文・数字にしか効かない**。
+   漢字に付けると Caveat に無い字が別のフォントへ落ち、繁体字の字形指定より
+   優先されてしまう。だから中国語の見出し語には付けないこと。 */
+.handwritten { font-family: "Caveat", cursive; }
 
 /* ===========================================================================
    リアル・アルバム (2026-07-25) — 「子供の頃のアルバム/卒業アルバム/美術館」

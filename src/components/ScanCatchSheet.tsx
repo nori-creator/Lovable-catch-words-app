@@ -435,7 +435,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-2xl font-bold tracking-tight">{headword}</h2>
+            <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">{headword}</h2>
             {dict ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
                 ✓ 検証済み
@@ -446,7 +446,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p lang="zh-Hant" className="mt-0.5 text-xs text-muted-foreground">
             {dict?.zhuyin || item.zhuyin}
             {(dict?.pinyin || item.pinyin) && <span className="ml-2">{dict?.pinyin || item.pinyin}</span>}
           </p>
@@ -544,11 +544,11 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
             style={{ top: "68%" }}
           >
-            <div className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
+            <div lang="zh-Hant" className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
               {headword}
             </div>
             {(dict?.zhuyin || item.zhuyin) && (
-              <div className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+              <div lang="zh-Hant" className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
                 {dict?.zhuyin || item.zhuyin}
               </div>
             )}

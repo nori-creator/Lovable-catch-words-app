@@ -110,9 +110,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: packCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@500;700&display=swap" },
+      // フォントは public/fonts から自前で配る(styles.css の @font-face)。
+      // 以前は Google Fonts から読んでいたが、ネイティブアプリではオフラインで
+      // 落ちるうえ、起動ごとに外部通信が入って初回描画が遅れていた。
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
     ],
     scripts: [

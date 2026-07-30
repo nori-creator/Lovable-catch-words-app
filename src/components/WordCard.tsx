@@ -286,7 +286,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-4xl font-bold tracking-tight">{word.headword}</h1>
+            <h1 lang="zh-Hant" className="text-4xl font-bold tracking-tight">{word.headword}</h1>
             <button
               onClick={play}
               aria-label="発音を再生"
@@ -555,7 +555,7 @@ function Body({
               {e.scene && (
                 <p className="mb-1 text-[10px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
               )}
-              <p className="text-sm">{e.zh}</p>
+              <p lang="zh-Hant" className="text-sm">{e.zh}</p>
               <p className="text-[11px] text-muted-foreground">{e.ja}</p>
             </li>
           ))}
@@ -699,7 +699,7 @@ function MeasureWordRow({
     <>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-[15px] font-semibold">{word}</span>
+          <span lang="zh-Hant" className="text-[15px] font-semibold">{word}</span>
           <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-[11px] text-muted-foreground" />
         </span>
         {note && <span className="mt-0.5 block text-[11px] text-muted-foreground">{note}</span>}

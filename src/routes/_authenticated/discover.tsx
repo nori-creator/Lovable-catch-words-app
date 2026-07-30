@@ -165,8 +165,8 @@ function DiscoverPage() {
                     className="rounded-2xl border border-border bg-card p-3"
                   >
                     <div className="flex items-baseline gap-2">
-                      <span className="text-base font-semibold">{w.headword}</span>
-                      <span className="text-[11px] text-muted-foreground">{w.reading_zhuyin}</span>
+                      <span lang="zh-Hant" className="text-base font-semibold">{w.headword}</span>
+                      <span lang="zh-Hant" className="text-[11px] text-muted-foreground">{w.reading_zhuyin}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{w.meaning_ja}</div>
                   </li>

@@ -294,11 +294,13 @@ function ScrapbookAlbum({
                 ) : (
                   // 画像がまだ無いカード: 単語そのものを見せる(段ボール絵は廃止)
                   <div className="grid h-full w-full place-items-center px-2 text-center">
-                    <span className="text-lg font-semibold text-muted-foreground">{s.word.headword}</span>
+                    <span lang="zh-Hant" className="text-lg font-semibold text-muted-foreground">{s.word.headword}</span>
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
-                <span className="handwritten absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90">
+                {/* 帯の中の見出し語。手書き風(.handwritten)は付けない —
+                    Caveat に漢字が無いため、繁体字の字形指定を壊してしまう。 */}
+                <span lang="zh-Hant" className="absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90">
                   {s.word.headword}
                 </span>
               </div>

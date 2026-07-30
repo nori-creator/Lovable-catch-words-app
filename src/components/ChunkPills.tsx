@@ -31,7 +31,9 @@ export function ChunkPills({
             className={`rounded-lg font-medium ${pad} ${st.bg} ${st.text}`}
             title={st.label}
           >
-            {c.text}
+            {/* チャンク本体は台湾華語。品詞ラベル(名詞など)は解説語なので
+                こちらだけ言語を宣言し、字形を繁体字に固定する。 */}
+            <span lang="zh-Hant">{c.text}</span>
             {c.pos && (
               <span className={`ml-1 opacity-60 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>{c.pos}</span>
             )}

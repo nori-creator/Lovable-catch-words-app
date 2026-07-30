@@ -11,6 +11,7 @@ import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lu
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
+import { Zh } from "@/components/Zh";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -281,7 +282,7 @@ function DexPage() {
                           // 画像がまだ無いときは静かなプレースホルダ。
                           // 詳細を開くとネット画像が自動で入る。
                           <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
-                            <span className="text-base font-semibold text-muted-foreground">
+                            <span lang="zh-Hant" className="text-base font-semibold text-muted-foreground">
                               {s.word.headword}
                             </span>
                           </div>
@@ -292,7 +293,7 @@ function DexPage() {
                           </span>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                          <div className="truncate text-[12px] font-semibold text-white">{s.word.headword}</div>
+                          <div lang="zh-Hant" className="truncate text-[12px] font-semibold text-white">{s.word.headword}</div>
                         </div>
                         {slam && (
                           <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
@@ -340,16 +341,16 @@ function DexPage() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className="px-1 text-center text-[11px] font-semibold text-muted-foreground">
+                          <span lang="zh-Hant" className="px-1 text-center text-[11px] font-semibold text-muted-foreground">
                             {s.word.headword}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span className="text-base font-semibold">{s.word.headword}</span>
+                          <span lang="zh-Hant" className="text-base font-semibold">{s.word.headword}</span>
                           {s.word.reading_zhuyin && (
-                            <span className="truncate text-xs text-muted-foreground">
+                            <span lang="zh-Hant" className="truncate text-xs text-muted-foreground">
                               {s.word.reading_zhuyin}
                             </span>
                           )}
@@ -502,13 +503,13 @@ function PackGallery({
                 />
               ) : (
                 // 写真がまだ無いときは単語そのものを見せる(段ボール絵は使わない)。
-                <span className="pk-tile-emoji">{s.word.headword.slice(0, 2)}</span>
+                <span lang="zh-Hant" className="pk-tile-emoji">{s.word.headword.slice(0, 2)}</span>
               )}
               {s.encounter_count > 0 && <span className="pk-tile-badge">×{s.encounter_count}</span>}
             </span>
             <span className="pk-tile-body">
-              <span className="pk-tile-word">{s.word.headword}</span>
-              <span className="pk-tile-sub">{s.word.meaning_ja || s.word.reading_zhuyin}</span>
+              <span lang="zh-Hant" className="pk-tile-word">{s.word.headword}</span>
+              <span className="pk-tile-sub">{s.word.meaning_ja || <Zh>{s.word.reading_zhuyin}</Zh>}</span>
             </span>
           </button>
         );
@@ -713,7 +714,7 @@ function DexMap({
                   </div>
                   <div className="flex items-center gap-1 px-2 py-1.5">
                     <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span className="truncate text-xs font-medium">{s.word.headword}</span>
+                    <span lang="zh-Hant" className="truncate text-xs font-medium">{s.word.headword}</span>
                   </div>
                 </button>
               );

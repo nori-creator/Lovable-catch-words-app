@@ -253,7 +253,7 @@ function DictionaryAdminPage() {
             )}
             {results.map((r) => (
               <div key={r.id} className="p-3 text-sm flex flex-wrap gap-x-3 gap-y-1">
-                <span className="font-medium">{r.headword}</span>
+                <span lang="zh-Hant" className="font-medium">{r.headword}</span>
                 {r.zhuyin && <span className="text-muted-foreground">{r.zhuyin}</span>}
                 {r.pinyin && <span className="text-muted-foreground">{r.pinyin}</span>}
                 <span>→ {r.meaning_ja}</span>

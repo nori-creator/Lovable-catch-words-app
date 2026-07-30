@@ -342,7 +342,7 @@ function MemoryOverviewPanel({
                 onClick={() => onOpenWord(w)}
                 className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
-                <span className="w-14 shrink-0 truncate text-sm font-medium">{w.headword}</span>
+                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-sm font-medium">{w.headword}</span>
                 <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                   <span className={`absolute inset-y-0 left-0 ${lv.bar}`} style={{ width: `${w.retention}%` }} />
                 </span>
@@ -448,7 +448,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-lg font-bold">{word.headword}</h3>
+          <h3 lang="zh-Hant" className="text-lg font-bold">{word.headword}</h3>
           <button onClick={onClose} aria-label="閉じる" className="rounded-full p-1 text-muted-foreground">
             <X className="h-5 w-5" />
           </button>
@@ -793,7 +793,7 @@ function SpeakingCard({
       {!isPhrase && card.prompt_pattern && (
         <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("review.todaysPattern")}</div>
-          <div className="mt-1 text-xl font-bold leading-snug tracking-wide">
+          <div lang="zh-Hant" className="mt-1 text-xl font-bold leading-snug tracking-wide">
             {card.prompt_pattern.zh.split(card.headword).join("◯".repeat(Math.max(1, card.headword.length)))}
           </div>
           {card.prompt_pattern.ja && (
@@ -845,7 +845,7 @@ function SpeakingCard({
                   {p.chunks.length > 0 ? (
                     <ChunkPills parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))} size="lg" />
                   ) : (
-                    <span className="text-lg font-bold leading-snug tracking-wide">{p.zh}</span>
+                    <span lang="zh-Hant" className="text-lg font-bold leading-snug tracking-wide">{p.zh}</span>
                   )}
                 </div>
                 {p.ja && <p className="mt-1 text-[11px] leading-relaxed text-sky-900/70">{p.ja}</p>}
@@ -997,7 +997,7 @@ function FeedbackView({
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.you")}</div>
         <div className="text-sm">{transcript}</div>
         <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.corrected")}</div>
-        <div className="flex items-start gap-2">
+        <div lang="zh-Hant" className="flex items-start gap-2">
           <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
           <button
             onClick={() => speakZhTW(feedback.corrected)}
@@ -1015,7 +1015,7 @@ function FeedbackView({
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.sentenceBuild")}</span>
           {feedback.unlocked_branch && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            <span lang="zh-Hant" className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
               {t("review.newBranch")}
             </span>
           )}
@@ -1191,8 +1191,8 @@ function LightModeCard({
             {score != null && <span className="text-xs text-muted-foreground">{t("review.naturalness")} {score}/5</span>}
           </div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="text-2xl font-bold tracking-tight">{card.headword}</span>
-            <span className="text-xs text-muted-foreground">
+            <span lang="zh-Hant" className="text-2xl font-bold tracking-tight">{card.headword}</span>
+            <span lang="zh-Hant" className="text-xs text-muted-foreground">
               {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
             </span>
             <button

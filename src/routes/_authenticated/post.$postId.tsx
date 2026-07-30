@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { getPost, getComments, addComment, toggleLike } from "@/lib/social.functions";
 import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
+import { Zh } from "@/components/Zh";
 
 export const Route = createFileRoute("/_authenticated/post/$postId")({
   head: ({ params }) => ({
@@ -81,8 +82,8 @@ function PostPage() {
               )}
               {p.sticker?.word && (
                 <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-                  <div className="text-lg font-bold leading-none">{p.sticker.word.headword}</div>
-                  <div className="text-[10px] text-muted-foreground">{p.sticker.word.reading_zhuyin} · {p.sticker.word.meaning_ja}</div>
+                  <div lang="zh-Hant" className="text-lg font-bold leading-none">{p.sticker.word.headword}</div>
+                  <div className="text-[10px] text-muted-foreground"><Zh>{p.sticker.word.reading_zhuyin}</Zh> · {p.sticker.word.meaning_ja}</div>
                 </div>
               )}
             </div>
@@ -138,6 +139,7 @@ function PostPage() {
               />
               <button
                 type="submit"
+                aria-label="コメントを送信"
                 disabled={!body.trim() || commentMut.isPending}
                 className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
               >

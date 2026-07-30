@@ -3,6 +3,7 @@ import { X, Loader2 } from "lucide-react";
 import { WordCard } from "@/components/WordCard";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
+import { Zh } from "@/components/Zh";
 
 type Props = {
   headword: string;
@@ -38,7 +39,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
   return (
     <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground">{headword} — 詳しく</span>
+        <span className="pl-1 text-xs font-medium text-muted-foreground"><Zh>{headword}</Zh> — 詳しく</span>
         <button
           onClick={onClose}
           aria-label="閉じる"

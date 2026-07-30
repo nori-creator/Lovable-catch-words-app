@@ -149,13 +149,13 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
               {photoUrl ? (
                 <img src={photoUrl} alt={headword} className="h-full w-full object-cover" />
               ) : (
-                <span className="px-1 text-center text-sm font-semibold text-muted-foreground">
+                <span lang="zh-Hant" className="px-1 text-center text-sm font-semibold text-muted-foreground">
                   {emoji ?? headword}
                 </span>
               )}
             </div>
           </div>
-          <div className="mt-1 text-sm font-bold tracking-tight">{headword}</div>
+          <div lang="zh-Hant" className="mt-1 text-sm font-bold tracking-tight">{headword}</div>
         </div>
 
         {/* branches */}
@@ -194,7 +194,7 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
               }}
               className={`absolute z-10 max-w-[38%] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-2.5 py-1.5 text-center shadow-sm ring-1 backdrop-blur-sm transition-transform hover:-translate-y-[calc(50%+1px)] active:scale-95 ${TYPE_STYLE[b.type]}`}
             >
-              <span className="block text-[13px] font-semibold leading-tight">{b.zh}</span>
+              <span lang="zh-Hant" className="block text-[13px] font-semibold leading-tight">{b.zh}</span>
               {b.ja && <span className="block text-[9px] opacity-80">{b.ja}</span>}
               <span className="block text-[8px] uppercase tracking-wide opacity-60">{TYPE_LABEL[b.type]}</span>
             </Link>

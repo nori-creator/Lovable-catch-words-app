@@ -60,5 +60,8 @@ export function Reading({
   const pref = usePhoneticPref();
   const text = pickReading(pref, zhuyin, pinyin);
   if (!text) return null;
-  return <span className={className}>{text}</span>;
+  // 注音(ㄅㄆㄇ)は繁体字フォントにしか入っていない。日本語フォントに落ちると
+  // 記号が別物になったり出なかったりするので、ここで言語を宣言しておく。
+  // 読みの表示は全画面がこの部品を通るので、ここ1箇所で全部が正しくなる。
+  return <span lang="zh-Hant" className={className}>{text}</span>;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { stopOtherAudio } from "@/lib/audio";
+import { Zh } from "@/components/Zh";
 
 type Props = {
   headword: string;
@@ -132,7 +133,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <div>
+        <div lang="zh-Hant">
           <h3 className="text-sm font-semibold">発音練習</h3>
           <p className="text-[11px] text-muted-foreground">{zhuyin ?? pinyin ?? ""}</p>
         </div>
@@ -168,14 +169,14 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
         </button>
         <div className="flex-1 text-sm">
           {listening ? (
-            <span className="text-muted-foreground">聞き取り中…「{headword}」と言ってみて</span>
+            <span className="text-muted-foreground">聞き取り中…「<Zh>{headword}</Zh>」と言ってみて</span>
           ) : heard ? (
             <div className="space-y-0.5">
               <div className="text-xs text-muted-foreground">あなたの発音</div>
               <div className="font-medium">{heard}</div>
             </div>
           ) : (
-            <span className="text-muted-foreground">マイクを押して「{headword}」と発音</span>
+            <span className="text-muted-foreground">マイクを押して「<Zh>{headword}</Zh>」と発音</span>
           )}
         </div>
         {score !== null && (

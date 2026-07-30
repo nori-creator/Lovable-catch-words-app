@@ -130,7 +130,7 @@ function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?
       <ul className="space-y-2">
         {phrases.map((p, i) => (
           <li key={i} className="rounded-xl bg-card p-3 shadow-sm ring-1 ring-border/60">
-            <p className="text-base font-semibold leading-relaxed">{p.zh}</p>
+            <p lang="zh-Hant" className="text-base font-semibold leading-relaxed">{p.zh}</p>
             <p className="mt-0.5 text-sm text-muted-foreground">{p.ja}</p>
             {p.note && <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">{p.note}</p>}
           </li>

@@ -212,7 +212,7 @@ function SelfImprovePanel() {
             {st!.audits.map((a, i) => (
               <li key={i} className="flex items-center gap-2">
                 <span>{a.ok ? "✅" : a.applied ? "🔧" : "⚠️"}</span>
-                <span className="font-medium">{a.headword}</span>
+                <span lang="zh-Hant" className="font-medium">{a.headword}</span>
                 <span className="text-muted-foreground">
                   {a.source}
                   {!a.ok && !a.applied && " · 要レビュー"}
@@ -266,7 +266,7 @@ function EntryReportsPanel() {
         <ul className="space-y-1.5">
           {list.map((r) => (
             <li key={r.id} className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs">
-              <span className="font-semibold">{r.headword}</span>
+              <span lang="zh-Hant" className="font-semibold">{r.headword}</span>
               <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {KIND_LABEL[r.kind] ?? r.kind}
               </span>

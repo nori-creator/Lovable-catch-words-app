@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { getFeed, toggleLike, type FeedPost } from "@/lib/social.functions";
 import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
+import { Zh } from "@/components/Zh";
 
 export const Route = createFileRoute("/_authenticated/feed")({
   head: () => ({ meta: [{ title: "フィード — Catchwords" }] }),
@@ -104,8 +105,8 @@ function PostCard({ post }: { post: FeedPost }) {
           )}
           {post.sticker?.word && (
             <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-              <div className="text-lg font-bold leading-none">{post.sticker.word.headword}</div>
-              <div className="text-[10px] text-muted-foreground">{post.sticker.word.reading_zhuyin} · {post.sticker.word.meaning_ja}</div>
+              <div lang="zh-Hant" className="text-lg font-bold leading-none">{post.sticker.word.headword}</div>
+              <div className="text-[10px] text-muted-foreground"><Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}</div>
             </div>
           )}
         </div>
