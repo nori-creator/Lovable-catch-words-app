@@ -10,11 +10,12 @@ import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
 import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
     meta: [
-      { title: "ホーム — Catchwords" },
+      { title: tStatic("page.home") },
       { name: "description", content: "今日キャッチした言葉を一冊のスクラップアルバムに。" },
     ],
   }),

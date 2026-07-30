@@ -2,6 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 // Beta typed wrapper: @supabase/supabase-js's auth.oauth namespace isn't in
 // the public types yet. Keep this narrow, local, and only for these three
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
   component: Consent,
   errorComponent: ({ error }) => (
     <main className="mx-auto max-w-md p-6">
-      <h1 className="text-lg font-semibold mb-2">認証リクエストを読み込めませんでした</h1>
+      <h1 className="text-lg font-semibold mb-2">{tStatic("oauth.loadFailed")}</h1>
       <p className="text-sm text-muted-foreground break-all">
         {String((error as Error)?.message ?? error)}
       </p>
@@ -58,11 +60,12 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
 });
 
 function Consent() {
+  const t = useT();
   const details = Route.useLoaderData();
   const { authorization_id } = Route.useSearch();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const clientName = details?.client?.name ?? "外部クライアント";
+  const clientName = details?.client?.name ?? t("oauth.unknownClient");
 
   async function decide(approve: boolean) {
     setBusy(true);
@@ -79,7 +82,7 @@ function Consent() {
     const target = data?.redirect_url ?? data?.redirect_to;
     if (!target) {
       setBusy(false);
-      setErr("認証サーバーからリダイレクト先が返されませんでした。");
+      setErr(t("oauth.noRedirect"));
       return;
     }
     window.location.href = target;
@@ -89,25 +92,23 @@ function Consent() {
     <main className="mx-auto max-w-md p-6">
       <div className="rounded-2xl border bg-card p-6 shadow-sm">
         <h1 className="text-xl font-semibold tracking-tight">
-          {clientName} を Catchwords に接続
+          {t("oauth.connectTitle", { client: clientName })}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          このクライアントは、あなたとしてサインインした状態で Catchwords の
-          有効なツールを呼び出せるようになります。
+          {t("oauth.explain")}
         </p>
         {details?.redirect_uri && (
           <p className="mt-3 text-xs text-muted-foreground break-all">
-            リダイレクト先: <span className="font-mono">{details.redirect_uri}</span>
+            {t("oauth.redirectTo")} <span className="font-mono">{details.redirect_uri}</span>
           </p>
         )}
         <ul className="mt-4 space-y-1 text-sm">
-          <li>・あなたの Catchwords プロフィール(表示名・アバター)</li>
-          <li>・あなたのステッカー(単語カード・キャプション・撮影地)</li>
-          <li>・あなたの SRS 復習の予定</li>
+          <li>{t("oauth.scope1")}</li>
+          <li>{t("oauth.scope2")}</li>
+          <li>{t("oauth.scope3")}</li>
         </ul>
         <p className="mt-4 text-xs text-muted-foreground">
-          このアプリの権限とバックエンドポリシー(RLS)は引き続き適用されます。
-          他ユーザーのデータは公開されません。
+          {t("oauth.rlsNote")}
         </p>
         {err && (
           <p role="alert" className="mt-3 text-sm text-destructive">
@@ -116,7 +117,7 @@ function Consent() {
         )}
         <div className="mt-6 flex gap-2">
           <Button disabled={busy} onClick={() => decide(true)} className="flex-1">
-            許可する
+            {t("oauth.approve")}
           </Button>
           <Button
             disabled={busy}
@@ -124,7 +125,7 @@ function Consent() {
             onClick={() => decide(false)}
             className="flex-1"
           >
-            拒否する
+            {t("oauth.deny")}
           </Button>
         </div>
       </div>

@@ -7,9 +7,10 @@ import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/feed")({
-  head: () => ({ meta: [{ title: "フィード — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.feed") }] }),
   component: FeedPage,
 });
 

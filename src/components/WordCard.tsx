@@ -52,20 +52,20 @@ type SectionId =
   | "real_usage";
 
 /** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
-const ALL_SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "meaning", label: "意味" },
-  { id: "web_images", label: "ネットの画像" },
-  { id: "usage_context", label: "頻度・使う場面" },
-  { id: "example", label: "例文" },
-  { id: "examples_extra", label: "追加の例文" },
-  { id: "usage_chunks", label: "使い方チャンク" },
-  { id: "measure_words", label: "量詞" },
-  { id: "related_words", label: "にてる言葉・関連語" },
-  { id: "pronunciation_tips", label: "発音のコツ" },
-  { id: "etymology", label: "語源・部首" },
-  { id: "mnemonic", label: "覚え方" },
-  { id: "taiwan_note", label: "台湾メモ" },
-  { id: "real_usage", label: "実際の使われ方" },
+const ALL_SECTIONS: { id: SectionId }[] = [
+  { id: "meaning" },
+  { id: "web_images" },
+  { id: "usage_context" },
+  { id: "example" },
+  { id: "examples_extra" },
+  { id: "usage_chunks" },
+  { id: "measure_words" },
+  { id: "related_words" },
+  { id: "pronunciation_tips" },
+  { id: "etymology" },
+  { id: "mnemonic" },
+  { id: "taiwan_note" },
+  { id: "real_usage" },
 ];
 
 /** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
@@ -153,13 +153,13 @@ export function WordCardSectionsEditor() {
           <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs">
             <span className={visible ? "" : "text-muted-foreground line-through"}>{t(`card.${meta.id}`)}</span>
             <span className="flex gap-1">
-              <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
+              <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label={t("card.moveUp")}>
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
-              <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
+              <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label={t("card.moveDown")}>
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
-              <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
+              <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label={t("card.toggleShow")}>
                 {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
               </button>
             </span>
@@ -265,6 +265,7 @@ export const WordCard = forwardRef<
 });
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
+  const t = useT();
   const autoplayedRef = useRef(false);
   const pronounce = usePronounce();
 
@@ -276,8 +277,9 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
   useEffect(() => {
     if (!autoplay || autoplayedRef.current) return;
     autoplayedRef.current = true;
-    const t = setTimeout(play, 400);
-    return () => clearTimeout(t);
+    // 変数名 t は翻訳関数と紛らわしいので timer にする。
+    const timer = setTimeout(play, 400);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word.headword]);
 
@@ -289,7 +291,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             <h1 lang="zh-Hant" className="text-4xl font-bold tracking-tight">{word.headword}</h1>
             <button
               onClick={play}
-              aria-label="発音を再生"
+              aria-label={t("card.playPron")}
               className="lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
             >
               <Volume2 className="h-5 w-5" />
@@ -329,10 +331,10 @@ function ReportButton({ headword }: { headword: string }) {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const kinds: { kind: "pronunciation" | "meaning" | "pos" | "other"; label: string }[] = [
-    { kind: "pronunciation", label: "発音・注音" },
-    { kind: "meaning", label: "意味" },
-    { kind: "pos", label: "品詞" },
-    { kind: "other", label: "その他" },
+    { kind: "pronunciation", label: t("card.pronZhuyin") },
+    { kind: "meaning", label: t("card.meaning") },
+    { kind: "pos", label: t("card.posLabel") },
+    { kind: "other", label: t("card.otherLabel") },
   ];
   async function send(kind: "pronunciation" | "meaning" | "pos" | "other") {
     setOpen(false);
@@ -349,7 +351,7 @@ function ReportButton({ headword }: { headword: string }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
-        aria-label="この語の誤りを報告"
+        aria-label={t("card.reportError")}
       >
         <Flag className="h-3 w-3" /> {t("card.report")}
       </button>
@@ -484,8 +486,9 @@ function EmptySection({
 
 /** 頻度メーター(1〜5)。 */
 function FrequencyMeter({ level }: { level: number }) {
+  const t = useT();
   return (
-    <span className="inline-flex items-center gap-0.5" aria-label={`頻度 ${level}/5`}>
+    <span className="inline-flex items-center gap-0.5" aria-label={t("card.freqAria", { n: level })}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
@@ -694,6 +697,7 @@ function MeasureWordRow({
   pinyin?: string;
   note?: string;
 }) {
+  const t = useT();
   const pronounce = usePronounce();
   return (
     <>
@@ -706,7 +710,7 @@ function MeasureWordRow({
       </span>
       <button
         onClick={() => void pronounce(word)}
-        aria-label={`「${word}」の発音`}
+        aria-label={t("card.pronOfWord", { word })}
         className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/80 text-violet-700 shadow-sm ring-1 ring-black/5 active:scale-95"
       >
         <Volume2 className="h-3.5 w-3.5" />
@@ -820,13 +824,14 @@ function WebImagesBody({
  * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
  */
 function RealUsageBody({ headword }: { headword: string }) {
+  const t = useT();
   const q = encodeURIComponent(headword);
   const links: { label: string; hint: string; href: string; emoji: string }[] = [
-    { emoji: "🎬", label: "YouTubeで聞く", hint: "この単語が話されている動画", href: `https://www.youtube.com/results?search_query=${q}` },
-    { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
-    { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
-    { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
-    { emoji: "📖", label: "教育部國語辭典簡編本", hint: "台湾教育部の公式辞書(定義・注音)", href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}` },
+    { emoji: "🎬", label: t("card.ytLabel"), hint: t("card.ytHint"), href: `https://www.youtube.com/results?search_query=${q}` },
+    { emoji: "🗣️", label: t("card.yglLabel"), hint: t("card.yglHint"), href: `https://youglish.com/pronounce/${q}/chinese/tw` },
+    { emoji: "💬", label: t("card.dcardLabel"), hint: t("card.dcardHint"), href: `https://www.dcard.tw/search?query=${q}` },
+    { emoji: "📰", label: t("card.newsLabel"), hint: t("card.newsHint"), href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
+    { emoji: "📖", label: t("card.moeLabel"), hint: t("card.moeHint"), href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}` },
   ];
   return (
     <ul className="grid grid-cols-1 gap-1.5">

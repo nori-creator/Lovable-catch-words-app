@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
-      { title: "パスワード再設定 — Catchwords" },
+      { title: tStatic("page.reset") },
       { name: "description", content: "Catchwordsのパスワードを再設定します。" },
       { name: "robots", content: "noindex, nofollow" },
     ],

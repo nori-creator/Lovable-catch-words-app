@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   },
   head: () => ({
     meta: [
-      { title: "図鑑 — Catchwords" },
+      { title: tStatic("page.dex") },
       {
         name: "description",
         content:
@@ -228,7 +229,9 @@ function DexPage() {
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-base font-semibold tracking-tight">{groupMode === "pos" ? key : prettifyCategory(key)}</h3>
+              <h3 className="text-base font-semibold tracking-tight">{/* 品詞グループは翻訳キーそのもの、カテゴリーは既知なら翻訳、
+                  未知のキーはそのまま見せる(訳が無いより分かる)。 */}
+              {groupMode === "pos" ? t(key) : (categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`)}</h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 
@@ -256,7 +259,7 @@ function DexPage() {
                         {photo ? (
                           <CachedImg
                             src={photo}
-                            alt={`「${s.word.headword}」の写真`}
+                            alt={t("common.photoOf", { word: s.word.headword })}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-cover"
@@ -264,7 +267,7 @@ function DexPage() {
                         ) : s.cutout_url ? (
                           <CachedImg
                             src={s.cutout_thumb_url ?? s.cutout_url}
-                            alt={`「${s.word.headword}」のステッカー`}
+                            alt={t("common.stickerOf", { word: s.word.headword })}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-contain p-2"
@@ -273,7 +276,7 @@ function DexPage() {
                           // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
                           <CachedImg
                             src={s.placeholder_url}
-                            alt={`「${s.word.headword}」の画像`}
+                            alt={t("common.imageOf", { word: s.word.headword })}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-cover"
@@ -319,7 +322,7 @@ function DexPage() {
                         {s.object_thumb_url ?? s.object_url ? (
                           <CachedImg
                             src={(s.object_thumb_url ?? s.object_url)!}
-                            alt={`「${s.word.headword}」の写真`}
+                            alt={t("common.photoOf", { word: s.word.headword })}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-cover"
@@ -327,7 +330,7 @@ function DexPage() {
                         ) : s.cutout_url ? (
                           <CachedImg
                             src={s.cutout_thumb_url ?? s.cutout_url}
-                            alt={`「${s.word.headword}」のステッカー`}
+                            alt={t("common.stickerOf", { word: s.word.headword })}
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-contain p-1"
@@ -395,6 +398,7 @@ function DexPage() {
 
 /** Small pronunciation button — accurate server voice, device-voice fallback. */
 function PronounceButton({ text }: { text: string }) {
+  const t = useT();
   const pronounce = usePronounce();
   function play(e: ReactMouseEvent) {
     e.stopPropagation();
@@ -403,7 +407,7 @@ function PronounceButton({ text }: { text: string }) {
   return (
     <button
       onClick={play}
-      aria-label={`「${text}」の発音を再生`}
+      aria-label={t("dex.playPron", { word: text })}
       className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
     >
       <Volume2 className="h-[18px] w-[18px]" />
@@ -482,6 +486,7 @@ function PackGallery({
   onOpen: (id: string) => void;
   layout: LayoutId;
 }) {
+  const t = useT();
   return (
     <div className="pk-collection" data-layout={layout}>
       {items.map((s) => {
@@ -497,7 +502,7 @@ function PackGallery({
               {photo ? (
                 <CachedImg
                   src={photo}
-                  alt={`「${s.word.headword}」の写真`}
+                  alt={t("common.photoOf", { word: s.word.headword })}
                   loading="lazy"
                   decoding="async"
                 />
@@ -695,13 +700,13 @@ function DexMap({
                   key={s.id}
                   onClick={() => focusOnMap(s)}
                   className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
-                  aria-label={`「${s.word.headword}」の場所を地図で見る`}
+                  aria-label={t("dex.seeOnMap", { word: s.word.headword })}
                 >
                   <div className="aspect-square w-full overflow-hidden bg-secondary">
                     {thumb ? (
                       <CachedImg
                         src={thumb}
-                        alt={`「${s.word.headword}」の写真`}
+                        alt={t("common.photoOf", { word: s.word.headword })}
                         loading="lazy"
                         decoding="async"
                         className="h-full w-full object-cover"
@@ -727,45 +732,22 @@ function DexMap({
 }
 
 // B6: 品詞グルーピング。part_of_speech(日本語表記)を代表的なバケツに正規化。
+// 返すのは **翻訳キー**。表示言語が変わっても見出しが追従するようにする。
 type GroupMode = "category" | "pos";
-const POS_ORDER = ["📛 名詞", "🏃 動詞", "🎨 形容詞", "💬 フレーズ", "✨ その他"];
+const POS_ORDER = ["pos.noun", "pos.verb", "pos.adj", "pos.phrase", "pos.other"];
 function posBucket(pos: string | null | undefined, captureType: string): string {
-  if (captureType === "phrase") return "💬 フレーズ";
+  if (captureType === "phrase") return "pos.phrase";
   const p = (pos ?? "").trim();
-  if (!p) return "✨ その他";
-  if (/名詞|代名詞|数詞|量詞/.test(p)) return "📛 名詞";
-  if (/動詞|助動詞/.test(p)) return "🏃 動詞";
-  if (/形容詞|形容動詞|副詞|形容/.test(p)) return "🎨 形容詞";
-  if (/フレーズ|慣用|成語|挨拶|感嘆|感動詞|接続詞|助詞/.test(p)) return "💬 フレーズ";
-  return "✨ その他";
+  if (!p) return "pos.other";
+  if (/名詞|代名詞|数詞|量詞/.test(p)) return "pos.noun";
+  if (/動詞|助動詞/.test(p)) return "pos.verb";
+  if (/形容詞|形容動詞|副詞|形容/.test(p)) return "pos.adj";
+  if (/フレーズ|慣用|成語|挨拶|感嘆|感動詞|接続詞|助詞/.test(p)) return "pos.phrase";
+  return "pos.other";
 }
 
-function prettifyCategory(key: string): string {
-  const map: Record<string, string> = {
-    fruit: "🍎 果物", vegetable: "🥬 野菜", drink: "🥤 飲み物",
-    food: "🍜 食べ物", dessert: "🍰 スイーツ",
-    vehicle: "🚗 乗り物", transport: "🚆 交通",
-    animal: "🐾 動物", plant: "🌱 植物", flower: "🌸 花",
-    building: "🏛️ 建物", street: "🛣️ 街並み", sign: "🪧 看板",
-    shop: "🏪 お店", home: "🏠 家", furniture: "🛋️ 家具",
-    appliance: "📺 家電", kitchenware: "🍳 調理器具", tool: "🔧 道具",
-    clothes: "👕 服", accessory: "🎀 アクセ", shoes: "👟 靴",
-    bag: "👜 バッグ", jewelry: "💍 ジュエリー",
-    stationery: "✏️ 文房具", book: "📚 本",
-    tech: "💻 テック", gadget: "🖱️ ガジェット",
-    toy: "🧸 おもちゃ", game: "🎮 ゲーム",
-    sport: "⚽ スポーツ", instrument: "🎸 楽器",
-    nature: "🌿 自然", weather: "☁️ 天気", sky: "☀️ 空",
-    water: "💧 水", mountain: "⛰️ 山",
-    body: "🖐️ 体の部位", face: "😊 顔", hand: "🖐️ 手",
-    clothing_part: "👔 服の部分",
-    person: "🧑 人", family: "👨‍👩‍👧 家族", job: "💼 仕事",
-    art: "🎨 アート", decoration: "🎊 装飾",
-    character: "🔤 文字", symbol: "🔣 記号",
-    color: "🎨 色", shape: "🔷 形",
-    money: "💰 お金", document: "📄 書類", medicine: "💊 薬",
-    place: "📍 場所", object: "📦 もの",
-    other: "✨ その他",
-  };
-  return map[key] ?? `✨ ${key}`;
+/** カテゴリーキー → 翻訳キー。未知のキーはそのまま見せる(訳が無いよりまし)。 */
+const KNOWN_CATEGORIES = new Set(["fruit", "vegetable", "drink", "food", "dessert", "vehicle", "transport", "animal", "plant", "flower", "building", "street", "sign", "shop", "home", "furniture", "appliance", "kitchenware", "tool", "clothes", "accessory", "shoes", "bag", "jewelry", "stationery", "book", "tech", "gadget", "toy", "game", "sport", "instrument", "nature", "weather", "sky", "water", "mountain", "body", "face", "hand", "clothing_part", "person", "family", "job", "art", "decoration", "character", "symbol", "color", "shape", "money", "document", "medicine", "place", "object", "other"]);
+function categoryKey(key: string): string {
+  return KNOWN_CATEGORIES.has(key) ? `cat.${key}` : "";
 }

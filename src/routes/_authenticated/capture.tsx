@@ -24,6 +24,7 @@ import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/capture")({
   },
   head: () => ({
     meta: [
-      { title: "集める — Catchwords" },
+      { title: tStatic("page.capture") },
       { name: "description", content: "写真でも文字入力でも、見つけた言葉をすぐに図鑑へ。" },
     ],
   }),

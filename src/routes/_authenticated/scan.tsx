@@ -17,11 +17,12 @@ import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/scan")({
   component: ScanPage,
   head: () => ({
-    meta: [{ title: "スキャン | Catchwords" }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
+    meta: [{ title: tStatic("page.scan") }, { name: "description", content: "カメラをかざして台湾華語の単語をその場で調べる。" }],
   }),
 });
 
@@ -218,7 +219,7 @@ function ScanPage() {
         }
         setReady(true);
       } catch (e) {
-        setError((e as Error).message || "カメラを起動できませんでした");
+        setError((e as Error).message || t("scan.cameraFailed"));
       }
     })();
     return () => {
@@ -273,7 +274,7 @@ function ScanPage() {
     };
     const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!SR) {
-      setError("この端末は音声入力に対応していません。文字で入力してください。");
+      setError(t("scan.noVoice"));
       return;
     }
     const rec = new SR() as {
@@ -327,7 +328,7 @@ function ScanPage() {
     setLookupMs(null);
     setTapToAudioMs(null);
     const frame = grabFrame();
-    if (!frame) { setError("フレームを取得できませんでした"); return; }
+    if (!frame) { setError(t("scan.noFrame")); return; }
     setSnapshot(frame);
     setScanning(true);
     // KPI: first scan ever (localStorage-deduped).
@@ -386,7 +387,7 @@ function ScanPage() {
       }
 
     } catch (e) {
-      setError((e as Error).message || "検出に失敗しました");
+      setError((e as Error).message || t("scan.detectFailed"));
       haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
@@ -542,7 +543,7 @@ function ScanPage() {
         } catch { /* noop */ }
       }
     } catch (e) {
-      setError((e as Error).message || "詳細検出に失敗しました");
+      setError((e as Error).message || t("scan.detailFailed"));
     } finally {
       setExpandingId(null);
     }
@@ -654,7 +655,7 @@ function ScanPage() {
                 // §11: the dot is 16px but the tap target is padded to the 44px
                 // floor — these on-camera markers are the primary interaction.
                 className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
-                aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? "取得済み" : state === "reunion" ? "未撮影" : "新しい"}`}
+                aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
               >
                 <span
                   className={[
@@ -700,7 +701,7 @@ function ScanPage() {
               onClick={() => openChip(s)}
               style={dotStyle(s)}
               className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
-              aria-label={`${s.headword}（部品）`}
+              aria-label={t("scan.partOf", { word: s.headword })}
             >
               <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
               <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
@@ -739,8 +740,8 @@ function ScanPage() {
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
             <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white backdrop-blur">
-              {detectMs !== null && <span>検出 {detectMs}ms</span>}
-              {tapToAudioMs !== null && <span className="ml-2">音声 {tapToAudioMs}ms</span>}
+              {detectMs !== null && <span>{t("scan.detectMs", { ms: detectMs })}</span>}
+              {tapToAudioMs !== null && <span className="ml-2">{t("scan.audioMs", { ms: tapToAudioMs })}</span>}
             </div>
           )}
         </div>
@@ -1006,12 +1007,13 @@ function ScanChip({
   onCatch: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   if (candidates.length > 0) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">どちらですか?</p>
-          <button onClick={onClose} aria-label="閉じる" className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-muted-foreground"><X className="h-4 w-4" /></button>
+          <p className="text-sm font-medium text-muted-foreground">{t("scan.whichOne")}</p>
+          <button onClick={onClose} aria-label={t("common.close")} className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-muted-foreground"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex flex-wrap gap-2">
           {candidates.map((c) => (
@@ -1035,7 +1037,7 @@ function ScanChip({
     }`}>
       {state === "reunion" && foundAt && (
         <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
-          ✨ {daysAgo(foundAt)}日前に調べた「<Zh>{headword}</Zh>」だ! 撮って図鑑を完成させよう
+          {t("scan.foundDaysAgoBefore", { n: daysAgo(foundAt) })}<Zh>{headword}</Zh>{t("scan.foundDaysAgoAfter")}
         </p>
       )}
       <div className="flex items-start gap-3">
@@ -1044,16 +1046,16 @@ function ScanChip({
             <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">{headword}</h2>
             {state === "owned" && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                <Check className="h-3 w-3 text-emerald-600" /> 取得済み
+                <Check className="h-3 w-3 text-emerald-600" /> {t("scan.ownedTag")}
               </span>
             )}
             {verified ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/30">
-                ✓ 検証済み
+                {t("scan.verified")}
               </span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
-                AI生成・未検証
+                {t("scan.aiUnverified")}
               </span>
             )}
           </div>
@@ -1069,12 +1071,12 @@ function ScanChip({
         </div>
         <button
           onClick={onPlay}
-          aria-label="発音を再生"
+          aria-label={t("scan.playPron")}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 motion-reduce:active:scale-100"
         >
           <Volume2 className="h-5 w-5" />
         </button>
-        <button onClick={onClose} aria-label="閉じる" className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground">
+        <button onClick={onClose} aria-label={t("common.close")} className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -1084,17 +1086,17 @@ function ScanChip({
             onClick={onExpand}
             disabled={expanding}
             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
-            title="この物体を構成する部品を追加検出"
+            title={t("scan.partsTitle")}
           >
             {expanding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            {expanding ? "解析中…" : "細かく"}
+            {expanding ? t("scan.analyzingParts") : t("scan.finer")}
           </button>
         )}
         <button
           onClick={onCatch}
           className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
         >
-          <BookOpen className="h-4 w-4" /> キャッチ
+          <BookOpen className="h-4 w-4" /> {t("scan.catch")}
         </button>
       </div>
     </div>

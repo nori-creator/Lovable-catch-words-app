@@ -7,11 +7,12 @@ import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/post/$postId")({
   head: ({ params }) => ({
     meta: [
-      { title: `投稿 ${params.postId.slice(0, 8)} — Catchwords` },
+      { title: tStatic("page.post", { id: params.postId.slice(0, 8) }) },
       { name: "description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },
       { property: "og:title", content: `投稿 — Catchwords` },
       { property: "og:description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },

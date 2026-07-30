@@ -7,9 +7,10 @@ import { listNotifications, markAllNotificationsRead } from "@/lib/notifications
 import { Heart, MessageCircle, UserPlus, Bell } from "lucide-react";
 import { useTimeAgo } from "@/lib/timeago";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/notifications")({
-  head: () => ({ meta: [{ title: "通知 — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.notifications") }] }),
   component: NotificationsPage,
 });
 

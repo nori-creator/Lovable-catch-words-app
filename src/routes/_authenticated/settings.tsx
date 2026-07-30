@@ -24,9 +24,10 @@ import {
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
   component: SettingsPage,
 });
 

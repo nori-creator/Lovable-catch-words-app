@@ -7,6 +7,7 @@ import { Camera, ScanLine, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 /**
  * Onboarding (roadmap §2): ONE screen only — no slide wizard, no forms.
@@ -15,7 +16,7 @@ import { useT } from "@/lib/i18n";
  */
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
-  head: () => ({ meta: [{ title: "ようこそ — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.onboarding") }] }),
   component: OnboardingPage,
 });
 

@@ -12,11 +12,12 @@ import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/journal")({
   head: () => ({
     meta: [
-      { title: "日記 — Catchwords" },
+      { title: tStatic("page.journal") },
       { name: "description", content: "今日の写真から学習言語で日記を書く。AIが添削と模範解答をくれる。" },
     ],
   }),

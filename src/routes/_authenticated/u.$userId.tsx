@@ -9,11 +9,12 @@ import { toggleFollow } from "@/lib/social.functions";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
   head: ({ params }) => ({
     meta: [
-      { title: `ユーザー ${params.userId.slice(0, 8)} のプロフィール — Catchwords` },
+      { title: tStatic("page.userProfile", { id: params.userId.slice(0, 8) }) },
       { name: "description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
       { property: "og:title", content: `プロフィール — Catchwords` },
       { property: "og:description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },

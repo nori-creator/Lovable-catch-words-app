@@ -39,6 +39,7 @@ import {
   Clock,
   MapPin,
 } from "lucide-react";
+import { tStatic } from "@/lib/i18n";
 
 // ---- prefs -------------------------------------------------------------------
 // Review mode (speaking/choice) lives in profiles.review_mode (DB) so it
@@ -93,7 +94,7 @@ function playText(text: string, audioUrl?: string | null) {
 export const Route = createFileRoute("/_authenticated/review")({
   head: () => ({
     meta: [
-      { title: "復習 — Catchwords" },
+      { title: tStatic("page.review") },
       { name: "description", content: "自分の写真を見て、その単語で一言。AIが添削と型を返します。" },
     ],
   }),
@@ -168,7 +169,7 @@ function ReviewPage() {
             <div
               className="relative flex rounded-full border border-border bg-secondary p-0.5 text-[11px] font-semibold"
               role="tablist"
-              aria-label="復習モード"
+              aria-label={t("rv.modeAria")}
             >
               <span
                 aria-hidden
@@ -186,7 +187,7 @@ function ReviewPage() {
                 role="tab"
                 aria-selected={lightMode}
                 onClick={() => setMode("choice")}
-                title="声を出せない場所用の4択モード"
+                title={t("rv.quietMode")}
                 className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
               >
                 {t("review.choice")}
@@ -213,7 +214,7 @@ function ReviewPage() {
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    全体の記憶率(前後2週間)
+                    {t("rv.overallTitle")}
                   </p>
                   {memStats && <MiniRetentionGraph series={memStats.series} />}
                 </div>
@@ -356,7 +357,7 @@ function MemoryOverviewPanel({
         })}
       </ul>
       <p className="mt-1.5 text-[10px] text-muted-foreground">
-        タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます
+        {t("rv.tapForCurve")}
       </p>
     </div>
   );
@@ -449,7 +450,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
       <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
           <h3 lang="zh-Hant" className="text-lg font-bold">{word.headword}</h3>
-          <button onClick={onClose} aria-label="閉じる" className="rounded-full p-1 text-muted-foreground">
+          <button onClick={onClose} aria-label={t("common.close")} className="rounded-full p-1 text-muted-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -472,14 +473,14 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
                 <XAxis
                   dataKey="d"
-                  tickFormatter={(v: number) => (v === 0 ? "今日" : v > 0 ? `+${v}d` : `${v}d`)}
+                  tickFormatter={(v: number) => (v === 0 ? t("rv.today") : v > 0 ? `+${v}d` : `${v}d`)}
                   stroke="#64748b"
                   fontSize={10}
                 />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
                 <Tooltip
-                  formatter={(v: number) => [`${v}%`, "記憶保持率"]}
-                  labelFormatter={(l: number) => (l === 0 ? "今日" : l > 0 ? `${l}日後` : `${-l}日前`)}
+                  formatter={(v: number) => [`${v}%`, t("rv.retention")]}
+                  labelFormatter={(l: number) => (l === 0 ? t("rv.today") : l > 0 ? t("rv.daysLater", { n: l }) : t("rv.daysAgo", { n: -l }))}
                   contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
                 />
                 {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
@@ -527,10 +528,10 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         </div>
 
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          曲線は保持率 R = e<sup>−t/S</sup>(S = 間隔 × 定着度)。● の復習ごとに 100% へ回復し、
-          正解すると S が伸びて坂が緩やかになります。
+          {t("rv.formula1")}
+          {t("rv.formula2")}
           {" "}
-          <b className="text-emerald-600">緑の線(85%)</b>付近が、思い出す努力が効く一番おいしい復習タイミングです。
+          <b className="text-emerald-600">{t("rv.greenLine")}</b>{t("rv.formula3")}
         </p>
       </div>
     </div>
@@ -643,7 +644,7 @@ function SpeakingCard({
     };
     const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!SR) {
-      setError("このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。");
+      setError(t("rv.noAsr"));
       return;
     }
     setError(null);
@@ -672,7 +673,7 @@ function SpeakingCard({
       // 1文字も取れなかった時は黙って終わらせない(録画だけ回って
       // 気づかない、が一番困る)。テキスト欄で直せることを伝える。
       if (!finalText.trim()) {
-        setError("音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。");
+        setError(t("rv.notHeard"));
       }
     };
     rec.onerror = () => { setListening(false); stopVideo(); };
@@ -703,7 +704,7 @@ function SpeakingCard({
       });
       setFeedback(fb);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "AIフィードバックに失敗しました");
+      setError(e instanceof Error ? e.message : t("rv.feedbackFailed"));
     } finally {
       setLoading(false);
     }
@@ -757,7 +758,7 @@ function SpeakingCard({
         {heroUrl ? (
           <CachedImg
             src={heroUrl}
-            alt="復習対象"
+            alt={t("rv.targetAlt")}
             className="h-full w-full object-contain p-4"
           />
         ) : (
@@ -813,7 +814,7 @@ function SpeakingCard({
             <button
               onClick={() => playText(scaffold.question_zh)}
               className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
-              aria-label="質問を読み上げ"
+              aria-label={t("rv.readQuestion")}
             >
               <Volume2 className="h-3 w-3" />
             </button>
@@ -884,7 +885,7 @@ function SpeakingCard({
               className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
                 listening ? "bg-red-500 text-white shadow-red-500/30 animate-pulse" : "bg-primary text-primary-foreground shadow-primary/30"
               }`}
-              aria-label={listening ? "停止" : "録音"}
+              aria-label={listening ? t("rv.stop") : t("rv.record")}
             >
               {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
             </button>
@@ -1002,7 +1003,7 @@ function FeedbackView({
           <button
             onClick={() => speakZhTW(feedback.corrected)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-            aria-label="添削文を聞く"
+            aria-label={t("rv.hearCorrection")}
           >
             <Volume2 className="h-4 w-4" />
           </button>
@@ -1042,13 +1043,13 @@ function FeedbackView({
         <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">{t("review.model")}</div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-sm">{feedback.model_answer}</div>
-          <button onClick={() => speakZhTW(feedback.model_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="お手本を聞く">
+          <button onClick={() => speakZhTW(feedback.model_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label={t("rv.hearModel")}>
             <Volume2 className="h-4 w-4" />
           </button>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">{t("review.altWay")}{feedback.alt_answer}</div>
-          <button onClick={() => speakZhTW(feedback.alt_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label="別の言い方を聞く">
+          <button onClick={() => speakZhTW(feedback.alt_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label={t("rv.hearAlt")}>
             <Volume2 className="h-4 w-4" />
           </button>
         </div>
@@ -1067,7 +1068,7 @@ function FeedbackView({
           onClick={onNext}
           className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
         >
-          次へ <ArrowRight className="ml-1 inline h-4 w-4" />
+          {t("rv.nextArrow")} <ArrowRight className="ml-1 inline h-4 w-4" />
         </button>
       </div>
     </div>
@@ -1133,7 +1134,7 @@ function LightModeCard({
         {card.cutout_url ?? card.placeholder_url ? (
           <CachedImg
             src={(card.cutout_url ?? card.placeholder_url)!}
-            alt="復習対象"
+            alt={t("rv.targetAlt")}
             className="h-full max-h-[32vh] w-full object-contain"
           />
         ) : (
@@ -1143,7 +1144,7 @@ function LightModeCard({
         )}
       </div>
       <div className="mb-2.5 text-center">
-        <div className="text-base font-semibold leading-snug">「{card.meaning_ja}」はどれ?</div>
+        <div className="text-base font-semibold leading-snug">{t("rv.whichIsBefore")}{card.meaning_ja}{t("rv.whichIsAfter")}</div>
       </div>
       <ul className="space-y-1.5">
         {infos.map((info) => {
@@ -1176,7 +1177,7 @@ function LightModeCard({
               <button
                 onClick={() => playText(c, isAnswer ? card.audio_url : null)}
                 className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
-                aria-label={`${c}の発音`}
+                aria-label={t("rv.pronOf", { c })}
               >
                 <Volume2 className="h-4 w-4" />
               </button>
@@ -1198,7 +1199,7 @@ function LightModeCard({
             <button
               onClick={() => playAudio(card)}
               className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary"
-              aria-label="発音を再生"
+              aria-label={t("card.playPron")}
             >
               <Volume2 className="h-4 w-4" />
             </button>
@@ -1226,16 +1227,17 @@ function LightModeCard({
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, CartesianGrid } from "recharts";
 
 function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
+  const t = useT();
   return (
     <div className="h-32 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
-          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? "今日" : `${v > 0 ? "+" : ""}${v}d`)} stroke="#64748b" fontSize={10} />
+          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? t("rv.today") : `${v > 0 ? "+" : ""}${v}d`)} stroke="#64748b" fontSize={10} />
           <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
-            formatter={(v: number) => [`${v}%`, "平均記憶率"]}
-            labelFormatter={(l) => (l === 0 ? "今日" : `${l > 0 ? "+" : ""}${l}日`)}
+            formatter={(v: number) => [`${v}%`, t("rv.avgRetention")]}
+            labelFormatter={(l) => (l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` }))}
             contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
           />
           <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="4 4" />

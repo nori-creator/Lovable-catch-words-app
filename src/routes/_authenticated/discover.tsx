@@ -6,11 +6,12 @@ import { AppShell } from "@/components/AppShell";
 import { getLeaderboard, searchUsers, searchWords } from "@/lib/discover.functions";
 import { Trophy, Search, Users, BookOpen } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/discover")({
   head: () => ({
     meta: [
-      { title: "発見 — Catchwords" },
+      { title: tStatic("page.discover") },
       { name: "description", content: "ランキング、ユーザー検索、単語検索。" },
     ],
   }),
