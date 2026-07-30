@@ -6,6 +6,7 @@ import { getPost, getComments, addComment, toggleLike } from "@/lib/social.funct
 import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
 import { Zh } from "@/components/Zh";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/post/$postId")({
   head: ({ params }) => ({
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
 
 
 function PostPage() {
+  const t = useT();
   const { postId } = Route.useParams();
   const qc = useQueryClient();
   const fetchPost = useServerFn(getPost);
@@ -63,15 +65,15 @@ function PostPage() {
   const p = post.data;
 
   return (
-    <AppShell title="投稿">
+    <AppShell title={t("post.title")}>
       <Link to="/feed" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> フィードへ
+        <ArrowLeft className="h-4 w-4" /> {t("post.toFeed")}
       </Link>
 
       {post.isLoading ? (
         <div className="aspect-square animate-pulse rounded-3xl bg-secondary" />
       ) : !p ? (
-        <p className="text-sm text-muted-foreground">投稿が見つかりませんでした。</p>
+        <p className="text-sm text-muted-foreground">{t("post.notFound")}</p>
       ) : (
         <>
           <article className="overflow-hidden rounded-3xl border border-border bg-card">
@@ -89,7 +91,7 @@ function PostPage() {
             </div>
             <div className="space-y-2 p-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">{p.author.display_name ?? "名無し"}</span>
+                <span className="text-sm font-semibold">{p.author.display_name ?? t("common.anon")}</span>
                 <span className="text-[11px] text-muted-foreground">{new Date(p.created_at).toLocaleString("ja-JP")}</span>
               </div>
               {p.caption && <p className="text-sm leading-relaxed">{p.caption}</p>}
@@ -111,16 +113,16 @@ function PostPage() {
           </article>
 
           <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold">コメント</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("post.comments")}</h2>
             <div className="space-y-3">
               {(comments.data ?? []).map((c) => (
                 <div key={c.id} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="text-xs font-semibold">{c.author.display_name ?? "名無し"}</div>
+                  <div className="text-xs font-semibold">{c.author.display_name ?? t("common.anon")}</div>
                   <div className="mt-1 text-sm">{c.body}</div>
                 </div>
               ))}
               {(comments.data ?? []).length === 0 && !comments.isLoading && (
-                <p className="text-xs text-muted-foreground">最初のコメントを投稿しよう。</p>
+                <p className="text-xs text-muted-foreground">{t("post.firstComment")}</p>
               )}
             </div>
             <form
@@ -134,12 +136,12 @@ function PostPage() {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 maxLength={500}
-                placeholder="コメントを書く…"
+                placeholder={t("post.writeComment")}
                 className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-sm outline-none focus:border-primary"
               />
               <button
                 type="submit"
-                aria-label="コメントを送信"
+                aria-label={t("post.sendComment")}
                 disabled={!body.trim() || commentMut.isPending}
                 className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
               >

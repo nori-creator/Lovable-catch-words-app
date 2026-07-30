@@ -11,6 +11,7 @@ import { BookText, Quote, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/journal")({
   head: () => ({
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/journal")({
 });
 
 function JournalPage() {
+  const t = useT();
   const qc = useQueryClient();
   const fetchJournal = useServerFn(listJournal);
   const correct = useServerFn(correctMyJournal);
@@ -44,21 +46,21 @@ function JournalPage() {
   const correctMut = useMutation({
     mutationFn: () => correct({ data: { draft } }),
     onSuccess: () => {
-      toast.success("添削できました");
+      toast.success(t("journal.done"));
       qc.invalidateQueries({ queryKey: ["journal"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "添削失敗"),
+    onError: (e: any) => toast.error(e?.message ?? t("journal.failed")),
   });
 
   return (
-    <AppShell title="日記">
+    <AppShell title={t("journal.title")}>
       <section className="space-y-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
-            <BookText className="h-4 w-4 text-primary" /> 今日の日記
+            <BookText className="h-4 w-4 text-primary" /> {t("journal.today")}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。
+            {t("journal.intro")}
           </p>
         </div>
 
@@ -66,7 +68,7 @@ function JournalPage() {
           rows={6}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="例: 今天早上我去咖啡店…"
+          placeholder={t("journal.placeholder")}
         />
 
         <div className="flex flex-wrap gap-2">
@@ -76,14 +78,14 @@ function JournalPage() {
             className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" />
-            {correctMut.isPending ? "添削中…" : "AIに添削してもらう"}
+            {correctMut.isPending ? t("journal.correcting") : t("journal.askCorrect")}
           </button>
         </div>
 
         {todayEntry && (
           <div className="space-y-3 pt-2">
             {todayEntry.correction && (
-              <EntryBlock label="✦ 添削後" body={todayEntry.correction} subtle={todayEntry.feedback_ja} subtleLabel="型と解説" />
+              <EntryBlock label={t("journal.corrected")} body={todayEntry.correction} subtle={todayEntry.feedback_ja} subtleLabel={t("journal.patterns")} />
             )}
             {todayEntry.native_phrases && todayEntry.native_phrases.length > 0 && (
               <NativePhrases phrases={todayEntry.native_phrases} />
@@ -94,7 +96,7 @@ function JournalPage() {
 
       {past.length > 0 && (
         <section className="mt-10">
-          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">過去の日記</h3>
+          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">{t("journal.past")}</h3>
           <ul className="space-y-3">
             {past.map((e) => (
               <li key={e.id} className="rounded-2xl border border-border bg-card p-4">
@@ -122,10 +124,11 @@ function JournalPage() {
 }
 
 function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?: boolean }) {
+  const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
       <div className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-primary">
-        <Quote className="h-3 w-3" /> ネイティブならこう言う
+        <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">
         {phrases.map((p, i) => (
@@ -151,6 +154,7 @@ function EntryBlock({
   subtle?: string | null;
   subtleLabel?: string;
 }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="mb-1 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{label}</div>

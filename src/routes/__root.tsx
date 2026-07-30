@@ -19,22 +19,24 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
+import { useT } from "@/lib/i18n";
 
 function NotFoundComponent() {
+  const t = useT();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">ページが見つかりません</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{t("root.notFound")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          指定されたページは存在しないか、移動された可能性があります。
+          {t("root.notFoundHint")}
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            ホームへ
+            {t("root.toHome")}
           </Link>
         </div>
       </div>
@@ -43,6 +45,7 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const t = useT();
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -53,10 +56,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          読み込みに失敗しました
+          {t("root.loadFailed")}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          少し時間を置いてもう一度お試しください。
+          {t("root.loadFailedHint")}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -66,13 +69,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            再試行
+            {t("root.retry")}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            ホームへ
+            {t("root.toHome")}
           </a>
         </div>
       </div>

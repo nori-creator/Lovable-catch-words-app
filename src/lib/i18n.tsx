@@ -25,6 +25,156 @@ export function setUiLang(lang: UiLang) {
 }
 
 const DICT: Record<string, { ja: string; en: string }> = {
+  // --- フィード・ホーム・プロフィール・オンボーディング・再設定・ルート ---
+  "feed.title": { ja: "フィード", en: "Feed" },
+  "feed.following": { ja: "フォロー中", en: "Following" },
+  "feed.popular": { ja: "人気", en: "Popular" },
+  "feed.emptyFollowing": { ja: "まだ投稿がありません", en: "No posts yet" },
+  "feed.emptyPopular": { ja: "人気の投稿はまだありません", en: "No popular posts yet" },
+  "feed.hintFollowing": { ja: "誰かをフォローするか、自分のカードをシェアしてみましょう。", en: "Follow someone, or share one of your own cards." },
+  "feed.hintPopular": { ja: "最初の投稿者になろう!", en: "Be the first to post!" },
+  "feed.postFromDex": { ja: "図鑑から投稿", en: "Post from your dex" },
+  "feed.like": { ja: "いいね", en: "Like" },
+  "home.waitingPhoto": { ja: "解析待ちの写真", en: "Photo waiting to be analyzed" },
+  "home.bgPaper": { ja: "紙", en: "Paper" },
+  "home.bgFrame": { ja: "額", en: "Frame" },
+  "home.bgNotebook": { ja: "ノート", en: "Notebook" },
+  "home.bgCork": { ja: "コルク", en: "Cork" },
+  "user.profile": { ja: "プロフィール", en: "Profile" },
+  "user.loading": { ja: "読み込み中…", en: "Loading…" },
+  "user.since": { ja: "{date} から", en: "since {date}" },
+  "user.avatarOf": { ja: "{name}のアバター", en: "{name}'s avatar" },
+  "user.statDex": { ja: "図鑑", en: "Dex" },
+  "user.statPosts": { ja: "投稿", en: "Posts" },
+  "user.statFollowers": { ja: "フォロワー", en: "Followers" },
+  "user.statFollowing": { ja: "フォロー中", en: "Following" },
+  "user.editProfile": { ja: "プロフィールを編集", en: "Edit profile" },
+  "user.follow": { ja: "フォローする", en: "Follow" },
+  "user.recentCatches": { ja: "最近のキャッチ", en: "Recent catches" },
+  "user.noCatches": { ja: "まだキャッチがありません", en: "No catches yet" },
+  "user.someone": { ja: "ユーザー", en: "User" },
+  "err.failed": { ja: "失敗しました", en: "Something went wrong" },
+  "ob.title": { ja: "かざして、タップしてみて", en: "Point it, then tap" },
+  "ob.line1": { ja: "街で見たものにカメラをかざすと、", en: "Aim your camera at something on the street and" },
+  "ob.line2before": { ja: "その単語と発音が", en: "you'll see the word and how to say it " },
+  "ob.line2strong": { ja: "瞬間的に", en: "instantly" },
+  "ob.line2after": { ja: "分かります。", en: "." },
+  "ob.f1": { ja: "かざす = 調べる(無制限)", en: "Point = look it up (unlimited)" },
+  "ob.f2": { ja: "タップ = 発音が聞こえる", en: "Tap = hear it spoken" },
+  "ob.f3": { ja: "撮る = 自分の図鑑に残る", en: "Shoot = keep it in your dex" },
+  "ob.start": { ja: "スキャンをはじめる", en: "Start scanning" },
+  "ob.privacy": { ja: "カメラは「見たものの単語を教えるため」だけに使います", en: "The camera is only used to tell you the word for what you see" },
+  "ob.learner": { ja: "学習者", en: "Learner" },
+  "ob.startFailed": { ja: "開始に失敗しました", en: "Could not get started" },
+  "rp.title": { ja: "パスワード再設定", en: "Reset password" },
+  "rp.hintRequest": { ja: "登録メールアドレスにリンクを送ります。", en: "We'll email a link to your registered address." },
+  "rp.hintUpdate": { ja: "新しいパスワードを入力してください。", en: "Enter your new password." },
+  "rp.email": { ja: "メールアドレス", en: "Email" },
+  "rp.sendLink": { ja: "再設定リンクを送る", en: "Send reset link" },
+  "rp.newPassword": { ja: "新しいパスワード", en: "New password" },
+  "rp.update": { ja: "パスワードを更新", en: "Update password" },
+  "rp.backToLogin": { ja: "ログイン画面に戻る", en: "Back to sign in" },
+  "rp.sent": { ja: "再設定リンクをメールで送りました。", en: "Reset link sent — check your email." },
+  "rp.sendFailed": { ja: "送信に失敗しました", en: "Could not send" },
+  "rp.updated": { ja: "パスワードを更新しました。", en: "Password updated." },
+  "rp.updateFailed": { ja: "更新に失敗しました", en: "Could not update" },
+  "root.notFound": { ja: "ページが見つかりません", en: "Page not found" },
+  "root.notFoundHint": { ja: "指定されたページは存在しないか、移動された可能性があります。", en: "This page doesn't exist, or it may have moved." },
+  "root.toHome": { ja: "ホームへ", en: "Go home" },
+  "root.loadFailed": { ja: "読み込みに失敗しました", en: "Failed to load" },
+  "root.loadFailedHint": { ja: "少し時間を置いてもう一度お試しください。", en: "Please wait a moment and try again." },
+  "root.retry": { ja: "再試行", en: "Retry" },
+  // --- 発見・投稿・日記 ---
+  "discover.title": { ja: "発見", en: "Discover" },
+  "discover.search": { ja: "ユーザー名 / 単語 / 意味で検索", en: "Search users, words or meanings" },
+  "discover.ranking": { ja: "ランキング", en: "Leaderboard" },
+  "discover.rankingEmpty": { ja: "まだランキングデータがありません。", en: "No leaderboard data yet." },
+  "discover.stats": { ja: "{words} 単語 · {posts} 投稿", en: "{words} words · {posts} posts" },
+  "discover.users": { ja: "ユーザー", en: "Users" },
+  "discover.noUsers": { ja: "該当ユーザーなし", en: "No matching users" },
+  "discover.words": { ja: "単語", en: "Words" },
+  "discover.noWords": { ja: "該当単語なし", en: "No matching words" },
+  "common.anon": { ja: "名無し", en: "Anonymous" },
+  "post.title": { ja: "投稿", en: "Post" },
+  "post.toFeed": { ja: "フィードへ", en: "Back to feed" },
+  "post.notFound": { ja: "投稿が見つかりませんでした。", en: "Post not found." },
+  "post.comments": { ja: "コメント", en: "Comments" },
+  "post.firstComment": { ja: "最初のコメントを投稿しよう。", en: "Be the first to comment." },
+  "post.writeComment": { ja: "コメントを書く…", en: "Write a comment…" },
+  "post.sendComment": { ja: "コメントを送信", en: "Send comment" },
+  "journal.title": { ja: "日記", en: "Journal" },
+  "journal.today": { ja: "今日の日記", en: "Today's entry" },
+  "journal.intro": { ja: "今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。", en: "Write about a photo you took today, in the language you're learning. AI corrects it and shows the natural phrasing and sentence patterns a native would use." },
+  "journal.placeholder": { ja: "例: 今天早上我去咖啡店…", en: "e.g. 今天早上我去咖啡店…" },
+  "journal.correcting": { ja: "添削中…", en: "Reviewing…" },
+  "journal.askCorrect": { ja: "AIに添削してもらう", en: "Ask AI to review" },
+  "journal.corrected": { ja: "✦ 添削後", en: "✦ Corrected" },
+  "journal.patterns": { ja: "型と解説", en: "Patterns & notes" },
+  "journal.past": { ja: "過去の日記", en: "Past entries" },
+  "journal.nativeWould": { ja: "ネイティブならこう言う", en: "A native would say" },
+  "journal.done": { ja: "添削できました", en: "Review complete" },
+  "journal.failed": { ja: "添削失敗", en: "Review failed" },
+  // --- 通知・相対時刻 ---
+  "ago.seconds": { ja: "{n}秒前", en: "{n}s ago" },
+  "ago.minutes": { ja: "{n}分前", en: "{n}m ago" },
+  "ago.hours": { ja: "{n}時間前", en: "{n}h ago" },
+  "ago.days": { ja: "{n}日前", en: "{n}d ago" },
+  "ago.months": { ja: "{n}ヶ月前", en: "{n}mo ago" },
+  "ago.years": { ja: "{n}年前", en: "{n}y ago" },
+  "notif.title": { ja: "通知", en: "Notifications" },
+  "notif.empty": { ja: "まだ通知はありません", en: "No notifications yet" },
+  "notif.liked": { ja: "さんがいいねしました", en: " liked your post" },
+  "notif.commented": { ja: "さんがコメントしました", en: " commented on your post" },
+  "notif.followed": { ja: "さんがフォローしました", en: " followed you" },
+  "common.someone": { ja: "誰か", en: "Someone" },
+  // --- 場所の思い出し(文の前後) ---
+  "place.rememberBefore": { ja: "「", en: "Remember “" },
+  "place.rememberAfter": { ja: "」覚えてる?", en: "”?" },
+  // --- 場所の思い出し・共通 ---
+  "place.remember": { ja: "「{word}」覚えてる?", en: "Remember \"{word}\"?" },
+  "place.caughtHere": { ja: "{when}、{where}撮った言葉{meaning}", en: "A word you caught {where} {when}{meaning}" },
+  "place.hereAbouts": { ja: "この辺りで", en: "around here" },
+  "place.atPlace": { ja: "{name}で", en: "at {name}" },
+  "place.yearsAgo": { ja: "{n}年前", en: "{n} year(s) ago" },
+  "place.monthsAgo": { ja: "{n}ヶ月前", en: "{n} month(s) ago" },
+  "place.daysAgo": { ja: "{n}日前", en: "{n} day(s) ago" },
+  "common.card": { ja: "カード", en: "Card" },
+  "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
+  "common.photoOf": { ja: "「{word}」の写真", en: "Photo of \"{word}\"" },
+  "common.imageOf": { ja: "「{word}」の画像", en: "Image for \"{word}\"" },
+  "common.stickerOf": { ja: "「{word}」のステッカー", en: "Sticker for \"{word}\"" },
+  "common.memoryOf": { ja: "「{word}」の思い出", en: "Memory of \"{word}\"" },
+  "common.mapTitle": { ja: "撮影場所のマップ", en: "Map of where it was taken" },
+  "common.shotHere": { ja: "撮影地", en: "Where it was taken" },
+  "common.selfieOf": { ja: "撮影者の自撮り", en: "Selfie of the person who caught it" },
+  "detail.more": { ja: "詳しく", en: "details" },
+  "detail.preparing": { ja: "詳しい解説を準備中…", en: "Preparing the full explanation…" },
+  "detail.verified": { ja: "✓ 検証済み辞書 + AI詳細", en: "✓ Verified dictionary + AI detail" },
+  "detail.aiOnly": { ja: "AI生成", en: "AI generated" },
+  "detail.score": { ja: "点 {v}", en: "score {v}" },
+  "err.generateFailed": { ja: "生成に失敗しました", en: "Could not generate" },
+  // --- ワードツリー・画像選択 ---
+  "tree.title": { ja: "ワードツリー", en: "Word tree" },
+  "tree.branches": { ja: "枝 {done}/{total} 本 · 復習ごとに1本育つ", en: "{done} of {total} branches · one grows per review" },
+  "tree.locked": { ja: "あと{n}本 · 復習で解禁", en: "{n} more · unlocked by reviewing" },
+  "tree.tapHint": { ja: "枝をタップすると、その言葉を新しい木としてキャッチできます", en: "Tap a branch to catch that word as a new tree" },
+  "tree.collocation": { ja: "つながり", en: "Goes with" },
+  "tree.example": { ja: "例文", en: "Example" },
+  "tree.synonym": { ja: "類義", en: "Similar" },
+  "tree.antonym": { ja: "反義", en: "Opposite" },
+  "img.searchFor": { ja: "「{q}」の画像を探す", en: "Find images for \"{q}\"" },
+  "img.ownPhoto": { ja: "自分の写真", en: "My photo" },
+  "img.notFound": { ja: "画像が見つかりませんでした。別のキーワードで試すか、自分の写真をアップロードしてください。", en: "No images found. Try another keyword, or upload your own photo." },
+  "img.candidate": { ja: "候補", en: "Candidate" },
+  // --- 忘却曲線 ---
+  "curve.strong": { ja: "しっかり覚えている", en: "Solid in memory" },
+  "curve.fading": { ja: "そろそろ忘れそう", en: "Starting to fade" },
+  "curve.weak": { ja: "もう忘れかけ", en: "Nearly forgotten" },
+  "curve.empty": { ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。", en: "No review data yet. Review this word and its forgetting curve will appear here." },
+  "curve.nowPct": { ja: "今 {pct}%", en: "now {pct}%" },
+  "curve.retention": { ja: "記憶率", en: "Retention" },
+  "curve.days": { ja: "{n}日", en: "day {n}" },
+  "curve.youAreHere": { ja: "今ココ", en: "You are here" },
   // --- bottom nav ---
   "nav.home": { ja: "ホーム", en: "Home" },
   "nav.dex": { ja: "図鑑", en: "Dex" },
@@ -478,8 +628,34 @@ export function useUiLang(): UiLang {
   return lang;
 }
 
-/** `const t = useT(); t("nav.home")` — 未登録キーはキーをそのまま返す。 */
-export function useT(): (key: string) => string {
+/** 文中の `{name}` を値に差し替える。 */
+function fill(tpl: string, vars?: Vars): string {
+  if (!vars) return tpl;
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+export type Vars = Record<string, string | number>;
+
+/**
+ * `const t = useT(); t("nav.home")` — 未登録キーはキーをそのまま返す。
+ *
+ * 数や名前が入る文は `{}` で埋め込む:
+ *   t("tree.branches", { done: 3, total: 8 })
+ *     ja: "枝 {done}/{total} 本" → 「枝 3/8 本」
+ *     en: "{done} of {total} branches"
+ * language ごとに語順が違うので、文を分割して連結してはいけない。
+ * 「{n}日前」のような文も、英語では "{n} days ago" と語順が変わる。
+ */
+export function useT(): (key: string, vars?: Vars) => string {
   const lang = useUiLang();
-  return (key: string) => DICT[key]?.[lang] ?? DICT[key]?.ja ?? key;
+  return (key, vars) => fill(DICT[key]?.[lang] ?? DICT[key]?.ja ?? key, vars);
+}
+
+/**
+ * React の外(通知の文面など)で翻訳したいとき用。
+ * フックが使えないので、その場で localStorage を読む。
+ */
+export function tStatic(key: string, vars?: Vars): string {
+  const lang = getUiLang();
+  return fill(DICT[key]?.[lang] ?? DICT[key]?.ja ?? key, vars);
 }

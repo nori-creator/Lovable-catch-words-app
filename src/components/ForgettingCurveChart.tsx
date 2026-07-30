@@ -11,6 +11,7 @@ import {
   Dot,
   ReferenceDot,
 } from "recharts";
+import { useT } from "@/lib/i18n";
 
 export type HistoryPoint = {
   reviewed_at: string;
@@ -41,10 +42,11 @@ function colorOf(level: Level): string {
   return "#ef4444"; // red
 }
 
-function labelOf(level: Level): string {
-  if (level === "strong") return "しっかり覚えている";
-  if (level === "fading") return "そろそろ忘れそう";
-  return "もう忘れかけ";
+/** 記憶レベルの見出し。表示言語に追従させるため翻訳キーを返す。 */
+function labelKeyOf(level: Level): string {
+  if (level === "strong") return "curve.strong";
+  if (level === "fading") return "curve.fading";
+  return "curve.weak";
 }
 
 /**
@@ -58,6 +60,7 @@ export function ForgettingCurveChart({
   lastReviewedAt,
   horizonDays = 30,
 }: Props) {
+  const t = useT();
   const { data, nowPoint, level } = useMemo(() => {
     const segments: Array<{ t: number; retention: number; reviewMark?: number }> = [];
 
@@ -129,7 +132,7 @@ export function ForgettingCurveChart({
   if (data.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
-        まだ復習データがありません。復習すると忘却曲線がここに表示されます。
+        {t("curve.empty")}
       </div>
     );
   }
@@ -145,10 +148,10 @@ export function ForgettingCurveChart({
             style={{ background: stroke, boxShadow: `0 0 0 3px ${stroke}33` }}
           />
           <span className="font-medium" style={{ color: stroke }}>
-            {labelOf(level)}
+            {t(labelKeyOf(level))}
           </span>
           {nowPoint && (
-            <span className="text-muted-foreground">· 今 {nowPoint.retention}%</span>
+            <span className="text-muted-foreground">· {t("curve.nowPct", { pct: nowPoint.retention })}</span>
           )}
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">
@@ -176,8 +179,8 @@ export function ForgettingCurveChart({
               fontSize={10}
             />
             <Tooltip
-              formatter={(v: number) => [`${v}%`, "記憶率"]}
-              labelFormatter={(l) => `${Math.round(Number(l))}日`}
+              formatter={(v: number) => [`${v}%`, t("curve.retention")]}
+              labelFormatter={(l) => t("curve.days", { n: Math.round(Number(l)) })}
               contentStyle={{
                 background: "rgba(255,255,255,0.96)",
                 border: "1px solid rgba(120,130,150,0.28)",
@@ -225,7 +228,7 @@ export function ForgettingCurveChart({
                 stroke="white"
                 strokeWidth={3}
                 label={{
-                  value: "今ココ",
+                  value: t("curve.youAreHere"),
                   position: "top",
                   fill: stroke,
                   fontSize: 11,

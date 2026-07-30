@@ -5,21 +5,17 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listNotifications, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { Heart, MessageCircle, UserPlus, Bell } from "lucide-react";
+import { useTimeAgo } from "@/lib/timeago";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/notifications")({
   head: () => ({ meta: [{ title: "通知 — Catchwords" }] }),
   component: NotificationsPage,
 });
 
-function timeAgo(iso: string) {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `${s}秒前`;
-  if (s < 3600) return `${Math.floor(s / 60)}分前`;
-  if (s < 86400) return `${Math.floor(s / 3600)}時間前`;
-  return `${Math.floor(s / 86400)}日前`;
-}
-
 function NotificationsPage() {
+  const t = useT();
+  const fmtAgo = useTimeAgo();
   const qc = useQueryClient();
   const fetchList = useServerFn(listNotifications);
   const markRead = useServerFn(markAllNotificationsRead);
@@ -34,17 +30,17 @@ function NotificationsPage() {
   const items = data ?? [];
 
   return (
-    <AppShell title="通知">
+    <AppShell title={t("notif.title")}>
       {items.length === 0 ? (
         <div className="grid place-items-center rounded-3xl border border-dashed border-border bg-card/50 py-16 text-center">
           <Bell className="mb-2 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">まだ通知はありません</p>
+          <p className="text-sm text-muted-foreground">{t("notif.empty")}</p>
         </div>
       ) : (
         <ul className="space-y-2">
           {items.map((n) => {
             const Icon = n.type === "like" ? Heart : n.type === "comment" ? MessageCircle : UserPlus;
-            const verb = n.type === "like" ? "がいいねしました" : n.type === "comment" ? "がコメントしました" : "がフォローしました";
+            const verb = n.type === "like" ? t("notif.liked") : n.type === "comment" ? t("notif.commented") : t("notif.followed");
             const color = n.type === "like" ? "text-rose-500" : n.type === "comment" ? "text-sky-500" : "text-emerald-500";
             const inner = (
               <div className={`lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3 ${!n.read_at ? "ring-1 ring-primary/20" : ""}`}>
@@ -57,10 +53,10 @@ function NotificationsPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm">
-                    <span className="font-semibold">{n.actor?.display_name ?? "誰か"}</span>
+                    <span className="font-semibold">{n.actor?.display_name ?? t("common.someone")}</span>
                     <span className="text-muted-foreground">{verb}</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
+                  <p className="text-xs text-muted-foreground">{fmtAgo(n.created_at)}</p>
                 </div>
                 <Icon className={`h-4 w-4 ${color}`} />
               </div>

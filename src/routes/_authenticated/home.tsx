@@ -51,7 +51,7 @@ function PendingCapturesBanner() {
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
         {first.object_img ? (
-          <img src={first.object_img} alt="解析待ちの写真" className="h-full w-full object-cover" />
+          <img src={first.object_img} alt={t("home.waitingPhoto")} className="h-full w-full object-cover" />
         ) : (
           <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
         )}
@@ -65,10 +65,10 @@ function PendingCapturesBanner() {
 }
 
 const BG_OPTIONS = [
-  { id: "paper", label: "紙", className: "album-bg-paper" },
-  { id: "frame", label: "額", className: "album-bg-frame" },
-  { id: "notebook", label: "ノート", className: "album-bg-notebook" },
-  { id: "cork", label: "コルク", className: "album-bg-cork" },
+  { id: "paper", labelKey: "home.bgPaper", className: "album-bg-paper" },
+  { id: "frame", labelKey: "home.bgFrame", className: "album-bg-frame" },
+  { id: "notebook", labelKey: "home.bgNotebook", className: "album-bg-notebook" },
+  { id: "cork", labelKey: "home.bgCork", className: "album-bg-cork" },
 ] as const;
 
 type BgId = (typeof BG_OPTIONS)[number]["id"];
@@ -185,7 +185,7 @@ function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: 
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
-          aria-label={`${t("home.background")}: ${o.label}`}
+          aria-label={`${t("home.background")}: ${t(o.labelKey)}`}
           aria-pressed={current === o.id}
           className="press-in grid h-11 w-11 place-items-center rounded-full"
         >
@@ -285,7 +285,7 @@ function ScrapbookAlbum({
                   <div className="h-full w-full overflow-hidden">
                     <CachedImg
                       src={heroUrl}
-                      alt={`「${s.word.headword}」の思い出`}
+                      alt={t("common.memoryOf", { word: s.word.headword })}
                       loading="lazy"
                       decoding="async"
                       className="block h-full w-full object-cover"

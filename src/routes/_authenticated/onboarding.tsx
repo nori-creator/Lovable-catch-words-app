@@ -6,6 +6,7 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { Camera, ScanLine, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
 
 /**
  * Onboarding (roadmap §2): ONE screen only — no slide wizard, no forms.
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 });
 
 function OnboardingPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchProfile = useServerFn(getMyProfile);
@@ -37,7 +39,7 @@ function OnboardingPage() {
     try {
       await updateProfile({
         data: {
-          display_name: profile?.display_name || "学習者",
+          display_name: profile?.display_name || t("ob.learner"),
           onboarded: true,
         },
       });
@@ -45,7 +47,7 @@ function OnboardingPage() {
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       navigate({ to: "/scan", replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "開始に失敗しました");
+      toast.error(e instanceof Error ? e.message : t("ob.startFailed"));
       setStarting(false);
     }
   }
@@ -57,18 +59,18 @@ function OnboardingPage() {
           <ScanLine className="h-10 w-10" />
         </div>
 
-        <h1 className="text-2xl font-bold tracking-tight">かざして、タップしてみて</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("ob.title")}</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          街で見たものにカメラをかざすと、
+          {t("ob.line1")}
           <br />
-          その単語と発音が<span className="font-semibold text-foreground">瞬間的に</span>分かります。
+          {t("ob.line2before")}<span className="font-semibold text-foreground">{t("ob.line2strong")}</span>{t("ob.line2after")}
         </p>
 
         <div className="mx-auto mt-6 space-y-2 text-left">
           {[
-            { icon: ScanLine, text: "かざす = 調べる(無制限)" },
-            { icon: Volume2, text: "タップ = 発音が聞こえる" },
-            { icon: Camera, text: "撮る = 自分の図鑑に残る" },
+            { icon: ScanLine, text: t("ob.f1") },
+            { icon: Volume2, text: t("ob.f2") },
+            { icon: Camera, text: t("ob.f3") },
           ].map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
               <Icon className="h-4 w-4 shrink-0 text-primary" />
@@ -83,10 +85,10 @@ function OnboardingPage() {
           className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
         >
           <Camera className="h-5 w-5" />
-          スキャンをはじめる
+          {t("ob.start")}
         </button>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          カメラは「見たものの単語を教えるため」だけに使います
+          {t("ob.privacy")}
         </p>
       </div>
     </div>

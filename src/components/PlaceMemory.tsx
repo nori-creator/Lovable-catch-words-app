@@ -22,8 +22,11 @@ import {
   notifyMemory,
 } from "@/lib/place-reminder";
 import { Zh } from "@/components/Zh";
+import { useT } from "@/lib/i18n";
+import { daysAgoLabel } from "@/lib/timeago";
 
 export function PlaceMemoryWatcher() {
+  const t = useT();
   const fetchNearby = useServerFn(getNearbyMemories);
   const navigate = useNavigate();
   const [hit, setHit] = useState<NearbyMemory | null>(null);
@@ -79,12 +82,7 @@ export function PlaceMemoryWatcher() {
 
   if (!hit) return null;
 
-  const when =
-    hit.days_ago >= 365
-      ? `${Math.floor(hit.days_ago / 365)}年前`
-      : hit.days_ago >= 30
-        ? `${Math.floor(hit.days_ago / 30)}ヶ月前`
-        : `${hit.days_ago}日前`;
+  const when = daysAgoLabel(hit.days_ago, t);
 
   return (
     <div className="fixed inset-x-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50">
@@ -100,16 +98,24 @@ export function PlaceMemoryWatcher() {
           className="min-w-0 flex-1 text-left"
         >
           <span className="block truncate text-sm font-semibold">
-            「<Zh>{hit.headword}</Zh>」覚えてる?
+            {/* 単語の前後で文が分かれる。日本語は「〇〇」覚えてる?、英語は
+                Remember "〇〇"? と語順が違うので前後を別キーにしている。
+                単語だけ <Zh> で囲む必要があり、1文にまとめられない。 */}
+            {t("place.rememberBefore")}
+            <Zh>{hit.headword}</Zh>
+            {t("place.rememberAfter")}
           </span>
           <span className="block truncate text-[11px] text-muted-foreground">
-            {when}、{hit.location_name ? `${hit.location_name}で` : "この辺りで"}撮った言葉
-            {hit.meaning_ja ? `(${hit.meaning_ja})` : ""}
+            {t("place.caughtHere", {
+              when,
+              where: hit.location_name ? t("place.atPlace", { name: hit.location_name }) : t("place.hereAbouts"),
+              meaning: hit.meaning_ja ? `(${hit.meaning_ja})` : "",
+            })}
           </span>
         </button>
         <button
           onClick={() => setHit(null)}
-          aria-label="閉じる"
+          aria-label={t("common.close")}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"
         >
           <X className="h-4 w-4" />

@@ -8,6 +8,7 @@ import {
   type BranchType,
 } from "@/lib/wordtree";
 import type { WordExtras } from "@/components/WordCard";
+import { useT } from "@/lib/i18n";
 
 /**
  * §6 word tree: the card is a tree — your photo at the center, one branch
@@ -33,11 +34,12 @@ const TYPE_STROKE: Record<BranchType, string> = {
   antonym:     "hsl(346 78% 60%)",
 };
 
-const TYPE_LABEL: Record<BranchType, string> = {
-  collocation: "つながり",
-  example: "例文",
-  synonym: "類義",
-  antonym: "反義",
+/** 枝の種類。表示言語に追従させるため翻訳キーを持つ。 */
+const TYPE_LABEL_KEY: Record<BranchType, string> = {
+  collocation: "tree.collocation",
+  example: "tree.example",
+  synonym: "tree.synonym",
+  antonym: "tree.antonym",
 };
 
 type Props = {
@@ -50,6 +52,7 @@ type Props = {
 };
 
 export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras, reviewCount }: Props) {
+  const t = useT();
   const plan: Branch[] = parseBranchPlan(branchPlanRaw) ?? buildBranchPlan(extras ?? undefined);
   if (plan.length === 0) return null;
 
@@ -71,9 +74,9 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
   return (
     <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-1 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold tracking-tight">ワードツリー</h2>
+        <h2 className="text-sm font-semibold tracking-tight">{t("tree.title")}</h2>
         <span className="text-[11px] text-muted-foreground">
-          枝 {unlocked.length}/{plan.length} 本 · 復習ごとに1本育つ
+          {t("tree.branches", { done: unlocked.length, total: plan.length })}
         </span>
       </div>
 
@@ -174,7 +177,7 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
                   <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-primary/70 animate-pulse" />
                 </div>
                 <div className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">
-                  あと{lockedCount}本 · 復習で解禁
+                  {t("tree.locked", { n: lockedCount })}
                 </div>
               </div>
             );
@@ -196,14 +199,14 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
             >
               <span lang="zh-Hant" className="block text-[13px] font-semibold leading-tight">{b.zh}</span>
               {b.ja && <span className="block text-[9px] opacity-80">{b.ja}</span>}
-              <span className="block text-[8px] uppercase tracking-wide opacity-60">{TYPE_LABEL[b.type]}</span>
+              <span className="block text-[8px] uppercase tracking-wide opacity-60">{t(TYPE_LABEL_KEY[b.type])}</span>
             </Link>
           );
         })}
       </div>
 
       <p className="mt-1 text-center text-[10px] text-muted-foreground">
-        枝をタップすると、その言葉を新しい木としてキャッチできます
+        {t("tree.tapHint")}
       </p>
 
       <style>{`

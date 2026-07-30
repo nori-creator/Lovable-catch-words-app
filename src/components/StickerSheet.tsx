@@ -410,7 +410,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   }
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : "カード"}>
+    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : t("common.card")}>
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <span lang="zh-Hant" className="pl-1 text-xs font-medium text-muted-foreground">
@@ -446,7 +446,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             <button
               onClick={() => setEditing(false)}
               className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
-              aria-label="編集を閉じる"
+              aria-label={t("common.closeEdit")}
             >
               <ChevronUp className="h-4 w-4" />
             </button>
@@ -494,7 +494,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   {s.object_url ? (
                     <CachedImg
                       src={s.object_url}
-                      alt={`「${s.word.headword}」の写真`}
+                      alt={t("common.photoOf", { word: s.word.headword })}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
                   ) : s.cutout_url ? (
@@ -510,7 +510,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     <>
                       <img
                         src={s.placeholder_url}
-                        alt={`「${s.word.headword}」の画像`}
+                        alt={t("common.imageOf", { word: s.word.headword })}
                         className="hero-pop absolute inset-0 h-full w-full object-cover"
                       />
                       {s.placeholder_credit?.name && (
@@ -687,14 +687,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 className="mt-5 block overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
               >
                 <iframe
-                  title="撮影場所のマップ"
+                  title={t("common.mapTitle")}
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
                   className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
                 <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}
+                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
                   </span>
                   <span className="text-primary">{t("card.openMapsLabel")}</span>
                 </div>
