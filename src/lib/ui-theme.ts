@@ -117,7 +117,9 @@ export function applyUiTheme(id: UiThemeId) {
 export function setUiTheme(id: UiThemeId) {
   try {
     localStorage.setItem(KEY, id);
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   applyUiTheme(id);
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT));
 }

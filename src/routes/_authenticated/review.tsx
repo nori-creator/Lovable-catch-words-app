@@ -90,12 +90,14 @@ function playText(text: string, audioUrl?: string | null) {
   }
 }
 
-
 export const Route = createFileRoute("/_authenticated/review")({
   head: () => ({
     meta: [
       { title: tStatic("page.review") },
-      { name: "description", content: "自分の写真を見て、その単語で一言。AIが添削と型を返します。" },
+      {
+        name: "description",
+        content: "自分の写真を見て、その単語で一言。AIが添削と型を返します。",
+      },
     ],
   }),
   component: ReviewPage,
@@ -108,7 +110,11 @@ function ReviewPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
-  const { data: cards, isLoading, refetch } = useQuery({
+  const {
+    data: cards,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["reviews-due"],
     queryFn: () => fetchDue(),
     staleTime: 0,
@@ -159,7 +165,9 @@ function ReviewPage() {
     <AppShell title={t("title.review")}>
       <section className="mb-4">
         <div className="flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold leading-[1.1] tracking-[-0.02em]">{t("review.today")}</h1>
+          <h1 className="text-2xl font-semibold leading-[1.1] tracking-[-0.02em]">
+            {t("review.today")}
+          </h1>
           <div className="flex items-center gap-3">
             {cards && (
               <span className="text-xs text-muted-foreground">
@@ -196,7 +204,10 @@ function ReviewPage() {
           </div>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: `${progress}%` }}
+          />
         </div>
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
@@ -232,7 +243,12 @@ function ReviewPage() {
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (
-        <DoneState onAgain={() => { setIdx(0); refetch(); }} />
+        <DoneState
+          onAgain={() => {
+            setIdx(0);
+            refetch();
+          }}
+        />
       ) : current ? (
         lightMode ? (
           <LightModeCard
@@ -280,7 +296,10 @@ function memWordOf(card: DueReviewCard): MemoryWord {
 function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
   const t = useT();
   const counts = MEMORY_LEVELS.map(
-    (lv) => words.filter((w) => memoryLevel(w.retention, w.interval_days, w.repetitions).level === lv.level).length,
+    (lv) =>
+      words.filter(
+        (w) => memoryLevel(w.retention, w.interval_days, w.repetitions).level === lv.level,
+      ).length,
   );
   const total = words.length || 1;
   return (
@@ -288,7 +307,11 @@ function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
         {MEMORY_LEVELS.map((lv, i) =>
           counts[i] > 0 ? (
-            <div key={lv.level} className={lv.bar} style={{ width: `${(counts[i] / total) * 100}%` }} />
+            <div
+              key={lv.level}
+              className={lv.bar}
+              style={{ width: `${(counts[i] / total) * 100}%` }}
+            />
           ) : null,
         )}
       </div>
@@ -343,12 +366,21 @@ function MemoryOverviewPanel({
                 onClick={() => onOpenWord(w)}
                 className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
-                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-sm font-medium">{w.headword}</span>
-                <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                  <span className={`absolute inset-y-0 left-0 ${lv.bar}`} style={{ width: `${w.retention}%` }} />
+                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-sm font-medium">
+                  {w.headword}
                 </span>
-                <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${lv.text}`}>{w.retention}%</span>
-                <span className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[9px] font-medium ${lv.chip}`}>
+                <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <span
+                    className={`absolute inset-y-0 left-0 ${lv.bar}`}
+                    style={{ width: `${w.retention}%` }}
+                  />
+                </span>
+                <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${lv.text}`}>
+                  {w.retention}%
+                </span>
+                <span
+                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[9px] font-medium ${lv.chip}`}
+                >
                   {t(lv.labelKey)}
                 </span>
               </button>
@@ -356,9 +388,7 @@ function MemoryOverviewPanel({
           );
         })}
       </ul>
-      <p className="mt-1.5 text-[10px] text-muted-foreground">
-        {t("rv.tapForCurve")}
-      </p>
+      <p className="mt-1.5 text-[10px] text-muted-foreground">{t("rv.tapForCurve")}</p>
     </div>
   );
 }
@@ -383,7 +413,8 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
   const { series, reviewDays, forgetDay, bestDay } = useMemo(() => {
     const nowMs = Date.now();
     const day = 86400_000;
-    const stabilityOf = (interval: number, ease: number) => Math.max(0.5, interval * Math.max(1, ease));
+    const stabilityOf = (interval: number, ease: number) =>
+      Math.max(0.5, interval * Math.max(1, ease));
 
     const hist = (data?.history ?? [])
       .slice()
@@ -421,7 +452,10 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
       const at = nowMs + d * day;
       let last: { t: number; stability: number } | null = null;
       for (const e of events) if (e.t <= at) last = e;
-      if (!last) { out.push({ d, r: null }); continue; }
+      if (!last) {
+        out.push({ d, r: null });
+        continue;
+      }
       const dt = Math.max(0, (at - last.t) / day);
       const r = Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-dt / last.stability))));
       out.push({ d, r: revDays.includes(d) ? 100 : r });
@@ -443,26 +477,45 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     : "—";
   const daysUntilForgot = word.days_until_forgot ?? forgetDay;
   const bestLabel =
-    bestDay == null ? null : bestDay <= 0 ? t("memory.today") : `${bestDay}${t("memory.daysLater")}`;
+    bestDay == null
+      ? null
+      : bestDay <= 0
+        ? t("memory.today")
+        : `${bestDay}${t("memory.daysLater")}`;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-3xl bg-card p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-2 flex items-center justify-between">
-          <h3 lang="zh-Hant" className="text-lg font-bold">{word.headword}</h3>
-          <button onClick={onClose} aria-label={t("common.close")} className="rounded-full p-1 text-muted-foreground">
+          <h3 lang="zh-Hant" className="text-lg font-bold">
+            {word.headword}
+          </h3>
+          <button
+            onClick={onClose}
+            aria-label={t("common.close")}
+            className="rounded-full p-1 text-muted-foreground"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* 現在の状態 */}
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}
+          >
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
             {t(lv.labelKey)} · {word.retention}%
           </span>
           <span className="text-muted-foreground">
-            {t("memory.reviews")} <b className="text-foreground">{word.repetitions}</b> {t("memory.times")}
+            {t("memory.reviews")} <b className="text-foreground">{word.repetitions}</b>{" "}
+            {t("memory.times")}
           </span>
         </div>
 
@@ -473,15 +526,33 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
                 <XAxis
                   dataKey="d"
-                  tickFormatter={(v: number) => (v === 0 ? t("rv.today") : v > 0 ? `+${v}d` : `${v}d`)}
+                  tickFormatter={(v: number) =>
+                    v === 0 ? t("rv.today") : v > 0 ? `+${v}d` : `${v}d`
+                  }
                   stroke="#64748b"
                   fontSize={10}
                 />
-                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
+                <YAxis
+                  domain={[0, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                  stroke="#64748b"
+                  fontSize={10}
+                />
                 <Tooltip
                   formatter={(v: number) => [`${v}%`, t("rv.retention")]}
-                  labelFormatter={(l: number) => (l === 0 ? t("rv.today") : l > 0 ? t("rv.daysLater", { n: l }) : t("rv.daysAgo", { n: -l }))}
-                  contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
+                  labelFormatter={(l: number) =>
+                    l === 0
+                      ? t("rv.today")
+                      : l > 0
+                        ? t("rv.daysLater", { n: l })
+                        : t("rv.daysAgo", { n: -l })
+                  }
+                  contentStyle={{
+                    background: "rgba(255,255,255,0.96)",
+                    border: "1px solid rgba(120,130,150,0.28)",
+                    borderRadius: 12,
+                    fontSize: 12,
+                  }}
                 />
                 {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
                 <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
@@ -506,7 +577,9 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-8 text-center text-xs text-muted-foreground">{t("review.memoryLoading")}</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">
+            {t("review.memoryLoading")}
+          </p>
         )}
 
         {/* 数字で読める予測 */}
@@ -517,7 +590,9 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
             <div className="text-[9px] text-muted-foreground">{t("memory.forgetIn")}</div>
-            <div className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-red-600" : ""}`}>
+            <div
+              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-red-600" : ""}`}
+            >
               {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
             </div>
           </div>
@@ -529,9 +604,8 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
 
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           {t("rv.formula1")}
-          {t("rv.formula2")}
-          {" "}
-          <b className="text-emerald-600">{t("rv.greenLine")}</b>{t("rv.formula3")}
+          {t("rv.formula2")} <b className="text-emerald-600">{t("rv.greenLine")}</b>
+          {t("rv.formula3")}
         </p>
       </div>
     </div>
@@ -590,19 +664,24 @@ function SpeakingCard({
     ? new Date(card.taken_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
     : null;
 
-  useEffect(() => { setVideoOn(readBool(VIDEO_KEY, false)); }, []);
-  useEffect(() => () => {
-    stopVideo();
-    recogRef.current?.stop();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setVideoOn(readBool(VIDEO_KEY, false));
   }, []);
+  useEffect(
+    () => () => {
+      stopVideo();
+      recogRef.current?.stop();
+    },
+    // アンマウント時の後片付けだけなので依存は無し。
+    [],
+  );
 
   // Phrase roleplay (§5.2): the partner line IS the question — play it.
   useEffect(() => {
     if (!isPhrase) return;
     const t = setTimeout(() => playAudio(card), 400);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.review_id]);
 
   async function startVideo() {
@@ -614,7 +693,10 @@ function SpeakingCard({
       // 文字が出ない」状態になっていた。開始順を入れ替えても直らなかった。
       // 音声認識(=学習の本体)を優先し、録画は映像だけにする。
       // 発音は認識結果のテキストとAI添削で確認できる。
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       const rec = new MediaRecorder(stream);
@@ -626,10 +708,15 @@ function SpeakingCard({
       };
       rec.start();
       recorderRef.current = rec;
-    } catch { /* denied */ }
+    } catch {
+      /* denied */
+    }
   }
   function stopVideo() {
-    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
+    if (videoStartTimer.current) {
+      clearTimeout(videoStartTimer.current);
+      videoStartTimer.current = null;
+    }
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -649,9 +736,17 @@ function SpeakingCard({
     }
     setError(null);
     const rec = new SR() as {
-      lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean;
-      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> & { length: number } }) => void;
-      onend: () => void; onerror: () => void; start: () => void; stop: () => void;
+      lang: string;
+      interimResults: boolean;
+      maxAlternatives: number;
+      continuous: boolean;
+      onresult: (e: {
+        results: ArrayLike<ArrayLike<{ transcript: string }>> & { length: number };
+      }) => void;
+      onend: () => void;
+      onerror: () => void;
+      start: () => void;
+      stop: () => void;
     };
     rec.lang = "cmn-Hant-TW";
     rec.interimResults = true;
@@ -676,7 +771,10 @@ function SpeakingCard({
         setError(t("rv.notHeard"));
       }
     };
-    rec.onerror = () => { setListening(false); stopVideo(); };
+    rec.onerror = () => {
+      setListening(false);
+      stopVideo();
+    };
     recogRef.current = rec;
     startedAt.current = Date.now();
     setListening(true);
@@ -688,7 +786,10 @@ function SpeakingCard({
   }
 
   function stopListen() {
-    if (videoStartTimer.current) { clearTimeout(videoStartTimer.current); videoStartTimer.current = null; }
+    if (videoStartTimer.current) {
+      clearTimeout(videoStartTimer.current);
+      videoStartTimer.current = null;
+    }
     recogRef.current?.stop();
     setListening(false);
     stopVideo();
@@ -711,13 +812,15 @@ function SpeakingCard({
   }
 
   async function commitAndNext(kind: "success" | "skip") {
-    if (graded) { onNext(); return; }
+    if (graded) {
+      onNext();
+      return;
+    }
     setGraded(true);
     // §6 3-level SRS: success=5 / hint=2 (失念) / skip・不成立=1.
     // "Success" additionally requires the AI's objective check (used the
     // target word, natural enough) — the honest-grading idea from main.
-    const objectiveOk =
-      !!feedback && feedback.used_target && feedback.natural_score >= 3;
+    const objectiveOk = !!feedback && feedback.used_target && feedback.natural_score >= 3;
     // ヒント(答え表示)は廃止したので "hint" 判定は無くなった。
     const result: "success" | "hint" | "skip" =
       kind === "skip" ? "skip" : objectiveOk ? "success" : "skip";
@@ -731,215 +834,246 @@ function SpeakingCard({
           result,
         },
       });
-    } catch { /* keep flow moving */ }
+    } catch {
+      /* keep flow moving */
+    }
     onNext();
   }
 
   return (
-    <SwipeCard
-      enabled={!loading}
-      onSwipe={() => commitAndNext(feedback ? "success" : "skip")}
-    >
-    <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-          <Mic className="h-3.5 w-3.5" /> {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">
-            {isPhrase ? t("review.promptPhrase") : t("review.promptSpeak")}
+    <SwipeCard enabled={!loading} onSwipe={() => commitAndNext(feedback ? "success" : "skip")}>
+      <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+            <Mic className="h-3.5 w-3.5" />{" "}
+            {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
           </span>
-          <CardMemoryBadge card={card} onOpen={onOpenMemory} />
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">
+              {isPhrase ? t("review.promptPhrase") : t("review.promptSpeak")}
+            </span>
+            <CardMemoryBadge card={card} onOpen={onOpenMemory} />
+          </div>
         </div>
-      </div>
 
-      {/* Photo — the word itself stays hidden until hint */}
-      <div className="relative mx-auto mb-2 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
-        {heroUrl ? (
-          <CachedImg
-            src={heroUrl}
-            alt={t("rv.targetAlt")}
-            className="h-full w-full object-contain p-4"
-          />
-        ) : (
-          <span className="px-3 text-center text-lg font-semibold text-muted-foreground">
-            {card.meaning_ja}
-          </span>
+        {/* Photo — the word itself stays hidden until hint */}
+        <div className="relative mx-auto mb-2 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
+          {heroUrl ? (
+            <CachedImg
+              src={heroUrl}
+              alt={t("rv.targetAlt")}
+              className="h-full w-full object-contain p-4"
+            />
+          ) : (
+            <span className="px-3 text-center text-lg font-semibold text-muted-foreground">
+              {card.meaning_ja}
+            </span>
+          )}
+        </div>
+
+        {/* When & where the memory was made (§6-1: 場所・日時つき) */}
+        {(takenLabel || card.location_name) && (
+          <div className="mb-3 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+            {takenLabel && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {takenLabel}
+              </span>
+            )}
+            {card.location_name && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {card.location_name}
+              </span>
+            )}
+          </div>
         )}
-      </div>
 
-      {/* When & where the memory was made (§6-1: 場所・日時つき) */}
-      {(takenLabel || card.location_name) && (
-        <div className="mb-3 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
-          {takenLabel && (
-            <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {takenLabel}</span>
-          )}
-          {card.location_name && (
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {card.location_name}</span>
-          )}
-        </div>
-      )}
+        {/* Phrase cards: the scene is the front of the card (§5.2) */}
+        {isPhrase && card.caption && (
+          <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-sm">
+            <span className="text-xs text-muted-foreground">{t("review.scene")}</span>
+            {card.caption}
+          </p>
+        )}
 
-      {/* Phrase cards: the scene is the front of the card (§5.2) */}
-      {isPhrase && card.caption && (
-        <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-sm">
-          <span className="text-xs text-muted-foreground">{t("review.scene")}</span>
-          {card.caption}
-        </p>
-      )}
-
-      {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
+        {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
           使う型を1つ指定して、その型で言わせる。単語部分は伏せ字のまま
           (答えを見せない)。答え合わせは添削画面で。 */}
-      {!isPhrase && card.prompt_pattern && (
-        <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("review.todaysPattern")}</div>
-          <div lang="zh-Hant" className="mt-1 text-xl font-bold leading-snug tracking-wide">
-            {card.prompt_pattern.zh.split(card.headword).join("◯".repeat(Math.max(1, card.headword.length)))}
+        {!isPhrase && card.prompt_pattern && (
+          <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+              {t("review.todaysPattern")}
+            </div>
+            <div lang="zh-Hant" className="mt-1 text-xl font-bold leading-snug tracking-wide">
+              {card.prompt_pattern.zh
+                .split(card.headword)
+                .join("◯".repeat(Math.max(1, card.headword.length)))}
+            </div>
+            {card.prompt_pattern.ja && (
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                {card.prompt_pattern.ja}
+              </div>
+            )}
+            <div className="mt-1 text-[10px] text-muted-foreground">{t("review.usePattern")}</div>
           </div>
-          {card.prompt_pattern.ja && (
-            <div className="mt-0.5 text-[11px] text-muted-foreground">{card.prompt_pattern.ja}</div>
-          )}
-          <div className="mt-1 text-[10px] text-muted-foreground">{t("review.usePattern")}</div>
-        </div>
-      )}
+        )}
 
-      {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
+        {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
           パーツを組み合わせて質問に答える。 */}
-      {!isPhrase && scaffold && !feedback && (
-        <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">{t("review.teacherQ")}</div>
-          <div className="mt-0.5 flex items-start gap-2">
-            <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
-            <button
-              onClick={() => playText(scaffold.question_zh)}
-              className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
-              aria-label={t("rv.readQuestion")}
-            >
-              <Volume2 className="h-3 w-3" />
-            </button>
-          </div>
-          <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
+        {!isPhrase && scaffold && !feedback && (
+          <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+              {t("review.teacherQ")}
+            </div>
+            <div className="mt-0.5 flex items-start gap-2">
+              <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
+              <button
+                onClick={() => playText(scaffold.question_zh)}
+                className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
+                aria-label={t("rv.readQuestion")}
+              >
+                <Volume2 className="h-3 w-3" />
+              </button>
+            </div>
+            <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
 
-          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">{t("review.hintsLabel")}</div>
-          {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
+            <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+              {t("review.hintsLabel")}
+            </div>
+            {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
               単語詳細のチャンクと同じ体系(ChunkPills)で統一する。 */}
-          <ol className="mt-1.5 space-y-2">
-            {scaffold.parts.map((p, i) => (
-              <li key={i} className="rounded-xl bg-white/90 p-2.5 shadow-sm ring-1 ring-sky-200">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
-                    {i + 1}
-                  </span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
-                    {t(`review.partKind.${p.kind}`)}
-                  </span>
-                  <button
-                    onClick={() => playText(p.zh)}
-                    className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
-                    aria-label={t("review.playHint")}
-                  >
-                    <Volume2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <div className="mt-1.5">
-                  {p.chunks.length > 0 ? (
-                    <ChunkPills parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))} size="lg" />
-                  ) : (
-                    <span lang="zh-Hant" className="text-lg font-bold leading-snug tracking-wide">{p.zh}</span>
+            <ol className="mt-1.5 space-y-2">
+              {scaffold.parts.map((p, i) => (
+                <li key={i} className="rounded-xl bg-white/90 p-2.5 shadow-sm ring-1 ring-sky-200">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                      {t(`review.partKind.${p.kind}`)}
+                    </span>
+                    <button
+                      onClick={() => playText(p.zh)}
+                      className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
+                      aria-label={t("review.playHint")}
+                    >
+                      <Volume2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="mt-1.5">
+                    {p.chunks.length > 0 ? (
+                      <ChunkPills
+                        parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))}
+                        size="lg"
+                      />
+                    ) : (
+                      <span lang="zh-Hant" className="text-lg font-bold leading-snug tracking-wide">
+                        {p.zh}
+                      </span>
+                    )}
+                  </div>
+                  {p.ja && (
+                    <p className="mt-1 text-[11px] leading-relaxed text-sky-900/70">{p.ja}</p>
                   )}
-                </div>
-                {p.ja && <p className="mt-1 text-[11px] leading-relaxed text-sky-900/70">{p.ja}</p>}
-              </li>
-            ))}
-          </ol>
-          <ChunkLegend />
-          {scaffold.caption_seed && (
-            <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
-              {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
-            </p>
-          )}
-          <p className="mt-1.5 text-[10px] text-sky-800/70">{t("review.buildYourOwn")}</p>
-        </div>
-      )}
+                </li>
+              ))}
+            </ol>
+            <ChunkLegend />
+            {scaffold.caption_seed && (
+              <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
+                {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
+              </p>
+            )}
+            <p className="mt-1.5 text-[10px] text-sky-800/70">{t("review.buildYourOwn")}</p>
+          </div>
+        )}
 
-      {/* 「ヒント(答えを見る)」ボタンは廃止(2026-07-28)。
+        {/* 「ヒント(答えを見る)」ボタンは廃止(2026-07-28)。
           答えが出てしまうと思い出す練習にならない。代わりに上の①②③の
           足場(型・コロケーション・文法)だけで自分の言葉を組み立てる。 */}
 
-      {/* Video preview (opt-in) */}
-      {videoOn && listening && (
-        <video ref={videoRef} autoPlay muted playsInline className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-2 ring-primary" />
-      )}
-      {videoUrl && !listening && (
-        <video src={videoUrl} controls className="mx-auto mb-3 h-32 rounded-xl bg-black" />
-      )}
-
-      {/* Recording controls */}
-      {!feedback && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={listening ? stopListen : startListen}
-              disabled={loading}
-              className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
-                listening ? "bg-red-500 text-white shadow-red-500/30 animate-pulse" : "bg-primary text-primary-foreground shadow-primary/30"
-              }`}
-              aria-label={listening ? t("rv.stop") : t("rv.record")}
-            >
-              {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
-            </button>
-          </div>
-
-          <textarea
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
-            className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
-            dir="auto"
+        {/* Video preview (opt-in) */}
+        {videoOn && listening && (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-2 ring-primary"
           />
-          {error && <p className="text-xs text-red-600">{error}</p>}
+        )}
+        {videoUrl && !listening && (
+          <video src={videoUrl} controls className="mx-auto mb-3 h-32 rounded-xl bg-black" />
+        )}
 
-          <div className="flex gap-2">
-            <button
-              onClick={submit}
-              disabled={!transcript.trim() || loading}
-              className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t("review.grading")}</span>
-              ) : (
-                t("review.submit")
-              )}
-            </button>
-            <button
-              onClick={() => commitAndNext("skip")}
-              className="rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground"
-            >
-              {t("review.skip")}
-            </button>
+        {/* Recording controls */}
+        {!feedback && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={listening ? stopListen : startListen}
+                disabled={loading}
+                className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
+                  listening
+                    ? "bg-red-500 text-white shadow-red-500/30 animate-pulse"
+                    : "bg-primary text-primary-foreground shadow-primary/30"
+                }`}
+                aria-label={listening ? t("rv.stop") : t("rv.record")}
+              >
+                {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
+              </button>
+            </div>
+
+            <textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
+              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
+              dir="auto"
+            />
+            {error && <p className="text-xs text-red-600">{error}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={submit}
+                disabled={!transcript.trim() || loading}
+                className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t("review.grading")}
+                  </span>
+                ) : (
+                  t("review.submit")
+                )}
+              </button>
+              <button
+                onClick={() => commitAndNext("skip")}
+                className="rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground"
+              >
+                {t("review.skip")}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* AI feedback */}
-      {feedback && (
-        <FeedbackView
-          card={card}
-          feedback={feedback}
-          round={round}
-          transcript={transcript}
-          videoUrl={videoUrl}
-          onRetry={() => {
-            setRound(2);
-            setFeedback(null);
-            setTranscript("");
-            setVideoUrl(null);
-          }}
-          onNext={() => commitAndNext("success")}
-        />
-      )}
-    </article>
+        {/* AI feedback */}
+        {feedback && (
+          <FeedbackView
+            card={card}
+            feedback={feedback}
+            round={round}
+            transcript={transcript}
+            videoUrl={videoUrl}
+            onRetry={() => {
+              setRound(2);
+              setFeedback(null);
+              setTranscript("");
+              setVideoUrl(null);
+            }}
+            onNext={() => commitAndNext("success")}
+          />
+        )}
+      </article>
     </SwipeCard>
   );
 }
@@ -967,7 +1101,9 @@ function FeedbackView({
   return (
     <div className="mt-5 space-y-4">
       {/* Header verdict */}
-      <div className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30" : "bg-rose-50 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:ring-rose-400/30"}`}>
+      <div
+        className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30" : "bg-rose-50 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:ring-rose-400/30"}`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">
             {goodTarget && score >= 4
@@ -976,7 +1112,9 @@ function FeedbackView({
                 ? t("review.almost")
                 : `「${card.headword}」${t("review.useTarget")}`}
           </span>
-          <span className="text-xs text-muted-foreground">{t("review.naturalness")} {score}/5</span>
+          <span className="text-xs text-muted-foreground">
+            {t("review.naturalness")} {score}/5
+          </span>
         </div>
       </div>
 
@@ -995,9 +1133,13 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.you")}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("review.you")}
+        </div>
         <div className="text-sm">{transcript}</div>
-        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.corrected")}</div>
+        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("review.corrected")}
+        </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
           <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
           <button
@@ -1014,9 +1156,14 @@ function FeedbackView({
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.sentenceBuild")}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("review.sentenceBuild")}
+          </span>
           {feedback.unlocked_branch && (
-            <span lang="zh-Hant" className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            <span
+              lang="zh-Hant"
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+            >
               {t("review.newBranch")}
             </span>
           )}
@@ -1026,7 +1173,9 @@ function FeedbackView({
         <ChunkLegend />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("review.whyOrder")}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("review.whyOrder")}
+            </div>
             <p className="mt-0.5 text-xs leading-relaxed">{feedback.word_order_rule}</p>
           </div>
         )}
@@ -1034,22 +1183,37 @@ function FeedbackView({
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">{t("review.nativeFeel")}</div>
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+          {t("review.nativeFeel")}
+        </div>
         <p className="text-sm text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
       </div>
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">{t("review.model")}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+          {t("review.model")}
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-sm">{feedback.model_answer}</div>
-          <button onClick={() => speakZhTW(feedback.model_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label={t("rv.hearModel")}>
+          <button
+            onClick={() => speakZhTW(feedback.model_answer)}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+            aria-label={t("rv.hearModel")}
+          >
             <Volume2 className="h-4 w-4" />
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">{t("review.altWay")}{feedback.alt_answer}</div>
-          <button onClick={() => speakZhTW(feedback.alt_answer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" aria-label={t("rv.hearAlt")}>
+          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">
+            {t("review.altWay")}
+            {feedback.alt_answer}
+          </div>
+          <button
+            onClick={() => speakZhTW(feedback.alt_answer)}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+            aria-label={t("rv.hearAlt")}
+          >
             <Volume2 className="h-4 w-4" />
           </button>
         </div>
@@ -1119,130 +1283,177 @@ function LightModeCard({
 
   return (
     <SwipeCard enabled={!!picked} onSwipe={onNext}>
-    <article className="rounded-3xl border border-border bg-card p-4 shadow-lg shadow-primary/10">
-      {/* スクロールなしで4択まで見えるコンパクトレイアウト:
+      <article className="rounded-3xl border border-border bg-card p-4 shadow-lg shadow-primary/10">
+        {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
-      <div className="mb-2 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
-          {t("review.quizTag")}
-        </span>
-        <CardMemoryBadge card={card} onOpen={onOpenMemory} />
-      </div>
-      {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
+        <div className="mb-2 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
+            {t("review.quizTag")}
+          </span>
+          <CardMemoryBadge card={card} onOpen={onOpenMemory} />
+        </div>
+        {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
           画面高に連動させ(最大32vh)、小さい端末でも選択肢が隠れない。 */}
-      <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
-        {card.cutout_url ?? card.placeholder_url ? (
-          <CachedImg
-            src={(card.cutout_url ?? card.placeholder_url)!}
-            alt={t("rv.targetAlt")}
-            className="h-full max-h-[32vh] w-full object-contain"
-          />
-        ) : (
-          <div className="grid h-32 w-full place-items-center px-3 text-center text-base font-semibold text-muted-foreground">
+        <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
+          {(card.cutout_url ?? card.placeholder_url) ? (
+            <CachedImg
+              src={(card.cutout_url ?? card.placeholder_url)!}
+              alt={t("rv.targetAlt")}
+              className="h-full max-h-[32vh] w-full object-contain"
+            />
+          ) : (
+            <div className="grid h-32 w-full place-items-center px-3 text-center text-base font-semibold text-muted-foreground">
+              {card.meaning_ja}
+            </div>
+          )}
+        </div>
+        <div className="mb-2.5 text-center">
+          <div className="text-base font-semibold leading-snug">
+            {t("rv.whichIsBefore")}
             {card.meaning_ja}
+            {t("rv.whichIsAfter")}
           </div>
-        )}
-      </div>
-      <div className="mb-2.5 text-center">
-        <div className="text-base font-semibold leading-snug">{t("rv.whichIsBefore")}{card.meaning_ja}{t("rv.whichIsAfter")}</div>
-      </div>
-      <ul className="space-y-1.5">
-        {infos.map((info) => {
-          const c = info.headword;
-          const isAnswer = c === card.headword;
-          const isPicked = picked === c;
-          const showGreen = picked != null && isAnswer;
-          const showRed = isPicked && !isAnswer;
-          const reading = pickReading(phonetic, info.zhuyin, info.pinyin);
-          return (
-            <li key={c} className="flex items-stretch gap-2">
-              <button
-                disabled={!!picked}
-                onClick={() => submit(c)}
-                className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-all
+        </div>
+        <ul className="space-y-1.5">
+          {infos.map((info) => {
+            const c = info.headword;
+            const isAnswer = c === card.headword;
+            const isPicked = picked === c;
+            const showGreen = picked != null && isAnswer;
+            const showRed = isPicked && !isAnswer;
+            const reading = pickReading(phonetic, info.zhuyin, info.pinyin);
+            return (
+              <li key={c} className="flex items-stretch gap-2">
+                <button
+                  disabled={!!picked}
+                  onClick={() => submit(c)}
+                  className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-all
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-green-500/60 bg-green-500/10" : ""}
                   ${showRed ? "border-red-500/60 bg-red-500/10" : ""}
                   ${picked && !isPicked && !isAnswer ? "opacity-50" : ""}`}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-base font-medium">{c}</span>
-                  {reading && (
-                    <span className="block truncate text-[11px] text-muted-foreground">{reading}</span>
-                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-base font-medium">{c}</span>
+                    {reading && (
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {reading}
+                      </span>
+                    )}
+                  </span>
+                  {showGreen && <Check className="h-4 w-4 shrink-0 text-green-600" />}
+                  {showRed && <X className="h-4 w-4 shrink-0 text-red-600" />}
+                </button>
+                <button
+                  onClick={() => playText(c, isAnswer ? card.audio_url : null)}
+                  className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
+                  aria-label={t("rv.pronOf", { c })}
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {picked && (
+          <div className="mt-4 rounded-2xl bg-secondary/60 p-4">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-sm font-semibold">
+                {correct ? t("review.correct") : t("review.tryAgain")}
+              </span>
+              {score != null && (
+                <span className="text-xs text-muted-foreground">
+                  {t("review.naturalness")} {score}/5
                 </span>
-                {showGreen && <Check className="h-4 w-4 shrink-0 text-green-600" />}
-                {showRed && <X className="h-4 w-4 shrink-0 text-red-600" />}
-              </button>
+              )}
+            </div>
+            <div className="mb-2 flex items-center gap-2">
+              <span lang="zh-Hant" className="text-2xl font-bold tracking-tight">
+                {card.headword}
+              </span>
+              <span lang="zh-Hant" className="text-xs text-muted-foreground">
+                {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
+              </span>
               <button
-                onClick={() => playText(c, isAnswer ? card.audio_url : null)}
-                className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
-                aria-label={t("rv.pronOf", { c })}
+                onClick={() => playAudio(card)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary"
+                aria-label={t("card.playPron")}
               >
                 <Volume2 className="h-4 w-4" />
               </button>
-            </li>
-          );
-        })}
-      </ul>
-      {picked && (
-        <div className="mt-4 rounded-2xl bg-secondary/60 p-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-sm font-semibold">{correct ? t("review.correct") : t("review.tryAgain")}</span>
-            {score != null && <span className="text-xs text-muted-foreground">{t("review.naturalness")} {score}/5</span>}
-          </div>
-          <div className="mb-2 flex items-center gap-2">
-            <span lang="zh-Hant" className="text-2xl font-bold tracking-tight">{card.headword}</span>
-            <span lang="zh-Hant" className="text-xs text-muted-foreground">
-              {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-            </span>
+            </div>
+            {card.example_sentence && (
+              <div>
+                <div className="text-sm">{card.example_sentence}</div>
+                <div className="text-xs text-muted-foreground">{card.example_translation}</div>
+              </div>
+            )}
             <button
-              onClick={() => playAudio(card)}
-              className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary"
-              aria-label={t("card.playPron")}
+              onClick={onNext}
+              className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
             >
-              <Volume2 className="h-4 w-4" />
+              {t("review.next")}
             </button>
           </div>
-          {card.example_sentence && (
-            <div>
-              <div className="text-sm">{card.example_sentence}</div>
-              <div className="text-xs text-muted-foreground">{card.example_translation}</div>
-            </div>
-          )}
-          <button
-            onClick={onNext}
-            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
-          >
-            {t("review.next")}
-          </button>
-        </div>
-      )}
-    </article>
+        )}
+      </article>
     </SwipeCard>
   );
 }
 
 // ============================================================================
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, CartesianGrid } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  ReferenceDot,
+  CartesianGrid,
+} from "recharts";
 
-function MiniRetentionGraph({ series }: { series: Array<{ day_offset: number; avg_retention: number }> }) {
+function MiniRetentionGraph({
+  series,
+}: {
+  series: Array<{ day_offset: number; avg_retention: number }>;
+}) {
   const t = useT();
   return (
     <div className="h-32 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
-          <XAxis dataKey="day_offset" tickFormatter={(v) => (v === 0 ? t("rv.today") : `${v > 0 ? "+" : ""}${v}d`)} stroke="#64748b" fontSize={10} />
+          <XAxis
+            dataKey="day_offset"
+            tickFormatter={(v) => (v === 0 ? t("rv.today") : `${v > 0 ? "+" : ""}${v}d`)}
+            stroke="#64748b"
+            fontSize={10}
+          />
           <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
             formatter={(v: number) => [`${v}%`, t("rv.avgRetention")]}
-            labelFormatter={(l) => (l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` }))}
-            contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(120,130,150,0.28)", borderRadius: 12, fontSize: 12 }}
+            labelFormatter={(l) =>
+              l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` })
+            }
+            contentStyle={{
+              background: "rgba(255,255,255,0.96)",
+              border: "1px solid rgba(120,130,150,0.28)",
+              borderRadius: 12,
+              fontSize: 12,
+            }}
           />
           <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="4 4" />
           <ReferenceLine y={80} stroke="#64748b" strokeDasharray="2 4" />
-          <Line type="monotone" dataKey="avg_retention" stroke="#2563eb" strokeWidth={2.4} dot={false} isAnimationActive={false} />
+          <Line
+            type="monotone"
+            dataKey="avg_retention"
+            stroke="#2563eb"
+            strokeWidth={2.4}
+            dot={false}
+            isAnimationActive={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -1255,7 +1466,10 @@ function EmptyState() {
     <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
       <p className="text-sm text-muted-foreground">{t("review.empty")}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t("review.emptyHint")}</p>
-      <Link to="/capture" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
+      <Link
+        to="/capture"
+        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+      >
         {t("review.goCatch")}
       </Link>
     </div>
@@ -1269,7 +1483,10 @@ function DoneState({ onAgain }: { onAgain: () => void }) {
       <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
       <p className="text-sm font-medium">{t("review.doneTitle")}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t("review.doneHint")}</p>
-      <button onClick={onAgain} className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
+      <button
+        onClick={onAgain}
+        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+      >
         {t("review.again")}
       </button>
       <div className="mt-2 text-[10px] text-muted-foreground">

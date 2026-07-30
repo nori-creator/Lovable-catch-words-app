@@ -6,7 +6,6 @@ import { CATEGORY_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
 import {
   assertWithinDailyCap,
-
   getAi,
   getAiFor,
   getUserLevelGoal,
@@ -29,15 +28,17 @@ const SuggestInput = z.object({
 });
 
 const SuggestionSchema = z.object({
-  suggestions: z.array(
-    z.object({
-      headword: z.string(),
-      reading_zhuyin: z.string().optional().default(""),
-      pinyin: z.string().optional().default(""),
-      meaning_ja: z.string(),
-      category_key: z.enum(CATEGORY_KEYS),
-    })
-  ).length(5),
+  suggestions: z
+    .array(
+      z.object({
+        headword: z.string(),
+        reading_zhuyin: z.string().optional().default(""),
+        pinyin: z.string().optional().default(""),
+        meaning_ja: z.string(),
+        category_key: z.enum(CATEGORY_KEYS),
+      }),
+    )
+    .length(5),
 });
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -131,7 +132,6 @@ const CardSchema = z.object({
   example_sentence: z.string(),
   example_translation: z.string(),
   extras: ExtrasSchema.default(() => emptyExtras()),
-
 });
 
 export type GeneratedCard = z.infer<typeof CardSchema>;
@@ -239,16 +239,19 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       const result = await withModelFallback(ai, preferredModel, (m) =>
         generateText({ model: ai.gateway(m), prompt: `${prompt}${jsonTail}${extraPush}` }),
       );
-      try { return CardSchema.parse(parseJsonFromAiText(result.text)); }
-      catch { throw new Error("AI did not return a structured card"); }
+      try {
+        return CardSchema.parse(parseJsonFromAiText(result.text));
+      } catch {
+        throw new Error("AI did not return a structured card");
+      }
     };
     const extrasLookEmpty = (c: GeneratedCard): boolean => {
       const e = c.extras;
       if (!e) return true;
-      const filled = [
-        e.usage_context, e.pronunciation_tips, e.taiwan_note,
-        e.etymology, e.mnemonic,
-      ].some((v) => !!v && v.trim().length > 0) ||
+      const filled =
+        [e.usage_context, e.pronunciation_tips, e.taiwan_note, e.etymology, e.mnemonic].some(
+          (v) => !!v && v.trim().length > 0,
+        ) ||
         (e.usage_chunks?.length ?? 0) > 0 ||
         (e.related_words?.length ?? 0) > 0 ||
         (e.examples_extra?.length ?? 0) > 0;
@@ -260,11 +263,13 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       try {
         const retry = await genOnce(
           `\n\n前回 extras が空で不十分でした。今回は usage_chunks / usage_context / ` +
-          `related_words / pronunciation_tips / taiwan_note / examples_extra を含め、` +
-          `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
+            `related_words / pronunciation_tips / taiwan_note / examples_extra を含め、` +
+            `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
         );
         if (!extrasLookEmpty(retry)) card = retry;
-      } catch { /* keep the first result */ }
+      } catch {
+        /* keep the first result */
+      }
     }
     await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
@@ -349,8 +354,11 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
         `形式: {"reading_zhuyin":"","pinyin":"","meaning_ja":"","usage_note":"","common_situation":"","replies":[{"zh":"","ja":""}]}`,
     });
     const card = (() => {
-      try { return PhraseCardSchema.parse(parseJsonFromAiText(result.text)); }
-      catch { throw new Error("AI did not return a structured phrase card"); }
+      try {
+        return PhraseCardSchema.parse(parseJsonFromAiText(result.text));
+      } catch {
+        throw new Error("AI did not return a structured phrase card");
+      }
     })();
     await logUsage(context.supabase, context.userId, "phrase_card");
     return card;
@@ -381,16 +389,18 @@ const RegenInput = z.object({
   section: z.enum(REGEN_SECTIONS),
 });
 
-const CHUNK_RULE =
-  `チャンクは {text: 繁体字パーツ, pos: 役割} の配列。pos は S/V(V1,V2)/O(O1,O2)/M/C/Ptc。`;
+const CHUNK_RULE = `チャンクは {text: 繁体字パーツ, pos: 役割} の配列。pos は S/V(V1,V2)/O(O1,O2)/M/C/Ptc。`;
 
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { isProUser: proCheck, levelInstruction: lvl, explanationLanguageRule: langFn } =
-      await import("./ai-provider.server");
+    const {
+      isProUser: proCheck,
+      levelInstruction: lvl,
+      explanationLanguageRule: langFn,
+    } = await import("./ai-provider.server");
     if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
     await assertWithinDailyCap(userId, "card");
 
@@ -407,7 +417,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: word, error } = await supabaseAdmin
       .from("words")
-      .select("id, headword, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras")
+      .select(
+        "id, headword, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
+      )
       .eq("id", data.word_id)
       .maybeSingle();
     if (error || !word) throw new Error("単語が見つかりません");
@@ -434,12 +446,16 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       measure_words: {
         prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
         schema: z.object({
-          measure_words: z.array(z.object({
-            word: z.string(),
-            zhuyin: z.string().catch(""),
-            pinyin: z.string().catch(""),
-            note: z.string().catch(""),
-          })).min(1),
+          measure_words: z
+            .array(
+              z.object({
+                word: z.string(),
+                zhuyin: z.string().catch(""),
+                pinyin: z.string().catch(""),
+                note: z.string().catch(""),
+              }),
+            )
+            .min(1),
         }),
       },
       usage_context: {
@@ -455,35 +471,53 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({
           example_sentence: z.string().min(1),
           example_translation: z.string().catch(""),
-          example_chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
+          example_chunks: z
+            .array(z.object({ text: z.string(), pos: z.string().catch("") }))
+            .catch([]),
         }),
       },
       examples_extra: {
         prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
         schema: z.object({
-          examples_extra: z.array(z.object({
-            zh: z.string(), ja: z.string().catch(""), scene: z.string().catch(""),
-            chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
-          })).min(1),
+          examples_extra: z
+            .array(
+              z.object({
+                zh: z.string(),
+                ja: z.string().catch(""),
+                scene: z.string().catch(""),
+                chunks: z
+                  .array(z.object({ text: z.string(), pos: z.string().catch("") }))
+                  .catch([]),
+              }),
+            )
+            .min(1),
         }),
       },
       usage_chunks: {
         prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
-          usage_chunks: z.array(z.object({
-            parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
-            ja: z.string().catch(""),
-          })).min(1),
+          usage_chunks: z
+            .array(
+              z.object({
+                parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+                ja: z.string().catch(""),
+              }),
+            )
+            .min(1),
         }),
       },
       related_words: {
         prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"繁体字","kind":"syn|ant|rel","note":"短い説明(${NL})"}]}`,
         schema: z.object({
-          related_words: z.array(z.object({
-            word: z.string(),
-            kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
-            note: z.string().catch(""),
-          })).min(1),
+          related_words: z
+            .array(
+              z.object({
+                word: z.string(),
+                kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
+                note: z.string().catch(""),
+              }),
+            )
+            .min(1),
         }),
       },
       pronunciation_tips: {

@@ -52,14 +52,22 @@ function PendingCapturesBanner() {
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
         {first.object_img ? (
-          <img src={first.object_img} alt={t("home.waitingPhoto")} className="h-full w-full object-cover" />
+          <img
+            src={first.object_img}
+            alt={t("home.waitingPhoto")}
+            className="h-full w-full object-cover"
+          />
         ) : (
           <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">📥 {t("home.pendingCount")}: {pending.length}</span>
-        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">{t("home.pendingCta")}</span>
+        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">
+          📥 {t("home.pendingCount")}: {pending.length}
+        </span>
+        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">
+          {t("home.pendingCta")}
+        </span>
       </span>
     </Link>
   );
@@ -160,7 +168,9 @@ function HomePage() {
         <section className="mt-12 space-y-10">
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{t("home.pastPages")}</span>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+              {t("home.pastPages")}
+            </span>
             <span className="h-px flex-1 bg-border" />
           </div>
           {pastDays.map(([k, items]) => (
@@ -218,7 +228,9 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
       >
         {dateLabel}
       </h1>
-      <p className={`${compact ? "" : "mt-0.5"} text-xs uppercase tracking-[0.25em] text-muted-foreground`}>
+      <p
+        className={`${compact ? "" : "mt-0.5"} text-xs uppercase tracking-[0.25em] text-muted-foreground`}
+      >
         {weekday}
       </p>
       <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
@@ -261,7 +273,9 @@ function ScrapbookAlbum({
     // リアル・アルバム: .album-page が紙の繊維と周辺減光を持つ台紙。
     // 各写真は白フチの印画紙(.photo-print)を三角コーナーで留める —
     // 子供の頃のアルバムの再現。本の厚み表現は廃止(NORI指定)。
-    <div className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass}`}>
+    <div
+      className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass}`}
+    >
       <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
@@ -295,13 +309,18 @@ function ScrapbookAlbum({
                 ) : (
                   // 画像がまだ無いカード: 単語そのものを見せる(段ボール絵は廃止)
                   <div className="grid h-full w-full place-items-center px-2 text-center">
-                    <span lang="zh-Hant" className="text-lg font-semibold text-muted-foreground">{s.word.headword}</span>
+                    <span lang="zh-Hant" className="text-lg font-semibold text-muted-foreground">
+                      {s.word.headword}
+                    </span>
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
                 {/* 帯の中の見出し語。手書き風(.handwritten)は付けない —
                     Caveat に漢字が無いため、繁体字の字形指定を壊してしまう。 */}
-                <span lang="zh-Hant" className="absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90">
+                <span
+                  lang="zh-Hant"
+                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90"
+                >
                   {s.word.headword}
                 </span>
               </div>

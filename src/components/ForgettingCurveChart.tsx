@@ -71,16 +71,14 @@ export function ForgettingCurveChart({
     const t0 = points.length
       ? new Date(points[0].reviewed_at).getTime()
       : lastReviewedAt
-      ? new Date(lastReviewedAt).getTime()
-      : Date.now();
+        ? new Date(lastReviewedAt).getTime()
+        : Date.now();
 
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
       const next = points[i + 1];
       const startMs = new Date(p.reviewed_at).getTime();
-      const endMs = next
-        ? new Date(next.reviewed_at).getTime()
-        : startMs + horizonDays * 86400_000;
+      const endMs = next ? new Date(next.reviewed_at).getTime() : startMs + horizonDays * 86400_000;
       const stability = Math.max(0.5, p.interval_days_after * Math.max(1, p.ease_after));
 
       const startT = (startMs - t0) / 86400_000;
@@ -151,7 +149,9 @@ export function ForgettingCurveChart({
             {t(labelKeyOf(level))}
           </span>
           {nowPoint && (
-            <span className="text-muted-foreground">· {t("curve.nowPct", { pct: nowPoint.retention })}</span>
+            <span className="text-muted-foreground">
+              · {t("curve.nowPct", { pct: nowPoint.retention })}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">

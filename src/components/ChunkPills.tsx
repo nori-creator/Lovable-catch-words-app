@@ -35,7 +35,9 @@ export function ChunkPills({
                 こちらだけ言語を宣言し、字形を繁体字に固定する。 */}
             <span lang="zh-Hant">{c.text}</span>
             {c.pos && (
-              <span className={`ml-1 opacity-60 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>{c.pos}</span>
+              <span className={`ml-1 opacity-60 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>
+                {c.pos}
+              </span>
             )}
           </span>
         );

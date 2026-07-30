@@ -108,7 +108,9 @@ function DiscoverPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{r.display_name ?? t("common.anon")}</div>
+                      <div className="truncate text-sm font-semibold">
+                        {r.display_name ?? t("common.anon")}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {t("discover.stats", { words: r.sticker_count, posts: r.post_count })}
                       </div>
@@ -125,7 +127,9 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("discover.users")}</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("discover.users")}
+              </h3>
             </div>
             {!users || users.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("discover.noUsers")}</p>
@@ -139,13 +143,22 @@ function DiscoverPage() {
                       className="lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
                     >
                       {u.avatar_url ? (
-                        <img src={u.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" loading="lazy" width={40} height={40} />
+                        <img
+                          src={u.avatar_url}
+                          alt=""
+                          className="h-10 w-10 rounded-full object-cover"
+                          loading="lazy"
+                          width={40}
+                          height={40}
+                        />
                       ) : (
                         <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-base font-semibold">
                           {(u.display_name ?? "?").slice(0, 1)}
                         </div>
                       )}
-                      <span className="text-sm font-semibold">{u.display_name ?? t("common.anon")}</span>
+                      <span className="text-sm font-semibold">
+                        {u.display_name ?? t("common.anon")}
+                      </span>
                     </Link>
                   </li>
                 ))}
@@ -156,20 +169,23 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("discover.words")}</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("discover.words")}
+              </h3>
             </div>
             {!words || words.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("discover.noWords")}</p>
             ) : (
               <ul className="grid grid-cols-2 gap-2">
                 {words.map((w) => (
-                  <li
-                    key={w.id}
-                    className="rounded-2xl border border-border bg-card p-3"
-                  >
+                  <li key={w.id} className="rounded-2xl border border-border bg-card p-3">
                     <div className="flex items-baseline gap-2">
-                      <span lang="zh-Hant" className="text-base font-semibold">{w.headword}</span>
-                      <span lang="zh-Hant" className="text-[11px] text-muted-foreground">{w.reading_zhuyin}</span>
+                      <span lang="zh-Hant" className="text-base font-semibold">
+                        {w.headword}
+                      </span>
+                      <span lang="zh-Hant" className="text-[11px] text-muted-foreground">
+                        {w.reading_zhuyin}
+                      </span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{w.meaning_ja}</div>
                   </li>

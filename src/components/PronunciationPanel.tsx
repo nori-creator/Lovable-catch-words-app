@@ -72,7 +72,8 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     setScore(null);
     const SR =
       (window as unknown as { SpeechRecognition?: new () => unknown }).SpeechRecognition ??
-      (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
+      (window as unknown as { webkitSpeechRecognition?: new () => unknown })
+        .webkitSpeechRecognition;
     if (!SR) {
       setError(t("pron.noAsr"));
       return;
@@ -130,7 +131,13 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   };
 
   const scoreColor =
-    score == null ? "" : score >= 85 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600";
+    score == null
+      ? ""
+      : score >= 85
+        ? "text-emerald-600"
+        : score >= 60
+          ? "text-amber-600"
+          : "text-rose-600";
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
@@ -146,7 +153,11 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
             className="lift inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
             aria-label={t("pron.playNatural")}
           >
-            {speaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+            {speaking ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
           </button>
           <button
             type="button"
@@ -171,14 +182,22 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
         </button>
         <div className="flex-1 text-sm">
           {listening ? (
-            <span className="text-muted-foreground">{t("pron.listeningBefore")}<Zh>{headword}</Zh>{t("pron.listeningAfter")}</span>
+            <span className="text-muted-foreground">
+              {t("pron.listeningBefore")}
+              <Zh>{headword}</Zh>
+              {t("pron.listeningAfter")}
+            </span>
           ) : heard ? (
             <div className="space-y-0.5">
               <div className="text-xs text-muted-foreground">{t("pron.yours")}</div>
               <div className="font-medium">{heard}</div>
             </div>
           ) : (
-            <span className="text-muted-foreground">{t("pron.pressBefore")}<Zh>{headword}</Zh>{t("pron.pressAfter")}</span>
+            <span className="text-muted-foreground">
+              {t("pron.pressBefore")}
+              <Zh>{headword}</Zh>
+              {t("pron.pressAfter")}
+            </span>
           )}
         </div>
         {score !== null && (
@@ -221,7 +240,8 @@ function longestCommonSubseq(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      dp[i][j] =
+        a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
     }
   }
   return dp[a.length][b.length];

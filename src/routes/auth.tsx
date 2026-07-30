@@ -18,9 +18,17 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: tStatic("page.auth") },
-      { name: "description", content: "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。" },
+      {
+        name: "description",
+        content:
+          "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
+      },
       { property: "og:title", content: "ログイン — Catchwords" },
-      { property: "og:description", content: "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。" },
+      {
+        property: "og:description",
+        content:
+          "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
+      },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://word-snap-journey.lovable.app/auth" },
     ],
@@ -28,7 +36,6 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
-
 
 /** Only accept a same-origin absolute path (no scheme, no protocol-relative). */
 function sanitizeNext(raw: string | undefined | null): string | null {
@@ -116,7 +123,6 @@ function AuthPage() {
     }
   }
 
-
   async function handleApple() {
     setLoading(true);
     try {
@@ -141,7 +147,9 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">C</div>
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">
+            C
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight">Catchwords</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("auth.tagline")}</p>
         </div>
@@ -167,11 +175,26 @@ function AuthPage() {
           <form onSubmit={handleEmail} className="space-y-3">
             <div>
               <Label htmlFor="email">{t("auth.email")}</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
             </div>
             <div>
               <Label htmlFor="password">{t("auth.password")}</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "..." : mode === "signup" ? t("auth.signup") : t("auth.signin")}
@@ -185,7 +208,13 @@ function AuthPage() {
           </div>
 
           <div className="space-y-2">
-            <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogle}
+              disabled={loading}
+            >
               {t("auth.google")}
             </Button>
             <Button
@@ -202,9 +231,13 @@ function AuthPage() {
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           {t("auth.agreeBefore")}
-          <a href="/terms" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("auth.terms")}</a>
+          <a href="/terms" className="inline-block py-3 -my-3 underline hover:text-foreground">
+            {t("auth.terms")}
+          </a>
           {t("auth.agreeMid")}
-          <a href="/privacy" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("auth.privacy")}</a>
+          <a href="/privacy" className="inline-block py-3 -my-3 underline hover:text-foreground">
+            {t("auth.privacy")}
+          </a>
           {t("auth.agreeAfter")}
         </p>
       </div>

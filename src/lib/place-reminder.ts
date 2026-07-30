@@ -18,6 +18,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import { tStatic } from "@/lib/i18n";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -139,17 +140,27 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-/** 通知の文面。場所の名前が分かっていればそれを使うほうが思い出しやすい。 */
+/**
+ * 通知の文面。場所の名前が分かっていればそれを使うほうが思い出しやすい。
+ * React の外から呼ばれるので `tStatic` を使う(フックは使えない)。
+ */
 export function buildMessage(m: NearbyMemoryLike): { title: string; body: string } {
-  const where = m.location_name ? `${m.location_name}で` : "この辺りで";
-  const when = m.days_ago >= 365
-    ? `${Math.floor(m.days_ago / 365)}年前`
-    : m.days_ago >= 30
-      ? `${Math.floor(m.days_ago / 30)}ヶ月前`
-      : `${m.days_ago}日前`;
+  const where = m.location_name
+    ? tStatic("place.atPlace", { name: m.location_name })
+    : tStatic("place.hereAbouts");
+  const when =
+    m.days_ago >= 365
+      ? tStatic("ago.years", { n: Math.floor(m.days_ago / 365) })
+      : m.days_ago >= 30
+        ? tStatic("ago.months", { n: Math.floor(m.days_ago / 30) })
+        : tStatic("ago.days", { n: m.days_ago });
   return {
-    title: `「${m.headword}」覚えてる?`,
-    body: `${when}、${where}撮った言葉です${m.meaning_ja ? `(${m.meaning_ja})` : ""}`,
+    title: tStatic("place.rememberBefore") + m.headword + tStatic("place.rememberAfter"),
+    body: tStatic("place.caughtHere", {
+      when,
+      where,
+      meaning: m.meaning_ja ? `(${m.meaning_ja})` : "",
+    }),
   };
 }
 

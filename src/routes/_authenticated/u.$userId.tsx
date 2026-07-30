@@ -15,9 +15,17 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
   head: ({ params }) => ({
     meta: [
       { title: tStatic("page.userProfile", { id: params.userId.slice(0, 8) }) },
-      { name: "description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      {
+        name: "description",
+        content:
+          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+      },
       { property: "og:title", content: `プロフィール — Catchwords` },
-      { property: "og:description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      {
+        property: "og:description",
+        content:
+          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+      },
       { property: "og:type", content: "profile" },
       { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${params.userId}` },
       { name: "robots", content: "noindex" },
@@ -26,7 +34,6 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
   }),
   component: UserProfilePage,
 });
-
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -51,7 +58,12 @@ function UserProfilePage() {
   });
   const [busy, setBusy] = useState(false);
 
-  if (!data) return <AppShell title={t("user.profile")}><div className="py-8 text-center text-sm text-muted-foreground">{t("user.loading")}</div></AppShell>;
+  if (!data)
+    return (
+      <AppShell title={t("user.profile")}>
+        <div className="py-8 text-center text-sm text-muted-foreground">{t("user.loading")}</div>
+      </AppShell>
+    );
 
   async function handleFollow() {
     if (!data) return;
@@ -72,16 +84,26 @@ function UserProfilePage() {
         <div className="rounded-3xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
             {data.avatar_url ? (
-              <img src={data.avatar_url} alt={t("user.avatarOf", { name: data.display_name ?? t("user.someone") })} className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
+              <img
+                src={data.avatar_url}
+                alt={t("user.avatarOf", { name: data.display_name ?? t("user.someone") })}
+                className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
+              />
             ) : (
               <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-2xl font-bold text-primary-foreground">
                 {(data.display_name ?? "?").slice(0, 1)}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-bold">{data.display_name ?? t("common.anon")}</h2>
+              <h2 className="truncate text-xl font-bold">
+                {data.display_name ?? t("common.anon")}
+              </h2>
               <p className="text-xs text-muted-foreground">
-                {t("user.since", { date: new Date(data.created_at).toLocaleDateString(lang === "en" ? "en-US" : "ja-JP") })}
+                {t("user.since", {
+                  date: new Date(data.created_at).toLocaleDateString(
+                    lang === "en" ? "en-US" : "ja-JP",
+                  ),
+                })}
               </p>
             </div>
           </div>
@@ -95,11 +117,20 @@ function UserProfilePage() {
 
           <div className="mt-4">
             {data.is_me ? (
-              <Button variant="outline" className="w-full" onClick={() => navigate({ to: "/settings" })}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate({ to: "/settings" })}
+              >
                 {t("user.editProfile")}
               </Button>
             ) : (
-              <Button onClick={handleFollow} disabled={busy} variant={data.is_following ? "outline" : "default"} className="w-full">
+              <Button
+                onClick={handleFollow}
+                disabled={busy}
+                variant={data.is_following ? "outline" : "default"}
+                className="w-full"
+              >
                 {data.is_following ? t("user.statFollowing") : t("user.follow")}
               </Button>
             )}
@@ -107,7 +138,9 @@ function UserProfilePage() {
         </div>
 
         <div>
-          <h3 className="mb-2 px-1 text-sm font-semibold text-muted-foreground">{t("user.recentCatches")}</h3>
+          <h3 className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+            {t("user.recentCatches")}
+          </h3>
           {data.recent_stickers.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border bg-card/50 py-8 text-center text-sm text-muted-foreground">
               {t("user.noCatches")}
@@ -122,13 +155,21 @@ function UserProfilePage() {
                   className="lift group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
                 >
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={t("common.stickerOf", { word: s.headword ?? "" })} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <img
+                      src={s.cutout_url}
+                      alt={t("common.stickerOf", { word: s.headword ?? "" })}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-3xl">{s.emoji ?? "📍"}</div>
+                    <div className="grid h-full w-full place-items-center text-3xl">
+                      {s.emoji ?? "📍"}
+                    </div>
                   )}
                   {s.headword && (
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                      <span lang="zh-Hant" className="text-[11px] font-semibold text-white">{s.headword}</span>
+                      <span lang="zh-Hant" className="text-[11px] font-semibold text-white">
+                        {s.headword}
+                      </span>
                     </div>
                   )}
                 </Link>

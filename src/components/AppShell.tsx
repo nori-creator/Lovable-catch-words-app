@@ -8,7 +8,11 @@ import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 
-type Item = { to: "/home" | "/dex" | "/scan" | "/review" | "/settings"; labelKey: string; icon: typeof Home };
+type Item = {
+  to: "/home" | "/dex" | "/scan" | "/review" | "/settings";
+  labelKey: string;
+  icon: typeof Home;
+};
 
 // 5-item bottom nav (roadmap B5): the center slot is the one big camera
 // entrance — scan (かざす=調べる) with the catch/keyboard entrances inside it.
@@ -46,12 +50,17 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           instead of a hard divider. */}
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/70 backdrop-blur-xl backdrop-saturate-150 pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <Link to="/home" className="flex items-center gap-2 transition-transform duration-150 active:scale-95">
+          <Link
+            to="/home"
+            className="flex items-center gap-2 transition-transform duration-150 active:scale-95"
+          >
             <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-sm font-bold text-primary-foreground shadow-md shadow-primary/30">
               C
             </div>
             {/* §15: app title is a small headline — tight tracking, no wrapping. */}
-            <span className="text-base font-semibold tracking-[-0.02em]">{title ?? "Catchwords"}</span>
+            <span className="text-base font-semibold tracking-[-0.02em]">
+              {title ?? "Catchwords"}
+            </span>
           </Link>
         </div>
       </header>

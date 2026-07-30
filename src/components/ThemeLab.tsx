@@ -15,10 +15,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, Check, RotateCcw, Shuffle, X, Columns2, Square,
-  Home, BookOpen, ScanLine, Sparkles, Settings,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  RotateCcw,
+  Shuffle,
+  X,
+  Columns2,
+  Square,
+  Home,
+  BookOpen,
+  ScanLine,
+  Sparkles,
+  Settings,
 } from "lucide-react";
-import { UI_PACKS, getUiPack, setUiPack, packMeta, type PackId, type UiPackMeta } from "@/lib/ui-pack";
+import {
+  UI_PACKS,
+  getUiPack,
+  setUiPack,
+  packMeta,
+  type PackId,
+  type UiPackMeta,
+} from "@/lib/ui-pack";
 
 /**
  * 全パック共通のサンプル。中身を固定しないと見た目の比較にならない。
@@ -212,10 +230,7 @@ export function ThemeLab({ onClose }: { onClose: () => void }) {
                 <PackPreview meta={UI_PACKS[0]} />
               </div>
               {/* 右: 候補。境目までを切り取って重ねる。 */}
-              <div
-                className="absolute inset-0"
-                style={{ clipPath: `inset(0 0 0 ${divider}%)` }}
-              >
+              <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${divider}%)` }}>
                 <PackPreview meta={meta} />
               </div>
               {/* つまみ */}
@@ -333,7 +348,8 @@ export function ThemeLabButton() {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">見た目を比べる</span>
           <span className="block text-[11px] leading-snug text-muted-foreground">
-            全く違うコンセプトの{UI_PACKS.length}種を1タップで切り替え。いまは「{packMeta(current).name}」
+            全く違うコンセプトの{UI_PACKS.length}種を1タップで切り替え。いまは「
+            {packMeta(current).name}」
           </span>
         </span>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

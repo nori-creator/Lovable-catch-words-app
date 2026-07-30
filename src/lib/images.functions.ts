@@ -109,10 +109,7 @@ const FetchInput = z.object({ url: z.string().url().max(2000) });
 // Allowlist of external image hosts we're willing to proxy. Keeps this
 // endpoint from being abused as an SSRF gadget against internal/metadata
 // endpoints (e.g. 169.254.169.254) or arbitrary internal services.
-const ALLOWED_IMAGE_HOSTS = new Set<string>([
-  "images.unsplash.com",
-  "plus.unsplash.com",
-]);
+const ALLOWED_IMAGE_HOSTS = new Set<string>(["images.unsplash.com", "plus.unsplash.com"]);
 
 const ALLOWED_IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|avif)$/i;
 

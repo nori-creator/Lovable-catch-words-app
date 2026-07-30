@@ -5,9 +5,7 @@
   "auth": {
     "type": "oauth",
     "issuer": "https://arjicopbmvseztldpxpk.supabase.co/auth/v1",
-    "accepted_audiences": [
-      "authenticated"
-    ]
+    "accepted_audiences": ["authenticated"]
   },
   "mcp": {
     "server": {
@@ -79,9 +77,7 @@
               "description": "Substring to match against headword (Mandarin), pinyin, or Japanese meaning. Case-insensitive."
             }
           },
-          "required": [
-            "query"
-          ]
+          "required": ["query"]
         },
         "outputSchema": null
       },
@@ -105,9 +101,7 @@
               "description": "The sticker's UUID."
             }
           },
-          "required": [
-            "sticker_id"
-          ]
+          "required": ["sticker_id"]
         },
         "outputSchema": null
       },

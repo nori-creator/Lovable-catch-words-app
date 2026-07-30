@@ -19,9 +19,24 @@ export const getLeaderboard = createServerFn({ method: "GET" })
   )
   .handler(async ({ context, data }): Promise<LeaderboardRow[]> => {
     const { supabase } = context;
-    const { data: rows, error } = await (supabase as unknown as {
-      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: Array<{ user_id: string; display_name: string | null; avatar_url: string | null; sticker_count: number | string; post_count: number | string; xp: number | string }> | null; error: { message: string } | null }>;
-    }).rpc("get_leaderboard", { _limit: data.limit });
+    const { data: rows, error } = await (
+      supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{
+          data: Array<{
+            user_id: string;
+            display_name: string | null;
+            avatar_url: string | null;
+            sticker_count: number | string;
+            post_count: number | string;
+            xp: number | string;
+          }> | null;
+          error: { message: string } | null;
+        }>;
+      }
+    ).rpc("get_leaderboard", { _limit: data.limit });
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r, i) => ({
       user_id: r.user_id,
@@ -36,9 +51,7 @@ export const getLeaderboard = createServerFn({ method: "GET" })
 
 export const searchUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ q: z.string().min(1).max(40) }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ q: z.string().min(1).max(40) }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const { data: rows, error } = await supabase
@@ -52,9 +65,7 @@ export const searchUsers = createServerFn({ method: "GET" })
 
 export const searchWords = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ q: z.string().min(1).max(40) }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ q: z.string().min(1).max(40) }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
     const q = `%${data.q}%`;

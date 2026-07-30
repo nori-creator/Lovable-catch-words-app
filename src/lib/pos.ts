@@ -46,12 +46,36 @@ export type ChunkStyle = { bg: string; text: string; label: string };
 
 const STYLES: Record<string, ChunkStyle> = {
   S: { bg: "bg-sky-100 dark:bg-sky-500/25", text: "text-sky-900 dark:text-sky-100", label: "主語" },
-  V: { bg: "bg-rose-100 dark:bg-rose-500/25", text: "text-rose-900 dark:text-rose-100", label: "動詞" },
-  O: { bg: "bg-emerald-100 dark:bg-emerald-500/25", text: "text-emerald-900 dark:text-emerald-100", label: "目的語" },
-  N: { bg: "bg-emerald-100 dark:bg-emerald-500/25", text: "text-emerald-900 dark:text-emerald-100", label: "名詞" },
-  M: { bg: "bg-amber-100 dark:bg-amber-500/25", text: "text-amber-900 dark:text-amber-100", label: "修飾・量詞" },
-  C: { bg: "bg-violet-100 dark:bg-violet-500/25", text: "text-violet-900 dark:text-violet-100", label: "接続" },
-  P: { bg: "bg-stone-200 dark:bg-stone-500/25", text: "text-stone-800 dark:text-stone-100", label: "助詞" },
+  V: {
+    bg: "bg-rose-100 dark:bg-rose-500/25",
+    text: "text-rose-900 dark:text-rose-100",
+    label: "動詞",
+  },
+  O: {
+    bg: "bg-emerald-100 dark:bg-emerald-500/25",
+    text: "text-emerald-900 dark:text-emerald-100",
+    label: "目的語",
+  },
+  N: {
+    bg: "bg-emerald-100 dark:bg-emerald-500/25",
+    text: "text-emerald-900 dark:text-emerald-100",
+    label: "名詞",
+  },
+  M: {
+    bg: "bg-amber-100 dark:bg-amber-500/25",
+    text: "text-amber-900 dark:text-amber-100",
+    label: "修飾・量詞",
+  },
+  C: {
+    bg: "bg-violet-100 dark:bg-violet-500/25",
+    text: "text-violet-900 dark:text-violet-100",
+    label: "接続",
+  },
+  P: {
+    bg: "bg-stone-200 dark:bg-stone-500/25",
+    text: "text-stone-800 dark:text-stone-100",
+    label: "助詞",
+  },
 };
 
 /**

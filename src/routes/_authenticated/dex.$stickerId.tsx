@@ -17,7 +17,11 @@ export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
   head: ({ params }) => ({
     meta: [
       { title: tStatic("page.cardDetail", { id: params.stickerId.slice(0, 8) }) },
-      { name: "description", content: "あなたが街でキャッチした言葉のカード詳細。意味・例文・発音、撮影場所、記憶曲線をまとめて確認できます。" },
+      {
+        name: "description",
+        content:
+          "あなたが街でキャッチした言葉のカード詳細。意味・例文・発音、撮影場所、記憶曲線をまとめて確認できます。",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -42,7 +46,10 @@ function StickerDetailPage() {
 
   return (
     <AppShell title={t("card.title")}>
-      <Link to="/dex" className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/dex"
+        className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> {t("card.backToDex")}
       </Link>
 
@@ -77,7 +84,11 @@ function StickerDetailPage() {
                     className="hero-pop h-full w-full object-cover"
                   />
                 ) : s.cutout_url ? (
-                  <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
+                  <img
+                    src={s.cutout_url}
+                    alt={s.word.headword}
+                    className="hero-pop max-h-[92%] max-w-[92%] object-contain"
+                  />
                 ) : s.placeholder_url ? (
                   // ネット画像。仮扱いせず普通の絵として見せる(#67)。
                   <>
@@ -99,7 +110,10 @@ function StickerDetailPage() {
                     )}
                   </>
                 ) : (
-                  <span lang="zh-Hant" className="px-4 text-center text-3xl font-semibold text-muted-foreground">
+                  <span
+                    lang="zh-Hant"
+                    className="px-4 text-center text-3xl font-semibold text-muted-foreground"
+                  >
                     {s.word.headword}
                   </span>
                 )}
@@ -111,9 +125,15 @@ function StickerDetailPage() {
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden bg-secondary">
                 {s.selfie_url ? (
-                  <img src={s.selfie_url} alt={t("common.selfieOf")} className="h-full w-full object-cover" />
+                  <img
+                    src={s.selfie_url}
+                    alt={t("common.selfieOf")}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("card.noSelfie")}</div>
+                  <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                    {t("card.noSelfie")}
+                  </div>
                 )}
               </div>
             </div>
@@ -125,8 +145,11 @@ function StickerDetailPage() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
                 {new Date(s.created_at).toLocaleString("ja-JP", {
-                  year: "numeric", month: "short", day: "numeric",
-                  hour: "2-digit", minute: "2-digit",
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </div>
               {(s.location_name || (s.lat != null && s.lng != null)) && (
@@ -150,7 +173,9 @@ function StickerDetailPage() {
 
           {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
           <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">{s.word.headword}</div>
+            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">
+              {s.word.headword}
+            </div>
             <div lang="zh-Hant" className="mt-1 text-sm text-muted-foreground">
               {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
             </div>
@@ -206,7 +231,9 @@ function StickerDetailPage() {
               {mem?.current?.due_at && (
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Clock className="h-3 w-3" />
-                  {t("card.nextDue", { date: new Date(mem.current.due_at).toLocaleDateString(dateLocale) })}
+                  {t("card.nextDue", {
+                    date: new Date(mem.current.due_at).toLocaleDateString(dateLocale),
+                  })}
                 </div>
               )}
             </div>
@@ -233,7 +260,9 @@ function StickerDetailPage() {
                   loading="lazy"
                 />
                 <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
+                  </span>
                   <span className="text-primary">{t("card.openGoogleMaps")}</span>
                 </div>
               </a>

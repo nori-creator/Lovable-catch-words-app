@@ -64,7 +64,9 @@ function OnboardingPage() {
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           {t("ob.line1")}
           <br />
-          {t("ob.line2before")}<span className="font-semibold text-foreground">{t("ob.line2strong")}</span>{t("ob.line2after")}
+          {t("ob.line2before")}
+          <span className="font-semibold text-foreground">{t("ob.line2strong")}</span>
+          {t("ob.line2after")}
         </p>
 
         <div className="mx-auto mt-6 space-y-2 text-left">
@@ -73,7 +75,10 @@ function OnboardingPage() {
             { icon: Volume2, text: t("ob.f2") },
             { icon: Camera, text: t("ob.f3") },
           ].map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+            <div
+              key={text}
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm"
+            >
               <Icon className="h-4 w-4 shrink-0 text-primary" />
               {text}
             </div>
@@ -88,9 +93,7 @@ function OnboardingPage() {
           <Camera className="h-5 w-5" />
           {t("ob.start")}
         </button>
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          {t("ob.privacy")}
-        </p>
+        <p className="mt-2 text-[11px] text-muted-foreground">{t("ob.privacy")}</p>
       </div>
     </div>
   );

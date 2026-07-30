@@ -38,8 +38,7 @@ export default defineTool({
         meaning_ja: (w as { meaning_ja?: string }).meaning_ja ?? null,
         part_of_speech: (w as { part_of_speech?: string }).part_of_speech ?? null,
         example_sentence: (w as { example_sentence?: string }).example_sentence ?? null,
-        example_translation:
-          (w as { example_translation?: string }).example_translation ?? null,
+        example_translation: (w as { example_translation?: string }).example_translation ?? null,
         level: (w as { level?: string }).level ?? null,
         category: (w as { category_key?: string }).category_key ?? null,
       },

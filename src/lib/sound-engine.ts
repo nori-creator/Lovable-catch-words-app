@@ -17,7 +17,10 @@ let unlocked = false;
 function ensureCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
-    const Ctor = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext | undefined;
+    const Ctor = (window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
+      | typeof AudioContext
+      | undefined;
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();
@@ -26,17 +29,25 @@ function ensureCtx(): AudioContext | null {
     try {
       const saved = localStorage.getItem("cw-sound-level") as Level | null;
       if (saved === "off" || saved === "subtle" || saved === "full") setLevel(saved);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   return ctx;
 }
 
 export function setLevel(l: Level) {
   level = l;
-  try { localStorage.setItem("cw-sound-level", l); } catch { /* ignore */ }
+  try {
+    localStorage.setItem("cw-sound-level", l);
+  } catch {
+    /* ignore */
+  }
   if (master) master.gain.value = l === "full" ? 0.35 : l === "subtle" ? 0.14 : 0;
 }
-export function getLevel(): Level { return level; }
+export function getLevel(): Level {
+  return level;
+}
 
 /** Must be called inside a user gesture the first time (iOS requirement). */
 export function unlockAudio() {
@@ -46,7 +57,11 @@ export function unlockAudio() {
   unlocked = true;
 }
 
-function tone(freq: number, dur: number, opts: { type?: OscillatorType; from?: number; to?: number; gain?: number; delay?: number } = {}) {
+function tone(
+  freq: number,
+  dur: number,
+  opts: { type?: OscillatorType; from?: number; to?: number; gain?: number; delay?: number } = {},
+) {
   const c = ensureCtx();
   if (!c || !master || level === "off") return;
   const t0 = c.currentTime + (opts.delay ?? 0);
@@ -76,8 +91,12 @@ function noise(dur: number, opts: { hp?: number; lp?: number; gain?: number } = 
   src.buffer = buf;
   const g = c.createGain();
   g.gain.value = opts.gain ?? 0.2;
-  const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = opts.hp ?? 400;
-  const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = opts.lp ?? 6000;
+  const hp = c.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = opts.hp ?? 400;
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = opts.lp ?? 6000;
   src.connect(hp).connect(lp).connect(g).connect(master);
   src.start();
   src.stop(c.currentTime + dur + 0.02);
@@ -86,7 +105,9 @@ function noise(dur: number, opts: { hp?: number; lp?: number; gain?: number } = 
 /* ─────────── Sound library ─────────── */
 
 export const Sound = {
-  tap() { tone(900, 0.05, { type: "sine", gain: 0.22 }); },
+  tap() {
+    tone(900, 0.05, { type: "sine", gain: 0.22 });
+  },
   scanStart() {
     tone(700, 0.18, { type: "sine", from: 700, to: 260, gain: 0.4 });
     tone(60, 0.6, { type: "sine", from: 80, to: 40, gain: 0.18 });
@@ -104,7 +125,7 @@ export const Sound = {
     // three-note arpeggio, Apple notification-like
     tone(880, 0.14, { type: "sine", gain: 0.35 });
     tone(1108, 0.14, { type: "sine", gain: 0.32, delay: 0.06 });
-    tone(1318, 0.22, { type: "sine", gain: 0.30, delay: 0.12 });
+    tone(1318, 0.22, { type: "sine", gain: 0.3, delay: 0.12 });
   },
   cardEnter() {
     // Scroll-snap landing chirp with slight random pitch → variable reward.
@@ -117,11 +138,11 @@ export const Sound = {
   },
   reunion() {
     tone(1568, 0.35, { type: "sine", gain: 0.24 });
-    tone(2093, 0.45, { type: "sine", gain: 0.20, delay: 0.08 });
+    tone(2093, 0.45, { type: "sine", gain: 0.2, delay: 0.08 });
     tone(2637, 0.55, { type: "sine", gain: 0.16, delay: 0.16 });
   },
   reviewCorrect() {
-    tone(659, 0.10, { type: "sine", gain: 0.30 });
+    tone(659, 0.1, { type: "sine", gain: 0.3 });
     tone(988, 0.14, { type: "sine", gain: 0.28, delay: 0.05 });
   },
   reviewWrong() {
@@ -134,7 +155,7 @@ export const Sound = {
   crystalize() {
     tone(2400, 0.18, { type: "sine", from: 2400, to: 3200, gain: 0.16 });
     tone(3600, 0.14, { type: "sine", gain: 0.09, delay: 0.05 });
-    noise(0.10, { hp: 4000, lp: 12000, gain: 0.03 });
+    noise(0.1, { hp: 4000, lp: 12000, gain: 0.03 });
   },
   /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
   shelfLand() {

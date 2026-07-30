@@ -31,12 +31,15 @@ export type FeedPost = {
 };
 
 async function signStickerUrls(
-  paths: Array<string | null | undefined>
+  paths: Array<string | null | undefined>,
 ): Promise<Array<string | null>> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const out: Array<string | null> = [];
   for (const p of paths) {
-    if (!p) { out.push(null); continue; }
+    if (!p) {
+      out.push(null);
+      continue;
+    }
     const { data } = await supabaseAdmin.storage.from("stickers").createSignedUrl(p, 60 * 60 * 6);
     out.push(data?.signedUrl ?? null);
   }
@@ -44,13 +47,24 @@ async function signStickerUrls(
 }
 
 async function hydratePosts(
-  rows: Array<{ id: string; user_id: string; sticker_id: string | null; caption: string | null; visibility: string; like_count: number; comment_count: number; created_at: string }>,
-  viewerId: string
+  rows: Array<{
+    id: string;
+    user_id: string;
+    sticker_id: string | null;
+    caption: string | null;
+    visibility: string;
+    like_count: number;
+    comment_count: number;
+    created_at: string;
+  }>,
+  viewerId: string,
 ): Promise<FeedPost[]> {
   if (rows.length === 0) return [];
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  const stickerIds = Array.from(new Set(rows.map((r) => r.sticker_id).filter((x): x is string => !!x)));
+  const stickerIds = Array.from(
+    new Set(rows.map((r) => r.sticker_id).filter((x): x is string => !!x)),
+  );
   const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
   const postIds = rows.map((r) => r.id);
 
@@ -59,12 +73,29 @@ async function hydratePosts(
       ? supabaseAdmin
           .from("stickers")
           .select(
-            "id, object_image_url, cutout_image_url, selfie_image_url, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, level, category_key, silhouette_emoji)"
+            "id, object_image_url, cutout_image_url, selfie_image_url, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, level, category_key, silhouette_emoji)",
           )
           .in("id", stickerIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; object_image_url: string | null; cutout_image_url: string | null; selfie_image_url: string | null; location_name: string | null; words: FeedPost["sticker"] extends infer S ? S extends { word: infer W } ? W : never : never }> }),
+      : Promise.resolve({
+          data: [] as Array<{
+            id: string;
+            object_image_url: string | null;
+            cutout_image_url: string | null;
+            selfie_image_url: string | null;
+            location_name: string | null;
+            words: FeedPost["sticker"] extends infer S
+              ? S extends { word: infer W }
+                ? W
+                : never
+              : never;
+          }>,
+        }),
     supabaseAdmin.from("profiles").select("id, display_name, avatar_url").in("id", userIds),
-    supabaseAdmin.from("post_likes").select("post_id").in("post_id", postIds).eq("user_id", viewerId),
+    supabaseAdmin
+      .from("post_likes")
+      .select("post_id")
+      .in("post_id", postIds)
+      .eq("user_id", viewerId),
   ]);
 
   const stickers = (stickersRes.data ?? []) as Array<{
@@ -73,10 +104,16 @@ async function hydratePosts(
     cutout_image_url: string | null;
     selfie_image_url: string | null;
     location_name: string | null;
-    words: FeedPost["sticker"] extends infer S ? S extends { word: infer W } ? W : never : never;
+    words: FeedPost["sticker"] extends infer S ? (S extends { word: infer W } ? W : never) : never;
   }>;
-  const profiles = (profilesRes.data ?? []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>;
-  const liked = new Set(((likesRes.data ?? []) as Array<{ post_id: string }>).map((l) => l.post_id));
+  const profiles = (profilesRes.data ?? []) as Array<{
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  }>;
+  const liked = new Set(
+    ((likesRes.data ?? []) as Array<{ post_id: string }>).map((l) => l.post_id),
+  );
 
   // sign all sticker paths in one batch
   const allPaths: Array<string | null> = [];
@@ -112,13 +149,20 @@ async function hydratePosts(
       display_name: profileMap.get(r.user_id)?.display_name ?? null,
       avatar_url: profileMap.get(r.user_id)?.avatar_url ?? null,
     },
-    sticker: r.sticker_id ? stickerMap.get(r.sticker_id) ?? null : null,
+    sticker: r.sticker_id ? (stickerMap.get(r.sticker_id) ?? null) : null,
   }));
 }
 
 export const getFeed = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ tab: z.enum(["following", "popular"]).default("following"), limit: z.number().min(1).max(50).default(20) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        tab: z.enum(["following", "popular"]).default("following"),
+        limit: z.number().min(1).max(50).default(20),
+      })
+      .parse(input),
+  )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     let query = supabase
@@ -128,11 +172,16 @@ export const getFeed = createServerFn({ method: "GET" })
 
     if (data.tab === "following") {
       // RLS already filters; further constrain to followed users + self
-      const { data: f } = await supabase.from("follows").select("following_id").eq("follower_id", userId);
-      const ids = [userId, ...((f ?? []).map((r) => r.following_id))];
+      const { data: f } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", userId);
+      const ids = [userId, ...(f ?? []).map((r) => r.following_id)];
       query = query.in("user_id", ids).order("created_at", { ascending: false });
     } else {
-      query = query.order("like_count", { ascending: false }).order("created_at", { ascending: false });
+      query = query
+        .order("like_count", { ascending: false })
+        .order("created_at", { ascending: false });
     }
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
@@ -158,20 +207,32 @@ export const getPost = createServerFn({ method: "GET" })
 export const createPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({
-      sticker_id: z.string().uuid(),
-      caption: z.string().max(500).optional(),
-      visibility: z.enum(["private", "friends", "public"]).default("public"),
-    }).parse(input)
+    z
+      .object({
+        sticker_id: z.string().uuid(),
+        caption: z.string().max(500).optional(),
+        visibility: z.enum(["private", "friends", "public"]).default("public"),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     // confirm ownership of sticker
-    const { data: s } = await supabase.from("stickers").select("id").eq("id", data.sticker_id).eq("user_id", userId).maybeSingle();
+    const { data: s } = await supabase
+      .from("stickers")
+      .select("id")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
     if (!s) throw new Error("Sticker not found");
     const { data: ins, error } = await supabase
       .from("posts")
-      .insert({ user_id: userId, sticker_id: data.sticker_id, caption: data.caption ?? null, visibility: data.visibility })
+      .insert({
+        user_id: userId,
+        sticker_id: data.sticker_id,
+        caption: data.caption ?? null,
+        visibility: data.visibility,
+      })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -189,14 +250,22 @@ export const deletePost = createServerFn({ method: "POST" })
 
 export const toggleLike = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ post_id: z.string().uuid(), like: z.boolean() }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ post_id: z.string().uuid(), like: z.boolean() }).parse(input),
+  )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     if (data.like) {
-      const { error } = await supabase.from("post_likes").insert({ post_id: data.post_id, user_id: userId });
+      const { error } = await supabase
+        .from("post_likes")
+        .insert({ post_id: data.post_id, user_id: userId });
       if (error && !error.message.includes("duplicate")) throw new Error(error.message);
     } else {
-      const { error } = await supabase.from("post_likes").delete().eq("post_id", data.post_id).eq("user_id", userId);
+      const { error } = await supabase
+        .from("post_likes")
+        .delete()
+        .eq("post_id", data.post_id)
+        .eq("user_id", userId);
       if (error) throw new Error(error.message);
     }
     return { ok: true };
@@ -204,7 +273,9 @@ export const toggleLike = createServerFn({ method: "POST" })
 
 export const addComment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ post_id: z.string().uuid(), body: z.string().min(1).max(500) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ post_id: z.string().uuid(), body: z.string().min(1).max(500) }).parse(input),
+  )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     const { data: ins, error } = await supabase
@@ -230,25 +301,39 @@ export const getComments = createServerFn({ method: "GET" })
     if (!rows || rows.length === 0) return [];
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-    const { data: profiles } = await supabaseAdmin.from("profiles").select("id, display_name, avatar_url").in("id", userIds);
+    const { data: profiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, display_name, avatar_url")
+      .in("id", userIds);
     const map = new Map((profiles ?? []).map((p) => [p.id, p]));
     return rows.map((r) => ({
       ...r,
-      author: { display_name: map.get(r.user_id)?.display_name ?? null, avatar_url: map.get(r.user_id)?.avatar_url ?? null },
+      author: {
+        display_name: map.get(r.user_id)?.display_name ?? null,
+        avatar_url: map.get(r.user_id)?.avatar_url ?? null,
+      },
     }));
   });
 
 export const toggleFollow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ target_user_id: z.string().uuid(), follow: z.boolean() }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ target_user_id: z.string().uuid(), follow: z.boolean() }).parse(input),
+  )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     if (data.target_user_id === userId) throw new Error("Cannot follow yourself");
     if (data.follow) {
-      const { error } = await supabase.from("follows").insert({ follower_id: userId, following_id: data.target_user_id });
+      const { error } = await supabase
+        .from("follows")
+        .insert({ follower_id: userId, following_id: data.target_user_id });
       if (error && !error.message.includes("duplicate")) throw new Error(error.message);
     } else {
-      const { error } = await supabase.from("follows").delete().eq("follower_id", userId).eq("following_id", data.target_user_id);
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("follower_id", userId)
+        .eq("following_id", data.target_user_id);
       if (error) throw new Error(error.message);
     }
     return { ok: true };
@@ -266,14 +351,32 @@ export const getNotifications = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     if (!rows || rows.length === 0) return [];
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const actorIds = Array.from(new Set(rows.map((r) => r.actor_id).filter((x): x is string => !!x)));
+    const actorIds = Array.from(
+      new Set(rows.map((r) => r.actor_id).filter((x): x is string => !!x)),
+    );
     const { data: profiles } = actorIds.length
-      ? await supabaseAdmin.from("profiles").select("id, display_name, avatar_url").in("id", actorIds)
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", actorIds)
       : { data: [] };
-    const map = new Map(((profiles ?? []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>).map((p) => [p.id, p]));
+    const map = new Map(
+      (
+        (profiles ?? []) as Array<{
+          id: string;
+          display_name: string | null;
+          avatar_url: string | null;
+        }>
+      ).map((p) => [p.id, p]),
+    );
     return rows.map((r) => ({
       ...r,
-      actor: r.actor_id ? { display_name: map.get(r.actor_id)?.display_name ?? null, avatar_url: map.get(r.actor_id)?.avatar_url ?? null } : null,
+      actor: r.actor_id
+        ? {
+            display_name: map.get(r.actor_id)?.display_name ?? null,
+            avatar_url: map.get(r.actor_id)?.avatar_url ?? null,
+          }
+        : null,
     }));
   });
 
@@ -281,7 +384,11 @@ export const markAllRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null);
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("read_at", null);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

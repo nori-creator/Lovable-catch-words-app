@@ -30,12 +30,15 @@ export type ResolvedBranches = {
 
 const SIBLING_UNLOCK_AT = 5;
 
-type ExtrasLike = {
-  collocations?: string[];
-  synonyms?: string[];
-  antonyms?: string[];
-  examples_extra?: { zh: string; ja: string }[];
-} | null | undefined;
+type ExtrasLike =
+  | {
+      collocations?: string[];
+      synonyms?: string[];
+      antonyms?: string[];
+      examples_extra?: { zh: string; ja: string }[];
+    }
+  | null
+  | undefined;
 
 export function buildBranchPlan(extras: ExtrasLike): Branch[] {
   if (!extras) return [];
@@ -77,7 +80,8 @@ export function resolveBranches(plan: Branch[], reviewCount: number): ResolvedBr
   return {
     unlocked,
     lockedCount,
-    justUnlocked: unlocked.length > 0 && reviewCount <= plan.length ? unlocked[unlocked.length - 1] : null,
+    justUnlocked:
+      unlocked.length > 0 && reviewCount <= plan.length ? unlocked[unlocked.length - 1] : null,
     reviewsUntilNext: lockedCount > 0 ? 1 : null,
   };
 }
@@ -91,7 +95,8 @@ export function parseBranchPlan(raw: unknown): Branch[] | null {
     const r = item as Record<string, unknown>;
     if (typeof r.zh !== "string" || !r.zh) continue;
     const type = r.type;
-    if (type !== "collocation" && type !== "example" && type !== "synonym" && type !== "antonym") continue;
+    if (type !== "collocation" && type !== "example" && type !== "synonym" && type !== "antonym")
+      continue;
     out.push({ type, zh: r.zh, ja: typeof r.ja === "string" ? r.ja : undefined });
   }
   return out;

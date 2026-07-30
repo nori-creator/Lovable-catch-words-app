@@ -26,8 +26,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
       { title: tStatic("page.dex") },
       {
         name: "description",
-        content:
-          "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。",
+        content: "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。",
       },
     ],
   }),
@@ -131,17 +130,27 @@ function DexPage() {
           <h2 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h2>
           {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
           <p className="text-xs text-muted-foreground">
-            {t("dex.found")} <span className="font-semibold text-foreground">{captured.length}</span>
+            {t("dex.found")}{" "}
+            <span className="font-semibold text-foreground">{captured.length}</span>
             <span className="mx-1.5">·</span>
-            {t("dex.caught")} <span className="font-semibold text-foreground">{captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url).length}</span>
+            {t("dex.caught")}{" "}
+            <span className="font-semibold text-foreground">
+              {
+                captured.filter(
+                  (s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url,
+                ).length
+              }
+            </span>
           </p>
         </div>
         <div className="flex gap-1 rounded-full bg-secondary p-1">
-          {([
-            ["gallery", LayoutGrid, t("dex.gallery")],
-            ["list", List, t("dex.list")],
-            ["map", MapIcon, t("dex.map")],
-          ] as const).map(([v, Icon, label]) => (
+          {(
+            [
+              ["gallery", LayoutGrid, t("dex.gallery")],
+              ["list", List, t("dex.list")],
+              ["map", MapIcon, t("dex.map")],
+            ] as const
+          ).map(([v, Icon, label]) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -159,7 +168,10 @@ function DexPage() {
 
       {view !== "map" && (
         <div className="relative mb-4">
-          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
           <Input
             type="search"
             value={search}
@@ -183,15 +195,19 @@ function DexPage() {
       {/* B6: グルーピング切替(カテゴリ/品詞)。品詞は自動分類。 */}
       {view !== "map" && captured.length > 0 && (
         <div className="mb-3 flex gap-1.5">
-          {([
-            ["category", t("dex.category")],
-            ["pos", t("dex.pos")],
-          ] as const).map(([g, label]) => (
+          {(
+            [
+              ["category", t("dex.category")],
+              ["pos", t("dex.pos")],
+            ] as const
+          ).map(([g, label]) => (
             <button
               key={g}
               onClick={() => setGroupMode(g)}
               className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                groupMode === g ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
+                groupMode === g
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-secondary text-muted-foreground"
               }`}
             >
               {label}
@@ -223,22 +239,35 @@ function DexPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">「{search}」{t("dex.noMatch")}</p>
+          <p className="text-sm text-muted-foreground">
+            「{search}」{t("dex.noMatch")}
+          </p>
         </div>
       ) : (
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-base font-semibold tracking-tight">{/* 品詞グループは翻訳キーそのもの、カテゴリーは既知なら翻訳、
+              <h3 className="text-base font-semibold tracking-tight">
+                {/* 品詞グループは翻訳キーそのもの、カテゴリーは既知なら翻訳、
                   未知のキーはそのまま見せる(訳が無いより分かる)。 */}
-              {groupMode === "pos" ? t(key) : (categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`)}</h3>
+                {groupMode === "pos"
+                  ? t(key)
+                  : categoryKey(key)
+                    ? t(categoryKey(key))
+                    : `✨ ${key}`}
+              </h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 
             {view === "gallery" && layout !== "album" ? (
               // 見た目パックが選ばれているときだけ、別の並べ方で描く。
               // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
-              <PackGallery items={items} justCaught={justCaught} onOpen={setOpenId} layout={layout} />
+              <PackGallery
+                items={items}
+                justCaught={justCaught}
+                onOpen={setOpenId}
+                layout={layout}
+              />
             ) : view === "gallery" ? (
               // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
               // 表示される3列グリッド+下端のグラデーションに単語名。
@@ -285,7 +314,10 @@ function DexPage() {
                           // 画像がまだ無いときは静かなプレースホルダ。
                           // 詳細を開くとネット画像が自動で入る。
                           <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
-                            <span lang="zh-Hant" className="text-base font-semibold text-muted-foreground">
+                            <span
+                              lang="zh-Hant"
+                              className="text-base font-semibold text-muted-foreground"
+                            >
                               {s.word.headword}
                             </span>
                           </div>
@@ -296,7 +328,12 @@ function DexPage() {
                           </span>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                          <div lang="zh-Hant" className="truncate text-[12px] font-semibold text-white">{s.word.headword}</div>
+                          <div
+                            lang="zh-Hant"
+                            className="truncate text-[12px] font-semibold text-white"
+                          >
+                            {s.word.headword}
+                          </div>
                         </div>
                         {slam && (
                           <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
@@ -319,7 +356,7 @@ function DexPage() {
                     >
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
                         {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
-                        {s.object_thumb_url ?? s.object_url ? (
+                        {(s.object_thumb_url ?? s.object_url) ? (
                           <CachedImg
                             src={(s.object_thumb_url ?? s.object_url)!}
                             alt={t("common.photoOf", { word: s.word.headword })}
@@ -344,14 +381,19 @@ function DexPage() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span lang="zh-Hant" className="px-1 text-center text-[11px] font-semibold text-muted-foreground">
+                          <span
+                            lang="zh-Hant"
+                            className="px-1 text-center text-[11px] font-semibold text-muted-foreground"
+                          >
                             {s.word.headword}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span lang="zh-Hant" className="text-base font-semibold">{s.word.headword}</span>
+                          <span lang="zh-Hant" className="text-base font-semibold">
+                            {s.word.headword}
+                          </span>
                           {s.word.reading_zhuyin && (
                             <span lang="zh-Hant" className="truncate text-xs text-muted-foreground">
                               {s.word.reading_zhuyin}
@@ -430,9 +472,14 @@ async function photoPinIcon(url: string): Promise<string | null> {
       img.onerror = () => rej(new Error("pin image load failed"));
       img.src = url;
     });
-    const W = 104, H = 120, cx = 52, cy = 46, R = 42; // 2x for retina
+    const W = 104,
+      H = 120,
+      cx = 52,
+      cy = 46,
+      R = 42; // 2x for retina
     const c = document.createElement("canvas");
-    c.width = W; c.height = H;
+    c.width = W;
+    c.height = H;
     const ctx = c.getContext("2d");
     if (!ctx) return null;
     // tail
@@ -457,7 +504,8 @@ async function photoPinIcon(url: string): Promise<string | null> {
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.clip();
     const scale = Math.max((R * 2) / img.width, (R * 2) / img.height);
-    const dw = img.width * scale, dh = img.height * scale;
+    const dw = img.width * scale,
+      dh = img.height * scale;
     ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
     ctx.restore();
     return c.toDataURL("image/png");
@@ -490,7 +538,12 @@ function PackGallery({
   return (
     <div className="pk-collection" data-layout={layout}>
       {items.map((s) => {
-        const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_thumb_url ?? s.cutout_url ?? s.placeholder_url;
+        const photo =
+          s.object_thumb_url ??
+          s.object_url ??
+          s.cutout_thumb_url ??
+          s.cutout_url ??
+          s.placeholder_url;
         return (
           <button
             key={s.id}
@@ -508,13 +561,19 @@ function PackGallery({
                 />
               ) : (
                 // 写真がまだ無いときは単語そのものを見せる(段ボール絵は使わない)。
-                <span lang="zh-Hant" className="pk-tile-emoji">{s.word.headword.slice(0, 2)}</span>
+                <span lang="zh-Hant" className="pk-tile-emoji">
+                  {s.word.headword.slice(0, 2)}
+                </span>
               )}
               {s.encounter_count > 0 && <span className="pk-tile-badge">×{s.encounter_count}</span>}
             </span>
             <span className="pk-tile-body">
-              <span lang="zh-Hant" className="pk-tile-word">{s.word.headword}</span>
-              <span className="pk-tile-sub">{s.word.meaning_ja || <Zh>{s.word.reading_zhuyin}</Zh>}</span>
+              <span lang="zh-Hant" className="pk-tile-word">
+                {s.word.headword}
+              </span>
+              <span className="pk-tile-sub">
+                {s.word.meaning_ja || <Zh>{s.word.reading_zhuyin}</Zh>}
+              </span>
             </span>
           </button>
         );
@@ -555,7 +614,7 @@ function DexMap({
       return;
     }
     window.initDexMap = initMap;
-    const existing = document.querySelector('script[data-dex-map]');
+    const existing = document.querySelector("script[data-dex-map]");
     if (existing) return;
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${browserKey}&loading=async&callback=initDexMap${channel ? `&channel=${channel}` : ""}`;
@@ -565,7 +624,8 @@ function DexMap({
 
     function initMap() {
       if (!mapRef.current) return;
-      const g = (window.google as { maps: { Map: new (el: HTMLElement, opts: object) => unknown } }).maps;
+      const g = (window.google as { maps: { Map: new (el: HTMLElement, opts: object) => unknown } })
+        .maps;
       mapInstance.current = new g.Map(mapRef.current, {
         center: { lat: 25.033, lng: 121.5654 },
         zoom: 12,
@@ -579,7 +639,16 @@ function DexMap({
 
   function renderMarkers() {
     if (!mapInstance.current || !window.google) return;
-    const g = (window.google as { maps: { Marker: new (opts: object) => unknown; LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean }; Size: new (a: number, b: number) => unknown; Point: new (a: number, b: number) => unknown } }).maps;
+    const g = (
+      window.google as {
+        maps: {
+          Marker: new (opts: object) => unknown;
+          LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean };
+          Size: new (a: number, b: number) => unknown;
+          Point: new (a: number, b: number) => unknown;
+        };
+      }
+    ).maps;
     for (const m of markersRef.current) {
       (m as { setMap: (x: null) => void }).setMap(null);
     }
@@ -594,7 +663,7 @@ function DexMap({
       if (s.lat == null || s.lng == null) continue;
       const emoji = s.word.silhouette_emoji ?? "📍";
       const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`
+        `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`,
       )}`;
       // このグループで何枚目か → 角度をずらして配置
       const gk = keyOf(s.lat, s.lng);
@@ -603,10 +672,10 @@ function DexMap({
       let posLat = s.lat;
       let posLng = s.lng;
       if (idx > 0) {
-        const ring = Math.ceil(idx / 8);              // 8個ごとに外側の輪へ
+        const ring = Math.ceil(idx / 8); // 8個ごとに外側の輪へ
         const slot = (idx - 1) % 8;
         const angle = (slot / 8) * Math.PI * 2 + ring * 0.4;
-        const meters = 14 * ring;                      // 14m, 28m, …
+        const meters = 14 * ring; // 14m, 28m, …
         const dLat = (meters * Math.cos(angle)) / 111_320;
         const dLng =
           (meters * Math.sin(angle)) / (111_320 * Math.max(0.2, Math.cos((s.lat * Math.PI) / 180)));
@@ -658,7 +727,10 @@ function DexMap({
   // Tapping a photo below pans+zooms the map to where it was caught.
   function focusOnMap(s: (typeof stickers)[number]) {
     if (s.lat == null || s.lng == null) return;
-    const map = mapInstance.current as { panTo: (l: object) => void; setZoom: (z: number) => void } | null;
+    const map = mapInstance.current as {
+      panTo: (l: object) => void;
+      setZoom: (z: number) => void;
+    } | null;
     if (map) {
       map.panTo({ lat: s.lat, lng: s.lng });
       map.setZoom(17);
@@ -685,7 +757,9 @@ function DexMap({
       />
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{withLoc.length} {t("dex.items")}</span>
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+          {withLoc.length} {t("dex.items")}
+        </span>
       </div>
 
       {recent.length > 0 && (
@@ -694,7 +768,8 @@ function DexMap({
           <p className="mb-2 text-[11px] text-muted-foreground">{t("dex.placesHint")}</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
-              const thumb = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
+              const thumb =
+                s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
               return (
                 <button
                   key={s.id}
@@ -719,7 +794,9 @@ function DexMap({
                   </div>
                   <div className="flex items-center gap-1 px-2 py-1.5">
                     <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span lang="zh-Hant" className="truncate text-xs font-medium">{s.word.headword}</span>
+                    <span lang="zh-Hant" className="truncate text-xs font-medium">
+                      {s.word.headword}
+                    </span>
                   </div>
                 </button>
               );
@@ -747,7 +824,64 @@ function posBucket(pos: string | null | undefined, captureType: string): string 
 }
 
 /** カテゴリーキー → 翻訳キー。未知のキーはそのまま見せる(訳が無いよりまし)。 */
-const KNOWN_CATEGORIES = new Set(["fruit", "vegetable", "drink", "food", "dessert", "vehicle", "transport", "animal", "plant", "flower", "building", "street", "sign", "shop", "home", "furniture", "appliance", "kitchenware", "tool", "clothes", "accessory", "shoes", "bag", "jewelry", "stationery", "book", "tech", "gadget", "toy", "game", "sport", "instrument", "nature", "weather", "sky", "water", "mountain", "body", "face", "hand", "clothing_part", "person", "family", "job", "art", "decoration", "character", "symbol", "color", "shape", "money", "document", "medicine", "place", "object", "other"]);
+const KNOWN_CATEGORIES = new Set([
+  "fruit",
+  "vegetable",
+  "drink",
+  "food",
+  "dessert",
+  "vehicle",
+  "transport",
+  "animal",
+  "plant",
+  "flower",
+  "building",
+  "street",
+  "sign",
+  "shop",
+  "home",
+  "furniture",
+  "appliance",
+  "kitchenware",
+  "tool",
+  "clothes",
+  "accessory",
+  "shoes",
+  "bag",
+  "jewelry",
+  "stationery",
+  "book",
+  "tech",
+  "gadget",
+  "toy",
+  "game",
+  "sport",
+  "instrument",
+  "nature",
+  "weather",
+  "sky",
+  "water",
+  "mountain",
+  "body",
+  "face",
+  "hand",
+  "clothing_part",
+  "person",
+  "family",
+  "job",
+  "art",
+  "decoration",
+  "character",
+  "symbol",
+  "color",
+  "shape",
+  "money",
+  "document",
+  "medicine",
+  "place",
+  "object",
+  "other",
+]);
 function categoryKey(key: string): string {
   return KNOWN_CATEGORIES.has(key) ? `cat.${key}` : "";
 }

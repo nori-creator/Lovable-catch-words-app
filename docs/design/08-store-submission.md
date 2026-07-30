@@ -8,16 +8,16 @@
 
 ## 1. このアプリが実際に集めるデータ(申告の根拠・実装と1:1対応)
 
-| データ | 保存先 | 目的 | 紐付け | 削除 |
-|---|---|---|---|---|
-| メールアドレス | Supabase Auth | ログイン | ユーザーに紐付く | アカウント削除で即時 |
-| 表示名・学習設定 | profiles | アプリ機能 | 紐付く | 同上 |
-| 撮影した写真 | stickers バケット(非公開、署名URL) | 単語カード作成 | 紐付く | 同上 |
-| 撮影位置(任意許可) | stickers.lat/lng、scan_events | 「どこで覚えたか」の記録・地図表示 | 紐付く | 同上 |
-| スキャンした語・学習履歴 | scan_events, reviews, review_history | SRS復習・KPI | 紐付く | 同上 |
-| 日記本文 | journal_entries | AI添削 | 紐付く | 同上 |
-| 利用回数(種類と時刻のみ) | usage_events | コスト管理・不正防止 | 紐付く | 同上 |
-| AIへ送る画像・文章 | Lovable AI Gateway / Google Gemini へ送信(処理のみ、学習利用なし設定) | 単語検出・添削・音声合成 | 送信時のみ | 保存しない |
+| データ                   | 保存先                                                                | 目的                               | 紐付け           | 削除                 |
+| ------------------------ | --------------------------------------------------------------------- | ---------------------------------- | ---------------- | -------------------- |
+| メールアドレス           | Supabase Auth                                                         | ログイン                           | ユーザーに紐付く | アカウント削除で即時 |
+| 表示名・学習設定         | profiles                                                              | アプリ機能                         | 紐付く           | 同上                 |
+| 撮影した写真             | stickers バケット(非公開、署名URL)                                    | 単語カード作成                     | 紐付く           | 同上                 |
+| 撮影位置(任意許可)       | stickers.lat/lng、scan_events                                         | 「どこで覚えたか」の記録・地図表示 | 紐付く           | 同上                 |
+| スキャンした語・学習履歴 | scan_events, reviews, review_history                                  | SRS復習・KPI                       | 紐付く           | 同上                 |
+| 日記本文                 | journal_entries                                                       | AI添削                             | 紐付く           | 同上                 |
+| 利用回数(種類と時刻のみ) | usage_events                                                          | コスト管理・不正防止               | 紐付く           | 同上                 |
+| AIへ送る画像・文章       | Lovable AI Gateway / Google Gemini へ送信(処理のみ、学習利用なし設定) | 単語検出・添削・音声合成           | 送信時のみ       | 保存しない           |
 
 **集めていないもの(申告で「収集しない」と答えてよい)**: 連絡先、健康、金融情報、閲覧履歴(アプリ外)、広告ID、正確な位置の常時追跡(撮影時の1点のみ)。トラッキング(ATT対象の横断追跡)は**一切なし** → App Tracking Transparency は不要。
 
@@ -46,15 +46,17 @@
 ## 4. 権限リクエスト文言(Capacitor化の際にそのまま使う)
 
 ### iOS Info.plist
-| キー | 文言 |
-|---|---|
-| NSCameraUsageDescription | 目の前のものにカメラをかざすと、台湾華語の単語と発音をその場でお教えします。 |
-| NSMicrophoneUsageDescription | 発音の練習を録音してAIが添削するために使います。録音はあなたの学習にのみ使われます。 |
+
+| キー                                | 文言                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| NSCameraUsageDescription            | 目の前のものにカメラをかざすと、台湾華語の単語と発音をその場でお教えします。               |
+| NSMicrophoneUsageDescription        | 発音の練習を録音してAIが添削するために使います。録音はあなたの学習にのみ使われます。       |
 | NSLocationWhenInUseUsageDescription | 「どこでこの単語を覚えたか」を単語カードに記録するために、撮影時だけ位置を使います(任意)。 |
-| NSPhotoLibraryAddUsageDescription | 作成した単語カードの画像を保存するために使います。 |
-| NSSpeechRecognitionUsageDescription | 話した台湾華語を文字にしてAIが添削するために使います。 |
+| NSPhotoLibraryAddUsageDescription   | 作成した単語カードの画像を保存するために使います。                                         |
+| NSSpeechRecognitionUsageDescription | 話した台湾華語を文字にしてAIが添削するために使います。                                     |
 
 ### Android(権限ダイアログ前のアプリ内説明=Play審査で推奨)
+
 - カメラ: 「かざすだけで単語がわかる」ためにカメラを使います
 - マイク: スピーキング復習の録音・文字起こしに使います
 - 位置情報(ACCESS_COARSE_LOCATION で足りる想定): 撮影場所をカードに記録します(許可しなくても全機能使えます)
@@ -64,6 +66,7 @@
 ## 5. 審査ノート(Review Notes)下書き
 
 > Catchwords is a Taiwanese Mandarin (zh-TW) learning app for Japanese residents in Taiwan. Point the camera at objects/text to get instant vocabulary + native pronunciation; save words as photo flashcards with spaced-repetition review.
+>
 > - Demo account: (審査用に捨てアカウントを作って記載)
 > - Account deletion: Settings → アカウントを削除 (type 削除 to confirm) — deletes all user data immediately.
 > - Location is optional and only captured at photo time to tag where a word was learned.

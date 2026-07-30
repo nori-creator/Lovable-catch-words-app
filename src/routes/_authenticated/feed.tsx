@@ -48,7 +48,9 @@ function FeedPage() {
         <EmptyState tab={tab} />
       ) : (
         <div className="space-y-4">
-          {data.map((p) => <PostCard key={p.id} post={p} />)}
+          {data.map((p) => (
+            <PostCard key={p.id} post={p} />
+          ))}
         </div>
       )}
     </AppShell>
@@ -60,11 +62,16 @@ function EmptyState({ tab }: { tab: "following" | "popular" }) {
   return (
     <div className="rounded-3xl border border-dashed border-border bg-card/50 p-10 text-center">
       <Sparkles className="mx-auto h-8 w-8 text-muted-foreground" />
-      <h2 className="mt-3 text-base font-semibold">{tab === "following" ? t("feed.emptyFollowing") : t("feed.emptyPopular")}</h2>
+      <h2 className="mt-3 text-base font-semibold">
+        {tab === "following" ? t("feed.emptyFollowing") : t("feed.emptyPopular")}
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {tab === "following" ? t("feed.hintFollowing") : t("feed.hintPopular")}
       </p>
-      <Link to="/dex" className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+      <Link
+        to="/dex"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+      >
         {t("feed.postFromDex")}
       </Link>
     </div>
@@ -93,11 +100,22 @@ function PostCard({ post }: { post: FeedPost }) {
         {post.author.avatar_url ? (
           <img src={post.author.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
         ) : (
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{initial}</div>
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+            {initial}
+          </div>
         )}
         <div className="flex-1">
-          <div className="text-sm font-semibold">{post.author.display_name ?? t("common.anon")}</div>
-          <div className="text-[11px] text-muted-foreground">{new Date(post.created_at).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+          <div className="text-sm font-semibold">
+            {post.author.display_name ?? t("common.anon")}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {new Date(post.created_at).toLocaleString("ja-JP", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
         </div>
       </header>
 
@@ -107,12 +125,20 @@ function PostCard({ post }: { post: FeedPost }) {
             <img src={post.sticker.selfie_url} alt="" className="h-full w-full object-cover" />
           )}
           {post.sticker?.cutout_url && (
-            <img src={post.sticker.cutout_url} alt={post.sticker.word?.headword ?? ""} className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl" />
+            <img
+              src={post.sticker.cutout_url}
+              alt={post.sticker.word?.headword ?? ""}
+              className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl"
+            />
           )}
           {post.sticker?.word && (
             <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-              <div lang="zh-Hant" className="text-lg font-bold leading-none">{post.sticker.word.headword}</div>
-              <div className="text-[10px] text-muted-foreground"><Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}</div>
+              <div lang="zh-Hant" className="text-lg font-bold leading-none">
+                {post.sticker.word.headword}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                <Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}
+              </div>
             </div>
           )}
         </div>
@@ -128,7 +154,11 @@ function PostCard({ post }: { post: FeedPost }) {
             <Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />
             <span className="tabular-nums">{count}</span>
           </button>
-          <Link to="/post/$postId" params={{ postId: post.id }} className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+          <Link
+            to="/post/$postId"
+            params={{ postId: post.id }}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground"
+          >
             <MessageCircle className="h-5 w-5" />
             <span className="tabular-nums">{post.comment_count}</span>
           </Link>

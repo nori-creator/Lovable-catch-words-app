@@ -40,13 +40,30 @@ function NotificationsPage() {
       ) : (
         <ul className="space-y-2">
           {items.map((n) => {
-            const Icon = n.type === "like" ? Heart : n.type === "comment" ? MessageCircle : UserPlus;
-            const verb = n.type === "like" ? t("notif.liked") : n.type === "comment" ? t("notif.commented") : t("notif.followed");
-            const color = n.type === "like" ? "text-rose-500" : n.type === "comment" ? "text-sky-500" : "text-emerald-500";
+            const Icon =
+              n.type === "like" ? Heart : n.type === "comment" ? MessageCircle : UserPlus;
+            const verb =
+              n.type === "like"
+                ? t("notif.liked")
+                : n.type === "comment"
+                  ? t("notif.commented")
+                  : t("notif.followed");
+            const color =
+              n.type === "like"
+                ? "text-rose-500"
+                : n.type === "comment"
+                  ? "text-sky-500"
+                  : "text-emerald-500";
             const inner = (
-              <div className={`lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3 ${!n.read_at ? "ring-1 ring-primary/20" : ""}`}>
+              <div
+                className={`lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3 ${!n.read_at ? "ring-1 ring-primary/20" : ""}`}
+              >
                 {n.actor?.avatar_url ? (
-                  <img src={n.actor.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                  <img
+                    src={n.actor.avatar_url}
+                    alt=""
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
                 ) : (
                   <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-sm font-semibold">
                     {(n.actor?.display_name ?? "?").slice(0, 1)}
@@ -54,7 +71,9 @@ function NotificationsPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm">
-                    <span className="font-semibold">{n.actor?.display_name ?? t("common.someone")}</span>
+                    <span className="font-semibold">
+                      {n.actor?.display_name ?? t("common.someone")}
+                    </span>
                     <span className="text-muted-foreground">{verb}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">{fmtAgo(n.created_at)}</p>
@@ -65,14 +84,18 @@ function NotificationsPage() {
             if (n.post_id && (n.type === "like" || n.type === "comment")) {
               return (
                 <li key={n.id}>
-                  <Link to="/post/$postId" params={{ postId: n.post_id }}>{inner}</Link>
+                  <Link to="/post/$postId" params={{ postId: n.post_id }}>
+                    {inner}
+                  </Link>
                 </li>
               );
             }
             if (n.actor?.id && n.type === "follow") {
               return (
                 <li key={n.id}>
-                  <Link to="/u/$userId" params={{ userId: n.actor.id }}>{inner}</Link>
+                  <Link to="/u/$userId" params={{ userId: n.actor.id }}>
+                    {inner}
+                  </Link>
                 </li>
               );
             }

@@ -13,14 +13,27 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
   head: ({ params }) => ({
     meta: [
       { title: tStatic("page.post", { id: params.postId.slice(0, 8) }) },
-      { name: "description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },
+      {
+        name: "description",
+        content:
+          "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+      },
       { property: "og:title", content: `投稿 — Catchwords` },
-      { property: "og:description", content: "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。" },
+      {
+        property: "og:description",
+        content:
+          "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+      },
       { property: "og:type", content: "article" },
-      { property: "og:url", content: `https://word-snap-journey.lovable.app/post/${params.postId}` },
+      {
+        property: "og:url",
+        content: `https://word-snap-journey.lovable.app/post/${params.postId}`,
+      },
       { name: "robots", content: "noindex" },
     ],
-    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${params.postId}` }],
+    links: [
+      { rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${params.postId}` },
+    ],
     scripts: [
       {
         type: "application/ld+json",
@@ -36,15 +49,20 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
   component: PostPage,
 });
 
-
 function PostPage() {
   const t = useT();
   const { postId } = Route.useParams();
   const qc = useQueryClient();
   const fetchPost = useServerFn(getPost);
   const fetchComments = useServerFn(getComments);
-  const post = useQuery({ queryKey: ["post", postId], queryFn: () => fetchPost({ data: { id: postId } }) });
-  const comments = useQuery({ queryKey: ["comments", postId], queryFn: () => fetchComments({ data: { post_id: postId } }) });
+  const post = useQuery({
+    queryKey: ["post", postId],
+    queryFn: () => fetchPost({ data: { id: postId } }),
+  });
+  const comments = useQuery({
+    queryKey: ["comments", postId],
+    queryFn: () => fetchComments({ data: { post_id: postId } }),
+  });
 
   const like = useServerFn(toggleLike);
   const add = useServerFn(addComment);
@@ -67,7 +85,10 @@ function PostPage() {
 
   return (
     <AppShell title={t("post.title")}>
-      <Link to="/feed" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/feed"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> {t("post.toFeed")}
       </Link>
 
@@ -79,21 +100,35 @@ function PostPage() {
         <>
           <article className="overflow-hidden rounded-3xl border border-border bg-card">
             <div className="relative aspect-square w-full overflow-hidden bg-gradient-to-br from-secondary to-accent">
-              {p.sticker?.selfie_url && <img src={p.sticker.selfie_url} alt="" className="h-full w-full object-cover" />}
+              {p.sticker?.selfie_url && (
+                <img src={p.sticker.selfie_url} alt="" className="h-full w-full object-cover" />
+              )}
               {p.sticker?.cutout_url && (
-                <img src={p.sticker.cutout_url} alt="" className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl" />
+                <img
+                  src={p.sticker.cutout_url}
+                  alt=""
+                  className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl"
+                />
               )}
               {p.sticker?.word && (
                 <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-                  <div lang="zh-Hant" className="text-lg font-bold leading-none">{p.sticker.word.headword}</div>
-                  <div className="text-[10px] text-muted-foreground"><Zh>{p.sticker.word.reading_zhuyin}</Zh> · {p.sticker.word.meaning_ja}</div>
+                  <div lang="zh-Hant" className="text-lg font-bold leading-none">
+                    {p.sticker.word.headword}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    <Zh>{p.sticker.word.reading_zhuyin}</Zh> · {p.sticker.word.meaning_ja}
+                  </div>
                 </div>
               )}
             </div>
             <div className="space-y-2 p-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">{p.author.display_name ?? t("common.anon")}</span>
-                <span className="text-[11px] text-muted-foreground">{new Date(p.created_at).toLocaleString("ja-JP")}</span>
+                <span className="text-sm font-semibold">
+                  {p.author.display_name ?? t("common.anon")}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(p.created_at).toLocaleString("ja-JP")}
+                </span>
               </div>
               {p.caption && <p className="text-sm leading-relaxed">{p.caption}</p>}
               <div className="flex items-center gap-3 pt-2">
@@ -118,7 +153,9 @@ function PostPage() {
             <div className="space-y-3">
               {(comments.data ?? []).map((c) => (
                 <div key={c.id} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="text-xs font-semibold">{c.author.display_name ?? t("common.anon")}</div>
+                  <div className="text-xs font-semibold">
+                    {c.author.display_name ?? t("common.anon")}
+                  </div>
                   <div className="mt-1 text-sm">{c.body}</div>
                 </div>
               ))}

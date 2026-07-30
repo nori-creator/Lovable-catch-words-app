@@ -7,7 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, RotateCcw, Sparkles, Check, Keyboard, PartyPopper, WifiOff } from "lucide-react";
+import {
+  Camera,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Check,
+  Keyboard,
+  PartyPopper,
+  WifiOff,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
@@ -145,7 +154,11 @@ function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [reenc, setReenc] = useState<OwnedWord | null>(null);
   const [reencRevealed, setReencRevealed] = useState(false);
-  const [reencResult, setReencResult] = useState<{ recalled: boolean; encounter_count: number; next_due_at: string | null } | null>(null);
+  const [reencResult, setReencResult] = useState<{
+    recalled: boolean;
+    encounter_count: number;
+    next_due_at: string | null;
+  } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
@@ -209,13 +222,15 @@ function CapturePage() {
 
   // Auto-open front camera as soon as the selfie step begins.
   useEffect(() => {
-    if (step !== "selfie") { selfieAutoOpenedRef.current = false; return; }
+    if (step !== "selfie") {
+      selfieAutoOpenedRef.current = false;
+      return;
+    }
     if (selfieAutoOpenedRef.current) return;
     selfieAutoOpenedRef.current = true;
     const t = setTimeout(() => selfieInputRef.current?.click(), 120);
     return () => clearTimeout(t);
   }, [step]);
-
 
   async function handleObjectFile(file: File) {
     const url = await fileToDataUrl(file);
@@ -237,14 +252,16 @@ function CapturePage() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const { location_name } = await geocodeFn({ data: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
+          const { location_name } = await geocodeFn({
+            data: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+          });
           setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: location_name });
         } catch {
           setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null });
         }
       },
       () => {},
-      { timeout: 5000 }
+      { timeout: 5000 },
     );
   }
 
@@ -321,7 +338,9 @@ function CapturePage() {
           example_sentence: "",
           example_translation: "",
         });
-        cardFn({ data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key } })
+        cardFn({
+          data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key },
+        })
           .then((c) => setCard(c))
           .catch(() => {});
       } else {
@@ -362,7 +381,10 @@ function CapturePage() {
         if (thumb) {
           await supabase.storage
             .from("stickers")
-            .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
+            .upload(thumbPath(path), thumb, {
+              contentType: thumb.type || "image/webp",
+              upsert: true,
+            })
             .catch(() => {});
           void putCachedImage(thumbPath(path), thumb);
         }
@@ -449,7 +471,11 @@ function CapturePage() {
           location_name: loc?.name ?? null,
         },
       });
-      setReencResult({ recalled, encounter_count: res.encounter_count, next_due_at: res.next_due_at });
+      setReencResult({
+        recalled,
+        encounter_count: res.encounter_count,
+        next_due_at: res.next_due_at,
+      });
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["reviews-due"] });
     } catch (e) {
@@ -509,7 +535,11 @@ function CapturePage() {
           <p className="text-sm text-muted-foreground">{t("capture.selfieHint")}</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
-              <img src={objectImg} alt={t("cap.photoTaken")} className="h-full w-full object-cover" />
+              <img
+                src={objectImg}
+                alt={t("cap.photoTaken")}
+                className="h-full w-full object-cover"
+              />
             </div>
           )}
           <label className="block">
@@ -544,11 +574,7 @@ function CapturePage() {
         // (「少しだけ待ってね」のような待たせる文言は出さない)。
         <div className="fixed inset-0 z-50 bg-black">
           {objectImg && (
-            <img
-              src={objectImg}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <img src={objectImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
           <ScanEffect stage="reading" />
         </div>
@@ -560,7 +586,11 @@ function CapturePage() {
           <div className="flex gap-3">
             {cutoutImg && (
               <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
-                <img src={cutoutImg} alt={t("cap.photoCutout")} className="h-full w-full object-contain pop-in" />
+                <img
+                  src={cutoutImg}
+                  alt={t("cap.photoCutout")}
+                  className="h-full w-full object-contain pop-in"
+                />
               </div>
             )}
             <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
@@ -573,17 +603,23 @@ function CapturePage() {
                 className="lift flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
               >
                 <div>
-                  <div lang="zh-Hant" className="text-base font-semibold">{s.headword}</div>
+                  <div lang="zh-Hant" className="text-base font-semibold">
+                    {s.headword}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
                   </div>
                 </div>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">{s.category_key}</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {s.category_key}
+                </span>
               </button>
             ))}
           </div>
           <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-            <Label htmlFor="manual" className="text-xs text-muted-foreground">{t("capture.otherWord")}</Label>
+            <Label htmlFor="manual" className="text-xs text-muted-foreground">
+              {t("capture.otherWord")}
+            </Label>
             <div className="mt-1 flex gap-2">
               <Input
                 id="manual"
@@ -604,27 +640,38 @@ function CapturePage() {
 
       {step === "card" && card && (
         <div className="space-y-4">
-          <div
-            className="perspective-[1200px]"
-            onClick={() => setFlipped((f) => !f)}
-          >
+          <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
             <div
               className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
             >
               <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
                 <div className="grid h-full place-items-center p-6">
                   {cutoutImg ? (
-                    <img src={cutoutImg} alt={selectedHead} className="max-h-full max-w-full object-contain pop-in" />
+                    <img
+                      src={cutoutImg}
+                      alt={selectedHead}
+                      className="max-h-full max-w-full object-contain pop-in"
+                    />
                   ) : objectImg ? (
-                    <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
+                    <img
+                      src={objectImg}
+                      alt={selectedHead}
+                      className="h-full w-full object-cover"
+                    />
                   ) : null}
                 </div>
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
                 {selfieImg ? (
-                  <img src={selfieImg} alt={t("cap.selfie")} className="h-full w-full object-cover" />
+                  <img
+                    src={selfieImg}
+                    alt={t("cap.selfie")}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("capture.noSelfie")}</div>
+                  <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                    {t("capture.noSelfie")}
+                  </div>
                 )}
               </div>
             </div>
@@ -646,13 +693,19 @@ function CapturePage() {
           />
 
           <div>
-            <Label htmlFor="caption" className="text-xs text-muted-foreground">{t("capture.note")}</Label>
-            <Textarea id="caption" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t("capture.notePlaceholder")} rows={2} />
+            <Label htmlFor="caption" className="text-xs text-muted-foreground">
+              {t("capture.note")}
+            </Label>
+            <Textarea
+              id="caption"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder={t("capture.notePlaceholder")}
+              rows={2}
+            />
           </div>
 
-          {loc?.name && (
-            <p className="text-xs text-muted-foreground">📍 {loc.name}</p>
-          )}
+          {loc?.name && <p className="text-xs text-muted-foreground">📍 {loc.name}</p>}
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={reset} className="flex-1">
@@ -697,16 +750,27 @@ function CapturePage() {
             <p className="mt-2 text-sm text-muted-foreground">
               {t("cap.reencBefore")}
               {reenc.location_name
-                ? t("cap.reencAt", { place: reenc.location_name, date: new Date(reenc.taken_at).toLocaleDateString(dateLocale) })
-                : t("cap.reencOn", { date: new Date(reenc.taken_at).toLocaleDateString(dateLocale) })}
+                ? t("cap.reencAt", {
+                    place: reenc.location_name,
+                    date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
+                  })
+                : t("cap.reencOn", {
+                    date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
+                  })}
               {t("cap.reencAfter")}
             </p>
             {reenc.cutout_url && (
               <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5">
-                <img src={reenc.cutout_url} alt={reenc.headword} className="h-full w-full object-contain p-2" />
+                <img
+                  src={reenc.cutout_url}
+                  alt={reenc.headword}
+                  className="h-full w-full object-contain p-2"
+                />
               </div>
             )}
-            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">{reenc.headword}</div>
+            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">
+              {reenc.headword}
+            </div>
             <div lang="zh-Hant" className="mt-1 text-xs text-muted-foreground">
               {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
             </div>
@@ -726,7 +790,11 @@ function CapturePage() {
                     <Button onClick={() => answerReencounter(true)} className="flex-1">
                       {t("capture.remembered")}
                     </Button>
-                    <Button variant="outline" onClick={() => answerReencounter(false)} className="flex-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => answerReencounter(false)}
+                      className="flex-1"
+                    >
                       {t("capture.forgot")}
                     </Button>
                   </div>
@@ -738,7 +806,9 @@ function CapturePage() {
                     <p className="text-xs text-muted-foreground">
                       {t("cap.reunionNth", { n: reencResult.encounter_count })}
                       {reencResult.next_due_at &&
-                        t("cap.nextReview", { date: new Date(reencResult.next_due_at).toLocaleDateString(dateLocale) })}
+                        t("cap.nextReview", {
+                          date: new Date(reencResult.next_due_at).toLocaleDateString(dateLocale),
+                        })}
                     </p>
                   </div>
                 )}
@@ -752,7 +822,9 @@ function CapturePage() {
             </Button>
             {reencResult && (
               <Button
-                onClick={() => navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })}
+                onClick={() =>
+                  navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })
+                }
                 className="flex-1"
               >
                 {t("capture.seeInDex")}
@@ -767,9 +839,7 @@ function CapturePage() {
           <div className="rounded-3xl border border-border bg-card p-8 text-center">
             <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             <p className="text-base font-semibold">{t("capture.offlineTitle")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("capture.offlineHint")}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("capture.offlineHint")}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">

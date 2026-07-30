@@ -36,11 +36,15 @@ export const getTodayQuests = createServerFn({ method: "GET" })
     // Generate 3 quests via AI
     const ai = getAi();
     const Schema = z.object({
-      quests: z.array(z.object({
-        category_key: z.string(),
-        target_word: z.string(),
-        hint_ja: z.string(),
-      })).length(3),
+      quests: z
+        .array(
+          z.object({
+            category_key: z.string(),
+            target_word: z.string(),
+            hint_ja: z.string(),
+          }),
+        )
+        .length(3),
     });
     let quests: Array<{ category_key: string; target_word: string; hint_ja: string }>;
     try {
@@ -54,8 +58,16 @@ export const getTodayQuests = createServerFn({ method: "GET" })
     } catch {
       // Fallback if AI returns malformed structure
       quests = [
-        { category_key: "food", target_word: "珍珠奶茶", hint_ja: "街でタピオカミルクティーを見つけて撮ろう" },
-        { category_key: "transport", target_word: "捷運", hint_ja: "街でMRT（捷運）の標識を撮ろう" },
+        {
+          category_key: "food",
+          target_word: "珍珠奶茶",
+          hint_ja: "街でタピオカミルクティーを見つけて撮ろう",
+        },
+        {
+          category_key: "transport",
+          target_word: "捷運",
+          hint_ja: "街でMRT（捷運）の標識を撮ろう",
+        },
         { category_key: "sign", target_word: "便利商店", hint_ja: "街でコンビニの看板を撮ろう" },
       ];
     }
@@ -68,14 +80,18 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       reward_xp: 20,
     }));
     const { data: inserted, error: insErr } = await supabase
-      .from("daily_quests").insert(rows).select("*");
+      .from("daily_quests")
+      .insert(rows)
+      .select("*");
     if (insErr) throw new Error(insErr.message);
     return inserted as DailyQuest[];
   });
 
 export const completeQuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ quest_id: z.string().uuid(), sticker_id: z.string().uuid().optional() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ quest_id: z.string().uuid(), sticker_id: z.string().uuid().optional() }).parse(d),
+  )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     const { error } = await supabase

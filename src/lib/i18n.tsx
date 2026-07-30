@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * 軽量i18n(2026-07-25): アプリの主要な操作面(ナビ・見出し・設定)を
@@ -21,25 +21,51 @@ export function setUiLang(lang: UiLang) {
   try {
     localStorage.setItem(KEY, lang);
     window.dispatchEvent(new CustomEvent(EVENT));
-  } catch { /* storage unavailable */ }
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 const DICT: Record<string, { ja: string; en: string }> = {
   // --- 動的ページタイトル ---
   "page.post": { ja: "投稿 {id} — Catchwords", en: "Post {id} — Catchwords" },
-  "page.userProfile": { ja: "ユーザー {id} のプロフィール — Catchwords", en: "{id}'s profile — Catchwords" },
+  "page.userProfile": {
+    ja: "ユーザー {id} のプロフィール — Catchwords",
+    en: "{id}'s profile — Catchwords",
+  },
   "page.cardDetail": { ja: "カード {id} — Catchwords", en: "Card {id} — Catchwords" },
   // --- OAuth 同意画面 ---
-  "oauth.loadFailed": { ja: "認証リクエストを読み込めませんでした", en: "Couldn't load the authorization request" },
+  "oauth.loadFailed": {
+    ja: "認証リクエストを読み込めませんでした",
+    en: "Couldn't load the authorization request",
+  },
   "oauth.unknownClient": { ja: "外部クライアント", en: "an external client" },
-  "oauth.noRedirect": { ja: "認証サーバーからリダイレクト先が返されませんでした。", en: "The authorization server didn't return a redirect target." },
-  "oauth.connectTitle": { ja: "{client} を Catchwords に接続", en: "Connect {client} to Catchwords" },
-  "oauth.explain": { ja: "このクライアントは、あなたとしてサインインした状態で Catchwords の有効なツールを呼び出せるようになります。", en: "This client will be able to call Catchwords' enabled tools while signed in as you." },
+  "oauth.noRedirect": {
+    ja: "認証サーバーからリダイレクト先が返されませんでした。",
+    en: "The authorization server didn't return a redirect target.",
+  },
+  "oauth.connectTitle": {
+    ja: "{client} を Catchwords に接続",
+    en: "Connect {client} to Catchwords",
+  },
+  "oauth.explain": {
+    ja: "このクライアントは、あなたとしてサインインした状態で Catchwords の有効なツールを呼び出せるようになります。",
+    en: "This client will be able to call Catchwords' enabled tools while signed in as you.",
+  },
   "oauth.redirectTo": { ja: "リダイレクト先:", en: "Redirects to:" },
-  "oauth.scope1": { ja: "・あなたの Catchwords プロフィール(表示名・アバター)", en: "· Your Catchwords profile (display name, avatar)" },
-  "oauth.scope2": { ja: "・あなたのステッカー(単語カード・キャプション・撮影地)", en: "· Your stickers (word cards, captions, capture locations)" },
+  "oauth.scope1": {
+    ja: "・あなたの Catchwords プロフィール(表示名・アバター)",
+    en: "· Your Catchwords profile (display name, avatar)",
+  },
+  "oauth.scope2": {
+    ja: "・あなたのステッカー(単語カード・キャプション・撮影地)",
+    en: "· Your stickers (word cards, captions, capture locations)",
+  },
   "oauth.scope3": { ja: "・あなたの SRS 復習の予定", en: "· Your SRS review schedule" },
-  "oauth.rlsNote": { ja: "このアプリの権限とバックエンドポリシー(RLS)は引き続き適用されます。他ユーザーのデータは公開されません。", en: "This app's permissions and backend policies (RLS) still apply. Other users' data is never exposed." },
+  "oauth.rlsNote": {
+    ja: "このアプリの権限とバックエンドポリシー(RLS)は引き続き適用されます。他ユーザーのデータは公開されません。",
+    en: "This app's permissions and backend policies (RLS) still apply. Other users' data is never exposed.",
+  },
   "oauth.approve": { ja: "許可する", en: "Allow" },
   "oauth.deny": { ja: "拒否する", en: "Deny" },
   // --- 共通 ---
@@ -64,21 +90,42 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "page.terms": { ja: "利用規約 — Catchwords", en: "Terms of Service — Catchwords" },
   // --- 復習・単語カード ---
   "rv.modeAria": { ja: "復習モード", en: "Review mode" },
-  "rv.quietMode": { ja: "声を出せない場所用の4択モード", en: "Multiple-choice mode for when you can't speak out loud" },
+  "rv.quietMode": {
+    ja: "声を出せない場所用の4択モード",
+    en: "Multiple-choice mode for when you can't speak out loud",
+  },
   "rv.overallTitle": { ja: "全体の記憶率(前後2週間)", en: "Overall retention (±2 weeks)" },
-  "rv.tapForCurve": { ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます", en: "Tap to see each word's forgetting curve and when you're predicted to forget it" },
+  "rv.tapForCurve": {
+    ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
+    en: "Tap to see each word's forgetting curve and when you're predicted to forget it",
+  },
   "rv.today": { ja: "今日", en: "Today" },
   "rv.retention": { ja: "記憶保持率", en: "Retention" },
   "rv.daysLater": { ja: "{n}日後", en: "in {n}d" },
   "rv.daysAgo": { ja: "{n}日前", en: "{n}d ago" },
   "rv.avgRetention": { ja: "平均記憶率", en: "Average retention" },
   "rv.dayN": { ja: "{n}日", en: "{n}d" },
-  "rv.formula1": { ja: "曲線は保持率 R = e−t/S(S = 間隔 × 定着度)。● の復習ごとに 100% へ回復し、", en: "The curve is retention R = e−t/S (S = interval × strength). Each ● review restores it to 100%, and" },
-  "rv.formula2": { ja: "正解すると S が伸びて坂が緩やかになります。", en: "getting it right grows S, flattening the slope." },
-  "rv.formula3": { ja: "付近が、思い出す努力が効く一番おいしい復習タイミングです。", en: "is the sweet spot where the effort of recall pays off most." },
+  "rv.formula1": {
+    ja: "曲線は保持率 R = e−t/S(S = 間隔 × 定着度)。● の復習ごとに 100% へ回復し、",
+    en: "The curve is retention R = e−t/S (S = interval × strength). Each ● review restores it to 100%, and",
+  },
+  "rv.formula2": {
+    ja: "正解すると S が伸びて坂が緩やかになります。",
+    en: "getting it right grows S, flattening the slope.",
+  },
+  "rv.formula3": {
+    ja: "付近が、思い出す努力が効く一番おいしい復習タイミングです。",
+    en: "is the sweet spot where the effort of recall pays off most.",
+  },
   "rv.greenLine": { ja: "緑の線(85%)", en: "The green line (85%)" },
-  "rv.noAsr": { ja: "このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。", en: "This browser doesn't support speech recognition. Please type in the box instead." },
-  "rv.notHeard": { ja: "音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。", en: "Couldn't catch that. Try speaking again, or type in the box below." },
+  "rv.noAsr": {
+    ja: "このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。",
+    en: "This browser doesn't support speech recognition. Please type in the box instead.",
+  },
+  "rv.notHeard": {
+    ja: "音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。",
+    en: "Couldn't catch that. Try speaking again, or type in the box below.",
+  },
   "rv.feedbackFailed": { ja: "AIフィードバックに失敗しました", en: "AI feedback failed" },
   "rv.targetAlt": { ja: "復習対象", en: "The word being reviewed" },
   "rv.readQuestion": { ja: "質問を読み上げ", en: "Read the question aloud" },
@@ -98,20 +145,32 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.otherLabel": { ja: "その他", en: "Other" },
   "card.reportError": { ja: "この語の誤りを報告", en: "Report an error in this entry" },
   "card.freqAria": { ja: "頻度 {n}/5", en: "Frequency {n}/5" },
-  "card.pronOfWord": { ja: "「{word}」の発音", en: "Pronunciation of \"{word}\"" },
+  "card.pronOfWord": { ja: "「{word}」の発音", en: 'Pronunciation of "{word}"' },
   "card.ytLabel": { ja: "YouTubeで聞く", en: "Hear it on YouTube" },
   "card.ytHint": { ja: "この単語が話されている動画", en: "Videos where this word is spoken" },
   "card.yglLabel": { ja: "YouGlishで発音例", en: "Pronunciation samples on YouGlish" },
   "card.yglHint": { ja: "動画の中の実際の発音(台湾)", en: "Real pronunciation in video (Taiwan)" },
   "card.dcardLabel": { ja: "Dcardで見る", en: "See it on Dcard" },
-  "card.dcardHint": { ja: "台湾の若者のSNSでの使われ方", en: "How young people in Taiwan use it on social media" },
+  "card.dcardHint": {
+    ja: "台湾の若者のSNSでの使われ方",
+    en: "How young people in Taiwan use it on social media",
+  },
   "card.newsLabel": { ja: "台湾ニュースで見る", en: "See it in Taiwanese news" },
-  "card.newsHint": { ja: "新聞・報道での使われ方", en: "How it's used in newspapers and reporting" },
+  "card.newsHint": {
+    ja: "新聞・報道での使われ方",
+    en: "How it's used in newspapers and reporting",
+  },
   "card.moeLabel": { ja: "教育部國語辭典簡編本", en: "MOE Concised Mandarin Dictionary" },
-  "card.moeHint": { ja: "台湾教育部の公式辞書(定義・注音)", en: "Taiwan's official MOE dictionary (definitions, Zhuyin)" },
+  "card.moeHint": {
+    ja: "台湾教育部の公式辞書(定義・注音)",
+    en: "Taiwan's official MOE dictionary (definitions, Zhuyin)",
+  },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": { ja: "カメラを起動できませんでした", en: "Couldn't start the camera" },
-  "scan.noVoice": { ja: "この端末は音声入力に対応していません。文字で入力してください。", en: "This device doesn't support voice input. Please type instead." },
+  "scan.noVoice": {
+    ja: "この端末は音声入力に対応していません。文字で入力してください。",
+    en: "This device doesn't support voice input. Please type instead.",
+  },
   "scan.noFrame": { ja: "フレームを取得できませんでした", en: "Couldn't grab a frame" },
   "scan.detectFailed": { ja: "検出に失敗しました", en: "Detection failed" },
   "scan.detailFailed": { ja: "詳細検出に失敗しました", en: "Detailed detection failed" },
@@ -119,13 +178,22 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "scan.detectMs": { ja: "検出 {ms}ms", en: "detect {ms}ms" },
   "scan.audioMs": { ja: "音声 {ms}ms", en: "audio {ms}ms" },
   "scan.whichOne": { ja: "どちらですか?", en: "Which one?" },
-  "scan.foundDaysAgoBefore": { ja: "✨ {n}日前に調べた「", en: "✨ You looked this up {n} day(s) ago: " },
-  "scan.foundDaysAgoAfter": { ja: "」だ! 撮って図鑑を完成させよう", en: " — shoot it to complete your dex" },
+  "scan.foundDaysAgoBefore": {
+    ja: "✨ {n}日前に調べた「",
+    en: "✨ You looked this up {n} day(s) ago: ",
+  },
+  "scan.foundDaysAgoAfter": {
+    ja: "」だ! 撮って図鑑を完成させよう",
+    en: " — shoot it to complete your dex",
+  },
   "scan.ownedTag": { ja: "取得済み", en: "Collected" },
   "scan.verified": { ja: "✓ 検証済み", en: "✓ Verified" },
   "scan.aiUnverified": { ja: "AI生成・未検証", en: "AI generated · unverified" },
   "scan.playPron": { ja: "発音を再生", en: "Play pronunciation" },
-  "scan.partsTitle": { ja: "この物体を構成する部品を追加検出", en: "Also detect the parts that make up this object" },
+  "scan.partsTitle": {
+    ja: "この物体を構成する部品を追加検出",
+    en: "Also detect the parts that make up this object",
+  },
   "scan.analyzingParts": { ja: "解析中…", en: "Analyzing…" },
   "scan.finer": { ja: "細かく", en: "Finer" },
   "card.title": { ja: "カード", en: "Card" },
@@ -137,9 +205,15 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.memoryCurve": { ja: "この単語の記憶曲線", en: "This word's memory curve" },
   "card.nextDue": { ja: "次回 {date}", en: "next {date}" },
   // --- 図鑑 ---
-  "dex.desc": { ja: "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。", en: "A dex of only the words you caught. Categories appear on their own from what you shoot." },
-  "dex.playPron": { ja: "「{word}」の発音を再生", en: "Play the pronunciation of \"{word}\"" },
-  "dex.seeOnMap": { ja: "「{word}」の場所を地図で見る", en: "See where \"{word}\" was caught on the map" },
+  "dex.desc": {
+    ja: "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。",
+    en: "A dex of only the words you caught. Categories appear on their own from what you shoot.",
+  },
+  "dex.playPron": { ja: "「{word}」の発音を再生", en: 'Play the pronunciation of "{word}"' },
+  "dex.seeOnMap": {
+    ja: "「{word}」の場所を地図で見る",
+    en: 'See where "{word}" was caught on the map',
+  },
   // --- 品詞グループ ---
   "pos.noun": { ja: "📛 名詞", en: "📛 Nouns" },
   "pos.verb": { ja: "🏃 動詞", en: "🏃 Verbs" },
@@ -204,9 +278,15 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cat.object": { ja: "📦 もの", en: "📦 Objects" },
   "cat.other": { ja: "✨ その他", en: "✨ Other" },
   // --- 集める・キャッチ・設定 ---
-  "cap.pendingNotFound": { ja: "保存されていた写真が見つかりませんでした", en: "Couldn't find the saved photo" },
+  "cap.pendingNotFound": {
+    ja: "保存されていた写真が見つかりませんでした",
+    en: "Couldn't find the saved photo",
+  },
   "cap.aiFailed": { ja: "AI処理に失敗しました", en: "AI processing failed" },
-  "cap.aiFailedRetry": { ja: "AI処理に失敗しました。もう一度お試しください。", en: "AI processing failed. Please try again." },
+  "cap.aiFailedRetry": {
+    ja: "AI処理に失敗しました。もう一度お試しください。",
+    en: "AI processing failed. Please try again.",
+  },
   "cap.cardFailed": { ja: "カード生成に失敗しました", en: "Couldn't build the card" },
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save" },
   "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that" },
@@ -222,17 +302,29 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cap.nextReview": { ja: " · 次の復習: {date}", en: " · next review: {date}" },
   "sheet.catch": { ja: "キャッチ", en: "Catch" },
   "sheet.noWordInfo": { ja: "単語情報を取得できませんでした", en: "Couldn't get the word details" },
-  "sheet.firstCatch": { ja: "はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", en: "Your first catch! Tomorrow I'll ask if you still remember it" },
-  "sheet.reunion": { ja: "再会! 自分の写真になりました✨", en: "Reunion! Now it's your own photo ✨" },
+  "sheet.firstCatch": {
+    ja: "はじめてのキャッチ! 明日、この単語を覚えてるか聞くね",
+    en: "Your first catch! Tomorrow I'll ask if you still remember it",
+  },
+  "sheet.reunion": {
+    ja: "再会! 自分の写真になりました✨",
+    en: "Reunion! Now it's your own photo ✨",
+  },
   "sheet.addedOne": { ja: "図鑑に1体増えました!", en: "One more in your dex!" },
   "sheet.cardAdded": { ja: "図鑑にカードが入りました!", en: "Card added to your dex!" },
-  "sheet.addedGhostFree": { ja: "図鑑に入りました。実物に出会ったら金色に光ります!", en: "Added to your dex. It turns gold when you meet the real thing!" },
+  "sheet.addedGhostFree": {
+    ja: "図鑑に入りました。実物に出会ったら金色に光ります!",
+    en: "Added to your dex. It turns gold when you meet the real thing!",
+  },
   "sheet.loading": { ja: "読み込み中…", en: "Loading…" },
   "sheet.verified": { ja: "✓ 検証済み", en: "✓ Verified" },
   "sheet.aiMade": { ja: "AI生成", en: "AI generated" },
   "sheet.optional": { ja: "(任意)", en: "(optional)" },
   "sheet.noteLabel": { ja: "一言感想", en: "A quick note" },
-  "sheet.notePlaceholder": { ja: "どこで見つけた?どんな気持ち?", en: "Where did you find it? How did it feel?" },
+  "sheet.notePlaceholder": {
+    ja: "どこで見つけた?どんな気持ち?",
+    en: "Where did you find it? How did it feel?",
+  },
   "sheet.selfieLabel": { ja: "一緒に自撮り", en: "Selfie with it" },
   "sheet.retakeSelfie": { ja: "撮り直す", en: "Retake" },
   "sheet.addSelfie": { ja: "自撮りを追加", en: "Add a selfie" },
@@ -248,15 +340,27 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "set.nativeAria": { ja: "母語", en: "Native language" },
   "set.uiLangAria": { ja: "表示言語", en: "App language" },
   "set.deleteWord": { ja: "削除", en: "DELETE" },
-  "set.qualitySamples": { ja: "直近{n}回のスキャンから算出(仕様§9の合格ライン)", en: "Computed from your last {n} scans (spec §9 pass line)" },
+  "set.qualitySamples": {
+    ja: "直近{n}回のスキャンから算出(仕様§9の合格ライン)",
+    en: "Computed from your last {n} scans (spec §9 pass line)",
+  },
   "set.placeLabel": { ja: "場所で思い出す", en: "Remember by place" },
   "set.placeChecking": { ja: "許可を確認しています…", en: "Checking permission…" },
-  "set.placeHint": { ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。", en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed." },
+  "set.placeHint": {
+    ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。",
+    en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed.",
+  },
   "set.aiProviderAria": { ja: "AI提供元", en: "AI provider" },
-  "set.aiEffective": { ja: "提供元 {p} / 速い系 {f} / 詳しい系 {r}", en: "Provider {p} / fast {f} / rich {r}" },
+  "set.aiEffective": {
+    ja: "提供元 {p} / 速い系 {f} / 詳しい系 {r}",
+    en: "Provider {p} / fast {f} / rich {r}",
+  },
   "set.keyMissing": { ja: "({env} 未設定)", en: "({env} not set)" },
   // --- ログイン・発音練習 ---
-  "auth.tagline": { ja: "街で出会う言葉を、ステッカーに。", en: "Turn the words you meet into stickers." },
+  "auth.tagline": {
+    ja: "街で出会う言葉を、ステッカーに。",
+    en: "Turn the words you meet into stickers.",
+  },
   "auth.signin": { ja: "ログイン", en: "Sign in" },
   "auth.signup": { ja: "新規登録", en: "Sign up" },
   "auth.email": { ja: "メールアドレス", en: "Email" },
@@ -269,13 +373,22 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "auth.agreeMid": { ja: "と", en: " and " },
   "auth.privacy": { ja: "プライバシーポリシー", en: "Privacy Policy" },
   "auth.agreeAfter": { ja: "に同意したものとみなします。", en: "." },
-  "auth.confirmSent": { ja: "確認メールを送りました。受信トレイをご確認ください。", en: "Confirmation email sent — please check your inbox." },
+  "auth.confirmSent": {
+    ja: "確認メールを送りました。受信トレイをご確認ください。",
+    en: "Confirmation email sent — please check your inbox.",
+  },
   "auth.failed": { ja: "サインインに失敗しました", en: "Sign-in failed" },
   "auth.googleFailed": { ja: "Googleサインインに失敗しました", en: "Google sign-in failed" },
   "auth.appleFailed": { ja: "Appleサインインに失敗しました", en: "Apple sign-in failed" },
   "pron.title": { ja: "発音練習", en: "Pronunciation practice" },
-  "pron.noTts": { ja: "このブラウザは音声合成に対応していません", en: "This browser doesn't support speech synthesis" },
-  "pron.noAsr": { ja: "このブラウザは音声認識に対応していません(iOS Safari / Chrome 推奨)", en: "This browser doesn't support speech recognition (try iOS Safari or Chrome)" },
+  "pron.noTts": {
+    ja: "このブラウザは音声合成に対応していません",
+    en: "This browser doesn't support speech synthesis",
+  },
+  "pron.noAsr": {
+    ja: "このブラウザは音声認識に対応していません(iOS Safari / Chrome 推奨)",
+    en: "This browser doesn't support speech recognition (try iOS Safari or Chrome)",
+  },
   "pron.asrError": { ja: "認識エラー: {e}", en: "Recognition error: {e}" },
   "pron.playNatural": { ja: "自然な速度で再生", en: "Play at natural speed" },
   "pron.slow": { ja: "ゆっくり", en: "Slow" },
@@ -293,7 +406,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "feed.popular": { ja: "人気", en: "Popular" },
   "feed.emptyFollowing": { ja: "まだ投稿がありません", en: "No posts yet" },
   "feed.emptyPopular": { ja: "人気の投稿はまだありません", en: "No popular posts yet" },
-  "feed.hintFollowing": { ja: "誰かをフォローするか、自分のカードをシェアしてみましょう。", en: "Follow someone, or share one of your own cards." },
+  "feed.hintFollowing": {
+    ja: "誰かをフォローするか、自分のカードをシェアしてみましょう。",
+    en: "Follow someone, or share one of your own cards.",
+  },
   "feed.hintPopular": { ja: "最初の投稿者になろう!", en: "Be the first to post!" },
   "feed.postFromDex": { ja: "図鑑から投稿", en: "Post from your dex" },
   "feed.like": { ja: "いいね", en: "Like" },
@@ -317,7 +433,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "user.someone": { ja: "ユーザー", en: "User" },
   "err.failed": { ja: "失敗しました", en: "Something went wrong" },
   "ob.title": { ja: "かざして、タップしてみて", en: "Point it, then tap" },
-  "ob.line1": { ja: "街で見たものにカメラをかざすと、", en: "Aim your camera at something on the street and" },
+  "ob.line1": {
+    ja: "街で見たものにカメラをかざすと、",
+    en: "Aim your camera at something on the street and",
+  },
   "ob.line2before": { ja: "その単語と発音が", en: "you'll see the word and how to say it " },
   "ob.line2strong": { ja: "瞬間的に", en: "instantly" },
   "ob.line2after": { ja: "分かります。", en: "." },
@@ -325,32 +444,53 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "ob.f2": { ja: "タップ = 発音が聞こえる", en: "Tap = hear it spoken" },
   "ob.f3": { ja: "撮る = 自分の図鑑に残る", en: "Shoot = keep it in your dex" },
   "ob.start": { ja: "スキャンをはじめる", en: "Start scanning" },
-  "ob.privacy": { ja: "カメラは「見たものの単語を教えるため」だけに使います", en: "The camera is only used to tell you the word for what you see" },
+  "ob.privacy": {
+    ja: "カメラは「見たものの単語を教えるため」だけに使います",
+    en: "The camera is only used to tell you the word for what you see",
+  },
   "ob.learner": { ja: "学習者", en: "Learner" },
   "ob.startFailed": { ja: "開始に失敗しました", en: "Could not get started" },
   "rp.title": { ja: "パスワード再設定", en: "Reset password" },
-  "rp.hintRequest": { ja: "登録メールアドレスにリンクを送ります。", en: "We'll email a link to your registered address." },
+  "rp.hintRequest": {
+    ja: "登録メールアドレスにリンクを送ります。",
+    en: "We'll email a link to your registered address.",
+  },
   "rp.hintUpdate": { ja: "新しいパスワードを入力してください。", en: "Enter your new password." },
   "rp.email": { ja: "メールアドレス", en: "Email" },
   "rp.sendLink": { ja: "再設定リンクを送る", en: "Send reset link" },
   "rp.newPassword": { ja: "新しいパスワード", en: "New password" },
   "rp.update": { ja: "パスワードを更新", en: "Update password" },
   "rp.backToLogin": { ja: "ログイン画面に戻る", en: "Back to sign in" },
-  "rp.sent": { ja: "再設定リンクをメールで送りました。", en: "Reset link sent — check your email." },
+  "rp.sent": {
+    ja: "再設定リンクをメールで送りました。",
+    en: "Reset link sent — check your email.",
+  },
   "rp.sendFailed": { ja: "送信に失敗しました", en: "Could not send" },
   "rp.updated": { ja: "パスワードを更新しました。", en: "Password updated." },
   "rp.updateFailed": { ja: "更新に失敗しました", en: "Could not update" },
   "root.notFound": { ja: "ページが見つかりません", en: "Page not found" },
-  "root.notFoundHint": { ja: "指定されたページは存在しないか、移動された可能性があります。", en: "This page doesn't exist, or it may have moved." },
+  "root.notFoundHint": {
+    ja: "指定されたページは存在しないか、移動された可能性があります。",
+    en: "This page doesn't exist, or it may have moved.",
+  },
   "root.toHome": { ja: "ホームへ", en: "Go home" },
   "root.loadFailed": { ja: "読み込みに失敗しました", en: "Failed to load" },
-  "root.loadFailedHint": { ja: "少し時間を置いてもう一度お試しください。", en: "Please wait a moment and try again." },
+  "root.loadFailedHint": {
+    ja: "少し時間を置いてもう一度お試しください。",
+    en: "Please wait a moment and try again.",
+  },
   "root.retry": { ja: "再試行", en: "Retry" },
   // --- 発見・投稿・日記 ---
   "discover.title": { ja: "発見", en: "Discover" },
-  "discover.search": { ja: "ユーザー名 / 単語 / 意味で検索", en: "Search users, words or meanings" },
+  "discover.search": {
+    ja: "ユーザー名 / 単語 / 意味で検索",
+    en: "Search users, words or meanings",
+  },
   "discover.ranking": { ja: "ランキング", en: "Leaderboard" },
-  "discover.rankingEmpty": { ja: "まだランキングデータがありません。", en: "No leaderboard data yet." },
+  "discover.rankingEmpty": {
+    ja: "まだランキングデータがありません。",
+    en: "No leaderboard data yet.",
+  },
   "discover.stats": { ja: "{words} 単語 · {posts} 投稿", en: "{words} words · {posts} posts" },
   "discover.users": { ja: "ユーザー", en: "Users" },
   "discover.noUsers": { ja: "該当ユーザーなし", en: "No matching users" },
@@ -366,7 +506,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "post.sendComment": { ja: "コメントを送信", en: "Send comment" },
   "journal.title": { ja: "日記", en: "Journal" },
   "journal.today": { ja: "今日の日記", en: "Today's entry" },
-  "journal.intro": { ja: "今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。", en: "Write about a photo you took today, in the language you're learning. AI corrects it and shows the natural phrasing and sentence patterns a native would use." },
+  "journal.intro": {
+    ja: "今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。",
+    en: "Write about a photo you took today, in the language you're learning. AI corrects it and shows the natural phrasing and sentence patterns a native would use.",
+  },
   "journal.placeholder": { ja: "例: 今天早上我去咖啡店…", en: "e.g. 今天早上我去咖啡店…" },
   "journal.correcting": { ja: "添削中…", en: "Reviewing…" },
   "journal.askCorrect": { ja: "AIに添削してもらう", en: "Ask AI to review" },
@@ -393,8 +536,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "place.rememberBefore": { ja: "「", en: "Remember “" },
   "place.rememberAfter": { ja: "」覚えてる?", en: "”?" },
   // --- 場所の思い出し・共通 ---
-  "place.remember": { ja: "「{word}」覚えてる?", en: "Remember \"{word}\"?" },
-  "place.caughtHere": { ja: "{when}、{where}撮った言葉{meaning}", en: "A word you caught {where} {when}{meaning}" },
+  "place.remember": { ja: "「{word}」覚えてる?", en: 'Remember "{word}"?' },
+  "place.caughtHere": {
+    ja: "{when}、{where}撮った言葉{meaning}",
+    en: "A word you caught {where} {when}{meaning}",
+  },
   "place.hereAbouts": { ja: "この辺りで", en: "around here" },
   "place.atPlace": { ja: "{name}で", en: "at {name}" },
   "place.yearsAgo": { ja: "{n}年前", en: "{n} year(s) ago" },
@@ -402,10 +548,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "place.daysAgo": { ja: "{n}日前", en: "{n} day(s) ago" },
   "common.card": { ja: "カード", en: "Card" },
   "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
-  "common.photoOf": { ja: "「{word}」の写真", en: "Photo of \"{word}\"" },
-  "common.imageOf": { ja: "「{word}」の画像", en: "Image for \"{word}\"" },
-  "common.stickerOf": { ja: "「{word}」のステッカー", en: "Sticker for \"{word}\"" },
-  "common.memoryOf": { ja: "「{word}」の思い出", en: "Memory of \"{word}\"" },
+  "common.photoOf": { ja: "「{word}」の写真", en: 'Photo of "{word}"' },
+  "common.imageOf": { ja: "「{word}」の画像", en: 'Image for "{word}"' },
+  "common.stickerOf": { ja: "「{word}」のステッカー", en: 'Sticker for "{word}"' },
+  "common.memoryOf": { ja: "「{word}」の思い出", en: 'Memory of "{word}"' },
   "common.mapTitle": { ja: "撮影場所のマップ", en: "Map of where it was taken" },
   "common.shotHere": { ja: "撮影地", en: "Where it was taken" },
   "common.selfieOf": { ja: "撮影者の自撮り", en: "Selfie of the person who caught it" },
@@ -417,22 +563,34 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "err.generateFailed": { ja: "生成に失敗しました", en: "Could not generate" },
   // --- ワードツリー・画像選択 ---
   "tree.title": { ja: "ワードツリー", en: "Word tree" },
-  "tree.branches": { ja: "枝 {done}/{total} 本 · 復習ごとに1本育つ", en: "{done} of {total} branches · one grows per review" },
+  "tree.branches": {
+    ja: "枝 {done}/{total} 本 · 復習ごとに1本育つ",
+    en: "{done} of {total} branches · one grows per review",
+  },
   "tree.locked": { ja: "あと{n}本 · 復習で解禁", en: "{n} more · unlocked by reviewing" },
-  "tree.tapHint": { ja: "枝をタップすると、その言葉を新しい木としてキャッチできます", en: "Tap a branch to catch that word as a new tree" },
+  "tree.tapHint": {
+    ja: "枝をタップすると、その言葉を新しい木としてキャッチできます",
+    en: "Tap a branch to catch that word as a new tree",
+  },
   "tree.collocation": { ja: "つながり", en: "Goes with" },
   "tree.example": { ja: "例文", en: "Example" },
   "tree.synonym": { ja: "類義", en: "Similar" },
   "tree.antonym": { ja: "反義", en: "Opposite" },
-  "img.searchFor": { ja: "「{q}」の画像を探す", en: "Find images for \"{q}\"" },
+  "img.searchFor": { ja: "「{q}」の画像を探す", en: 'Find images for "{q}"' },
   "img.ownPhoto": { ja: "自分の写真", en: "My photo" },
-  "img.notFound": { ja: "画像が見つかりませんでした。別のキーワードで試すか、自分の写真をアップロードしてください。", en: "No images found. Try another keyword, or upload your own photo." },
+  "img.notFound": {
+    ja: "画像が見つかりませんでした。別のキーワードで試すか、自分の写真をアップロードしてください。",
+    en: "No images found. Try another keyword, or upload your own photo.",
+  },
   "img.candidate": { ja: "候補", en: "Candidate" },
   // --- 忘却曲線 ---
   "curve.strong": { ja: "しっかり覚えている", en: "Solid in memory" },
   "curve.fading": { ja: "そろそろ忘れそう", en: "Starting to fade" },
   "curve.weak": { ja: "もう忘れかけ", en: "Nearly forgotten" },
-  "curve.empty": { ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。", en: "No review data yet. Review this word and its forgetting curve will appear here." },
+  "curve.empty": {
+    ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。",
+    en: "No review data yet. Review this word and its forgetting curve will appear here.",
+  },
   "curve.nowPct": { ja: "今 {pct}%", en: "now {pct}%" },
   "curve.retention": { ja: "記憶率", en: "Retention" },
   "curve.days": { ja: "{n}日", en: "day {n}" },
@@ -483,7 +641,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.signout": { ja: "サインアウト", en: "Sign out" },
   // --- capture ---
   "capture.photoTitle": { ja: "写真で集める", en: "Catch with a photo" },
-  "capture.photoHint": { ja: "街で見つけたモノにカメラを向けてみてください。", en: "Point your camera at something you found." },
+  "capture.photoHint": {
+    ja: "街で見つけたモノにカメラを向けてみてください。",
+    en: "Point your camera at something you found.",
+  },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot" },
   "capture.typeWord": { ja: "単語を文字で入力", en: "Type a word instead" },
   "capture.or": { ja: "または", en: "or" },
@@ -606,14 +767,20 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "この画像が違うときは、別の画像を選べます",
     en: "Not the right picture? Pick another one",
   },
-  "card.findingImage": { ja: "🌐 画像をネットから探しています…", en: "🌐 Finding an image online…" },
+  "card.findingImage": {
+    ja: "🌐 画像をネットから探しています…",
+    en: "🌐 Finding an image online…",
+  },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…" },
   "card.reportPrompt": {
     ja: "意味や発音が変? 報告してAIに直させる",
     en: "Wrong meaning or reading? Report and let AI fix it",
   },
   "card.reportFixing": { ja: "AIが作り直し中…", en: "AI is rebuilding…" },
-  "card.reportDone": { ja: "報告ありがとう。AIが作り直しました", en: "Thanks — AI rebuilt this card" },
+  "card.reportDone": {
+    ja: "報告ありがとう。AIが作り直しました",
+    en: "Thanks — AI rebuilt this card",
+  },
   "card.reportFailed": { ja: "報告に失敗しました", en: "Could not send the report" },
   "card.otherImages": { ja: "別の画像", en: "Other images" },
   "card.useThisImage": { ja: "この画像にする", en: "Use this image" },
@@ -631,14 +798,20 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう",
     en: "Listening… repeat the phrase you heard",
   },
-  "input.micHint": { ja: "マイクで復唱するか、下の欄で認識結果を直せます", en: "Speak, or fix the text below" },
+  "input.micHint": {
+    ja: "マイクで復唱するか、下の欄で認識結果を直せます",
+    en: "Speak, or fix the text below",
+  },
   "input.textHint": {
     ja: "台湾華語でも日本語でもOK(日本語は自動で台湾華語に変換されます)",
     en: "Type in Mandarin or your own language — we'll convert it",
   },
   "input.word": { ja: "単語", en: "Word" },
   "input.phrase": { ja: "フレーズ", en: "Phrase" },
-  "input.scene": { ja: "シーン: どこで・誰が・何と言った?(任意)", en: "Scene: where / who / what was said (optional)" },
+  "input.scene": {
+    ja: "シーン: どこで・誰が・何と言った?(任意)",
+    en: "Scene: where / who / what was said (optional)",
+  },
   "input.lookup": { ja: "調べてカードにする", en: "Look up & make a card" },
   "input.looking": { ja: "辞書とAIが調べています…", en: "Checking the dictionary and AI…" },
   "input.attach": { ja: "画像を添付(任意)", en: "Attach an image (optional)" },
@@ -678,7 +851,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "Tap a photo to zoom the map there. Tap a round photo on the map to open the word.",
   },
   "dex.withLocation": { ja: "場所付きの単語", en: "Words with a location" },
-  "dex.mapUnavailable": { ja: "地図の連携が完了していません。", en: "Maps are not configured yet." },
+  "dex.mapUnavailable": {
+    ja: "地図の連携が完了していません。",
+    en: "Maps are not configured yet.",
+  },
   "dex.items": { ja: "件", en: "" },
   // --- settings (admin) ---
   "settings.devOnly": {
@@ -699,7 +875,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "APIキーは環境変数に置いたまま切り替わります(DBに鍵は保存しません)。",
     en: "API keys stay in environment variables — never stored in the database.",
   },
-  "settings.aiFast": { ja: "速い系(スキャン・候補・4択の生成)", en: "Fast (scan, candidates, quiz)" },
+  "settings.aiFast": {
+    ja: "速い系(スキャン・候補・4択の生成)",
+    en: "Fast (scan, candidates, quiz)",
+  },
   "settings.aiRich": { ja: "詳しい系(カード・添削)", en: "Rich (cards, corrections)" },
   "settings.aiPremium": { ja: "Pro ユーザー用", en: "For Pro users" },
   "settings.aiApply": { ja: "この設定で動かす", en: "Run with these settings" },
@@ -771,7 +950,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "確認のため「削除」と入力してください",
     en: "Type 削除 to confirm",
   },
-  "settings.deleteButton": { ja: "アカウントを完全に削除する", en: "Permanently delete my account" },
+  "settings.deleteButton": {
+    ja: "アカウントを完全に削除する",
+    en: "Permanently delete my account",
+  },
   "settings.deleting": { ja: "削除しています…", en: "Deleting…" },
   "settings.deleteDone": {
     ja: "アカウントを削除しました。ご利用ありがとうございました。",
@@ -791,16 +973,25 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "review.memoryLoading": { ja: "記憶データを準備中です。", en: "Preparing memory data…" },
   "review.scene": { ja: "シーン: ", en: "Scene: " },
   "review.todaysPattern": { ja: "今日の型", en: "Today's pattern" },
-  "review.usePattern": { ja: "この型を入れて一文話してみよう", en: "Use this pattern in one sentence" },
+  "review.usePattern": {
+    ja: "この型を入れて一文話してみよう",
+    en: "Use this pattern in one sentence",
+  },
   "review.teacherQ": { ja: "先生の質問", en: "Your teacher asks" },
-  "review.hintsLabel": { ja: "ヒント(型・チャンク・文法)", en: "Hints (patterns, chunks, grammar)" },
+  "review.hintsLabel": {
+    ja: "ヒント(型・チャンク・文法)",
+    en: "Hints (patterns, chunks, grammar)",
+  },
   "review.buildYourOwn": {
     ja: "これを使って自分の一文を組み立ててみよう(答えはまだ見せません)",
     en: "Build your own sentence with these (the answer stays hidden)",
   },
   "review.yourNote": { ja: "💭 あなたのメモ:", en: "💭 Your note:" },
   "review.mixFeeling": { ja: "— この気持ちも混ぜてみよう", en: "— work this feeling in too" },
-  "review.promptSpeak": { ja: "この時のことを、単語を使って一文で", en: "Say one sentence about this moment" },
+  "review.promptSpeak": {
+    ja: "この時のことを、単語を使って一文で",
+    en: "Say one sentence about this moment",
+  },
   "review.promptPhrase": { ja: "この場面、どう返す?", en: "How would you reply here?" },
   "review.recognitionHint": {
     ja: "音声認識のミスはここで直せます(直接入力もOK)",
@@ -829,7 +1020,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "review.useTarget": { ja: "を使ってみよう", en: "— try using this word" },
   "review.naturalness": { ja: "自然さ", en: "Naturalness" },
   // --- capture flow ---
-  "capture.selfieTitle": { ja: "ステップ 2: 自撮りを撮る(任意)", en: "Step 2: Take a selfie (optional)" },
+  "capture.selfieTitle": {
+    ja: "ステップ 2: 自撮りを撮る(任意)",
+    en: "Step 2: Take a selfie (optional)",
+  },
   "capture.selfieHint": {
     ja: "対象物と一緒に自分も撮ると、後で振り返るときに記憶が蘇ります。",
     en: "A photo of you with the thing makes the memory much easier to recall.",
@@ -845,7 +1039,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "capture.otherWord": { ja: "違う単語を入力", en: "Type a different word" },
   "capture.useThis": { ja: "これにする", en: "Use this" },
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie" },
-  "capture.flipHint": { ja: "画像をタップで自撮りにフリップ", en: "Tap the photo to flip to your selfie" },
+  "capture.flipHint": {
+    ja: "画像をタップで自撮りにフリップ",
+    en: "Tap the photo to flip to your selfie",
+  },
   "capture.note": { ja: "一言メモ(任意)", en: "A quick note (optional)" },
   "capture.notePlaceholder": { ja: "どんな場面で出会った?", en: "Where did you run into it?" },
   "capture.addToDex": { ja: "図鑑に追加", en: "Add to the dex" },
@@ -860,11 +1057,20 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "capture.toHome": { ja: "ホームへ", en: "Go Home" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another" },
   "capture.reunion": { ja: "再会!", en: "Reunion!" },
-  "capture.rememberQ": { ja: "意味、覚えてる? — タップして答え合わせ", en: "Do you remember it? — tap to check" },
+  "capture.rememberQ": {
+    ja: "意味、覚えてる? — タップして答え合わせ",
+    en: "Do you remember it? — tap to check",
+  },
   "capture.remembered": { ja: "覚えてた！", en: "I remembered!" },
   "capture.forgot": { ja: "忘れてた…", en: "I forgot…" },
-  "capture.reviewBest": { ja: "現実世界での復習、最強です 🎉", en: "Real-world review — the strongest kind 🎉" },
-  "capture.willAsk": { ja: "大丈夫、明日また出題します", en: "No worries — we'll ask again tomorrow" },
+  "capture.reviewBest": {
+    ja: "現実世界での復習、最強です 🎉",
+    en: "Real-world review — the strongest kind 🎉",
+  },
+  "capture.willAsk": {
+    ja: "大丈夫、明日また出題します",
+    en: "No worries — we'll ask again tomorrow",
+  },
   "capture.shootAnother": { ja: "別のものを撮る", en: "Shoot something else" },
   "capture.seeInDex": { ja: "図鑑で見る", en: "See it in the dex" },
   "home.pendingCta": { ja: "タップしてAI解析を再開する", en: "Tap to resume AI analysis" },
@@ -927,7 +1133,14 @@ export type Vars = Record<string, string | number>;
  */
 export function useT(): (key: string, vars?: Vars) => string {
   const lang = useUiLang();
-  return (key, vars) => fill(DICT[key]?.[lang] ?? DICT[key]?.ja ?? key, vars);
+  // useCallback で包む理由: 毎回新しい関数を返すと、t を useEffect や
+  // useCallback の依存に入れた途端に毎レンダー再実行される。逆に依存から
+  // 外すと eslint に怒られ、言語を切り替えても中の文が古いままになる。
+  // 言語ごとに1つの関数にしておけば、依存に素直に入れられる。
+  return useCallback(
+    (key: string, vars?: Vars) => fill(DICT[key]?.[lang] ?? DICT[key]?.ja ?? key, vars),
+    [lang],
+  );
 }
 
 /**

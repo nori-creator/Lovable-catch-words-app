@@ -16,8 +16,12 @@ type OAuthAuthorization = {
   scope?: string;
 };
 type OAuthNamespace = {
-  getAuthorizationDetails(id: string): Promise<{ data: OAuthAuthorization | null; error: Error | null }>;
-  approveAuthorization(id: string): Promise<{ data: OAuthAuthorization | null; error: Error | null }>;
+  getAuthorizationDetails(
+    id: string,
+  ): Promise<{ data: OAuthAuthorization | null; error: Error | null }>;
+  approveAuthorization(
+    id: string,
+  ): Promise<{ data: OAuthAuthorization | null; error: Error | null }>;
   denyAuthorization(id: string): Promise<{ data: OAuthAuthorization | null; error: Error | null }>;
 };
 function oauthNs(): OAuthNamespace {
@@ -94,9 +98,7 @@ function Consent() {
         <h1 className="text-xl font-semibold tracking-tight">
           {t("oauth.connectTitle", { client: clientName })}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("oauth.explain")}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("oauth.explain")}</p>
         {details?.redirect_uri && (
           <p className="mt-3 text-xs text-muted-foreground break-all">
             {t("oauth.redirectTo")} <span className="font-mono">{details.redirect_uri}</span>
@@ -107,9 +109,7 @@ function Consent() {
           <li>{t("oauth.scope2")}</li>
           <li>{t("oauth.scope3")}</li>
         </ul>
-        <p className="mt-4 text-xs text-muted-foreground">
-          {t("oauth.rlsNote")}
-        </p>
+        <p className="mt-4 text-xs text-muted-foreground">{t("oauth.rlsNote")}</p>
         {err && (
           <p role="alert" className="mt-3 text-sm text-destructive">
             {err}

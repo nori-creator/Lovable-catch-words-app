@@ -24,8 +24,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Read stored value once on client
   useEffect(() => {
-    const stored = (typeof localStorage !== "undefined" && localStorage.getItem("theme")) as Theme | null;
-    const initial: Theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
+    const stored = (typeof localStorage !== "undefined" &&
+      localStorage.getItem("theme")) as Theme | null;
+    const initial: Theme =
+      stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
     setThemeState(initial);
   }, []);
 
@@ -50,7 +52,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   function setTheme(t: Theme) {
     setThemeState(t);
-    try { localStorage.setItem("theme", t); } catch { /* ignore */ }
+    try {
+      localStorage.setItem("theme", t);
+    } catch {
+      /* ignore */
+    }
   }
 
   return <Ctx.Provider value={{ theme, resolved, setTheme }}>{children}</Ctx.Provider>;

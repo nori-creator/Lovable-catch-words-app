@@ -5,13 +5,14 @@ description: Apple's Human Interface Guidelines translated for the web — the f
 
 # Apple Design (Human Interface Guidelines)
 
-This skill is a working translation of **Apple's Human Interface Guidelines** — its structure, its principles, and its component-level rules — into this web app (React, Tailwind, CSS, Pointer Events, spring libraries). It also keeps the deep *Designing Fluid Interfaces* motion craft, because motion is where the HIG's "immediate feedback" and "depth" principles become real.
+This skill is a working translation of **Apple's Human Interface Guidelines** — its structure, its principles, and its component-level rules — into this web app (React, Tailwind, CSS, Pointer Events, spring libraries). It also keeps the deep _Designing Fluid Interfaces_ motion craft, because motion is where the HIG's "immediate feedback" and "depth" principles become real.
 
 Use it two ways:
+
 1. **Top-down, when designing** — reason down the six layers (below) so every choice is anchored to intent, not decoration.
 2. **As an evaluation checklist, when reviewing** — score any screen against the core principles and the component rules.
 
-> The goal, in Apple's words: *"When we align the interface to the way we think and move, it stops feeling like a computer and starts feeling like a seamless extension of us."* Everything here serves that.
+> The goal, in Apple's words: _"When we align the interface to the way we think and move, it stops feeling like a computer and starts feeling like a seamless extension of us."_ Everything here serves that.
 
 ---
 
@@ -21,7 +22,7 @@ Use it two ways:
 
 The HIG is organized as a hierarchy. Design in this order; never start at the component layer.
 
-1. **Platforms** — the context of use. This app is a *mobile-first web app* used one-handed, in the world (scanning signs, on the go), in variable light. Optimize for glanceability, thumb reach, and interruption.
+1. **Platforms** — the context of use. This app is a _mobile-first web app_ used one-handed, in the world (scanning signs, on the go), in variable light. Optimize for glanceability, thumb reach, and interruption.
 2. **Foundations** — the non-negotiable substrate: layout & safe areas, color, typography, iconography, accessibility, writing. Get these right and most screens are already 80% good.
 3. **Patterns** — recurring user goals: navigation, search, onboarding, feedback, loading, entering data, modality, undo. Pick the established pattern before inventing.
 4. **Components** — the concrete UI: buttons, tab bars, sheets, lists, fields, cards. Compose from a consistent set.
@@ -34,17 +35,17 @@ Every screen must pass all three:
 
 - **Clarity.** Text legible at every size; icons precise; adornment subordinate to function; a sharp focus on what matters. Negative space, color, and type create hierarchy — the most important thing is the most obvious.
 - **Deference.** The UI defers to the content. Fluid motion and translucency help without competing. No unnecessary chrome, no gratuitous decoration stealing attention from the user's words, photos, and map.
-- **Depth.** Distinct visual layers and realistic motion convey hierarchy, impart vitality, and aid understanding — a sheet sits *above* content, a scan overlay sits *above* the camera. Depth is meaning, not ornament.
+- **Depth.** Distinct visual layers and realistic motion convey hierarchy, impart vitality, and aid understanding — a sheet sits _above_ content, a scan overlay sits _above_ the camera. Depth is meaning, not ornament.
 
 ### The evaluation principles (score against these)
 
-| Principle | Question to ask of every screen |
-| --- | --- |
-| **Value & Focus** | Does this earn the user's time, attention, and trust? What did we choose *not* to build here? |
-| **Freedom & Recovery** | Can the user explore without fear? Is every slip trivially undoable? Are confirmations reserved for the genuinely destructive? |
-| **Familiarity** | Does it behave the way people already expect (metaphors, standard positions, standard gestures)? If it breaks a convention, can we prove it's better? |
-| **Immediate Feedback** | Does every action produce an instant, legible, proportionate response — on press, during, and at completion? |
-| **Consistency** | Do same-looking things behave the same and live in the same place across the app? |
+| Principle              | Question to ask of every screen                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Value & Focus**      | Does this earn the user's time, attention, and trust? What did we choose _not_ to build here?                                                         |
+| **Freedom & Recovery** | Can the user explore without fear? Is every slip trivially undoable? Are confirmations reserved for the genuinely destructive?                        |
+| **Familiarity**        | Does it behave the way people already expect (metaphors, standard positions, standard gestures)? If it breaks a convention, can we prove it's better? |
+| **Immediate Feedback** | Does every action produce an instant, legible, proportionate response — on press, during, and at completion?                                          |
+| **Consistency**        | Do same-looking things behave the same and live in the same place across the app?                                                                     |
 
 If a design fails one of these, fix that before polishing pixels.
 
@@ -70,17 +71,21 @@ If a design fails one of these, fix that before polishing pixels.
 
 ### 3. Typography
 
-(From *The Details of UI Typography* + HIG type foundations.)
+(From _The Details of UI Typography_ + HIG type foundations.)
 
 - **Default to the system font** (`system-ui`) — it ships optical sizing, tracking tables, and legibility tuning for free. Override only with a defensible reason.
-- **Support Dynamic Type.** Respect the user's text-size preference; scale layout *with* the text (spacing in `rem`/`em`). Nothing clips or overlaps at the largest setting.
-- **Tracking (letter-spacing) is size-specific — never one value for all sizes.** Large display text wants *negative* tracking; small text wants slightly *positive*. Tighten headings (`-0.02em`), keep body near `0`.
+- **Support Dynamic Type.** Respect the user's text-size preference; scale layout _with_ the text (spacing in `rem`/`em`). Nothing clips or overlaps at the largest setting.
+- **Tracking (letter-spacing) is size-specific — never one value for all sizes.** Large display text wants _negative_ tracking; small text wants slightly _positive_. Tighten headings (`-0.02em`), keep body near `0`.
 - **Leading (line-height) tracks size inversely.** Tight on large headings (~1.05), looser on body (~1.5).
 - **Hierarchy from weight + size + leading as a set,** not size alone. Weight adds emphasis without taking space.
 - **Minimum comfortable body size; never below legibility.** Don't shrink text to fit — reflow instead.
 
 ```css
-:root { font: 100%/1.5 system-ui, sans-serif; }
+:root {
+  font:
+    100%/1.5 system-ui,
+    sans-serif;
+}
 .display {
   font-size: clamp(2rem, 5vw, 4rem);
   line-height: 1.05;
@@ -135,7 +140,7 @@ If a design fails one of these, fix that before polishing pixels.
 
 - **Use modality sparingly** — only when focus genuinely must be captured. Prefer non-blocking, inline flows.
 - **Every modal task is escapable** (cancel + swipe-down) and states the cost of leaving if there's unsaved work.
-- **Design for Freedom & Recovery:** easy, forgiving undo for slips; a confirmation dialog *only* for genuinely destructive, irreversible actions. Overusing confirmations trains people to click through them.
+- **Design for Freedom & Recovery:** easy, forgiving undo for slips; a confirmation dialog _only_ for genuinely destructive, irreversible actions. Overusing confirmations trains people to click through them.
 
 ---
 
@@ -151,7 +156,7 @@ If a design fails one of these, fix that before polishing pixels.
 ### 12. Lists, cards, sheets
 
 - **Lists:** clear row hierarchy, adequate touch height, trailing accessory (chevron / control) where it acts. Right-align a per-row action (e.g. the pronunciation button) so the thumb finds it.
-- **Sheets (vaul/Drawer):** drag-to-dismiss with momentum projection; a translucent material above a dimming scrim for a focused task, or an offset non-blocking panel *without* a scrim for a parallel one. Round the top corners; respect the bottom safe area.
+- **Sheets (vaul/Drawer):** drag-to-dismiss with momentum projection; a translucent material above a dimming scrim for a focused task, or an offset non-blocking panel _without_ a scrim for a parallel one. Round the top corners; respect the bottom safe area.
 - **Cards** group related content; keep internal padding and radius consistent across the app.
 
 ---
@@ -164,7 +169,7 @@ This is where Deference, Depth, and Immediate Feedback are won or lost. Springs 
 
 Apple's modern material is **Liquid Glass** — a dynamic, translucent layer that refracts and reflects its surroundings. On the web, approximate with `backdrop-filter`, and follow the discipline that keeps it legible:
 
-- **Glass is for the transient functional layer only** — navigation, toolbars, sheets, popovers, controls that float *above* content. **Never build the content layer itself out of glass.** If everything is glass, nothing reads as elevated.
+- **Glass is for the transient functional layer only** — navigation, toolbars, sheets, popovers, controls that float _above_ content. **Never build the content layer itself out of glass.** If everything is glass, nothing reads as elevated.
 - **Content scrolls under translucent chrome** — build nav/tab bars/sheets as `backdrop-filter: blur()` + a semi-transparent background, not opaque strips.
 - **Never stack a light translucent surface directly on another** — legibility collapses. One glass layer over solid content.
 - **Keep foreground content vivid.** Text and glyphs over glass need higher contrast, slightly heavier weight, and a small tracking bump — never flat mid-gray. Put color on a solid layer, not the translucent foreground. (Avoid the equivalent of Apple's "no quaternary fill on thin material" — don't put your faintest tint on your thinnest glass.)
@@ -180,7 +185,10 @@ Apple's modern material is **Liquid Glass** — a dynamic, translucent layer tha
   border-top: 1px solid rgba(255, 255, 255, 0.4); /* bright top edge = light on the material */
 }
 @media (prefers-reduced-transparency: reduce) {
-  .toolbar { background: white; backdrop-filter: none; }
+  .toolbar {
+    background: white;
+    backdrop-filter: none;
+  }
 }
 ```
 
@@ -190,10 +198,13 @@ Response is the foundation of Immediate Feedback. Lag makes directness "fall off
 
 - **Respond on pointer-down, not on release.** Highlight the instant a control is pressed.
 - **Audit every latency** — debounces, artificial timers, transition waits, the ~300ms tap delay.
-- **Feedback is continuous *during* the interaction** — a drag/slider/drawer updates 1:1 with the pointer the whole way, not only at the end.
+- **Feedback is continuous _during_ the interaction** — a drag/slider/drawer updates 1:1 with the pointer the whole way, not only at the end.
 
 ```css
-.button:active { transform: scale(0.97); transition: transform 100ms ease-out; }
+.button:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
+}
 ```
 
 ### 15. Direct manipulation — 1:1 tracking
@@ -221,25 +232,27 @@ Think in two designer parameters, not mass/stiffness/damping:
 
 **Defaults:** start most UI at **damping `1.0`**; add bounce (**~`0.8`**) **only when the gesture carried momentum** (a flick/throw/drag-release).
 
-| Interaction | Damping | Response |
-| --- | --- | --- |
-| Move / reposition | `1.0` | `0.4` |
-| Rotation | `0.8` | `0.4` |
-| Drawer / sheet | `0.8` | `0.3` |
+| Interaction       | Damping | Response |
+| ----------------- | ------- | -------- |
+| Move / reposition | `1.0`   | `0.4`    |
+| Rotation          | `0.8`   | `0.4`    |
+| Drawer / sheet    | `0.8`   | `0.3`    |
 
 ```js
-import { animate } from 'motion';
-animate(el, { y: 0 },      { type: 'spring', bounce: 0,   duration: 0.4 }); // default
-animate(el, { y: target }, { type: 'spring', bounce: 0.2, duration: 0.4 }); // after a flick
+import { animate } from "motion";
+animate(el, { y: 0 }, { type: "spring", bounce: 0, duration: 0.4 }); // default
+animate(el, { y: target }, { type: "spring", bounce: 0.2, duration: 0.4 }); // after a flick
 ```
 
 ### 18. Velocity handoff & momentum projection
 
 - **Velocity handoff:** when a gesture ends, the animation continues at the finger's exact velocity — no seam. Pass release velocity as the spring's initial velocity (normalize by remaining distance if the API wants relative velocity: `gestureVelocity / (target − current)`).
-- **Momentum projection:** don't snap from the release point — project where the flick is *going*, then snap to the nearest target to that projected point.
+- **Momentum projection:** don't snap from the release point — project where the flick is _going_, then snap to the nearest target to that projected point.
 
 ```js
-function project(v /* px/s */, decel = 0.998) { return (v / 1000) * decel / (1 - decel); }
+function project(v /* px/s */, decel = 0.998) {
+  return ((v / 1000) * decel) / (1 - decel);
+}
 const target = nearestSnapPoint(currentPosition + project(releaseVelocity));
 animateSpringTo(target, { velocity: releaseVelocity });
 ```
@@ -259,7 +272,7 @@ function rubberband(overshoot, dim, k = 0.55) {
 
 ### 20. Multimodal feedback & frame-level smoothness
 
-- **Causality, harmony, utility:** feedback fires on the causal event, the visual + sound + haptic land on the *same frame*, and you add it only where it earns its place (success/error/commit/snap).
+- **Causality, harmony, utility:** feedback fires on the causal event, the visual + sound + haptic land on the _same frame_, and you add it only where it earns its place (success/error/commit/snap).
 - Animate compositor-friendly props (`transform`, `opacity`), hint with `will-change`, drive with `requestAnimationFrame`. For very fast motion a subtle blur/stretch reads better than a sharp streak.
 
 ---
@@ -278,7 +291,10 @@ Accessibility is a Foundation, not a feature. Build it into every component.
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  .sheet { transition: opacity 200ms ease; transform: none !important; }
+  .sheet {
+    transition: opacity 200ms ease;
+    transform: none !important;
+  }
 }
 ```
 
@@ -290,15 +306,15 @@ The app's AI features (word enrichment, scan analysis, TTS, issue auto-fix) are 
 
 ### 21. Responsible AI — four commitments
 
-1. **Control.** The user stays in charge. AI *proposes*; the user disposes. Offer a way to edit, dismiss, regenerate, or report a bad result (this app's per-word "間違い報告" button). Never take an irreversible action from an AI result without confirmation.
+1. **Control.** The user stays in charge. AI _proposes_; the user disposes. Offer a way to edit, dismiss, regenerate, or report a bad result (this app's per-word "間違い報告" button). Never take an irreversible action from an AI result without confirmation.
 2. **Inclusion.** Results must work across the user's languages and contexts; don't assume one locale. Avoid outputs that could mislead a learner (a language app must not teach a wrong reading or an unsafe usage).
 3. **Transparency.** Make it clear when content is AI-generated and that it can be imperfect. Set expectations; label generated fields. Don't present a guess as authoritative — prefer verified dictionary data first, AI as enrichment.
-4. **Graceful fallback.** AI *will* fail or be unavailable (offline, quota, 402). Always degrade to something useful — cached/verified data, the on-device voice for TTS, a plain error with a retry — never a dead spinner or a raw error code.
+4. **Graceful fallback.** AI _will_ fail or be unavailable (offline, quota, 402). Always degrade to something useful — cached/verified data, the on-device voice for TTS, a plain error with a retry — never a dead spinner or a raw error code.
 
 ### 22. Feedback loops & quality
 
 - **Explicit feedback** (the report/thumbs button) and **implicit feedback** (accept/edit/ignore) both improve the system — capture them (this app logs `ai_runs`).
-- **Latency is UX.** For the scan path, meaning + pronunciation must appear *fast and accurate* — prefer pre-cached, verified dictionary audio (zero round-trip) over a live synth on the hot path; accuracy wins ties.
+- **Latency is UX.** For the scan path, meaning + pronunciation must appear _fast and accurate_ — prefer pre-cached, verified dictionary audio (zero round-trip) over a live synth on the hot path; accuracy wins ties.
 - **Evaluate before shipping** prompt/model changes against real examples; don't regress the common case to fix an edge case.
 
 ---
@@ -322,19 +338,19 @@ The app's AI features (word enrichment, scan analysis, TTS, issue auto-fix) are 
 
 ## Quick Reference
 
-| Layer | Rule | Concrete value |
-| --- | --- | --- |
-| Foundation · color | Four variants, contrast floor | `4.5:1` body / `3:1` large; never color-only |
-| Foundation · type | System font, size-specific tracking | tighten large (`-0.02em`), body `~0`; Dynamic Type |
-| Foundation · icon | Layered app icon, no baked effects | system applies material/shadow/shape |
-| Component · target | Minimum hit area | `44×44` px (60 spatial), ~8px apart |
-| Component · button | Prominence budget | ≤1–2 prominent; destructive never prominent |
-| Material | Glass = transient layer only | `backdrop-filter`, content scrolls under, no glass-on-glass |
-| Motion · default spring | Critically damped | `damping 1.0`, `response 0.3–0.4` |
-| Motion · momentum spring | Slight bounce, only after a flick | `damping ~0.8`, `response 0.3–0.4` |
-| Motion · interrupt | Animate from live value | read on-screen transform |
-| Motion · flick landing | Project momentum | `current + (v/1000)·d/(1−d)`, `d≈0.998` |
-| Feedback | On pointer-down, continuous | never only at the end |
-| A11y | VoiceOver name + reduced-motion + contrast | `aria-label`, `prefers-reduced-motion`, floors |
-| AI UX | Control · Inclusion · Transparency · Fallback | editable, labeled, degrades to verified/cached |
-| Pattern · recovery | Undo for slips, confirm only destructive | no spinner with no terminal state |
+| Layer                    | Rule                                          | Concrete value                                              |
+| ------------------------ | --------------------------------------------- | ----------------------------------------------------------- |
+| Foundation · color       | Four variants, contrast floor                 | `4.5:1` body / `3:1` large; never color-only                |
+| Foundation · type        | System font, size-specific tracking           | tighten large (`-0.02em`), body `~0`; Dynamic Type          |
+| Foundation · icon        | Layered app icon, no baked effects            | system applies material/shadow/shape                        |
+| Component · target       | Minimum hit area                              | `44×44` px (60 spatial), ~8px apart                         |
+| Component · button       | Prominence budget                             | ≤1–2 prominent; destructive never prominent                 |
+| Material                 | Glass = transient layer only                  | `backdrop-filter`, content scrolls under, no glass-on-glass |
+| Motion · default spring  | Critically damped                             | `damping 1.0`, `response 0.3–0.4`                           |
+| Motion · momentum spring | Slight bounce, only after a flick             | `damping ~0.8`, `response 0.3–0.4`                          |
+| Motion · interrupt       | Animate from live value                       | read on-screen transform                                    |
+| Motion · flick landing   | Project momentum                              | `current + (v/1000)·d/(1−d)`, `d≈0.998`                     |
+| Feedback                 | On pointer-down, continuous                   | never only at the end                                       |
+| A11y                     | VoiceOver name + reduced-motion + contrast    | `aria-label`, `prefers-reduced-motion`, floors              |
+| AI UX                    | Control · Inclusion · Transparency · Fallback | editable, labeled, degrades to verified/cached              |
+| Pattern · recovery       | Undo for slips, confirm only destructive      | no spinner with no terminal state                           |

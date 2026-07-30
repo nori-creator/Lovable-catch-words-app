@@ -19,7 +19,9 @@ export function setPhoneticPref(p: Phonetic) {
   try {
     localStorage.setItem(KEY, p);
     window.dispatchEvent(new CustomEvent(EVENT));
-  } catch { /* storage unavailable */ }
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 export function usePhoneticPref(): Phonetic {
@@ -44,7 +46,7 @@ export function pickReading(
 ): string {
   const z = zhuyin?.trim() || "";
   const p = pinyin?.trim() || "";
-  return pref === "pinyin" ? (p || z) : (z || p);
+  return pref === "pinyin" ? p || z : z || p;
 }
 
 /** 選択された表記だけを描画する読みテキスト。 */
@@ -63,5 +65,9 @@ export function Reading({
   // 注音(ㄅㄆㄇ)は繁体字フォントにしか入っていない。日本語フォントに落ちると
   // 記号が別物になったり出なかったりするので、ここで言語を宣言しておく。
   // 読みの表示は全画面がこの部品を通るので、ここ1箇所で全部が正しくなる。
-  return <span lang="zh-Hant" className={className}>{text}</span>;
+  return (
+    <span lang="zh-Hant" className={className}>
+      {text}
+    </span>
+  );
 }

@@ -188,7 +188,14 @@ export const getDueReviews = createServerFn({ method: "GET" })
       .select("words(id, headword, meaning_ja, category_key, reading_zhuyin, pinyin)")
       .eq("user_id", userId)
       .limit(500);
-    type DeckWord = { id: string; headword: string; meaning_ja: string; category_key: string | null; reading_zhuyin?: string | null; pinyin?: string | null };
+    type DeckWord = {
+      id: string;
+      headword: string;
+      meaning_ja: string;
+      category_key: string | null;
+      reading_zhuyin?: string | null;
+      pinyin?: string | null;
+    };
     const deck: DeckWord[] = [];
     const seen = new Set<string>();
     for (const r of (deckRows ?? []) as unknown as Array<{ words: DeckWord | null }>) {
@@ -215,7 +222,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
         .lte("tocfl_level", lvl)
         .gte("id", pivot)
         .limit(40);
-      const dicts = (dictRows ?? []) as Array<{ headword: string; zhuyin: string | null; pinyin: string | null }>;
+      const dicts = (dictRows ?? []) as Array<{
+        headword: string;
+        zhuyin: string | null;
+        pinyin: string | null;
+      }>;
       for (const d of dicts) readingByHead.set(d.headword, { zhuyin: d.zhuyin, pinyin: d.pinyin });
       dictPool = shuffle(dicts.map((d) => d.headword));
     } catch {
@@ -259,8 +270,12 @@ export const getDueReviews = createServerFn({ method: "GET" })
 
     return rows.map((row, i) => {
       const w = row.stickers!.words!;
-      const sameCat = shuffle(deck.filter((d) => d.id !== w.id && d.category_key === w.category_key));
-      const otherCat = shuffle(deck.filter((d) => d.id !== w.id && d.category_key !== w.category_key));
+      const sameCat = shuffle(
+        deck.filter((d) => d.id !== w.id && d.category_key === w.category_key),
+      );
+      const otherCat = shuffle(
+        deck.filter((d) => d.id !== w.id && d.category_key !== w.category_key),
+      );
 
       const meaningDistractors = pickThree(
         w.meaning_ja,
@@ -280,7 +295,10 @@ export const getDueReviews = createServerFn({ method: "GET" })
       // デッキ語の読みも逆引き表へ(4択の注音表示用)。
       for (const d of deck) {
         if (!readingByHead.has(d.headword)) {
-          readingByHead.set(d.headword, { zhuyin: d.reading_zhuyin ?? null, pinyin: d.pinyin ?? null });
+          readingByHead.set(d.headword, {
+            zhuyin: d.reading_zhuyin ?? null,
+            pinyin: d.pinyin ?? null,
+          });
         }
       }
       readingByHead.set(w.headword, { zhuyin: w.reading_zhuyin, pinyin: w.pinyin });
@@ -295,8 +313,10 @@ export const getDueReviews = createServerFn({ method: "GET" })
       // Mirrors getSpeakingFeedback's selection so task and feedback agree.
       const reviewCount = reviewCounts.get(row.sticker_id) ?? 0;
       const plan = parseBranchPlan(row.stickers!.branch_plan) ?? [];
-      const promptPattern: Branch | null =
-        resolveBranches(plan, Math.max(1, reviewCount + 1)).justUnlocked;
+      const promptPattern: Branch | null = resolveBranches(
+        plan,
+        Math.max(1, reviewCount + 1),
+      ).justUnlocked;
       return {
         review_id: row.id,
         sticker_id: row.sticker_id,
@@ -417,7 +437,9 @@ ${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
   if (accepted.length === 0) return;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await supabaseAdmin.from("review_choices").upsert({ word_id: wordId, distractors: accepted.slice(0, 3) });
+  await supabaseAdmin
+    .from("review_choices")
+    .upsert({ word_id: wordId, distractors: accepted.slice(0, 3) });
   await supabase.from("ai_runs").insert({
     user_id: userId,
     loop: "review_distractor_pregen",
@@ -442,9 +464,11 @@ const GradeInput = z.object({
   hint_used: z.boolean().default(false),
 });
 
-
 // SM-2 simplified
-export function nextSrs(prev: { ease: number; interval_days: number; repetitions: number }, score: number) {
+export function nextSrs(
+  prev: { ease: number; interval_days: number; repetitions: number },
+  score: number,
+) {
   let { ease, interval_days, repetitions } = prev;
   if (score < 3) {
     repetitions = 0;
@@ -487,7 +511,6 @@ export const gradeReview = createServerFn({ method: "POST" })
       score = 1;
     }
     score = Math.max(0, Math.min(5, score));
-
 
     const next = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
@@ -536,7 +559,12 @@ export type StickerMemoryHistory = {
     interval_days_after: number;
     ease_after: number;
   }>;
-  current: { ease: number; interval_days: number; last_reviewed_at: string | null; due_at: string | null } | null;
+  current: {
+    ease: number;
+    interval_days: number;
+    last_reviewed_at: string | null;
+    due_at: string | null;
+  } | null;
   /** 未復習でも曲線を引くための起点(この単語をキャッチした日)。 */
   taken_at: string | null;
 };
@@ -613,7 +641,10 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
     const now = Date.now();
     const dueNow = cards.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
 
-    function retentionAt(card: { ease: number; interval_days: number; last_reviewed_at: string | null }, atMs: number): number {
+    function retentionAt(
+      card: { ease: number; interval_days: number; last_reviewed_at: string | null },
+      atMs: number,
+    ): number {
       if (!card.last_reviewed_at) return 100;
       const dt = (atMs - new Date(card.last_reviewed_at).getTime()) / 86400_000;
       if (dt <= 0) return 100;
@@ -663,7 +694,12 @@ const LN2 = Math.log(2);
 function stabilityOf(interval_days: number, ease: number): number {
   return Math.max(0.5, interval_days * Math.max(1, ease));
 }
-function retentionNow(interval_days: number, ease: number, lastMs: number | null, nowMs: number): number {
+function retentionNow(
+  interval_days: number,
+  ease: number,
+  lastMs: number | null,
+  nowMs: number,
+): number {
   if (lastMs == null) return 100;
   const dt = (nowMs - lastMs) / 86400_000;
   if (dt <= 0) return 100;
@@ -676,7 +712,9 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows } = await supabase
       .from("reviews")
-      .select("sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword))")
+      .select(
+        "sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword))",
+      )
       .eq("user_id", userId);
     const now = Date.now();
     type Row = {
@@ -912,9 +950,7 @@ const ScaffoldSchema = z.object({
         zh: z.string(),
         ja: z.string(),
         kind: z.enum(["chunk", "phrase", "grammar"]).catch("chunk"),
-        chunks: z
-          .array(z.object({ text: z.string(), pos: z.string().catch("") }))
-          .catch([]),
+        chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
       }),
     )
     .min(2)
@@ -938,7 +974,11 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
       caption: string | null;
       branch_plan?: unknown;
       word_id: string;
-      words: { headword: string; meaning_ja: string; extras?: Record<string, unknown> | null } | null;
+      words: {
+        headword: string;
+        meaning_ja: string;
+        extras?: Record<string, unknown> | null;
+      } | null;
     } | null;
     if (!row?.words) throw new Error("カードが見つかりません");
     const w = row.words;
@@ -953,7 +993,13 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const cacheKey = `speaking_scaffold_v4_${lang}_${l1Code}`;
     const cached = (w.extras as Record<string, unknown> | null)?.[cacheKey];
     const cachedParsed = cached
-      ? (() => { try { return ScaffoldSchema.parse(cached); } catch { return null; } })()
+      ? (() => {
+          try {
+            return ScaffoldSchema.parse(cached);
+          } catch {
+            return null;
+          }
+        })()
       : null;
     if (cachedParsed) {
       return { ...cachedParsed, caption_seed: captionSeed };
@@ -998,9 +1044,14 @@ ${l1Order}
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const nextExtras = { ...(w.extras ?? {}), [cacheKey]: scaffold };
-      await supabaseAdmin.from("words").update({ extras: nextExtras as never }).eq("id", row.word_id);
+      await supabaseAdmin
+        .from("words")
+        .update({ extras: nextExtras as never })
+        .eq("id", row.word_id);
       await logUsage(supabase, userId, "speaking_feedback");
-    } catch { /* キャッシュ保存の失敗は致命的でない */ }
+    } catch {
+      /* キャッシュ保存の失敗は致命的でない */
+    }
 
     return { ...scaffold, caption_seed: captionSeed };
   });

@@ -97,7 +97,10 @@ function csvToRows(csv: string): DictionaryImportRow[] {
         const n = Number(v);
         if (!Number.isNaN(n)) row.tocfl_level = n;
       } else if (k === "scene_tags") {
-        row.scene_tags = v.split(/[|;]/).map((s) => s.trim()).filter(Boolean);
+        row.scene_tags = v
+          .split(/[|;]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
       } else {
         (row as Record<string, unknown>)[k] = v;
       }
@@ -182,9 +185,7 @@ function DictionaryAdminPage() {
       <AppShell>
         <div className="p-6 space-y-2">
           <h1 className="text-lg font-semibold">アクセス権がありません</h1>
-          <p className="text-sm text-muted-foreground">
-            この画面は管理者のみが利用できます。
-          </p>
+          <p className="text-sm text-muted-foreground">この画面は管理者のみが利用できます。</p>
         </div>
       </AppShell>
     );
@@ -253,7 +254,9 @@ function DictionaryAdminPage() {
             )}
             {results.map((r) => (
               <div key={r.id} className="p-3 text-sm flex flex-wrap gap-x-3 gap-y-1">
-                <span lang="zh-Hant" className="font-medium">{r.headword}</span>
+                <span lang="zh-Hant" className="font-medium">
+                  {r.headword}
+                </span>
                 {r.zhuyin && <span className="text-muted-foreground">{r.zhuyin}</span>}
                 {r.pinyin && <span className="text-muted-foreground">{r.pinyin}</span>}
                 <span>→ {r.meaning_ja}</span>

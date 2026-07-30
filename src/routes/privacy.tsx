@@ -16,9 +16,17 @@ export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
       { title: tStatic("page.privacy") },
-      { name: "description", content: "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。" },
+      {
+        name: "description",
+        content:
+          "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
+      },
       { property: "og:title", content: "プライバシーポリシー — Catchwords" },
-      { property: "og:description", content: "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。" },
+      {
+        property: "og:description",
+        content:
+          "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
+      },
       { property: "og:type", content: "article" },
       { property: "og:url", content: "https://word-snap-journey.lovable.app/privacy" },
     ],
@@ -60,10 +68,14 @@ function PrivacyJa() {
         </ul>
 
         <h2>5. 位置情報の取り扱い</h2>
-        <p>位置情報は撮影位置の記録のみに使用し、公開投稿の場合のみ他ユーザーに表示されます。位置情報の取得はユーザーが任意で許可・拒否できます。</p>
+        <p>
+          位置情報は撮影位置の記録のみに使用し、公開投稿の場合のみ他ユーザーに表示されます。位置情報の取得はユーザーが任意で許可・拒否できます。
+        </p>
 
         <h2>6. データの削除</h2>
-        <p>設定画面の「アカウントを削除」から、いつでもアカウントと関連データ(単語カード・写真・学習記録・日記など)を即時に削除できます。削除は取り消せません。システムのバックアップに残った複製も30日以内に完全に消去されます。</p>
+        <p>
+          設定画面の「アカウントを削除」から、いつでもアカウントと関連データ(単語カード・写真・学習記録・日記など)を即時に削除できます。削除は取り消せません。システムのバックアップに残った複製も30日以内に完全に消去されます。
+        </p>
 
         <h2>7. Cookie等</h2>
         <p>セッション維持・ログイン状態の保持のためにブラウザのローカルストレージを利用します。</p>
@@ -98,7 +110,10 @@ function PrivacyEn() {
         </ul>
 
         <h2>3. Sharing with third parties</h2>
-        <p>We do not provide your personal information to third parties without your consent, except where required by law.</p>
+        <p>
+          We do not provide your personal information to third parties without your consent, except
+          where required by law.
+        </p>
 
         <h2>4. External services</h2>
         <ul>
@@ -108,10 +123,17 @@ function PrivacyEn() {
         </ul>
 
         <h2>5. How location is handled</h2>
-        <p>Location is used only to record where a photo was taken, and is shown to other users only on public posts. You can allow or refuse location access at any time.</p>
+        <p>
+          Location is used only to record where a photo was taken, and is shown to other users only
+          on public posts. You can allow or refuse location access at any time.
+        </p>
 
         <h2>6. Deleting your data</h2>
-        <p>You can delete your account and all related data (word cards, photos, study records, journal entries and so on) at any time from “Delete account” in Settings. Deletion cannot be undone. Copies remaining in system backups are fully erased within 30 days.</p>
+        <p>
+          You can delete your account and all related data (word cards, photos, study records,
+          journal entries and so on) at any time from “Delete account” in Settings. Deletion cannot
+          be undone. Copies remaining in system backups are fully erased within 30 days.
+        </p>
 
         <h2>7. Cookies and local storage</h2>
         <p>We use your browser's local storage to keep your session and signed-in state.</p>
@@ -128,10 +150,17 @@ function PrivacyPage() {
   const lang = useUiLang();
   return (
     <article className="mx-auto max-w-2xl px-4 py-10">
-      <Link to="/" className="inline-block py-3 -my-3 text-sm text-muted-foreground hover:text-foreground">← {t("common.back")}</Link>
+      <Link
+        to="/"
+        className="inline-block py-3 -my-3 text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← {t("common.back")}
+      </Link>
       {lang === "en" ? <PrivacyEn /> : <PrivacyJa />}
       <p className="mt-8 text-xs text-muted-foreground">
-        <Link to="/terms" className="inline-block py-3 -my-3 underline">{t("auth.terms")}</Link>
+        <Link to="/terms" className="inline-block py-3 -my-3 underline">
+          {t("auth.terms")}
+        </Link>
       </p>
     </article>
   );

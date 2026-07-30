@@ -108,7 +108,9 @@ export function PlaceMemoryWatcher() {
           <span className="block truncate text-[11px] text-muted-foreground">
             {t("place.caughtHere", {
               when,
-              where: hit.location_name ? t("place.atPlace", { name: hit.location_name }) : t("place.hereAbouts"),
+              where: hit.location_name
+                ? t("place.atPlace", { name: hit.location_name })
+                : t("place.hereAbouts"),
               meaning: hit.meaning_ja ? `(${hit.meaning_ja})` : "",
             })}
           </span>

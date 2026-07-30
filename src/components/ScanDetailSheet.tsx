@@ -27,21 +27,34 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
   useEffect(() => {
     let cancelled = false;
     cardPromise
-      .then((c) => { if (!cancelled) setCard(c); })
-      .catch((e) => { if (!cancelled) setErr((e as Error)?.message || t("err.generateFailed")); });
-    return () => { cancelled = true; };
-  }, [cardPromise]);
+      .then((c) => {
+        if (!cancelled) setCard(c);
+      })
+      .catch((e) => {
+        if (!cancelled) setErr((e as Error)?.message || t("err.generateFailed"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardPromise, t]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog">
+    <div
+      className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
+      role="dialog"
+    >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground"><Zh>{headword}</Zh> — {t("detail.more")}</span>
+        <span className="pl-1 text-xs font-medium text-muted-foreground">
+          <Zh>{headword}</Zh> — {t("detail.more")}
+        </span>
         <button
           onClick={onClose}
           aria-label={t("common.close")}
@@ -74,7 +87,8 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
           />
         )}
         <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          {dict ? t("detail.verified") : t("detail.aiOnly")} · {t("detail.score", { v: item.confidence.toFixed(2) })}
+          {dict ? t("detail.verified") : t("detail.aiOnly")} ·{" "}
+          {t("detail.score", { v: item.confidence.toFixed(2) })}
         </p>
       </div>
     </div>

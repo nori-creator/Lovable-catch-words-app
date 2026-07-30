@@ -137,7 +137,11 @@ export function mergeExtras(
 ): WordExtrasDTO {
   const base: Record<string, unknown> = { ...emptyExtras(), ...(cur ?? {}) };
   for (const [k, v] of Object.entries(inc ?? {})) {
-    const filled = Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim().length > 0 : v != null;
+    const filled = Array.isArray(v)
+      ? v.length > 0
+      : typeof v === "string"
+        ? v.trim().length > 0
+        : v != null;
     if (filled) base[k] = v;
   }
   const res = ExtrasSchema.safeParse(base);

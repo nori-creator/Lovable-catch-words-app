@@ -73,7 +73,9 @@ function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">C</div>
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">
+            C
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("rp.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "request" ? t("rp.hintRequest") : t("rp.hintUpdate")}
@@ -85,7 +87,14 @@ function ResetPasswordPage() {
             <form onSubmit={handleRequest} className="space-y-3">
               <div>
                 <Label htmlFor="email">{t("rp.email")}</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "..." : t("rp.sendLink")}
@@ -95,7 +104,15 @@ function ResetPasswordPage() {
             <form onSubmit={handleUpdate} className="space-y-3">
               <div>
                 <Label htmlFor="password">{t("rp.newPassword")}</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "..." : t("rp.update")}
@@ -104,7 +121,9 @@ function ResetPasswordPage() {
           )}
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            <a href="/auth" className="inline-block py-3 -my-3 underline hover:text-foreground">{t("rp.backToLogin")}</a>
+            <a href="/auth" className="inline-block py-3 -my-3 underline hover:text-foreground">
+              {t("rp.backToLogin")}
+            </a>
           </p>
         </div>
       </div>

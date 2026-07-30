@@ -20,18 +20,30 @@ let enabled = true;
 try {
   const saved = typeof localStorage !== "undefined" ? localStorage.getItem("cw-haptics") : null;
   if (saved === "0") enabled = false;
-} catch { /* ignore */ }
+} catch {
+  /* ignore */
+}
 
 export function setHapticsEnabled(v: boolean) {
   enabled = v;
-  try { localStorage.setItem("cw-haptics", v ? "1" : "0"); } catch { /* ignore */ }
+  try {
+    localStorage.setItem("cw-haptics", v ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
 }
-export function areHapticsEnabled() { return enabled; }
+export function areHapticsEnabled() {
+  return enabled;
+}
 
 export function haptic(kind: Kind = "light") {
   if (!enabled) return;
   if (typeof navigator === "undefined") return;
   const nav = navigator as Navigator & { vibrate?: (p: number | number[]) => boolean };
   if (typeof nav.vibrate !== "function") return;
-  try { nav.vibrate(PATTERNS[kind]); } catch { /* ignore */ }
+  try {
+    nav.vibrate(PATTERNS[kind]);
+  } catch {
+    /* ignore */
+  }
 }

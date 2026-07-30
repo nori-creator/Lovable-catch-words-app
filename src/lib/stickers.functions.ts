@@ -57,14 +57,15 @@ export type StickerWithWord = {
   };
 };
 
-
 type SignedUrlsClient = {
   storage: {
     from: (b: string) => {
       createSignedUrls: (
         p: string[],
         e: number,
-      ) => Promise<{ data: Array<{ path: string | null; signedUrl: string | null; error: string | null }> | null }>;
+      ) => Promise<{
+        data: Array<{ path: string | null; signedUrl: string | null; error: string | null }> | null;
+      }>;
     };
   };
 };
@@ -128,7 +129,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
           `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`,
         )
         .eq("user_id", userId)
-        .order("created_at", { ascending: false })) as unknown as { data: typeof data; error: typeof error });
+        .order("created_at", { ascending: false })) as unknown as {
+        data: typeof data;
+        error: typeof error;
+      });
     }
     if (error) throw new Error(error.message);
 
@@ -248,8 +252,10 @@ export const getSticker = createServerFn({ method: "GET" })
       if (!postRow) return null;
       let canSee = postRow.user_id === userId || postRow.visibility === "public";
       if (!canSee && postRow.visibility === "friends") {
-        const { data: mutual } = await supabaseAdmin
-          .rpc("are_mutual_followers", { _a: userId, _b: postRow.user_id });
+        const { data: mutual } = await supabaseAdmin.rpc("are_mutual_followers", {
+          _a: userId,
+          _b: postRow.user_id,
+        });
         canSee = !!mutual;
       }
       if (!canSee) return null;
@@ -333,7 +339,9 @@ export const getSticker = createServerFn({ method: "GET" })
       object_thumb_url: null,
       cutout_thumb_url: null,
       capture_type: r.capture_type ?? "photo",
-      placeholder_url: r.placeholder_image_url ? (urlMap.get(r.placeholder_image_url) ?? null) : null,
+      placeholder_url: r.placeholder_image_url
+        ? (urlMap.get(r.placeholder_image_url) ?? null)
+        : null,
       placeholder_credit: r.placeholder_credit ?? null,
       branch_plan: (r.branch_plan as StickerWithWord["branch_plan"]) ?? null,
       review_count: reviewCount,
@@ -341,7 +349,6 @@ export const getSticker = createServerFn({ method: "GET" })
     };
     return res;
   });
-
 
 const SaveStickerInput = z.object({
   word: z.object({
@@ -456,11 +463,13 @@ export async function upsertWord(
       .eq("id", wordId)
       .maybeSingle();
     const merged = mergeExtras(cur?.extras as WordExtrasDTO | null, word.extras);
-    await supabaseAdmin.from("words").update({ extras: merged as never }).eq("id", wordId);
+    await supabaseAdmin
+      .from("words")
+      .update({ extras: merged as never })
+      .eq("id", wordId);
   }
   return wordId;
 }
-
 
 export const saveSticker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -518,17 +527,19 @@ export const saveSticker = createServerFn({ method: "POST" })
 const UpdateExtrasInput = z.object({
   word_id: z.string().uuid(),
   extras: ExtrasSchema,
-  patch: z.object({
-    reading_zhuyin: z.string().optional(),
-    pinyin: z.string().optional(),
-    part_of_speech: z.string().optional(),
-    level: z.string().optional(),
-    example_sentence: z.string().optional(),
-    example_translation: z.string().optional(),
-    // 表示言語を切り替えたとき、意味と例文訳もその言語に入れ替える。
-    // (verified 語は下の source チェックで従来どおり保護される)
-    meaning_ja: z.string().optional(),
-  }).optional(),
+  patch: z
+    .object({
+      reading_zhuyin: z.string().optional(),
+      pinyin: z.string().optional(),
+      part_of_speech: z.string().optional(),
+      level: z.string().optional(),
+      example_sentence: z.string().optional(),
+      example_translation: z.string().optional(),
+      // 表示言語を切り替えたとき、意味と例文訳もその言語に入れ替える。
+      // (verified 語は下の source チェックで従来どおり保護される)
+      meaning_ja: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const updateWordExtras = createServerFn({ method: "POST" })
@@ -577,7 +588,10 @@ export const updateWordExtras = createServerFn({ method: "POST" })
         if (v !== undefined && v !== "") update[k] = v;
       }
     }
-    const { error } = await supabaseAdmin.from("words").update(update as never).eq("id", data.word_id);
+    const { error } = await supabaseAdmin
+      .from("words")
+      .update(update as never)
+      .eq("id", data.word_id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -639,14 +653,22 @@ export const deleteSticker = createServerFn({ method: "POST" })
     if (!st) throw new Error("このカードは削除できません");
 
     // Storage cleanup: only paths under the caller's own folder.
-    const row = st as { object_image_url: string | null; cutout_image_url: string | null; selfie_image_url: string | null };
-    const paths = [row.object_image_url, row.cutout_image_url, row.selfie_image_url]
-      .filter((p): p is string => !!p && p.startsWith(`${userId}/`));
+    const row = st as {
+      object_image_url: string | null;
+      cutout_image_url: string | null;
+      selfie_image_url: string | null;
+    };
+    const paths = [row.object_image_url, row.cutout_image_url, row.selfie_image_url].filter(
+      (p): p is string => !!p && p.startsWith(`${userId}/`),
+    );
     // thumbnails share the origin path with a suffix (cutout.ts:thumbPath).
     const withThumbs = paths.flatMap((p) => [p, `${p}.thumb.webp`]);
     if (withThumbs.length > 0) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.storage.from("stickers").remove(withThumbs).catch(() => {});
+      await supabaseAdmin.storage
+        .from("stickers")
+        .remove(withThumbs)
+        .catch(() => {});
     }
 
     const { error } = await supabase
@@ -684,11 +706,20 @@ export const replaceStickerPhoto = createServerFn({ method: "POST" })
     };
     let res = await supabase
       .from("stickers")
-      .update({ ...patch, capture_type: "photo", placeholder_image_url: null, placeholder_credit: null })
+      .update({
+        ...patch,
+        capture_type: "photo",
+        placeholder_image_url: null,
+        placeholder_credit: null,
+      })
       .eq("id", data.sticker_id)
       .eq("user_id", userId);
     if (res.error && /capture_type|placeholder/.test(res.error.message)) {
-      res = await supabase.from("stickers").update(patch).eq("id", data.sticker_id).eq("user_id", userId);
+      res = await supabase
+        .from("stickers")
+        .update(patch)
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId);
     }
     if (res.error) throw new Error(res.error.message);
     return { ok: true };

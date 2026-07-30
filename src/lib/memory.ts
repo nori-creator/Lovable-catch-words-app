@@ -22,12 +22,60 @@ export type MemoryLevelInfo = {
 };
 
 const LEVELS: MemoryLevelInfo[] = [
-  { level: 0, label: "忘れかけ", labelKey: "memory.level0", bar: "bg-red-500", text: "text-red-600", chip: "bg-red-100 text-red-700", dot: "🔴" },
-  { level: 1, label: "あやうい", labelKey: "memory.level1", bar: "bg-orange-500", text: "text-orange-600", chip: "bg-orange-100 text-orange-700", dot: "🟠" },
-  { level: 2, label: "うろ覚え", labelKey: "memory.level2", bar: "bg-amber-400", text: "text-amber-600", chip: "bg-amber-100 text-amber-700", dot: "🟡" },
-  { level: 3, label: "定着中", labelKey: "memory.level3", bar: "bg-lime-500", text: "text-lime-600", chip: "bg-lime-100 text-lime-700", dot: "🟢" },
-  { level: 4, label: "覚えた", labelKey: "memory.level4", bar: "bg-emerald-500", text: "text-emerald-600", chip: "bg-emerald-100 text-emerald-700", dot: "💚" },
-  { level: 5, label: "長期記憶", labelKey: "memory.level5", bar: "bg-sky-500", text: "text-sky-600", chip: "bg-sky-100 text-sky-700", dot: "🔵" },
+  {
+    level: 0,
+    label: "忘れかけ",
+    labelKey: "memory.level0",
+    bar: "bg-red-500",
+    text: "text-red-600",
+    chip: "bg-red-100 text-red-700",
+    dot: "🔴",
+  },
+  {
+    level: 1,
+    label: "あやうい",
+    labelKey: "memory.level1",
+    bar: "bg-orange-500",
+    text: "text-orange-600",
+    chip: "bg-orange-100 text-orange-700",
+    dot: "🟠",
+  },
+  {
+    level: 2,
+    label: "うろ覚え",
+    labelKey: "memory.level2",
+    bar: "bg-amber-400",
+    text: "text-amber-600",
+    chip: "bg-amber-100 text-amber-700",
+    dot: "🟡",
+  },
+  {
+    level: 3,
+    label: "定着中",
+    labelKey: "memory.level3",
+    bar: "bg-lime-500",
+    text: "text-lime-600",
+    chip: "bg-lime-100 text-lime-700",
+    dot: "🟢",
+  },
+  {
+    level: 4,
+    label: "覚えた",
+    labelKey: "memory.level4",
+    bar: "bg-emerald-500",
+    text: "text-emerald-600",
+    chip: "bg-emerald-100 text-emerald-700",
+    dot: "💚",
+  },
+  {
+    level: 5,
+    label: "長期記憶",
+    labelKey: "memory.level5",
+    bar: "bg-sky-500",
+    text: "text-sky-600",
+    chip: "bg-sky-100 text-sky-700",
+    dot: "🔵",
+  },
 ];
 
 /**

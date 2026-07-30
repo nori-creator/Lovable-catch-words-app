@@ -28,9 +28,7 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">{t("root.notFound")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("root.notFoundHint")}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.notFoundHint")}</p>
         <div className="mt-6">
           <Link
             to="/"
@@ -58,9 +56,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           {t("root.loadFailed")}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("root.loadFailedHint")}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.loadFailedHint")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -89,24 +85,41 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "CatchWords" },
-      { name: "description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        name: "description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { name: "author", content: "Catchwords" },
       { property: "og:site_name", content: "Catchwords" },
       { property: "og:title", content: "CatchWords" },
-      { property: "og:description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        property: "og:description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { property: "og:type", content: "website" },
       { property: "og:locale", content: "ja_JP" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "CatchWords" },
-      { name: "twitter:description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        name: "twitter:description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { name: "theme-color", content: "#ff6f61" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Catchwords" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "format-detection", content: "telephone=no" },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp" },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
