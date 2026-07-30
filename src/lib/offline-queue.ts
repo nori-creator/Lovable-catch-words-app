@@ -34,7 +34,10 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function tx<T>(
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
@@ -63,7 +66,10 @@ export async function enqueueCapture(
 export async function listPendingCaptures(): Promise<PendingCapture[]> {
   if (!hasIdb()) return [];
   try {
-    const all = await tx<PendingCapture[]>("readonly", (s) => s.getAll() as IDBRequest<PendingCapture[]>);
+    const all = await tx<PendingCapture[]>(
+      "readonly",
+      (s) => s.getAll() as IDBRequest<PendingCapture[]>,
+    );
     return all.sort((a, b) => a.created_at - b.created_at);
   } catch {
     return [];
@@ -73,7 +79,10 @@ export async function listPendingCaptures(): Promise<PendingCapture[]> {
 export async function getPendingCapture(id: string): Promise<PendingCapture | null> {
   if (!hasIdb()) return null;
   try {
-    const item = await tx<PendingCapture | undefined>("readonly", (s) => s.get(id) as IDBRequest<PendingCapture | undefined>);
+    const item = await tx<PendingCapture | undefined>(
+      "readonly",
+      (s) => s.get(id) as IDBRequest<PendingCapture | undefined>,
+    );
     return item ?? null;
   } catch {
     return null;

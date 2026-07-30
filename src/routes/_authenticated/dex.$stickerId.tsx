@@ -9,12 +9,19 @@ import { getSticker } from "@/lib/stickers.functions";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
+import { useT } from "@/lib/i18n";
+import { useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
   head: ({ params }) => ({
     meta: [
-      { title: `カード ${params.stickerId.slice(0, 8)} — Catchwords` },
-      { name: "description", content: "あなたが街でキャッチした言葉のカード詳細。意味・例文・発音、撮影場所、記憶曲線をまとめて確認できます。" },
+      { title: tStatic("page.cardDetail", { id: params.stickerId.slice(0, 8) }) },
+      {
+        name: "description",
+        content:
+          "あなたが街でキャッチした言葉のカード詳細。意味・例文・発音、撮影場所、記憶曲線をまとめて確認できます。",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -22,6 +29,8 @@ export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
 });
 
 function StickerDetailPage() {
+  const t = useT();
+  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const { stickerId } = Route.useParams();
   const fetchSticker = useServerFn(getSticker);
   const fetchMemory = useServerFn(getStickerMemoryHistory);
@@ -36,15 +45,18 @@ function StickerDetailPage() {
   const [flipped, setFlipped] = useState(false);
 
   return (
-    <AppShell title="カード">
-      <Link to="/dex" className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> 図鑑へ戻る
+    <AppShell title={t("card.title")}>
+      <Link
+        to="/dex"
+        className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> {t("card.backToDex")}
       </Link>
 
       {isLoading ? (
         <div className="aspect-square animate-pulse rounded-3xl bg-secondary" />
       ) : !s ? (
-        <p className="text-sm text-muted-foreground">カードが見つかりませんでした。</p>
+        <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
       ) : (
         <>
           {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
@@ -52,7 +64,7 @@ function StickerDetailPage() {
             className="perspective-[1200px] mb-4"
             role="button"
             tabIndex={0}
-            aria-label={flipped ? "写真の表に戻す" : "自撮りを見る"}
+            aria-label={flipped ? t("card.flipBack") : t("card.flipSelfie")}
             onClick={() => setFlipped((f) => !f)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -68,17 +80,21 @@ function StickerDetailPage() {
                 {s.object_url ? (
                   <img
                     src={s.object_url}
-                    alt={`「${s.word.headword}」の写真`}
+                    alt={t("common.photoOf", { word: s.word.headword })}
                     className="hero-pop h-full w-full object-cover"
                   />
                 ) : s.cutout_url ? (
-                  <img src={s.cutout_url} alt={s.word.headword} className="hero-pop max-h-[92%] max-w-[92%] object-contain" />
+                  <img
+                    src={s.cutout_url}
+                    alt={s.word.headword}
+                    className="hero-pop max-h-[92%] max-w-[92%] object-contain"
+                  />
                 ) : s.placeholder_url ? (
                   // ネット画像。仮扱いせず普通の絵として見せる(#67)。
                   <>
                     <img
                       src={s.placeholder_url}
-                      alt={`「${s.word.headword}」の画像`}
+                      alt={t("common.imageOf", { word: s.word.headword })}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
                     {s.placeholder_credit?.name && (
@@ -94,21 +110,30 @@ function StickerDetailPage() {
                     )}
                   </>
                 ) : (
-                  <span className="px-4 text-center text-3xl font-semibold text-muted-foreground">
+                  <span
+                    lang="zh-Hant"
+                    className="px-4 text-center text-3xl font-semibold text-muted-foreground"
+                  >
                     {s.word.headword}
                   </span>
                 )}
                 {s.selfie_url && (
                   <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
-                    タップで自撮りへ
+                    {t("card.tapForSelfie")}
                   </span>
                 )}
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden bg-secondary">
                 {s.selfie_url ? (
-                  <img src={s.selfie_url} alt="撮影者の自撮り" className="h-full w-full object-cover" />
+                  <img
+                    src={s.selfie_url}
+                    alt={t("common.selfieOf")}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">自撮りなし</div>
+                  <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                    {t("card.noSelfie")}
+                  </div>
                 )}
               </div>
             </div>
@@ -120,8 +145,11 @@ function StickerDetailPage() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
                 {new Date(s.created_at).toLocaleString("ja-JP", {
-                  year: "numeric", month: "short", day: "numeric",
-                  hour: "2-digit", minute: "2-digit",
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </div>
               {(s.location_name || (s.lat != null && s.lng != null)) && (
@@ -136,7 +164,7 @@ function StickerDetailPage() {
                   className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
                 >
                   <MapPin className="h-3.5 w-3.5" />
-                  {s.location_name ?? "地図で開く"}
+                  {s.location_name ?? t("card.openMap")}
                 </a>
               )}
             </div>
@@ -145,8 +173,10 @@ function StickerDetailPage() {
 
           {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
           <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-            <div className="text-3xl font-bold tracking-tight">{s.word.headword}</div>
-            <div className="mt-1 text-sm text-muted-foreground">
+            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">
+              {s.word.headword}
+            </div>
+            <div lang="zh-Hant" className="mt-1 text-sm text-muted-foreground">
               {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
             </div>
             <div className="mt-2 text-lg font-medium">{s.word.meaning_ja}</div>
@@ -172,7 +202,7 @@ function StickerDetailPage() {
           {/* Full flat card kept for reference (B3) — collapsed by default */}
           <details className="group rounded-3xl border border-border bg-card shadow-sm">
             <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-              すべての解説を見る
+              {t("card.seeAll")}
               <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
             <div className="px-2 pb-2">
@@ -196,12 +226,14 @@ function StickerDetailPage() {
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Brain className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">この単語の記憶曲線</h2>
+                <h2 className="text-sm font-semibold">{t("card.memoryCurve")}</h2>
               </div>
               {mem?.current?.due_at && (
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Clock className="h-3 w-3" />
-                  次回 {new Date(mem.current.due_at).toLocaleDateString("ja-JP")}
+                  {t("card.nextDue", {
+                    date: new Date(mem.current.due_at).toLocaleDateString(dateLocale),
+                  })}
                 </div>
               )}
             </div>
@@ -222,14 +254,16 @@ function StickerDetailPage() {
                 className="block"
               >
                 <iframe
-                  title="撮影場所のマップ"
+                  title={t("common.mapTitle")}
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
                   className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
                 <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}</span>
-                  <span className="text-primary">Google マップで開く →</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
+                  </span>
+                  <span className="text-primary">{t("card.openGoogleMaps")}</span>
                 </div>
               </a>
             </section>

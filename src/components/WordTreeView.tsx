@@ -8,6 +8,7 @@ import {
   type BranchType,
 } from "@/lib/wordtree";
 import type { WordExtras } from "@/components/WordCard";
+import { useT } from "@/lib/i18n";
 
 /**
  * §6 word tree: the card is a tree — your photo at the center, one branch
@@ -21,23 +22,24 @@ import type { WordExtras } from "@/components/WordCard";
 
 const TYPE_STYLE: Record<BranchType, string> = {
   collocation: "bg-sky-50 text-sky-900 ring-sky-200/70 shadow-sky-500/10",
-  example:     "bg-emerald-50 text-emerald-900 ring-emerald-200/70 shadow-emerald-500/10",
-  synonym:     "bg-violet-50 text-violet-900 ring-violet-200/70 shadow-violet-500/10",
-  antonym:     "bg-rose-50 text-rose-900 ring-rose-200/70 shadow-rose-500/10",
+  example: "bg-emerald-50 text-emerald-900 ring-emerald-200/70 shadow-emerald-500/10",
+  synonym: "bg-violet-50 text-violet-900 ring-violet-200/70 shadow-violet-500/10",
+  antonym: "bg-rose-50 text-rose-900 ring-rose-200/70 shadow-rose-500/10",
 };
 
 const TYPE_STROKE: Record<BranchType, string> = {
   collocation: "hsl(199 89% 55%)",
-  example:     "hsl(160 70% 45%)",
-  synonym:     "hsl(262 70% 60%)",
-  antonym:     "hsl(346 78% 60%)",
+  example: "hsl(160 70% 45%)",
+  synonym: "hsl(262 70% 60%)",
+  antonym: "hsl(346 78% 60%)",
 };
 
-const TYPE_LABEL: Record<BranchType, string> = {
-  collocation: "つながり",
-  example: "例文",
-  synonym: "類義",
-  antonym: "反義",
+/** 枝の種類。表示言語に追従させるため翻訳キーを持つ。 */
+const TYPE_LABEL_KEY: Record<BranchType, string> = {
+  collocation: "tree.collocation",
+  example: "tree.example",
+  synonym: "tree.synonym",
+  antonym: "tree.antonym",
 };
 
 type Props = {
@@ -49,7 +51,15 @@ type Props = {
   reviewCount: number;
 };
 
-export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras, reviewCount }: Props) {
+export function WordTreeView({
+  headword,
+  photoUrl,
+  emoji,
+  branchPlanRaw,
+  extras,
+  reviewCount,
+}: Props) {
+  const t = useT();
   const plan: Branch[] = parseBranchPlan(branchPlanRaw) ?? buildBranchPlan(extras ?? undefined);
   if (plan.length === 0) return null;
 
@@ -58,7 +68,9 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
 
   const slots = Math.min(8, unlocked.length + (lockedCount > 0 ? 1 : 0));
   const nodes: Array<{ kind: "branch"; branch: Branch } | { kind: "lock" }> = [
-    ...unlocked.slice(0, lockedCount > 0 ? 7 : 8).map((b) => ({ kind: "branch" as const, branch: b })),
+    ...unlocked
+      .slice(0, lockedCount > 0 ? 7 : 8)
+      .map((b) => ({ kind: "branch" as const, branch: b })),
     ...(lockedCount > 0 ? [{ kind: "lock" as const }] : []),
   ];
 
@@ -71,9 +83,9 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
   return (
     <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-1 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold tracking-tight">ワードツリー</h2>
+        <h2 className="text-sm font-semibold tracking-tight">{t("tree.title")}</h2>
         <span className="text-[11px] text-muted-foreground">
-          枝 {unlocked.length}/{plan.length} 本 · 復習ごとに1本育つ
+          {t("tree.branches", { done: unlocked.length, total: plan.length })}
         </span>
       </div>
 
@@ -94,7 +106,14 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
             {nodes.map((n, i) => {
               const stroke = n.kind === "branch" ? TYPE_STROKE[n.branch.type] : "hsl(0 0% 60%)";
               return (
-                <linearGradient key={i} id={`branch-${i}`} x1="50%" y1="50%" x2={`${pos(i).x}%`} y2={`${pos(i).y}%`}>
+                <linearGradient
+                  key={i}
+                  id={`branch-${i}`}
+                  x1="50%"
+                  y1="50%"
+                  x2={`${pos(i).x}%`}
+                  y2={`${pos(i).y}%`}
+                >
                   <stop offset="0%" stopColor={stroke} stopOpacity="0.05" />
                   <stop offset="100%" stopColor={stroke} stopOpacity="0.75" />
                 </linearGradient>
@@ -149,13 +168,18 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
               {photoUrl ? (
                 <img src={photoUrl} alt={headword} className="h-full w-full object-cover" />
               ) : (
-                <span className="px-1 text-center text-sm font-semibold text-muted-foreground">
+                <span
+                  lang="zh-Hant"
+                  className="px-1 text-center text-sm font-semibold text-muted-foreground"
+                >
                   {emoji ?? headword}
                 </span>
               )}
             </div>
           </div>
-          <div className="mt-1 text-sm font-bold tracking-tight">{headword}</div>
+          <div lang="zh-Hant" className="mt-1 text-sm font-bold tracking-tight">
+            {headword}
+          </div>
         </div>
 
         {/* branches */}
@@ -174,7 +198,7 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
                   <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-primary/70 animate-pulse" />
                 </div>
                 <div className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">
-                  あと{lockedCount}本 · 復習で解禁
+                  {t("tree.locked", { n: lockedCount })}
                 </div>
               </div>
             );
@@ -194,17 +218,19 @@ export function WordTreeView({ headword, photoUrl, emoji, branchPlanRaw, extras,
               }}
               className={`absolute z-10 max-w-[38%] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-2.5 py-1.5 text-center shadow-sm ring-1 backdrop-blur-sm transition-transform hover:-translate-y-[calc(50%+1px)] active:scale-95 ${TYPE_STYLE[b.type]}`}
             >
-              <span className="block text-[13px] font-semibold leading-tight">{b.zh}</span>
+              <span lang="zh-Hant" className="block text-[13px] font-semibold leading-tight">
+                {b.zh}
+              </span>
               {b.ja && <span className="block text-[9px] opacity-80">{b.ja}</span>}
-              <span className="block text-[8px] uppercase tracking-wide opacity-60">{TYPE_LABEL[b.type]}</span>
+              <span className="block text-[8px] uppercase tracking-wide opacity-60">
+                {t(TYPE_LABEL_KEY[b.type])}
+              </span>
             </Link>
           );
         })}
       </div>
 
-      <p className="mt-1 text-center text-[10px] text-muted-foreground">
-        枝をタップすると、その言葉を新しい木としてキャッチできます
-      </p>
+      <p className="mt-1 text-center text-[10px] text-muted-foreground">{t("tree.tapHint")}</p>
 
       <style>{`
         @keyframes wt-grow { to { stroke-dashoffset: 0; } }

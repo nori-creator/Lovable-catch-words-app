@@ -15,16 +15,22 @@ export const listSeedWordsWithStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [{ data: words, error: wErr }, { data: stickers, error: sErr }, { data: cats, error: cErr }] =
-      await Promise.all([
-        supabase
-          .from("words")
-          .select("id, headword, reading_zhuyin, meaning_ja, level, category_key, silhouette_emoji")
-          .eq("source", "seed")
-          .order("category_key", { ascending: true }),
-        supabase.from("stickers").select("word_id").eq("user_id", userId),
-        supabase.from("categories").select("key, label_ja, icon_emoji, sort_order").order("sort_order"),
-      ]);
+    const [
+      { data: words, error: wErr },
+      { data: stickers, error: sErr },
+      { data: cats, error: cErr },
+    ] = await Promise.all([
+      supabase
+        .from("words")
+        .select("id, headword, reading_zhuyin, meaning_ja, level, category_key, silhouette_emoji")
+        .eq("source", "seed")
+        .order("category_key", { ascending: true }),
+      supabase.from("stickers").select("word_id").eq("user_id", userId),
+      supabase
+        .from("categories")
+        .select("key, label_ja, icon_emoji, sort_order")
+        .order("sort_order"),
+    ]);
     if (wErr) throw new Error(wErr.message);
     if (sErr) throw new Error(sErr.message);
     if (cErr) throw new Error(cErr.message);
@@ -60,8 +66,18 @@ export const exportMyDeck = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const header = [
-      "headword", "zhuyin", "pinyin", "meaning", "part_of_speech", "level",
-      "category", "example", "example_translation", "caption", "location", "taken_at",
+      "headword",
+      "zhuyin",
+      "pinyin",
+      "meaning",
+      "part_of_speech",
+      "level",
+      "category",
+      "example",
+      "example_translation",
+      "caption",
+      "location",
+      "taken_at",
     ].join("\t");
     type Row = {
       caption: string | null;

@@ -24,9 +24,10 @@ import {
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "設定 — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
   component: SettingsPage,
 });
 
@@ -94,7 +95,9 @@ function SettingsPage() {
     <AppShell title={t("title.settings")}>
       <div className="space-y-4">
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.profile")}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
+            {t("settings.profile")}
+          </h3>
           <div className="space-y-3">
             <div>
               <Label htmlFor="dn">{t("settings.displayName")}</Label>
@@ -104,11 +107,19 @@ function SettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.language")}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
+            {t("settings.language")}
+          </h3>
           <div className="space-y-3">
             <div>
               <Label htmlFor="lang-target">{t("settings.targetLang")}</Label>
-              <select id="lang-target" aria-label="学習言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
+              <select
+                id="lang-target"
+                aria-label={t("set.targetLangAria")}
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                value={targetLanguage}
+                onChange={(e) => setTargetLanguage(e.target.value)}
+              >
                 <option value="zh-TW">{t("settings.langZhTw")}</option>
                 <option value="en">{t("settings.langEn")}</option>
               </select>
@@ -123,14 +134,22 @@ function SettingsPage() {
                 onChange={(e) => setCurrentLevel(e.target.value)}
               >
                 {["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6"].map((lv) => (
-                  <option key={lv} value={lv}>{lv.replace("TOCFL-", "TOCFL Level ")}</option>
+                  <option key={lv} value={lv}>
+                    {lv.replace("TOCFL-", "TOCFL Level ")}
+                  </option>
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.levelHint")}</p>
             </div>
             <div>
               <Label htmlFor="lang-level">{t("settings.levelGoal")}</Label>
-              <select id="lang-level" aria-label="目標レベル" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
+              <select
+                id="lang-level"
+                aria-label={t("set.levelGoalAria")}
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                value={levelGoal}
+                onChange={(e) => setLevelGoal(e.target.value)}
+              >
                 <option value="TOCFL-1">TOCFL Level 1</option>
                 <option value="TOCFL-2">TOCFL Level 2</option>
                 <option value="TOCFL-3">TOCFL Level 3</option>
@@ -144,18 +163,32 @@ function SettingsPage() {
               <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
               {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
                   変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
-              <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
+              <select
+                id="lang-native"
+                aria-label={t("set.nativeAria")}
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                value={nativeLanguage}
+                onChange={(e) => setNativeLanguage(e.target.value)}
+              >
                 {L1_ORDER.map((code) => (
                   <option key={code} value={code}>
                     {uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa}
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.nativeLangHint")}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {t("settings.nativeLangHint")}
+              </p>
             </div>
             <div>
               <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>
-              <select id="lang-ui" aria-label="表示言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
+              <select
+                id="lang-ui"
+                aria-label={t("set.uiLangAria")}
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                value={uiLanguage}
+                onChange={(e) => setUiLanguage(e.target.value)}
+              >
                 <option value="ja">{t("settings.langJa")}</option>
                 <option value="en">{t("settings.langEn")}</option>
               </select>
@@ -164,7 +197,9 @@ function SettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.study")}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
+            {t("settings.study")}
+          </h3>
           <Label>{t("settings.reviewMode")}</Label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             {(["speaking", "choice"] as const).map((v) => (
@@ -178,9 +213,7 @@ function SettingsPage() {
               </button>
             ))}
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t("settings.reviewModeHint")}
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.reviewModeHint")}</p>
           <div className="mt-3">
             <Label>{t("settings.strictness")}</Label>
             <div className="mt-1 grid grid-cols-3 gap-2">
@@ -191,7 +224,11 @@ function SettingsPage() {
                   aria-pressed={strictness === v}
                   className={`min-h-11 rounded-full border py-2.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
                 >
-                  {v === "easy" ? t("settings.easy") : v === "normal" ? t("settings.normal") : t("settings.strict")}
+                  {v === "easy"
+                    ? t("settings.easy")
+                    : v === "normal"
+                      ? t("settings.normal")
+                      : t("settings.strict")}
                 </button>
               ))}
             </div>
@@ -200,9 +237,10 @@ function SettingsPage() {
           <PlaceReminderToggle />
         </div>
 
-
         <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.appearance")}</h3>
+          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
+            {t("settings.appearance")}
+          </h3>
           <Label>{t("settings.theme")}</Label>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {(["light", "dark", "system"] as const).map((v) => (
@@ -212,7 +250,11 @@ function SettingsPage() {
                 aria-pressed={theme === v}
                 className={`min-h-11 rounded-full border py-2.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
               >
-                {v === "light" ? t("settings.light") : v === "dark" ? t("settings.dark") : t("settings.system")}
+                {v === "light"
+                  ? t("settings.light")
+                  : v === "dark"
+                    ? t("settings.dark")
+                    : t("settings.system")}
               </button>
             ))}
           </div>
@@ -253,10 +295,12 @@ function PhoneticRow() {
     <div>
       <Label>{t("settings.phonetic")}</Label>
       <div className="mt-1 grid grid-cols-2 gap-2">
-        {([
-          ["zhuyin", t("settings.zhuyin")],
-          ["pinyin", t("settings.pinyin")],
-        ] as const).map(([v, label]) => (
+        {(
+          [
+            ["zhuyin", t("settings.zhuyin")],
+            ["pinyin", t("settings.pinyin")],
+          ] as const
+        ).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setPhoneticPref(v)}
@@ -267,9 +311,7 @@ function PhoneticRow() {
           </button>
         ))}
       </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        {t("settings.phoneticHint")}
-      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.phoneticHint")}</p>
     </div>
   );
 }
@@ -287,13 +329,15 @@ function DangerZone() {
   const navigate = useNavigate();
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const armed = confirmText.trim() === "削除";
+  // 退会の確認語。英語表示の人に日本語入力を強いると操作できないので、
+  // どちらの言語でも通す(表示は今の言語のものだけ)。
+  const armed = ["削除", "DELETE"].includes(confirmText.trim().toUpperCase());
 
   async function handleDelete() {
     if (!armed || deleting) return;
     setDeleting(true);
     try {
-      await deleteFn({ data: { confirm: "削除" } });
+      await deleteFn({ data: { confirm: "削除" } }); // サーバー側の合図は固定
       await queryClient.cancelQueries();
       queryClient.clear();
       await supabase.auth.signOut().catch(() => {}); // user is already gone server-side
@@ -312,16 +356,14 @@ function DangerZone() {
         {t("settings.deleteAccount")}
       </summary>
       <div className="mt-3 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          {t("settings.deleteWarn")}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("settings.deleteWarn")}</p>
         <div>
           <Label htmlFor="del-confirm">{t("settings.deleteTypeLabel")}</Label>
           <Input
             id="del-confirm"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            placeholder="削除"
+            placeholder={t("set.deleteWord")}
             autoComplete="off"
           />
         </div>
@@ -352,7 +394,11 @@ function DangerZone() {
  */
 function AdminOnlyDeveloperPanel() {
   const adminFn = useServerFn(checkIsAdmin);
-  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+  const { data: adm } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => adminFn(),
+    staleTime: 300_000,
+  });
   if (!adm?.isAdmin) return null;
   return <DeveloperPanel />;
 }
@@ -367,16 +413,30 @@ function DeveloperPanel() {
     queryFn: () => metricsFn(),
     staleTime: 60_000,
   });
-  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+  const { data: adm } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => adminFn(),
+    staleTime: 300_000,
+  });
 
   const row = (label: string, value: number | null | undefined, targetMs: number) => {
     const ok = value != null && value <= targetMs;
     return (
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className={value == null ? "text-muted-foreground" : ok ? "font-semibold text-emerald-600" : "font-semibold text-red-600"}>
+        <span
+          className={
+            value == null
+              ? "text-muted-foreground"
+              : ok
+                ? "font-semibold text-emerald-600"
+                : "font-semibold text-red-600"
+          }
+        >
           {value == null ? t("settings.metricNone") : `${(value / 1000).toFixed(2)}s`}
-          <span className="ml-1 font-normal text-muted-foreground">/ {t("settings.metricTarget")} {(targetMs / 1000).toFixed(1)}s</span>
+          <span className="ml-1 font-normal text-muted-foreground">
+            / {t("settings.metricTarget")} {(targetMs / 1000).toFixed(1)}s
+          </span>
         </span>
       </div>
     );
@@ -390,7 +450,9 @@ function DeveloperPanel() {
       <div className="mt-3 space-y-2">
         {row(t("settings.metricDetect"), m?.detect_ms_median, 1200)}
         {row(t("settings.metricAudio"), m?.tap_to_audio_ms_median, 400)}
-        <p className="text-[10px] text-muted-foreground">直近{m?.samples ?? 0}回のスキャンから算出(仕様§9の合格ライン)</p>
+        <p className="text-[10px] text-muted-foreground">
+          {t("set.qualitySamples", { n: m?.samples ?? 0 })}
+        </p>
         {adm?.isAdmin && (
           <Link to="/admin/metrics" className="block text-xs text-primary underline">
             {t("settings.kpiLink")}
@@ -437,6 +499,7 @@ function VideoRecordingToggle() {
  * 一番わかりにくい壊れ方なので、状態が嘘をつかないようにする。
  */
 function PlaceReminderToggle() {
+  const t = useT();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -457,12 +520,8 @@ function PlaceReminderToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
-        label="場所で思い出す"
-        hint={
-          busy
-            ? "許可を確認しています…"
-            : "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。"
-        }
+        label={t("set.placeLabel")}
+        hint={busy ? t("set.placeChecking") : t("set.placeHint")}
         value={on}
         onChange={(v) => void toggle(v)}
       />
@@ -470,7 +529,17 @@ function PlaceReminderToggle() {
   );
 }
 
-function ToggleRow({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -485,8 +554,12 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
         aria-label={label}
         className="grid h-11 w-11 shrink-0 place-items-center"
       >
-        <span className={`relative block h-6 w-11 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}>
-          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0"} motion-reduce:transition-none`} />
+        <span
+          className={`relative block h-6 w-11 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}
+        >
+          <span
+            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0"} motion-reduce:transition-none`}
+          />
         </span>
       </button>
     </div>
@@ -502,7 +575,11 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
 function AdminOnlySection() {
   const t = useT();
   const adminFn = useServerFn(checkIsAdmin);
-  const { data: adm } = useQuery({ queryKey: ["is-admin"], queryFn: () => adminFn(), staleTime: 300_000 });
+  const { data: adm } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => adminFn(),
+    staleTime: 300_000,
+  });
   if (!adm?.isAdmin) return null;
   return (
     <div className="space-y-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-3">
@@ -520,7 +597,9 @@ function AdminOnlySection() {
 function UiThemePicker() {
   const t = useT();
   const [theme, setTheme] = useState<UiThemeId>("default");
-  useEffect(() => { setTheme(getUiTheme()); }, []);
+  useEffect(() => {
+    setTheme(getUiTheme());
+  }, []);
   function pick(id: UiThemeId) {
     setTheme(id);
     setUiTheme(id);
@@ -528,11 +607,12 @@ function UiThemePicker() {
   return (
     <details className="rounded-2xl border border-border bg-card p-4" open>
       <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        {t("settings.themeCompare")} <span className="ml-1 text-[11px] font-normal text-muted-foreground">({UI_THEMES.length})</span>
+        {t("settings.themeCompare")}{" "}
+        <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+          ({UI_THEMES.length})
+        </span>
       </summary>
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        {t("settings.themeHint")}
-      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.themeHint")}</p>
       <ul className="mt-3 space-y-1.5">
         {UI_THEMES.map((themeMeta) => (
           <li key={themeMeta.id}>
@@ -540,7 +620,9 @@ function UiThemePicker() {
               onClick={() => pick(themeMeta.id)}
               aria-pressed={theme === themeMeta.id}
               className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition ${
-                theme === themeMeta.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border"
+                theme === themeMeta.id
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                  : "border-border"
               }`}
             >
               <span className="flex shrink-0 overflow-hidden rounded-lg ring-1 ring-black/10">
@@ -557,7 +639,9 @@ function UiThemePicker() {
                     </span>
                   )}
                 </span>
-                <span className="block text-[11px] leading-snug text-muted-foreground">{themeMeta.concept}</span>
+                <span className="block text-[11px] leading-snug text-muted-foreground">
+                  {themeMeta.concept}
+                </span>
               </span>
             </button>
           </li>
@@ -573,7 +657,11 @@ function AiModelPanel() {
   const getFn = useServerFn(getAiModelConfig);
   const setFn = useServerFn(setAiModelConfig);
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["ai-model-config"], queryFn: () => getFn(), staleTime: 30_000 });
+  const { data } = useQuery({
+    queryKey: ["ai-model-config"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+  });
   const [provider, setProvider] = useState("");
   const [fast, setFast] = useState("");
   const [rich, setRich] = useState("");
@@ -613,7 +701,11 @@ function AiModelPanel() {
         <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-[11px] leading-relaxed">
           <div className="font-semibold">{t("settings.aiRunning")}</div>
           <div className="text-muted-foreground">
-            提供元 {data.effective.provider} / 速い系 {data.effective.fast} / 詳しい系 {data.effective.rich}
+            {t("set.aiEffective", {
+              p: data.effective.provider,
+              f: data.effective.fast,
+              r: data.effective.rich,
+            })}
             {" / "}Pro {data.effective.rich_premium}
           </div>
         </div>
@@ -647,7 +739,7 @@ function AiModelPanel() {
         <div>
           <Label className="text-xs">{t("settings.aiProvider")}</Label>
           <select
-            aria-label="AI提供元"
+            aria-label={t("set.aiProviderAria")}
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
             className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -655,25 +747,36 @@ function AiModelPanel() {
             <option value="">{t("settings.aiEnvDefault")}</option>
             {(data?.presets ?? []).map((p) => (
               <option key={p.id} value={p.id}>
-                {p.label}{p.key_present ? "" : `(${p.api_key_env} 未設定)`}
+                {p.label}
+                {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            {t("settings.aiKeyNote")}
-          </p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.aiKeyNote")}</p>
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiFast")}</Label>
-          <Input value={fast} onChange={(e) => setFast(e.target.value)} placeholder="gemini-2.5-flash" />
+          <Input
+            value={fast}
+            onChange={(e) => setFast(e.target.value)}
+            placeholder="gemini-2.5-flash"
+          />
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiRich")}</Label>
-          <Input value={rich} onChange={(e) => setRich(e.target.value)} placeholder="gemini-2.5-flash" />
+          <Input
+            value={rich}
+            onChange={(e) => setRich(e.target.value)}
+            placeholder="gemini-2.5-flash"
+          />
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiPremium")}</Label>
-          <Input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="gemini-2.5-pro" />
+          <Input
+            value={premium}
+            onChange={(e) => setPremium(e.target.value)}
+            placeholder="gemini-2.5-pro"
+          />
         </div>
 
         {/* βテスト〜ローンチで「機能ごとに別のAI」を試せるようにする。 */}

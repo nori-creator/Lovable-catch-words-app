@@ -58,6 +58,7 @@ npx tsc --noEmit
 (コードは未適用でも壊れないフェイルソフト設計にしてある)。
 
 運用ルール(Lovable と Claude Code の併用時):
+
 1. **DB変更は必ず `supabase/migrations/` にSQLファイルとして残す**(Lovable も Claude Code も同じ履歴を見る)。Supabase MCP や dashboard で直接いじった場合も、同じSQLをマイグレーションとして追加する
 2. コミットは main に直接せず、ブランチ→PR→マージ(Lovable 側は published ブランチの履歴書き換えに弱い。`AGENTS.md` の注意書きどおり force push 禁止)
 3. Lovable の編集とローカル編集を同時にしない(コンフリクトの元)。「今日はどちらで作業するか」を決めてから触る
@@ -81,7 +82,7 @@ TTSは `TTS_BASE_URL`+`TTS_API_KEY`(+`TTS_MODEL`)で任意のOpenAI互換サー�
 // AI_BASE_URL / AI_API_KEY / AI_MODEL_FAST / AI_MODEL_RICH / AI_MODEL_TTS
 export function createAiProvider() {
   switch (process.env.AI_PROVIDER ?? "lovable") {
-    case "lovable":  // 現状維持(後方互換)
+    case "lovable": // 現状維持(後方互換)
     case "openai-compatible": // Gemini APIのOpenAI互換エンドポイント等
     case "anthropic": // @ai-sdk/anthropic を追加して差し替え
   }
@@ -89,6 +90,7 @@ export function createAiProvider() {
 ```
 
 設計ポイント:
+
 - 呼び出し側(`ai.functions.ts` / `reviews.functions.ts` / `journal.functions.ts` / `quests.functions.ts` / `tts.functions.ts`)は全て Vercel AI SDK の `generateText` + `Output.object` を使っているので、**プロバイダ差し替えでコードはほぼ変わらない**。ハードコードされた `const MODEL = "google/gemini-3-flash-preview"`(4ファイルに重複)を env 参照の1箇所に集約するのが実作業のほぼ全て
 - 例外は `suggestWords`(`ai.functions.ts:114`)と TTS が fetch 直叩きなこと。これも同じ抽象に寄せる
 - モデルは役割で分ける: `AI_MODEL_FAST`(速報パス・誤答生成: 小型で安いもの)/ `AI_MODEL_RICH`(詳細カード・添削: 品質重視)/ `AI_MODEL_TTS`。用途別に env で差し替えて比較できる状態にしておき、コストと品質は実測で決める(`ai_runs` / `usage_events` に記録して比較)
@@ -120,15 +122,16 @@ React Native 等での書き直しは不要。**同じコードベースのま�
 
 「対応言語を増やす」= 3つの独立した軸に分解して、順にやる:
 
-| 軸 | 内容 | 現状 |
-|---|---|---|
-| A. 学習対象言語 | zh-TW 以外の単語カード | `words.language` 列あり。プロンプトが zh-TW 特化の分岐(`ai.functions.ts:94` ほか)なのでテンプレート化が必要 |
-| B. 母語(解説言語) | meaning_ja / feedback_ja を他言語に | カラム名から ja 固定。`meaning`(jsonb: `{ja: "...", en: "..."}`)化 or ユーザー母語列の追加が必要 |
-| C. UI言語 | ボタン・ラベル | 日本語ハードコード。i18n ライブラリ導入 |
+| 軸                | 内容                                | 現状                                                                                                        |
+| ----------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A. 学習対象言語   | zh-TW 以外の単語カード              | `words.language` 列あり。プロンプトが zh-TW 特化の分岐(`ai.functions.ts:94` ほか)なのでテンプレート化が必要 |
+| B. 母語(解説言語) | meaning_ja / feedback_ja を他言語に | カラム名から ja 固定。`meaning`(jsonb: `{ja: "...", en: "..."}`)化 or ユーザー母語列の追加が必要            |
+| C. UI言語         | ボタン・ラベル                      | 日本語ハードコード。i18n ライブラリ導入                                                                     |
 
 推奨順序: **A(英語・簡体字を追加)→ C → B**。初期ターゲット(日本人)を守ったまま市場を広げられるのがA。
 
 言語固有の設計を一般化するポイント:
+
 - 読み表記: zhuyin/pinyin は中国語専用 → `readings jsonb`(`{"zhuyin": "...", "pinyin": "..."}` / 英語なら `{"ipa": "..."}` / 韓国語なら不要)に一般化
 - レベル体系: TOCFL / HSK / CEFR / JLPT を `vocab_lists.level_system` で持つ
 - プロンプト: `prompts/{language}.ts` にテンプレートを分離し、「その言語の学習で重要な項目」(中国語=語源・部首、英語=句動詞・発音記号)を言語ごとに定義

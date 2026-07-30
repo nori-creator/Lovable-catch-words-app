@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { X, MapPin, Clock, Loader2, Settings2, ChevronUp, Sparkles, Lock, Flag, Trash2, Camera } from "lucide-react";
+import {
+  X,
+  MapPin,
+  Clock,
+  Loader2,
+  Settings2,
+  ChevronUp,
+  Sparkles,
+  Lock,
+  Flag,
+  Trash2,
+  Camera,
+} from "lucide-react";
 import { toast } from "sonner";
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import {
@@ -19,7 +31,6 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { useT, useUiLang } from "@/lib/i18n";
-
 
 type Props = {
   stickerId: string | null;
@@ -77,7 +88,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const autoImgRef = useRef<Set<string>>(new Set());
   // ネット画像の候補(複数)。自動で1枚目を入れ、残りは「別の画像に変える」
   // 候補として下に並べる。ユーザーが気に入らなければタップで差し替え。
-  const [webCandidates, setWebCandidates] = useState<{ url: string; credit?: { name?: string; link?: string }; source: string }[]>([]);
+  const [webCandidates, setWebCandidates] = useState<
+    { url: string; credit?: { name?: string; link?: string }; source: string }[]
+  >([]);
   const [swapping, setSwapping] = useState<string | null>(null);
   useEffect(() => {
     if (!s) return;
@@ -112,12 +125,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           data: {
             sticker_id: s.id,
             placeholder_path: path,
-            placeholder_credit: cand.credit ? { ...cand.credit, source: cand.source } : { source: cand.source },
+            placeholder_credit: cand.credit
+              ? { ...cand.credit, source: cand.source }
+              : { source: cand.source },
           },
         });
         await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
         await qc.invalidateQueries({ queryKey: ["stickers"] });
-      } catch { /* 仮画像は任意 */ }
+      } catch {
+        /* 仮画像は任意 */
+      }
     })();
   }, [s, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
 
@@ -126,7 +143,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
    * 自分で撮った写真ではないので object ではなく placeholder 側を入れ替える
    * (あとで実物を撮ったときに、その写真が正として上書きされる)。
    */
-  async function swapWebImage(cand: { url: string; credit?: { name?: string; link?: string }; source: string }) {
+  async function swapWebImage(cand: {
+    url: string;
+    credit?: { name?: string; link?: string };
+    source: string;
+  }) {
     if (!s || swapping) return;
     setSwapping(cand.url);
     try {
@@ -147,7 +168,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         data: {
           sticker_id: s.id,
           placeholder_path: path,
-          placeholder_credit: cand.credit ? { ...cand.credit, source: cand.source } : { source: cand.source },
+          placeholder_credit: cand.credit
+            ? { ...cand.credit, source: cand.source }
+            : { source: cand.source },
         },
       });
       await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
@@ -211,7 +234,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     if (!s || regenerating) return;
     setRegenerating(true);
     try {
-      const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+      const card = await enrichWord({
+        data: { headword: s.word.headword, targetLanguage: "zh-TW" },
+      });
       await saveExtras({
         data: {
           word_id: s.word_id,
@@ -239,8 +264,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
   async function handleDelete() {
     if (!stickerId || busy) return;
-    if (!deleteArmed) { setDeleteArmed(true); return; }
-    if (!window.confirm(t("card.deleteConfirmDialog"))) { setDeleteArmed(false); return; }
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
+    if (!window.confirm(t("card.deleteConfirmDialog"))) {
+      setDeleteArmed(false);
+      return;
+    }
     setDeleteArmed(false);
     setBusy("delete");
     try {
@@ -296,9 +327,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     const ex = s.word.extras;
     const isEmpty =
       !ex ||
-      (!ex.collocations.length && !ex.synonyms.length && !ex.antonyms.length &&
-       !ex.etymology && !ex.mnemonic && !ex.trivia && !ex.common_situation &&
-       !ex.usage_note && !ex.examples_extra.length);
+      (!ex.collocations.length &&
+        !ex.synonyms.length &&
+        !ex.antonyms.length &&
+        !ex.etymology &&
+        !ex.mnemonic &&
+        !ex.trivia &&
+        !ex.common_situation &&
+        !ex.usage_note &&
+        !ex.examples_extra.length);
     // Cards generated before 2026-07-13 lack the corpus-style fields
     // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
     const missingNewFields =
@@ -318,7 +355,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     setEnriching(true);
     (async () => {
       try {
-        const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+        const card = await enrichWord({
+          data: { headword: s.word.headword, targetLanguage: "zh-TW" },
+        });
         await saveExtras({
           data: {
             word_id: s.word_id,
@@ -382,7 +421,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     if (!s || reporting) return;
     setReporting(true);
     try {
-      const card = await enrichWord({ data: { headword: s.word.headword, targetLanguage: "zh-TW" } });
+      const card = await enrichWord({
+        data: { headword: s.word.headword, targetLanguage: "zh-TW" },
+      });
       await saveExtras({
         data: {
           word_id: s.word_id,
@@ -410,10 +451,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   }
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={s ? s.word.headword : "カード"}>
+    <div
+      className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label={s ? s.word.headword : t("common.card")}
+    >
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground">
+        <span lang="zh-Hant" className="pl-1 text-xs font-medium text-muted-foreground">
           {s ? s.word.headword : "..."}
         </span>
         <div className="flex items-center gap-2">
@@ -446,7 +492,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             <button
               onClick={() => setEditing(false)}
               className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
-              aria-label="編集を閉じる"
+              aria-label={t("common.closeEdit")}
             >
               <ChevronUp className="h-4 w-4" />
             </button>
@@ -470,7 +516,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               aria-label={flipped ? t("card.flipBack") : t("card.flipToSelfie")}
               onClick={() => {
                 // 長押し(写真の変更)が成立した後のクリックは無視する。
-                if (longPressFired.current) { longPressFired.current = false; return; }
+                if (longPressFired.current) {
+                  longPressFired.current = false;
+                  return;
+                }
                 // 自撮りが無くてもクルッと回す — 裏面が「自撮りを足す場所」になる。
                 setFlipped((f) => !f);
               }}
@@ -494,7 +543,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   {s.object_url ? (
                     <CachedImg
                       src={s.object_url}
-                      alt={`「${s.word.headword}」の写真`}
+                      alt={t("common.photoOf", { word: s.word.headword })}
                       className="hero-pop absolute inset-0 h-full w-full object-cover"
                     />
                   ) : s.cutout_url ? (
@@ -510,7 +559,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     <>
                       <img
                         src={s.placeholder_url}
-                        alt={`「${s.word.headword}」の画像`}
+                        alt={t("common.imageOf", { word: s.word.headword })}
                         className="hero-pop absolute inset-0 h-full w-full object-cover"
                       />
                       {s.placeholder_credit?.name && (
@@ -526,7 +575,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     </>
                   ) : (
                     <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
-                      <span className="text-xs text-muted-foreground">{t("card.findingImage")}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t("card.findingImage")}
+                      </span>
                     </div>
                   )}
                   {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
@@ -538,7 +589,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     aria-label={t("card.changePhoto")}
                     className="absolute bottom-2 left-2 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition active:scale-95"
                   >
-                    {busy === "image" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    {busy === "image" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
                   </button>
                   <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                     {t("card.flipToSelfie")}
@@ -549,7 +604,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
                   {hasSelfie ? (
                     <>
-                      <img src={s.selfie_url!} alt={t("card.selfie")} className="absolute inset-0 h-full w-full object-cover" />
+                      <img
+                        src={s.selfie_url!}
+                        alt={t("card.selfie")}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
                       <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
                         {t("card.flipBack")}
                       </span>
@@ -649,14 +708,18 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             )}
 
             {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
-            {!enriching && (
-              isPro ? (
+            {!enriching &&
+              (isPro ? (
                 <button
                   onClick={regenerate}
                   disabled={regenerating}
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-semibold text-primary disabled:opacity-60"
                 >
-                  {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {regenerating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
                   {regenerating ? t("card.regenerating") : t("card.regenAll")}
                 </button>
               ) : (
@@ -664,8 +727,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   <Lock className="h-3.5 w-3.5" />
                   {t("card.regenPro")}
                 </div>
-              )
-            )}
+              ))}
 
             {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
             <div className="mt-4 text-center">
@@ -674,7 +736,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 disabled={reporting}
                 className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-60"
               >
-                {reporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Flag className="h-3.5 w-3.5" />}
+                {reporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Flag className="h-3.5 w-3.5" />
+                )}
                 {reporting ? t("card.reportFixing") : t("card.reportPrompt")}
               </button>
             </div>
@@ -687,14 +753,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 className="mt-5 block overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
               >
                 <iframe
-                  title="撮影場所のマップ"
+                  title={t("common.mapTitle")}
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
                   className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
                 <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? "撮影地"}
+                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
                   </span>
                   <span className="text-primary">{t("card.openMapsLabel")}</span>
                 </div>
@@ -723,7 +789,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     : "border-red-200 bg-red-50 text-red-700"
                 }`}
               >
-                {busy === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {busy === "delete" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
                 {deleteArmed ? t("card.deleteConfirm") : t("card.delete")}
               </button>
             </div>

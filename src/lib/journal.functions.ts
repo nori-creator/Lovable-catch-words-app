@@ -64,7 +64,28 @@ export const listJournal = createServerFn({ method: "GET" })
     return (data ?? []).map(toJournalEntry);
   });
 
-async function getTodaysCaptures(supabase: any, userId: string) {
+/** 日記の材料になる「今日撮ったもの」。必要な列だけを型として書く。 */
+type TodaysCapture = {
+  created_at: string;
+  caption: string | null;
+  location_name: string | null;
+  word: { headword: string; meaning_ja: string | null } | null;
+  id: string;
+};
+
+/**
+ * supabase は認証ミドルウェアが作ったクライアント。型を書き出すと
+ * 生成物への依存が増えるので、この関数が使う `from()` だけを要求する。
+ */
+type SupabaseLike = {
+  // クエリビルダは .select().eq().gte()... と連鎖し、戻り値の型が段ごとに
+  // 変わる。ここで正確に書くと生成された型定義に強く依存してしまうので、
+  // この1行に限って any を許す(戻り値は下で TodaysCapture[] に絞る)。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from: (table: string) => any;
+};
+
+async function getTodaysCaptures(supabase: SupabaseLike, userId: string) {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" });
   const today = fmt.format(new Date());
   const start = new Date(`${today}T00:00:00+08:00`).toISOString();
@@ -76,10 +97,10 @@ async function getTodaysCaptures(supabase: any, userId: string) {
     .order("created_at", { ascending: true })
     .limit(12);
   if (error) throw new Error(error.message);
-  return { today, stickers: data ?? [] };
+  return { today, stickers: (data ?? []) as TodaysCapture[] };
 }
 
-function describeCaptures(stickers: any[]) {
+function describeCaptures(stickers: TodaysCapture[]) {
   return stickers
     .map((s) => {
       const t = new Date(s.created_at).toLocaleTimeString("ja-JP", {
@@ -147,7 +168,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
       user_draft: data.draft,
       correction: corrected.correction,
       feedback_ja: corrected.feedback_ja,
-      used_sticker_ids: stickers.map((s: any) => s.id),
+      used_sticker_ids: stickers.map((s) => s.id),
       model: richModel,
     };
     // Try with native_phrases first; retry without it if the column hasn't

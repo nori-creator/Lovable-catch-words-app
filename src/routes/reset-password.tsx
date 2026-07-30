@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
-      { title: "パスワード再設定 — Catchwords" },
+      { title: tStatic("page.reset") },
       { name: "description", content: "Catchwordsのパスワードを再設定します。" },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -18,6 +20,7 @@ export const Route = createFileRoute("/reset-password")({
 });
 
 function ResetPasswordPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"request" | "update">("request");
   const [email, setEmail] = useState("");
@@ -43,9 +46,9 @@ function ResetPasswordPage() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      toast.success("再設定リンクをメールで送りました。");
+      toast.success(t("rp.sent"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "送信に失敗しました");
+      toast.error(err instanceof Error ? err.message : t("rp.sendFailed"));
     } finally {
       setLoading(false);
     }
@@ -57,10 +60,10 @@ function ResetPasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      toast.success("パスワードを更新しました。");
+      toast.success(t("rp.updated"));
       navigate({ to: "/home", replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "更新に失敗しました");
+      toast.error(err instanceof Error ? err.message : t("rp.updateFailed"));
     } finally {
       setLoading(false);
     }
@@ -70,10 +73,12 @@ function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">C</div>
-          <h1 className="text-2xl font-semibold tracking-tight">パスワード再設定</h1>
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">
+            C
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("rp.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "request" ? "登録メールアドレスにリンクを送ります。" : "新しいパスワードを入力してください。"}
+            {mode === "request" ? t("rp.hintRequest") : t("rp.hintUpdate")}
           </p>
         </div>
 
@@ -81,27 +86,44 @@ function ResetPasswordPage() {
           {mode === "request" ? (
             <form onSubmit={handleRequest} className="space-y-3">
               <div>
-                <Label htmlFor="email">メールアドレス</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+                <Label htmlFor="email">{t("rp.email")}</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "..." : "再設定リンクを送る"}
+                {loading ? "..." : t("rp.sendLink")}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleUpdate} className="space-y-3">
               <div>
-                <Label htmlFor="password">新しいパスワード</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
+                <Label htmlFor="password">{t("rp.newPassword")}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "..." : "パスワードを更新"}
+                {loading ? "..." : t("rp.update")}
               </Button>
             </form>
           )}
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            <a href="/auth" className="underline hover:text-foreground">ログイン画面に戻る</a>
+            <a href="/auth" className="inline-block py-3 -my-3 underline hover:text-foreground">
+              {t("rp.backToLogin")}
+            </a>
           </p>
         </div>
       </div>

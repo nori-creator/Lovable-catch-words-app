@@ -152,22 +152,48 @@
   flex: none;
   background:
     radial-gradient(38% 44% at 26% 24%, hsl(var(--pk-h) 78% 74% / 0.95) 0%, transparent 62%),
-    radial-gradient(42% 40% at 78% 70%, hsl(calc(var(--pk-h) + 42) 70% 60% / 0.9) 0%, transparent 58%),
-    radial-gradient(60% 60% at 60% 10%, hsl(calc(var(--pk-h) - 28) 60% 66% / 0.55) 0%, transparent 70%),
+    radial-gradient(
+      42% 40% at 78% 70%,
+      hsl(calc(var(--pk-h) + 42) 70% 60% / 0.9) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      60% 60% at 60% 10%,
+      hsl(calc(var(--pk-h) - 28) 60% 66% / 0.55) 0%,
+      transparent 70%
+    ),
     linear-gradient(152deg, hsl(var(--pk-h) 46% 44%) 0%, hsl(calc(var(--pk-h) + 30) 52% 26%) 100%);
 }
 
 /* 色相を1件ずつずらす。同じ絵が9枚並ぶより、色の違う9枚が並ぶほうが
    「自分の写真が貯まっている」実感に近い。 */
-.pk-tile:nth-child(9n + 1) .pk-tile-media { --pk-h: 28; }
-.pk-tile:nth-child(9n + 2) .pk-tile-media { --pk-h: 206; }
-.pk-tile:nth-child(9n + 3) .pk-tile-media { --pk-h: 320; }
-.pk-tile:nth-child(9n + 4) .pk-tile-media { --pk-h: 8; }
-.pk-tile:nth-child(9n + 5) .pk-tile-media { --pk-h: 168; }
-.pk-tile:nth-child(9n + 6) .pk-tile-media { --pk-h: 48; }
-.pk-tile:nth-child(9n + 7) .pk-tile-media { --pk-h: 262; }
-.pk-tile:nth-child(9n + 8) .pk-tile-media { --pk-h: 190; }
-.pk-tile:nth-child(9n + 9) .pk-tile-media { --pk-h: 96; }
+.pk-tile:nth-child(9n + 1) .pk-tile-media {
+  --pk-h: 28;
+}
+.pk-tile:nth-child(9n + 2) .pk-tile-media {
+  --pk-h: 206;
+}
+.pk-tile:nth-child(9n + 3) .pk-tile-media {
+  --pk-h: 320;
+}
+.pk-tile:nth-child(9n + 4) .pk-tile-media {
+  --pk-h: 8;
+}
+.pk-tile:nth-child(9n + 5) .pk-tile-media {
+  --pk-h: 168;
+}
+.pk-tile:nth-child(9n + 6) .pk-tile-media {
+  --pk-h: 48;
+}
+.pk-tile:nth-child(9n + 7) .pk-tile-media {
+  --pk-h: 262;
+}
+.pk-tile:nth-child(9n + 8) .pk-tile-media {
+  --pk-h: 190;
+}
+.pk-tile:nth-child(9n + 9) .pk-tile-media {
+  --pk-h: 96;
+}
 
 .pk-tile-media img {
   width: 100%;
@@ -182,7 +208,9 @@
   line-height: 1;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
 }
-.pk-tile-media { container-type: inline-size; }
+.pk-tile-media {
+  container-type: inline-size;
+}
 
 .pk-tile-body {
   padding: 9px 10px 11px;
@@ -227,7 +255,9 @@
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), filter 140ms ease;
+  transition:
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 140ms ease;
 }
 
 .pk-btn:active {
@@ -318,8 +348,12 @@
   box-shadow: 0 2px 6px rgba(60, 50, 40, 0.22);
   transform: rotate(-3deg);
 }
-.pk-collection[data-layout="album"] .pk-tile:nth-child(2n) { transform: rotate(2.5deg); }
-.pk-collection[data-layout="album"] .pk-tile:nth-child(3n) { transform: rotate(-1deg); }
+.pk-collection[data-layout="album"] .pk-tile:nth-child(2n) {
+  transform: rotate(2.5deg);
+}
+.pk-collection[data-layout="album"] .pk-tile:nth-child(3n) {
+  transform: rotate(-1deg);
+}
 .pk-collection[data-layout="album"] .pk-tile-media {
   border-radius: 1px;
   filter: sepia(0.1) saturate(0.94);
@@ -337,7 +371,9 @@
   font-weight: 600;
   color: #4a4038;
 }
-.pk-collection[data-layout="album"] .pk-tile-sub { display: none; }
+.pk-collection[data-layout="album"] .pk-tile-sub {
+  display: none;
+}
 
 /* カード1枚が主役。大きく見せる。 */
 [data-ui-pack] .pk-collection[data-layout="card"] {
@@ -473,10 +509,21 @@
   background: transparent;
   box-shadow: none;
 }
-[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(1) { left: 12%; top: 16%; }
-[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(2) { left: 54%; top: 38%; }
-[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(3) { left: 24%; top: 62%; }
-[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(n + 4) { display: none; }
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(1) {
+  left: 12%;
+  top: 16%;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(2) {
+  left: 54%;
+  top: 38%;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(3) {
+  left: 24%;
+  top: 62%;
+}
+[data-ui-pack] .pk-collection[data-layout="map"] .pk-tile:nth-child(n + 4) {
+  display: none;
+}
 [data-ui-pack] .pk-collection[data-layout="map"] .pk-tile-media {
   border-radius: 999px;
   border: 2px solid var(--pk-accent);
@@ -510,8 +557,7 @@
   --pk-display-spacing: 0.01em;
   --pk-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   background:
-    radial-gradient(ellipse at 50% -10%, rgba(255, 212, 94, 0.16), transparent 60%),
-    var(--pk-bg);
+    radial-gradient(ellipse at 50% -10%, rgba(255, 212, 94, 0.16), transparent 60%), var(--pk-bg);
 }
 
 [data-ui-pack="card"] .pk-tile {
@@ -556,7 +602,9 @@
 /* レア度。3枚目だけ枠を強くして「当たり」を作る。 */
 [data-ui-pack="card"] .pk-tile:nth-child(3n) {
   border-color: #7fffd4;
-  box-shadow: 0 0 16px rgba(127, 255, 212, 0.35), var(--pk-shadow);
+  box-shadow:
+    0 0 16px rgba(127, 255, 212, 0.35),
+    var(--pk-shadow);
 }
 
 /* 銘板。箔の下に潜らないよう、面を持たせて前に出す。 */
@@ -615,16 +663,26 @@
 /* シールの白フチ + 段差の影。 */
 [data-ui-pack="sticker"] .pk-tile {
   border: 4px solid #fff;
-  box-shadow: 0 3px 0 rgba(150, 100, 60, 0.2), 0 5px 12px rgba(150, 100, 60, 0.18);
+  box-shadow:
+    0 3px 0 rgba(150, 100, 60, 0.2),
+    0 5px 12px rgba(150, 100, 60, 0.18);
   transform: rotate(-2deg);
   transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-[data-ui-pack="sticker"] .pk-tile:nth-child(2n) { transform: rotate(2.5deg); }
-[data-ui-pack="sticker"] .pk-tile:nth-child(3n) { transform: rotate(-0.8deg); }
+[data-ui-pack="sticker"] .pk-tile:nth-child(2n) {
+  transform: rotate(2.5deg);
+}
+[data-ui-pack="sticker"] .pk-tile:nth-child(3n) {
+  transform: rotate(-0.8deg);
+}
 /* 貼る瞬間の潰れ。 */
-[data-ui-pack="sticker"] .pk-tile:active { transform: rotate(0deg) scale(0.94); }
+[data-ui-pack="sticker"] .pk-tile:active {
+  transform: rotate(0deg) scale(0.94);
+}
 
-[data-ui-pack="sticker"] .pk-tile-media { filter: saturate(1.1) brightness(1.04); }
+[data-ui-pack="sticker"] .pk-tile-media {
+  filter: saturate(1.1) brightness(1.04);
+}
 
 [data-ui-pack="sticker"] .pk-tile-body {
   text-align: center;
@@ -658,9 +716,7 @@
   --pk-display-spacing: 0.02em;
   --pk-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   /* 庫内灯: 上から淡く落ちる光 */
-  background:
-    linear-gradient(180deg, rgba(184, 137, 74, 0.14), transparent 38%),
-    var(--pk-bg);
+  background: linear-gradient(180deg, rgba(184, 137, 74, 0.14), transparent 38%), var(--pk-bg);
 }
 
 /* 棚板。セルの下に木の横線を敷く。 */
@@ -723,7 +779,9 @@
   background: #101a30;
   border: 1px solid var(--pk-line);
   padding: 8px;
-  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* 円形の窓。 */
@@ -793,7 +851,9 @@
   pointer-events: none;
 }
 
-[data-ui-pack="garage"] .pk-tile-media { filter: saturate(0.35) contrast(1.15) brightness(0.9); }
+[data-ui-pack="garage"] .pk-tile-media {
+  filter: saturate(0.35) contrast(1.15) brightness(0.9);
+}
 
 [data-ui-pack="garage"] .pk-tile-word {
   text-transform: uppercase;
@@ -909,7 +969,9 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-[data-ui-pack="artspace"] .pk-tile-media { filter: grayscale(1) contrast(1.22); }
+[data-ui-pack="artspace"] .pk-tile-media {
+  filter: grayscale(1) contrast(1.22);
+}
 [data-ui-pack="artspace"] .pk-tile:nth-child(3n) .pk-tile-media {
   filter: grayscale(1) contrast(1.3) invert(1);
 }
@@ -946,7 +1008,9 @@
 [data-ui-pack="photofeed"] .pk-tile {
   background: transparent;
 }
-[data-ui-pack="photofeed"] .pk-tile-media { filter: saturate(1.06); }
+[data-ui-pack="photofeed"] .pk-tile-media {
+  filter: saturate(1.06);
+}
 /* 隙間なしのグリッドでは文字を写真に載せる。 */
 [data-ui-pack="photofeed"] .pk-tile-body {
   position: absolute;
@@ -999,7 +1063,9 @@
 }
 
 /* 他パックではリング列を出さない。 */
-.pk-rings { display: none; }
+.pk-rings {
+  display: none;
+}
 
 /* === AR Field — 地図が全面。単語が地面から湧く ========================== */
 [data-ui-pack="arfield"] .pk-app,
@@ -1017,8 +1083,7 @@
   --pk-display-spacing: 0;
   --pk-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   background:
-    radial-gradient(ellipse at 50% 110%, rgba(79, 209, 197, 0.2), transparent 60%),
-    var(--pk-bg);
+    radial-gradient(ellipse at 50% 110%, rgba(79, 209, 197, 0.2), transparent 60%), var(--pk-bg);
 }
 
 [data-ui-pack="arfield"] .pk-tile-word {
@@ -1041,12 +1106,22 @@
   animation: pk-ar-ping 2.4s ease-out infinite;
   pointer-events: none;
 }
-[data-ui-pack="arfield"] .pk-tile:nth-child(2)::before { animation-delay: 0.8s; }
-[data-ui-pack="arfield"] .pk-tile:nth-child(3)::before { animation-delay: 1.6s; }
+[data-ui-pack="arfield"] .pk-tile:nth-child(2)::before {
+  animation-delay: 0.8s;
+}
+[data-ui-pack="arfield"] .pk-tile:nth-child(3)::before {
+  animation-delay: 1.6s;
+}
 
 @keyframes pk-ar-ping {
-  0% { transform: scale(0.6); opacity: 0.65; }
-  100% { transform: scale(1.5); opacity: 0; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
 
 [data-ui-pack="arfield"] .pk-btn {
@@ -1082,16 +1157,27 @@
   padding: 12px 14px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
 }
-[data-ui-pack="vfeed"] .pk-title { color: #fff; }
+[data-ui-pack="vfeed"] .pk-title {
+  color: #fff;
+}
 
-[data-ui-pack="vfeed"] .pk-tile-media { filter: saturate(1.08) contrast(1.05); }
-[data-ui-pack="vfeed"] .pk-tile-emoji { font-size: 76px; }
+[data-ui-pack="vfeed"] .pk-tile-media {
+  filter: saturate(1.08) contrast(1.05);
+}
+[data-ui-pack="vfeed"] .pk-tile-emoji {
+  font-size: 76px;
+}
 
 [data-ui-pack="vfeed"] .pk-tile-body {
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
 }
-[data-ui-pack="vfeed"] .pk-tile-word { font-size: 22px; }
-[data-ui-pack="vfeed"] .pk-tile-sub { font-size: 12px; color: rgba(255, 255, 255, 0.82); }
+[data-ui-pack="vfeed"] .pk-tile-word {
+  font-size: 22px;
+}
+[data-ui-pack="vfeed"] .pk-tile-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.82);
+}
 
 /* 右端の縦アクション列。 */
 [data-ui-pack="vfeed"] .pk-tile::after {
@@ -1134,8 +1220,12 @@
   --pk-shadow: none;
 }
 
-[data-ui-pack="library"] .pk-tile { background: transparent; }
-[data-ui-pack="library"] .pk-tile-media { border-radius: 10px; }
+[data-ui-pack="library"] .pk-tile {
+  background: transparent;
+}
+[data-ui-pack="library"] .pk-tile-media {
+  border-radius: 10px;
+}
 /* 続きから戻れる進捗バー。 */
 [data-ui-pack="library"] .pk-tile-media::after {
   content: "";
@@ -1146,14 +1236,28 @@
   width: 42%;
   background: var(--pk-accent);
 }
-[data-ui-pack="library"] .pk-tile:nth-child(2) .pk-tile-media::after { width: 71%; }
-[data-ui-pack="library"] .pk-tile:nth-child(3) .pk-tile-media::after { width: 18%; }
+[data-ui-pack="library"] .pk-tile:nth-child(2) .pk-tile-media::after {
+  width: 71%;
+}
+[data-ui-pack="library"] .pk-tile:nth-child(3) .pk-tile-media::after {
+  width: 18%;
+}
 
-[data-ui-pack="library"] .pk-tile-body { padding: 7px 2px 0; }
-[data-ui-pack="library"] .pk-tile-word { font-size: 12px; white-space: normal; }
-[data-ui-pack="library"] .pk-tile-sub { font-size: 10px; }
+[data-ui-pack="library"] .pk-tile-body {
+  padding: 7px 2px 0;
+}
+[data-ui-pack="library"] .pk-tile-word {
+  font-size: 12px;
+  white-space: normal;
+}
+[data-ui-pack="library"] .pk-tile-sub {
+  font-size: 10px;
+}
 
-[data-ui-pack="library"] .pk-btn { border-radius: 999px; background: #b8001f; }
+[data-ui-pack="library"] .pk-btn {
+  border-radius: 999px;
+  background: #b8001f;
+}
 
 /* === Timeline — 高密度の1列 ============================================= */
 [data-ui-pack="timeline"] .pk-app,
@@ -1169,9 +1273,17 @@
   --pk-shadow: none;
 }
 
-[data-ui-pack="timeline"] .pk-tile-media { filter: saturate(0.95); }
-[data-ui-pack="timeline"] .pk-tile-word { font-size: 14px; }
-[data-ui-pack="timeline"] .pk-tile-sub { font-size: 12px; white-space: normal; color: var(--pk-dim); }
+[data-ui-pack="timeline"] .pk-tile-media {
+  filter: saturate(0.95);
+}
+[data-ui-pack="timeline"] .pk-tile-word {
+  font-size: 14px;
+}
+[data-ui-pack="timeline"] .pk-tile-sub {
+  font-size: 12px;
+  white-space: normal;
+  color: var(--pk-dim);
+}
 /* 反応の行。 */
 [data-ui-pack="timeline"] .pk-tile-body::after {
   content: "💬 3    ↺ 1    ♡ 12";
@@ -1182,7 +1294,10 @@
   letter-spacing: 0.02em;
 }
 
-[data-ui-pack="timeline"] .pk-btn { font-weight: 700; background: #1272b8; }
+[data-ui-pack="timeline"] .pk-btn {
+  font-weight: 700;
+  background: #1272b8;
+}
 
 /* === Social Wall — 角丸カードが積まれる ================================= */
 [data-ui-pack="wall"] .pk-app,
@@ -1207,9 +1322,17 @@
   padding: 10px;
   margin-bottom: var(--pk-gap);
 }
-[data-ui-pack="wall"] .pk-tile-media { filter: saturate(1); }
-[data-ui-pack="wall"] .pk-tile-word { font-size: 14px; font-weight: 600; }
-[data-ui-pack="wall"] .pk-tile-sub { white-space: normal; font-size: 12px; }
+[data-ui-pack="wall"] .pk-tile-media {
+  filter: saturate(1);
+}
+[data-ui-pack="wall"] .pk-tile-word {
+  font-size: 14px;
+  font-weight: 600;
+}
+[data-ui-pack="wall"] .pk-tile-sub {
+  white-space: normal;
+  font-size: 12px;
+}
 /* 反応ボタンの行。 */
 [data-ui-pack="wall"] .pk-tile-body::after {
   content: "👍 いいね     💬 コメント     ↗ シェア";
@@ -1221,7 +1344,10 @@
   color: var(--pk-dim);
 }
 
-[data-ui-pack="wall"] .pk-btn { border-radius: 6px; font-weight: 700; }
+[data-ui-pack="wall"] .pk-btn {
+  border-radius: 6px;
+  font-weight: 700;
+}
 
 /* === Streaming — 巨大ヒーロー + 横スクロールの行 ======================== */
 [data-ui-pack="streaming"] .pk-app,
@@ -1256,9 +1382,13 @@
   letter-spacing: -0.03em;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
-.pk-hero { display: none; }
+.pk-hero {
+  display: none;
+}
 
-[data-ui-pack="streaming"] .pk-tile { background: transparent; }
+[data-ui-pack="streaming"] .pk-tile {
+  background: transparent;
+}
 /* ポスターは縦長なので、1行に3枚半だけ覗く幅にする。 */
 [data-ui-pack="streaming"] .pk-collection[data-layout="rail"] .pk-tile {
   flex: 0 0 calc((100% - 12px) / 3.4);
@@ -1269,13 +1399,25 @@
   border-radius: 4px;
   filter: saturate(1.05) contrast(1.06);
 }
-[data-ui-pack="streaming"] .pk-tile-body { padding: 6px 1px 0; }
-[data-ui-pack="streaming"] .pk-tile-word { font-size: 11px; }
-[data-ui-pack="streaming"] .pk-tile-sub { font-size: 9px; }
+[data-ui-pack="streaming"] .pk-tile-body {
+  padding: 6px 1px 0;
+}
+[data-ui-pack="streaming"] .pk-tile-word {
+  font-size: 11px;
+}
+[data-ui-pack="streaming"] .pk-tile-sub {
+  font-size: 9px;
+}
 
-[data-ui-pack="streaming"] .pk-btn { border-radius: 4px; font-weight: 700; background: #b3060f; }
+[data-ui-pack="streaming"] .pk-btn {
+  border-radius: 4px;
+  font-weight: 700;
+  background: #b3060f;
+}
 
-[data-ui-pack="streaming"] .pk-nav { background: #141414; }
+[data-ui-pack="streaming"] .pk-nav {
+  background: #141414;
+}
 
 /* === Darkroom — 赤灯だけの暗所。写真が現像されて現れる ================== */
 [data-ui-pack="darkroom"] .pk-app,
@@ -1291,8 +1433,7 @@
   --pk-gap: 14px;
   --pk-shadow: none;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(224, 86, 63, 0.16), transparent 62%),
-    var(--pk-bg);
+    radial-gradient(ellipse at 50% 0%, rgba(224, 86, 63, 0.16), transparent 62%), var(--pk-bg);
 }
 
 /* 印画紙。白フチを残し、下だけ広く取る(写真プリントの比率)。 */
@@ -1308,14 +1449,28 @@
   animation: pk-develop 2.6s ease-out both;
 }
 @keyframes pk-develop {
-  0% { filter: brightness(0.25) contrast(1.9) sepia(0.6); }
-  100% { filter: brightness(1) contrast(1.04) sepia(0.14); }
+  0% {
+    filter: brightness(0.25) contrast(1.9) sepia(0.6);
+  }
+  100% {
+    filter: brightness(1) contrast(1.04) sepia(0.14);
+  }
 }
-[data-ui-pack="darkroom"] .pk-tile:nth-child(2) .pk-tile-media { animation-delay: 0.4s; }
-[data-ui-pack="darkroom"] .pk-tile:nth-child(3) .pk-tile-media { animation-delay: 0.8s; }
-[data-ui-pack="darkroom"] .pk-tile:nth-child(4) .pk-tile-media { animation-delay: 1.2s; }
-[data-ui-pack="darkroom"] .pk-tile:nth-child(5) .pk-tile-media { animation-delay: 1.6s; }
-[data-ui-pack="darkroom"] .pk-tile:nth-child(6) .pk-tile-media { animation-delay: 2s; }
+[data-ui-pack="darkroom"] .pk-tile:nth-child(2) .pk-tile-media {
+  animation-delay: 0.4s;
+}
+[data-ui-pack="darkroom"] .pk-tile:nth-child(3) .pk-tile-media {
+  animation-delay: 0.8s;
+}
+[data-ui-pack="darkroom"] .pk-tile:nth-child(4) .pk-tile-media {
+  animation-delay: 1.2s;
+}
+[data-ui-pack="darkroom"] .pk-tile:nth-child(5) .pk-tile-media {
+  animation-delay: 1.6s;
+}
+[data-ui-pack="darkroom"] .pk-tile:nth-child(6) .pk-tile-media {
+  animation-delay: 2s;
+}
 
 /* 印画紙の下の余白に手書きの整理番号のように置く。紙の上なので濃い字。 */
 [data-ui-pack="darkroom"] .pk-tile-body {
@@ -1323,10 +1478,18 @@
   padding: 7px 4px 2px;
   color: #3b2c26;
 }
-[data-ui-pack="darkroom"] .pk-tile-word { font-size: 13px; color: #2f231e; }
-[data-ui-pack="darkroom"] .pk-tile-sub { color: #63504a; font-size: 10px; }
+[data-ui-pack="darkroom"] .pk-tile-word {
+  font-size: 13px;
+  color: #2f231e;
+}
+[data-ui-pack="darkroom"] .pk-tile-sub {
+  color: #63504a;
+  font-size: 10px;
+}
 
-[data-ui-pack="darkroom"] .pk-btn { border-radius: 2px; }
+[data-ui-pack="darkroom"] .pk-btn {
+  border-radius: 2px;
+}
 
 /* ---------------------------------------------------------------------------
    4. アクセシビリティ — 全パックで守る。
@@ -1372,169 +1535,290 @@
    =========================================================================== */
 
 :root[data-ui-pack="card"] {
-  --background: oklch(0.16 0.045 265); --foreground: oklch(0.96 0.02 90);
-  --card: oklch(0.22 0.05 265); --card-foreground: oklch(0.96 0.02 90);
-  --popover: oklch(0.22 0.05 265); --popover-foreground: oklch(0.96 0.02 90);
-  --primary: oklch(0.86 0.13 88); --primary-foreground: oklch(0.2 0.05 265);
-  --secondary: oklch(0.27 0.055 265); --secondary-foreground: oklch(0.96 0.02 90);
-  --muted: oklch(0.27 0.055 265); --muted-foreground: oklch(0.78 0.04 250);
-  --accent: oklch(0.33 0.07 265); --accent-foreground: oklch(0.96 0.02 90);
-  --border: oklch(0.86 0.13 88 / 26%); --input: oklch(0.86 0.13 88 / 30%);
-  --ring: oklch(0.86 0.13 88); --radius: 0.75rem;
+  --background: oklch(0.16 0.045 265);
+  --foreground: oklch(0.96 0.02 90);
+  --card: oklch(0.22 0.05 265);
+  --card-foreground: oklch(0.96 0.02 90);
+  --popover: oklch(0.22 0.05 265);
+  --popover-foreground: oklch(0.96 0.02 90);
+  --primary: oklch(0.86 0.13 88);
+  --primary-foreground: oklch(0.2 0.05 265);
+  --secondary: oklch(0.27 0.055 265);
+  --secondary-foreground: oklch(0.96 0.02 90);
+  --muted: oklch(0.27 0.055 265);
+  --muted-foreground: oklch(0.78 0.04 250);
+  --accent: oklch(0.33 0.07 265);
+  --accent-foreground: oklch(0.96 0.02 90);
+  --border: oklch(0.86 0.13 88 / 26%);
+  --input: oklch(0.86 0.13 88 / 30%);
+  --ring: oklch(0.86 0.13 88);
+  --radius: 0.75rem;
 }
 :root[data-ui-pack="sticker"] {
-  --background: oklch(0.975 0.028 82); --foreground: oklch(0.33 0.05 45);
-  --card: oklch(1 0 0); --card-foreground: oklch(0.33 0.05 45);
+  --background: oklch(0.975 0.028 82);
+  --foreground: oklch(0.33 0.05 45);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.33 0.05 45);
   --popover: oklch(1 0 0);
-  --primary: oklch(0.72 0.17 5); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.035 80); --secondary-foreground: oklch(0.36 0.05 45);
-  --muted: oklch(0.95 0.035 80); --muted-foreground: oklch(0.58 0.05 50);
-  --accent: oklch(0.92 0.06 60); --accent-foreground: oklch(0.35 0.06 45);
-  --border: oklch(0.86 0.04 70); --input: oklch(0.9 0.04 70);
-  --ring: oklch(0.72 0.17 5); --radius: 1.25rem;
+  --primary: oklch(0.72 0.17 5);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.035 80);
+  --secondary-foreground: oklch(0.36 0.05 45);
+  --muted: oklch(0.95 0.035 80);
+  --muted-foreground: oklch(0.58 0.05 50);
+  --accent: oklch(0.92 0.06 60);
+  --accent-foreground: oklch(0.35 0.06 45);
+  --border: oklch(0.86 0.04 70);
+  --input: oklch(0.9 0.04 70);
+  --ring: oklch(0.72 0.17 5);
+  --radius: 1.25rem;
 }
 :root[data-ui-pack="cellar"] {
-  --background: oklch(0.15 0.02 45); --foreground: oklch(0.93 0.03 70);
-  --card: oklch(0.21 0.028 45); --card-foreground: oklch(0.93 0.03 70);
+  --background: oklch(0.15 0.02 45);
+  --foreground: oklch(0.93 0.03 70);
+  --card: oklch(0.21 0.028 45);
+  --card-foreground: oklch(0.93 0.03 70);
   --popover: oklch(0.21 0.028 45);
-  --primary: oklch(0.68 0.09 70); --primary-foreground: oklch(0.16 0.02 45);
-  --secondary: oklch(0.25 0.03 45); --secondary-foreground: oklch(0.93 0.03 70);
-  --muted: oklch(0.25 0.03 45); --muted-foreground: oklch(0.72 0.04 70);
-  --accent: oklch(0.3 0.04 50); --accent-foreground: oklch(0.94 0.03 70);
-  --border: oklch(0.68 0.09 70 / 26%); --input: oklch(0.68 0.09 70 / 30%);
-  --ring: oklch(0.68 0.09 70); --radius: 0.25rem;
+  --primary: oklch(0.68 0.09 70);
+  --primary-foreground: oklch(0.16 0.02 45);
+  --secondary: oklch(0.25 0.03 45);
+  --secondary-foreground: oklch(0.93 0.03 70);
+  --muted: oklch(0.25 0.03 45);
+  --muted-foreground: oklch(0.72 0.04 70);
+  --accent: oklch(0.3 0.04 50);
+  --accent-foreground: oklch(0.94 0.03 70);
+  --border: oklch(0.68 0.09 70 / 26%);
+  --input: oklch(0.68 0.09 70 / 30%);
+  --ring: oklch(0.68 0.09 70);
+  --radius: 0.25rem;
 }
 :root[data-ui-pack="watch"] {
-  --background: oklch(0.16 0.04 262); --foreground: oklch(0.94 0.03 88);
-  --card: oklch(0.21 0.045 262); --card-foreground: oklch(0.94 0.03 88);
+  --background: oklch(0.16 0.04 262);
+  --foreground: oklch(0.94 0.03 88);
+  --card: oklch(0.21 0.045 262);
+  --card-foreground: oklch(0.94 0.03 88);
   --popover: oklch(0.21 0.045 262);
-  --primary: oklch(0.78 0.11 85); --primary-foreground: oklch(0.17 0.04 262);
-  --secondary: oklch(0.26 0.05 262); --secondary-foreground: oklch(0.94 0.03 88);
-  --muted: oklch(0.26 0.05 262); --muted-foreground: oklch(0.76 0.04 85);
-  --accent: oklch(0.31 0.06 262); --accent-foreground: oklch(0.95 0.03 88);
-  --border: oklch(0.78 0.11 85 / 30%); --input: oklch(0.78 0.11 85 / 32%);
-  --ring: oklch(0.78 0.11 85); --radius: 0.6rem;
+  --primary: oklch(0.78 0.11 85);
+  --primary-foreground: oklch(0.17 0.04 262);
+  --secondary: oklch(0.26 0.05 262);
+  --secondary-foreground: oklch(0.94 0.03 88);
+  --muted: oklch(0.26 0.05 262);
+  --muted-foreground: oklch(0.76 0.04 85);
+  --accent: oklch(0.31 0.06 262);
+  --accent-foreground: oklch(0.95 0.03 88);
+  --border: oklch(0.78 0.11 85 / 30%);
+  --input: oklch(0.78 0.11 85 / 32%);
+  --ring: oklch(0.78 0.11 85);
+  --radius: 0.6rem;
 }
 :root[data-ui-pack="garage"] {
-  --background: oklch(0.12 0.003 270); --foreground: oklch(0.96 0 0);
-  --card: oklch(0.18 0.004 270); --card-foreground: oklch(0.96 0 0);
+  --background: oklch(0.12 0.003 270);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.18 0.004 270);
+  --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.18 0.004 270);
-  --primary: oklch(0.9 0.004 270); --primary-foreground: oklch(0.13 0.003 270);
-  --secondary: oklch(0.23 0.005 270); --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.23 0.005 270); --muted-foreground: oklch(0.72 0.005 270);
-  --accent: oklch(0.29 0.006 270); --accent-foreground: oklch(0.96 0 0);
-  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.85 0.004 270); --radius: 0.35rem;
+  --primary: oklch(0.9 0.004 270);
+  --primary-foreground: oklch(0.13 0.003 270);
+  --secondary: oklch(0.23 0.005 270);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.23 0.005 270);
+  --muted-foreground: oklch(0.72 0.005 270);
+  --accent: oklch(0.29 0.006 270);
+  --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.85 0.004 270);
+  --radius: 0.35rem;
 }
 :root[data-ui-pack="museum"] {
-  --background: oklch(0.975 0.004 80); --foreground: oklch(0.2 0.005 60);
-  --card: oklch(1 0 0); --card-foreground: oklch(0.2 0.005 60);
+  --background: oklch(0.975 0.004 80);
+  --foreground: oklch(0.2 0.005 60);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.005 60);
   --popover: oklch(1 0 0);
-  --primary: oklch(0.26 0.008 60); --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.94 0.006 80); --secondary-foreground: oklch(0.24 0.005 60);
-  --muted: oklch(0.94 0.006 80); --muted-foreground: oklch(0.52 0.006 70);
-  --accent: oklch(0.91 0.01 80); --accent-foreground: oklch(0.24 0.005 60);
-  --border: oklch(0.88 0.008 80); --input: oklch(0.9 0.008 80);
-  --ring: oklch(0.4 0.01 60); --radius: 0rem;
+  --primary: oklch(0.26 0.008 60);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.006 80);
+  --secondary-foreground: oklch(0.24 0.005 60);
+  --muted: oklch(0.94 0.006 80);
+  --muted-foreground: oklch(0.52 0.006 70);
+  --accent: oklch(0.91 0.01 80);
+  --accent-foreground: oklch(0.24 0.005 60);
+  --border: oklch(0.88 0.008 80);
+  --input: oklch(0.9 0.008 80);
+  --ring: oklch(0.4 0.01 60);
+  --radius: 0rem;
 }
 :root[data-ui-pack="artspace"] {
-  --background: oklch(0.95 0.008 85); --foreground: oklch(0.14 0 0);
-  --card: oklch(1 0 0); --card-foreground: oklch(0.14 0 0);
+  --background: oklch(0.95 0.008 85);
+  --foreground: oklch(0.14 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.14 0 0);
   --popover: oklch(1 0 0);
-  --primary: oklch(0.62 0.24 32); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.92 0.01 85); --secondary-foreground: oklch(0.14 0 0);
-  --muted: oklch(0.92 0.01 85); --muted-foreground: oklch(0.48 0.008 80);
-  --accent: oklch(0.88 0.02 85); --accent-foreground: oklch(0.14 0 0);
-  --border: oklch(0.14 0 0 / 85%); --input: oklch(0.14 0 0 / 60%);
-  --ring: oklch(0.62 0.24 32); --radius: 0rem;
+  --primary: oklch(0.62 0.24 32);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.92 0.01 85);
+  --secondary-foreground: oklch(0.14 0 0);
+  --muted: oklch(0.92 0.01 85);
+  --muted-foreground: oklch(0.48 0.008 80);
+  --accent: oklch(0.88 0.02 85);
+  --accent-foreground: oklch(0.14 0 0);
+  --border: oklch(0.14 0 0 / 85%);
+  --input: oklch(0.14 0 0 / 60%);
+  --ring: oklch(0.62 0.24 32);
+  --radius: 0rem;
 }
 :root[data-ui-pack="photofeed"] {
-  --background: oklch(1 0 0); --foreground: oklch(0.16 0.004 260);
-  --card: oklch(1 0 0); --card-foreground: oklch(0.16 0.004 260);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.16 0.004 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.004 260);
   --popover: oklch(1 0 0);
-  --primary: oklch(0.62 0.19 5); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.002 260); --secondary-foreground: oklch(0.2 0.004 260);
-  --muted: oklch(0.97 0.002 260); --muted-foreground: oklch(0.6 0.006 260);
-  --accent: oklch(0.95 0.006 260); --accent-foreground: oklch(0.2 0.004 260);
-  --border: oklch(0.89 0.003 260); --input: oklch(0.92 0.003 260);
-  --ring: oklch(0.62 0.19 5); --radius: 0.5rem;
+  --primary: oklch(0.62 0.19 5);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0.002 260);
+  --secondary-foreground: oklch(0.2 0.004 260);
+  --muted: oklch(0.97 0.002 260);
+  --muted-foreground: oklch(0.6 0.006 260);
+  --accent: oklch(0.95 0.006 260);
+  --accent-foreground: oklch(0.2 0.004 260);
+  --border: oklch(0.89 0.003 260);
+  --input: oklch(0.92 0.003 260);
+  --ring: oklch(0.62 0.19 5);
+  --radius: 0.5rem;
 }
 :root[data-ui-pack="arfield"] {
-  --background: oklch(0.24 0.055 235); --foreground: oklch(0.96 0.02 200);
-  --card: oklch(0.3 0.06 235); --card-foreground: oklch(0.96 0.02 200);
+  --background: oklch(0.24 0.055 235);
+  --foreground: oklch(0.96 0.02 200);
+  --card: oklch(0.3 0.06 235);
+  --card-foreground: oklch(0.96 0.02 200);
   --popover: oklch(0.3 0.06 235);
-  --primary: oklch(0.79 0.13 180); --primary-foreground: oklch(0.16 0.05 235);
-  --secondary: oklch(0.34 0.06 235); --secondary-foreground: oklch(0.96 0.02 200);
-  --muted: oklch(0.34 0.06 235); --muted-foreground: oklch(0.79 0.04 205);
-  --accent: oklch(0.39 0.07 230); --accent-foreground: oklch(0.96 0.02 200);
-  --border: oklch(0.79 0.13 180 / 30%); --input: oklch(0.79 0.13 180 / 32%);
-  --ring: oklch(0.79 0.13 180); --radius: 1rem;
+  --primary: oklch(0.79 0.13 180);
+  --primary-foreground: oklch(0.16 0.05 235);
+  --secondary: oklch(0.34 0.06 235);
+  --secondary-foreground: oklch(0.96 0.02 200);
+  --muted: oklch(0.34 0.06 235);
+  --muted-foreground: oklch(0.79 0.04 205);
+  --accent: oklch(0.39 0.07 230);
+  --accent-foreground: oklch(0.96 0.02 200);
+  --border: oklch(0.79 0.13 180 / 30%);
+  --input: oklch(0.79 0.13 180 / 32%);
+  --ring: oklch(0.79 0.13 180);
+  --radius: 1rem;
 }
 :root[data-ui-pack="vfeed"] {
-  --background: oklch(0 0 0); --foreground: oklch(1 0 0);
-  --card: oklch(0.16 0 0); --card-foreground: oklch(1 0 0);
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.16 0 0);
+  --card-foreground: oklch(1 0 0);
   --popover: oklch(0.16 0 0);
-  --primary: oklch(0.84 0.16 195); --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.21 0 0); --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.21 0 0); --muted-foreground: oklch(0.75 0 0);
-  --accent: oklch(0.27 0 0); --accent-foreground: oklch(1 0 0);
-  --border: oklch(1 0 0 / 17%); --input: oklch(1 0 0 / 20%);
-  --ring: oklch(0.84 0.16 195); --radius: 0.4rem;
+  --primary: oklch(0.84 0.16 195);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.21 0 0);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.21 0 0);
+  --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.27 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 17%);
+  --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.84 0.16 195);
+  --radius: 0.4rem;
 }
 :root[data-ui-pack="library"] {
-  --background: oklch(0.14 0 0); --foreground: oklch(0.96 0 0);
-  --card: oklch(0.2 0 0); --card-foreground: oklch(0.96 0 0);
+  --background: oklch(0.14 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.2 0 0);
+  --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.2 0 0);
-  --primary: oklch(0.6 0.25 25); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.25 0 0); --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.25 0 0); --muted-foreground: oklch(0.73 0 0);
-  --accent: oklch(0.3 0 0); --accent-foreground: oklch(0.96 0 0);
-  --border: oklch(1 0 0 / 14%); --input: oklch(1 0 0 / 17%);
-  --ring: oklch(0.6 0.25 25); --radius: 0.7rem;
+  --primary: oklch(0.6 0.25 25);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.25 0 0);
+  --muted-foreground: oklch(0.73 0 0);
+  --accent: oklch(0.3 0 0);
+  --accent-foreground: oklch(0.96 0 0);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 17%);
+  --ring: oklch(0.6 0.25 25);
+  --radius: 0.7rem;
 }
 :root[data-ui-pack="timeline"] {
-  --background: oklch(0 0 0); --foreground: oklch(0.93 0.004 250);
-  --card: oklch(0.17 0.006 250); --card-foreground: oklch(0.93 0.004 250);
+  --background: oklch(0 0 0);
+  --foreground: oklch(0.93 0.004 250);
+  --card: oklch(0.17 0.006 250);
+  --card-foreground: oklch(0.93 0.004 250);
   --popover: oklch(0.17 0.006 250);
-  --primary: oklch(0.68 0.16 245); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.22 0.008 250); --secondary-foreground: oklch(0.93 0.004 250);
-  --muted: oklch(0.22 0.008 250); --muted-foreground: oklch(0.62 0.012 250);
-  --accent: oklch(0.27 0.01 250); --accent-foreground: oklch(0.93 0.004 250);
-  --border: oklch(0.32 0.012 250); --input: oklch(0.35 0.012 250);
-  --ring: oklch(0.68 0.16 245); --radius: 1rem;
+  --primary: oklch(0.68 0.16 245);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.22 0.008 250);
+  --secondary-foreground: oklch(0.93 0.004 250);
+  --muted: oklch(0.22 0.008 250);
+  --muted-foreground: oklch(0.62 0.012 250);
+  --accent: oklch(0.27 0.01 250);
+  --accent-foreground: oklch(0.93 0.004 250);
+  --border: oklch(0.32 0.012 250);
+  --input: oklch(0.35 0.012 250);
+  --ring: oklch(0.68 0.16 245);
+  --radius: 1rem;
 }
 :root[data-ui-pack="wall"] {
-  --background: oklch(0.96 0.004 250); --foreground: oklch(0.13 0.004 260);
-  --card: oklch(1 0 0); --card-foreground: oklch(0.13 0.004 260);
+  --background: oklch(0.96 0.004 250);
+  --foreground: oklch(0.13 0.004 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0.004 260);
   --popover: oklch(1 0 0);
-  --primary: oklch(0.56 0.21 258); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.93 0.006 250); --secondary-foreground: oklch(0.2 0.006 260);
-  --muted: oklch(0.93 0.006 250); --muted-foreground: oklch(0.52 0.01 260);
-  --accent: oklch(0.9 0.02 255); --accent-foreground: oklch(0.2 0.02 260);
-  --border: oklch(0.87 0.006 250); --input: oklch(0.9 0.006 250);
-  --ring: oklch(0.56 0.21 258); --radius: 0.65rem;
+  --primary: oklch(0.56 0.21 258);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0.006 250);
+  --secondary-foreground: oklch(0.2 0.006 260);
+  --muted: oklch(0.93 0.006 250);
+  --muted-foreground: oklch(0.52 0.01 260);
+  --accent: oklch(0.9 0.02 255);
+  --accent-foreground: oklch(0.2 0.02 260);
+  --border: oklch(0.87 0.006 250);
+  --input: oklch(0.9 0.006 250);
+  --ring: oklch(0.56 0.21 258);
+  --radius: 0.65rem;
 }
 :root[data-ui-pack="streaming"] {
-  --background: oklch(0.15 0 0); --foreground: oklch(1 0 0);
-  --card: oklch(0.2 0 0); --card-foreground: oklch(1 0 0);
+  --background: oklch(0.15 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.2 0 0);
+  --card-foreground: oklch(1 0 0);
   --popover: oklch(0.2 0 0);
-  --primary: oklch(0.55 0.24 27); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.24 0 0); --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.24 0 0); --muted-foreground: oklch(0.75 0 0);
-  --accent: oklch(0.29 0 0); --accent-foreground: oklch(1 0 0);
-  --border: oklch(1 0 0 / 15%); --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.55 0.24 27); --radius: 0.4rem;
+  --primary: oklch(0.55 0.24 27);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.24 0 0);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.29 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.55 0.24 27);
+  --radius: 0.4rem;
 }
 :root[data-ui-pack="darkroom"] {
-  --background: oklch(0.16 0.015 20); --foreground: oklch(0.94 0.02 30);
-  --card: oklch(0.22 0.02 20); --card-foreground: oklch(0.94 0.02 30);
+  --background: oklch(0.16 0.015 20);
+  --foreground: oklch(0.94 0.02 30);
+  --card: oklch(0.22 0.02 20);
+  --card-foreground: oklch(0.94 0.02 30);
   --popover: oklch(0.22 0.02 20);
-  --primary: oklch(0.63 0.18 30); --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.26 0.025 20); --secondary-foreground: oklch(0.94 0.02 30);
-  --muted: oklch(0.26 0.025 20); --muted-foreground: oklch(0.74 0.03 30);
-  --accent: oklch(0.32 0.05 25); --accent-foreground: oklch(0.95 0.02 30);
-  --border: oklch(1 0 0 / 13%); --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.63 0.18 30); --radius: 0.2rem;
+  --primary: oklch(0.63 0.18 30);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.26 0.025 20);
+  --secondary-foreground: oklch(0.94 0.02 30);
+  --muted: oklch(0.26 0.025 20);
+  --muted-foreground: oklch(0.74 0.03 30);
+  --accent: oklch(0.32 0.05 25);
+  --accent-foreground: oklch(0.95 0.02 30);
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.63 0.18 30);
+  --radius: 0.2rem;
 }
 
 /* 暗い下地のパックでは、現行の明るい放射グラデが浮いてしまうので消す。 */

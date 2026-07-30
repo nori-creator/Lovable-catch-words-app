@@ -34,10 +34,7 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
     const rows = candidates
       .filter(
         (c) =>
-          (c.confidence ?? 1) >= 0.8 &&
-          CJK_ONLY.test(c.headword) &&
-          !!c.zhuyin &&
-          !!c.meaning_ja,
+          (c.confidence ?? 1) >= 0.8 && CJK_ONLY.test(c.headword) && !!c.zhuyin && !!c.meaning_ja,
       )
       .map((c) => ({
         language: "zh-TW",
@@ -51,12 +48,10 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
         entry_type: c.entry_type ?? "word",
       }));
     if (rows.length === 0) return;
-    await supabaseAdmin
-      .from("dictionary_entries")
-      .upsert(rows as never, {
-        onConflict: "language,headword,entry_type",
-        ignoreDuplicates: true, // = DO NOTHING: 既存(特にverified)を絶対に触らない
-      });
+    await supabaseAdmin.from("dictionary_entries").upsert(rows as never, {
+      onConflict: "language,headword,entry_type",
+      ignoreDuplicates: true, // = DO NOTHING: 既存(特にverified)を絶対に触らない
+    });
   } catch {
     // 蓄積はおまけ — 失敗してもスキャン本体を絶対に止めない。
   }
@@ -291,7 +286,11 @@ function analyzeTexts(
 }
 
 /** 同日再実行でも加算になるよう、既存カウントへ足し込んで upsert する。 */
-async function addCorpusCounts(day: string, source: string, counts: Map<string, number>): Promise<number> {
+async function addCorpusCounts(
+  day: string,
+  source: string,
+  counts: Map<string, number>,
+): Promise<number> {
   const words = [...counts.entries()];
   if (words.length === 0) return 0;
   const existing = new Map<string, number>();
@@ -307,12 +306,18 @@ async function addCorpusCounts(day: string, source: string, counts: Map<string, 
   }
   const rows = words.map(([w, c]) => ({ word: w, day, source, count: c + (existing.get(w) ?? 0) }));
   for (let i = 0; i < rows.length; i += 500) {
-    await supabaseAdmin.from("corpus_stats").upsert(rows.slice(i, i + 500), { onConflict: "word,day,source" });
+    await supabaseAdmin
+      .from("corpus_stats")
+      .upsert(rows.slice(i, i + 500), { onConflict: "word,day,source" });
   }
   return rows.length;
 }
 
-async function addCorpusPairs(day: string, source: string, pairs: Map<string, number>): Promise<number> {
+async function addCorpusPairs(
+  day: string,
+  source: string,
+  pairs: Map<string, number>,
+): Promise<number> {
   const top = [...pairs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 400);
   if (top.length === 0) return 0;
   const { data: existingRows } = await supabaseAdmin
@@ -364,7 +369,8 @@ export async function ingestCorpusFromNews(): Promise<NewsIngestResult> {
     try {
       const res = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; CatchwordsBot/1.0; +https://word-snap-journey.lovable.app)",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; CatchwordsBot/1.0; +https://word-snap-journey.lovable.app)",
           Accept: "application/rss+xml, application/xml, text/xml, */*",
         },
       });
@@ -400,15 +406,19 @@ export async function ingestCorpusFromNews(): Promise<NewsIngestResult> {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12)
     .map(([w]) => w);
-  return { titles: titles.length, words, pairs: pairCount, unknown_candidates: unknownCandidates, feeds: feedStatus };
+  return {
+    titles: titles.length,
+    words,
+    pairs: pairCount,
+    unknown_candidates: unknownCandidates,
+    feeds: feedStatus,
+  };
 }
 
 // ---- ④ AI合成コーパス: AIが「台湾人の今日の言葉」を毎日生成 -------------------
 
 const SynthSchema = z.object({
-  sentences: z
-    .array(z.object({ text: z.string(), register: z.string().default("") }))
-    .max(60),
+  sentences: z.array(z.object({ text: z.string(), register: z.string().default("") })).max(60),
   new_words: z
     .array(
       z.object({

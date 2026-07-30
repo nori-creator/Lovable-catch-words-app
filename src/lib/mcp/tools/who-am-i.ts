@@ -14,8 +14,6 @@ export default defineTool({
     if (!userId) return errorContent("No user id on token");
     const supabase = supabaseForCaller(ctx);
 
-
-
     // Public profile columns are readable by RLS + column grants.
     const { data: profile, error: pErr } = await supabase
       .from("profiles")

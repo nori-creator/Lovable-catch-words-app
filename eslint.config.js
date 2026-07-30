@@ -6,7 +6,22 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      // Capacitor が置くビルド成果物(27MBの minified JS)。
+      // 除外しないと lint が20分以上かかって誰も走らせなくなる。
+      "android",
+      "ios",
+      // @lovable.dev/mcp-js が生成するルート。整形しても Vite プラグインが
+      // 再生成して元に戻るので、指摘だけが残り続ける。
+      "src/routes/mcp.ts",
+      "src/routes/[[].mcp[]]/**",
+      "src/routes/[[].well-known[]]/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

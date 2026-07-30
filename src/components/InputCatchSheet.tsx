@@ -5,13 +5,23 @@ import { useServerFn } from "@tanstack/react-start";
 import { ImagePlus, Keyboard, Loader2, Mic, Search, Sparkles, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { generateCard, generatePhraseCard, type GeneratedCard, type GeneratedPhraseCard } from "@/lib/ai.functions";
+import {
+  generateCard,
+  generatePhraseCard,
+  type GeneratedCard,
+  type GeneratedPhraseCard,
+} from "@/lib/ai.functions";
 import { lookupHeadwords, type DictionaryEntry } from "@/lib/scan.functions";
 import { saveGhostSticker } from "@/lib/ghost.functions";
-import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from "@/lib/images.functions";
+import {
+  searchImageCandidates,
+  fetchImageAsDataUrl,
+  type ImageCandidate,
+} from "@/lib/images.functions";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
+import { Zh } from "@/components/Zh";
 
 /**
  * Input catch (§5.2): the entrance for words you can't photograph — heard in
@@ -91,7 +101,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   // Voice mode: open the mic immediately (耳キャッチ = repeat what you heard).
@@ -100,21 +112,29 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       const t = setTimeout(() => toggleRecord(), 350);
       return () => clearTimeout(t);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 派生キャッチ: 語が渡されて来たら、開いた瞬間にそのまま調べる。
   useEffect(() => {
     if (autoLookup && initialText?.trim()) {
-      const t = setTimeout(() => { void lookupAndGenerate(); }, 150);
+      const t = setTimeout(() => {
+        void lookupAndGenerate();
+      }, 150);
       return () => clearTimeout(t);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleRecord() {
-    if (listening) { recogRef.current?.stop(); return; }
-    const w = window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown };
+    if (listening) {
+      recogRef.current?.stop();
+      return;
+    }
+    const w = window as unknown as {
+      SpeechRecognition?: new () => unknown;
+      webkitSpeechRecognition?: new () => unknown;
+    };
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
     const rec = new Ctor() as SR;
@@ -151,18 +171,23 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
         const c = await cardFn({ data: { headword, targetLanguage: "zh-TW" } });
         const resolved = c.headword_zh || headword;
-        const lk = await lookupFn({ data: { headwords: [resolved] } }).catch(() => ({ entries: {} as Record<string, DictionaryEntry> }));
+        const lk = await lookupFn({ data: { headwords: [resolved] } }).catch(() => ({
+          entries: {} as Record<string, DictionaryEntry>,
+        }));
         setDict(lk.entries[resolved] ?? null);
         setCard(c);
         if (resolved !== headword) setText(resolved);
         // 仮画像候補をWeb検索(失敗しても保存は続行できる)。
         void searchImagesFn({ data: { query: c.meaning_ja || resolved } })
-          .then(({ candidates: cands }) => { setCandidates(cands); setPicked(0); })
+          .then(({ candidates: cands }) => {
+            setCandidates(cands);
+            setPicked(0);
+          })
           .catch(() => {});
       }
       setStep("preview");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "生成に失敗しました");
+      setErr(e instanceof Error ? e.message : t("err.generateFailed"));
       setStep("input");
     }
   }
@@ -177,7 +202,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       });
       const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
       setAttachedDataUrl(small);
-    } catch { /* 添付は任意 */ }
+    } catch {
+      /* 添付は任意 */
+    }
   }
 
   async function save() {
@@ -204,7 +231,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             });
             if (!error) object_path = path;
           }
-        } catch { /* 画像なしでも保存は続行 */ }
+        } catch {
+          /* 画像なしでも保存は続行 */
+        }
       } else if (!isPhrase && candidates[picked]) {
         // 仮画像: サーバー経由で取得(CORS回避)→自分のフォルダにアップロード。
         try {
@@ -227,7 +256,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 : { source: cand.source };
             }
           }
-        } catch { /* 仮画像は任意 — 失敗しても保存は続行 */ }
+        } catch {
+          /* 仮画像は任意 — 失敗しても保存は続行 */
+        }
       }
 
       const word = isPhrase
@@ -285,16 +316,16 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       if (res.first_catch) {
-        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+        toast.success(t("sheet.firstCatch"), { duration: 5000 });
       } else if (object_path) {
-        toast.success("図鑑にカードが入りました!");
+        toast.success(t("sheet.cardAdded"));
       } else {
-        toast.success("図鑑に入りました。実物に出会ったら金色に光ります!");
+        toast.success(t("sheet.addedGhostFree"));
       }
       onClose();
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "保存に失敗しました");
+      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("preview");
     }
   }
@@ -302,7 +333,12 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const verified = !!dict && dict.source === "verified";
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={t("input.title")}>
+    <div
+      className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("input.title")}
+    >
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
           <Keyboard className="h-3.5 w-3.5" /> {t("input.title")}
@@ -319,18 +355,18 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {(step === "input" || step === "loading") && (
           <div className="mx-auto max-w-sm space-y-4">
-            <p className="text-center text-sm text-muted-foreground">
-              {t("input.lead")}
-            </p>
+            <p className="text-center text-sm text-muted-foreground">{t("input.lead")}</p>
 
             {canSpeak && initialMode === "voice" && (
               <button
                 onClick={toggleRecord}
                 disabled={step === "loading"}
                 className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
-                  listening ? "bg-red-500 text-white shadow-red-500/30" : "bg-primary text-primary-foreground shadow-primary/30"
+                  listening
+                    ? "bg-red-500 text-white shadow-red-500/30"
+                    : "bg-primary text-primary-foreground shadow-primary/30"
                 }`}
-                aria-label={listening ? "停止" : "聞こえたまま復唱する"}
+                aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
               >
                 {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
               </button>
@@ -351,7 +387,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   setText(e.target.value);
                   if (!phraseTouched) setIsPhrase(guessIsPhrase(e.target.value));
                 }}
-                placeholder="例: 芒果 / 請稍等"
+                placeholder={t("sheet.inputPlaceholder")}
                 className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-base outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
@@ -360,9 +396,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               {([false, true] as const).map((v) => (
                 <button
                   key={String(v)}
-                  onClick={() => { setIsPhrase(v); setPhraseTouched(true); }}
+                  onClick={() => {
+                    setIsPhrase(v);
+                    setPhraseTouched(true);
+                  }}
                   className={`rounded-full border px-4 py-1.5 text-sm ${
-                    isPhrase === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
+                    isPhrase === v
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card"
                   }`}
                 >
                   {v ? t("input.phrase") : t("input.word")}
@@ -379,14 +420,20 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               />
             )}
 
-            {err && <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>}
+            {err && (
+              <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+            )}
 
             <button
               onClick={lookupAndGenerate}
               disabled={!text.trim() || step === "loading"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
-              {step === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+              {step === "loading" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Search className="h-5 w-5" />
+              )}
               {step === "loading" ? t("input.looking") : t("input.lookup")}
             </button>
           </div>
@@ -412,9 +459,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               className="relative mx-auto block aspect-square w-48"
             >
               {attachedDataUrl ? (
-                <img src={attachedDataUrl} alt="添付画像" className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
+                <img
+                  src={attachedDataUrl}
+                  alt={t("sheet.attached")}
+                  className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5"
+                />
               ) : !isPhrase && candidates[picked] ? (
-                <img src={candidates[picked].thumb} alt="ネット検索の画像" className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
+                <img
+                  src={candidates[picked].thumb}
+                  alt={t("sheet.webImage")}
+                  className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5"
+                />
               ) : (
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
@@ -440,7 +495,11 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                     aria-pressed={picked === i}
                     className={`h-14 w-14 overflow-hidden rounded-xl ring-2 transition ${picked === i ? "ring-primary" : "ring-transparent opacity-70"}`}
                   >
-                    <img src={c.thumb} alt={`候補${i + 1}`} className="h-full w-full object-cover" />
+                    <img
+                      src={c.thumb}
+                      alt={t("sheet.candidateN", { n: i + 1 })}
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -450,15 +509,23 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               <div className="flex items-baseline gap-2">
                 <h2 className="text-2xl font-bold tracking-tight">{text.trim()}</h2>
                 {verified ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">{t("input.verified")}</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                    {t("input.verified")}
+                  </span>
                 ) : (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">{t("input.aiGenerated")}</span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+                    {t("input.aiGenerated")}
+                  </span>
                 )}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {isPhrase
                   ? pickReading(phonetic, phraseCard?.reading_zhuyin, phraseCard?.pinyin)
-                  : pickReading(phonetic, dict?.zhuyin || card?.reading_zhuyin, dict?.pinyin || card?.pinyin)}
+                  : pickReading(
+                      phonetic,
+                      dict?.zhuyin || card?.reading_zhuyin,
+                      dict?.pinyin || card?.pinyin,
+                    )}
               </p>
               <p className="mt-2 text-base font-medium">
                 {isPhrase ? phraseCard?.meaning_ja : dict?.meaning_ja || card?.meaning_ja}
@@ -466,12 +533,19 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
               {isPhrase && phraseCard && (
                 <div className="mt-3 border-t border-border pt-3">
-                  {scene && <p className="text-xs text-muted-foreground">シーン: {scene}</p>}
-                  <p className="mt-1 text-xs font-semibold text-muted-foreground">{t("input.replies")}</p>
+                  {scene && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sheet.scene", { s: scene })}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    {t("input.replies")}
+                  </p>
                   <ul className="mt-1 space-y-1">
                     {phraseCard.replies.map((r, i) => (
                       <li key={i} className="rounded-lg bg-secondary/60 px-3 py-1.5 text-sm">
-                        {r.zh} <span className="text-xs text-muted-foreground">— {r.ja}</span>
+                        <Zh>{r.zh}</Zh>{" "}
+                        <span className="text-xs text-muted-foreground">— {r.ja}</span>
                       </li>
                     ))}
                   </ul>
@@ -484,24 +558,30 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               {!isPhrase && card?.example_sentence && (
                 <p className="mt-2 text-sm">
                   {card.example_sentence}
-                  <span className="block text-xs text-muted-foreground">{card.example_translation}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {card.example_translation}
+                  </span>
                 </p>
               )}
             </div>
 
-            {err && <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>}
+            {err && (
+              <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+            )}
 
             <button
               onClick={save}
               disabled={step === "saving"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
-              {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+              {step === "saving" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Sparkles className="h-5 w-5" />
+              )}
               {t("input.save")}
             </button>
-            <p className="text-center text-[11px] text-muted-foreground">
-              {t("input.saveHint")}
-            </p>
+            <p className="text-center text-[11px] text-muted-foreground">{t("input.saveHint")}</p>
           </div>
         )}
       </div>

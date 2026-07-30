@@ -30,15 +30,41 @@ export const getPublicProfile = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const targetId = data.user_id;
 
-    const [profileRes, capturedRes, postsRes, followersRes, followingRes, isFollowingRes, recentRes] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, avatar_url, created_at").eq("id", targetId).maybeSingle(),
-      supabase.from("stickers").select("id", { count: "exact", head: true }).eq("user_id", targetId),
+    const [
+      profileRes,
+      capturedRes,
+      postsRes,
+      followersRes,
+      followingRes,
+      isFollowingRes,
+      recentRes,
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, created_at")
+        .eq("id", targetId)
+        .maybeSingle(),
+      supabase
+        .from("stickers")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", targetId),
       supabase.from("posts").select("id", { count: "exact", head: true }).eq("user_id", targetId),
-      supabase.from("follows").select("follower_id", { count: "exact", head: true }).eq("following_id", targetId),
-      supabase.from("follows").select("following_id", { count: "exact", head: true }).eq("follower_id", targetId),
+      supabase
+        .from("follows")
+        .select("follower_id", { count: "exact", head: true })
+        .eq("following_id", targetId),
+      supabase
+        .from("follows")
+        .select("following_id", { count: "exact", head: true })
+        .eq("follower_id", targetId),
       targetId === userId
         ? Promise.resolve({ data: null })
-        : supabase.from("follows").select("follower_id").eq("follower_id", userId).eq("following_id", targetId).maybeSingle(),
+        : supabase
+            .from("follows")
+            .select("follower_id")
+            .eq("follower_id", userId)
+            .eq("following_id", targetId)
+            .maybeSingle(),
       supabase
         .from("stickers")
         .select("id, cutout_image_url, words(headword, silhouette_emoji)")
@@ -58,9 +84,11 @@ export const getPublicProfile = createServerFn({ method: "GET" })
     const signed = await Promise.all(
       recents.map(async (r) => {
         if (!r.cutout_image_url) return null;
-        const { data } = await supabaseAdmin.storage.from("stickers").createSignedUrl(r.cutout_image_url, 60 * 60 * 6);
+        const { data } = await supabaseAdmin.storage
+          .from("stickers")
+          .createSignedUrl(r.cutout_image_url, 60 * 60 * 6);
         return data?.signedUrl ?? null;
-      })
+      }),
     );
 
     return {

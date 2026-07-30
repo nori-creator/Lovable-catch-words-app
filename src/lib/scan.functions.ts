@@ -226,10 +226,13 @@ export const detectParts = createServerFn({ method: "POST" })
       const r = await generateText({
         model: ai.gateway(ai.modelFast),
         messages: [
-          { role: "user", content: [
-            { type: "text", text: prompt },
-            { type: "image", image: imageInput },
-          ] },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image", image: imageInput },
+            ],
+          },
         ],
       });
       text = r.text;
@@ -238,8 +241,11 @@ export const detectParts = createServerFn({ method: "POST" })
     }
 
     let parsed: z.infer<typeof DetectResponseSchema>;
-    try { parsed = DetectResponseSchema.parse(parseJsonFromAiText(text)); }
-    catch { throw new Error("AI did not return valid parts JSON"); }
+    try {
+      parsed = DetectResponseSchema.parse(parseJsonFromAiText(text));
+    } catch {
+      throw new Error("AI did not return valid parts JSON");
+    }
 
     await logUsage(context.supabase, context.userId, "scan_parts");
     void import("./lexicon.server").then(({ learnLexiconEntries }) =>
@@ -248,15 +254,17 @@ export const detectParts = createServerFn({ method: "POST" })
 
     // Also log parts into scan_events so recollection notifications can surface them.
     if (parsed.items.length > 0) {
-      await context.supabase.from("scan_events").insert(parsed.items.map((it) => ({
-        user_id: context.userId,
-        headword: it.headword,
-        meaning_ja: it.meaning_ja || null,
-        kind: it.kind,
-        confidence: it.confidence,
-        tapped: false,
-        caught: false,
-      })));
+      await context.supabase.from("scan_events").insert(
+        parsed.items.map((it) => ({
+          user_id: context.userId,
+          headword: it.headword,
+          meaning_ja: it.meaning_ja || null,
+          kind: it.kind,
+          confidence: it.confidence,
+          tapped: false,
+          caught: false,
+        })),
+      );
     }
 
     const items: DetectedItem[] = parsed.items.map((it, i) => ({
@@ -266,7 +274,6 @@ export const detectParts = createServerFn({ method: "POST" })
     return { items };
   });
 
-
 /**
  * Bulk lookup for detected headwords against the verified dictionary (§4.2).
  * Returns a map keyed by headword so the client can decorate chips with the
@@ -275,10 +282,12 @@ export const detectParts = createServerFn({ method: "POST" })
 export const lookupHeadwords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({
-      headwords: z.array(z.string()).max(20),
-      language: z.string().default("zh-TW"),
-    }).parse(input),
+    z
+      .object({
+        headwords: z.array(z.string()).max(20),
+        language: z.string().default("zh-TW"),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const words = Array.from(new Set(data.headwords.map((s) => s.trim()).filter(Boolean)));
@@ -286,7 +295,9 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
     if (words.length === 0) return { entries: empty };
     const { data: rows, error } = await context.supabase
       .from("dictionary_entries")
-      .select("headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, audio_path, source, entry_type")
+      .select(
+        "headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, audio_path, source, entry_type",
+      )
       .eq("language", data.language)
       .in("headword", words);
     if (error) throw new Error(error.message);
@@ -336,6 +347,8 @@ export const getScanContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ScanContext> => {
     const { supabase, userId } = context;
+    // stickerRes だけは capture_type 無しDB向けに作り直すことがあるので let。
+    // eslint-disable-next-line prefer-const
     let [stickerRes, tapRes] = await Promise.all([
       supabase
         .from("stickers")
@@ -391,10 +404,12 @@ export const getScanContext = createServerFn({ method: "GET" })
 export const markScanTap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({
-      headword: z.string().min(1),
-      tap_to_audio_ms: z.number().int().nonnegative().optional(),
-    }).parse(input),
+    z
+      .object({
+        headword: z.string().min(1),
+        tap_to_audio_ms: z.number().int().nonnegative().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     // Best-effort: flip the most recent matching scan_event to tapped=true.
@@ -429,7 +444,10 @@ export const markScanCaught = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1);
     const id = rows?.[0]?.id;
-    if (id) await context.supabase.from("scan_events").update({ tapped: true, caught: true }).eq("id", id);
+    if (id)
+      await context.supabase
+        .from("scan_events")
+        .update({ tapped: true, caught: true })
+        .eq("id", id);
     return { ok: true };
   });
-

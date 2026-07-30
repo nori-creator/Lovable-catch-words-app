@@ -5,11 +5,13 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { getLeaderboard, searchUsers, searchWords } from "@/lib/discover.functions";
 import { Trophy, Search, Users, BookOpen } from "lucide-react";
+import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/discover")({
   head: () => ({
     meta: [
-      { title: "発見 — Catchwords" },
+      { title: tStatic("page.discover") },
       { name: "description", content: "ランキング、ユーザー検索、単語検索。" },
     ],
   }),
@@ -17,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/discover")({
 });
 
 function DiscoverPage() {
+  const t = useT();
   const fetchBoard = useServerFn(getLeaderboard);
   const fetchUsers = useServerFn(searchUsers);
   const fetchWords = useServerFn(searchWords);
@@ -39,14 +42,14 @@ function DiscoverPage() {
   });
 
   return (
-    <AppShell title="発見">
+    <AppShell title={t("discover.title")}>
       <section className="mb-5">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="ユーザー名 / 単語 / 意味で検索"
+            placeholder={t("discover.search")}
             className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
@@ -56,7 +59,7 @@ function DiscoverPage() {
         <section>
           <div className="mb-3 flex items-center gap-2">
             <Trophy className="h-5 w-5 text-amber-500" />
-            <h2 className="text-lg font-semibold tracking-tight">ランキング</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t("discover.ranking")}</h2>
           </div>
           {!board ? (
             <div className="space-y-2">
@@ -66,7 +69,7 @@ function DiscoverPage() {
             </div>
           ) : board.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              まだランキングデータがありません。
+              {t("discover.rankingEmpty")}
             </p>
           ) : (
             <ul className="space-y-2">
@@ -105,9 +108,11 @@ function DiscoverPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{r.display_name ?? "名無し"}</div>
+                      <div className="truncate text-sm font-semibold">
+                        {r.display_name ?? t("common.anon")}
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        {r.sticker_count} 単語 · {r.post_count} 投稿
+                        {t("discover.stats", { words: r.sticker_count, posts: r.post_count })}
                       </div>
                     </div>
                     <div className="text-sm font-bold text-primary">{r.xp} XP</div>
@@ -122,10 +127,12 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">ユーザー</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("discover.users")}
+              </h3>
             </div>
             {!users || users.length === 0 ? (
-              <p className="text-sm text-muted-foreground">該当ユーザーなし</p>
+              <p className="text-sm text-muted-foreground">{t("discover.noUsers")}</p>
             ) : (
               <ul className="space-y-2">
                 {users.map((u) => (
@@ -136,13 +143,22 @@ function DiscoverPage() {
                       className="lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
                     >
                       {u.avatar_url ? (
-                        <img src={u.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" loading="lazy" width={40} height={40} />
+                        <img
+                          src={u.avatar_url}
+                          alt=""
+                          className="h-10 w-10 rounded-full object-cover"
+                          loading="lazy"
+                          width={40}
+                          height={40}
+                        />
                       ) : (
                         <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-base font-semibold">
                           {(u.display_name ?? "?").slice(0, 1)}
                         </div>
                       )}
-                      <span className="text-sm font-semibold">{u.display_name ?? "名無し"}</span>
+                      <span className="text-sm font-semibold">
+                        {u.display_name ?? t("common.anon")}
+                      </span>
                     </Link>
                   </li>
                 ))}
@@ -153,20 +169,23 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">単語</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("discover.words")}
+              </h3>
             </div>
             {!words || words.length === 0 ? (
-              <p className="text-sm text-muted-foreground">該当単語なし</p>
+              <p className="text-sm text-muted-foreground">{t("discover.noWords")}</p>
             ) : (
               <ul className="grid grid-cols-2 gap-2">
                 {words.map((w) => (
-                  <li
-                    key={w.id}
-                    className="rounded-2xl border border-border bg-card p-3"
-                  >
+                  <li key={w.id} className="rounded-2xl border border-border bg-card p-3">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-base font-semibold">{w.headword}</span>
-                      <span className="text-[11px] text-muted-foreground">{w.reading_zhuyin}</span>
+                      <span lang="zh-Hant" className="text-base font-semibold">
+                        {w.headword}
+                      </span>
+                      <span lang="zh-Hant" className="text-[11px] text-muted-foreground">
+                        {w.reading_zhuyin}
+                      </span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{w.meaning_ja}</div>
                   </li>

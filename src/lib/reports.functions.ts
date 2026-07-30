@@ -43,7 +43,10 @@ export type EntryReport = {
 async function assertAdmin(supabase: unknown, userId: string): Promise<void> {
   const { data: isAdmin, error } = await (
     supabase as {
-      rpc: (fn: string, args: object) => Promise<{ data: boolean | null; error: { message: string } | null }>;
+      rpc: (
+        fn: string,
+        args: object,
+      ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
     }
   ).rpc("has_role", { _user_id: userId, _role: "admin" });
   if (error) throw new Error(error.message);

@@ -19,22 +19,22 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
+import { useT } from "@/lib/i18n";
 
 function NotFoundComponent() {
+  const t = useT();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">ページが見つかりません</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          指定されたページは存在しないか、移動された可能性があります。
-        </p>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{t("root.notFound")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.notFoundHint")}</p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            ホームへ
+            {t("root.toHome")}
           </Link>
         </div>
       </div>
@@ -43,6 +43,7 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const t = useT();
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -53,11 +54,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          読み込みに失敗しました
+          {t("root.loadFailed")}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          少し時間を置いてもう一度お試しください。
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("root.loadFailedHint")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -66,13 +65,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            再試行
+            {t("root.retry")}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            ホームへ
+            {t("root.toHome")}
           </a>
         </div>
       </div>
@@ -86,33 +85,50 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "CatchWords" },
-      { name: "description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        name: "description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { name: "author", content: "Catchwords" },
       { property: "og:site_name", content: "Catchwords" },
       { property: "og:title", content: "CatchWords" },
-      { property: "og:description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        property: "og:description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { property: "og:type", content: "website" },
       { property: "og:locale", content: "ja_JP" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "CatchWords" },
-      { name: "twitter:description", content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world." },
+      {
+        name: "twitter:description",
+        content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
+      },
       { name: "theme-color", content: "#ff6f61" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Catchwords" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "format-detection", content: "telephone=no" },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp" },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/cizz4ZipqXVKzlS6YTpT9XYRQml1/social-images/social-1784209931658-Gemini_Generated_Image_.webp",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "stylesheet", href: packCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@500;700&display=swap" },
+      // フォントは public/fonts から自前で配る(styles.css の @font-face)。
+      // 以前は Google Fonts から読んでいたが、ネイティブアプリではオフラインで
+      // 落ちるうえ、起動ごとに外部通信が入って初回描画が遅れていた。
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
     ],
     scripts: [

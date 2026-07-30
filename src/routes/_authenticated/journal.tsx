@@ -2,27 +2,29 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
-import {
-  listJournal,
-  correctMyJournal,
-  type NativePhrase,
-} from "@/lib/journal.functions";
+import { listJournal, correctMyJournal, type NativePhrase } from "@/lib/journal.functions";
 import { BookText, Quote, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/journal")({
   head: () => ({
     meta: [
-      { title: "日記 — Catchwords" },
-      { name: "description", content: "今日の写真から学習言語で日記を書く。AIが添削と模範解答をくれる。" },
+      { title: tStatic("page.journal") },
+      {
+        name: "description",
+        content: "今日の写真から学習言語で日記を書く。AIが添削と模範解答をくれる。",
+      },
     ],
   }),
   component: JournalPage,
 });
 
 function JournalPage() {
+  const t = useT();
   const qc = useQueryClient();
   const fetchJournal = useServerFn(listJournal);
   const correct = useServerFn(correctMyJournal);
@@ -37,36 +39,38 @@ function JournalPage() {
   const past = (entries ?? []).filter((e) => e.entry_date !== today);
 
   const [draft, setDraft] = useState("");
+  // 保存済みの下書きを一度だけ流し込む。draft を依存に入れると入力の
+  // 一文字ごとに再実行され、「書きかけを上書きしない」という意図が壊れる
+  // (todayEntry が更新されたときだけ、空なら埋めるのが正しい挙動)。
   useEffect(() => {
     if (todayEntry?.user_draft && !draft) setDraft(todayEntry.user_draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayEntry]);
 
   const correctMut = useMutation({
     mutationFn: () => correct({ data: { draft } }),
     onSuccess: () => {
-      toast.success("添削できました");
+      toast.success(t("journal.done"));
       qc.invalidateQueries({ queryKey: ["journal"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "添削失敗"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("journal.failed")),
   });
 
   return (
-    <AppShell title="日記">
+    <AppShell title={t("journal.title")}>
       <section className="space-y-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
-            <BookText className="h-4 w-4 text-primary" /> 今日の日記
+            <BookText className="h-4 w-4 text-primary" /> {t("journal.today")}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("journal.intro")}</p>
         </div>
 
         <Textarea
           rows={6}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="例: 今天早上我去咖啡店…"
+          placeholder={t("journal.placeholder")}
         />
 
         <div className="flex flex-wrap gap-2">
@@ -76,14 +80,19 @@ function JournalPage() {
             className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" />
-            {correctMut.isPending ? "添削中…" : "AIに添削してもらう"}
+            {correctMut.isPending ? t("journal.correcting") : t("journal.askCorrect")}
           </button>
         </div>
 
         {todayEntry && (
           <div className="space-y-3 pt-2">
             {todayEntry.correction && (
-              <EntryBlock label="✦ 添削後" body={todayEntry.correction} subtle={todayEntry.feedback_ja} subtleLabel="型と解説" />
+              <EntryBlock
+                label={t("journal.corrected")}
+                body={todayEntry.correction}
+                subtle={todayEntry.feedback_ja}
+                subtleLabel={t("journal.patterns")}
+              />
             )}
             {todayEntry.native_phrases && todayEntry.native_phrases.length > 0 && (
               <NativePhrases phrases={todayEntry.native_phrases} />
@@ -94,15 +103,21 @@ function JournalPage() {
 
       {past.length > 0 && (
         <section className="mt-10">
-          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">過去の日記</h3>
+          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            {t("journal.past")}
+          </h3>
           <ul className="space-y-3">
             {past.map((e) => (
               <li key={e.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="mb-1 text-xs text-muted-foreground">{e.entry_date}</div>
                 {e.correction && <p className="text-base leading-relaxed">{e.correction}</p>}
-                {!e.correction && e.body_zh && <p className="text-base leading-relaxed">{e.body_zh}</p>}
+                {!e.correction && e.body_zh && (
+                  <p className="text-base leading-relaxed">{e.body_zh}</p>
+                )}
                 {e.feedback_ja && (
-                  <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{e.feedback_ja}</p>
+                  <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
+                    {e.feedback_ja}
+                  </p>
                 )}
                 {e.native_phrases && e.native_phrases.length > 0 && (
                   <div className="mt-3">
@@ -122,17 +137,22 @@ function JournalPage() {
 }
 
 function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?: boolean }) {
+  const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
       <div className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-primary">
-        <Quote className="h-3 w-3" /> ネイティブならこう言う
+        <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">
         {phrases.map((p, i) => (
           <li key={i} className="rounded-xl bg-card p-3 shadow-sm ring-1 ring-border/60">
-            <p className="text-base font-semibold leading-relaxed">{p.zh}</p>
+            <p lang="zh-Hant" className="text-base font-semibold leading-relaxed">
+              {p.zh}
+            </p>
             <p className="mt-0.5 text-sm text-muted-foreground">{p.ja}</p>
-            {p.note && <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">{p.note}</p>}
+            {p.note && (
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">{p.note}</p>
+            )}
           </li>
         ))}
       </ul>
@@ -151,13 +171,18 @@ function EntryBlock({
   subtle?: string | null;
   subtleLabel?: string;
 }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-1 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{label}</div>
+      <div className="mb-1 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+        {label}
+      </div>
       <p className="text-base leading-relaxed tracking-wide">{body}</p>
       {subtle && (
         <>
-          <div className="mt-3 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{subtleLabel}</div>
+          <div className="mt-3 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+            {subtleLabel}
+          </div>
           <p className="whitespace-pre-line text-xs text-muted-foreground">{subtle}</p>
         </>
       )}

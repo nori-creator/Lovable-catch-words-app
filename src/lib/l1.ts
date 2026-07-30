@@ -33,7 +33,18 @@
  */
 
 export type L1Code =
-  | "ja" | "en" | "ko" | "vi" | "th" | "id" | "es" | "fr" | "de" | "ru" | "pt" | "tl";
+  | "ja"
+  | "en"
+  | "ko"
+  | "vi"
+  | "th"
+  | "id"
+  | "es"
+  | "fr"
+  | "de"
+  | "ru"
+  | "pt"
+  | "tl";
 
 export type L1Phonology = {
   /** 子音(声母)の干渉。有気/無気・そり舌・f/h など。 */
@@ -409,11 +420,7 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
     labelEn: "Thai",
     speakerJa: "タイ語話者",
     speakerEn: "Thai speakers",
-    priority: [
-      "タイ語の5声調に引きずられる",
-      "そり舌 ㄓㄔㄕㄖ が母語に無い",
-      "末子音の解放が弱い",
-    ],
+    priority: ["タイ語の5声調に引きずられる", "そり舌 ㄓㄔㄕㄖ が母語に無い", "末子音の解放が弱い"],
     phonology: {
       consonants:
         "そり舌 ㄓㄔㄕㄖ が無い。ㄖ をタイ語の r/l で代用する。" +
@@ -634,13 +641,10 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
     labelEn: "Filipino (Tagalog)",
     speakerJa: "フィリピン語話者",
     speakerEn: "Filipino speakers",
-    priority: [
-      "声調が母語に無い",
-      "ㄈ(f)が p と混同されやすい",
-      "そり舌 ㄓㄔㄕㄖ が母語に無い",
-    ],
+    priority: ["声調が母語に無い", "ㄈ(f)が p と混同されやすい", "そり舌 ㄓㄔㄕㄖ が母語に無い"],
     phonology: {
-      consonants: "ㄈ(f)が母語で p と混同されやすい。そり舌 ㄓㄔㄕㄖ が無い。有気/無気の区別が弱い。",
+      consonants:
+        "ㄈ(f)が母語で p と混同されやすい。そり舌 ㄓㄔㄕㄖ が無い。有気/無気の区別が弱い。",
       finals: "ㄩ(ü)が無い。母音が少ないため ㄜ(e)が難しい。",
       tones: "声調が無い。",
       prosody: "強勢の位置で意味が変わる母語なので、高さより強さで区別しようとする。",
@@ -661,7 +665,18 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
 
 /** 設定画面に並べる順(学習者数の多い順を意識)。 */
 export const L1_ORDER: L1Code[] = [
-  "ja", "en", "ko", "vi", "th", "id", "es", "fr", "de", "ru", "pt", "tl",
+  "ja",
+  "en",
+  "ko",
+  "vi",
+  "th",
+  "id",
+  "es",
+  "fr",
+  "de",
+  "ru",
+  "pt",
+  "tl",
 ];
 
 /** 未知・null は日本語にフォールバックする(既定の学習者像)。 */

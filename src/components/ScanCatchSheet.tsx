@@ -14,6 +14,7 @@ import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   snapshotDataUrl: string;
@@ -64,7 +65,9 @@ async function cropAround(dataUrl: string, point: [number, number]): Promise<str
  */
 function playChime() {
   try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const AC =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
     const t = ctx.currentTime;
@@ -100,7 +103,9 @@ function playChime() {
     });
 
     setTimeout(() => ctx.close(), 600);
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 }
 
 /**
@@ -109,7 +114,17 @@ function playChime() {
  * 2. show cutout + verified details + optional selfie/caption (§5.1)
  * 3. on 保存: upload → reuse prefetched card (no additional AI call) → fly to 図鑑
  */
-export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardPromise, loc, upgrade, onClose }: Props) {
+export function ScanCatchSheet({
+  snapshotDataUrl,
+  item,
+  headword,
+  dict,
+  cardPromise,
+  loc,
+  upgrade,
+  onClose,
+}: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
@@ -137,7 +152,9 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   // Show the photo and enable saving the instant we have a crop — the
@@ -162,8 +179,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         setPhase("ready");
       }
     })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSelfie(file: File) {
@@ -196,7 +215,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     const startEl = cutoutBoxRef.current;
     const fly = flyRef.current;
     const dexEl = document.querySelector('[data-nav="/dex"]') as HTMLElement | null;
-    if (!startEl || !fly || !dexEl) { await new Promise((r) => setTimeout(r, 700)); return; }
+    if (!startEl || !fly || !dexEl) {
+      await new Promise((r) => setTimeout(r, 700));
+      return;
+    }
     const from = startEl.getBoundingClientRect();
     const to = dexEl.getBoundingClientRect();
     const fromCx = from.left + from.width / 2;
@@ -243,7 +265,8 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     fly.style.transition = "transform 480ms cubic-bezier(0.55, -0.1, 0.6, 0.9), opacity 480ms ease";
     fly.style.transform = `translate(${dxHero}px, ${dyHero - vh * 0.5}px) scale(${heroScale * 0.5})`;
     fly.style.opacity = "0";
-    if (trail) trail.style.transform = `translate(-50%, -50%) translate(${dxHero}px, ${dyHero - vh * 0.5}px)`;
+    if (trail)
+      trail.style.transform = `translate(-50%, -50%) translate(${dxHero}px, ${dyHero - vh * 0.5}px)`;
     await new Promise((r) => setTimeout(r, 480));
     if (flash) flash.classList.remove("hero-flash-play");
     // Small pulse on the dex tab as the page opens (the real「バン」is the
@@ -252,7 +275,6 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
     void to;
     setTimeout(() => dexEl.classList.remove("dex-impact"), 900);
   }
-
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
@@ -289,7 +311,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         if (thumb) {
           await supabase.storage
             .from("stickers")
-            .upload(thumbPath(path), thumb, { contentType: thumb.type || "image/webp", upsert: true })
+            .upload(thumbPath(path), thumb, {
+              contentType: thumb.type || "image/webp",
+              upsert: true,
+            })
             .catch(() => {});
           void putCachedImage(thumbPath(path), thumb);
         }
@@ -331,7 +356,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         stickerId = upgrade.sticker_id;
       } else {
         const meaning = card?.meaning_ja || dict?.meaning_ja || item.meaning_ja;
-        if (!meaning) throw new Error("単語情報を取得できませんでした");
+        if (!meaning) throw new Error(t("sheet.noWordInfo"));
         const word = card
           ? {
               headword,
@@ -381,29 +406,34 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       setPhase("done");
       if (firstCatch) {
         // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
-        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+        toast.success(t("sheet.firstCatch"), { duration: 5000 });
       } else {
-        toast.success(upgrade ? "再会! 自分の写真になりました✨" : "図鑑に1体増えました！");
+        toast.success(upgrade ? t("sheet.reunion") : t("sheet.addedOne"));
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
       setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
     } catch (e) {
       console.error(e);
-      setErr(e instanceof Error ? e.message : "保存に失敗しました");
-      toast.error("保存に失敗しました");
+      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
+      toast.error(t("cap.saveFailed"));
       setSaving(false);
       setPhase("ready");
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="キャッチ">
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("sheet.catch")}
+    >
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="pl-1 text-xs font-medium text-white/80">キャッチ</span>
+        <span className="pl-1 text-xs font-medium text-white/80">{t("sheet.catch")}</span>
         {phase === "ready" && !saving && (
           <button
             onClick={onClose}
-            aria-label="閉じる"
+            aria-label={t("common.close")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white active:scale-95 motion-reduce:active:scale-100"
           >
             <X className="h-4 w-4" />
@@ -426,7 +456,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">読み込み中…</p>
+                <p className="text-[11px]">{t("sheet.loading")}</p>
               </div>
             </div>
           )}
@@ -435,40 +465,54 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-2xl font-bold tracking-tight">{headword}</h2>
+            <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">
+              {headword}
+            </h2>
             {dict ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
-                ✓ 検証済み
+                {t("sheet.verified")}
               </span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
-                AI生成
+                {t("sheet.aiMade")}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p lang="zh-Hant" className="mt-0.5 text-xs text-muted-foreground">
             {dict?.zhuyin || item.zhuyin}
-            {(dict?.pinyin || item.pinyin) && <span className="ml-2">{dict?.pinyin || item.pinyin}</span>}
+            {(dict?.pinyin || item.pinyin) && (
+              <span className="ml-2">{dict?.pinyin || item.pinyin}</span>
+            )}
           </p>
           <p className="mt-2 text-base font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">一言感想 <span className="ml-1 text-[10px]">(任意)</span></label>
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("sheet.noteLabel")}{" "}
+                <span className="ml-1 text-[10px]">{t("sheet.optional")}</span>
+              </label>
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
-                placeholder="どこで見つけた?どんな気持ち?"
+                placeholder={t("sheet.notePlaceholder")}
                 rows={2}
                 maxLength={140}
                 className="mt-1 w-full resize-none rounded-xl border border-border bg-secondary/50 p-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">一緒に自撮り <span className="ml-1 text-[10px]">(任意)</span></label>
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("sheet.selfieLabel")}{" "}
+                <span className="ml-1 text-[10px]">{t("sheet.optional")}</span>
+              </label>
               <div className="mt-1 flex items-center gap-2">
                 {selfieDataUrl ? (
-                  <img src={selfieDataUrl} alt="" className="h-14 w-14 rounded-full object-cover ring-2 ring-primary/40" />
+                  <img
+                    src={selfieDataUrl}
+                    alt=""
+                    className="h-14 w-14 rounded-full object-cover ring-2 ring-primary/40"
+                  />
                 ) : (
                   <div className="grid h-14 w-14 place-items-center rounded-full bg-secondary text-muted-foreground">
                     <Camera className="h-5 w-5" />
@@ -479,7 +523,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
                   type="button"
                   className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground active:scale-95"
                 >
-                  {selfieDataUrl ? "撮り直す" : "自撮りを追加"}
+                  {selfieDataUrl ? t("sheet.retakeSelfie") : t("sheet.addSelfie")}
                 </button>
                 <input
                   ref={selfieInputRef}
@@ -493,14 +537,22 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             </div>
           </div>
 
-          {err && <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>}
+          {err && (
+            <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+          )}
 
           <button
             onClick={doSave}
             disabled={!objectDataUrl || saving}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : phase === "done" ? <Check className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+            {saving ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : phase === "done" ? (
+              <Check className="h-5 w-5" />
+            ) : (
+              <Sparkles className="h-5 w-5" />
+            )}
             {phase === "done" ? "図鑑に着地！" : "図鑑へ収める"}
           </button>
         </div>
@@ -515,7 +567,10 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             style={{
               willChange: "transform",
               transition: "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25)",
-              width: 8, height: 8, left: 0, top: 0,
+              width: 8,
+              height: 8,
+              left: 0,
+              top: 0,
               transform: "translate(-50%, -50%)",
             }}
           >
@@ -537,18 +592,27 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           <div
             id="catch-hero-flash"
             className="pointer-events-none fixed inset-0 z-[58] opacity-0"
-            style={{ background: "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)" }}
+            style={{
+              background:
+                "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)",
+            }}
           />
           <div
             id="catch-hero-word"
             className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
             style={{ top: "68%" }}
           >
-            <div className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
+            <div
+              lang="zh-Hant"
+              className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
+            >
               {headword}
             </div>
             {(dict?.zhuyin || item.zhuyin) && (
-              <div className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+              <div
+                lang="zh-Hant"
+                className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
+              >
                 {dict?.zhuyin || item.zhuyin}
               </div>
             )}
@@ -619,7 +683,6 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
           100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
         }
       `}</style>
-
     </div>
   );
 }

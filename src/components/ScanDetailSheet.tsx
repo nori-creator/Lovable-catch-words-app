@@ -3,6 +3,8 @@ import { X, Loader2 } from "lucide-react";
 import { WordCard } from "@/components/WordCard";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
+import { Zh } from "@/components/Zh";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   headword: string;
@@ -18,30 +20,44 @@ type Props = {
  * already resolved and rendering is instant.
  */
 export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: Props) {
+  const t = useT();
   const [card, setCard] = useState<GeneratedCard | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     cardPromise
-      .then((c) => { if (!cancelled) setCard(c); })
-      .catch((e) => { if (!cancelled) setErr((e as Error)?.message || "生成に失敗しました"); });
-    return () => { cancelled = true; };
-  }, [cardPromise]);
+      .then((c) => {
+        if (!cancelled) setCard(c);
+      })
+      .catch((e) => {
+        if (!cancelled) setErr((e as Error)?.message || t("err.generateFailed"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardPromise, t]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
   return (
-    <div className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md" role="dialog">
+    <div
+      className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
+      role="dialog"
+    >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground">{headword} — 詳しく</span>
+        <span className="pl-1 text-xs font-medium text-muted-foreground">
+          <Zh>{headword}</Zh> — {t("detail.more")}
+        </span>
         <button
           onClick={onClose}
-          aria-label="閉じる"
+          aria-label={t("common.close")}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card transition-transform duration-100 active:scale-95"
         >
           <X className="h-4 w-4" />
@@ -53,7 +69,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
         ) : !card ? (
           <div className="grid place-items-center py-16 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <p className="mt-2 text-xs">詳しい解説を準備中…</p>
+            <p className="mt-2 text-xs">{t("detail.preparing")}</p>
           </div>
         ) : (
           <WordCard
@@ -71,7 +87,8 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
           />
         )}
         <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          {dict ? "✓ 検証済み辞書 + AI詳細" : "AI生成"} · 点 {item.confidence.toFixed(2)}
+          {dict ? t("detail.verified") : t("detail.aiOnly")} ·{" "}
+          {t("detail.score", { v: item.confidence.toFixed(2) })}
         </p>
       </div>
     </div>

@@ -7,14 +7,25 @@ import { Button } from "@/components/ui/button";
 import { getPublicProfile } from "@/lib/userprofile.functions";
 import { toggleFollow } from "@/lib/social.functions";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
+import { useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
   head: ({ params }) => ({
     meta: [
-      { title: `ユーザー ${params.userId.slice(0, 8)} のプロフィール — Catchwords` },
-      { name: "description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      { title: tStatic("page.userProfile", { id: params.userId.slice(0, 8) }) },
+      {
+        name: "description",
+        content:
+          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+      },
       { property: "og:title", content: `プロフィール — Catchwords` },
-      { property: "og:description", content: "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。" },
+      {
+        property: "og:description",
+        content:
+          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+      },
       { property: "og:type", content: "profile" },
       { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${params.userId}` },
       { name: "robots", content: "noindex" },
@@ -23,7 +34,6 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
   }),
   component: UserProfilePage,
 });
-
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -35,6 +45,8 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 function UserProfilePage() {
+  const t = useT();
+  const lang = useUiLang();
   const { userId } = Route.useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -46,7 +58,12 @@ function UserProfilePage() {
   });
   const [busy, setBusy] = useState(false);
 
-  if (!data) return <AppShell title="プロフィール"><div className="py-8 text-center text-sm text-muted-foreground">読み込み中…</div></AppShell>;
+  if (!data)
+    return (
+      <AppShell title={t("user.profile")}>
+        <div className="py-8 text-center text-sm text-muted-foreground">{t("user.loading")}</div>
+      </AppShell>
+    );
 
   async function handleFollow() {
     if (!data) return;
@@ -55,57 +72,78 @@ function UserProfilePage() {
       await doFollow({ data: { target_user_id: data.id, follow: !data.is_following } });
       await qc.invalidateQueries({ queryKey: ["public-profile", userId] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "失敗しました");
+      toast.error(e instanceof Error ? e.message : t("err.failed"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AppShell title={data.display_name ?? "プロフィール"}>
+    <AppShell title={data.display_name ?? t("user.profile")}>
       <div className="space-y-4">
         <div className="rounded-3xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
             {data.avatar_url ? (
-              <img src={data.avatar_url} alt={`${data.display_name ?? "ユーザー"}のアバター`} className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20" />
+              <img
+                src={data.avatar_url}
+                alt={t("user.avatarOf", { name: data.display_name ?? t("user.someone") })}
+                className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
+              />
             ) : (
               <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-2xl font-bold text-primary-foreground">
                 {(data.display_name ?? "?").slice(0, 1)}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-bold">{data.display_name ?? "名無し"}</h2>
+              <h2 className="truncate text-xl font-bold">
+                {data.display_name ?? t("common.anon")}
+              </h2>
               <p className="text-xs text-muted-foreground">
-                {new Date(data.created_at).toLocaleDateString("ja-JP")} から
+                {t("user.since", {
+                  date: new Date(data.created_at).toLocaleDateString(
+                    lang === "en" ? "en-US" : "ja-JP",
+                  ),
+                })}
               </p>
             </div>
           </div>
 
           <div className="mt-4 flex gap-2">
-            <Stat label="図鑑" value={data.stats.captured} />
-            <Stat label="投稿" value={data.stats.posts} />
-            <Stat label="フォロワー" value={data.stats.followers} />
-            <Stat label="フォロー中" value={data.stats.following} />
+            <Stat label={t("user.statDex")} value={data.stats.captured} />
+            <Stat label={t("user.statPosts")} value={data.stats.posts} />
+            <Stat label={t("user.statFollowers")} value={data.stats.followers} />
+            <Stat label={t("user.statFollowing")} value={data.stats.following} />
           </div>
 
           <div className="mt-4">
             {data.is_me ? (
-              <Button variant="outline" className="w-full" onClick={() => navigate({ to: "/settings" })}>
-                プロフィールを編集
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate({ to: "/settings" })}
+              >
+                {t("user.editProfile")}
               </Button>
             ) : (
-              <Button onClick={handleFollow} disabled={busy} variant={data.is_following ? "outline" : "default"} className="w-full">
-                {data.is_following ? "フォロー中" : "フォローする"}
+              <Button
+                onClick={handleFollow}
+                disabled={busy}
+                variant={data.is_following ? "outline" : "default"}
+                className="w-full"
+              >
+                {data.is_following ? t("user.statFollowing") : t("user.follow")}
               </Button>
             )}
           </div>
         </div>
 
         <div>
-          <h3 className="mb-2 px-1 text-sm font-semibold text-muted-foreground">最近のキャッチ</h3>
+          <h3 className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+            {t("user.recentCatches")}
+          </h3>
           {data.recent_stickers.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border bg-card/50 py-8 text-center text-sm text-muted-foreground">
-              まだキャッチがありません
+              {t("user.noCatches")}
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
@@ -117,13 +155,21 @@ function UserProfilePage() {
                   className="lift group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
                 >
                   {s.cutout_url ? (
-                    <img src={s.cutout_url} alt={`「${s.headword ?? ""}」のステッカー`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <img
+                      src={s.cutout_url}
+                      alt={t("common.stickerOf", { word: s.headword ?? "" })}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-3xl">{s.emoji ?? "📍"}</div>
+                    <div className="grid h-full w-full place-items-center text-3xl">
+                      {s.emoji ?? "📍"}
+                    </div>
                   )}
                   {s.headword && (
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                      <span className="text-[11px] font-semibold text-white">{s.headword}</span>
+                      <span lang="zh-Hant" className="text-[11px] font-semibold text-white">
+                        {s.headword}
+                      </span>
                     </div>
                   )}
                 </Link>

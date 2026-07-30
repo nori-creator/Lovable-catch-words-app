@@ -6,7 +6,11 @@
  */
 export const TTS_VOICE_DEFAULT = "alloy";
 
-export async function ttsObjectPath(language: string, voice: string, text: string): Promise<string> {
+export async function ttsObjectPath(
+  language: string,
+  voice: string,
+  text: string,
+): Promise<string> {
   const bytes = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   const hex = Array.from(new Uint8Array(digest))

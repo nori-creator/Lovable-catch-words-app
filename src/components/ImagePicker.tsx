@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Loader2, Search, Upload, Sparkles } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
-import { searchImageCandidates, fetchImageAsDataUrl, type ImageCandidate } from "@/lib/images.functions";
+import {
+  searchImageCandidates,
+  fetchImageAsDataUrl,
+  type ImageCandidate,
+} from "@/lib/images.functions";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   query: string;
@@ -19,6 +24,7 @@ async function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function ImagePicker({ query, onPicked }: Props) {
+  const t = useT();
   const searchFn = useServerFn(searchImageCandidates);
   const fetchFn = useServerFn(fetchImageAsDataUrl);
   const [loading, setLoading] = useState(false);
@@ -65,19 +71,28 @@ export function ImagePicker({ query, onPicked }: Props) {
     <div className="space-y-3">
       <div className="flex gap-2">
         <Button onClick={runSearch} disabled={loading || !query} className="lift flex-1">
-          {loading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
-          「{query}」の画像を探す
+          {loading ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="mr-1 h-4 w-4" />
+          )}
+          {t("img.searchFor", { q: query })}
         </Button>
         <label className="lift inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-accent">
           <Upload className="h-4 w-4" />
-          <span>自分の写真</span>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+          <span>{t("img.ownPhoto")}</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+          />
         </label>
       </div>
 
       {searched && !loading && candidates.length === 0 && (
         <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
-          画像が見つかりませんでした。別のキーワードで試すか、自分の写真をアップロードしてください。
+          {t("img.notFound")}
         </p>
       )}
 
@@ -91,10 +106,18 @@ export function ImagePicker({ query, onPicked }: Props) {
               disabled={picking !== null}
               className="lift relative aspect-square overflow-hidden rounded-2xl border border-border bg-secondary"
             >
-              <img src={c.thumb} alt="候補" className="h-full w-full object-cover" loading="lazy" />
+              <img
+                src={c.thumb}
+                alt={t("img.candidate")}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
               <div className="absolute right-1 top-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px] text-white backdrop-blur">
                 {c.source === "ai" ? (
-                  <span className="inline-flex items-center gap-0.5"><Sparkles className="h-2.5 w-2.5" />AI</span>
+                  <span className="inline-flex items-center gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    AI
+                  </span>
                 ) : (
                   "Unsplash"
                 )}

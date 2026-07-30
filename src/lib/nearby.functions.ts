@@ -63,7 +63,9 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await supabase
       .from("stickers")
-      .select("id, lat, lng, location_name, created_at, object_image_url, cutout_image_url, placeholder_image_url, words(headword, meaning_ja)")
+      .select(
+        "id, lat, lng, location_name, created_at, object_image_url, cutout_image_url, placeholder_image_url, words(headword, meaning_ja)",
+      )
       .eq("user_id", userId)
       .not("lat", "is", null)
       .not("lng", "is", null)
@@ -87,21 +89,23 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
     };
 
     const now = Date.now();
-    return ((rows ?? []) as unknown as Row[])
-      .filter((r) => r.words)
-      .map((r) => ({
-        sticker_id: r.id,
-        headword: r.words!.headword,
-        meaning_ja: r.words!.meaning_ja,
-        location_name: r.location_name,
-        days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
-        distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
-        image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
-      }))
-      .filter((m) => m.distance_m <= data.radius_m)
-      // 撮ったばかりの物を「覚えてる?」と聞いても意味がないので、
-      // **1日以上経ったもの**だけを対象にする。
-      .filter((m) => m.days_ago >= 1)
-      .sort((a, b) => a.distance_m - b.distance_m)
-      .slice(0, data.limit);
+    return (
+      ((rows ?? []) as unknown as Row[])
+        .filter((r) => r.words)
+        .map((r) => ({
+          sticker_id: r.id,
+          headword: r.words!.headword,
+          meaning_ja: r.words!.meaning_ja,
+          location_name: r.location_name,
+          days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
+          distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
+          image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
+        }))
+        .filter((m) => m.distance_m <= data.radius_m)
+        // 撮ったばかりの物を「覚えてる?」と聞いても意味がないので、
+        // **1日以上経ったもの**だけを対象にする。
+        .filter((m) => m.days_ago >= 1)
+        .sort((a, b) => a.distance_m - b.distance_m)
+        .slice(0, data.limit)
+    );
   });

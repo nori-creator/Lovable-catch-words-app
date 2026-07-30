@@ -46,13 +46,15 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     // current_level は生成済みの型定義より新しい列(マイグレーション
     // 20260727100000)。型を再生成するまでは緩いクライアントとして扱う。
-    const { error } = await (supabase as unknown as {
-      from: (t: string) => {
-        update: (v: Record<string, unknown>) => {
-          eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
+    const { error } = await (
+      supabase as unknown as {
+        from: (t: string) => {
+          update: (v: Record<string, unknown>) => {
+            eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
+          };
         };
-      };
-    })
+      }
+    )
       .from("profiles")
       .update(data as Record<string, unknown>)
       .eq("id", userId);

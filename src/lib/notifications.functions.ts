@@ -22,12 +22,22 @@ export const listNotifications = createServerFn({ method: "GET" })
       .limit(50);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as Array<{
-      id: string; type: string; post_id: string | null; created_at: string; read_at: string | null; actor_id: string | null;
+      id: string;
+      type: string;
+      post_id: string | null;
+      created_at: string;
+      read_at: string | null;
+      actor_id: string | null;
     }>;
-    const actorIds = Array.from(new Set(rows.map((r) => r.actor_id).filter((x): x is string => !!x)));
+    const actorIds = Array.from(
+      new Set(rows.map((r) => r.actor_id).filter((x): x is string => !!x)),
+    );
     let actors: Array<{ id: string; display_name: string | null; avatar_url: string | null }> = [];
     if (actorIds.length) {
-      const { data: p } = await supabase.from("profiles").select("id, display_name, avatar_url").in("id", actorIds);
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", actorIds);
       actors = (p ?? []) as typeof actors;
     }
     const map = new Map(actors.map((a) => [a.id, a]));
@@ -37,7 +47,7 @@ export const listNotifications = createServerFn({ method: "GET" })
       post_id: r.post_id,
       created_at: r.created_at,
       read_at: r.read_at,
-      actor: r.actor_id ? map.get(r.actor_id) ?? null : null,
+      actor: r.actor_id ? (map.get(r.actor_id) ?? null) : null,
     }));
   });
 

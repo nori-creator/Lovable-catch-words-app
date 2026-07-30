@@ -20,7 +20,9 @@ function pickVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | null {
   return (
     voices.find((v) => /zh[-_]?TW|zh[-_]?Hant|cmn[-_]?Hant|cmn[-_]?TW/i.test(v.lang)) ??
     voices.find((v) => /(^|[-_])(Meijia|美佳)/i.test(v.name)) ??
-    voices.find((v) => /^zh|^cmn|Chinese/i.test(v.lang) || /Chinese|Mandarin|中文|國語|普通话/i.test(v.name)) ??
+    voices.find(
+      (v) => /^zh|^cmn|Chinese/i.test(v.lang) || /Chinese|Mandarin|中文|國語|普通话/i.test(v.name),
+    ) ??
     null
   );
 }

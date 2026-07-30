@@ -12,7 +12,9 @@ import { BarChart3, Brain, Flag, Loader2, Users, Volume2 } from "lucide-react";
 
 /** KPI dashboard (roadmap §3) — admin only, one screen, numbers over charts. */
 export const Route = createFileRoute("/_authenticated/admin/metrics")({
-  head: () => ({ meta: [{ title: "KPI — Catchwords 管理" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [{ title: "KPI — Catchwords 管理" }, { name: "robots", content: "noindex" }],
+  }),
   component: AdminMetricsPage,
 });
 
@@ -61,7 +63,10 @@ function AdminMetricsPage() {
                 ["オンボ完了", dash.funnel.users_onboarded],
                 ["初スキャン", dash.funnel.users_first_scan],
                 ["初キャッチ", dash.funnel.users_first_catch],
-                ["D1継続", dash.funnel.d1_retention_pct != null ? `${dash.funnel.d1_retention_pct}%` : "—"],
+                [
+                  "D1継続",
+                  dash.funnel.d1_retention_pct != null ? `${dash.funnel.d1_retention_pct}%` : "—",
+                ],
               ].map(([label, v]) => (
                 <div key={String(label)} className="rounded-xl bg-secondary/60 p-3 text-center">
                   <div className="text-lg font-bold">{v}</div>
@@ -144,11 +149,7 @@ function SelfImprovePanel() {
     setResult(null);
     try {
       const r = await runFn();
-      setResult(
-        r.steps
-          .map((s) => `${s.ok ? "✅" : "❌"} ${s.step}: ${s.detail}`)
-          .join("\n"),
-      );
+      setResult(r.steps.map((s) => `${s.ok ? "✅" : "❌"} ${s.step}: ${s.detail}`).join("\n"));
       void refetch();
     } catch (e) {
       setResult(e instanceof Error ? e.message : "実行に失敗しました");
@@ -175,28 +176,45 @@ function SelfImprovePanel() {
       <p className="text-xs text-muted-foreground">
         最終実行:{" "}
         {st?.last_run_at
-          ? new Date(st.last_run_at).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          ? new Date(st.last_run_at).toLocaleString("ja-JP", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
           : "まだ"}
         {" · 人間レビュー待ち "}
-        <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>{st?.needs_review ?? 0}</span> 件
+        <span className={st?.needs_review ? "font-semibold text-amber-600" : ""}>
+          {st?.needs_review ?? 0}
+        </span>{" "}
+        件
       </p>
       <p className="mt-0.5 text-[10px] text-muted-foreground">
         毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">{result}</pre>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">
+          {result}
+        </pre>
       )}
 
       {(st?.runs.length ?? 0) > 0 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-[11px] text-muted-foreground">実行ログ(直近)</summary>
+          <summary className="cursor-pointer text-[11px] text-muted-foreground">
+            実行ログ(直近)
+          </summary>
           <ul className="mt-1 space-y-0.5 text-[10px]">
             {st!.runs.map((r, i) => (
               <li key={i} className="flex items-start gap-1.5">
                 <span>{r.ok ? "✅" : "❌"}</span>
                 <span className="font-medium">{r.step}</span>
                 <span className="text-muted-foreground">
-                  {new Date(r.created_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {new Date(r.created_at).toLocaleString("ja-JP", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
                 <span className="min-w-0 flex-1 break-all text-muted-foreground">{r.detail}</span>
               </li>
@@ -207,12 +225,16 @@ function SelfImprovePanel() {
 
       {(st?.audits.length ?? 0) > 0 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-[11px] text-muted-foreground">直近の監査結果</summary>
+          <summary className="cursor-pointer text-[11px] text-muted-foreground">
+            直近の監査結果
+          </summary>
           <ul className="mt-1 space-y-0.5 text-[11px]">
             {st!.audits.map((a, i) => (
               <li key={i} className="flex items-center gap-2">
                 <span>{a.ok ? "✅" : a.applied ? "🔧" : "⚠️"}</span>
-                <span className="font-medium">{a.headword}</span>
+                <span lang="zh-Hant" className="font-medium">
+                  {a.headword}
+                </span>
                 <span className="text-muted-foreground">
                   {a.source}
                   {!a.ok && !a.applied && " · 要レビュー"}
@@ -249,14 +271,18 @@ function EntryReportsPanel() {
     try {
       await resolveFn({ data: { id, status } });
       void refetch();
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
   const list = reports ?? [];
   return (
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
         <Flag className="h-4 w-4 text-primary" /> エラー報告
-        <span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] ${list.length ? "bg-amber-100 text-amber-800" : "bg-secondary text-muted-foreground"}`}>
+        <span
+          className={`ml-1 rounded-full px-2 py-0.5 text-[11px] ${list.length ? "bg-amber-100 text-amber-800" : "bg-secondary text-muted-foreground"}`}
+        >
           {list.length}
         </span>
       </h2>
@@ -265,12 +291,19 @@ function EntryReportsPanel() {
       ) : (
         <ul className="space-y-1.5">
           {list.map((r) => (
-            <li key={r.id} className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs">
-              <span className="font-semibold">{r.headword}</span>
+            <li
+              key={r.id}
+              className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs"
+            >
+              <span lang="zh-Hant" className="font-semibold">
+                {r.headword}
+              </span>
               <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {KIND_LABEL[r.kind] ?? r.kind}
               </span>
-              {r.note && <span className="min-w-0 flex-1 truncate text-muted-foreground">「{r.note}」</span>}
+              {r.note && (
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">「{r.note}」</span>
+              )}
               <span className="ml-auto flex gap-1">
                 <button
                   onClick={() => resolve(r.id, "resolved")}
@@ -301,7 +334,11 @@ function EntryReportsPanel() {
 function TtsPregenPanel() {
   const pregenFn = useServerFn(pregenerateDictionaryTts);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; failed: number; remaining: number | null }>({
+  const [progress, setProgress] = useState<{
+    done: number;
+    failed: number;
+    remaining: number | null;
+  }>({
     done: 0,
     failed: 0,
     remaining: null,
@@ -353,7 +390,9 @@ function TtsPregenPanel() {
         <button
           onClick={run}
           className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold active:scale-95 ${
-            running ? "bg-red-100 text-red-700 ring-1 ring-red-200" : "bg-primary text-primary-foreground shadow-sm"
+            running
+              ? "bg-red-100 text-red-700 ring-1 ring-red-200"
+              : "bg-primary text-primary-foreground shadow-sm"
           }`}
         >
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -366,7 +405,8 @@ function TtsPregenPanel() {
           : remaining === 0
             ? "すべての検証済み語にネイティブ音声が用意されています。タップ→音声が最速になります。"
             : `残り ${remaining} 語(25語ずつ自動で進みます。目安コスト 約${Math.ceil(remaining * 0.1)}円)`}
-        {progress.done > 0 && ` · 今回生成 ${progress.done} 語${progress.failed ? ` / 失敗 ${progress.failed}` : ""}`}
+        {progress.done > 0 &&
+          ` · 今回生成 ${progress.done} 語${progress.failed ? ` / 失敗 ${progress.failed}` : ""}`}
       </p>
       {errors.length > 0 && (
         <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-[11px] text-destructive">

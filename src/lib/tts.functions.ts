@@ -36,11 +36,7 @@ const GOOGLE_TTS_VOICE = process.env.GOOGLE_TTS_VOICE ?? "cmn-TW-Wavenet-A";
  * Throws when no server TTS is configured; callers keep a device-voice fallback.
  */
 /** レート制限(429)・一時的な5xxは待って再試行する。 */
-async function fetchWithBackoff(
-  url: string,
-  init: RequestInit,
-  attempts = 4,
-): Promise<Response> {
+async function fetchWithBackoff(url: string, init: RequestInit, attempts = 4): Promise<Response> {
   let lastStatus = 0;
   let lastBody = "";
   for (let i = 0; i < attempts; i++) {
@@ -61,15 +57,18 @@ async function fetchWithBackoff(
 async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
   const gKey = process.env.GOOGLE_TTS_API_KEY;
   if (gKey) {
-    const res = await fetchWithBackoff(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: { text },
-        voice: { languageCode: "cmn-TW", name: GOOGLE_TTS_VOICE },
-        audioConfig: { audioEncoding: "MP3", speakingRate: speed },
-      }),
-    });
+    const res = await fetchWithBackoff(
+      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${gKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: "cmn-TW", name: GOOGLE_TTS_VOICE },
+          audioConfig: { audioEncoding: "MP3", speakingRate: speed },
+        }),
+      },
+    );
     const json = (await res.json()) as { audioContent?: string };
     if (!json.audioContent) throw new Error("TTS empty response");
     const bin = atob(json.audioContent);
@@ -101,7 +100,9 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     const voiceKey = data.speed === DEFAULT_SPEED ? data.voice : `${data.voice}@${data.speed}`;
     const path = await ttsObjectPath(data.language, voiceKey, data.text);
 
-    const { data: cached } = await supabase.storage.from("tts").createSignedUrl(path, SIGNED_URL_TTL);
+    const { data: cached } = await supabase.storage
+      .from("tts")
+      .createSignedUrl(path, SIGNED_URL_TTL);
     if (cached?.signedUrl) return { audio_url: cached.signedUrl };
 
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
@@ -118,7 +119,9 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
       upsert: true,
     });
     if (!upErr) {
-      const { data: signed } = await supabase.storage.from("tts").createSignedUrl(path, SIGNED_URL_TTL);
+      const { data: signed } = await supabase.storage
+        .from("tts")
+        .createSignedUrl(path, SIGNED_URL_TTL);
       if (signed?.signedUrl) return { audio_url: signed.signedUrl };
     }
 
@@ -188,7 +191,9 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       try {
         const path = await ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, entry.headword);
         // Reuse audio already cached by on-demand taps.
-        const { data: existing } = await supabaseAdmin.storage.from("tts").createSignedUrl(path, 60);
+        const { data: existing } = await supabaseAdmin.storage
+          .from("tts")
+          .createSignedUrl(path, 60);
         if (!existing?.signedUrl) {
           const buf = await synthesizeMp3(entry.headword, DEFAULT_SPEED);
           const { error: upErr } = await supabaseAdmin.storage

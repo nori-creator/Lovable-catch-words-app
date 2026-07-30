@@ -89,7 +89,11 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
 
 export const searchDictionaryEntries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { q: string }) => ({ q: String(input?.q ?? "").trim().slice(0, 100) }))
+  .inputValidator((input: { q: string }) => ({
+    q: String(input?.q ?? "")
+      .trim()
+      .slice(0, 100),
+  }))
   .handler(async ({ data, context }) => {
     let query = context.supabase
       .from("dictionary_entries")
@@ -130,9 +134,8 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
       _role: "admin",
     });
     if (!isAdmin) throw new Error("管理者のみ");
-    const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi } = await import(
-      "./ai-provider.server"
-    );
+    const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi } =
+      await import("./ai-provider.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as {
       from: (t: string) => {
@@ -141,10 +144,15 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
         };
       };
     };
-    const { data } = await db.from("app_config").select("value").eq("key", "ai_models").maybeSingle();
+    const { data } = await db
+      .from("app_config")
+      .select("value")
+      .eq("key", "ai_models")
+      .maybeSingle();
     const config = ((data as { value?: AiModelConfig } | null)?.value ?? {}) as AiModelConfig;
     // 実際にいま使われている値(env のフォールバックを含む)も見せる。
-    let effective: { provider: string; fast: string; rich: string; rich_premium: string } | null = null;
+    let effective: { provider: string; fast: string; rich: string; rich_premium: string } | null =
+      null;
     let keyError: string | null = null;
     try {
       const ai = getAi();
@@ -209,7 +217,9 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as {
-      from: (t: string) => { upsert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }> };
+      from: (t: string) => {
+        upsert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      };
     };
     const { error } = await db.from("app_config").upsert({
       key: "ai_models",

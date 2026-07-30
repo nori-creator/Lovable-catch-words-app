@@ -173,8 +173,12 @@ async function main() {
       .not("audio_path", "is", null)
       .limit(3);
     for (const s of sample ?? []) {
-      const { data: signed } = await supabase.storage.from("tts").createSignedUrl(s.audio_path, 300);
-      console.log(`  ✓ ${s.headword}: ${signed?.signedUrl ? "署名URL OK — 耳で確認して" : "署名URL取得失敗!"}`);
+      const { data: signed } = await supabase.storage
+        .from("tts")
+        .createSignedUrl(s.audio_path, 300);
+      console.log(
+        `  ✓ ${s.headword}: ${signed?.signedUrl ? "署名URL OK — 耳で確認して" : "署名URL取得失敗!"}`,
+      );
       if (signed?.signedUrl) console.log(`    ${signed.signedUrl}`);
     }
   }

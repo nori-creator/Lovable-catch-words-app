@@ -55,7 +55,10 @@ export const getMyScanMetrics = createServerFn({ method: "GET" })
     const detects: number[] = [];
     const audios: number[] = [];
     for (const r of detectRows ?? []) {
-      if (typeof r.detect_ms === "number" && (detects.length === 0 || detects[detects.length - 1] !== r.detect_ms)) {
+      if (
+        typeof r.detect_ms === "number" &&
+        (detects.length === 0 || detects[detects.length - 1] !== r.detect_ms)
+      ) {
         detects.push(r.detect_ms);
       }
       if (typeof r.tap_to_audio_ms === "number") audios.push(r.tap_to_audio_ms);
@@ -125,7 +128,8 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       { scans: number; taps: number; catches: number; users: Set<string>; reviews: number }
     >();
     const bucket = (day: string) => {
-      if (!byDay.has(day)) byDay.set(day, { scans: 0, taps: 0, catches: 0, users: new Set(), reviews: 0 });
+      if (!byDay.has(day))
+        byDay.set(day, { scans: 0, taps: 0, catches: 0, users: new Set(), reviews: 0 });
       return byDay.get(day)!;
     };
     for (const e of usageRes.data ?? []) {

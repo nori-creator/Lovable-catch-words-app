@@ -36,7 +36,8 @@ export default defineTool({
     if (error) return errorContent(error.message);
 
     const rows = (data ?? []).map((r) => {
-      const s = (r as unknown as { stickers: { words: Record<string, unknown> | null } | null }).stickers;
+      const s = (r as unknown as { stickers: { words: Record<string, unknown> | null } | null })
+        .stickers;
       const w = s?.words ?? {};
       return {
         review_id: r.id,

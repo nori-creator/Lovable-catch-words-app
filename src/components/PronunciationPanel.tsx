@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { stopOtherAudio } from "@/lib/audio";
+import { Zh } from "@/components/Zh";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   headword: string;
@@ -18,6 +20,7 @@ type Props = {
  * calls Google Cloud TTS (cmn-TW Wavenet) when a GOOGLE_TTS_API_KEY secret is added.
  */
 export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
+  const t = useT();
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
 
   const speak = (slow = false) => {
     if (!("speechSynthesis" in window)) {
-      setError("このブラウザは音声合成に対応していません");
+      setError(t("pron.noTts"));
       return;
     }
     stopOtherAudio();
@@ -69,9 +72,10 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     setScore(null);
     const SR =
       (window as unknown as { SpeechRecognition?: new () => unknown }).SpeechRecognition ??
-      (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
+      (window as unknown as { webkitSpeechRecognition?: new () => unknown })
+        .webkitSpeechRecognition;
     if (!SR) {
-      setError("このブラウザは音声認識に対応していません（iOS Safari / Chrome 推奨）");
+      setError(t("pron.noAsr"));
       return;
     }
     const rec = new SR() as {
@@ -107,7 +111,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
       setListening(false);
     };
     rec.onerror = (e) => {
-      setError(`認識エラー: ${e.error}`);
+      setError(t("pron.asrError", { e: e.error }));
       setListening(false);
     };
     rec.onend = () => setListening(false);
@@ -127,13 +131,19 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   };
 
   const scoreColor =
-    score == null ? "" : score >= 85 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600";
+    score == null
+      ? ""
+      : score >= 85
+        ? "text-emerald-600"
+        : score >= 60
+          ? "text-amber-600"
+          : "text-rose-600";
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">発音練習</h3>
+        <div lang="zh-Hant">
+          <h3 className="text-sm font-semibold">{t("pron.title")}</h3>
           <p className="text-[11px] text-muted-foreground">{zhuyin ?? pinyin ?? ""}</p>
         </div>
         <div className="flex gap-2">
@@ -141,16 +151,20 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
             type="button"
             onClick={() => speak(false)}
             className="lift inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
-            aria-label="自然な速度で再生"
+            aria-label={t("pron.playNatural")}
           >
-            {speaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+            {speaking ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
           </button>
           <button
             type="button"
             onClick={() => speak(true)}
             className="lift inline-flex h-10 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
           >
-            ゆっくり
+            {t("pron.slow")}
           </button>
         </div>
       </div>
@@ -162,20 +176,28 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           className={`lift inline-flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg ${
             listening ? "bg-destructive pulse-ring" : "bg-primary shadow-primary/30"
           }`}
-          aria-label={listening ? "録音停止" : "発音を録音"}
+          aria-label={listening ? t("pron.stopRec") : t("pron.startRec")}
         >
           {listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </button>
         <div className="flex-1 text-sm">
           {listening ? (
-            <span className="text-muted-foreground">聞き取り中…「{headword}」と言ってみて</span>
+            <span className="text-muted-foreground">
+              {t("pron.listeningBefore")}
+              <Zh>{headword}</Zh>
+              {t("pron.listeningAfter")}
+            </span>
           ) : heard ? (
             <div className="space-y-0.5">
-              <div className="text-xs text-muted-foreground">あなたの発音</div>
+              <div className="text-xs text-muted-foreground">{t("pron.yours")}</div>
               <div className="font-medium">{heard}</div>
             </div>
           ) : (
-            <span className="text-muted-foreground">マイクを押して「{headword}」と発音</span>
+            <span className="text-muted-foreground">
+              {t("pron.pressBefore")}
+              <Zh>{headword}</Zh>
+              {t("pron.pressAfter")}
+            </span>
           )}
         </div>
         {score !== null && (
@@ -184,7 +206,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
               {score >= 85 && <CheckCircle2 className="h-5 w-5" />}
               {score}
             </div>
-            <div className="text-[10px] text-muted-foreground">スコア</div>
+            <div className="text-[10px] text-muted-foreground">{t("pron.score")}</div>
           </div>
         )}
       </div>
@@ -218,7 +240,8 @@ function longestCommonSubseq(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      dp[i][j] =
+        a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
     }
   }
   return dp[a.length][b.length];

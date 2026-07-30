@@ -5,13 +5,17 @@ import { AppShell } from "@/components/AppShell";
 import { getFeed, toggleLike, type FeedPost } from "@/lib/social.functions";
 import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
+import { Zh } from "@/components/Zh";
+import { useT } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/feed")({
-  head: () => ({ meta: [{ title: "フィード — Catchwords" }] }),
+  head: () => ({ meta: [{ title: tStatic("page.feed") }] }),
   component: FeedPage,
 });
 
 function FeedPage() {
+  const t = useT();
   const [tab, setTab] = useState<"following" | "popular">("following");
   const fetchFeed = useServerFn(getFeed);
   const { data, isLoading } = useQuery({
@@ -20,15 +24,16 @@ function FeedPage() {
   });
 
   return (
-    <AppShell title="フィード">
+    <AppShell title={t("feed.title")}>
       <div className="mb-4 inline-flex rounded-full bg-secondary p-1">
-        {(["following", "popular"] as const).map((t) => (
+        {/* map の引数を t にすると翻訳関数 t を隠してしまうので id にする。 */}
+        {(["following", "popular"] as const).map((id) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-1.5 text-sm transition-all ${tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            key={id}
+            onClick={() => setTab(id)}
+            className={`rounded-full px-4 py-1.5 text-sm transition-all ${tab === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
           >
-            {t === "following" ? "フォロー中" : "人気"}
+            {id === "following" ? t("feed.following") : t("feed.popular")}
           </button>
         ))}
       </div>
@@ -43,7 +48,9 @@ function FeedPage() {
         <EmptyState tab={tab} />
       ) : (
         <div className="space-y-4">
-          {data.map((p) => <PostCard key={p.id} post={p} />)}
+          {data.map((p) => (
+            <PostCard key={p.id} post={p} />
+          ))}
         </div>
       )}
     </AppShell>
@@ -51,21 +58,28 @@ function FeedPage() {
 }
 
 function EmptyState({ tab }: { tab: "following" | "popular" }) {
+  const t = useT();
   return (
     <div className="rounded-3xl border border-dashed border-border bg-card/50 p-10 text-center">
       <Sparkles className="mx-auto h-8 w-8 text-muted-foreground" />
-      <h2 className="mt-3 text-base font-semibold">{tab === "following" ? "まだ投稿がありません" : "人気の投稿はまだありません"}</h2>
+      <h2 className="mt-3 text-base font-semibold">
+        {tab === "following" ? t("feed.emptyFollowing") : t("feed.emptyPopular")}
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {tab === "following" ? "誰かをフォローするか、自分のカードをシェアしてみましょう。" : "最初の投稿者になろう！"}
+        {tab === "following" ? t("feed.hintFollowing") : t("feed.hintPopular")}
       </p>
-      <Link to="/dex" className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-        図鑑から投稿
+      <Link
+        to="/dex"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+      >
+        {t("feed.postFromDex")}
       </Link>
     </div>
   );
 }
 
 function PostCard({ post }: { post: FeedPost }) {
+  const t = useT();
   const qc = useQueryClient();
   const like = useServerFn(toggleLike);
   const [optimistic, setOptimistic] = useState<{ liked: boolean; count: number } | null>(null);
@@ -86,11 +100,22 @@ function PostCard({ post }: { post: FeedPost }) {
         {post.author.avatar_url ? (
           <img src={post.author.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
         ) : (
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{initial}</div>
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+            {initial}
+          </div>
         )}
         <div className="flex-1">
-          <div className="text-sm font-semibold">{post.author.display_name ?? "名無し"}</div>
-          <div className="text-[11px] text-muted-foreground">{new Date(post.created_at).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+          <div className="text-sm font-semibold">
+            {post.author.display_name ?? t("common.anon")}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {new Date(post.created_at).toLocaleString("ja-JP", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
         </div>
       </header>
 
@@ -100,12 +125,20 @@ function PostCard({ post }: { post: FeedPost }) {
             <img src={post.sticker.selfie_url} alt="" className="h-full w-full object-cover" />
           )}
           {post.sticker?.cutout_url && (
-            <img src={post.sticker.cutout_url} alt={post.sticker.word?.headword ?? ""} className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl" />
+            <img
+              src={post.sticker.cutout_url}
+              alt={post.sticker.word?.headword ?? ""}
+              className="pop-in absolute right-3 top-3 h-2/3 w-2/3 object-contain drop-shadow-2xl"
+            />
           )}
           {post.sticker?.word && (
             <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-              <div className="text-lg font-bold leading-none">{post.sticker.word.headword}</div>
-              <div className="text-[10px] text-muted-foreground">{post.sticker.word.reading_zhuyin} · {post.sticker.word.meaning_ja}</div>
+              <div lang="zh-Hant" className="text-lg font-bold leading-none">
+                {post.sticker.word.headword}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                <Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}
+              </div>
             </div>
           )}
         </div>
@@ -116,12 +149,16 @@ function PostCard({ post }: { post: FeedPost }) {
           <button
             onClick={() => mut.mutate(!liked)}
             className={`inline-flex items-center gap-1 text-sm transition-transform active:scale-95 ${liked ? "text-destructive" : "text-foreground"}`}
-            aria-label="いいね"
+            aria-label={t("feed.like")}
           >
             <Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />
             <span className="tabular-nums">{count}</span>
           </button>
-          <Link to="/post/$postId" params={{ postId: post.id }} className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+          <Link
+            to="/post/$postId"
+            params={{ postId: post.id }}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground"
+          >
             <MessageCircle className="h-5 w-5" />
             <span className="tabular-nums">{post.comment_count}</span>
           </Link>

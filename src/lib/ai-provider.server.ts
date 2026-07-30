@@ -56,11 +56,11 @@ export type AiModelOverride = {
 
 /** モデルを割り当てられる機能の単位。 */
 export type AiFeature =
-  | "scan"        // カメラのスキャン検出・候補提案(速さ最優先)
-  | "card"        // 単語カードの生成・項目再生成
-  | "review"      // スピーキング添削・ヒント
-  | "journal"     // 日記の添削
-  | "audit";      // 自己改善の点検
+  | "scan" // カメラのスキャン検出・候補提案(速さ最優先)
+  | "card" // 単語カードの生成・項目再生成
+  | "review" // スピーキング添削・ヒント
+  | "journal" // 日記の添削
+  | "audit"; // 自己改善の点検
 
 export const AI_FEATURES: { id: AiFeature; label: string }[] = [
   { id: "scan", label: "スキャン(速さ優先)" },
@@ -92,7 +92,8 @@ export async function getAiModelOverride(): Promise<AiModelOverride | null> {
       .select("value")
       .eq("key", "ai_models")
       .maybeSingle();
-    const value = ((data as { value?: AiModelOverride } | null)?.value ?? null) as AiModelOverride | null;
+    const value = ((data as { value?: AiModelOverride } | null)?.value ??
+      null) as AiModelOverride | null;
     overrideCache = { at: now, value };
     return value;
   } catch {
@@ -102,12 +103,31 @@ export async function getAiModelOverride(): Promise<AiModelOverride | null> {
 }
 
 /** 既知プロバイダの OpenAI 互換エンドポイント。 */
-export const PROVIDER_PRESETS: Record<string, { base_url: string; api_key_env: string; label: string }> = {
+export const PROVIDER_PRESETS: Record<
+  string,
+  { base_url: string; api_key_env: string; label: string }
+> = {
   google: { base_url: GOOGLE_BASE_URL, api_key_env: "GEMINI_API_KEY", label: "Google Gemini" },
-  openai: { base_url: "https://api.openai.com/v1", api_key_env: "OPENAI_API_KEY", label: "OpenAI (ChatGPT)" },
-  anthropic: { base_url: "https://api.anthropic.com/v1", api_key_env: "ANTHROPIC_API_KEY", label: "Anthropic Claude" },
-  deepseek: { base_url: "https://api.deepseek.com/v1", api_key_env: "DEEPSEEK_API_KEY", label: "DeepSeek" },
-  kimi: { base_url: "https://api.moonshot.ai/v1", api_key_env: "MOONSHOT_API_KEY", label: "Kimi (Moonshot)" },
+  openai: {
+    base_url: "https://api.openai.com/v1",
+    api_key_env: "OPENAI_API_KEY",
+    label: "OpenAI (ChatGPT)",
+  },
+  anthropic: {
+    base_url: "https://api.anthropic.com/v1",
+    api_key_env: "ANTHROPIC_API_KEY",
+    label: "Anthropic Claude",
+  },
+  deepseek: {
+    base_url: "https://api.deepseek.com/v1",
+    api_key_env: "DEEPSEEK_API_KEY",
+    label: "DeepSeek",
+  },
+  kimi: {
+    base_url: "https://api.moonshot.ai/v1",
+    api_key_env: "MOONSHOT_API_KEY",
+    label: "Kimi (Moonshot)",
+  },
   lovable: { base_url: LOVABLE_BASE_URL, api_key_env: "LOVABLE_API_KEY", label: "Lovable Gateway" },
 };
 
@@ -165,7 +185,9 @@ export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
   const preset = PROVIDER_PRESETS[providerId];
   const key = findKey(providerId)?.value;
   if (!preset || !key) {
-    console.warn(`[ai] feature "${feature}" wants ${providerId} but no key — using the default provider`);
+    console.warn(
+      `[ai] feature "${feature}" wants ${providerId} but no key — using the default provider`,
+    );
     return base;
   }
   return {
@@ -204,7 +226,9 @@ export async function withModelFallback<T>(
       /not found|404|does not exist|unknown model|invalid model|unsupported model/i.test(msg);
     const fallback = ai.provider === "google" ? GOOGLE_DEFAULT_FAST : ai.modelRich;
     if (!looksMissingModel || fallback === preferred) throw e;
-    console.warn(`[ai] model "${preferred}" unavailable (${msg.slice(0, 120)}) — falling back to "${fallback}"`);
+    console.warn(
+      `[ai] model "${preferred}" unavailable (${msg.slice(0, 120)}) — falling back to "${fallback}"`,
+    );
     return await run(fallback);
   }
 }
@@ -280,7 +304,9 @@ function detectProvider(): AiConfig["provider"] {
     if (process.env.AI_BASE_URL && findKey("openai-compatible")) return "openai-compatible";
   } else if (explicit === "google" || explicit === "lovable") {
     if (findKey(explicit)) return explicit;
-    console.warn(`[ai] AI_PROVIDER=${explicit} but no API key found — falling back to whatever is configured`);
+    console.warn(
+      `[ai] AI_PROVIDER=${explicit} but no API key found — falling back to whatever is configured`,
+    );
   }
   // 指定が無い/指定先のキーが無い → 実際にキーがあるものを順に選ぶ。
   if (findKey("google")) return "google";
@@ -314,7 +340,10 @@ export function getAi(): AiConfig {
     const key = findKey("openai-compatible")?.value;
     const model = process.env.AI_MODEL_RICH ?? process.env.AI_MODEL_FAST;
     if (!baseURL || !key) throw new Error(MISSING_KEY_MESSAGE);
-    if (!model) throw new Error("AI_MODEL_FAST / AI_MODEL_RICH を設定してください(AI_PROVIDER=openai-compatible)");
+    if (!model)
+      throw new Error(
+        "AI_MODEL_FAST / AI_MODEL_RICH を設定してください(AI_PROVIDER=openai-compatible)",
+      );
     return {
       provider,
       gateway: createOpenAICompatible({
@@ -409,7 +438,10 @@ export async function generateStructured<S extends z.ZodTypeAny>(opts: {
     return opts.schema.parse(parseJsonFromAiText(retry.text));
   } catch (e) {
     const msg = (e as Error)?.message ?? "";
-    if (!opts.fallbackModel || !/not found|404|does not exist|unknown model|invalid model/i.test(msg)) {
+    if (
+      !opts.fallbackModel ||
+      !/not found|404|does not exist|unknown model|invalid model/i.test(msg)
+    ) {
       throw e;
     }
     console.warn(`[ai] structured call fell back to the safe model (${msg.slice(0, 120)})`);
@@ -480,7 +512,9 @@ export async function getUserLevels(userId: string): Promise<{ current: string; 
       .maybeSingle();
     const cur = (data as { current_level?: string | null } | null)?.current_level;
     if (cur && cur.trim()) return { current: cur, goal };
-  } catch { /* 列が無い環境ではフォールバック */ }
+  } catch {
+    /* 列が無い環境ではフォールバック */
+  }
   return { current: `TOCFL-${Math.max(1, goalNum - 1)}`, goal };
 }
 
@@ -547,8 +581,8 @@ export async function explanationLanguageRule(userId: string): Promise<string> {
   const lang = await getExplanationLanguage(userId);
   return lang === "en"
     ? `**Write every explanation, meaning, translation and note in English.** ` +
-      `Only the Taiwanese Mandarin (zh-TW) words, example sentences and readings stay in Chinese. ` +
-      `Do not write any Japanese.`
+        `Only the Taiwanese Mandarin (zh-TW) words, example sentences and readings stay in Chinese. ` +
+        `Do not write any Japanese.`
     : `解説・意味・訳・注記はすべて日本語で書く(台湾華語の見出し語・例文・読みはそのまま)。`;
 }
 

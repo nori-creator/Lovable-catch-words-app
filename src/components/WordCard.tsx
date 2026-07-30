@@ -1,7 +1,17 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Volume2, Eye, EyeOff, ChevronUp, ChevronDown, ExternalLink, Flag, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Volume2,
+  Eye,
+  EyeOff,
+  ChevronUp,
+  ChevronDown,
+  ExternalLink,
+  Flag,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { reportEntry } from "@/lib/reports.functions";
@@ -52,20 +62,20 @@ type SectionId =
   | "real_usage";
 
 /** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
-const ALL_SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "meaning", label: "意味" },
-  { id: "web_images", label: "ネットの画像" },
-  { id: "usage_context", label: "頻度・使う場面" },
-  { id: "example", label: "例文" },
-  { id: "examples_extra", label: "追加の例文" },
-  { id: "usage_chunks", label: "使い方チャンク" },
-  { id: "measure_words", label: "量詞" },
-  { id: "related_words", label: "にてる言葉・関連語" },
-  { id: "pronunciation_tips", label: "発音のコツ" },
-  { id: "etymology", label: "語源・部首" },
-  { id: "mnemonic", label: "覚え方" },
-  { id: "taiwan_note", label: "台湾メモ" },
-  { id: "real_usage", label: "実際の使われ方" },
+const ALL_SECTIONS: { id: SectionId }[] = [
+  { id: "meaning" },
+  { id: "web_images" },
+  { id: "usage_context" },
+  { id: "example" },
+  { id: "examples_extra" },
+  { id: "usage_chunks" },
+  { id: "measure_words" },
+  { id: "related_words" },
+  { id: "pronunciation_tips" },
+  { id: "etymology" },
+  { id: "mnemonic" },
+  { id: "taiwan_note" },
+  { id: "real_usage" },
 ];
 
 /** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
@@ -102,7 +112,9 @@ function loadPrefs(): Prefs {
         hidden: (p.hidden ?? []).filter(valid),
       };
     }
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
 }
 
@@ -110,7 +122,9 @@ function savePrefs(p: Prefs) {
   try {
     localStorage.setItem(PREF_KEY, JSON.stringify(p));
     window.dispatchEvent(new CustomEvent(PREF_EVENT));
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
 }
 
 function usePrefsSync(setPrefs: (p: Prefs) => void) {
@@ -131,8 +145,14 @@ export function WordCardSectionsEditor() {
   usePrefsSync(setPrefs);
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
   const toggle = (id: SectionId) => {
-    const next = { ...prefs, hidden: prefs.hidden.includes(id) ? prefs.hidden.filter((x) => x !== id) : [...prefs.hidden, id] };
-    setPrefs(next); savePrefs(next);
+    const next = {
+      ...prefs,
+      hidden: prefs.hidden.includes(id)
+        ? prefs.hidden.filter((x) => x !== id)
+        : [...prefs.hidden, id],
+    };
+    setPrefs(next);
+    savePrefs(next);
   };
   const move = (id: SectionId, dir: -1 | 1) => {
     const i = prefs.order.indexOf(id);
@@ -141,7 +161,8 @@ export function WordCardSectionsEditor() {
     const o = [...prefs.order];
     [o[i], o[j]] = [o[j], o[i]];
     const next = { ...prefs, order: o };
-    setPrefs(next); savePrefs(next);
+    setPrefs(next);
+    savePrefs(next);
   };
   return (
     <ul className="space-y-1">
@@ -150,17 +171,40 @@ export function WordCardSectionsEditor() {
         if (!meta) return null;
         const visible = isVisible(id);
         return (
-          <li key={id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs">
-            <span className={visible ? "" : "text-muted-foreground line-through"}>{t(`card.${meta.id}`)}</span>
+          <li
+            key={id}
+            className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs"
+          >
+            <span className={visible ? "" : "text-muted-foreground line-through"}>
+              {t(`card.${meta.id}`)}
+            </span>
             <span className="flex gap-1">
-              <button className="lift-soft rounded-md p-1" onClick={() => move(id, -1)} disabled={idx === 0} aria-label="上へ">
+              <button
+                className="lift-soft rounded-md p-1"
+                onClick={() => move(id, -1)}
+                disabled={idx === 0}
+                aria-label={t("card.moveUp")}
+              >
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
-              <button className="lift-soft rounded-md p-1" onClick={() => move(id, 1)} disabled={idx === prefs.order.length - 1} aria-label="下へ">
+              <button
+                className="lift-soft rounded-md p-1"
+                onClick={() => move(id, 1)}
+                disabled={idx === prefs.order.length - 1}
+                aria-label={t("card.moveDown")}
+              >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
-              <button className="lift-soft rounded-md p-1" onClick={() => toggle(id)} aria-label="表示切替">
-                {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+              <button
+                className="lift-soft rounded-md p-1"
+                onClick={() => toggle(id)}
+                aria-label={t("card.toggleShow")}
+              >
+                {visible ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
               </button>
             </span>
           </li>
@@ -170,20 +214,101 @@ export function WordCardSectionsEditor() {
   );
 }
 
-const SECTION_THEME: Record<SectionId, { bg: string; ring: string; chip: string; icon: string; title: string }> = {
-  meaning:            { bg: "bg-sky-50",       ring: "ring-sky-200",     chip: "bg-sky-500",     icon: "📖", title: "text-sky-900" },
-  web_images:         { bg: "bg-sky-50/70",    ring: "ring-sky-200",     chip: "bg-sky-600",     icon: "🌐", title: "text-sky-900" },
-  usage_context:      { bg: "bg-cyan-50",      ring: "ring-cyan-200",    chip: "bg-cyan-600",    icon: "📊", title: "text-cyan-900" },
-  example:            { bg: "bg-emerald-50",   ring: "ring-emerald-200", chip: "bg-emerald-500", icon: "💬", title: "text-emerald-900" },
-  examples_extra:     { bg: "bg-emerald-50/60", ring: "ring-emerald-200", chip: "bg-emerald-400", icon: "➕", title: "text-emerald-900" },
-  usage_chunks:       { bg: "bg-lime-50",      ring: "ring-lime-200",    chip: "bg-lime-600",    icon: "🧩", title: "text-lime-900" },
-  measure_words:      { bg: "bg-violet-50",    ring: "ring-violet-200",  chip: "bg-violet-500",  icon: "🔢", title: "text-violet-900" },
-  related_words:      { bg: "bg-indigo-50",    ring: "ring-indigo-200",  chip: "bg-indigo-500",  icon: "🪞", title: "text-indigo-900" },
-  pronunciation_tips: { bg: "bg-pink-50",      ring: "ring-pink-200",    chip: "bg-pink-500",    icon: "🗣️", title: "text-pink-900" },
-  etymology:          { bg: "bg-stone-50",     ring: "ring-stone-200",   chip: "bg-stone-600",   icon: "🏛️", title: "text-stone-900" },
-  mnemonic:           { bg: "bg-fuchsia-50",   ring: "ring-fuchsia-200", chip: "bg-fuchsia-500", icon: "💡", title: "text-fuchsia-900" },
-  taiwan_note:        { bg: "bg-teal-50",      ring: "ring-teal-200",    chip: "bg-teal-500",    icon: "🇹🇼", title: "text-teal-900" },
-  real_usage:         { bg: "bg-rose-50/70",   ring: "ring-rose-200",    chip: "bg-rose-600",    icon: "🎬", title: "text-rose-900" },
+const SECTION_THEME: Record<
+  SectionId,
+  { bg: string; ring: string; chip: string; icon: string; title: string }
+> = {
+  meaning: {
+    bg: "bg-sky-50",
+    ring: "ring-sky-200",
+    chip: "bg-sky-500",
+    icon: "📖",
+    title: "text-sky-900",
+  },
+  web_images: {
+    bg: "bg-sky-50/70",
+    ring: "ring-sky-200",
+    chip: "bg-sky-600",
+    icon: "🌐",
+    title: "text-sky-900",
+  },
+  usage_context: {
+    bg: "bg-cyan-50",
+    ring: "ring-cyan-200",
+    chip: "bg-cyan-600",
+    icon: "📊",
+    title: "text-cyan-900",
+  },
+  example: {
+    bg: "bg-emerald-50",
+    ring: "ring-emerald-200",
+    chip: "bg-emerald-500",
+    icon: "💬",
+    title: "text-emerald-900",
+  },
+  examples_extra: {
+    bg: "bg-emerald-50/60",
+    ring: "ring-emerald-200",
+    chip: "bg-emerald-400",
+    icon: "➕",
+    title: "text-emerald-900",
+  },
+  usage_chunks: {
+    bg: "bg-lime-50",
+    ring: "ring-lime-200",
+    chip: "bg-lime-600",
+    icon: "🧩",
+    title: "text-lime-900",
+  },
+  measure_words: {
+    bg: "bg-violet-50",
+    ring: "ring-violet-200",
+    chip: "bg-violet-500",
+    icon: "🔢",
+    title: "text-violet-900",
+  },
+  related_words: {
+    bg: "bg-indigo-50",
+    ring: "ring-indigo-200",
+    chip: "bg-indigo-500",
+    icon: "🪞",
+    title: "text-indigo-900",
+  },
+  pronunciation_tips: {
+    bg: "bg-pink-50",
+    ring: "ring-pink-200",
+    chip: "bg-pink-500",
+    icon: "🗣️",
+    title: "text-pink-900",
+  },
+  etymology: {
+    bg: "bg-stone-50",
+    ring: "ring-stone-200",
+    chip: "bg-stone-600",
+    icon: "🏛️",
+    title: "text-stone-900",
+  },
+  mnemonic: {
+    bg: "bg-fuchsia-50",
+    ring: "ring-fuchsia-200",
+    chip: "bg-fuchsia-500",
+    icon: "💡",
+    title: "text-fuchsia-900",
+  },
+  taiwan_note: {
+    bg: "bg-teal-50",
+    ring: "ring-teal-200",
+    chip: "bg-teal-500",
+    icon: "🇹🇼",
+    title: "text-teal-900",
+  },
+  real_usage: {
+    bg: "bg-rose-50/70",
+    ring: "ring-rose-200",
+    chip: "bg-rose-600",
+    icon: "🎬",
+    title: "text-rose-900",
+  },
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
@@ -204,10 +329,14 @@ export const WordCard = forwardRef<
   usePrefsSync(setPrefs);
 
   // Kept for API compatibility — the editor now lives outside the card.
-  useImperativeHandle(ref, () => ({
-    toggleEditing: () => {},
-    isEditing: () => false,
-  }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      toggleEditing: () => {},
+      isEditing: () => false,
+    }),
+    [],
+  );
 
   const ex = word.extras ?? {};
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
@@ -219,14 +348,27 @@ export const WordCard = forwardRef<
    */
   const hasContent = (id: SectionId): boolean => {
     switch (id) {
-      case "meaning": return !!word.meaning_ja;
+      case "meaning":
+        return !!word.meaning_ja;
       case "usage_context":
-        return !!(ex.usage_context || ex.register_note || ex.common_situation || ex.frequency_level);
-      case "example": return !!word.example_sentence;
-      case "examples_extra": return (ex.examples_extra?.length ?? 0) > 0;
+        return !!(
+          ex.usage_context ||
+          ex.register_note ||
+          ex.common_situation ||
+          ex.frequency_level
+        );
+      case "example":
+        return !!word.example_sentence;
+      case "examples_extra":
+        return (ex.examples_extra?.length ?? 0) > 0;
       case "usage_chunks":
-        return (ex.usage_chunks?.length ?? 0) > 0 || (ex.collocations?.length ?? 0) > 0 || !!ex.word_order;
-      case "measure_words": return (ex.measure_words?.length ?? 0) > 0;
+        return (
+          (ex.usage_chunks?.length ?? 0) > 0 ||
+          (ex.collocations?.length ?? 0) > 0 ||
+          !!ex.word_order
+        );
+      case "measure_words":
+        return (ex.measure_words?.length ?? 0) > 0;
       case "related_words":
         return (
           (ex.related_words?.length ?? 0) > 0 ||
@@ -234,13 +376,19 @@ export const WordCard = forwardRef<
           (ex.antonyms?.length ?? 0) > 0 ||
           !!ex.synonym_diff
         );
-      case "pronunciation_tips": return !!(ex.pronunciation_tips || ex.study_tips);
-      case "etymology": return !!ex.etymology || !!ex.radicals;
-      case "mnemonic": return !!ex.mnemonic;
-      case "taiwan_note": return !!(ex.taiwan_note || ex.trivia || ex.usage_note);
+      case "pronunciation_tips":
+        return !!(ex.pronunciation_tips || ex.study_tips);
+      case "etymology":
+        return !!ex.etymology || !!ex.radicals;
+      case "mnemonic":
+        return !!ex.mnemonic;
+      case "taiwan_note":
+        return !!(ex.taiwan_note || ex.trivia || ex.usage_note);
       // 外部データのセクションは常に描画できる(A10)。
-      case "web_images": return true;
-      case "real_usage": return true;
+      case "web_images":
+        return true;
+      case "real_usage":
+        return true;
     }
   };
 
@@ -265,6 +413,7 @@ export const WordCard = forwardRef<
 });
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
+  const t = useT();
   const autoplayedRef = useRef(false);
   const pronounce = usePronounce();
 
@@ -276,8 +425,9 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
   useEffect(() => {
     if (!autoplay || autoplayedRef.current) return;
     autoplayedRef.current = true;
-    const t = setTimeout(play, 400);
-    return () => clearTimeout(t);
+    // 変数名 t は翻訳関数と紛らわしいので timer にする。
+    const timer = setTimeout(play, 400);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word.headword]);
 
@@ -286,10 +436,12 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-4xl font-bold tracking-tight">{word.headword}</h1>
+            <h1 lang="zh-Hant" className="text-4xl font-bold tracking-tight">
+              {word.headword}
+            </h1>
             <button
               onClick={play}
-              aria-label="発音を再生"
+              aria-label={t("card.playPron")}
               className="lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
             >
               <Volume2 className="h-5 w-5" />
@@ -329,17 +481,19 @@ function ReportButton({ headword }: { headword: string }) {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const kinds: { kind: "pronunciation" | "meaning" | "pos" | "other"; label: string }[] = [
-    { kind: "pronunciation", label: "発音・注音" },
-    { kind: "meaning", label: "意味" },
-    { kind: "pos", label: "品詞" },
-    { kind: "other", label: "その他" },
+    { kind: "pronunciation", label: t("card.pronZhuyin") },
+    { kind: "meaning", label: t("card.meaning") },
+    { kind: "pos", label: t("card.posLabel") },
+    { kind: "other", label: t("card.otherLabel") },
   ];
   async function send(kind: "pronunciation" | "meaning" | "pos" | "other") {
     setOpen(false);
     try {
       await reportFn({ data: { headword, kind, note: "" } });
       setSent(true);
-    } catch { /* 報告失敗は致命的でない */ }
+    } catch {
+      /* 報告失敗は致命的でない */
+    }
   }
   if (sent) {
     return <span className="text-[11px] text-muted-foreground">{t("card.reportThanks")}</span>;
@@ -349,7 +503,7 @@ function ReportButton({ headword }: { headword: string }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
-        aria-label="この語の誤りを報告"
+        aria-label={t("card.reportError")}
       >
         <Flag className="h-3 w-3" /> {t("card.report")}
       </button>
@@ -416,7 +570,9 @@ function SectionCard({
   return (
     <section className={`lift rounded-2xl ${theme.bg} ring-1 ${theme.ring} p-4 shadow-sm`}>
       <div className="mb-2 flex items-center gap-2">
-        <span className={`grid h-6 w-6 place-items-center rounded-full ${theme.chip} text-xs text-white shadow`}>
+        <span
+          className={`grid h-6 w-6 place-items-center rounded-full ${theme.chip} text-xs text-white shadow`}
+        >
           {theme.icon}
         </span>
         <h3 className={`text-xs font-semibold uppercase tracking-wider ${theme.title}`}>{label}</h3>
@@ -428,7 +584,11 @@ function SectionCard({
             title={t("card.regen")}
             className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-white/60 hover:text-foreground disabled:opacity-60"
           >
-            {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {regenerating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
           </button>
         )}
       </div>
@@ -474,7 +634,11 @@ function EmptySection({
           aria-label={`${label}: ${t("card.generate")}`}
           className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
         >
-          {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {generating ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
           {t("card.generate")}
         </button>
       )}
@@ -484,8 +648,12 @@ function EmptySection({
 
 /** 頻度メーター(1〜5)。 */
 function FrequencyMeter({ level }: { level: number }) {
+  const t = useT();
   return (
-    <span className="inline-flex items-center gap-0.5" aria-label={`頻度 ${level}/5`}>
+    <span
+      className="inline-flex items-center gap-0.5"
+      aria-label={t("card.freqAria", { n: level })}
+    >
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
@@ -515,7 +683,8 @@ function Body({
 
     case "usage_context": {
       // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
-      const text = ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
+      const text =
+        ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
       return (
         <div className="space-y-2">
           {(ex.frequency_level || ex.register_tag) && (
@@ -555,7 +724,9 @@ function Body({
               {e.scene && (
                 <p className="mb-1 text-[10px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
               )}
-              <p className="text-sm">{e.zh}</p>
+              <p lang="zh-Hant" className="text-sm">
+                {e.zh}
+              </p>
               <p className="text-[11px] text-muted-foreground">{e.ja}</p>
             </li>
           ))}
@@ -584,7 +755,10 @@ function Body({
           {(ex.collocations?.length ?? 0) > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {ex.collocations!.map((c, i) => (
-                <span key={i} className="rounded-full bg-white/70 px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-black/5">
+                <span
+                  key={i}
+                  className="rounded-full bg-white/70 px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-black/5"
+                >
                   {c}
                 </span>
               ))}
@@ -614,8 +788,16 @@ function Body({
         { kind: "ant", label: t("card.antonym"), tone: "bg-rose-100 text-rose-900" },
         { kind: "rel", label: t("card.relatedTag"), tone: "bg-indigo-100 text-indigo-900" },
       ];
-      const legacySyn = (ex.synonyms ?? []).map((w) => ({ word: w, kind: "syn" as const, note: "" }));
-      const legacyAnt = (ex.antonyms ?? []).map((w) => ({ word: w, kind: "ant" as const, note: "" }));
+      const legacySyn = (ex.synonyms ?? []).map((w) => ({
+        word: w,
+        kind: "syn" as const,
+        note: "",
+      }));
+      const legacyAnt = (ex.antonyms ?? []).map((w) => ({
+        word: w,
+        kind: "ant" as const,
+        note: "",
+      }));
       const all = rel.length > 0 ? rel : [...legacySyn, ...legacyAnt];
       return (
         <div className="space-y-2.5 text-sm">
@@ -628,10 +810,14 @@ function Body({
                 <div className="mt-1 space-y-1">
                   {items.map((r, i) => (
                     <div key={i} className="flex flex-wrap items-baseline gap-x-2">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-black/5 ${tone}`}>
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-black/5 ${tone}`}
+                      >
                         {r.word}
                       </span>
-                      {r.note && <span className="text-[11px] text-muted-foreground">{r.note}</span>}
+                      {r.note && (
+                        <span className="text-[11px] text-muted-foreground">{r.note}</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -652,7 +838,11 @@ function Body({
       return (
         <div className="space-y-1 text-sm leading-relaxed">
           {ex.etymology && <p>{ex.etymology}</p>}
-          {ex.radicals && <p className="text-xs text-muted-foreground">{t("card.radicals")}: {ex.radicals}</p>}
+          {ex.radicals && (
+            <p className="text-xs text-muted-foreground">
+              {t("card.radicals")}: {ex.radicals}
+            </p>
+          )}
         </div>
       );
 
@@ -675,7 +865,11 @@ function Body({
 
     case "web_images":
       return (
-        <WebImagesBody headword={word.headword} meaningJa={word.meaning_ja} onPickImage={onPickImage} />
+        <WebImagesBody
+          headword={word.headword}
+          meaningJa={word.meaning_ja}
+          onPickImage={onPickImage}
+        />
       );
     case "real_usage":
       return <RealUsageBody headword={word.headword} />;
@@ -694,19 +888,22 @@ function MeasureWordRow({
   pinyin?: string;
   note?: string;
 }) {
+  const t = useT();
   const pronounce = usePronounce();
   return (
     <>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-[15px] font-semibold">{word}</span>
+          <span lang="zh-Hant" className="text-[15px] font-semibold">
+            {word}
+          </span>
           <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-[11px] text-muted-foreground" />
         </span>
         {note && <span className="mt-0.5 block text-[11px] text-muted-foreground">{note}</span>}
       </span>
       <button
         onClick={() => void pronounce(word)}
-        aria-label={`「${word}」の発音`}
+        aria-label={t("card.pronOfWord", { word })}
         className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/80 text-violet-700 shadow-sm ring-1 ring-black/5 active:scale-95"
       >
         <Volume2 className="h-3.5 w-3.5" />
@@ -737,8 +934,13 @@ function WebImagesBody({
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["web-images", headword, seed],
     queryFn: async () =>
-      (await searchFn({ data: { query: seed === 0 ? meaningJa || headword : `${meaningJa || headword} ${headword}` } }))
-        .candidates,
+      (
+        await searchFn({
+          data: {
+            query: seed === 0 ? meaningJa || headword : `${meaningJa || headword} ${headword}`,
+          },
+        })
+      ).candidates,
     staleTime: 24 * 60 * 60 * 1000,
   });
   const all: ImageCandidate[] = data ?? [];
@@ -761,13 +963,23 @@ function WebImagesBody({
     <div>
       {isLoading ? (
         <div className="grid grid-cols-3 gap-2">
-          {[0, 1, 2].map((i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/60" />)}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/60" />
+          ))}
         </div>
       ) : shown.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {shown.map((c, i) => (
-            <figure key={`${c.url}-${i}`} className="relative aspect-square overflow-hidden rounded-xl bg-white/60">
-              <img src={c.url} alt={`${headword} ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+            <figure
+              key={`${c.url}-${i}`}
+              className="relative aspect-square overflow-hidden rounded-xl bg-white/60"
+            >
+              <img
+                src={c.url}
+                alt={`${headword} ${i + 1}`}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
               {onPickImage && (
                 <button
                   onClick={() => void pick(c.url)}
@@ -775,7 +987,11 @@ function WebImagesBody({
                   className="absolute inset-0 grid place-items-center bg-black/0 text-[10px] font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
                   aria-label={t("card.useThisImage")}
                 >
-                  {picking === c.url ? <Loader2 className="h-4 w-4 animate-spin" /> : t("card.useThisImage")}
+                  {picking === c.url ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    t("card.useThisImage")
+                  )}
                 </button>
               )}
               {c.credit?.name && (
@@ -796,7 +1012,11 @@ function WebImagesBody({
           disabled={isFetching}
           className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
         >
-          {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {isFetching ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
           {t("card.otherImages")}
         </button>
         <a
@@ -809,7 +1029,9 @@ function WebImagesBody({
         </a>
       </div>
       {onPickImage && (
-        <p className="mt-1 text-[10px] text-muted-foreground">{t("card.useThisImage")} — {t("card.changePhoto")}</p>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {t("card.useThisImage")} — {t("card.changePhoto")}
+        </p>
       )}
     </div>
   );
@@ -820,13 +1042,39 @@ function WebImagesBody({
  * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
  */
 function RealUsageBody({ headword }: { headword: string }) {
+  const t = useT();
   const q = encodeURIComponent(headword);
   const links: { label: string; hint: string; href: string; emoji: string }[] = [
-    { emoji: "🎬", label: "YouTubeで聞く", hint: "この単語が話されている動画", href: `https://www.youtube.com/results?search_query=${q}` },
-    { emoji: "🗣️", label: "YouGlishで発音例", hint: "動画の中の実際の発音(台湾)", href: `https://youglish.com/pronounce/${q}/chinese/tw` },
-    { emoji: "💬", label: "Dcardで見る", hint: "台湾の若者のSNSでの使われ方", href: `https://www.dcard.tw/search?query=${q}` },
-    { emoji: "📰", label: "台湾ニュースで見る", hint: "新聞・報道での使われ方", href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant` },
-    { emoji: "📖", label: "教育部國語辭典簡編本", hint: "台湾教育部の公式辞書(定義・注音)", href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}` },
+    {
+      emoji: "🎬",
+      label: t("card.ytLabel"),
+      hint: t("card.ytHint"),
+      href: `https://www.youtube.com/results?search_query=${q}`,
+    },
+    {
+      emoji: "🗣️",
+      label: t("card.yglLabel"),
+      hint: t("card.yglHint"),
+      href: `https://youglish.com/pronounce/${q}/chinese/tw`,
+    },
+    {
+      emoji: "💬",
+      label: t("card.dcardLabel"),
+      hint: t("card.dcardHint"),
+      href: `https://www.dcard.tw/search?query=${q}`,
+    },
+    {
+      emoji: "📰",
+      label: t("card.newsLabel"),
+      hint: t("card.newsHint"),
+      href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant`,
+    },
+    {
+      emoji: "📖",
+      label: t("card.moeLabel"),
+      hint: t("card.moeHint"),
+      href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}`,
+    },
   ];
   return (
     <ul className="grid grid-cols-1 gap-1.5">
