@@ -163,7 +163,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       }
       setStep("preview");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "生成に失敗しました");
+      setErr(e instanceof Error ? e.message : t("err.generateFailed"));
       setStep("input");
     }
   }
@@ -286,16 +286,16 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       if (res.first_catch) {
-        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+        toast.success(t("sheet.firstCatch"), { duration: 5000 });
       } else if (object_path) {
-        toast.success("図鑑にカードが入りました!");
+        toast.success(t("sheet.cardAdded"));
       } else {
-        toast.success("図鑑に入りました。実物に出会ったら金色に光ります!");
+        toast.success(t("sheet.addedGhostFree"));
       }
       onClose();
       navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "保存に失敗しました");
+      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("preview");
     }
   }
@@ -331,7 +331,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
                   listening ? "bg-red-500 text-white shadow-red-500/30" : "bg-primary text-primary-foreground shadow-primary/30"
                 }`}
-                aria-label={listening ? "停止" : "聞こえたまま復唱する"}
+                aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
               >
                 {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
               </button>
@@ -352,7 +352,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   setText(e.target.value);
                   if (!phraseTouched) setIsPhrase(guessIsPhrase(e.target.value));
                 }}
-                placeholder="例: 芒果 / 請稍等"
+                placeholder={t("sheet.inputPlaceholder")}
                 className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-base outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
@@ -413,9 +413,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               className="relative mx-auto block aspect-square w-48"
             >
               {attachedDataUrl ? (
-                <img src={attachedDataUrl} alt="添付画像" className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
+                <img src={attachedDataUrl} alt={t("sheet.attached")} className="h-full w-full rounded-2xl object-cover shadow-md ring-1 ring-black/5" />
               ) : !isPhrase && candidates[picked] ? (
-                <img src={candidates[picked].thumb} alt="ネット検索の画像" className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
+                <img src={candidates[picked].thumb} alt={t("sheet.webImage")} className="h-full w-full rounded-2xl object-cover opacity-90 shadow-md ring-1 ring-black/5" />
               ) : (
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
@@ -441,7 +441,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                     aria-pressed={picked === i}
                     className={`h-14 w-14 overflow-hidden rounded-xl ring-2 transition ${picked === i ? "ring-primary" : "ring-transparent opacity-70"}`}
                   >
-                    <img src={c.thumb} alt={`候補${i + 1}`} className="h-full w-full object-cover" />
+                    <img src={c.thumb} alt={t("sheet.candidateN", { n: i + 1 })} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -467,7 +467,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
               {isPhrase && phraseCard && (
                 <div className="mt-3 border-t border-border pt-3">
-                  {scene && <p className="text-xs text-muted-foreground">シーン: {scene}</p>}
+                  {scene && <p className="text-xs text-muted-foreground">{t("sheet.scene", { s: scene })}</p>}
                   <p className="mt-1 text-xs font-semibold text-muted-foreground">{t("input.replies")}</p>
                   <ul className="mt-1 space-y-1">
                     {phraseCard.replies.map((r, i) => (

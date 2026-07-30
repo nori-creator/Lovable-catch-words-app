@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -37,6 +38,7 @@ function sanitizeNext(raw: string | undefined | null): string | null {
 }
 
 function AuthPage() {
+  const t = useT();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const nextPath = sanitizeNext(search.next);
@@ -79,13 +81,13 @@ function AuthPage() {
           options: { emailRedirectTo },
         });
         if (error) throw error;
-        toast.success("確認メールを送りました。受信トレイをご確認ください。");
+        toast.success(t("auth.confirmSent"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "サインインに失敗しました");
+      toast.error(err instanceof Error ? err.message : t("auth.failed"));
     } finally {
       setLoading(false);
     }
@@ -104,10 +106,10 @@ function AuthPage() {
         redirect_uri: redirectUri,
       });
       if (res.error) {
-        toast.error(res.error.message ?? "Googleサインインに失敗しました");
+        toast.error(res.error.message ?? t("auth.googleFailed"));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "サインインに失敗しました");
+      toast.error(err instanceof Error ? err.message : t("auth.failed"));
     } finally {
       setLoading(false);
     }
@@ -125,10 +127,10 @@ function AuthPage() {
       });
 
       if (res.error) {
-        toast.error(res.error.message ?? "Appleサインインに失敗しました");
+        toast.error(res.error.message ?? t("auth.appleFailed"));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "サインインに失敗しました");
+      toast.error(err instanceof Error ? err.message : t("auth.failed"));
     } finally {
       setLoading(false);
     }
@@ -140,7 +142,7 @@ function AuthPage() {
         <div className="mb-8 text-center">
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">C</div>
           <h1 className="text-2xl font-semibold tracking-tight">Catchwords</h1>
-          <p className="mt-1 text-sm text-muted-foreground">街で出会う言葉を、ステッカーに。</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("auth.tagline")}</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -150,40 +152,40 @@ function AuthPage() {
               onClick={() => setMode("signin")}
               className={`flex-1 rounded-full py-1.5 ${mode === "signin" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
             >
-              ログイン
+              {t("auth.signin")}
             </button>
             <button
               type="button"
               onClick={() => setMode("signup")}
               className={`flex-1 rounded-full py-1.5 ${mode === "signup" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
             >
-              新規登録
+              {t("auth.signup")}
             </button>
           </div>
 
           <form onSubmit={handleEmail} className="space-y-3">
             <div>
-              <Label htmlFor="email">メールアドレス</Label>
+              <Label htmlFor="email">{t("auth.email")}</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
             <div>
-              <Label htmlFor="password">パスワード</Label>
+              <Label htmlFor="password">{t("auth.password")}</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "..." : mode === "signup" ? "新規登録" : "ログイン"}
+              {loading ? "..." : mode === "signup" ? t("auth.signup") : t("auth.signin")}
             </Button>
           </form>
 
           <div className="my-4 flex items-center gap-2 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
-            または
+            {t("auth.or")}
             <div className="h-px flex-1 bg-border" />
           </div>
 
           <div className="space-y-2">
             <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
-              Googleでサインイン
+              {t("auth.google")}
             </Button>
             <Button
               type="button"
@@ -192,17 +194,17 @@ function AuthPage() {
               onClick={handleApple}
               disabled={loading}
             >
-              Appleでサインイン
+              {t("auth.apple")}
             </Button>
           </div>
         </div>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
-          続行すると、
-          <a href="/terms" className="underline hover:text-foreground">利用規約</a>
-          と
-          <a href="/privacy" className="underline hover:text-foreground">プライバシーポリシー</a>
-          に同意したものとみなします。
+          {t("auth.agreeBefore")}
+          <a href="/terms" className="underline hover:text-foreground">{t("auth.terms")}</a>
+          {t("auth.agreeMid")}
+          <a href="/privacy" className="underline hover:text-foreground">{t("auth.privacy")}</a>
+          {t("auth.agreeAfter")}
         </p>
       </div>
     </div>

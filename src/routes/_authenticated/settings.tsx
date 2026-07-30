@@ -108,7 +108,7 @@ function SettingsPage() {
           <div className="space-y-3">
             <div>
               <Label htmlFor="lang-target">{t("settings.targetLang")}</Label>
-              <select id="lang-target" aria-label="学習言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
+              <select id="lang-target" aria-label={t("set.targetLangAria")} className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}>
                 <option value="zh-TW">{t("settings.langZhTw")}</option>
                 <option value="en">{t("settings.langEn")}</option>
               </select>
@@ -130,7 +130,7 @@ function SettingsPage() {
             </div>
             <div>
               <Label htmlFor="lang-level">{t("settings.levelGoal")}</Label>
-              <select id="lang-level" aria-label="目標レベル" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
+              <select id="lang-level" aria-label={t("set.levelGoalAria")} className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={levelGoal} onChange={(e) => setLevelGoal(e.target.value)}>
                 <option value="TOCFL-1">TOCFL Level 1</option>
                 <option value="TOCFL-2">TOCFL Level 2</option>
                 <option value="TOCFL-3">TOCFL Level 3</option>
@@ -144,7 +144,7 @@ function SettingsPage() {
               <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
               {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
                   変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
-              <select id="lang-native" aria-label="母語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
+              <select id="lang-native" aria-label={t("set.nativeAria")} className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={nativeLanguage} onChange={(e) => setNativeLanguage(e.target.value)}>
                 {L1_ORDER.map((code) => (
                   <option key={code} value={code}>
                     {uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa}
@@ -155,7 +155,7 @@ function SettingsPage() {
             </div>
             <div>
               <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>
-              <select id="lang-ui" aria-label="表示言語" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
+              <select id="lang-ui" aria-label={t("set.uiLangAria")} className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" value={uiLanguage} onChange={(e) => setUiLanguage(e.target.value)}>
                 <option value="ja">{t("settings.langJa")}</option>
                 <option value="en">{t("settings.langEn")}</option>
               </select>
@@ -287,13 +287,15 @@ function DangerZone() {
   const navigate = useNavigate();
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const armed = confirmText.trim() === "削除";
+  // 退会の確認語。英語表示の人に日本語入力を強いると操作できないので、
+  // どちらの言語でも通す(表示は今の言語のものだけ)。
+  const armed = ["削除", "DELETE"].includes(confirmText.trim().toUpperCase());
 
   async function handleDelete() {
     if (!armed || deleting) return;
     setDeleting(true);
     try {
-      await deleteFn({ data: { confirm: "削除" } });
+      await deleteFn({ data: { confirm: "削除" } }); // サーバー側の合図は固定
       await queryClient.cancelQueries();
       queryClient.clear();
       await supabase.auth.signOut().catch(() => {}); // user is already gone server-side
@@ -321,7 +323,7 @@ function DangerZone() {
             id="del-confirm"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            placeholder="削除"
+            placeholder={t("set.deleteWord")}
             autoComplete="off"
           />
         </div>
@@ -390,7 +392,7 @@ function DeveloperPanel() {
       <div className="mt-3 space-y-2">
         {row(t("settings.metricDetect"), m?.detect_ms_median, 1200)}
         {row(t("settings.metricAudio"), m?.tap_to_audio_ms_median, 400)}
-        <p className="text-[10px] text-muted-foreground">直近{m?.samples ?? 0}回のスキャンから算出(仕様§9の合格ライン)</p>
+        <p className="text-[10px] text-muted-foreground">{t("set.qualitySamples", { n: m?.samples ?? 0 })}</p>
         {adm?.isAdmin && (
           <Link to="/admin/metrics" className="block text-xs text-primary underline">
             {t("settings.kpiLink")}
@@ -437,6 +439,7 @@ function VideoRecordingToggle() {
  * 一番わかりにくい壊れ方なので、状態が嘘をつかないようにする。
  */
 function PlaceReminderToggle() {
+  const t = useT();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -457,11 +460,11 @@ function PlaceReminderToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
-        label="場所で思い出す"
+        label={t("set.placeLabel")}
         hint={
           busy
-            ? "許可を確認しています…"
-            : "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。"
+            ? t("set.placeChecking")
+            : t("set.placeHint")
         }
         value={on}
         onChange={(v) => void toggle(v)}
@@ -613,7 +616,7 @@ function AiModelPanel() {
         <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-[11px] leading-relaxed">
           <div className="font-semibold">{t("settings.aiRunning")}</div>
           <div className="text-muted-foreground">
-            提供元 {data.effective.provider} / 速い系 {data.effective.fast} / 詳しい系 {data.effective.rich}
+            {t("set.aiEffective", { p: data.effective.provider, f: data.effective.fast, r: data.effective.rich })}
             {" / "}Pro {data.effective.rich_premium}
           </div>
         </div>
@@ -647,7 +650,7 @@ function AiModelPanel() {
         <div>
           <Label className="text-xs">{t("settings.aiProvider")}</Label>
           <select
-            aria-label="AI提供元"
+            aria-label={t("set.aiProviderAria")}
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
             className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -655,7 +658,7 @@ function AiModelPanel() {
             <option value="">{t("settings.aiEnvDefault")}</option>
             {(data?.presets ?? []).map((p) => (
               <option key={p.id} value={p.id}>
-                {p.label}{p.key_present ? "" : `(${p.api_key_env} 未設定)`}
+                {p.label}{p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
               </option>
             ))}
           </select>

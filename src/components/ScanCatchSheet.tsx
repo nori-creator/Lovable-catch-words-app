@@ -14,6 +14,7 @@ import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
+import { useT } from "@/lib/i18n";
 
 type Props = {
   snapshotDataUrl: string;
@@ -110,6 +111,7 @@ function playChime() {
  * 3. on 保存: upload → reuse prefetched card (no additional AI call) → fly to 図鑑
  */
 export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardPromise, loc, upgrade, onClose }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
@@ -331,7 +333,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
         stickerId = upgrade.sticker_id;
       } else {
         const meaning = card?.meaning_ja || dict?.meaning_ja || item.meaning_ja;
-        if (!meaning) throw new Error("単語情報を取得できませんでした");
+        if (!meaning) throw new Error(t("sheet.noWordInfo"));
         const word = card
           ? {
               headword,
@@ -381,29 +383,29 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
       setPhase("done");
       if (firstCatch) {
         // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
-        toast.success("はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", { duration: 5000 });
+        toast.success(t("sheet.firstCatch"), { duration: 5000 });
       } else {
-        toast.success(upgrade ? "再会! 自分の写真になりました✨" : "図鑑に1体増えました！");
+        toast.success(upgrade ? t("sheet.reunion") : t("sheet.addedOne"));
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
       setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
     } catch (e) {
       console.error(e);
-      setErr(e instanceof Error ? e.message : "保存に失敗しました");
-      toast.error("保存に失敗しました");
+      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
+      toast.error(t("cap.saveFailed"));
       setSaving(false);
       setPhase("ready");
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="キャッチ">
+    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label={t("sheet.catch")}>
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="pl-1 text-xs font-medium text-white/80">キャッチ</span>
+        <span className="pl-1 text-xs font-medium text-white/80">{t("sheet.catch")}</span>
         {phase === "ready" && !saving && (
           <button
             onClick={onClose}
-            aria-label="閉じる"
+            aria-label={t("common.close")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white active:scale-95 motion-reduce:active:scale-100"
           >
             <X className="h-4 w-4" />
@@ -426,7 +428,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">読み込み中…</p>
+                <p className="text-[11px]">{t("sheet.loading")}</p>
               </div>
             </div>
           )}
@@ -438,11 +440,11 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
             <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">{headword}</h2>
             {dict ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
-                ✓ 検証済み
+                {t("sheet.verified")}
               </span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
-                AI生成
+                {t("sheet.aiMade")}
               </span>
             )}
           </div>
@@ -454,18 +456,18 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">一言感想 <span className="ml-1 text-[10px]">(任意)</span></label>
+              <label className="text-xs font-medium text-muted-foreground">{t("sheet.noteLabel")} <span className="ml-1 text-[10px]">{t("sheet.optional")}</span></label>
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
-                placeholder="どこで見つけた?どんな気持ち?"
+                placeholder={t("sheet.notePlaceholder")}
                 rows={2}
                 maxLength={140}
                 className="mt-1 w-full resize-none rounded-xl border border-border bg-secondary/50 p-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">一緒に自撮り <span className="ml-1 text-[10px]">(任意)</span></label>
+              <label className="text-xs font-medium text-muted-foreground">{t("sheet.selfieLabel")} <span className="ml-1 text-[10px]">{t("sheet.optional")}</span></label>
               <div className="mt-1 flex items-center gap-2">
                 {selfieDataUrl ? (
                   <img src={selfieDataUrl} alt="" className="h-14 w-14 rounded-full object-cover ring-2 ring-primary/40" />
@@ -479,7 +481,7 @@ export function ScanCatchSheet({ snapshotDataUrl, item, headword, dict, cardProm
                   type="button"
                   className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground active:scale-95"
                 >
-                  {selfieDataUrl ? "撮り直す" : "自撮りを追加"}
+                  {selfieDataUrl ? t("sheet.retakeSelfie") : t("sheet.addSelfie")}
                 </button>
                 <input
                   ref={selfieInputRef}

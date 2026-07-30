@@ -23,6 +23,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
+import { useUiLang } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
@@ -120,6 +121,8 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 
 function CapturePage() {
   const t = useT();
+  // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
+  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const pronounce = usePronounce();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -189,7 +192,7 @@ function CapturePage() {
     void (async () => {
       const item = await getPendingCapture(pendingParam);
       if (!item) {
-        toast.error("保存されていた写真が見つかりませんでした");
+        toast.error(t("cap.pendingNotFound"));
         return;
       }
       setPendingId(item.id);
@@ -280,9 +283,9 @@ function CapturePage() {
           return;
         }
       }
-      setError(e instanceof Error ? e.message : "AI処理に失敗しました");
+      setError(e instanceof Error ? e.message : t("cap.aiFailed"));
       setStep("object");
-      toast.error("AI処理に失敗しました。もう一度お試しください。");
+      toast.error(t("cap.aiFailedRetry"));
     }
   }
 
@@ -327,7 +330,7 @@ function CapturePage() {
       setStep("card");
     } catch (e) {
       console.error(e);
-      toast.error("カード生成に失敗しました");
+      toast.error(t("cap.cardFailed"));
       setStep("select");
     }
   }
@@ -409,7 +412,7 @@ function CapturePage() {
       navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
+      toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("card");
     }
   }
@@ -450,7 +453,7 @@ function CapturePage() {
       await queryClient.invalidateQueries({ queryKey: ["reviews-due"] });
     } catch (e) {
       console.error(e);
-      toast.error("記録に失敗しました");
+      toast.error(t("cap.recordFailed"));
     }
   }
 
@@ -505,7 +508,7 @@ function CapturePage() {
           <p className="text-sm text-muted-foreground">{t("capture.selfieHint")}</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
-              <img src={objectImg} alt="撮った写真" className="h-full w-full object-cover" />
+              <img src={objectImg} alt={t("cap.photoTaken")} className="h-full w-full object-cover" />
             </div>
           )}
           <label className="block">
@@ -556,7 +559,7 @@ function CapturePage() {
           <div className="flex gap-3">
             {cutoutImg && (
               <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
-                <img src={cutoutImg} alt="切り抜いた写真" className="h-full w-full object-contain pop-in" />
+                <img src={cutoutImg} alt={t("cap.photoCutout")} className="h-full w-full object-contain pop-in" />
               </div>
             )}
             <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
@@ -585,7 +588,7 @@ function CapturePage() {
                 id="manual"
                 value={manualWord}
                 onChange={(e) => setManualWord(e.target.value)}
-                placeholder="例: 椅子"
+                placeholder={t("cap.wordPlaceholder")}
               />
               <Button
                 disabled={!manualWord.trim()}
@@ -618,7 +621,7 @@ function CapturePage() {
               </div>
               <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
                 {selfieImg ? (
-                  <img src={selfieImg} alt="自撮り" className="h-full w-full object-cover" />
+                  <img src={selfieImg} alt={t("cap.selfie")} className="h-full w-full object-cover" />
                 ) : (
                   <div className="grid h-full place-items-center text-sm text-muted-foreground">{t("capture.noSelfie")}</div>
                 )}
@@ -691,8 +694,11 @@ function CapturePage() {
               <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              この言葉、{new Date(reenc.taken_at).toLocaleDateString("ja-JP")}
-              {reenc.location_name ? `に ${reenc.location_name} で` : "に"}ゲットしています。
+              {t("cap.reencBefore")}
+              {reenc.location_name
+                ? t("cap.reencAt", { place: reenc.location_name, date: new Date(reenc.taken_at).toLocaleDateString(dateLocale) })
+                : t("cap.reencOn", { date: new Date(reenc.taken_at).toLocaleDateString(dateLocale) })}
+              {t("cap.reencAfter")}
             </p>
             {reenc.cutout_url && (
               <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5">
@@ -729,9 +735,9 @@ function CapturePage() {
                       {reencResult.recalled ? t("capture.reviewBest") : t("capture.willAsk")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      再会 {reencResult.encounter_count} 回目
+                      {t("cap.reunionNth", { n: reencResult.encounter_count })}
                       {reencResult.next_due_at &&
-                        ` · 次の復習: ${new Date(reencResult.next_due_at).toLocaleDateString("ja-JP")}`}
+                        t("cap.nextReview", { date: new Date(reencResult.next_due_at).toLocaleDateString(dateLocale) })}
                     </p>
                   </div>
                 )}

@@ -25,6 +25,90 @@ export function setUiLang(lang: UiLang) {
 }
 
 const DICT: Record<string, { ja: string; en: string }> = {
+  // --- 集める・キャッチ・設定 ---
+  "cap.pendingNotFound": { ja: "保存されていた写真が見つかりませんでした", en: "Couldn't find the saved photo" },
+  "cap.aiFailed": { ja: "AI処理に失敗しました", en: "AI processing failed" },
+  "cap.aiFailedRetry": { ja: "AI処理に失敗しました。もう一度お試しください。", en: "AI processing failed. Please try again." },
+  "cap.cardFailed": { ja: "カード生成に失敗しました", en: "Couldn't build the card" },
+  "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save" },
+  "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that" },
+  "cap.photoTaken": { ja: "撮った写真", en: "The photo you took" },
+  "cap.photoCutout": { ja: "切り抜いた写真", en: "Cut-out photo" },
+  "cap.selfie": { ja: "自撮り", en: "Selfie" },
+  "cap.wordPlaceholder": { ja: "例: 椅子", en: "e.g. 椅子" },
+  "cap.reencBefore": { ja: "この言葉、", en: "You caught this word " },
+  "cap.reencAt": { ja: "に {place} で", en: "at {place} on {date}" },
+  "cap.reencOn": { ja: "に", en: "on {date}" },
+  "cap.reencAfter": { ja: "ゲットしています。", en: "." },
+  "cap.reunionNth": { ja: "再会 {n} 回目", en: "Reunion #{n}" },
+  "cap.nextReview": { ja: " · 次の復習: {date}", en: " · next review: {date}" },
+  "sheet.catch": { ja: "キャッチ", en: "Catch" },
+  "sheet.noWordInfo": { ja: "単語情報を取得できませんでした", en: "Couldn't get the word details" },
+  "sheet.firstCatch": { ja: "はじめてのキャッチ! 明日、この単語を覚えてるか聞くね", en: "Your first catch! Tomorrow I'll ask if you still remember it" },
+  "sheet.reunion": { ja: "再会! 自分の写真になりました✨", en: "Reunion! Now it's your own photo ✨" },
+  "sheet.addedOne": { ja: "図鑑に1体増えました!", en: "One more in your dex!" },
+  "sheet.cardAdded": { ja: "図鑑にカードが入りました!", en: "Card added to your dex!" },
+  "sheet.addedGhostFree": { ja: "図鑑に入りました。実物に出会ったら金色に光ります!", en: "Added to your dex. It turns gold when you meet the real thing!" },
+  "sheet.loading": { ja: "読み込み中…", en: "Loading…" },
+  "sheet.verified": { ja: "✓ 検証済み", en: "✓ Verified" },
+  "sheet.aiMade": { ja: "AI生成", en: "AI generated" },
+  "sheet.optional": { ja: "(任意)", en: "(optional)" },
+  "sheet.noteLabel": { ja: "一言感想", en: "A quick note" },
+  "sheet.notePlaceholder": { ja: "どこで見つけた?どんな気持ち?", en: "Where did you find it? How did it feel?" },
+  "sheet.selfieLabel": { ja: "一緒に自撮り", en: "Selfie with it" },
+  "sheet.retakeSelfie": { ja: "撮り直す", en: "Retake" },
+  "sheet.addSelfie": { ja: "自撮りを追加", en: "Add a selfie" },
+  "sheet.stopRepeat": { ja: "停止", en: "Stop" },
+  "sheet.repeat": { ja: "聞こえたまま復唱する", en: "Repeat what you heard" },
+  "sheet.inputPlaceholder": { ja: "例: 芒果 / 請稍等", en: "e.g. 芒果 / 請稍等" },
+  "sheet.attached": { ja: "添付画像", en: "Attached image" },
+  "sheet.webImage": { ja: "ネット検索の画像", en: "Image from the web" },
+  "sheet.candidateN": { ja: "候補{n}", en: "Candidate {n}" },
+  "sheet.scene": { ja: "シーン: {s}", en: "Scene: {s}" },
+  "set.targetLangAria": { ja: "学習言語", en: "Target language" },
+  "set.levelGoalAria": { ja: "目標レベル", en: "Target level" },
+  "set.nativeAria": { ja: "母語", en: "Native language" },
+  "set.uiLangAria": { ja: "表示言語", en: "App language" },
+  "set.deleteWord": { ja: "削除", en: "DELETE" },
+  "set.qualitySamples": { ja: "直近{n}回のスキャンから算出(仕様§9の合格ライン)", en: "Computed from your last {n} scans (spec §9 pass line)" },
+  "set.placeLabel": { ja: "場所で思い出す", en: "Remember by place" },
+  "set.placeChecking": { ja: "許可を確認しています…", en: "Checking permission…" },
+  "set.placeHint": { ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。", en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed." },
+  "set.aiProviderAria": { ja: "AI提供元", en: "AI provider" },
+  "set.aiEffective": { ja: "提供元 {p} / 速い系 {f} / 詳しい系 {r}", en: "Provider {p} / fast {f} / rich {r}" },
+  "set.keyMissing": { ja: "({env} 未設定)", en: "({env} not set)" },
+  // --- ログイン・発音練習 ---
+  "auth.tagline": { ja: "街で出会う言葉を、ステッカーに。", en: "Turn the words you meet into stickers." },
+  "auth.signin": { ja: "ログイン", en: "Sign in" },
+  "auth.signup": { ja: "新規登録", en: "Sign up" },
+  "auth.email": { ja: "メールアドレス", en: "Email" },
+  "auth.password": { ja: "パスワード", en: "Password" },
+  "auth.or": { ja: "または", en: "or" },
+  "auth.google": { ja: "Googleでサインイン", en: "Sign in with Google" },
+  "auth.apple": { ja: "Appleでサインイン", en: "Sign in with Apple" },
+  "auth.agreeBefore": { ja: "続行すると、", en: "By continuing you agree to the " },
+  "auth.terms": { ja: "利用規約", en: "Terms of Service" },
+  "auth.agreeMid": { ja: "と", en: " and " },
+  "auth.privacy": { ja: "プライバシーポリシー", en: "Privacy Policy" },
+  "auth.agreeAfter": { ja: "に同意したものとみなします。", en: "." },
+  "auth.confirmSent": { ja: "確認メールを送りました。受信トレイをご確認ください。", en: "Confirmation email sent — please check your inbox." },
+  "auth.failed": { ja: "サインインに失敗しました", en: "Sign-in failed" },
+  "auth.googleFailed": { ja: "Googleサインインに失敗しました", en: "Google sign-in failed" },
+  "auth.appleFailed": { ja: "Appleサインインに失敗しました", en: "Apple sign-in failed" },
+  "pron.title": { ja: "発音練習", en: "Pronunciation practice" },
+  "pron.noTts": { ja: "このブラウザは音声合成に対応していません", en: "This browser doesn't support speech synthesis" },
+  "pron.noAsr": { ja: "このブラウザは音声認識に対応していません(iOS Safari / Chrome 推奨)", en: "This browser doesn't support speech recognition (try iOS Safari or Chrome)" },
+  "pron.asrError": { ja: "認識エラー: {e}", en: "Recognition error: {e}" },
+  "pron.playNatural": { ja: "自然な速度で再生", en: "Play at natural speed" },
+  "pron.slow": { ja: "ゆっくり", en: "Slow" },
+  "pron.stopRec": { ja: "録音停止", en: "Stop recording" },
+  "pron.startRec": { ja: "発音を録音", en: "Record your pronunciation" },
+  "pron.listeningBefore": { ja: "聞き取り中…「", en: "Listening… say “" },
+  "pron.listeningAfter": { ja: "」と言ってみて", en: "”" },
+  "pron.yours": { ja: "あなたの発音", en: "Your pronunciation" },
+  "pron.pressBefore": { ja: "マイクを押して「", en: "Tap the mic and say “" },
+  "pron.pressAfter": { ja: "」と発音", en: "”" },
+  "pron.score": { ja: "スコア", en: "Score" },
   // --- フィード・ホーム・プロフィール・オンボーディング・再設定・ルート ---
   "feed.title": { ja: "フィード", en: "Feed" },
   "feed.following": { ja: "フォロー中", en: "Following" },
@@ -615,9 +699,26 @@ const DICT: Record<string, { ja: string; en: string }> = {
 };
 
 export function useUiLang(): UiLang {
-  const [lang, setLang] = useState<UiLang>(() => getUiLang());
+  // 初回は必ず "ja" を返す。
+  //
+  // サーバー側は localStorage を読めないので "ja" で描画する。ここで
+  // クライアントの初回レンダーだけ localStorage を読んで "en" を返すと、
+  // hydration でサーバーとクライアントの文字列が食い違い、React が
+  // 「Hydration failed」を出してツリー全体を作り直す。1回分の描画が無駄に
+  // なるうえ、コンソールが常にエラーで埋まって本当の不具合が埋もれる。
+  //
+  // 代わりにマウント後の effect で本当の言語に切り替える。英語表示の人には
+  // 一瞬だけ日本語が見えるが、これは localStorage に言語を持つ設計上の
+  // トレードオフ(サーバーに知らせるには Cookie にする必要がある)。
+  const [lang, setLang] = useState<UiLang>("ja");
   useEffect(() => {
-    const h = () => setLang(getUiLang());
+    const h = () => {
+      const next = getUiLang();
+      setLang(next);
+      // 読み上げソフトや繁体字以外の字形選択のため、文書の言語も合わせる。
+      if (document.documentElement.lang !== next) document.documentElement.lang = next;
+    };
+    h();
     window.addEventListener(EVENT, h);
     window.addEventListener("storage", h);
     return () => {
