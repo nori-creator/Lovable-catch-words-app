@@ -321,10 +321,13 @@ export function ScanCatchSheet({
         void putCachedImage(path, blob);
         return path;
       }
+      // Only the original object photo is required. A transient failure on the
+      // (optional) cutout or selfie must not abort filing the catch — degrade to
+      // null instead, matching capture.tsx.
       const [object_path, cutout_path, selfie_path] = await Promise.all([
         upload(objectDataUrl, "object"),
-        upload(cutoutUrl, "cutout"),
-        upload(selfieDataUrl, "selfie"),
+        upload(cutoutUrl, "cutout").catch(() => null),
+        upload(selfieDataUrl, "selfie").catch(() => null),
       ]);
 
       let stickerId: string;
@@ -553,7 +556,7 @@ export function ScanCatchSheet({
             ) : (
               <Sparkles className="h-5 w-5" />
             )}
-            {phase === "done" ? "図鑑に着地！" : "図鑑へ収める"}
+            {phase === "done" ? t("sheet.landed") : t("sheet.file")}
           </button>
         </div>
       </div>

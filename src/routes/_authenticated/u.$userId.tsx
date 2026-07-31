@@ -12,26 +12,31 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
-  head: ({ params }) => ({
-    meta: [
-      { title: tStatic("page.userProfile", { id: params.userId.slice(0, 8) }) },
-      {
-        name: "description",
-        content:
-          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
-      },
-      { property: "og:title", content: `プロフィール — Catchwords` },
-      {
-        property: "og:description",
-        content:
-          "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
-      },
-      { property: "og:type", content: "profile" },
-      { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${params.userId}` },
-      { name: "robots", content: "noindex" },
-    ],
-    links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/u/${params.userId}` }],
-  }),
+  head: ({ params }) => {
+    // Strip anything that isn't a uuid character before interpolating into meta
+    // URLs (defense-in-depth against a crafted url-encoded id).
+    const id = String(params.userId).replace(/[^a-zA-Z0-9-]/g, "");
+    return {
+      meta: [
+        { title: tStatic("page.userProfile", { id: id.slice(0, 8) }) },
+        {
+          name: "description",
+          content:
+            "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+        },
+        { property: "og:title", content: `プロフィール — Catchwords` },
+        {
+          property: "og:description",
+          content:
+            "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+        },
+        { property: "og:type", content: "profile" },
+        { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${id}` },
+        { name: "robots", content: "noindex" },
+      ],
+      links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/u/${id}` }],
+    };
+  },
   component: UserProfilePage,
 });
 
@@ -52,16 +57,28 @@ function UserProfilePage() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getPublicProfile);
   const doFollow = useServerFn(toggleFollow);
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["public-profile", userId],
     queryFn: () => fetchProfile({ data: { user_id: userId } }),
   });
   const [busy, setBusy] = useState(false);
 
-  if (!data)
+  if (isLoading)
     return (
       <AppShell title={t("user.profile")}>
         <div className="py-8 text-center text-sm text-muted-foreground">{t("user.loading")}</div>
+      </AppShell>
+    );
+
+  if (isError || !data)
+    return (
+      <AppShell title={t("user.profile")}>
+        <div className="py-10 text-center">
+          <p className="text-sm text-muted-foreground">{t("user.loadFailed")}</p>
+          <Button variant="outline" className="mt-4" onClick={() => refetch()}>
+            {t("common.retry")}
+          </Button>
+        </div>
       </AppShell>
     );
 
@@ -149,9 +166,12 @@ function UserProfilePage() {
             <div className="grid grid-cols-3 gap-2">
               {data.recent_stickers.map((s) => (
                 <Link
-                  key={s.id}
-                  to="/dex/$stickerId"
-                  params={{ stickerId: s.id }}
+                  key={s.post_id ?? s.id}
+                  // Own catches link to the dex card; someone else's link to the
+                  // public post that shares them (their sticker rows are private).
+                  {...(s.post_id
+                    ? { to: "/post/$postId" as const, params: { postId: s.post_id } }
+                    : { to: "/dex/$stickerId" as const, params: { stickerId: s.id } })}
                   className="lift group relative aspect-square overflow-hidden rounded-2xl bg-secondary"
                 >
                   {s.cutout_url ? (

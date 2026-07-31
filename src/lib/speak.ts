@@ -32,7 +32,12 @@ export function speakZhTW(text: string, rate = 0.95): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   const synth = window.speechSynthesis;
 
+  // On the first call, both the `voiceschanged` listener and the setTimeout
+  // safety net below can fire — speak only once.
+  let spoke = false;
   const utter = () => {
+    if (spoke) return;
+    spoke = true;
     const voice = cached ?? pickVoice(synth);
     if (voice) cached = voice;
     const u = new SpeechSynthesisUtterance(text);

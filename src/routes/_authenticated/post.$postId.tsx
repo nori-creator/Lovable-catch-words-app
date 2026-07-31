@@ -7,50 +7,57 @@ import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
+import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/post/$postId")({
-  head: ({ params }) => ({
-    meta: [
-      { title: tStatic("page.post", { id: params.postId.slice(0, 8) }) },
-      {
-        name: "description",
-        content:
-          "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
-      },
-      { property: "og:title", content: `投稿 — Catchwords` },
-      {
-        property: "og:description",
-        content:
-          "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
-      },
-      { property: "og:type", content: "article" },
-      {
-        property: "og:url",
-        content: `https://word-snap-journey.lovable.app/post/${params.postId}`,
-      },
-      { name: "robots", content: "noindex" },
-    ],
-    links: [
-      { rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${params.postId}` },
-    ],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Article",
-          headline: `Catchwords post ${params.postId.slice(0, 8)}`,
-          url: `https://word-snap-journey.lovable.app/post/${params.postId}`,
-        }),
-      },
-    ],
-  }),
+  head: ({ params }) => {
+    // Sanitize the raw URL segment before it lands in <title>, meta URLs, or the
+    // JSON-LD <script> body. A crafted (url-encoded) id like `…%3C%2Fscript%3E…`
+    // would otherwise break out of the inline script tag (JSON.stringify does not
+    // neutralize `</script>`). Valid post ids are uuids, so this is lossless.
+    const id = String(params.postId).replace(/[^a-zA-Z0-9-]/g, "");
+    return {
+      meta: [
+        { title: tStatic("page.post", { id: id.slice(0, 8) }) },
+        {
+          name: "description",
+          content:
+            "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+        },
+        { property: "og:title", content: `投稿 — Catchwords` },
+        {
+          property: "og:description",
+          content:
+            "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+        },
+        { property: "og:type", content: "article" },
+        {
+          property: "og:url",
+          content: `https://word-snap-journey.lovable.app/post/${id}`,
+        },
+        { name: "robots", content: "noindex" },
+      ],
+      links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${id}` }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: `Catchwords post ${id.slice(0, 8)}`,
+            url: `https://word-snap-journey.lovable.app/post/${id}`,
+          }),
+        },
+      ],
+    };
+  },
   component: PostPage,
 });
 
 function PostPage() {
   const t = useT();
+  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const { postId } = Route.useParams();
   const qc = useQueryClient();
   const fetchPost = useServerFn(getPost);
@@ -127,7 +134,7 @@ function PostPage() {
                   {p.author.display_name ?? t("common.anon")}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {new Date(p.created_at).toLocaleString("ja-JP")}
+                  {new Date(p.created_at).toLocaleString(dateLocale)}
                 </span>
               </div>
               {p.caption && <p className="text-sm leading-relaxed">{p.caption}</p>}

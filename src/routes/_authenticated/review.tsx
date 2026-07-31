@@ -21,7 +21,8 @@ import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import { CachedImg } from "@/lib/image-cache";
-import { useT } from "@/lib/i18n";
+import { toast } from "sonner";
+import { useT, useUiLang } from "@/lib/i18n";
 import { SwipeCard } from "@/components/SwipeCard";
 import {
   Eye,
@@ -113,6 +114,7 @@ function ReviewPage() {
   const {
     data: cards,
     isLoading,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: ["reviews-due"],
@@ -249,6 +251,15 @@ function ReviewPage() {
             refetch();
           }}
         />
+      ) : isFetching ? (
+        // A refetch is in flight (e.g. "もう一度" after finishing). React Query
+        // keeps the previous cards during refetch, so without this guard the
+        // already-graded card[0] would render and stay interactive — a second
+        // tap would grade it again and corrupt the SRS schedule/history.
+        <div className="rounded-2xl border border-border bg-card p-8 text-center">
+          <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
+          <p className="text-sm text-muted-foreground">{t("review.preparing")}</p>
+        </div>
       ) : current ? (
         lightMode ? (
           <LightModeCard
@@ -471,9 +482,10 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     return { series: out, reviewDays: revDays, forgetDay: forget, bestDay: targetDay };
   }, [data, word]);
 
+  const dueLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const dueAt = word.due_at ?? data?.current?.due_at ?? null;
   const dueLabel = dueAt
-    ? new Date(dueAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+    ? new Date(dueAt).toLocaleDateString(dueLocale, { month: "short", day: "numeric" })
     : "—";
   const daysUntilForgot = word.days_until_forgot ?? forgetDay;
   const bestLabel =
@@ -660,8 +672,9 @@ function SpeakingCard({
   const isPhrase = card.entry_type === "phrase";
   // Ghost cards (§5.3): the placeholder stands in until a real photo exists.
   const heroUrl = card.cutout_url ?? card.placeholder_url;
+  const takenLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const takenLabel = card.taken_at
-    ? new Date(card.taken_at).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+    ? new Date(card.taken_at).toLocaleDateString(takenLocale, { month: "short", day: "numeric" })
     : null;
 
   useEffect(() => {
@@ -835,7 +848,9 @@ function SpeakingCard({
         },
       });
     } catch {
-      /* keep flow moving */
+      // Keep the session flowing, but don't let the user believe it was saved —
+      // an unrecorded review simply comes up again next time.
+      toast.error(t("review.gradeFailed"));
     }
     onNext();
   }
@@ -1274,7 +1289,7 @@ function LightModeCard({
       },
     })
       .then((res) => setScore(res.score))
-      .catch(() => {});
+      .catch(() => toast.error(t("review.gradeFailed")));
   }
 
   const infos = card.headword_choice_infos?.length

@@ -6,7 +6,9 @@ import { getFeed, toggleLike, type FeedPost } from "@/lib/social.functions";
 import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
 import { Zh } from "@/components/Zh";
+import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
+import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/feed")({
@@ -80,6 +82,7 @@ function EmptyState({ tab }: { tab: "following" | "popular" }) {
 
 function PostCard({ post }: { post: FeedPost }) {
   const t = useT();
+  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const qc = useQueryClient();
   const like = useServerFn(toggleLike);
   const [optimistic, setOptimistic] = useState<{ liked: boolean; count: number } | null>(null);
@@ -89,7 +92,17 @@ function PostCard({ post }: { post: FeedPost }) {
   const mut = useMutation({
     mutationFn: (next: boolean) => like({ data: { post_id: post.id, like: next } }),
     onMutate: (next) => setOptimistic({ liked: next, count: count + (next ? 1 : -1) }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["feed"] }),
+    onError: () => {
+      // Roll the optimistic like back to server truth and tell the user.
+      setOptimistic(null);
+      toast.error(t("feed.likeFailed"));
+    },
+    onSettled: async () => {
+      // Clear the optimistic overlay only after the refetch lands, so the card
+      // switches straight to the fresh server value with no flash of stale state.
+      await qc.invalidateQueries({ queryKey: ["feed"] });
+      setOptimistic(null);
+    },
   });
 
   const initial = (post.author.display_name ?? "?").slice(0, 1).toUpperCase();
@@ -109,7 +122,7 @@ function PostCard({ post }: { post: FeedPost }) {
             {post.author.display_name ?? t("common.anon")}
           </div>
           <div className="text-[11px] text-muted-foreground">
-            {new Date(post.created_at).toLocaleString("ja-JP", {
+            {new Date(post.created_at).toLocaleString(dateLocale, {
               month: "short",
               day: "numeric",
               hour: "2-digit",

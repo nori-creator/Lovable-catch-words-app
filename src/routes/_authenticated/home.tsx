@@ -10,6 +10,7 @@ import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
 import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/home")({
@@ -175,7 +176,10 @@ function HomePage() {
           </div>
           {pastDays.map(([k, items]) => (
             <div key={k}>
-              <DayHeader date={new Date(k)} compact />
+              {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
+                  midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
+                  for users west of UTC). */}
+              <DayHeader date={new Date(`${k}T00:00:00`)} compact />
               <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={setOpenId} />
             </div>
           ))}
@@ -210,12 +214,13 @@ function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: 
 }
 
 function DayHeader({ date, label, compact }: { date: Date; label?: string; compact?: boolean }) {
-  const dateLabel = date.toLocaleDateString("ja-JP", {
+  const locale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLabel = date.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const weekday = date.toLocaleDateString(locale, { weekday: "long" });
   return (
     <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
       {label && (

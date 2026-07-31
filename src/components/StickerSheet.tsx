@@ -58,7 +58,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     return () => clearTimeout(t);
   }, [deleteArmed]);
   const qc = useQueryClient();
-  const { data: s, isLoading } = useQuery({
+  const {
+    data: s,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
     enabled: !!stickerId,
@@ -502,9 +506,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
-        {isLoading || !s ? (
+        {isLoading ? (
           <div className="grid h-64 place-items-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : isError || !s ? (
+          // Settled with no sticker (deleted elsewhere, not permitted, or a load
+          // error) — show a real message instead of spinning forever.
+          <div className="grid h-64 place-items-center px-6 text-center">
+            <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
           </div>
         ) : (
           <>
@@ -656,7 +666,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
-                  {new Date(s.created_at).toLocaleString("ja-JP", {
+                  {new Date(s.created_at).toLocaleString(uiLang === "en" ? "en-US" : "ja-JP", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",

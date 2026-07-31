@@ -95,15 +95,21 @@ export const searchDictionaryEntries = createServerFn({ method: "GET" })
       .slice(0, 100),
   }))
   .handler(async ({ data, context }) => {
+    // Admin-only, like every other fn on the dictionary admin page.
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("管理者のみ");
     let query = context.supabase
       .from("dictionary_entries")
       .select("id, headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, source, entry_type")
       .order("headword", { ascending: true })
       .limit(50);
-    if (data.q) {
-      query = query.or(
-        `headword.ilike.%${data.q}%,pinyin.ilike.%${data.q}%,meaning_ja.ilike.%${data.q}%`,
-      );
+    // Strip PostgREST `.or()` structural characters so the raw query can't inject filters.
+    const q = data.q.replace(/[,()\\]/g, "").trim();
+    if (q) {
+      query = query.or(`headword.ilike.%${q}%,pinyin.ilike.%${q}%,meaning_ja.ilike.%${q}%`);
     }
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);

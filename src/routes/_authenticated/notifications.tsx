@@ -23,9 +23,16 @@ function NotificationsPage() {
   const { data } = useQuery({ queryKey: ["notifications"], queryFn: () => fetchList() });
 
   useEffect(() => {
-    markRead().then(() => {
-      qc.invalidateQueries({ queryKey: ["notifications-unread"] });
-    });
+    markRead()
+      .then(() => {
+        // Refresh both the unread badge AND this list, so the per-row "unread"
+        // highlight clears on the same visit that marks them read.
+        qc.invalidateQueries({ queryKey: ["notifications-unread"] });
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+      })
+      .catch(() => {
+        /* a failed mark-read is non-fatal; the badge just stays until next visit */
+      });
   }, [markRead, qc]);
 
   const items = data ?? [];

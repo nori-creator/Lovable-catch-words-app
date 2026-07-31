@@ -16,7 +16,13 @@ import { tStatic } from "@/lib/i18n";
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
   head: ({ params }) => ({
     meta: [
-      { title: tStatic("page.cardDetail", { id: params.stickerId.slice(0, 8) }) },
+      {
+        title: tStatic("page.cardDetail", {
+          id: String(params.stickerId)
+            .replace(/[^a-zA-Z0-9-]/g, "")
+            .slice(0, 8),
+        }),
+      },
       {
         name: "description",
         content:
@@ -144,7 +150,7 @@ function StickerDetailPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
-                {new Date(s.created_at).toLocaleString("ja-JP", {
+                {new Date(s.created_at).toLocaleString(dateLocale, {
                   year: "numeric",
                   month: "short",
                   day: "numeric",
