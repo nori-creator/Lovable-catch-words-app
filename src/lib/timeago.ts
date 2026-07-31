@@ -19,18 +19,32 @@ function pick(seconds: number): { key: string; vars: Vars } {
   return { key: "ago.years", vars: { n: Math.floor(days / 365) } };
 }
 
+/**
+ * 経過秒数を返す。無効な日付は null(表示しない)。未来日時(時計ずれ)は
+ * 0 に丸めて "たった今" 相当にする — "NaN年前" や負の値を画面に出さない。
+ */
+function elapsedSeconds(iso: string): number | null {
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  return Math.max(0, (Date.now() - ms) / 1000);
+}
+
 /** React の中で使う版。表示言語が変わったら自動で追従する。 */
 export function useTimeAgo(): (iso: string) => string {
   const t = useT();
   return (iso: string) => {
-    const { key, vars } = pick((Date.now() - new Date(iso).getTime()) / 1000);
+    const secs = elapsedSeconds(iso);
+    if (secs === null) return "";
+    const { key, vars } = pick(secs);
     return t(key, vars);
   };
 }
 
 /** React の外(通知の文面など)で使う版。 */
 export function timeAgoStatic(iso: string): string {
-  const { key, vars } = pick((Date.now() - new Date(iso).getTime()) / 1000);
+  const secs = elapsedSeconds(iso);
+  if (secs === null) return "";
+  const { key, vars } = pick(secs);
   return tStatic(key, vars);
 }
 

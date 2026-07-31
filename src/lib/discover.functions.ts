@@ -68,7 +68,12 @@ export const searchWords = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ q: z.string().min(1).max(40) }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase } = context;
-    const q = `%${data.q}%`;
+    // Strip characters that are structural in a PostgREST `.or()` expression
+    // (comma separates filters, parens group them) so the raw query can't inject
+    // extra conditions. Backslash removed too, to be safe around the escape char.
+    const sanitized = data.q.replace(/[,()\\]/g, "").trim();
+    if (!sanitized) return [];
+    const q = `%${sanitized}%`;
     const { data: rows, error } = await supabase
       .from("words")
       .select("id, headword, reading_zhuyin, meaning_ja, category_key, silhouette_emoji")

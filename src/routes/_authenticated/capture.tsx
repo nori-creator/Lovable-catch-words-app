@@ -160,6 +160,10 @@ function CapturePage() {
     next_due_at: string | null;
   } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [reencBusy, setReencBusy] = useState(false);
+  // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
+  // a fast double-tap would otherwise record two encounters (double SRS grade).
+  const reencSubmittingRef = useRef(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
@@ -460,7 +464,9 @@ function CapturePage() {
   }
 
   async function answerReencounter(recalled: boolean) {
-    if (!reenc || reencResult) return;
+    if (!reenc || reencResult || reencSubmittingRef.current) return;
+    reencSubmittingRef.current = true;
+    setReencBusy(true);
     try {
       const res = await encounterFn({
         data: {
@@ -481,6 +487,9 @@ function CapturePage() {
     } catch (e) {
       console.error(e);
       toast.error(t("cap.recordFailed"));
+    } finally {
+      reencSubmittingRef.current = false;
+      setReencBusy(false);
     }
   }
 
@@ -787,12 +796,17 @@ function CapturePage() {
                 <p className="text-lg font-semibold">{reenc.meaning_ja}</p>
                 {!reencResult ? (
                   <div className="mt-3 flex gap-2">
-                    <Button onClick={() => answerReencounter(true)} className="flex-1">
+                    <Button
+                      onClick={() => answerReencounter(true)}
+                      disabled={reencBusy}
+                      className="flex-1"
+                    >
                       {t("capture.remembered")}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => answerReencounter(false)}
+                      disabled={reencBusy}
                       className="flex-1"
                     >
                       {t("capture.forgot")}

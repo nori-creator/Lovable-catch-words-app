@@ -16,7 +16,10 @@ export type FeedPost = {
     id: string;
     cutout_url: string | null;
     selfie_url: string | null;
-    object_url: string | null;
+    // NOTE: the original uncropped photo (object_image_url) is intentionally NOT
+    // exposed here. The feed/post UI only renders the cutout + selfie, and other
+    // viewers must not be able to pull the full original photo (faces/background
+    // the poster didn't choose to share) out of the payload.
     location_name: string | null;
     word: {
       headword: string;
@@ -73,13 +76,12 @@ async function hydratePosts(
       ? supabaseAdmin
           .from("stickers")
           .select(
-            "id, object_image_url, cutout_image_url, selfie_image_url, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, level, category_key, silhouette_emoji)",
+            "id, cutout_image_url, selfie_image_url, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, level, category_key, silhouette_emoji)",
           )
           .in("id", stickerIds)
       : Promise.resolve({
           data: [] as Array<{
             id: string;
-            object_image_url: string | null;
             cutout_image_url: string | null;
             selfie_image_url: string | null;
             location_name: string | null;
@@ -100,7 +102,6 @@ async function hydratePosts(
 
   const stickers = (stickersRes.data ?? []) as Array<{
     id: string;
-    object_image_url: string | null;
     cutout_image_url: string | null;
     selfie_image_url: string | null;
     location_name: string | null;
@@ -115,20 +116,19 @@ async function hydratePosts(
     ((likesRes.data ?? []) as Array<{ post_id: string }>).map((l) => l.post_id),
   );
 
-  // sign all sticker paths in one batch
+  // sign all sticker paths in one batch (cutout + selfie only — never the original)
   const allPaths: Array<string | null> = [];
   for (const s of stickers) {
-    allPaths.push(s.object_image_url, s.cutout_image_url, s.selfie_image_url);
+    allPaths.push(s.cutout_image_url, s.selfie_image_url);
   }
   const signed = await signStickerUrls(allPaths);
   const stickerMap = new Map<string, FeedPost["sticker"]>();
   stickers.forEach((s, i) => {
-    const base = i * 3;
+    const base = i * 2;
     stickerMap.set(s.id, {
       id: s.id,
-      object_url: signed[base],
-      cutout_url: signed[base + 1],
-      selfie_url: signed[base + 2],
+      cutout_url: signed[base],
+      selfie_url: signed[base + 1],
       location_name: s.location_name,
       word: s.words,
     });
@@ -243,9 +243,16 @@ export const deletePost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { error } = await context.supabase.from("posts").delete().eq("id", data.id);
+    // Scope the delete to the caller (defense-in-depth alongside the RLS "delete
+    // own" policy) and report whether a row was actually removed.
+    const { data: deleted, error } = await context.supabase
+      .from("posts")
+      .delete()
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .select("id");
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: (deleted?.length ?? 0) > 0 };
   });
 
 export const toggleLike = createServerFn({ method: "POST" })

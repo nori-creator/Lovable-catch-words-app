@@ -173,6 +173,14 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "scan.noFrame": { ja: "フレームを取得できませんでした", en: "Couldn't grab a frame" },
   "scan.detectFailed": { ja: "検出に失敗しました", en: "Detection failed" },
+  "scan.nothingFound": {
+    ja: "文字が見つかりませんでした",
+    en: "No words found",
+  },
+  "scan.nothingFoundHint": {
+    ja: "看板やパッケージの中国語に近づけて、もう一度撮ってみてください。",
+    en: "Get closer to some Chinese text (a sign or label) and scan again.",
+  },
   "scan.detailFailed": { ja: "詳細検出に失敗しました", en: "Detailed detection failed" },
   "scan.partOf": { ja: "{word}(部品)", en: "{word} (part)" },
   "scan.detectMs": { ja: "検出 {ms}ms", en: "detect {ms}ms" },
@@ -301,6 +309,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cap.reunionNth": { ja: "再会 {n} 回目", en: "Reunion #{n}" },
   "cap.nextReview": { ja: " · 次の復習: {date}", en: " · next review: {date}" },
   "sheet.catch": { ja: "キャッチ", en: "Catch" },
+  "sheet.file": { ja: "図鑑へ収める", en: "Add to dex" },
+  "sheet.landed": { ja: "図鑑に着地！", en: "Landed in your dex!" },
   "sheet.noWordInfo": { ja: "単語情報を取得できませんでした", en: "Couldn't get the word details" },
   "sheet.firstCatch": {
     ja: "はじめてのキャッチ! 明日、この単語を覚えてるか聞くね",
@@ -413,6 +423,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "feed.hintPopular": { ja: "最初の投稿者になろう!", en: "Be the first to post!" },
   "feed.postFromDex": { ja: "図鑑から投稿", en: "Post from your dex" },
   "feed.like": { ja: "いいね", en: "Like" },
+  "feed.likeFailed": {
+    ja: "いいねできませんでした。もう一度お試しください。",
+    en: "Couldn't update your like. Please try again.",
+  },
   "home.waitingPhoto": { ja: "解析待ちの写真", en: "Photo waiting to be analyzed" },
   "home.bgPaper": { ja: "紙", en: "Paper" },
   "home.bgFrame": { ja: "額", en: "Frame" },
@@ -420,6 +434,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "home.bgCork": { ja: "コルク", en: "Cork" },
   "user.profile": { ja: "プロフィール", en: "Profile" },
   "user.loading": { ja: "読み込み中…", en: "Loading…" },
+  "user.loadFailed": {
+    ja: "プロフィールを読み込めませんでした",
+    en: "Couldn't load this profile",
+  },
   "user.since": { ja: "{date} から", en: "since {date}" },
   "user.avatarOf": { ja: "{name}のアバター", en: "{name}'s avatar" },
   "user.statDex": { ja: "図鑑", en: "Dex" },
@@ -855,7 +873,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "地図の連携が完了していません。",
     en: "Maps are not configured yet.",
   },
-  "dex.items": { ja: "件", en: "" },
+  "dex.items": { ja: "件", en: "spots" },
   // --- settings (admin) ---
   "settings.devOnly": {
     ja: "開発者専用(あなたにしか表示されません)",
@@ -970,6 +988,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.kpiLink": { ja: "KPIダッシュボードを開く →", en: "Open the KPI dashboard →" },
   // --- review (speaking / memory details) ---
   "review.preparing": { ja: "今日の出題を準備中…", en: "Preparing today's set…" },
+  "review.gradeFailed": {
+    ja: "結果を保存できませんでした。この単語は次回もう一度出題されます。",
+    en: "Couldn't save your result — this word will come up again next time.",
+  },
   "review.memoryLoading": { ja: "記憶データを準備中です。", en: "Preparing memory data…" },
   "review.scene": { ja: "シーン: ", en: "Scene: " },
   "review.todaysPattern": { ja: "今日の型", en: "Today's pattern" },

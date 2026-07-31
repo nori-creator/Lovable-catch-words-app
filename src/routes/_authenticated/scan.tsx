@@ -993,6 +993,16 @@ function ScanPage() {
             )}
           </div>
 
+          {/* Nothing found: a completed scan produced no target-language words.
+              Without this the user just stares at a frozen photo with no dots
+              and no explanation. */}
+          {items !== null && !scanning && visibleItems.length === 0 && (
+            <div className="rounded-2xl bg-background/80 p-4 text-center shadow-lg backdrop-blur-xl">
+              <p className="text-sm font-medium">{t("scan.nothingFound")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("scan.nothingFoundHint")}</p>
+            </div>
+          )}
+
           {/* 3) 見つかった単語(スクロールできるガラスのシート) */}
           {visibleItems.length > 0 && !scanning && (
             <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/80 p-1.5 shadow-lg backdrop-blur-xl">

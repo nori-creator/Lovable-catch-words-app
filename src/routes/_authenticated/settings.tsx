@@ -71,7 +71,10 @@ function SettingsPage() {
     try {
       await updateProfile({
         data: {
-          display_name: displayName,
+          // Only send a non-empty name: the server rejects "" (min length 1),
+          // which would otherwise fail the whole save (theme/level/language too)
+          // for anyone whose display name is blank.
+          ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
           native_language: nativeLanguage,
           ui_language: uiLanguage,
           target_language: targetLanguage,
@@ -271,11 +274,18 @@ function SettingsPage() {
           variant="outline"
           className="w-full"
           onClick={async () => {
-            await queryClient.cancelQueries();
-            queryClient.clear();
-            await supabase.auth.signOut();
-            await router.invalidate();
-            navigate({ to: "/auth", replace: true, search: { next: "" } });
+            try {
+              await queryClient.cancelQueries();
+              await supabase.auth.signOut();
+            } catch {
+              // Network hiccup: fall through and still send them to /auth. The
+              // local session is cleared below so the app treats them as signed
+              // out; a stale server token expires on its own.
+            } finally {
+              queryClient.clear();
+              await router.invalidate();
+              navigate({ to: "/auth", replace: true, search: { next: "" } });
+            }
           }}
         >
           <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
