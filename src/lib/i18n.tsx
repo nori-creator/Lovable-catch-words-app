@@ -167,6 +167,18 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": { ja: "カメラを起動できませんでした", en: "Couldn't start the camera" },
+  "scan.cameraDenied": {
+    ja: "カメラの使用が許可されていません。ブラウザの設定で許可するか、下の入力欄から言葉を調べられます。",
+    en: "Camera access isn't allowed. Enable it in your browser settings, or look words up using the box below.",
+  },
+  "scan.cameraNotFound": {
+    ja: "カメラが見つかりませんでした。下の入力欄から言葉を調べられます。",
+    en: "No camera found. You can still look words up using the box below.",
+  },
+  "scan.cameraBusy": {
+    ja: "カメラを他のアプリが使用中のようです。他のアプリを閉じて、もう一度お試しください。",
+    en: "The camera seems to be in use by another app. Close it and try again.",
+  },
   "scan.noVoice": {
     ja: "この端末は音声入力に対応していません。文字で入力してください。",
     en: "This device doesn't support voice input. Please type instead.",

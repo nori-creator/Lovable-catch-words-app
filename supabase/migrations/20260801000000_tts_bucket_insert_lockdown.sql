@@ -1,0 +1,21 @@
+-- Security fix: remove client INSERT on the shared `tts` audio cache bucket.
+--
+-- 20260702120000_review_speedup_encounters_usage_tts.sql created
+--   CREATE POLICY "tts_insert_auth" ON storage.objects
+--     FOR INSERT TO authenticated WITH CHECK (bucket_id = 'tts');
+-- which let ANY authenticated user upload objects into the shared `tts` bucket.
+-- The cache path is a deterministic pure function of (language, voice, text)
+-- (see src/lib/tts-cache.ts `ttsObjectPath`), so a logged-in client could
+-- pre-seed a not-yet-cached path with a poisoned MP3 and have it served to every
+-- user as the "native pronunciation" — and, via pregenerateDictionaryTts, promoted
+-- into dictionary_entries.audio_path as verified dictionary audio. It also allowed
+-- unbounded writes (storage-cost abuse).
+--
+-- The intended model (tts.functions.ts / 20260712160000_tts_bucket_read_policy.sql)
+-- is: reads open to authenticated, WRITES SERVICE-ROLE ONLY. The service role
+-- bypasses RLS, so dropping this policy does not affect legitimate server-side
+-- synthesis. This mirrors the review_choices lockdown in 20260712075447, which
+-- dropped its permissive *_insert_auth/_update_auth policies — the `tts` bucket
+-- was simply missed there.
+
+DROP POLICY IF EXISTS "tts_insert_auth" ON storage.objects;

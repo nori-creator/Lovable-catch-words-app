@@ -79,12 +79,22 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       hint_ja: q.hint_ja,
       reward_xp: 20,
     }));
-    const { data: inserted, error: insErr } = await supabase
+    const { error: insErr } = await supabase.from("daily_quests").insert(rows);
+    // 2タブ/ダブルタップの同時初回ロードで unique(user_id,quest_date,target_word)
+    // に当たっても 500 にしない。挿入結果を信じず「今日の最終状態」を1回読み直して
+    // 3件に収める(自分と競合のどちらが勝っても表示は3件で一貫する)。
+    if (insErr && !/duplicate key|unique|conflict/i.test(insErr.message)) {
+      throw new Error(insErr.message);
+    }
+    const { data: finalRows, error: reErr } = await supabase
       .from("daily_quests")
-      .insert(rows)
-      .select("*");
-    if (insErr) throw new Error(insErr.message);
-    return inserted as DailyQuest[];
+      .select("*")
+      .eq("user_id", userId)
+      .eq("quest_date", today)
+      .order("created_at", { ascending: true })
+      .limit(3);
+    if (reErr) throw new Error(reErr.message);
+    return (finalRows ?? []) as DailyQuest[];
   });
 
 export const completeQuest = createServerFn({ method: "POST" })
