@@ -306,7 +306,14 @@ export const getDueReviews = createServerFn({ method: "GET" })
         if (!readingByHead.has(h)) readingByHead.set(h, r);
       }
       const headwordChoices = shuffle([w.headword, ...headwordDistractors]);
-      const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+      // 未復習カードは「出会った日(taken_at)」を記憶の起点にする。null のままだと
+      // retentionNow が 100% を返し、同じ画面の記憶リスト(getMemoryOverview は
+      // taken_at 起点)と矛盾する(カードは100%なのに一覧では「忘れかけ」)。
+      const lastMs = row.last_reviewed_at
+        ? new Date(row.last_reviewed_at).getTime()
+        : row.stickers!.taken_at
+          ? new Date(row.stickers!.taken_at).getTime()
+          : null;
 
       const cutoutPath = row.stickers!.cutout_image_url;
       // The branch this review will unlock = today's designated pattern.
@@ -692,7 +699,10 @@ export type MemoryOverview = {
 
 const LN2 = Math.log(2);
 function stabilityOf(interval_days: number, ease: number): number {
-  return Math.max(0.5, interval_days * Math.max(1, ease));
+  // 未復習カードは interval_days=0。初期の安定度は interval=1 日ベース(§記憶モデル,
+  // getMemoryOverview のコメント参照)なので下限を1日に。0だと安定度0.5日になり、
+  // キャッチ直後の語が数時間で「忘れかけ」に落ちてしまう(=表示と実感の乖離)。
+  return Math.max(0.5, Math.max(1, interval_days) * Math.max(1, ease));
 }
 function retentionNow(
   interval_days: number,

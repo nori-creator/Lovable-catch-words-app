@@ -270,7 +270,20 @@ function ScanPage() {
         }
         setReady(true);
       } catch (e) {
-        setError((e as Error).message || t("scan.cameraFailed"));
+        // getUserMedia は端末依存の生の英語メッセージ("Requested device not found" 等)を
+        // 投げる。ユーザーには表示言語で、次の一手(手動検索)まで案内する。
+        const name = (e as { name?: string })?.name ?? "";
+        const key =
+          name === "NotAllowedError" || name === "SecurityError"
+            ? "scan.cameraDenied"
+            : name === "NotFoundError" ||
+                name === "OverconstrainedError" ||
+                name === "DevicesNotFoundError"
+              ? "scan.cameraNotFound"
+              : name === "NotReadableError" || name === "TrackStartError"
+                ? "scan.cameraBusy"
+                : "scan.cameraFailed";
+        setError(t(key));
       }
     })();
     return () => {

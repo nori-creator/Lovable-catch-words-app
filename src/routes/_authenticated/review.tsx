@@ -298,7 +298,7 @@ function memWordOf(card: DueReviewCard): MemoryWord {
     fresh: card.repetitions <= 2,
     long_term: card.interval_days >= 30,
     anchor_at: card.taken_at,
-    stability_days: Math.max(0.5, card.interval_days * Math.max(1, card.ease)),
+    stability_days: Math.max(0.5, Math.max(1, card.interval_days) * Math.max(1, card.ease)),
     ease: card.ease,
   };
 }
@@ -425,7 +425,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     const nowMs = Date.now();
     const day = 86400_000;
     const stabilityOf = (interval: number, ease: number) =>
-      Math.max(0.5, interval * Math.max(1, ease));
+      Math.max(0.5, Math.max(1, interval) * Math.max(1, ease));
 
     const hist = (data?.history ?? [])
       .slice()
