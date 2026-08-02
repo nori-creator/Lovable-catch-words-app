@@ -2,13 +2,19 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
-import { deleteMyAccount, getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import {
+  clearMyAvatar,
+  deleteMyAccount,
+  getMyProfile,
+  setMyAvatar,
+  updateMyProfile,
+} from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
@@ -22,6 +28,7 @@ import {
   requestNotificationPermission,
 } from "@/lib/place-reminder";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
+import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
@@ -113,6 +120,7 @@ function SettingsPage() {
             {t("settings.profile")}
           </h3>
           <div className="space-y-3">
+            <AvatarRow />
             <div>
               <Label htmlFor="dn">{t("settings.displayName")}</Label>
               <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
@@ -530,6 +538,90 @@ function DeveloperPanel() {
 // device-local toggle only covers the camera recording, which is a
 // per-device preference (main branch's VIDEO_KEY, read by review.tsx).
 const VIDEO_KEY = "review-video-v1";
+
+/**
+ * プロフィール写真。登録するとヘッダーの丸アイコンが「C」から自分の顔になる。
+ * 保存前に 256px まで縮めてから送る(ヘッダーは 32px 表示なので十分で、
+ * 通信もストレージも軽い)。
+ */
+function AvatarRow() {
+  const t = useT();
+  const qc = useQueryClient();
+  const fetchProfile = useServerFn(getMyProfile);
+  const setAvatar = useServerFn(setMyAvatar);
+  const clearAvatar = useServerFn(clearMyAvatar);
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const avatar = (profile as { avatar_url?: string | null } | undefined)?.avatar_url ?? null;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function pick(file: File) {
+    setBusy(true);
+    try {
+      const raw: string = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(file);
+      });
+      const small = await downscaleDataUrl(raw, 256, 0.85);
+      await setAvatar({ data: { dataUrl: small } });
+      await qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success(t("settings.avatarSaved"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("settings.avatarFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <Label>{t("settings.avatar")}</Label>
+      <div className="mt-1 flex items-center gap-3">
+        {avatar ? (
+          <img
+            src={avatar}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-border"
+          />
+        ) : (
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-base font-bold text-primary-foreground">
+            C
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="press-in min-h-11 rounded-full border border-border bg-background px-4 text-sm font-medium disabled:opacity-60"
+        >
+          {busy ? t("settings.avatarSaving") : avatar ? t("settings.avatarChange") : t("settings.avatarPick")}
+        </button>
+        {avatar && !busy && (
+          <button
+            type="button"
+            onClick={async () => {
+              await clearAvatar();
+              await qc.invalidateQueries({ queryKey: ["profile"] });
+            }}
+            className="press-in min-h-11 rounded-full px-3 text-sm text-muted-foreground"
+          >
+            {t("settings.avatarClear")}
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])}
+        />
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.avatarHint")}</p>
+    </div>
+  );
+}
 
 function VideoRecordingToggle() {
   const t = useT();

@@ -960,6 +960,17 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。",
     en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
   },
+  "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
+  "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
+  "settings.avatarChange": { ja: "変更", en: "Change" },
+  "settings.avatarClear": { ja: "外す", en: "Remove" },
+  "settings.avatarSaving": { ja: "保存中…", en: "Saving…" },
+  "settings.avatarSaved": { ja: "プロフィール写真を変えました", en: "Profile photo updated" },
+  "settings.avatarFailed": { ja: "写真を保存できませんでした", en: "Couldn't save the photo" },
+  "settings.avatarHint": {
+    ja: "画面上のアイコンがこの写真になります。",
+    en: "This becomes the icon at the top of every screen.",
+  },
   "settings.reviewLimit": { ja: "1日の復習枚数", en: "Cards per day" },
   "settings.reviewLimitNone": { ja: "無制限", en: "All" },
   "settings.reviewLimitHint": {

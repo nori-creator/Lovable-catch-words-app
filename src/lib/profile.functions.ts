@@ -66,6 +66,64 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * プロフィール写真の登録。ヘッダーの丸アイコンに出る「自分の顔」。
+ * data URL(JPEG/PNG/WebP)を受け取り、公開バケット avatars の
+ * `${userId}/avatar-<ts>.<ext>` に保存して、その公開URLを profiles に書く。
+ * ファイル名に時刻を入れるのは、差し替えたときに古い画像がCDN/ブラウザの
+ * キャッシュから返り続けるのを防ぐため。
+ */
+const AvatarInput = z.object({
+  // 2MB 相当の base64 まで。巨大画像でストレージと転送を溶かさない。
+  dataUrl: z
+    .string()
+    .regex(/^data:image\/(jpeg|jpg|png|webp);base64,/, "画像(JPEG/PNG/WebP)を選んでください")
+    .max(2_800_000, "画像が大きすぎます(2MBまで)"),
+});
+
+export const setMyAvatar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => AvatarInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { userId } = context;
+    const match = /^data:image\/([a-z]+);base64,(.+)$/is.exec(data.dataUrl);
+    if (!match) throw new Error("画像を読み取れませんでした");
+    const [, rawExt, b64] = match;
+    const ext = rawExt.toLowerCase() === "jpeg" ? "jpg" : rawExt.toLowerCase();
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = `${userId}/avatar-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from("avatars")
+      .upload(path, bytes, { contentType: `image/${rawExt.toLowerCase()}`, upsert: true });
+    if (upErr) throw new Error(upErr.message);
+
+    const {
+      data: { publicUrl },
+    } = supabaseAdmin.storage.from("avatars").getPublicUrl(path);
+
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_url: publicUrl } as never)
+      .eq("id", userId);
+    if (error) throw new Error(error.message);
+    return { avatar_url: publicUrl };
+  });
+
+/** プロフィール写真を外して、既定のマークに戻す。 */
+export const clearMyAvatar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_url: null } as never)
+      .eq("id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 const DeleteInput = z.object({
   // The client must send the literal confirmation the user typed — a stray
   // fetch or replayed request can never wipe an account by accident.

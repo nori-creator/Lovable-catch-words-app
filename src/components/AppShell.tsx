@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
+import { getMyProfile } from "@/lib/profile.functions";
 import { useT } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
@@ -24,6 +26,38 @@ const items: Item[] = [
   { to: "/review", labelKey: "nav.review", icon: Sparkles },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
+
+/**
+ * ヘッダーの丸アイコン。設定で顔写真を登録していればそれを出す。
+ * 「自分の写真が毎画面にいる」ほうがアプリに愛着が湧く(NORI指定)。
+ * 未設定のうちは従来のマークにフォールバックするので、写真が無くても崩れない。
+ * (ログイン画面のアイコンとアプリアイコンは別途差し替える予定。)
+ */
+function BrandMark() {
+  const fetchProfile = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const avatar = (profile as { avatar_url?: string | null } | undefined)?.avatar_url;
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt=""
+        width={32}
+        height={32}
+        className="h-8 w-8 shrink-0 rounded-xl object-cover shadow-md ring-1 ring-black/5"
+      />
+    );
+  }
+  return (
+    <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-sm font-bold text-primary-foreground shadow-md shadow-primary/30">
+      C
+    </div>
+  );
+}
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const logEvent = useServerFn(logAppEvent);
@@ -54,9 +88,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             to="/home"
             className="flex items-center gap-2 transition-transform duration-150 active:scale-95"
           >
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-sm font-bold text-primary-foreground shadow-md shadow-primary/30">
-              C
-            </div>
+            <BrandMark />
             {/* §15: app title is a small headline — tight tracking, no wrapping. */}
             <span className="text-base font-semibold tracking-[-0.02em]">
               {title ?? "Catchwords"}
