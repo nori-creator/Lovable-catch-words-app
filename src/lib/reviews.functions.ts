@@ -17,7 +17,7 @@ import {
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
-import { normalizeExtras } from "./extras";
+import { normalizeExtras, type ChunkPart } from "./extras";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -28,6 +28,18 @@ import { normalizeExtras } from "./extras";
  *                  reverse when speech recognition is unavailable)
  */
 export type ReviewMode = "recognition" | "listening" | "reverse" | "production";
+
+/** 答え合わせに出す解説(スピーキングで使える塊を優先して並べる)。 */
+export type ReviewExplain = {
+  /** ネイティブがよく使う型。parts は品詞つきなので色分けして見せる。 */
+  chunks: Array<{ parts: ChunkPart[]; ja: string }>;
+  /** 一緒に/近い意味で使う語。 */
+  related: Array<{ word: string; kind: "syn" | "ant" | "rel"; note: string }>;
+  /** 量詞(名詞のときだけ)。 */
+  measures: Array<{ word: string; note: string }>;
+  /** 知っておくと得な一言。 */
+  note: string;
+};
 
 export type DueReviewCard = {
   review_id: string;
@@ -45,6 +57,8 @@ export type DueReviewCard = {
    * zh = 繁体字の型、ja = 短い説明。無ければ null。
    */
   top_chunk: { zh: string; ja: string } | null;
+  /** 答え合わせで見せる解説一式(スピーキングで使える塊優先)。 */
+  explain: ReviewExplain | null;
   category_key: string | null;
   entry_type: string;
   cutout_url: string | null;
@@ -132,6 +146,37 @@ function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
   const legacy = ex.collocations?.[0];
   if (legacy?.trim()) return { zh: legacy, ja: "" };
   return null;
+}
+
+/**
+ * 答え合わせで見せる解説一式。
+ *
+ * 復習の目的は「その場で口から出せるようになる」ことなので、辞書的な説明では
+ * なく**そのまま言える塊**を先に出す:
+ *  - chunks   : ネイティブがよく使う型(品詞で色分けして見せる)
+ *  - related  : 一緒に/近い意味で使う語
+ *  - measures : 量詞(名詞のときだけ)
+ *  - note     : 知っておくと得な一言
+ * 量は絞る — 4択の答え合わせは一瞬で読めることが最優先。
+ */
+function explainOf(rawExtras: unknown): ReviewExplain | null {
+  const ex = normalizeExtras(rawExtras);
+  if (!ex) return null;
+  const chunks = (ex.usage_chunks ?? [])
+    .filter((c) => (c.parts?.length ?? 0) > 0)
+    .slice(0, 3)
+    .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
+  const related = (ex.related_words ?? [])
+    .filter((r) => !!r.word?.trim())
+    .slice(0, 4)
+    .map((r) => ({ word: r.word, kind: r.kind, note: r.note ?? "" }));
+  const measures = (ex.measure_words ?? [])
+    .filter((m) => !!m.word?.trim())
+    .slice(0, 2)
+    .map((m) => ({ word: m.word, note: m.note ?? "" }));
+  const note = (ex.taiwan_note || ex.usage_context || "").trim();
+  if (!chunks.length && !related.length && !measures.length && !note) return null;
+  return { chunks, related, measures, note };
 }
 
 /** ローカル日付の 0:00 を ISO で返す(「今日の復習枚数」の起点)。 */
@@ -442,6 +487,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
         // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
         top_chunk: topChunkOf(w.extras),
+        explain: explainOf(w.extras),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
