@@ -134,6 +134,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.hearCorrection": { ja: "添削文を聞く", en: "Listen to the correction" },
   "rv.nextArrow": { ja: "次へ", en: "Next" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern" },
+  "dex.allCategories": { ja: "すべて", en: "All" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “" },
   "rv.whichIsAfter": { ja: "」はどれ?", en: "”?" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}" },
