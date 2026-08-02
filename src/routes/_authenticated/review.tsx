@@ -1374,7 +1374,10 @@ function LightModeCard({
             「ネイティブが最もよく一緒に使う形」1つに絞る。 */}
         {picked && (
           <div className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]">
-            <div className="app-sheet mx-auto max-w-3xl rounded-t-3xl px-4 pb-3 pt-3">
+            {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
+                (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
+                影で浮いていることを示す。 */}
+            <div className="mx-auto max-w-3xl rounded-t-3xl border-t border-border bg-card px-4 pb-3 pt-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.35)]">
               <div className="mb-1.5 flex items-center gap-2">
                 <span
                   className={`text-sm font-semibold ${correct ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}

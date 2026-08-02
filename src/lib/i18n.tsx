@@ -135,6 +135,15 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.nextArrow": { ja: "次へ", en: "Next" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern" },
   "dex.allCategories": { ja: "すべて", en: "All" },
+  "dex.calendar": { ja: "カレンダー", en: "Calendar" },
+  "dex.calendarEmpty": {
+    ja: "まだ写真がありません。撮るとその日のマスに入ります。",
+    en: "No photos yet. Each one lands on the day you took it.",
+  },
+  "dex.prevMonth": { ja: "前の月", en: "Previous month" },
+  "dex.nextMonth": { ja: "次の月", en: "Next month" },
+  "dex.dayUnit": { ja: "日", en: "" },
+  "dex.allDays": { ja: "すべての日", en: "All days" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “" },
   "rv.whichIsAfter": { ja: "」はどれ?", en: "”?" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}" },
@@ -373,6 +382,22 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "set.placeHint": {
     ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。",
     en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed.",
+  },
+  "set.placeUnsupported": {
+    ja: "このブラウザでは通知を使えません。iPhone の場合は Safari の共有ボタンから「ホーム画面に追加」して、そのアイコンから開くとオンにできます。",
+    en: "This browser can't use notifications. On iPhone, add the app to your Home Screen from Safari's share menu and open it from that icon.",
+  },
+  "set.placeDenied": {
+    ja: "通知が拒否されています。端末の設定 → 通知 からこのアプリの通知を許可すると、ここでオンにできます。",
+    en: "Notifications are blocked. Allow them for this app in your device settings, then turn this on again.",
+  },
+  "set.placeDismissed": {
+    ja: "許可のダイアログが閉じられました。もう一度タップすると出ます。",
+    en: "The permission dialog was dismissed. Tap again to show it.",
+  },
+  "set.placeError": {
+    ja: "通知の許可を確認できませんでした。時間をおいてもう一度お試しください。",
+    en: "Couldn't check notification permission. Please try again later.",
   },
   "set.aiProviderAria": { ja: "AI提供元", en: "AI provider" },
   "set.aiEffective": {

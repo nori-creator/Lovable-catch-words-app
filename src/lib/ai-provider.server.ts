@@ -218,19 +218,40 @@ export async function withModelFallback<T>(
   preferred: string,
   run: (model: string) => Promise<T>,
 ): Promise<T> {
-  try {
-    return await run(preferred);
-  } catch (e) {
-    const msg = (e as Error)?.message ?? "";
-    const looksMissingModel =
-      /not found|404|does not exist|unknown model|invalid model|unsupported model/i.test(msg);
-    const fallback = ai.provider === "google" ? GOOGLE_DEFAULT_FAST : ai.modelRich;
-    if (!looksMissingModel || fallback === preferred) throw e;
-    console.warn(
-      `[ai] model "${preferred}" unavailable (${msg.slice(0, 120)}) — falling back to "${fallback}"`,
-    );
-    return await run(fallback);
+  // 1段だけの退避では足りなかった(2026-08-02): 管理者は modelRichPremium
+  // (gemini-2.5-pro など)で走るが、無料枠のキーではそのモデルが 404 になる。
+  // 退避先が1つしか無いとそこも落ちた時点で機能が死に、画面には生の
+  // "Not Found" だけが出て「解説が出ない」ように見えていた。
+  // 候補を順に試し、**最後の1つまで落ちて初めて**エラーにする。
+  const chain = [preferred, ai.modelRich, ai.modelFast, GOOGLE_DEFAULT_FAST].filter(
+    (m, i, a) => !!m && a.indexOf(m) === i,
+  );
+  let lastErr: unknown;
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    try {
+      return await run(model);
+    } catch (e) {
+      lastErr = e;
+      const msg = (e as Error)?.message ?? "";
+      const looksMissingModel =
+        /not found|404|does not exist|unknown model|invalid model|unsupported model/i.test(msg);
+      // モデルの問題でないなら(認証・レート上限など)、別モデルで直る話では
+      // ないので即座に投げ返す。
+      if (!looksMissingModel) throw e;
+      if (i < chain.length - 1) {
+        console.warn(
+          `[ai] model "${model}" unavailable (${msg.slice(0, 120)}) — trying "${chain[i + 1]}"`,
+        );
+      }
+    }
   }
+  // 全滅。**どのモデルを試したか**を残さないと原因に辿り着けない。
+  throw new Error(
+    `AIモデルが見つかりませんでした(試した順: ${chain.join(" → ")})。` +
+      `設定のAIモデルを既定に戻すか、キーで使えるモデル名に変えてください。` +
+      (lastErr instanceof Error ? ` 詳細: ${lastErr.message.slice(0, 160)}` : ""),
+  );
 }
 
 /**
