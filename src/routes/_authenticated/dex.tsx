@@ -7,7 +7,18 @@ import { listMyStickers } from "@/lib/stickers.functions";
 import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
-import { LayoutGrid, List, Map as MapIcon, Search, X, Volume2, MapPin } from "lucide-react";
+import {
+  LayoutGrid,
+  List,
+  Map as MapIcon,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+  Volume2,
+  MapPin,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
@@ -33,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "gallery" | "list" | "map";
+type ViewMode = "gallery" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -82,7 +93,8 @@ function DexPage() {
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (saved === "list" || saved === "gallery" || saved === "map") setView(saved);
+    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
+      setView(saved);
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     if (savedCat) setActiveCategory(savedCat);
   }, []);
@@ -173,6 +185,7 @@ function DexPage() {
               ["gallery", LayoutGrid, t("dex.gallery")],
               ["list", List, t("dex.list")],
               ["map", MapIcon, t("dex.map")],
+              ["calendar", CalendarDays, t("dex.calendar")],
             ] as const
           ).map(([v, Icon, label]) => (
             <button
@@ -258,6 +271,8 @@ function DexPage() {
         // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
         // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
         <DexMap stickers={filtered} onOpen={setOpenId} />
+      ) : view === "calendar" ? (
+        <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -618,6 +633,181 @@ function PackGallery({
   );
 }
 
+/** ローカル日付キー(YYYY-MM-DD)。UTC変換で日付がずれないよう自前で組む。 */
+function dayKeyOf(iso: string): string {
+  const d = new Date(iso);
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * カレンダー表示: その日に撮った写真が、その日のマスに入る。
+ * 「いつ何を集めたか」が一目で分かる — 日記としての図鑑。
+ */
+function DexCalendar({
+  stickers,
+  onOpen,
+}: {
+  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  onOpen: (id: string) => void;
+}) {
+  const t = useT();
+  // 写真がある日だけをまとめる。
+  const byDay = useMemo(() => {
+    const m = new Map<string, typeof stickers>();
+    for (const s of stickers) {
+      const k = dayKeyOf(s.created_at);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(s);
+    }
+    return m;
+  }, [stickers]);
+
+  // 最初に開く月は「一番新しい写真の月」。空の今月を見せても意味がない。
+  const newest = useMemo(() => {
+    let best: string | null = null;
+    for (const k of byDay.keys()) if (!best || k > best) best = k;
+    return best;
+  }, [byDay]);
+  const [cursor, setCursor] = useState<{ y: number; m: number }>(() => {
+    const d = newest ? new Date(`${newest}T00:00:00`) : new Date();
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+  useEffect(() => {
+    if (!newest) return;
+    const d = new Date(`${newest}T00:00:00`);
+    setCursor({ y: d.getFullYear(), m: d.getMonth() });
+  }, [newest]);
+
+  const first = new Date(cursor.y, cursor.m, 1);
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const leading = first.getDay(); // 0=日
+  const cells: (number | null)[] = [
+    ...Array.from({ length: leading }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const dayItems = openDay ? (byDay.get(openDay) ?? []) : [];
+
+  const monthLabel = first.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          onClick={() =>
+            setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))
+          }
+          aria-label={t("dex.prevMonth")}
+          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <p className="text-sm font-semibold">{monthLabel}</p>
+        <button
+          onClick={() =>
+            setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { ...c, m: c.m + 1 }))
+          }
+          aria-label={t("dex.nextMonth")}
+          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((day, i) => {
+          if (day == null) return <div key={`x${i}`} />;
+          const key = `${cursor.y}-${`${cursor.m + 1}`.padStart(2, "0")}-${`${day}`.padStart(2, "0")}`;
+          const items = byDay.get(key) ?? [];
+          const thumb = items[0]
+            ? (items[0].object_thumb_url ??
+              items[0].object_url ??
+              items[0].cutout_thumb_url ??
+              items[0].cutout_url)
+            : null;
+          const has = items.length > 0;
+          return (
+            <button
+              key={key}
+              onClick={() => has && setOpenDay(openDay === key ? null : key)}
+              disabled={!has}
+              aria-pressed={openDay === key}
+              aria-label={`${day}${t("dex.dayUnit")}${has ? ` — ${items.length}` : ""}`}
+              className={`relative aspect-square overflow-hidden rounded-lg border text-left ${
+                openDay === key ? "border-primary ring-2 ring-primary/40" : "border-border"
+              } ${has ? "bg-secondary" : "bg-card opacity-50"}`}
+            >
+              {thumb && (
+                <CachedImg
+                  src={thumb}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              )}
+              <span
+                className={`absolute left-0.5 top-0.5 rounded px-1 text-[10px] font-semibold ${
+                  thumb ? "bg-black/55 text-white" : "text-muted-foreground"
+                }`}
+              >
+                {day}
+              </span>
+              {items.length > 1 && (
+                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[9px] font-bold text-white">
+                  {items.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {openDay && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-semibold">{openDay}</p>
+          <div className="grid grid-cols-3 gap-2.5">
+            {dayItems.map((s) => {
+              const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_url;
+              return (
+                <button key={s.id} onClick={() => onOpen(s.id)} className="block text-left">
+                  <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary shadow-md ring-1 ring-black/5">
+                    {photo ? (
+                      <CachedImg
+                        src={photo}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-full place-items-center px-1 text-center">
+                        <Zh className="text-sm font-semibold">{s.word.headword}</Zh>
+                      </div>
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
+                      <Zh className="block truncate text-[12px] font-semibold text-white">
+                        {s.word.headword}
+                      </Zh>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {byDay.size === 0 && (
+        <p className="mt-6 text-center text-sm text-muted-foreground">{t("dex.calendarEmpty")}</p>
+      )}
+    </section>
+  );
+}
+
 function DexMap({
   stickers,
   onOpen,
@@ -625,6 +815,23 @@ function DexMap({
   stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
   onOpen: (id: string) => void;
 }) {
+  // 撮った日で地図を絞る(NORI指定)。選べるのは**実際に写真がある日だけ**なので、
+  // 押しても何も出ない日付は最初から並ばない。
+  const [dayFilter, setDayFilter] = useState<string | null>(null);
+  const availableDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of stickers) if (s.lat != null && s.lng != null) set.add(dayKeyOf(s.created_at));
+    return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
+  }, [stickers]);
+  useEffect(() => {
+    if (dayFilter && !availableDays.includes(dayFilter)) setDayFilter(null);
+  }, [dayFilter, availableDays]);
+  const shown = useMemo(
+    () => (dayFilter ? stickers.filter((s) => dayKeyOf(s.created_at) === dayFilter) : stickers),
+    [stickers, dayFilter],
+  );
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
   const mapRef = useRef<HTMLDivElement>(null);
   // renderMarkers はマウント時のクロージャを使い回すので、最新の onOpen を
   // ref 経由で参照する(古い関数を掴んだままにしない)。
@@ -758,7 +965,7 @@ function DexMap({
   useEffect(() => {
     if (mapInstance.current) renderMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stickers]);
+  }, [shown]);
 
   // Tapping a photo below pans+zooms the map to where it was caught.
   function focusOnMap(s: (typeof stickers)[number]) {
@@ -774,7 +981,7 @@ function DexMap({
     mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const withLoc = stickers.filter((s) => s.lat != null && s.lng != null);
+  const withLoc = shown.filter((s) => s.lat != null && s.lng != null);
   const recent = withLoc.slice(0, 12);
 
   if (!browserKey) {
@@ -791,6 +998,40 @@ function DexMap({
         ref={mapRef}
         className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
       />
+
+      {/* 撮った日で絞る。並ぶのは**写真がある日だけ**(新しい順)なので、
+          押しても何も出ない日付は存在しない。 */}
+      {availableDays.length > 1 && (
+        <div className="-mx-4 mt-3 overflow-x-auto px-4">
+          <div className="flex w-max gap-1.5">
+            <button
+              onClick={() => setDayFilter(null)}
+              aria-pressed={dayFilter === null}
+              className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                dayFilter === null
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              {t("dex.allDays")}
+            </button>
+            {availableDays.map((d) => (
+              <button
+                key={d}
+                onClick={() => setDayFilter(d)}
+                aria-pressed={dayFilter === d}
+                className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                  dayFilter === d
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {d.slice(5).replace("-", "/")}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
         <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
