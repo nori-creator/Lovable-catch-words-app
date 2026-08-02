@@ -1,63 +1,60 @@
-import { useEffect } from "react";
-import { Sound } from "@/lib/sound-engine";
-import { haptic } from "@/lib/haptics";
-import { useT } from "@/lib/i18n";
+import { useEffect, useState, type ReactElement } from "react";
+import { EFFECT_LAB_EVENT, getVariant, type EffectSlot } from "@/lib/effect-lab";
+import { ScanAnalyzing_v1probe } from "./effects/scan-analyzing/v1_probe";
+import { ScanAnalyzing_v2liquid } from "./effects/scan-analyzing/v2_liquid";
+import { ScanAnalyzing_v3crystal } from "./effects/scan-analyzing/v3_crystal";
+import { ScanAnalyzing_v4calm } from "./effects/scan-analyzing/v4_calm";
+import { ScanAnalyzing_v5optionb } from "./effects/scan-analyzing/v5_optionb";
+import { ScanAnalyzing_v6minimal } from "./effects/scan-analyzing/v6_minimal";
+import { ScanAnalyzing_v7fullscreen } from "./effects/scan-analyzing/v7_fullscreen";
+import { ScanAnalyzing_v8current } from "./effects/scan-analyzing/v8_current";
 
 /**
- * スキャン中の演出(2026-07-27 NORI指定で「1つ前」に戻した版)。
+ * スキャン中(AI分析中)の演出。
  *
- * 画面全体がアプリの青に染まり、中央に「AIが分析中…」だけ。
- * 走査線・グリッド・粒子といった装飾はやめ、静かで上質な待ち時間にする。
- * 進行が分かるよう、動くのは細い3本のバーの幅だけ。
+ * 中身は歴代の演出をそのまま variant として残してあり、開発者は設定の
+ * 「エフェクト・ラボ」で見比べて選べる(src/lib/effect-lab.ts)。
+ * 既定は現行版なので、選んでいない人の見え方は今までと変わらない。
  */
-
 type Stage = "sensing" | "reading" | "matching";
 
+const SLOT: EffectSlot = "scanAnalyzing";
+
+const VARIANTS: Record<string, (p: { stage: Stage }) => ReactElement> = {
+  v1probe: ScanAnalyzing_v1probe,
+  v2liquid: ScanAnalyzing_v2liquid,
+  v3crystal: ScanAnalyzing_v3crystal,
+  v4calm: ScanAnalyzing_v4calm,
+  v5optionb: ScanAnalyzing_v5optionb,
+  v6minimal: ScanAnalyzing_v6minimal,
+  v7fullscreen: ScanAnalyzing_v7fullscreen,
+  v8current: ScanAnalyzing_v8current,
+};
+
+/** ラボでの選択に追従する(選んだ瞬間に反映される)。 */
+export function useEffectVariant(slot: EffectSlot): string {
+  const [id, setId] = useState(() => getVariant(slot));
+  useEffect(() => {
+    const sync = () => setId(getVariant(slot));
+    sync();
+    window.addEventListener(EFFECT_LAB_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(EFFECT_LAB_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, [slot]);
+  return id;
+}
+
 export function ScanEffect({ stage }: { stage: Stage }) {
-  const t = useT();
+  const id = useEffectVariant(SLOT);
+  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v8current;
+  return <Chosen stage={stage} />;
+}
 
-  useEffect(() => {
-    Sound.scanStart();
-    haptic("light");
-  }, []);
-
-  useEffect(() => {
-    if (stage === "reading") {
-      Sound.scanReading();
-      haptic("selection");
-    }
-    if (stage === "matching") haptic("light");
-  }, [stage]);
-
-  const idx = stage === "sensing" ? 0 : stage === "reading" ? 1 : 2;
-
-  return (
-    <div className="absolute inset-0 grid place-items-center">
-      {/* 画面全体がアプリの青に染まる — 世界が読み取られている合図。 */}
-      <div className="absolute inset-0 bg-primary/35 backdrop-blur-[2px]" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/15" />
-
-      <div className="relative flex flex-col items-center gap-2.5">
-        <p
-          className="text-[15px] font-medium tracking-[-0.01em] text-white"
-          style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
-        >
-          {t("scan.analyzing")}
-        </p>
-        {/* 動くのは幅だけ — 静かな進行の読み取り。 */}
-        <div className="flex gap-1.5" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="h-[2px] rounded-full transition-all duration-500"
-              style={{
-                width: i === idx ? 24 : 8,
-                background: i <= idx ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)",
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+/** ラボのプレビュー用: variant を直接指定して描画する。 */
+export function ScanEffectVariant({ id, stage }: { id: string; stage: Stage }) {
+  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v8current;
+  return <Chosen stage={stage} />;
 }

@@ -214,7 +214,8 @@ function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: 
 }
 
 function DayHeader({ date, label, compact }: { date: Date; label?: string; compact?: boolean }) {
-  const locale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const isEn = useUiLang() === "en";
+  const locale = isEn ? "en-US" : "ja-JP";
   const dateLabel = date.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
@@ -226,10 +227,17 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
       {label && (
         <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
       )}
-      {/* §15: large display text takes tight leading + negative tracking; the
-          small caps labels around it keep wide positive tracking. */}
+      {/* §15 typography: tracking is size- AND script-specific.
+          The serif *italic* is a Latin conceit — applied to a Japanese date
+          ("2026年8月2日") the browser synthesises the slant and the negative
+          tracking pulls the digits into the following kanji, so they visibly
+          collide. Japanese therefore renders upright with neutral tracking
+          (CJK glyphs are full-width and need no tightening); English keeps the
+          elegant serif italic. */}
       <h1
-        className={`${compact ? "mt-1 text-xl leading-[1.05]" : "mt-2 text-3xl leading-[1.02]"} font-serif italic tracking-[-0.02em]`}
+        className={`${compact ? "mt-1 text-xl leading-[1.15]" : "mt-2 text-3xl leading-[1.12]"} font-serif ${
+          isEn ? "italic tracking-[-0.02em]" : "not-italic tracking-normal"
+        }`}
       >
         {dateLabel}
       </h1>
@@ -263,6 +271,7 @@ function ScrapbookAlbum({
   onOpen: (id: string) => void;
 }) {
   const t = useT();
+  const isEn = useUiLang() === "en";
   const items = useMemo(
     () =>
       stickers.map((s, i) => ({
@@ -321,10 +330,13 @@ function ScrapbookAlbum({
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
                 {/* 帯の中の見出し語。手書き風(.handwritten)は付けない —
-                    Caveat に漢字が無いため、繁体字の字形指定を壊してしまう。 */}
+                    Caveat に漢字が無いため、繁体字の字形指定を壊してしまう。
+                    §3 Clarity: 見出し語はこのカードの主役なので、細く薄い字では
+                    なく「やや大きく・semibold・不透明」で読ませる。繁体字は画数が
+                    多く小さいと潰れるため、字間も少し開ける。 */}
                 <span
                   lang="zh-Hant"
-                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[13px] leading-[22px] text-stone-700/90"
+                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[14px] font-semibold leading-[22px] tracking-[0.02em] text-stone-900"
                 >
                   {s.word.headword}
                 </span>
@@ -334,8 +346,15 @@ function ScrapbookAlbum({
         })}
       </div>
 
+      {/* §3 Typography: .handwritten (Caveat) has no CJK glyphs, so in Japanese
+          only the digit rendered as handwriting while 「枚の思い出」 fell back to
+          the UI font — one line in two different typefaces. Latin keeps the
+          handwritten album caption; Japanese renders the whole line in one
+          consistent face. (Same reason the headword above avoids .handwritten.) */}
       <div className="relative mt-8 text-right">
-        <span className="handwritten text-base text-amber-900/70">
+        <span
+          className={`text-base text-amber-900/70 ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
+        >
           — {stickers.length} {t("home.memories")}
         </span>
       </div>

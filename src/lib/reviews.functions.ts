@@ -17,6 +17,7 @@ import {
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
+import { normalizeExtras } from "./extras";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -38,6 +39,12 @@ export type DueReviewCard = {
   meaning_ja: string;
   example_sentence: string | null;
   example_translation: string | null;
+  /**
+   * 4択の答え合わせで見せる「ネイティブが最もよく一緒に使う形」。
+   * 例文は長くて読み飛ばされるので、チャンク(型)1つに絞る。
+   * zh = 繁体字の型、ja = 短い説明。無ければ null。
+   */
+  top_chunk: { zh: string; ja: string } | null;
   category_key: string | null;
   entry_type: string;
   cutout_url: string | null;
@@ -110,20 +117,117 @@ function pickThree(correct: string, ...pools: string[][]): string[] {
   return out;
 }
 
+/**
+ * 単語の extras から「最もよく一緒に使う型」を1つ取り出す。
+ * usage_chunks[0] は生成時に「よく使う動詞・量詞・定番チャンクを優先」して
+ * 並べてあるので先頭が最頻。パーツを繋いで読める1行にする。
+ * 旧データ(collocations だけ)にも耐えるようフォールバックを持つ。
+ */
+function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
+  const ex = normalizeExtras(rawExtras);
+  if (!ex) return null;
+  const chunk = ex.usage_chunks?.[0];
+  const zh = chunk?.parts?.map((p) => p.text).join("") ?? "";
+  if (zh.trim()) return { zh, ja: chunk?.ja ?? "" };
+  const legacy = ex.collocations?.[0];
+  if (legacy?.trim()) return { zh: legacy, ja: "" };
+  return null;
+}
+
+/** ローカル日付の 0:00 を ISO で返す(「今日の復習枚数」の起点)。 */
+function startOfLocalDayIso(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+export type ReviewStageFocus = "all" | "weak" | "new";
+
+/**
+ * 復習の出題設定。列がまだ無い環境(マイグレーション未適用)でも
+ * 既定値で動き続けるよう、読めなければ既定にフォールバックする。
+ */
+async function getReviewPrefs(
+  supabase: { from: (t: string) => never } | unknown,
+  userId: string,
+): Promise<{ limit: number; focus: ReviewStageFocus }> {
+  const fallback = { limit: 20, focus: "all" as ReviewStageFocus };
+  try {
+    const { data, error } = await (
+      supabase as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              maybeSingle: () => Promise<{
+                data: { review_daily_limit?: number; review_stage_focus?: string } | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      }
+    )
+      .from("profiles")
+      .select("review_daily_limit, review_stage_focus")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error || !data) return fallback;
+    const limit = typeof data.review_daily_limit === "number" ? data.review_daily_limit : 20;
+    const focus =
+      data.review_stage_focus === "weak" || data.review_stage_focus === "new"
+        ? (data.review_stage_focus as ReviewStageFocus)
+        : "all";
+    return { limit: Math.max(0, Math.min(200, limit)), focus };
+  } catch {
+    return fallback;
+  }
+}
+
 export const getDueReviews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<DueReviewCard[]> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
+
+    // 1日の上限(NORI指摘: 開くたびに新しい単語が無限に出て終われない)。
+    // 「今日すでに何枚やったか」を review_history から数え、残り枚数だけ返す。
+    // 端末をまたいでも一貫させたいのでサーバー側で数える。0 = 無制限。
+    const { limit: dailyLimit, focus: stageFocus } = await getReviewPrefs(supabase, userId);
+    let remaining = Number.POSITIVE_INFINITY;
+    if (dailyLimit > 0) {
+      const since = startOfLocalDayIso();
+      const { count } = await supabase
+        .from("review_history")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", since);
+      remaining = Math.max(0, dailyLimit - (count ?? 0));
+      if (remaining === 0) return [];
+    }
+    // 1回のフェッチは最大10枚のまま(体感の軽さ)。残り枚数がそれ未満なら絞る。
+    const fetchLimit = Math.min(10, remaining);
+
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type))`;
-    let { data, error } = await supabase
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
+    // 記憶段階の優先度(設定):
+    //   weak = 忘れかけ(ease が低い=何度も間違えた語)から先に
+    //   new  = 覚えたて(復習回数が少ない語)から先に
+    //   all  = 期限順(既定)
+    const basQuery = supabase
       .from("reviews")
       .select(dueSelect(true))
       .eq("user_id", userId)
-      .lte("due_at", nowIso)
-      .order("due_at", { ascending: true })
-      .limit(10);
+      .lte("due_at", nowIso);
+    const focused =
+      stageFocus === "weak"
+        ? basQuery.order("ease", { ascending: true })
+        : stageFocus === "new"
+          ? basQuery.order("repetitions", { ascending: true })
+          : basQuery;
+    let { data, error } = await focused.order("due_at", { ascending: true }).limit(fetchLimit);
     if (error && /placeholder_image_url|entry_type|branch_plan/.test(error.message)) {
       ({ data, error } = (await supabase
         .from("reviews")
@@ -133,7 +237,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         .eq("user_id", userId)
         .lte("due_at", nowIso)
         .order("due_at", { ascending: true })
-        .limit(10)) as unknown as { data: typeof data; error: typeof error });
+        .limit(fetchLimit)) as unknown as { data: typeof data; error: typeof error });
     }
     if (error) throw new Error(error.message);
 
@@ -162,6 +266,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
           example_translation: string | null;
           category_key: string | null;
           entry_type: string | null;
+          extras?: unknown;
         } | null;
       } | null;
     };
@@ -334,6 +439,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         meaning_ja: w.meaning_ja,
         example_sentence: w.example_sentence,
         example_translation: w.example_translation,
+        // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
+        // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
+        top_chunk: topChunkOf(w.extras),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,

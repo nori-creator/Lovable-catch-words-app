@@ -81,6 +81,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
 
@@ -329,21 +330,32 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   useEffect(() => {
     if (!s) return;
     const ex = s.word.extras;
+    // 完成判定は**いま生成している項目**で行う。
+    // 以前はここが旧スキーマ(collocations / synonyms / trivia / register_note /
+    // synonym_diff / word_order / study_tips など)だけを見ていた。今の
+    // generateCard はそれらを一切作らないため、
+    //  ・新しく作ったカードでも「未完成」と判定され毎回AIを呼び直す(課金・待ち時間)
+    //  ・逆に、実際に表示する項目(usage_chunks / usage_context / related_words /
+    //    pronunciation_tips / taiwan_note …)が欠けていても検知できない
+    // という二重の不具合になっていた＝「AIの解説が出ない」の主因。
+    const filled = (v: unknown) =>
+      Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim().length > 0 : v != null;
     const isEmpty =
       !ex ||
-      (!ex.collocations.length &&
-        !ex.synonyms.length &&
-        !ex.antonyms.length &&
-        !ex.etymology &&
-        !ex.mnemonic &&
-        !ex.trivia &&
-        !ex.common_situation &&
-        !ex.usage_note &&
-        !ex.examples_extra.length);
-    // Cards generated before 2026-07-13 lack the corpus-style fields
-    // (頻度・類義語との違い・語順・勉強のコツ) — refresh those once too.
+      ![
+        ex.usage_chunks,
+        ex.usage_context,
+        ex.related_words,
+        ex.pronunciation_tips,
+        ex.taiwan_note,
+        ex.etymology,
+        ex.mnemonic,
+        ex.examples_extra,
+      ].some(filled);
+    // 部分的に欠けたカードも1回だけ作り直す(主要項目が揃っていなければ未完成)。
     const missingNewFields =
-      !ex || (!ex.register_note && !ex.synonym_diff && !ex.word_order && !ex.study_tips);
+      !ex ||
+      ![ex.usage_chunks, ex.usage_context, ex.related_words, ex.pronunciation_tips].every(filled);
     // #65: 表示言語を切り替えたら解説もその言語にする。
     // extras.explain_lang が今の言語と違う(または空=旧データ)なら作り直す。
     // 生成は言語ごとに1回だけで、以後は保存された解説をそのまま出す。
@@ -357,6 +369,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     if (enrichedRef.current.has(guardKey)) return;
     enrichedRef.current.add(guardKey);
     setEnriching(true);
+    setEnrichError(null);
     (async () => {
       try {
         const card = await enrichWord({
@@ -384,6 +397,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         // Let a later reopen retry instead of leaving the word details blank
         // forever (words filed fast from the dictionary start with no extras).
         enrichedRef.current.delete(guardKey);
+        // 失敗を黙って握りつぶすと「解説がずっと出ない」状態と見分けが付かない。
+        // 理由と再試行手段を必ず画面に出す(apple-design §8 / §21 fallback)。
+        setEnrichError(e instanceof Error ? e.message : String(e));
       } finally {
         setEnriching(false);
       }
@@ -521,16 +537,20 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
               className="perspective-1200 mb-4"
-              role="button"
-              tabIndex={0}
-              aria-label={flipped ? t("card.flipBack") : t("card.flipToSelfie")}
+              // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
+              // ボタンとして振る舞うのも自撮りがあるときだけにする。
+              role={hasSelfie ? "button" : undefined}
+              tabIndex={hasSelfie ? 0 : undefined}
+              aria-label={
+                hasSelfie ? (flipped ? t("card.flipBack") : t("card.flipToSelfie")) : undefined
+              }
               onClick={() => {
                 // 長押し(写真の変更)が成立した後のクリックは無視する。
                 if (longPressFired.current) {
                   longPressFired.current = false;
                   return;
                 }
-                // 自撮りが無くてもクルッと回す — 裏面が「自撮りを足す場所」になる。
+                if (!hasSelfie) return;
                 setFlipped((f) => !f);
               }}
               onPointerDown={heroPressStart}
@@ -539,14 +559,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               onPointerCancel={heroPressEnd}
               onContextMenu={(e) => e.preventDefault()}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
                   e.preventDefault();
                   setFlipped((f) => !f);
                 }
               }}
             >
               <div
-                className={`card-flip relative aspect-[4/5] w-full cursor-pointer ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
               >
                 {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
@@ -605,9 +625,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       <Camera className="h-4 w-4" />
                     )}
                   </button>
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
-                    {t("card.flipToSelfie")}
-                  </span>
+                  {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
+                  {hasSelfie && (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                      {t("card.flipToSelfie")}
+                    </span>
+                  )}
                 </div>
 
                 {/* Back: the selfie (you + the thing) */}
@@ -714,6 +737,26 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-xs text-primary">
                 <Sparkles className="h-3.5 w-3.5 animate-pulse" />
                 {t("card.preparing")}
+              </div>
+            )}
+
+            {/* 解説の生成に失敗したときは、空欄のまま黙らせない。
+                何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
+            {!enriching && enrichError && (
+              <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-xs">
+                <p className="font-semibold text-destructive">{t("card.enrichFailed")}</p>
+                <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
+                <button
+                  onClick={() => {
+                    setEnrichError(null);
+                    enrichedRef.current.clear();
+                    void qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+                  }}
+                  className="press-in mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 font-medium"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {t("card.enrichRetry")}
+                </button>
               </div>
             )}
 

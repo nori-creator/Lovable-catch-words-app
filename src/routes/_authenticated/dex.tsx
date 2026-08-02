@@ -76,26 +76,49 @@ function DexPage() {
   const [view, setView] = useState<ViewMode>("gallery");
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
-  const [groupMode, setGroupMode] = useState<GroupMode>("category");
+  /** null = すべて。カテゴリー名のボタンで絞り込む。 */
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (saved === "list" || saved === "gallery" || saved === "map") setView(saved);
-    const savedGroup = typeof window !== "undefined" ? localStorage.getItem("dex-group") : null;
-    if (savedGroup === "category" || savedGroup === "pos") setGroupMode(savedGroup);
+    const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
+    if (savedCat) setActiveCategory(savedCat);
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
   }, [view]);
   useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("dex-group", groupMode);
-  }, [groupMode]);
+    if (typeof window === "undefined") return;
+    if (activeCategory) localStorage.setItem("dex-category", activeCategory);
+    else localStorage.removeItem("dex-category");
+  }, [activeCategory]);
+
+  /** ボタンに並べるカテゴリー: 持っている物だけを多い順に。 */
+  const categoryCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of captured) {
+      const k = (s.word.category_key ?? "other").toString();
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [captured]);
+
+  // 選んだカテゴリーが1件も無くなったら「すべて」に戻す(空画面で詰まらせない)。
+  useEffect(() => {
+    if (activeCategory && !categoryCounts.some(([k]) => k === activeCategory)) {
+      setActiveCategory(null);
+    }
+  }, [activeCategory, categoryCounts]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return captured;
-    return captured.filter((s) => {
+    const byCategory = activeCategory
+      ? captured.filter((s) => (s.word.category_key ?? "other").toString() === activeCategory)
+      : captured;
+    if (!q) return byCategory;
+    return byCategory.filter((s) => {
       const w = s.word;
       return (
         w.headword?.toLowerCase().includes(q) ||
@@ -105,23 +128,17 @@ function DexPage() {
         w.category_key?.toLowerCase().includes(q)
       );
     });
-  }, [captured, search]);
+  }, [captured, search, activeCategory]);
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const s of filtered) {
-      const k =
-        groupMode === "pos"
-          ? posBucket(s.word.part_of_speech, s.capture_type)
-          : (s.word.category_key ?? "other").toString();
+      const k = (s.word.category_key ?? "other").toString();
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
-    const entries = Array.from(map.entries());
-    return groupMode === "pos"
-      ? entries.sort((a, b) => POS_ORDER.indexOf(a[0]) - POS_ORDER.indexOf(b[0]))
-      : entries.sort((a, b) => b[1].length - a[1].length);
-  }, [filtered, groupMode]);
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filtered]);
 
   return (
     <AppShell title={t("title.dex")}>
@@ -192,27 +209,39 @@ function DexPage() {
         </div>
       )}
 
-      {/* B6: グルーピング切替(カテゴリ/品詞)。品詞は自動分類。 */}
+      {/* カテゴリーの実名で絞り込む(NORI指定: 「カテゴリー/品詞」の切替ボタンは
+          廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
+          カテゴリーの画像グループだけを表示する。
+          §2: 選択状態は色だけでなく aria-pressed と件数でも伝える。 */}
       {view !== "map" && captured.length > 0 && (
-        <div className="mb-3 flex gap-1.5">
-          {(
-            [
-              ["category", t("dex.category")],
-              ["pos", t("dex.pos")],
-            ] as const
-          ).map(([g, label]) => (
+        <div className="-mx-4 mb-3 overflow-x-auto px-4">
+          <div className="flex w-max gap-1.5">
             <button
-              key={g}
-              onClick={() => setGroupMode(g)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                groupMode === g
+              onClick={() => setActiveCategory(null)}
+              aria-pressed={activeCategory === null}
+              className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                activeCategory === null
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-secondary text-muted-foreground"
               }`}
             >
-              {label}
+              {t("dex.allCategories")} {captured.length}
             </button>
-          ))}
+            {categoryCounts.map(([key, count]) => (
+              <button
+                key={key}
+                onClick={() => setActiveCategory(key)}
+                aria-pressed={activeCategory === key}
+                className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                  activeCategory === key
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`} {count}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -248,13 +277,9 @@ function DexPage() {
           <section key={key} className="mb-6">
             <div className="mb-2 flex items-baseline justify-between">
               <h3 className="text-base font-semibold tracking-tight">
-                {/* 品詞グループは翻訳キーそのもの、カテゴリーは既知なら翻訳、
-                  未知のキーはそのまま見せる(訳が無いより分かる)。 */}
-                {groupMode === "pos"
-                  ? t(key)
-                  : categoryKey(key)
-                    ? t(categoryKey(key))
-                    : `✨ ${key}`}
+                {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
+                  (訳が無いより分かる)。 */}
+                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`}
               </h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
@@ -806,21 +831,6 @@ function DexMap({
       )}
     </>
   );
-}
-
-// B6: 品詞グルーピング。part_of_speech(日本語表記)を代表的なバケツに正規化。
-// 返すのは **翻訳キー**。表示言語が変わっても見出しが追従するようにする。
-type GroupMode = "category" | "pos";
-const POS_ORDER = ["pos.noun", "pos.verb", "pos.adj", "pos.phrase", "pos.other"];
-function posBucket(pos: string | null | undefined, captureType: string): string {
-  if (captureType === "phrase") return "pos.phrase";
-  const p = (pos ?? "").trim();
-  if (!p) return "pos.other";
-  if (/名詞|代名詞|数詞|量詞/.test(p)) return "pos.noun";
-  if (/動詞|助動詞/.test(p)) return "pos.verb";
-  if (/形容詞|形容動詞|副詞|形容/.test(p)) return "pos.adj";
-  if (/フレーズ|慣用|成語|挨拶|感嘆|感動詞|接続詞|助詞/.test(p)) return "pos.phrase";
-  return "pos.other";
 }
 
 /** カテゴリーキー → 翻訳キー。未知のキーはそのまま見せる(訳が無いよりまし)。 */

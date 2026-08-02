@@ -1270,7 +1270,6 @@ function LightModeCard({
   const t = useT();
   const phonetic = usePhoneticPref();
   const [picked, setPicked] = useState<string | null>(null);
-  const [score, setScore] = useState<number | null>(null);
   const startedAt = useRef<number>(Date.now());
   // 正誤はクライアントで即時判定する。以前はサーバー応答を待つ間
   // `!showResult?.correct` が true になり、正解タップでも一瞬❌が出ていた。
@@ -1287,9 +1286,7 @@ function LightModeCard({
         blur_seen: false,
         response_ms: Date.now() - startedAt.current,
       },
-    })
-      .then((res) => setScore(res.score))
-      .catch(() => toast.error(t("review.gradeFailed")));
+    }).catch(() => toast.error(t("review.gradeFailed")));
   }
 
   const infos = card.headword_choice_infos?.length
@@ -1370,45 +1367,56 @@ function LightModeCard({
             );
           })}
         </ul>
+        {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
+            毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
+            (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
+            意味がないので出さない。例文は長くて読まれないため、
+            「ネイティブが最もよく一緒に使う形」1つに絞る。 */}
         {picked && (
-          <div className="mt-4 rounded-2xl bg-secondary/60 p-4">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-semibold">
-                {correct ? t("review.correct") : t("review.tryAgain")}
-              </span>
-              {score != null && (
-                <span className="text-xs text-muted-foreground">
-                  {t("review.naturalness")} {score}/5
+          <div className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]">
+            <div className="app-sheet mx-auto max-w-3xl rounded-t-3xl px-4 pb-3 pt-3">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span
+                  className={`text-sm font-semibold ${correct ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
+                >
+                  {correct ? t("review.correct") : t("review.tryAgain")}
                 </span>
+                <span lang="zh-Hant" className="text-xl font-bold tracking-tight">
+                  {card.headword}
+                </span>
+                <span lang="zh-Hant" className="text-xs text-muted-foreground">
+                  {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
+                </span>
+                <button
+                  onClick={() => playAudio(card)}
+                  className="ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                  aria-label={t("card.playPron")}
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+              </div>
+
+              {card.top_chunk && (
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-secondary/60 px-3 py-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("rv.topChunk")}
+                  </span>
+                  <span lang="zh-Hant" className="text-base font-semibold">
+                    {card.top_chunk.zh}
+                  </span>
+                  {card.top_chunk.ja && (
+                    <span className="text-xs text-muted-foreground">{card.top_chunk.ja}</span>
+                  )}
+                </div>
               )}
-            </div>
-            <div className="mb-2 flex items-center gap-2">
-              <span lang="zh-Hant" className="text-2xl font-bold tracking-tight">
-                {card.headword}
-              </span>
-              <span lang="zh-Hant" className="text-xs text-muted-foreground">
-                {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-              </span>
+
               <button
-                onClick={() => playAudio(card)}
-                className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary"
-                aria-label={t("card.playPron")}
+                onClick={onNext}
+                className="min-h-11 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
               >
-                <Volume2 className="h-4 w-4" />
+                {t("review.next")}
               </button>
             </div>
-            {card.example_sentence && (
-              <div>
-                <div className="text-sm">{card.example_sentence}</div>
-                <div className="text-xs text-muted-foreground">{card.example_translation}</div>
-              </div>
-            )}
-            <button
-              onClick={onNext}
-              className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
-            >
-              {t("review.next")}
-            </button>
           </div>
         )}
       </article>

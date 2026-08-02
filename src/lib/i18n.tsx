@@ -133,6 +133,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.record": { ja: "録音", en: "Record" },
   "rv.hearCorrection": { ja: "添削文を聞く", en: "Listen to the correction" },
   "rv.nextArrow": { ja: "次へ", en: "Next" },
+  "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern" },
+  "dex.allCategories": { ja: "すべて", en: "All" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “" },
   "rv.whichIsAfter": { ja: "」はどれ?", en: "”?" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}" },
@@ -764,6 +766,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.regenAll": { ja: "✨ 解説を再生成", en: "✨ Regenerate details" },
   "card.regenPro": { ja: "解説の再生成は Pro 限定", en: "Regenerating details is Pro-only" },
   "card.preparing": { ja: "詳しい解説をAIが準備中…", en: "AI is preparing the details…" },
+  "card.enrichFailed": {
+    ja: "詳しい解説を作れませんでした",
+    en: "Couldn't generate the details",
+  },
+  "card.enrichRetry": { ja: "もう一度ためす", en: "Try again" },
   // --- home ---
   "home.emptyTitle": { ja: "きょうのページはまだ白紙です。", en: "Today's page is still blank." },
   "home.emptyHint": {
@@ -952,6 +959,31 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.reviewModeHint": {
     ja: "スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。",
     en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
+  },
+  "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
+  "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
+  "settings.avatarChange": { ja: "変更", en: "Change" },
+  "settings.avatarClear": { ja: "外す", en: "Remove" },
+  "settings.avatarSaving": { ja: "保存中…", en: "Saving…" },
+  "settings.avatarSaved": { ja: "プロフィール写真を変えました", en: "Profile photo updated" },
+  "settings.avatarFailed": { ja: "写真を保存できませんでした", en: "Couldn't save the photo" },
+  "settings.avatarHint": {
+    ja: "画面上のアイコンがこの写真になります。",
+    en: "This becomes the icon at the top of every screen.",
+  },
+  "settings.reviewLimit": { ja: "1日の復習枚数", en: "Cards per day" },
+  "settings.reviewLimitNone": { ja: "無制限", en: "All" },
+  "settings.reviewLimitHint": {
+    ja: "この枚数までで今日の復習は終わり。終わりが見えるほうが続きます。",
+    en: "Today's review ends after this many cards — a finish line keeps the habit going.",
+  },
+  "settings.reviewFocus": { ja: "優先する記憶の段階", en: "Prioritise" },
+  "settings.focusAll": { ja: "期限順", en: "By due date" },
+  "settings.focusWeak": { ja: "忘れかけ", en: "Weakest" },
+  "settings.focusNew": { ja: "覚えたて", en: "Newest" },
+  "settings.reviewFocusHint": {
+    ja: "忘れかけ: 何度も間違えた語から。覚えたて: 復習回数が少ない語から。",
+    en: "Weakest: words you keep missing first. Newest: words with the fewest reviews first.",
   },
   "settings.strictness": { ja: "発音判定の厳しさ", en: "Pronunciation strictness" },
   "settings.easy": { ja: "やさしい", en: "Easy" },
