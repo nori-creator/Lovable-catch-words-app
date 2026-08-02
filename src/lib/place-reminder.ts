@@ -124,19 +124,45 @@ export async function getCurrentPosition(): Promise<{ lat: number; lng: number }
 
 /** 通知の許可を求める。設定でONにした直後にだけ呼ぶ。 */
 export async function requestNotificationPermission(): Promise<boolean> {
+  return (await requestNotificationPermissionDetailed()).ok;
+}
+
+/**
+ * 通知の許可を取る。**なぜ失敗したか**まで返す。
+ *
+ * 以前は false を返すだけだったので、スイッチが黙って戻り「オンにできない」
+ * としか分からなかった(2026-08-02の指摘)。実際の原因はほぼ次の3つ:
+ *  - unsupported: iOS Safari は**ホーム画面に追加していない**と Notification
+ *    自体が存在しない(ブラウザで開いているだけでは絶対にオンにできない)
+ *  - denied: 一度拒否すると再要求できない。端末の設定から戻すしかない
+ *  - dismissed: ダイアログを閉じられた(もう一度試せば出る)
+ */
+export type NotificationPermissionResult = {
+  ok: boolean;
+  reason: "granted" | "unsupported" | "denied" | "dismissed" | "error";
+};
+
+export async function requestNotificationPermissionDetailed(): Promise<NotificationPermissionResult> {
   try {
     if (Capacitor.isNativePlatform()) {
       const { LocalNotifications } = await import("@capacitor/local-notifications");
       const perm = await LocalNotifications.checkPermissions();
-      if (perm.display === "granted") return true;
+      if (perm.display === "granted") return { ok: true, reason: "granted" };
+      if (perm.display === "denied") return { ok: false, reason: "denied" };
       const asked = await LocalNotifications.requestPermissions();
-      return asked.display === "granted";
+      return asked.display === "granted"
+        ? { ok: true, reason: "granted" }
+        : { ok: false, reason: asked.display === "denied" ? "denied" : "dismissed" };
     }
-    if (typeof Notification === "undefined") return false;
-    if (Notification.permission === "granted") return true;
-    return (await Notification.requestPermission()) === "granted";
+    if (typeof Notification === "undefined") return { ok: false, reason: "unsupported" };
+    if (Notification.permission === "granted") return { ok: true, reason: "granted" };
+    if (Notification.permission === "denied") return { ok: false, reason: "denied" };
+    const res = await Notification.requestPermission();
+    return res === "granted"
+      ? { ok: true, reason: "granted" }
+      : { ok: false, reason: res === "denied" ? "denied" : "dismissed" };
   } catch {
-    return false;
+    return { ok: false, reason: "error" };
   }
 }
 

@@ -374,6 +374,22 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる?」と知らせます。アプリを閉じている間は動きません。",
     en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed.",
   },
+  "set.placeUnsupported": {
+    ja: "このブラウザでは通知を使えません。iPhone の場合は Safari の共有ボタンから「ホーム画面に追加」して、そのアイコンから開くとオンにできます。",
+    en: "This browser can't use notifications. On iPhone, add the app to your Home Screen from Safari's share menu and open it from that icon.",
+  },
+  "set.placeDenied": {
+    ja: "通知が拒否されています。端末の設定 → 通知 からこのアプリの通知を許可すると、ここでオンにできます。",
+    en: "Notifications are blocked. Allow them for this app in your device settings, then turn this on again.",
+  },
+  "set.placeDismissed": {
+    ja: "許可のダイアログが閉じられました。もう一度タップすると出ます。",
+    en: "The permission dialog was dismissed. Tap again to show it.",
+  },
+  "set.placeError": {
+    ja: "通知の許可を確認できませんでした。時間をおいてもう一度お試しください。",
+    en: "Couldn't check notification permission. Please try again later.",
+  },
   "set.aiProviderAria": { ja: "AI提供元", en: "AI provider" },
   "set.aiEffective": {
     ja: "提供元 {p} / 速い系 {f} / 詳しい系 {r}",

@@ -120,15 +120,22 @@ function DexPage() {
     if (!q) return byCategory;
     return byCategory.filter((s) => {
       const w = s.word;
+      // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
+      // category_key は "kitchenware" のような英語キーなので、それだけでは
+      // 「調理器具」と打っても引っかからなかった。
+      const catKey = (w.category_key ?? "").toString();
+      const catLabelKey = categoryKey(catKey);
+      const catLabel = catLabelKey ? t(catLabelKey) : "";
       return (
         w.headword?.toLowerCase().includes(q) ||
         w.reading_zhuyin?.toLowerCase().includes(q) ||
         w.pinyin?.toLowerCase().includes(q) ||
         w.meaning_ja?.toLowerCase().includes(q) ||
-        w.category_key?.toLowerCase().includes(q)
+        catKey.toLowerCase().includes(q) ||
+        catLabel.toLowerCase().includes(q)
       );
     });
-  }, [captured, search, activeCategory]);
+  }, [captured, search, activeCategory, t]);
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
@@ -183,7 +190,9 @@ function DexPage() {
         </div>
       </section>
 
-      {view !== "map" && (
+      {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
+          地図表示のときも出す。 */}
+      {
         <div className="relative mb-4">
           <Search
             aria-hidden
@@ -207,13 +216,13 @@ function DexPage() {
             </button>
           )}
         </div>
-      )}
+      }
 
       {/* カテゴリーの実名で絞り込む(NORI指定: 「カテゴリー/品詞」の切替ボタンは
           廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
           カテゴリーの画像グループだけを表示する。
           §2: 選択状態は色だけでなく aria-pressed と件数でも伝える。 */}
-      {view !== "map" && captured.length > 0 && (
+      {captured.length > 0 && (
         <div className="-mx-4 mb-3 overflow-x-auto px-4">
           <div className="flex w-max gap-1.5">
             <button
@@ -246,7 +255,9 @@ function DexPage() {
       )}
 
       {view === "map" ? (
-        <DexMap stickers={captured} onOpen={setOpenId} />
+        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
+        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
+        <DexMap stickers={filtered} onOpen={setOpenId} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.

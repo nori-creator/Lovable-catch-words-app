@@ -26,7 +26,7 @@ import { EffectLabButton } from "@/components/EffectLab";
 import {
   isPlaceReminderEnabled,
   setPlaceReminderEnabled,
-  requestNotificationPermission,
+  requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
@@ -664,20 +664,27 @@ function PlaceReminderToggle() {
   const t = useT();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  // オンにできなかった理由。黙ってスイッチが戻るだけだと、利用者には
+  // 「壊れている」としか見えない(apple-design §8)。
+  const [blocked, setBlocked] = useState<null | "unsupported" | "denied" | "dismissed" | "error">(
+    null,
+  );
   useEffect(() => {
     setOn(isPlaceReminderEnabled());
   }, []);
   async function toggle(val: boolean) {
     if (!val) {
       setOn(false);
+      setBlocked(null);
       setPlaceReminderEnabled(false);
       return;
     }
     setBusy(true);
-    const ok = await requestNotificationPermission();
+    const res = await requestNotificationPermissionDetailed();
     setBusy(false);
-    setOn(ok);
-    setPlaceReminderEnabled(ok);
+    setOn(res.ok);
+    setPlaceReminderEnabled(res.ok);
+    setBlocked(res.ok || res.reason === "granted" ? null : res.reason);
   }
   return (
     <div className="mt-4 border-t border-border pt-3">
@@ -687,6 +694,17 @@ function PlaceReminderToggle() {
         value={on}
         onChange={(v) => void toggle(v)}
       />
+      {blocked && (
+        <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          {blocked === "unsupported"
+            ? t("set.placeUnsupported")
+            : blocked === "denied"
+              ? t("set.placeDenied")
+              : blocked === "dismissed"
+                ? t("set.placeDismissed")
+                : t("set.placeError")}
+        </p>
+      )}
     </div>
   );
 }

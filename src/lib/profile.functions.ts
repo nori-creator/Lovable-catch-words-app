@@ -50,21 +50,41 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     // current_level は生成済みの型定義より新しい列(マイグレーション
     // 20260727100000)。型を再生成するまでは緩いクライアントとして扱う。
-    const { error } = await (
-      supabase as unknown as {
-        from: (t: string) => {
-          update: (v: Record<string, unknown>) => {
-            eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
-          };
+    const loose = supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
         };
-      }
-    )
-      .from("profiles")
-      .update(data as Record<string, unknown>)
-      .eq("id", userId);
+      };
+    };
+    const save = (v: Record<string, unknown>) => loose.from("profiles").update(v).eq("id", userId);
+
+    const payload = { ...(data as Record<string, unknown>) };
+    let { error } = await save(payload);
+
+    // 設定は1回のUPDATEでまとめて送る。そのため**まだ適用されていない
+    // マイグレーションの列が1つ混ざっているだけで保存全体が失敗**し、
+    // 「1日の復習枚数が変えられない」どころか言語もテーマも保存できなく
+    // なっていた(2026-08-02の指摘)。未知の列はその名前だけ落として
+    // 保存し直し、残りは必ず通す。
+    for (let i = 0; i < 4 && error; i++) {
+      const missing = /column "?([a-z_]+)"? .*(does not exist|schema cache)/i.exec(error.message);
+      const key = missing?.[1] ?? unknownColumnFrom(error.message, Object.keys(payload));
+      if (!key || !(key in payload)) break;
+      delete payload[key];
+      console.warn(`[profile] column "${key}" not in the database yet — saving without it`);
+      if (Object.keys(payload).length === 0) return { ok: true, skipped: [key] };
+      ({ error } = await save(payload));
+    }
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/** PostgREST の文言ゆらぎ対策: 送ったキー名がメッセージに出ていれば拾う。 */
+function unknownColumnFrom(message: string, keys: string[]): string | null {
+  if (!/does not exist|schema cache|unknown column/i.test(message)) return null;
+  return keys.find((k) => message.includes(k)) ?? null;
+}
 
 /**
  * プロフィール写真の登録。ヘッダーの丸アイコンに出る「自分の顔」。
@@ -94,9 +114,26 @@ export const setMyAvatar = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const path = `${userId}/avatar-${Date.now()}.${ext}`;
-    const { error: upErr } = await supabaseAdmin.storage
+    const contentType = `image/${rawExt.toLowerCase()}`;
+    let { error: upErr } = await supabaseAdmin.storage
       .from("avatars")
-      .upload(path, bytes, { contentType: `image/${rawExt.toLowerCase()}`, upsert: true });
+      .upload(path, bytes, { contentType, upsert: true });
+
+    // バケットはマイグレーションで作るが、まだ適用されていない環境では
+    // 「写真を変えられない」だけの状態になる。サービスロールなら自分で
+    // 作れるので、その場で作ってやり直す(公開・画像のみ・5MBまで)。
+    if (upErr && /not found|does not exist|bucket/i.test(upErr.message)) {
+      await supabaseAdmin.storage
+        .createBucket("avatars", {
+          public: true,
+          fileSizeLimit: 5 * 1024 * 1024,
+          allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+        })
+        .catch(() => {});
+      ({ error: upErr } = await supabaseAdmin.storage
+        .from("avatars")
+        .upload(path, bytes, { contentType, upsert: true }));
+    }
     if (upErr) throw new Error(upErr.message);
 
     const {
