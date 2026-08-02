@@ -48,6 +48,8 @@ function SettingsPage() {
   const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
+  const [reviewLimit, setReviewLimit] = useState<number>(20);
+  const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!profile) return;
@@ -63,6 +65,13 @@ function SettingsPage() {
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
     setReviewMode(
       ((profile as { review_mode?: string }).review_mode as "speaking" | "choice") ?? "speaking",
+    );
+    const p = profile as { review_daily_limit?: number | null; review_stage_focus?: string | null };
+    setReviewLimit(typeof p.review_daily_limit === "number" ? p.review_daily_limit : 20);
+    setReviewFocus(
+      p.review_stage_focus === "weak" || p.review_stage_focus === "new"
+        ? p.review_stage_focus
+        : "all",
     );
   }, [profile]);
 
@@ -82,6 +91,8 @@ function SettingsPage() {
           current_level: currentLevel,
           pronunciation_strictness: strictness,
           review_mode: reviewMode,
+          review_daily_limit: reviewLimit,
+          review_stage_focus: reviewFocus,
         },
       });
       setUiLang(uiLanguage === "en" ? "en" : "ja");
@@ -236,6 +247,48 @@ function SettingsPage() {
               ))}
             </div>
           </div>
+          {/* 1日の復習量。既定を決めておかないと「開くたびに新しい単語が
+              無限に出てくる」状態になり、終わりが見えない(NORI指摘)。 */}
+          <div className="mt-3">
+            <Label>{t("settings.reviewLimit")}</Label>
+            <div className="mt-1 grid grid-cols-5 gap-2">
+              {([10, 20, 30, 50, 0] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setReviewLimit(v)}
+                  aria-pressed={reviewLimit === v}
+                  className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewLimit === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                >
+                  {v === 0 ? t("settings.reviewLimitNone") : v}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t("settings.reviewLimitHint")}
+            </p>
+          </div>
+
+          <div className="mt-3">
+            <Label>{t("settings.reviewFocus")}</Label>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["all", "weak", "new"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setReviewFocus(v)}
+                  aria-pressed={reviewFocus === v}
+                  className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewFocus === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+                >
+                  {v === "all"
+                    ? t("settings.focusAll")
+                    : v === "weak"
+                      ? t("settings.focusWeak")
+                      : t("settings.focusNew")}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.reviewFocusHint")}</p>
+          </div>
+
           <VideoRecordingToggle />
           <PlaceReminderToggle />
         </div>

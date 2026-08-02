@@ -36,6 +36,10 @@ const UpdateInput = z.object({
   current_level: z.string().optional(),
   pronunciation_strictness: z.enum(["easy", "normal", "strict"]).optional(),
   review_mode: z.enum(["speaking", "choice"]).optional(),
+  /** 1日に出す復習の最大枚数(0 = 無制限)。DB側にも同じ範囲の制約がある。 */
+  review_daily_limit: z.number().int().min(0).max(200).optional(),
+  /** どの記憶段階を優先して出すか。 */
+  review_stage_focus: z.enum(["all", "weak", "new"]).optional(),
   onboarded: z.boolean().optional(),
 });
 

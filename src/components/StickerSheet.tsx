@@ -537,16 +537,20 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
             <div
               className="perspective-1200 mb-4"
-              role="button"
-              tabIndex={0}
-              aria-label={flipped ? t("card.flipBack") : t("card.flipToSelfie")}
+              // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
+              // ボタンとして振る舞うのも自撮りがあるときだけにする。
+              role={hasSelfie ? "button" : undefined}
+              tabIndex={hasSelfie ? 0 : undefined}
+              aria-label={
+                hasSelfie ? (flipped ? t("card.flipBack") : t("card.flipToSelfie")) : undefined
+              }
               onClick={() => {
                 // 長押し(写真の変更)が成立した後のクリックは無視する。
                 if (longPressFired.current) {
                   longPressFired.current = false;
                   return;
                 }
-                // 自撮りが無くてもクルッと回す — 裏面が「自撮りを足す場所」になる。
+                if (!hasSelfie) return;
                 setFlipped((f) => !f);
               }}
               onPointerDown={heroPressStart}
@@ -555,14 +559,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               onPointerCancel={heroPressEnd}
               onContextMenu={(e) => e.preventDefault()}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
                   e.preventDefault();
                   setFlipped((f) => !f);
                 }
               }}
             >
               <div
-                className={`card-flip relative aspect-[4/5] w-full cursor-pointer ${flipped ? "flipped" : ""}`}
+                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
               >
                 {/* Front: original photo WITH background — fills the frame, no side gutters */}
                 <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
@@ -621,9 +625,12 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       <Camera className="h-4 w-4" />
                     )}
                   </button>
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
-                    {t("card.flipToSelfie")}
-                  </span>
+                  {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
+                  {hasSelfie && (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                      {t("card.flipToSelfie")}
+                    </span>
+                  )}
                 </div>
 
                 {/* Back: the selfie (you + the thing) */}

@@ -133,6 +133,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.record": { ja: "録音", en: "Record" },
   "rv.hearCorrection": { ja: "添削文を聞く", en: "Listen to the correction" },
   "rv.nextArrow": { ja: "次へ", en: "Next" },
+  "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “" },
   "rv.whichIsAfter": { ja: "」はどれ?", en: "”?" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}" },
@@ -957,6 +958,20 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.reviewModeHint": {
     ja: "スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。",
     en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
+  },
+  "settings.reviewLimit": { ja: "1日の復習枚数", en: "Cards per day" },
+  "settings.reviewLimitNone": { ja: "無制限", en: "All" },
+  "settings.reviewLimitHint": {
+    ja: "この枚数までで今日の復習は終わり。終わりが見えるほうが続きます。",
+    en: "Today's review ends after this many cards — a finish line keeps the habit going.",
+  },
+  "settings.reviewFocus": { ja: "優先する記憶の段階", en: "Prioritise" },
+  "settings.focusAll": { ja: "期限順", en: "By due date" },
+  "settings.focusWeak": { ja: "忘れかけ", en: "Weakest" },
+  "settings.focusNew": { ja: "覚えたて", en: "Newest" },
+  "settings.reviewFocusHint": {
+    ja: "忘れかけ: 何度も間違えた語から。覚えたて: 復習回数が少ない語から。",
+    en: "Weakest: words you keep missing first. Newest: words with the fewest reviews first.",
   },
   "settings.strictness": { ja: "発音判定の厳しさ", en: "Pronunciation strictness" },
   "settings.easy": { ja: "やさしい", en: "Easy" },

@@ -1224,9 +1224,11 @@
     transition: opacity 200ms ease;
   }
 
-  /* A 3D rotate is vestibular — flip instantly instead of spinning the card. */
+  /* A full 3D spin is vestibular, but killing the transition outright made the
+     card *snap* to the selfie with no sense of turning at all — it read as a
+     broken image swap. Keep a turn, just a short, shallow one. */
   .card-flip {
-    transition: none !important;
+    transition: transform 0.25s ease !important;
   }
 }
 @keyframes reduced-fade-in {
