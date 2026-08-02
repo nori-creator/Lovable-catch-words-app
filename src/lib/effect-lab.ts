@@ -108,6 +108,80 @@ export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   catchLanding: "v3voiceline",
 };
 
+/**
+ * フロー単位のプリセット(NORI採用の代案)。
+ *
+ * 「スキャン→図鑑に入るまで」を**まとめて一つの時代**として選べるようにする。
+ * 枠ごとに1つずつ選ぶのは、どれが何と組み合わさっていたか思い出せないと
+ * かえって難しい。まず「この時期の一式」で当たりを付け、気に入らない枠だけ
+ * 下の一覧で差し替える — という順序で選べるのが狙い。
+ *
+ * variants に書いていない枠は触らない(部分的なプリセットも作れる)。
+ */
+export type FlowPreset = {
+  id: string;
+  label: string;
+  date: string;
+  note: string;
+  variants: Partial<Record<EffectSlot, string>>;
+};
+
+export const FLOW_PRESETS: FlowPreset[] = [
+  {
+    id: "era0717",
+    label: "リキッドメタル期",
+    date: "07-17",
+    note: "重厚な液体金属のスキャン。キャッチは画面9割まで拡大",
+    variants: { scanAnalyzing: "v2liquid", catchLanding: "v1classic" },
+  },
+  {
+    id: "era0720",
+    label: "結晶化期",
+    date: "07-20",
+    note: "文字が1字ずつ結晶化。キャッチはクラシック",
+    variants: { scanAnalyzing: "v3crystal", catchLanding: "v1classic" },
+  },
+  {
+    id: "era0721",
+    label: "静かな分析期",
+    date: "07-21",
+    note: "装飾を削った分析中＋写真が横幅いっぱいに広がるキャッチ",
+    variants: { scanAnalyzing: "v4calm", catchLanding: "v2fullwidth" },
+  },
+  {
+    id: "era0727",
+    label: "全画面・決め台詞期",
+    date: "07-27",
+    note: "全画面スキャン＋空中のタメで決め台詞",
+    variants: { scanAnalyzing: "v7fullscreen", catchLanding: "v3voiceline" },
+  },
+  {
+    id: "eraNow",
+    label: "現行",
+    date: "07-28",
+    note: "青染めの分析中＋決め台詞つきキャッチ",
+    variants: { scanAnalyzing: "v8current", catchLanding: "v3voiceline" },
+  },
+];
+
+/** プリセットを丸ごと適用する(書いてある枠だけ変える)。 */
+export function applyFlowPreset(preset: FlowPreset): void {
+  for (const [slot, id] of Object.entries(preset.variants)) {
+    if (id) setVariant(slot as EffectSlot, id);
+  }
+}
+
+/** いまの選択と完全に一致するプリセット(無ければ null = 自分で混ぜた状態)。 */
+export function matchingFlowPreset(): string | null {
+  for (const p of FLOW_PRESETS) {
+    const all = Object.entries(p.variants).every(
+      ([slot, id]) => getVariant(slot as EffectSlot) === id,
+    );
+    if (all) return p.id;
+  }
+  return null;
+}
+
 const KEY = (slot: EffectSlot) => `effect-lab:${slot}`;
 const EVENT = "effect-lab-changed";
 
