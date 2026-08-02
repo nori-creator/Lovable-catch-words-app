@@ -764,6 +764,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.regenAll": { ja: "✨ 解説を再生成", en: "✨ Regenerate details" },
   "card.regenPro": { ja: "解説の再生成は Pro 限定", en: "Regenerating details is Pro-only" },
   "card.preparing": { ja: "詳しい解説をAIが準備中…", en: "AI is preparing the details…" },
+  "card.enrichFailed": {
+    ja: "詳しい解説を作れませんでした",
+    en: "Couldn't generate the details",
+  },
+  "card.enrichRetry": { ja: "もう一度ためす", en: "Try again" },
   // --- home ---
   "home.emptyTitle": { ja: "きょうのページはまだ白紙です。", en: "Today's page is still blank." },
   "home.emptyHint": {
