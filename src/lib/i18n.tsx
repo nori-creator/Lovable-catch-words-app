@@ -134,6 +134,12 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.hearCorrection": { ja: "添削文を聞く", en: "Listen to the correction" },
   "rv.nextArrow": { ja: "次へ", en: "Next" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern" },
+  "rv.relatedWords": { ja: "一緒に覚える語", en: "Words to learn with it" },
+  "rv.measureWords": { ja: "量詞", en: "Measure words" },
+  "rv.goodToKnow": { ja: "知っておくと得", en: "Good to know" },
+  "rv.kindSyn": { ja: "似", en: "syn" },
+  "rv.kindAnt": { ja: "反", en: "ant" },
+  "rv.kindRel": { ja: "関", en: "rel" },
   "dex.allCategories": { ja: "すべて", en: "All" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar" },
   "dex.calendarEmpty": {

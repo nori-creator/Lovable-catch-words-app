@@ -1,7 +1,18 @@
-import { useEffect, useState } from "react";
-import { Check, Play, RotateCcw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, Check, Play, RotateCcw, X } from "lucide-react";
 import { ScanEffectVariant, useEffectVariant } from "./ScanEffect";
 import { EFFECT_VARIANTS, resetVariant, setVariant, type EffectSlot } from "@/lib/effect-lab";
+import type { LandingRunner } from "@/components/effects/catch-landing/types";
+import { v1classic } from "@/components/effects/catch-landing/v1_classic";
+import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
+import { v3voiceline } from "@/components/effects/catch-landing/v3_voiceline";
+
+/** ラボから直接走らせる歴代のキャッチ演出。 */
+const CATCH_LANDING_RUNNERS: Record<string, LandingRunner> = {
+  v1classic,
+  v2fullwidth,
+  v3voiceline,
+};
 
 type Stage = "sensing" | "reading" | "matching";
 
@@ -158,13 +169,132 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
           既定(現行)に戻す
         </button>
 
+        {/* ② キャッチ→図鑑の着弾演出。動きなので静止画では選べない —
+            その場で実際に飛ばして見比べる。 */}
+        <CatchLandingSection />
+
         <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
-          ここで選んだ演出はこの端末だけに保存されます。ほかの演出(スキャン画面そのもの・
-          単語候補の出方・キャッチの演出)も、同じ仕組みで枠を増やして見比べられるように
-          してあります。
+          ここで選んだ演出はこの端末だけに保存されます。スキャン画面そのものと単語候補の
+          出方は、まだページ本体の中にあるので取り出してから同じ形で並べます。
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * キャッチ→図鑑の着弾演出。静止画では判断できないので「ためす」で実際に飛ばす。
+ * 本物と同じ関数(effects/catch-landing)を、ラボ内の仮の写真と図鑑アイコンに
+ * 向けて走らせる。
+ */
+function CatchLandingSection() {
+  const slot: EffectSlot = "catchLanding";
+  const current = useEffectVariant(slot);
+  const variants = EFFECT_VARIANTS[slot];
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const flyRef = useRef<HTMLImageElement | null>(null);
+  const targetRef = useRef<HTMLDivElement | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+
+  async function play(id: string) {
+    if (playing) return;
+    setPlaying(id);
+    try {
+      const run = CATCH_LANDING_RUNNERS[id];
+      if (run) {
+        await run({
+          startEl: boxRef.current,
+          fly: flyRef.current,
+          dexEl: targetRef.current,
+          speakLine: () => {},
+        });
+      }
+    } finally {
+      // 飛ばしたあとは元の位置に戻して、何度でも見比べられるようにする。
+      const fly = flyRef.current;
+      if (fly) {
+        fly.style.transition = "none";
+        fly.style.transform = "translate(0,0) scale(1)";
+        fly.style.opacity = "0";
+      }
+      setPlaying(null);
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">キャッチ→図鑑の着弾演出</p>
+
+      {/* 飛ぶ元(仮の写真)と着弾先(仮の図鑑アイコン)。 */}
+      <div className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
+        <div
+          ref={boxRef}
+          className="grid h-20 w-20 place-items-center rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 text-2xl"
+        >
+          📷
+        </div>
+        <span className="text-[11px] text-muted-foreground">→</span>
+        <div
+          ref={targetRef}
+          className="grid h-11 w-11 place-items-center rounded-full bg-secondary"
+        >
+          <BookOpen className="h-5 w-5 text-primary" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {variants.map((v) => {
+          const selected = v.id === current;
+          return (
+            <div
+              key={v.id}
+              className={`flex items-center gap-3 rounded-2xl border p-3 ${
+                selected ? "border-primary ring-2 ring-primary/30" : "border-border"
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  {v.label}
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {v.date}
+                  </span>
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{v.note}</p>
+              </div>
+              <button
+                onClick={() => void play(v.id)}
+                disabled={!!playing}
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-semibold disabled:opacity-50"
+              >
+                <Play className="h-3.5 w-3.5" />
+                {playing === v.id ? "再生中" : "ためす"}
+              </button>
+              <button
+                onClick={() => setVariant(slot, v.id)}
+                aria-pressed={selected}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
+                  selected
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-background"
+                }`}
+              >
+                {selected && <Check className="h-3.5 w-3.5" />}
+                {selected ? "使用中" : "これに"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 飛ぶ画像(演出中だけ見える)。 */}
+      <img
+        ref={flyRef}
+        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><rect width='160' height='160' rx='16' fill='%233b82f6'/><text x='80' y='104' font-size='72' text-anchor='middle'>📷</text></svg>"
+        alt=""
+        className="pointer-events-none fixed z-[60] object-contain opacity-0"
+        style={{ willChange: "transform, opacity", left: 0, top: 0, width: 80, height: 80 }}
+      />
+    </section>
   );
 }
 

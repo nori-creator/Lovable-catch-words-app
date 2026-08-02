@@ -13,7 +13,7 @@
  * ものなので、サーバーには保存しない。
  */
 
-export type EffectSlot = "scanAnalyzing";
+export type EffectSlot = "scanAnalyzing" | "catchLanding";
 
 export type VariantMeta = {
   id: string;
@@ -80,11 +80,32 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       note: "いま動いているもの(青染め＋細い進行バー)",
     },
   ],
+  catchLanding: [
+    {
+      id: "v1classic",
+      label: "クラシック",
+      date: "07-20",
+      note: "画面の9割まで拡大 → 少しタメて上へ抜け、図鑑にドン",
+    },
+    {
+      id: "v2fullwidth",
+      label: "画面いっぱい",
+      date: "07-21",
+      note: "写真全体が画面の横幅いっぱいまで広がる",
+    },
+    {
+      id: "v3voiceline",
+      label: "決め台詞つき",
+      date: "07-27",
+      note: "画面いっぱい＋空中のタメで決め台詞が鳴る(現行)",
+    },
+  ],
 };
 
 /** 何も選んでいないときに使う変種(= 現行の見た目)。 */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   scanAnalyzing: "v8current",
+  catchLanding: "v3voiceline",
 };
 
 const KEY = (slot: EffectSlot) => `effect-lab:${slot}`;

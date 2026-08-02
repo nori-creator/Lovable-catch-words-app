@@ -1257,6 +1257,138 @@ function FeedbackView({
 // ============================================================================
 // Light-mode: original 4-choice card (kept for silent situations)
 // ============================================================================
+/**
+ * 4択の答え合わせに出す解説。
+ *
+ * 目的は「意味が分かった」で終わらせず、**その場で口から出せる形**を持ち帰らせる
+ * こと。だから順番は「そのまま言える塊 → 一緒に使う語 → 量詞 → 一言」。
+ * 塊は品詞で色分け(ChunkPills)して、単語詳細・添削と同じ色体系で見せる —
+ * 同じ色は同じ役割、という感覚が画面をまたいで育つ(apple-design §Consistency)。
+ *
+ * 下部パネルなので、中身が増えても「次へ」が押せなくならないよう
+ * ここだけを高さ上限つきでスクロールさせる。
+ */
+function AnswerExplain({ card }: { card: DueReviewCard }) {
+  const t = useT();
+  const ex = card.explain;
+  const chunks = ex?.chunks ?? [];
+  const related = ex?.related ?? [];
+  const measures = ex?.measures ?? [];
+  const note = ex?.note ?? "";
+
+  // 解説がまだ生成されていない語は、せめて型1つ(top_chunk)だけでも見せる。
+  if (!ex) {
+    if (!card.top_chunk) return null;
+    return (
+      <div className="mb-1 rounded-xl bg-secondary/60 px-3 py-2">
+        <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
+        <span lang="zh-Hant" className="ml-2 text-base font-semibold">
+          {card.top_chunk.zh}
+        </span>
+        {card.top_chunk.ja && (
+          <span className="ml-2 text-xs text-muted-foreground">{card.top_chunk.ja}</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-1 max-h-[38vh] space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+      {chunks.length > 0 && (
+        <section className="rounded-xl bg-secondary/60 px-3 py-2">
+          <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
+          <div className="mt-1.5 space-y-1.5">
+            {chunks.map((c, i) => (
+              <div key={i}>
+                <ChunkPills parts={c.parts} size="md" />
+                {c.ja && <p className="mt-0.5 text-[11px] text-muted-foreground">{c.ja}</p>}
+              </div>
+            ))}
+          </div>
+          <ChunkLegend />
+        </section>
+      )}
+
+      {related.length > 0 && (
+        <section className="rounded-xl bg-indigo-50 px-3 py-2 dark:bg-indigo-500/10">
+          <ExplainLabel tone="indigo">{t("rv.relatedWords")}</ExplainLabel>
+          <ul className="mt-1 space-y-1">
+            {related.map((r, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-1.5">
+                {/* 類義/反義/関連は色だけでなく**記号と語**でも区別する(§2)。 */}
+                <span
+                  className={`shrink-0 rounded px-1 text-[10px] font-bold ${
+                    r.kind === "ant"
+                      ? "bg-rose-200 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100"
+                      : r.kind === "syn"
+                        ? "bg-emerald-200 text-emerald-900 dark:bg-emerald-500/30 dark:text-emerald-100"
+                        : "bg-slate-200 text-slate-900 dark:bg-slate-500/30 dark:text-slate-100"
+                  }`}
+                >
+                  {r.kind === "ant"
+                    ? t("rv.kindAnt")
+                    : r.kind === "syn"
+                      ? t("rv.kindSyn")
+                      : t("rv.kindRel")}
+                </span>
+                <span lang="zh-Hant" className="text-sm font-semibold">
+                  {r.word}
+                </span>
+                {r.note && <span className="text-[11px] text-muted-foreground">{r.note}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {measures.length > 0 && (
+        <section className="rounded-xl bg-amber-50 px-3 py-2 dark:bg-amber-500/10">
+          <ExplainLabel tone="amber">{t("rv.measureWords")}</ExplainLabel>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {measures.map((m, i) => (
+              <span key={i} className="flex items-baseline gap-1.5">
+                <span lang="zh-Hant" className="text-sm font-semibold">
+                  {m.word}
+                </span>
+                {m.note && <span className="text-[11px] text-muted-foreground">{m.note}</span>}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {note && (
+        <section className="rounded-xl bg-teal-50 px-3 py-2 dark:bg-teal-500/10">
+          <ExplainLabel tone="teal">{t("rv.goodToKnow")}</ExplainLabel>
+          <p className="mt-1 text-[12px] leading-relaxed">{note}</p>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ExplainLabel({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "indigo" | "amber" | "teal";
+}) {
+  const color =
+    tone === "indigo"
+      ? "text-indigo-900 dark:text-indigo-200"
+      : tone === "amber"
+        ? "text-amber-900 dark:text-amber-200"
+        : tone === "teal"
+          ? "text-teal-900 dark:text-teal-200"
+          : "text-muted-foreground";
+  return (
+    <span className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>
+      {children}
+    </span>
+  );
+}
+
 function LightModeCard({
   card,
   onNext,
@@ -1399,23 +1531,11 @@ function LightModeCard({
                 </button>
               </div>
 
-              {card.top_chunk && (
-                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-secondary/60 px-3 py-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t("rv.topChunk")}
-                  </span>
-                  <span lang="zh-Hant" className="text-base font-semibold">
-                    {card.top_chunk.zh}
-                  </span>
-                  {card.top_chunk.ja && (
-                    <span className="text-xs text-muted-foreground">{card.top_chunk.ja}</span>
-                  )}
-                </div>
-              )}
+              <AnswerExplain card={card} />
 
               <button
                 onClick={onNext}
-                className="min-h-11 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
               >
                 {t("review.next")}
               </button>
