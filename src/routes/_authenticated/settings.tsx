@@ -22,6 +22,7 @@ import { useT, setUiLang } from "@/lib/i18n";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
+import { EffectLabButton } from "@/components/EffectLab";
 import {
   isPlaceReminderEnabled,
   setPlaceReminderEnabled,
@@ -294,7 +295,9 @@ function SettingsPage() {
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.reviewFocusHint")}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t("settings.reviewFocusHint")}
+            </p>
           </div>
 
           <VideoRecordingToggle />
@@ -596,7 +599,11 @@ function AvatarRow() {
           disabled={busy}
           className="press-in min-h-11 rounded-full border border-border bg-background px-4 text-sm font-medium disabled:opacity-60"
         >
-          {busy ? t("settings.avatarSaving") : avatar ? t("settings.avatarChange") : t("settings.avatarPick")}
+          {busy
+            ? t("settings.avatarSaving")
+            : avatar
+              ? t("settings.avatarChange")
+              : t("settings.avatarPick")}
         </button>
         {avatar && !busy && (
           <button
@@ -742,6 +749,7 @@ function AdminOnlySection() {
         {t("settings.devOnly")}
       </p>
       <ThemeLabButton />
+      <EffectLabButton />
       <UiThemePicker />
       <AiModelPanel />
     </div>
