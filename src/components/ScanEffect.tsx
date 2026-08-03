@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { EFFECT_LAB_EVENT, getVariant, type EffectSlot } from "@/lib/effect-lab";
+import { ScanAnalyzing_v0cutout } from "./effects/scan-analyzing/v0_cutout";
 import { ScanAnalyzing_v1probe } from "./effects/scan-analyzing/v1_probe";
 import { ScanAnalyzing_v2liquid } from "./effects/scan-analyzing/v2_liquid";
 import { ScanAnalyzing_v3crystal } from "./effects/scan-analyzing/v3_crystal";
@@ -14,13 +15,14 @@ import { ScanAnalyzing_v8current } from "./effects/scan-analyzing/v8_current";
  *
  * 中身は歴代の演出をそのまま variant として残してあり、開発者は設定の
  * 「エフェクト・ラボ」で見比べて選べる(src/lib/effect-lab.ts)。
- * 既定は現行版なので、選んでいない人の見え方は今までと変わらない。
+ * 既定はカメラ期(v0cutout)。新しい版も残してあるのでラボで戻せる。
  */
 type Stage = "sensing" | "reading" | "matching";
 
 const SLOT: EffectSlot = "scanAnalyzing";
 
 const VARIANTS: Record<string, (p: { stage: Stage }) => ReactElement> = {
+  v0cutout: ScanAnalyzing_v0cutout,
   v1probe: ScanAnalyzing_v1probe,
   v2liquid: ScanAnalyzing_v2liquid,
   v3crystal: ScanAnalyzing_v3crystal,
@@ -49,12 +51,12 @@ export function useEffectVariant(slot: EffectSlot): string {
 
 export function ScanEffect({ stage }: { stage: Stage }) {
   const id = useEffectVariant(SLOT);
-  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v8current;
+  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v0cutout;
   return <Chosen stage={stage} />;
 }
 
 /** ラボのプレビュー用: variant を直接指定して描画する。 */
 export function ScanEffectVariant({ id, stage }: { id: string; stage: Stage }) {
-  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v8current;
+  const Chosen = VARIANTS[id] ?? ScanAnalyzing_v0cutout;
   return <Chosen stage={stage} />;
 }

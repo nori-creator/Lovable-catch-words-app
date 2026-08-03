@@ -32,6 +32,12 @@ export type VariantMeta = {
 export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
   scanAnalyzing: [
     {
+      id: "v0cutout",
+      label: "カメラ期(光の点なし)",
+      date: "07-01",
+      note: "探査点も青染めもない。光の帯が一度なでて「AIが切り抜き中...」だけ",
+    },
+    {
       id: "v1probe",
       label: "探査ドット",
       date: "07-16",
@@ -75,9 +81,9 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
     },
     {
       id: "v8current",
-      label: "現行",
+      label: "最新版",
       date: "07-28",
-      note: "いま動いているもの(青染め＋細い進行バー)",
+      note: "いちばん新しい版(青染め＋細い進行バー)",
     },
   ],
   catchLanding: [
@@ -97,15 +103,21 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       id: "v3voiceline",
       label: "決め台詞つき",
       date: "07-27",
-      note: "画面いっぱい＋空中のタメで決め台詞が鳴る(現行)",
+      note: "画面いっぱい＋空中のタメで決め台詞が鳴る",
     },
   ],
 };
 
-/** 何も選んでいないときに使う変種(= 現行の見た目)。 */
+/**
+ * 何も選んでいないときに使う変種。
+ *
+ * 2026-08-03 NORI指定で**カメラ期(07-01)に戻した**。探査点(光の点)のない
+ * 「切り抜き中」の待ち画面と、画面いっぱいに広がってから図鑑にドンと着弾する
+ * クラシックのキャッチ。新しい版もラボに残してあるので、いつでも戻せる。
+ */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
-  scanAnalyzing: "v8current",
-  catchLanding: "v3voiceline",
+  scanAnalyzing: "v0cutout",
+  catchLanding: "v1classic",
 };
 
 /**
@@ -148,6 +160,21 @@ export type FlowShape = {
 };
 
 export const FLOW_PRESETS: FlowPreset[] = [
+  {
+    id: "era0701",
+    label: "カメラ期・光の点なし(現在の既定)",
+    date: "07-01",
+    note: "撮る→自撮り→写真が上に小さくなって候補→タップで切り抜き→ふわっと浮いて画面いっぱい→図鑑にドン",
+    variants: { scanAnalyzing: "v0cutout", catchLanding: "v1classic" },
+    flow: {
+      entranceLabel: "カメラ",
+      entrance: "capture",
+      shutterLabel: "タップして撮影",
+      analyzingLabel: "AIが切り抜き中...",
+      candidates: "list",
+      cutout: true,
+    },
+  },
   {
     id: "era0708",
     label: "切り抜き期(カメラ)",
@@ -225,7 +252,7 @@ export const FLOW_PRESETS: FlowPreset[] = [
   },
   {
     id: "eraNow",
-    label: "現行",
+    label: "最新版",
     date: "07-28",
     note: "青染めの分析中＋決め台詞つきキャッチ",
     variants: { scanAnalyzing: "v8current", catchLanding: "v3voiceline" },

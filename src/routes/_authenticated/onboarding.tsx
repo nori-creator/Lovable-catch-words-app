@@ -46,7 +46,8 @@ function OnboardingPage() {
       });
       void logEvent({ data: { kind: "onboarding_done" } }).catch(() => {});
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      navigate({ to: "/scan", replace: true });
+      // 最初の一回も下タブと同じ入口へ — カメラで撮って図鑑に入るまでを体験する。
+      navigate({ to: "/capture", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("ob.startFailed"));
       setStarting(false);

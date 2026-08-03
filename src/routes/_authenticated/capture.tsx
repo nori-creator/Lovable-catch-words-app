@@ -14,6 +14,7 @@ import {
   Sparkles,
   Check,
   Keyboard,
+  ScanLine,
   PartyPopper,
   WifiOff,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import { putCachedImage } from "@/lib/image-cache";
 import { WordCard } from "@/components/WordCard";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
+import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
@@ -164,6 +166,13 @@ function CapturePage() {
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
   const reencSubmittingRef = useRef(false);
+  // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
+  // 待ち画面の文言をここで切り替える。
+  const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
+  // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
+  const [landing, setLanding] = useState(false);
+  const heroBoxRef = useRef<HTMLDivElement | null>(null);
+  const flyRef = useRef<HTMLImageElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
@@ -272,6 +281,7 @@ function CapturePage() {
   async function runAi(imgOverride?: string) {
     const img = imgOverride ?? objectImg;
     if (!img) return;
+    setWaitKind("analyze");
     setStep("processing");
     setError(null);
     tryGetLocation();
@@ -279,14 +289,12 @@ function CapturePage() {
     try {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
       const aiImage = await compressImage(img, 768, 0.8);
-      const [cutoutRes, suggestRes] = await Promise.all([
-        removeBackgroundSmart(img).catch((e) => {
-          console.warn("background removal failed, using original", e);
-          return img;
-        }),
-        suggestFn({ data: { imageBase64: aiImage, targetLanguage: "zh-TW" } }),
-      ]);
-      setCutoutImg(cutoutRes);
+      // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
+      // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
+      // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
+      const suggestRes = await suggestFn({
+        data: { imageBase64: aiImage, targetLanguage: "zh-TW" },
+      });
       setSuggestions(suggestRes.suggestions);
       setStep("select");
     } catch (e) {
@@ -313,7 +321,17 @@ function CapturePage() {
 
   async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
     setSelectedHead(head);
+    setWaitKind("cutout");
     setStep("processing");
+
+    // タップした瞬間に切り抜きを始める。失敗しても写真のまま進める
+    // (切り抜きは見た目の格上げであって、キャッチの条件ではない)。
+    const cutoutPromise: Promise<string | null> = objectImg
+      ? removeBackgroundSmart(objectImg).catch((e) => {
+          console.warn("background removal failed, using original", e);
+          return null;
+        })
+      : Promise.resolve(null);
 
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
@@ -351,6 +369,9 @@ function CapturePage() {
         const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
         setCard(c);
       }
+      // 切り抜きが出来上がってからカードを見せる — 切り抜かれた絵が「ポン」と
+      // 現れるところまでが、タップに対する返事。
+      setCutoutImg((await cutoutPromise) ?? objectImg);
       setStep("card");
     } catch (e) {
       console.error(e);
@@ -434,11 +455,21 @@ function CapturePage() {
       // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
       void queryClient.invalidateQueries({ queryKey: ["stickers"] });
       if (pendingId) void removePendingCapture(pendingId);
-      // 単語の発音 + 図鑑ページで「ドンッ」と着弾する演出へ。
-      void pronounce(selectedHead);
+
+      // ここからキャッチ演出。切り抜きがふわっと浮いて画面いっぱいに広がり、
+      // 上へ抜けたところで図鑑のページが開いて、新しいセルがドンと着弾する
+      // (最後の一撃は /dex 側の slam-in が ?justCaught= を見て出す)。
+      // 以前このフローだけ演出がなく、保存したら図鑑に飛ぶだけだった。
+      setLanding(true);
+      await runCatchLanding({
+        startEl: heroBoxRef.current,
+        fly: flyRef.current,
+        speakLine: () => void pronounce(selectedHead),
+      });
       navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);
+      setLanding(false);
       toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("card");
     }
@@ -457,6 +488,7 @@ function CapturePage() {
     setCaption("");
     setFlipped(false);
     setError(null);
+    setLanding(false);
     setReenc(null);
     setReencRevealed(false);
     setReencResult(null);
@@ -534,6 +566,15 @@ function CapturePage() {
             {t("capture.typeWord")}
           </button>
 
+          {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
+          <button
+            onClick={() => navigate({ to: "/scan" })}
+            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
+          >
+            <ScanLine className="h-4 w-4" />
+            {t("capture.openScan")}
+          </button>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )}
@@ -585,25 +626,24 @@ function CapturePage() {
           {objectImg && (
             <img src={objectImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
-          <ScanEffect stage="reading" />
+          <ScanEffect stage={waitKind === "cutout" ? "matching" : "reading"} />
         </div>
       )}
 
       {step === "select" && (
         <div className="space-y-4">
+          {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
+          {objectImg && (
+            <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg">
+              <img
+                src={objectImg}
+                alt={t("cap.photoTaken")}
+                className="h-full w-full object-cover pop-in"
+              />
+            </div>
+          )}
           <h2 className="text-xl font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
-          <div className="flex gap-3">
-            {cutoutImg && (
-              <div className="grid aspect-square w-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 to-secondary p-2">
-                <img
-                  src={cutoutImg}
-                  alt={t("cap.photoCutout")}
-                  className="h-full w-full object-contain pop-in"
-                />
-              </div>
-            )}
-            <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
-          </div>
+          <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
           <div className="grid gap-2">
             {suggestions.map((s) => (
               <button
@@ -659,7 +699,7 @@ function CapturePage() {
                     <img
                       src={cutoutImg}
                       alt={selectedHead}
-                      className="max-h-full max-w-full object-contain pop-in"
+                      className="max-h-full max-w-full object-contain cutout-pop"
                     />
                   ) : objectImg ? (
                     <img
@@ -730,14 +770,21 @@ function CapturePage() {
       {step === "saving" && (
         // 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
+          {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
+              飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
           {(cutoutImg ?? objectImg) && (
-            <img
-              src={(cutoutImg ?? objectImg)!}
-              alt=""
-              className="catch-rise max-h-[52vh] max-w-[78vw] rounded-2xl object-contain shadow-2xl"
-            />
+            <div
+              ref={heroBoxRef}
+              className={`grid aspect-square w-64 max-w-[78vw] place-items-center ${landing ? "opacity-0" : ""}`}
+            >
+              <img
+                src={(cutoutImg ?? objectImg)!}
+                alt=""
+                className="catch-rise max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
+              />
+            </div>
           )}
-          <p className="mt-6 text-lg font-bold tracking-tight">{selectedHead}</p>
+          {!landing && <p className="mt-6 text-lg font-bold tracking-tight">{selectedHead}</p>}
           <style>{`
             @keyframes catchRise {
               0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
@@ -871,6 +918,16 @@ function CapturePage() {
           initialText={inputSheet.text}
           autoLookup={inputSheet.auto}
           onClose={() => setInputSheet(null)}
+        />
+      )}
+      {/* キャッチ演出中だけ載る層: 飛ぶ絵・閃光・大きな単語
+          (スキャンのシートと同じ一式を共有している) */}
+      {landing && (
+        <CatchLandingOverlay
+          ref={flyRef}
+          image={cutoutImg ?? objectImg}
+          headword={selectedHead}
+          reading={card?.reading_zhuyin ?? null}
         />
       )}
     </AppShell>

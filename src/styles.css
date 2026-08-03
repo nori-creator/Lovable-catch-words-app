@@ -1164,8 +1164,8 @@
   animation: slot-ignite 0.9s ease-out;
 }
 
-/* 切り抜き時代の「ポン」と現れる動き。エフェクト・ラボの通し再生で
-   当時の体験を再現するために残してある(本体では現在未使用)。 */
+/* 切り抜きが出来上がった瞬間の「ポン」。カメラのフローで候補をタップした
+   あと、切り抜かれた絵が現れるところで鳴る。 */
 @keyframes cutoutPop {
   0% {
     transform: scale(0.55) translateY(24px);
@@ -1181,6 +1181,57 @@
 }
 .cutout-pop {
   animation: cutoutPop 560ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* キャッチ→図鑑の着弾演出。スキャンのシートとカメラのフロー、両方の入口が
+   同じ振り付けを使うので、キーフレームはここに置いて共有する
+   (以前は ScanCatchSheet の中に埋まっていて、カメラ側からは使えなかった)。 */
+@keyframes dexImpact {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.35);
+    filter: brightness(1.5) drop-shadow(0 0 12px #2563eb);
+  }
+  60% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+.dex-impact {
+  animation: dexImpact 780ms cubic-bezier(0.3, 1.6, 0.4, 1);
+}
+@keyframes heroFlash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.65;
+  }
+}
+#catch-hero-flash.hero-flash-play {
+  animation: heroFlash 900ms ease-out forwards;
+}
+@keyframes heroWord {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5) translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
+}
+#catch-hero-word.hero-word-play {
+  animation: heroWord 460ms cubic-bezier(0.2, 1.4, 0.4, 1) 120ms forwards;
 }
 
 /* Reduce motion (apple-design Part VI) — reduced motion is not *no* feedback: we
