@@ -180,7 +180,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
           className="press-in mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-sm font-medium text-muted-foreground"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          既定(現行)に戻す
+          既定(カメラ期)に戻す
         </button>
 
         {/* ② キャッチ→図鑑の着弾演出。動きなので静止画では選べない —

@@ -710,6 +710,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot" },
   "capture.typeWord": { ja: "単語を文字で入力", en: "Type a word instead" },
+  "capture.openScan": { ja: "かざして調べる(スキャン)", en: "Hold up to look up (scan)" },
   "capture.or": { ja: "または", en: "or" },
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan" },

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Home, BookOpen, Settings, Sparkles, ScanLine } from "lucide-react";
+import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
@@ -11,18 +11,20 @@ import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 
 type Item = {
-  to: "/home" | "/dex" | "/scan" | "/review" | "/settings";
+  to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
   labelKey: string;
   icon: typeof Home;
 };
 
 // 5-item bottom nav (roadmap B5): the center slot is the one big camera
-// entrance — scan (かざす=調べる) with the catch/keyboard entrances inside it.
-// ラベルは表示言語設定(ja/en)に従う。
+// entrance.
+// 2026-08-03 NORI指定で**カメラのフロー(/capture)に戻した**。撮る→自撮り→
+// 候補→切り抜き→図鑑にドン、という一本道がこのアプリの体験そのものだから。
+// かざして調べるスキャン(/scan)はカメラ画面の中から開ける。
 const items: Item[] = [
   { to: "/home", labelKey: "nav.home", icon: Home },
   { to: "/dex", labelKey: "nav.dex", icon: BookOpen },
-  { to: "/scan", labelKey: "nav.camera", icon: ScanLine },
+  { to: "/capture", labelKey: "nav.camera", icon: Camera },
   { to: "/review", labelKey: "nav.review", icon: Sparkles },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
@@ -110,7 +112,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         <ul className="mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
           {items.map(({ to, labelKey, icon: Icon }) => {
             const label = t(labelKey);
-            const isScan = to === "/scan";
+            const isScan = to === "/capture";
             return (
               <li key={to} className="flex-1">
                 <Link

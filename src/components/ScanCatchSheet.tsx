@@ -14,18 +14,7 @@ import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
-import { getVariant } from "@/lib/effect-lab";
-import type { LandingRunner } from "@/components/effects/catch-landing/types";
-import { v1classic } from "@/components/effects/catch-landing/v1_classic";
-import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
-import { v3voiceline } from "@/components/effects/catch-landing/v3_voiceline";
-
-/** ラボで選べる歴代のキャッチ演出。既定は現行(v3voiceline)。 */
-const CATCH_LANDING_VARIANTS: Record<string, LandingRunner> = {
-  v1classic,
-  v2fullwidth,
-  v3voiceline,
-};
+import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { useT } from "@/lib/i18n";
 
 type Props = {
@@ -67,57 +56,6 @@ async function cropAround(dataUrl: string, point: [number, number]): Promise<str
   if (!ctx) return dataUrl;
   ctx.drawImage(img, x, y, side, side, 0, 0, side, side);
   return c.toDataURL("image/jpeg", 0.88);
-}
-
-/**
- * Short synthesized "catch!" sound — WebAudio, no assets.
- * A11: 旧・三角波アルペジオは主張が強かったので、柔らかい「ポン」(短い
- * サイン波のポップ)+高音の「キラン」(倍音を1つ添えた減衰音)に変更。
- * 全体に旧比で音量約-30%・時間も短め。
- */
-function playChime() {
-  try {
-    const AC =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    const t = ctx.currentTime;
-
-    // 「ポン」: 低めのサイン波を素早くピッチダウンさせる水滴風ポップ
-    {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(520, t);
-      o.frequency.exponentialRampToValueAtTime(300, t + 0.12);
-      o.connect(g).connect(ctx.destination);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.15, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-      o.start(t);
-      o.stop(t + 0.2);
-    }
-
-    // 「キラン」: 高いサイン波2音(基音+5度上)を薄く重ねて素早く減衰
-    [1568, 2349].forEach((f, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.value = f;
-      o.connect(g).connect(ctx.destination);
-      const t0 = t + 0.1 + i * 0.05;
-      g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(i === 0 ? 0.1 : 0.06, t0 + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
-      o.start(t0);
-      o.stop(t0 + 0.32);
-    });
-
-    setTimeout(() => ctx.close(), 600);
-  } catch {
-    /* silent */
-  }
 }
 
 /**
@@ -220,20 +158,9 @@ export function ScanCatchSheet({
    */
   async function runLandingAnimation(): Promise<void> {
     setPhase("landing");
-    playChime();
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([18, 40, 60]);
-    const reducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reducedMotion) {
-      await new Promise((r) => setTimeout(r, 500));
-      return;
-    }
-    const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v3voiceline;
-    await run({
+    await runCatchLanding({
       startEl: cutoutBoxRef.current,
       fly: flyRef.current,
-      dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
       speakLine: () => void pronounceRef.current?.(headword),
     });
   }
@@ -523,67 +450,14 @@ export function ScanCatchSheet({
         </div>
       </div>
 
-      {/* Flying cutout (or the plain crop if the cutout isn't ready) during landing */}
-      {phase === "landing" && (cutoutUrl ?? objectDataUrl) && (
-        <>
-          <div
-            id="catch-trail"
-            className="pointer-events-none fixed z-[59]"
-            style={{
-              willChange: "transform",
-              transition: "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25)",
-              width: 8,
-              height: 8,
-              left: 0,
-              top: 0,
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <span className="absolute inset-0 -m-6 rounded-full bg-amber-300/60 blur-2xl animate-pulse" />
-            <span className="absolute inset-0 -m-3 rounded-full bg-white/80 blur-md" />
-          </div>
-          <img
-            ref={flyRef}
-            src={(cutoutUrl ?? objectDataUrl)!}
-            alt=""
-            className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
-            style={{ willChange: "transform, opacity", left: 0, top: 0 }}
-          />
-        </>
-      )}
-      {/* Full-screen flash + big word for act 1 of the landing (画面いっぱい演出) */}
+      {/* 飛ぶ絵・閃光・大きな単語(スキャンとカメラで共通の一式) */}
       {phase === "landing" && (
-        <>
-          <div
-            id="catch-hero-flash"
-            className="pointer-events-none fixed inset-0 z-[58] opacity-0"
-            style={{
-              background:
-                "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)",
-            }}
-          />
-          <div
-            id="catch-hero-word"
-            className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
-            style={{ top: "68%" }}
-          >
-            <div
-              lang="zh-Hant"
-              className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
-            >
-              {headword}
-            </div>
-            {(dict?.zhuyin || item.zhuyin) && (
-              <div
-                lang="zh-Hant"
-                className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
-              >
-                {dict?.zhuyin || item.zhuyin}
-              </div>
-            )}
-            <div className="mt-1 text-sm font-medium text-white/85">GET!</div>
-          </div>
-        </>
+        <CatchLandingOverlay
+          ref={flyRef}
+          image={cutoutUrl ?? objectDataUrl}
+          headword={headword}
+          reading={dict?.zhuyin || item.zhuyin}
+        />
       )}
 
       {/* Impact ring at the dex icon on landing */}
@@ -613,19 +487,6 @@ export function ScanCatchSheet({
       )}
 
       <style>{`
-        @keyframes cutoutPop {
-          0%   { transform: scale(0.55) translateY(24px); opacity: 0; }
-          55%  { transform: scale(1.08) translateY(-6px); opacity: 1; }
-          100% { transform: scale(1) translateY(0); }
-        }
-        .cutout-pop { animation: cutoutPop 560ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
-        @keyframes dexImpact {
-          0%   { transform: scale(1); filter: brightness(1); }
-          25%  { transform: scale(1.35); filter: brightness(1.5) drop-shadow(0 0 12px #2563eb); }
-          60%  { transform: scale(0.92); }
-          100% { transform: scale(1); filter: brightness(1); }
-        }
-        .dex-impact { animation: dexImpact 780ms cubic-bezier(0.3, 1.6, 0.4, 1); }
         @keyframes impactRing {
           0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
           100% { transform: translate(-50%, -50%) scale(6);   opacity: 0; }
@@ -635,17 +496,6 @@ export function ScanCatchSheet({
           0%   { opacity: 0; }
           20%  { opacity: 1; }
           100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-160px) scale(0.6); }
-        }
-        #catch-hero-flash.hero-flash-play { animation: heroFlash 900ms ease-out forwards; }
-        @keyframes heroFlash {
-          0%   { opacity: 0; }
-          25%  { opacity: 1; }
-          100% { opacity: 0.65; }
-        }
-        #catch-hero-word.hero-word-play { animation: heroWord 460ms cubic-bezier(0.2, 1.4, 0.4, 1) 120ms forwards; }
-        @keyframes heroWord {
-          0%   { opacity: 0; transform: translateX(-50%) scale(0.5) translateY(24px); }
-          100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
         }
       `}</style>
     </div>
