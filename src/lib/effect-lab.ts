@@ -105,6 +105,12 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       date: "07-27",
       note: "画面いっぱい＋空中のタメで決め台詞が鳴る",
     },
+    {
+      id: "v4hold",
+      label: "空中で止めて発音(現在の既定)",
+      date: "08-03",
+      note: "ふわっと上昇→画面いっぱい＋キラッ→空中で0.7秒止まって発音→図鑑に上から着地",
+    },
   ],
 };
 
@@ -113,11 +119,13 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
  *
  * 2026-08-03 NORI指定で**カメラ期(07-01)に戻した**。探査点(光の点)のない
  * 「切り抜き中」の待ち画面と、画面いっぱいに広がってから図鑑にドンと着弾する
- * クラシックのキャッチ。新しい版もラボに残してあるので、いつでも戻せる。
+ * クラシックのキャッチ。
+ * 2026-08-03 追記: キャッチは v4hold(空中で止まって発音が鳴る版)に更新。
+ * 新しい版も古い版もラボに残してあるので、いつでも戻せる。
  */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   scanAnalyzing: "v0cutout",
-  catchLanding: "v1classic",
+  catchLanding: "v4hold",
 };
 
 /**
@@ -164,8 +172,8 @@ export const FLOW_PRESETS: FlowPreset[] = [
     id: "era0701",
     label: "カメラ期・光の点なし(現在の既定)",
     date: "07-01",
-    note: "撮る→自撮り→写真が上に小さくなって候補→タップで切り抜き→ふわっと浮いて画面いっぱい→図鑑にドン",
-    variants: { scanAnalyzing: "v0cutout", catchLanding: "v1classic" },
+    note: "撮る→自撮り→写真が上に小さくなって候補→タップで切り抜き→ふわっと浮いて画面いっぱい→空中で止まって発音→図鑑に上からドン",
+    variants: { scanAnalyzing: "v0cutout", catchLanding: "v4hold" },
     flow: {
       entranceLabel: "カメラ",
       entrance: "capture",

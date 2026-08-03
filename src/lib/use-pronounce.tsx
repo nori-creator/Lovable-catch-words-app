@@ -13,12 +13,22 @@ import { claimAudio, primeAudio } from "@/lib/audio";
  * to the on-device voice only when server TTS isn't available (offline / not
  * configured), so pronunciation always works but prefers the accurate source.
  */
-export function usePronounce(): (text: string) => Promise<void> {
+export type Pronounce = ((text: string) => Promise<void>) & {
+  /**
+   * 音声URLだけ先に取っておく(鳴らさない)。
+   * 合成はサーバーと往復するので、演出の「空中のタメ」で鳴らしたいときは
+   * 間に合わないことがある。見せ場に入る前にこれを呼んでおけば、その瞬間に
+   * 待たずに鳴る。
+   */
+  prefetch: (text: string) => void;
+};
+
+export function usePronounce(): Pronounce {
   const ttsFn = useServerFn(synthesizeSpeech);
   const elRef = useRef<HTMLAudioElement | null>(null);
   const cache = useRef<Map<string, string>>(new Map());
 
-  return async function pronounce(text: string) {
+  const pronounce = async function pronounce(text: string) {
     const word = text.trim();
     if (!word) return;
     // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
@@ -45,5 +55,19 @@ export function usePronounce(): (text: string) => Promise<void> {
       /* server TTS unavailable — use the device voice below */
     }
     speakZhTW(word);
+  } as Pronounce;
+
+  pronounce.prefetch = (text: string) => {
+    const word = text.trim();
+    if (!word || cache.current.has(word)) return;
+    void ttsFn({ data: { text: word } })
+      .then((r) => {
+        if (r.audio_url) cache.current.set(word, r.audio_url);
+      })
+      .catch(() => {
+        /* 先読みは best-effort。失敗しても本番の再生で取り直す */
+      });
   };
+
+  return pronounce;
 }

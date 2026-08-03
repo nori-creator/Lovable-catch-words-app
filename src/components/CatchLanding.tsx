@@ -4,6 +4,7 @@ import type { LandingRunner } from "@/components/effects/catch-landing/types";
 import { v1classic } from "@/components/effects/catch-landing/v1_classic";
 import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
 import { v3voiceline } from "@/components/effects/catch-landing/v3_voiceline";
+import { v4hold } from "@/components/effects/catch-landing/v4_hold";
 
 /**
  * キャッチ→図鑑の着弾演出、まるごと一式。
@@ -21,6 +22,7 @@ const CATCH_LANDING_VARIANTS: Record<string, LandingRunner> = {
   v1classic,
   v2fullwidth,
   v3voiceline,
+  v4hold,
 };
 
 /** 短い「キャッチ!」音 — WebAudio、音源ファイルなし。 */
@@ -87,7 +89,7 @@ export async function runCatchLanding(ctx: {
     await new Promise((r) => setTimeout(r, 500));
     return;
   }
-  const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v1classic;
+  const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v4hold;
   await run({
     startEl: ctx.startEl,
     fly: ctx.fly,
@@ -147,6 +149,10 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
               "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)",
           }}
         />
+        {/* 広がりきった瞬間に一度だけ走る「キラッ」 */}
+        <div id="catch-glint" className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
+          <span className="catch-glint-bar" />
+        </div>
         <div
           id="catch-hero-word"
           className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"

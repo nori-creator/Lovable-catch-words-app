@@ -98,6 +98,11 @@ export function ScanCatchSheet({
   const pronounceRef = useRef(pronounce);
   pronounceRef.current = pronounce;
 
+  // 空中のタメで待たせず鳴らせるよう、音声だけ先に取っておく。
+  useEffect(() => {
+    pronounceRef.current?.prefetch?.(headword);
+  }, [headword]);
+
   // Body scroll lock
   useEffect(() => {
     const prev = document.body.style.overflow;

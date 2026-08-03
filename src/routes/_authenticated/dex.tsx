@@ -330,8 +330,12 @@ function DexPage() {
                     <button
                       key={s.id}
                       onClick={() => setOpenId(s.id)}
-                      className="group block text-left"
+                      className="group relative block text-left"
                     >
+                      {/* 着地の衝撃。セルは overflow-hidden なので、輪はその外側に置く */}
+                      {slam && (
+                        <span className="slam-shock pointer-events-none absolute left-1/2 top-full z-0 block h-10 w-10 rounded-full ring-4 ring-amber-400/70" />
+                      )}
                       <div
                         id={`dex-cell-${s.id}`}
                         className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
@@ -467,21 +471,34 @@ function DexPage() {
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
       <style>{`
+        /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
+           「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
+           落下 → 着地の潰れ → 跳ね返り → 収まる、の順。 */
         @keyframes slamIn {
-          0%   { transform: scale(2.6) rotate(-3deg); opacity: 0; }
-          35%  { transform: scale(1.18) rotate(1deg); opacity: 1; }
-          60%  { transform: scale(0.93); }
-          100% { transform: scale(1); }
+          0%   { transform: translateY(-115vh) scaleX(0.92) scaleY(1.12); opacity: 0; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          8%   { opacity: 1; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          52%  { transform: translateY(0) scaleX(1.16) scaleY(0.82); animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1); }
+          68%  { transform: translateY(-22%) scaleX(0.95) scaleY(1.07); }
+          84%  { transform: translateY(0) scaleX(1.05) scaleY(0.96); }
+          100% { transform: translateY(0) scale(1); }
         }
-        .slam-in { animation: slamIn 720ms cubic-bezier(0.22, 1.2, 0.36, 1) 120ms both; position: relative; z-index: 10; }
+        .slam-in { animation: slamIn 880ms linear 120ms both; position: relative; z-index: 10; transform-origin: 50% 100%; }
+        /* 着地の衝撃。セルの足元から輪が広がる。 */
+        @keyframes slamShock {
+          0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+          52%  { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
+        }
+        .slam-shock { animation: slamShock 900ms cubic-bezier(0.15, 0.6, 0.3, 1) 120ms both; }
         @keyframes slamFlash {
           0%   { opacity: 0; }
           40%  { opacity: 1; }
           100% { opacity: 0; }
         }
-        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 900ms ease-out 300ms both; }
+        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 760ms ease-out 520ms both; }
         @media (prefers-reduced-motion: reduce) {
           .slam-in { animation: none; }
+          .slam-shock { animation: none; }
           .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
         }
       `}</style>
