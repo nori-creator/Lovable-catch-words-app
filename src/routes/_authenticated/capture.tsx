@@ -321,6 +321,8 @@ function CapturePage() {
 
   async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
     setSelectedHead(head);
+    // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
+    pronounce.prefetch(head);
     setWaitKind("cutout");
     setStep("processing");
 
@@ -769,7 +771,9 @@ function CapturePage() {
 
       {step === "saving" && (
         // 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
-        <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
+        // 見せ場は暗転した中で始まる。明るい背景だと切り抜きの縁も「キラッ」も
+        // 沈んでしまう(スキャンのシートも同じく暗い)。
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
           {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
               飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
           {(cutoutImg ?? objectImg) && (
@@ -784,7 +788,11 @@ function CapturePage() {
               />
             </div>
           )}
-          {!landing && <p className="mt-6 text-lg font-bold tracking-tight">{selectedHead}</p>}
+          {!landing && (
+            <p lang="zh-Hant" className="mt-6 text-lg font-bold tracking-tight text-white">
+              {selectedHead}
+            </p>
+          )}
           <style>{`
             @keyframes catchRise {
               0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
