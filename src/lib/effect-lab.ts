@@ -124,36 +124,104 @@ export type FlowPreset = {
   date: string;
   note: string;
   variants: Partial<Record<EffectSlot, string>>;
+  /**
+   * 通し再生用の「その時代のフロー」。演出は単体では思い出せず、
+   * **下のボタンを押してから図鑑に入るまでの流れ全体**で記憶されている。
+   * だからボタンの名前・開く画面・切り抜きの有無まで含めて再現する。
+   */
+  flow: FlowShape;
+};
+
+export type FlowShape = {
+  /** 下タブのボタンの呼び名(カメラ時代 / スキャン時代)。 */
+  entranceLabel: string;
+  /** 押すと開く画面。framed=枠の中にカメラ / fullscreen=全画面 / capture=撮影ページ。 */
+  entrance: "capture" | "framed" | "fullscreen";
+  /** シャッター(またはスキャン)ボタンの文言。 */
+  shutterLabel: string;
+  /** 解析中の見出し(「切り抜き中…」だった時代がある)。 */
+  analyzingLabel: string;
+  /** 候補の見せ方。dots4=4状態レーダー / dots3=3色 / list=下に一覧も出す。 */
+  candidates: "dots4" | "dots3" | "list";
+  /** 背景の切り抜きをしていたか(していた時代は待ち時間があった)。 */
+  cutout: boolean;
 };
 
 export const FLOW_PRESETS: FlowPreset[] = [
   {
-    id: "era0717",
-    label: "リキッドメタル期",
-    date: "07-17",
-    note: "重厚な液体金属のスキャン。キャッチは画面9割まで拡大",
+    id: "era0708",
+    label: "切り抜き期(カメラ)",
+    date: "07-08",
+    note: "下のボタンは「カメラ」。撮ると背景を切り抜き、切り抜かれた絵がポンと出る",
+    variants: { scanAnalyzing: "v1probe", catchLanding: "v1classic" },
+    flow: {
+      entranceLabel: "カメラ",
+      entrance: "capture",
+      shutterLabel: "撮る",
+      analyzingLabel: "切り抜き中…",
+      candidates: "dots4",
+      cutout: true,
+    },
+  },
+  {
+    id: "era0713",
+    label: "高速化期(切り抜きあり)",
+    date: "07-13",
+    note: "試作品の高速システムを移植。切り抜きは残しつつ待ち時間を短縮",
     variants: { scanAnalyzing: "v2liquid", catchLanding: "v1classic" },
+    flow: {
+      entranceLabel: "カメラ",
+      entrance: "framed",
+      shutterLabel: "スキャン",
+      analyzingLabel: "切り抜き中…",
+      candidates: "dots4",
+      cutout: true,
+    },
+  },
+  {
+    id: "era0716",
+    label: "切り抜き停止期",
+    date: "07-16",
+    note: "切り抜きをやめ「写真で最速キャッチ」に。待ち時間が消えた",
+    variants: { scanAnalyzing: "v3crystal", catchLanding: "v1classic" },
+    flow: {
+      entranceLabel: "カメラ",
+      entrance: "framed",
+      shutterLabel: "スキャン",
+      analyzingLabel: "解析中…",
+      candidates: "dots4",
+      cutout: false,
+    },
   },
   {
     id: "era0720",
-    label: "結晶化期",
+    label: "分析中期",
     date: "07-20",
-    note: "文字が1字ずつ結晶化。キャッチはクラシック",
-    variants: { scanAnalyzing: "v3crystal", catchLanding: "v1classic" },
-  },
-  {
-    id: "era0721",
-    label: "静かな分析期",
-    date: "07-21",
-    note: "装飾を削った分析中＋写真が横幅いっぱいに広がるキャッチ",
+    note: "「切り抜き中」→「AIが分析中」に改名。候補は3色＋下に一覧",
     variants: { scanAnalyzing: "v4calm", catchLanding: "v2fullwidth" },
+    flow: {
+      entranceLabel: "カメラ",
+      entrance: "framed",
+      shutterLabel: "スキャン",
+      analyzingLabel: "AIが分析中",
+      candidates: "list",
+      cutout: false,
+    },
   },
   {
     id: "era0727",
     label: "全画面・決め台詞期",
     date: "07-27",
-    note: "全画面スキャン＋空中のタメで決め台詞",
+    note: "スキャンが全画面に。空中のタメで決め台詞が鳴る",
     variants: { scanAnalyzing: "v7fullscreen", catchLanding: "v3voiceline" },
+    flow: {
+      entranceLabel: "スキャン",
+      entrance: "fullscreen",
+      shutterLabel: "スキャン",
+      analyzingLabel: "AIが分析中",
+      candidates: "dots3",
+      cutout: false,
+    },
   },
   {
     id: "eraNow",
@@ -161,6 +229,14 @@ export const FLOW_PRESETS: FlowPreset[] = [
     date: "07-28",
     note: "青染めの分析中＋決め台詞つきキャッチ",
     variants: { scanAnalyzing: "v8current", catchLanding: "v3voiceline" },
+    flow: {
+      entranceLabel: "スキャン",
+      entrance: "framed",
+      shutterLabel: "スキャン",
+      analyzingLabel: "AIが分析中",
+      candidates: "list",
+      cutout: false,
+    },
   },
 ];
 
