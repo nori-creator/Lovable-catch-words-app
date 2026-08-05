@@ -1,28 +1,32 @@
-import { useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
+import { createSpring, projectMomentum, velocityFrom, type Spring } from "@/lib/spring";
 
 /**
- * Horizontal swipe-to-advance wrapper (apple-design §2–§6).
+ * 横スワイプで次へ進むカード(apple-design §2〜§6)。
  *
- * - 1:1 finger tracking with the grab offset respected (§2), starting from the
- *   card's *current* on-screen position so a mid-spring grab is continuous (§3).
- * - On release, the resting point is *projected* from the release velocity
- *   (§6, Apple's exponential-decay form) — a flick throws the card even from a
- *   small drag — and the commit uses that projection, not the raw offset.
- * - Below threshold it springs back; the transition uses the iOS sheet curve.
- * - Only horizontal, dominant gestures commit; vertical drags fall through to
- *   scroll, and gestures that begin on a control (button/field) are ignored so
- *   the card's own interactions keep working (§10 disambiguation).
- * - Fully disabled under prefers-reduced-motion (§14) — the card's buttons
- *   remain the way to advance.
+ * - §2 指に1:1で付いてくる。掴んだ位置のずれも保つ。
+ * - §3 **途中で掴める**。戻っている最中のカードを掴んでも飛ばない —
+ *   ばねの**いまの値**から続きを引き継ぐ。逆向きに投げ直しても速度が
+ *   連続するので「壁にぶつかった」感じが出ない。
+ * - §5 離した瞬間の**速度をばねに引き渡す**。ドラッグと自走の継ぎ目が消える。
+ * - §6 着地点は速度から**予測**する。小さく速く弾いただけでも飛んでいく。
+ * - §8 進む向きに回転と傾きで先出しする。どこへ行くのか予告してから行く。
+ * - §10 縦方向のドラッグはスクロールに譲る。ボタンや入力の上から始めた
+ *   ジェスチャーは無視する(カード内の操作を殺さないため)。
+ * - §14 reduced motion では丸ごと無効。カード内のボタンで進める。
+ *
+ * 以前は離したあとが CSS transition だった。時間が決め打ちなので、戻る途中の
+ * カードを掴むと state 上の 0 から再開してガクッと飛んでいた。ばねに替えて
+ * 「いつでも掴める」を本当にした。
  */
 
 const INTERACTIVE = "button, a, input, textarea, select, [role='button'], [contenteditable='true']";
 
-// Apple's momentum projection (Designing Fluid Interfaces): where a flick lands.
-function project(velocity: number, decelerationRate = 0.998) {
-  return (velocity / 1000) * (decelerationRate / (1 - decelerationRate));
-}
+/** 画面外へ投げ切ったと見なす余白。 */
+const OFFSCREEN_PAD = 96;
+/** 進むと判定する距離(カード幅に対する比)。予測着地点で測る。 */
+const COMMIT_RATIO = 0.4;
 
 export function SwipeCard({
   children,
@@ -36,8 +40,13 @@ export function SwipeCard({
   className?: string;
 }) {
   const reduced = usePrefersReducedMotion();
-  const [dx, setDx] = useState(0);
-  const [spring, setSpring] = useState(true);
+  const active = enabled && !reduced;
+
+  const elRef = useRef<HTMLDivElement | null>(null);
+  const springRef = useRef<Spring | null>(null);
+  const swipeRef = useRef(onSwipe);
+  swipeRef.current = onSwipe;
+
   const st = useRef({
     down: false,
     committed: false,
@@ -45,75 +54,102 @@ export function SwipeCard({
     sy: 0,
     baseDx: 0,
     pid: -1,
+    thrown: false,
     hist: [] as { t: number; x: number }[],
   });
 
-  const active = enabled && !reduced;
+  // ばねは1本(横方向のみ)。値が変わるたびに transform を直接書く —
+  // React の再描画を挟まないので、指との遅れが出ない(§1/§11)。
+  useEffect(() => {
+    if (!active) return;
+    const paint = (dx: number) => {
+      const el = elRef.current;
+      if (!el) return;
+      // §8 進む向きへの先出し: 回転は移動量に比例させる。
+      el.style.transform = `translate3d(${dx}px, 0, 0) rotate(${dx * 0.025}deg)`;
+    };
+    const s = createSpring(0, paint, { damping: 1, response: 0.35 });
+    springRef.current = s;
+    return () => {
+      s.dispose();
+      springRef.current = null;
+    };
+  }, [active]);
 
   function onPointerDown(e: ReactPointerEvent) {
     if (!active) return;
     if ((e.target as HTMLElement).closest(INTERACTIVE)) return;
+    const s = springRef.current;
+    if (!s || st.current.thrown) return;
+    // §3 いま画面に出ている値から掴む。走行中なら**その場で止める** —
+    // 目標値から始めるとここで飛ぶ。
+    const live = s.value();
+    s.stop();
     st.current = {
       down: true,
       committed: false,
       sx: e.clientX,
       sy: e.clientY,
-      baseDx: dx, // start from the presentation value (§3)
+      baseDx: live,
       pid: e.pointerId,
+      thrown: false,
       hist: [{ t: performance.now(), x: e.clientX }],
     };
-    setSpring(false);
   }
 
   function onPointerMove(e: ReactPointerEvent) {
     const s = st.current;
-    if (!s.down) return;
+    const spring = springRef.current;
+    if (!s.down || !spring) return;
     const ddx = e.clientX - s.sx;
     const ddy = e.clientY - s.sy;
     if (!s.committed) {
-      if (Math.abs(ddx) < 10 && Math.abs(ddy) < 10) return; // hysteresis (§10)
+      if (Math.abs(ddx) < 10 && Math.abs(ddy) < 10) return; // §10 ヒステリシス
       if (Math.abs(ddy) > Math.abs(ddx)) {
-        s.down = false; // vertical intent — let the page scroll
+        s.down = false; // 縦に動いた = スクロールの意思。譲る
         return;
       }
       s.committed = true;
       try {
         (e.currentTarget as HTMLElement).setPointerCapture(s.pid);
       } catch {
-        /* capture may fail if the pointer already left — safe to ignore */
+        /* ポインタが既に外に出ていると失敗する。無視して問題ない */
       }
     }
     s.hist.push({ t: performance.now(), x: e.clientX });
     if (s.hist.length > 6) s.hist.shift();
-    setDx(s.baseDx + ddx);
+    // §2 指と1:1。ばねを経由せず値を直接置く。
+    spring.set(s.baseDx + ddx);
   }
 
   function end(e: ReactPointerEvent) {
     const s = st.current;
-    if (!s.down) return;
+    const spring = springRef.current;
+    if (!s.down || !spring) return;
     s.down = false;
-    setSpring(true);
     if (!s.committed) {
-      setDx(0);
+      spring.to(0);
       return;
     }
-    const h = s.hist;
-    let v = 0;
-    if (h.length >= 2) {
-      const a = h[0];
-      const b = h[h.length - 1];
-      const dt = b.t - a.t || 16;
-      v = ((b.x - a.x) / dt) * 1000; // px/s
-    }
+    const v = velocityFrom(s.hist); // px/s
     const width = (e.currentTarget as HTMLElement).offsetWidth || 320;
-    const current = s.baseDx + (e.clientX - s.sx);
-    const projected = current + project(v); // §6: land where the flick is going
-    if (Math.abs(projected) > width * 0.4) {
+    const current = spring.value();
+    const projected = current + projectMomentum(v); // §6 弾いた先を見る
+
+    if (Math.abs(projected) > width * COMMIT_RATIO) {
+      // §5 速度をそのまま引き渡すので、指を離した瞬間に継ぎ目が出ない。
+      // §4 勢いのある操作の後なので少しだけ跳ねてよい。
       const dir = projected < 0 ? -1 : 1;
-      setDx(dir * (width + 96)); // throw it off-screen along the gesture
-      window.setTimeout(onSwipe, 240);
+      s.thrown = true;
+      spring.to(dir * (width + OFFSCREEN_PAD), {
+        velocity: v,
+        damping: 0.9,
+        response: 0.3,
+      });
+      window.setTimeout(() => swipeRef.current(), 240);
     } else {
-      setDx(0); // spring home
+      // 戻る。ここも速度を引き継ぐ — 戻す方向に弾いていればその勢いで戻る。
+      spring.to(0, { velocity: v, damping: 1, response: 0.35 });
     }
   }
 
@@ -123,17 +159,13 @@ export function SwipeCard({
 
   return (
     <div
+      ref={elRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}
       onPointerCancel={end}
       className={className}
-      style={{
-        transform: `translateX(${dx}px) rotate(${dx * 0.025}deg)`,
-        transition: spring ? "transform 0.34s var(--ease-ios)" : "none",
-        touchAction: "pan-y",
-        willChange: "transform",
-      }}
+      style={{ touchAction: "pan-y", willChange: "transform" }}
     >
       {children}
     </div>

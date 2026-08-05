@@ -9,6 +9,7 @@ import { useT } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
+import { useScrolled } from "@/hooks/use-scrolled";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -64,6 +65,7 @@ function BrandMark() {
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
+  const scrolled = useScrolled();
 
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {
@@ -81,10 +83,13 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
   return (
     <div className="min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      {/* Top chrome — a translucent material the content scrolls under (§12),
-          with a bright top edge catching light and a bottom scroll-edge hairline
-          instead of a hard divider. */}
-      <header className="sticky top-0 z-30 border-b border-border/50 bg-background/70 backdrop-blur-xl backdrop-saturate-150 pt-[env(safe-area-inset-top)]">
+      {/* Top chrome — a translucent material the content scrolls under (§12).
+          区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
+          縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
+      <header
+        data-scrolled={scrolled ? "true" : undefined}
+        className="scroll-edge sticky top-0 z-30 bg-background/70 backdrop-blur-xl backdrop-saturate-150 pt-[env(safe-area-inset-top)]"
+      >
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <Link
             to="/home"
