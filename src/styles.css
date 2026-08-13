@@ -249,9 +249,36 @@
   /* Motion curves (apple-design §4/§7): a critically-damped iOS sheet curve for
      non-gesture transitions, a soft ease-out, and a springy overshoot reserved
      for momentum-driven moments only. */
+  /* 棚。影は**常に黒側**で持つ — ここを --foreground で作ると、
+     ダークテーマで白い影になり、モノが接地せず光って見えた。 */
+  --shelf-shadow: 0 0% 0%;
+  /* モノを置く枠の高さ。**固定**にする — 画像が届いてから高さが決まると、
+     読み込みのたびに下の棚が全部ずり下がる(CachedImg は解決前に大きさの
+     無い span を出すので、実際そうなっていた)。 */
+  --shelf-item-h: 4.25rem;
+  --shelf-shadow-a: 0.45;
+  --shelf-line-a: 0.22;
+  --shelf-lip-a: 0.5;
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 暗い面での棚。影を濃く、縁の光をぐっと弱く。
+   この上書きは共有ブロックの**後**に置くこと — 先に置くと
+   `:root, .dark` に同じ詳細度で上書きし返されて効かない。 */
+/* .dark だけでは足りない: 暗い data-ui-theme(5種)は .dark を付けずに
+   --background を暗くするので、そちらでは縁が白50%のまま残り、
+   黒地に光る線が走っていた — 直したはずの不具合が別の面で再発していた。 */
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --shelf-shadow-a: 0.7;
+  --shelf-line-a: 0.32;
+  --shelf-lip-a: 0.1;
 }
 .font-display {
   font-family: var(--font-display);
@@ -907,12 +934,14 @@
   .seg-pill,
   .glass-bar,
   .lift-glass,
-  .app-sheet {
+  .app-sheet,
+  .room-head {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
   .seg-pill,
-  .app-sheet {
+  .app-sheet,
+  .room-head {
     background: var(--card) !important;
   }
   .glass-bar {
@@ -920,6 +949,20 @@
   }
 }
 @media (prefers-contrast: more) {
+  /* 棚板は構造そのもの。隣で --border を強めているのと同じ理由でここも強める。
+     暗い data-ui-theme(5種)も必ず並べること — `:root` (0,1,0) は
+     `:root[data-ui-theme="…"]` (0,2,0) に詳細度で負けるので、
+     `:root, .dark` だけ書くと**この5テーマだけ高コントラストが無視され**、
+     いちばん棚板が見えにくい暗い面が 0.32 のまま取り残される。 */
+  :root,
+  .dark,
+  :root[data-ui-theme="darkroom"],
+  :root[data-ui-theme="nightmarket"],
+  :root[data-ui-theme="ink"],
+  :root[data-ui-theme="aurora"],
+  :root[data-ui-theme="collection"] {
+    --shelf-line-a: 0.5;
+  }
   .seg-pill,
   .app-sheet {
     background: var(--card) !important;
@@ -1118,16 +1161,222 @@
   pointer-events: none;
 }
 
-/* Hairline shelf divider */
+/* ─────────────────────────────────────────────────────────────────
+   棚(図鑑)
+
+   参考にしたアプリの動画を1コマずつ見て分かったこと: 奥行きを作っているのは
+   厚い板ではなく、**面 + 明るいヘアライン + 接地影**の3つだけだった。
+   黒い素材のときは、ほとんど細い光の線しか無い。だから板は作らない。
+
+   モノは高さがバラバラのまま**下端で揃って**立つ。接地する線が1本に
+   揃うから「棚に置いてある」に見える。切り抜きの大きさがまちまちなのは
+   欠点ではなく、むしろ本物らしさになる。
+   ───────────────────────────────────────────────────────────────── */
+
+/* 棚1段。列は呼び出し側が gridTemplateColumns で決める(密度切替)。
+   高さは中身に応じて伸びる — 等間隔のグリッドではない。 */
+.shelf-row {
+  position: relative;
+  display: grid;
+  align-items: end; /* ← 下端で揃える。これが「立っている」の正体 */
+  gap: 0.75rem;
+}
+/* 背表紙のときは隙間をほぼ無くす。本は隣とくっついて立っている。 */
+.shelf-row-tight {
+  gap: 2px;
+}
+
+/* 棚に載る1つ分。下寄せ。 */
+.shelf-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  /* 高さは**固定**。中身に決めさせると、画像が1枚届くたびに下の棚が
+     全部ずり下がる。44px を超えるのでタップ領域も満たす(§10)。 */
+  height: calc(var(--shelf-item-h) + 0.5rem);
+  border-radius: 6px;
+  /* §1 押した瞬間に返事をする。離すまで無反応だと死んで見える。 */
+  transition: transform 140ms var(--ease-out-soft);
+}
+.shelf-item:active {
+  transform: scale(0.94);
+}
+.shelf-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.shelf-item img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--shelf-item-h);
+  object-fit: contain;
+  object-position: bottom;
+}
+/* 画像がまだ無いカード。中央寄せはここで持つ — Tailwind の
+   place-items-center は utilities レイヤーなので、レイヤー無しの
+   この規則に負けて効かなかった(単語が枠の上端に張り付いていた)。 */
+.shelf-item .shelf-fallback {
+  display: grid;
+  place-items: center;
+  /* 幅いっぱいだと「板」に見えてしまう。棚に立っているモノの幅に寄せる。 */
+  width: 72%;
+  height: calc(var(--shelf-item-h) * 0.82);
+  padding: 0 0.25rem;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.15;
+}
+/* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
+.shelf-item .shelf-stand {
+  /* 接地影。棚板に触れている一点が濃く、すぐ薄くなる。 */
+  filter: drop-shadow(0 3px 3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)));
+}
+/* 切り抜きが無い行は、素の写真を小さな額に入れて置く。
+   「切り抜きが無い」ことを欠陥に見せない。 */
+/* 額は写真に**張り付く**。
+   詳細度に注意: `.shelf-item img` は (0,1,1) で `.shelf-framed` (0,1,0) より
+   強いので、`.shelf-framed` 単独で object-fit を上書きしようとしても効かず、
+   額の中に余白が出て写真が浮いていた。同じ土俵に上げて書く。 */
+.shelf-item img.shelf-framed,
+.shelf-item .shelf-framed {
+  object-fit: cover;
+  width: 78%;
+  height: var(--shelf-item-h);
+}
+.shelf-framed {
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 3px 6px -2px hsl(var(--shelf-shadow) / var(--shelf-shadow-a));
+}
+
+/* 棚板。板ではなく線 — ただし「線がある」とはっきり分かる濃さが要る。
+   上に細い明るい縁(光が当たっている面)、下に影(板の厚みの裏)。
+   最初 8% で引いたら明るい背景でほぼ見えず、棚に見えなかった。 */
 .shelf-rule {
-  height: 1px;
+  height: 2px;
+  border-radius: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in oklab, var(--foreground) 8%, transparent) 15%,
-    color-mix(in oklab, var(--foreground) 8%, transparent) 85%,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 6%,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 94%,
     transparent 100%
   );
+  box-shadow:
+    0 -1px 0 rgb(255 255 255 / var(--shelf-lip-a)),
+    0 3px 6px -3px hsl(var(--shelf-shadow) / 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   棚の素材。
+
+   既定は `none` = いままでどおりの線1本。線のままにしておく理由があって、
+   板を敷くと**モノより棚のほうが目立つ**ことがある。集めたものを見に
+   来ているのだから、そうなったら本末転倒。
+   だから素材は「選べる」ものにして、既定では出さない。
+
+   板を選んだときは、線ではなく厚みのある板にする:
+     上端に光の当たる縁 → 面のグラデーション → 下に厚みの影。
+   画像は使わない(1枚も増やさない)。
+   ───────────────────────────────────────────────────────────────── */
+[data-shelf-material="oak"] {
+  --plank-top: #bb9260;
+  --plank-bottom: #8d6839;
+  --plank-grain: rgb(90 58 25 / 0.14);
+}
+[data-shelf-material="walnut"] {
+  --plank-top: #6f4c30;
+  --plank-bottom: #3d281a;
+  --plank-grain: rgb(20 10 4 / 0.2);
+}
+[data-shelf-material="obsidian"] {
+  --plank-top: #2f343d;
+  --plank-bottom: #14171c;
+  --plank-grain: rgb(0 0 0 / 0.22);
+}
+[data-shelf-material="concrete"] {
+  --plank-top: #b3b0a9;
+  --plank-bottom: #86837c;
+  --plank-grain: rgb(55 53 49 / 0.1);
+}
+[data-shelf-material="glass"] {
+  --plank-top: rgb(255 255 255 / 0.5);
+  --plank-bottom: rgb(150 190 220 / 0.28);
+  --plank-grain: rgb(255 255 255 / 0.18);
+}
+
+[data-shelf-material]:not([data-shelf-material="none"]) .shelf-rule {
+  height: 0.6875rem; /* 11px — 板の小口が見える最小の厚み */
+  border-radius: 0 0 3px 3px;
+  /* 木目。**周期をずらした2本**を薄く重ねる。
+     最初これを 8px の等間隔1本でやったら、木ではなく**定規の目盛り**に
+     見えた(等間隔の線は人工物の印になる)。13 と 31 という互いに素な
+     周期にすると、繰り返しの合致点が遠のいて自然な揺らぎになる。 */
+  background:
+    repeating-linear-gradient(90deg, transparent 0 13px, var(--plank-grain) 13px 14px),
+    repeating-linear-gradient(90deg, transparent 0 31px, var(--plank-grain) 31px 32px),
+    linear-gradient(180deg, var(--plank-top) 0%, var(--plank-bottom) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 5px 10px -5px hsl(var(--shelf-shadow) / 0.75);
+}
+[data-shelf-material="glass"] .shelf-rule {
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 6px 14px -8px hsl(var(--shelf-shadow) / 0.6);
+}
+
+/* ── 背表紙(spines): 本棚の見え方 ─────────────────────────────
+   切り抜きを立たせる代わりに、色の違う背表紙を隙間なく並べる。
+   一覧性がいちばん高い見え方 — 何冊あるかが一目で分かる。
+   写真は見えなくなるので、既定にはしない。 */
+.shelf-spine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--shelf-item-h);
+  padding: 0.25rem 0;
+  border-radius: 2px 2px 1px 1px;
+  /* 背の丸み: 中央が明るく、両端に向かって落ちる。 */
+  /* ハイライトは白10%まで。ここを上げると背表紙の色が明るくなり、
+     載っている白い文字が 4.5:1 を割る(spineColor の明度と対で決めた値)。 */
+  background-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.28) 0%,
+    rgb(255 255 255 / 0.1) 38%,
+    rgb(255 255 255 / 0.04) 62%,
+    rgb(0 0 0 / 0.3) 100%
+  );
+  box-shadow:
+    0 0 0 1px hsl(var(--shelf-shadow) / 0.28),
+    0 3px 5px -3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a));
+  overflow: hidden;
+}
+/* 背表紙の文字。
+ *
+ * 本物の背表紙のように**縦書き**(writing-mode: vertical-rl)にしようとして
+ * やめた。この文字が使う書体では縦組みの送り幅(vmtx)が無く、
+ * **4文字が全部同じ位置に重なって1つの黒い塊になる**。
+ * text-orientation を変えても、span ごと 90度回しても同じだった。
+ * 端末によっては出るのかもしれないが、**自分が見て確かめられない見え方は
+ * 出さない**。横書きなら確実に読める。 */
+.shelf-spine span {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  /* 5文字以上の語は折り返す。背は細いので、はみ出すより畳むほうがいい。 */
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
 }
 
 /* Shelf gentle tilt when a new card lands */

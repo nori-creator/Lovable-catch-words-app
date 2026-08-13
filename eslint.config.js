@@ -20,6 +20,11 @@ export default tseslint.config(
       "src/routes/mcp.ts",
       "src/routes/[[].mcp[]]/**",
       "src/routes/[[].well-known[]]/**",
+      // Supabase が DB のスキーマから生成する型定義。整形しても
+      // `supabase gen types` を流すたびに元に戻るので、指摘だけが
+      // 残り続ける(911件あって、それだけで `npm run check` が
+      // 永久に赤かった = 門として機能していなかった)。
+      "src/integrations/supabase/types.ts",
     ],
   },
   {

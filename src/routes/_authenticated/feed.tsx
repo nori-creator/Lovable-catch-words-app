@@ -1,7 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import { getFeed, toggleLike, type FeedPost } from "@/lib/social.functions";
 import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
@@ -12,6 +14,12 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/feed")({
+  // みんなの投稿まわりはまだ出さない(src/lib/features.ts に理由)。
+  // どこからも辿り着けないうえ誰も投稿できず、通報もブロックも無い。
+  // URLを直接打った人だけが永久に空の画面に着く状態なので、ホームへ返す。
+  beforeLoad: () => {
+    if (!SOCIAL_ENABLED) throw redirect({ to: "/home" });
+  },
   head: () => ({ meta: [{ title: tStatic("page.feed") }] }),
   component: FeedPage,
 });
@@ -20,7 +28,7 @@ function FeedPage() {
   const t = useT();
   const [tab, setTab] = useState<"following" | "popular">("following");
   const fetchFeed = useServerFn(getFeed);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["feed", tab],
     queryFn: () => fetchFeed({ data: { tab, limit: 20 } }),
   });
@@ -46,6 +54,8 @@ function FeedPage() {
             <div key={i} className="h-96 animate-pulse rounded-3xl bg-secondary" />
           ))}
         </div>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : !data || data.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (

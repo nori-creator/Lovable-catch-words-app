@@ -24,6 +24,7 @@ import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
 import { useT, useUiLang } from "@/lib/i18n";
 import { SwipeCard } from "@/components/SwipeCard";
+import { LoadFailed } from "@/components/LoadFailed";
 import {
   Eye,
   Sparkles,
@@ -115,6 +116,7 @@ function ReviewPage() {
     data: cards,
     isLoading,
     isFetching,
+    isError,
     refetch,
   } = useQuery({
     queryKey: ["reviews-due"],
@@ -242,6 +244,10 @@ function ReviewPage() {
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
           <p className="text-sm text-muted-foreground">{t("review.preparing")}</p>
         </div>
+      ) : isError ? (
+        // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
+        // 200枚溜まっていても「今日の復習はありません」と出ていた。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (

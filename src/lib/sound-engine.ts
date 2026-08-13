@@ -7,15 +7,36 @@
  * All calls are safe on server — they no-op when AudioContext is missing.
  */
 
-type Level = "off" | "subtle" | "full";
+export type Level = "off" | "subtle" | "full";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let level: Level = "subtle";
 let unlocked = false;
 
+/**
+ * 保存された音量を読み込む。
+ *
+ * 以前これは `ensureCtx()` の中だけにあった。つまり**一度も音を鳴らして
+ * いない間は `getLevel()` が既定値を返す** — 設定画面を直接開いた人には、
+ * 「オフ」を選んで保存したはずなのに「控えめ」が選ばれて見えていた。
+ * 読むほうと書くほうで違う値を見ているのは、設定として壊れている。
+ */
+let loaded = false;
+function loadLevel() {
+  if (loaded || typeof localStorage === "undefined") return;
+  loaded = true;
+  try {
+    const saved = localStorage.getItem("cw-sound-level") as Level | null;
+    if (saved === "off" || saved === "subtle" || saved === "full") level = saved;
+  } catch {
+    /* ignore */
+  }
+}
+
 function ensureCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
+  loadLevel();
   if (!ctx) {
     const Ctor = (window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
@@ -26,12 +47,6 @@ function ensureCtx(): AudioContext | null {
     master = ctx.createGain();
     master.gain.value = level === "full" ? 0.35 : level === "subtle" ? 0.14 : 0;
     master.connect(ctx.destination);
-    try {
-      const saved = localStorage.getItem("cw-sound-level") as Level | null;
-      if (saved === "off" || saved === "subtle" || saved === "full") setLevel(saved);
-    } catch {
-      /* ignore */
-    }
   }
   return ctx;
 }
@@ -46,13 +61,21 @@ export function setLevel(l: Level) {
   if (master) master.gain.value = l === "full" ? 0.35 : l === "subtle" ? 0.14 : 0;
 }
 export function getLevel(): Level {
+  loadLevel();
   return level;
 }
 
-/** Must be called inside a user gesture the first time (iOS requirement). */
+/**
+ * 音を出せる状態にする。最初の1回はユーザーの操作の中から呼ぶこと(iOS)。
+ *
+ * `unlocked` で早期に返してはいけない。iOS はアプリを背面に回すたびに
+ * AudioContext を suspended に落とすので、**一度解錠したから以後は大丈夫、
+ * にはならない**。前は CatchLanding が毎回 AudioContext を作り直して
+ * いたので偶然これを免れていた。共有の1本にした以上、毎回状態を見る。
+ */
 export function unlockAudio() {
   const c = ensureCtx();
-  if (!c || unlocked) return;
+  if (!c) return;
   if (c.state === "suspended") void c.resume();
   unlocked = true;
 }
@@ -156,6 +179,21 @@ export const Sound = {
     tone(2400, 0.18, { type: "sine", from: 2400, to: 3200, gain: 0.16 });
     tone(3600, 0.14, { type: "sine", gain: 0.09, delay: 0.05 });
     noise(0.1, { hp: 4000, lp: 12000, gain: 0.03 });
+  },
+  /**
+   * キャッチの合図 — 「ポン」のあとに「キラン」。
+   *
+   * もとは CatchLanding.tsx が**自前の AudioContext** で鳴らしていた。
+   * つまりこのアプリでいちばん大きい音が、音量の設定(オフ/控えめ/しっかり)を
+   * 完全に無視して常に同じ大きさで鳴っていた — 「オフ」にしても鳴る。
+   * ここへ移して master gain を通す。
+   */
+  catchChime() {
+    // ポン: 低めのサイン波を素早くピッチダウン(水滴風)
+    tone(520, 0.18, { type: "sine", from: 520, to: 300, gain: 0.15 });
+    // キラン: 高い2音を薄く重ねて素早く減衰
+    tone(1568, 0.3, { type: "sine", gain: 0.1, delay: 0.1 });
+    tone(2349, 0.3, { type: "sine", gain: 0.06, delay: 0.15 });
   },
   /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
   shelfLand() {

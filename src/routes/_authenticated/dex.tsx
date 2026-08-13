@@ -8,6 +8,7 @@ import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import {
+  Library,
   LayoutGrid,
   List,
   Map as MapIcon,
@@ -18,12 +19,36 @@ import {
   X,
   Volume2,
   MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
+import { asCategoryKey, categoryEmoji } from "@/lib/category";
+import { DexShelf } from "@/components/DexShelf";
+import { DexShelfOptions } from "@/components/DexShelfOptions";
+import {
+  DENSITY_PER_SHELF,
+  getShelfDensity,
+  getShelfMaterial,
+  setShelfDensity,
+  setShelfMaterial,
+  type ShelfDensity,
+  type ShelfMaterial,
+} from "@/lib/shelf-prefs";
+import { LoadFailed } from "@/components/LoadFailed";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+
+/**
+ * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
+ *
+ * 下の `slamIn` が `880ms linear 120ms both`、その 52% が接地(潰れ)。
+ * ここを直すときは**両方**直すこと — ずれると音だけ先に鳴る。
+ */
+const SLAM_IMPACT_MS = 120 + Math.round(880 * 0.52);
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -44,7 +69,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "gallery" | "list" | "map" | "calendar";
+type ViewMode = "shelf" | "gallery" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -58,7 +83,13 @@ function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
-  const { data: stickers, isLoading } = useQuery({
+  const {
+    data: stickers,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     // Keep the signed URLs stable across tab switches so the browser cache
@@ -71,35 +102,91 @@ function DexPage() {
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
   const captured = useMemo(() => stickers ?? [], [stickers]);
 
-  // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
+  const [view, setView] = useState<ViewMode>("shelf");
+
+  // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
+  //
+  // 以前はここの依存配列に `view` が入っていた。この効果自身が
+  // `setView("shelf")` を呼ぶので、演出中(1.6秒)にユーザーが一覧や地図へ
+  // 切り替えると効果が再実行され、**棚へ引き戻して振動をもう一度鳴らす**。
+  // 押したのに戻される画面は、壊れているのと区別がつかない。
   useEffect(() => {
     if (!justCaught) return;
-    setView("gallery"); // 着弾はギャラリーのセルで見せる
-    const el = document.getElementById(`dex-cell-${justCaught}`);
-    el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 30, 70]);
+    setView("shelf"); // 着弾は棚のスロットで見せる
+
+    // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
+    // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
+    // 音と振動が絵とずれると、着地したという実感がまるごと消える。
+    //
+    // slamIn は `880ms linear 120ms` で、52% が接地(潰れ)。
+    //   120 + 880 * 0.52 ≒ 578ms
+    // 動きを減らす設定のときは落下自体が無いので、待たずに鳴らす。
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const impact = setTimeout(
+      () => {
+        Sound.shelfLand(); // 木の棚に載る「コッ」
+        // 生の navigator.vibrate は**振動オフの設定を無視する**。
+        haptic("heavy");
+      },
+      reduced ? 0 : SLAM_IMPACT_MS,
+    );
+
     const t = setTimeout(() => {
       void navigate({ to: "/dex", search: {}, replace: true });
     }, 1600);
-    return () => clearTimeout(t);
-  }, [justCaught, navigate, captured.length]);
+    return () => {
+      clearTimeout(impact);
+      clearTimeout(t);
+    };
+  }, [justCaught, navigate]);
 
-  const [view, setView] = useState<ViewMode>("gallery");
+  // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
+  // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
+  // 図鑑の再取得が後から届くこともあるので件数も見る。
+  useEffect(() => {
+    if (!justCaught) return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`dex-cell-${justCaught}`);
+      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [justCaught, captured.length]);
+
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
   /** null = すべて。カテゴリー名のボタンで絞り込む。 */
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // 棚の見え方。localStorage から読むので、初期値は既定のまま置いて
+  // マウント後に差し替える(サーバー描画と食い違わせない)。
+  const [material, setMaterial] = useState<ShelfMaterial>("none");
+  const [density, setDensity] = useState<ShelfDensity>("three");
+  const [shelfOptions, setShelfOptions] = useState(false);
+  useEffect(() => {
+    setMaterial(getShelfMaterial());
+    setDensity(getShelfDensity());
+  }, []);
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
+    if (
+      saved === "shelf" ||
+      saved === "list" ||
+      saved === "gallery" ||
+      saved === "map" ||
+      saved === "calendar"
+    )
       setView(saved);
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     if (savedCat) setActiveCategory(savedCat);
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
+    // 棚から離れたらシートも閉じる(開いたままにすると、後ろが棚でない
+    // のに「後ろの棚がすぐ変わります」と言い続けることになる)。
+    if (view !== "shelf") setShelfOptions(false);
   }, [view]);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -111,7 +198,10 @@ function DexPage() {
   const categoryCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of captured) {
-      const k = (s.word.category_key ?? "other").toString();
+      // 正規化してから数える。生のキーで数えると、DBに残る古いキー
+      // (place / object)が「その他」と同じラベルの別チップになり、
+      // 同じ名前のチップが2つ並んで押すたび違う結果が出ていた。
+      const k = asCategoryKey(s.word.category_key);
       map.set(k, (map.get(k) ?? 0) + 1);
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
@@ -127,7 +217,7 @@ function DexPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const byCategory = activeCategory
-      ? captured.filter((s) => (s.word.category_key ?? "other").toString() === activeCategory)
+      ? captured.filter((s) => asCategoryKey(s.word.category_key) === activeCategory)
       : captured;
     if (!q) return byCategory;
     return byCategory.filter((s) => {
@@ -136,8 +226,7 @@ function DexPage() {
       // category_key は "kitchenware" のような英語キーなので、それだけでは
       // 「調理器具」と打っても引っかからなかった。
       const catKey = (w.category_key ?? "").toString();
-      const catLabelKey = categoryKey(catKey);
-      const catLabel = catLabelKey ? t(catLabelKey) : "";
+      const catLabel = t(categoryLabelKey(catKey));
       return (
         w.headword?.toLowerCase().includes(q) ||
         w.reading_zhuyin?.toLowerCase().includes(q) ||
@@ -152,7 +241,7 @@ function DexPage() {
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const s of filtered) {
-      const k = (s.word.category_key ?? "other").toString();
+      const k = asCategoryKey(s.word.category_key);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
@@ -179,27 +268,42 @@ function DexPage() {
             </span>
           </p>
         </div>
-        <div className="flex gap-1 rounded-full bg-secondary p-1">
-          {(
-            [
-              ["gallery", LayoutGrid, t("dex.gallery")],
-              ["list", List, t("dex.list")],
-              ["map", MapIcon, t("dex.map")],
-              ["calendar", CalendarDays, t("dex.calendar")],
-            ] as const
-          ).map(([v, Icon, label]) => (
+        <div className="flex items-center gap-1">
+          {/* 棚の見え方を変える入口。**棚を見ているときだけ**出す —
+              地図やカレンダーを見ている人に「棚の素材」を出しても、
+              押した結果がその場に無い。 */}
+          {view === "shelf" && (
             <button
-              key={v}
-              onClick={() => setView(v)}
-              aria-label={label}
-              aria-pressed={view === v}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
-                view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
-              }`}
+              onClick={() => setShelfOptions(true)}
+              aria-label={t("shelf.optTitle")}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary"
             >
-              <Icon className="h-[18px] w-[18px]" />
+              <SlidersHorizontal className="h-[18px] w-[18px]" />
             </button>
-          ))}
+          )}
+          <div className="flex gap-1 rounded-full bg-secondary p-1">
+            {(
+              [
+                ["shelf", Library, t("dex.shelf")],
+                ["gallery", LayoutGrid, t("dex.gallery")],
+                ["list", List, t("dex.list")],
+                ["map", MapIcon, t("dex.map")],
+                ["calendar", CalendarDays, t("dex.calendar")],
+              ] as const
+            ).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                aria-label={label}
+                aria-pressed={view === v}
+                className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+                  view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -260,19 +364,20 @@ function DexPage() {
                     : "bg-secondary text-muted-foreground"
                 }`}
               >
-                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`} {count}
+                {categoryEmoji(key)} {t(categoryLabelKey(key))} {count}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {view === "map" ? (
-        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
-        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
-        <DexMap stickers={filtered} onOpen={setOpenId} />
-      ) : view === "calendar" ? (
-        <DexCalendar stickers={filtered} onOpen={setOpenId} />
+      {/* 読み込み中と失敗は**表示形式より先**に判定する。以前この2つは
+          map / calendar の下に置かれていたので、地図とカレンダーだけは
+          取得に失敗しても「ピンが1本も無い地図」「予定の無いカレンダー」を
+          描き、再試行の手段も出ないままだった(§8)。 */}
+      {isError && captured.length === 0 ? (
+        // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -281,6 +386,12 @@ function DexPage() {
             <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
           ))}
         </div>
+      ) : view === "map" ? (
+        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
+        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
+        <DexMap stickers={filtered} onOpen={setOpenId} />
+      ) : view === "calendar" ? (
+        <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">{t("dex.emptyTitle")}</p>
@@ -298,6 +409,17 @@ function DexPage() {
             「{search}」{t("dex.noMatch")}
           </p>
         </div>
+      ) : view === "shelf" ? (
+        <DexShelf
+          stickers={filtered}
+          activeCategory={activeCategory}
+          onOpen={setOpenId}
+          justCaught={justCaught}
+          filtering={!!search.trim()}
+          material={material}
+          density={density}
+          perShelf={DENSITY_PER_SHELF[density]}
+        />
       ) : (
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
@@ -305,7 +427,7 @@ function DexPage() {
               <h3 className="text-base font-semibold tracking-tight">
                 {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
-                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`}
+                {categoryEmoji(key)} {t(categoryLabelKey(key))}
               </h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
@@ -470,6 +592,24 @@ function DexPage() {
         ))
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      {/* 棚を見ていないときは開いたままにしない。「選ぶと後ろの棚が
+          すぐ変わります」と書いてあるのに、後ろが地図やカレンダーでは
+          その約束が嘘になる(表示を切り替えられるのは着弾の演出中など)。 */}
+      {shelfOptions && view === "shelf" && (
+        <DexShelfOptions
+          material={material}
+          density={density}
+          onMaterial={(v) => {
+            setMaterial(v);
+            setShelfMaterial(v);
+          }}
+          onDensity={(v) => {
+            setDensity(v);
+            setShelfDensity(v);
+          }}
+          onClose={() => setShelfOptions(false)}
+        />
+      )}
       <style>{`
         /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
            「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
@@ -1102,65 +1242,12 @@ function DexMap({
   );
 }
 
-/** カテゴリーキー → 翻訳キー。未知のキーはそのまま見せる(訳が無いよりまし)。 */
-const KNOWN_CATEGORIES = new Set([
-  "fruit",
-  "vegetable",
-  "drink",
-  "food",
-  "dessert",
-  "vehicle",
-  "transport",
-  "animal",
-  "plant",
-  "flower",
-  "building",
-  "street",
-  "sign",
-  "shop",
-  "home",
-  "furniture",
-  "appliance",
-  "kitchenware",
-  "tool",
-  "clothes",
-  "accessory",
-  "shoes",
-  "bag",
-  "jewelry",
-  "stationery",
-  "book",
-  "tech",
-  "gadget",
-  "toy",
-  "game",
-  "sport",
-  "instrument",
-  "nature",
-  "weather",
-  "sky",
-  "water",
-  "mountain",
-  "body",
-  "face",
-  "hand",
-  "clothing_part",
-  "person",
-  "family",
-  "job",
-  "art",
-  "decoration",
-  "character",
-  "symbol",
-  "color",
-  "shape",
-  "money",
-  "document",
-  "medicine",
-  "place",
-  "object",
-  "other",
-]);
-function categoryKey(key: string): string {
-  return KNOWN_CATEGORIES.has(key) ? `cat.${key}` : "";
+/**
+ * カテゴリーの表示。定義は lib/category.ts の CATEGORY_META が唯一の正。
+ * 以前はここに56キーの Set が別途あり、CATEGORY_KEYS(54)と食い違っていた
+ * (place / object がここにだけ存在した)。DBに残っている古いキーは
+ * asCategoryKey が「その他」に寄せる。
+ */
+function categoryLabelKey(key: string | null | undefined): string {
+  return `cat.${asCategoryKey(key)}`;
 }

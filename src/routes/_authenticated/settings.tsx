@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import {
   clearMyAvatar,
   deleteMyAccount,
@@ -33,6 +34,14 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
+import {
+  Sound,
+  getLevel,
+  setLevel,
+  unlockAudio,
+  type Level as SoundLevel,
+} from "@/lib/sound-engine";
+import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
@@ -46,7 +55,13 @@ function SettingsPage() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    isError: profileFailed,
+    isFetching: profileFetching,
+    refetch: refetchProfile,
+  } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState("");
   const [nativeLanguage, setNativeLanguage] = useState("ja");
@@ -111,6 +126,29 @@ function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // 設定が読めていないときに**フォームを出してはいけない**。
+  //
+  // 各入力の初期値は「日本語 / TOCFL-1 / ふつう」のような既定値で、
+  // プロフィールが届いてから上書きされる。届かないまま画面を出すと、
+  // 本当の設定ではなく既定値が並び、「保存」を押した人は自分の設定を
+  // **既定値で上書きする**。読み込み失敗が、黙ってデータを壊す操作に
+  // すり替わっていた(§8: 空とエラーを同じ絵で描かない)。
+  if (profileLoading || profileFailed) {
+    return (
+      <AppShell title={t("title.settings")}>
+        {profileFailed ? (
+          <LoadFailed onRetry={() => void refetchProfile()} retrying={profileFetching} />
+        ) : (
+          <div className="space-y-4" role="status" aria-label={t("common.loading")}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-40 animate-pulse rounded-2xl bg-secondary" />
+            ))}
+          </div>
+        )}
+      </AppShell>
+    );
   }
 
   return (
@@ -326,6 +364,8 @@ function SettingsPage() {
             ))}
           </div>
         </div>
+
+        <SoundAndHapticsPanel />
 
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.save")}
@@ -705,6 +745,82 @@ function PlaceReminderToggle() {
                 : t("set.placeError")}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * 音と手ざわり。
+ *
+ * ## なぜ要るか
+ * `setLevel` / `setHapticsEnabled` は前から実装されていたのに、**呼び出し元が
+ * 1つも無かった**。つまりこのアプリの音と振動は、切る手段が無いまま鳴っていた。
+ * 図書館でも電車でも同じ音量で「キャッチ!」が鳴る。
+ *
+ * ここは端末ごとの設定なので localStorage に即保存する — 下の「保存」を
+ * 押さなくても効く。押さないと効かないものと混ざると分からなくなるので、
+ * その旨を書いておく。選んだその場で音を鳴らして、選んだ結果を耳で返す。
+ */
+function SoundAndHapticsPanel() {
+  const t = useT();
+  const [level, setLevelState] = useState<SoundLevel>("subtle");
+  const [haptics, setHaptics] = useState(true);
+
+  // localStorage はサーバー側に無い。読み出しはマウント後に。
+  useEffect(() => {
+    setLevelState(getLevel());
+    setHaptics(areHapticsEnabled());
+  }, []);
+
+  function pickLevel(v: SoundLevel) {
+    setLevel(v);
+    setLevelState(v);
+    // 選んだ音量で実際に鳴らす。「控えめ」がどのくらい控えめかは、
+    // 言葉で説明するより一度鳴らしたほうが早い。
+    if (v !== "off") {
+      unlockAudio();
+      Sound.shelfLand();
+    }
+  }
+
+  function toggleHaptics(v: boolean) {
+    setHapticsEnabled(v);
+    setHaptics(v);
+    if (v) haptic("medium"); // 入れた瞬間に手ざわりを返す
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.feel")}</h3>
+
+      <Label>{t("settings.soundLevel")}</Label>
+      <div className="mt-1 grid grid-cols-3 gap-2">
+        {(["off", "subtle", "full"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => pickLevel(v)}
+            aria-pressed={level === v}
+            className={`min-h-11 rounded-full border py-2.5 text-sm ${level === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+          >
+            {v === "off"
+              ? t("settings.soundOff")
+              : v === "subtle"
+                ? t("settings.soundSubtle")
+                : t("settings.soundFull")}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4">
+        <ToggleRow
+          label={t("settings.haptics")}
+          hint={t("settings.hapticsHint")}
+          value={haptics}
+          onChange={toggleHaptics}
+        />
+      </div>
+
+      <p className="mt-3 text-[11px] text-muted-foreground">{t("settings.feelInstantHint")}</p>
     </div>
   );
 }

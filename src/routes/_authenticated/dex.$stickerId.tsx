@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import { WordCard } from "@/components/WordCard";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
@@ -40,7 +41,13 @@ function StickerDetailPage() {
   const { stickerId } = Route.useParams();
   const fetchSticker = useServerFn(getSticker);
   const fetchMemory = useServerFn(getStickerMemoryHistory);
-  const { data: s, isLoading } = useQuery({
+  const {
+    data: s,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId } }),
   });
@@ -60,9 +67,27 @@ function StickerDetailPage() {
       </Link>
 
       {isLoading ? (
-        <div className="aspect-square animate-pulse rounded-3xl bg-secondary" />
+        <div
+          className="aspect-square animate-pulse rounded-3xl bg-secondary"
+          role="status"
+          aria-label={t("common.loading")}
+        />
+      ) : isError ? (
+        // 通信の失敗を「見つかりません」と言ってはいけない。
+        // ユーザーはそれを「消えた」と受け取り、**自分の記録が失われた**と
+        // 思ってしまう。やり直せば戻るものは、やり直せると言う(§8)。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : !s ? (
-        <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+        <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("card.notFoundHint")}</p>
+          <Link
+            to="/dex"
+            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+          >
+            {t("card.backToDex")}
+          </Link>
+        </div>
       ) : (
         <>
           {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
