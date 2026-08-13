@@ -211,3 +211,140 @@ export function normalizeCategory(headword: string, cat: string | null | undefin
   if (c && (CATEGORY_KEYS as readonly string[]).includes(c)) return c;
   return "other";
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   部屋(room) — 図鑑を「棚」として見せるための上位のまとまり。
+
+   54個のカテゴリーをそのまま棚として縦に並べると、ただ長いだけで
+   「あの単語はあのへん」という手がかりにならない。人が place を
+   覚えるときの粒度はもっと粗いので、まず8つの部屋に入れて、
+   部屋の中に棚(カテゴリー)を置く。
+
+   ここが図鑑の**唯一の正**。以前は3箇所に割れていた:
+     - CATEGORY_KEYS (54個、Zodのenum)
+     - dex.tsx の KNOWN_CATEGORIES (56個、place/object を勝手に追加)
+     - i18n.tsx の cat.* (56個、絵文字がラベル文字列に直書き)
+   絵文字をラベルから剥がしてここに置いたので、絵文字だけ大きく出す、
+   といった扱いができるようになる。
+   ───────────────────────────────────────────────────────────────── */
+
+export const ROOM_KEYS = [
+  "eat",
+  "town",
+  "house",
+  "wear",
+  "play",
+  "nature",
+  "people",
+  "marks",
+] as const;
+
+export type RoomKey = (typeof ROOM_KEYS)[number];
+
+export type CategoryMeta = {
+  /** どの部屋の棚か。 */
+  room: RoomKey;
+  /** 棚の見出しに添える絵文字(i18n のラベルからは剥がしてある)。 */
+  emoji: string;
+};
+
+/**
+ * カテゴリー → 部屋と絵文字。**CATEGORY_KEYS の全54キーを覆うこと**
+ * (型で強制しているので、キーを足したらここもコンパイルが通らなくなる)。
+ * 並び順は CATEGORY_KEYS ではなくこの定義順を使う — 部屋ごとに固まる。
+ */
+export const CATEGORY_META: Record<CategoryKey, CategoryMeta> = {
+  // 食べる
+  fruit: { room: "eat", emoji: "🍎" },
+  vegetable: { room: "eat", emoji: "🥬" },
+  drink: { room: "eat", emoji: "🥤" },
+  food: { room: "eat", emoji: "🍜" },
+  dessert: { room: "eat", emoji: "🍰" },
+  // 街
+  vehicle: { room: "town", emoji: "🚗" },
+  transport: { room: "town", emoji: "🚆" },
+  building: { room: "town", emoji: "🏢" },
+  street: { room: "town", emoji: "🛣️" },
+  sign: { room: "town", emoji: "🪧" },
+  shop: { room: "town", emoji: "🏪" },
+  // 家
+  home: { room: "house", emoji: "🏠" },
+  furniture: { room: "house", emoji: "🛋️" },
+  appliance: { room: "house", emoji: "🔌" },
+  kitchenware: { room: "house", emoji: "🍳" },
+  tool: { room: "house", emoji: "🔧" },
+  // 身につける
+  clothes: { room: "wear", emoji: "👕" },
+  accessory: { room: "wear", emoji: "🧢" },
+  shoes: { room: "wear", emoji: "👟" },
+  bag: { room: "wear", emoji: "👜" },
+  jewelry: { room: "wear", emoji: "💍" },
+  clothing_part: { room: "wear", emoji: "👔" },
+  // 学び・遊び
+  stationery: { room: "play", emoji: "✏️" },
+  book: { room: "play", emoji: "📚" },
+  tech: { room: "play", emoji: "💻" },
+  gadget: { room: "play", emoji: "🖱️" },
+  toy: { room: "play", emoji: "🧸" },
+  game: { room: "play", emoji: "🎮" },
+  sport: { room: "play", emoji: "⚽" },
+  instrument: { room: "play", emoji: "🎸" },
+  art: { room: "play", emoji: "🎨" },
+  decoration: { room: "play", emoji: "🎊" },
+  // 自然
+  animal: { room: "nature", emoji: "🐾" },
+  plant: { room: "nature", emoji: "🌿" },
+  flower: { room: "nature", emoji: "🌸" },
+  nature: { room: "nature", emoji: "🍃" },
+  weather: { room: "nature", emoji: "🌦️" },
+  sky: { room: "nature", emoji: "☀️" },
+  water: { room: "nature", emoji: "💧" },
+  mountain: { room: "nature", emoji: "⛰️" },
+  // 人・体
+  body: { room: "people", emoji: "🖐️" },
+  face: { room: "people", emoji: "😊" },
+  hand: { room: "people", emoji: "✋" },
+  person: { room: "people", emoji: "🧑" },
+  family: { room: "people", emoji: "👨‍👩‍👧" },
+  job: { room: "people", emoji: "💼" },
+  // しるし
+  character: { room: "marks", emoji: "🔤" },
+  symbol: { room: "marks", emoji: "🔣" },
+  color: { room: "marks", emoji: "🎨" },
+  shape: { room: "marks", emoji: "🔷" },
+  money: { room: "marks", emoji: "💰" },
+  document: { room: "marks", emoji: "📄" },
+  medicine: { room: "marks", emoji: "💊" },
+  other: { room: "marks", emoji: "✨" },
+};
+
+/** 部屋 → その部屋に属するカテゴリー(CATEGORY_META の定義順)。 */
+export const ROOM_CATEGORIES: Record<RoomKey, CategoryKey[]> = ROOM_KEYS.reduce(
+  (acc, room) => {
+    acc[room] = (Object.keys(CATEGORY_META) as CategoryKey[]).filter(
+      (k) => CATEGORY_META[k].room === room,
+    );
+    return acc;
+  },
+  {} as Record<RoomKey, CategoryKey[]>,
+);
+
+/**
+ * 未知のキーを安全に受ける。DBには古いキー(place / object など、
+ * CATEGORY_KEYS に無いもの)が残っている可能性があるため、
+ * 画面側は必ずこれを通してから CATEGORY_META を引く。
+ */
+export function asCategoryKey(key: string | null | undefined): CategoryKey {
+  const k = (key ?? "").trim() as CategoryKey;
+  return k && k in CATEGORY_META ? k : "other";
+}
+
+/** そのカテゴリーの絵文字。 */
+export function categoryEmoji(key: string | null | undefined): string {
+  return CATEGORY_META[asCategoryKey(key)].emoji;
+}
+
+/** そのカテゴリーが属する部屋。 */
+export function roomOf(key: string | null | undefined): RoomKey {
+  return CATEGORY_META[asCategoryKey(key)].room;
+}

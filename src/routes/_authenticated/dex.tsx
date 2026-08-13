@@ -24,6 +24,7 @@ import { useT } from "@/lib/i18n";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
+import { asCategoryKey, categoryEmoji } from "@/lib/category";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -136,8 +137,7 @@ function DexPage() {
       // category_key は "kitchenware" のような英語キーなので、それだけでは
       // 「調理器具」と打っても引っかからなかった。
       const catKey = (w.category_key ?? "").toString();
-      const catLabelKey = categoryKey(catKey);
-      const catLabel = catLabelKey ? t(catLabelKey) : "";
+      const catLabel = t(categoryLabelKey(catKey));
       return (
         w.headword?.toLowerCase().includes(q) ||
         w.reading_zhuyin?.toLowerCase().includes(q) ||
@@ -260,7 +260,7 @@ function DexPage() {
                     : "bg-secondary text-muted-foreground"
                 }`}
               >
-                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`} {count}
+                {categoryEmoji(key)} {t(categoryLabelKey(key))} {count}
               </button>
             ))}
           </div>
@@ -305,7 +305,7 @@ function DexPage() {
               <h3 className="text-base font-semibold tracking-tight">
                 {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
-                {categoryKey(key) ? t(categoryKey(key)) : `✨ ${key}`}
+                {categoryEmoji(key)} {t(categoryLabelKey(key))}
               </h3>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
@@ -1102,65 +1102,12 @@ function DexMap({
   );
 }
 
-/** カテゴリーキー → 翻訳キー。未知のキーはそのまま見せる(訳が無いよりまし)。 */
-const KNOWN_CATEGORIES = new Set([
-  "fruit",
-  "vegetable",
-  "drink",
-  "food",
-  "dessert",
-  "vehicle",
-  "transport",
-  "animal",
-  "plant",
-  "flower",
-  "building",
-  "street",
-  "sign",
-  "shop",
-  "home",
-  "furniture",
-  "appliance",
-  "kitchenware",
-  "tool",
-  "clothes",
-  "accessory",
-  "shoes",
-  "bag",
-  "jewelry",
-  "stationery",
-  "book",
-  "tech",
-  "gadget",
-  "toy",
-  "game",
-  "sport",
-  "instrument",
-  "nature",
-  "weather",
-  "sky",
-  "water",
-  "mountain",
-  "body",
-  "face",
-  "hand",
-  "clothing_part",
-  "person",
-  "family",
-  "job",
-  "art",
-  "decoration",
-  "character",
-  "symbol",
-  "color",
-  "shape",
-  "money",
-  "document",
-  "medicine",
-  "place",
-  "object",
-  "other",
-]);
-function categoryKey(key: string): string {
-  return KNOWN_CATEGORIES.has(key) ? `cat.${key}` : "";
+/**
+ * カテゴリーの表示。定義は lib/category.ts の CATEGORY_META が唯一の正。
+ * 以前はここに56キーの Set が別途あり、CATEGORY_KEYS(54)と食い違っていた
+ * (place / object がここにだけ存在した)。DBに残っている古いキーは
+ * asCategoryKey が「その他」に寄せる。
+ */
+function categoryLabelKey(key: string | null | undefined): string {
+  return `cat.${asCategoryKey(key)}`;
 }
