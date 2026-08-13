@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
@@ -89,7 +90,13 @@ function HomePage() {
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
-  const { data: stickers, isLoading } = useQuery({
+  const {
+    data: stickers,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     // Keep the signed URLs stable across tab switches so the browser cache
@@ -139,6 +146,10 @@ function HomePage() {
 
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
+      ) : isError ? (
+        // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
+        // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : todayStickers.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">{t("home.emptyTitle")}</p>

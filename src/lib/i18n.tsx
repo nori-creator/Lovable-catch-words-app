@@ -314,6 +314,18 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cat.document": { ja: "書類", en: "Documents" },
   "cat.medicine": { ja: "薬", en: "Medicine" },
   "cat.other": { ja: "その他", en: "Other" },
+  // --- 読み込み失敗(空とは別の状態として扱う) ---
+  "err.loadTitle": { ja: "読み込めませんでした", en: "Couldn't load" },
+  "err.loadHint": {
+    ja: "通信が不安定かもしれません。もう一度お試しください。",
+    en: "The connection may be unstable. Please try again.",
+  },
+  "err.offlineTitle": { ja: "オフラインです", en: "You're offline" },
+  "err.offlineHint": {
+    ja: "電波が戻ったら、もう一度お試しください。",
+    en: "Try again once you're back online.",
+  },
+  "err.retry": { ja: "もう一度", en: "Try again" },
   "dex.shelf": { ja: "棚", en: "Shelf" },
   "dex.shelfEmpty": { ja: "まだ空", en: "Still empty" },
   "dex.shelfNoMatch": { ja: "この棚に該当なし", en: "Nothing here matches" },

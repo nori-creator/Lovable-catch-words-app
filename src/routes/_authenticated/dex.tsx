@@ -27,6 +27,7 @@ import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
+import { LoadFailed } from "@/components/LoadFailed";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -61,7 +62,13 @@ function DexPage() {
   const fetchStickers = useServerFn(listMyStickers);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
-  const { data: stickers, isLoading } = useQuery({
+  const {
+    data: stickers,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     // Keep the signed URLs stable across tab switches so the browser cache
@@ -303,6 +310,9 @@ function DexPage() {
             <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
           ))}
         </div>
+      ) : isError ? (
+        // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">{t("dex.emptyTitle")}</p>
