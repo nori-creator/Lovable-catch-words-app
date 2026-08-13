@@ -881,6 +881,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
+  "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
+  "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },
   "common.cancel": { ja: "キャンセル", en: "Cancel" },
   "common.retry": { ja: "もう一度", en: "Retry" },
   // --- word card (extra) ---
@@ -1239,6 +1241,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "capture.shootAnother": { ja: "別のものを撮る", en: "Shoot something else" },
   "capture.seeInDex": { ja: "図鑑で見る", en: "See it in the dex" },
+  "home.pendingDiscard": { ja: "捨てる", en: "Discard" },
+  "home.pendingDiscardConfirm": { ja: "本当に捨てる?", en: "Really discard?" },
   "home.pendingCta": { ja: "タップしてAI解析を再開する", en: "Tap to resume AI analysis" },
   "home.pendingCount": { ja: "解析待ちの写真", en: "Photos waiting for analysis" },
   "card.openMapsLabel": { ja: "Google マップで開く →", en: "Open in Google Maps →" },

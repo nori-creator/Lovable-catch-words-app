@@ -70,18 +70,56 @@ export function pathFromSignedUrl(url: string): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-// In-memory object-URL registry so repeated renders reuse one URL per path.
+/**
+ * In-memory object-URL registry so repeated renders reuse one URL per path.
+ *
+ * ## 上限が要る理由
+ * `URL.createObjectURL` で作った URL は、`revokeObjectURL` するまで
+ * **元の Blob をメモリに掴んだまま**にする。ここには上限も破棄も無かったので、
+ * 図鑑を下まで転がすと通り過ぎた画像が1枚残らず居座った。500件のコレクションを
+ * 一度眺めただけで500枚ぶんが常駐する — 端末が弱いほど、集めた人ほど重くなる。
+ *
+ * 直近に使ったものから順に残し、あふれた古いものを捨てる(LRU)。
+ * 捨てても壊れない: 次に必要になったら IndexedDB から作り直すだけで、
+ * ネットワークには出ない。
+ */
+const MAX_OBJECT_URLS = 240;
+/** 破棄までの猶予。読み込み中の <img> の足元で revoke すると画像が割れる。 */
+const REVOKE_DELAY_MS = 10_000;
 const objectUrls = new Map<string, string>();
+
+function touch(path: string): string | undefined {
+  const u = objectUrls.get(path);
+  // Map は挿入順を保つので、入れ直すと「いちばん新しい」位置へ動く。
+  if (u !== undefined) {
+    objectUrls.delete(path);
+    objectUrls.set(path, u);
+  }
+  return u;
+}
+
+function remember(path: string, url: string) {
+  objectUrls.set(path, url);
+  while (objectUrls.size > MAX_OBJECT_URLS) {
+    const oldest = objectUrls.keys().next();
+    if (oldest.done) break;
+    const victim = objectUrls.get(oldest.value)!;
+    objectUrls.delete(oldest.value);
+    // すぐには捨てない。いま画面に出ている <img> がまだ読み込み中かも
+    // しれないので、少し待ってから解放する。
+    setTimeout(() => URL.revokeObjectURL(victim), REVOKE_DELAY_MS);
+  }
+}
 
 async function resolveSrc(signedUrl: string): Promise<string> {
   const path = pathFromSignedUrl(signedUrl);
   if (!path) return signedUrl;
-  const existing = objectUrls.get(path);
+  const existing = touch(path);
   if (existing) return existing;
   const cached = await getCachedImage(path);
   if (cached) {
     const u = URL.createObjectURL(cached);
-    objectUrls.set(path, u);
+    remember(path, u);
     return u;
   }
   // First sight: fetch once via the signed URL, then persist for next time.
@@ -91,7 +129,7 @@ async function resolveSrc(signedUrl: string): Promise<string> {
     const blob = await res.blob();
     void putCachedImage(path, blob);
     const u = URL.createObjectURL(blob);
-    objectUrls.set(path, u);
+    remember(path, u);
     return u;
   } catch {
     return signedUrl;

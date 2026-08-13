@@ -53,9 +53,14 @@
 
     <!--
       位置情報。「撮った場所」を地図に残すため。
-      COARSE(おおよそ)も併記しておくと、利用者が精度を落として許可できる。
+
+      **COARSE(おおよそ)だけ**を求める。FINE(数m単位)も併せて求めて
+      いたが、このアプリの位置情報の使い道は3か所とも
+      `enableHighAccuracy: false` — 一度も精密な位置を使っていない。
+      使わないものを求めると、許可の画面で「正確な位置情報」を選ばせる
+      ことになり、ユーザーには**渡しすぎ**、こちらには持ちすぎになる。
+      街の名前が出れば足りる用途に、家の中のどの部屋かまでは要らない。
     -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- 「ここで撮ったこれ覚えてる?」の通知(Android 13以降は明示が必要)。 -->
