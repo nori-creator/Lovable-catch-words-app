@@ -7,7 +7,7 @@
  * All calls are safe on server — they no-op when AudioContext is missing.
  */
 
-type Level = "off" | "subtle" | "full";
+export type Level = "off" | "subtle" | "full";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -156,6 +156,21 @@ export const Sound = {
     tone(2400, 0.18, { type: "sine", from: 2400, to: 3200, gain: 0.16 });
     tone(3600, 0.14, { type: "sine", gain: 0.09, delay: 0.05 });
     noise(0.1, { hp: 4000, lp: 12000, gain: 0.03 });
+  },
+  /**
+   * キャッチの合図 — 「ポン」のあとに「キラン」。
+   *
+   * もとは CatchLanding.tsx が**自前の AudioContext** で鳴らしていた。
+   * つまりこのアプリでいちばん大きい音が、音量の設定(オフ/控えめ/しっかり)を
+   * 完全に無視して常に同じ大きさで鳴っていた — 「オフ」にしても鳴る。
+   * ここへ移して master gain を通す。
+   */
+  catchChime() {
+    // ポン: 低めのサイン波を素早くピッチダウン(水滴風)
+    tone(520, 0.18, { type: "sine", from: 520, to: 300, gain: 0.15 });
+    // キラン: 高い2音を薄く重ねて素早く減衰
+    tone(1568, 0.3, { type: "sine", gain: 0.1, delay: 0.1 });
+    tone(2349, 0.3, { type: "sine", gain: 0.06, delay: 0.15 });
   },
   /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
   shelfLand() {

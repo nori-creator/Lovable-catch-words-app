@@ -1,4 +1,6 @@
 import { forwardRef } from "react";
+import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 import { getVariant } from "@/lib/effect-lab";
 import type { LandingRunner } from "@/components/effects/catch-landing/types";
 import { v1classic } from "@/components/effects/catch-landing/v1_classic";
@@ -25,50 +27,16 @@ const CATCH_LANDING_VARIANTS: Record<string, LandingRunner> = {
   v4hold,
 };
 
-/** 短い「キャッチ!」音 — WebAudio、音源ファイルなし。 */
+/**
+ * 短い「キャッチ!」音。
+ *
+ * 中身は sound-engine の `Sound.catchChime()`。以前ここには**自前の
+ * AudioContext**があり、音量設定(オフ/控えめ/しっかり)を無視して
+ * 常に同じ大きさで鳴っていた。「オフ」を選んでも、アプリでいちばん
+ * 大きな音だけが鳴る — 設定が嘘になっていた。
+ */
 export function playCatchChime() {
-  try {
-    const AC =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    const t = ctx.currentTime;
-
-    // 「ポン」: 低めのサイン波を素早くピッチダウンさせる水滴風ポップ
-    {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(520, t);
-      o.frequency.exponentialRampToValueAtTime(300, t + 0.12);
-      o.connect(g).connect(ctx.destination);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.15, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-      o.start(t);
-      o.stop(t + 0.2);
-    }
-
-    // 「キラン」: 高いサイン波2音を薄く重ねて素早く減衰
-    [1568, 2349].forEach((f, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.value = f;
-      o.connect(g).connect(ctx.destination);
-      const t0 = t + 0.1 + i * 0.05;
-      g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(i === 0 ? 0.1 : 0.06, t0 + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
-      o.start(t0);
-      o.stop(t0 + 0.32);
-    });
-
-    setTimeout(() => ctx.close(), 600);
-  } catch {
-    /* silent */
-  }
+  Sound.catchChime();
 }
 
 /**
@@ -80,8 +48,13 @@ export async function runCatchLanding(ctx: {
   fly: HTMLImageElement | null;
   speakLine?: () => void;
 }): Promise<void> {
+  // 最初の1回は必ずユーザーの操作(キャッチのタップ)の中から来る。
+  // iOS はここでしか AudioContext を起こせない。
+  unlockAudio();
   playCatchChime();
-  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([18, 40, 60]);
+  // 生の navigator.vibrate だと**振動オフの設定を無視する**。
+  // 触覚は「うるさい」と感じた人が切るためのもので、切れないなら意味がない。
+  haptic("success");
   const reducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;

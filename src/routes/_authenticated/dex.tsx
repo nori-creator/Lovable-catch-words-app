@@ -28,6 +28,16 @@ import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+
+/**
+ * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
+ *
+ * 下の `slamIn` が `880ms linear 120ms both`、その 52% が接地(潰れ)。
+ * ここを直すときは**両方**直すこと — ずれると音だけ先に鳴る。
+ */
+const SLAM_IMPACT_MS = 120 + Math.round(880 * 0.52);
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -92,15 +102,31 @@ function DexPage() {
   useEffect(() => {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
-    const raf = requestAnimationFrame(() => {
-      if (typeof navigator !== "undefined" && "vibrate" in navigator)
-        navigator.vibrate([15, 30, 70]);
-    });
+
+    // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
+    // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
+    // 音と振動が絵とずれると、着地したという実感がまるごと消える。
+    //
+    // slamIn は `880ms linear 120ms` で、52% が接地(潰れ)。
+    //   120 + 880 * 0.52 ≒ 578ms
+    // 動きを減らす設定のときは落下自体が無いので、待たずに鳴らす。
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const impact = setTimeout(
+      () => {
+        Sound.shelfLand(); // 木の棚に載る「コッ」
+        // 生の navigator.vibrate は**振動オフの設定を無視する**。
+        haptic("heavy");
+      },
+      reduced ? 0 : SLAM_IMPACT_MS,
+    );
+
     const t = setTimeout(() => {
       void navigate({ to: "/dex", search: {}, replace: true });
     }, 1600);
     return () => {
-      cancelAnimationFrame(raf);
+      clearTimeout(impact);
       clearTimeout(t);
     };
   }, [justCaught, navigate]);

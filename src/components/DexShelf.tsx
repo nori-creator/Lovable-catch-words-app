@@ -52,6 +52,22 @@ type Props = {
   filtering?: boolean;
 };
 
+/**
+ * 棚1つのおおよその高さ(px)。`contain-intrinsic-size` に渡す。
+ *
+ * 見積もりであって正確な値ではない。ここが要るのは、画面外の棚を描かない
+ * 代わりに「そこにどれだけの高さがあるか」を先に伝えるため — 伝えないと
+ * 画面外の棚が高さ0に潰れ、スクロールバーが伸び縮みして掴めなくなる。
+ *
+ * 数値はビルド済みCSSで実測した(390px幅):
+ *   段が1〜4のとき 125 / 236 / 347 / 458px、空の一言でさらに +24px。
+ *   → 見出し14px + 段111px/個。
+ * 段の作りを変えたら測り直すこと。
+ */
+function estimateShelfHeight(tiers: number, bare: boolean): number {
+  return 14 + tiers * 111 + (bare ? 24 : 0);
+}
+
 export function DexShelf({
   stickers,
   activeCategory,
@@ -122,7 +138,28 @@ export function DexShelf({
                 if (tiers.length === 0) tiers.push([]);
                 const bare = items.length === 0;
                 return (
-                  <div key={cat} className={landing ? "shelf-tilt" : undefined}>
+                  <div
+                    key={cat}
+                    className={landing ? "shelf-tilt" : undefined}
+                    // 画面の外にある棚は**中身を描かない**。棚は54個を常に
+                    // 全部出す作りなので、持ち物が増えるほど「見えていない棚」の
+                    // レイアウトに時間を使う。
+                    //
+                    // 高さは実測値から見積もって渡す(`auto` 付きなので、一度
+                    // 描いたあとは実寸が使われる)。見積もりが無いと、画面外の
+                    // 棚が高さ0に潰れてスクロールバーが暴れる。
+                    //
+                    // 着弾中の棚だけは外す — 描画を飛ばされた中では
+                    // アニメーションが走らず、着地の見せ場が出ない。
+                    style={
+                      landing
+                        ? undefined
+                        : {
+                            contentVisibility: "auto",
+                            containIntrinsicSize: `auto ${estimateShelfHeight(tiers.length, bare)}px`,
+                          }
+                    }
+                  >
                     {/* 棚の名前は段より上。段が複数あっても名前は1つ。
                         h4 なのは、部屋(h3)の下という構造を読み上げにも残すため
                         (以前は div で、見出しの階層から棚が消えていた)。 */}
