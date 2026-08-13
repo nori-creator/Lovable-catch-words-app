@@ -949,9 +949,18 @@
   }
 }
 @media (prefers-contrast: more) {
-  /* 棚板は構造そのもの。隣で --border を強めているのと同じ理由でここも強める。 */
+  /* 棚板は構造そのもの。隣で --border を強めているのと同じ理由でここも強める。
+     暗い data-ui-theme(5種)も必ず並べること — `:root` (0,1,0) は
+     `:root[data-ui-theme="…"]` (0,2,0) に詳細度で負けるので、
+     `:root, .dark` だけ書くと**この5テーマだけ高コントラストが無視され**、
+     いちばん棚板が見えにくい暗い面が 0.32 のまま取り残される。 */
   :root,
-  .dark {
+  .dark,
+  :root[data-ui-theme="darkroom"],
+  :root[data-ui-theme="nightmarket"],
+  :root[data-ui-theme="ink"],
+  :root[data-ui-theme="aurora"],
+  :root[data-ui-theme="collection"] {
     --shelf-line-a: 0.5;
   }
   .seg-pill,

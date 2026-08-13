@@ -83,16 +83,16 @@ function DexPage() {
 
   const [view, setView] = useState<ViewMode>("shelf");
 
-  // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
+  // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
+  //
+  // 以前はここの依存配列に `view` が入っていた。この効果自身が
+  // `setView("shelf")` を呼ぶので、演出中(1.6秒)にユーザーが一覧や地図へ
+  // 切り替えると効果が再実行され、**棚へ引き戻して振動をもう一度鳴らす**。
+  // 押したのに戻される画面は、壊れているのと区別がつかない。
   useEffect(() => {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
-    // 表示の切替が描かれた**後**に探す。同じ tick で getElementById すると、
-    // 一覧表示を保存していた人はまだ棚が無く、何も見つからないまま
-    // 1600ms 後にパラメータだけ消えていた。
     const raf = requestAnimationFrame(() => {
-      const el = document.getElementById(`dex-cell-${justCaught}`);
-      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
       if (typeof navigator !== "undefined" && "vibrate" in navigator)
         navigator.vibrate([15, 30, 70]);
     });
@@ -103,7 +103,19 @@ function DexPage() {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [justCaught, navigate, captured.length, view]);
+  }, [justCaught, navigate]);
+
+  // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
+  // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
+  // 図鑑の再取得が後から届くこともあるので件数も見る。
+  useEffect(() => {
+    if (!justCaught) return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`dex-cell-${justCaught}`);
+      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [justCaught, captured.length]);
 
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
@@ -296,12 +308,13 @@ function DexPage() {
         </div>
       )}
 
-      {view === "map" ? (
-        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
-        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
-        <DexMap stickers={filtered} onOpen={setOpenId} />
-      ) : view === "calendar" ? (
-        <DexCalendar stickers={filtered} onOpen={setOpenId} />
+      {/* 読み込み中と失敗は**表示形式より先**に判定する。以前この2つは
+          map / calendar の下に置かれていたので、地図とカレンダーだけは
+          取得に失敗しても「ピンが1本も無い地図」「予定の無いカレンダー」を
+          描き、再試行の手段も出ないままだった(§8)。 */}
+      {isError && captured.length === 0 ? (
+        // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -310,9 +323,12 @@ function DexPage() {
             <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
           ))}
         </div>
-      ) : isError ? (
-        // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+      ) : view === "map" ? (
+        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
+        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
+        <DexMap stickers={filtered} onOpen={setOpenId} />
+      ) : view === "calendar" ? (
+        <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">{t("dex.emptyTitle")}</p>

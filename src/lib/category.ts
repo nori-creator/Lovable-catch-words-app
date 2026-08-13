@@ -336,7 +336,11 @@ export const ROOM_CATEGORIES: Record<RoomKey, CategoryKey[]> = ROOM_KEYS.reduce(
  */
 export function asCategoryKey(key: string | null | undefined): CategoryKey {
   const k = (key ?? "").trim() as CategoryKey;
-  return k && k in CATEGORY_META ? k : "other";
+  // `in` は継承したプロパティにも当たるので、`"constructor"` や
+  // `"toString"` のような Object.prototype の名前が「既知のカテゴリー」
+  // として素通りしてしまう。そのまま CATEGORY_META を引くと関数が
+  // 返り、`.emoji` で落ちる。自分が持っている鍵だけを認める。
+  return k && Object.prototype.hasOwnProperty.call(CATEGORY_META, k) ? k : "other";
 }
 
 /** そのカテゴリーの絵文字。 */

@@ -1177,6 +1177,8 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "あとでホームの「解析待ち」から続きができます。撮った瞬間は逃していません。",
     en: "Continue later from “Waiting for analysis” on Home. The moment isn't lost.",
   },
+  "capture.savedReason": { ja: "理由: {reason}", en: "Reason: {reason}" },
+  "capture.savedRetry": { ja: "いますぐもう一度試す", en: "Try again now" },
   "capture.cancel": { ja: "やめる", en: "Cancel" },
   "capture.toHome": { ja: "ホームへ", en: "Go Home" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another" },

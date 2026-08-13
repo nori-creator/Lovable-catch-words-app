@@ -162,6 +162,15 @@ function CapturePage() {
     next_due_at: string | null;
   } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // `pendingId` の同期版。runAi は同じレンダーの中で呼ばれるので、
+  // 直前に setPendingId しても runAi の中からは古い値(null)しか見えない。
+  // 「これは復元されたキャプチャか」は失敗時の分岐に効くので ref で持つ。
+  const pendingIdRef = useRef<string | null>(null);
+  // 解析に失敗して端末に預けたときの**実際の理由**。
+  // これを出さないと、401 や壊れた画像のような二度と直らない失敗まで
+  // 「写真は預かりました(あとで続きができます)」と出て、
+  // ユーザーは直らないものを待ち続けることになる。
+  const [savedReason, setSavedReason] = useState<string | null>(null);
   const [reencBusy, setReencBusy] = useState(false);
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
@@ -178,6 +187,18 @@ function CapturePage() {
   const autoOpenedRef = useRef(false);
   const selfieAutoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
+  /**
+   * 「いま有効な作業はどれか」を表す番号。
+   *
+   * 待ち画面の「やめる」は `step` を変えるだけで、**走っている非同期処理は
+   * 止まらなかった**。写真Aの解析が返ってくると `setSuggestions(A)` と
+   * `setStep("select")` を勝手に押し戻すので、やめる → 撮り直す の順に
+   * 操作すると、**写真Bを見ながら写真Aの候補を選ぶ**ことになる。
+   *
+   * 流れを始めるときに番号を取り、await のたびに「まだ自分の番か」を確認する。
+   * やめる / やり直す は番号を進めるだけで、走っている処理を無効化できる。
+   */
+  const runTokenRef = useRef(0);
 
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
@@ -223,6 +244,7 @@ function CapturePage() {
         return;
       }
       setPendingId(item.id);
+      pendingIdRef.current = item.id;
       setObjectImg(item.object_img);
       setSelfieImg(item.selfie_img);
       if (item.lat != null && item.lng != null) {
@@ -281,24 +303,31 @@ function CapturePage() {
   async function runAi(imgOverride?: string) {
     const img = imgOverride ?? objectImg;
     if (!img) return;
+    const token = ++runTokenRef.current;
     setWaitKind("analyze");
     setStep("processing");
     setError(null);
+    setSavedReason(null);
     tryGetLocation();
 
     try {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
       const aiImage = await compressImage(img, 768, 0.8);
+      if (runTokenRef.current !== token) return;
       // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
       const suggestRes = await suggestFn({
         data: { imageBase64: aiImage, targetLanguage: "zh-TW" },
       });
+      if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
       setStep("select");
     } catch (e) {
       console.error(e);
+      if (runTokenRef.current !== token) return;
+      const reason = e instanceof Error ? e.message : t("cap.aiFailed");
+
       // 撮った写真は**必ず**残す。
       //
       // 以前この救済は `!navigator.onLine` のときだけ走っていた。ところが
@@ -307,25 +336,37 @@ function CapturePage() {
       // つまり**いちばん起きやすい失敗ほど救われず**、ユーザーは
       // step:"object"(「タップして撮影」)に戻され、撮ったばかりの写真も
       // 自撮りも画面から消えていた。二度と撮れないものを失わせない。
-      const saved = await enqueueCapture({
-        object_img: img,
-        selfie_img: selfieImg,
-        lat: loc?.lat ?? null,
-        lng: loc?.lng ?? null,
-        location_name: loc?.name ?? null,
-      });
+      //
+      // ただし**この写真がキューから復元されたものなら、預け直さない**。
+      // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
+      // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
+      const saved = pendingIdRef.current
+        ? pendingIdRef.current
+        : await enqueueCapture({
+            object_img: img,
+            selfie_img: selfieImg,
+            lat: loc?.lat ?? null,
+            lng: loc?.lng ?? null,
+            location_name: loc?.name ?? null,
+          });
+      if (runTokenRef.current !== token) return;
       if (saved) {
+        // 預かれたことと、**なぜ失敗したか**は別の話。理由を伏せると、
+        // 401 や壊れた画像のような直らない失敗まで「あとで続きができます」
+        // に見えてしまう。理由を出し、その場で再試行もできるようにする。
+        setSavedReason(reason);
         setStep("offlineSaved");
         return;
       }
       // 保存もできなかったときだけ、撮り直しをお願いする。
-      setError(e instanceof Error ? e.message : t("cap.aiFailed"));
+      setError(reason);
       setStep("object");
       toast.error(t("cap.aiFailedRetry"));
     }
   }
 
   async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
+    const token = ++runTokenRef.current;
     setSelectedHead(head);
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
     pronounce.prefetch(head);
@@ -345,6 +386,7 @@ function CapturePage() {
     // moment there is — not a duplicate sticker.
     try {
       const { owned } = await ownedFn({ data: { headword: head, language: "zh-TW" } });
+      if (runTokenRef.current !== token) return;
       if (owned) {
         setReenc(owned);
         setReencRevealed(false);
@@ -371,18 +413,24 @@ function CapturePage() {
         cardFn({
           data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key },
         })
-          .then((c) => setCard(c))
+          .then((c) => {
+            if (runTokenRef.current === token) setCard(c);
+          })
           .catch(() => {});
       } else {
         const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
+        if (runTokenRef.current !== token) return;
         setCard(c);
       }
       // 切り抜きが出来上がってからカードを見せる — 切り抜かれた絵が「ポン」と
       // 現れるところまでが、タップに対する返事。
-      setCutoutImg((await cutoutPromise) ?? objectImg);
+      const cut = (await cutoutPromise) ?? objectImg;
+      if (runTokenRef.current !== token) return;
+      setCutoutImg(cut);
       setStep("card");
     } catch (e) {
       console.error(e);
+      if (runTokenRef.current !== token) return;
       toast.error(t("cap.cardFailed"));
       setStep("select");
     }
@@ -484,6 +532,9 @@ function CapturePage() {
   }
 
   function reset() {
+    // 走っている解析・切り抜きを無効化してから畳む。番号を進めないと、
+    // 前の写真の結果が後から届いて新しい画面を上書きする。
+    runTokenRef.current++;
     setMode("photo");
     setStep("object");
     setObjectImg(null);
@@ -501,6 +552,25 @@ function CapturePage() {
     setReencRevealed(false);
     setReencResult(null);
     setPendingId(null);
+    pendingIdRef.current = null;
+    setSavedReason(null);
+  }
+
+  /**
+   * 待ち画面の「やめる」。
+   *
+   * 切り抜き待ちなら候補一覧に戻す — 写真も候補もまだ手元にあるので、
+   * そこまで捨てる理由がない。解析待ちなら最初からやり直す。
+   * どちらの道でも `reset()`/番号の更新で走っている処理を無効化する。
+   */
+  function cancelProcessing() {
+    if (waitKind === "cutout" && suggestions.length > 0) {
+      runTokenRef.current++;
+      setSelectedHead("");
+      setStep("select");
+      return;
+    }
+    reset();
   }
 
   async function answerReencounter(recalled: boolean) {
@@ -639,7 +709,7 @@ function CapturePage() {
               戻るも無く、処理が返ってこないとアプリを強制終了するしか
               逃げ道が無かった(§16 Freedom & Recovery)。 */}
           <button
-            onClick={() => setStep("object")}
+            onClick={cancelProcessing}
             className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-sm font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
           >
             {t("capture.cancel")}
@@ -921,15 +991,31 @@ function CapturePage() {
       {step === "offlineSaved" && (
         <div className="space-y-4">
           <div className="rounded-3xl border border-border bg-card p-8 text-center">
-            <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
+                WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
+            {typeof navigator !== "undefined" && navigator.onLine === false ? (
+              <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            ) : (
+              <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            )}
             <p className="text-base font-semibold">{t("capture.offlineTitle")}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t("capture.offlineHint")}</p>
+            {savedReason && (
+              <p className="mt-3 break-words text-xs text-muted-foreground">
+                {t("capture.savedReason", { reason: savedReason })}
+              </p>
+            )}
           </div>
+          {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
+              「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
+          <Button onClick={() => void runAi()} className="lift w-full">
+            <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
+          </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
               {t("capture.toHome")}
             </Button>
-            <Button onClick={reset} className="flex-1">
+            <Button variant="outline" onClick={reset} className="flex-1">
               <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
             </Button>
           </div>
