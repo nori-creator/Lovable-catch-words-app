@@ -236,6 +236,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.title": { ja: "カード", en: "Card" },
   "card.backToDex": { ja: "図鑑へ戻る", en: "Back to dex" },
   "card.notFound": { ja: "カードが見つかりませんでした。", en: "Card not found." },
+  "card.notFoundHint": {
+    ja: "削除されたか、リンクが古いのかもしれません。",
+    en: "It may have been deleted, or the link is out of date.",
+  },
   "card.flipSelfie": { ja: "自撮りを見る", en: "See the selfie" },
   "card.tapForSelfie": { ja: "タップで自撮りへ", en: "Tap for the selfie" },
   "card.seeAll": { ja: "すべての解説を見る", en: "See the full explanation" },
@@ -603,6 +607,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "journal.askCorrect": { ja: "AIに添削してもらう", en: "Ask AI to review" },
   "journal.corrected": { ja: "✦ 添削後", en: "✦ Corrected" },
   "journal.patterns": { ja: "型と解説", en: "Patterns & notes" },
+  "journal.loadFailedNote": {
+    ja: "これまでの日記を読み込めませんでした。今日の書きかけがあっても表示できていないので、このまま送ると上書きになります。",
+    en: "Couldn't load your journal. If you had a draft for today, it isn't shown — sending now will overwrite it.",
+  },
   "journal.past": { ja: "過去の日記", en: "Past entries" },
   "journal.nativeWould": { ja: "ネイティブならこう言う", en: "A native would say" },
   "journal.done": { ja: "添削できました", en: "Review complete" },
@@ -872,6 +880,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "home.background": { ja: "背景", en: "Background" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close" },
+  "common.loading": { ja: "読み込み中", en: "Loading" },
   "common.cancel": { ja: "キャンセル", en: "Cancel" },
   "common.retry": { ja: "もう一度", en: "Retry" },
   // --- word card (extra) ---

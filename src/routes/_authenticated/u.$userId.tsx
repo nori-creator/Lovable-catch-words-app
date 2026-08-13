@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -12,6 +13,12 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/u/$userId")({
+  // みんなの投稿まわりはまだ出さない(src/lib/features.ts に理由)。
+  // どこからも辿り着けないうえ誰も投稿できず、通報もブロックも無い。
+  // URLを直接打った人だけが永久に空の画面に着く状態なので、ホームへ返す。
+  beforeLoad: () => {
+    if (!SOCIAL_ENABLED) throw redirect({ to: "/home" });
+  },
   head: ({ params }) => {
     // Strip anything that isn't a uuid character before interpolating into meta
     // URLs (defense-in-depth against a crafted url-encoded id).

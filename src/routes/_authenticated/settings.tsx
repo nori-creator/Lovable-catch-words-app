@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import {
   clearMyAvatar,
   deleteMyAccount,
@@ -54,7 +55,13 @@ function SettingsPage() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfile = useServerFn(updateMyProfile);
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    isError: profileFailed,
+    isFetching: profileFetching,
+    refetch: refetchProfile,
+  } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState("");
   const [nativeLanguage, setNativeLanguage] = useState("ja");
@@ -119,6 +126,29 @@ function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // 設定が読めていないときに**フォームを出してはいけない**。
+  //
+  // 各入力の初期値は「日本語 / TOCFL-1 / ふつう」のような既定値で、
+  // プロフィールが届いてから上書きされる。届かないまま画面を出すと、
+  // 本当の設定ではなく既定値が並び、「保存」を押した人は自分の設定を
+  // **既定値で上書きする**。読み込み失敗が、黙ってデータを壊す操作に
+  // すり替わっていた(§8: 空とエラーを同じ絵で描かない)。
+  if (profileLoading || profileFailed) {
+    return (
+      <AppShell title={t("title.settings")}>
+        {profileFailed ? (
+          <LoadFailed onRetry={() => void refetchProfile()} retrying={profileFetching} />
+        ) : (
+          <div className="space-y-4" role="status" aria-label={t("common.loading")}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-40 animate-pulse rounded-2xl bg-secondary" />
+            ))}
+          </div>
+        )}
+      </AppShell>
+    );
   }
 
   return (

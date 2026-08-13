@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { LoadFailed } from "@/components/LoadFailed";
 import { listJournal, correctMyJournal, type NativePhrase } from "@/lib/journal.functions";
 import { BookText, Quote, Wand2 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,7 +30,13 @@ function JournalPage() {
   const fetchJournal = useServerFn(listJournal);
   const correct = useServerFn(correctMyJournal);
 
-  const { data: entries } = useQuery({
+  const {
+    data: entries,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["journal"],
     queryFn: () => fetchJournal(),
   });
@@ -66,6 +73,18 @@ function JournalPage() {
           <p className="mt-1 text-xs text-muted-foreground">{t("journal.intro")}</p>
         </div>
 
+        {/* 取得に失敗したときは**書く前に言う**。今日の書きかけがあっても
+            読めていないので、空の欄に書いて送ると上書きになる。
+            書くこと自体は止めない — それがこの画面の用事だから。 */}
+        {isError && (
+          <p
+            role="alert"
+            className="rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground"
+          >
+            {t("journal.loadFailedNote")}
+          </p>
+        )}
+
         <Textarea
           rows={6}
           value={draft}
@@ -101,7 +120,31 @@ function JournalPage() {
         )}
       </section>
 
-      {past.length > 0 && (
+      {/* これまでの日記。読み込み中と失敗を「まだ1件も無い」と描かない —
+          何日も書いてきた人にとっては、記録が消えたように見える。 */}
+      {isLoading && (
+        <section className="mt-10" role="status" aria-label={t("common.loading")}>
+          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            {t("journal.past")}
+          </h3>
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-secondary" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {isError && (
+        <section className="mt-10">
+          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            {t("journal.past")}
+          </h3>
+          <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        </section>
+      )}
+
+      {!isLoading && !isError && past.length > 0 && (
         <section className="mt-10">
           <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
             {t("journal.past")}

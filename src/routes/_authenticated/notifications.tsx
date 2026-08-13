@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
@@ -10,6 +11,12 @@ import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/notifications")({
+  // みんなの投稿まわりはまだ出さない(src/lib/features.ts に理由)。
+  // どこからも辿り着けないうえ誰も投稿できず、通報もブロックも無い。
+  // URLを直接打った人だけが永久に空の画面に着く状態なので、ホームへ返す。
+  beforeLoad: () => {
+    if (!SOCIAL_ENABLED) throw redirect({ to: "/home" });
+  },
   head: () => ({ meta: [{ title: tStatic("page.notifications") }] }),
   component: NotificationsPage,
 });
