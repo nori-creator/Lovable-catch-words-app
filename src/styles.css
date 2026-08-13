@@ -252,6 +252,10 @@
   /* 棚。影は**常に黒側**で持つ — ここを --foreground で作ると、
      ダークテーマで白い影になり、モノが接地せず光って見えた。 */
   --shelf-shadow: 0 0% 0%;
+  /* モノを置く枠の高さ。**固定**にする — 画像が届いてから高さが決まると、
+     読み込みのたびに下の棚が全部ずり下がる(CachedImg は解決前に大きさの
+     無い span を出すので、実際そうなっていた)。 */
+  --shelf-item-h: 4.25rem;
   --shelf-shadow-a: 0.45;
   --shelf-line-a: 0.22;
   --shelf-lip-a: 0.5;
@@ -263,7 +267,15 @@
 /* 暗い面での棚。影を濃く、縁の光をぐっと弱く。
    この上書きは共有ブロックの**後**に置くこと — 先に置くと
    `:root, .dark` に同じ詳細度で上書きし返されて効かない。 */
-.dark {
+/* .dark だけでは足りない: 暗い data-ui-theme(5種)は .dark を付けずに
+   --background を暗くするので、そちらでは縁が白50%のまま残り、
+   黒地に光る線が走っていた — 直したはずの不具合が別の面で再発していた。 */
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
   --shelf-shadow-a: 0.7;
   --shelf-line-a: 0.32;
   --shelf-lip-a: 0.1;
@@ -922,12 +934,14 @@
   .seg-pill,
   .glass-bar,
   .lift-glass,
-  .app-sheet {
+  .app-sheet,
+  .room-head {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
   .seg-pill,
-  .app-sheet {
+  .app-sheet,
+  .room-head {
     background: var(--card) !important;
   }
   .glass-bar {
@@ -935,6 +949,11 @@
   }
 }
 @media (prefers-contrast: more) {
+  /* 棚板は構造そのもの。隣で --border を強めているのと同じ理由でここも強める。 */
+  :root,
+  .dark {
+    --shelf-line-a: 0.5;
+  }
   .seg-pill,
   .app-sheet {
     background: var(--card) !important;
@@ -1160,18 +1179,42 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: center;
   min-width: 0;
-  /* §10 タップ領域: 背の低いモノでも指で押せる高さを確保する。
-     見た目の下端は中身が決めるので、余白は上に伸ばす。 */
-  min-height: 44px;
+  /* 高さは**固定**。中身に決めさせると、画像が1枚届くたびに下の棚が
+     全部ずり下がる。44px を超えるのでタップ領域も満たす(§10)。 */
+  height: calc(var(--shelf-item-h) + 0.5rem);
+  border-radius: 6px;
+  /* §1 押した瞬間に返事をする。離すまで無反応だと死んで見える。 */
+  transition: transform 140ms var(--ease-out-soft);
 }
-.shelf-item img,
-.shelf-item .shelf-fallback {
+.shelf-item:active {
+  transform: scale(0.94);
+}
+.shelf-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.shelf-item img {
   display: block;
-  width: 100%;
-  max-height: var(--shelf-item-h, 4.25rem);
+  max-width: 100%;
+  max-height: var(--shelf-item-h);
   object-fit: contain;
   object-position: bottom;
+}
+/* 画像がまだ無いカード。中央寄せはここで持つ — Tailwind の
+   place-items-center は utilities レイヤーなので、レイヤー無しの
+   この規則に負けて効かなかった(単語が枠の上端に張り付いていた)。 */
+.shelf-item .shelf-fallback {
+  display: grid;
+  place-items: center;
+  /* 幅いっぱいだと「板」に見えてしまう。棚に立っているモノの幅に寄せる。 */
+  width: 72%;
+  height: calc(var(--shelf-item-h) * 0.82);
+  padding: 0 0.25rem;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.15;
 }
 /* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
 .shelf-item .shelf-stand {
@@ -1180,6 +1223,16 @@
 }
 /* 切り抜きが無い行は、素の写真を小さな額に入れて置く。
    「切り抜きが無い」ことを欠陥に見せない。 */
+/* 額は写真に**張り付く**。
+   詳細度に注意: `.shelf-item img` は (0,1,1) で `.shelf-framed` (0,1,0) より
+   強いので、`.shelf-framed` 単独で object-fit を上書きしようとしても効かず、
+   額の中に余白が出て写真が浮いていた。同じ土俵に上げて書く。 */
+.shelf-item img.shelf-framed,
+.shelf-item .shelf-framed {
+  object-fit: cover;
+  width: 78%;
+  height: var(--shelf-item-h);
+}
 .shelf-framed {
   border-radius: 4px;
   overflow: hidden;

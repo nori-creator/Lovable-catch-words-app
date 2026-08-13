@@ -74,20 +74,30 @@ function DexPage() {
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
   const captured = useMemo(() => stickers ?? [], [stickers]);
 
+  const [view, setView] = useState<ViewMode>("shelf");
+
   // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
   useEffect(() => {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
-    const el = document.getElementById(`dex-cell-${justCaught}`);
-    el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 30, 70]);
+    // 表示の切替が描かれた**後**に探す。同じ tick で getElementById すると、
+    // 一覧表示を保存していた人はまだ棚が無く、何も見つからないまま
+    // 1600ms 後にパラメータだけ消えていた。
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`dex-cell-${justCaught}`);
+      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+      if (typeof navigator !== "undefined" && "vibrate" in navigator)
+        navigator.vibrate([15, 30, 70]);
+    });
     const t = setTimeout(() => {
       void navigate({ to: "/dex", search: {}, replace: true });
     }, 1600);
-    return () => clearTimeout(t);
-  }, [justCaught, navigate, captured.length]);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [justCaught, navigate, captured.length, view]);
 
-  const [view, setView] = useState<ViewMode>("shelf");
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
   /** null = すべて。カテゴリー名のボタンで絞り込む。 */
@@ -120,7 +130,10 @@ function DexPage() {
   const categoryCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of captured) {
-      const k = (s.word.category_key ?? "other").toString();
+      // 正規化してから数える。生のキーで数えると、DBに残る古いキー
+      // (place / object)が「その他」と同じラベルの別チップになり、
+      // 同じ名前のチップが2つ並んで押すたび違う結果が出ていた。
+      const k = asCategoryKey(s.word.category_key);
       map.set(k, (map.get(k) ?? 0) + 1);
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
@@ -136,7 +149,7 @@ function DexPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const byCategory = activeCategory
-      ? captured.filter((s) => (s.word.category_key ?? "other").toString() === activeCategory)
+      ? captured.filter((s) => asCategoryKey(s.word.category_key) === activeCategory)
       : captured;
     if (!q) return byCategory;
     return byCategory.filter((s) => {
@@ -160,7 +173,7 @@ function DexPage() {
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const s of filtered) {
-      const k = (s.word.category_key ?? "other").toString();
+      const k = asCategoryKey(s.word.category_key);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
@@ -313,6 +326,7 @@ function DexPage() {
           activeCategory={activeCategory}
           onOpen={setOpenId}
           justCaught={justCaught}
+          filtering={!!search.trim()}
         />
       ) : (
         groups.map(([key, items]) => (

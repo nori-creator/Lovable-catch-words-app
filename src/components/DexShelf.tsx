@@ -7,7 +7,6 @@ import {
   asCategoryKey,
   categoryEmoji,
   type CategoryKey,
-  type RoomKey,
 } from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 
@@ -18,6 +17,12 @@ import type { StickerWithWord } from "@/lib/stickers.functions";
  * 人はモノを覚えるとき、その置き場所を一緒に覚えている。毎回並びが変わる
  * グリッドは、脳が単語を引っ掛ける場所を与えない。だから単語は
  * **毎回同じ部屋の同じ棚**に居る。
+ *
+ * その「同じ場所」を本当に成立させるため、**部屋も棚も常に全部描く**。
+ * 中身のあるものだけ描くと、新しい語をキャッチした瞬間に上の棚が増えて、
+ * 下にある語が全部ずり下がる — 集める行為そのものが記憶の手がかりを
+ * 壊してしまう。空の棚は空のまま置いておく。「ここに入る」が先に見えるのは
+ * 収集の動機にもなる。
  *
  * 構造は 部屋 → 棚 → 段 の3層。1つの棚に入りきらない分は**折り返して
  * 次の段**になる(横スクロールにしたら右端で切れたものが存在ごと見えなく
@@ -43,9 +48,18 @@ type Props = {
   justCaught?: string;
   /** 1段に並べる数。第3段の密度切替でここが変わる。 */
   perShelf?: number;
+  /** 検索で絞り込まれているか。空の棚の言い方を変えるのに使う。 */
+  filtering?: boolean;
 };
 
-export function DexShelf({ stickers, activeCategory, onOpen, justCaught, perShelf = 3 }: Props) {
+export function DexShelf({
+  stickers,
+  activeCategory,
+  onOpen,
+  justCaught,
+  perShelf = 3,
+  filtering = false,
+}: Props) {
   const t = useT();
 
   /** カテゴリー → そのカテゴリーのステッカー。 */
@@ -60,11 +74,8 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, perShel
   }, [stickers]);
 
   /**
-   * 描く部屋を決める。
-   *
-   * 空の棚が見えていること自体は収集の動機になる(「ここに入る」が先に
-   * 分かる)。ただし54棚すべてを空で見せると圧が強すぎるので、
-   * **中身がある部屋 + まだ手つかずの部屋を1つ**だけ出す。
+   * 描く部屋。**並べ替えない**。
+   * 絞り込み中だけ、その棚のある部屋に寄る。
    */
   const rooms = useMemo(() => {
     if (activeCategory) {
@@ -73,94 +84,107 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, perShel
       );
       return room ? [room] : [];
     }
-    const filled: RoomKey[] = [];
-    const empty: RoomKey[] = [];
-    for (const r of ROOM_KEYS) {
-      const has = ROOM_CATEGORIES[r].some((c) => (byCategory.get(c)?.length ?? 0) > 0);
-      (has ? filled : empty).push(r);
-    }
-    return [...filled, ...empty.slice(0, 1)];
-  }, [byCategory, activeCategory]);
+    return ROOM_KEYS;
+  }, [activeCategory]);
+
+  /** 検索や絞り込みの最中か。空の棚の言い方を変えるのに使う。 */
+  const narrowing = !!activeCategory || filtering;
 
   return (
     <div className="space-y-8">
       {rooms.map((room) => {
-        const shelves = ROOM_CATEGORIES[room].filter((c) => {
-          if (activeCategory) return c === asCategoryKey(activeCategory);
-          return (byCategory.get(c)?.length ?? 0) > 0;
-        });
-        const isEmptyRoom = shelves.length === 0;
+        // 棚も並べ替えない・間引かない。空でもその場所に在り続ける。
+        const shelves = activeCategory
+          ? ROOM_CATEGORIES[room].filter((c) => c === asCategoryKey(activeCategory))
+          : ROOM_CATEGORIES[room];
         return (
           <section key={room} aria-labelledby={`room-${room}`}>
             <h3
               id={`room-${room}`}
-              className="sticky top-[3.25rem] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
+              // 上のバーの高さは env(safe-area-inset-top) の分だけ伸びる。
+              // 3.25rem 決め打ちだと、ノッチのある端末で見出しがヘッダーの
+              // 裏に隠れて出てこない。
+              className="room-head sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
             >
               {t(`room.${room}`)}
             </h3>
 
-            {isEmptyRoom ? (
-              <p className="px-1 py-3 text-xs text-muted-foreground">{t("dex.roomEmpty")}</p>
-            ) : (
-              <div className="space-y-6">
-                {shelves.map((cat) => {
-                  const items = byCategory.get(cat) ?? [];
-                  const landing = items.some((s) => s.id === justCaught);
-                  // 1棚をN個ずつの段に割る。段ごとに棚板と題名を持つ。
-                  const tiers: StickerWithWord[][] = [];
-                  for (let i = 0; i < items.length; i += perShelf) {
-                    tiers.push(items.slice(i, i + perShelf));
-                  }
-                  return (
-                    <div key={cat} className={landing ? "shelf-tilt" : undefined}>
-                      {/* 棚の名前は段より上。段が複数あっても名前は1つ。 */}
-                      <div className="mb-1.5 flex items-baseline gap-1.5 px-0.5">
-                        <span aria-hidden className="text-sm leading-none">
-                          {categoryEmoji(cat)}
-                        </span>
-                        <span className="text-[13px] font-semibold">{t(`cat.${cat}`)}</span>
-                        <span className="text-[11px] text-muted-foreground">{items.length}</span>
-                      </div>
+            <div className="space-y-6">
+              {shelves.map((cat) => {
+                const items = byCategory.get(cat) ?? [];
+                const landing = items.some((s) => s.id === justCaught);
+                // 1棚をN個ずつの段に割る。段ごとに棚板と題名を持つ。
+                // 空でも1段は描く — その場所に棚が在ることを見せる。
+                const tiers: StickerWithWord[][] = [];
+                for (let i = 0; i < items.length; i += perShelf) {
+                  tiers.push(items.slice(i, i + perShelf));
+                }
+                if (tiers.length === 0) tiers.push([]);
+                const bare = items.length === 0;
+                return (
+                  <div key={cat} className={landing ? "shelf-tilt" : undefined}>
+                    {/* 棚の名前は段より上。段が複数あっても名前は1つ。
+                        h4 なのは、部屋(h3)の下という構造を読み上げにも残すため
+                        (以前は div で、見出しの階層から棚が消えていた)。 */}
+                    <h4
+                      className={`mb-1.5 flex items-baseline gap-1.5 px-0.5 ${bare ? "opacity-45" : ""}`}
+                    >
+                      <span aria-hidden className="text-sm leading-none">
+                        {categoryEmoji(cat)}
+                      </span>
+                      <span className="text-[13px] font-semibold">{t(`cat.${cat}`)}</span>
+                      <span className="text-[11px] font-normal text-muted-foreground">
+                        {t("dex.shelfCount", { n: String(items.length) })}
+                      </span>
+                    </h4>
 
-                      {tiers.map((tier, ti) => (
-                        <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
-                          <div
-                            className="shelf-row"
-                            style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
-                          >
-                            {tier.map((s) => (
-                              <ShelfItem
-                                key={s.id}
-                                sticker={s}
-                                onOpen={onOpen}
-                                landing={s.id === justCaught}
-                              />
-                            ))}
-                          </div>
-                          {/* 棚板 — 板ではなく線 */}
-                          <div className="shelf-rule" aria-hidden />
-                          {/* 題名は棚板の下、モノと同じ列で揃える */}
-                          <div
-                            className="grid gap-3 pt-1.5"
-                            style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
-                          >
-                            {tier.map((s) => (
-                              <span
-                                key={s.id}
-                                lang="zh-Hant"
-                                className="truncate text-center text-[12px] font-medium leading-tight"
-                              >
-                                {s.word.headword}
-                              </span>
-                            ))}
-                          </div>
+                    {tiers.map((tier, ti) => (
+                      <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
+                        <div
+                          className="shelf-row"
+                          style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
+                        >
+                          {tier.map((s) => (
+                            <ShelfItem
+                              key={s.id}
+                              sticker={s}
+                              onOpen={onOpen}
+                              landing={s.id === justCaught}
+                            />
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        {/* 棚板 — 板ではなく線 */}
+                        <div className="shelf-rule" aria-hidden />
+                        {/* 題名は棚板の下、モノと同じ列で揃える。
+                            読み上げには要らない — ボタンが同じ語を名前として
+                            持っているので、ここを読むと全部2回聞こえる。 */}
+                        <div
+                          aria-hidden
+                          className="grid gap-3 pt-1.5"
+                          style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
+                        >
+                          {tier.map((s) => (
+                            <span
+                              key={s.id}
+                              lang="zh-Hant"
+                              className="truncate text-center text-[12px] font-medium leading-tight"
+                            >
+                              {s.word.headword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {bare && (
+                      <p className="pt-2 text-[11px] text-muted-foreground">
+                        {narrowing ? t("dex.shelfNoMatch") : t("dex.shelfEmpty")}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
         );
       })}
@@ -178,7 +202,6 @@ function ShelfItem({
   onOpen: (id: string) => void;
   landing: boolean;
 }) {
-  const t = useT();
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
   const cutout = s.cutout_thumb_url ?? s.cutout_url;
@@ -189,21 +212,27 @@ function ShelfItem({
       id={`dex-cell-${s.id}`}
       onClick={() => onOpen(s.id)}
       className={`shelf-item ${landing ? "slam-in slot-ignite" : ""}`}
+      // 読み上げの名前は繁体字として読ませる。lang を付けないと、日本語の
+      // VoiceOver が同じ語を日本語の音で読み、すぐ下の表示名と食い違う。
+      lang="zh-Hant"
       aria-label={s.word.headword}
-      title={s.word.headword}
     >
+      {/* 再会の回数。ギャラリーには出ていたのに棚では消えていた —
+          何度も出会った語ほど覚える、というこのアプリの芯にある印。 */}
+      {s.encounter_count > 1 && (
+        <span
+          aria-hidden
+          className="absolute right-0 top-0 rounded-full bg-amber-400/95 px-1 text-[9px] font-bold leading-[14px] text-amber-950 shadow"
+        >
+          ×{s.encounter_count}
+        </span>
+      )}
       {cutout ? (
-        <CachedImg
-          src={cutout}
-          alt={t("common.photoOf", { word: s.word.headword })}
-          loading="lazy"
-          decoding="async"
-          className="shelf-stand"
-        />
+        <CachedImg src={cutout} alt="" loading="lazy" decoding="async" className="shelf-stand" />
       ) : photo ? (
         <CachedImg
           src={photo}
-          alt={t("common.photoOf", { word: s.word.headword })}
+          alt=""
           loading="lazy"
           decoding="async"
           className="shelf-stand shelf-framed"
@@ -211,8 +240,8 @@ function ShelfItem({
       ) : (
         // 画像がまだ無いカードは、単語そのものを立てる。
         <span
-          lang="zh-Hant"
-          className="shelf-fallback shelf-framed grid h-12 place-items-center bg-secondary px-1 text-center text-sm font-semibold text-muted-foreground"
+          aria-hidden
+          className="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground"
         >
           {s.word.headword}
         </span>

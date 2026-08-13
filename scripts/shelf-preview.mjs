@@ -44,20 +44,35 @@ const svg = (w, h, color) =>
   );
 
 const ITEMS = [
-  ["芒果", svg(100, 88, "#f5a623")],
-  ["捷運", svg(70, 120, "#4a90d9")],
-  ["珍珠奶茶", svg(120, 62, "#b07a4a")],
-  ["夜市", svg(96, 96, "#d0483c")],
-  ["腳踏車", svg(130, 70, "#3f8f5f")],
-  ["雨傘", svg(60, 118, "#7b5ea7")],
+  ["芒果", svg(100, 88, "#f5a623"), "cutout"],
+  ["捷運", svg(70, 120, "#4a90d9"), "cutout"],
+  ["珍珠奶茶", svg(120, 62, "#b07a4a"), "framed"],
+  ["夜市", svg(96, 96, "#d0483c"), "cutout"],
+  ["腳踏車", null, "none"],
+  ["雨傘", null, "pending"],
 ];
 
 const PER = 3;
 
-const shelfItem = ([word, src]) => `
-  <button class="shelf-item" aria-label="${word}" title="${word}">
-    <img class="shelf-stand" src="${src}" alt="">
-  </button>`;
+/**
+ * モノ1つ。**3つの見え方すべて**を出す — 実物には
+ *   ① 切り抜き ② 切り抜きが無く写真を額に入れたもの ③ 画像がまだ無いもの
+ * があるのに、以前は①しか描いておらず、②③の不具合(額の中で写真が浮く、
+ * 単語が枠の上端に張り付く)を一度も見られていなかった。
+ * `pending` は CachedImg が署名URLを解決する前に出す**大きさの無い span**。
+ * これで高さが動かないことを確かめる。
+ */
+const shelfItem = ([word, src, kind = "cutout"]) => {
+  const inner =
+    kind === "framed"
+      ? `<img class="shelf-stand shelf-framed" src="${src}" alt="">`
+      : kind === "none"
+        ? `<span class="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground">${word}</span>`
+        : kind === "pending"
+          ? `<span class="shelf-stand" aria-hidden="true"></span>`
+          : `<img class="shelf-stand" src="${src}" alt="">`;
+  return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant">${inner}</button>`;
+};
 
 /** 1段 = [モノの行] → [棚板] → [題名の行]。列は棚板の上下で揃える。 */
 const tier = (items) => `
@@ -97,7 +112,7 @@ const BODY = `
   <div class="space-y-8">
     ${room("食べる", shelf("果物", "🍎", ITEMS) + shelf("飲み物", "🥤", ITEMS.slice(0, 4)))}
     ${room("街", shelf("交通", "🚆", ITEMS.slice(1, 4)))}
-    ${room("しるし", `<p class="px-1 py-3 text-xs text-muted-foreground">この部屋はまだ空。撮ってきて置こう。</p>`)}
+    ${room("しるし", `<p class="pt-2 text-[11px] text-muted-foreground">まだ空</p>`)}
   </div>
 </div>`;
 
@@ -188,14 +203,38 @@ for (const [name, htmlClass, media] of MODES) {
     if (document.documentElement.scrollWidth > window.innerWidth + 1) {
       out.push(`横にはみ出し ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
     }
-    // 4. 接地: 同じ棚のモノは下端が揃っていること
-    for (const row of document.querySelectorAll(".shelf-row")) {
-      const bottoms = [...row.querySelectorAll(".shelf-item")].map((e) =>
-        Math.round(e.getBoundingClientRect().bottom),
-      );
-      if (bottoms.length > 1 && Math.max(...bottoms) - Math.min(...bottoms) > 1) {
-        out.push(`下端が揃っていない: ${bottoms.join(",")}`);
-      }
+    // 4. 段の高さは中身に依らないこと(画像が届いても下がずれない)。
+    //    以前ここは「下端が揃っているか」を見ていたが、align-items:end が
+    //    定義上それを保証するので、どんな入力でも通る検査になっていた。
+    const heights = [...document.querySelectorAll(".shelf-item")].map((e) =>
+      Math.round(e.getBoundingClientRect().height),
+    );
+    if (new Set(heights).size > 1) {
+      out.push(`枠の高さが揃っていない(画像待ちで下がずれる): ${[...new Set(heights)].join(",")}`);
+    }
+    // 5〜6. 棚板の濃さと、影が黒側であること。
+    //
+    // ここは**トークンを直接見る**。計算後の色を読もうとしたら、Chrome は
+    // color-mix を oklab(…) で返し、rgba を期待した正規表現が全部素通しに
+    // なった(全モードで「見えない」と誤判定した)。色空間の表現に依存しない
+    // 形で、実際に踏んだ不具合そのものを条件にする:
+    //   - 棚板を 8% で引いて明るい背景で消えた → 下限を決める
+    //   - 影を --foreground で作ってダークで白く光った → 黒軸に固定する
+    const root = getComputedStyle(document.documentElement);
+    const lineA = parseFloat(root.getPropertyValue("--shelf-line-a"));
+    if (!(lineA >= 0.15)) out.push(`棚板が薄すぎる: --shelf-line-a=${lineA}`);
+    const lipA = parseFloat(root.getPropertyValue("--shelf-lip-a"));
+    const bodyBg = bgOf(document.body);
+    const bodyLum = lum(bodyBg.r, bodyBg.g, bodyBg.b);
+    if (bodyLum < 0.2 && lipA > 0.2) {
+      out.push(`暗い面なのに縁が明るすぎる(白く光る): --shelf-lip-a=${lipA}`);
+    }
+    const shadow = root.getPropertyValue("--shelf-shadow").trim();
+    if (!/^0\s+0%/.test(shadow)) {
+      out.push(`接地影が黒軸ではない: --shelf-shadow=${shadow}`);
+    }
+    for (const rule of document.querySelectorAll(".shelf-rule")) {
+      if (rule.getBoundingClientRect().height < 1) out.push("棚板の高さが0");
     }
     return out;
   });

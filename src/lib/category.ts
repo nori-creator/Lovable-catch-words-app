@@ -343,8 +343,3 @@ export function asCategoryKey(key: string | null | undefined): CategoryKey {
 export function categoryEmoji(key: string | null | undefined): string {
   return CATEGORY_META[asCategoryKey(key)].emoji;
 }
-
-/** そのカテゴリーが属する部屋。 */
-export function roomOf(key: string | null | undefined): RoomKey {
-  return CATEGORY_META[asCategoryKey(key)].room;
-}
