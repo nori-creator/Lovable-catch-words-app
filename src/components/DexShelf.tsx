@@ -9,6 +9,7 @@ import {
   type CategoryKey,
 } from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
+import { spineColor, type ShelfDensity, type ShelfMaterial } from "@/lib/shelf-prefs";
 
 /**
  * 図鑑の棚。
@@ -46,10 +47,14 @@ type Props = {
   onOpen: (id: string) => void;
   /** 着弾中のステッカー — その棚を揺らし、そのスロットを光らせる。 */
   justCaught?: string;
-  /** 1段に並べる数。第3段の密度切替でここが変わる。 */
+  /** 1段に並べる数。密度切替でここが変わる。 */
   perShelf?: number;
   /** 検索で絞り込まれているか。空の棚の言い方を変えるのに使う。 */
   filtering?: boolean;
+  /** 棚板の素材。`none` なら線1本のまま。 */
+  material?: ShelfMaterial;
+  /** 並べ方。`spines` のときだけモノではなく背表紙を並べる。 */
+  density?: ShelfDensity;
 };
 
 /**
@@ -75,8 +80,11 @@ export function DexShelf({
   justCaught,
   perShelf = 3,
   filtering = false,
+  material = "none",
+  density = "three",
 }: Props) {
   const t = useT();
+  const spines = density === "spines";
 
   /** カテゴリー → そのカテゴリーのステッカー。 */
   const byCategory = useMemo(() => {
@@ -107,7 +115,7 @@ export function DexShelf({
   const narrowing = !!activeCategory || filtering;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-shelf-material={material}>
       {rooms.map((room) => {
         // 棚も並べ替えない・間引かない。空でもその場所に在り続ける。
         const shelves = activeCategory
@@ -178,7 +186,8 @@ export function DexShelf({
                     {tiers.map((tier, ti) => (
                       <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
                         <div
-                          className="shelf-row"
+                          // 背表紙は隙間なく並べる。本は隣とくっついて立っている。
+                          className={`shelf-row ${spines ? "shelf-row-tight" : ""}`}
                           style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
                         >
                           {tier.map((s) => (
@@ -187,6 +196,7 @@ export function DexShelf({
                               sticker={s}
                               onOpen={onOpen}
                               landing={s.id === justCaught}
+                              spine={spines}
                             />
                           ))}
                         </div>
@@ -194,22 +204,26 @@ export function DexShelf({
                         <div className="shelf-rule" aria-hidden />
                         {/* 題名は棚板の下、モノと同じ列で揃える。
                             読み上げには要らない — ボタンが同じ語を名前として
-                            持っているので、ここを読むと全部2回聞こえる。 */}
-                        <div
-                          aria-hidden
-                          className="grid gap-3 pt-1.5"
-                          style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
-                        >
-                          {tier.map((s) => (
-                            <span
-                              key={s.id}
-                              lang="zh-Hant"
-                              className="truncate text-center text-[12px] font-medium leading-tight"
-                            >
-                              {s.word.headword}
-                            </span>
-                          ))}
-                        </div>
+                            持っているので、ここを読むと全部2回聞こえる。
+                            背表紙のときは語が背に書いてあるので出さない
+                            (8列の下に語を並べても潰れて読めない)。 */}
+                        {!spines && (
+                          <div
+                            aria-hidden
+                            className="grid gap-3 pt-1.5"
+                            style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
+                          >
+                            {tier.map((s) => (
+                              <span
+                                key={s.id}
+                                lang="zh-Hant"
+                                className="truncate text-center text-[12px] font-medium leading-tight"
+                              >
+                                {s.word.headword}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
 
@@ -234,15 +248,37 @@ function ShelfItem({
   sticker: s,
   onOpen,
   landing,
+  spine = false,
 }: {
   sticker: StickerWithWord;
   onOpen: (id: string) => void;
   landing: boolean;
+  /** 背表紙として並べるか(密度 `spines`)。 */
+  spine?: boolean;
 }) {
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
   const cutout = s.cutout_thumb_url ?? s.cutout_url;
   const photo = s.object_thumb_url ?? s.object_url ?? s.placeholder_url;
+
+  // 背表紙は写真を出さない見え方。並べたときの一覧性がいちばん高い代わりに、
+  // 「自分が撮った写真」という、このアプリの芯にあるものが見えなくなる。
+  // だから既定にはしない。
+  if (spine) {
+    return (
+      <button
+        id={`dex-cell-${s.id}`}
+        onClick={() => onOpen(s.id)}
+        className={`shelf-item ${landing ? "slam-in slot-ignite" : ""}`}
+        lang="zh-Hant"
+        aria-label={s.word.headword}
+      >
+        <span className="shelf-spine" style={{ backgroundColor: spineColor(s.word.headword) }}>
+          <span className="text-white">{s.word.headword}</span>
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button

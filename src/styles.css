@@ -1181,6 +1181,10 @@
   align-items: end; /* ← 下端で揃える。これが「立っている」の正体 */
   gap: 0.75rem;
 }
+/* 背表紙のときは隙間をほぼ無くす。本は隣とくっついて立っている。 */
+.shelf-row-tight {
+  gap: 2px;
+}
 
 /* 棚に載る1つ分。下寄せ。 */
 .shelf-item {
@@ -1266,6 +1270,113 @@
   box-shadow:
     0 -1px 0 rgb(255 255 255 / var(--shelf-lip-a)),
     0 3px 6px -3px hsl(var(--shelf-shadow) / 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   棚の素材。
+
+   既定は `none` = いままでどおりの線1本。線のままにしておく理由があって、
+   板を敷くと**モノより棚のほうが目立つ**ことがある。集めたものを見に
+   来ているのだから、そうなったら本末転倒。
+   だから素材は「選べる」ものにして、既定では出さない。
+
+   板を選んだときは、線ではなく厚みのある板にする:
+     上端に光の当たる縁 → 面のグラデーション → 下に厚みの影。
+   画像は使わない(1枚も増やさない)。
+   ───────────────────────────────────────────────────────────────── */
+[data-shelf-material="oak"] {
+  --plank-top: #bb9260;
+  --plank-bottom: #8d6839;
+  --plank-grain: rgb(90 58 25 / 0.14);
+}
+[data-shelf-material="walnut"] {
+  --plank-top: #6f4c30;
+  --plank-bottom: #3d281a;
+  --plank-grain: rgb(20 10 4 / 0.2);
+}
+[data-shelf-material="obsidian"] {
+  --plank-top: #2f343d;
+  --plank-bottom: #14171c;
+  --plank-grain: rgb(0 0 0 / 0.22);
+}
+[data-shelf-material="concrete"] {
+  --plank-top: #b3b0a9;
+  --plank-bottom: #86837c;
+  --plank-grain: rgb(55 53 49 / 0.1);
+}
+[data-shelf-material="glass"] {
+  --plank-top: rgb(255 255 255 / 0.5);
+  --plank-bottom: rgb(150 190 220 / 0.28);
+  --plank-grain: rgb(255 255 255 / 0.18);
+}
+
+[data-shelf-material]:not([data-shelf-material="none"]) .shelf-rule {
+  height: 0.6875rem; /* 11px — 板の小口が見える最小の厚み */
+  border-radius: 0 0 3px 3px;
+  /* 木目。**周期をずらした2本**を薄く重ねる。
+     最初これを 8px の等間隔1本でやったら、木ではなく**定規の目盛り**に
+     見えた(等間隔の線は人工物の印になる)。13 と 31 という互いに素な
+     周期にすると、繰り返しの合致点が遠のいて自然な揺らぎになる。 */
+  background:
+    repeating-linear-gradient(90deg, transparent 0 13px, var(--plank-grain) 13px 14px),
+    repeating-linear-gradient(90deg, transparent 0 31px, var(--plank-grain) 31px 32px),
+    linear-gradient(180deg, var(--plank-top) 0%, var(--plank-bottom) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 5px 10px -5px hsl(var(--shelf-shadow) / 0.75);
+}
+[data-shelf-material="glass"] .shelf-rule {
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 6px 14px -8px hsl(var(--shelf-shadow) / 0.6);
+}
+
+/* ── 背表紙(spines): 本棚の見え方 ─────────────────────────────
+   切り抜きを立たせる代わりに、色の違う背表紙を隙間なく並べる。
+   一覧性がいちばん高い見え方 — 何冊あるかが一目で分かる。
+   写真は見えなくなるので、既定にはしない。 */
+.shelf-spine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--shelf-item-h);
+  padding: 0.25rem 0;
+  border-radius: 2px 2px 1px 1px;
+  /* 背の丸み: 中央が明るく、両端に向かって落ちる。 */
+  /* ハイライトは白10%まで。ここを上げると背表紙の色が明るくなり、
+     載っている白い文字が 4.5:1 を割る(spineColor の明度と対で決めた値)。 */
+  background-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.28) 0%,
+    rgb(255 255 255 / 0.1) 38%,
+    rgb(255 255 255 / 0.04) 62%,
+    rgb(0 0 0 / 0.3) 100%
+  );
+  box-shadow:
+    0 0 0 1px hsl(var(--shelf-shadow) / 0.28),
+    0 3px 5px -3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a));
+  overflow: hidden;
+}
+/* 背表紙の文字。
+ *
+ * 本物の背表紙のように**縦書き**(writing-mode: vertical-rl)にしようとして
+ * やめた。この文字が使う書体では縦組みの送り幅(vmtx)が無く、
+ * **4文字が全部同じ位置に重なって1つの黒い塊になる**。
+ * text-orientation を変えても、span ごと 90度回しても同じだった。
+ * 端末によっては出るのかもしれないが、**自分が見て確かめられない見え方は
+ * 出さない**。横書きなら確実に読める。 */
+.shelf-spine span {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  /* 5文字以上の語は折り返す。背は細いので、はみ出すより畳むほうがいい。 */
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
 }
 
 /* Shelf gentle tilt when a new card lands */

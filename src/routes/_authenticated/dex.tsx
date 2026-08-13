@@ -19,6 +19,7 @@ import {
   X,
   Volume2,
   MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
@@ -27,6 +28,16 @@ import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
+import { DexShelfOptions } from "@/components/DexShelfOptions";
+import {
+  DENSITY_PER_SHELF,
+  getShelfDensity,
+  getShelfMaterial,
+  setShelfDensity,
+  setShelfMaterial,
+  type ShelfDensity,
+  type ShelfMaterial,
+} from "@/lib/shelf-prefs";
 import { LoadFailed } from "@/components/LoadFailed";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
@@ -149,6 +160,15 @@ function DexPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // 棚の見え方。localStorage から読むので、初期値は既定のまま置いて
+  // マウント後に差し替える(サーバー描画と食い違わせない)。
+  const [material, setMaterial] = useState<ShelfMaterial>("none");
+  const [density, setDensity] = useState<ShelfDensity>("three");
+  const [shelfOptions, setShelfOptions] = useState(false);
+  useEffect(() => {
+    setMaterial(getShelfMaterial());
+    setDensity(getShelfDensity());
+  }, []);
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (
@@ -245,28 +265,42 @@ function DexPage() {
             </span>
           </p>
         </div>
-        <div className="flex gap-1 rounded-full bg-secondary p-1">
-          {(
-            [
-              ["shelf", Library, t("dex.shelf")],
-              ["gallery", LayoutGrid, t("dex.gallery")],
-              ["list", List, t("dex.list")],
-              ["map", MapIcon, t("dex.map")],
-              ["calendar", CalendarDays, t("dex.calendar")],
-            ] as const
-          ).map(([v, Icon, label]) => (
+        <div className="flex items-center gap-1">
+          {/* 棚の見え方を変える入口。**棚を見ているときだけ**出す —
+              地図やカレンダーを見ている人に「棚の素材」を出しても、
+              押した結果がその場に無い。 */}
+          {view === "shelf" && (
             <button
-              key={v}
-              onClick={() => setView(v)}
-              aria-label={label}
-              aria-pressed={view === v}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
-                view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
-              }`}
+              onClick={() => setShelfOptions(true)}
+              aria-label={t("shelf.optTitle")}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary"
             >
-              <Icon className="h-[18px] w-[18px]" />
+              <SlidersHorizontal className="h-[18px] w-[18px]" />
             </button>
-          ))}
+          )}
+          <div className="flex gap-1 rounded-full bg-secondary p-1">
+            {(
+              [
+                ["shelf", Library, t("dex.shelf")],
+                ["gallery", LayoutGrid, t("dex.gallery")],
+                ["list", List, t("dex.list")],
+                ["map", MapIcon, t("dex.map")],
+                ["calendar", CalendarDays, t("dex.calendar")],
+              ] as const
+            ).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                aria-label={label}
+                aria-pressed={view === v}
+                className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+                  view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -379,6 +413,9 @@ function DexPage() {
           onOpen={setOpenId}
           justCaught={justCaught}
           filtering={!!search.trim()}
+          material={material}
+          density={density}
+          perShelf={DENSITY_PER_SHELF[density]}
         />
       ) : (
         groups.map(([key, items]) => (
@@ -552,6 +589,21 @@ function DexPage() {
         ))
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      {shelfOptions && (
+        <DexShelfOptions
+          material={material}
+          density={density}
+          onMaterial={(v) => {
+            setMaterial(v);
+            setShelfMaterial(v);
+          }}
+          onDensity={(v) => {
+            setDensity(v);
+            setShelfDensity(v);
+          }}
+          onClose={() => setShelfOptions(false)}
+        />
+      )}
       <style>{`
         /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
            「突然そこに現れた」ようにしか見えなかった(NORI指摘)。

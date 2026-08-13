@@ -63,34 +63,50 @@ const PER = 3;
  * `pending` は CachedImg が署名URLを解決する前に出す**大きさの無い span**。
  * これで高さが動かないことを確かめる。
  */
-const shelfItem = ([word, src, kind = "cutout"]) => {
-  const inner =
-    kind === "framed"
-      ? `<img class="shelf-stand shelf-framed" src="${src}" alt="">`
-      : kind === "none"
-        ? `<span class="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground">${word}</span>`
-        : kind === "pending"
-          ? `<span class="shelf-stand" aria-hidden="true"></span>`
-          : `<img class="shelf-stand" src="${src}" alt="">`;
-  return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant">${inner}</button>`;
+/** 背表紙の色。src/lib/shelf-prefs.ts の spineColor と同じ式。 */
+const spineColor = (w) => {
+  let h = 0;
+  for (let i = 0; i < w.length; i++) h = (h * 31 + w.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 42% 26%)`;
 };
 
+const shelfItem =
+  (spines) =>
+  ([word, src, kind = "cutout"]) => {
+    if (spines) {
+      return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant"><span class="shelf-spine" style="background-color:${spineColor(word)}"><span class="text-white">${word}</span></span></button>`;
+    }
+    const inner =
+      kind === "framed"
+        ? `<img class="shelf-stand shelf-framed" src="${src}" alt="">`
+        : kind === "none"
+          ? `<span class="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground">${word}</span>`
+          : kind === "pending"
+            ? `<span class="shelf-stand" aria-hidden="true"></span>`
+            : `<img class="shelf-stand" src="${src}" alt="">`;
+    return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant">${inner}</button>`;
+  };
+
 /** 1段 = [モノの行] → [棚板] → [題名の行]。列は棚板の上下で揃える。 */
-const tier = (items) => `
+const tier = (items, per, spines) => `
   <div>
-    <div class="shelf-row" style="grid-template-columns:repeat(${PER},minmax(0,1fr))">
-      ${items.map(shelfItem).join("")}
+    <div class="shelf-row ${spines ? "shelf-row-tight" : ""}" style="grid-template-columns:repeat(${per},minmax(0,1fr))">
+      ${items.map(shelfItem(spines)).join("")}
     </div>
     <div class="shelf-rule"></div>
-    <div class="grid gap-3 pt-1.5" style="grid-template-columns:repeat(${PER},minmax(0,1fr))">
+    ${
+      spines
+        ? ""
+        : `<div class="grid gap-3 pt-1.5" style="grid-template-columns:repeat(${per},minmax(0,1fr))">
       ${items.map(([w]) => `<span lang="zh-Hant" class="truncate text-center text-[12px] font-medium leading-tight">${w}</span>`).join("")}
-    </div>
+    </div>`
+    }
   </div>`;
 
 /** 1棚 = 名前 + N個ずつに折り返した段。 */
-const shelf = (label, emoji, items) => {
+const shelf = (label, emoji, items, per, spines) => {
   const tiers = [];
-  for (let i = 0; i < items.length; i += PER) tiers.push(items.slice(i, i + PER));
+  for (let i = 0; i < items.length; i += per) tiers.push(items.slice(i, i + per));
   return `
   <div>
     <div class="mb-1.5 flex items-baseline gap-1.5 px-0.5">
@@ -98,7 +114,7 @@ const shelf = (label, emoji, items) => {
       <span class="text-[13px] font-semibold">${label}</span>
       <span class="text-[11px] text-muted-foreground">${items.length}</span>
     </div>
-    ${tiers.map((t, i) => `<div class="${i > 0 ? "mt-3" : ""}">${tier(t)}</div>`).join("")}
+    ${tiers.map((t, i) => `<div class="${i > 0 ? "mt-3" : ""}">${tier(t, per, spines)}</div>`).join("")}
   </div>`;
 };
 
@@ -108,14 +124,18 @@ const room = (name, shelves) => `
     <div class="space-y-6">${shelves}</div>
   </section>`;
 
-const BODY = `
+/** 素材と密度は本物と同じ場所で切り替える(素材は棚の入れ物に付く属性)。 */
+const body = ({ material = "none", spines = false, per = PER } = {}) => {
+  const many = spines ? [...ITEMS, ...ITEMS.slice(0, 4)] : ITEMS;
+  return `
 <div class="min-h-screen bg-background px-4 py-4">
-  <div class="space-y-8">
-    ${room("食べる", shelf("果物", "🍎", ITEMS) + shelf("飲み物", "🥤", ITEMS.slice(0, 4)))}
-    ${room("街", shelf("交通", "🚆", ITEMS.slice(1, 4)))}
+  <div class="space-y-8" data-shelf-material="${material}">
+    ${room("食べる", shelf("果物", "🍎", many, per, spines) + shelf("飲み物", "🥤", ITEMS.slice(0, 4), per, spines))}
+    ${room("街", shelf("交通", "🚆", ITEMS.slice(1, 4), per, spines))}
     ${room("しるし", `<p class="pt-2 text-[11px] text-muted-foreground">まだ空</p>`)}
   </div>
 </div>`;
+};
 
 /**
  * 見る面の一覧: [名前, `<html>` に付ける属性, 高コントラストか]。
@@ -127,12 +147,23 @@ const BODY = `
  * 代表として darkroom を明るい面・暗い面と同格で並べる。
  */
 const MODES = [
-  ["light", "", false],
-  ["dark", 'class="dark"', false],
-  ["darkroom", 'data-ui-theme="darkroom"', false],
-  ["contrast", "", true],
-  ["contrast-dark", 'class="dark"', true],
-  ["contrast-darkroom", 'data-ui-theme="darkroom"', true],
+  ["light", "", false, {}],
+  ["dark", 'class="dark"', false, {}],
+  ["darkroom", 'data-ui-theme="darkroom"', false, {}],
+  ["contrast", "", true, {}],
+  ["contrast-dark", 'class="dark"', true, {}],
+  ["contrast-darkroom", 'data-ui-theme="darkroom"', true, {}],
+  // 素材と密度。**選べるようにしたものは全部見る** — 選択肢を足しただけで
+  // 見ていない組み合わせがあるなら、それは足していないのと同じ。
+  ["oak", "", false, { material: "oak" }],
+  ["walnut-dark", 'class="dark"', false, { material: "walnut" }],
+  ["obsidian-dark", 'class="dark"', false, { material: "obsidian" }],
+  ["concrete", "", false, { material: "concrete" }],
+  ["glass", "", false, { material: "glass" }],
+  ["den2", "", false, { per: 2 }],
+  ["den4", "", false, { per: 4 }],
+  ["spines", "", false, { spines: true, per: 6 }],
+  ["spines-oak-dark", 'class="dark"', false, { spines: true, per: 6, material: "oak" }],
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
@@ -144,7 +175,7 @@ const browser = await chromium.launch({
 });
 const issues = [];
 
-for (const [name, htmlAttrs, wantsContrast] of MODES) {
+for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   const page = await browser.newPage({
     viewport: { width: 390, height: 800 },
     deviceScaleFactor: 2,
@@ -153,7 +184,7 @@ for (const [name, htmlAttrs, wantsContrast] of MODES) {
     ...(wantsContrast ? { contrast: "more" } : {}),
   });
   await page.setContent(
-    `<!doctype html><meta charset="utf-8"><html ${htmlAttrs}><style>${CSS}</style><body>${BODY}</body></html>`,
+    `<!doctype html><meta charset="utf-8"><html ${htmlAttrs}><style>${CSS}</style><body>${body(scene)}</body></html>`,
     { waitUntil: "load" },
   );
   await page.waitForTimeout(300);
