@@ -249,9 +249,24 @@
   /* Motion curves (apple-design §4/§7): a critically-damped iOS sheet curve for
      non-gesture transitions, a soft ease-out, and a springy overshoot reserved
      for momentum-driven moments only. */
+  /* 棚。影は**常に黒側**で持つ — ここを --foreground で作ると、
+     ダークテーマで白い影になり、モノが接地せず光って見えた。 */
+  --shelf-shadow: 0 0% 0%;
+  --shelf-shadow-a: 0.45;
+  --shelf-line-a: 0.22;
+  --shelf-lip-a: 0.5;
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 暗い面での棚。影を濃く、縁の光をぐっと弱く。
+   この上書きは共有ブロックの**後**に置くこと — 先に置くと
+   `:root, .dark` に同じ詳細度で上書きし返されて効かない。 */
+.dark {
+  --shelf-shadow-a: 0.7;
+  --shelf-line-a: 0.32;
+  --shelf-lip-a: 0.1;
 }
 .font-display {
   font-family: var(--font-display);
@@ -1118,16 +1133,77 @@
   pointer-events: none;
 }
 
-/* Hairline shelf divider */
+/* ─────────────────────────────────────────────────────────────────
+   棚(図鑑)
+
+   参考にしたアプリの動画を1コマずつ見て分かったこと: 奥行きを作っているのは
+   厚い板ではなく、**面 + 明るいヘアライン + 接地影**の3つだけだった。
+   黒い素材のときは、ほとんど細い光の線しか無い。だから板は作らない。
+
+   モノは高さがバラバラのまま**下端で揃って**立つ。接地する線が1本に
+   揃うから「棚に置いてある」に見える。切り抜きの大きさがまちまちなのは
+   欠点ではなく、むしろ本物らしさになる。
+   ───────────────────────────────────────────────────────────────── */
+
+/* 棚1段。列は呼び出し側が gridTemplateColumns で決める(密度切替)。
+   高さは中身に応じて伸びる — 等間隔のグリッドではない。 */
+.shelf-row {
+  position: relative;
+  display: grid;
+  align-items: end; /* ← 下端で揃える。これが「立っている」の正体 */
+  gap: 0.75rem;
+}
+
+/* 棚に載る1つ分。下寄せ。 */
+.shelf-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+  /* §10 タップ領域: 背の低いモノでも指で押せる高さを確保する。
+     見た目の下端は中身が決めるので、余白は上に伸ばす。 */
+  min-height: 44px;
+}
+.shelf-item img,
+.shelf-item .shelf-fallback {
+  display: block;
+  width: 100%;
+  max-height: var(--shelf-item-h, 4.25rem);
+  object-fit: contain;
+  object-position: bottom;
+}
+/* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
+.shelf-item .shelf-stand {
+  /* 接地影。棚板に触れている一点が濃く、すぐ薄くなる。 */
+  filter: drop-shadow(0 3px 3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)));
+}
+/* 切り抜きが無い行は、素の写真を小さな額に入れて置く。
+   「切り抜きが無い」ことを欠陥に見せない。 */
+.shelf-framed {
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 3px 6px -2px hsl(var(--shelf-shadow) / var(--shelf-shadow-a));
+}
+
+/* 棚板。板ではなく線 — ただし「線がある」とはっきり分かる濃さが要る。
+   上に細い明るい縁(光が当たっている面)、下に影(板の厚みの裏)。
+   最初 8% で引いたら明るい背景でほぼ見えず、棚に見えなかった。 */
 .shelf-rule {
-  height: 1px;
+  height: 2px;
+  border-radius: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in oklab, var(--foreground) 8%, transparent) 15%,
-    color-mix(in oklab, var(--foreground) 8%, transparent) 85%,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 6%,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 94%,
     transparent 100%
   );
+  box-shadow:
+    0 -1px 0 rgb(255 255 255 / var(--shelf-lip-a)),
+    0 3px 6px -3px hsl(var(--shelf-shadow) / 0.5);
 }
 
 /* Shelf gentle tilt when a new card lands */

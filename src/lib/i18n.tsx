@@ -314,6 +314,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cat.document": { ja: "書類", en: "Documents" },
   "cat.medicine": { ja: "薬", en: "Medicine" },
   "cat.other": { ja: "その他", en: "Other" },
+  "dex.shelf": { ja: "棚", en: "Shelf" },
+  "dex.roomEmpty": {
+    ja: "この部屋はまだ空。撮ってきて置こう。",
+    en: "This room is still empty — go find something.",
+  },
   // --- 図鑑の部屋(棚のまとまり) ---
   "room.eat": { ja: "食べる", en: "Eat" },
   "room.town": { ja: "街", en: "Town" },

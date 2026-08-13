@@ -8,6 +8,7 @@ import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import {
+  Library,
   LayoutGrid,
   List,
   Map as MapIcon,
@@ -25,6 +26,7 @@ import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
+import { DexShelf } from "@/components/DexShelf";
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -45,7 +47,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "gallery" | "list" | "map" | "calendar";
+type ViewMode = "shelf" | "gallery" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -75,7 +77,7 @@ function DexPage() {
   // キャッチ演出v2の着弾: 該当セルへスクロールし、演出後にパラメータを掃除。
   useEffect(() => {
     if (!justCaught) return;
-    setView("gallery"); // 着弾はギャラリーのセルで見せる
+    setView("shelf"); // 着弾は棚のスロットで見せる
     const el = document.getElementById(`dex-cell-${justCaught}`);
     el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 30, 70]);
@@ -85,7 +87,7 @@ function DexPage() {
     return () => clearTimeout(t);
   }, [justCaught, navigate, captured.length]);
 
-  const [view, setView] = useState<ViewMode>("gallery");
+  const [view, setView] = useState<ViewMode>("shelf");
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
   /** null = すべて。カテゴリー名のボタンで絞り込む。 */
@@ -94,7 +96,13 @@ function DexPage() {
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
+    if (
+      saved === "shelf" ||
+      saved === "list" ||
+      saved === "gallery" ||
+      saved === "map" ||
+      saved === "calendar"
+    )
       setView(saved);
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     if (savedCat) setActiveCategory(savedCat);
@@ -182,6 +190,7 @@ function DexPage() {
         <div className="flex gap-1 rounded-full bg-secondary p-1">
           {(
             [
+              ["shelf", Library, t("dex.shelf")],
               ["gallery", LayoutGrid, t("dex.gallery")],
               ["list", List, t("dex.list")],
               ["map", MapIcon, t("dex.map")],
@@ -298,6 +307,13 @@ function DexPage() {
             「{search}」{t("dex.noMatch")}
           </p>
         </div>
+      ) : view === "shelf" ? (
+        <DexShelf
+          stickers={filtered}
+          activeCategory={activeCategory}
+          onOpen={setOpenId}
+          justCaught={justCaught}
+        />
       ) : (
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
