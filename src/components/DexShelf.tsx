@@ -64,13 +64,36 @@ type Props = {
  * 代わりに「そこにどれだけの高さがあるか」を先に伝えるため — 伝えないと
  * 画面外の棚が高さ0に潰れ、スクロールバーが伸び縮みして掴めなくなる。
  *
- * 数値はビルド済みCSSで実測した(390px幅):
- *   段が1〜4のとき 125 / 236 / 347 / 458px、空の一言でさらに +24px。
- *   → 見出し14px + 段111px/個。
- * 段の作りを変えたら測り直すこと。
+ * ## 数値はビルド済みCSSでの実測値(390px幅)
+ *
+ * | | 段1 | 段2 | 段3 | 空 |
+ * |---|---|---|---|---|
+ * | モノ・素材なし | 125 | 236 | 347 | 58 |
+ * | 背表紙・素材なし | 104 | 194 | 284 | 52 |
+ * | モノ・板あり | 134 | 254 | 374 | 67 |
+ * | 背表紙・板あり | 113 | 212 | 311 | — |
+ *
+ * → 見出し14px + 段(モノ111 / 背表紙90)、板を敷くと段ごとに +9px。
+ *
+ * **空の棚を「段1つ分」で数えないこと。** 最初そうしていて 149px と
+ * 見積もっていたが実測は 58px。棚は54個を常に全部描くので、まだ何も
+ * 集めていない人ほどずれが積み上がり、**文書が4000px以上長く見積もられて
+ * スクロールしながら縮んでいく**(掴んだスクロールバーが逃げる)。
+ *
+ * 段の作りを変えたら測り直すこと。`npm run shelf:perf` が全変種の
+ * ずれを見て5%を超えたら落とす。
  */
-function estimateShelfHeight(tiers: number, bare: boolean): number {
-  return 14 + tiers * 111 + (bare ? 24 : 0);
+function estimateShelfHeight(
+  tiers: number,
+  bare: boolean,
+  spines: boolean,
+  thickPlank: boolean,
+): number {
+  const HEAD = 14;
+  const plank = thickPlank ? 9 : 0;
+  // 空の棚は「中身の無い段 + 一言」。モノの入った段と同じには数えない。
+  if (bare) return HEAD + (spines ? 38 : 44) + plank;
+  return HEAD + tiers * ((spines ? 90 : 111) + plank);
 }
 
 export function DexShelf({
@@ -164,7 +187,12 @@ export function DexShelf({
                         ? undefined
                         : {
                             contentVisibility: "auto",
-                            containIntrinsicSize: `auto ${estimateShelfHeight(tiers.length, bare)}px`,
+                            containIntrinsicSize: `auto ${estimateShelfHeight(
+                              tiers.length,
+                              bare,
+                              spines,
+                              material !== "none",
+                            )}px`,
                           }
                     }
                   >
@@ -273,6 +301,17 @@ function ShelfItem({
         lang="zh-Hant"
         aria-label={s.word.headword}
       >
+        {/* 再会の回数は背表紙でも消さない。**このアプリの芯にある印**で、
+            以前ギャラリーには出ていたのに棚では消えていて直したところ。
+            見え方を1つ足すたびに落とすようでは意味がない。 */}
+        {s.encounter_count > 1 && (
+          <span
+            aria-hidden
+            className="absolute right-0 top-0 z-10 rounded-full bg-amber-400/95 px-1 text-[9px] font-bold leading-[14px] text-amber-950 shadow"
+          >
+            ×{s.encounter_count}
+          </span>
+        )}
         <span className="shelf-spine" style={{ backgroundColor: spineColor(s.word.headword) }}>
           <span className="text-white">{s.word.headword}</span>
         </span>

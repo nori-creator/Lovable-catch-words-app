@@ -39,17 +39,35 @@ export function DexShelfOptions({
 }) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // 開く前に焦点を持っていた要素(= 開いたボタン)。閉じたらここへ返す。
+  const openerRef = useRef<HTMLElement | null>(null);
 
   // Esc で閉じる。全画面ではないが、覆っている以上は出口を鍵盤にも置く。
+  // `onClose` は呼び出し側でインラインの関数なので、依存に入れると
+  // **素材を1つ選ぶたびに張り直される**。閉じる手段は張りっぱなしでいい。
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", onKey);
-    // 開いたら中の最初の操作へ焦点を移す(読み上げが後ろの一覧に残らないように)。
-    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
+
+  // 焦点の出し入れは**開いたときと閉じたときの1回ずつ**。
+  // ここを onClose に依存させていたせいで、素材や密度を選ぶたびに
+  // 効果が走り直して焦点が「✕」に飛び、鍵盤の人は2回目のEnterで
+  // シートを閉じてしまっていた。
+  useEffect(() => {
+    openerRef.current = (document.activeElement as HTMLElement) ?? null;
+    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    return () => {
+      // 閉じたら開いたボタンへ返す。返さないと焦点が body に落ちて、
+      // 鍵盤の人は一覧の先頭から辿り直すことになる。
+      openerRef.current?.focus?.();
+    };
+  }, []);
 
   const materialLabel: Record<ShelfMaterial, string> = {
     none: t("shelf.matNone"),

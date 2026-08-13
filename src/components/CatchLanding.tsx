@@ -48,8 +48,10 @@ export async function runCatchLanding(ctx: {
   fly: HTMLImageElement | null;
   speakLine?: () => void;
 }): Promise<void> {
-  // 最初の1回は必ずユーザーの操作(キャッチのタップ)の中から来る。
-  // iOS はここでしか AudioContext を起こせない。
+  // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
+  // それでも毎回呼ぶ理由は、iOS がアプリを背面に回すたびに AudioContext を
+  // suspended に落とすから — 解錠は一度きりの手続きではない。
+  // (最初の1回の解錠は、設定の試聴やタップ音など操作の中で走る側に任せる。)
   unlockAudio();
   playCatchChime();
   // 生の navigator.vibrate だと**振動オフの設定を無視する**。

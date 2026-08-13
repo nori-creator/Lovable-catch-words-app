@@ -14,8 +14,29 @@ let master: GainNode | null = null;
 let level: Level = "subtle";
 let unlocked = false;
 
+/**
+ * 保存された音量を読み込む。
+ *
+ * 以前これは `ensureCtx()` の中だけにあった。つまり**一度も音を鳴らして
+ * いない間は `getLevel()` が既定値を返す** — 設定画面を直接開いた人には、
+ * 「オフ」を選んで保存したはずなのに「控えめ」が選ばれて見えていた。
+ * 読むほうと書くほうで違う値を見ているのは、設定として壊れている。
+ */
+let loaded = false;
+function loadLevel() {
+  if (loaded || typeof localStorage === "undefined") return;
+  loaded = true;
+  try {
+    const saved = localStorage.getItem("cw-sound-level") as Level | null;
+    if (saved === "off" || saved === "subtle" || saved === "full") level = saved;
+  } catch {
+    /* ignore */
+  }
+}
+
 function ensureCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
+  loadLevel();
   if (!ctx) {
     const Ctor = (window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
@@ -26,12 +47,6 @@ function ensureCtx(): AudioContext | null {
     master = ctx.createGain();
     master.gain.value = level === "full" ? 0.35 : level === "subtle" ? 0.14 : 0;
     master.connect(ctx.destination);
-    try {
-      const saved = localStorage.getItem("cw-sound-level") as Level | null;
-      if (saved === "off" || saved === "subtle" || saved === "full") setLevel(saved);
-    } catch {
-      /* ignore */
-    }
   }
   return ctx;
 }
@@ -46,13 +61,21 @@ export function setLevel(l: Level) {
   if (master) master.gain.value = l === "full" ? 0.35 : l === "subtle" ? 0.14 : 0;
 }
 export function getLevel(): Level {
+  loadLevel();
   return level;
 }
 
-/** Must be called inside a user gesture the first time (iOS requirement). */
+/**
+ * 音を出せる状態にする。最初の1回はユーザーの操作の中から呼ぶこと(iOS)。
+ *
+ * `unlocked` で早期に返してはいけない。iOS はアプリを背面に回すたびに
+ * AudioContext を suspended に落とすので、**一度解錠したから以後は大丈夫、
+ * にはならない**。前は CatchLanding が毎回 AudioContext を作り直して
+ * いたので偶然これを免れていた。共有の1本にした以上、毎回状態を見る。
+ */
 export function unlockAudio() {
   const c = ensureCtx();
-  if (!c || unlocked) return;
+  if (!c) return;
   if (c.state === "suspended") void c.resume();
   unlocked = true;
 }

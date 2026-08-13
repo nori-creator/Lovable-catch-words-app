@@ -184,6 +184,9 @@ function DexPage() {
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
+    // 棚から離れたらシートも閉じる(開いたままにすると、後ろが棚でない
+    // のに「後ろの棚がすぐ変わります」と言い続けることになる)。
+    if (view !== "shelf") setShelfOptions(false);
   }, [view]);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -589,7 +592,10 @@ function DexPage() {
         ))
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
-      {shelfOptions && (
+      {/* 棚を見ていないときは開いたままにしない。「選ぶと後ろの棚が
+          すぐ変わります」と書いてあるのに、後ろが地図やカレンダーでは
+          その約束が嘘になる(表示を切り替えられるのは着弾の演出中など)。 */}
+      {shelfOptions && view === "shelf" && (
         <DexShelfOptions
           material={material}
           density={density}
