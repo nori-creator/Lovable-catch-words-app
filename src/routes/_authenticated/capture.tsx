@@ -299,20 +299,26 @@ function CapturePage() {
       setStep("select");
     } catch (e) {
       console.error(e);
-      // Offline? Keep the shot: queue it locally and analyze when back online.
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const saved = await enqueueCapture({
-          object_img: img,
-          selfie_img: selfieImg,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-          location_name: loc?.name ?? null,
-        });
-        if (saved) {
-          setStep("offlineSaved");
-          return;
-        }
+      // 撮った写真は**必ず**残す。
+      //
+      // 以前この救済は `!navigator.onLine` のときだけ走っていた。ところが
+      // navigator.onLine は回線がつながっているかしか見ておらず、
+      // キャプティブポータルのWiFi・AIの500・タイムアウトでは true のまま。
+      // つまり**いちばん起きやすい失敗ほど救われず**、ユーザーは
+      // step:"object"(「タップして撮影」)に戻され、撮ったばかりの写真も
+      // 自撮りも画面から消えていた。二度と撮れないものを失わせない。
+      const saved = await enqueueCapture({
+        object_img: img,
+        selfie_img: selfieImg,
+        lat: loc?.lat ?? null,
+        lng: loc?.lng ?? null,
+        location_name: loc?.name ?? null,
+      });
+      if (saved) {
+        setStep("offlineSaved");
+        return;
       }
+      // 保存もできなかったときだけ、撮り直しをお願いする。
       setError(e instanceof Error ? e.message : t("cap.aiFailed"));
       setStep("object");
       toast.error(t("cap.aiFailedRetry"));
@@ -629,6 +635,15 @@ function CapturePage() {
             <img src={objectImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
           <ScanEffect stage={waitKind === "cutout" ? "matching" : "reading"} />
+          {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
+              戻るも無く、処理が返ってこないとアプリを強制終了するしか
+              逃げ道が無かった(§16 Freedom & Recovery)。 */}
+          <button
+            onClick={() => setStep("object")}
+            className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-sm font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
+          >
+            {t("capture.cancel")}
+          </button>
         </div>
       )}
 

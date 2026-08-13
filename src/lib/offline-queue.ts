@@ -59,8 +59,17 @@ export async function enqueueCapture(
     id: crypto.randomUUID(),
     created_at: Date.now(),
   };
-  await tx("readwrite", (s) => s.put(full));
-  return full;
+  // ここだけ try/catch が無く、IndexedDB が拒否したとき(Safari のプライベート
+  // ブラウズ、容量超過 — 1600px の JPEG を data URL で持つので現実に起きる)
+  // 例外が呼び出し元の catch を突き抜けて、撮影画面が "processing" のまま
+  // 固まっていた。その画面には閉じるボタンも戻るも無いので、強制終了しか
+  // 逃げ道が無くなる。他の関数と同じく null で返す。
+  try {
+    await tx("readwrite", (s) => s.put(full));
+    return full;
+  } catch {
+    return null;
+  }
 }
 
 export async function listPendingCaptures(): Promise<PendingCapture[]> {

@@ -1170,13 +1170,14 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "capture.notePlaceholder": { ja: "どんな場面で出会った?", en: "Where did you run into it?" },
   "capture.addToDex": { ja: "図鑑に追加", en: "Add to the dex" },
   "capture.offlineTitle": {
-    ja: "オフラインなので写真だけ保存しました",
-    en: "You're offline — we saved the photo only",
+    ja: "解析できなかったので写真を預かりました",
+    en: "Couldn't analyze it — we kept your photo",
   },
   "capture.offlineHint": {
-    ja: "電波が戻ったら、ホームの「解析待ち」から続きができます。撮った瞬間は逃していません。",
-    en: "When you're back online, continue from “Waiting for analysis” on Home. The moment isn't lost.",
+    ja: "あとでホームの「解析待ち」から続きができます。撮った瞬間は逃していません。",
+    en: "Continue later from “Waiting for analysis” on Home. The moment isn't lost.",
   },
+  "capture.cancel": { ja: "やめる", en: "Cancel" },
   "capture.toHome": { ja: "ホームへ", en: "Go Home" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another" },
   "capture.reunion": { ja: "再会!", en: "Reunion!" },
