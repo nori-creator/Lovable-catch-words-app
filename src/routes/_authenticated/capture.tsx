@@ -175,6 +175,8 @@ function CapturePage() {
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
   const reencSubmittingRef = useRef(false);
+  /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
+  const savedRef = useRef(false);
   // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
   // 待ち画面の文言をここで切り替える。
   const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
@@ -524,6 +526,18 @@ function CapturePage() {
         },
       });
 
+      // **ここから先の失敗は「保存の失敗」ではない。**
+      //
+      // 以前は演出も遷移も同じ try の中にあり、`catch` は一律
+      // 「保存に失敗しました」を出してカード画面へ戻していた。
+      // ユーザーは失敗したと思ってもう一度「図鑑に追加」を押し、
+      // **同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階にしか
+      // 無く、保存時には無い)。嘘の失敗が、正しい対処を誤りに変えていた
+      // (独立監査の指摘)。
+      //
+      // 保存は済んでいるので、以後は何が転んでも図鑑へ送る。
+      savedRef.current = true;
+
       // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
       void queryClient.invalidateQueries({ queryKey: ["stickers"] });
       if (pendingId) void removePendingCapture(pendingId);
@@ -533,15 +547,26 @@ function CapturePage() {
       // (最後の一撃は /dex 側の slam-in が ?justCaught= を見て出す)。
       // 以前このフローだけ演出がなく、保存したら図鑑に飛ぶだけだった。
       setLanding(true);
-      await runCatchLanding({
-        startEl: heroBoxRef.current,
-        fly: flyRef.current,
-        speakLine: () => void pronounce(selectedHead),
-      });
+      try {
+        await runCatchLanding({
+          startEl: heroBoxRef.current,
+          fly: flyRef.current,
+          speakLine: () => void pronounce(selectedHead),
+        });
+      } catch (e) {
+        // 演出が転んでも保存は済んでいる。見せ場を諦めて図鑑へ送る。
+        console.warn("catch landing failed", e);
+      }
       navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);
       setLanding(false);
+      if (savedRef.current) {
+        // 保存は通っている。ここで「失敗」と言うと、押し直して二重登録になる。
+        toast.error(t("cap.savedButLandingFailed"));
+        navigate({ to: "/dex", search: {} });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("card");
     }
@@ -569,6 +594,7 @@ function CapturePage() {
     setReencResult(null);
     setPendingId(null);
     pendingIdRef.current = null;
+    savedRef.current = false;
     setSavedReason(null);
   }
 

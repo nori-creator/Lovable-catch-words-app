@@ -154,8 +154,13 @@ function ReviewPage() {
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
+    // **失敗を握り潰さない。**
+    //
+    // 以前は `.catch(() => {})` だったので、保存に失敗すると直後の
+    // `invalidateQueries` でトグルが黙って元の位置に戻るだけだった。
+    // ユーザーには「押したのに戻った」としか見えず、なぜかは分からない。
     void updateProfileFn({ data: { review_mode: next } })
-      .catch(() => {})
+      .catch(() => toast.error(t("review.modeSaveFailed")))
       .finally(() => qc.invalidateQueries({ queryKey: ["profile"] }));
   }
 

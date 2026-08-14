@@ -362,6 +362,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "AI processing failed. Please try again.",
   },
   "cap.cardFailed": { ja: "カード生成に失敗しました", en: "Couldn't build the card" },
+  "cap.savedButLandingFailed": {
+    ja: "図鑑には追加できました(演出の途中で問題が起きました)。",
+    en: "It's in your dex — something went wrong during the animation.",
+  },
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save" },
   "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that" },
   "cap.photoTaken": { ja: "撮った写真", en: "The photo you took" },
@@ -811,6 +815,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "scan.listening": { ja: "聞き取り中…", en: "Listening…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now" },
   // --- review extras ---
+  "review.modeSaveFailed": {
+    ja: "出題形式の変更を保存できませんでした。通信を確かめてもう一度お試しください。",
+    en: "Couldn't save the review mode. Check your connection and try again.",
+  },
   "review.cappedTitle": { ja: "今日の分は終わりです", en: "That's today's batch" },
   "review.cappedHint": {
     ja: "1日 {n} 枚に設定しています。まだ復習したい語は残っていますが、明日また出します。もっとやりたいときは設定で枚数を増やせます。",

@@ -384,6 +384,24 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // という発音のコツは、韓国語話者にはそのまま当てはまらない。
     const wrongL1 = !!ex && (ex.explain_l1 || "ja") !== nativeLang;
     if (!isEmpty && !missingNewFields && !wrongLanguage && !wrongL1) return;
+    /**
+     * 共有されている列を書き換えていいのは、**本当に欠けているときだけ**。
+     *
+     * `words` は `(language, headword)` で共有される表で、同じ語を持つ
+     * 他のユーザーとも同じ行を見ている。表示言語を切り替えただけで
+     * `meaning_ja` / `example_sentence` / `reading_zhuyin` まで送っていたので、
+     * **設定を触っただけで保存済みの意味が書き換わり、4択の選択肢も
+     * 揺れていた**(独立監査の指摘)。しかも他人のカードごと。
+     *
+     * 解説(`extras`)は `explain_lang` の印が付いていて、言語が違えば
+     * 各自が開いたときに作り直される = 自己修復する。だから言語切替の
+     * ときは**解説だけ**を入れ替え、共有の列には触らない。
+     *
+     * 根本的には「解説の言語」がユーザーごとの持ち物なのに共有の行に
+     * 載っているのが問題で、そこを直すには列を足す必要がある(いま流せない)。
+     * docs/ に残すべき宿題。
+     */
+    const onlyLanguageChanged = !isEmpty && !missingNewFields;
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
@@ -399,15 +417,17 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           data: {
             word_id: s.word_id,
             extras: card.extras,
-            patch: {
-              reading_zhuyin: card.reading_zhuyin,
-              pinyin: card.pinyin,
-              part_of_speech: card.part_of_speech,
-              level: card.level,
-              example_sentence: card.example_sentence,
-              example_translation: card.example_translation,
-              meaning_ja: card.meaning_ja,
-            },
+            patch: onlyLanguageChanged
+              ? undefined
+              : {
+                  reading_zhuyin: card.reading_zhuyin,
+                  pinyin: card.pinyin,
+                  part_of_speech: card.part_of_speech,
+                  level: card.level,
+                  example_sentence: card.example_sentence,
+                  example_translation: card.example_translation,
+                  meaning_ja: card.meaning_ja,
+                },
           },
         });
         await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });

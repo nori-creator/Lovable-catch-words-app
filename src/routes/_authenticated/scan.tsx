@@ -485,7 +485,12 @@ function ScanPage() {
         setEntries(entries);
       }
     } catch (e) {
-      setError((e as Error).message || t("scan.detectFailed"));
+      // サーバー由来の生の英語メッセージをそのまま画面に出さない。
+      // 何が起きたかを伝えるのは大事だが、`fetch failed` や
+      // `PGRST116` を見せられても、日本語で使っている人には何も分からない。
+      // 原因の追跡はコンソールに残し、画面にはこちらの言葉で言う。
+      console.error(e);
+      setError(t("scan.detectFailed"));
       haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
@@ -671,7 +676,8 @@ function ScanPage() {
           }
         }
       } catch (e) {
-        setError((e as Error).message || t("scan.detailFailed"));
+        console.error(e);
+        setError(t("scan.detailFailed"));
       } finally {
         setExpandingId(null);
       }
