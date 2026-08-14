@@ -352,6 +352,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "保存されていた写真が見つかりませんでした",
     en: "Couldn't find the saved photo",
   },
+  "cap.photoReadFailed": {
+    ja: "写真を読み込めませんでした。もう一度撮ってみてください。",
+    en: "Couldn't read that photo. Please try taking it again.",
+  },
   "cap.aiFailed": { ja: "AI処理に失敗しました", en: "AI processing failed" },
   "cap.aiFailedRetry": {
     ja: "AI処理に失敗しました。もう一度お試しください。",
@@ -389,6 +393,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "Added to your dex. It turns gold when you meet the real thing!",
   },
   "sheet.loading": { ja: "読み込み中…", en: "Loading…" },
+  "sheet.reunionNotRecorded": {
+    ja: "キャッチはできましたが、復習の記録に失敗しました。この語はまた出てきます。",
+    en: "Caught it, but the review record didn't save — this word will come round again.",
+  },
   "sheet.verified": { ja: "✓ 検証済み", en: "✓ Verified" },
   "sheet.aiMade": { ja: "AI生成", en: "AI generated" },
   "sheet.optional": { ja: "(任意)", en: "(optional)" },
@@ -611,6 +619,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "journal.askCorrect": { ja: "AIに添削してもらう", en: "Ask AI to review" },
   "journal.corrected": { ja: "✦ 添削後", en: "✦ Corrected" },
   "journal.patterns": { ja: "型と解説", en: "Patterns & notes" },
+  "journal.keptOnDevice": {
+    ja: "書いたものはこの端末に控えてあります。添削が通らなくても消えません。",
+    en: "Your writing is kept on this device — it won't be lost if the check fails.",
+  },
   "journal.loadFailedNote": {
     ja: "これまでの日記を読み込めませんでした。今日の書きかけがあっても表示できていないので、このまま送ると上書きになります。",
     en: "Couldn't load your journal. If you had a draft for today, it isn't shown — sending now will overwrite it.",
@@ -799,6 +811,12 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "scan.listening": { ja: "聞き取り中…", en: "Listening…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now" },
   // --- review extras ---
+  "review.cappedTitle": { ja: "今日の分は終わりです", en: "That's today's batch" },
+  "review.cappedHint": {
+    ja: "1日 {n} 枚に設定しています。まだ復習したい語は残っていますが、明日また出します。もっとやりたいときは設定で枚数を増やせます。",
+    en: "You've set a limit of {n} a day. There are more waiting — they'll come back tomorrow. Raise the limit in Settings if you want more now.",
+  },
+  "review.cappedCta": { ja: "設定で枚数を変える", en: "Change the limit" },
   "review.empty": { ja: "今日復習する単語はありません。", en: "Nothing to review today." },
   "review.emptyHint": {
     ja: "新しい単語をキャッチすると、10分後に最初の復習が出ます。",
@@ -897,6 +915,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.selfie": { ja: "自撮り", en: "Selfie" },
   "card.noSelfie": { ja: "自撮りはまだありません", en: "No selfie yet" },
   "card.changePhotoConfirm": { ja: "この写真を変更しますか?", en: "Change this photo?" },
+  "card.replaceOwnPhotoConfirm": {
+    ja: "自分で撮った写真を、この画像に差し替えますか? 元の写真には戻せません。",
+    en: "Replace your own photo with this image? You can't get the original back.",
+  },
   "card.deleteConfirmDialog": {
     ja: "本当に削除しますか?この操作は取り消せません。",
     en: "Delete this card? This cannot be undone.",

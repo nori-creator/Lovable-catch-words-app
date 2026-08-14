@@ -15,6 +15,7 @@ import {
   type DueReviewCard,
   type SpeakingFeedback,
   type MemoryWord,
+  getReviewCapState,
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
@@ -1616,8 +1617,44 @@ function MiniRetentionGraph({
   );
 }
 
+/**
+ * 出す語が無いときの画面。
+ *
+ * **「今日の分は終わり」と「そもそも出る語が無い」は別物。**
+ * 以前はどちらも「今日復習する単語はありません」と出していたので、
+ * 期限切れが180枚溜まっていても同じ文面だった。上限に当たったとは
+ * 一言も書かれず、上限を上げる導線も無い。図鑑では「全N件のうち…
+ * まだ出せていません」と正直に書いているのに、ここだけ「無い」と
+ * 言っていた(独立監査の指摘)。
+ */
 function EmptyState() {
   const t = useT();
+  const capFn = useServerFn(getReviewCapState);
+  // 一覧が空だったときにだけ聞く。ふだんは1回も走らない。
+  const { data: cap } = useQuery({
+    queryKey: ["review-cap"],
+    queryFn: () => capFn(),
+    staleTime: 60_000,
+  });
+
+  if (cap?.capped) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-8 text-center">
+        <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
+        <p className="text-sm font-medium">{t("review.cappedTitle")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("review.cappedHint", { n: String(cap.limit) })}
+        </p>
+        <Link
+          to="/settings"
+          className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+        >
+          {t("review.cappedCta")}
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
       <p className="text-sm text-muted-foreground">{t("review.empty")}</p>

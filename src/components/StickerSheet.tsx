@@ -31,6 +31,7 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { useT, useUiLang } from "@/lib/i18n";
+import { LoadFailed } from "@/components/LoadFailed";
 
 type Props = {
   stickerId: string | null;
@@ -62,6 +63,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     data: s,
     isLoading,
     isError,
+    isFetching,
+    refetch,
   } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
@@ -73,6 +76,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     queryFn: () => fetchProfile(),
     staleTime: 60_000,
   });
+  /**
+   * 自分で撮った写真を持っているか。
+   *
+   * 持っていないカード(文字入力キャッチのゴースト = ネットの仮画像だけ)は、
+   * 差し替えても失うものが無いので確認は要らない。**失うものがあるときだけ
+   * 訊く** — 何でも訊くと、人は読まずに押すようになる(§16)。
+   */
+  const hasOwnPhoto = !!(s?.object_url || s?.cutout_url);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
@@ -192,6 +203,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
   async function applyWebImage(url: string) {
     if (!stickerId) return;
+    // **必ず訊く。**
+    //
+    // このタイルは全面が透明なボタンで、参考画像を眺めているだけの指が
+    // 当たっただけで自分の写真が他人の写真に差し替わっていた。
+    // 取り消しも無い。写真の長押しには確認があるのに、こちらだけ
+    // 素通しだった — 同じ破壊操作の入口で守りが揃っていなかった。
+    if (hasOwnPhoto && !window.confirm(t("card.replaceOwnPhotoConfirm"))) return;
     try {
       const { dataUrl } = await fetchImageFn({ data: { url } });
       const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
@@ -526,11 +544,24 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <div className="grid h-64 place-items-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : isError || !s ? (
-          // Settled with no sticker (deleted elsewhere, not permitted, or a load
-          // error) — show a real message instead of spinning forever.
+        ) : isError ? (
+          // **通信の失敗を「見つかりません」と言わない。**
+          //
+          // ユーザーはそれを「消えた」と受け取り、自分の記録が失われたと
+          // 思う。やり直せば戻るものは、やり直せると言う(§8)。
+          // 同じデータを開く dex.$stickerId ではすでにこう直してあったのに、
+          // ホーム・図鑑からカードを開く**主経路であるこのシート**だけが
+          // 残っていた(独立監査の指摘)。
+          <div className="px-2 py-4">
+            <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+          </div>
+        ) : !s ? (
+          // 本当に無い(消された・権限が無い)。
           <div className="grid h-64 place-items-center px-6 text-center">
-            <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+            <div>
+              <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("card.notFoundHint")}</p>
+            </div>
           </div>
         ) : (
           <>
@@ -614,6 +645,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      // 長押しには確認があるのに、常時見えているこちらだけ
+                      // 素通しだった。押しやすいほうが無防備なのは逆。
+                      if (hasOwnPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
                       fileInputRef.current?.click();
                     }}
                     aria-label={t("card.changePhoto")}

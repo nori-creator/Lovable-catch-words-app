@@ -131,6 +131,16 @@ export function ScanCatchSheet({
         // never cuts anything out; the plain crop is what we keep and show.
       } catch (e) {
         console.warn("crop failed", e);
+        if (cancelled) return;
+        // **切り出しに失敗したら、元の写真をそのまま使う。**
+        //
+        // 以前は `setPhase("ready")` だけで `objectDataUrl` は null のまま
+        // だった。すると画面は**ずっとスピナー＋「読み込み中」**を出し続け、
+        // 保存ボタンは `disabled={!objectDataUrl}` で永久に押せない。
+        // 「読み込み中」は回復を約束する表示なので、回復しないものに使うと
+        // ユーザーは待つだけ時間を捨てる(独立監査の指摘)。
+        // 切り出しは見た目の格上げであって、キャッチの条件ではない。
+        setObjectDataUrl(snapshotDataUrl);
         setPhase("ready");
       }
     })();
@@ -241,15 +251,29 @@ export function ScanCatchSheet({
             lng: loc.lng,
           },
         });
-        void encounterFn({
-          data: {
-            sticker_id: upgrade.sticker_id,
-            recalled: true,
-            lat: loc.lat,
-            lng: loc.lng,
-            location_name: loc.name,
-          },
-        }).catch(() => {});
+        // **記録の失敗を黙って捨てない。**
+        //
+        // 以前は `void … .catch(() => {})` で投げっぱなしだった。
+        // 「再会!」のトーストが出て演出が走り、図鑑に着地するのに、
+        // 復習の最高評価は書かれていない — その語は明日また
+        // 「忘れかけ」として出てくる。何も告げられないまま。
+        // 復習画面の採点は同じ失敗をちゃんと伝えているのに、
+        // 体験の山場である再会だけが黙って落ちていた(独立監査の指摘)。
+        try {
+          await encounterFn({
+            data: {
+              sticker_id: upgrade.sticker_id,
+              recalled: true,
+              lat: loc.lat,
+              lng: loc.lng,
+              location_name: loc.name,
+            },
+          });
+        } catch {
+          // 写真の添付は済んでいる(キャッチ自体は成功)。
+          // 落ちたのは復習の記録だけなので、そこだけ伝えて先へ進む。
+          toast.error(t("sheet.reunionNotRecorded"));
+        }
         stickerId = upgrade.sticker_id;
       } else {
         const meaning = card?.meaning_ja || dict?.meaning_ja || item.meaning_ja;
@@ -365,7 +389,13 @@ export function ScanCatchSheet({
             <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">
               {headword}
             </h2>
-            {dict ? (
+            {/* **辞書に行があること = 確認済み、ではない。**
+                `lookupHeadwords` は AI が作った未検証の行も返すので、
+                直前のスキャン画面で「AI・未検証」と黄色く出ていた語が、
+                保存を押す直前のこの画面で緑の「確認済み」に変わっていた。
+                保証を出してはいけない場所が、いちばん出してはいけない
+                瞬間(確定の直前)だった(独立監査の指摘)。 */}
+            {dict?.source === "verified" ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
                 {t("sheet.verified")}
               </span>

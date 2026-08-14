@@ -268,16 +268,32 @@ function CapturePage() {
   }, [step]);
 
   async function handleObjectFile(file: File) {
-    const url = await fileToDataUrl(file);
-    const compressed = await compressImage(url, 1600);
-    setObjectImg(compressed);
-    setStep("selfie");
+    // **写真を読めなかったことを言う。**
+    //
+    // `fileToDataUrl` の reject を誰も受けておらず、失敗すると画面は
+    // 何も変わらなかった。撮ったのに何も起きない画面は、押せていない
+    // のか壊れているのか区別がつかない(独立監査の指摘)。
+    try {
+      const url = await fileToDataUrl(file);
+      const compressed = await compressImage(url, 1600);
+      setObjectImg(compressed);
+      setStep("selfie");
+    } catch (e) {
+      console.error(e);
+      setError(t("cap.photoReadFailed"));
+      toast.error(t("cap.photoReadFailed"));
+    }
   }
 
   async function handleSelfieFile(file: File | null) {
     if (file) {
-      const url = await fileToDataUrl(file);
-      setSelfieImg(await compressImage(url, 1280));
+      try {
+        const url = await fileToDataUrl(file);
+        setSelfieImg(await compressImage(url, 1280));
+      } catch (e) {
+        // 自撮りは任意。読めなくてもキャッチは止めない。
+        console.warn("selfie read failed", e);
+      }
     }
     await runAi();
   }

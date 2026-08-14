@@ -21,10 +21,69 @@ import path from "node:path";
 const SRC = "src";
 const DICT_FILE = "src/lib/i18n.tsx";
 
-/** 定義済みのキーを集める。`"a.b": {` の形だけを見る。 */
-function definedKeys() {
+/**
+ * 定義済みのキーを集める。`"a.b": {` の形だけを見る。
+ * 同じキーが2回書かれていたら、その場で問題として返す
+ * (2つ目が勝つので、直したつもりの文言が出ない)。
+ */
+function definedKeys(problems) {
   const s = fs.readFileSync(DICT_FILE, "utf8");
-  return new Set([...s.matchAll(/^\s{2}"([\w.]+)":\s*\{/gm)].map((m) => m[1]));
+  const set = new Set();
+  for (const m of s.matchAll(/^\s{2}"([\w.]+)":\s*\{/gm)) {
+    if (set.has(m[1])) {
+      const line = s.slice(0, m.index).split("\n").length;
+      problems.push(`${DICT_FILE}:${line}  同じキーが2回: ${m[1]}`);
+    }
+    set.add(m[1]);
+  }
+  return set;
+}
+
+/**
+ * ja と en が**両方**埋まっているかを見る。
+ *
+ * ## なぜ要るか
+ * 片方が抜けていても `t()` は落ちない。`DICT[key]?.[lang] ?? DICT[key]?.ja`
+ * と書いてあるので、**en が無ければ黙って日本語が出る**。英語で使っている
+ * 人には、アプリのどこかで急に日本語が現れる。
+ *
+ * 実際そうなっていた: 既定の待ち画面(v0_cutout)の文言が日本語で直書き
+ * されていて、英語のユーザーはアプリの見せ場で日本語を見ていた。
+ * 直書きは目で気づけたが、辞書に ja だけ入れる形だと目でも気づけない。
+ */
+function incompleteEntries() {
+  const s = fs.readFileSync(DICT_FILE, "utf8");
+  const out = [];
+  // `"key": { ... }` の1エントリぶんを、対応する閉じ括弧まで拾う。
+  for (const m of s.matchAll(/^\s{2}"([\w.]+)":\s*\{/gm)) {
+    const start = m.index + m[0].length - 1;
+    let depth = 0;
+    let end = start;
+    for (let i = start; i < s.length; i++) {
+      if (s[i] === "{") depth++;
+      else if (s[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const body = s.slice(start, end + 1);
+    const line = s.slice(0, m.index).split("\n").length;
+    for (const lang of ["ja", "en"]) {
+      // **引用符は3種類ある。** 最初これを二重引用符だけで見ていて、
+      // `en: 'Photo of "{word}"'` の形(中に二重引用符があるので単引用符で
+      // 書いてある)を9件まとめて「en が無い」と誤って報告した。
+      // 検査が嘘をつくと、直す必要のないものを直しに行くことになる。
+      const has = new RegExp(`\\b${lang}:\\s*("|'|\`)`).test(body);
+      if (!has) out.push(`${DICT_FILE}:${line}  ${m[1]} に ${lang} が無い`);
+      // 空文字(`en: ""`)は**わざと**であることがある(単位の接尾辞など、
+      // 英語では何も付けないもの)。書いてあるなら選択とみなして通す。
+      // 見るのは「鍵ごと無い」= 足し忘れだけ。
+    }
+  }
+  return out;
 }
 
 function walk(dir, out = []) {
@@ -36,8 +95,9 @@ function walk(dir, out = []) {
   return out;
 }
 
-const defined = definedKeys();
 const problems = [];
+const defined = definedKeys(problems);
+problems.push(...incompleteEntries());
 /** 動的に組み立てるキー(`t(\`cat.${x}\`)`)は前置きだけ見て、接頭辞の存在を確かめる。 */
 const prefixes = new Set([...defined].map((k) => k.split(".")[0]));
 
@@ -63,9 +123,12 @@ for (const file of walk(SRC)) {
 }
 
 if (problems.length) {
-  console.error(`翻訳キーの不足 ${problems.length}件:`);
+  console.error(`翻訳の問題 ${problems.length}件:`);
   for (const p of problems) console.error("  - " + p);
-  console.error("\n未定義のキーは画面にキー名がそのまま出る。src/lib/i18n.tsx に足すこと。");
+  console.error(
+    "\n未定義のキーは画面にキー名がそのまま出る。" +
+      "en が抜けていると、英語のユーザーにそこだけ日本語が出る。",
+  );
   process.exit(1);
 }
 console.log(`翻訳キー: 問題なし(定義 ${defined.size}件)`);

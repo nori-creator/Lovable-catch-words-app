@@ -24,6 +24,9 @@ export const Route = createFileRoute("/_authenticated/journal")({
   component: JournalPage,
 });
 
+/** 端末に置く下書きの鍵。日付は入れない — 今日書いたものだけを持つ。 */
+const DRAFT_KEY = "journal-draft";
+
 function JournalPage() {
   const t = useT();
   const qc = useQueryClient();
@@ -46,6 +49,48 @@ function JournalPage() {
   const past = (entries ?? []).filter((e) => e.entry_date !== today);
 
   const [draft, setDraft] = useState("");
+  const [savedLocally, setSavedLocally] = useState(false);
+
+  /**
+   * 書いたものを端末に即保存する。
+   *
+   * ## なぜ要るか
+   * この画面には「保存」が無い。書いた文章が DB に入るのは、AIの添削が
+   * **成功した後**の upsert だけ。しかも添削には1日の上限があるので、
+   * 上限に達していると保存に到達する道が1本も無い。
+   *
+   * つまり: 300字書いて「添削してもらう」を押す → 「上限に達しました」
+   * → 画面を離れた瞬間、書いた文章は消える。**自分で書いた文章は写真の
+   * 次に取り返しがつかない**のに、置き場所がどこにも無かった。
+   *
+   * サーバーに届く前に、まず手元に置く。
+   */
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (saved && !draft) {
+      setDraft(saved);
+      setSavedLocally(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    const id = setTimeout(() => {
+      try {
+        if (draft.trim()) {
+          localStorage.setItem(DRAFT_KEY, draft);
+          setSavedLocally(true);
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+          setSavedLocally(false);
+        }
+      } catch {
+        /* 書けない端末もある。保存できないだけで、書くことは止めない。 */
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [draft]);
   // 保存済みの下書きを一度だけ流し込む。draft を依存に入れると入力の
   // 一文字ごとに再実行され、「書きかけを上書きしない」という意図が壊れる
   // (todayEntry が更新されたときだけ、空なら埋めるのが正しい挙動)。
@@ -58,6 +103,13 @@ function JournalPage() {
     mutationFn: () => correct({ data: { draft } }),
     onSuccess: () => {
       toast.success(t("journal.done"));
+      // サーバーに入ったので端末の控えは要らない。
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+      setSavedLocally(false);
       qc.invalidateQueries({ queryKey: ["journal"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("journal.failed")),
@@ -91,6 +143,9 @@ function JournalPage() {
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t("journal.placeholder")}
         />
+        {savedLocally && (
+          <p className="text-[11px] text-muted-foreground">{t("journal.keptOnDevice")}</p>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <button

@@ -807,10 +807,15 @@ export const replaceStickerPhoto = createServerFn({ method: "POST" })
     if (!data.object_path.startsWith(`${userId}/`)) {
       throw new Error("不正な画像パスです");
     }
+    // **`taken_at` は書き換えない。**
+    //
+    // ここは「カードの写真を差し替える」操作であって、「その言葉に
+    // 出会った日」を変える操作ではない。以前は今の時刻で上書きして
+    // いたので、写真を1枚替えただけで**士林で撮った日が今日になった**。
+    // 図鑑のカレンダーも地図も日付順の並びも、全部そこを見ている。
     const patch = {
       object_image_url: data.object_path,
       cutout_image_url: null,
-      taken_at: new Date().toISOString(),
     };
     let res = await supabase
       .from("stickers")
