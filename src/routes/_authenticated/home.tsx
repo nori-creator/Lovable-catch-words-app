@@ -175,7 +175,7 @@ function HomePage() {
 
   const grouped = useMemo(() => {
     const map = new Map<string, StickerWithWord[]>();
-    for (const s of stickers ?? []) {
+    for (const s of stickers?.items ?? []) {
       const k = dayKey(new Date(s.created_at));
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);

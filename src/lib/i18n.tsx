@@ -140,6 +140,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.kindSyn": { ja: "似", en: "syn" },
   "rv.kindAnt": { ja: "反", en: "ant" },
   "rv.kindRel": { ja: "関", en: "rel" },
+  "dex.truncated": {
+    ja: "新しい順に {n} 件まで表示しています。これより古いものはまだ出せていません。",
+    en: "Showing the newest {n}. Older ones aren't loaded yet.",
+  },
   "dex.allCategories": { ja: "すべて", en: "All" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar" },
   "dex.calendarEmpty": {

@@ -116,14 +116,13 @@ async function encounterCounts(
  * 消える。しかもこの1件ずつに署名URLを3本(写真・切り抜き・自撮り)
  * 作るので、件数がそのまま起動の重さになる。
  *
- * 暗黙で切られるより、決めて切るほうがいい。少なくとも、なぜ1000件で
- * 止まるのかがコードに書いてある状態になる。
+ * 暗黙で切られるより、決めて切って**そう言う**ほうがいい。
+ * 上限+1件を引き、余りが出たら `truncated: true` を返す。図鑑はそれを
+ * 見て「ここから先は出せていない」と書く。黙って消えるのがいちばん悪い。
  *
- * **まだ途中**。残っているのは2つ:
- *   1. 上限に達したことを画面に出す(いまは呼び出し側に伝えていない。
- *      戻り値が配列なので、伝えるには形を変えて全画面を直す必要がある)
- *   2. ページ送り(古い方を後から読む)。図鑑は「全部ある」ことが
- *      値打ちの画面なので、本来は上限で終わりにできない。
+ * **ページ送りはまだ**。図鑑は「全部ある」ことが値打ちの画面なので、
+ * 本来は上限で終わりにできない。いまは「黙って消える」を
+ * 「言って止まる」に変えたところまで。
  */
 const STICKER_LIST_LIMIT = 1000;
 
@@ -140,7 +139,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(STICKER_LIST_LIMIT);
+      .limit(STICKER_LIST_LIMIT + 1);
     if (error && /capture_type|placeholder/.test(error.message)) {
       // Migration not applied yet — fall back to the photo-only shape.
       ({ data, error } = (await supabase
@@ -150,7 +149,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(STICKER_LIST_LIMIT)) as unknown as {
+        .limit(STICKER_LIST_LIMIT + 1)) as unknown as {
         data: typeof data;
         error: typeof error;
       });
@@ -174,7 +173,11 @@ export const listMyStickers = createServerFn({ method: "GET" })
       placeholder_credit?: PlaceholderCredit | null;
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
-    const rows = (data ?? []) as unknown as RowShape[];
+    // 上限+1件を引いて、余りが出たかどうかで「まだ先がある」を知る。
+    // 件数を数える問い合わせを別に投げなくて済む。
+    const allRows = (data ?? []) as unknown as RowShape[];
+    const truncated = allRows.length > STICKER_LIST_LIMIT;
+    const rows = truncated ? allRows.slice(0, STICKER_LIST_LIMIT) : allRows;
     // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
     // Missing thumbs (old stickers) simply return error rows and drop out of
     // the map — the client falls back to the full image.
@@ -225,7 +228,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
         word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
-    return result;
+    return { items: result, truncated };
   });
 
 export const getSticker = createServerFn({ method: "GET" })
