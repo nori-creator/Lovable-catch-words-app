@@ -77,13 +77,15 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     staleTime: 60_000,
   });
   /**
-   * 自分で撮った写真を持っているか。
+   * いま何かの写真が載っているか(= 差し替えると失われるものがあるか)。
    *
-   * 持っていないカード(文字入力キャッチのゴースト = ネットの仮画像だけ)は、
-   * 差し替えても失うものが無いので確認は要らない。**失うものがあるときだけ
-   * 訊く** — 何でも訊くと、人は読まずに押すようになる(§16)。
+   * 「自分で撮ったものか」までは分からない。ネット画像を採用すると
+   * それも `object_image_url` に入るので、DBの上では区別が付かない
+   * (区別するには列を1つ足す必要があり、いまは流せない)。
+   * だから**文面で断定しない** — 「あなたが撮った写真」とは言わず、
+   * 「いまの写真」と言う。仮画像しか無いゴーストのときは訊かない。
    */
-  const hasOwnPhoto = !!(s?.object_url || s?.cutout_url);
+  const hasPhoto = !!(s?.object_url || s?.cutout_url);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
@@ -209,7 +211,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // 当たっただけで自分の写真が他人の写真に差し替わっていた。
     // 取り消しも無い。写真の長押しには確認があるのに、こちらだけ
     // 素通しだった — 同じ破壊操作の入口で守りが揃っていなかった。
-    if (hasOwnPhoto && !window.confirm(t("card.replaceOwnPhotoConfirm"))) return;
+    if (hasPhoto && !window.confirm(t("card.replacePhotoConfirm"))) return;
     try {
       const { dataUrl } = await fetchImageFn({ data: { url } });
       const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
@@ -647,7 +649,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                       e.stopPropagation();
                       // 長押しには確認があるのに、常時見えているこちらだけ
                       // 素通しだった。押しやすいほうが無防備なのは逆。
-                      if (hasOwnPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
+                      if (hasPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
                       fileInputRef.current?.click();
                     }}
                     aria-label={t("card.changePhoto")}

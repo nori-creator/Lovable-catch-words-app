@@ -24,8 +24,17 @@ export const Route = createFileRoute("/_authenticated/journal")({
   component: JournalPage,
 });
 
-/** 端末に置く下書きの鍵。日付は入れない — 今日書いたものだけを持つ。 */
-const DRAFT_KEY = "journal-draft";
+/**
+ * 端末に置く下書きの鍵。**日付を入れる。**
+ *
+ * 入れずに1つの鍵で持っていたら、添削まで行かなかった昨日の書きかけが
+ * 今日の欄に流れ込む。しかも `draft` が空でなくなるので、サーバーにある
+ * 今日の下書きを読み込む効果(`!draft` の条件)も動かなくなり、
+ * そのまま送ると**昨日の文章で今日の記録を上書き**することになる。
+ */
+function draftKeyFor(entryDate: string) {
+  return `journal-draft:${entryDate}`;
+}
 
 function JournalPage() {
   const t = useT();
@@ -67,7 +76,7 @@ function JournalPage() {
    */
   useEffect(() => {
     if (typeof localStorage === "undefined") return;
-    const saved = localStorage.getItem(DRAFT_KEY);
+    const saved = localStorage.getItem(draftKeyFor(today));
     if (saved && !draft) {
       setDraft(saved);
       setSavedLocally(true);
@@ -79,10 +88,10 @@ function JournalPage() {
     const id = setTimeout(() => {
       try {
         if (draft.trim()) {
-          localStorage.setItem(DRAFT_KEY, draft);
+          localStorage.setItem(draftKeyFor(today), draft);
           setSavedLocally(true);
         } else {
-          localStorage.removeItem(DRAFT_KEY);
+          localStorage.removeItem(draftKeyFor(today));
           setSavedLocally(false);
         }
       } catch {
@@ -105,7 +114,7 @@ function JournalPage() {
       toast.success(t("journal.done"));
       // サーバーに入ったので端末の控えは要らない。
       try {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKeyFor(today));
       } catch {
         /* ignore */
       }

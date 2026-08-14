@@ -1193,7 +1193,19 @@ function DexMap({
   }
 
   if (mapFailed) {
-    return <LoadFailed onRetry={() => setMapAttempt((n) => n + 1)} />;
+    // **`mapFailed` を戻すのは「もう一度」を押した側の役目。**
+    // 番号を増やすだけにしていたら、地図の div は外れたままなので
+    // `initMap` が `if (!mapRef.current) return;` で抜け、
+    // `setMapFailed(false)` に永久に届かなかった —
+    // 「もう一度」が二度と効かない再試行ボタンを作っていた。
+    return (
+      <LoadFailed
+        onRetry={() => {
+          setMapFailed(false);
+          setMapAttempt((n) => n + 1);
+        }}
+      />
+    );
   }
 
   return (

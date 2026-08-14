@@ -652,7 +652,18 @@ export const getReviewCapState = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .gte("reviewed_at", startOfLocalDayIso());
     const doneToday = count ?? 0;
-    return { capped: doneToday >= dailyLimit, limit: dailyLimit, doneToday };
+    if (doneToday < dailyLimit) return { capped: false, limit: dailyLimit, doneToday };
+
+    // **枚数を使い切っただけでは「まだ残っている」と言えない。**
+    // ちょうど期限切れのぶんを全部やり終えた人に「まだ待っている語が
+    // あります。上限を上げましょう」と言うと、上げたのに1枚も出てこない。
+    // 本当に出せる語があるかを確かめてから言う。
+    const { count: dueCount } = await supabase
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .lte("due_at", new Date().toISOString());
+    return { capped: (dueCount ?? 0) > 0, limit: dailyLimit, doneToday };
   });
 
 export const gradeReview = createServerFn({ method: "POST" })

@@ -915,9 +915,9 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.selfie": { ja: "自撮り", en: "Selfie" },
   "card.noSelfie": { ja: "自撮りはまだありません", en: "No selfie yet" },
   "card.changePhotoConfirm": { ja: "この写真を変更しますか?", en: "Change this photo?" },
-  "card.replaceOwnPhotoConfirm": {
-    ja: "自分で撮った写真を、この画像に差し替えますか? 元の写真には戻せません。",
-    en: "Replace your own photo with this image? You can't get the original back.",
+  "card.replacePhotoConfirm": {
+    ja: "いまの写真を、この画像に差し替えますか? 元には戻せません。",
+    en: "Replace the current photo with this image? This can't be undone.",
   },
   "card.deleteConfirmDialog": {
     ja: "本当に削除しますか?この操作は取り消せません。",
