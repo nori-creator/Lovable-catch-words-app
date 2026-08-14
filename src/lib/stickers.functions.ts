@@ -110,29 +110,28 @@ async function encounterCounts(
 }
 
 /**
- * 一度に返すステッカーの上限。
+ * 1回の問い合わせで受け取る件数。
  *
- * ここには上限が無かった。無いように見えて実際は PostgREST の既定
- * (`db-max-rows` = 1000)で**黙って切られていた**ので、1001件目からは
- * 理由も告げずに消える。しかもこの1件ずつに署名URLを3本(写真・
- * 切り抜き・自撮り)作るので、件数がそのまま起動の重さになる。
- *
- * ## 「上限+1件を引いて余りを見る」は**使えない**
- * 最初そう書いた。`.limit(1001)` で1001件目が来たら「まだ先がある」と
- * 判断するつもりだったが、**サーバー側が 1000 で切るので1001件目は
- * 永遠に来ない**。つまり `truncated` が常に false になり、そのために
- * 足した案内は一度も出ないまま「黙って消える」が続く。
- * 検査に指摘されるまで気づかなかった — 直したつもりで何も直っていない、
- * このアプリで何度も繰り返している間違いの形そのもの。
- *
- * 代わりに **`count: "exact"` で総数を聞く**。同じ問い合わせで返るので
- * 往復は増えず、サーバーの上限にも左右されない。
- *
- * **ページ送りはまだ**。図鑑は「全部ある」ことが値打ちの画面なので、
- * 本来は上限で終わりにできない。いまは「黙って消える」を
- * 「言って止まる」に変えたところまで。
+ * PostgREST は `db-max-rows`(既定1000)で切るので、これより大きくしても
+ * 意味がない。**1000は「1ページの大きさ」であって「合計の上限」ではない。**
  */
-const STICKER_LIST_LIMIT = 1000;
+const STICKER_PAGE_SIZE = 1000;
+
+/**
+ * 全部で受け取る件数の天井。
+ *
+ * ## なぜ天井が要るか
+ * 図鑑は「集めたものが全部ある」ことが値打ちの画面なので、本来は
+ * 上限で終わりにできない。だからページを繰って全部取る。
+ * ただし1件ごとに署名URLを6本(写真・切り抜き・自撮り・サムネ2枚…)
+ * 作るので、**際限なく取ると1回の起動が際限なく重くなる**。
+ * どこかで止める必要がある。
+ *
+ * 3000件は「毎日1語キャッチして8年ぶん」。ここに届く人が出たら、
+ * そのときは本当のページ送り(古い方を後から読む)を作る。
+ * それまでは、天井に当たったことを画面に出して**黙って消えない**ようにする。
+ */
+const STICKER_TOTAL_CAP = 3000;
 
 export const listMyStickers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -140,30 +139,46 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const wordCols =
       "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    let { data, error, count } = await supabase
-      .from("stickers")
-      .select(
-        `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`,
-        { count: "exact" },
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(STICKER_LIST_LIMIT);
-    if (error && /capture_type|placeholder/.test(error.message)) {
-      // Migration not applied yet — fall back to the photo-only shape.
-      ({ data, error, count } = (await supabase
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`;
+    // Migration not applied yet — fall back to the photo-only shape.
+    const legacyCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`;
+
+    /** 1ページ取る。`count` は最初のページでだけ意味がある。 */
+    const page = async (cols: string, from: number) =>
+      await supabase
         .from("stickers")
-        .select(
-          `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`,
-          { count: "exact" },
-        )
+        .select(cols, { count: "exact" })
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(STICKER_LIST_LIMIT)) as unknown as {
-        data: typeof data;
-        error: typeof error;
-        count: typeof count;
-      });
+        .range(from, from + STICKER_PAGE_SIZE - 1);
+
+    let cols = fullCols;
+    let first = await page(cols, 0);
+    if (first.error && /capture_type|placeholder/.test(first.error.message)) {
+      cols = legacyCols;
+      first = await page(cols, 0);
+    }
+    const { count } = first;
+    let error = first.error;
+    let data = first.data;
+
+    // **ページを繰って全部取る。** 1ページで終わりにすると、1001件目から
+    // 先が黙って消える(そこを直すのがこの周の用件)。
+    // ただし天井は守る — 際限なく取ると起動が際限なく重くなる。
+    if (!error && data && typeof count === "number") {
+      const want = Math.min(count, STICKER_TOTAL_CAP);
+      const acc = data as unknown[];
+      while (acc.length < want) {
+        const next = await page(cols, acc.length);
+        if (next.error) {
+          error = next.error;
+          break;
+        }
+        const rows = (next.data ?? []) as unknown[];
+        if (rows.length === 0) break; // これ以上来ない(数え違い・削除と競合)
+        acc.push(...rows);
+      }
+      data = acc as typeof data;
     }
     if (error) throw new Error(error.message);
 
@@ -185,10 +200,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
     const rows = (data ?? []) as unknown as RowShape[];
-    // 総数は同じ問い合わせが返す `count`。取れなかったときは
-    // 「ちょうど上限まで返ってきた= たぶんまだ先がある」で代用する。
+    // 総数は最初のページが返した `count`。ページを繰ったあとなので、
+    // ここで truncated が立つのは**天井に当たったとき**だけ。
     const total = typeof count === "number" ? count : null;
-    const truncated = isTruncated(total, rows.length, STICKER_LIST_LIMIT);
+    const truncated = isTruncated(total, rows.length, STICKER_TOTAL_CAP);
     // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
     // Missing thumbs (old stickers) simply return error rows and drop out of
     // the map — the client falls back to the full image.
