@@ -337,6 +337,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "dex.shelf": { ja: "棚", en: "Shelf" },
   "dex.shelfEmpty": { ja: "まだ空", en: "Still empty" },
   "dex.shelfNoMatch": { ja: "この棚に該当なし", en: "Nothing here matches" },
+  "dex.emptyShelvesFolded": {
+    ja: "空いている棚 {n} — 押すと開きます",
+    en: "{n} empty shelves — tap to show",
+  },
+  "dex.emptyShelvesHide": { ja: "空いている棚を畳む", en: "Hide empty shelves" },
   "dex.shelfCount": { ja: "{n}", en: "{n}" },
   // --- 図鑑の部屋(棚のまとまり) ---
   "room.eat": { ja: "食べる", en: "Eat" },

@@ -401,7 +401,11 @@ export function StickerSheet({ stickerId, onClose }: Props) {
      * 載っているのが問題で、そこを直すには列を足す必要がある(いま流せない)。
      * docs/ に残すべき宿題。
      */
-    const onlyLanguageChanged = !isEmpty && !missingNewFields;
+    // **「言語が変わっただけ」の判定は、言語の印だけで決める。**
+    // 中身の欠け具合で決めていたら、辞書由来で `extras` が空のカードは
+    // 言語を切り替えただけでも「欠けている」側に入り、共有の列へ
+    // 書きに行っていた(半分しか直っていなかった)。
+    const onlyLanguageChanged = (wrongLanguage || wrongL1) && !isEmpty;
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;

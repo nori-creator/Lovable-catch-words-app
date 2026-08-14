@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
 import {
@@ -7,6 +7,7 @@ import {
   asCategoryKey,
   categoryEmoji,
   type CategoryKey,
+  type RoomKey,
 } from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { spineColor, type ShelfDensity, type ShelfMaterial } from "@/lib/shelf-prefs";
@@ -137,13 +138,39 @@ export function DexShelf({
   /** 検索や絞り込みの最中か。空の棚の言い方を変えるのに使う。 */
   const narrowing = !!activeCategory || filtering;
 
+  /**
+   * 空の棚を開いて見せている部屋。
+   *
+   * ## なぜ畳むことにしたか
+   * 「54棚を常に全部描く」は、単語が毎回同じ場所に居ることを記憶の
+   * 手がかりにするための選択だった。**その狙い自体は変えない** —
+   * 棚の順序は不変のまま、持っている棚は必ず同じ位置に出る。
+   *
+   * ただし独立監査に「空の棚が数画面ぶん流れる」と指摘され、実際に
+   * 初期状態を描いて見たら、そのとおりだった。5語だけ持っている人は
+   * 49個の「まだ空」を横線付きで延々とスクロールすることになる。
+   * **同じ場所に在るという効用は、その場所に辿り着けて初めて発生する。**
+   * 辿り着くのに何画面もかかるなら、記憶の手がかりになる前に諦められる。
+   *
+   * 空の棚は部屋ごとに1行へ畳み、押せば開く。「ここに入る」が先に
+   * 見える収集の動機は、畳んだ行の件数が担っている。
+   */
+  const [openEmpty, setOpenEmpty] = useState<Set<RoomKey>>(() => new Set());
+
   return (
     <div className="space-y-8" data-shelf-material={material}>
       {rooms.map((room) => {
-        // 棚も並べ替えない・間引かない。空でもその場所に在り続ける。
-        const shelves = activeCategory
+        // 棚は並べ替えない。順序が不変であることが「同じ場所」の正体。
+        const all = activeCategory
           ? ROOM_CATEGORIES[room].filter((c) => c === asCategoryKey(activeCategory))
           : ROOM_CATEGORIES[room];
+        const filledShelves = all.filter((c) => (byCategory.get(c)?.length ?? 0) > 0);
+        const emptyShelves = all.filter((c) => (byCategory.get(c)?.length ?? 0) === 0);
+        // 絞り込み中は「その棚を見に来ている」ので畳まない。
+        // 開いている部屋も畳まない。
+        const foldEmpty = !narrowing && !openEmpty.has(room) && emptyShelves.length > 0;
+        const shelves = foldEmpty ? filledShelves : all;
+        // 部屋ごと空なら、見出しごと畳んだ1行にする。
         return (
           <section key={room} aria-labelledby={`room-${room}`}>
             <h3
@@ -263,6 +290,41 @@ export function DexShelf({
                   </div>
                 );
               })}
+
+              {/* 空いている棚。**畳んで1行**にする。
+                  順序は変えていないので、持っている棚の位置は動かない。
+                  件数を出しておくのは「ここに入る」を見せるため — それが
+                  集める動機になる、という当初の狙いはここが担う。 */}
+              {foldEmpty && (
+                <button
+                  onClick={() =>
+                    setOpenEmpty((prev) => {
+                      const next = new Set(prev);
+                      next.add(room);
+                      return next;
+                    })
+                  }
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-[12px] text-muted-foreground transition hover:bg-secondary"
+                >
+                  <span aria-hidden>📦</span>
+                  {t("dex.emptyShelvesFolded", { n: String(emptyShelves.length) })}
+                </button>
+              )}
+              {!foldEmpty && emptyShelves.length > 0 && !narrowing && (
+                <button
+                  onClick={() =>
+                    setOpenEmpty((prev) => {
+                      const next = new Set(prev);
+                      next.delete(room);
+                      return next;
+                    })
+                  }
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-[12px] text-muted-foreground transition hover:bg-secondary"
+                >
+                  <span aria-hidden>📦</span>
+                  {t("dex.emptyShelvesHide")}
+                </button>
+              )}
             </div>
           </section>
         );

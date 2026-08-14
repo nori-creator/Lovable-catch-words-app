@@ -257,7 +257,12 @@
      無い span を出すので、実際そうなっていた)。 */
   --shelf-item-h: 4.25rem;
   --shelf-shadow-a: 0.45;
-  --shelf-line-a: 0.22;
+  /* 棚板の濃さ。**3:1 を割らないこと**(意味を持つUIの図形の下限)。
+     0.22 で引いていたが、明るい面での実測は 1.55:1 — 独立監査に
+     「棚ではなく、キャプション付きの写真の羅列に見える」と言われて
+     測り直したらそのとおりだった。画面の意味を決めている線が、
+     ほとんど見えていなかった。0.5 で 3.08:1。 */
+  --shelf-line-a: 0.5;
   --shelf-lip-a: 0.5;
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -277,7 +282,10 @@
 :root[data-ui-theme="aurora"],
 :root[data-ui-theme="collection"] {
   --shelf-shadow-a: 0.7;
-  --shelf-line-a: 0.32;
+  /* 暗い面。0.32 では 3:1 を割る。
+     手計算では 0.4 で足りるつもりだったが、**実測は 2.85:1 でまだ足りない**
+     (概算の16進色で計算していたため)。検査に測らせて 0.45 に決めた。 */
+  --shelf-line-a: 0.45;
   --shelf-lip-a: 0.1;
 }
 .font-display {
@@ -961,7 +969,10 @@
   :root[data-ui-theme="ink"],
   :root[data-ui-theme="aurora"],
   :root[data-ui-theme="collection"] {
-    --shelf-line-a: 0.5;
+    /* 既定を 0.5(3.08:1)に上げたので、高コントラストはその上を行く。
+       0.65 で 4.77:1。ここが既定と同じ値だと、「もっとはっきり」を
+       頼んだ人に何も返していないことになる。 */
+    --shelf-line-a: 0.65;
   }
   .seg-pill,
   .app-sheet {

@@ -124,8 +124,55 @@ const room = (name, shelves) => `
     <div class="space-y-6">${shelves}</div>
   </section>`;
 
+/**
+ * 空の棚。**これを撮っていなかったのが最大の見落とし**だった。
+ *
+ * この雛形は「中身のある棚3つ + 空の部屋1つ」しか描いていなかったので、
+ * **54棚が全部空という実際の初期状態が15枚のどれにも写っていなかった**。
+ * 見えないものは直せない。始めたばかりの人が最初に見る画面こそ、
+ * いちばん撮らなければならない。
+ */
+const emptyShelf = (label, emoji) => `
+  <div>
+    <div class="mb-1.5 flex items-baseline gap-1.5 px-0.5 opacity-45">
+      <span class="text-sm leading-none">${emoji}</span>
+      <span class="text-[13px] font-semibold">${label}</span>
+      <span class="text-[11px] text-muted-foreground">0</span>
+    </div>
+    <div>
+      <div class="shelf-row" style="grid-template-columns:repeat(${PER},minmax(0,1fr))"></div>
+      <div class="shelf-rule"></div>
+      <div class="grid gap-3 pt-1.5" style="grid-template-columns:repeat(${PER},minmax(0,1fr))"></div>
+    </div>
+    <p class="pt-2 text-[11px] text-muted-foreground">まだ空</p>
+  </div>`;
+
+/** 何も集めていない人の図鑑。54棚が全部空の状態。 */
+const emptyBody = () => {
+  const rooms = [
+    ["食べる", ["果物", "野菜", "料理", "飲み物", "菓子"]],
+    ["街", ["交通", "建物", "看板", "店", "道具"]],
+    ["家", ["家具", "台所", "衣類", "文具", "電気"]],
+  ];
+  return `
+<div class="min-h-screen bg-background px-4 py-4">
+  <div class="space-y-8" data-shelf-material="none">
+    ${rooms
+      .map(
+        ([name, shelves]) => `
+      <section>
+        <h3 class="sticky top-0 z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm">${name}</h3>
+        <div class="space-y-6">${shelves.map((sh) => emptyShelf(sh, "📦")).join("")}</div>
+      </section>`,
+      )
+      .join("")}
+  </div>
+</div>`;
+};
+
 /** 素材と密度は本物と同じ場所で切り替える(素材は棚の入れ物に付く属性)。 */
-const body = ({ material = "none", spines = false, per = PER } = {}) => {
+const body = ({ material = "none", spines = false, per = PER, empty = false } = {}) => {
+  if (empty) return emptyBody();
   const many = spines ? [...ITEMS, ...ITEMS.slice(0, 4)] : ITEMS;
   return `
 <div class="min-h-screen bg-background px-4 py-4">
@@ -164,10 +211,25 @@ const MODES = [
   ["den4", "", false, { per: 4 }],
   ["spines", "", false, { spines: true, per: 6 }],
   ["spines-oak-dark", 'class="dark"', false, { spines: true, per: 6, material: "oak" }],
+  // **何も集めていない人の図鑑。** ここを撮っていなかったせいで、
+  // 「54棚が全部空で数画面ぶん流れる」に気づけなかった。
+  ["empty-light", "", false, { empty: true }],
+  ["empty-dark", 'class="dark"', false, { empty: true }],
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
-const CONTRAST_LINE_A = 0.5;
+const CONTRAST_LINE_A = 0.65;
+
+/**
+ * 棚板が背景に対して確保すべきコントラスト比。
+ *
+ * 意味を持つUIの図形の下限(WCAG 1.4.11 / apple-design §2)。
+ * ここを**濃さの数字(0.15以上)でしか見ていなかった**のが穴だった。
+ * 0.22 は「0.15以上」を満たしているが、実測は 1.55:1 で、
+ * 独立監査に「棚ではなく、キャプション付きの写真の羅列に見える」と
+ * 言われるまで気づかなかった。**単位の無い数字ではなく、比で見る。**
+ */
+const LINE_MIN_RATIO = 3;
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -190,7 +252,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   await page.waitForTimeout(300);
 
   const found = await page.evaluate(
-    ({ wantsContrast, CONTRAST_LINE_A }) => {
+    ({ wantsContrast, CONTRAST_LINE_A, LINE_MIN_RATIO }) => {
       const out = [];
       const lum = (r, g, b) => {
         const f = (c) => {
@@ -272,7 +334,25 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       //   - 影を --foreground で作ってダークで白く光った → 黒軸に固定する
       const root = getComputedStyle(document.documentElement);
       const lineA = parseFloat(root.getPropertyValue("--shelf-line-a"));
-      if (!(lineA >= 0.15)) out.push(`棚板が薄すぎる: --shelf-line-a=${lineA}`);
+      // 棚板の実際のコントラスト比。前景色を lineA の割合で背景に混ぜた色と
+      // 背景の比を出す(`.shelf-rule` は color-mix でそう描いている)。
+      const fg = parse(getComputedStyle(document.documentElement).color) ??
+        parse(getComputedStyle(document.body).color) ?? { r: 0, g: 0, b: 0 };
+      const pageBg = bgOf(document.body);
+      const mixed = {
+        r: fg.r * lineA + pageBg.r * (1 - lineA),
+        g: fg.g * lineA + pageBg.g * (1 - lineA),
+        b: fg.b * lineA + pageBg.b * (1 - lineA),
+      };
+      const lm = lum(mixed.r, mixed.g, mixed.b);
+      const lb = lum(pageBg.r, pageBg.g, pageBg.b);
+      const lineRatio = (Math.max(lm, lb) + 0.05) / (Math.min(lm, lb) + 0.05);
+      if (lineRatio < LINE_MIN_RATIO) {
+        out.push(
+          `棚板のコントラストが ${lineRatio.toFixed(2)}:1 < ${LINE_MIN_RATIO} ` +
+            `(--shelf-line-a=${lineA})`,
+        );
+      }
       // 高コントラストを頼んだのに濃くならない面が無いこと。
       // `:root, .dark` にだけ書いた上書きは `:root[data-ui-theme="…"]` に
       // 詳細度で負ける = 頼んだ人にだけ届かない、という形で落ちる。
@@ -294,7 +374,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       }
       return out;
     },
-    { wantsContrast, CONTRAST_LINE_A },
+    { wantsContrast, CONTRAST_LINE_A, LINE_MIN_RATIO },
   );
 
   found.forEach((f) => issues.push(`[${name}] ${f}`));
