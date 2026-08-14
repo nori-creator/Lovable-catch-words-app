@@ -60,11 +60,11 @@ describe("enqueueCapture", () => {
     expect(await listPendingCaptures()).toHaveLength(2);
   });
 
-  it("**IndexedDB が拒否しても例外を投げず null を返す**", async () => {
+  it("IndexedDB を開く時点で弾かれても、例外を投げず null を返す", async () => {
     // ここが投げると、撮影画面が「処理中」のまま出口なしで固まる。
     const open = indexedDB.open;
     vi.spyOn(indexedDB, "open").mockImplementation(() => {
-      throw new DOMException("quota", "QuotaExceededError");
+      throw new DOMException("blocked", "SecurityError");
     });
     try {
       await expect(enqueueCapture(shot("e"))).resolves.toBeNull();
@@ -72,6 +72,50 @@ describe("enqueueCapture", () => {
       // **finally で戻すこと。** try/finally にする前は、この検査が
       // 落ちた瞬間に差し替えたままになり、後続の検査まで巻き添えで
       // 落ちていた(本当に壊れている箇所が1つなのに2つ赤くなる)。
+      vi.mocked(indexedDB.open).mockRestore();
+      indexedDB.open = open;
+    }
+  });
+
+  it("**書き込みが容量超過で失敗しても、例外を投げず null を返す**", async () => {
+    // 容量超過は**開いたあと、put のときに非同期で**来る。上の検査は
+    // 「開く前に同期で投げる」道しか通っておらず、コメントに書いた
+    // 「容量超過」を実際には試していなかった(検査に指摘された)。
+    // こちらが本命の道 — 1600px の JPEG を data URL で持つので現実に起きる。
+    const open = indexedDB.open;
+    vi.spyOn(indexedDB, "open").mockImplementation((...args) => {
+      const req = open.apply(indexedDB, args as Parameters<typeof open>);
+      const origSuccess = Object.getOwnPropertyDescriptor(req, "onsuccess");
+      void origSuccess;
+      req.addEventListener("success", () => {
+        const db = req.result;
+        const realTx = db.transaction.bind(db);
+        db.transaction = ((...targs: Parameters<IDBDatabase["transaction"]>) => {
+          const t = realTx(...targs);
+          const realStore = t.objectStore.bind(t);
+          t.objectStore = ((name: string) => {
+            const store = realStore(name);
+            store.put = () => {
+              const fake = new EventTarget() as unknown as IDBRequest;
+              Object.defineProperty(fake, "error", {
+                value: new DOMException("quota", "QuotaExceededError"),
+              });
+              // 非同期でエラーを起こす(本物の挙動と同じ順序)。
+              setTimeout(() => {
+                (fake as unknown as { onerror?: (e: Event) => void }).onerror?.(new Event("error"));
+              }, 0);
+              return fake;
+            };
+            return store;
+          }) as typeof t.objectStore;
+          return t;
+        }) as typeof db.transaction;
+      });
+      return req;
+    });
+    try {
+      await expect(enqueueCapture(shot("f"))).resolves.toBeNull();
+    } finally {
       vi.mocked(indexedDB.open).mockRestore();
       indexedDB.open = open;
     }
