@@ -103,6 +103,8 @@ function DexPage() {
   const captured = useMemo(() => stickers?.items ?? [], [stickers]);
   /** 上限に達していて、この先が出せていない状態か。 */
   const truncated = stickers?.truncated ?? false;
+  /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
+  const totalCount = stickers?.total ?? null;
 
   const [view, setView] = useState<ViewMode>("shelf");
 
@@ -350,7 +352,10 @@ function DexPage() {
           role="status"
           className="mb-3 rounded-xl bg-secondary px-3 py-2 text-[11px] text-muted-foreground"
         >
-          {t("dex.truncated", { n: String(captured.length) })}
+          {t("dex.truncated", {
+            n: String(captured.length),
+            total: String(totalCount ?? captured.length),
+          })}
         </p>
       )}
 

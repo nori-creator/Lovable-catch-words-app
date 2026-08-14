@@ -4,6 +4,7 @@ import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
+import { isTruncated } from "./pagination";
 import {
   ExtrasSchema,
   normalizeExtras,
@@ -112,13 +113,20 @@ async function encounterCounts(
  * 一度に返すステッカーの上限。
  *
  * ここには上限が無かった。無いように見えて実際は PostgREST の既定
- * (1000件)で**黙って切られていた**ので、1001件目からは理由も告げずに
- * 消える。しかもこの1件ずつに署名URLを3本(写真・切り抜き・自撮り)
- * 作るので、件数がそのまま起動の重さになる。
+ * (`db-max-rows` = 1000)で**黙って切られていた**ので、1001件目からは
+ * 理由も告げずに消える。しかもこの1件ずつに署名URLを3本(写真・
+ * 切り抜き・自撮り)作るので、件数がそのまま起動の重さになる。
  *
- * 暗黙で切られるより、決めて切って**そう言う**ほうがいい。
- * 上限+1件を引き、余りが出たら `truncated: true` を返す。図鑑はそれを
- * 見て「ここから先は出せていない」と書く。黙って消えるのがいちばん悪い。
+ * ## 「上限+1件を引いて余りを見る」は**使えない**
+ * 最初そう書いた。`.limit(1001)` で1001件目が来たら「まだ先がある」と
+ * 判断するつもりだったが、**サーバー側が 1000 で切るので1001件目は
+ * 永遠に来ない**。つまり `truncated` が常に false になり、そのために
+ * 足した案内は一度も出ないまま「黙って消える」が続く。
+ * 検査に指摘されるまで気づかなかった — 直したつもりで何も直っていない、
+ * このアプリで何度も繰り返している間違いの形そのもの。
+ *
+ * 代わりに **`count: "exact"` で総数を聞く**。同じ問い合わせで返るので
+ * 往復は増えず、サーバーの上限にも左右されない。
  *
  * **ページ送りはまだ**。図鑑は「全部ある」ことが値打ちの画面なので、
  * 本来は上限で終わりにできない。いまは「黙って消える」を
@@ -132,26 +140,29 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const wordCols =
       "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    let { data, error } = await supabase
+    let { data, error, count } = await supabase
       .from("stickers")
       .select(
         `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`,
+        { count: "exact" },
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(STICKER_LIST_LIMIT + 1);
+      .limit(STICKER_LIST_LIMIT);
     if (error && /capture_type|placeholder/.test(error.message)) {
       // Migration not applied yet — fall back to the photo-only shape.
-      ({ data, error } = (await supabase
+      ({ data, error, count } = (await supabase
         .from("stickers")
         .select(
           `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`,
+          { count: "exact" },
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(STICKER_LIST_LIMIT + 1)) as unknown as {
+        .limit(STICKER_LIST_LIMIT)) as unknown as {
         data: typeof data;
         error: typeof error;
+        count: typeof count;
       });
     }
     if (error) throw new Error(error.message);
@@ -173,11 +184,11 @@ export const listMyStickers = createServerFn({ method: "GET" })
       placeholder_credit?: PlaceholderCredit | null;
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
-    // 上限+1件を引いて、余りが出たかどうかで「まだ先がある」を知る。
-    // 件数を数える問い合わせを別に投げなくて済む。
-    const allRows = (data ?? []) as unknown as RowShape[];
-    const truncated = allRows.length > STICKER_LIST_LIMIT;
-    const rows = truncated ? allRows.slice(0, STICKER_LIST_LIMIT) : allRows;
+    const rows = (data ?? []) as unknown as RowShape[];
+    // 総数は同じ問い合わせが返す `count`。取れなかったときは
+    // 「ちょうど上限まで返ってきた= たぶんまだ先がある」で代用する。
+    const total = typeof count === "number" ? count : null;
+    const truncated = isTruncated(total, rows.length, STICKER_LIST_LIMIT);
     // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
     // Missing thumbs (old stickers) simply return error rows and drop out of
     // the map — the client falls back to the full image.
@@ -228,7 +239,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
         word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
-    return { items: result, truncated };
+    return { items: result, truncated, total };
   });
 
 export const getSticker = createServerFn({ method: "GET" })

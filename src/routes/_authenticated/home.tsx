@@ -236,6 +236,20 @@ function HomePage() {
             </span>
             <span className="h-px flex-1 bg-border" />
           </div>
+          {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
+              古い日が黙って消えると**その日は何も撮らなかった**ように見える。
+              出せていないなら、そう言う(§8)。 */}
+          {stickers?.truncated && (
+            <p
+              role="status"
+              className="rounded-xl bg-secondary px-3 py-2 text-[11px] text-muted-foreground"
+            >
+              {t("dex.truncated", {
+                n: String(stickers.items.length),
+                total: String(stickers.total ?? stickers.items.length),
+              })}
+            </p>
+          )}
           {pastDays.map(([k, items]) => (
             <div key={k}>
               {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
