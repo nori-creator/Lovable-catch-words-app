@@ -16,6 +16,7 @@ import {
   type SpeakingFeedback,
   type MemoryWord,
 } from "@/lib/reviews.functions";
+import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
@@ -430,8 +431,11 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
   const { series, reviewDays, forgetDay, bestDay } = useMemo(() => {
     const nowMs = Date.now();
     const day = 86400_000;
-    const stabilityOf = (interval: number, ease: number) =>
-      Math.max(0.5, Math.max(1, interval) * Math.max(1, ease));
+    // 安定度の式は src/lib/srs.ts のもの**だけ**を使う。
+    // ここには同じ式が写してあった。いまは同じでも、どちらかを直した
+    // ときにもう片方が取り残されて、**同じ画面の中でグラフと定着度の
+    // 数字が食い違う**(隣に並んでいるので、見た人はどちらが本当か
+    // 分からなくなる)。
 
     const hist = (data?.history ?? [])
       .slice()

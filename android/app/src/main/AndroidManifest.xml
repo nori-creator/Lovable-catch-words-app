@@ -54,13 +54,24 @@
     <!--
       位置情報。「撮った場所」を地図に残すため。
 
-      **COARSE(おおよそ)だけ**を求める。FINE(数m単位)も併せて求めて
-      いたが、このアプリの位置情報の使い道は3か所とも
-      `enableHighAccuracy: false` — 一度も精密な位置を使っていない。
-      使わないものを求めると、許可の画面で「正確な位置情報」を選ばせる
-      ことになり、ユーザーには**渡しすぎ**、こちらには持ちすぎになる。
-      街の名前が出れば足りる用途に、家の中のどの部屋かまでは要らない。
+      ## FINE を宣言から外そうとして、戻した
+      このアプリは3か所とも `enableHighAccuracy: false` で呼んでいる —
+      一度も精密な位置を使っていない。だから COARSE だけにしようとしたが、
+      **それをすると Android で位置情報が丸ごと取れなくなる**:
+
+      - Capacitor の Geolocation は `location` という別名で COARSE+FINE の
+        両方を見る。`place-reminder.ts` はこれを見て `requestPermissions()`
+        を呼ぶので、FINE が宣言に無いと Capacitor 側が例外を投げ、
+        `getCurrentPosition()` が常に null を返す。
+      - WebView の `navigator.geolocation` も、Android 12 未満では
+        COARSE だけへの切り下げをしない(minSdk は 24)。
+
+      つまり「使わないから外す」は、ここでは動かなくなるだけだった。
+      宣言は両方置き、**実際の精度は呼び出し側で落とす**。Android 12 以降は
+      許可の画面に「おおよその位置」の選択肢が出るので、渡す精度は
+      ユーザーが決められる。
     -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- 「ここで撮ったこれ覚えてる?」の通知(Android 13以降は明示が必要)。 -->

@@ -36,8 +36,14 @@ function dayKey(d: Date) {
 function PendingCapturesBanner() {
   const t = useT();
   const [pending, setPending] = useState<PendingCapture[]>([]);
-  // 「捨てる」の二段階目。押した直後だけ true になる。
-  const [confirming, setConfirming] = useState(false);
+  /**
+   * 「捨てる」の二段階目。**どの写真に対して構えているか**まで持つ。
+   *
+   * ただの真偽値にしていたが、この画面は focus / online で一覧を読み直す。
+   * 1回目と2回目のタップの間に読み直しが挟まると、構えたのとは別の写真が
+   * `pending[0]` に来て、**押した覚えのない写真が消える**。
+   */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   useEffect(() => {
     const load = () => {
       void listPendingCaptures().then(setPending);
@@ -50,6 +56,18 @@ function PendingCapturesBanner() {
       window.removeEventListener("focus", load);
     };
   }, []);
+
+  // 構えたままにしない。
+  //
+  // 最初これを `onBlur` だけで戻していたが、**iOS の WebKit はタップでは
+  // ボタンに焦点を当てない**ので blur が来ず、「本当に捨てる?」の状態が
+  // 何時間でも残る。あとで何気なく触った指が、二度と撮れない写真を消す。
+  // 時間で戻す。
+  useEffect(() => {
+    if (!confirmingId) return;
+    const t = setTimeout(() => setConfirmingId(null), 4000);
+    return () => clearTimeout(t);
+  }, [confirmingId]);
   if (pending.length === 0) return null;
   const first = pending[0];
   return (
@@ -89,20 +107,19 @@ function PendingCapturesBanner() {
       <div className="mt-2 flex justify-end">
         <button
           onClick={() => {
-            if (!confirming) {
-              setConfirming(true);
+            if (confirmingId !== first.id) {
+              setConfirmingId(first.id);
               return;
             }
             void removePendingCapture(first.id).then(() => {
-              setConfirming(false);
+              setConfirmingId(null);
               void listPendingCaptures().then(setPending);
             });
           }}
-          onBlur={() => setConfirming(false)}
           className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-amber-900/80 hover:bg-amber-100 dark:text-amber-200/80 dark:hover:bg-amber-900/40"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          {confirming ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
+          {confirmingId === first.id ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
         </button>
       </div>
     </div>

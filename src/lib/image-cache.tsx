@@ -88,6 +88,26 @@ const MAX_OBJECT_URLS = 240;
 const REVOKE_DELAY_MS = 10_000;
 const objectUrls = new Map<string, string>();
 
+/**
+ * いま画面に出ている <img> の数(パスごと)。
+ *
+ * **表示中のものは絶対に捨てない。** 上限を入れた最初の版はここが無く、
+ * 「いちばん古い = いちばん上にある = いま画面に見えている」ものから
+ * 順に解放していた。`CachedImg` は解決済みのURLを state に持っていて
+ * 作り直さないので、解放されたセルはそのまま白く抜ける — つまり
+ * **メモリを守るために、見えている画像を壊していた**。
+ */
+const liveRefs = new Map<string, number>();
+
+export function retainCachedPath(path: string) {
+  liveRefs.set(path, (liveRefs.get(path) ?? 0) + 1);
+}
+export function releaseCachedPath(path: string) {
+  const n = (liveRefs.get(path) ?? 0) - 1;
+  if (n > 0) liveRefs.set(path, n);
+  else liveRefs.delete(path);
+}
+
 function touch(path: string): string | undefined {
   const u = objectUrls.get(path);
   // Map は挿入順を保つので、入れ直すと「いちばん新しい」位置へ動く。
@@ -98,17 +118,33 @@ function touch(path: string): string | undefined {
   return u;
 }
 
+/** 少し待ってから解放する(読み込み中の <img> の足元で消さない)。 */
+function scheduleRevoke(url: string) {
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+}
+
 function remember(path: string, url: string) {
+  // 同じパスが同時に2回解決されることがある(2つのセルが同じ画像を出す等)。
+  // 上書きするだけだと前のURLが宙に浮き、上限を入れた意味が無くなる。
+  const prev = objectUrls.get(path);
+  if (prev && prev !== url) scheduleRevoke(prev);
   objectUrls.set(path, url);
-  while (objectUrls.size > MAX_OBJECT_URLS) {
-    const oldest = objectUrls.keys().next();
-    if (oldest.done) break;
-    const victim = objectUrls.get(oldest.value)!;
-    objectUrls.delete(oldest.value);
-    // すぐには捨てない。いま画面に出ている <img> がまだ読み込み中かも
-    // しれないので、少し待ってから解放する。
-    setTimeout(() => URL.revokeObjectURL(victim), REVOKE_DELAY_MS);
+  if (objectUrls.size <= MAX_OBJECT_URLS) return;
+
+  // 古い順に見て、**いま表示されていないもの**だけを捨てる。
+  const over = objectUrls.size - MAX_OBJECT_URLS;
+  let dropped = 0;
+  for (const key of [...objectUrls.keys()]) {
+    if (dropped >= over) break;
+    if (key === path) continue;
+    if ((liveRefs.get(key) ?? 0) > 0) continue; // 表示中は飛ばす
+    const victim = objectUrls.get(key)!;
+    objectUrls.delete(key);
+    scheduleRevoke(victim);
+    dropped++;
   }
+  // 全部が表示中なら1つも捨てられない。それでいい —
+  // 上限は目安であって、見えているものを壊す理由にはならない。
 }
 
 async function resolveSrc(signedUrl: string): Promise<string> {
@@ -150,17 +186,43 @@ export function CachedImg({
   });
   const srcRef = useRef(src);
   srcRef.current = src;
+  // 何度やり直したか。増やすと下の効果が走り直して、解決からやり直す。
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let alive = true;
+    // 表示している間は「使用中」と印を付けておく。これが無いと、
+    // 上限を超えたときに**いま見えている画像**が解放されうる。
+    const path = pathFromSignedUrl(src);
+    if (path) retainCachedPath(path);
     void resolveSrc(src).then((u) => {
       if (alive && srcRef.current === src) setResolved(u);
     });
     return () => {
       alive = false;
+      if (path) releaseCachedPath(path);
     };
-  }, [src]);
+  }, [src, attempt]);
+
   // Until the cache answers, render nothing rather than kicking off a
   // duplicate network request for the signed URL.
   if (!resolved) return <span className={rest.className} aria-hidden="true" />;
-  return <img src={resolved} {...rest} />;
+  return (
+    <img
+      src={resolved}
+      // blob: の解放とすれ違って読み込みに失敗することは起こりうる
+      // (別のタブが同じパスを解放した直後など)。**黙って白いままに
+      // しない** — 一度だけ解決からやり直す。端末内のキャッシュから
+      // 作り直すだけなので、通信は発生しない。
+      onError={() => {
+        if (attempt === 0) {
+          const p = pathFromSignedUrl(src);
+          if (p) objectUrls.delete(p);
+          setResolved(null);
+          setAttempt(1);
+        }
+      }}
+      {...rest}
+    />
+  );
 }
