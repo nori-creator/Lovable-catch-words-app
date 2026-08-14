@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+// 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
+// このファイルは createServerFn と Supabase を読み込むので、ここに置くと
+// 計算だけを取り出して試すことができない。
+import { nextSrs, retentionNow, modeFor, stabilityOf } from "@/lib/srs";
+export { nextSrs } from "@/lib/srs";
 import {
   assertWithinDailyCap,
   generateStructured,
@@ -95,13 +100,6 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
-}
-
-function modeFor(repetitions: number): ReviewMode {
-  if (repetitions <= 1) return "recognition";
-  if (repetitions <= 3) return "listening";
-  if (repetitions <= 5) return "reverse";
-  return "production";
 }
 
 const STATIC_MEANING_FALLBACK = ["別の物体", "場所の名前", "人物の役職"];
@@ -625,25 +623,6 @@ const GradeInput = z.object({
   hint_used: z.boolean().default(false),
 });
 
-// SM-2 simplified
-export function nextSrs(
-  prev: { ease: number; interval_days: number; repetitions: number },
-  score: number,
-) {
-  let { ease, interval_days, repetitions } = prev;
-  if (score < 3) {
-    repetitions = 0;
-    interval_days = 1;
-  } else {
-    repetitions += 1;
-    if (repetitions === 1) interval_days = 1;
-    else if (repetitions === 2) interval_days = 3;
-    else interval_days = Math.round(interval_days * ease);
-    ease = Math.max(1.3, ease + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02)));
-  }
-  return { ease, interval_days, repetitions };
-}
-
 export const gradeReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => GradeInput.parse(input))
@@ -852,23 +831,6 @@ export type MemoryOverview = {
 };
 
 const LN2 = Math.log(2);
-function stabilityOf(interval_days: number, ease: number): number {
-  // 未復習カードは interval_days=0。初期の安定度は interval=1 日ベース(§記憶モデル,
-  // getMemoryOverview のコメント参照)なので下限を1日に。0だと安定度0.5日になり、
-  // キャッチ直後の語が数時間で「忘れかけ」に落ちてしまう(=表示と実感の乖離)。
-  return Math.max(0.5, Math.max(1, interval_days) * Math.max(1, ease));
-}
-function retentionNow(
-  interval_days: number,
-  ease: number,
-  lastMs: number | null,
-  nowMs: number,
-): number {
-  if (lastMs == null) return 100;
-  const dt = (nowMs - lastMs) / 86400_000;
-  if (dt <= 0) return 100;
-  return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stabilityOf(interval_days, ease))));
-}
 
 export const getMemoryOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

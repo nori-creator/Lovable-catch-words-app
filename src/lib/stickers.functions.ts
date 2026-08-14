@@ -108,6 +108,25 @@ async function encounterCounts(
   return map;
 }
 
+/**
+ * 一度に返すステッカーの上限。
+ *
+ * ここには上限が無かった。無いように見えて実際は PostgREST の既定
+ * (1000件)で**黙って切られていた**ので、1001件目からは理由も告げずに
+ * 消える。しかもこの1件ずつに署名URLを3本(写真・切り抜き・自撮り)
+ * 作るので、件数がそのまま起動の重さになる。
+ *
+ * 暗黙で切られるより、決めて切るほうがいい。少なくとも、なぜ1000件で
+ * 止まるのかがコードに書いてある状態になる。
+ *
+ * **まだ途中**。残っているのは2つ:
+ *   1. 上限に達したことを画面に出す(いまは呼び出し側に伝えていない。
+ *      戻り値が配列なので、伝えるには形を変えて全画面を直す必要がある)
+ *   2. ページ送り(古い方を後から読む)。図鑑は「全部ある」ことが
+ *      値打ちの画面なので、本来は上限で終わりにできない。
+ */
+const STICKER_LIST_LIMIT = 1000;
+
 export const listMyStickers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -120,7 +139,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
         `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`,
       )
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(STICKER_LIST_LIMIT);
     if (error && /capture_type|placeholder/.test(error.message)) {
       // Migration not applied yet — fall back to the photo-only shape.
       ({ data, error } = (await supabase
@@ -129,7 +149,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
           `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`,
         )
         .eq("user_id", userId)
-        .order("created_at", { ascending: false })) as unknown as {
+        .order("created_at", { ascending: false })
+        .limit(STICKER_LIST_LIMIT)) as unknown as {
         data: typeof data;
         error: typeof error;
       });

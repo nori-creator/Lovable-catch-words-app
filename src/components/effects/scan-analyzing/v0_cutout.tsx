@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 /**
  * いちばん古い「待ち」の画面(2026-07-01 / カメラ期・切り抜きあり)。
@@ -14,10 +15,14 @@ import { Sparkles } from "lucide-react";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
+  // ここは**既定の待ち画面**(effect-lab の scanAnalyzing 既定が v0cutout)。
+  // 文言が日本語で直書きされていたので、英語のユーザーはアプリの見せ場で
+  // 突然日本語を見ていた。過去の版だから訳さなくていい、とはならない。
+  const t = useT();
   // 当時は候補出しと切り抜きが同時に走っていたので文言は1つだけだった。
   // いまは候補をタップしてから切り抜くので、そこだけ「切り抜き中」に分ける
   // — 見た目は当時のまま、言っていることは実際の処理と合わせる。
-  const label = stage === "matching" ? "AIが切り抜き中..." : "AIが分析中...";
+  const label = stage === "matching" ? t("scan.cuttingOut") : t("scan.analyzing");
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0 bg-black/25" />
@@ -27,7 +32,7 @@ export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
           <Sparkles className="h-5 w-5 animate-pulse" />
           <span className="font-semibold">{label}</span>
         </div>
-        <p className="text-sm text-white/80">少しだけ待ってね</p>
+        <p className="text-sm text-white/80">{t("scan.justAMoment")}</p>
       </div>
     </div>
   );

@@ -7,9 +7,13 @@ import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
 import { getMyProfile } from "@/lib/profile.functions";
-import { listPendingCaptures, type PendingCapture } from "@/lib/offline-queue";
+import {
+  listPendingCaptures,
+  removePendingCapture,
+  type PendingCapture,
+} from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon, WifiOff } from "lucide-react";
+import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -32,6 +36,14 @@ function dayKey(d: Date) {
 function PendingCapturesBanner() {
   const t = useT();
   const [pending, setPending] = useState<PendingCapture[]>([]);
+  /**
+   * 「捨てる」の二段階目。**どの写真に対して構えているか**まで持つ。
+   *
+   * ただの真偽値にしていたが、この画面は focus / online で一覧を読み直す。
+   * 1回目と2回目のタップの間に読み直しが挟まると、構えたのとは別の写真が
+   * `pending[0]` に来て、**押した覚えのない写真が消える**。
+   */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   useEffect(() => {
     const load = () => {
       void listPendingCaptures().then(setPending);
@@ -44,34 +56,73 @@ function PendingCapturesBanner() {
       window.removeEventListener("focus", load);
     };
   }, []);
+
+  // 構えたままにしない。
+  //
+  // 最初これを `onBlur` だけで戻していたが、**iOS の WebKit はタップでは
+  // ボタンに焦点を当てない**ので blur が来ず、「本当に捨てる?」の状態が
+  // 何時間でも残る。あとで何気なく触った指が、二度と撮れない写真を消す。
+  // 時間で戻す。
+  useEffect(() => {
+    if (!confirmingId) return;
+    const t = setTimeout(() => setConfirmingId(null), 4000);
+    return () => clearTimeout(t);
+  }, [confirmingId]);
   if (pending.length === 0) return null;
   const first = pending[0];
   return (
-    <Link
-      to="/capture"
-      search={{ pending: first.id }}
-      className="press-in mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/40"
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
-        {first.object_img ? (
-          <img
-            src={first.object_img}
-            alt={t("home.waitingPhoto")}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">
-          📥 {t("home.pendingCount")}: {pending.length}
+    // 全体を <Link> にすると**捨てる手段が置けない**。預かった写真は
+    // 端末に残り続けるので、要らないものを消す道が要る(§16)。
+    <div className="mb-4 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/40">
+      <Link
+        to="/capture"
+        search={{ pending: first.id }}
+        className="press-in flex items-center gap-3"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
+          {first.object_img ? (
+            <img
+              src={first.object_img}
+              alt={t("home.waitingPhoto")}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+          )}
         </span>
-        <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">
-          {t("home.pendingCta")}
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">
+            📥 {t("home.pendingCount")}: {pending.length}
+          </span>
+          <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">
+            {t("home.pendingCta")}
+          </span>
         </span>
-      </span>
-    </Link>
+      </Link>
+
+      {/* 捨てるのは取り消せない。写真は二度と撮れないものなので、
+          一度目のタップでは実行せず「本当に?」に変える。
+          モーダルは出さない — この場で決まる小さな判断に、画面を
+          覆うほどの重さは要らない。 */}
+      <div className="mt-2 flex justify-end">
+        <button
+          onClick={() => {
+            if (confirmingId !== first.id) {
+              setConfirmingId(first.id);
+              return;
+            }
+            void removePendingCapture(first.id).then(() => {
+              setConfirmingId(null);
+              void listPendingCaptures().then(setPending);
+            });
+          }}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-amber-900/80 hover:bg-amber-100 dark:text-amber-200/80 dark:hover:bg-amber-900/40"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {confirmingId === first.id ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
+        </button>
+      </div>
+    </div>
   );
 }
 
