@@ -4,6 +4,7 @@ import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
+import { isTruncated } from "./pagination";
 import {
   ExtrasSchema,
   normalizeExtras,
@@ -74,6 +75,8 @@ type SignedUrlsClient = {
  * Sign many storage paths in a single API call (avoids the N+1 of one
  * createSignedUrl round-trip per image) and return a path→URL lookup.
  */
+const SIGN_BATCH = 500;
+
 async function signUrlMap(
   supabase: SignedUrlsClient,
   paths: (string | null | undefined)[],
@@ -81,9 +84,16 @@ async function signUrlMap(
   const unique = [...new Set(paths.filter((p): p is string => !!p))];
   const map = new Map<string, string>();
   if (unique.length === 0) return map;
-  const { data } = await supabase.storage.from("stickers").createSignedUrls(unique, 60 * 60 * 6);
-  for (const row of data ?? []) {
-    if (row.path && row.signedUrl && !row.error) map.set(row.path, row.signedUrl);
+  // **まとめて投げすぎない。** 1件につき最大6本(写真・切り抜き・自撮り・
+  // 代替画像・サムネ2枚)署名するので、3000件まで読むようにした結果
+  // 最大18000本を1回の呼び出しに詰め込むことになった。要求も応答も
+  // 数MBになり、ここで詰まると図鑑が丸ごと出てこない。
+  for (let i = 0; i < unique.length; i += SIGN_BATCH) {
+    const chunk = unique.slice(i, i + SIGN_BATCH);
+    const { data } = await supabase.storage.from("stickers").createSignedUrls(chunk, 60 * 60 * 6);
+    for (const row of data ?? []) {
+      if (row.path && row.signedUrl && !row.error) map.set(row.path, row.signedUrl);
+    }
   }
   return map;
 }
@@ -95,37 +105,50 @@ async function signUrlMap(
 async function encounterCounts(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  userId: string,
+  ids: string[],
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>();
-  const { data, error } = await supabase
-    .from("stickers")
-    .select("id, encounter_count")
-    .eq("user_id", userId)
-    .gt("encounter_count", 0);
-  if (error) return map;
-  for (const row of data ?? []) map.set(row.id, row.encounter_count ?? 0);
+  if (ids.length === 0) return map;
+  // **欲しい id だけを聞く。** 以前はユーザーの全行を引いていたので、
+  // PostgREST の 1000 行で切られていた。図鑑を3000件まで読むように
+  // した以上、切られた先の語は再会の回数が 0 に見える — しかも
+  // どれが 0 になるかは並び順しだいで**読むたびに変わる**。
+  for (let i = 0; i < ids.length; i += SIGN_BATCH) {
+    const chunk = ids.slice(i, i + SIGN_BATCH);
+    const { data, error } = await supabase
+      .from("stickers")
+      .select("id, encounter_count")
+      .in("id", chunk)
+      .gt("encounter_count", 0);
+    if (error) return map; // 再会の印は飾り。取れなければ黙って諦める。
+    for (const row of data ?? []) map.set(row.id, row.encounter_count ?? 0);
+  }
   return map;
 }
 
 /**
- * 一度に返すステッカーの上限。
+ * 1回の問い合わせで受け取る件数。
  *
- * ここには上限が無かった。無いように見えて実際は PostgREST の既定
- * (1000件)で**黙って切られていた**ので、1001件目からは理由も告げずに
- * 消える。しかもこの1件ずつに署名URLを3本(写真・切り抜き・自撮り)
- * 作るので、件数がそのまま起動の重さになる。
- *
- * 暗黙で切られるより、決めて切るほうがいい。少なくとも、なぜ1000件で
- * 止まるのかがコードに書いてある状態になる。
- *
- * **まだ途中**。残っているのは2つ:
- *   1. 上限に達したことを画面に出す(いまは呼び出し側に伝えていない。
- *      戻り値が配列なので、伝えるには形を変えて全画面を直す必要がある)
- *   2. ページ送り(古い方を後から読む)。図鑑は「全部ある」ことが
- *      値打ちの画面なので、本来は上限で終わりにできない。
+ * PostgREST は `db-max-rows`(既定1000)で切るので、これより大きくしても
+ * 意味がない。**1000は「1ページの大きさ」であって「合計の上限」ではない。**
  */
-const STICKER_LIST_LIMIT = 1000;
+const STICKER_PAGE_SIZE = 1000;
+
+/**
+ * 全部で受け取る件数の天井。
+ *
+ * ## なぜ天井が要るか
+ * 図鑑は「集めたものが全部ある」ことが値打ちの画面なので、本来は
+ * 上限で終わりにできない。だからページを繰って全部取る。
+ * ただし1件ごとに署名URLを6本(写真・切り抜き・自撮り・サムネ2枚…)
+ * 作るので、**際限なく取ると1回の起動が際限なく重くなる**。
+ * どこかで止める必要がある。
+ *
+ * 3000件は「毎日1語キャッチして8年ぶん」。ここに届く人が出たら、
+ * そのときは本当のページ送り(古い方を後から読む)を作る。
+ * それまでは、天井に当たったことを画面に出して**黙って消えない**ようにする。
+ */
+const STICKER_TOTAL_CAP = 3000;
 
 export const listMyStickers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -133,29 +156,80 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const wordCols =
       "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    let { data, error } = await supabase
-      .from("stickers")
-      .select(
-        `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`,
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(STICKER_LIST_LIMIT);
-    if (error && /capture_type|placeholder/.test(error.message)) {
-      // Migration not applied yet — fall back to the photo-only shape.
-      ({ data, error } = (await supabase
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`;
+    // Migration not applied yet — fall back to the photo-only shape.
+    const legacyCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`;
+
+    /**
+     * 1ページ取る。
+     *
+     * **並びに `id` を足すこと。** `created_at` だけでは同点になりうるし、
+     * ページを繰っている最中に1件増えると DESC の位置がずれて、
+     * 999番目の行が次のページの先頭にもう一度出てくる(= 同じ id が2つ
+     * 並び、代わりに古い1件が黙って落ちる)。別のタブでキャッチしたり、
+     * オフラインキューが流れたりすると現実に起きる。
+     *
+     * `count` は最初のページでだけ数える。毎ページ数えると、3000件の人が
+     * COUNT(*) を3回走らせることになる(2回目以降は誰も見ない)。
+     */
+    const page = async (cols: string, from: number, withCount: boolean) =>
+      await supabase
         .from("stickers")
-        .select(
-          `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`,
-        )
+        .select(cols, withCount ? { count: "exact" } : undefined)
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(STICKER_LIST_LIMIT)) as unknown as {
-        data: typeof data;
-        error: typeof error;
-      });
+        .order("id", { ascending: false })
+        .range(from, from + STICKER_PAGE_SIZE - 1);
+
+    let cols = fullCols;
+    let first = await page(cols, 0, true);
+    if (first.error && /capture_type|placeholder/.test(first.error.message)) {
+      cols = legacyCols;
+      first = await page(cols, 0, true);
     }
-    if (error) throw new Error(error.message);
+    // **最初のページの失敗だけが致命的。** ここで読めなければ何も出せない。
+    if (first.error) throw new Error(first.error.message);
+
+    const count = first.count;
+    const acc = (first.data ?? []) as unknown[];
+    const seen = new Set<string>();
+    for (const r of acc) seen.add((r as { id: string }).id);
+
+    /**
+     * 2ページ目から先。**途中で失敗しても、そこまでを返す。**
+     *
+     * 以前はここで throw していた。1000件読めているのに、1001件目の
+     * 問い合わせがこけただけで**図鑑が丸ごとエラー画面になる**。
+     * 手元にあるものを見せないほうがよほど悪い。
+     *
+     * 範囲外を頼むと PostgREST は空配列ではなく 416 を返す。つまり
+     * 「空が来たら終わり」では終われない場合がある(数えたあとに
+     * 誰かが消したときなど)。失敗はすべて「そこで打ち切り」に倒す。
+     */
+    let stoppedEarly = false;
+    if (typeof count === "number") {
+      const want = Math.min(count, STICKER_TOTAL_CAP);
+      while (acc.length < want) {
+        const next = await page(cols, acc.length, false);
+        if (next.error) {
+          stoppedEarly = true;
+          break;
+        }
+        const rows = (next.data ?? []) as unknown[];
+        if (rows.length === 0) {
+          stoppedEarly = acc.length < want;
+          break;
+        }
+        // 並びがずれて同じ行が再度来ても二重に積まない。
+        for (const r of rows) {
+          const id = (r as { id: string }).id;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          acc.push(r);
+        }
+      }
+    }
+    const data = acc as typeof first.data;
 
     type RowShape = {
       id: string;
@@ -175,6 +249,16 @@ export const listMyStickers = createServerFn({ method: "GET" })
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
     const rows = (data ?? []) as unknown as RowShape[];
+    // 総数は最初のページが返した `count`。
+    //
+    // **`count` が取れなかったときの上限は「1ページ分」。** ここを天井
+    // (3000)にしていたせいで、1000件だけ受け取って `truncated: false` に
+    // なる道が残っていた — この周で潰したはずの「黙って途中で止まる」が、
+    // 細い経路で生き残っていた。
+    const total = typeof count === "number" ? count : null;
+    const truncated =
+      stoppedEarly ||
+      isTruncated(total, rows.length, total == null ? STICKER_PAGE_SIZE : STICKER_TOTAL_CAP);
     // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
     // Missing thumbs (old stickers) simply return error rows and drop out of
     // the map — the client falls back to the full image.
@@ -191,7 +275,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
           thumbOf(r.cutout_image_url),
         ]),
       ),
-      encounterCounts(supabase, userId),
+      encounterCounts(
+        supabase,
+        rows.map((r) => r.id),
+      ),
     ]);
 
     const result: StickerWithWord[] = [];
@@ -225,7 +312,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
         word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
-    return result;
+    return { items: result, truncated, total };
   });
 
 export const getSticker = createServerFn({ method: "GET" })
@@ -334,7 +421,7 @@ export const getSticker = createServerFn({ method: "GET" })
         isOwner ? r.selfie_image_url : null,
         r.placeholder_image_url ?? null,
       ]),
-      encounterCounts(supabase, userId),
+      encounterCounts(supabase, [r.id]),
     ]);
 
     const wRaw = r.words;

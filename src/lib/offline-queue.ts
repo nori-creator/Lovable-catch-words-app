@@ -45,7 +45,15 @@ function tx<T>(
         const req = run(t.objectStore(STORE));
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
-        t.oncomplete = () => db.close();
+        // 開いた接続は**どの終わり方でも**閉じる。
+        // 以前は `oncomplete` だけだったので、容量超過などで失敗した
+        // トランザクションのぶんが開きっぱなしになっていた。
+        // 失敗が続くほど接続が積み上がるのは、いちばん困る場面
+        // (容量が足りていない端末)でいちばん効いてくる。
+        const close = () => db.close();
+        t.oncomplete = close;
+        t.onerror = close;
+        t.onabort = close;
       }),
   );
 }

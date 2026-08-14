@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
-import { listMyStickers } from "@/lib/stickers.functions";
+import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
@@ -100,7 +100,11 @@ function DexPage() {
   // Memoize so the reference is stable across renders — otherwise `filtered`
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
-  const captured = useMemo(() => stickers ?? [], [stickers]);
+  const captured = useMemo(() => stickers?.items ?? [], [stickers]);
+  /** 上限に達していて、この先が出せていない状態か。 */
+  const truncated = stickers?.truncated ?? false;
+  /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
+  const totalCount = stickers?.total ?? null;
 
   const [view, setView] = useState<ViewMode>("shelf");
 
@@ -339,6 +343,22 @@ function DexPage() {
           廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
           カテゴリーの画像グループだけを表示する。
           §2: 選択状態は色だけでなく aria-pressed と件数でも伝える。 */}
+      {/* 上限に達しているときは**そう言う**。
+          図鑑は「集めたものが全部ある」ことが値打ちの画面なので、黙って
+          途中で止まるのがいちばん悪い。持っているのに出せていないなら、
+          出せていないと書く(ページ送りはまだ作れていない)。 */}
+      {truncated && (
+        <p
+          role="status"
+          className="mb-3 rounded-xl bg-secondary px-3 py-2 text-[11px] text-muted-foreground"
+        >
+          {t("dex.truncated", {
+            n: String(captured.length),
+            total: String(totalCount ?? captured.length),
+          })}
+        </p>
+      )}
+
       {captured.length > 0 && (
         <div className="-mx-4 mb-3 overflow-x-auto px-4">
           <div className="flex w-max gap-1.5">
@@ -737,7 +757,7 @@ function PackGallery({
   onOpen,
   layout,
 }: {
-  items: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  items: StickerWithWord[];
   justCaught?: string;
   onOpen: (id: string) => void;
   layout: LayoutId;
@@ -806,7 +826,7 @@ function DexCalendar({
   stickers,
   onOpen,
 }: {
-  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  stickers: StickerWithWord[];
   onOpen: (id: string) => void;
 }) {
   const t = useT();
@@ -969,7 +989,7 @@ function DexMap({
   stickers,
   onOpen,
 }: {
-  stickers: NonNullable<Awaited<ReturnType<typeof listMyStickers>>>;
+  stickers: StickerWithWord[];
   onOpen: (id: string) => void;
 }) {
   // 撮った日で地図を絞る(NORI指定)。選べるのは**実際に写真がある日だけ**なので、
