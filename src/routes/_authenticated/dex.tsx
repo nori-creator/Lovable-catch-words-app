@@ -359,7 +359,14 @@ function DexPage() {
         </p>
       )}
 
-      {captured.length > 0 && (
+      {/* カテゴリーの絞り込みチップ。
+          **棚を見ているときは出さない。** 棚そのものが部屋→棚の階層で
+          同じ分類を持っているので、同じ絵文字・同じ件数のものが上下に
+          2回並ぶ。しかも一方は平坦・一方は階層なので「どちらが図鑑の
+          本体か」が決まらない(独立監査の指摘)。
+          一覧・ギャラリー・地図・カレンダーには階層が無いので、そちらでは
+          この行が絞り込みの手段として要る。 */}
+      {captured.length > 0 && view !== "shelf" && (
         <div className="-mx-4 mb-3 overflow-x-auto px-4">
           <div className="flex w-max gap-1.5">
             <button

@@ -96,10 +96,11 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             className="flex items-center gap-2 transition-transform duration-150 active:scale-95"
           >
             <BrandMark />
-            {/* §15: app title is a small headline — tight tracking, no wrapping. */}
-            <span className="text-base font-semibold tracking-[-0.02em]">
-              {title ?? "Catchwords"}
-            </span>
+            {/* §15: app title is a small headline — tight tracking, no wrapping.
+                **h1 にする。** span のままだと、どの画面にも h1 が無く、
+                見出しの階層が h2 から始まっていた(独立監査の指摘)。
+                読み上げで「この画面は何か」を最初に言えるのはここだけ。 */}
+            <h1 className="text-base font-semibold tracking-[-0.02em]">{title ?? "Catchwords"}</h1>
           </Link>
         </div>
       </header>

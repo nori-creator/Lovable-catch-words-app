@@ -178,7 +178,7 @@ export function DexShelf({
               // 上のバーの高さは env(safe-area-inset-top) の分だけ伸びる。
               // 3.25rem 決め打ちだと、ノッチのある端末で見出しがヘッダーの
               // 裏に隠れて出てこない。
-              className="room-head sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
+              className="room-head sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[0.8125rem] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
             >
               {t(`room.${room}`)}
             </h3>
@@ -232,8 +232,8 @@ export function DexShelf({
                       <span aria-hidden className="text-sm leading-none">
                         {categoryEmoji(cat)}
                       </span>
-                      <span className="text-[13px] font-semibold">{t(`cat.${cat}`)}</span>
-                      <span className="text-[11px] font-normal text-muted-foreground">
+                      <span className="text-[0.8125rem] font-semibold">{t(`cat.${cat}`)}</span>
+                      <span className="text-[0.6875rem] font-normal text-muted-foreground">
                         {t("dex.shelfCount", { n: String(items.length) })}
                       </span>
                     </h4>
@@ -272,7 +272,7 @@ export function DexShelf({
                               <span
                                 key={s.id}
                                 lang="zh-Hant"
-                                className="truncate text-center text-[12px] font-medium leading-tight"
+                                className="truncate text-center text-xs font-medium leading-tight"
                               >
                                 {s.word.headword}
                               </span>
@@ -283,7 +283,7 @@ export function DexShelf({
                     ))}
 
                     {bare && (
-                      <p className="pt-2 text-[11px] text-muted-foreground">
+                      <p className="pt-2 text-[0.6875rem] text-muted-foreground">
                         {narrowing ? t("dex.shelfNoMatch") : t("dex.shelfEmpty")}
                       </p>
                     )}
@@ -304,7 +304,7 @@ export function DexShelf({
                       return next;
                     })
                   }
-                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-[12px] text-muted-foreground transition hover:bg-secondary"
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-xs text-muted-foreground transition hover:bg-secondary"
                 >
                   <span aria-hidden>📦</span>
                   {t("dex.emptyShelvesFolded", { n: String(emptyShelves.length) })}
@@ -319,7 +319,7 @@ export function DexShelf({
                       return next;
                     })
                   }
-                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-[12px] text-muted-foreground transition hover:bg-secondary"
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-xs text-muted-foreground transition hover:bg-secondary"
                 >
                   <span aria-hidden>📦</span>
                   {t("dex.emptyShelvesHide")}
@@ -369,7 +369,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute right-0 top-0 z-10 rounded-full bg-amber-400/95 px-1 text-[9px] font-bold leading-[14px] text-amber-950 shadow"
+            className="absolute right-0 top-0 z-10 rounded-full bg-amber-400/95 px-1 text-[0.625rem] font-bold leading-[1.4] text-amber-950 shadow"
           >
             ×{s.encounter_count}
           </span>
@@ -396,7 +396,7 @@ function ShelfItem({
       {s.encounter_count > 1 && (
         <span
           aria-hidden
-          className="absolute right-0 top-0 rounded-full bg-amber-400/95 px-1 text-[9px] font-bold leading-[14px] text-amber-950 shadow"
+          className="absolute right-0 top-0 rounded-full bg-amber-400/95 px-1 text-[0.625rem] font-bold leading-[1.4] text-amber-950 shadow"
         >
           ×{s.encounter_count}
         </span>

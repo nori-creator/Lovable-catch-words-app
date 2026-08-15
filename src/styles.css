@@ -1240,6 +1240,35 @@
   text-align: center;
   line-height: 1.15;
 }
+/* 画像がまだ解決していない枠。
+   `CachedImg` は署名URLを解決するまで**大きさの無い span** を返すので、
+   ここに何も描かないと「キャプションの下に穴」が並ぶ。棚は54個×3列を
+   一斉に読み込むので、この穴だらけの状態がいちばん長く見える
+   (独立監査の指摘)。ギャラリーには骨組みがあるのに棚には無かった。
+   `img.shelf-stand` ではなく `span.shelf-stand` だけを狙う。 */
+.shelf-item span.shelf-stand {
+  display: block;
+  width: 70%;
+  height: calc(var(--shelf-item-h) * 0.7);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  animation: shelf-skeleton 1.6s ease-in-out infinite;
+}
+@keyframes shelf-skeleton {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf-item span.shelf-stand {
+    animation: none;
+  }
+}
+
 /* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
 .shelf-item .shelf-stand {
   /* 接地影。棚板に触れている一点が濃く、すぐ薄くなる。 */
@@ -1380,7 +1409,9 @@
  * 出さない**。横書きなら確実に読める。 */
 .shelf-spine span {
   padding: 0 2px;
-  font-size: 11px;
+  /* rem で持つ。px 固定だと、文字を大きくする設定にしても棚だけ
+     取り残される(独立監査の指摘)。 */
+  font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
