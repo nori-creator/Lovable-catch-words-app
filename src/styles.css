@@ -163,6 +163,14 @@
 
 :root {
   --radius: 0.875rem;
+  /* 上のバーの高さ。**ここが唯一の出どころ。**
+     図鑑の部屋見出しは、このバーのすぐ下で止まる sticky なので、高さを
+     知っていなければならない。以前は `3.25rem` と決め打ちしていたが、
+     実際のバーは 3.5rem(中身 h-8 = 2rem + py-3 = 1.5rem)で、
+     部屋見出しは **0.25rem ぶんバーの裏に潜り込んでいた** — 半透明 +
+     backdrop-blur なので、文字の上端がぼやけて見える。
+     バー側は min-height をここから取り、棚側は top をここから計算する。 */
+  --app-header-h: 3.5rem;
   /* Apple-like white background, with a soft cool tint */
   --background: oklch(0.99 0.005 240);
   --foreground: oklch(0.18 0.02 250);
@@ -1487,8 +1495,16 @@
    柔らかい影が出る。1pxの線を常設すると、何も潜っていないときにも「境目が
    ある」と言ってしまう。線ではなくグラデーションなのは、ガラスの縁で光が
    減衰しているように見せたいから。 */
-.scroll-edge {
-  position: relative;
+/* `position` だけは base 層に置く。**素の宣言は Tailwind のユーティリティに勝つ**ので、
+   ここに素で `position: relative` と書くと、同じ要素に付けた `sticky` を握り潰す。
+   実際そうなっていた: 上のバーは `scroll-edge sticky top-0` なのに relative で、
+   **一度も貼り付いていなかった**(=「中身が下に潜る半透明の面」という前提が丸ごと嘘)。
+   図鑑の部屋見出しはそのバーの下端で止まる約束なので、止まる先そのものが消えていた。
+   base に置けば、位置のユーティリティを付けたほうが勝つ。 */
+@layer base {
+  .scroll-edge {
+    position: relative;
+  }
 }
 .scroll-edge::after {
   content: "";

@@ -176,9 +176,11 @@ export function DexShelf({
             <h3
               id={`room-${room}`}
               // 上のバーの高さは env(safe-area-inset-top) の分だけ伸びる。
-              // 3.25rem 決め打ちだと、ノッチのある端末で見出しがヘッダーの
-              // 裏に隠れて出てこない。
-              className="room-head sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[0.8125rem] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
+              // 決め打ちだと、ノッチのある端末で見出しがヘッダーの裏に隠れる。
+              // 高さそのものも決め打ちにしない — `--app-header-h` から取る。
+              // 以前は 3.25rem と書いていて、実際のバー(3.5rem)より
+              // 0.25rem 高く止まっていた。
+              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[0.8125rem] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
             >
               {t(`room.${room}`)}
             </h3>

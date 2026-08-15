@@ -90,7 +90,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         data-scrolled={scrolled ? "true" : undefined}
         className="scroll-edge sticky top-0 z-30 bg-background/70 backdrop-blur-xl backdrop-saturate-150 pt-[env(safe-area-inset-top)]"
       >
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
+        {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
+            止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
+        <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
           <Link
             to="/home"
             className="flex items-center gap-2 transition-transform duration-150 active:scale-95"
