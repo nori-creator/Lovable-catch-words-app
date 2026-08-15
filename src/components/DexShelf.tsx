@@ -166,9 +166,14 @@ export function DexShelf({
           : ROOM_CATEGORIES[room];
         const filledShelves = all.filter((c) => (byCategory.get(c)?.length ?? 0) > 0);
         const emptyShelves = all.filter((c) => (byCategory.get(c)?.length ?? 0) === 0);
-        // 絞り込み中は「その棚を見に来ている」ので畳まない。
+        // カテゴリーで絞っているときは「その棚を見に来ている」ので畳まない。
         // 開いている部屋も畳まない。
-        const foldEmpty = !narrowing && !openEmpty.has(room) && emptyShelves.length > 0;
+        //
+        // **文字で探しているときは畳む。** ここを「絞り込み中は畳まない」で
+        // 一括りにしていたので、検索中は 54 棚ぶんの「この棚に該当なし」が
+        // 流れていた — 探し物を見に来ているのに、見つからなかった棚のほうが
+        // 画面を占める。畳みがいちばん要る場面で畳んでいなかった。
+        const foldEmpty = !activeCategory && !openEmpty.has(room) && emptyShelves.length > 0;
         const shelves = foldEmpty ? filledShelves : all;
         // 部屋ごと空なら、見出しごと畳んだ1行にする。
         return (
@@ -309,10 +314,12 @@ export function DexShelf({
                   className="flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-left text-xs text-muted-foreground transition hover:bg-secondary"
                 >
                   <span aria-hidden>📦</span>
-                  {t("dex.emptyShelvesFolded", { n: String(emptyShelves.length) })}
+                  {t(filtering ? "dex.noMatchShelvesFolded" : "dex.emptyShelvesFolded", {
+                    n: String(emptyShelves.length),
+                  })}
                 </button>
               )}
-              {!foldEmpty && emptyShelves.length > 0 && !narrowing && (
+              {!foldEmpty && emptyShelves.length > 0 && !activeCategory && (
                 <button
                   onClick={() =>
                     setOpenEmpty((prev) => {

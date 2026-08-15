@@ -401,11 +401,20 @@ export function StickerSheet({ stickerId, onClose }: Props) {
      * 載っているのが問題で、そこを直すには列を足す必要がある(いま流せない)。
      * docs/ に残すべき宿題。
      */
-    // **「言語が変わっただけ」の判定は、言語の印だけで決める。**
-    // 中身の欠け具合で決めていたら、辞書由来で `extras` が空のカードは
-    // 言語を切り替えただけでも「欠けている」側に入り、共有の列へ
-    // 書きに行っていた(半分しか直っていなかった)。
-    const onlyLanguageChanged = (wrongLanguage || wrongL1) && !isEmpty;
+    // **共有列を書きに行くかどうかは、共有列そのものを見て決める。**
+    //
+    // ここを二度間違えている。最初は「言語が変わっただけか」を解説の
+    // 量(`isEmpty`)で判断していた — 解説と共有列は別物なので、
+    // 辞書由来で解説が空のカードは、表示言語を切り替えただけでも
+    // 共有列に書きに行っていた(同じ語を持つ他人のカードごと書き換わる)。
+    // 「言語が変わっただけか」を正確にしても直らない。**知りたいのは
+    // 共有列が実際に欠けているかどうか**で、それは共有列を見れば分かる。
+    const sharedMissing = ![
+      s.word.meaning_ja,
+      s.word.pinyin,
+      s.word.reading_zhuyin,
+      s.word.example_sentence,
+    ].every(filled);
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
@@ -421,7 +430,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           data: {
             word_id: s.word_id,
             extras: card.extras,
-            patch: onlyLanguageChanged
+            patch: !sharedMissing
               ? undefined
               : {
                   reading_zhuyin: card.reading_zhuyin,

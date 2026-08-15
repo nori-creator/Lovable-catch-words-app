@@ -342,6 +342,12 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "{n} empty shelves — tap to show",
   },
   "dex.emptyShelvesHide": { ja: "空いている棚を畳む", en: "Hide empty shelves" },
+  // 探しているときは「空」ではなく「該当なし」。棚に何も無いのではなく、
+  // いま探している言葉がそこに無いだけなので、言い方を分ける。
+  "dex.noMatchShelvesFolded": {
+    ja: "該当なしの棚 {n} — 押すと開きます",
+    en: "{n} shelves with no match — tap to show",
+  },
   "dex.shelfCount": { ja: "{n}", en: "{n}" },
   // --- 図鑑の部屋(棚のまとまり) ---
   "room.eat": { ja: "食べる", en: "Eat" },
@@ -628,6 +634,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "journal.askCorrect": { ja: "AIに添削してもらう", en: "Ask AI to review" },
   "journal.corrected": { ja: "✦ 添削後", en: "✦ Corrected" },
   "journal.patterns": { ja: "型と解説", en: "Patterns & notes" },
+  "journal.leftover": {
+    ja: "{d} の書きかけが残っています:「{s}…」",
+    en: "Unfinished writing from {d}: “{s}…”",
+  },
+  "journal.leftoverRestore": { ja: "戻す", en: "Restore" },
   "journal.keptOnDevice": {
     ja: "書いたものはこの端末に控えてあります。添削が通らなくても消えません。",
     en: "Your writing is kept on this device — it won't be lost if the check fails.",

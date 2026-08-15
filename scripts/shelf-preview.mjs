@@ -33,9 +33,17 @@ const HARNESS_OUT = path.resolve(".shelf-harness");
 
 // **毎回組み直す。** 古い成果物を使うと、また「直したのに画像が変わらない」
 // に戻る(それを潰すための作り替えなので、ここで手を抜くと意味がない)。
-execFileSync("npx", ["vite", "build", "--config", path.join(HARNESS_DIR, "vite.config.ts")], {
-  stdio: "pipe",
-});
+try {
+  execFileSync("npx", ["vite", "build", "--config", path.join(HARNESS_DIR, "vite.config.ts")], {
+    // 失敗した理由をそのまま出す。`pipe` で握り潰していたので、
+    // 組み立てが壊れても `Command failed` としか出ず、下の親切な
+    // メッセージにも到達していなかった。
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+} catch {
+  console.error("ハーネスを組めなかった(上の vite の出力を見る)。");
+  process.exit(1);
+}
 if (!fs.existsSync(path.join(HARNESS_OUT, "index.html"))) {
   console.error("ハーネスを組めなかった。");
   process.exit(1);

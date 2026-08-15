@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { draftKeyFor, readLeftoverDrafts } from "@/lib/journal-drafts";
 
 export const Route = createFileRoute("/_authenticated/journal")({
   head: () => ({
@@ -23,18 +24,6 @@ export const Route = createFileRoute("/_authenticated/journal")({
   }),
   component: JournalPage,
 });
-
-/**
- * 端末に置く下書きの鍵。**日付を入れる。**
- *
- * 入れずに1つの鍵で持っていたら、添削まで行かなかった昨日の書きかけが
- * 今日の欄に流れ込む。しかも `draft` が空でなくなるので、サーバーにある
- * 今日の下書きを読み込む効果(`!draft` の条件)も動かなくなり、
- * そのまま送ると**昨日の文章で今日の記録を上書き**することになる。
- */
-function draftKeyFor(entryDate: string) {
-  return `journal-draft:${entryDate}`;
-}
 
 function JournalPage() {
   const t = useT();
@@ -59,6 +48,8 @@ function JournalPage() {
 
   const [draft, setDraft] = useState("");
   const [savedLocally, setSavedLocally] = useState(false);
+  /** 日をまたいで残った書きかけ(拾えるように出す)。 */
+  const [leftover, setLeftover] = useState<{ date: string; text: string } | null>(null);
 
   /**
    * 書いたものを端末に即保存する。
@@ -81,6 +72,9 @@ function JournalPage() {
       setDraft(saved);
       setSavedLocally(true);
     }
+    // 古い書きかけは掃除しつつ、いちばん新しいものだけ拾えるようにする。
+    // **自動では入れない** — 勝手に入れると、日付で鍵を分けた意味が消える。
+    setLeftover(readLeftoverDrafts(today)[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -144,6 +138,25 @@ function JournalPage() {
           >
             {t("journal.loadFailedNote")}
           </p>
+        )}
+
+        {/* 日をまたいだ書きかけ。**自分で押したときだけ**入れる。
+            添削の上限に当たった日の文章は、翌日ここからしか戻せない。 */}
+        {leftover && !draft.trim() && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-secondary px-3 py-2">
+            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {t("journal.leftover", { d: leftover.date, s: leftover.text.slice(0, 24) })}
+            </p>
+            <button
+              onClick={() => {
+                setDraft(leftover.text);
+                setLeftover(null);
+              }}
+              className="min-h-11 shrink-0 rounded-full px-3 text-xs font-semibold text-primary"
+            >
+              {t("journal.leftoverRestore")}
+            </button>
+          </div>
         )}
 
         <Textarea
