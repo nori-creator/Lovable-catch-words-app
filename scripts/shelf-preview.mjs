@@ -86,11 +86,19 @@ const MODES = [
   ["contrast-darkroom", 'data-ui-theme="darkroom"', true, {}],
   // 素材と密度。**選べるようにしたものは全部見る** — 選択肢を足しただけで
   // 見ていない組み合わせがあるなら、それは足していないのと同じ。
+  // 素材は**明るい面と暗い面の両方**で見る。片方ずつしか見ていなかったので、
+  // 「暗い面のウォルナットが背景に沈む」「明るい面のガラスが消える」を
+  // どちらも取りこぼしていた(実測 1.69:1 と 1.47:1)。
   ["oak", "", false, { material: "oak" }],
+  ["oak-dark", 'class="dark"', false, { material: "oak" }],
+  ["walnut", "", false, { material: "walnut" }],
   ["walnut-dark", 'class="dark"', false, { material: "walnut" }],
+  ["obsidian", "", false, { material: "obsidian" }],
   ["obsidian-dark", 'class="dark"', false, { material: "obsidian" }],
   ["concrete", "", false, { material: "concrete" }],
+  ["concrete-dark", 'class="dark"', false, { material: "concrete" }],
   ["glass", "", false, { material: "glass" }],
+  ["glass-dark", 'class="dark"', false, { material: "glass" }],
   ["den2", "", false, { density: "two" }],
   ["den4", "", false, { density: "four" }],
   ["spines", "", false, { density: "spines" }],
@@ -150,24 +158,58 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         };
         return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
       };
-      const parse = (s) => {
-        const m = s.match(/rgba?\(([^)]+)\)/);
-        if (!m) return null;
-        const p = m[1]
-          .split(/[,\s/]+/)
-          .filter(Boolean)
-          .map(Number);
-        return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+      // ## 色は**ブラウザに解かせる**。自分で文字列を読まない。
+      //
+      // ここに長く穴が空いていた。以前は `rgba?(…)` の正規表現で読んでいたが、
+      // このアプリの色は全部 oklch で書いてあり、Chrome は計算値も
+      // `oklch(…)` のまま返す。つまり**一致するものが一つも無かった** —
+      // 文字色は毎回 null で捨てられ(=文字のコントラスト検査は17面すべてで
+      // 1つも見ていない)、背景は毎回「白」の代替値に落ちていた。
+      // 全部が黒文字・白背景として 21:1 で通っていた。
+      //
+      // canvas に実際に塗らせて読み返せば、oklch でも color-mix でも
+      // 色空間に関係なく正しい RGB が出る。白の上と黒の上に塗って
+      // 差から不透明度も割り出す。
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const paint = (s, base) => {
+        ctx.globalCompositeOperation = "copy";
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = s;
+        ctx.fillRect(0, 0, 1, 1);
+        return ctx.getImageData(0, 0, 1, 1).data;
       };
+      const parse = (s) => {
+        if (!s) return null;
+        const w = paint(s, "#fff");
+        const b = paint(s, "#000");
+        const a = 1 - (w[0] - b[0]) / 255;
+        if (a <= 0.001) return { r: 0, g: 0, b: 0, a: 0 };
+        return { r: b[0] / a, g: b[1] / a, b: b[2] / a, a };
+      };
+      const over = (top, bottom) => ({
+        r: top.r * top.a + bottom.r * (1 - top.a),
+        g: top.g * top.a + bottom.g * (1 - top.a),
+        b: top.b * top.a + bottom.b * (1 - top.a),
+        a: 1,
+      });
+      // 半透明を**重ねて解く**。以前は「不透明度0.85以上のものが出るまで
+      // 遡る」だったので、半透明の面(バーやシート)の上の文字は
+      // その下の色で採点していた。
       const bgOf = (el) => {
-        let n = el;
-        while (n && n !== document.documentElement) {
+        const stack = [];
+        for (let n = el; n; n = n.parentElement) {
           const c = parse(getComputedStyle(n).backgroundColor);
-          if (c && c.a > 0.85) return c;
-          n = n.parentElement;
+          if (!c || c.a <= 0.001) continue;
+          stack.push(c);
+          if (c.a >= 0.999) break;
         }
-        const c = parse(getComputedStyle(document.body).backgroundColor);
-        return c && c.a > 0.85 ? c : { r: 255, g: 255, b: 255 };
+        let acc = { r: 255, g: 255, b: 255, a: 1 };
+        for (let i = stack.length - 1; i >= 0; i--) acc = over(stack[i], acc);
+        return acc;
       };
 
       // 1. コントラスト
@@ -215,33 +257,11 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       }
       // 5〜6. 棚板の濃さと、影が黒側であること。
       //
-      // ここは**トークンを直接見る**。計算後の色を読もうとしたら、Chrome は
-      // color-mix を oklab(…) で返し、rgba を期待した正規表現が全部素通しに
-      // なった(全モードで「見えない」と誤判定した)。色空間の表現に依存しない
-      // 形で、実際に踏んだ不具合そのものを条件にする:
-      //   - 棚板を 8% で引いて明るい背景で消えた → 下限を決める
-      //   - 影を --foreground で作ってダークで白く光った → 黒軸に固定する
+      // 棚板そのもののコントラストは**撮った絵の画素で測る**(下の別の段)。
+      // 板は繰り返しグラデーションで描いてあるので、計算値の色を読んでも
+      // 出てこない。ここに残すのはトークンで言えることだけ。
       const root = getComputedStyle(document.documentElement);
       const lineA = parseFloat(root.getPropertyValue("--shelf-line-a"));
-      // 棚板の実際のコントラスト比。前景色を lineA の割合で背景に混ぜた色と
-      // 背景の比を出す(`.shelf-rule` は color-mix でそう描いている)。
-      const fg = parse(getComputedStyle(document.documentElement).color) ??
-        parse(getComputedStyle(document.body).color) ?? { r: 0, g: 0, b: 0 };
-      const pageBg = bgOf(document.body);
-      const mixed = {
-        r: fg.r * lineA + pageBg.r * (1 - lineA),
-        g: fg.g * lineA + pageBg.g * (1 - lineA),
-        b: fg.b * lineA + pageBg.b * (1 - lineA),
-      };
-      const lm = lum(mixed.r, mixed.g, mixed.b);
-      const lb = lum(pageBg.r, pageBg.g, pageBg.b);
-      const lineRatio = (Math.max(lm, lb) + 0.05) / (Math.min(lm, lb) + 0.05);
-      if (lineRatio < LINE_MIN_RATIO) {
-        out.push(
-          `棚板のコントラストが ${lineRatio.toFixed(2)}:1 < ${LINE_MIN_RATIO} ` +
-            `(--shelf-line-a=${lineA})`,
-        );
-      }
       // 高コントラストを頼んだのに濃くならない面が無いこと。
       // `:root, .dark` にだけ書いた上書きは `:root[data-ui-theme="…"]` に
       // 詳細度で負ける = 頼んだ人にだけ届かない、という形で落ちる。
@@ -267,6 +287,117 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   );
 
   found.forEach((f) => issues.push(`[${name}] ${f}`));
+
+  // ## 棚板の濃さは**撮った絵の画素で測る**
+  //
+  // 板は `repeating-linear-gradient` と `color-mix` で描いてあり、影と
+  // 内側の縁も乗る。計算値の色をいくら読んでも、**目に入る色はそこに無い**。
+  // 以前ここは `--shelf-line-a` を背景に手で混ぜて比を出していた —
+  // つまり CSS が実際にどう描いたかを一度も見ずに、自分の暗算を検査していた。
+  // 板の少し上(背景)と板そのものを細長く撮って、画素の明るさで比を出す。
+  // 比べる相手(背景)は**画素ではなく DOM から**取る。板の上には
+  // たいてい品物が立っていて、板のすぐ上の画素は「背景」ではなく写真だから。
+  // 知りたいのは「板が地の面から浮き上がって見えるか」なので、
+  // 板の実際の色(画素)と、地の面の色(計算値)を比べるのが正しい。
+  const strip = await page.evaluate(() => {
+    const vis = [...document.querySelectorAll(".shelf-rule")].filter((r) => {
+      const b = r.getBoundingClientRect();
+      return b.width > 60 && b.top > 90 && b.bottom < window.innerHeight - 20;
+    });
+    if (!vis.length) return null;
+    const el = vis[Math.floor(vis.length / 2)];
+    const b = el.getBoundingClientRect();
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 1;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const paint = (s, base) => {
+      ctx.globalCompositeOperation = "copy";
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, 1, 1);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = s;
+      ctx.fillRect(0, 0, 1, 1);
+      return ctx.getImageData(0, 0, 1, 1).data;
+    };
+    let bg = [255, 255, 255];
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const c = getComputedStyle(n).backgroundColor;
+      const w = paint(c, "#fff");
+      const k = paint(c, "#000");
+      if (1 - (w[0] - k[0]) / 255 >= 0.999) {
+        bg = [w[0], w[1], w[2]];
+        break;
+      }
+    }
+    return {
+      clip: {
+        x: Math.round(b.x + b.width / 2) - 2,
+        y: Math.round(b.y),
+        width: 4,
+        height: Math.max(2, Math.round(b.height)),
+      },
+      bg,
+    };
+  });
+  // 何も集めていない図鑑には棚板が1本も無い(全部畳まれている)ので、
+  // 「測れなかった」ではなく「測るものが無い」。DOM に在るのに測れない
+  // ときだけ落とす。
+  if (!strip) {
+    if (await page.evaluate(() => document.querySelector(".shelf-rule") !== null)) {
+      issues.push(`[${name}] 棚板が画面の中に1本も無い(測れていない)`);
+    }
+  } else {
+    const shot = await page.screenshot({ clip: strip.clip });
+    const lineRatio = await page.evaluate(
+      ({ dataUrl, bg }) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement("canvas");
+            c.width = img.width;
+            c.height = img.height;
+            const x = c.getContext("2d", { willReadFrequently: true });
+            x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, c.width, c.height).data;
+            const lumOf = (r, g, b) => {
+              const f = (v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+              };
+              return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+            };
+            const bgLum = lumOf(bg[0], bg[1], bg[2]);
+            // 板の中で**地の面からいちばん離れた行**を代表とする。
+            // 板は上下にグラデーションが掛かっているので、上端だけ・
+            // 平均だけを見ると「濃いところがある」ことを取りこぼす。
+            let best = bgLum;
+            for (let y = 0; y < c.height; y++) {
+              let r = 0,
+                g = 0,
+                b = 0;
+              for (let px = 0; px < c.width; px++) {
+                const i = (y * c.width + px) * 4;
+                r += d[i];
+                g += d[i + 1];
+                b += d[i + 2];
+              }
+              const l = lumOf(r / c.width, g / c.width, b / c.width);
+              if (Math.abs(l - bgLum) > Math.abs(best - bgLum)) best = l;
+            }
+            resolve((Math.max(bgLum, best) + 0.05) / (Math.min(bgLum, best) + 0.05));
+          };
+          img.src = dataUrl;
+        }),
+      { dataUrl: "data:image/png;base64," + shot.toString("base64"), bg: strip.bg },
+    );
+    // 調整するときは数字が要る。`SHELF_VERBOSE=1` で全部出す。
+    if (process.env.SHELF_VERBOSE) console.log(`  ${name}: 棚板 ${lineRatio.toFixed(2)}:1`);
+    if (lineRatio < LINE_MIN_RATIO) {
+      issues.push(
+        `[${name}] 棚板のコントラストが実測 ${lineRatio.toFixed(2)}:1 < ${LINE_MIN_RATIO}`,
+      );
+    }
+  }
 
   // ## 部屋見出しの止まる位置
   //

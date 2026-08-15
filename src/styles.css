@@ -1365,9 +1365,69 @@
   --plank-top: rgb(255 255 255 / 0.5);
   --plank-bottom: rgb(150 190 220 / 0.28);
   --plank-grain: rgb(255 255 255 / 0.18);
+  /* ガラスは**面ではなく小口で見える**。明るい面では半透明の白い面が
+     地の色と同化して(実測 1.47:1)、板がどこにあるか分からなくなっていた。
+     下の小口をはっきり引くと、面は透けたまま棚の線だけが立つ。 */
+  --plank-edge: rgb(24 58 84 / 0.62);
 }
 
-[data-shelf-material]:not([data-shelf-material="none"]) .shelf-rule {
+/* 暗い面での木と石。**同じ色をそのまま使うと地に沈む。**
+   実測: ウォルナット 1.69:1 / 黒曜石 1.44:1 と、どちらも「見えない」側に
+   落ちていた(明るい面では 13:1・17:1 で問題ない)。
+
+   最初は板そのものを明るくして通した。数字は通ったが、**絵を見たら
+   黒曜石が灰色の定規になっていた** — 木目の等間隔の線が明るい板の上で
+   目盛りとして立ち、素材の見分けも消えていた。数字だけ見て絵を見ないと
+   こうなる、の実例。
+
+   物としてどう見えるかで考え直す: 暗い部屋の棚は、面が明るくなるのでは
+   なく**小口が光を受ける**。面は暗いまま少しだけ持ち上げ、上の小口を
+   はっきりさせる。棚の在りかは、その一本の光る縁が示す。
+
+   `:is()` の詳細度は中の最大値を取るので、素材側の宣言に勝つ。
+   暗い data-ui-theme は `.dark` を付けないため、5種を必ず並べる。 */
+:is(
+    .dark,
+    :root[data-ui-theme="darkroom"],
+    :root[data-ui-theme="nightmarket"],
+    :root[data-ui-theme="ink"],
+    :root[data-ui-theme="aurora"],
+    :root[data-ui-theme="collection"]
+  )
+  [data-shelf-material] {
+  --plank-lip: rgb(255 255 255 / 0.62);
+}
+:is(
+    .dark,
+    :root[data-ui-theme="darkroom"],
+    :root[data-ui-theme="nightmarket"],
+    :root[data-ui-theme="ink"],
+    :root[data-ui-theme="aurora"],
+    :root[data-ui-theme="collection"]
+  )
+  [data-shelf-material="walnut"] {
+  --plank-top: #7d5637;
+  --plank-bottom: #4b3221;
+}
+:is(
+    .dark,
+    :root[data-ui-theme="darkroom"],
+    :root[data-ui-theme="nightmarket"],
+    :root[data-ui-theme="ink"],
+    :root[data-ui-theme="aurora"],
+    :root[data-ui-theme="collection"]
+  )
+  [data-shelf-material="obsidian"] {
+  --plank-top: #383e48;
+  --plank-bottom: #1c2026;
+}
+
+/* `:where()` で詳細度を (0,2,0) に抑える。**素の `:not()` は中身の詳細度を
+   足す**ので、これを `:not(…)` のまま書くと (0,3,0) になり、後ろにある
+   `[data-shelf-material="glass"] .shelf-rule` (0,2,0) に勝ってしまう。
+   実際そうなっていて、**ガラスの小口も backdrop-filter も一度も効いていなかった**
+   — 見た目は他の素材と同じ板のまま、選んでも何も変わらない状態だった。 */
+[data-shelf-material]:where(:not([data-shelf-material="none"])) .shelf-rule {
   height: 0.6875rem; /* 11px — 板の小口が見える最小の厚み */
   border-radius: 0 0 3px 3px;
   /* 木目。**周期をずらした2本**を薄く重ねる。
@@ -1378,14 +1438,19 @@
     repeating-linear-gradient(90deg, transparent 0 13px, var(--plank-grain) 13px 14px),
     repeating-linear-gradient(90deg, transparent 0 31px, var(--plank-grain) 31px 32px),
     linear-gradient(180deg, var(--plank-top) 0%, var(--plank-bottom) 100%);
+  /* 上の小口。明るい面では控えめ、暗い面では光を受けた縁になる
+     (`--plank-lip` を暗いテーマ側で強める)。板の面を明るくして
+     「棚がある」と言わせるより、縁一本で言わせるほうが素材が壊れない。 */
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    inset 0 2px 0 var(--plank-lip, rgb(255 255 255 / 0.25)),
     0 5px 10px -5px hsl(var(--shelf-shadow) / 0.75);
 }
 [data-shelf-material="glass"] .shelf-rule {
   backdrop-filter: blur(6px);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.7),
+    /* 小口。ここが棚の在りかを示す唯一の線になる(面は透けているので)。 */ inset 0 -2px 0
+      var(--plank-edge),
     0 6px 14px -8px hsl(var(--shelf-shadow) / 0.6);
 }
 
