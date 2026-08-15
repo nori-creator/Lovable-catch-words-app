@@ -260,7 +260,7 @@ function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?
   const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
-      <div className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-primary">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.25em] text-primary">
         <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">
@@ -294,13 +294,13 @@ function EntryBlock({
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-1 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="mb-1 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
         {label}
       </div>
       <p className="text-base leading-relaxed tracking-wide">{body}</p>
       {subtle && (
         <>
-          <div className="mt-3 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+          <div className="mt-3 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
             {subtleLabel}
           </div>
           <p className="whitespace-pre-line text-xs text-muted-foreground">{subtle}</p>

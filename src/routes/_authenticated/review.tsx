@@ -235,7 +235,7 @@ function ReviewPage() {
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {t("rv.overallTitle")}
                   </p>
                   {memStats && <MiniRetentionGraph series={memStats.series} />}
@@ -372,7 +372,7 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
       // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
       // すると主役の写真より重くなる)。**当たり判定だけ広げる。**
       // 実寸は 82x19 で、指の下限を割っていた。
-      className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
+      className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
       {t(lv.labelKey)} {card.retention}%
@@ -414,7 +414,7 @@ function MemoryOverviewPanel({
                   {w.retention}%
                 </span>
                 <span
-                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[9px] font-medium ${lv.chip}`}
+                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-medium ${lv.chip}`}
                 >
                   {t(lv.labelKey)}
                 </span>
@@ -423,7 +423,7 @@ function MemoryOverviewPanel({
           );
         })}
       </ul>
-      <p className="mt-1.5 text-[10px] text-muted-foreground">{t("rv.tapForCurve")}</p>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">{t("rv.tapForCurve")}</p>
     </div>
   );
 }
@@ -624,11 +624,11 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         {/* 数字で読める予測 */}
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">{t("memory.bestReview")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("memory.bestReview")}</div>
             <div className="text-sm font-bold text-ok">{bestLabel ?? "—"}</div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">{t("memory.forgetIn")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("memory.forgetIn")}</div>
             <div
               className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad" : ""}`}
             >
@@ -636,7 +636,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             </div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[9px] text-muted-foreground">{t("memory.nextDue")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("memory.nextDue")}</div>
             <div className="text-sm font-bold">{dueLabel}</div>
           </div>
         </div>
@@ -942,7 +942,7 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
               {t("review.todaysPattern")}
             </div>
             <div lang="zh-Hant" className="mt-1 text-xl font-bold leading-snug tracking-wide">
@@ -955,7 +955,7 @@ function SpeakingCard({
                 {card.prompt_pattern.ja}
               </div>
             )}
-            <div className="mt-1 text-[10px] text-muted-foreground">{t("review.usePattern")}</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">{t("review.usePattern")}</div>
           </div>
         )}
 
@@ -963,7 +963,7 @@ function SpeakingCard({
           パーツを組み合わせて質問に答える。 */}
         {!isPhrase && scaffold && !feedback && (
           <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-sky-800">
               {t("review.teacherQ")}
             </div>
             <div className="mt-0.5 flex items-start gap-2">
@@ -978,7 +978,7 @@ function SpeakingCard({
             </div>
             <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
 
-            <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+            <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-sky-800">
               {t("review.hintsLabel")}
             </div>
             {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
@@ -990,7 +990,7 @@ function SpeakingCard({
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
@@ -1025,7 +1025,7 @@ function SpeakingCard({
                 {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
               </p>
             )}
-            <p className="mt-1.5 text-[10px] text-sky-800/70">{t("review.buildYourOwn")}</p>
+            <p className="mt-1.5 text-[11px] text-sky-800/70">{t("review.buildYourOwn")}</p>
           </div>
         )}
 
@@ -1163,11 +1163,11 @@ function FeedbackView({
       {/* Your recording — video only; the mic belongs to speech recognition */}
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
-          <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
             {t("review.videoNoAudio")}
           </p>
         </div>
@@ -1175,11 +1175,11 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("review.you")}
         </div>
         <div className="text-sm">{transcript}</div>
-        <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("review.corrected")}
         </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
@@ -1198,13 +1198,13 @@ function FeedbackView({
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t("review.sentenceBuild")}
           </span>
           {feedback.unlocked_branch && (
             <span
               lang="zh-Hant"
-              className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
             >
               {t("review.newBranch")}
             </span>
@@ -1215,7 +1215,7 @@ function FeedbackView({
         <ChunkLegend />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t("review.whyOrder")}
             </div>
             <p className="mt-0.5 text-xs leading-relaxed">{feedback.word_order_rule}</p>
@@ -1225,7 +1225,7 @@ function FeedbackView({
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
           {t("review.nativeFeel")}
         </div>
         <p className="text-sm text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
@@ -1233,7 +1233,7 @@ function FeedbackView({
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
           {t("review.model")}
         </div>
         <div className="flex items-center gap-2">
@@ -1344,7 +1344,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
               <li key={i} className="flex flex-wrap items-baseline gap-x-1.5">
                 {/* 類義/反義/関連は色だけでなく**記号と語**でも区別する(§2)。 */}
                 <span
-                  className={`shrink-0 rounded px-1 text-[10px] font-bold ${
+                  className={`shrink-0 rounded px-1 text-[11px] font-bold ${
                     r.kind === "ant"
                       ? "bg-rose-200 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100"
                       : r.kind === "syn"
@@ -1410,7 +1410,7 @@ function ExplainLabel({
           ? "text-teal-900 dark:text-teal-200"
           : "text-muted-foreground";
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>
+    <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>
       {children}
     </span>
   );
@@ -1519,8 +1519,15 @@ export function LightModeCard({
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-base font-medium">{c}</span>
+                    {/* 注音は**装飾ではなく学習対象そのもの**。台湾華語で
+                        日本語話者がいちばん間違えるのは声調で、その記号
+                        (ˇ ˊ)は 11px の最も薄い階調では判読の瀬戸際だった
+                        (独立監査)。一段大きく、一段濃くする。 */}
                     {reading && (
-                      <span className="block truncate text-[11px] text-muted-foreground">
+                      <span
+                        lang="zh-Hant"
+                        className="block truncate text-[13px] text-foreground/70"
+                      >
                         {reading}
                       </span>
                     )}
@@ -1553,25 +1560,36 @@ export function LightModeCard({
             {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
                 影で浮いていることを示す。 */}
-            <div className="mx-auto max-w-3xl rounded-t-3xl border-t border-border bg-card px-4 pb-3 pt-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.35)]">
-              {/* 判定は**行を分ける**。1行に判定+語+読み+音声を詰めていたので、
+            <div
+              className={`mx-auto max-w-3xl overflow-hidden rounded-t-3xl border-t bg-card px-4 pb-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.35)] ${
+                correct ? "border-ok" : "border-bad"
+              }`}
+            >
+              {/* 正誤は**面で伝える**。以前は 13px の色付き文字だけで、
+                  この瞬間の唯一の重要情報がパネル内で**いちばん小さい字**
+                  だった(独立監査)。上辺に色の帯を敷き、判定そのものも
+                  本文と同じ大きさまで上げる。色が読めない人にも、
+                  帯の有無ではなく**文字**で伝わる。 */}
+              <div
+                className={`-mx-4 mb-2 px-4 py-1.5 ${correct ? "bg-ok/12" : "bg-bad/12"}`}
+                role="status"
+              >
+                <span className={`text-base font-bold ${correct ? "text-ok" : "text-bad"}`}>
+                  {correct ? t("review.correct") : t("review.tryAgain")}
+                </span>
+              </div>
+              {/* 語は**行を分ける**。1行に判定+語+読み+音声を詰めていたので、
                   外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
                   **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
-                  語を割るのはいちばんやってはいけない。判定は上、語は下。 */}
-              <span
-                // トークン側が明暗を持っているので、`dark:` の上書きは要らない。
-                className={`text-xs font-semibold ${correct ? "text-ok" : "text-bad"}`}
-              >
-                {correct ? t("review.correct") : t("review.tryAgain")}
-              </span>
-              <div className="mb-1.5 mt-0.5 flex items-center gap-2">
+                  語を割るのはいちばんやってはいけない。 */}
+              <div className="mb-1.5 flex items-center gap-2">
                 <span
                   lang="zh-Hant"
                   className="shrink-0 whitespace-nowrap text-xl font-bold tracking-tight"
                 >
                   {card.headword}
                 </span>
-                <span lang="zh-Hant" className="min-w-0 truncate text-xs text-muted-foreground">
+                <span lang="zh-Hant" className="min-w-0 truncate text-[13px] text-foreground/70">
                   {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
                 </span>
                 <button
@@ -1680,10 +1698,10 @@ export function EmptyState() {
 
   if (cap?.capped) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-8 text-center">
-        <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
-        <p className="text-sm font-medium">{t("review.cappedTitle")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-card p-8">
+        <Sparkles className="mb-2 h-6 w-6 text-primary" />
+        <p className="text-base font-semibold">{t("review.cappedTitle")}</p>
+        <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">
           {t("review.cappedHint", { n: String(cap.limit) })}
         </p>
         <Link
@@ -1696,10 +1714,12 @@ export function EmptyState() {
     );
   }
 
+  // 本文は左揃え・幅を絞る。中央揃えの日本語は末尾の1〜2文字が孤立する
+  // (「出ます。」だけが2行目に残る、という事故が3画面で出ていた)。
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
-      <p className="text-sm text-muted-foreground">{t("review.empty")}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{t("review.emptyHint")}</p>
+    <div className="rounded-2xl border border-dashed border-border bg-card p-8">
+      <p className="text-base font-semibold">{t("review.empty")}</p>
+      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">{t("review.emptyHint")}</p>
       <Link
         to="/capture"
         className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
@@ -1710,22 +1730,38 @@ export function EmptyState() {
   );
 }
 
+/**
+ * 今日ぶんが終わった面。
+ *
+ * ## 直した3つ(独立監査)
+ * ・**画面が自己矛盾していた。** 「また明日会いましょう」と言った直後に、
+ *   唯一の塗りボタンが「もう一度出す」。文章は終わりと言い、ボタンは
+ *   まだやれと言っていた。主ボタンは**図鑑へ**、続けるほうは副次に。
+ * ・**図鑑へ戻る導線が無かった。** 終わったのに行き先が無い。
+ * ・**達成の瞬間に設定の宣伝**が入っていた(録画をONに…)。削除。
+ * ・文章は中央揃えをやめる。日本語の中央揃え2行組みは、末尾の1〜2文字が
+ *   必ず孤立する(3画面で同じ事故が出ていた)。
+ */
 export function DoneState({ onAgain }: { onAgain: () => void }) {
   const t = useT();
   return (
-    <div className="rounded-2xl border border-border bg-card p-8 text-center">
-      <Sparkles className="mx-auto mb-2 h-6 w-6 text-primary" />
-      <p className="text-sm font-medium">{t("review.doneTitle")}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{t("review.doneHint")}</p>
-      <button
-        onClick={onAgain}
-        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
-      >
-        {t("review.again")}
-      </button>
-      <div className="mt-2 text-[10px] text-muted-foreground">
-        <Video className="mr-1 inline h-3 w-3" />
-        {t("review.videoTip")}
+    <div className="rounded-2xl border border-border bg-card p-8">
+      <Sparkles className="mb-2 h-6 w-6 text-primary" />
+      <p className="text-base font-semibold">{t("review.doneTitle")}</p>
+      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">{t("review.doneHint")}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Link
+          to="/dex"
+          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+        >
+          {t("review.toDex")}
+        </Link>
+        <button
+          onClick={onAgain}
+          className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-sm font-semibold text-primary"
+        >
+          {t("review.again")}
+        </button>
       </div>
     </div>
   );

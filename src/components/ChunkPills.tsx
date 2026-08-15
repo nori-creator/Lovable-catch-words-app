@@ -38,7 +38,7 @@ export function ChunkPills({
                 9px のこの記号が 3.1〜3.8:1 まで落ちていた(琥珀の帯で 3.12:1)。
                 小ささで十分に控えめなので、その上に薄さを重ねる必要は無い。 */}
             {c.pos && (
-              <span className={`ml-1 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>
+              <span className={`ml-1 ${size === "lg" ? "text-[11px]" : "text-[11px]"}`}>
                 {c.pos}
               </span>
             )}
@@ -51,7 +51,7 @@ export function ChunkPills({
 
 export function ChunkLegend() {
   return (
-    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
       {CHUNK_LEGEND.map(({ key, style }) => (
         <span key={key} className="inline-flex items-center gap-1">
           <span className={`inline-block h-2 w-2 rounded-full ${style.bg}`} />

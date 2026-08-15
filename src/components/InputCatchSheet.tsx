@@ -514,11 +514,11 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               <div className="flex items-baseline gap-2">
                 <h2 className="text-2xl font-bold tracking-tight">{text.trim()}</h2>
                 {verified ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
                     {t("input.verified")}
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
                     {t("input.aiGenerated")}
                   </span>
                 )}

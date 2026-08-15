@@ -231,7 +231,7 @@ function HomePage() {
         <section className="mt-12 space-y-10">
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+            <span className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
               {t("home.pastPages")}
             </span>
             <span className="h-px flex-1 bg-border" />
@@ -301,7 +301,7 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
   return (
     <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
       {label && (
-        <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
+        <p className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
       )}
       {/* §15 typography: tracking is size- AND script-specific.
           The serif *italic* is a Latin conceit — applied to a Japanese date

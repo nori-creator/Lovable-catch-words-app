@@ -663,7 +663,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                           href={s.placeholder_credit.link}
                           target="_blank"
                           rel="noreferrer"
-                          className="absolute bottom-2 left-3 text-[9px] text-white/90 drop-shadow"
+                          className="absolute bottom-2 left-3 text-[11px] text-white/90 drop-shadow"
                         >
                           📷 {s.placeholder_credit.name}
                         </a>
@@ -696,7 +696,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   </button>
                   {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
                   {hasSelfie && (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
                       {t("card.flipToSelfie")}
                     </span>
                   )}
@@ -711,7 +711,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                         alt={t("card.selfie")}
                         className="absolute inset-0 h-full w-full object-cover"
                       />
-                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
                         {t("card.flipBack")}
                       </span>
                     </>

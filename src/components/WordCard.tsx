@@ -509,7 +509,7 @@ function ReportButton({ headword }: { headword: string }) {
       </button>
       {open && (
         <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-card p-1.5 shadow-xl">
-          <p className="px-2 py-1 text-[10px] text-muted-foreground">{t("card.reportWhat")}</p>
+          <p className="px-2 py-1 text-[11px] text-muted-foreground">{t("card.reportWhat")}</p>
           {kinds.map((k) => (
             <button
               key={k.kind}
@@ -722,7 +722,7 @@ function Body({
           {(ex.examples_extra ?? []).map((e, i) => (
             <li key={i} className="rounded-xl bg-white/60 p-2">
               {e.scene && (
-                <p className="mb-1 text-[10px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
+                <p className="mb-1 text-[11px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
               )}
               <p lang="zh-Hant" className="text-sm">
                 {e.zh}
@@ -984,7 +984,7 @@ function WebImagesBody({
                 <button
                   onClick={() => void pick(c.url)}
                   disabled={picking !== null}
-                  className="absolute inset-0 grid place-items-center bg-black/0 text-[10px] font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
+                  className="absolute inset-0 grid place-items-center bg-black/0 text-[11px] font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
                   aria-label={t("card.useThisImage")}
                 >
                   {picking === c.url ? (
@@ -1029,7 +1029,7 @@ function WebImagesBody({
         </a>
       </div>
       {onPickImage && (
-        <p className="mt-1 text-[10px] text-muted-foreground">
+        <p className="mt-1 text-[11px] text-muted-foreground">
           {t("card.useThisImage")} — {t("card.changePhoto")}
         </p>
       )}
@@ -1089,7 +1089,7 @@ function RealUsageBody({ headword }: { headword: string }) {
             <span className="text-base">{l.emoji}</span>
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{l.label}</span>
-              <span className="block truncate text-[10px] text-muted-foreground">{l.hint}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{l.hint}</span>
             </span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>

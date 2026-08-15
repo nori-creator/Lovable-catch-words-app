@@ -185,7 +185,11 @@ export function DexShelf({
               // 高さそのものも決め打ちにしない — `--app-header-h` から取る。
               // 以前は 3.25rem と書いていて、実際のバー(3.5rem)より
               // 0.25rem 高く止まっていた。
-              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[0.8125rem] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm"
+              // **親のほうを強くする。** 部屋(食べる)13px グレー中太に対し、
+              // 棚(🍎 果物)は 13px 黒太字 + 絵文字で、**子のほうが重かった**
+              // (独立監査「見出しの階層が逆転している」)。部屋を一段大きく、
+              // 前景色にして、棚を一段落とす。
+              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 bg-background/85 px-4 py-1.5 text-[1.0625rem] font-semibold tracking-tight text-foreground backdrop-blur-sm"
             >
               {t(`room.${room}`)}
             </h3>
@@ -239,8 +243,13 @@ export function DexShelf({
                       <span aria-hidden className="text-sm leading-none">
                         {categoryEmoji(cat)}
                       </span>
-                      <span className="text-[0.8125rem] font-semibold">{t(`cat.${cat}`)}</span>
-                      <span className="text-[0.6875rem] font-normal text-muted-foreground">
+                      <span className="text-[0.8125rem] font-medium text-muted-foreground">
+                        {t(`cat.${cat}`)}
+                      </span>
+                      <span // `/80` を掛けたら 3.74:1 まで落ちた(検査が即座に落とした)。
+                        // 件数は小さいので、薄さを重ねる余地が無い。
+                        className="ml-0.5 text-[0.6875rem] font-normal tabular-nums text-muted-foreground"
+                      >
                         {t("dex.shelfCount", { n: String(items.length) })}
                       </span>
                     </h4>
@@ -279,7 +288,9 @@ export function DexShelf({
                               <span
                                 key={s.id}
                                 lang="zh-Hant"
-                                className="truncate text-center text-xs font-medium leading-tight"
+                                // 名前は**絵の左端に揃える**。絵を左詰めにしたのに名前だけ
+                                // マスの中央のままだったので、絵の右にずれて見えていた。
+                                className="truncate text-left text-xs font-medium leading-tight"
                               >
                                 {s.word.headword}
                               </span>
@@ -378,7 +389,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute right-0 top-0 z-10 rounded-full bg-amber-400/95 px-1 text-[0.625rem] font-bold leading-[1.4] text-amber-950 shadow"
+            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
           >
             ×{s.encounter_count}
           </span>
@@ -400,35 +411,40 @@ function ShelfItem({
       lang="zh-Hant"
       aria-label={s.word.headword}
     >
-      {/* 再会の回数。ギャラリーには出ていたのに棚では消えていた —
-          何度も出会った語ほど覚える、というこのアプリの芯にある印。 */}
-      {s.encounter_count > 1 && (
-        <span
-          aria-hidden
-          className="absolute right-0 top-0 rounded-full bg-amber-400/95 px-1 text-[0.625rem] font-bold leading-[1.4] text-amber-950 shadow"
-        >
-          ×{s.encounter_count}
-        </span>
-      )}
-      {cutout ? (
-        <CachedImg src={cutout} alt="" loading="lazy" decoding="async" className="shelf-stand" />
-      ) : photo ? (
-        <CachedImg
-          src={photo}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="shelf-stand shelf-framed"
-        />
-      ) : (
-        // 画像がまだ無いカードは、単語そのものを立てる。
-        <span
-          aria-hidden
-          className="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground"
-        >
-          {s.word.headword}
-        </span>
-      )}
+      {/* **印は絵に付ける。** 以前はセル(grid の1マス)の右上に置いていたので、
+          絵より広いマスの端に**単独で浮いて**いた(2列のときは絵から
+          本1冊ぶん離れる)。絵を包む箱を基準にする。 */}
+      <span className="relative inline-flex">
+        {cutout ? (
+          <CachedImg src={cutout} alt="" loading="lazy" decoding="async" className="shelf-stand" />
+        ) : photo ? (
+          <CachedImg
+            src={photo}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="shelf-stand shelf-framed"
+          />
+        ) : (
+          // 画像がまだ無いカードは、単語そのものを立てる。
+          <span
+            aria-hidden
+            className="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground"
+          >
+            {s.word.headword}
+          </span>
+        )}
+        {/* 再会の回数。ギャラリーには出ていたのに棚では消えていた —
+            何度も出会った語ほど覚える、というこのアプリの芯にある印。 */}
+        {s.encounter_count > 1 && (
+          <span
+            aria-hidden
+            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
+          >
+            ×{s.encounter_count}
+          </span>
+        )}
+      </span>
     </button>
   );
 }

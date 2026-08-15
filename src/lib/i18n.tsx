@@ -689,9 +689,14 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "common.selfieOf": { ja: "撮影者の自撮り", en: "Selfie of the person who caught it" },
   "detail.more": { ja: "詳しく", en: "details" },
   "detail.preparing": { ja: "詳しい解説を準備中…", en: "Preparing the full explanation…" },
-  "detail.verified": { ja: "✓ 検証済み辞書 + AI詳細", en: "✓ Verified dictionary + AI detail" },
-  "detail.aiOnly": { ja: "AI生成", en: "AI generated" },
-  "detail.score": { ja: "点 {v}", en: "score {v}" },
+  // 出所は**人の言葉で**。以前は「✓ 検証済み辞書 + AI詳細 · 点 0.92」で、
+  // 0.92 はモデルの confidence(内部の数値)がそのまま漏れていた。
+  // 学習者にとって意味が無く、「点」が何の点かも示していない(独立監査)。
+  "detail.verified": { ja: "辞書で確認済み", en: "Checked against the dictionary" },
+  "detail.aiOnly": {
+    ja: "AIが作成(誤りがあるかもしれません)",
+    en: "Written by AI — may contain mistakes",
+  },
   "err.generateFailed": { ja: "生成に失敗しました", en: "Could not generate" },
   // --- ワードツリー・画像選択 ---
   "tree.title": { ja: "ワードツリー", en: "Word tree" },
@@ -847,9 +852,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "Catch a new word and its first review appears 10 minutes later.",
   },
   "review.goCatch": { ja: "撮りに行く", en: "Go catch one" },
-  "review.doneTitle": { ja: "今日のノルマ、達成!", en: "Today's set is done!" },
+  // 「ノルマ」は課された量という含意が強く、達成を祝う語ではない(独立監査)。
+  "review.doneTitle": { ja: "今日の復習、終わりました", en: "Today's review is done" },
   "review.doneHint": { ja: "また明日の復習で会いましょう。", en: "See you in tomorrow's review." },
-  "review.again": { ja: "もう一度出す", en: "Review again" },
+  "review.again": { ja: "もう少し続ける", en: "Keep going" },
+  "review.toDex": { ja: "図鑑を見る", en: "Open the shelf" },
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice" },
   "review.whichIs": { ja: "はどれ?", en: "— which one?" },
   "review.correct": { ja: "正解!", en: "Correct!" },

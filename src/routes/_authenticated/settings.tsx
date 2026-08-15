@@ -237,7 +237,7 @@ function SettingsPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground">
                 {t("settings.nativeLangHint")}
               </p>
             </div>
@@ -564,7 +564,7 @@ function DeveloperPanel() {
       <div className="mt-3 space-y-2">
         {row(t("settings.metricDetect"), m?.detect_ms_median, 1200)}
         {row(t("settings.metricAudio"), m?.tap_to_audio_ms_median, 400)}
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           {t("set.qualitySamples", { n: m?.samples ?? 0 })}
         </p>
         {adm?.isAdmin && (
@@ -931,7 +931,7 @@ function UiThemePicker() {
                 <span className="block text-sm font-medium">
                   {themeMeta.name}
                   {themeMeta.id === "default" && (
-                    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">
                       {t("settings.themeKeep")}
                     </span>
                   )}
@@ -1024,9 +1024,9 @@ function AiModelPanel() {
             </li>
           ))}
         </ul>
-        <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.aiKeysHint")}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.aiKeysHint")}</p>
         {data?.keyError && (
-          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-[10px] text-destructive">
+          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-[11px] text-destructive">
             {data.keyError}
           </p>
         )}
@@ -1049,7 +1049,7 @@ function AiModelPanel() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[10px] text-muted-foreground">{t("settings.aiKeyNote")}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.aiKeyNote")}</p>
         </div>
         <div>
           <Label className="text-xs">{t("settings.aiFast")}</Label>
@@ -1091,13 +1091,13 @@ function AiModelPanel() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
         </div>
 
         <Button className="w-full" onClick={save} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.aiApply")}
         </Button>
-        <p className="text-[10px] text-muted-foreground">{t("settings.aiModelNote")}</p>
+        <p className="text-[11px] text-muted-foreground">{t("settings.aiModelNote")}</p>
       </div>
     </details>
   );

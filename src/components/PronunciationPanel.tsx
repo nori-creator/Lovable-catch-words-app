@@ -200,7 +200,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
               {score >= 85 && <CheckCircle2 className="h-5 w-5" />}
               {score}
             </div>
-            <div className="text-[10px] text-muted-foreground">{t("pron.score")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("pron.score")}</div>
           </div>
         )}
       </div>

@@ -1310,7 +1310,10 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  align-items: center;
+  /* **左端で揃える。** 中央寄せにしていたので、絵の幅が1つずつ違う分だけ
+     棚の左端がガタつき、2列のときは真ん中に本1冊ぶんの穴が空いて
+     「棚ではなく棒グラフ」に見えていた(独立監査)。本棚は左から詰める。 */
+  align-items: flex-start;
   min-width: 0;
   /* 高さは**固定**。中身に決めさせると、画像が1枚届くたびに下の棚が
      全部ずり下がる。44px を超えるのでタップ領域も満たす(§10)。 */

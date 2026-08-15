@@ -52,15 +52,19 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
       role="dialog"
     >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span className="pl-1 text-xs font-medium text-muted-foreground">
-          <Zh>{headword}</Zh> — {t("detail.more")}
+        {/* **主題のほうを重くする。** 見出しが 12px のグレーで、右の × が
+            44px の枠付き白丸だったので、**退出口が主題より目立って**いた
+            (独立監査)。「— 詳しく」という区切りも開発者的なので落とし、
+            語だけを見出しにする。 */}
+        <span className="pl-1 text-base font-semibold">
+          <Zh>{headword}</Zh>
         </span>
         <button
           onClick={onClose}
           aria-label={t("common.close")}
           // **出口は 44px を割らない。** ここは覆っている面の唯一の出口で、
           // 小さいほど「閉じられない」に直結する(36px だった)。
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card transition-transform duration-100 active:scale-95"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-transform duration-100 hover:bg-secondary active:scale-95"
         >
           <X className="h-4 w-4" />
         </button>
@@ -88,14 +92,19 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
             }}
           />
         )}
-        <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          {/* 「検証済み」と言えるのは辞書の出所が verified のときだけ。
-              `dict` が有るかどうかで言っていたので、同じ語が**このシートでは
-              検証済み、次のシートではAI生成**と1タップの間に食い違っていた
-              (ScanCatchSheet 側は既に source を見ている)。 */}
-          {dict?.source === "verified" ? t("detail.verified") : t("detail.aiOnly")} ·{" "}
-          {t("detail.score", { v: item.confidence.toFixed(2) })}
-        </p>
+        {/* 出所は**中身の直下**に置く。以前はスピナーの 180px 下に
+            浮いていて、まだ何も出ていない中身について出所を語っていた。
+            confidence(0.92)も出していたが、あれはモデルの内部値で、
+            学習者には意味が無い(独立監査)。人の言葉だけを残す。
+
+            「検証済み」と言えるのは辞書の出所が verified のときだけ。
+            `dict` の有無で言っていたので、同じ語が**このシートでは
+            検証済み、次のシートではAI生成**と1タップの間に食い違っていた。 */}
+        {card && (
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            {dict?.source === "verified" ? t("detail.verified") : t("detail.aiOnly")}
+          </p>
+        )}
       </div>
     </div>
   );

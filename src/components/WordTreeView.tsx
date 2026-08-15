@@ -197,7 +197,7 @@ export function WordTreeView({
                   <Lock className="h-4 w-4" />
                   <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-primary/70 animate-pulse" />
                 </div>
-                <div className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">
+                <div className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">
                   {t("tree.locked", { n: lockedCount })}
                 </div>
               </div>
@@ -221,7 +221,7 @@ export function WordTreeView({
               <span lang="zh-Hant" className="block text-[13px] font-semibold leading-tight">
                 {b.zh}
               </span>
-              {b.ja && <span className="block text-[9px] opacity-80">{b.ja}</span>}
+              {b.ja && <span className="block text-[11px] opacity-80">{b.ja}</span>}
               <span className="block text-[8px] uppercase tracking-wide opacity-60">
                 {t(TYPE_LABEL_KEY[b.type])}
               </span>
@@ -230,7 +230,7 @@ export function WordTreeView({
         })}
       </div>
 
-      <p className="mt-1 text-center text-[10px] text-muted-foreground">{t("tree.tapHint")}</p>
+      <p className="mt-1 text-center text-[11px] text-muted-foreground">{t("tree.tapHint")}</p>
 
       <style>{`
         @keyframes wt-grow { to { stroke-dashoffset: 0; } }

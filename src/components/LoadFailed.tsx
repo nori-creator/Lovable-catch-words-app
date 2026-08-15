@@ -33,13 +33,17 @@ export function LoadFailed({
   return (
     <div
       role="alert"
-      className="rounded-3xl border border-border bg-card p-8 text-center shadow-sm"
+      // 本文は**左揃え・幅を絞る**。中央揃えの日本語は、行末の1〜2文字が
+      // 2行目に孤立する(「い。」だけが残る、という事故が3画面で出ていた)。
+      className="rounded-3xl border border-border bg-card p-8 shadow-sm"
     >
-      <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
+      <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
         {offline ? <WifiOff className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
       </span>
-      <p className="text-sm font-medium">{offline ? t("err.offlineTitle") : t("err.loadTitle")}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="text-base font-semibold">
+        {offline ? t("err.offlineTitle") : t("err.loadTitle")}
+      </p>
+      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">
         {offline ? t("err.offlineHint") : t("err.loadHint")}
       </p>
       <button

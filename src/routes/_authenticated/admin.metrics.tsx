@@ -70,11 +70,11 @@ function AdminMetricsPage() {
               ].map(([label, v]) => (
                 <div key={String(label)} className="rounded-xl bg-secondary/60 p-3 text-center">
                   <div className="text-lg font-bold">{v}</div>
-                  <div className="text-[10px] text-muted-foreground">{label}</div>
+                  <div className="text-[11px] text-muted-foreground">{label}</div>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               目標(β): 初キャッチ到達 ≥80% / D1 ≥40%(ロードマップ§3)
             </p>
           </section>
@@ -189,11 +189,11 @@ function SelfImprovePanel() {
         </span>{" "}
         件
       </p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
         毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[10px] text-primary">
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[11px] text-primary">
           {result}
         </pre>
       )}
@@ -203,7 +203,7 @@ function SelfImprovePanel() {
           <summary className="cursor-pointer text-[11px] text-muted-foreground">
             実行ログ(直近)
           </summary>
-          <ul className="mt-1 space-y-0.5 text-[10px]">
+          <ul className="mt-1 space-y-0.5 text-[11px]">
             {st!.runs.map((r, i) => (
               <li key={i} className="flex items-start gap-1.5">
                 <span>{r.ok ? "✅" : "❌"}</span>
@@ -298,7 +298,7 @@ function EntryReportsPanel() {
               <span lang="zh-Hant" className="font-semibold">
                 {r.headword}
               </span>
-              <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span className="rounded-full bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {KIND_LABEL[r.kind] ?? r.kind}
               </span>
               {r.note && (
@@ -307,13 +307,13 @@ function EntryReportsPanel() {
               <span className="ml-auto flex gap-1">
                 <button
                   onClick={() => resolve(r.id, "resolved")}
-                  className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary"
+                  className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"
                 >
                   対応済み
                 </button>
                 <button
                   onClick={() => resolve(r.id, "dismissed")}
-                  className="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground"
+                  className="rounded-md bg-background px-2 py-1 text-[11px] text-muted-foreground"
                 >
                   却下
                 </button>

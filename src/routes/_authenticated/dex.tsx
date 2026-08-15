@@ -545,7 +545,7 @@ function DexPage() {
                           </div>
                         )}
                         {s.encounter_count > 0 && (
-                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-amber-950 shadow">
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[11px] font-bold text-amber-950 shadow">
                             ×{s.encounter_count}
                           </span>
                         )}
@@ -952,14 +952,14 @@ function DexCalendar({
                 />
               )}
               <span
-                className={`absolute left-0.5 top-0.5 rounded px-1 text-[10px] font-semibold ${
+                className={`absolute left-0.5 top-0.5 rounded px-1 text-[11px] font-semibold ${
                   thumb ? "bg-black/55 text-white" : "text-muted-foreground"
                 }`}
               >
                 {day}
               </span>
               {items.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[9px] font-bold text-white">
+                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[11px] font-bold text-white">
                   {items.length}
                 </span>
               )}

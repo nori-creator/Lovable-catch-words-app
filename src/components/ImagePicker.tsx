@@ -112,7 +112,7 @@ export function ImagePicker({ query, onPicked }: Props) {
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
-              <div className="absolute right-1 top-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px] text-white backdrop-blur">
+              <div className="absolute right-1 top-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[11px] text-white backdrop-blur">
                 {c.source === "ai" ? (
                   <span className="inline-flex items-center gap-0.5">
                     <Sparkles className="h-2.5 w-2.5" />
@@ -128,7 +128,7 @@ export function ImagePicker({ query, onPicked }: Props) {
                 </div>
               )}
               {c.credit && (
-                <div className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[9px] text-white">
+                <div className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[11px] text-white">
                   © {c.credit.name}
                 </div>
               )}
