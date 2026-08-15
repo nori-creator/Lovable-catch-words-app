@@ -99,11 +99,20 @@ const sceneUrl = (base, { scene = "shelf", ...rest } = {}) => {
  * (縁が白く光る件、高コントラストで棚板が濃くならない件)ので、
  * 代表として darkroom を明るい面・暗い面と同格で並べる。
  */
-/** 同じ場面を明るい面・暗い面・高コントラストの3通りで見る。 */
+/**
+ * 同じ場面を4通りで見る: 明るい面 / 暗い面 / 高コントラスト明 / 高コントラスト暗。
+ *
+ * **暗い側の高コントラストを外していたのが穴だった。** 棚の一覧には
+ * `contrast-dark` が入っているのに、ここだけ明るい側しか作っていなかったので、
+ * 「高コントラストを頼んだ暗い面のユーザーにだけ届かない」種類の不具合が
+ * 構造的に通り抜けていた(実際、暗い高コントラストの `text-primary` は
+ * 通常のテーマより悪くなっていた)。
+ */
 const crossThemes = (name, scene) => [
   [name, "", false, scene],
   [`${name}-dark`, 'class="dark"', false, scene],
   [`${name}-contrast`, "", true, scene],
+  [`${name}-contrast-dark`, 'class="dark"', true, scene],
 ];
 
 const MODES = [
@@ -144,6 +153,7 @@ const MODES = [
   // 画面(ホーム・復習・設定)は入れていない — 入れると手書きのHTMLを
   // 検査することになり、棚で潰したはずの「実物と違うものを見る検査」に戻る。
   // 未検査であることは README ではなく、ここの一覧が事実として示す。
+  ...crossThemes("tokens", { scene: "tokens" }),
   ...crossThemes("failed", { scene: "load-failed" }),
   ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
   ...crossThemes("options", { scene: "shelf-options" }),
@@ -198,6 +208,21 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     }, htmlAttrs);
   }
   await page.waitForTimeout(400);
+
+  // 場面がちゃんと立ち上がったか。**空のページは指摘0で緑になる**ので、
+  // 「何も出ていない」を合格と取り違えないように、先にここで確かめる。
+  const mounted = await page.evaluate(() => ({
+    scene: document.documentElement.dataset.scene ?? "",
+    text: (document.body.innerText ?? "").trim().length,
+  }));
+  if (!mounted.scene) {
+    issues.push(`[${name}] 場面が立ち上がっていない(名前が一覧と合っていない)`);
+    await page.close();
+    continue;
+  }
+  if (mounted.text < 4) {
+    issues.push(`[${name}] 画面に文字が1つも出ていない(描けていない疑い)`);
+  }
 
   const found = await page.evaluate(
     ({ wantsContrast, CONTRAST_LINE_A, LINE_MIN_RATIO }) => {
@@ -282,7 +307,15 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         const fg = parse(cs.color);
         const bg = bgOf(el);
         if (!fg) continue;
-        const L1 = lum(fg.r, fg.g, fg.b);
+        // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
+        // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
+        // 祖先の `opacity` も効くので、根まで掛け合わせる。
+        let alpha = fg.a;
+        for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+          alpha *= parseFloat(getComputedStyle(n).opacity);
+        }
+        const shown = over({ ...fg, a: Math.max(0, Math.min(1, alpha)) }, bg);
+        const L1 = lum(shown.r, shown.g, shown.b);
         const L2 = lum(bg.r, bg.g, bg.b);
         const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
         const px = parseFloat(cs.fontSize);

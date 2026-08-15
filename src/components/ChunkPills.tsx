@@ -34,8 +34,11 @@ export function ChunkPills({
             {/* チャンク本体は台湾華語。品詞ラベル(名詞など)は解説語なので
                 こちらだけ言語を宣言し、字形を繁体字に固定する。 */}
             <span lang="zh-Hant">{c.text}</span>
+            {/* 品詞の記号。**薄くしない。** `opacity-60` を掛けていたので、
+                9px のこの記号が 3.1〜3.8:1 まで落ちていた(琥珀の帯で 3.12:1)。
+                小ささで十分に控えめなので、その上に薄さを重ねる必要は無い。 */}
             {c.pos && (
-              <span className={`ml-1 opacity-60 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>
+              <span className={`ml-1 ${size === "lg" ? "text-[10px]" : "text-[9px]"}`}>
                 {c.pos}
               </span>
             )}

@@ -24,6 +24,7 @@ import {
   PronunciationScene,
   ScanDetailScene,
   ShelfOptionsScene,
+  TokensScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -35,6 +36,7 @@ const SCENES: Record<string, (p: { q: URLSearchParams }) => ReactNode> = {
   curve: CurveScene,
   pronunciation: PronunciationScene,
   "scan-detail": ScanDetailScene,
+  tokens: TokensScene,
 };
 
 /**
@@ -60,7 +62,12 @@ function Frame({ children }: { children: ReactNode }) {
 }
 
 const q = new URLSearchParams(location.search);
-const Scene = SCENES[q.get("scene") ?? "shelf"];
+const wanted = q.get("scene") ?? "shelf";
+const Scene = SCENES[wanted];
+// 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
+// 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
+// 真っ白なページ」を検査して、指摘0で緑になっていた。
+document.documentElement.dataset.scene = Scene ? wanted : "";
 // 再試行で待ち時間が伸びると、撮る面が場面ごとにばらつく。1回で止める。
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 createRoot(document.getElementById("root")!).render(

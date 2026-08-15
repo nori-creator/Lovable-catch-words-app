@@ -182,7 +182,7 @@
   /* 明度は**測って決めた**。0.62 のままだと白い文字で 3.60:1 で、
      14px の本文の下限(4.5:1)を割る = アプリ中の主ボタンの文字が全部
      未達だった。0.55 で 4.5:1 を越える。 */
-  --primary: oklch(0.55 0.21 255);
+  --primary: oklch(0.52 0.21 255);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.01 250);
   --secondary-foreground: oklch(0.22 0.03 255);
@@ -190,7 +190,8 @@
   --muted-foreground: oklch(0.5 0.02 255);
   --accent: oklch(0.94 0.04 250);
   --accent-foreground: oklch(0.25 0.08 255);
-  --destructive: oklch(0.6 0.22 25);
+  /* 白い文字を載せる面なので、明度は**測って決めた**(0.6 では 4.30:1)。 */
+  --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
   --border: oklch(0.92 0.01 250);
   --input: oklch(0.94 0.01 250);
@@ -218,18 +219,26 @@
   --card-foreground: oklch(0.97 0.005 240);
   --popover: oklch(0.19 0.035 258);
   --popover-foreground: oklch(0.97 0.005 240);
-  /* 暗い面のほうが**悪かった**(0.66 で 3.16:1)。明るい青に白を載せる
-     ほど地との差が減る。0.56 まで落として 4.5:1 を越える。 */
-  --primary: oklch(0.56 0.2 258);
-  --primary-foreground: oklch(0.99 0 0);
+  /* 暗い面では**青を暗くしない。文字の色を反転させる。**
+     `--primary` は塗り(bg-primary)にも文字(text-primary)にも使われる。
+     暗い面でこの2つは正面から衝突する — 青を暗くすると白い文字は読めるが、
+     暗い地の上に置いた青い文字が沈む(6.15:1 → 4.16:1)。一度 0.56 まで
+     落として、まさにそれをやってしまった。
+     青は明るいまま(文字として 6.15:1)、その上に**暗い文字**を載せる。
+     Material 3 の暗いテーマ(primary=明るい / onPrimary=暗い)と同じ考え方で、
+     どちらの役目も満たす。 */
+  --primary: oklch(0.66 0.2 258);
+  --primary-foreground: oklch(0.16 0.04 258);
   --secondary: oklch(0.24 0.04 258);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: oklch(0.24 0.04 258);
   --muted-foreground: oklch(0.72 0.03 258);
   --accent: oklch(0.3 0.08 258);
   --accent-foreground: oklch(0.97 0 0);
+  /* 主色と同じ理屈。暗い面では赤を暗くせず、載せる文字を暗くする
+     (白を載せると 2.91:1)。赤は「地の上の警告の文字」としても使う。 */
   --destructive: oklch(0.7 0.2 22);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-foreground: oklch(0.18 0.06 22);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.72 0.18 258);
@@ -1021,7 +1030,8 @@
     --border: oklch(1 0 0 / 30%); /* visible edges on dark */
     --input: oklch(1 0 0 / 34%);
     --ring: oklch(0.82 0.16 258);
-    --primary: oklch(0.5 0.19 258);
+    --primary: oklch(0.78 0.17 258);
+    --primary-foreground: oklch(0.13 0.04 258);
   }
 }
 

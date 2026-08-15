@@ -45,7 +45,11 @@ export function LoadFailed({
       <button
         onClick={onRetry}
         disabled={retrying}
-        className="lift mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        aria-busy={retrying}
+        // **待っている間こそ薄くしない。** `disabled:opacity-60` を掛けていたので、
+        // 再試行中は文字が 2.65:1 まで落ちていた — 押した人がいちばん見ている
+        // 瞬間に読めなくなる。手応えは回るアイコンと `aria-busy` が返す。
+        className="lift mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
       >
         <RefreshCw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
         {t("err.retry")}
