@@ -256,7 +256,8 @@ function DexPage() {
     <AppShell title={t("title.dex")}>
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
-          <h2 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h2>
+          {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
+          <h1 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h1>
           {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
           <p className="text-xs text-muted-foreground">
             {t("dex.found")}{" "}
@@ -359,7 +360,31 @@ function DexPage() {
         </p>
       )}
 
-      {captured.length > 0 && (
+      {/* 棚表示で絞り込みが残っているときの**解除口**。
+          チップ列を隠しただけにしたら、ギャラリーでカテゴリーを選んでから
+          棚へ切り替えた人は、54棚のうち53棚が消えた状態から抜け出せなく
+          なっていた(絞り込みは効いたままなのに、それを示すものも解く
+          手段も画面に無い)。しかも表示もカテゴリーも保存されるので、
+          次に開いてもその状態で始まる。 */}
+      {view === "shelf" && activeCategory && (
+        <button
+          onClick={() => setActiveCategory(null)}
+          aria-label={t("dex.clearFilter")}
+          className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground"
+        >
+          {categoryEmoji(activeCategory)} {t(categoryLabelKey(activeCategory))}
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
+
+      {/* カテゴリーの絞り込みチップ。
+          **棚を見ているときは出さない。** 棚そのものが部屋→棚の階層で
+          同じ分類を持っているので、同じ絵文字・同じ件数のものが上下に
+          2回並ぶ。しかも一方は平坦・一方は階層なので「どちらが図鑑の
+          本体か」が決まらない(独立監査の指摘)。
+          一覧・ギャラリー・地図・カレンダーには階層が無いので、そちらでは
+          この行が絞り込みの手段として要る。 */}
+      {captured.length > 0 && view !== "shelf" && (
         <div className="-mx-4 mb-3 overflow-x-auto px-4">
           <div className="flex w-max gap-1.5">
             <button
@@ -1015,6 +1040,9 @@ function DexMap({
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
   const t = useT();
+  const [mapFailed, setMapFailed] = useState(false);
+  /** 「もう一度」で読み込みからやり直すための番号。 */
+  const [mapAttempt, setMapAttempt] = useState(0);
   const mapInstance = useRef<unknown>(null);
   const markersRef = useRef<unknown[]>([]);
   const pinIconCache = useRef<Map<string, string | null>>(new Map());
@@ -1040,6 +1068,18 @@ function DexMap({
     s.src = `https://maps.googleapis.com/maps/api/js?key=${browserKey}&loading=async&callback=initDexMap${channel ? `&channel=${channel}` : ""}`;
     s.async = true;
     s.dataset.dexMap = "1";
+    // **読み込めなかったことを画面に出す。**
+    //
+    // キーが無いときは「地図は使えません」と言う配慮があるのに、
+    // キーはあるが読み込めない(圏外・ブロック・キー無効・課金停止)ときは
+    // `initMap` が呼ばれず、**灰色の角丸だけが残っていた**。その下には
+    // 日付チップと「位置情報あり N件」が普通に並ぶので、「ピンが1本も
+    // 無い地図」に見える — 集めた場所の記録が無いように見える
+    // (独立監査の指摘)。
+    s.onerror = () => {
+      s.remove(); // 消しておかないと `existing` で二度と再試行できない
+      setMapFailed(true);
+    };
     document.head.appendChild(s);
 
     function initMap() {
@@ -1053,9 +1093,10 @@ function DexMap({
         zoomControl: true,
       });
       renderMarkers();
+      setMapFailed(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mapAttempt]);
 
   function renderMarkers() {
     if (!mapInstance.current || !window.google) return;
@@ -1079,7 +1120,14 @@ function DexMap({
     // (spiderfy)。散らす半径はズームに依らない実距離で決める。
     const groups = new Map<string, number>();
     const keyOf = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
-    for (const s of stickers) {
+    // **絞り込み後の `shown` を回すこと。**
+    //
+    // ここだけ絞り込み前の `stickers` を見ていた。日付チップを押すと
+    // 「位置情報あり N件」の数字も下の写真も減るのに、**地図のピンだけ
+    // 全部出たまま**になる。押した結果が半分だけ反映される画面は、
+    // どちらが本当なのか分からない。`shownRef` は用意してあったのに
+    // どこからも読まれていなかった(独立監査の指摘)。
+    for (const s of shownRef.current) {
       if (s.lat == null || s.lng == null) continue;
       const emoji = s.word.silhouette_emoji ?? "📍";
       const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
@@ -1166,6 +1214,22 @@ function DexMap({
       <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
         {t("dex.mapUnavailable")}
       </div>
+    );
+  }
+
+  if (mapFailed) {
+    // **`mapFailed` を戻すのは「もう一度」を押した側の役目。**
+    // 番号を増やすだけにしていたら、地図の div は外れたままなので
+    // `initMap` が `if (!mapRef.current) return;` で抜け、
+    // `setMapFailed(false)` に永久に届かなかった —
+    // 「もう一度」が二度と効かない再試行ボタンを作っていた。
+    return (
+      <LoadFailed
+        onRetry={() => {
+          setMapFailed(false);
+          setMapAttempt((n) => n + 1);
+        }}
+      />
     );
   }
 

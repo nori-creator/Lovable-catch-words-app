@@ -3,139 +3,78 @@
  *
  * ## なぜ要るか
  * 棚は「面 + ヘアライン + 接地影」の3つだけで奥行きを出している。目視でしか
- * 詰められない性質のものに見えるが、実際は audit-packs.mjs のときと同じで、
- * 目では気づけない不具合(コントラスト未達・タップ領域不足・横はみ出し)が
- * 混ざる。先に機械で落としてから目で見る。
+ * 詰められない性質のものに見えるが、実際は目では気づけない不具合
+ * (コントラスト未達・タップ領域不足・横はみ出し)が混ざる。
+ * 先に機械で落としてから目で見る。
  *
- * ## どうやって本物のCSSを使うか
- * styles.css は Tailwind を @import しているので、生のまま読み込んでも
- * ユーティリティクラスが解決しない。**ビルド済みのCSSバンドル**を読む。
- *   npm run build   # → .output/public/assets/styles-*.css
+ * ## **本物のコンポーネントを描く**
+ * 以前この検査は棚のHTMLを手書きで複製していた。つまり
+ * **コンポーネントを直しても画像は変わらない** — 検査が合格しても、
+ * 実物が同じように描かれている保証がどこにも無かった(独立監査の指摘)。
+ * 実際、空の棚の実レイアウトは一度も写っていなかった。
+ *
+ * いまは `scripts/shelf-harness/` を Vite で組み、本物の `DexShelf` と
+ * 本物の `styles.css` を読み込んだページを Playwright で開く。
+ * 場面はURLの検索文字列で切り替える。
  *
  * ## 使い方
- *   npm run build && node scripts/shelf-preview.mjs
- *   → /tmp/shelf-preview/shelf-{light,dark,darkroom,contrast,
- *      contrast-dark,contrast-darkroom}.png と、判定結果(終了コード)
+ *   node scripts/shelf-preview.mjs
+ *   → /tmp/shelf-preview/shelf-*.png と、判定結果(終了コード)
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 
 const OUT = process.env.SHELF_OUT || "/tmp/shelf-preview";
-const cssFile = fs
-  .readdirSync(".output/public/assets")
-  .find((f) => f.startsWith("styles-") && f.endsWith(".css"));
-if (!cssFile) {
-  console.error("ビルド済みCSSが無い。先に `npm run build` を実行すること。");
+const HARNESS_DIR = path.resolve("scripts/shelf-harness");
+const HARNESS_OUT = path.resolve(".shelf-harness");
+
+// **毎回組み直す。** 古い成果物を使うと、また「直したのに画像が変わらない」
+// に戻る(それを潰すための作り替えなので、ここで手を抜くと意味がない)。
+try {
+  execFileSync("npx", ["vite", "build", "--config", path.join(HARNESS_DIR, "vite.config.ts")], {
+    // 失敗した理由をそのまま出す。`pipe` で握り潰していたので、
+    // 組み立てが壊れても `Command failed` としか出ず、下の親切な
+    // メッセージにも到達していなかった。
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+} catch {
+  console.error("ハーネスを組めなかった(上の vite の出力を見る)。");
   process.exit(1);
 }
-const CSS = fs.readFileSync(path.join(".output/public/assets", cssFile), "utf8");
+if (!fs.existsSync(path.join(HARNESS_OUT, "index.html"))) {
+  console.error("ハーネスを組めなかった。");
+  process.exit(1);
+}
+// **file:// ではなく http で出す。**
+// file:// で連続して開くと、5枚目あたりから CSS が付かないまま描かれて
+// トークンが空になった(--shelf-shadow が空文字で返る)。原因を追うより、
+// 本物と同じ経路(http)で出すほうが確実で、実物にも近い。
+const server = http.createServer((req, res) => {
+  const rel = decodeURIComponent((req.url ?? "/").split("?")[0]);
+  const file = path.join(HARNESS_OUT, rel === "/" ? "index.html" : rel);
+  if (!file.startsWith(HARNESS_OUT) || !fs.existsSync(file)) {
+    res.writeHead(404).end();
+    return;
+  }
+  const type = file.endsWith(".css")
+    ? "text/css"
+    : file.endsWith(".js")
+      ? "text/javascript"
+      : file.endsWith(".html")
+        ? "text/html"
+        : "application/octet-stream";
+  res.writeHead(200, { "content-type": type });
+  fs.createReadStream(file).pipe(res);
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const BASE = `http://127.0.0.1:${server.address().port}/index.html`;
 
-/**
- * 棚に立つモノ。**本物と同じ経路で描く**ことが肝心 —
- * `<img>` + `object-contain` + `.shelf-item img` の max-height を通す。
- * 最初これを `<span>` の高さ指定で代用したら max-height の制約を迂回して
- * しまい、実物よりずっと大きく描かれた雛形を見て「大きすぎる」と誤判断した。
- * 縦横比を変えることで、実際の切り抜きと同じ高さのばらつきが出る。
- */
-const svg = (w, h, color) =>
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" rx="4" fill="${color}"/></svg>`,
-  );
-
-const ITEMS = [
-  ["芒果", svg(100, 88, "#f5a623"), "cutout"],
-  ["捷運", svg(70, 120, "#4a90d9"), "cutout"],
-  ["珍珠奶茶", svg(120, 62, "#b07a4a"), "framed"],
-  ["夜市", svg(96, 96, "#d0483c"), "cutout"],
-  ["腳踏車", null, "none"],
-  ["雨傘", null, "pending"],
-];
-
-const PER = 3;
-
-/**
- * モノ1つ。**3つの見え方すべて**を出す — 実物には
- *   ① 切り抜き ② 切り抜きが無く写真を額に入れたもの ③ 画像がまだ無いもの
- * があるのに、以前は①しか描いておらず、②③の不具合(額の中で写真が浮く、
- * 単語が枠の上端に張り付く)を一度も見られていなかった。
- * `pending` は CachedImg が署名URLを解決する前に出す**大きさの無い span**。
- * これで高さが動かないことを確かめる。
- */
-/** 背表紙の色。src/lib/shelf-prefs.ts の spineColor と同じ式。 */
-const spineColor = (w) => {
-  let h = 0;
-  for (let i = 0; i < w.length; i++) h = (h * 31 + w.charCodeAt(i)) >>> 0;
-  return `hsl(${h % 360} 42% 26%)`;
-};
-
-const shelfItem =
-  (spines) =>
-  ([word, src, kind = "cutout"]) => {
-    if (spines) {
-      return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant"><span class="shelf-spine" style="background-color:${spineColor(word)}"><span class="text-white">${word}</span></span></button>`;
-    }
-    const inner =
-      kind === "framed"
-        ? `<img class="shelf-stand shelf-framed" src="${src}" alt="">`
-        : kind === "none"
-          ? `<span class="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground">${word}</span>`
-          : kind === "pending"
-            ? `<span class="shelf-stand" aria-hidden="true"></span>`
-            : `<img class="shelf-stand" src="${src}" alt="">`;
-    return `<button class="shelf-item" aria-label="${word}" lang="zh-Hant">${inner}</button>`;
-  };
-
-/** 1段 = [モノの行] → [棚板] → [題名の行]。列は棚板の上下で揃える。 */
-const tier = (items, per, spines) => `
-  <div>
-    <div class="shelf-row ${spines ? "shelf-row-tight" : ""}" style="grid-template-columns:repeat(${per},minmax(0,1fr))">
-      ${items.map(shelfItem(spines)).join("")}
-    </div>
-    <div class="shelf-rule"></div>
-    ${
-      spines
-        ? ""
-        : `<div class="grid gap-3 pt-1.5" style="grid-template-columns:repeat(${per},minmax(0,1fr))">
-      ${items.map(([w]) => `<span lang="zh-Hant" class="truncate text-center text-[12px] font-medium leading-tight">${w}</span>`).join("")}
-    </div>`
-    }
-  </div>`;
-
-/** 1棚 = 名前 + N個ずつに折り返した段。 */
-const shelf = (label, emoji, items, per, spines) => {
-  const tiers = [];
-  for (let i = 0; i < items.length; i += per) tiers.push(items.slice(i, i + per));
-  return `
-  <div>
-    <div class="mb-1.5 flex items-baseline gap-1.5 px-0.5">
-      <span class="text-sm leading-none">${emoji}</span>
-      <span class="text-[13px] font-semibold">${label}</span>
-      <span class="text-[11px] text-muted-foreground">${items.length}</span>
-    </div>
-    ${tiers.map((t, i) => `<div class="${i > 0 ? "mt-3" : ""}">${tier(t, per, spines)}</div>`).join("")}
-  </div>`;
-};
-
-const room = (name, shelves) => `
-  <section>
-    <h3 class="sticky top-0 z-10 -mx-4 mb-1 bg-background/85 px-4 py-1.5 text-[13px] font-semibold tracking-[0.04em] text-muted-foreground backdrop-blur-sm">${name}</h3>
-    <div class="space-y-6">${shelves}</div>
-  </section>`;
-
-/** 素材と密度は本物と同じ場所で切り替える(素材は棚の入れ物に付く属性)。 */
-const body = ({ material = "none", spines = false, per = PER } = {}) => {
-  const many = spines ? [...ITEMS, ...ITEMS.slice(0, 4)] : ITEMS;
-  return `
-<div class="min-h-screen bg-background px-4 py-4">
-  <div class="space-y-8" data-shelf-material="${material}">
-    ${room("食べる", shelf("果物", "🍎", many, per, spines) + shelf("飲み物", "🥤", ITEMS.slice(0, 4), per, spines))}
-    ${room("街", shelf("交通", "🚆", ITEMS.slice(1, 4), per, spines))}
-    ${room("しるし", `<p class="pt-2 text-[11px] text-muted-foreground">まだ空</p>`)}
-  </div>
-</div>`;
-};
+/** ハーネスの場面をURLの検索文字列で表す。 */
+const sceneUrl = (base, { material = "none", density = "three", count = 8 } = {}) =>
+  `${base}?material=${material}&density=${density}&count=${count}`;
 
 /**
  * 見る面の一覧: [名前, `<html>` に付ける属性, 高コントラストか]。
@@ -155,19 +94,42 @@ const MODES = [
   ["contrast-darkroom", 'data-ui-theme="darkroom"', true, {}],
   // 素材と密度。**選べるようにしたものは全部見る** — 選択肢を足しただけで
   // 見ていない組み合わせがあるなら、それは足していないのと同じ。
+  // 素材は**明るい面と暗い面の両方**で見る。片方ずつしか見ていなかったので、
+  // 「暗い面のウォルナットが背景に沈む」「明るい面のガラスが消える」を
+  // どちらも取りこぼしていた(実測 1.69:1 と 1.47:1)。
   ["oak", "", false, { material: "oak" }],
+  ["oak-dark", 'class="dark"', false, { material: "oak" }],
+  ["walnut", "", false, { material: "walnut" }],
   ["walnut-dark", 'class="dark"', false, { material: "walnut" }],
+  ["obsidian", "", false, { material: "obsidian" }],
   ["obsidian-dark", 'class="dark"', false, { material: "obsidian" }],
   ["concrete", "", false, { material: "concrete" }],
+  ["concrete-dark", 'class="dark"', false, { material: "concrete" }],
   ["glass", "", false, { material: "glass" }],
-  ["den2", "", false, { per: 2 }],
-  ["den4", "", false, { per: 4 }],
-  ["spines", "", false, { spines: true, per: 6 }],
-  ["spines-oak-dark", 'class="dark"', false, { spines: true, per: 6, material: "oak" }],
+  ["glass-dark", 'class="dark"', false, { material: "glass" }],
+  ["den2", "", false, { density: "two" }],
+  ["den4", "", false, { density: "four" }],
+  ["spines", "", false, { density: "spines" }],
+  ["spines-oak-dark", 'class="dark"', false, { density: "spines", material: "oak" }],
+  // **何も集めていない人の図鑑。** ここを撮っていなかったせいで、
+  // 「54棚が全部空で数画面ぶん流れる」に気づけなかった。
+  ["empty-light", "", false, { count: 0 }],
+  ["empty-dark", 'class="dark"', false, { count: 0 }],
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
-const CONTRAST_LINE_A = 0.5;
+const CONTRAST_LINE_A = 0.65;
+
+/**
+ * 棚板が背景に対して確保すべきコントラスト比。
+ *
+ * 意味を持つUIの図形の下限(WCAG 1.4.11 / apple-design §2)。
+ * ここを**濃さの数字(0.15以上)でしか見ていなかった**のが穴だった。
+ * 0.22 は「0.15以上」を満たしているが、実測は 1.55:1 で、
+ * 独立監査に「棚ではなく、キャプション付きの写真の羅列に見える」と
+ * 言われるまで気づかなかった。**単位の無い数字ではなく、比で見る。**
+ */
+const LINE_MIN_RATIO = 3;
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -183,14 +145,19 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     forcedColors: "none",
     ...(wantsContrast ? { contrast: "more" } : {}),
   });
-  await page.setContent(
-    `<!doctype html><meta charset="utf-8"><html ${htmlAttrs}><style>${CSS}</style><body>${body(scene)}</body></html>`,
-    { waitUntil: "load" },
-  );
-  await page.waitForTimeout(300);
+  await page.goto(sceneUrl(BASE, scene), { waitUntil: "load" });
+  // `<html>` の属性(テーマ)は開いてから付ける。
+  if (htmlAttrs) {
+    await page.evaluate((attrs) => {
+      const el = document.documentElement;
+      const m = attrs.match(/(\w[\w-]*)="([^"]*)"/);
+      if (m) el.setAttribute(m[1], m[2]);
+    }, htmlAttrs);
+  }
+  await page.waitForTimeout(400);
 
   const found = await page.evaluate(
-    ({ wantsContrast, CONTRAST_LINE_A }) => {
+    ({ wantsContrast, CONTRAST_LINE_A, LINE_MIN_RATIO }) => {
       const out = [];
       const lum = (r, g, b) => {
         const f = (c) => {
@@ -199,24 +166,58 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         };
         return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
       };
-      const parse = (s) => {
-        const m = s.match(/rgba?\(([^)]+)\)/);
-        if (!m) return null;
-        const p = m[1]
-          .split(/[,\s/]+/)
-          .filter(Boolean)
-          .map(Number);
-        return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+      // ## 色は**ブラウザに解かせる**。自分で文字列を読まない。
+      //
+      // ここに長く穴が空いていた。以前は `rgba?(…)` の正規表現で読んでいたが、
+      // このアプリの色は全部 oklch で書いてあり、Chrome は計算値も
+      // `oklch(…)` のまま返す。つまり**一致するものが一つも無かった** —
+      // 文字色は毎回 null で捨てられ(=文字のコントラスト検査は17面すべてで
+      // 1つも見ていない)、背景は毎回「白」の代替値に落ちていた。
+      // 全部が黒文字・白背景として 21:1 で通っていた。
+      //
+      // canvas に実際に塗らせて読み返せば、oklch でも color-mix でも
+      // 色空間に関係なく正しい RGB が出る。白の上と黒の上に塗って
+      // 差から不透明度も割り出す。
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const paint = (s, base) => {
+        ctx.globalCompositeOperation = "copy";
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = s;
+        ctx.fillRect(0, 0, 1, 1);
+        return ctx.getImageData(0, 0, 1, 1).data;
       };
+      const parse = (s) => {
+        if (!s) return null;
+        const w = paint(s, "#fff");
+        const b = paint(s, "#000");
+        const a = 1 - (w[0] - b[0]) / 255;
+        if (a <= 0.001) return { r: 0, g: 0, b: 0, a: 0 };
+        return { r: b[0] / a, g: b[1] / a, b: b[2] / a, a };
+      };
+      const over = (top, bottom) => ({
+        r: top.r * top.a + bottom.r * (1 - top.a),
+        g: top.g * top.a + bottom.g * (1 - top.a),
+        b: top.b * top.a + bottom.b * (1 - top.a),
+        a: 1,
+      });
+      // 半透明を**重ねて解く**。以前は「不透明度0.85以上のものが出るまで
+      // 遡る」だったので、半透明の面(バーやシート)の上の文字は
+      // その下の色で採点していた。
       const bgOf = (el) => {
-        let n = el;
-        while (n && n !== document.documentElement) {
+        const stack = [];
+        for (let n = el; n; n = n.parentElement) {
           const c = parse(getComputedStyle(n).backgroundColor);
-          if (c && c.a > 0.85) return c;
-          n = n.parentElement;
+          if (!c || c.a <= 0.001) continue;
+          stack.push(c);
+          if (c.a >= 0.999) break;
         }
-        const c = parse(getComputedStyle(document.body).backgroundColor);
-        return c && c.a > 0.85 ? c : { r: 255, g: 255, b: 255 };
+        let acc = { r: 255, g: 255, b: 255, a: 1 };
+        for (let i = stack.length - 1; i >= 0; i--) acc = over(stack[i], acc);
+        return acc;
       };
 
       // 1. コントラスト
@@ -264,15 +265,11 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       }
       // 5〜6. 棚板の濃さと、影が黒側であること。
       //
-      // ここは**トークンを直接見る**。計算後の色を読もうとしたら、Chrome は
-      // color-mix を oklab(…) で返し、rgba を期待した正規表現が全部素通しに
-      // なった(全モードで「見えない」と誤判定した)。色空間の表現に依存しない
-      // 形で、実際に踏んだ不具合そのものを条件にする:
-      //   - 棚板を 8% で引いて明るい背景で消えた → 下限を決める
-      //   - 影を --foreground で作ってダークで白く光った → 黒軸に固定する
+      // 棚板そのもののコントラストは**撮った絵の画素で測る**(下の別の段)。
+      // 板は繰り返しグラデーションで描いてあるので、計算値の色を読んでも
+      // 出てこない。ここに残すのはトークンで言えることだけ。
       const root = getComputedStyle(document.documentElement);
       const lineA = parseFloat(root.getPropertyValue("--shelf-line-a"));
-      if (!(lineA >= 0.15)) out.push(`棚板が薄すぎる: --shelf-line-a=${lineA}`);
       // 高コントラストを頼んだのに濃くならない面が無いこと。
       // `:root, .dark` にだけ書いた上書きは `:root[data-ui-theme="…"]` に
       // 詳細度で負ける = 頼んだ人にだけ届かない、という形で落ちる。
@@ -294,14 +291,182 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       }
       return out;
     },
-    { wantsContrast, CONTRAST_LINE_A },
+    { wantsContrast, CONTRAST_LINE_A, LINE_MIN_RATIO },
   );
 
   found.forEach((f) => issues.push(`[${name}] ${f}`));
+
+  // ## 棚板の濃さは**撮った絵の画素で測る**
+  //
+  // 板は `repeating-linear-gradient` と `color-mix` で描いてあり、影と
+  // 内側の縁も乗る。計算値の色をいくら読んでも、**目に入る色はそこに無い**。
+  // 以前ここは `--shelf-line-a` を背景に手で混ぜて比を出していた —
+  // つまり CSS が実際にどう描いたかを一度も見ずに、自分の暗算を検査していた。
+  // 板の少し上(背景)と板そのものを細長く撮って、画素の明るさで比を出す。
+  // 比べる相手(背景)は**画素ではなく DOM から**取る。板の上には
+  // たいてい品物が立っていて、板のすぐ上の画素は「背景」ではなく写真だから。
+  // 知りたいのは「板が地の面から浮き上がって見えるか」なので、
+  // 板の実際の色(画素)と、地の面の色(計算値)を比べるのが正しい。
+  const strip = await page.evaluate(() => {
+    const vis = [...document.querySelectorAll(".shelf-rule")].filter((r) => {
+      const b = r.getBoundingClientRect();
+      return b.width > 60 && b.top > 90 && b.bottom < window.innerHeight - 20;
+    });
+    if (!vis.length) return null;
+    const el = vis[Math.floor(vis.length / 2)];
+    const b = el.getBoundingClientRect();
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 1;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const paint = (s, base) => {
+      ctx.globalCompositeOperation = "copy";
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, 1, 1);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = s;
+      ctx.fillRect(0, 0, 1, 1);
+      return ctx.getImageData(0, 0, 1, 1).data;
+    };
+    let bg = [255, 255, 255];
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const c = getComputedStyle(n).backgroundColor;
+      const w = paint(c, "#fff");
+      const k = paint(c, "#000");
+      if (1 - (w[0] - k[0]) / 255 >= 0.999) {
+        bg = [w[0], w[1], w[2]];
+        break;
+      }
+    }
+    return {
+      clip: {
+        x: Math.round(b.x + b.width / 2) - 2,
+        y: Math.round(b.y),
+        width: 4,
+        height: Math.max(2, Math.round(b.height)),
+      },
+      bg,
+    };
+  });
+  // 何も集めていない図鑑には棚板が1本も無い(全部畳まれている)ので、
+  // 「測れなかった」ではなく「測るものが無い」。DOM に在るのに測れない
+  // ときだけ落とす。
+  if (!strip) {
+    if (await page.evaluate(() => document.querySelector(".shelf-rule") !== null)) {
+      issues.push(`[${name}] 棚板が画面の中に1本も無い(測れていない)`);
+    }
+  } else {
+    const shot = await page.screenshot({ clip: strip.clip });
+    const lineRatio = await page.evaluate(
+      ({ dataUrl, bg }) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement("canvas");
+            c.width = img.width;
+            c.height = img.height;
+            const x = c.getContext("2d", { willReadFrequently: true });
+            x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, c.width, c.height).data;
+            const lumOf = (r, g, b) => {
+              const f = (v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+              };
+              return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+            };
+            const bgLum = lumOf(bg[0], bg[1], bg[2]);
+            // 板の中で**地の面からいちばん離れた行**を代表とする。
+            // 板は上下にグラデーションが掛かっているので、上端だけ・
+            // 平均だけを見ると「濃いところがある」ことを取りこぼす。
+            let best = bgLum;
+            for (let y = 0; y < c.height; y++) {
+              let r = 0,
+                g = 0,
+                b = 0;
+              for (let px = 0; px < c.width; px++) {
+                const i = (y * c.width + px) * 4;
+                r += d[i];
+                g += d[i + 1];
+                b += d[i + 2];
+              }
+              const l = lumOf(r / c.width, g / c.width, b / c.width);
+              if (Math.abs(l - bgLum) > Math.abs(best - bgLum)) best = l;
+            }
+            resolve((Math.max(bgLum, best) + 0.05) / (Math.min(bgLum, best) + 0.05));
+          };
+          img.src = dataUrl;
+        }),
+      { dataUrl: "data:image/png;base64," + shot.toString("base64"), bg: strip.bg },
+    );
+    // 調整するときは数字が要る。`SHELF_VERBOSE=1` で全部出す。
+    if (process.env.SHELF_VERBOSE) console.log(`  ${name}: 棚板 ${lineRatio.toFixed(2)}:1`);
+    if (lineRatio < LINE_MIN_RATIO) {
+      issues.push(
+        `[${name}] 棚板のコントラストが実測 ${lineRatio.toFixed(2)}:1 < ${LINE_MIN_RATIO}`,
+      );
+    }
+  }
+
+  // ## 部屋見出しの止まる位置
+  //
+  // 見出しは `top: var(--app-header-h)` の sticky。**上のバーの高さと
+  // ここが食い違うと、静かに壊れる**:
+  //   ・高すぎる → まだ流れの中にいる見出しが下にずれ、自分の中身に重なる
+  //     (実際に起きた。一番上の「空いている棚」が見出しの下敷きで消えた)
+  //   ・低すぎる → 止まった見出しが半透明のバーの裏に潜り、上端がぼやける
+  //     (実際に起きた。3.25rem 決め打ちで、バーは 3.5rem だった)
+  // どちらも画像を見ても「なんとなく変」で終わる。数字で見る。
+  const stick = await page.evaluate(async () => {
+    const out = [];
+    const bar = document.querySelector("header");
+    if (!bar) return ["上のバーが無い(ハーネスが実物と違う)"];
+    // バーが本当に貼り付いているか。ここが relative だと、下の
+    // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
+    if (getComputedStyle(bar).position !== "sticky") {
+      out.push(`上のバーが sticky ではない(${getComputedStyle(bar).position})`);
+    }
+    const barH = bar.getBoundingClientRect().height;
+    const measure = () => {
+      for (const head of document.querySelectorAll(".room-head")) {
+        const stickyTop = parseFloat(getComputedStyle(head).top);
+        if (Math.abs(stickyTop - barH) > 0.5) {
+          out.push(`部屋見出しの止まる位置 ${stickyTop}px がバーの高さ ${barH}px と違う`);
+        }
+        const h = head.getBoundingClientRect();
+        const sec = head.parentElement.getBoundingClientRect();
+        // sticky の3つの局面をまとめて1つの式で言う:
+        //   ① まだ流れの中 → 部屋の上端にいる
+        //   ② 止まっている → バーの下端にいる
+        //   ③ 部屋が出ていく → 部屋の下端に押し上げられる
+        // どれでもない位置にいるなら、中身に重なっているか裏に潜っている。
+        // ③ は**マージン箱**で押し上がるので、下マージンぶん引く。
+        const mb = parseFloat(getComputedStyle(head).marginBottom) || 0;
+        const want = Math.min(Math.max(sec.top, stickyTop), sec.bottom - h.height - mb);
+        if (Math.abs(h.top - want) > 1) {
+          out.push(
+            `部屋見出し「${head.textContent}」の位置がおかしい ` +
+              `(${h.top.toFixed(1)} ≠ ${want.toFixed(1)}: ` +
+              `部屋 ${sec.top.toFixed(1)}〜${sec.bottom.toFixed(1)} / 止まる位置 ${stickyTop})`,
+          );
+        }
+      }
+    };
+    measure();
+    // 止まった状態も見る。スクロール前だけだと「潜る」側を一度も踏まない。
+    window.scrollTo(0, 400);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    measure();
+    window.scrollTo(0, 0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return [...new Set(out)];
+  });
+  stick.forEach((f) => issues.push(`[${name}] ${f}`));
+
   await page.screenshot({ path: path.join(OUT, `shelf-${name}.png`), fullPage: true });
   await page.close();
 }
 await browser.close();
+server.close();
 
 if (issues.length) {
   console.error(`不合格 ${issues.length}件:`);

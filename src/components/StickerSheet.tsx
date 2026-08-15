@@ -31,6 +31,7 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { useT, useUiLang } from "@/lib/i18n";
+import { LoadFailed } from "@/components/LoadFailed";
 
 type Props = {
   stickerId: string | null;
@@ -62,6 +63,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     data: s,
     isLoading,
     isError,
+    isFetching,
+    refetch,
   } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
@@ -73,6 +76,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     queryFn: () => fetchProfile(),
     staleTime: 60_000,
   });
+  /**
+   * いま何かの写真が載っているか(= 差し替えると失われるものがあるか)。
+   *
+   * 「自分で撮ったものか」までは分からない。ネット画像を採用すると
+   * それも `object_image_url` に入るので、DBの上では区別が付かない
+   * (区別するには列を1つ足す必要があり、いまは流せない)。
+   * だから**文面で断定しない** — 「あなたが撮った写真」とは言わず、
+   * 「いまの写真」と言う。仮画像しか無いゴーストのときは訊かない。
+   */
+  const hasPhoto = !!(s?.object_url || s?.cutout_url);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
@@ -192,6 +205,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
   async function applyWebImage(url: string) {
     if (!stickerId) return;
+    // **必ず訊く。**
+    //
+    // このタイルは全面が透明なボタンで、参考画像を眺めているだけの指が
+    // 当たっただけで自分の写真が他人の写真に差し替わっていた。
+    // 取り消しも無い。写真の長押しには確認があるのに、こちらだけ
+    // 素通しだった — 同じ破壊操作の入口で守りが揃っていなかった。
+    if (hasPhoto && !window.confirm(t("card.replacePhotoConfirm"))) return;
     try {
       const { dataUrl } = await fetchImageFn({ data: { url } });
       const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
@@ -364,6 +384,37 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // という発音のコツは、韓国語話者にはそのまま当てはまらない。
     const wrongL1 = !!ex && (ex.explain_l1 || "ja") !== nativeLang;
     if (!isEmpty && !missingNewFields && !wrongLanguage && !wrongL1) return;
+    /**
+     * 共有されている列を書き換えていいのは、**本当に欠けているときだけ**。
+     *
+     * `words` は `(language, headword)` で共有される表で、同じ語を持つ
+     * 他のユーザーとも同じ行を見ている。表示言語を切り替えただけで
+     * `meaning_ja` / `example_sentence` / `reading_zhuyin` まで送っていたので、
+     * **設定を触っただけで保存済みの意味が書き換わり、4択の選択肢も
+     * 揺れていた**(独立監査の指摘)。しかも他人のカードごと。
+     *
+     * 解説(`extras`)は `explain_lang` の印が付いていて、言語が違えば
+     * 各自が開いたときに作り直される = 自己修復する。だから言語切替の
+     * ときは**解説だけ**を入れ替え、共有の列には触らない。
+     *
+     * 根本的には「解説の言語」がユーザーごとの持ち物なのに共有の行に
+     * 載っているのが問題で、そこを直すには列を足す必要がある(いま流せない)。
+     * docs/ に残すべき宿題。
+     */
+    // **共有列を書きに行くかどうかは、共有列そのものを見て決める。**
+    //
+    // ここを二度間違えている。最初は「言語が変わっただけか」を解説の
+    // 量(`isEmpty`)で判断していた — 解説と共有列は別物なので、
+    // 辞書由来で解説が空のカードは、表示言語を切り替えただけでも
+    // 共有列に書きに行っていた(同じ語を持つ他人のカードごと書き換わる)。
+    // 「言語が変わっただけか」を正確にしても直らない。**知りたいのは
+    // 共有列が実際に欠けているかどうか**で、それは共有列を見れば分かる。
+    const sharedMissing = ![
+      s.word.meaning_ja,
+      s.word.pinyin,
+      s.word.reading_zhuyin,
+      s.word.example_sentence,
+    ].every(filled);
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
@@ -379,15 +430,17 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           data: {
             word_id: s.word_id,
             extras: card.extras,
-            patch: {
-              reading_zhuyin: card.reading_zhuyin,
-              pinyin: card.pinyin,
-              part_of_speech: card.part_of_speech,
-              level: card.level,
-              example_sentence: card.example_sentence,
-              example_translation: card.example_translation,
-              meaning_ja: card.meaning_ja,
-            },
+            patch: !sharedMissing
+              ? undefined
+              : {
+                  reading_zhuyin: card.reading_zhuyin,
+                  pinyin: card.pinyin,
+                  part_of_speech: card.part_of_speech,
+                  level: card.level,
+                  example_sentence: card.example_sentence,
+                  example_translation: card.example_translation,
+                  meaning_ja: card.meaning_ja,
+                },
           },
         });
         await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
@@ -526,11 +579,24 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <div className="grid h-64 place-items-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : isError || !s ? (
-          // Settled with no sticker (deleted elsewhere, not permitted, or a load
-          // error) — show a real message instead of spinning forever.
+        ) : isError ? (
+          // **通信の失敗を「見つかりません」と言わない。**
+          //
+          // ユーザーはそれを「消えた」と受け取り、自分の記録が失われたと
+          // 思う。やり直せば戻るものは、やり直せると言う(§8)。
+          // 同じデータを開く dex.$stickerId ではすでにこう直してあったのに、
+          // ホーム・図鑑からカードを開く**主経路であるこのシート**だけが
+          // 残っていた(独立監査の指摘)。
+          <div className="px-2 py-4">
+            <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+          </div>
+        ) : !s ? (
+          // 本当に無い(消された・権限が無い)。
           <div className="grid h-64 place-items-center px-6 text-center">
-            <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+            <div>
+              <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("card.notFoundHint")}</p>
+            </div>
           </div>
         ) : (
           <>
@@ -614,6 +680,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      // 長押しには確認があるのに、常時見えているこちらだけ
+                      // 素通しだった。押しやすいほうが無防備なのは逆。
+                      if (hasPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
                       fileInputRef.current?.click();
                     }}
                     aria-label={t("card.changePhoto")}

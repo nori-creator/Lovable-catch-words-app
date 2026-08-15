@@ -41,6 +41,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { readableError } from "@/lib/errors";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
@@ -485,7 +486,14 @@ function ScanPage() {
         setEntries(entries);
       }
     } catch (e) {
-      setError((e as Error).message || t("scan.detectFailed"));
+      // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
+      // 使っている人には何も分からないし、対処もできない。
+      // ただし**こちらが日本語で投げたメッセージは通す** — 「1日の利用
+      // 上限に達しました」のような、理由も対処も分かるものまで
+      // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
+      // 押し続けることになる(監査の指摘)。
+      console.error(e);
+      setError(readableError(e, t("scan.detectFailed")));
       haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
@@ -671,7 +679,8 @@ function ScanPage() {
           }
         }
       } catch (e) {
-        setError((e as Error).message || t("scan.detailFailed"));
+        console.error(e);
+        setError(readableError(e, t("scan.detailFailed")));
       } finally {
         setExpandingId(null);
       }

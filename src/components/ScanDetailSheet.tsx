@@ -87,7 +87,11 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
           />
         )}
         <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          {dict ? t("detail.verified") : t("detail.aiOnly")} ·{" "}
+          {/* 「検証済み」と言えるのは辞書の出所が verified のときだけ。
+              `dict` が有るかどうかで言っていたので、同じ語が**このシートでは
+              検証済み、次のシートではAI生成**と1タップの間に食い違っていた
+              (ScanCatchSheet 側は既に source を見ている)。 */}
+          {dict?.source === "verified" ? t("detail.verified") : t("detail.aiOnly")} ·{" "}
           {t("detail.score", { v: item.confidence.toFixed(2) })}
         </p>
       </div>

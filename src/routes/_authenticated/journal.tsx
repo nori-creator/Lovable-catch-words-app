@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { draftKeyFor, readLeftoverDrafts } from "@/lib/journal-drafts";
 
 export const Route = createFileRoute("/_authenticated/journal")({
   head: () => ({
@@ -46,6 +47,53 @@ function JournalPage() {
   const past = (entries ?? []).filter((e) => e.entry_date !== today);
 
   const [draft, setDraft] = useState("");
+  const [savedLocally, setSavedLocally] = useState(false);
+  /** 日をまたいで残った書きかけ(拾えるように出す)。 */
+  const [leftover, setLeftover] = useState<{ date: string; text: string } | null>(null);
+
+  /**
+   * 書いたものを端末に即保存する。
+   *
+   * ## なぜ要るか
+   * この画面には「保存」が無い。書いた文章が DB に入るのは、AIの添削が
+   * **成功した後**の upsert だけ。しかも添削には1日の上限があるので、
+   * 上限に達していると保存に到達する道が1本も無い。
+   *
+   * つまり: 300字書いて「添削してもらう」を押す → 「上限に達しました」
+   * → 画面を離れた瞬間、書いた文章は消える。**自分で書いた文章は写真の
+   * 次に取り返しがつかない**のに、置き場所がどこにも無かった。
+   *
+   * サーバーに届く前に、まず手元に置く。
+   */
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    const saved = localStorage.getItem(draftKeyFor(today));
+    if (saved && !draft) {
+      setDraft(saved);
+      setSavedLocally(true);
+    }
+    // 古い書きかけは掃除しつつ、いちばん新しいものだけ拾えるようにする。
+    // **自動では入れない** — 勝手に入れると、日付で鍵を分けた意味が消える。
+    setLeftover(readLeftoverDrafts(today)[0] ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    const id = setTimeout(() => {
+      try {
+        if (draft.trim()) {
+          localStorage.setItem(draftKeyFor(today), draft);
+          setSavedLocally(true);
+        } else {
+          localStorage.removeItem(draftKeyFor(today));
+          setSavedLocally(false);
+        }
+      } catch {
+        /* 書けない端末もある。保存できないだけで、書くことは止めない。 */
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [draft]);
   // 保存済みの下書きを一度だけ流し込む。draft を依存に入れると入力の
   // 一文字ごとに再実行され、「書きかけを上書きしない」という意図が壊れる
   // (todayEntry が更新されたときだけ、空なら埋めるのが正しい挙動)。
@@ -58,6 +106,13 @@ function JournalPage() {
     mutationFn: () => correct({ data: { draft } }),
     onSuccess: () => {
       toast.success(t("journal.done"));
+      // サーバーに入ったので端末の控えは要らない。
+      try {
+        localStorage.removeItem(draftKeyFor(today));
+      } catch {
+        /* ignore */
+      }
+      setSavedLocally(false);
       qc.invalidateQueries({ queryKey: ["journal"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("journal.failed")),
@@ -85,12 +140,34 @@ function JournalPage() {
           </p>
         )}
 
+        {/* 日をまたいだ書きかけ。**自分で押したときだけ**入れる。
+            添削の上限に当たった日の文章は、翌日ここからしか戻せない。 */}
+        {leftover && !draft.trim() && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-secondary px-3 py-2">
+            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {t("journal.leftover", { d: leftover.date, s: leftover.text.slice(0, 24) })}
+            </p>
+            <button
+              onClick={() => {
+                setDraft(leftover.text);
+                setLeftover(null);
+              }}
+              className="min-h-11 shrink-0 rounded-full px-3 text-xs font-semibold text-primary"
+            >
+              {t("journal.leftoverRestore")}
+            </button>
+          </div>
+        )}
+
         <Textarea
           rows={6}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t("journal.placeholder")}
         />
+        {savedLocally && (
+          <p className="text-[11px] text-muted-foreground">{t("journal.keptOnDevice")}</p>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <button

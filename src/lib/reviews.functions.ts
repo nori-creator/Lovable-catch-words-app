@@ -248,6 +248,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         .eq("user_id", userId)
         .gte("reviewed_at", since);
       remaining = Math.max(0, dailyLimit - (count ?? 0));
+      // 上限に当たったときも空配列を返す。**画面側は「今日の分は終わり」と
+      // 「そもそも出る語が無い」を区別できないので**、下の
+      // `getReviewCapState` で別途聞けるようにしてある(§8)。
       if (remaining === 0) return [];
     }
     // 1回のフェッチは最大10枚のまま(体感の軽さ)。残り枚数がそれ未満なら絞る。
@@ -622,6 +625,46 @@ const GradeInput = z.object({
   /** Convenience flag: same as result="hint" (a lapse, score 2). */
   hint_used: z.boolean().default(false),
 });
+
+/**
+ * 今日の復習が「上限で止まっている」のか「もう出る語が無い」のかを返す。
+ *
+ * ## なぜ要るか
+ * `listDueReviews` はどちらの場合も空配列を返す。画面はそれを見て
+ * 「今日復習する単語はありません」と出していた — 期限切れが180枚
+ * 溜まっていても同じ文面で、**上限に当たったとは一言も書かれず、
+ * 上限を上げる導線も無い**。
+ *
+ * 図鑑では「全N件のうち…まだ出せていません」と正直に書いているのに、
+ * 復習だけが「無い」と言っていた。同じアプリの中で基準が食い違う。
+ *
+ * 一覧が空だったときにだけ聞けばいいので、別の関数にしてある。
+ */
+export const getReviewCapState = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { limit: dailyLimit } = await getReviewPrefs(supabase, userId);
+    if (dailyLimit <= 0) return { capped: false, limit: 0, doneToday: 0 };
+    const { count } = await supabase
+      .from("review_history")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("reviewed_at", startOfLocalDayIso());
+    const doneToday = count ?? 0;
+    if (doneToday < dailyLimit) return { capped: false, limit: dailyLimit, doneToday };
+
+    // **枚数を使い切っただけでは「まだ残っている」と言えない。**
+    // ちょうど期限切れのぶんを全部やり終えた人に「まだ待っている語が
+    // あります。上限を上げましょう」と言うと、上げたのに1枚も出てこない。
+    // 本当に出せる語があるかを確かめてから言う。
+    const { count: dueCount } = await supabase
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .lte("due_at", new Date().toISOString());
+    return { capped: (dueCount ?? 0) > 0, limit: dailyLimit, doneToday };
+  });
 
 export const gradeReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
