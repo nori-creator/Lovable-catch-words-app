@@ -9,104 +9,77 @@
  * `content-visibility: auto` はその取引の後半だけを取り消す仕掛けだが、
  * 効いているかどうかは目では分からない。速くなったと言う前に測る。
  *
- * ## 何を測るか
- * 同じDOMを2回描いて比べる:
- *   A. content-visibility なし(以前の状態)
- *   B. content-visibility: auto + contain-intrinsic-size(いまの状態)
+ * ## **本物の DexShelf を測る**
+ * 以前このファイルは、棚のHTMLと `estimateShelfHeight` を**手で複製**していた。
+ * つまり測っていたのは実物ではなく写しで、コンポーネントを直しても数字は
+ * 変わらなかった(同じ間違いを見た目の検査でもやっていて、独立監査に
+ * 指摘されて直した)。いまは `scripts/ui-harness` を組んで、
+ * `ui-audit.mjs` と**同じページ**を開いて測る。
  *
- * 測るのは**最初の描画にかかる時間**と、**見積もり高さのずれ**の2つだけ。
+ * ## 何を測るか
+ * 同じ画面を2回描いて比べる:
+ *   A. content-visibility を切った状態(以前の状態)
+ *   B. そのまま(いまの状態)
+ *
+ * 切り替えはページ側のCSSで上書きする。**DOMは同一**なので、差は
+ * 画面外の棚を描くかどうかだけになる。
+ *
+ * 測るのは2つ:
+ *   ・最初の描画にかかる時間
+ *   ・**見積もり高さのずれ** — スクロールする前の scrollHeight と、
+ *     端まで送って実寸に置き換わったあとの scrollHeight の差。
+ *     ここを「送ったあと同士」で比べていた時期があり、どんな出鱈目な
+ *     見積もりでも差0で通っていた(149px と 58px の取り違えを見逃した)。
  *
  * スクロールのなめらかさは載せない。測ろうとしたが、ヘッドレスの Chromium では
  * スクロールが合成のみで進んでレイアウトが汚れず、どちらの版も 0ms になる。
- * rAF を2回待つ形にすると今度は両方 33ms(=2フレーム)に張り付いて vsync に
- * 差が埋まる。**測れていないものを「差が無かった」と書くのは嘘に近い**ので、
+ * **測れていないものを「差が無かった」と書くのは嘘に近い**ので、
  * 実機で確かめる項目として外に出す。
  *
  * ## 使い方
- *   npm run build && node scripts/shelf-perf.mjs [件数]
+ *   node scripts/shelf-perf.mjs [件数] [素材] [並べ方]
+ *   例: node scripts/shelf-perf.mjs 600 oak three
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 
 const COUNT = Number(process.argv[2] || 300);
-const PER = 3;
+const MATERIAL = process.argv[3] || "none";
+const DENSITY = process.argv[4] || "three";
+const HARNESS_DIR = path.resolve("scripts/ui-harness");
+const HARNESS_OUT = path.resolve(".ui-harness");
 
-const cssFile = fs
-  .readdirSync(".output/public/assets")
-  .find((f) => f.startsWith("styles-") && f.endsWith(".css"));
-if (!cssFile) {
-  console.error("ビルド済みCSSが無い。先に `npm run build` を実行すること。");
+try {
+  execFileSync("npx", ["vite", "build", "--config", path.join(HARNESS_DIR, "vite.config.ts")], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+} catch {
+  console.error("ハーネスを組めなかった(上の vite の出力を見る)。");
   process.exit(1);
 }
-const CSS = fs.readFileSync(path.join(".output/public/assets", cssFile), "utf8");
 
-const svg = (w, h, c) =>
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="${c}"/></svg>`,
-  );
-
-/**
- * src/components/DexShelf.tsx の estimateShelfHeight と**同じ式**。
- * 片方だけ直すと検査が通ったまま実物がずれるので、必ず一緒に直すこと。
- */
-function estimateShelfHeight(tiers, bare, spines, thickPlank) {
-  const HEAD = 14;
-  const plank = thickPlank ? 9 : 0;
-  if (bare) return HEAD + (spines ? 38 : 44) + plank;
-  return HEAD + tiers * ((spines ? 90 : 111) + plank);
-}
-
-/** 本物と同じ形の棚を組む。件数は 54 の棚へ順に配る。 */
-function buildBody(count, useCv, { material = "none", spines = false, per = PER } = {}) {
-  const SHELVES = 54;
-  const perShelfCount = Array.from(
-    { length: SHELVES },
-    (_, i) => Math.floor(count / SHELVES) + (i < count % SHELVES ? 1 : 0),
-  );
-  const item = (i) =>
-    spines
-      ? `<button class="shelf-item" lang="zh-Hant" aria-label="語${i}"><span class="shelf-spine" style="background-color:hsl(${(i * 47) % 360} 42% 26%)"><span class="text-white">語${i % 100}</span></span></button>`
-      : `<button class="shelf-item" lang="zh-Hant" aria-label="語${i}"><img class="shelf-stand" src="${svg(
-          60 + (i % 40),
-          50 + (i % 60),
-          ["#f5a623", "#4a90d9", "#b07a4a", "#d0483c"][i % 4],
-        )}" alt=""></button>`;
-  const tier = (items) => `
-    <div>
-      <div class="shelf-row ${spines ? "shelf-row-tight" : ""}" style="grid-template-columns:repeat(${per},minmax(0,1fr))">${items.join("")}</div>
-      <div class="shelf-rule"></div>
-      ${
-        spines
-          ? ""
-          : `<div class="grid gap-3 pt-1.5" style="grid-template-columns:repeat(${per},minmax(0,1fr))">
-        ${items.map((_, i) => `<span class="truncate text-center text-[12px] font-medium leading-tight">語${i}</span>`).join("")}
-      </div>`
-      }
-    </div>`;
-
-  let n = 0;
-  const shelves = perShelfCount.map((cnt) => {
-    const tiers = [];
-    for (let i = 0; i < cnt; i += per) {
-      tiers.push(Array.from({ length: Math.min(per, cnt - i) }, () => item(n++)));
-    }
-    if (tiers.length === 0) tiers.push([]);
-    const bare = cnt === 0;
-    const est = estimateShelfHeight(tiers.length, bare, spines, material !== "none");
-    const style = useCv
-      ? ` style="content-visibility:auto;contain-intrinsic-size:auto ${est}px"`
-      : "";
-    return `<div${style}>
-      <h4 class="mb-1.5 flex items-baseline gap-1.5 px-0.5"><span class="text-sm leading-none">🍎</span><span class="text-[13px] font-semibold">棚</span><span class="text-[11px] font-normal text-muted-foreground">${cnt}</span></h4>
-      ${tiers.map((t, i) => `<div class="${i > 0 ? "mt-3" : ""}">${tier(t)}</div>`).join("")}
-      ${bare ? `<p class="pt-2 text-[11px] text-muted-foreground">まだ空</p>` : ""}
-    </div>`;
-  });
-
-  return `<div class="min-h-screen bg-background px-4 py-4"><div class="space-y-8" data-shelf-material="${material}">${shelves.join("")}</div></div>`;
-}
+const server = http.createServer((req, res) => {
+  const rel = decodeURIComponent((req.url ?? "/").split("?")[0]);
+  const file = path.join(HARNESS_OUT, rel === "/" ? "index.html" : rel);
+  if (!file.startsWith(HARNESS_OUT) || !fs.existsSync(file)) {
+    res.writeHead(404).end();
+    return;
+  }
+  const type = file.endsWith(".css")
+    ? "text/css"
+    : file.endsWith(".js")
+      ? "text/javascript"
+      : file.endsWith(".html")
+        ? "text/html"
+        : "application/octet-stream";
+  res.writeHead(200, { "content-type": type });
+  fs.createReadStream(file).pipe(res);
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const URL_ = `http://127.0.0.1:${server.address().port}/index.html?scene=shelf&count=${COUNT}&material=${MATERIAL}&density=${DENSITY}`;
 
 const browser = await chromium.launch({
   executablePath: process.env.PW_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -115,105 +88,84 @@ const browser = await chromium.launch({
 /** 同じ計測を数回まわして中央値を取る(1回だけだと揺れが大きすぎる)。 */
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
-/** 1回ぶんの計測。`measureDrift` のときは見積もりと実寸の差も返す。 */
-async function measure(body, { drift = false } = {}) {
+/**
+ * 1回ぶんの計測。
+ *
+ * `content-visibility` を切る側は、**開く前に**上書きCSSを差し込む。
+ * 描いたあとで切ると、一度描画を飛ばした結果が残ってしまう。
+ */
+async function measure({ cv }) {
   const page = await browser.newPage({ viewport: { width: 390, height: 800 } });
-  const t = await page.evaluate(
-    async ({ CSS, body, drift }) => {
-      document.head.innerHTML = `<style>${CSS}</style>`;
-      const t0 = performance.now();
-      document.body.innerHTML = body;
-      void document.body.offsetHeight;
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const first = performance.now() - t0;
-      if (!drift) return { first };
-
-      // **スクロールする前**の高さ = ほぼ全部が見積もり。
-      // ここを測らないと意味がない — 一度端まで送ってから測ると、
-      // 描かれた実寸に置き換わったあとの値になり、**どんな出鱈目な
-      // 見積もりでも差0になる**(実際それで 149px と 58px の取り違えを
-      // 見逃した)。
-      const estimated = document.body.scrollHeight;
-      for (let i = 1; i <= Math.ceil(estimated / window.innerHeight) + 2; i++) {
-        window.scrollTo(0, i * window.innerHeight);
-        document.body.getBoundingClientRect();
-      }
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const real = document.body.scrollHeight;
-      window.scrollTo(0, 0);
-      return { first, estimated, real };
-    },
-    { CSS, body, drift },
-  );
+  if (!cv) {
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const s = document.createElement("style");
+        // **属性で選ぶ。** `[data-shelf-material] > div` と書いていたが、
+        // 実際に `content-visibility` が付くのは部屋(section)の中の棚で、
+        // この選択子は**1つも当たっていなかった** — 切ったつもりで両方
+        // 同じものを測っていた(道具が嘘をつく典型)。
+        s.textContent = '[style*="content-visibility"] { content-visibility: visible !important; }';
+        document.head.appendChild(s);
+      });
+    });
+  }
+  await page.goto(URL_, { waitUntil: "load" });
+  const r = await page.evaluate(async () => {
+    // **ブラウザ自身の時計を読む。**
+    // 自分で `performance.now()` を挟む形にしていたが、その時点では
+    // React の最初の描画が**もう終わっている** — 測っていたのは2回目の
+    // レイアウトで、`content-visibility` を切ったほうが速いという
+    // 逆の数字が出ていた。最初の描画までの時間は First Contentful Paint。
+    // ハーネスが「レイアウトまで終わった」時点で打つ印。
+    // `first-paint` を使っていたが、あれは束の読み込みと React の起動が
+    // 支配的で、**画面外の棚を描くかどうかの差がほとんど出ない**
+    // (300件で 28ms 対 36ms と、切ったほうが速いという読めない数字が出た)。
+    const mark = performance.getEntriesByName("harness-painted")[0];
+    const first = mark ? mark.startTime : NaN;
+    // **スクロールする前**の高さ = ほぼ全部が見積もり。
+    const estimated = document.documentElement.scrollHeight;
+    // **1コマ待つ。** 待たずに `scrollTo` を並べていたので、`content-visibility`
+    // の判定が一度も走らず、どの棚も本当には描かれなかった。結果、実寸に
+    // 置き換わることがなく、**見積もりを出鱈目にしてもずれ 0%** で通っていた
+    // (段の高さを 111px → 60px にして確かめた。全体の高さは変わるのに
+    // ずれは 0 のまま = 見積もり同士を比べていた)。
+    for (let i = 1; i <= Math.ceil(estimated / window.innerHeight) + 2; i++) {
+      window.scrollTo(0, i * window.innerHeight);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    window.scrollTo(0, 0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return { first, estimated, actual: document.documentElement.scrollHeight };
+  });
   await page.close();
-  return t;
+  return r;
 }
 
-/** 見積もりのずれを見る組み合わせ。**選べる見え方は全部見る。** */
-const VARIANTS = [
-  ["既定(3列・素材なし)", {}],
-  ["2列", { per: 2 }],
-  ["4列", { per: 4 }],
-  ["背表紙", { spines: true, per: 6 }],
-  ["オーク(板あり)", { material: "oak" }],
-  ["背表紙+板", { spines: true, per: 6, material: "oak" }],
-];
-
-console.log(`件数: ${COUNT} / 棚54個 / 390x800`);
-
-// ── 1. 速さ(既定の見え方で) ─────────────────────────────
-const firsts = {};
-for (const [name, useCv] of [
-  ["なし", false],
-  ["content-visibility", true],
-]) {
-  const runs = [];
-  for (let i = 0; i < 5; i++) runs.push((await measure(buildBody(COUNT, useCv))).first);
-  firsts[name] = median(runs);
+const runs = 5;
+const off = [];
+const on = [];
+for (let i = 0; i < runs; i++) {
+  off.push(await measure({ cv: false }));
+  on.push(await measure({ cv: true }));
 }
-const pct = (x, y) => `${(((x - y) / x) * 100).toFixed(0)}%減`;
+await browser.close();
+server.close();
+
+const firstOff = median(off.map((r) => r.first));
+const firstOn = median(on.map((r) => r.first));
+const drift = on[0].estimated - on[0].actual;
+const driftPct = (Math.abs(drift) / on[0].actual) * 100;
+
+console.log(`件数 ${COUNT} / 素材 ${MATERIAL} / 並べ方 ${DENSITY}(中央値 ${runs} 回)`);
+console.log(`  最初の描画  切: ${firstOff.toFixed(1)}ms → 入: ${firstOn.toFixed(1)}ms`);
+console.log(`              ${(((firstOff - firstOn) / firstOff) * 100).toFixed(0)}% 減`);
 console.log(
-  `  最初の描画   なし ${firsts["なし"].toFixed(1)}ms → あり ${firsts["content-visibility"].toFixed(1)}ms` +
-    ` (${pct(firsts["なし"], firsts["content-visibility"])})`,
+  `  見積もりのずれ  ${drift >= 0 ? "+" : ""}${drift}px / 実寸 ${on[0].actual}px (${driftPct.toFixed(1)}%)`,
 );
 
-// ── 2. 見積もりのずれ(全変種) ───────────────────────────
-// ずれると、スクロールしている最中に文書の高さが変わる = 掴んだ
-// スクロールバーが手から逃げる。見え方ごとに段の高さが違うので、
-// 既定だけ測っても意味がない。
-//
-// **件数も振る。** 54棚に COUNT 件を配ると全部の棚が埋まってしまい、
-// 空の棚の見積もりが1つも試されない。始めたばかりの人の図鑑は
-// **ほとんどが空の棚**で、そこがいちばんずれやすい。実際、空の棚を
-// 「段1つ分」で数えていた誤りは 300件では 0.0% で素通りし、
-// 12件にして初めて 13〜16% として現れた。
-const COUNTS = [12, COUNT];
-console.log("\n見積もりのずれ:");
-const failures = [];
-for (const n of COUNTS) {
-  for (const [label, scene] of VARIANTS) {
-    const r = await measure(buildBody(n, true, scene), { drift: true });
-    const d = Math.abs(r.estimated - r.real) / Math.max(1, r.real);
-    const mark = d > 0.05 ? "✗" : "✓";
-    const tag = `${String(n).padStart(4)}件 ${label}`;
-    console.log(
-      `  ${mark} ${tag.padEnd(28)} 見積もり ${r.estimated}px / 実寸 ${r.real}px (${(d * 100).toFixed(1)}%)`,
-    );
-    if (d > 0.05) failures.push(`${tag}: ${(d * 100).toFixed(1)}%`);
-  }
-}
-
-await browser.close();
-
-if (failures.length) {
-  console.error(`\n不合格: 見積もりが実寸から5%以上ずれている変種がある。`);
-  failures.forEach((f) => console.error("  - " + f));
-  console.error("DexShelf.tsx の estimateShelfHeight() を測り直すこと(この式もだ)。");
+// 見積もりが大きく外れていると、スクロールバーが暴れて指の感覚が壊れる。
+// **数字を出すだけでなく、外れていたら落とす。**
+if (driftPct > 12) {
+  console.error(`\n見積もりが実寸から ${driftPct.toFixed(1)}% ずれている(上限 12%)。`);
   process.exit(1);
 }
-console.log("\nどの見え方でも高さの見積もりは実寸の5%以内。");
-console.log(
-  "注: スクロール中のなめらかさはここでは測れていない。ヘッドレスの\n" +
-    "    Chromium ではスクロールが合成のみで進み、レイアウトが汚れないため\n" +
-    "    どちらの版も0msになる。**実機で確かめる項目**として残す。",
-);

@@ -84,6 +84,20 @@ const Scene = SCENES[wanted];
 document.documentElement.dataset.scene = Scene ? wanted : "";
 // 再試行で待ち時間が伸びると、撮る面が場面ごとにばらつく。1回で止める。
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+/**
+ * 最初の描画が終わった時刻に印を打つ(性能の計測用)。
+ *
+ * `first-paint` は「何か1画素でも塗った時刻」なので、束の読み込みと
+ * React の起動が支配的で、**画面外の棚を描くかどうかの差がほとんど出ない**。
+ * レイアウトまで終わった時刻を自分で記録して、そちらを比べる。
+ */
+requestAnimationFrame(() =>
+  requestAnimationFrame(() => {
+    void document.documentElement.scrollHeight; // レイアウトを確定させてから
+    performance.mark("harness-painted");
+  }),
+);
+
 createRoot(document.getElementById("root")!).render(
   Scene ? (
     <QueryClientProvider client={qc}>

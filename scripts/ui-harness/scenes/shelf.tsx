@@ -2,6 +2,10 @@
 import { DexShelf } from "@/components/DexShelf";
 import { DENSITY_PER_SHELF, type ShelfDensity, type ShelfMaterial } from "@/lib/shelf-prefs";
 import type { StickerWithWord } from "@/lib/stickers.functions";
+import { ROOM_CATEGORIES, ROOM_KEYS } from "@/lib/category";
+
+/** 全部の棚(54)。件数が多いときはここへ順に配る。 */
+const ALL_CATEGORIES = ROOM_KEYS.flatMap((r) => ROOM_CATEGORIES[r]);
 
 const svg = (w: number, h: number, color: string) =>
   "data:image/svg+xml;utf8," +
@@ -69,7 +73,18 @@ export function ShelfScene({ q }: { q: URLSearchParams }) {
   const count = Number(q.get("count") ?? FIXTURES.length);
   const material = (q.get("material") ?? "none") as ShelfMaterial;
   const density = (q.get("density") ?? "three") as ShelfDensity;
-  const stickers = FIXTURES.slice(0, count).map(makeSticker);
+  // 見た目の検査は 8 件で足りるが、**性能は件数が要る**。
+  //
+  // 足りない分は雛形を繰り返して埋める。このとき**分類も順に回す** —
+  // 雛形の 5 分類だけを使い回すと、300 件が 5 つの棚に積み上がり、
+  // 残り 49 棚は空のまま畳まれる。それは「54 棚に散らばった図鑑」という
+  // 測りたい状況と別物で、実際 `content-visibility` の付いた要素が
+  // 5 個しか出ていなかった(= A/B の差がほとんど出ない)。
+  const stickers = Array.from({ length: count }, (_, i) => {
+    const s = makeSticker(FIXTURES[i % FIXTURES.length], i);
+    if (count <= FIXTURES.length) return s;
+    return { ...s, word: { ...s.word, category_key: ALL_CATEGORIES[i % ALL_CATEGORIES.length] } };
+  });
   return (
     <DexShelf
       stickers={stickers}
