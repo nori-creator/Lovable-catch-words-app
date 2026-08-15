@@ -58,7 +58,9 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
         <button
           onClick={onClose}
           aria-label={t("common.close")}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card transition-transform duration-100 active:scale-95"
+          // **出口は 44px を割らない。** ここは覆っている面の唯一の出口で、
+          // 小さいほど「閉じられない」に直結する(36px だった)。
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card transition-transform duration-100 active:scale-95"
         >
           <X className="h-4 w-4" />
         </button>

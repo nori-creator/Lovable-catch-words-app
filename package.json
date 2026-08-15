@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "i18n:check": "node scripts/i18n-check.mjs",
-    "shelf:audit": "node scripts/shelf-preview.mjs",
+    "ui:audit": "node scripts/ui-audit.mjs",
     "shelf:perf": "node scripts/shelf-perf.mjs",
     "check": "tsc --noEmit && npm run i18n:check && eslint src --ext .ts,.tsx --max-warnings=99999 --quiet && npm test",
     "test": "vitest run",

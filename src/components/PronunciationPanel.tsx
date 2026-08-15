@@ -150,7 +150,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           <button
             type="button"
             onClick={() => speak(false)}
-            className="lift inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
+            className="lift inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
             aria-label={t("pron.playNatural")}
           >
             {speaking ? (
@@ -162,7 +162,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           <button
             type="button"
             onClick={() => speak(true)}
-            className="lift inline-flex h-10 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
+            className="lift inline-flex h-11 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
           >
             {t("pron.slow")}
           </button>

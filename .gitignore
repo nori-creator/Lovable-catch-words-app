@@ -31,5 +31,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# 棚の検査ハーネスの組み立て結果
-.shelf-harness/
+# 画面の検査ハーネスの組み立て結果
+.ui-harness/

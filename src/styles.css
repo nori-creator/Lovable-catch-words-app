@@ -179,7 +179,10 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 250);
   /* Apple-style vivid blue */
-  --primary: oklch(0.62 0.21 255);
+  /* 明度は**測って決めた**。0.62 のままだと白い文字で 3.60:1 で、
+     14px の本文の下限(4.5:1)を割る = アプリ中の主ボタンの文字が全部
+     未達だった。0.55 で 4.5:1 を越える。 */
+  --primary: oklch(0.55 0.21 255);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.01 250);
   --secondary-foreground: oklch(0.22 0.03 255);
@@ -215,7 +218,9 @@
   --card-foreground: oklch(0.97 0.005 240);
   --popover: oklch(0.19 0.035 258);
   --popover-foreground: oklch(0.97 0.005 240);
-  --primary: oklch(0.66 0.2 258);
+  /* 暗い面のほうが**悪かった**(0.66 で 3.16:1)。明るい青に白を載せる
+     ほど地との差が減る。0.56 まで落として 4.5:1 を越える。 */
+  --primary: oklch(0.56 0.2 258);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.24 0.04 258);
   --secondary-foreground: oklch(0.97 0 0);
@@ -1004,7 +1009,7 @@
     --border: oklch(0.72 0.02 250); /* darker hairlines */
     --input: oklch(0.66 0.02 250);
     --ring: oklch(0.52 0.22 255);
-    --primary: oklch(0.55 0.22 255); /* deeper blue → stronger contrast */
+    --primary: oklch(0.48 0.22 255); /* deeper blue → stronger contrast */
   }
   .dark {
     --foreground: oklch(0.99 0.003 240);
@@ -1016,7 +1021,7 @@
     --border: oklch(1 0 0 / 30%); /* visible edges on dark */
     --input: oklch(1 0 0 / 34%);
     --ring: oklch(0.82 0.16 258);
-    --primary: oklch(0.74 0.19 258);
+    --primary: oklch(0.5 0.19 258);
   }
 }
 
@@ -1223,10 +1228,13 @@
 .shelf-item:active {
   transform: scale(0.94);
 }
-.shelf-item:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
+/* 焦点の輪郭は**ブラウザ既定に任せる**。
+   ここには `outline: 2px solid var(--ring)` を書いていたし、同じものを
+   アプリ全体に広げようとした。ところが検査に測らせたら **既定のほうが
+   5倍見えていた**: 既定 18.8:1 に対して `--ring` の青一色は 3.65:1
+   (明るい面)。Chrome の `outline: auto` は黒と白の二重の輪で、
+   どんな背景でも見えるように描かれる — 単色の輪郭は必ずどこかで負ける。
+   自前の見た目より、確実に見えることを取る。 */
 .shelf-item img {
   display: block;
   max-width: 100%;

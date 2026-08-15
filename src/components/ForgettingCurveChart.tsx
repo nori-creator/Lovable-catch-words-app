@@ -145,9 +145,10 @@ export function ForgettingCurveChart({
             className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ background: stroke, boxShadow: `0 0 0 3px ${stroke}33` }}
           />
-          <span className="font-medium" style={{ color: stroke }}>
-            {t(labelKeyOf(level))}
-          </span>
+          {/* **文字は線の色で塗らない。** 線として読ませるために選んだ色を
+              11px の文字に使うと、琥珀色で 2.09:1 まで落ちる(実測)。
+              色は丸が持ち、意味は文字が持つ — 色が読めなくても伝わる。 */}
+          <span className="font-medium text-foreground">{t(labelKeyOf(level))}</span>
           {nowPoint && (
             <span className="text-muted-foreground">
               · {t("curve.nowPct", { pct: nowPoint.retention })}

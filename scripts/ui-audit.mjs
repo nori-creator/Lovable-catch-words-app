@@ -1,11 +1,10 @@
 /**
- * 棚(図鑑)の見た目を、実機なしで見る・機械で採点する。
+ * 画面の見た目を、実機なしで見る・機械で採点する。
  *
  * ## なぜ要るか
- * 棚は「面 + ヘアライン + 接地影」の3つだけで奥行きを出している。目視でしか
- * 詰められない性質のものに見えるが、実際は目では気づけない不具合
- * (コントラスト未達・タップ領域不足・横はみ出し)が混ざる。
- * 先に機械で落としてから目で見る。
+ * 目視でしか詰められないように見えるものにも、目では気づけない不具合
+ * (コントラスト未達・タップ領域不足・横はみ出し・焦点が見えない)が
+ * 混ざる。先に機械で落としてから目で見る。
  *
  * ## **本物のコンポーネントを描く**
  * 以前この検査は棚のHTMLを手書きで複製していた。つまり
@@ -13,13 +12,26 @@
  * 実物が同じように描かれている保証がどこにも無かった(独立監査の指摘)。
  * 実際、空の棚の実レイアウトは一度も写っていなかった。
  *
- * いまは `scripts/shelf-harness/` を Vite で組み、本物の `DexShelf` と
+ * いまは `scripts/ui-harness/` を Vite で組み、本物のコンポーネントと
  * 本物の `styles.css` を読み込んだページを Playwright で開く。
  * 場面はURLの検索文字列で切り替える。
  *
+ * ## 何を見ていないか(**書いておく**)
+ * ここに並ぶのは markup がコンポーネントの中にあるものだけ。
+ * ホーム・復習・設定のようにルートに直書きされている画面は**未検査**。
+ * 入れるには、まず markup をコンポーネントへ出す必要がある。
+ * 手書きのHTMLを足して「見た」ことにはしない。
+ *
+ * ## 測り方の原則
+ * **数字は自分で作らない。ブラウザに測らせる。**
+ *  ・色は canvas に塗らせて読み返す(oklch も color-mix も正しく出る)
+ *  ・板や輪郭は**撮った絵の画素**で比べる(グラデーションや影は計算値に無い)
+ *  ・新しい門は、わざと壊した入力で落ちることを見るまで信用しない
+ *
  * ## 使い方
- *   node scripts/shelf-preview.mjs
- *   → /tmp/shelf-preview/shelf-*.png と、判定結果(終了コード)
+ *   node scripts/ui-audit.mjs            判定だけ
+ *   UI_VERBOSE=1 node scripts/ui-audit.mjs   実測値も出す
+ *   → /tmp/ui-audit/ui-*.png と、判定結果(終了コード)
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -27,9 +39,9 @@ import { execFileSync } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
 
-const OUT = process.env.SHELF_OUT || "/tmp/shelf-preview";
-const HARNESS_DIR = path.resolve("scripts/shelf-harness");
-const HARNESS_OUT = path.resolve(".shelf-harness");
+const OUT = process.env.UI_OUT || "/tmp/ui-audit";
+const HARNESS_DIR = path.resolve("scripts/ui-harness");
+const HARNESS_OUT = path.resolve(".ui-harness");
 
 // **毎回組み直す。** 古い成果物を使うと、また「直したのに画像が変わらない」
 // に戻る(それを潰すための作り替えなので、ここで手を抜くと意味がない)。
@@ -73,8 +85,10 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const BASE = `http://127.0.0.1:${server.address().port}/index.html`;
 
 /** ハーネスの場面をURLの検索文字列で表す。 */
-const sceneUrl = (base, { material = "none", density = "three", count = 8 } = {}) =>
-  `${base}?material=${material}&density=${density}&count=${count}`;
+const sceneUrl = (base, { scene = "shelf", ...rest } = {}) => {
+  const q = new URLSearchParams({ scene, ...rest });
+  return `${base}?${q}`;
+};
 
 /**
  * 見る面の一覧: [名前, `<html>` に付ける属性, 高コントラストか]。
@@ -85,6 +99,13 @@ const sceneUrl = (base, { material = "none", density = "three", count = 8 } = {}
  * (縁が白く光る件、高コントラストで棚板が濃くならない件)ので、
  * 代表として darkroom を明るい面・暗い面と同格で並べる。
  */
+/** 同じ場面を明るい面・暗い面・高コントラストの3通りで見る。 */
+const crossThemes = (name, scene) => [
+  [name, "", false, scene],
+  [`${name}-dark`, 'class="dark"', false, scene],
+  [`${name}-contrast`, "", true, scene],
+];
+
 const MODES = [
   ["light", "", false, {}],
   ["dark", 'class="dark"', false, {}],
@@ -115,6 +136,22 @@ const MODES = [
   // 「54棚が全部空で数画面ぶん流れる」に気づけなかった。
   ["empty-light", "", false, { count: 0 }],
   ["empty-dark", 'class="dark"', false, { count: 0 }],
+
+  // ── 棚以外。**棚しか見ていなかった**のがこれまでの穴。
+  //
+  // 明るい面・暗い面・高コントラストの3面ずつ見る。ここに入れているのは
+  // **markup がコンポーネントの中にあるもの**だけ。ルートに直書きされている
+  // 画面(ホーム・復習・設定)は入れていない — 入れると手書きのHTMLを
+  // 検査することになり、棚で潰したはずの「実物と違うものを見る検査」に戻る。
+  // 未検査であることは README ではなく、ここの一覧が事実として示す。
+  ...crossThemes("failed", { scene: "load-failed" }),
+  ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
+  ...crossThemes("options", { scene: "shelf-options" }),
+  ...crossThemes("chunks", { scene: "chunks" }),
+  ...crossThemes("curve", { scene: "curve" }),
+  ...crossThemes("pron", { scene: "pronunciation" }),
+  ...crossThemes("detail-ai", { scene: "scan-detail" }),
+  ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
@@ -130,6 +167,12 @@ const CONTRAST_LINE_A = 0.65;
  * 言われるまで気づかなかった。**単位の無い数字ではなく、比で見る。**
  */
 const LINE_MIN_RATIO = 3;
+
+/**
+ * 焦点の輪郭が、当てる前の絵に対して確保すべきコントラスト比。
+ * 意味を持つUIの図形と同じ下限(WCAG 1.4.11 / 2.4.7)。
+ */
+const FOCUS_MIN_RATIO = 3;
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -221,9 +264,19 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       };
 
       // 1. コントラスト
-      for (const el of document.querySelectorAll("span, p, h3")) {
-        if (!el.textContent.trim() || el.children.length) continue;
+      //
+      // **文字を持っている要素を全部見る。** 以前は `span, p, h3` に絞った上に
+      // 「子要素があれば飛ばす」としていたので、注音のように span を入れ子に
+      // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
+      // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
+      const hasOwnText = (el) =>
+        [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+      for (const el of document.querySelectorAll("body *")) {
+        if (!hasOwnText(el)) continue;
         const cs = getComputedStyle(el);
+        if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
+          continue;
+        }
         const r = el.getBoundingClientRect();
         if (r.width < 1 || r.height < 1) continue;
         const fg = parse(cs.color);
@@ -462,7 +515,92 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   });
   stick.forEach((f) => issues.push(`[${name}] ${f}`));
 
-  await page.screenshot({ path: path.join(OUT, `shelf-${name}.png`), fullPage: true });
+  // ## 鍵盤で辿ったとき、いまどこに居るかが見えること(WCAG 2.4.7)
+  //
+  // Tab で実際に送って、焦点の輪郭を測る。**押せるものが在るかどうかを
+  // 数えるだけでは足りない** — 輪郭が無い・地に沈んでいる、が普通に起きる。
+  // 実際、このアプリは `.shelf-item` 以外に焦点の定義がまったく無く、
+  // ブラウザ既定の黒い輪郭に任せていた(暗いテーマでは沈む)。
+  // 計算値では測れない。ブラウザ既定の `outline-style: auto` は、暗い面でも
+  // `outline-color: rgb(16,16,16)` / 幅 1px と返す — **「輪郭が在るか」を
+  // 見る検査は、既定のままでも通ってしまう**(最初にそう書いて、CSS を
+  // 消しても合格したので書き直した)。焦点を当てた前後の絵を撮って、
+  // **同じ画素がどれだけ変わったか**を見る。変わらなければ見えていない。
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press("Tab");
+    const box = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      const b = el.getBoundingClientRect();
+      if (b.width < 4 || b.height < 4 || b.top < 0 || b.bottom > window.innerHeight) return null;
+      return {
+        clip: {
+          x: Math.max(0, Math.round(b.x) - 6),
+          y: Math.max(0, Math.round(b.y) - 6),
+          width: Math.round(b.width) + 12,
+          height: Math.round(b.height) + 12,
+        },
+        label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 14),
+        tag: el.tagName.toLowerCase(),
+      };
+    });
+    if (!box) break;
+    const after = await page.screenshot({ clip: box.clip });
+    await page.evaluate(() => document.activeElement?.blur?.());
+    const before = await page.screenshot({ clip: box.clip });
+    const ratio = await page.evaluate(
+      ({ a, b }) =>
+        new Promise((resolve) => {
+          const load = (src) =>
+            new Promise((r) => {
+              const im = new Image();
+              im.onload = () => r(im);
+              im.src = src;
+            });
+          Promise.all([load(a), load(b)]).then(([ia, ib]) => {
+            const c = document.createElement("canvas");
+            c.width = ia.width;
+            c.height = ia.height;
+            const x = c.getContext("2d", { willReadFrequently: true });
+            x.drawImage(ia, 0, 0);
+            const da = x.getImageData(0, 0, c.width, c.height).data;
+            x.clearRect(0, 0, c.width, c.height);
+            x.drawImage(ib, 0, 0);
+            const db = x.getImageData(0, 0, c.width, c.height).data;
+            const lumOf = (r, g, bl) => {
+              const f = (v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+              };
+              return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl);
+            };
+            let best = 1;
+            for (let i = 0; i < da.length; i += 4) {
+              const la = lumOf(da[i], da[i + 1], da[i + 2]);
+              const lb = lumOf(db[i], db[i + 1], db[i + 2]);
+              const r = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+              if (r > best) best = r;
+            }
+            resolve(best);
+          });
+        }),
+      {
+        a: "data:image/png;base64," + after.toString("base64"),
+        b: "data:image/png;base64," + before.toString("base64"),
+      },
+    );
+    if (process.env.UI_VERBOSE) {
+      console.log(`  ${name}: 焦点 <${box.tag}> "${box.label}" ${ratio.toFixed(2)}:1`);
+    }
+    if (ratio < FOCUS_MIN_RATIO) {
+      issues.push(
+        `[${name}] 焦点がどこに居るか見えない: <${box.tag}> "${box.label}" ` +
+          `実測 ${ratio.toFixed(2)}:1 < ${FOCUS_MIN_RATIO}`,
+      );
+    }
+  }
+
+  await page.screenshot({ path: path.join(OUT, `ui-${name}.png`), fullPage: true });
   await page.close();
 }
 await browser.close();
