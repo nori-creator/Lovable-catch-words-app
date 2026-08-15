@@ -368,7 +368,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 disabled={step === "loading"}
                 className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
                   listening
-                    ? "bg-red-500 text-white shadow-red-500/30"
+                    ? "bg-bad text-white shadow-bad/30"
                     : "bg-primary text-primary-foreground shadow-primary/30"
                 }`}
                 aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}

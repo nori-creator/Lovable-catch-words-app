@@ -131,13 +131,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   };
 
   const scoreColor =
-    score == null
-      ? ""
-      : score >= 85
-        ? "text-emerald-600"
-        : score >= 60
-          ? "text-amber-600"
-          : "text-rose-600";
+    score == null ? "" : score >= 85 ? "text-ok" : score >= 60 ? "text-warn" : "text-rose-600";
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">

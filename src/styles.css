@@ -140,6 +140,11 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  /* 状態の3色。**素の Tailwind の番号を直に書かない**ための入口。
+     `text-ok` / `bg-bad/10` / `border-ok/60` のように普通に使える。 */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -1033,6 +1038,85 @@
     --primary: oklch(0.78 0.17 258);
     --primary-foreground: oklch(0.13 0.04 258);
   }
+}
+
+/* ── 状態の3色(できた / 気をつけて / できなかった)────────────────
+   `text-green-600` `bg-red-500/10` のように素の番号で書かれていた所を
+   まとめる。番号直書きの問題は**暗いテーマに一切追従しない**こと —
+   テーマを6つ持っているのに、実際には明るい面ぶんしか無かった。
+   明暗それぞれ、文字として 4.5:1 を満たす明度にする。 */
+:root {
+  --ok: oklch(0.5 0.14 155);
+  --warn: oklch(0.48 0.12 75);
+  --bad: oklch(0.52 0.2 27);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --ok: oklch(0.82 0.15 158);
+  --warn: oklch(0.85 0.14 82);
+  --bad: oklch(0.76 0.16 27);
+}
+
+/* ── 記憶の6段階の色 ────────────────────────────────────────────
+   赤 → 橙 → 黄 → 黄緑 → 緑 → 青 の並びは「忘れかけ〜長期記憶」の順序を
+   そのまま表す。以前は素の Tailwind の番号(`text-red-600` など)で書いて
+   いたので、**暗いテーマに一切追従せず**、11px の文字としては 2.97〜4.18:1
+   しか無かった。明暗それぞれで、文字として 4.5:1・帯として 3:1 を満たす
+   明度を測って決める。 */
+:root {
+  --mem-0: oklch(0.5 0.19 27);
+  --mem-1: oklch(0.48 0.14 55);
+  --mem-2: oklch(0.46 0.11 85);
+  --mem-3: oklch(0.45 0.13 135);
+  --mem-4: oklch(0.46 0.12 160);
+  --mem-5: oklch(0.48 0.15 245);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --mem-0: oklch(0.76 0.16 27);
+  --mem-1: oklch(0.79 0.14 60);
+  --mem-2: oklch(0.85 0.13 90);
+  --mem-3: oklch(0.85 0.16 135);
+  --mem-4: oklch(0.84 0.14 160);
+  --mem-5: oklch(0.8 0.13 245);
+}
+.mem-lv-0 {
+  --mem: var(--mem-0);
+}
+.mem-lv-1 {
+  --mem: var(--mem-1);
+}
+.mem-lv-2 {
+  --mem: var(--mem-2);
+}
+.mem-lv-3 {
+  --mem: var(--mem-3);
+}
+.mem-lv-4 {
+  --mem: var(--mem-4);
+}
+.mem-lv-5 {
+  --mem: var(--mem-5);
+}
+.mem-text {
+  color: var(--mem);
+}
+.mem-bar {
+  background: var(--mem);
+}
+/* 印(chip)。地に色を薄く敷いて、その上に同じ色の文字を置く。
+   敷いた分だけ地が色に寄るので、文字との差はわずかに縮む — そこも測る。 */
+.mem-chip {
+  background: color-mix(in oklab, var(--mem) 14%, var(--card));
+  color: var(--mem);
 }
 
 /* Deep-ocean body ambience (only in dark) */

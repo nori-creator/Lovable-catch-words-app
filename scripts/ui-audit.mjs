@@ -17,10 +17,13 @@
  * 場面はURLの検索文字列で切り替える。
  *
  * ## 何を見ていないか(**書いておく**)
- * ここに並ぶのは markup がコンポーネントの中にあるものだけ。
- * ホーム・復習・設定のようにルートに直書きされている画面は**未検査**。
- * 入れるには、まず markup をコンポーネントへ出す必要がある。
- * 手書きのHTMLを足して「見た」ことにはしない。
+ * ・ホーム・設定はルートに直書きのままで**未検査**。復習は `export` を足して
+ *   本物を描けるようにしたので入っている(同じやり方で足せる)。
+ *   手書きのHTMLを足して「見た」ことにはしない。
+ * ・`WordCard` の `SECTION_THEME`(節ごとの淡い色の表、36箇所)は
+ *   **明るい面の前提で固定**されている。暗いテーマに追従しないことは
+ *   分かっているが、直すには「暗い面で節をどう見せるか」を決める必要が
+ *   あるので、色の付け替えだけを先にやらない。ここに場面を足してから直す。
  *
  * ## 測り方の原則
  * **数字は自分で作らない。ブラウザに測らせる。**
@@ -84,8 +87,13 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const BASE = `http://127.0.0.1:${server.address().port}/index.html`;
 
-/** ハーネスの場面をURLの検索文字列で表す。 */
-const sceneUrl = (base, { scene = "shelf", ...rest } = {}) => {
+/**
+ * ハーネスの場面をURLの検索文字列で表す。
+ *
+ * `click` だけは URL に載せない — 開いたあとに押す指示なので、
+ * ハーネスではなく検査の側の都合。
+ */
+const sceneUrl = (base, { scene = "shelf", click: _click, ...rest } = {}) => {
   const q = new URLSearchParams({ scene, ...rest });
   return `${base}?${q}`;
 };
@@ -162,6 +170,15 @@ const MODES = [
   ...crossThemes("pron", { scene: "pronunciation" }),
   ...crossThemes("detail-ai", { scene: "scan-detail" }),
   ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
+  // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
+  ...crossThemes("review-memory", { scene: "review-memory" }),
+  ...crossThemes("review-choice", { scene: "review-choice" }),
+  ...crossThemes("review-explain", { scene: "review-explain" }),
+  // 押したあとの面。正解と不正解でそれぞれ色が変わる。
+  ...crossThemes("review-right", { scene: "review-choice", click: "ul li:nth-child(1) button" }),
+  ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
+  ...crossThemes("review-empty", { scene: "review-end" }),
+  ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
@@ -206,6 +223,17 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       const m = attrs.match(/(\w[\w-]*)="([^"]*)"/);
       if (m) el.setAttribute(m[1], m[2]);
     }, htmlAttrs);
+  }
+  // 押したあとの面も見る。**答え合わせの色は、押さないと一度も描かれない。**
+  // 正解の緑・不正解の赤は素の Tailwind の番号で書かれている所が多く、
+  // そこがいちばん暗いテーマに追従しない。押さない検査では永遠に見えない。
+  if (scene.click) {
+    const target = page.locator(scene.click).first();
+    if (await target.count()) {
+      await target.click({ timeout: 2000 }).catch(() => {});
+    } else {
+      issues.push(`[${name}] 押す対象が見つからない: ${scene.click}`);
+    }
   }
   await page.waitForTimeout(400);
 
@@ -328,11 +356,34 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         }
       }
       // 2. タップ領域 44px
-      for (const el of document.querySelectorAll("button")) {
+      //
+      // **見た目の箱ではなく、指が当たる範囲を見る。** 44px を割るからといって
+      // 見た目まで大きくしなければならないわけではない — `::before` を広げて
+      // 当たり判定だけ伸ばすのは正しいやり方で、`getBoundingClientRect()` は
+      // それを見ない。44px 四方の四隅と中心で `elementFromPoint` を撃って、
+      // 実際にその要素(かその中身)に当たるかで判定する。
+      const hitsSelf = (el, x, y) => {
+        const hit = document.elementFromPoint(x, y);
+        return !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+      };
+      for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
         const r = el.getBoundingClientRect();
-        if (r.width < 44 || r.height < 44) {
-          out.push(`タップ領域 ${Math.round(r.width)}x${Math.round(r.height)} < 44 — ${el.title}`);
-        }
+        if (r.width < 1 || r.height < 1) continue;
+        if (r.width >= 44 && r.height >= 44) continue;
+        const cx = r.x + r.width / 2;
+        const cy = r.y + r.height / 2;
+        const half = 22;
+        const pts = [
+          [cx - half + 1, cy - half + 1],
+          [cx + half - 1, cy - half + 1],
+          [cx - half + 1, cy + half - 1],
+          [cx + half - 1, cy + half - 1],
+        ].filter(([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight);
+        if (pts.length && pts.every(([x, y]) => hitsSelf(el, x, y))) continue;
+        const label = (el.getAttribute("aria-label") || el.title || el.textContent || "")
+          .trim()
+          .slice(0, 14);
+        out.push(`タップ領域 ${Math.round(r.width)}x${Math.round(r.height)} < 44 — "${label}"`);
       }
       // 3. 横のはみ出し
       if (document.documentElement.scrollWidth > window.innerWidth + 1) {

@@ -97,7 +97,7 @@ function daysAgo(iso: string): number {
 // ドット本体の状態色(新規/金/取得済)は変えず、ラベルの小さな色ドットだけで示す。
 function posDotColor(pos: string | null | undefined): string {
   const p = (pos ?? "").trim();
-  if (/動詞/.test(p)) return "bg-rose-400";
+  if (/動詞/.test(p)) return "bg-bad";
   if (/形容/.test(p)) return "bg-amber-400";
   if (/名詞|代名詞|量詞|数詞/.test(p)) return "bg-white";
   return "bg-white/50";
@@ -981,7 +981,7 @@ function ScanPage() {
                     aria-pressed={voiceListening}
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border shadow-lg backdrop-blur transition active:scale-95 ${
                       voiceListening
-                        ? "animate-pulse border-red-400 bg-red-500 text-white"
+                        ? "animate-pulse border-red-400 bg-bad text-white"
                         : "border-border bg-background/90 text-muted-foreground"
                     }`}
                   >
@@ -1241,7 +1241,7 @@ function ScanChip({
             </h2>
             {state === "owned" && (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                <Check className="h-3 w-3 text-emerald-600" /> {t("scan.ownedTag")}
+                <Check className="h-3 w-3 text-ok" /> {t("scan.ownedTag")}
               </span>
             )}
             {verified ? (

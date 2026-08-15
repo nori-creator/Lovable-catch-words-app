@@ -907,7 +907,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 disabled={busy !== null}
                 className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-medium transition-colors disabled:opacity-60 ${
                   deleteArmed
-                    ? "border-red-500 bg-red-600 text-white"
+                    ? "border-bad bg-bad text-white"
                     : "border-red-200 bg-red-50 text-red-700"
                 }`}
               >

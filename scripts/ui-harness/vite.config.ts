@@ -26,6 +26,11 @@ export default defineConfig({
         find: /^@tanstack\/react-start$/,
         replacement: path.resolve(import.meta.dirname, "stubs/react-start.ts"),
       },
+      {
+        // 行き先の仕組みだけ差し替える。描かれる markup は本物のまま。
+        find: /^@tanstack\/react-router$/,
+        replacement: path.resolve(import.meta.dirname, "stubs/react-router.tsx"),
+      },
       { find: "@", replacement: path.resolve(import.meta.dirname, "../../src") },
     ],
   },

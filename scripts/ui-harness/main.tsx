@@ -18,6 +18,12 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import {
+  ReviewChoiceScene,
+  ReviewEndScene,
+  ReviewExplainScene,
+  ReviewMemoryScene,
+} from "./scenes/review";
+import {
   ChunksScene,
   CurveScene,
   LoadFailedScene,
@@ -37,6 +43,10 @@ const SCENES: Record<string, (p: { q: URLSearchParams }) => ReactNode> = {
   pronunciation: PronunciationScene,
   "scan-detail": ScanDetailScene,
   tokens: TokensScene,
+  "review-memory": ReviewMemoryScene,
+  "review-choice": ReviewChoiceScene,
+  "review-explain": ReviewExplainScene,
+  "review-end": ReviewEndScene,
 };
 
 /**
@@ -57,6 +67,10 @@ function Frame({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+      {/* 下のタブ帯も置く。**置かないと嘘になる。**
+          答え合わせの面は画面下端に貼り付いて、この帯のぶんだけ上に浮く。
+          帯が無いページで撮ると浮く位置が変わり、何が覆われるかも変わる。 */}
+      <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 h-[calc(4.5rem+env(safe-area-inset-bottom))]" />
     </div>
   );
 }

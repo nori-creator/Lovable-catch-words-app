@@ -543,8 +543,8 @@ function DeveloperPanel() {
             value == null
               ? "text-muted-foreground"
               : ok
-                ? "font-semibold text-emerald-600"
-                : "font-semibold text-red-600"
+                ? "font-semibold text-ok"
+                : "font-semibold text-bad"
           }
         >
           {value == null ? t("settings.metricNone") : `${(value / 1000).toFixed(2)}s`}
@@ -1016,7 +1016,7 @@ function AiModelPanel() {
           {(data?.presets ?? []).map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2">
               <span className="truncate">{p.label}</span>
-              <span className={p.key_present ? "text-emerald-600" : "text-muted-foreground"}>
+              <span className={p.key_present ? "text-ok" : "text-muted-foreground"}>
                 {p.key_present
                   ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
                   : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}

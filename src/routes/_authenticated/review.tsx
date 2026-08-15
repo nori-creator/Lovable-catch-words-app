@@ -316,8 +316,16 @@ function memWordOf(card: DueReviewCard): MemoryWord {
   };
 }
 
+/*
+ * ここから下のいくつかは `export` している。**画面の検査
+ * (`npm run ui:audit`)から本物を描くため**で、ほかから使うためではない。
+ * 検査したいのはここに書かれている markup そのものなので、ハーネス側に
+ * 似たHTMLを書き写すのではなく、これをそのまま描く
+ * (書き写すと「直しても画像が変わらない検査」に戻る)。
+ */
+
 /** 記憶レベル6段階の帯+件数チップ(復習ページを開いた瞬間に見える)。 */
-function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
+export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
   const t = useT();
   const counts = MEMORY_LEVELS.map(
     (lv) =>
@@ -354,14 +362,17 @@ function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
 }
 
 /** 出題カード右上の記憶バッジ — この単語の今の状態がパッと見え、タップで曲線へ。 */
-function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?: () => void }) {
+export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?: () => void }) {
   const t = useT();
   const lv = memoryLevel(card.retention, card.interval_days, card.repetitions);
   return (
     <button
       onClick={onOpen}
       aria-label={`${t(lv.labelKey)} ${card.retention}%`}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${lv.chip} active:scale-95`}
+      // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
+      // すると主役の写真より重くなる)。**当たり判定だけ広げる。**
+      // 実寸は 82x19 で、指の下限を割っていた。
+      className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
       {t(lv.labelKey)} {card.retention}%
@@ -614,12 +625,12 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-secondary/60 p-2">
             <div className="text-[9px] text-muted-foreground">{t("memory.bestReview")}</div>
-            <div className="text-sm font-bold text-emerald-600">{bestLabel ?? "—"}</div>
+            <div className="text-sm font-bold text-ok">{bestLabel ?? "—"}</div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
             <div className="text-[9px] text-muted-foreground">{t("memory.forgetIn")}</div>
             <div
-              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-red-600" : ""}`}
+              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad" : ""}`}
             >
               {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
             </div>
@@ -632,7 +643,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
 
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           {t("rv.formula1")}
-          {t("rv.formula2")} <b className="text-emerald-600">{t("rv.greenLine")}</b>
+          {t("rv.formula2")} <b className="text-ok">{t("rv.greenLine")}</b>
           {t("rv.formula3")}
         </p>
       </div>
@@ -1045,7 +1056,7 @@ function SpeakingCard({
                 disabled={loading}
                 className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
                   listening
-                    ? "bg-red-500 text-white shadow-red-500/30 animate-pulse"
+                    ? "bg-bad text-white shadow-bad/30 animate-pulse"
                     : "bg-primary text-primary-foreground shadow-primary/30"
                 }`}
                 aria-label={listening ? t("rv.stop") : t("rv.record")}
@@ -1061,7 +1072,7 @@ function SpeakingCard({
               className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
               dir="auto"
             />
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-bad">{error}</p>}
 
             <div className="flex gap-2">
               <button
@@ -1133,7 +1144,7 @@ function FeedbackView({
     <div className="mt-5 space-y-4">
       {/* Header verdict */}
       <div
-        className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30" : goodTarget && score >= 3 ? "bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-400/30" : "bg-rose-50 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:ring-rose-400/30"}`}
+        className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-ok/10 ring-1 ring-ok/35" : goodTarget && score >= 3 ? "bg-warn/10 ring-1 ring-warn/35" : "bg-bad/10 ring-1 ring-bad/35"}`}
       >
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">
@@ -1284,7 +1295,7 @@ function FeedbackView({
  * 下部パネルなので、中身が増えても「次へ」が押せなくならないよう
  * ここだけを高さ上限つきでスクロールさせる。
  */
-function AnswerExplain({ card }: { card: DueReviewCard }) {
+export function AnswerExplain({ card }: { card: DueReviewCard }) {
   const t = useT();
   const ex = card.explain;
   const chunks = ex?.chunks ?? [];
@@ -1405,7 +1416,7 @@ function ExplainLabel({
   );
 }
 
-function LightModeCard({
+export function LightModeCard({
   card,
   onNext,
   onOpenMemory,
@@ -1454,19 +1465,19 @@ function LightModeCard({
         </div>
         {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
           画面高に連動させ(最大32vh)、小さい端末でも選択肢が隠れない。 */}
-        <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
-          {(card.cutout_url ?? card.placeholder_url) ? (
+        {/* 写真が無いときは**枠ごと出さない**。
+            以前は灰色の板に意味を書いていたが、そのすぐ下の問いが
+            「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
+            画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
+        {(card.cutout_url ?? card.placeholder_url) && (
+          <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
               src={(card.cutout_url ?? card.placeholder_url)!}
               alt={t("rv.targetAlt")}
               className="h-full max-h-[32vh] w-full object-contain"
             />
-          ) : (
-            <div className="grid h-32 w-full place-items-center px-3 text-center text-base font-semibold text-muted-foreground">
-              {card.meaning_ja}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         <div className="mb-2.5 text-center">
           <div className="text-base font-semibold leading-snug">
             {t("rv.whichIsBefore")}
@@ -1482,16 +1493,29 @@ function LightModeCard({
             const showGreen = picked != null && isAnswer;
             const showRed = isPicked && !isAnswer;
             const reading = pickReading(phonetic, info.zhuyin, info.pinyin);
+            // `scroll-mb-56` — 答え合わせの面は画面下端に貼り付くので、
+            // 鍵盤で送ってきた焦点がその**裏に入る**。ブラウザは焦点を
+            // 「画面の中」には入れるが、貼り付いた面をよけてはくれない。
+            // 下マージンを持たせると、その分だけ上に送ってよけてくれる
+            // (検査では、押したあとの発音ボタンが 1.00:1 = 変化なし として
+            // 出ていた — 見えていないのだから当然だった)。
             return (
-              <li key={c} className="flex items-stretch gap-2">
+              <li key={c} className="flex scroll-mb-56 items-stretch gap-2">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
                   className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-all
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
-                  ${showGreen ? "border-green-500/60 bg-green-500/10" : ""}
-                  ${showRed ? "border-red-500/60 bg-red-500/10" : ""}
-                  ${picked && !isPicked && !isAnswer ? "opacity-50" : ""}`}
+                  ${showGreen ? "border-ok/60 bg-ok/10" : ""}
+                  ${showRed ? "border-bad/60 bg-bad/10" : ""}
+                  ${
+                    /* **答え合わせの瞬間に、外れた選択肢を薄くしない。**
+                        `opacity-50` を掛けていたので、文字が 2.14:1 まで落ち、
+                        注音に至っては読めなくなっていた。ここは「捷運はMRTか」と
+                        **見比べて覚える**場面で、外れの3つこそ読ませたい。
+                        選ばれたものは色と枠で分かるので、薄さは要らない。 */ ""
+                  }
+                  ${picked && !isPicked && !isAnswer ? "border-border/60" : ""}`}
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-base font-medium">{c}</span>
@@ -1501,8 +1525,8 @@ function LightModeCard({
                       </span>
                     )}
                   </span>
-                  {showGreen && <Check className="h-4 w-4 shrink-0 text-green-600" />}
-                  {showRed && <X className="h-4 w-4 shrink-0 text-red-600" />}
+                  {showGreen && <Check className="h-4 w-4 shrink-0 text-ok" />}
+                  {showRed && <X className="h-4 w-4 shrink-0 text-bad" />}
                 </button>
                 <button
                   onClick={() => playText(c, isAnswer ? card.audio_url : null)}
@@ -1515,6 +1539,10 @@ function LightModeCard({
             );
           })}
         </ul>
+        {/* 答え合わせの面が下から覆う分の逃げ場。**これが無いと、覆われた
+            選択肢はスクロールしても出てこない** — 見比べて覚える場面で
+            外れの選択肢が読めなくなる(薄くするのをやめたのと同じ理由)。 */}
+        {picked && <div aria-hidden className="h-52" />}
         {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
             毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
@@ -1526,21 +1554,29 @@ function LightModeCard({
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
                 影で浮いていることを示す。 */}
             <div className="mx-auto max-w-3xl rounded-t-3xl border-t border-border bg-card px-4 pb-3 pt-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.35)]">
-              <div className="mb-1.5 flex items-center gap-2">
+              {/* 判定は**行を分ける**。1行に判定+語+読み+音声を詰めていたので、
+                  外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
+                  **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
+                  語を割るのはいちばんやってはいけない。判定は上、語は下。 */}
+              <span
+                // トークン側が明暗を持っているので、`dark:` の上書きは要らない。
+                className={`text-xs font-semibold ${correct ? "text-ok" : "text-bad"}`}
+              >
+                {correct ? t("review.correct") : t("review.tryAgain")}
+              </span>
+              <div className="mb-1.5 mt-0.5 flex items-center gap-2">
                 <span
-                  className={`text-sm font-semibold ${correct ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
+                  lang="zh-Hant"
+                  className="shrink-0 whitespace-nowrap text-xl font-bold tracking-tight"
                 >
-                  {correct ? t("review.correct") : t("review.tryAgain")}
-                </span>
-                <span lang="zh-Hant" className="text-xl font-bold tracking-tight">
                   {card.headword}
                 </span>
-                <span lang="zh-Hant" className="text-xs text-muted-foreground">
+                <span lang="zh-Hant" className="min-w-0 truncate text-xs text-muted-foreground">
                   {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
                 </span>
                 <button
                   onClick={() => playAudio(card)}
-                  className="ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                  className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
                   aria-label={t("card.playPron")}
                 >
                   <Volume2 className="h-4 w-4" />
@@ -1632,7 +1668,7 @@ function MiniRetentionGraph({
  * まだ出せていません」と正直に書いているのに、ここだけ「無い」と
  * 言っていた(独立監査の指摘)。
  */
-function EmptyState() {
+export function EmptyState() {
   const t = useT();
   const capFn = useServerFn(getReviewCapState);
   // 一覧が空だったときにだけ聞く。ふだんは1回も走らない。
@@ -1674,7 +1710,7 @@ function EmptyState() {
   );
 }
 
-function DoneState({ onAgain }: { onAgain: () => void }) {
+export function DoneState({ onAgain }: { onAgain: () => void }) {
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-8 text-center">
