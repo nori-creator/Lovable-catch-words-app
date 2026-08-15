@@ -1012,6 +1012,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "dex.list": { ja: "リスト表示", en: "List view" },
   "dex.map": { ja: "地図表示", en: "Map view" },
   "dex.searchAria": { ja: "図鑑を検索", en: "Search the dex" },
+  "dex.clearFilter": { ja: "絞り込みを解除", en: "Clear filter" },
   "dex.clearSearch": { ja: "検索をクリア", en: "Clear search" },
   "dex.noMatch": { ja: "に一致する単語はありません。", en: "— no matching words." },
   "dex.emptyTitle": { ja: "まだ何もキャッチしていません。", en: "Nothing caught yet." },

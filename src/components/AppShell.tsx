@@ -97,10 +97,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           >
             <BrandMark />
             {/* §15: app title is a small headline — tight tracking, no wrapping.
-                **h1 にする。** span のままだと、どの画面にも h1 が無く、
-                見出しの階層が h2 から始まっていた(独立監査の指摘)。
-                読み上げで「この画面は何か」を最初に言えるのはここだけ。 */}
-            <h1 className="text-base font-semibold tracking-[-0.02em]">{title ?? "Catchwords"}</h1>
+                **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
+                単語カードにはすでに h1 があるので、**全ページが h1 を2つ
+                持つ**ことになった — 直そうとした階層をむしろ壊していた。
+                これはどの画面にも出るアプリ名(道標)であって、その画面の
+                見出しではない。h1 は各画面が自分で持つ。 */}
+            <span className="text-base font-semibold tracking-[-0.02em]">
+              {title ?? "Catchwords"}
+            </span>
           </Link>
         </div>
       </header>

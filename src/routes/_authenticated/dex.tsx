@@ -256,7 +256,8 @@ function DexPage() {
     <AppShell title={t("title.dex")}>
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
-          <h2 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h2>
+          {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
+          <h1 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h1>
           {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
           <p className="text-xs text-muted-foreground">
             {t("dex.found")}{" "}
@@ -357,6 +358,23 @@ function DexPage() {
             total: String(totalCount ?? captured.length),
           })}
         </p>
+      )}
+
+      {/* 棚表示で絞り込みが残っているときの**解除口**。
+          チップ列を隠しただけにしたら、ギャラリーでカテゴリーを選んでから
+          棚へ切り替えた人は、54棚のうち53棚が消えた状態から抜け出せなく
+          なっていた(絞り込みは効いたままなのに、それを示すものも解く
+          手段も画面に無い)。しかも表示もカテゴリーも保存されるので、
+          次に開いてもその状態で始まる。 */}
+      {view === "shelf" && activeCategory && (
+        <button
+          onClick={() => setActiveCategory(null)}
+          aria-label={t("dex.clearFilter")}
+          className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground"
+        >
+          {categoryEmoji(activeCategory)} {t(categoryLabelKey(activeCategory))}
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
       )}
 
       {/* カテゴリーの絞り込みチップ。

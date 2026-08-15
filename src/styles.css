@@ -1254,6 +1254,15 @@
   background: color-mix(in oklab, var(--foreground) 8%, transparent);
   animation: shelf-skeleton 1.6s ease-in-out infinite;
 }
+/* 額に入る写真は骨組みも額の寸法で出す。
+   `.shelf-item span.shelf-stand` (0,2,1) は `.shelf-item .shelf-framed` (0,2,0)
+   より強いので、そのままだと骨組みが額の寸法を上書きし、**画像が届いた
+   瞬間に大きさが跳ねる** — 骨組みで消したかったズレを自分で作っていた。 */
+.shelf-item span.shelf-stand.shelf-framed {
+  width: 78%;
+  height: var(--shelf-item-h);
+}
+
 @keyframes shelf-skeleton {
   0%,
   100% {
