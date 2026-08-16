@@ -113,7 +113,8 @@ export function PendingCapturesCard({
       <Link
         to="/capture"
         search={{ pending: first.id }}
-        className="press-in flex items-center gap-3"
+        // 帯ぜんぶが「預かった写真を開く」ボタン。40px しか無かった。
+        className="press-in flex min-h-11 items-center gap-3"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-card ring-1 ring-warn/30">
           {first.object_img ? (

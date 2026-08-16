@@ -214,101 +214,39 @@ export function WordCardSectionsEditor() {
   );
 }
 
-const SECTION_THEME: Record<
-  SectionId,
-  { bg: string; ring: string; chip: string; icon: string; title: string }
-> = {
-  meaning: {
-    bg: "bg-sky-50",
-    ring: "ring-sky-200",
-    chip: "bg-sky-500",
-    icon: "📖",
-    title: "text-sky-900",
-  },
-  web_images: {
-    bg: "bg-sky-50/70",
-    ring: "ring-sky-200",
-    chip: "bg-sky-600",
-    icon: "🌐",
-    title: "text-sky-900",
-  },
-  usage_context: {
-    bg: "bg-cyan-50",
-    ring: "ring-cyan-200",
-    chip: "bg-cyan-600",
-    icon: "📊",
-    title: "text-cyan-900",
-  },
-  example: {
-    bg: "bg-emerald-50",
-    ring: "ring-emerald-200",
-    chip: "bg-emerald-500",
-    icon: "💬",
-    title: "text-emerald-900",
-  },
-  examples_extra: {
-    bg: "bg-emerald-50/60",
-    ring: "ring-emerald-200",
-    chip: "bg-emerald-400",
-    icon: "➕",
-    title: "text-emerald-900",
-  },
-  usage_chunks: {
-    bg: "bg-lime-50",
-    ring: "ring-lime-200",
-    chip: "bg-lime-600",
-    icon: "🧩",
-    title: "text-lime-900",
-  },
-  measure_words: {
-    bg: "bg-violet-50",
-    ring: "ring-violet-200",
-    chip: "bg-violet-500",
-    icon: "🔢",
-    title: "text-violet-900",
-  },
-  related_words: {
-    bg: "bg-indigo-50",
-    ring: "ring-indigo-200",
-    chip: "bg-indigo-500",
-    icon: "🪞",
-    title: "text-indigo-900",
-  },
-  pronunciation_tips: {
-    bg: "bg-pink-50",
-    ring: "ring-pink-200",
-    chip: "bg-pink-500",
-    icon: "🗣️",
-    title: "text-pink-900",
-  },
-  etymology: {
-    bg: "bg-stone-50",
-    ring: "ring-stone-200",
-    chip: "bg-stone-600",
-    icon: "🏛️",
-    title: "text-stone-900",
-  },
-  mnemonic: {
-    bg: "bg-fuchsia-50",
-    ring: "ring-fuchsia-200",
-    chip: "bg-fuchsia-500",
-    icon: "💡",
-    title: "text-fuchsia-900",
-  },
-  taiwan_note: {
-    bg: "bg-teal-50",
-    ring: "ring-teal-200",
-    chip: "bg-teal-500",
-    icon: "🇹🇼",
-    title: "text-teal-900",
-  },
-  real_usage: {
-    bg: "bg-rose-50/70",
-    ring: "ring-rose-200",
-    chip: "bg-rose-600",
-    icon: "🎬",
-    title: "text-rose-900",
-  },
+/**
+ * 節の見分け方は**絵だけ**にする。
+ *
+ * ここには節ごとに淡い背景・縁・丸印の色が13色ぶん直書きされていた
+ * (`bg-sky-50` `ring-cyan-200` … 39個)。2つの理由でやめる。
+ *
+ * ① **明るい面の前提で固定されている。** 暗いテーマでは、ほぼ白い面の上に
+ *    テーマ追従の明るい文字が載る。実測で見出し語 1.07:1、意味 1.02:1、
+ *    例文 1.03:1 — つまり**暗いテーマでは単語カードが読めない**。
+ *    テーマは6つあるので、13色 × 6面を手で合わせ続けるのは無理がある。
+ *
+ * ② **13色は覚えられない。** 色分けは「色を見ただけで種類が分かる」ときだけ
+ *    働く。3〜4種なら覚えられるが、13種になると誰も「水色=意味」を
+ *    覚えないので、残るのは賑やかさだけになる。区別はすでに**絵**が
+ *    やっている(📖 💬 🧩 …)ので、色は同じ仕事を二重にしているだけだった。
+ *
+ * だから面はカードと同じ1種類にして、節の区別は絵と見出しに任せる。
+ * これは色を付け替えたのではなく、**色分けをやめる**という判断。
+ */
+const SECTION_ICON: Record<SectionId, string> = {
+  meaning: "\u{1F4D6}",
+  web_images: "\u{1F310}",
+  usage_context: "\u{1F4CA}",
+  example: "\u{1F4AC}",
+  examples_extra: "\u{2795}",
+  usage_chunks: "\u{1F9E9}",
+  measure_words: "\u{1F522}",
+  related_words: "\u{1FA9E}",
+  pronunciation_tips: "\u{1F5E3}\u{FE0F}",
+  etymology: "\u{1F3DB}\u{FE0F}",
+  mnemonic: "\u{1F4A1}",
+  taiwan_note: "\u{1F1F9}\u{1F1FC}",
+  real_usage: "\u{1F3AC}",
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
@@ -432,7 +370,10 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
   }, [word.headword]);
 
   return (
-    <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm">
+    // 見出しの箱。`from-white to-sky-50` の直書きグラデーションだったので、
+    // 暗いテーマでは**白い箱の上に明るい文字**になっていた(見出し語 1.07:1)。
+    // 主色をごく薄く敷いて「ここが主役」を出しつつ、面はテーマに追従させる。
+    <div className="rounded-3xl border border-border bg-card bg-gradient-to-br from-primary/[0.06] to-transparent p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
@@ -442,7 +383,9 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             <button
               onClick={play}
               aria-label={t("card.playPron")}
-              className="lift inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+              // 40px だった。この画面でいちばん押されるボタンなので、
+              // 当たり判定を広げるのではなく**見た目ごと 44px** にする。
+              className="lift inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
             >
               <Volume2 className="h-5 w-5" />
             </button>
@@ -453,12 +396,12 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
           {(word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {word.part_of_speech && (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground ring-1 ring-border">
                   {posDisplay(word.part_of_speech)}
                 </span>
               )}
               {word.level && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground ring-1 ring-border">
                   {word.level}
                 </span>
               )}
@@ -502,7 +445,10 @@ function ReportButton({ headword }: { headword: string }) {
     <span className="relative ml-auto">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+        // §11: 見た目は小さいまま、当たり判定だけを 44px へ広げる
+        // (`::before` を伸ばす)。文字は `/70` をやめる — 薄めた結果
+        // 明るい面 3.04:1 / 暗い面 1.76:1 だった。
+        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground"
         aria-label={t("card.reportError")}
       >
         <Flag className="h-3 w-3" /> {t("card.report")}
@@ -541,7 +487,7 @@ function SectionCard({
   empty?: boolean;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
-  const theme = SECTION_THEME[id];
+  const icon = SECTION_ICON[id];
   const t = useT();
   const label = t(`card.${id}`);
   const ex = word.extras ?? {};
@@ -568,21 +514,23 @@ function SectionCard({
   }
 
   return (
-    <section className={`lift rounded-2xl ${theme.bg} ring-1 ${theme.ring} p-4 shadow-sm`}>
+    <section className="lift rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
-        <span
-          className={`grid h-6 w-6 place-items-center rounded-full ${theme.chip} text-xs text-white shadow`}
-        >
-          {theme.icon}
+        {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
+            丸そのものが何も言わなくなる。絵だけを地の上に置く。 */}
+        <span aria-hidden className="text-base leading-none">
+          {icon}
         </span>
-        <h3 className={`text-xs font-semibold uppercase tracking-wider ${theme.title}`}>{label}</h3>
+        {/* 大文字化と広い字間はラテン文字の作法。見出しは日本語なので素で組む
+            (ホームの「Past Pages」と同じ穴)。 */}
+        <h3 className="text-xs font-semibold text-foreground">{label}</h3>
         {canRegen && (
           <button
             onClick={regen}
             disabled={regenerating}
             aria-label={`${label}: ${t("card.regen")}`}
             title={t("card.regen")}
-            className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-white/60 hover:text-foreground disabled:opacity-60"
+            className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-60"
           >
             {regenerating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -625,14 +573,15 @@ function EmptySection({
   t: (k: string) => string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-black/10 bg-white/40 px-3 py-2.5">
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border bg-secondary px-3 py-2.5">
       <span className="text-[11px] text-muted-foreground">{t("card.notYet")}</span>
       {canGenerate && (
         <button
           onClick={onGenerate}
           disabled={generating}
           aria-label={`${label}: ${t("card.generate")}`}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
+          // §11: 見た目は小さいまま、当たり判定だけを 44px へ。
+          className="relative inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
         >
           {generating ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -690,12 +639,12 @@ function Body({
           {(ex.frequency_level || ex.register_tag) && (
             <div className="flex flex-wrap items-center gap-2">
               {ex.frequency_level != null && ex.frequency_level > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium text-cyan-900 ring-1 ring-cyan-200">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-foreground ring-1 ring-border">
                   {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
                 </span>
               )}
               {ex.register_tag && (
-                <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium text-cyan-900 ring-1 ring-cyan-200">
+                <span className="rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-foreground ring-1 ring-border">
                   {ex.register_tag}
                 </span>
               )}
@@ -720,9 +669,9 @@ function Body({
       return (
         <ul className="space-y-2">
           {(ex.examples_extra ?? []).map((e, i) => (
-            <li key={i} className="rounded-xl bg-white/60 p-2">
+            <li key={i} className="rounded-xl bg-secondary p-2">
               {e.scene && (
-                <p className="mb-1 text-[11px] font-medium text-emerald-800/80">🎬 {e.scene}</p>
+                <p className="mb-1 text-[11px] font-medium text-muted-foreground">🎬 {e.scene}</p>
               )}
               <p lang="zh-Hant" className="text-sm">
                 {e.zh}
@@ -740,7 +689,7 @@ function Body({
         return (
           <div className="space-y-2">
             {chunks.map((c, i) => (
-              <div key={i} className="rounded-xl bg-white/60 p-2.5">
+              <div key={i} className="rounded-xl bg-secondary p-2.5">
                 <ChunkPills parts={c.parts} size="sm" />
                 {c.ja && <p className="mt-1 text-[11px] text-muted-foreground">{c.ja}</p>}
               </div>
@@ -757,7 +706,7 @@ function Body({
               {ex.collocations!.map((c, i) => (
                 <span
                   key={i}
-                  className="rounded-full bg-white/70 px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-black/5"
+                  className="rounded-full bg-secondary px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-border"
                 >
                   {c}
                 </span>
@@ -774,7 +723,7 @@ function Body({
       return (
         <ul className="space-y-1.5">
           {(ex.measure_words ?? []).map((m, i) => (
-            <li key={i} className="flex items-start gap-2 rounded-xl bg-white/60 px-3 py-2">
+            <li key={i} className="flex items-start gap-2 rounded-xl bg-secondary px-3 py-2">
               <MeasureWordRow word={m.word} zhuyin={m.zhuyin} pinyin={m.pinyin} note={m.note} />
             </li>
           ))}
@@ -784,7 +733,7 @@ function Body({
     case "related_words": {
       const rel = ex.related_words ?? [];
       const groups: Array<{ kind: "syn" | "ant" | "rel"; label: string; tone: string }> = [
-        { kind: "syn", label: t("card.synonym"), tone: "bg-white/70 text-foreground" },
+        { kind: "syn", label: t("card.synonym"), tone: "bg-secondary text-foreground" },
         { kind: "ant", label: t("card.antonym"), tone: "bg-rose-100 text-rose-900" },
         { kind: "rel", label: t("card.relatedTag"), tone: "bg-indigo-100 text-indigo-900" },
       ];
@@ -811,7 +760,7 @@ function Body({
                   {items.map((r, i) => (
                     <div key={i} className="flex flex-wrap items-baseline gap-x-2">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-black/5 ${tone}`}
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-border ${tone}`}
                       >
                         {r.word}
                       </span>
@@ -825,7 +774,7 @@ function Body({
             );
           })}
           {ex.synonym_diff && rel.length === 0 && (
-            <p className="rounded-xl bg-white/60 p-2 text-xs leading-relaxed">{ex.synonym_diff}</p>
+            <p className="rounded-xl bg-secondary p-2 text-xs leading-relaxed">{ex.synonym_diff}</p>
           )}
         </div>
       );
@@ -904,7 +853,7 @@ function MeasureWordRow({
       <button
         onClick={() => void pronounce(word)}
         aria-label={t("card.pronOfWord", { word })}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/80 text-violet-700 shadow-sm ring-1 ring-black/5 active:scale-95"
+        className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-primary shadow-sm ring-1 ring-border before:absolute before:-inset-1.5 before:content-[''] active:scale-95"
       >
         <Volume2 className="h-3.5 w-3.5" />
       </button>
@@ -964,7 +913,7 @@ function WebImagesBody({
       {isLoading ? (
         <div className="grid grid-cols-3 gap-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/60" />
+            <div key={i} className="aspect-square animate-pulse rounded-xl bg-secondary" />
           ))}
         </div>
       ) : shown.length > 0 ? (
@@ -972,7 +921,7 @@ function WebImagesBody({
           {shown.map((c, i) => (
             <figure
               key={`${c.url}-${i}`}
-              className="relative aspect-square overflow-hidden rounded-xl bg-white/60"
+              className="relative aspect-square overflow-hidden rounded-xl bg-secondary"
             >
               <img
                 src={c.url}
@@ -1010,7 +959,7 @@ function WebImagesBody({
         <button
           onClick={() => setSeed((v) => v + 1)}
           disabled={isFetching}
-          className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-black/5 active:scale-95 disabled:opacity-60"
+          className="relative inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
         >
           {isFetching ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1023,7 +972,7 @@ function WebImagesBody({
           href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-primary underline"
+          className="relative inline-flex items-center gap-1 text-xs text-primary underline before:absolute before:-inset-x-1 before:-inset-y-3.5 before:content-['']"
         >
           {t("card.searchGoogle")} <ExternalLink className="h-3 w-3" />
         </a>
@@ -1084,7 +1033,7 @@ function RealUsageBody({ headword }: { headword: string }) {
             href={l.href}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-xl bg-white/60 px-3 py-2 text-sm shadow-sm ring-1 ring-black/5 transition-colors active:bg-white"
+            className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-sm shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
             <span className="text-base">{l.emoji}</span>
             <span className="min-w-0 flex-1">
