@@ -13,6 +13,7 @@ import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
+import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 
 /**
  * 色の組み合わせそのものを並べた見本。
@@ -66,6 +67,23 @@ export function LoadFailedScene({ q }: { q: URLSearchParams }) {
       <LoadFailed onRetry={() => {}} retrying={q.get("variant") === "retrying"} />
     </div>
   );
+}
+
+/**
+ * 図鑑が空のときの面と、検索が空振りしたときの面。
+ *
+ * **今まで一度も撮っていなかった。** 「空の図鑑」として撮っていたのは
+ * `DexShelf` に0件を渡した絵で、これは実物では起こらない
+ * (ルートが `captured.length === 0` で手前に分岐する)。
+ * 起こらない面を撮って合格していたので、始めたばかりの人が実際に見る
+ * 面は機械の目に映っていなかった。
+ */
+export function DexEmptyScene() {
+  return <DexEmptyState />;
+}
+
+export function DexNoMatchScene() {
+  return <DexNoMatch search="芒果" onClear={() => {}} />;
 }
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */

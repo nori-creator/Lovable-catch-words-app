@@ -38,6 +38,8 @@ import {
   PronunciationScene,
   ScanDetailScene,
   TokensScene,
+  DexEmptyScene,
+  DexNoMatchScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -58,6 +60,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
+  "dex-empty": DexEmptyScene,
+  "dex-no-match": DexNoMatchScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,

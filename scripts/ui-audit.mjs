@@ -137,10 +137,17 @@ const MODES = [
   // 生える。既にある棚の位置が動いていないことは、並べて見るしかない。
   ["custom-shelves", "", false, { custom: "1" }],
   ["custom-shelves-dark", 'class="dark"', false, { custom: "1" }],
-  // **何も集めていない人の図鑑。** ここを撮っていなかったせいで、
-  // 「54棚が全部空で数画面ぶん流れる」に気づけなかった。
-  ["empty-light", "", false, { count: 0 }],
-  ["empty-dark", 'class="dark"', false, { count: 0 }],
+  // 棚に1件も無いとき、**空の棚を並べない**ことの見張り。
+  // 昔ここを撮っていなかったせいで「54棚が全部空で数画面ぶん流れる」に
+  // 気づけなかった。
+  //
+  // **これは「空の図鑑」の絵ではない。** ルートは `captured.length === 0` を
+  // 手前で分岐するので、`DexShelf` に0件が渡ることは実物では起きない。
+  // 始めたばかりの人が実際に見る面は下の `dex-empty`。
+  // (独立監査が「図鑑の空が真っ白」と指摘した — 指摘そのものは実物では
+  //  外れていたが、**本物の空の面を一度も撮っていなかった**のは当たり。)
+  ["shelf-zero-light", "", false, { count: 0 }],
+  ["shelf-zero-dark", 'class="dark"', false, { count: 0 }],
 
   // ── 棚以外。**棚しか見ていなかった**のがこれまでの穴。
   //
@@ -191,6 +198,10 @@ const MODES = [
   // ことは分かっていたが、直す前にまず見えるようにする。
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
+  // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
+  // 最初に見る面なのに、ここまで一度も撮っていなかった。
+  ...crossThemes("dex-empty", { scene: "dex-empty" }),
+  ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [

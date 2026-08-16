@@ -87,6 +87,17 @@ type CardData = {
   example_sentence: string;
   example_translation: string;
   extras?: import("@/lib/extras").WordExtrasDTO;
+  /**
+   * AI が「どの棚にも当てはまらない」と判断したときの新しい棚の提案。
+   * 形は信用しない — 保存側の `normalizeShelfProposal` が直すか諦める。
+   */
+  new_shelf?: {
+    key?: string;
+    label?: string;
+    emoji?: string;
+    room_key?: string;
+    room_label?: string;
+  } | null;
 };
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -515,6 +526,10 @@ function CapturePage() {
             example_translation: card.example_translation,
             extras: card.extras,
           },
+          // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
+          // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
+          // このアプリで何度もやっている「直したものが動く経路に無い」形。
+          new_shelf: card.new_shelf ?? null,
           language: "zh-TW",
           object_path,
           cutout_path,

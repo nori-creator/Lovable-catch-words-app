@@ -5,6 +5,8 @@ import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
 import { isTruncated } from "./pagination";
+import { isBuiltinRoom, normalizeShelfProposal, type RawShelfProposal } from "./shelf-proposal";
+import type { UserShelf } from "./shelf-plan";
 import {
   ExtrasSchema,
   normalizeExtras,
@@ -36,6 +38,11 @@ export type StickerWithWord = {
   cutout_thumb_url: string | null;
   /** 'photo' | 'text' | 'voice' — non-photo catches are ghosts (§5.3). */
   capture_type: string;
+  /**
+   * その人だけの棚の上書き(AI が作った棚)。null なら語の分類を使う。
+   * 列がまだ無い環境では undefined のまま来る。
+   */
+  shelf_key?: string | null;
   /** Signed URL of the temporary stand-in image for ghosts. */
   placeholder_url: string | null;
   placeholder_credit: PlaceholderCredit | null;
@@ -156,8 +163,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const wordCols =
       "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, ${wordCols}`;
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
     // Migration not applied yet — fall back to the photo-only shape.
+    // **新しい列を1つ足すたびに、無い環境でも読める形を残す。**
+    // ここを忘れると、列が無い環境で図鑑が丸ごと空になる。
     const legacyCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, ${wordCols}`;
 
     /**
@@ -246,6 +255,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
       capture_type?: string | null;
       placeholder_image_url?: string | null;
       placeholder_credit?: PlaceholderCredit | null;
+      shelf_key?: string | null;
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
     const rows = (data ?? []) as unknown as RowShape[];
@@ -288,6 +298,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
       result.push({
         id: row.id,
         word_id: row.word_id,
+        shelf_key: row.shelf_key ?? null,
         caption: row.caption,
         location_name: row.location_name,
         lat: row.lat,
@@ -471,6 +482,20 @@ const SaveStickerInput = z.object({
     example_translation: z.string().optional().default(""),
     extras: ExtrasSchema.optional(),
   }),
+  /**
+   * AI が「どの棚にも当てはまらない」と判断したときの新しい棚。
+   * 形は信用しない — `normalizeShelfProposal` で直すか諦める。
+   */
+  new_shelf: z
+    .object({
+      key: z.string().optional().catch(undefined),
+      label: z.string().optional().catch(undefined),
+      emoji: z.string().optional().catch(undefined),
+      room_key: z.string().optional().catch(undefined),
+      room_label: z.string().optional().catch(undefined),
+    })
+    .nullish()
+    .catch(null),
   language: z.string().default("zh-TW"),
   object_path: z.string().nullable().optional(),
   cutout_path: z.string().nullable().optional(),
@@ -579,6 +604,94 @@ export async function upsertWord(
   return wordId;
 }
 
+/**
+ * AI が出した棚の提案を、その人の棚として確保する。**戻り値は棚の鍵か null。**
+ *
+ * ここは**絶対に投げない**。棚は「あれば嬉しい」もので、
+ * 作れなかったからといって語のキャッチを失敗させる理由が無い。
+ * 失敗の道は全部 null に畳んで、語は既定の54棚のどれかに載る。
+ *
+ * 同じ鍵が既に在れば作り直さない(`unique (user_id, key)`)。
+ * 名前や絵文字の上書きもしない — 一度できた棚の名前が、次に似た語を
+ * 取った瞬間に変わると、棚を目印にしている人の手がかりが消える。
+ */
+async function ensureUserShelf(
+  supabase: unknown,
+  userId: string,
+  raw: RawShelfProposal | null | undefined,
+): Promise<string | null> {
+  const proposal = normalizeShelfProposal(raw);
+  if (!proposal) return null;
+  try {
+    const client = supabase as unknown as {
+      from: (t: string) => {
+        upsert: (
+          v: Record<string, unknown>,
+          o: { onConflict: string; ignoreDuplicates: boolean },
+        ) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+    const { error } = await client.from("user_shelves").upsert(
+      {
+        user_id: userId,
+        key: proposal.key,
+        label: proposal.label,
+        emoji: proposal.emoji,
+        room_key: proposal.room_key,
+        // 既定の8部屋なら、部屋の名前は i18n から出す。AI の文言を入れると
+        // 「食べる」が人によって「食事」になり、同じ部屋が2つの名前で出る。
+        room_label: isBuiltinRoom(proposal.room_key) ? proposal.room_key : proposal.room_label,
+      },
+      { onConflict: "user_id,key", ignoreDuplicates: true },
+    );
+    if (error) {
+      console.warn(
+        "[shelf] could not create the shelf, falling back to the word's own category",
+        error.message,
+      );
+      return null;
+    }
+    return proposal.key;
+  } catch (e) {
+    console.warn("[shelf] could not create the shelf", e);
+    return null;
+  }
+}
+
+/** その人の棚。図鑑の並びに使う。 */
+export const listMyShelves = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    try {
+      const client = supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              order: (
+                c: string,
+                o: { ascending: boolean },
+              ) => Promise<{ data: UserShelf[] | null; error: { message: string } | null }>;
+            };
+          };
+        };
+      };
+      const { data, error } = await client
+        .from("user_shelves")
+        .select("key, label, emoji, room_key, room_label")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true });
+      // 棚が読めなくても図鑑は出す。**既定の54棚だけで成立する。**
+      if (error) return { shelves: [] as UserShelf[] };
+      return { shelves: data ?? [] };
+    } catch {
+      return { shelves: [] as UserShelf[] };
+    }
+  });
+
 export const saveSticker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SaveStickerInput.parse(input))
@@ -586,6 +699,10 @@ export const saveSticker = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     const wordId = await upsertWord(supabase, userId, data.word, data.language);
+
+    // その人だけの棚。**失敗しても語のキャッチは通す。**
+    // 棚が1つ増えないことと、キャッチが丸ごと失敗することは重さが違う。
+    const shelfKey = await ensureUserShelf(supabase, userId, data.new_shelf);
 
     // Guard against cross-account storage path spoofing: only accept paths
     // rooted under the caller's own uid folder (the client upload convention).
@@ -608,14 +725,31 @@ export const saveSticker = createServerFn({ method: "POST" })
       location_name: data.location_name ?? null,
       lat: data.lat ?? null,
       lng: data.lng ?? null,
-    };
+      // 型定義は生成物で、`shelf_key` はそれより新しい列。
+      // `current_level` のときと同じで、緩いクライアントとして扱う。
+      ...(shelfKey ? { shelf_key: shelfKey } : {}),
+    } as Record<string, unknown>;
     let res = await supabase
       .from("stickers")
-      .insert({ ...baseRow, branch_plan: branchPlan as never })
+      .insert({ ...baseRow, branch_plan: branchPlan } as never)
       .select("id")
       .single();
     if (res.error && /branch_plan/.test(res.error.message)) {
-      res = await supabase.from("stickers").insert(baseRow).select("id").single();
+      res = await supabase
+        .from("stickers")
+        .insert(baseRow as never)
+        .select("id")
+        .single();
+    }
+    // `shelf_key` の列がまだ無い環境(マイグレーション未適用)でも
+    // キャッチは通す。**新しい仕組みのために古い経路を壊さない。**
+    if (res.error && /shelf_key/.test(res.error.message)) {
+      const { shelf_key: _drop, ...withoutShelf } = baseRow;
+      res = await supabase
+        .from("stickers")
+        .insert(withoutShelf as never)
+        .select("id")
+        .single();
     }
     if (res.error) throw new Error(res.error.message);
 

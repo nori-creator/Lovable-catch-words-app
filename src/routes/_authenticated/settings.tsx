@@ -116,7 +116,11 @@ export function ChoiceRow<T extends string | number>({
             role="radio"
             aria-checked={value === o.value}
             onClick={() => onChange(o.value)}
-            className={`min-h-11 rounded-full border py-2.5 text-body ${
+            // 5列は 390px の画面で1つ約59px。**折り返させない** —
+            // 折り返すと丸が縦長の楕円になり、隣の丸と形が揃わなくなる
+            // (雛形の「上限なし」でそうなっていた)。訳語が伸びる言語も
+            // あるので、収まらないときは折らずに字を詰める。
+            className={`min-h-11 truncate rounded-full border px-1 py-2.5 text-body ${
               value === o.value
                 ? "border-primary bg-primary font-semibold text-primary-foreground"
                 : "border-border bg-background"

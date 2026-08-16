@@ -306,6 +306,8 @@ export function ScanCatchSheet({
         const res = await saveFn({
           data: {
             word,
+            // 提案は**カードが在るときだけ**来る(辞書だけの経路には無い)。
+            new_shelf: card?.new_shelf ?? null,
             language: "zh-TW",
             object_path,
             cutout_path,
