@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
-import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { usePronounce } from "@/lib/use-pronounce";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
@@ -70,6 +70,7 @@ declare global {
 function DexPage() {
   const t = useT();
   const fetchStickers = useServerFn(listMyStickers);
+  const fetchShelves = useServerFn(listMyShelves);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
   const {
@@ -86,6 +87,19 @@ function DexPage() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
+  /**
+   * その人だけの棚(AI が語を分析して作ったもの)。
+   *
+   * **これが読めなくても図鑑は出す。** 棚が無ければ既定の54棚だけで並ぶので、
+   * ここの失敗を画面に出す理由が無い(`listMyShelves` 側も空配列に畳む)。
+   */
+  const { data: shelfData } = useQuery({
+    queryKey: ["user-shelves"],
+    queryFn: () => fetchShelves(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const shelves = useMemo(() => shelfData?.shelves ?? [], [shelfData]);
   // Memoize so the reference is stable across renders — otherwise `filtered`
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
@@ -427,6 +441,7 @@ function DexPage() {
           activeCategory={activeCategory}
           onOpen={setOpenId}
           justCaught={justCaught}
+          userShelves={shelves}
         />
       ) : (
         groups.map(([key, items]) => (

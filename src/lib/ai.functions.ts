@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import { CATEGORY_KEYS, normalizeCategory } from "./category";
+import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
 import {
   assertWithinDailyCap,
@@ -131,6 +131,27 @@ const CardSchema = z.object({
   category_key: z.enum(CATEGORY_KEYS),
   example_sentence: z.string(),
   example_translation: z.string(),
+  /**
+   * どの棚にも当てはまらないときの**新しい棚の提案**。
+   *
+   * `category_key` は既定の54個に縛ったまま残す — 提案が使えなかったとき
+   * (形が壊れている・既存と同じ・DBが受け付けない)に**必ず戻る先**が要る。
+   * 提案は「あれば嬉しい」もので、無くてもキャッチは成立する。
+   * ここを緩く受けるのは、生成物が必ず想定外を出すから。形を直すのも
+   * 諦めるのも `shelf-proposal.ts` で完結させる。
+   */
+  new_shelf: z
+    .object({
+      // 型が違うものは**投げずに落とす**。1項目の型違いでカード生成が
+      // 丸ごと失敗すると、棚が増えないどころか語が取れない。
+      key: z.string().optional().catch(undefined),
+      label: z.string().optional().catch(undefined),
+      emoji: z.string().optional().catch(undefined),
+      room_key: z.string().optional().catch(undefined),
+      room_label: z.string().optional().catch(undefined),
+    })
+    .nullish()
+    .catch(null),
   extras: ExtrasSchema.default(() => emptyExtras()),
 });
 
@@ -182,6 +203,12 @@ ${levelRule}
   **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
   横断歩道・道路・信号→street、店→shop、交通機関→transport を必ず使う。
+- new_shelf: **上の一覧のどれを選んでも「その語らしくない」ときだけ**、新しい棚を提案する。
+  当てはまる棚が在るなら **null**(無理に作らない — 似た棚が乱立すると図鑑が壊れる)。
+  形式: {key: 英小文字とアンダースコアのみ(例 "night_market_snack"), label: 棚の名前(${NL}・24字まで),
+  emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
+  room_label: 部屋の名前(${NL}・24字まで)}。
+  棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
 - example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
 - example_translation: 例文の訳(${NL})
 
@@ -226,7 +253,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `\n\n**出力は上記をすべて内容で埋めた JSON オブジェクト1つだけ**` +
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
-      `category_key / example_sentence / example_translation / ` +
+      `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
       `frequency_level, register_tag, related_words[{word,kind,note}], ` +
