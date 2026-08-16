@@ -146,8 +146,21 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
       .filter((r) => r.shelves.length > 0);
   }, [rooms, activeCategory, byCategory]);
 
+  // 「×3」は**このアプリが勝手に決めた記号**で、どこにも説明が無かった
+  // (独立監査)。かといって常設の凡例を置くと、印が1つも無い人にまで
+  // 説明だけが居座る。**印が出ているときだけ**、一行だけ添える。
+  const hasRepeats = useMemo(() => stickers.some((s) => s.encounter_count > 1), [stickers]);
+
   return (
     <div className="space-y-8" data-shelf-material={material}>
+      {hasRepeats && (
+        <p className="flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground">
+          <span className="rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background">
+            ×2
+          </span>
+          {t("dex.metCountLegend")}
+        </p>
+      )}
       {roomShelves.map(({ room, shelves }) => {
         return (
           <section key={room} aria-labelledby={`room-${room}`}>
@@ -290,6 +303,7 @@ function ShelfItem({
   /** 背表紙として並べるか(密度 `spines`)。 */
   spine?: boolean;
 }) {
+  const t = useT();
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
   const cutout = s.cutout_thumb_url ?? s.cutout_url;
@@ -305,7 +319,11 @@ function ShelfItem({
         onClick={() => onOpen(s.id)}
         className={`shelf-item ${landing ? "slam-in slot-ignite" : ""}`}
         lang="zh-Hant"
-        aria-label={s.word.headword}
+        aria-label={
+          s.encounter_count > 1
+            ? t("dex.metCountAria", { word: s.word.headword, n: String(s.encounter_count) })
+            : s.word.headword
+        }
       >
         {/* 再会の回数は背表紙でも消さない。**このアプリの芯にある印**で、
             以前ギャラリーには出ていたのに棚では消えていて直したところ。
@@ -336,7 +354,11 @@ function ShelfItem({
       // 読み上げの名前は繁体字として読ませる。lang を付けないと、日本語の
       // VoiceOver が同じ語を日本語の音で読み、すぐ下の表示名と食い違う。
       lang="zh-Hant"
-      aria-label={s.word.headword}
+      aria-label={
+        s.encounter_count > 1
+          ? t("dex.metCountAria", { word: s.word.headword, n: String(s.encounter_count) })
+          : s.word.headword
+      }
     >
       {/* **印は絵に付ける。** 以前はセル(grid の1マス)の右上に置いていたので、
           絵より広いマスの端に**単独で浮いて**いた(2列のときは絵から
