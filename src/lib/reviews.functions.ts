@@ -6,6 +6,14 @@ import { z } from "zod";
 // 計算だけを取り出して試すことができない。
 import { nextSrs, retentionNow, modeFor, stabilityOf } from "@/lib/srs";
 export { nextSrs } from "@/lib/srs";
+// 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
+import {
+  FALLBACK_HEADWORDS,
+  FALLBACK_HEADWORD_READINGS,
+  FALLBACK_MEANINGS,
+  buildChoices,
+  shuffle,
+} from "@/lib/quiz-choices";
 import {
   assertWithinDailyCap,
   generateStructured,
@@ -92,42 +100,6 @@ export type DueReviewCard = {
   /** 4択の各選択肢の読み(注音・拼音)。表示は端末の表記設定に従う。 */
   headword_choice_infos: Array<{ headword: string; zhuyin: string | null; pinyin: string | null }>;
 };
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-const STATIC_MEANING_FALLBACK = ["別の物体", "場所の名前", "人物の役職"];
-const STATIC_HEADWORD_FALLBACK = ["蘋果", "公車", "雨傘"];
-const STATIC_HEADWORD_READINGS: Record<string, { zhuyin: string; pinyin: string }> = {
-  蘋果: { zhuyin: "ㄆㄧㄥˊ ㄍㄨㄛˇ", pinyin: "píngguǒ" },
-  公車: { zhuyin: "ㄍㄨㄥ ㄔㄜ", pinyin: "gōngchē" },
-  雨傘: { zhuyin: "ㄩˇ ㄙㄢˇ", pinyin: "yǔsǎn" },
-};
-
-/**
- * Pick 3 distractors without any AI call. Priority:
- * 1. meanings/headwords of the user's OWN words in the same category
- *    (the confusions that actually happen in this learner's head),
- * 2. pre-generated AI distractors cached in review_choices,
- * 3. the user's other words, 4. static fallback.
- */
-function pickThree(correct: string, ...pools: string[][]): string[] {
-  const out: string[] = [];
-  for (const pool of pools) {
-    for (const cand of pool) {
-      if (!cand || cand === correct || out.includes(cand)) continue;
-      out.push(cand);
-      if (out.length >= 3) return out;
-    }
-  }
-  return out;
-}
 
 /**
  * 単語の extras から「最もよく一緒に使う型」を1つ取り出す。
@@ -428,20 +400,20 @@ export const getDueReviews = createServerFn({ method: "GET" })
         deck.filter((d) => d.id !== w.id && d.category_key !== w.category_key),
       );
 
-      const meaningDistractors = pickThree(
-        w.meaning_ja,
+      // 池は「その学習者の頭の中で実際に混ざる誤答」から先に。
+      // 最後は必ず受け皿 — 撮った語がまだ1つでも、選択肢は4つ出す。
+      const meaningChoices = buildChoices(w.meaning_ja, [
         sameCat.map((d) => d.meaning_ja),
         cached.get(w.id) ?? [],
         otherCat.map((d) => d.meaning_ja),
-        STATIC_MEANING_FALLBACK,
-      );
-      const headwordDistractors = pickThree(
-        w.headword,
+        FALLBACK_MEANINGS,
+      ]);
+      const headwordChoices = buildChoices(w.headword, [
         sameCat.map((d) => d.headword),
         dictPool,
         otherCat.map((d) => d.headword),
-        STATIC_HEADWORD_FALLBACK,
-      );
+        FALLBACK_HEADWORDS,
+      ]);
 
       // デッキ語の読みも逆引き表へ(4択の注音表示用)。
       for (const d of deck) {
@@ -453,10 +425,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         }
       }
       readingByHead.set(w.headword, { zhuyin: w.reading_zhuyin, pinyin: w.pinyin });
-      for (const [h, r] of Object.entries(STATIC_HEADWORD_READINGS)) {
+      for (const [h, r] of Object.entries(FALLBACK_HEADWORD_READINGS)) {
         if (!readingByHead.has(h)) readingByHead.set(h, r);
       }
-      const headwordChoices = shuffle([w.headword, ...headwordDistractors]);
       // 未復習カードは「出会った日(taken_at)」を記憶の起点にする。null のままだと
       // retentionNow が 100% を返し、同じ画面の記憶リスト(getMemoryOverview は
       // taken_at 起点)と矛盾する(カードは100%なのに一覧では「忘れかけ」)。
@@ -507,7 +478,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         repetitions: row.repetitions,
         retention: Math.round(retentionNow(row.interval_days, row.ease, lastMs, Date.now())),
         mode: modeFor(row.repetitions),
-        choices: shuffle([w.meaning_ja, ...meaningDistractors]),
+        choices: meaningChoices,
         headword_choices: headwordChoices,
         headword_choice_infos: headwordChoices.map((h) => ({
           headword: h,
