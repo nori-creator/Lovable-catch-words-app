@@ -14,7 +14,7 @@ import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
-import type { ShelfDensity, ShelfMaterial } from "@/lib/shelf-prefs";
+import type { ShelfStyle } from "@/lib/shelf-prefs";
 
 /**
  * 色の組み合わせそのものを並べた見本。
@@ -68,23 +68,10 @@ export function LoadFailedScene({ q }: { q: URLSearchParams }) {
   );
 }
 
-/** 棚の見え方を選ぶシート(素材6種 × 並べ方4種)。 */
+/** 棚の見え方を選ぶシート(完成した見え方3つ)。 */
 export function ShelfOptionsScene({ q }: { q: URLSearchParams }) {
-  const [material, setMaterial] = useState<ShelfMaterial>(
-    (q.get("material") ?? "oak") as ShelfMaterial,
-  );
-  const [density, setDensity] = useState<ShelfDensity>(
-    (q.get("density") ?? "three") as ShelfDensity,
-  );
-  return (
-    <DexShelfOptions
-      material={material}
-      density={density}
-      onMaterial={setMaterial}
-      onDensity={setDensity}
-      onClose={() => {}}
-    />
-  );
+  const [style, setStyle] = useState<ShelfStyle>((q.get("style") ?? "shelf") as ShelfStyle);
+  return <DexShelfOptions style={style} onStyle={setStyle} onClose={() => {}} />;
 }
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */
@@ -137,7 +124,13 @@ export function CurveScene() {
 
 /** 発音を聴く・録る面。 */
 export function PronunciationScene() {
-  return <PronunciationPanel headword="珍珠奶茶" pinyin="zhēn zhū nǎi chá" zhuyin="ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ" />;
+  return (
+    <PronunciationPanel
+      headword="珍珠奶茶"
+      pinyin="zhēn zhū nǎi chá"
+      zhuyin="ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ"
+    />
+  );
 }
 
 /**

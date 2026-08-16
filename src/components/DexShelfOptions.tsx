@@ -2,15 +2,25 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { haptic } from "@/lib/haptics";
-import {
-  SHELF_MATERIALS,
-  SHELF_DENSITIES,
-  type ShelfMaterial,
-  type ShelfDensity,
-} from "@/lib/shelf-prefs";
+import { SHELF_STYLES, type ShelfStyle } from "@/lib/shelf-prefs";
 
 /**
- * 棚の見え方を選ぶシート(素材と密度)。
+ * 棚の見え方を選ぶシート。
+ *
+ * ## なぜ「掛け合わせ」をやめたか
+ * もとは 素材6種 × 並べ方4種 で、選択肢が 24 通りあった。独立監査の
+ * 指摘はこうだった:
+ *
+ * > 390px 幅では「なし / ガラス / コンクリート」の差は説明されなければ
+ * > 気づかれない。24通りは**選ばなかったことの表明**であって、
+ * > 「何を作らないと決めたか」に一度も答えていない。
+ *
+ * しかも「並べ方」の帯には *2列 / 3列 / 4列 / 背表紙* が同居していた —
+ * 前3つは密度、背表紙は表示形式で、**分類の違うものが同じ帯にいた**。
+ *
+ * いまは**それぞれ完成した見え方**を3つだけ置く。板・列数・モノの
+ * 見せ方は見え方ごとにこちらで決めてある。ユーザーが解くのは
+ * 「どれが好きか」だけで、「木目 × 4列は変にならないか」ではない。
  *
  * ## 設計で決めたこと
  * **開いたまま後ろの棚が変わる。** 選ぶ → 閉じる → 確かめる、では
@@ -25,16 +35,12 @@ import {
  * 小さな偽物を並べる意味がない。**
  */
 export function DexShelfOptions({
-  material,
-  density,
-  onMaterial,
-  onDensity,
+  style,
+  onStyle,
   onClose,
 }: {
-  material: ShelfMaterial;
-  density: ShelfDensity;
-  onMaterial: (v: ShelfMaterial) => void;
-  onDensity: (v: ShelfDensity) => void;
+  style: ShelfStyle;
+  onStyle: (v: ShelfStyle) => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -69,19 +75,10 @@ export function DexShelfOptions({
     };
   }, []);
 
-  const materialLabel: Record<ShelfMaterial, string> = {
-    none: t("shelf.matNone"),
-    oak: t("shelf.matOak"),
-    walnut: t("shelf.matWalnut"),
-    obsidian: t("shelf.matObsidian"),
-    concrete: t("shelf.matConcrete"),
-    glass: t("shelf.matGlass"),
-  };
-  const densityLabel: Record<ShelfDensity, string> = {
-    two: t("shelf.den2"),
-    three: t("shelf.den3"),
-    four: t("shelf.den4"),
-    spines: t("shelf.denSpines"),
+  const label: Record<ShelfStyle, { name: string; note: string }> = {
+    shelf: { name: t("shelf.styShelf"), note: t("shelf.styShelfNote") },
+    library: { name: t("shelf.styLibrary"), note: t("shelf.styLibraryNote") },
+    specimen: { name: t("shelf.stySpecimen"), note: t("shelf.stySpecimenNote") },
   };
 
   return (
@@ -104,50 +101,27 @@ export function DexShelfOptions({
           </button>
         </div>
 
-        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-          {t("shelf.optMaterial")}
-        </p>
-        <div className="-mx-1 mb-4 overflow-x-auto px-1">
-          <div className="flex w-max gap-2">
-            {SHELF_MATERIALS.map((m) => (
-              <button
-                key={m}
-                onClick={() => {
-                  onMaterial(m);
-                  haptic("selection");
-                }}
-                aria-pressed={material === m}
-                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm ${
-                  material === m
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background"
-                }`}
-              >
-                {materialLabel[m]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-          {t("shelf.optDensity")}
-        </p>
-        <div className="grid grid-cols-4 gap-2">
-          {SHELF_DENSITIES.map((d) => (
+        {/* 縦に並べて、名前と一言をそれぞれに付ける。帯に押し込むと
+            5つ目が右端で切れて「まだ在る」ことが伝わらない(以前そうだった)。 */}
+        <div className="space-y-2">
+          {SHELF_STYLES.map((v) => (
             <button
-              key={d}
+              key={v}
               onClick={() => {
-                onDensity(d);
+                onStyle(v);
                 haptic("selection");
               }}
-              aria-pressed={density === d}
-              className={`min-h-11 rounded-full border px-2 text-sm ${
-                density === d
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background"
+              aria-pressed={style === v}
+              className={`flex min-h-11 w-full items-baseline gap-2 rounded-2xl border px-4 py-3 text-left ${
+                style === v ? "border-primary bg-primary/8" : "border-border bg-background"
               }`}
             >
-              {densityLabel[d]}
+              <span
+                className={`text-sm font-semibold ${style === v ? "text-primary" : "text-foreground"}`}
+              >
+                {label[v].name}
+              </span>
+              <span className="text-[11px] text-muted-foreground">{label[v].note}</span>
             </button>
           ))}
         </div>

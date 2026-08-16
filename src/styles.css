@@ -1451,43 +1451,13 @@
   --plank-bottom: #8d6839;
   --plank-grain: rgb(90 58 25 / 0.14);
 }
-[data-shelf-material="walnut"] {
-  --plank-top: #6f4c30;
-  --plank-bottom: #3d281a;
-  --plank-grain: rgb(20 10 4 / 0.2);
-}
-[data-shelf-material="obsidian"] {
-  --plank-top: #2f343d;
-  --plank-bottom: #14171c;
-  --plank-grain: rgb(0 0 0 / 0.22);
-}
-[data-shelf-material="concrete"] {
-  --plank-top: #b3b0a9;
-  --plank-bottom: #86837c;
-  --plank-grain: rgb(55 53 49 / 0.1);
-}
-[data-shelf-material="glass"] {
-  --plank-top: rgb(255 255 255 / 0.5);
-  --plank-bottom: rgb(150 190 220 / 0.28);
-  --plank-grain: rgb(255 255 255 / 0.18);
-  /* ガラスは**面ではなく小口で見える**。明るい面では半透明の白い面が
-     地の色と同化して(実測 1.47:1)、板がどこにあるか分からなくなっていた。
-     下の小口をはっきり引くと、面は透けたまま棚の線だけが立つ。 */
-  --plank-edge: rgb(24 58 84 / 0.62);
-}
 
-/* 暗い面での木と石。**同じ色をそのまま使うと地に沈む。**
-   実測: ウォルナット 1.69:1 / 黒曜石 1.44:1 と、どちらも「見えない」側に
-   落ちていた(明るい面では 13:1・17:1 で問題ない)。
-
-   最初は板そのものを明るくして通した。数字は通ったが、**絵を見たら
-   黒曜石が灰色の定規になっていた** — 木目の等間隔の線が明るい板の上で
-   目盛りとして立ち、素材の見分けも消えていた。数字だけ見て絵を見ないと
-   こうなる、の実例。
-
-   物としてどう見えるかで考え直す: 暗い部屋の棚は、面が明るくなるのでは
-   なく**小口が光を受ける**。面は暗いまま少しだけ持ち上げ、上の小口を
-   はっきりさせる。棚の在りかは、その一本の光る縁が示す。
+/* 暗い面の板。**面を明るくするのではなく、小口が光を受ける。**
+   実測で 1.69:1 / 1.44:1 まで沈む素材があり、最初は板そのものを明るくして
+   数字を通した。数字は通ったが、**絵を見たら木目の等間隔の線が目盛りとして
+   立ち、定規に見えた** — 数字だけ見て絵を見ないとこうなる、の実例。
+   物としてどう見えるかで考え直した: 暗い部屋の棚は面が明るくなるのではなく
+   小口が光る。棚の在りかは、その一本の光る縁が示す。
 
    `:is()` の詳細度は中の最大値を取るので、素材側の宣言に勝つ。
    暗い data-ui-theme は `.dark` を付けないため、5種を必ず並べる。 */
@@ -1502,36 +1472,12 @@
   [data-shelf-material] {
   --plank-lip: rgb(255 255 255 / 0.62);
 }
-:is(
-    .dark,
-    :root[data-ui-theme="darkroom"],
-    :root[data-ui-theme="nightmarket"],
-    :root[data-ui-theme="ink"],
-    :root[data-ui-theme="aurora"],
-    :root[data-ui-theme="collection"]
-  )
-  [data-shelf-material="walnut"] {
-  --plank-top: #7d5637;
-  --plank-bottom: #4b3221;
-}
-:is(
-    .dark,
-    :root[data-ui-theme="darkroom"],
-    :root[data-ui-theme="nightmarket"],
-    :root[data-ui-theme="ink"],
-    :root[data-ui-theme="aurora"],
-    :root[data-ui-theme="collection"]
-  )
-  [data-shelf-material="obsidian"] {
-  --plank-top: #383e48;
-  --plank-bottom: #1c2026;
-}
 
 /* `:where()` で詳細度を (0,2,0) に抑える。**素の `:not()` は中身の詳細度を
-   足す**ので、これを `:not(…)` のまま書くと (0,3,0) になり、後ろにある
-   `[data-shelf-material="glass"] .shelf-rule` (0,2,0) に勝ってしまう。
-   実際そうなっていて、**ガラスの小口も backdrop-filter も一度も効いていなかった**
-   — 見た目は他の素材と同じ板のまま、選んでも何も変わらない状態だった。 */
+   足す**ので、素材ごとの上書き (0,2,0) に勝ってしまう。実際そうなっていて、
+   ガラスの小口も backdrop-filter も一度も効いていなかった
+   (見た目は他の素材と同じ板のまま、選んでも何も変わらない状態だった)。
+   ガラス自体は見え方の作り直しで無くなったが、抑える理由は変わらない。 */
 [data-shelf-material]:where(:not([data-shelf-material="none"])) .shelf-rule {
   height: 0.6875rem; /* 11px — 板の小口が見える最小の厚み */
   border-radius: 0 0 3px 3px;
@@ -1549,14 +1495,6 @@
   box-shadow:
     inset 0 2px 0 var(--plank-lip, rgb(255 255 255 / 0.25)),
     0 5px 10px -5px hsl(var(--shelf-shadow) / 0.75);
-}
-[data-shelf-material="glass"] .shelf-rule {
-  backdrop-filter: blur(6px);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    /* 小口。ここが棚の在りかを示す唯一の線になる(面は透けているので)。 */ inset 0 -2px 0
-      var(--plank-edge),
-    0 6px 14px -8px hsl(var(--shelf-shadow) / 0.6);
 }
 
 /* ── 背表紙(spines): 本棚の見え方 ─────────────────────────────

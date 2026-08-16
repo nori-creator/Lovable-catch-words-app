@@ -30,13 +30,11 @@ import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
 import { DexShelfOptions } from "@/components/DexShelfOptions";
 import {
-  DENSITY_PER_SHELF,
-  getShelfDensity,
-  getShelfMaterial,
-  setShelfDensity,
-  setShelfMaterial,
-  type ShelfDensity,
-  type ShelfMaterial,
+  STYLE_SPEC,
+  clearLegacyShelfPrefs,
+  getShelfStyle,
+  setShelfStyle,
+  type ShelfStyle,
 } from "@/lib/shelf-prefs";
 import { LoadFailed } from "@/components/LoadFailed";
 import { Sound } from "@/lib/sound-engine";
@@ -166,12 +164,11 @@ function DexPage() {
   const [search, setSearch] = useState("");
   // 棚の見え方。localStorage から読むので、初期値は既定のまま置いて
   // マウント後に差し替える(サーバー描画と食い違わせない)。
-  const [material, setMaterial] = useState<ShelfMaterial>("none");
-  const [density, setDensity] = useState<ShelfDensity>("three");
+  const [style, setStyle] = useState<ShelfStyle>("shelf");
   const [shelfOptions, setShelfOptions] = useState(false);
   useEffect(() => {
-    setMaterial(getShelfMaterial());
-    setDensity(getShelfDensity());
+    setStyle(getShelfStyle());
+    clearLegacyShelfPrefs();
   }, []);
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
@@ -460,9 +457,7 @@ function DexPage() {
           activeCategory={activeCategory}
           onOpen={setOpenId}
           justCaught={justCaught}
-          material={material}
-          density={density}
-          perShelf={DENSITY_PER_SHELF[density]}
+          style={style}
         />
       ) : (
         groups.map(([key, items]) => (
@@ -641,15 +636,10 @@ function DexPage() {
           その約束が嘘になる(表示を切り替えられるのは着弾の演出中など)。 */}
       {shelfOptions && view === "shelf" && (
         <DexShelfOptions
-          material={material}
-          density={density}
-          onMaterial={(v) => {
-            setMaterial(v);
-            setShelfMaterial(v);
-          }}
-          onDensity={(v) => {
-            setDensity(v);
-            setShelfDensity(v);
+          style={style}
+          onStyle={(v) => {
+            setStyle(v);
+            setShelfStyle(v);
           }}
           onClose={() => setShelfOptions(false)}
         />

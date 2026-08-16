@@ -10,7 +10,7 @@ import {
   type RoomKey,
 } from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
-import { spineColor, type ShelfDensity, type ShelfMaterial } from "@/lib/shelf-prefs";
+import { STYLE_SPEC, spineColor, type ShelfStyle } from "@/lib/shelf-prefs";
 
 /**
  * 図鑑の棚。
@@ -48,12 +48,8 @@ type Props = {
   onOpen: (id: string) => void;
   /** 着弾中のステッカー — その棚を揺らし、そのスロットを光らせる。 */
   justCaught?: string;
-  /** 1段に並べる数。密度切替でここが変わる。 */
-  perShelf?: number;
-  /** 棚板の素材。`none` なら線1本のまま。 */
-  material?: ShelfMaterial;
-  /** 並べ方。`spines` のときだけモノではなく背表紙を並べる。 */
-  density?: ShelfDensity;
+  /** 見え方。板・列数・モノの見せ方はここから一括で決まる。 */
+  style?: ShelfStyle;
 };
 
 /**
@@ -90,17 +86,10 @@ function estimateShelfHeight(tiers: number, spines: boolean, thickPlank: boolean
   return HEAD + tiers * ((spines ? 90 : 111) + plank);
 }
 
-export function DexShelf({
-  stickers,
-  activeCategory,
-  onOpen,
-  justCaught,
-  perShelf = 3,
-  material = "none",
-  density = "three",
-}: Props) {
+export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style = "shelf" }: Props) {
   const t = useT();
-  const spines = density === "spines";
+  // 見え方から3つまとめて決まる。**掛け合わせを画面側で解かない。**
+  const { material, perShelf, spines } = STYLE_SPEC[style];
 
   /** カテゴリー → そのカテゴリーのステッカー。 */
   const byCategory = useMemo(() => {
@@ -326,7 +315,10 @@ function ShelfItem({
             ×{s.encounter_count}
           </span>
         )}
-        <span className="shelf-spine" style={{ backgroundColor: spineColor(s.word.headword) }}>
+        <span
+          className="shelf-spine"
+          style={{ backgroundColor: spineColor(asCategoryKey(s.word.category_key)) }}
+        >
           <span className="text-white">{s.word.headword}</span>
         </span>
       </button>

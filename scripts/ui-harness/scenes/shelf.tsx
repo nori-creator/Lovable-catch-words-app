@@ -1,6 +1,6 @@
 /** 棚(図鑑)の場面。**本物の `DexShelf` を描く。** */
 import { DexShelf } from "@/components/DexShelf";
-import { DENSITY_PER_SHELF, type ShelfDensity, type ShelfMaterial } from "@/lib/shelf-prefs";
+import { type ShelfStyle } from "@/lib/shelf-prefs";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { ROOM_CATEGORIES, ROOM_KEYS } from "@/lib/category";
 
@@ -71,8 +71,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number): StickerWithWord {
 
 export function ShelfScene({ q }: { q: URLSearchParams }) {
   const count = Number(q.get("count") ?? FIXTURES.length);
-  const material = (q.get("material") ?? "none") as ShelfMaterial;
-  const density = (q.get("density") ?? "three") as ShelfDensity;
+  const style = (q.get("style") ?? "shelf") as ShelfStyle;
   // 見た目の検査は 8 件で足りるが、**性能は件数が要る**。
   //
   // 足りない分は雛形を繰り返して埋める。このとき**分類も順に回す** —
@@ -85,14 +84,5 @@ export function ShelfScene({ q }: { q: URLSearchParams }) {
     if (count <= FIXTURES.length) return s;
     return { ...s, word: { ...s.word, category_key: ALL_CATEGORIES[i % ALL_CATEGORIES.length] } };
   });
-  return (
-    <DexShelf
-      stickers={stickers}
-      activeCategory={null}
-      onOpen={() => {}}
-      perShelf={DENSITY_PER_SHELF[density]}
-      material={material}
-      density={density}
-    />
-  );
+  return <DexShelf stickers={stickers} activeCategory={null} onOpen={() => {}} style={style} />;
 }

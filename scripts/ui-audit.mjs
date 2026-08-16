@@ -130,25 +130,15 @@ const MODES = [
   ["contrast", "", true, {}],
   ["contrast-dark", 'class="dark"', true, {}],
   ["contrast-darkroom", 'data-ui-theme="darkroom"', true, {}],
-  // 素材と密度。**選べるようにしたものは全部見る** — 選択肢を足しただけで
+  // 見え方は3つ。**選べるようにしたものは全部見る** — 選択肢を足しただけで
   // 見ていない組み合わせがあるなら、それは足していないのと同じ。
-  // 素材は**明るい面と暗い面の両方**で見る。片方ずつしか見ていなかったので、
+  // 明るい面と暗い面の両方で見る。片方ずつしか見ていなかったので、
   // 「暗い面のウォルナットが背景に沈む」「明るい面のガラスが消える」を
   // どちらも取りこぼしていた(実測 1.69:1 と 1.47:1)。
-  ["oak", "", false, { material: "oak" }],
-  ["oak-dark", 'class="dark"', false, { material: "oak" }],
-  ["walnut", "", false, { material: "walnut" }],
-  ["walnut-dark", 'class="dark"', false, { material: "walnut" }],
-  ["obsidian", "", false, { material: "obsidian" }],
-  ["obsidian-dark", 'class="dark"', false, { material: "obsidian" }],
-  ["concrete", "", false, { material: "concrete" }],
-  ["concrete-dark", 'class="dark"', false, { material: "concrete" }],
-  ["glass", "", false, { material: "glass" }],
-  ["glass-dark", 'class="dark"', false, { material: "glass" }],
-  ["den2", "", false, { density: "two" }],
-  ["den4", "", false, { density: "four" }],
-  ["spines", "", false, { density: "spines" }],
-  ["spines-oak-dark", 'class="dark"', false, { density: "spines", material: "oak" }],
+  ["library", "", false, { style: "library" }],
+  ["library-dark", 'class="dark"', false, { style: "library" }],
+  ["specimen", "", false, { style: "specimen" }],
+  ["specimen-dark", 'class="dark"', false, { style: "specimen" }],
   // **何も集めていない人の図鑑。** ここを撮っていなかったせいで、
   // 「54棚が全部空で数画面ぶん流れる」に気づけなかった。
   ["empty-light", "", false, { count: 0 }],
@@ -165,6 +155,7 @@ const MODES = [
   ...crossThemes("failed", { scene: "load-failed" }),
   ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
   ...crossThemes("options", { scene: "shelf-options" }),
+  ["options-library", "", false, { scene: "shelf-options", style: "library" }],
   ...crossThemes("chunks", { scene: "chunks" }),
   ...crossThemes("curve", { scene: "curve" }),
   ...crossThemes("pron", { scene: "pronunciation" }),
