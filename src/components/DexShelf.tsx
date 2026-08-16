@@ -1,15 +1,8 @@
 import { useMemo } from "react";
 import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
-import {
-  ROOM_KEYS,
-  ROOM_CATEGORIES,
-  asCategoryKey,
-  categoryEmoji,
-  type CategoryKey,
-  type RoomKey,
-} from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
+import { buildShelfPlan, type UserShelf } from "@/lib/shelf-plan";
 
 /**
  * 図鑑の棚。
@@ -47,6 +40,11 @@ type Props = {
   onOpen: (id: string) => void;
   /** 着弾中のステッカー — その棚を揺らし、そのスロットを光らせる。 */
   justCaught?: string;
+  /**
+   * その人だけの棚(AI が語を分析して作ったもの)。
+   * 渡さなければ今までどおり、既定の54棚だけで並ぶ。
+   */
+  userShelves?: readonly UserShelf[];
 };
 
 /**
@@ -99,33 +97,14 @@ function estimateShelfHeight(tiers: number): number {
   return HEAD + tiers * 111;
 }
 
-export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props) {
+export function DexShelf({
+  stickers,
+  activeCategory,
+  onOpen,
+  justCaught,
+  userShelves = [],
+}: Props) {
   const t = useT();
-
-  /** カテゴリー → そのカテゴリーのステッカー。 */
-  const byCategory = useMemo(() => {
-    const map = new Map<CategoryKey, StickerWithWord[]>();
-    for (const s of stickers) {
-      const k = asCategoryKey(s.word.category_key);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(s);
-    }
-    return map;
-  }, [stickers]);
-
-  /**
-   * 描く部屋。**並べ替えない**。
-   * 絞り込み中だけ、その棚のある部屋に寄る。
-   */
-  const rooms = useMemo(() => {
-    if (activeCategory) {
-      const room = ROOM_KEYS.find((r) =>
-        ROOM_CATEGORIES[r].includes(asCategoryKey(activeCategory)),
-      );
-      return room ? [room] : [];
-    }
-    return ROOM_KEYS;
-  }, [activeCategory]);
 
   /**
    * **持っている棚だけを描く。**
@@ -143,19 +122,23 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props
    * これで棚は「AIが語を分類した瞬間に生える」ものになる。最初の1語で
    * 棚が1つでき、集めるほど部屋が増える。空きを見せて動機づける代わりに、
    * **増えていくこと自体**が動機になる。
+   *
+   * ## 並びの決め方は `shelf-plan.ts`
+   * その人だけの棚(AIが作ったもの)が混ざるので、順序の規則を画面から
+   * 出して純粋な関数にした。**わざと壊して落ちるテストが書ける形**にする
+   * ため — 画面の中に置くと、規則が正しいかを目でしか確かめられない。
    */
-  const roomShelves = useMemo(() => {
-    const wanted = activeCategory ? asCategoryKey(activeCategory) : null;
-    return rooms
-      .map((room) => ({
-        room,
-        // 並べ替えない。正規の順から、中身のあるものだけを残す。
-        shelves: ROOM_CATEGORIES[room].filter(
-          (c) => (wanted ? c === wanted : true) && (byCategory.get(c)?.length ?? 0) > 0,
-        ),
-      }))
-      .filter((r) => r.shelves.length > 0);
-  }, [rooms, activeCategory, byCategory]);
+  const roomShelves = useMemo(
+    () =>
+      buildShelfPlan({
+        items: stickers,
+        userShelves,
+        activeShelf: activeCategory,
+        labelForCategory: (k) => t(`cat.${k}`),
+        labelForRoom: (k) => t(`room.${k}`),
+      }),
+    [stickers, userShelves, activeCategory, t],
+  );
 
   // 「×3」は**このアプリが勝手に決めた記号**で、どこにも説明が無かった
   // (独立監査)。かといって常設の凡例を置くと、印が1つも無い人にまで
@@ -172,11 +155,11 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props
           {t("dex.metCountLegend")}
         </p>
       )}
-      {roomShelves.map(({ room, shelves }) => {
+      {roomShelves.map((room) => {
         return (
-          <section key={room} aria-labelledby={`room-${room}`}>
+          <section key={room.key} aria-labelledby={`room-${room.key}`}>
             <h3
-              id={`room-${room}`}
+              id={`room-${room.key}`}
               // 上のバーの高さは env(safe-area-inset-top) の分だけ伸びる。
               // 決め打ちだと、ノッチのある端末で見出しがヘッダーの裏に隠れる。
               // 高さそのものも決め打ちにしない — `--app-header-h` から取る。
@@ -185,12 +168,12 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props
               // (独立監査「見出しの階層が逆転している」)。
               className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 bg-background/85 px-4 py-1.5 text-headline font-semibold tracking-tight text-foreground backdrop-blur-sm"
             >
-              {t(`room.${room}`)}
+              {room.label}
             </h3>
 
             <div className="space-y-6">
-              {shelves.map((cat) => {
-                const items = byCategory.get(cat) ?? [];
+              {room.shelves.map((shelf) => {
+                const items = shelf.items;
                 const landing = items.some((s) => s.id === justCaught);
                 // 1棚をN個ずつの段に割る。段ごとに棚板と題名を持つ。
                 const tiers: StickerWithWord[][] = [];
@@ -199,7 +182,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props
                 }
                 return (
                   <div
-                    key={cat}
+                    key={shelf.key}
                     className={landing ? "shelf-tilt" : undefined}
                     // 画面の外にある棚は**中身を描かない**。棚は54個を常に
                     // 全部出す作りなので、持ち物が増えるほど「見えていない棚」の
@@ -228,10 +211,10 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props
                           絵文字は黒地でいちばん彩度が高くなり、集めた語より
                           先に目に入っていた。 */}
                       <span aria-hidden className="cat-emoji text-body leading-none">
-                        {categoryEmoji(cat)}
+                        {shelf.emoji}
                       </span>
                       <span className="text-footnote font-medium text-muted-foreground">
-                        {t(`cat.${cat}`)}
+                        {shelf.label}
                       </span>
                       <span // `/80` を掛けたら 3.74:1 まで落ちた(検査が即座に落とした)。
                         // 件数は小さいので、薄さを重ねる余地が無い。

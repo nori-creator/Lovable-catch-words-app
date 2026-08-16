@@ -68,6 +68,27 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number): StickerWithWord {
   };
 }
 
+/**
+ * AI が作った「その人だけの棚」。既定の54棚に無い分類で、
+ * 部屋も新しく生える(`faith` は `ROOM_KEYS` に無い)。
+ */
+const USER_SHELVES = [
+  {
+    key: "night_market_snack",
+    label: "夜市のおやつ",
+    emoji: "🍡",
+    room_key: "eat",
+    room_label: "食べる",
+  },
+  {
+    key: "temple_offering",
+    label: "廟のお供え",
+    emoji: "🪷",
+    room_key: "faith",
+    room_label: "祈る",
+  },
+];
+
 export function ShelfScene({ q }: { q: URLSearchParams }) {
   const count = Number(q.get("count") ?? FIXTURES.length);
   // 見た目の検査は 8 件で足りるが、**性能は件数が要る**。
@@ -82,5 +103,28 @@ export function ShelfScene({ q }: { q: URLSearchParams }) {
     if (count <= FIXTURES.length) return s;
     return { ...s, word: { ...s.word, category_key: ALL_CATEGORIES[i % ALL_CATEGORIES.length] } };
   });
-  return <DexShelf stickers={stickers} activeCategory={null} onOpen={() => {}} />;
+  // `custom=1` で「AI が棚と部屋を作ったあと」の図鑑を描く。
+  // 既定の棚しか無い状態と**両方**撮る — 新しい棚が既存の並びを
+  // 押しのけていないことは、並べて見ないと分からない。
+  const custom = q.get("custom") === "1";
+  // **両方の棚に必ず中身を入れる。** 最初 `i % 14` で振ったら片方が
+  // 0件になり、「中身のある棚だけ描く」規則どおり新しい部屋が出なかった。
+  // 出したい面が出ていない雛形は、検査しているつもりで何も見ていない。
+  const withShelves = custom
+    ? stickers.map((s, i) =>
+        i % 8 === 3
+          ? { ...s, shelf_key: "night_market_snack" }
+          : i % 8 === 5
+            ? { ...s, shelf_key: "temple_offering" }
+            : s,
+      )
+    : stickers;
+  return (
+    <DexShelf
+      stickers={withShelves}
+      activeCategory={null}
+      onOpen={() => {}}
+      userShelves={custom ? USER_SHELVES : []}
+    />
+  );
 }
