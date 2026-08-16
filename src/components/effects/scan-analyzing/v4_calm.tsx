@@ -45,7 +45,7 @@ export function ScanAnalyzing_v4calm({ stage }: { stage: Stage }) {
           style={{ animationDuration: "0.9s" }}
         />
         <p
-          className="text-[15px] font-medium tracking-[-0.01em] text-white/95"
+          className="text-body font-medium tracking-[-0.01em] text-white/95"
           style={{ textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}
         >
           AIが分析中…

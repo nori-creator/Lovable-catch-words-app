@@ -14,7 +14,7 @@
  *
  * ## 使い方
  *   <Zh>{word.headword}</Zh>                     // span で囲む
- *   <Zh as="h1" className="text-4xl">{...}</Zh>   // 任意のタグで
+ *   <Zh as="h1" className="text-hero">{...}</Zh>   // 任意のタグで
  */
 
 import type { ElementType, ReactNode } from "react";

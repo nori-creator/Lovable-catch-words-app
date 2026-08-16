@@ -38,8 +38,8 @@ export const Route = createFileRoute("/terms")({
 function TermsJa() {
   return (
     <>
-      <h1 className="mt-4 text-3xl font-bold tracking-tight">利用規約</h1>
-      <p className="mt-1 text-xs text-muted-foreground">最終更新: 2026年6月22日</p>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">利用規約</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年6月22日</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. 適用</h2>
         <p>
@@ -90,8 +90,8 @@ function TermsJa() {
 function TermsEn() {
   return (
     <>
-      <h1 className="mt-4 text-3xl font-bold tracking-tight">Terms of Service</h1>
-      <p className="mt-1 text-xs text-muted-foreground">Last updated: 22 June 2026</p>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">Terms of Service</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 22 June 2026</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. Scope</h2>
         <p>
@@ -156,12 +156,12 @@ function TermsPage() {
     <article className="mx-auto max-w-2xl px-4 py-10">
       <Link
         to="/"
-        className="inline-block py-3 -my-3 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-block py-3 -my-3 text-body text-muted-foreground hover:text-foreground"
       >
         ← {t("common.back")}
       </Link>
       {lang === "en" ? <TermsEn /> : <TermsJa />}
-      <p className="mt-8 text-xs text-muted-foreground">
+      <p className="mt-8 text-footnote text-muted-foreground">
         <Link to="/privacy" className="inline-block py-3 -my-3 underline">
           {t("auth.privacy")}
         </Link>

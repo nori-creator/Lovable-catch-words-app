@@ -131,14 +131,20 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   };
 
   const scoreColor =
-    score == null ? "" : score >= 85 ? "text-ok" : score >= 60 ? "text-warn" : "text-rose-600";
+    score == null
+      ? ""
+      : score >= 85
+        ? "text-ok-ink"
+        : score >= 60
+          ? "text-warn-ink"
+          : "text-bad-ink";
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div lang="zh-Hant">
-          <h3 className="text-sm font-semibold">{t("pron.title")}</h3>
-          <p className="text-[11px] text-muted-foreground">{zhuyin ?? pinyin ?? ""}</p>
+          <h3 className="text-body font-semibold">{t("pron.title")}</h3>
+          <p className="text-caption text-muted-foreground">{zhuyin ?? pinyin ?? ""}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -156,7 +162,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           <button
             type="button"
             onClick={() => speak(true)}
-            className="lift inline-flex h-11 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
+            className="lift inline-flex h-11 items-center justify-center rounded-full border border-border bg-background px-3 text-footnote"
           >
             {t("pron.slow")}
           </button>
@@ -174,7 +180,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
         >
           {listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </button>
-        <div className="flex-1 text-sm">
+        <div className="flex-1 text-body">
           {listening ? (
             <span className="text-muted-foreground">
               {t("pron.listeningBefore")}
@@ -183,7 +189,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
             </span>
           ) : heard ? (
             <div className="space-y-0.5">
-              <div className="text-xs text-muted-foreground">{t("pron.yours")}</div>
+              <div className="text-footnote text-muted-foreground">{t("pron.yours")}</div>
               <div className="font-medium">{heard}</div>
             </div>
           ) : (
@@ -196,15 +202,15 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
         </div>
         {score !== null && (
           <div className={`text-right ${scoreColor}`}>
-            <div className="flex items-center gap-1 text-2xl font-bold">
+            <div className="flex items-center gap-1 text-title font-bold">
               {score >= 85 && <CheckCircle2 className="h-5 w-5" />}
               {score}
             </div>
-            <div className="text-[11px] text-muted-foreground">{t("pron.score")}</div>
+            <div className="text-caption text-muted-foreground">{t("pron.score")}</div>
           </div>
         )}
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-footnote text-destructive">{error}</p>}
     </section>
   );
 }

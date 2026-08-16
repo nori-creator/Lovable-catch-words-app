@@ -97,7 +97,7 @@ export function PlaceMemoryWatcher() {
           }}
           className="min-w-0 flex-1 text-left"
         >
-          <span className="block truncate text-sm font-semibold">
+          <span className="block truncate text-body font-semibold">
             {/* 単語の前後で文が分かれる。日本語は「〇〇」覚えてる?、英語は
                 Remember "〇〇"? と語順が違うので前後を別キーにしている。
                 単語だけ <Zh> で囲む必要があり、1文にまとめられない。 */}
@@ -105,7 +105,7 @@ export function PlaceMemoryWatcher() {
             <Zh>{hit.headword}</Zh>
             {t("place.rememberAfter")}
           </span>
-          <span className="block truncate text-[11px] text-muted-foreground">
+          <span className="block truncate text-caption text-muted-foreground">
             {t("place.caughtHere", {
               when,
               where: hit.location_name

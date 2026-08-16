@@ -56,7 +56,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
             44px の枠付き白丸だったので、**退出口が主題より目立って**いた
             (独立監査)。「— 詳しく」という区切りも開発者的なので落とし、
             語だけを見出しにする。 */}
-        <span className="pl-1 text-base font-semibold">
+        <span className="pl-1 text-body font-semibold">
           <Zh>{headword}</Zh>
         </span>
         <button
@@ -71,7 +71,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {err ? (
-          <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{err}</p>
+          <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive">{err}</p>
         ) : !card ? (
           /* **回る輪だけを置かない。** 何がどこに出るのか分からないまま
              待たされるうえ、届いた瞬間に画面が丸ごと入れ替わって視線が
@@ -83,7 +83,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
             <div className="h-24 w-full animate-pulse rounded-2xl bg-secondary" />
             <div className="h-4 w-full animate-pulse rounded bg-secondary" />
             <div className="h-4 w-3/4 animate-pulse rounded bg-secondary" />
-            <p className="pt-1 text-[11px] text-muted-foreground">{t("detail.preparing")}</p>
+            <p className="pt-1 text-caption text-muted-foreground">{t("detail.preparing")}</p>
           </div>
         ) : (
           <WordCard
@@ -109,7 +109,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
             `dict` の有無で言っていたので、同じ語が**このシートでは
             検証済み、次のシートではAI生成**と1タップの間に食い違っていた。 */}
         {card && (
-          <p className="mt-3 text-[11px] text-muted-foreground">
+          <p className="mt-3 text-caption text-muted-foreground">
             {dict?.source === "verified" ? t("detail.verified") : t("detail.aiOnly")}
           </p>
         )}

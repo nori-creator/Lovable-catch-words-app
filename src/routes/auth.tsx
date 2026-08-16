@@ -147,15 +147,15 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-title font-bold shadow-lg shadow-primary/30">
             C
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Catchwords</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("auth.tagline")}</p>
+          <h1 className="text-title font-semibold tracking-tight">Catchwords</h1>
+          <p className="mt-1 text-body text-muted-foreground">{t("auth.tagline")}</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex gap-2 rounded-full bg-secondary p-1 text-xs">
+          <div className="mb-4 flex gap-2 rounded-full bg-secondary p-1 text-footnote">
             <button
               type="button"
               onClick={() => setMode("signin")}
@@ -201,7 +201,7 @@ function AuthPage() {
             </Button>
           </form>
 
-          <div className="my-4 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="my-4 flex items-center gap-2 text-footnote text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
             {t("auth.or")}
             <div className="h-px flex-1 bg-border" />
@@ -229,7 +229,7 @@ function AuthPage() {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-muted-foreground">
+        <p className="mt-6 text-center text-caption text-muted-foreground">
           {t("auth.agreeBefore")}
           <a href="/terms" className="inline-block py-3 -my-3 underline hover:text-foreground">
             {t("auth.terms")}

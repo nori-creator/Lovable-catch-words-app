@@ -91,7 +91,7 @@ export function DexShelfOptions({
       >
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-foreground/20" aria-hidden />
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{t("shelf.optTitle")}</h2>
+          <h2 className="text-body font-semibold">{t("shelf.optTitle")}</h2>
           <button
             onClick={onClose}
             aria-label={t("common.close")}
@@ -117,16 +117,16 @@ export function DexShelfOptions({
               }`}
             >
               <span
-                className={`text-sm font-semibold ${style === v ? "text-primary" : "text-foreground"}`}
+                className={`text-body font-semibold ${style === v ? "text-primary-ink" : "text-foreground"}`}
               >
                 {label[v].name}
               </span>
-              <span className="text-[11px] text-muted-foreground">{label[v].note}</span>
+              <span className="text-caption text-muted-foreground">{label[v].note}</span>
             </button>
           ))}
         </div>
 
-        <p className="mt-3 text-[11px] text-muted-foreground">{t("shelf.optLiveHint")}</p>
+        <p className="mt-3 text-caption text-muted-foreground">{t("shelf.optLiveHint")}</p>
       </div>
     </div>
   );

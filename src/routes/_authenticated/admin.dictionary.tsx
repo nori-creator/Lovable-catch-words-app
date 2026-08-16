@@ -175,7 +175,7 @@ function DictionaryAdminPage() {
   if (adminLoading) {
     return (
       <AppShell>
-        <div className="p-6 text-sm text-muted-foreground">確認中...</div>
+        <div className="p-6 text-body text-muted-foreground">確認中...</div>
       </AppShell>
     );
   }
@@ -184,8 +184,8 @@ function DictionaryAdminPage() {
     return (
       <AppShell>
         <div className="p-6 space-y-2">
-          <h1 className="text-lg font-semibold">アクセス権がありません</h1>
-          <p className="text-sm text-muted-foreground">この画面は管理者のみが利用できます。</p>
+          <h1 className="text-headline font-semibold">アクセス権がありません</h1>
+          <p className="text-body text-muted-foreground">この画面は管理者のみが利用できます。</p>
         </div>
       </AppShell>
     );
@@ -195,15 +195,15 @@ function DictionaryAdminPage() {
     <AppShell>
       <div className="p-6 space-y-8 max-w-3xl">
         <header>
-          <h1 className="text-xl font-bold">辞書管理</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-title font-bold">辞書管理</h1>
+          <p className="text-body text-muted-foreground">
             dictionary_entries への CSV 一括投入と検索確認
           </p>
         </header>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">CSV 投入</h2>
-          <p className="text-xs text-muted-foreground">
+          <h2 className="text-body font-semibold">CSV 投入</h2>
+          <p className="text-footnote text-muted-foreground">
             ヘッダー行必須。認識する列:{" "}
             <code>
               headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, taiwan_usage, source,
@@ -218,7 +218,7 @@ function DictionaryAdminPage() {
             onChange={(e) => setCsv(e.target.value)}
             placeholder={`headword,zhuyin,pinyin,meaning_ja,pos,tocfl_level\n芒果,ㄇㄤˊ ㄍㄨㄛˇ,mángguǒ,マンゴー,名詞,1`}
             rows={10}
-            className="font-mono text-xs"
+            className="font-mono text-footnote"
           />
           <div className="flex gap-2">
             <Button onClick={handleImport} disabled={importing || !csv.trim()}>
@@ -228,11 +228,11 @@ function DictionaryAdminPage() {
               クリア
             </Button>
           </div>
-          {importResult && <p className="text-sm">{importResult}</p>}
+          {importResult && <p className="text-body">{importResult}</p>}
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">検索確認</h2>
+          <h2 className="text-body font-semibold">検索確認</h2>
           <div className="flex gap-2">
             <div className="flex-1">
               <Label htmlFor="q" className="sr-only">
@@ -250,21 +250,21 @@ function DictionaryAdminPage() {
           </div>
           <div className="border rounded-md divide-y">
             {results.length === 0 && (
-              <div className="p-3 text-sm text-muted-foreground">結果なし</div>
+              <div className="p-3 text-body text-muted-foreground">結果なし</div>
             )}
             {results.map((r) => (
-              <div key={r.id} className="p-3 text-sm flex flex-wrap gap-x-3 gap-y-1">
+              <div key={r.id} className="p-3 text-body flex flex-wrap gap-x-3 gap-y-1">
                 <span lang="zh-Hant" className="font-medium">
                   {r.headword}
                 </span>
                 {r.zhuyin && <span className="text-muted-foreground">{r.zhuyin}</span>}
                 {r.pinyin && <span className="text-muted-foreground">{r.pinyin}</span>}
                 <span>→ {r.meaning_ja}</span>
-                {r.pos && <span className="text-xs text-muted-foreground">[{r.pos}]</span>}
+                {r.pos && <span className="text-footnote text-muted-foreground">[{r.pos}]</span>}
                 {r.tocfl_level && (
-                  <span className="text-xs text-muted-foreground">L{r.tocfl_level}</span>
+                  <span className="text-footnote text-muted-foreground">L{r.tocfl_level}</span>
                 )}
-                <span className="text-xs text-muted-foreground ml-auto">
+                <span className="text-footnote text-muted-foreground ml-auto">
                   {r.source} / {r.entry_type}
                 </span>
               </div>

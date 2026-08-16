@@ -78,7 +78,7 @@ export function ImagePicker({ query, onPicked }: Props) {
           )}
           {t("img.searchFor", { q: query })}
         </Button>
-        <label className="lift inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-accent">
+        <label className="lift inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-3 text-body font-medium hover:bg-accent">
           <Upload className="h-4 w-4" />
           <span>{t("img.ownPhoto")}</span>
           <input
@@ -91,7 +91,7 @@ export function ImagePicker({ query, onPicked }: Props) {
       </div>
 
       {searched && !loading && candidates.length === 0 && (
-        <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-footnote text-muted-foreground">
           {t("img.notFound")}
         </p>
       )}
@@ -112,7 +112,7 @@ export function ImagePicker({ query, onPicked }: Props) {
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
-              <div className="absolute right-1 top-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[11px] text-white backdrop-blur">
+              <div className="absolute right-1 top-1 rounded-full bg-black/50 px-1.5 py-0.5 text-caption text-white backdrop-blur">
                 {c.source === "ai" ? (
                   <span className="inline-flex items-center gap-0.5">
                     <Sparkles className="h-2.5 w-2.5" />
@@ -128,7 +128,7 @@ export function ImagePicker({ query, onPicked }: Props) {
                 </div>
               )}
               {c.credit && (
-                <div className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[11px] text-white">
+                <div className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-caption text-white">
                   © {c.credit.name}
                 </div>
               )}

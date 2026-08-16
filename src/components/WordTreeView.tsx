@@ -83,8 +83,8 @@ export function WordTreeView({
   return (
     <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-1 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold tracking-tight">{t("tree.title")}</h2>
-        <span className="text-[11px] text-muted-foreground">
+        <h2 className="text-body font-semibold tracking-tight">{t("tree.title")}</h2>
+        <span className="text-caption text-muted-foreground">
           {t("tree.branches", { done: unlocked.length, total: plan.length })}
         </span>
       </div>
@@ -170,14 +170,14 @@ export function WordTreeView({
               ) : (
                 <span
                   lang="zh-Hant"
-                  className="px-1 text-center text-sm font-semibold text-muted-foreground"
+                  className="px-1 text-center text-body font-semibold text-muted-foreground"
                 >
                   {emoji ?? headword}
                 </span>
               )}
             </div>
           </div>
-          <div lang="zh-Hant" className="mt-1 text-sm font-bold tracking-tight">
+          <div lang="zh-Hant" className="mt-1 text-body font-bold tracking-tight">
             {headword}
           </div>
         </div>
@@ -197,7 +197,7 @@ export function WordTreeView({
                   <Lock className="h-4 w-4" />
                   <Sparkles className="absolute -right-1 -top-1 h-3 w-3 text-primary/70 animate-pulse" />
                 </div>
-                <div className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">
+                <div className="mt-0.5 whitespace-nowrap text-caption text-muted-foreground">
                   {t("tree.locked", { n: lockedCount })}
                 </div>
               </div>
@@ -218,11 +218,11 @@ export function WordTreeView({
               }}
               className={`absolute z-10 max-w-[38%] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-2.5 py-1.5 text-center shadow-sm ring-1 backdrop-blur-sm transition-transform hover:-translate-y-[calc(50%+1px)] active:scale-95 ${TYPE_STYLE[b.type]}`}
             >
-              <span lang="zh-Hant" className="block text-[13px] font-semibold leading-tight">
+              <span lang="zh-Hant" className="block text-footnote font-semibold leading-tight">
                 {b.zh}
               </span>
-              {b.ja && <span className="block text-[11px] opacity-80">{b.ja}</span>}
-              <span className="block text-[8px] uppercase tracking-wide opacity-60">
+              {b.ja && <span className="block text-caption opacity-80">{b.ja}</span>}
+              <span className="block text-caption uppercase tracking-wide opacity-60">
                 {t(TYPE_LABEL_KEY[b.type])}
               </span>
             </Link>
@@ -230,7 +230,7 @@ export function WordTreeView({
         })}
       </div>
 
-      <p className="mt-1 text-center text-[11px] text-muted-foreground">{t("tree.tapHint")}</p>
+      <p className="mt-1 text-center text-caption text-muted-foreground">{t("tree.tapHint")}</p>
 
       <style>{`
         @keyframes wt-grow { to { stroke-dashoffset: 0; } }

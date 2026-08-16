@@ -216,7 +216,9 @@ export function ScanAnalyzing_v1probe({ stage }: { stage: Stage }) {
             />
           ))}
         </div>
-        <p className="text-[11px] font-medium tracking-[0.22em] text-white/80 uppercase">{label}</p>
+        <p className="text-caption font-medium tracking-[0.22em] text-white/80 uppercase">
+          {label}
+        </p>
       </div>
     </div>
   );

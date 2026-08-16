@@ -154,8 +154,8 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
   return (
     <div className="space-y-8" data-shelf-material={material}>
       {hasRepeats && (
-        <p className="flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground">
-          <span className="rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background">
+        <p className="flex items-center gap-1.5 px-0.5 text-caption text-muted-foreground">
+          <span className="rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground">
             ×2
           </span>
           {t("dex.metCountLegend")}
@@ -172,7 +172,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
               // **親のほうを強くする。** 部屋(食べる)13px グレー中太に対し、
               // 棚(🍎 果物)は 13px 黒太字 + 絵文字で、**子のほうが重かった**
               // (独立監査「見出しの階層が逆転している」)。
-              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 bg-background/85 px-4 py-1.5 text-[1.0625rem] font-semibold tracking-tight text-foreground backdrop-blur-sm"
+              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 bg-background/85 px-4 py-1.5 text-headline font-semibold tracking-tight text-foreground backdrop-blur-sm"
             >
               {t(`room.${room}`)}
             </h3>
@@ -220,15 +220,15 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                       {/* `cat-emoji` は暗い面で彩度を落とすため(styles.css)。
                           絵文字は黒地でいちばん彩度が高くなり、集めた語より
                           先に目に入っていた。 */}
-                      <span aria-hidden className="cat-emoji text-sm leading-none">
+                      <span aria-hidden className="cat-emoji text-body leading-none">
                         {categoryEmoji(cat)}
                       </span>
-                      <span className="text-[0.8125rem] font-medium text-muted-foreground">
+                      <span className="text-footnote font-medium text-muted-foreground">
                         {t(`cat.${cat}`)}
                       </span>
                       <span // `/80` を掛けたら 3.74:1 まで落ちた(検査が即座に落とした)。
                         // 件数は小さいので、薄さを重ねる余地が無い。
-                        className="ml-0.5 text-[0.6875rem] font-normal tabular-nums text-muted-foreground"
+                        className="ml-0.5 text-caption font-normal tabular-nums text-muted-foreground"
                       >
                         {t("dex.shelfCount", { n: String(items.length) })}
                       </span>
@@ -270,7 +270,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                                 lang="zh-Hant"
                                 // 名前は**絵の左端に揃える**。絵を左詰めにしたのに名前だけ
                                 // マスの中央のままだったので、絵の右にずれて見えていた。
-                                className="truncate text-left text-xs font-medium leading-tight"
+                                className="truncate text-left text-footnote font-medium leading-tight"
                               >
                                 {s.word.headword}
                               </span>
@@ -331,7 +331,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
+            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground shadow"
           >
             ×{s.encounter_count}
           </span>
@@ -378,7 +378,7 @@ function ShelfItem({
           // 画像がまだ無いカードは、単語そのものを立てる。
           <span
             aria-hidden
-            className="shelf-fallback shelf-framed bg-secondary text-sm font-semibold text-muted-foreground"
+            className="shelf-fallback shelf-framed bg-secondary text-body font-semibold text-muted-foreground"
           >
             {s.word.headword}
           </span>
@@ -388,7 +388,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
+            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground shadow"
           >
             ×{s.encounter_count}
           </span>

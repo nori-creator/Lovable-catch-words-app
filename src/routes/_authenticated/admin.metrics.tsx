@@ -32,7 +32,7 @@ function AdminMetricsPage() {
   if (adm && !adm.isAdmin) {
     return (
       <AppShell title="KPI">
-        <p className="text-sm text-muted-foreground">このページは管理者専用です。</p>
+        <p className="text-body text-muted-foreground">このページは管理者専用です。</p>
       </AppShell>
     );
   }
@@ -40,10 +40,10 @@ function AdminMetricsPage() {
   return (
     <AppShell title="KPI">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2 text-title font-semibold tracking-tight">
           <BarChart3 className="h-5 w-5 text-primary" /> KPIダッシュボード
         </h1>
-        <Link to="/admin/dictionary" className="text-xs text-primary underline">
+        <Link to="/admin/dictionary" className="text-footnote text-primary underline">
           辞書管理へ
         </Link>
       </div>
@@ -54,7 +54,7 @@ function AdminMetricsPage() {
         <>
           {/* Funnel */}
           <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+            <h2 className="mb-3 flex items-center gap-1.5 text-body font-semibold">
               <Users className="h-4 w-4 text-primary" /> ファネル(累計)
             </h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -69,12 +69,12 @@ function AdminMetricsPage() {
                 ],
               ].map(([label, v]) => (
                 <div key={String(label)} className="rounded-xl bg-secondary/60 p-3 text-center">
-                  <div className="text-lg font-bold">{v}</div>
-                  <div className="text-[11px] text-muted-foreground">{label}</div>
+                  <div className="text-headline font-bold">{v}</div>
+                  <div className="text-caption text-muted-foreground">{label}</div>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-caption text-muted-foreground">
               目標(β): 初キャッチ到達 ≥80% / D1 ≥40%(ロードマップ§3)
             </p>
           </section>
@@ -90,8 +90,8 @@ function AdminMetricsPage() {
 
           {/* Daily table */}
           <section className="overflow-x-auto rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold">日次(直近14日)</h2>
-            <table className="w-full min-w-[420px] text-left text-xs">
+            <h2 className="mb-3 text-body font-semibold">日次(直近14日)</h2>
+            <table className="w-full min-w-[420px] text-left text-footnote">
               <thead className="text-muted-foreground">
                 <tr>
                   <th className="pb-2 font-medium">日付</th>
@@ -161,19 +161,19 @@ function SelfImprovePanel() {
   return (
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+        <h2 className="flex items-center gap-1.5 text-body font-semibold">
           <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日=監査のみ)
         </h2>
         <button
           onClick={run}
           disabled={running}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm active:scale-95 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-footnote font-semibold text-primary-foreground shadow-sm active:scale-95 disabled:opacity-60"
         >
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           今すぐ実行
         </button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-footnote text-muted-foreground">
         最終実行:{" "}
         {st?.last_run_at
           ? new Date(st.last_run_at).toLocaleString("ja-JP", {
@@ -184,26 +184,26 @@ function SelfImprovePanel() {
             })
           : "まだ"}
         {" · 人間レビュー待ち "}
-        <span className={st?.needs_review ? "font-semibold text-warn" : ""}>
+        <span className={st?.needs_review ? "font-semibold text-warn-ink" : ""}>
           {st?.needs_review ?? 0}
         </span>{" "}
         件
       </p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">
+      <p className="mt-0.5 text-caption text-muted-foreground">
         毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-[11px] text-primary">
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-caption text-primary">
           {result}
         </pre>
       )}
 
       {(st?.runs.length ?? 0) > 0 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-[11px] text-muted-foreground">
+          <summary className="cursor-pointer text-caption text-muted-foreground">
             実行ログ(直近)
           </summary>
-          <ul className="mt-1 space-y-0.5 text-[11px]">
+          <ul className="mt-1 space-y-0.5 text-caption">
             {st!.runs.map((r, i) => (
               <li key={i} className="flex items-start gap-1.5">
                 <span>{r.ok ? "✅" : "❌"}</span>
@@ -225,10 +225,10 @@ function SelfImprovePanel() {
 
       {(st?.audits.length ?? 0) > 0 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-[11px] text-muted-foreground">
+          <summary className="cursor-pointer text-caption text-muted-foreground">
             直近の監査結果
           </summary>
-          <ul className="mt-1 space-y-0.5 text-[11px]">
+          <ul className="mt-1 space-y-0.5 text-caption">
             {st!.audits.map((a, i) => (
               <li key={i} className="flex items-center gap-2">
                 <span>{a.ok ? "✅" : a.applied ? "🔧" : "⚠️"}</span>
@@ -278,27 +278,27 @@ function EntryReportsPanel() {
   const list = reports ?? [];
   return (
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+      <h2 className="mb-2 flex items-center gap-1.5 text-body font-semibold">
         <Flag className="h-4 w-4 text-primary" /> エラー報告
         <span
-          className={`ml-1 rounded-full px-2 py-0.5 text-[11px] ${list.length ? "bg-amber-100 text-amber-800" : "bg-secondary text-muted-foreground"}`}
+          className={`ml-1 rounded-full px-2 py-0.5 text-caption ${list.length ? "bg-amber-100 text-amber-800" : "bg-secondary text-muted-foreground"}`}
         >
           {list.length}
         </span>
       </h2>
       {list.length === 0 ? (
-        <p className="text-xs text-muted-foreground">未対応の報告はありません。</p>
+        <p className="text-footnote text-muted-foreground">未対応の報告はありません。</p>
       ) : (
         <ul className="space-y-1.5">
           {list.map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs"
+              className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-footnote"
             >
               <span lang="zh-Hant" className="font-semibold">
                 {r.headword}
               </span>
-              <span className="rounded-full bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              <span className="rounded-full bg-background px-1.5 py-0.5 text-caption text-muted-foreground">
                 {KIND_LABEL[r.kind] ?? r.kind}
               </span>
               {r.note && (
@@ -307,13 +307,13 @@ function EntryReportsPanel() {
               <span className="ml-auto flex gap-1">
                 <button
                   onClick={() => resolve(r.id, "resolved")}
-                  className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"
+                  className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary"
                 >
                   対応済み
                 </button>
                 <button
                   onClick={() => resolve(r.id, "dismissed")}
-                  className="rounded-md bg-background px-2 py-1 text-[11px] text-muted-foreground"
+                  className="rounded-md bg-background px-2 py-1 text-caption text-muted-foreground"
                 >
                   却下
                 </button>
@@ -384,12 +384,12 @@ function TtsPregenPanel() {
   return (
     <section className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+        <h2 className="flex items-center gap-1.5 text-body font-semibold">
           <Volume2 className="h-4 w-4 text-primary" /> 辞書音声の事前生成(全語)
         </h2>
         <button
           onClick={run}
-          className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold active:scale-95 ${
+          className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-footnote font-semibold active:scale-95 ${
             running
               ? "bg-red-100 text-red-700 ring-1 ring-red-200"
               : "bg-primary text-primary-foreground shadow-sm"
@@ -399,7 +399,7 @@ function TtsPregenPanel() {
           {running ? "停止する" : remaining === 0 ? "完了済み" : "生成を開始"}
         </button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-footnote text-muted-foreground">
         {remaining == null
           ? "状態を確認中…"
           : remaining === 0
@@ -409,7 +409,7 @@ function TtsPregenPanel() {
           ` · 今回生成 ${progress.done} 語${progress.failed ? ` / 失敗 ${progress.failed}` : ""}`}
       </p>
       {errors.length > 0 && (
-        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-[11px] text-destructive">
+        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-caption text-destructive">
           {errors.some((e) => e.includes("402"))
             ? "音声の一括生成にはクレジット/課金が必要です（402 Payment Required）。Lovableのプラン設定を確認してください。単語の発音は端末の音声で代替されるので、アプリ内の再生は動きます。"
             : errors.join(" / ")}

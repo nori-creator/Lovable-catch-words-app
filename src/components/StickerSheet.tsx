@@ -532,7 +532,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     >
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span lang="zh-Hant" className="pl-1 text-xs font-medium text-muted-foreground">
+        <span lang="zh-Hant" className="pl-1 text-footnote font-medium text-muted-foreground">
           {s ? s.word.headword : "..."}
         </span>
         <div className="flex items-center gap-2">
@@ -561,7 +561,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
       >
         <div className="mx-3 mt-2 rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">{t("card.sections")}</p>
+            <p className="text-footnote font-semibold text-muted-foreground">
+              {t("card.sections")}
+            </p>
             <button
               onClick={() => setEditing(false)}
               className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
@@ -594,8 +596,8 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           // 本当に無い(消された・権限が無い)。
           <div className="grid h-64 place-items-center px-6 text-center">
             <div>
-              <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("card.notFoundHint")}</p>
+              <p className="text-body text-muted-foreground">{t("card.notFound")}</p>
+              <p className="mt-1 text-footnote text-muted-foreground">{t("card.notFoundHint")}</p>
             </div>
           </div>
         ) : (
@@ -663,7 +665,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                           href={s.placeholder_credit.link}
                           target="_blank"
                           rel="noreferrer"
-                          className="absolute bottom-2 left-3 text-[11px] text-white/90 drop-shadow"
+                          className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
                         >
                           📷 {s.placeholder_credit.name}
                         </a>
@@ -671,7 +673,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     </>
                   ) : (
                     <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-footnote text-muted-foreground">
                         {t("card.findingImage")}
                       </span>
                     </div>
@@ -696,7 +698,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   </button>
                   {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
                   {hasSelfie && (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
                       {t("card.flipToSelfie")}
                     </span>
                   )}
@@ -711,14 +713,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                         alt={t("card.selfie")}
                         className="absolute inset-0 h-full w-full object-cover"
                       />
-                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
+                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
                         {t("card.flipBack")}
                       </span>
                     </>
                   ) : (
-                    <div className="grid h-full place-items-center gap-1 text-center text-sm text-muted-foreground">
+                    <div className="grid h-full place-items-center gap-1 text-center text-body text-muted-foreground">
                       <span>{t("card.noSelfie")}</span>
-                      <span className="text-[11px]">{t("card.flipBack")}</span>
+                      <span className="text-caption">{t("card.flipBack")}</span>
                     </div>
                   )}
                 </div>
@@ -729,7 +731,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 自分で撮った写真があるカードには出さない(#67)。 */}
             {!s.object_url && !s.cutout_url && webCandidates.length > 1 && (
               <section className="mb-4">
-                <div className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
+                <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
                   {t("card.pickAnotherImage")}
                 </div>
                 <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -754,9 +756,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             )}
 
             {/* When & Where chip */}
-            <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">
+            <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
                   {new Date(s.created_at).toLocaleString(uiLang === "en" ? "en-US" : "ja-JP", {
                     year: "numeric",
@@ -775,14 +777,14 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                    className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary"
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     {s.location_name ?? t("card.openMap")}
                   </a>
                 )}
               </div>
-              {s.caption && <p className="mt-2 text-sm">「{s.caption}」</p>}
+              {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
             </section>
 
             <WordCard
@@ -803,7 +805,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             />
 
             {enriching && (
-              <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-xs text-primary">
+              <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-footnote text-primary">
                 <Sparkles className="h-3.5 w-3.5 animate-pulse" />
                 {t("card.preparing")}
               </div>
@@ -812,7 +814,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             {/* 解説の生成に失敗したときは、空欄のまま黙らせない。
                 何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
             {!enriching && enrichError && (
-              <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-xs">
+              <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-footnote">
                 <p className="font-semibold text-destructive">{t("card.enrichFailed")}</p>
                 <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
                 <button
@@ -835,7 +837,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 <button
                   onClick={regenerate}
                   disabled={regenerating}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-semibold text-primary disabled:opacity-60"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-footnote font-semibold text-primary disabled:opacity-60"
                 >
                   {regenerating ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -845,7 +847,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   {regenerating ? t("card.regenerating") : t("card.regenAll")}
                 </button>
               ) : (
-                <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-xs text-muted-foreground">
+                <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-footnote text-muted-foreground">
                   <Lock className="h-3.5 w-3.5" />
                   {t("card.regenPro")}
                 </div>
@@ -856,7 +858,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               <button
                 onClick={reportIssue}
                 disabled={reporting}
-                className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-60"
+                className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-footnote font-medium text-muted-foreground disabled:opacity-60"
               >
                 {reporting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -880,7 +882,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                   className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
-                <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
                   </span>
@@ -905,7 +907,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
               <button
                 onClick={handleDelete}
                 disabled={busy !== null}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-footnote font-medium transition-colors disabled:opacity-60 ${
                   deleteArmed
                     ? "border-bad bg-bad text-white"
                     : "border-red-200 bg-red-50 text-red-700"

@@ -102,7 +102,7 @@ export function ScanAnalyzing_v7fullscreen({ stage }: { stage: Stage }) {
             <span className="relative h-2 w-2 rounded-full bg-[var(--accent-cyan)]" />
           </span>
           <p
-            className="text-[15px] font-semibold tracking-[-0.01em] text-white"
+            className="text-body font-semibold tracking-[-0.01em] text-white"
             style={{ textShadow: "0 1px 12px rgba(0,0,0,0.6)" }}
           >
             {STEPS[idx].label}

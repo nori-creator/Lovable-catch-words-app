@@ -203,8 +203,8 @@ export function ThemeLab({ onClose }: { onClose: () => void }) {
           <X className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <p className="truncate text-sm font-semibold">{meta.name}</p>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="truncate text-body font-semibold">{meta.name}</p>
+          <p className="truncate text-caption text-muted-foreground">
             {index + 1} / {UI_PACKS.length}・{meta.reference}
           </p>
         </div>
@@ -255,14 +255,14 @@ export function ThemeLab({ onClose }: { onClose: () => void }) {
                 }}
               >
                 <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-white/90 shadow" />
-                <span className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-[11px] font-bold text-black shadow-lg">
+                <span className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-caption font-bold text-black shadow-lg">
                   ⇄
                 </span>
               </div>
-              <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white">
+              <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-caption font-medium text-white">
                 現行
               </span>
-              <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-medium text-white">
+              <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-caption font-medium text-white">
                 {meta.name}
               </span>
             </div>
@@ -273,7 +273,7 @@ export function ThemeLab({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* コンセプトの説明 */}
-      <p className="px-5 pb-2 text-center text-[11px] leading-snug text-muted-foreground">
+      <p className="px-5 pb-2 text-center text-caption leading-snug text-muted-foreground">
         {meta.concept}
       </p>
 
@@ -297,7 +297,7 @@ export function ThemeLab({ onClose }: { onClose: () => void }) {
         <button
           onClick={() => apply(meta.id)}
           disabled={applied === meta.id}
-          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground active:scale-95 disabled:opacity-45"
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary text-body font-semibold text-primary-foreground active:scale-95 disabled:opacity-45"
         >
           <Check className="h-4 w-4" />
           {applied === meta.id ? "適用中" : "これにする"}
@@ -346,8 +346,8 @@ export function ThemeLabButton() {
           ))}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">見た目を比べる</span>
-          <span className="block text-[11px] leading-snug text-muted-foreground">
+          <span className="block text-body font-semibold">見た目を比べる</span>
+          <span className="block text-caption leading-snug text-muted-foreground">
             全く違うコンセプトの{UI_PACKS.length}種を1タップで切り替え。いまは「
             {packMeta(current).name}」
           </span>

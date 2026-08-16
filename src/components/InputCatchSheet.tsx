@@ -345,7 +345,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       aria-label={t("input.title")}
     >
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
-        <span className="inline-flex items-center gap-1.5 pl-1 text-xs font-medium text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 pl-1 text-footnote font-medium text-muted-foreground">
           <Keyboard className="h-3.5 w-3.5" /> {t("input.title")}
         </span>
         <button
@@ -360,7 +360,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {(step === "input" || step === "loading") && (
           <div className="mx-auto max-w-sm space-y-4">
-            <p className="text-center text-sm text-muted-foreground">{t("input.lead")}</p>
+            <p className="text-center text-body text-muted-foreground">{t("input.lead")}</p>
 
             {canSpeak && initialMode === "voice" && (
               <button
@@ -376,7 +376,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
               </button>
             )}
-            <p className="text-center text-[11px] text-muted-foreground">
+            <p className="text-center text-caption text-muted-foreground">
               {initialMode === "voice" && canSpeak
                 ? listening
                   ? t("input.listening")
@@ -393,7 +393,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   if (!phraseTouched) setIsPhrase(guessIsPhrase(e.target.value));
                 }}
                 placeholder={t("sheet.inputPlaceholder")}
-                className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-base outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
 
@@ -405,7 +405,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                     setIsPhrase(v);
                     setPhraseTouched(true);
                   }}
-                  className={`rounded-full border px-4 py-1.5 text-sm ${
+                  className={`rounded-full border px-4 py-1.5 text-body ${
                     isPhrase === v
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-card"
@@ -421,18 +421,20 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 value={scene}
                 onChange={(e) => setScene(e.target.value)}
                 placeholder={t("input.scene")}
-                className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary/40"
               />
             )}
 
             {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+                {err}
+              </p>
             )}
 
             <button
               onClick={lookupAndGenerate}
               disabled={!text.trim() || step === "loading"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
               {step === "loading" ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -479,12 +481,12 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 <div className="grid h-full w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-secondary/60">
                   <div className="text-center text-muted-foreground">
                     <ImagePlus className="mx-auto h-10 w-10" />
-                    <span className="mt-1 block text-[11px]">{t("input.attach")}</span>
+                    <span className="mt-1 block text-caption">{t("input.attach")}</span>
                   </div>
                 </div>
               )}
             </button>
-            <p className="text-center text-[11px] text-muted-foreground">
+            <p className="text-center text-caption text-muted-foreground">
               {attachedDataUrl
                 ? t("input.attachChange")
                 : candidates.length > 0
@@ -512,18 +514,18 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold tracking-tight">{text.trim()}</h2>
+                <h2 className="text-title font-bold tracking-tight">{text.trim()}</h2>
                 {verified ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-caption font-semibold text-emerald-900 ring-1 ring-emerald-200">
                     {t("input.verified")}
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200">
                     {t("input.aiGenerated")}
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-footnote text-muted-foreground">
                 {isPhrase
                   ? pickReading(phonetic, phraseCard?.reading_zhuyin, phraseCard?.pinyin)
                   : pickReading(
@@ -532,38 +534,40 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                       dict?.pinyin || card?.pinyin,
                     )}
               </p>
-              <p className="mt-2 text-base font-medium">
+              <p className="mt-2 text-body font-medium">
                 {isPhrase ? phraseCard?.meaning_ja : dict?.meaning_ja || card?.meaning_ja}
               </p>
 
               {isPhrase && phraseCard && (
                 <div className="mt-3 border-t border-border pt-3">
                   {scene && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-footnote text-muted-foreground">
                       {t("sheet.scene", { s: scene })}
                     </p>
                   )}
-                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  <p className="mt-1 text-footnote font-semibold text-muted-foreground">
                     {t("input.replies")}
                   </p>
                   <ul className="mt-1 space-y-1">
                     {phraseCard.replies.map((r, i) => (
-                      <li key={i} className="rounded-lg bg-secondary/60 px-3 py-1.5 text-sm">
+                      <li key={i} className="rounded-lg bg-secondary/60 px-3 py-1.5 text-body">
                         <Zh>{r.zh}</Zh>{" "}
-                        <span className="text-xs text-muted-foreground">— {r.ja}</span>
+                        <span className="text-footnote text-muted-foreground">— {r.ja}</span>
                       </li>
                     ))}
                   </ul>
                   {phraseCard.usage_note && (
-                    <p className="mt-2 text-xs text-muted-foreground">{phraseCard.usage_note}</p>
+                    <p className="mt-2 text-footnote text-muted-foreground">
+                      {phraseCard.usage_note}
+                    </p>
                   )}
                 </div>
               )}
 
               {!isPhrase && card?.example_sentence && (
-                <p className="mt-2 text-sm">
+                <p className="mt-2 text-body">
                   {card.example_sentence}
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block text-footnote text-muted-foreground">
                     {card.example_translation}
                   </span>
                 </p>
@@ -571,13 +575,15 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             </div>
 
             {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+                {err}
+              </p>
             )}
 
             <button
               onClick={save}
               disabled={step === "saving"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
             >
               {step === "saving" ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -586,7 +592,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               )}
               {t("input.save")}
             </button>
-            <p className="text-center text-[11px] text-muted-foreground">{t("input.saveHint")}</p>
+            <p className="text-center text-caption text-muted-foreground">{t("input.saveHint")}</p>
           </div>
         )}
       </div>

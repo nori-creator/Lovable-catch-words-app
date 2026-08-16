@@ -61,7 +61,7 @@ function StickerDetailPage() {
     <AppShell title={t("card.title")}>
       <Link
         to="/dex"
-        className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground"
+        className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-body text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> {t("card.backToDex")}
       </Link>
@@ -79,11 +79,11 @@ function StickerDetailPage() {
         <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : !s ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">{t("card.notFound")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t("card.notFoundHint")}</p>
+          <p className="text-body text-muted-foreground">{t("card.notFound")}</p>
+          <p className="mt-1 text-footnote text-muted-foreground">{t("card.notFoundHint")}</p>
           <Link
             to="/dex"
-            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
           >
             {t("card.backToDex")}
           </Link>
@@ -134,7 +134,7 @@ function StickerDetailPage() {
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-2 left-3 text-[11px] text-white/90 drop-shadow"
+                        className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
                       >
                         📷 {s.placeholder_credit.name}
                       </a>
@@ -143,13 +143,13 @@ function StickerDetailPage() {
                 ) : (
                   <span
                     lang="zh-Hant"
-                    className="px-4 text-center text-3xl font-semibold text-muted-foreground"
+                    className="px-4 text-center text-hero font-semibold text-muted-foreground"
                   >
                     {s.word.headword}
                   </span>
                 )}
                 {s.selfie_url && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
                     {t("card.tapForSelfie")}
                   </span>
                 )}
@@ -162,7 +162,7 @@ function StickerDetailPage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                  <div className="grid h-full place-items-center text-body text-muted-foreground">
                     {t("card.noSelfie")}
                   </div>
                 )}
@@ -171,9 +171,9 @@ function StickerDetailPage() {
           </div>
 
           {/* When & Where — shown right under the photo, inside the word area */}
-          <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">
+          <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
                 {new Date(s.created_at).toLocaleString(dateLocale, {
                   year: "numeric",
@@ -192,27 +192,27 @@ function StickerDetailPage() {
                   }
                   target="_blank"
                   rel="noreferrer"
-                  className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                  className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary"
                 >
                   <MapPin className="h-3.5 w-3.5" />
                   {s.location_name ?? t("card.openMap")}
                 </a>
               )}
             </div>
-            {s.caption && <p className="mt-2 text-sm">「{s.caption}」</p>}
+            {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
           </section>
 
           {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
           <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">
+            <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
               {s.word.headword}
             </div>
-            <div lang="zh-Hant" className="mt-1 text-sm text-muted-foreground">
+            <div lang="zh-Hant" className="mt-1 text-body text-muted-foreground">
               {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
             </div>
-            <div className="mt-2 text-lg font-medium">{s.word.meaning_ja}</div>
+            <div className="mt-2 text-headline font-medium">{s.word.meaning_ja}</div>
             {s.word.part_of_speech && (
-              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
+              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
                 {s.word.part_of_speech}
               </span>
             )}
@@ -232,7 +232,7 @@ function StickerDetailPage() {
 
           {/* Full flat card kept for reference (B3) — collapsed by default */}
           <details className="group rounded-3xl border border-border bg-card shadow-sm">
-            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-body font-semibold [&::-webkit-details-marker]:hidden">
               {t("card.seeAll")}
               <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
@@ -257,10 +257,10 @@ function StickerDetailPage() {
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Brain className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">{t("card.memoryCurve")}</h2>
+                <h2 className="text-body font-semibold">{t("card.memoryCurve")}</h2>
               </div>
               {mem?.current?.due_at && (
-                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1 text-caption text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {t("card.nextDue", {
                     date: new Date(mem.current.due_at).toLocaleDateString(dateLocale),
@@ -290,7 +290,7 @@ function StickerDetailPage() {
                   className="pointer-events-none h-48 w-full"
                   loading="lazy"
                 />
-                <div className="flex items-center justify-between p-3 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
                   </span>

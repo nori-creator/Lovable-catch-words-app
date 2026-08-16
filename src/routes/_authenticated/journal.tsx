@@ -122,10 +122,10 @@ function JournalPage() {
     <AppShell title={t("journal.title")}>
       <section className="space-y-3">
         <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <h2 className="flex items-center gap-2 text-body font-semibold tracking-tight">
             <BookText className="h-4 w-4 text-primary" /> {t("journal.today")}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">{t("journal.intro")}</p>
+          <p className="mt-1 text-footnote text-muted-foreground">{t("journal.intro")}</p>
         </div>
 
         {/* 取得に失敗したときは**書く前に言う**。今日の書きかけがあっても
@@ -134,7 +134,7 @@ function JournalPage() {
         {isError && (
           <p
             role="alert"
-            className="rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground"
+            className="rounded-xl bg-secondary px-3 py-2 text-footnote text-muted-foreground"
           >
             {t("journal.loadFailedNote")}
           </p>
@@ -144,7 +144,7 @@ function JournalPage() {
             添削の上限に当たった日の文章は、翌日ここからしか戻せない。 */}
         {leftover && !draft.trim() && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl bg-secondary px-3 py-2">
-            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            <p className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
               {t("journal.leftover", { d: leftover.date, s: leftover.text.slice(0, 24) })}
             </p>
             <button
@@ -152,7 +152,7 @@ function JournalPage() {
                 setDraft(leftover.text);
                 setLeftover(null);
               }}
-              className="min-h-11 shrink-0 rounded-full px-3 text-xs font-semibold text-primary"
+              className="min-h-11 shrink-0 rounded-full px-3 text-footnote font-semibold text-primary"
             >
               {t("journal.leftoverRestore")}
             </button>
@@ -166,14 +166,14 @@ function JournalPage() {
           placeholder={t("journal.placeholder")}
         />
         {savedLocally && (
-          <p className="text-[11px] text-muted-foreground">{t("journal.keptOnDevice")}</p>
+          <p className="text-caption text-muted-foreground">{t("journal.keptOnDevice")}</p>
         )}
 
         <div className="flex flex-wrap gap-2">
           <button
             disabled={correctMut.isPending || draft.trim().length < 2}
             onClick={() => correctMut.mutate()}
-            className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:opacity-50"
+            className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-footnote font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" />
             {correctMut.isPending ? t("journal.correcting") : t("journal.askCorrect")}
@@ -201,7 +201,7 @@ function JournalPage() {
           何日も書いてきた人にとっては、記録が消えたように見える。 */}
       {isLoading && (
         <section className="mt-10" role="status" aria-label={t("common.loading")}>
-          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
             {t("journal.past")}
           </h3>
           <div className="space-y-3">
@@ -214,7 +214,7 @@ function JournalPage() {
 
       {isError && (
         <section className="mt-10">
-          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
             {t("journal.past")}
           </h3>
           <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
@@ -223,19 +223,19 @@ function JournalPage() {
 
       {!isLoading && !isError && past.length > 0 && (
         <section className="mt-10">
-          <h3 className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
             {t("journal.past")}
           </h3>
           <ul className="space-y-3">
             {past.map((e) => (
               <li key={e.id} className="rounded-2xl border border-border bg-card p-4">
-                <div className="mb-1 text-xs text-muted-foreground">{e.entry_date}</div>
-                {e.correction && <p className="text-base leading-relaxed">{e.correction}</p>}
+                <div className="mb-1 text-footnote text-muted-foreground">{e.entry_date}</div>
+                {e.correction && <p className="text-body leading-relaxed">{e.correction}</p>}
                 {!e.correction && e.body_zh && (
-                  <p className="text-base leading-relaxed">{e.body_zh}</p>
+                  <p className="text-body leading-relaxed">{e.body_zh}</p>
                 )}
                 {e.feedback_ja && (
-                  <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">
+                  <p className="mt-2 whitespace-pre-line text-footnote text-muted-foreground">
                     {e.feedback_ja}
                   </p>
                 )}
@@ -245,7 +245,7 @@ function JournalPage() {
                   </div>
                 )}
                 {!e.correction && e.body_ja && (
-                  <p className="mt-2 text-sm text-muted-foreground">{e.body_ja}</p>
+                  <p className="mt-2 text-body text-muted-foreground">{e.body_ja}</p>
                 )}
               </li>
             ))}
@@ -260,18 +260,20 @@ function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?
   const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.25em] text-primary">
+      <div className="mb-2 flex items-center gap-1.5 text-caption uppercase tracking-[0.25em] text-primary">
         <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">
         {phrases.map((p, i) => (
           <li key={i} className="rounded-xl bg-card p-3 shadow-sm ring-1 ring-border/60">
-            <p lang="zh-Hant" className="text-base font-semibold leading-relaxed">
+            <p lang="zh-Hant" className="text-body font-semibold leading-relaxed">
               {p.zh}
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">{p.ja}</p>
+            <p className="mt-0.5 text-body text-muted-foreground">{p.ja}</p>
             {p.note && (
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">{p.note}</p>
+              <p className="mt-1 text-footnote leading-relaxed text-muted-foreground/90">
+                {p.note}
+              </p>
             )}
           </li>
         ))}
@@ -294,16 +296,16 @@ function EntryBlock({
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-1 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="mb-1 text-caption uppercase tracking-[0.25em] text-muted-foreground">
         {label}
       </div>
-      <p className="text-base leading-relaxed tracking-wide">{body}</p>
+      <p className="text-body leading-relaxed tracking-wide">{body}</p>
       {subtle && (
         <>
-          <div className="mt-3 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+          <div className="mt-3 text-caption uppercase tracking-[0.25em] text-muted-foreground">
             {subtleLabel}
           </div>
-          <p className="whitespace-pre-line text-xs text-muted-foreground">{subtle}</p>
+          <p className="whitespace-pre-line text-footnote text-muted-foreground">{subtle}</p>
         </>
       )}
     </div>

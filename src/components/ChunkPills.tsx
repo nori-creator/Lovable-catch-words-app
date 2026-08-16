@@ -17,10 +17,10 @@ export function ChunkPills({
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
   const pad =
     size === "sm"
-      ? "px-1.5 py-0.5 text-[13px]"
+      ? "px-1.5 py-0.5 text-footnote"
       : size === "lg"
-        ? "px-2.5 py-1.5 text-lg leading-snug tracking-wide"
-        : "px-2 py-1 text-sm";
+        ? "px-2.5 py-1.5 text-headline leading-snug tracking-wide"
+        : "px-2 py-1 text-body";
   return (
     <div className="flex flex-wrap gap-1.5">
       {parts.map((c, i) => {
@@ -47,7 +47,7 @@ export function ChunkPills({
 
 export function ChunkLegend() {
   return (
-    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+    <div className="mt-2 flex flex-wrap gap-2 text-caption text-muted-foreground">
       {CHUNK_LEGEND.map(({ key, style }) => (
         // 記号(V=)は出さない。帯からも外したので、凡例に記号だけ残ると
         // どこにも対応しない文字になる。色と語だけで足りる。

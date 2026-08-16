@@ -101,7 +101,7 @@ function PostPage() {
     <AppShell title={t("post.title")}>
       <Link
         to="/feed"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-body text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> {t("post.toFeed")}
       </Link>
@@ -109,7 +109,7 @@ function PostPage() {
       {post.isLoading ? (
         <div className="aspect-square animate-pulse rounded-3xl bg-secondary" />
       ) : !p ? (
-        <p className="text-sm text-muted-foreground">{t("post.notFound")}</p>
+        <p className="text-body text-muted-foreground">{t("post.notFound")}</p>
       ) : (
         <>
           <article className="overflow-hidden rounded-3xl border border-border bg-card">
@@ -126,10 +126,10 @@ function PostPage() {
               )}
               {p.sticker?.word && (
                 <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-                  <div lang="zh-Hant" className="text-lg font-bold leading-none">
+                  <div lang="zh-Hant" className="text-headline font-bold leading-none">
                     {p.sticker.word.headword}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-caption text-muted-foreground">
                     <Zh>{p.sticker.word.reading_zhuyin}</Zh> · {p.sticker.word.meaning_ja}
                   </div>
                 </div>
@@ -137,24 +137,24 @@ function PostPage() {
             </div>
             <div className="space-y-2 p-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">
+                <span className="text-body font-semibold">
                   {p.author.display_name ?? t("common.anon")}
                 </span>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-caption text-muted-foreground">
                   {new Date(p.created_at).toLocaleString(dateLocale)}
                 </span>
               </div>
-              {p.caption && <p className="text-sm leading-relaxed">{p.caption}</p>}
+              {p.caption && <p className="text-body leading-relaxed">{p.caption}</p>}
               <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => likeMut.mutate(!p.liked_by_me)}
-                  className={`inline-flex items-center gap-1 text-sm active:scale-95 ${p.liked_by_me ? "text-destructive" : "text-foreground"}`}
+                  className={`inline-flex items-center gap-1 text-body active:scale-95 ${p.liked_by_me ? "text-destructive" : "text-foreground"}`}
                 >
                   <Heart className={`h-5 w-5 ${p.liked_by_me ? "fill-current" : ""}`} />
                   <span className="tabular-nums">{p.like_count}</span>
                 </button>
                 {p.sticker?.location_name && (
-                  <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span className="ml-auto inline-flex items-center gap-1 text-caption text-muted-foreground">
                     <MapPin className="h-3 w-3" /> {p.sticker.location_name}
                   </span>
                 )}
@@ -163,18 +163,18 @@ function PostPage() {
           </article>
 
           <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold">{t("post.comments")}</h2>
+            <h2 className="mb-3 text-body font-semibold">{t("post.comments")}</h2>
             <div className="space-y-3">
               {(comments.data ?? []).map((c) => (
                 <div key={c.id} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="text-xs font-semibold">
+                  <div className="text-footnote font-semibold">
                     {c.author.display_name ?? t("common.anon")}
                   </div>
-                  <div className="mt-1 text-sm">{c.body}</div>
+                  <div className="mt-1 text-body">{c.body}</div>
                 </div>
               ))}
               {(comments.data ?? []).length === 0 && !comments.isLoading && (
-                <p className="text-xs text-muted-foreground">{t("post.firstComment")}</p>
+                <p className="text-footnote text-muted-foreground">{t("post.firstComment")}</p>
               )}
             </div>
             <form
@@ -189,7 +189,7 @@ function PostPage() {
                 onChange={(e) => setBody(e.target.value)}
                 maxLength={500}
                 placeholder={t("post.writeComment")}
-                className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-sm outline-none focus:border-primary"
+                className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-body outline-none focus:border-primary"
               />
               <button
                 type="submit"

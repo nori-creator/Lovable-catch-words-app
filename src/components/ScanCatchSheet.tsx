@@ -350,7 +350,7 @@ export function ScanCatchSheet({
       aria-label={t("sheet.catch")}
     >
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="pl-1 text-xs font-medium text-white/80">{t("sheet.catch")}</span>
+        <span className="pl-1 text-footnote font-medium text-white/80">{t("sheet.catch")}</span>
         {phase === "ready" && !saving && (
           <button
             onClick={onClose}
@@ -377,7 +377,7 @@ export function ScanCatchSheet({
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-[11px]">{t("sheet.loading")}</p>
+                <p className="text-caption">{t("sheet.loading")}</p>
               </div>
             </div>
           )}
@@ -386,7 +386,7 @@ export function ScanCatchSheet({
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
           <div className="flex items-baseline gap-2">
-            <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">
+            <h2 lang="zh-Hant" className="text-title font-bold tracking-tight">
               {headword}
             </h2>
             {/* **辞書に行があること = 確認済み、ではない。**
@@ -396,28 +396,28 @@ export function ScanCatchSheet({
                 保証を出してはいけない場所が、いちばん出してはいけない
                 瞬間(確定の直前)だった(独立監査の指摘)。 */}
             {dict?.source === "verified" ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-caption font-semibold text-emerald-900 ring-1 ring-emerald-200">
                 {t("sheet.verified")}
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200">
                 {t("sheet.aiMade")}
               </span>
             )}
           </div>
-          <p lang="zh-Hant" className="mt-0.5 text-xs text-muted-foreground">
+          <p lang="zh-Hant" className="mt-0.5 text-footnote text-muted-foreground">
             {dict?.zhuyin || item.zhuyin}
             {(dict?.pinyin || item.pinyin) && (
               <span className="ml-2">{dict?.pinyin || item.pinyin}</span>
             )}
           </p>
-          <p className="mt-2 text-base font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
+          <p className="mt-2 text-body font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">
+              <label className="text-footnote font-medium text-muted-foreground">
                 {t("sheet.noteLabel")}{" "}
-                <span className="ml-1 text-[11px]">{t("sheet.optional")}</span>
+                <span className="ml-1 text-caption">{t("sheet.optional")}</span>
               </label>
               <textarea
                 value={caption}
@@ -425,13 +425,13 @@ export function ScanCatchSheet({
                 placeholder={t("sheet.notePlaceholder")}
                 rows={2}
                 maxLength={140}
-                className="mt-1 w-full resize-none rounded-xl border border-border bg-secondary/50 p-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                className="mt-1 w-full resize-none rounded-xl border border-border bg-secondary/50 p-2 text-body outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">
+              <label className="text-footnote font-medium text-muted-foreground">
                 {t("sheet.selfieLabel")}{" "}
-                <span className="ml-1 text-[11px]">{t("sheet.optional")}</span>
+                <span className="ml-1 text-caption">{t("sheet.optional")}</span>
               </label>
               <div className="mt-1 flex items-center gap-2">
                 {selfieDataUrl ? (
@@ -448,7 +448,7 @@ export function ScanCatchSheet({
                 <button
                   onClick={() => selfieInputRef.current?.click()}
                   type="button"
-                  className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground active:scale-95"
+                  className="rounded-full bg-secondary px-3 py-1.5 text-footnote font-medium text-secondary-foreground active:scale-95"
                 >
                   {selfieDataUrl ? t("sheet.retakeSelfie") : t("sheet.addSelfie")}
                 </button>
@@ -465,13 +465,15 @@ export function ScanCatchSheet({
           </div>
 
           {err && (
-            <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">{err}</p>
+            <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+              {err}
+            </p>
           )}
 
           <button
             onClick={doSave}
             disabled={!objectDataUrl || saving}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="h-5 w-5 animate-spin" />

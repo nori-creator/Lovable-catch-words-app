@@ -65,8 +65,8 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="min-w-0 pl-1">
-          <p className="text-sm font-semibold">エフェクト・ラボ</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-body font-semibold">エフェクト・ラボ</p>
+          <p className="text-caption text-muted-foreground">
             歴代の演出を見比べて選ぶ(この端末だけ・開発者用)
           </p>
         </div>
@@ -84,7 +84,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
             いたか思い出せない状態では、枠を1つずつ選ぶより時代で選ぶほうが早い。 */}
         <FlowPresetSection />
 
-        <p className="mb-2 mt-6 text-xs font-semibold text-muted-foreground">
+        <p className="mb-2 mt-6 text-footnote font-semibold text-muted-foreground">
           スキャン中(AIが分析中)の演出
         </p>
 
@@ -93,7 +93,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => setPlaying((p) => !p)}
             aria-pressed={playing}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium ${
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-footnote font-medium ${
               playing ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
             }`}
           >
@@ -108,7 +108,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
                 setStage(s);
               }}
               aria-pressed={!playing && stage === s}
-              className={`min-h-9 rounded-full px-3 text-xs font-medium ${
+              className={`min-h-9 rounded-full px-3 text-footnote font-medium ${
                 !playing && stage === s
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-muted-foreground"
@@ -147,20 +147,20 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
 
                 <div className="flex items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 text-sm font-semibold">
+                    <p className="flex items-center gap-2 text-body font-semibold">
                       {v.label}
-                      <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground">
                         {v.date}
                       </span>
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                    <p className="mt-0.5 text-caption leading-snug text-muted-foreground">
                       {v.note}
                     </p>
                   </div>
                   <button
                     onClick={() => setVariant(slot, v.id)}
                     aria-pressed={selected}
-                    className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold ${
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-body font-semibold ${
                       selected
                         ? "bg-primary text-primary-foreground"
                         : "border border-border bg-background"
@@ -177,7 +177,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={() => resetVariant(slot)}
-          className="press-in mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-sm font-medium text-muted-foreground"
+          className="press-in mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-body font-medium text-muted-foreground"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           既定(カメラ期)に戻す
@@ -187,7 +187,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
             その場で実際に飛ばして見比べる。 */}
         <CatchLandingSection />
 
-        <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-4 text-caption leading-relaxed text-muted-foreground">
           ここで選んだ演出はこの端末だけに保存されます。スキャン画面そのものと単語候補の
           出方は、いまはページ本体の中にあるため個別の切り替えはまだできません。上の
           「フローで通し再生」では、その2つも含めた通しの流れとして確認できます。
@@ -219,10 +219,10 @@ function FlowPresetSection() {
 
   return (
     <section>
-      <p className="mb-1 text-xs font-semibold text-muted-foreground">
+      <p className="mb-1 text-footnote font-semibold text-muted-foreground">
         スキャン→図鑑のフローごと選ぶ
       </p>
-      <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
+      <p className="mb-2 text-caption leading-snug text-muted-foreground">
         その時期の一式をまとめて適用します。あとから枠ごとに差し替えられます。
       </p>
       <div className="space-y-2">
@@ -236,17 +236,17 @@ function FlowPresetSection() {
               }`}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 text-sm font-semibold">
+                <p className="flex items-center gap-2 text-body font-semibold">
                   {p.label}
-                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground">
                     {p.date}
                   </span>
                 </p>
-                <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{p.note}</p>
+                <p className="mt-0.5 text-caption leading-snug text-muted-foreground">{p.note}</p>
               </div>
               <button
                 onClick={() => setPlaying(p)}
-                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-semibold"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-footnote font-semibold"
               >
                 <Play className="h-3.5 w-3.5" />
                 通しで見る
@@ -254,7 +254,7 @@ function FlowPresetSection() {
               <button
                 onClick={() => applyFlowPreset(p)}
                 aria-pressed={selected}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-footnote font-semibold ${
                   selected
                     ? "bg-primary text-primary-foreground"
                     : "border border-border bg-background"
@@ -268,7 +268,7 @@ function FlowPresetSection() {
         })}
       </div>
       {active === null && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-caption text-muted-foreground">
           いまは枠ごとに自分で組み合わせた状態です。
         </p>
       )}
@@ -377,10 +377,10 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
     >
       {/* いまどの段階か。比較するとき「どこが違ったか」を言葉でも残す。 */}
       <div className="flex items-center gap-2 bg-black px-3 py-2">
-        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="rounded-full bg-white/15 px-2 py-0.5 text-caption font-semibold text-white">
           {preset.label} · {preset.date}
         </span>
-        <span className="text-[11px] text-white/70">{stepLabel[step]}</span>
+        <span className="text-caption text-white/70">{stepLabel[step]}</span>
         <button
           onClick={onDone}
           aria-label="閉じる"
@@ -394,7 +394,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
         {/* ① ボタンを押す前 — アプリの中身が見えている状態 */}
         {step === "tab" && (
           <div className="grid h-full place-items-center">
-            <p className="text-sm text-white/50">図鑑・ホームなどを見ている…</p>
+            <p className="text-body text-white/50">図鑑・ホームなどを見ている…</p>
           </div>
         )}
 
@@ -431,7 +431,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
                 <div className="absolute inset-0 grid place-items-center bg-black/60">
                   <div className="flex flex-col items-center gap-2 text-white/80">
                     <Loader2 className="h-8 w-8 animate-spin" />
-                    <p className="text-[11px]">切り抜き中…</p>
+                    <p className="text-caption">切り抜き中…</p>
                   </div>
                 </div>
               )}
@@ -441,7 +441,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
                 <div className="absolute inset-0 grid place-items-center bg-black/70">
                   <div
                     ref={boxRef}
-                    className={`grid h-28 w-28 place-items-center rounded-2xl text-4xl ${
+                    className={`grid h-28 w-28 place-items-center rounded-2xl text-hero ${
                       f.cutout
                         ? "cutout-pop bg-transparent drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
                         : "bg-gradient-to-br from-primary/40 to-primary/10"
@@ -450,7 +450,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
                     🧴
                   </div>
                   {step === "sheet" && (
-                    <p className="absolute bottom-6 text-sm font-semibold text-white">
+                    <p className="absolute bottom-6 text-body font-semibold text-white">
                       {f.cutout ? "切り抜き完了 — 図鑑へ収める" : "図鑑へ収める"}
                     </p>
                   )}
@@ -461,7 +461,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
               {(step === "entrance" || step === "shutter") && (
                 <div className="absolute inset-x-0 bottom-4 grid place-items-center">
                   <span
-                    className={`rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground transition-transform ${
+                    className={`rounded-full bg-primary px-6 py-3 text-body font-semibold text-primary-foreground transition-transform ${
                       step === "shutter" ? "scale-90" : ""
                     }`}
                   >
@@ -476,18 +476,18 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
 
       {/* 下タブ — ①で押すボタンと、⑧の着弾先 */}
       <div className="flex items-center justify-around border-t border-white/10 bg-black/90 py-3">
-        <span className="text-[11px] text-white/40">ホーム</span>
+        <span className="text-caption text-white/40">ホーム</span>
         <div ref={targetRef} className="grid h-11 w-11 place-items-center rounded-full bg-white/10">
           <BookOpen className="h-5 w-5 text-white" />
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
+          className={`rounded-full px-3 py-1 text-caption font-semibold transition-all ${
             step === "tab" ? "scale-110 bg-primary text-primary-foreground" : "text-white/40"
           }`}
         >
           {f.entranceLabel}
         </span>
-        <span className="text-[11px] text-white/40">設定</span>
+        <span className="text-caption text-white/40">設定</span>
       </div>
 
       <img
@@ -527,7 +527,7 @@ function FlowCandidates({ kind }: { kind: "dots4" | "dots3" | "list" }) {
             className={`block h-4 w-4 rounded-full ${c} shadow-[0_0_10px_2px_rgba(255,255,255,0.4)]`}
           />
           {i === 0 && (
-            <span className="absolute top-full mt-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
+            <span className="absolute top-full mt-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-caption font-semibold text-white">
               洗髮精
             </span>
           )}
@@ -538,7 +538,7 @@ function FlowCandidates({ kind }: { kind: "dots4" | "dots3" | "list" }) {
           {["洗髮精", "毛巾"].map((w) => (
             <div
               key={w}
-              className="flex items-center gap-2 rounded-xl bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-black"
+              className="flex items-center gap-2 rounded-xl bg-white/90 px-3 py-1.5 text-footnote font-semibold text-black"
             >
               <span className="h-2 w-2 rounded-full bg-sky-400" />
               {w}
@@ -591,17 +591,19 @@ function CatchLandingSection() {
 
   return (
     <section className="mt-6">
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">キャッチ→図鑑の着弾演出</p>
+      <p className="mb-2 text-footnote font-semibold text-muted-foreground">
+        キャッチ→図鑑の着弾演出
+      </p>
 
       {/* 飛ぶ元(仮の写真)と着弾先(仮の図鑑アイコン)。 */}
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div
           ref={boxRef}
-          className="grid h-20 w-20 place-items-center rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 text-2xl"
+          className="grid h-20 w-20 place-items-center rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 text-title"
         >
           📷
         </div>
-        <span className="text-[11px] text-muted-foreground">→</span>
+        <span className="text-caption text-muted-foreground">→</span>
         <div
           ref={targetRef}
           className="grid h-11 w-11 place-items-center rounded-full bg-secondary"
@@ -621,18 +623,18 @@ function CatchLandingSection() {
               }`}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 text-sm font-semibold">
+                <p className="flex items-center gap-2 text-body font-semibold">
                   {v.label}
-                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground">
                     {v.date}
                   </span>
                 </p>
-                <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{v.note}</p>
+                <p className="mt-0.5 text-caption leading-snug text-muted-foreground">{v.note}</p>
               </div>
               <button
                 onClick={() => void play(v.id)}
                 disabled={!!playing}
-                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-semibold disabled:opacity-50"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-footnote font-semibold disabled:opacity-50"
               >
                 <Play className="h-3.5 w-3.5" />
                 {playing === v.id ? "再生中" : "ためす"}
@@ -640,7 +642,7 @@ function CatchLandingSection() {
               <button
                 onClick={() => setVariant(slot, v.id)}
                 aria-pressed={selected}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-footnote font-semibold ${
                   selected
                     ? "bg-primary text-primary-foreground"
                     : "border border-border bg-background"
@@ -676,7 +678,7 @@ export function EffectLabButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="press-in mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 py-2.5 text-xs font-semibold text-primary"
+        className="press-in mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 py-2.5 text-footnote font-semibold text-primary"
       >
         🧪 エフェクト・ラボ(歴代の演出を見比べる)
       </button>
