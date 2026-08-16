@@ -19,6 +19,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { HomeEmptyScene, HomePastScene, HomePendingScene, HomeScene } from "./scenes/home";
 import {
+  SettingsChoicesScene,
+  SettingsDangerScene,
+  SettingsSelectsScene,
+  SettingsTogglesScene,
+} from "./scenes/settings";
+import {
   ReviewChoiceScene,
   ReviewEndScene,
   ReviewExplainScene,
@@ -45,6 +51,10 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-empty": HomeEmptyScene,
   "home-past": HomePastScene,
   "home-pending": HomePendingScene,
+  "settings-choices": SettingsChoicesScene,
+  "settings-selects": SettingsSelectsScene,
+  "settings-toggles": SettingsTogglesScene,
+  "settings-danger": SettingsDangerScene,
   "load-failed": LoadFailedScene,
   "shelf-options": ShelfOptionsScene,
   chunks: ChunksScene,

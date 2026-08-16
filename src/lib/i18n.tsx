@@ -1108,6 +1108,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.avatarSaving": { ja: "保存中…", en: "Saving…" },
   "settings.avatarSaved": { ja: "プロフィール写真を変えました", en: "Profile photo updated" },
   "settings.avatarFailed": { ja: "写真を保存できませんでした", en: "Couldn't save the photo" },
+  "settings.avatarNone": { ja: "プロフィール写真はまだありません", en: "No profile photo yet" },
   "settings.avatarHint": {
     ja: "画面上のアイコンがこの写真になります。",
     en: "This becomes the icon at the top of every screen.",

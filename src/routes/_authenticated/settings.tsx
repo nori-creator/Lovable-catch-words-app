@@ -15,7 +15,7 @@ import { checkIsAdmin } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
@@ -32,7 +32,7 @@ import {
 import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Loader2, Trash2 } from "lucide-react";
+import { LogOut, Loader2, Trash2, User } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 import {
   Sound,
@@ -47,6 +47,135 @@ export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
   component: SettingsPage,
 });
+
+// ============================================================================
+// 設定画面の組み立て部品
+//
+// この画面は「見出し付きの箱」「丸いボタンの列」「選択肢」の3つの形しか
+// 使っていないのに、**同じ markup が7回ずつ書き写されていた**。
+// 書き写しは静かにずれる(実際、余白と補足文の有無が箇所ごとに違っていた)。
+// 部品にして、検査のハーネスからも本物のまま描けるようにする。
+// ============================================================================
+
+/** 見出し付きの箱。設定はこの箱の連なりでできている。 */
+export function SettingsCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+// **並びの数は数え上げで書く。** `grid-cols-${n}` のように実行時に組み立てた
+// 名前は Tailwind から見えず、その CSS は生成されない(同じ穴を凡例の点で
+// 一度踏んだ)。
+const CHOICE_COLS = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  5: "grid-cols-5",
+} as const;
+
+/**
+ * 丸いボタンで1つ選ぶ列。復習の型・厳しさ・1日の量・重点・見た目・
+ * 発音表記・音量 — この画面の選択はすべてこの形。
+ *
+ * `aria-pressed` ではなく `role="radiogroup"` + `aria-checked` にした。
+ * 押しっぱなしのボタンが並んでいるのではなく、**どれか1つを選ぶ**ものなので、
+ * 読み上げも「3つのうち2番目」と言えるほうが正しい。
+ */
+export function ChoiceRow<T extends string | number>({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+  cols,
+}: {
+  label: string;
+  hint?: string;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  value: T;
+  onChange: (v: T) => void;
+  cols: keyof typeof CHOICE_COLS;
+}) {
+  // 見出しの id はラベルの文字から作らない。同じ語が2箇所に出た瞬間に
+  // id が重複して、読み上げがどちらを指すか決まらなくなる。
+  const labelId = useId();
+  return (
+    <div>
+      <Label id={labelId}>{label}</Label>
+      <div
+        role="radiogroup"
+        aria-labelledby={labelId}
+        className={`mt-1 grid gap-2 ${CHOICE_COLS[cols]}`}
+      >
+        {options.map((o) => (
+          <button
+            key={String(o.value)}
+            role="radio"
+            aria-checked={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={`min-h-11 rounded-full border py-2.5 text-sm ${
+              value === o.value
+                ? "border-primary bg-primary font-semibold text-primary-foreground"
+                : "border-border bg-background"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * TOCFL の6段階。「いまの級」と「目標の級」で**同じ一覧**を使う。
+ * 以前は片方が `.replace()` で作った表記、もう片方が手書きの6行で、
+ * どちらも同じ文字列を別々に作っていた(ずれても誰も気づかない形)。
+ */
+const TOCFL_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
+  value: `TOCFL-${n}`,
+  label: `TOCFL Level ${n}`,
+}));
+
+/** 選択肢の一覧から1つ選ぶ(選択肢が多いものは丸いボタンでは入らない)。 */
+export function SelectRow({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
 
 function SettingsPage() {
   const t = useT();
@@ -154,10 +283,7 @@ function SettingsPage() {
   return (
     <AppShell title={t("title.settings")}>
       <div className="space-y-4">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            {t("settings.profile")}
-          </h3>
+        <SettingsCard title={t("settings.profile")}>
           <div className="space-y-3">
             <AvatarRow />
             <div>
@@ -165,205 +291,132 @@ function SettingsPage() {
               <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </div>
           </div>
-        </div>
+        </SettingsCard>
 
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            {t("settings.language")}
-          </h3>
+        <SettingsCard title={t("settings.language")}>
           <div className="space-y-3">
-            <div>
-              <Label htmlFor="lang-target">{t("settings.targetLang")}</Label>
-              <select
-                id="lang-target"
-                aria-label={t("set.targetLangAria")}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                value={targetLanguage}
-                onChange={(e) => setTargetLanguage(e.target.value)}
-              >
-                <option value="zh-TW">{t("settings.langZhTw")}</option>
-                <option value="en">{t("settings.langEn")}</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="lang-cur">{t("settings.currentLevel")}</Label>
-              <select
-                id="lang-cur"
-                aria-label={t("settings.currentLevel")}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                value={currentLevel}
-                onChange={(e) => setCurrentLevel(e.target.value)}
-              >
-                {["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6"].map((lv) => (
-                  <option key={lv} value={lv}>
-                    {lv.replace("TOCFL-", "TOCFL Level ")}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.levelHint")}</p>
-            </div>
-            <div>
-              <Label htmlFor="lang-level">{t("settings.levelGoal")}</Label>
-              <select
-                id="lang-level"
-                aria-label={t("set.levelGoalAria")}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                value={levelGoal}
-                onChange={(e) => setLevelGoal(e.target.value)}
-              >
-                <option value="TOCFL-1">TOCFL Level 1</option>
-                <option value="TOCFL-2">TOCFL Level 2</option>
-                <option value="TOCFL-3">TOCFL Level 3</option>
-                <option value="TOCFL-4">TOCFL Level 4</option>
-                <option value="TOCFL-5">TOCFL Level 5</option>
-                <option value="TOCFL-6">TOCFL Level 6</option>
-              </select>
-            </div>
+            <SelectRow
+              id="lang-target"
+              label={t("settings.targetLang")}
+              value={targetLanguage}
+              onChange={setTargetLanguage}
+              options={[
+                { value: "zh-TW", label: t("settings.langZhTw") },
+                { value: "en", label: t("settings.langEn") },
+              ]}
+            />
+            <SelectRow
+              id="lang-cur"
+              label={t("settings.currentLevel")}
+              hint={t("settings.levelHint")}
+              value={currentLevel}
+              onChange={setCurrentLevel}
+              options={TOCFL_LEVELS}
+            />
+            <SelectRow
+              id="lang-level"
+              label={t("settings.levelGoal")}
+              value={levelGoal}
+              onChange={setLevelGoal}
+              options={TOCFL_LEVELS}
+            />
             <PhoneticRow />
-            <div>
-              <Label htmlFor="lang-native">{t("settings.nativeLang")}</Label>
-              {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
-                  変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
-              <select
-                id="lang-native"
-                aria-label={t("set.nativeAria")}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                value={nativeLanguage}
-                onChange={(e) => setNativeLanguage(e.target.value)}
-              >
-                {L1_ORDER.map((code) => (
-                  <option key={code} value={code}>
-                    {uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {t("settings.nativeLangHint")}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="lang-ui">{t("settings.uiLang")}</Label>
-              <select
-                id="lang-ui"
-                aria-label={t("set.uiLangAria")}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                value={uiLanguage}
-                onChange={(e) => setUiLanguage(e.target.value)}
-              >
-                <option value="ja">{t("settings.langJa")}</option>
-                <option value="en">{t("settings.langEn")}</option>
-              </select>
-            </div>
+            {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
+                変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
+            <SelectRow
+              id="lang-native"
+              label={t("settings.nativeLang")}
+              hint={t("settings.nativeLangHint")}
+              value={nativeLanguage}
+              onChange={setNativeLanguage}
+              options={L1_ORDER.map((code) => ({
+                value: code,
+                label: uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa,
+              }))}
+            />
+            <SelectRow
+              id="lang-ui"
+              label={t("settings.uiLang")}
+              value={uiLanguage}
+              onChange={setUiLanguage}
+              options={[
+                { value: "ja", label: t("settings.langJa") },
+                { value: "en", label: t("settings.langEn") },
+              ]}
+            />
           </div>
-        </div>
+        </SettingsCard>
 
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            {t("settings.study")}
-          </h3>
-          <Label>{t("settings.reviewMode")}</Label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            {(["speaking", "choice"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setReviewMode(v)}
-                aria-pressed={reviewMode === v}
-                className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewMode === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-              >
-                {v === "speaking" ? t("settings.modeSpeaking") : t("settings.modeChoice")}
-              </button>
-            ))}
+        <SettingsCard title={t("settings.study")}>
+          <div className="space-y-3">
+            <ChoiceRow
+              cols={2}
+              label={t("settings.reviewMode")}
+              hint={t("settings.reviewModeHint")}
+              value={reviewMode}
+              onChange={setReviewMode}
+              options={[
+                { value: "speaking", label: t("settings.modeSpeaking") },
+                { value: "choice", label: t("settings.modeChoice") },
+              ]}
+            />
+            <ChoiceRow
+              cols={3}
+              label={t("settings.strictness")}
+              value={strictness}
+              onChange={setStrictness}
+              options={[
+                { value: "easy", label: t("settings.easy") },
+                { value: "normal", label: t("settings.normal") },
+                { value: "strict", label: t("settings.strict") },
+              ]}
+            />
+            {/* 1日の復習量。既定を決めておかないと「開くたびに新しい単語が
+                無限に出てくる」状態になり、終わりが見えない(NORI指摘)。 */}
+            <ChoiceRow
+              cols={5}
+              label={t("settings.reviewLimit")}
+              hint={t("settings.reviewLimitHint")}
+              value={reviewLimit}
+              onChange={setReviewLimit}
+              options={[
+                { value: 10, label: "10" },
+                { value: 20, label: "20" },
+                { value: 30, label: "30" },
+                { value: 50, label: "50" },
+                { value: 0, label: t("settings.reviewLimitNone") },
+              ]}
+            />
+            <ChoiceRow
+              cols={3}
+              label={t("settings.reviewFocus")}
+              hint={t("settings.reviewFocusHint")}
+              value={reviewFocus}
+              onChange={setReviewFocus}
+              options={[
+                { value: "all", label: t("settings.focusAll") },
+                { value: "weak", label: t("settings.focusWeak") },
+                { value: "new", label: t("settings.focusNew") },
+              ]}
+            />
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.reviewModeHint")}</p>
-          <div className="mt-3">
-            <Label>{t("settings.strictness")}</Label>
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {(["easy", "normal", "strict"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setStrictness(v)}
-                  aria-pressed={strictness === v}
-                  className={`min-h-11 rounded-full border py-2.5 text-sm ${strictness === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-                >
-                  {v === "easy"
-                    ? t("settings.easy")
-                    : v === "normal"
-                      ? t("settings.normal")
-                      : t("settings.strict")}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* 1日の復習量。既定を決めておかないと「開くたびに新しい単語が
-              無限に出てくる」状態になり、終わりが見えない(NORI指摘)。 */}
-          <div className="mt-3">
-            <Label>{t("settings.reviewLimit")}</Label>
-            <div className="mt-1 grid grid-cols-5 gap-2">
-              {([10, 20, 30, 50, 0] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setReviewLimit(v)}
-                  aria-pressed={reviewLimit === v}
-                  className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewLimit === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-                >
-                  {v === 0 ? t("settings.reviewLimitNone") : v}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {t("settings.reviewLimitHint")}
-            </p>
-          </div>
-
-          <div className="mt-3">
-            <Label>{t("settings.reviewFocus")}</Label>
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {(["all", "weak", "new"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setReviewFocus(v)}
-                  aria-pressed={reviewFocus === v}
-                  className={`min-h-11 rounded-full border py-2.5 text-sm ${reviewFocus === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-                >
-                  {v === "all"
-                    ? t("settings.focusAll")
-                    : v === "weak"
-                      ? t("settings.focusWeak")
-                      : t("settings.focusNew")}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {t("settings.reviewFocusHint")}
-            </p>
-          </div>
-
           <VideoRecordingToggle />
           <PlaceReminderToggle />
-        </div>
+        </SettingsCard>
 
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            {t("settings.appearance")}
-          </h3>
-          <Label>{t("settings.theme")}</Label>
-          <div className="mt-1 grid grid-cols-3 gap-2">
-            {(["light", "dark", "system"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setTheme(v)}
-                aria-pressed={theme === v}
-                className={`min-h-11 rounded-full border py-2.5 text-sm ${theme === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-              >
-                {v === "light"
-                  ? t("settings.light")
-                  : v === "dark"
-                    ? t("settings.dark")
-                    : t("settings.system")}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SettingsCard title={t("settings.appearance")}>
+          <ChoiceRow
+            cols={3}
+            label={t("settings.theme")}
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: "light", label: t("settings.light") },
+              { value: "dark", label: t("settings.dark") },
+              { value: "system", label: t("settings.system") },
+            ]}
+          />
+        </SettingsCard>
 
         <SoundAndHapticsPanel />
 
@@ -402,31 +455,21 @@ function SettingsPage() {
 }
 
 /** 発音表記: 注音かピンインのどちらか一方だけを全画面で表示する。 */
-function PhoneticRow() {
+export function PhoneticRow() {
   const t = useT();
   const pref = usePhoneticPref();
   return (
-    <div>
-      <Label>{t("settings.phonetic")}</Label>
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {(
-          [
-            ["zhuyin", t("settings.zhuyin")],
-            ["pinyin", t("settings.pinyin")],
-          ] as const
-        ).map(([v, label]) => (
-          <button
-            key={v}
-            onClick={() => setPhoneticPref(v)}
-            aria-pressed={pref === v}
-            className={`min-h-11 rounded-full border py-2.5 text-sm ${pref === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.phoneticHint")}</p>
-    </div>
+    <ChoiceRow
+      cols={2}
+      label={t("settings.phonetic")}
+      hint={t("settings.phoneticHint")}
+      value={pref}
+      onChange={setPhoneticPref}
+      options={[
+        { value: "zhuyin", label: t("settings.zhuyin") },
+        { value: "pinyin", label: t("settings.pinyin") },
+      ]}
+    />
   );
 }
 
@@ -435,13 +478,22 @@ function PhoneticRow() {
  * Two-step: open the panel, then type 「削除」 to arm the button — the server
  * re-checks the same string, so nothing short of both steps can wipe data.
  */
-function DangerZone() {
+export function DangerZone({
+  // 既定は「畳んだ・空」で、実際の画面はそのまま。開いた状態と、確認語を
+  // 入れて赤いボタンが効くようになった状態は**押さないと一度も描かれない**
+  // ので、検査から名指しで出せるようにしておく。
+  defaultOpen = false,
+  defaultConfirmText = "",
+}: {
+  defaultOpen?: boolean;
+  defaultConfirmText?: string;
+} = {}) {
   const t = useT();
   const deleteFn = useServerFn(deleteMyAccount);
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();
-  const [confirmText, setConfirmText] = useState("");
+  const [confirmText, setConfirmText] = useState(defaultConfirmText);
   const [deleting, setDeleting] = useState(false);
   // 退会の確認語。英語表示の人に日本語入力を強いると操作できないので、
   // どちらの言語でも通す(表示は今の言語のものだけ)。
@@ -465,7 +517,10 @@ function DangerZone() {
   }
 
   return (
-    <details className="group rounded-2xl border border-destructive/30 bg-card p-4">
+    <details
+      open={defaultOpen}
+      className="group rounded-2xl border border-destructive/30 bg-card p-4"
+    >
       <summary className="cursor-pointer list-none text-sm font-semibold text-destructive [&::-webkit-details-marker]:hidden">
         {t("settings.deleteAccount")}
       </summary>
@@ -587,7 +642,7 @@ const VIDEO_KEY = "review-video-v1";
  * 保存前に 256px まで縮めてから送る(ヘッダーは 32px 表示なので十分で、
  * 通信もストレージも軽い)。
  */
-function AvatarRow() {
+export function AvatarRow() {
   const t = useT();
   const qc = useQueryClient();
   const fetchProfile = useServerFn(getMyProfile);
@@ -629,8 +684,17 @@ function AvatarRow() {
             className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-border"
           />
         ) : (
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-base font-bold text-primary-foreground">
-            C
+          // 顔写真がまだ無いとき。
+          //
+          // ここは「C」の一文字をブランド色のグラデーションに載せていた。
+          // 二重に良くない: ①これは**本人**の顔写真の枠なのに、出るのは
+          // アプリの頭文字。②グラデーションの終点だけ番号直書きで、
+          // トークンより明るいので白文字が **3.49:1** になっていた
+          // (主色の白文字は測って直したのに、手描きのグラデーションは
+          //  その外に居たので置き去りだった)。
+          // 人の形の印にして、色はトークンの対で置く。
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
+            <User aria-label={t("settings.avatarNone")} className="h-7 w-7" />
           </div>
         )}
         <button
@@ -670,7 +734,7 @@ function AvatarRow() {
   );
 }
 
-function VideoRecordingToggle() {
+export function VideoRecordingToggle() {
   const t = useT();
   const [video, setVideo] = useState(false);
   useEffect(() => {
@@ -700,7 +764,7 @@ function VideoRecordingToggle() {
  * 許可されなければスイッチは自動でOFFに戻す — 「ONなのに鳴らない」が
  * 一番わかりにくい壊れ方なので、状態が嘘をつかないようにする。
  */
-function PlaceReminderToggle() {
+export function PlaceReminderToggle() {
   const t = useT();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -761,7 +825,7 @@ function PlaceReminderToggle() {
  * 押さなくても効く。押さないと効かないものと混ざると分からなくなるので、
  * その旨を書いておく。選んだその場で音を鳴らして、選んだ結果を耳で返す。
  */
-function SoundAndHapticsPanel() {
+export function SoundAndHapticsPanel() {
   const t = useT();
   const [level, setLevelState] = useState<SoundLevel>("subtle");
   const [haptics, setHaptics] = useState(true);
@@ -790,26 +854,18 @@ function SoundAndHapticsPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{t("settings.feel")}</h3>
-
-      <Label>{t("settings.soundLevel")}</Label>
-      <div className="mt-1 grid grid-cols-3 gap-2">
-        {(["off", "subtle", "full"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => pickLevel(v)}
-            aria-pressed={level === v}
-            className={`min-h-11 rounded-full border py-2.5 text-sm ${level === v ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
-          >
-            {v === "off"
-              ? t("settings.soundOff")
-              : v === "subtle"
-                ? t("settings.soundSubtle")
-                : t("settings.soundFull")}
-          </button>
-        ))}
-      </div>
+    <SettingsCard title={t("settings.feel")}>
+      <ChoiceRow
+        cols={3}
+        label={t("settings.soundLevel")}
+        value={level}
+        onChange={pickLevel}
+        options={[
+          { value: "off", label: t("settings.soundOff") },
+          { value: "subtle", label: t("settings.soundSubtle") },
+          { value: "full", label: t("settings.soundFull") },
+        ]}
+      />
 
       <div className="mt-4">
         <ToggleRow
@@ -821,11 +877,11 @@ function SoundAndHapticsPanel() {
       </div>
 
       <p className="mt-3 text-[11px] text-muted-foreground">{t("settings.feelInstantHint")}</p>
-    </div>
+    </SettingsCard>
   );
 }
 
-function ToggleRow({
+export function ToggleRow({
   label,
   hint,
   value,
@@ -850,11 +906,23 @@ function ToggleRow({
         aria-label={label}
         className="grid h-11 w-11 shrink-0 place-items-center"
       >
+        {/* ## 消えている側も**見えていなければならない**
+            つまみは常に白だった。ONのときは青い溝の上なのではっきり見えるが、
+            OFFのときは `bg-secondary`(ほぼ白)の溝に白いつまみで、
+            **どちらの端に寄っているか分からない**。このスイッチの意味は
+            全部この図形が運んでいるので、見えないなら状態が伝わっていない
+            (WCAG 1.4.11 は意味を持つ図形に 3:1 を求める)。
+            溝に輪郭を付け、OFF のつまみは濃い側の色にする(Material 3 と同じ、
+            「消えているときは輪郭の色のつまみ」)。 */}
         <span
-          className={`relative block h-6 w-11 rounded-full transition-colors ${value ? "bg-primary" : "bg-secondary"}`}
+          className={`relative block h-6 w-11 rounded-full border transition-colors ${
+            value ? "border-primary bg-primary" : "border-border bg-secondary"
+          }`}
         >
           <span
-            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-0"} motion-reduce:transition-none`}
+            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full shadow transition-transform ${
+              value ? "translate-x-5 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"
+            } motion-reduce:transition-none`}
           />
         </span>
       </button>

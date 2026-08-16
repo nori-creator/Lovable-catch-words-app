@@ -4,8 +4,37 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * ## 焦点の輪郭は**ブラウザ既定に任せる**
+ *
+ * ここには `focus-visible:outline-none` + `ring-ring/40`(青一色・不透明度40%)
+ * が入っていた。既定の輪郭を消したうえで、代わりに置いたものが薄い。
+ * 鍵盤で送って前後の画素を測ったら **1.03:1** — つまり
+ * **アプリ中のボタンで、いまどこに居るかが一切見えていなかった**。
+ *
+ * 前の周に `.shelf-item` で同じことを測って「既定のほうが強い」と結論した
+ * のに、**実際に使われている shadcn の部品には手を入れていなかった**。
+ * 「直した場所が動く経路に無い」をまた踏んだので、ここで直す。
+ *
+ * | | 明るい面 | 暗い面 |
+ * |---|---|---|
+ * | ブラウザ既定(黒白の二重リング) | 18.8:1 | 19.9:1 |
+ * | `--ring` の青一色 | 3.65:1 | 7.68:1 |
+ *
+ * 単色の輪郭はどこかの背景で必ず負ける。既定は背景に応じて描き分ける。
+ *
+ * ## 押せないときは**薄くしない**
+ *
+ * `disabled:opacity-50` は、塗りと文字を**一緒に**薄くする。塗りが薄れた
+ * ぶん文字との差も縮むので、押せない状態のボタンは何と書いてあるか
+ * 読めなくなる(退会の赤いボタンで実測 **1.61:1**)。
+ * 「押せない」は伝えたいが、「何のボタンか分からない」は伝えたくない。
+ * 押せないときは**専用の面と文字色**に切り替える — どちらもトークンなので
+ * テーマごとに 4.5:1 が保たれる。`:disabled` の付いた側が詳細度で勝つので、
+ * 見た目の種類(default / destructive …)より後に効く。
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 lift",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium cursor-pointer disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 lift",
   {
     variants: {
       variant: {

@@ -17,9 +17,9 @@
  * 場面はURLの検索文字列で切り替える。
  *
  * ## 何を見ていないか(**書いておく**)
- * ・**設定画面**はルートに直書きのままで未検査。復習とホームは `export` を
- *   足して本物を描けるようにしたので入っている(同じやり方で足せる)。
- *   手書きのHTMLを足して「見た」ことにはしない。
+ * ・**ルート直書きのまま検査に入っていない画面は、もう無い。**
+ *   復習・ホーム・設定は、ルート側に `export` を足して本物を描けるように
+ *   してから入れた。手書きのHTMLを足して「見た」ことにはしない。
  * ・`WordCard` の `SECTION_THEME`(節ごとの淡い色の表、36箇所)は
  *   **明るい面の前提で固定**されている。暗いテーマに追従しないことは
  *   分かっているが、直すには「暗い面で節をどう見せるか」を決める必要が
@@ -149,10 +149,9 @@ const MODES = [
   // 明るい面・暗い面・高コントラストの3面ずつ見る。ここに入れているのは
   // **描かれる markup が本物と同じもの**だけ。ルートに直書きされていた画面は、
   // ルート側に `export` を足してハーネスから本物を描くようにしてから入れる
-  // (復習・ホームはそうした)。似たHTMLを書き写すことはしない —
+  // (復習・ホーム・設定はそうした)。似たHTMLを書き写すことはしない —
   // それをやると、棚で潰したはずの「実物と違うものを見る検査」に戻る。
-  // **設定画面だけがまだ入っていない。** 未検査であることは README ではなく、
-  // ここの一覧が事実として示す。
+  // 何を見て何を見ていないかは README ではなく、ここの一覧が事実として示す。
   ...crossThemes("tokens", { scene: "tokens" }),
   ...crossThemes("failed", { scene: "load-failed" }),
   ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
@@ -186,6 +185,20 @@ const MODES = [
   // 目で見る機会が構造的に無い。
   ...crossThemes("home-pending", { scene: "home-pending" }),
   ["home-pending-confirm", "", false, { scene: "home-pending", variant: "confirm" }],
+  // 設定 — **切替・選択・取り消せない操作**が集まる画面。これで
+  // ルート直書きのまま未検査の画面がゼロになる。
+  ...crossThemes("settings-choices", { scene: "settings-choices" }),
+  ...crossThemes("settings-selects", { scene: "settings-selects" }),
+  ...crossThemes("settings-toggles", { scene: "settings-toggles" }),
+  ...crossThemes("settings-danger", { scene: "settings-danger" }),
+  // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
+  ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
+  [
+    "settings-danger-armed-dark",
+    'class="dark"',
+    false,
+    { scene: "settings-danger", variant: "armed" },
+  ],
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
@@ -702,6 +715,97 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     if (lineRatio < LINE_MIN_RATIO) {
       issues.push(
         `[${name}] 棚板のコントラストが実測 ${lineRatio.toFixed(2)}:1 < ${LINE_MIN_RATIO}`,
+      );
+    }
+  }
+
+  // ## スイッチは、入っているか消えているかが**図形で**分かること
+  //
+  // スイッチの意味は全部この図形が運ぶ(文字では言っていない)。
+  // それなのに、つまみは入・切とも白で、消えているときは白い溝の上だった —
+  // **どちらの端に寄っているか見えない**。文字の検査は文字しか見ないので、
+  // ここは永遠に通る。WCAG 1.4.11(意味を持つ図形は 3:1)で測る。
+  //
+  // 溝の左半分と右半分をそれぞれ撮り、**つまみの居る側と居ない側**の
+  // 明るさを比べる。計算値では取れない(影も縁も乗るし、つまみは
+  // `translate` で動く)。
+  const switches = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="switch"]')]
+      .map((el) => {
+        // 溝はボタンの中の実際に色が付いている箱。当たり判定のために
+        // ボタン自体は 44px に広げてあるので、ボタンの箱では測れない。
+        const track = el.querySelector("span");
+        if (!track) return null;
+        const b = track.getBoundingClientRect();
+        if (b.width < 8 || b.height < 8 || b.top < 0 || b.bottom > window.innerHeight) return null;
+        return {
+          on: el.getAttribute("aria-checked") === "true",
+          label: (el.getAttribute("aria-label") || "").slice(0, 14),
+          clip: {
+            x: Math.round(b.x),
+            y: Math.round(b.y),
+            width: Math.round(b.width),
+            height: Math.round(b.height),
+          },
+        };
+      })
+      .filter(Boolean),
+  );
+  for (const sw of switches) {
+    const shot = await page.screenshot({ clip: sw.clip });
+    const ratio = await page.evaluate(
+      (dataUrl) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement("canvas");
+            c.width = img.width;
+            c.height = img.height;
+            const x = c.getContext("2d", { willReadFrequently: true });
+            x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, c.width, c.height).data;
+            const lumOf = (r, g, b) => {
+              const f = (v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+              };
+              return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+            };
+            // 中央の帯だけを見る(上下の縁は角丸で背景が混ざる)。
+            const y0 = Math.floor(c.height * 0.4);
+            const y1 = Math.ceil(c.height * 0.6);
+            const side = (from, to) => {
+              let r = 0,
+                g = 0,
+                b = 0,
+                n = 0;
+              for (let y = y0; y < y1; y++) {
+                for (let px = from; px < to; px++) {
+                  const i = (y * c.width + px) * 4;
+                  r += d[i];
+                  g += d[i + 1];
+                  b += d[i + 2];
+                  n++;
+                }
+              }
+              return lumOf(r / n, g / n, b / n);
+            };
+            const q = Math.floor(c.width / 4);
+            const left = side(2, q);
+            const right = side(c.width - q, c.width - 2);
+            resolve((Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05));
+          };
+          img.src = dataUrl;
+        }),
+      "data:image/png;base64," + shot.toString("base64"),
+    );
+    if (process.env.UI_VERBOSE) {
+      console.log(`  ${name}: スイッチ "${sw.label}" ${sw.on ? "入" : "切"} ${ratio.toFixed(2)}:1`);
+    }
+    if (ratio < 3) {
+      issues.push(
+        `[${name}] スイッチの入/切が図形で見えない: "${sw.label}" ` +
+          `(${sw.on ? "入" : "切"}) 実測 ${ratio.toFixed(2)}:1 < 3`,
       );
     }
   }
