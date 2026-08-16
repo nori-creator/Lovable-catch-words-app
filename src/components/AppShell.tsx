@@ -51,12 +51,16 @@ function BrandMark() {
         alt=""
         width={32}
         height={32}
-        className="h-8 w-8 shrink-0 rounded-xl object-cover shadow-md ring-1 ring-black/5"
+        className="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-black/5"
       />
     );
   }
   return (
-    <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-sm font-bold text-primary-foreground shadow-md shadow-primary/30">
+    // **道標であって主役ではない。** 塗りの青丸 + 影 + 太い欧文の組で、
+    // 全画面を通していちばん強い視覚要素になっていた(独立監査)。
+    // 視線の起点に最も強いものを置くと、その画面の主役がそこを取れない。
+    // 面は薄く、字は主色に。押せることは色で分かる。
+    <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-xs font-bold text-primary">
       C
     </div>
   );
@@ -104,7 +108,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 持つ**ことになった — 直そうとした階層をむしろ壊していた。
                 これはどの画面にも出るアプリ名(道標)であって、その画面の
                 見出しではない。h1 は各画面が自分で持つ。 */}
-            <span className="text-base font-semibold tracking-[-0.02em]">
+            <span className="text-sm font-medium tracking-[-0.01em] text-muted-foreground">
               {title ?? "Catchwords"}
             </span>
           </Link>

@@ -36,10 +36,16 @@ function levelOf(retention: number): Level {
   return "weak";
 }
 
+/**
+ * 線の色。**素の16進を直に書かない。**
+ * `#10b981` などを直書きしていたので、暗いテーマで一切変わらず、
+ * 黒地の上で発光していた(同じ問題を記憶レベルでも踏んだ)。
+ * SVG の属性でも CSS 変数は効くので、状態のトークンをそのまま渡す。
+ */
 function colorOf(level: Level): string {
-  if (level === "strong") return "#10b981"; // emerald
-  if (level === "fading") return "#f59e0b"; // amber
-  return "#ef4444"; // red
+  if (level === "strong") return "var(--ok)";
+  if (level === "fading") return "var(--warn)";
+  return "var(--bad)";
 }
 
 /** 記憶レベルの見出し。表示言語に追従させるため翻訳キーを返す。 */
@@ -156,9 +162,9 @@ export function ForgettingCurveChart({
           )}
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">
-          <Legend color="#10b981" label="80%+" />
-          <Legend color="#f59e0b" label="50-80%" />
-          <Legend color="#ef4444" label="<50%" />
+          <Legend color="var(--ok)" label="80%+" />
+          <Legend color="var(--warn)" label="50-80%" />
+          <Legend color="var(--bad)" label="<50%" />
         </div>
       </div>
       <div className="h-44 w-full">
@@ -168,29 +174,34 @@ export function ForgettingCurveChart({
             <XAxis
               dataKey="t"
               type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={(v) => `${Math.round(v)}d`}
-              stroke="#64748b"
-              fontSize={10}
+              // 目盛りはデータ由来の端数(47d)ではなく**丸い値**にする。
+              // 端数がそのまま軸に出ていると、目盛りではなく不具合に見える。
+              domain={[0, (max: number) => Math.ceil(max / 10) * 10]}
+              tickFormatter={(v) => t("curve.days", { n: String(Math.round(v)) })}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
             />
             <YAxis
               domain={[0, 100]}
+              ticks={[0, 50, 100]}
               tickFormatter={(v) => `${v}%`}
-              stroke="#64748b"
-              fontSize={10}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
             />
             <Tooltip
               formatter={(v: number) => [`${v}%`, t("curve.retention")]}
               labelFormatter={(l) => t("curve.days", { n: Math.round(Number(l)) })}
               contentStyle={{
-                background: "rgba(255,255,255,0.96)",
-                border: "1px solid rgba(120,130,150,0.28)",
+                // 白決め打ちだと暗いテーマで白い箱が浮く。
+                background: "var(--popover)",
+                color: "var(--popover-foreground)",
+                border: "1px solid var(--border)",
                 borderRadius: 12,
                 fontSize: 12,
               }}
             />
-            <ReferenceLine y={80} stroke="#10b981" strokeDasharray="2 4" />
-            <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="2 4" />
+            <ReferenceLine y={80} stroke="var(--ok)" strokeDasharray="2 4" />
+            <ReferenceLine y={50} stroke="var(--warn)" strokeDasharray="2 4" />
             <Line
               type="monotone"
               dataKey="retention"
@@ -213,7 +224,7 @@ export function ForgettingCurveChart({
                     cy={cy}
                     r={4}
                     fill={stroke}
-                    stroke="#64748b"
+                    stroke="var(--muted-foreground)"
                     strokeWidth={2}
                   />
                 );
@@ -253,6 +264,13 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
+/**
+ * 記憶率は**整数**に丸める。
+ *
+ * 小数第一位まで出していたので、同じ画面で `72%`(バッジ)と `74.8%`
+ * (この図)が並び、表記が揃っていなかった。そもそも記憶率は推定値で、
+ * 0.1% の差に意味は無い — 小数を出すのは**偽りの精度**(独立監査)。
+ */
 function round(n: number): number {
-  return Math.round(n * 10) / 10;
+  return Math.round(n);
 }

@@ -335,19 +335,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "err.retry": { ja: "もう一度", en: "Try again" },
   "dex.shelf": { ja: "棚", en: "Shelf" },
-  "dex.shelfEmpty": { ja: "まだ空", en: "Still empty" },
-  "dex.shelfNoMatch": { ja: "この棚に該当なし", en: "Nothing here matches" },
-  "dex.emptyShelvesFolded": {
-    ja: "空いている棚 {n} — 押すと開きます",
-    en: "{n} empty shelves — tap to show",
-  },
-  "dex.emptyShelvesHide": { ja: "空いている棚を畳む", en: "Hide empty shelves" },
-  // 探しているときは「空」ではなく「該当なし」。棚に何も無いのではなく、
-  // いま探している言葉がそこに無いだけなので、言い方を分ける。
-  "dex.noMatchShelvesFolded": {
-    ja: "該当なしの棚 {n} — 押すと開きます",
-    en: "{n} shelves with no match — tap to show",
-  },
   "dex.shelfCount": { ja: "{n}", en: "{n}" },
   // --- 図鑑の部屋(棚のまとまり) ---
   "room.eat": { ja: "食べる", en: "Eat" },

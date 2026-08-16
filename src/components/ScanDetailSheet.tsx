@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
 import { WordCard } from "@/components/WordCard";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
@@ -73,9 +73,17 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
         {err ? (
           <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{err}</p>
         ) : !card ? (
-          <div className="grid place-items-center py-16 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <p className="mt-2 text-xs">{t("detail.preparing")}</p>
+          /* **回る輪だけを置かない。** 何がどこに出るのか分からないまま
+             待たされるうえ、届いた瞬間に画面が丸ごと入れ替わって視線が
+             迷子になる(apple-design は spinner dump を明確に defect と
+             している)。これから来るものと同じ形の骨組みを先に置く。 */
+          <div className="space-y-3" role="status" aria-label={t("detail.preparing")}>
+            <div className="h-7 w-40 animate-pulse rounded-lg bg-secondary" />
+            <div className="h-4 w-28 animate-pulse rounded bg-secondary" />
+            <div className="h-24 w-full animate-pulse rounded-2xl bg-secondary" />
+            <div className="h-4 w-full animate-pulse rounded bg-secondary" />
+            <div className="h-4 w-3/4 animate-pulse rounded bg-secondary" />
+            <p className="pt-1 text-[11px] text-muted-foreground">{t("detail.preparing")}</p>
           </div>
         ) : (
           <WordCard

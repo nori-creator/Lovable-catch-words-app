@@ -460,7 +460,6 @@ function DexPage() {
           activeCategory={activeCategory}
           onOpen={setOpenId}
           justCaught={justCaught}
-          filtering={!!search.trim()}
           material={material}
           density={density}
           perShelf={DENSITY_PER_SHELF[density]}
