@@ -149,7 +149,7 @@ export function EffectLab({ onClose }: { onClose: () => void }) {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-semibold">
                       {v.label}
-                      <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                         {v.date}
                       </span>
                     </p>
@@ -238,7 +238,7 @@ function FlowPresetSection() {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-sm font-semibold">
                   {p.label}
-                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                     {p.date}
                   </span>
                 </p>
@@ -377,7 +377,7 @@ function FlowPlayback({ preset, onDone }: { preset: FlowPreset; onDone: () => vo
     >
       {/* いまどの段階か。比較するとき「どこが違ったか」を言葉でも残す。 */}
       <div className="flex items-center gap-2 bg-black px-3 py-2">
-        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white">
+        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
           {preset.label} · {preset.date}
         </span>
         <span className="text-[11px] text-white/70">{stepLabel[step]}</span>
@@ -527,7 +527,7 @@ function FlowCandidates({ kind }: { kind: "dots4" | "dots3" | "list" }) {
             className={`block h-4 w-4 rounded-full ${c} shadow-[0_0_10px_2px_rgba(255,255,255,0.4)]`}
           />
           {i === 0 && (
-            <span className="absolute top-full mt-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white">
+            <span className="absolute top-full mt-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
               洗髮精
             </span>
           )}
@@ -623,7 +623,7 @@ function CatchLandingSection() {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-sm font-semibold">
                   {v.label}
-                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                     {v.date}
                   </span>
                 </p>

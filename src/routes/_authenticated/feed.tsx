@@ -159,7 +159,7 @@ function PostCard({ post }: { post: FeedPost }) {
               <div lang="zh-Hant" className="text-lg font-bold leading-none">
                 {post.sticker.word.headword}
               </div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 <Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}
               </div>
             </div>

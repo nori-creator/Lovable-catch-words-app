@@ -21,59 +21,71 @@ export type MemoryLevelInfo = {
   dot: string;
 };
 
+/**
+ * 記憶の6段階。**色は素の Tailwind の番号ではなくトークンで持つ。**
+ *
+ * 以前は `text-red-600` / `bg-red-100 text-red-700` のように直に書いていた。
+ * これには2つの問題があった:
+ *  ・**暗いテーマに一切追従しない。** 明るい前提の固定色なので、暗い面では
+ *    薄桃色の塊が浮くだけになる(テーマを6つ持っているのに1つ分しか無い)。
+ *  ・11px の文字として 2.97〜4.18:1 しか無く、本文の下限 4.5:1 を割っていた。
+ *
+ * `mem-lv-N` を付けると `--mem` がその段の色になり、`mem-text` / `mem-bar` /
+ * `mem-chip` がそれぞれの役目で使う。明暗の値は styles.css 側で持つ。
+ */
 const LEVELS: MemoryLevelInfo[] = [
   {
     level: 0,
     label: "忘れかけ",
     labelKey: "memory.level0",
-    bar: "bg-red-500",
-    text: "text-red-600",
-    chip: "bg-red-100 text-red-700",
+    bar: "mem-lv-0 mem-bar",
+    text: "mem-lv-0 mem-text",
+    chip: "mem-lv-0 mem-chip",
     dot: "🔴",
   },
   {
     level: 1,
     label: "あやうい",
     labelKey: "memory.level1",
-    bar: "bg-orange-500",
-    text: "text-orange-600",
-    chip: "bg-orange-100 text-orange-700",
+    bar: "mem-lv-1 mem-bar",
+    text: "mem-lv-1 mem-text",
+    chip: "mem-lv-1 mem-chip",
     dot: "🟠",
   },
   {
     level: 2,
     label: "うろ覚え",
     labelKey: "memory.level2",
-    bar: "bg-amber-400",
-    text: "text-amber-600",
-    chip: "bg-amber-100 text-amber-700",
+    bar: "mem-lv-2 mem-bar",
+    text: "mem-lv-2 mem-text",
+    chip: "mem-lv-2 mem-chip",
     dot: "🟡",
   },
   {
     level: 3,
     label: "定着中",
     labelKey: "memory.level3",
-    bar: "bg-lime-500",
-    text: "text-lime-600",
-    chip: "bg-lime-100 text-lime-700",
+    bar: "mem-lv-3 mem-bar",
+    text: "mem-lv-3 mem-text",
+    chip: "mem-lv-3 mem-chip",
     dot: "🟢",
   },
   {
     level: 4,
     label: "覚えた",
     labelKey: "memory.level4",
-    bar: "bg-emerald-500",
-    text: "text-emerald-600",
-    chip: "bg-emerald-100 text-emerald-700",
+    bar: "mem-lv-4 mem-bar",
+    text: "mem-lv-4 mem-text",
+    chip: "mem-lv-4 mem-chip",
     dot: "💚",
   },
   {
     level: 5,
     label: "長期記憶",
     labelKey: "memory.level5",
-    bar: "bg-sky-500",
-    text: "text-sky-600",
-    chip: "bg-sky-100 text-sky-700",
+    bar: "mem-lv-5 mem-bar",
+    text: "mem-lv-5 mem-text",
+    chip: "mem-lv-5 mem-chip",
     dot: "🔵",
   },
 ];

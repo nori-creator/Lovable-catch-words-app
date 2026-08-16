@@ -380,7 +380,7 @@ export function ScanAnalyzing_v2liquid({ stage }: { stage: Stage }) {
             />
           ))}
         </div>
-        <p className="font-mono-tight text-[10px] tracking-[0.32em] text-white/85 uppercase">
+        <p className="font-mono-tight text-[11px] tracking-[0.32em] text-white/85 uppercase">
           {label}
         </p>
       </div>

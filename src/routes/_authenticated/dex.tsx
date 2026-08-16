@@ -30,13 +30,11 @@ import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
 import { DexShelfOptions } from "@/components/DexShelfOptions";
 import {
-  DENSITY_PER_SHELF,
-  getShelfDensity,
-  getShelfMaterial,
-  setShelfDensity,
-  setShelfMaterial,
-  type ShelfDensity,
-  type ShelfMaterial,
+  STYLE_SPEC,
+  clearLegacyShelfPrefs,
+  getShelfStyle,
+  setShelfStyle,
+  type ShelfStyle,
 } from "@/lib/shelf-prefs";
 import { LoadFailed } from "@/components/LoadFailed";
 import { Sound } from "@/lib/sound-engine";
@@ -166,12 +164,11 @@ function DexPage() {
   const [search, setSearch] = useState("");
   // 棚の見え方。localStorage から読むので、初期値は既定のまま置いて
   // マウント後に差し替える(サーバー描画と食い違わせない)。
-  const [material, setMaterial] = useState<ShelfMaterial>("none");
-  const [density, setDensity] = useState<ShelfDensity>("three");
+  const [style, setStyle] = useState<ShelfStyle>("shelf");
   const [shelfOptions, setShelfOptions] = useState(false);
   useEffect(() => {
-    setMaterial(getShelfMaterial());
-    setDensity(getShelfDensity());
+    setStyle(getShelfStyle());
+    clearLegacyShelfPrefs();
   }, []);
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
@@ -460,10 +457,7 @@ function DexPage() {
           activeCategory={activeCategory}
           onOpen={setOpenId}
           justCaught={justCaught}
-          filtering={!!search.trim()}
-          material={material}
-          density={density}
-          perShelf={DENSITY_PER_SHELF[density]}
+          style={style}
         />
       ) : (
         groups.map(([key, items]) => (
@@ -545,7 +539,7 @@ function DexPage() {
                           </div>
                         )}
                         {s.encounter_count > 0 && (
-                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-amber-950 shadow">
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[11px] font-bold text-amber-950 shadow">
                             ×{s.encounter_count}
                           </span>
                         )}
@@ -642,15 +636,10 @@ function DexPage() {
           その約束が嘘になる(表示を切り替えられるのは着弾の演出中など)。 */}
       {shelfOptions && view === "shelf" && (
         <DexShelfOptions
-          material={material}
-          density={density}
-          onMaterial={(v) => {
-            setMaterial(v);
-            setShelfMaterial(v);
-          }}
-          onDensity={(v) => {
-            setDensity(v);
-            setShelfDensity(v);
+          style={style}
+          onStyle={(v) => {
+            setStyle(v);
+            setShelfStyle(v);
           }}
           onClose={() => setShelfOptions(false)}
         />
@@ -952,14 +941,14 @@ function DexCalendar({
                 />
               )}
               <span
-                className={`absolute left-0.5 top-0.5 rounded px-1 text-[10px] font-semibold ${
+                className={`absolute left-0.5 top-0.5 rounded px-1 text-[11px] font-semibold ${
                   thumb ? "bg-black/55 text-white" : "text-muted-foreground"
                 }`}
               >
                 {day}
               </span>
               {items.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[9px] font-bold text-white">
+                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[11px] font-bold text-white">
                   {items.length}
                 </span>
               )}

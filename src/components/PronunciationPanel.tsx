@@ -131,13 +131,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
   };
 
   const scoreColor =
-    score == null
-      ? ""
-      : score >= 85
-        ? "text-emerald-600"
-        : score >= 60
-          ? "text-amber-600"
-          : "text-rose-600";
+    score == null ? "" : score >= 85 ? "text-ok" : score >= 60 ? "text-warn" : "text-rose-600";
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
@@ -150,7 +144,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           <button
             type="button"
             onClick={() => speak(false)}
-            className="lift inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
+            className="lift inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/30"
             aria-label={t("pron.playNatural")}
           >
             {speaking ? (
@@ -162,7 +156,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           <button
             type="button"
             onClick={() => speak(true)}
-            className="lift inline-flex h-10 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
+            className="lift inline-flex h-11 items-center justify-center rounded-full border border-border bg-background px-3 text-xs"
           >
             {t("pron.slow")}
           </button>
@@ -206,7 +200,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
               {score >= 85 && <CheckCircle2 className="h-5 w-5" />}
               {score}
             </div>
-            <div className="text-[10px] text-muted-foreground">{t("pron.score")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("pron.score")}</div>
           </div>
         )}
       </div>

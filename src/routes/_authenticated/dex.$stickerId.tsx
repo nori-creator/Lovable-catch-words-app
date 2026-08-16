@@ -134,7 +134,7 @@ function StickerDetailPage() {
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-2 left-3 text-[9px] text-white/90 drop-shadow"
+                        className="absolute bottom-2 left-3 text-[11px] text-white/90 drop-shadow"
                       >
                         📷 {s.placeholder_credit.name}
                       </a>
@@ -149,7 +149,7 @@ function StickerDetailPage() {
                   </span>
                 )}
                 {s.selfie_url && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white backdrop-blur">
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur">
                     {t("card.tapForSelfie")}
                   </span>
                 )}
@@ -212,7 +212,7 @@ function StickerDetailPage() {
             </div>
             <div className="mt-2 text-lg font-medium">{s.word.meaning_ja}</div>
             {s.word.part_of_speech && (
-              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
+              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
                 {s.word.part_of_speech}
               </span>
             )}

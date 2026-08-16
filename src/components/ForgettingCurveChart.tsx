@@ -12,6 +12,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { useT } from "@/lib/i18n";
+import { MEMORY_LEVELS, memoryLevel } from "@/lib/memory";
 
 export type HistoryPoint = {
   reviewed_at: string;
@@ -28,25 +29,23 @@ type Props = {
   horizonDays?: number;
 };
 
-type Level = "strong" | "fading" | "weak";
-
-function levelOf(retention: number): Level {
-  if (retention >= 80) return "strong";
-  if (retention >= 50) return "fading";
-  return "weak";
-}
-
-function colorOf(level: Level): string {
-  if (level === "strong") return "#10b981"; // emerald
-  if (level === "fading") return "#f59e0b"; // amber
-  return "#ef4444"; // red
-}
-
-/** 記憶レベルの見出し。表示言語に追従させるため翻訳キーを返す。 */
-function labelKeyOf(level: Level): string {
-  if (level === "strong") return "curve.strong";
-  if (level === "fading") return "curve.fading";
-  return "curve.weak";
+/**
+ * 記憶の段は**アプリ全体で1つ**(`memoryLevel`、6段)。
+ *
+ * ここには独自の3段(strong / fading / weak)があり、色も語も帯グラフ側と
+ * 対応していなかった。同じ画面に「忘れかけ / あやうい / うろ覚え / 定着中 /
+ * 覚えた / 長期記憶」の6段と、「80%+ / 50-80% / <50%」の3段が**別々の粒度で
+ * 同居**していて、読み手はどちらで考えればいいのか解けない(独立監査)。
+ *
+ * 6段のほうを残したのは、信号3色では「撮った直後に覚えている」と
+ * 「1ヶ月後も覚えている」が区別できないから — それがこのアプリの
+ * 復習間隔の根拠そのものなので、粗くできない。
+ *
+ * 色は `--mem-N` トークン。素の16進を直書きしていたときは暗いテーマで
+ * 一切変わらず、黒地の上で発光していた。
+ */
+function levelColor(level: number): string {
+  return `var(--mem-${level})`;
 }
 
 /**
@@ -109,7 +108,7 @@ export function ForgettingCurveChart({
 
     // Compute "now" position on the latest segment.
     let nowPoint: { t: number; retention: number } | null = null;
-    let level: Level = "strong";
+    let level = MEMORY_LEVELS[5];
     if (lastReviewedAt) {
       const lastMs = new Date(lastReviewedAt).getTime();
       const dtDays = Math.max(0, (Date.now() - lastMs) / 86400_000);
@@ -119,9 +118,13 @@ export function ForgettingCurveChart({
         t: round((lastMs - t0) / 86400_000 + dtDays),
         retention: round(retention),
       };
-      level = levelOf(retention);
+      level = memoryLevel(retention, currentIntervalDays, history.length);
     } else if (segments.length) {
-      level = levelOf(segments[segments.length - 1].retention);
+      level = memoryLevel(
+        segments[segments.length - 1].retention,
+        currentIntervalDays,
+        history.length,
+      );
     }
 
     return { data: segments, nowPoint, level };
@@ -135,7 +138,7 @@ export function ForgettingCurveChart({
     );
   }
 
-  const stroke = colorOf(level);
+  const stroke = levelColor(level.level);
 
   return (
     <div>
@@ -145,19 +148,28 @@ export function ForgettingCurveChart({
             className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ background: stroke, boxShadow: `0 0 0 3px ${stroke}33` }}
           />
-          <span className="font-medium" style={{ color: stroke }}>
-            {t(labelKeyOf(level))}
-          </span>
+          {/* **文字は線の色で塗らない。** 線として読ませるために選んだ色を
+              11px の文字に使うと、琥珀色で 2.09:1 まで落ちる(実測)。
+              色は丸が持ち、意味は文字が持つ — 色が読めなくても伝わる。 */}
+          <span className="font-medium text-foreground">{t(level.labelKey)}</span>
           {nowPoint && (
             <span className="text-muted-foreground">
               · {t("curve.nowPct", { pct: nowPoint.retention })}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Legend color="#10b981" label="80%+" />
-          <Legend color="#f59e0b" label="50-80%" />
-          <Legend color="#ef4444" label="<50%" />
+        {/* 凡例は**帯グラフと同じ6段**。ここだけ 80%+ / 50-80% / <50% の
+            3段を出していたので、同じ画面に別の粒度が2つあった。 */}
+        <div className="flex items-center gap-1">
+          {MEMORY_LEVELS.map((lv) => (
+            <span
+              key={lv.level}
+              title={t(lv.labelKey)}
+              className={`inline-block h-2 w-2 rounded-full ${lv.bar} ${
+                lv.level === level.level ? "ring-2 ring-foreground/30" : "opacity-45"
+              }`}
+            />
+          ))}
         </div>
       </div>
       <div className="h-44 w-full">
@@ -167,29 +179,34 @@ export function ForgettingCurveChart({
             <XAxis
               dataKey="t"
               type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={(v) => `${Math.round(v)}d`}
-              stroke="#64748b"
-              fontSize={10}
+              // 目盛りはデータ由来の端数(47d)ではなく**丸い値**にする。
+              // 端数がそのまま軸に出ていると、目盛りではなく不具合に見える。
+              domain={[0, (max: number) => Math.ceil(max / 10) * 10]}
+              tickFormatter={(v) => t("curve.days", { n: String(Math.round(v)) })}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
             />
             <YAxis
               domain={[0, 100]}
+              ticks={[0, 50, 100]}
               tickFormatter={(v) => `${v}%`}
-              stroke="#64748b"
-              fontSize={10}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
             />
             <Tooltip
               formatter={(v: number) => [`${v}%`, t("curve.retention")]}
               labelFormatter={(l) => t("curve.days", { n: Math.round(Number(l)) })}
               contentStyle={{
-                background: "rgba(255,255,255,0.96)",
-                border: "1px solid rgba(120,130,150,0.28)",
+                // 白決め打ちだと暗いテーマで白い箱が浮く。
+                background: "var(--popover)",
+                color: "var(--popover-foreground)",
+                border: "1px solid var(--border)",
                 borderRadius: 12,
                 fontSize: 12,
               }}
             />
-            <ReferenceLine y={80} stroke="#10b981" strokeDasharray="2 4" />
-            <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="2 4" />
+            <ReferenceLine y={80} stroke="var(--mem-4)" strokeDasharray="2 4" />
+            <ReferenceLine y={50} stroke="var(--mem-2)" strokeDasharray="2 4" />
             <Line
               type="monotone"
               dataKey="retention"
@@ -212,7 +229,7 @@ export function ForgettingCurveChart({
                     cy={cy}
                     r={4}
                     fill={stroke}
-                    stroke="#64748b"
+                    stroke="var(--muted-foreground)"
                     strokeWidth={2}
                   />
                 );
@@ -243,15 +260,13 @@ export function ForgettingCurveChart({
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
-  );
-}
-
+/**
+ * 記憶率は**整数**に丸める。
+ *
+ * 小数第一位まで出していたので、同じ画面で `72%`(バッジ)と `74.8%`
+ * (この図)が並び、表記が揃っていなかった。そもそも記憶率は推定値で、
+ * 0.1% の差に意味は無い — 小数を出すのは**偽りの精度**(独立監査)。
+ */
 function round(n: number): number {
-  return Math.round(n * 10) / 10;
+  return Math.round(n);
 }

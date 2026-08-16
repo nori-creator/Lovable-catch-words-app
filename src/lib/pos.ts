@@ -42,40 +42,45 @@ export function posDisplay(pos: string | null | undefined): string {
 // 色は第2の手がかり: ラベル文字も必ず一緒に描く(色覚多様性)。
 // ---------------------------------------------------------------------------
 
-export type ChunkStyle = { bg: string; text: string; label: string };
+export type ChunkStyle = {
+  bg: string;
+  text: string;
+  /** 凡例の丸。**実体のクラス名を持つ。**
+      `text-` を `bg-` に置換して作っていたが、Tailwind は**実行時に組み立てた
+      クラス名を見つけられない**ので、そのクラスは生成されず丸が消えていた。 */
+  dot: string;
+  label: string;
+};
+
+/**
+ * チャンクの配色 — **2色 + 素**。
+ *
+ * もとは S/V/O/N/M/C/P に7色のパステルを当てていた。独立監査の指摘:
+ *
+ * > 文を見た瞬間に虹が目に入り、**どこが主節かは分からない**。
+ *
+ * 色を全部に配ると、色は何も指さなくなる。このアプリが教えているのは
+ * `prompt_pattern`(V+O のような型)そのものなので、**動詞と目的語だけ**
+ * 塗り、残りは素の面にする。塗られている2つを追えば文の骨格が読める。
+ *
+ * 色は第2の手がかり。凡例に語(動詞・目的語)を必ず添えるので、
+ * 色が読めなくても意味は落ちない。
+ */
+const PLAIN: ChunkStyle = {
+  bg: "bg-secondary",
+  text: "text-foreground",
+  dot: "bg-foreground",
+  label: "そのほか",
+};
 
 const STYLES: Record<string, ChunkStyle> = {
-  S: { bg: "bg-sky-100 dark:bg-sky-500/25", text: "text-sky-900 dark:text-sky-100", label: "主語" },
-  V: {
-    bg: "bg-rose-100 dark:bg-rose-500/25",
-    text: "text-rose-900 dark:text-rose-100",
-    label: "動詞",
-  },
-  O: {
-    bg: "bg-emerald-100 dark:bg-emerald-500/25",
-    text: "text-emerald-900 dark:text-emerald-100",
-    label: "目的語",
-  },
-  N: {
-    bg: "bg-emerald-100 dark:bg-emerald-500/25",
-    text: "text-emerald-900 dark:text-emerald-100",
-    label: "名詞",
-  },
-  M: {
-    bg: "bg-amber-100 dark:bg-amber-500/25",
-    text: "text-amber-900 dark:text-amber-100",
-    label: "修飾・量詞",
-  },
-  C: {
-    bg: "bg-violet-100 dark:bg-violet-500/25",
-    text: "text-violet-900 dark:text-violet-100",
-    label: "接続",
-  },
-  P: {
-    bg: "bg-stone-200 dark:bg-stone-500/25",
-    text: "text-stone-800 dark:text-stone-100",
-    label: "助詞",
-  },
+  V: { bg: "bg-chunk-v/18", text: "text-chunk-v", dot: "bg-chunk-v", label: "動詞" },
+  O: { bg: "bg-chunk-o/18", text: "text-chunk-o", dot: "bg-chunk-o", label: "目的語" },
+  N: { bg: "bg-chunk-o/18", text: "text-chunk-o", dot: "bg-chunk-o", label: "名詞" },
+  S: PLAIN,
+  M: PLAIN,
+  C: PLAIN,
+  P: PLAIN,
 };
 
 /**
@@ -95,11 +100,13 @@ export function chunkStyle(pos: string): ChunkStyle {
 }
 
 /** 凡例に出す代表色(順序固定)。 */
+/**
+ * 凡例。**塗っているものだけ**を出す。
+ * 以前は6項目あり、しかも凡例の記号(Ptc)と帯に出る記号(P)が
+ * 食い違っていた(独立監査)。記号そのものを帯から外したので、
+ * 凡例は「色 → 何か」を言えば足りる。
+ */
 export const CHUNK_LEGEND: Array<{ key: string; style: ChunkStyle }> = [
-  { key: "S", style: STYLES.S },
   { key: "V", style: STYLES.V },
   { key: "O", style: STYLES.O },
-  { key: "M", style: STYLES.M },
-  { key: "C", style: STYLES.C },
-  { key: "Ptc", style: STYLES.P },
 ];

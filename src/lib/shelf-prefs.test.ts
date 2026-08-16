@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DENSITY_PER_SHELF, SHELF_DENSITIES, SHELF_MATERIALS, spineColor } from "./shelf-prefs";
+import { SHELF_STYLES, STYLE_SPEC, spineColor } from "./shelf-prefs";
 
 /**
  * 棚の見え方の設定。
@@ -10,7 +10,8 @@ import { DENSITY_PER_SHELF, SHELF_DENSITIES, SHELF_MATERIALS, spineColor } from 
  * 落とされた。数字を上げるときは必ずここが止める。
  */
 
-const DAY_ONE_HEADWORDS = ["芒果", "捷運", "珍珠奶茶", "夜市", "腳踏車", "雨傘", "a", ""];
+/** 背表紙の色は**棚(カテゴリー)**から決まる。語からではない。 */
+const DAY_ONE_CATEGORIES = ["fruit", "vehicle", "drink", "shop", "tool", "plant", "a", ""];
 
 function parseHsl(css: string): { h: number; s: number; l: number } {
   const m = css.match(/hsl\((\d+(?:\.\d+)?) (\d+(?:\.\d+)?)% (\d+(?:\.\d+)?)%\)/);
@@ -44,16 +45,33 @@ function contrastWithWhite(h: number, s: number, l: number, gloss = 0.1): number
 }
 
 describe("spineColor", () => {
-  it("同じ語はいつも同じ色", () => {
-    // 開くたびに色が変わったら「あの青いやつ」で覚えられない。
-    for (const w of DAY_ONE_HEADWORDS) {
+  it("同じ棚はいつも同じ色", () => {
+    // 開くたびに色が変わったら「あの青い棚」で覚えられない。
+    for (const w of DAY_ONE_CATEGORIES) {
       expect(spineColor(w)).toBe(spineColor(w));
     }
   });
 
-  it("違う語はだいたい違う色になる", () => {
-    const colors = new Set(DAY_ONE_HEADWORDS.map(spineColor));
-    expect(colors.size).toBeGreaterThan(DAY_ONE_HEADWORDS.length - 2);
+  it("違う棚はだいたい違う色になる", () => {
+    const colors = new Set(DAY_ONE_CATEGORIES.map(spineColor));
+    expect(colors.size).toBeGreaterThan(DAY_ONE_CATEGORIES.length - 2);
+  });
+
+  it("**違う部屋の棚は色相が離れている**", () => {
+    // カテゴリーのハッシュで色相を決めていたとき、果物(食べる)と
+    // 乗り物(街)が同じ紫になった。54個を360度に散らせば当然衝突する。
+    // 部屋で等分するようにしたので、部屋が違えば必ず離れる。
+    const fruit = parseHsl(spineColor("fruit")).h;
+    const vehicle = parseHsl(spineColor("vehicle")).h;
+    const gap = Math.abs(fruit - vehicle);
+    expect(Math.min(gap, 360 - gap), `果物 ${fruit}度 / 乗り物 ${vehicle}度`).toBeGreaterThan(15);
+  });
+
+  it("同じ部屋の棚はほぼ同じ色(部屋がひとつの帯として読める)", () => {
+    const fruit = parseHsl(spineColor("fruit")).h;
+    const drink = parseHsl(spineColor("drink")).h;
+    const gap = Math.abs(fruit - drink);
+    expect(Math.min(gap, 360 - gap)).toBeLessThanOrEqual(20);
   });
 
   it("どの色相でも白い文字が 4.5:1 を割らない", () => {
@@ -65,9 +83,9 @@ describe("spineColor", () => {
     }
   });
 
-  it("彩度と明度は語によらず一定(並べたとき帯として揃う)", () => {
-    const first = parseHsl(spineColor(DAY_ONE_HEADWORDS[0]));
-    for (const w of DAY_ONE_HEADWORDS) {
+  it("彩度と明度は棚によらず一定(並べたとき帯として揃う)", () => {
+    const first = parseHsl(spineColor(DAY_ONE_CATEGORIES[0]));
+    for (const w of DAY_ONE_CATEGORIES) {
       const c = parseHsl(spineColor(w));
       expect(c.s).toBe(first.s);
       expect(c.l).toBe(first.l);
@@ -75,10 +93,10 @@ describe("spineColor", () => {
   });
 });
 
-describe("DENSITY_PER_SHELF", () => {
-  it("すべての並べ方に列数がある", () => {
-    for (const d of SHELF_DENSITIES) {
-      expect(DENSITY_PER_SHELF[d]).toBeGreaterThan(0);
+describe("STYLE_SPEC", () => {
+  it("すべての見え方に定義がある", () => {
+    for (const v of SHELF_STYLES) {
+      expect(STYLE_SPEC[v].perShelf).toBeGreaterThan(0);
     }
   });
 
@@ -87,17 +105,17 @@ describe("DENSITY_PER_SHELF", () => {
     // 検査に落とされたことがある。ここでも止める。
     const SCREEN = 320;
     const PADDING = 32; // px-4 の左右
-    for (const d of SHELF_DENSITIES) {
-      const n = DENSITY_PER_SHELF[d];
-      const gap = d === "spines" ? 2 : 12; // shelf-row-tight は 2px, 既定は .75rem
-      const each = (SCREEN - PADDING - gap * (n - 1)) / n;
-      expect(each, `${d}(${n}列)で ${each.toFixed(1)}px`).toBeGreaterThanOrEqual(44);
+    for (const v of SHELF_STYLES) {
+      const { perShelf, spines } = STYLE_SPEC[v];
+      const gap = spines ? 2 : 12; // shelf-row-tight は 2px, 既定は .75rem
+      const each = (SCREEN - PADDING - gap * (perShelf - 1)) / perShelf;
+      expect(each, `${v}(${perShelf}列)で ${each.toFixed(1)}px`).toBeGreaterThanOrEqual(44);
     }
   });
-});
 
-describe("SHELF_MATERIALS", () => {
-  it("「なし」を必ず含む(素材を出さない選択肢を消さない)", () => {
-    expect(SHELF_MATERIALS).toContain("none");
+  it("背表紙で並べる見え方はひとつだけ(表示形式は密度と別の軸)", () => {
+    // もとは「2列 / 3列 / 4列 / 背表紙」が同じ帯に並んでいて、
+    // 密度と表示形式という**分類の違うもの**が混ざっていた。
+    expect(SHELF_STYLES.filter((v) => STYLE_SPEC[v].spines)).toEqual(["library"]);
   });
 });

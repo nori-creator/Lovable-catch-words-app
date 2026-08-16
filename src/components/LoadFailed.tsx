@@ -33,19 +33,27 @@ export function LoadFailed({
   return (
     <div
       role="alert"
-      className="rounded-3xl border border-border bg-card p-8 text-center shadow-sm"
+      // 本文は**左揃え・幅を絞る**。中央揃えの日本語は、行末の1〜2文字が
+      // 2行目に孤立する(「い。」だけが残る、という事故が3画面で出ていた)。
+      className="rounded-3xl border border-border bg-card p-8 shadow-sm"
     >
-      <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
+      <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
         {offline ? <WifiOff className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
       </span>
-      <p className="text-sm font-medium">{offline ? t("err.offlineTitle") : t("err.loadTitle")}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="text-base font-semibold">
+        {offline ? t("err.offlineTitle") : t("err.loadTitle")}
+      </p>
+      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">
         {offline ? t("err.offlineHint") : t("err.loadHint")}
       </p>
       <button
         onClick={onRetry}
         disabled={retrying}
-        className="lift mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        aria-busy={retrying}
+        // **待っている間こそ薄くしない。** `disabled:opacity-60` を掛けていたので、
+        // 再試行中は文字が 2.65:1 まで落ちていた — 押した人がいちばん見ている
+        // 瞬間に読めなくなる。手応えは回るアイコンと `aria-busy` が返す。
+        className="lift mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
       >
         <RefreshCw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
         {t("err.retry")}

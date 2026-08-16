@@ -788,7 +788,7 @@ function CapturePage() {
                     <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
                   </div>
                 </div>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
                   {s.category_key}
                 </span>
               </button>

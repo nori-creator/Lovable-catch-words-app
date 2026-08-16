@@ -335,19 +335,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "err.retry": { ja: "もう一度", en: "Try again" },
   "dex.shelf": { ja: "棚", en: "Shelf" },
-  "dex.shelfEmpty": { ja: "まだ空", en: "Still empty" },
-  "dex.shelfNoMatch": { ja: "この棚に該当なし", en: "Nothing here matches" },
-  "dex.emptyShelvesFolded": {
-    ja: "空いている棚 {n} — 押すと開きます",
-    en: "{n} empty shelves — tap to show",
-  },
-  "dex.emptyShelvesHide": { ja: "空いている棚を畳む", en: "Hide empty shelves" },
-  // 探しているときは「空」ではなく「該当なし」。棚に何も無いのではなく、
-  // いま探している言葉がそこに無いだけなので、言い方を分ける。
-  "dex.noMatchShelvesFolded": {
-    ja: "該当なしの棚 {n} — 押すと開きます",
-    en: "{n} shelves with no match — tap to show",
-  },
   "dex.shelfCount": { ja: "{n}", en: "{n}" },
   // --- 図鑑の部屋(棚のまとまり) ---
   "room.eat": { ja: "食べる", en: "Eat" },
@@ -689,9 +676,14 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "common.selfieOf": { ja: "撮影者の自撮り", en: "Selfie of the person who caught it" },
   "detail.more": { ja: "詳しく", en: "details" },
   "detail.preparing": { ja: "詳しい解説を準備中…", en: "Preparing the full explanation…" },
-  "detail.verified": { ja: "✓ 検証済み辞書 + AI詳細", en: "✓ Verified dictionary + AI detail" },
-  "detail.aiOnly": { ja: "AI生成", en: "AI generated" },
-  "detail.score": { ja: "点 {v}", en: "score {v}" },
+  // 出所は**人の言葉で**。以前は「✓ 検証済み辞書 + AI詳細 · 点 0.92」で、
+  // 0.92 はモデルの confidence(内部の数値)がそのまま漏れていた。
+  // 学習者にとって意味が無く、「点」が何の点かも示していない(独立監査)。
+  "detail.verified": { ja: "辞書で確認済み", en: "Checked against the dictionary" },
+  "detail.aiOnly": {
+    ja: "AIが作成(誤りがあるかもしれません)",
+    en: "Written by AI — may contain mistakes",
+  },
   "err.generateFailed": { ja: "生成に失敗しました", en: "Could not generate" },
   // --- ワードツリー・画像選択 ---
   "tree.title": { ja: "ワードツリー", en: "Word tree" },
@@ -716,9 +708,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "img.candidate": { ja: "候補", en: "Candidate" },
   // --- 忘却曲線 ---
-  "curve.strong": { ja: "しっかり覚えている", en: "Solid in memory" },
-  "curve.fading": { ja: "そろそろ忘れそう", en: "Starting to fade" },
-  "curve.weak": { ja: "もう忘れかけ", en: "Nearly forgotten" },
   "curve.empty": {
     ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。",
     en: "No review data yet. Review this word and its forgetting curve will appear here.",
@@ -765,23 +754,21 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.uiLang": { ja: "表示言語", en: "App language" },
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation" },
   "settings.study": { ja: "学習設定", en: "Study settings" },
+  // 見え方は3つ。名前 + 一言で、何が変わるかを開く前に言う。
+  "shelf.styShelf": { ja: "棚", en: "Shelf" },
+  "shelf.styShelfNote": { ja: "切り抜きが立つ・3列", en: "Cut-outs standing, 3 across" },
+  "shelf.styLibrary": { ja: "書架", en: "Library" },
+  "shelf.styLibraryNote": {
+    ja: "背表紙で詰める・一覧しやすい",
+    en: "Packed spines, easiest to scan",
+  },
+  "shelf.stySpecimen": { ja: "標本", en: "Specimen" },
+  "shelf.stySpecimenNote": { ja: "大きく、余白を広く・2列", en: "Larger, more room, 2 across" },
   "shelf.optTitle": { ja: "棚の見え方", en: "Shelf look" },
-  "shelf.optMaterial": { ja: "素材", en: "Material" },
-  "shelf.optDensity": { ja: "並べ方", en: "Layout" },
   "shelf.optLiveHint": {
     ja: "選ぶと後ろの棚がすぐ変わります。",
     en: "The shelf behind changes as you pick.",
   },
-  "shelf.matNone": { ja: "なし", en: "None" },
-  "shelf.matOak": { ja: "オーク", en: "Oak" },
-  "shelf.matWalnut": { ja: "ウォルナット", en: "Walnut" },
-  "shelf.matObsidian": { ja: "黒曜", en: "Obsidian" },
-  "shelf.matConcrete": { ja: "コンクリート", en: "Concrete" },
-  "shelf.matGlass": { ja: "ガラス", en: "Glass" },
-  "shelf.den2": { ja: "2列", en: "2" },
-  "shelf.den3": { ja: "3列", en: "3" },
-  "shelf.den4": { ja: "4列", en: "4" },
-  "shelf.denSpines": { ja: "背表紙", en: "Spines" },
   "settings.feel": { ja: "音と手ざわり", en: "Sound & haptics" },
   "settings.soundLevel": { ja: "効果音", en: "Sound effects" },
   "settings.soundOff": { ja: "オフ", en: "Off" },
@@ -847,9 +834,11 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "Catch a new word and its first review appears 10 minutes later.",
   },
   "review.goCatch": { ja: "撮りに行く", en: "Go catch one" },
-  "review.doneTitle": { ja: "今日のノルマ、達成!", en: "Today's set is done!" },
+  // 「ノルマ」は課された量という含意が強く、達成を祝う語ではない(独立監査)。
+  "review.doneTitle": { ja: "今日の復習、終わりました", en: "Today's review is done" },
   "review.doneHint": { ja: "また明日の復習で会いましょう。", en: "See you in tomorrow's review." },
-  "review.again": { ja: "もう一度出す", en: "Review again" },
+  "review.again": { ja: "もう少し続ける", en: "Keep going" },
+  "review.toDex": { ja: "図鑑を見る", en: "Open the shelf" },
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice" },
   "review.whichIs": { ja: "はどれ?", en: "— which one?" },
   "review.correct": { ja: "正解!", en: "Correct!" },
@@ -921,8 +910,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
   "home.journal": { ja: "今日の日記を書く", en: "Write today's journal" },
-  "home.pastPages": { ja: "Past Pages", en: "Past Pages" },
+  // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
+  "home.pastPages": { ja: "これまでのページ", en: "Past Pages" },
   "home.memories": { ja: "枚の思い出", en: "memories caught" },
+  "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet" },
   "home.background": { ja: "背景", en: "Background" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close" },
@@ -1117,6 +1108,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.avatarSaving": { ja: "保存中…", en: "Saving…" },
   "settings.avatarSaved": { ja: "プロフィール写真を変えました", en: "Profile photo updated" },
   "settings.avatarFailed": { ja: "写真を保存できませんでした", en: "Couldn't save the photo" },
+  "settings.avatarNone": { ja: "プロフィール写真はまだありません", en: "No profile photo yet" },
   "settings.avatarHint": {
     ja: "画面上のアイコンがこの写真になります。",
     en: "This becomes the icon at the top of every screen.",

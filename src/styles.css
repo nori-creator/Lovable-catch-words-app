@@ -140,6 +140,18 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  /* 状態の3色。**素の Tailwind の番号を直に書かない**ための入口。
+     `text-ok` / `bg-bad/10` / `border-ok/60` のように普通に使える。 */
+  /* 文のかたまり。塗るのは動詞と目的語だけ(2色 + 素)。 */
+  --color-chunk-v: var(--chunk-v);
+  --color-chunk-o: var(--chunk-o);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  /* アルバムの台紙・印画紙の上に載せる字。**テーマに追従させない**。
+     理由は下の --album-ink の定義に書いた。 */
+  --color-album-ink: var(--album-ink);
+  --color-album-ink-dim: var(--album-ink-dim);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -179,7 +191,10 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 250);
   /* Apple-style vivid blue */
-  --primary: oklch(0.62 0.21 255);
+  /* 明度は**測って決めた**。0.62 のままだと白い文字で 3.60:1 で、
+     14px の本文の下限(4.5:1)を割る = アプリ中の主ボタンの文字が全部
+     未達だった。0.55 で 4.5:1 を越える。 */
+  --primary: oklch(0.52 0.21 255);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.01 250);
   --secondary-foreground: oklch(0.22 0.03 255);
@@ -187,7 +202,8 @@
   --muted-foreground: oklch(0.5 0.02 255);
   --accent: oklch(0.94 0.04 250);
   --accent-foreground: oklch(0.25 0.08 255);
-  --destructive: oklch(0.6 0.22 25);
+  /* 白い文字を載せる面なので、明度は**測って決めた**(0.6 では 4.30:1)。 */
+  --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
   --border: oklch(0.92 0.01 250);
   --input: oklch(0.94 0.01 250);
@@ -215,16 +231,26 @@
   --card-foreground: oklch(0.97 0.005 240);
   --popover: oklch(0.19 0.035 258);
   --popover-foreground: oklch(0.97 0.005 240);
+  /* 暗い面では**青を暗くしない。文字の色を反転させる。**
+     `--primary` は塗り(bg-primary)にも文字(text-primary)にも使われる。
+     暗い面でこの2つは正面から衝突する — 青を暗くすると白い文字は読めるが、
+     暗い地の上に置いた青い文字が沈む(6.15:1 → 4.16:1)。一度 0.56 まで
+     落として、まさにそれをやってしまった。
+     青は明るいまま(文字として 6.15:1)、その上に**暗い文字**を載せる。
+     Material 3 の暗いテーマ(primary=明るい / onPrimary=暗い)と同じ考え方で、
+     どちらの役目も満たす。 */
   --primary: oklch(0.66 0.2 258);
-  --primary-foreground: oklch(0.99 0 0);
+  --primary-foreground: oklch(0.16 0.04 258);
   --secondary: oklch(0.24 0.04 258);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: oklch(0.24 0.04 258);
   --muted-foreground: oklch(0.72 0.03 258);
   --accent: oklch(0.3 0.08 258);
   --accent-foreground: oklch(0.97 0 0);
+  /* 主色と同じ理屈。暗い面では赤を暗くせず、載せる文字を暗くする
+     (白を載せると 2.91:1)。赤は「地の上の警告の文字」としても使う。 */
   --destructive: oklch(0.7 0.2 22);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-foreground: oklch(0.18 0.06 22);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.72 0.18 258);
@@ -564,8 +590,25 @@
     0 0,
     56px 0;
 }
+/* ── アルバムの上に載せる字の色 ──────────────────────────────────────
+   台紙(紙・額・ノート・コルク)も印画紙も、**テーマに関係なく明るい面**で
+   固定してある。そこに `text-muted-foreground` のようなテーマ追従の色を
+   載せると、暗いテーマで「明るい灰色を白い印画紙に載せる」ことになる。
+   実際そうなっていて、画像がまだ無いカードの見出し語が暗いテーマで
+   2.39:1 だった。台紙が固定なら、その上の字も固定でなければ噛み合わない。
+
+   検査は画素で測るので、ここの数字は暗算ではなく実測で決めた:
+   いちばん暗い台紙(コルク)に対して 4.5:1 を満たす濃さが --album-ink、
+   いちばん明るい面(印画紙)に対して 4.5:1 を満たす薄さが --album-ink-dim。 */
+:root {
+  --album-ink: oklch(0.3 0.03 68);
+  --album-ink-dim: oklch(0.52 0.02 68);
+}
 .album-bg-cork {
-  background-color: #c89a5b;
+  /* コルクを少し明るくした。元の #c89a5b は、その上で 4.5:1 を満たす字が
+     ほぼ黒になり「コルクに黒マジック」になる。板を明るくするほうが、
+     字を濃くするより見た目が保つ。 */
+  background-color: #d8b184;
   background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.18) 1px, transparent 2px),
     radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.18) 1px, transparent 2px),
@@ -1004,7 +1047,7 @@
     --border: oklch(0.72 0.02 250); /* darker hairlines */
     --input: oklch(0.66 0.02 250);
     --ring: oklch(0.52 0.22 255);
-    --primary: oklch(0.55 0.22 255); /* deeper blue → stronger contrast */
+    --primary: oklch(0.48 0.22 255); /* deeper blue → stronger contrast */
   }
   .dark {
     --foreground: oklch(0.99 0.003 240);
@@ -1016,8 +1059,93 @@
     --border: oklch(1 0 0 / 30%); /* visible edges on dark */
     --input: oklch(1 0 0 / 34%);
     --ring: oklch(0.82 0.16 258);
-    --primary: oklch(0.74 0.19 258);
+    --primary: oklch(0.78 0.17 258);
+    --primary-foreground: oklch(0.13 0.04 258);
   }
+}
+
+/* ── 状態の3色(できた / 気をつけて / できなかった)────────────────
+   `text-green-600` `bg-red-500/10` のように素の番号で書かれていた所を
+   まとめる。番号直書きの問題は**暗いテーマに一切追従しない**こと —
+   テーマを6つ持っているのに、実際には明るい面ぶんしか無かった。
+   明暗それぞれ、文字として 4.5:1 を満たす明度にする。 */
+:root {
+  /* 文のかたまりの2色。動詞は温かい側、目的語は冷たい側に離す。 */
+  --chunk-v: oklch(0.48 0.17 20);
+  --chunk-o: oklch(0.46 0.13 235);
+  --ok: oklch(0.5 0.14 155);
+  --warn: oklch(0.48 0.12 75);
+  --bad: oklch(0.52 0.2 27);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --chunk-v: oklch(0.78 0.15 22);
+  --chunk-o: oklch(0.78 0.12 235);
+  --ok: oklch(0.82 0.15 158);
+  --warn: oklch(0.85 0.14 82);
+  --bad: oklch(0.76 0.16 27);
+}
+
+/* ── 記憶の6段階の色 ────────────────────────────────────────────
+   赤 → 橙 → 黄 → 黄緑 → 緑 → 青 の並びは「忘れかけ〜長期記憶」の順序を
+   そのまま表す。以前は素の Tailwind の番号(`text-red-600` など)で書いて
+   いたので、**暗いテーマに一切追従せず**、11px の文字としては 2.97〜4.18:1
+   しか無かった。明暗それぞれで、文字として 4.5:1・帯として 3:1 を満たす
+   明度を測って決める。 */
+:root {
+  --mem-0: oklch(0.5 0.19 27);
+  --mem-1: oklch(0.48 0.14 55);
+  --mem-2: oklch(0.46 0.11 85);
+  --mem-3: oklch(0.45 0.13 135);
+  --mem-4: oklch(0.46 0.12 160);
+  --mem-5: oklch(0.48 0.15 245);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --mem-0: oklch(0.76 0.16 27);
+  --mem-1: oklch(0.79 0.14 60);
+  --mem-2: oklch(0.85 0.13 90);
+  --mem-3: oklch(0.85 0.16 135);
+  --mem-4: oklch(0.84 0.14 160);
+  --mem-5: oklch(0.8 0.13 245);
+}
+.mem-lv-0 {
+  --mem: var(--mem-0);
+}
+.mem-lv-1 {
+  --mem: var(--mem-1);
+}
+.mem-lv-2 {
+  --mem: var(--mem-2);
+}
+.mem-lv-3 {
+  --mem: var(--mem-3);
+}
+.mem-lv-4 {
+  --mem: var(--mem-4);
+}
+.mem-lv-5 {
+  --mem: var(--mem-5);
+}
+.mem-text {
+  color: var(--mem);
+}
+.mem-bar {
+  background: var(--mem);
+}
+/* 印(chip)。地に色を薄く敷いて、その上に同じ色の文字を置く。
+   敷いた分だけ地が色に寄るので、文字との差はわずかに縮む — そこも測る。 */
+.mem-chip {
+  background: color-mix(in oklab, var(--mem) 14%, var(--card));
+  color: var(--mem);
 }
 
 /* Deep-ocean body ambience (only in dark) */
@@ -1211,7 +1339,10 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  align-items: center;
+  /* **左端で揃える。** 中央寄せにしていたので、絵の幅が1つずつ違う分だけ
+     棚の左端がガタつき、2列のときは真ん中に本1冊ぶんの穴が空いて
+     「棚ではなく棒グラフ」に見えていた(独立監査)。本棚は左から詰める。 */
+  align-items: flex-start;
   min-width: 0;
   /* 高さは**固定**。中身に決めさせると、画像が1枚届くたびに下の棚が
      全部ずり下がる。44px を超えるのでタップ領域も満たす(§10)。 */
@@ -1223,10 +1354,13 @@
 .shelf-item:active {
   transform: scale(0.94);
 }
-.shelf-item:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
+/* 焦点の輪郭は**ブラウザ既定に任せる**。
+   ここには `outline: 2px solid var(--ring)` を書いていたし、同じものを
+   アプリ全体に広げようとした。ところが検査に測らせたら **既定のほうが
+   5倍見えていた**: 既定 18.8:1 に対して `--ring` の青一色は 3.65:1
+   (明るい面)。Chrome の `outline: auto` は黒と白の二重の輪で、
+   どんな背景でも見えるように描かれる — 単色の輪郭は必ずどこかで負ける。
+   自前の見た目より、確実に見えることを取る。 */
 .shelf-item img {
   display: block;
   max-width: 100%;
@@ -1284,6 +1418,29 @@
   .shelf-item span.shelf-stand {
     animation: none;
   }
+}
+
+/* 暗い面では、写真と絵文字の**彩度を一段落とす**。
+   黒地に明るい前提の色をそのまま置くと発光して見え、しかも
+   カテゴリーの絵文字(🍎🚗🏪)が画面でいちばん彩度の高い要素になって、
+   集めた語より先に目に入っていた(独立監査)。
+   写真そのものを作り替えるわけではないので、落とすのは 12% だけ。
+   明るい面では触らない — 元の写真がいちばん正しい。 */
+.dark .shelf-item img,
+:root[data-ui-theme="darkroom"] .shelf-item img,
+:root[data-ui-theme="nightmarket"] .shelf-item img,
+:root[data-ui-theme="ink"] .shelf-item img,
+:root[data-ui-theme="aurora"] .shelf-item img,
+:root[data-ui-theme="collection"] .shelf-item img {
+  filter: saturate(0.88);
+}
+.dark .cat-emoji,
+:root[data-ui-theme="darkroom"] .cat-emoji,
+:root[data-ui-theme="nightmarket"] .cat-emoji,
+:root[data-ui-theme="ink"] .cat-emoji,
+:root[data-ui-theme="aurora"] .cat-emoji,
+:root[data-ui-theme="collection"] .cat-emoji {
+  filter: saturate(0.7) opacity(0.85);
 }
 
 /* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
@@ -1346,43 +1503,13 @@
   --plank-bottom: #8d6839;
   --plank-grain: rgb(90 58 25 / 0.14);
 }
-[data-shelf-material="walnut"] {
-  --plank-top: #6f4c30;
-  --plank-bottom: #3d281a;
-  --plank-grain: rgb(20 10 4 / 0.2);
-}
-[data-shelf-material="obsidian"] {
-  --plank-top: #2f343d;
-  --plank-bottom: #14171c;
-  --plank-grain: rgb(0 0 0 / 0.22);
-}
-[data-shelf-material="concrete"] {
-  --plank-top: #b3b0a9;
-  --plank-bottom: #86837c;
-  --plank-grain: rgb(55 53 49 / 0.1);
-}
-[data-shelf-material="glass"] {
-  --plank-top: rgb(255 255 255 / 0.5);
-  --plank-bottom: rgb(150 190 220 / 0.28);
-  --plank-grain: rgb(255 255 255 / 0.18);
-  /* ガラスは**面ではなく小口で見える**。明るい面では半透明の白い面が
-     地の色と同化して(実測 1.47:1)、板がどこにあるか分からなくなっていた。
-     下の小口をはっきり引くと、面は透けたまま棚の線だけが立つ。 */
-  --plank-edge: rgb(24 58 84 / 0.62);
-}
 
-/* 暗い面での木と石。**同じ色をそのまま使うと地に沈む。**
-   実測: ウォルナット 1.69:1 / 黒曜石 1.44:1 と、どちらも「見えない」側に
-   落ちていた(明るい面では 13:1・17:1 で問題ない)。
-
-   最初は板そのものを明るくして通した。数字は通ったが、**絵を見たら
-   黒曜石が灰色の定規になっていた** — 木目の等間隔の線が明るい板の上で
-   目盛りとして立ち、素材の見分けも消えていた。数字だけ見て絵を見ないと
-   こうなる、の実例。
-
-   物としてどう見えるかで考え直す: 暗い部屋の棚は、面が明るくなるのでは
-   なく**小口が光を受ける**。面は暗いまま少しだけ持ち上げ、上の小口を
-   はっきりさせる。棚の在りかは、その一本の光る縁が示す。
+/* 暗い面の板。**面を明るくするのではなく、小口が光を受ける。**
+   実測で 1.69:1 / 1.44:1 まで沈む素材があり、最初は板そのものを明るくして
+   数字を通した。数字は通ったが、**絵を見たら木目の等間隔の線が目盛りとして
+   立ち、定規に見えた** — 数字だけ見て絵を見ないとこうなる、の実例。
+   物としてどう見えるかで考え直した: 暗い部屋の棚は面が明るくなるのではなく
+   小口が光る。棚の在りかは、その一本の光る縁が示す。
 
    `:is()` の詳細度は中の最大値を取るので、素材側の宣言に勝つ。
    暗い data-ui-theme は `.dark` を付けないため、5種を必ず並べる。 */
@@ -1397,36 +1524,12 @@
   [data-shelf-material] {
   --plank-lip: rgb(255 255 255 / 0.62);
 }
-:is(
-    .dark,
-    :root[data-ui-theme="darkroom"],
-    :root[data-ui-theme="nightmarket"],
-    :root[data-ui-theme="ink"],
-    :root[data-ui-theme="aurora"],
-    :root[data-ui-theme="collection"]
-  )
-  [data-shelf-material="walnut"] {
-  --plank-top: #7d5637;
-  --plank-bottom: #4b3221;
-}
-:is(
-    .dark,
-    :root[data-ui-theme="darkroom"],
-    :root[data-ui-theme="nightmarket"],
-    :root[data-ui-theme="ink"],
-    :root[data-ui-theme="aurora"],
-    :root[data-ui-theme="collection"]
-  )
-  [data-shelf-material="obsidian"] {
-  --plank-top: #383e48;
-  --plank-bottom: #1c2026;
-}
 
 /* `:where()` で詳細度を (0,2,0) に抑える。**素の `:not()` は中身の詳細度を
-   足す**ので、これを `:not(…)` のまま書くと (0,3,0) になり、後ろにある
-   `[data-shelf-material="glass"] .shelf-rule` (0,2,0) に勝ってしまう。
-   実際そうなっていて、**ガラスの小口も backdrop-filter も一度も効いていなかった**
-   — 見た目は他の素材と同じ板のまま、選んでも何も変わらない状態だった。 */
+   足す**ので、素材ごとの上書き (0,2,0) に勝ってしまう。実際そうなっていて、
+   ガラスの小口も backdrop-filter も一度も効いていなかった
+   (見た目は他の素材と同じ板のまま、選んでも何も変わらない状態だった)。
+   ガラス自体は見え方の作り直しで無くなったが、抑える理由は変わらない。 */
 [data-shelf-material]:where(:not([data-shelf-material="none"])) .shelf-rule {
   height: 0.6875rem; /* 11px — 板の小口が見える最小の厚み */
   border-radius: 0 0 3px 3px;
@@ -1444,14 +1547,6 @@
   box-shadow:
     inset 0 2px 0 var(--plank-lip, rgb(255 255 255 / 0.25)),
     0 5px 10px -5px hsl(var(--shelf-shadow) / 0.75);
-}
-[data-shelf-material="glass"] .shelf-rule {
-  backdrop-filter: blur(6px);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    /* 小口。ここが棚の在りかを示す唯一の線になる(面は透けているので)。 */ inset 0 -2px 0
-      var(--plank-edge),
-    0 6px 14px -8px hsl(var(--shelf-shadow) / 0.6);
 }
 
 /* ── 背表紙(spines): 本棚の見え方 ─────────────────────────────

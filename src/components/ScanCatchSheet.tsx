@@ -396,11 +396,11 @@ export function ScanCatchSheet({
                 保証を出してはいけない場所が、いちばん出してはいけない
                 瞬間(確定の直前)だった(独立監査の指摘)。 */}
             {dict?.source === "verified" ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200">
                 {t("sheet.verified")}
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
                 {t("sheet.aiMade")}
               </span>
             )}
@@ -417,7 +417,7 @@ export function ScanCatchSheet({
             <div>
               <label className="text-xs font-medium text-muted-foreground">
                 {t("sheet.noteLabel")}{" "}
-                <span className="ml-1 text-[10px]">{t("sheet.optional")}</span>
+                <span className="ml-1 text-[11px]">{t("sheet.optional")}</span>
               </label>
               <textarea
                 value={caption}
@@ -431,7 +431,7 @@ export function ScanCatchSheet({
             <div>
               <label className="text-xs font-medium text-muted-foreground">
                 {t("sheet.selfieLabel")}{" "}
-                <span className="ml-1 text-[10px]">{t("sheet.optional")}</span>
+                <span className="ml-1 text-[11px]">{t("sheet.optional")}</span>
               </label>
               <div className="mt-1 flex items-center gap-2">
                 {selfieDataUrl ? (

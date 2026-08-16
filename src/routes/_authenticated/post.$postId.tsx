@@ -129,7 +129,7 @@ function PostPage() {
                   <div lang="zh-Hant" className="text-lg font-bold leading-none">
                     {p.sticker.word.headword}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-[11px] text-muted-foreground">
                     <Zh>{p.sticker.word.reading_zhuyin}</Zh> · {p.sticker.word.meaning_ja}
                   </div>
                 </div>
