@@ -708,9 +708,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "img.candidate": { ja: "候補", en: "Candidate" },
   // --- 忘却曲線 ---
-  "curve.strong": { ja: "しっかり覚えている", en: "Solid in memory" },
-  "curve.fading": { ja: "そろそろ忘れそう", en: "Starting to fade" },
-  "curve.weak": { ja: "もう忘れかけ", en: "Nearly forgotten" },
   "curve.empty": {
     ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。",
     en: "No review data yet. Review this word and its forgetting curve will appear here.",

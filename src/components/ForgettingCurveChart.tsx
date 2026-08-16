@@ -12,6 +12,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { useT } from "@/lib/i18n";
+import { MEMORY_LEVELS, memoryLevel } from "@/lib/memory";
 
 export type HistoryPoint = {
   reviewed_at: string;
@@ -28,31 +29,23 @@ type Props = {
   horizonDays?: number;
 };
 
-type Level = "strong" | "fading" | "weak";
-
-function levelOf(retention: number): Level {
-  if (retention >= 80) return "strong";
-  if (retention >= 50) return "fading";
-  return "weak";
-}
-
 /**
- * 線の色。**素の16進を直に書かない。**
- * `#10b981` などを直書きしていたので、暗いテーマで一切変わらず、
- * 黒地の上で発光していた(同じ問題を記憶レベルでも踏んだ)。
- * SVG の属性でも CSS 変数は効くので、状態のトークンをそのまま渡す。
+ * 記憶の段は**アプリ全体で1つ**(`memoryLevel`、6段)。
+ *
+ * ここには独自の3段(strong / fading / weak)があり、色も語も帯グラフ側と
+ * 対応していなかった。同じ画面に「忘れかけ / あやうい / うろ覚え / 定着中 /
+ * 覚えた / 長期記憶」の6段と、「80%+ / 50-80% / <50%」の3段が**別々の粒度で
+ * 同居**していて、読み手はどちらで考えればいいのか解けない(独立監査)。
+ *
+ * 6段のほうを残したのは、信号3色では「撮った直後に覚えている」と
+ * 「1ヶ月後も覚えている」が区別できないから — それがこのアプリの
+ * 復習間隔の根拠そのものなので、粗くできない。
+ *
+ * 色は `--mem-N` トークン。素の16進を直書きしていたときは暗いテーマで
+ * 一切変わらず、黒地の上で発光していた。
  */
-function colorOf(level: Level): string {
-  if (level === "strong") return "var(--ok)";
-  if (level === "fading") return "var(--warn)";
-  return "var(--bad)";
-}
-
-/** 記憶レベルの見出し。表示言語に追従させるため翻訳キーを返す。 */
-function labelKeyOf(level: Level): string {
-  if (level === "strong") return "curve.strong";
-  if (level === "fading") return "curve.fading";
-  return "curve.weak";
+function levelColor(level: number): string {
+  return `var(--mem-${level})`;
 }
 
 /**
@@ -115,7 +108,7 @@ export function ForgettingCurveChart({
 
     // Compute "now" position on the latest segment.
     let nowPoint: { t: number; retention: number } | null = null;
-    let level: Level = "strong";
+    let level = MEMORY_LEVELS[5];
     if (lastReviewedAt) {
       const lastMs = new Date(lastReviewedAt).getTime();
       const dtDays = Math.max(0, (Date.now() - lastMs) / 86400_000);
@@ -125,9 +118,13 @@ export function ForgettingCurveChart({
         t: round((lastMs - t0) / 86400_000 + dtDays),
         retention: round(retention),
       };
-      level = levelOf(retention);
+      level = memoryLevel(retention, currentIntervalDays, history.length);
     } else if (segments.length) {
-      level = levelOf(segments[segments.length - 1].retention);
+      level = memoryLevel(
+        segments[segments.length - 1].retention,
+        currentIntervalDays,
+        history.length,
+      );
     }
 
     return { data: segments, nowPoint, level };
@@ -141,7 +138,7 @@ export function ForgettingCurveChart({
     );
   }
 
-  const stroke = colorOf(level);
+  const stroke = levelColor(level.level);
 
   return (
     <div>
@@ -154,17 +151,25 @@ export function ForgettingCurveChart({
           {/* **文字は線の色で塗らない。** 線として読ませるために選んだ色を
               11px の文字に使うと、琥珀色で 2.09:1 まで落ちる(実測)。
               色は丸が持ち、意味は文字が持つ — 色が読めなくても伝わる。 */}
-          <span className="font-medium text-foreground">{t(labelKeyOf(level))}</span>
+          <span className="font-medium text-foreground">{t(level.labelKey)}</span>
           {nowPoint && (
             <span className="text-muted-foreground">
               · {t("curve.nowPct", { pct: nowPoint.retention })}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Legend color="var(--ok)" label="80%+" />
-          <Legend color="var(--warn)" label="50-80%" />
-          <Legend color="var(--bad)" label="<50%" />
+        {/* 凡例は**帯グラフと同じ6段**。ここだけ 80%+ / 50-80% / <50% の
+            3段を出していたので、同じ画面に別の粒度が2つあった。 */}
+        <div className="flex items-center gap-1">
+          {MEMORY_LEVELS.map((lv) => (
+            <span
+              key={lv.level}
+              title={t(lv.labelKey)}
+              className={`inline-block h-2 w-2 rounded-full ${lv.bar} ${
+                lv.level === level.level ? "ring-2 ring-foreground/30" : "opacity-45"
+              }`}
+            />
+          ))}
         </div>
       </div>
       <div className="h-44 w-full">
@@ -200,8 +205,8 @@ export function ForgettingCurveChart({
                 fontSize: 12,
               }}
             />
-            <ReferenceLine y={80} stroke="var(--ok)" strokeDasharray="2 4" />
-            <ReferenceLine y={50} stroke="var(--warn)" strokeDasharray="2 4" />
+            <ReferenceLine y={80} stroke="var(--mem-4)" strokeDasharray="2 4" />
+            <ReferenceLine y={50} stroke="var(--mem-2)" strokeDasharray="2 4" />
             <Line
               type="monotone"
               dataKey="retention"
@@ -252,15 +257,6 @@ export function ForgettingCurveChart({
         </ResponsiveContainer>
       </div>
     </div>
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
   );
 }
 

@@ -76,12 +76,9 @@ export function ShelfOptionsScene({ q }: { q: URLSearchParams }) {
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */
 export function ChunksScene() {
-  // **色の種類を全部出す。** `chunkStyle` は品詞をいくつかの色に畳むので、
-  // 名詞・動詞・代名詞だけを並べると、空色・琥珀・すみれの3色が
-  // 一度も文字として描かれない — 琥珀はこの PR で「いちばん危ない色」と
-  // 名指しした当の色だった。
   // `chunkStyle` の分類記号をそのまま使う(S/V/O/N/M/C/P)。品詞名で書くと
-  // どれかの色に畳まれて、出ない色が残る。
+  // どれかの色に畳まれて、出ない組み合わせが残る。
+  // 塗るのは動詞と目的語だけになったので、素の面(S/M/C/P)も必ず1つは出す。
   const parts = [
     { text: "我", pos: "S" },
     { text: "想喝", pos: "V" },
@@ -110,10 +107,29 @@ export function CurveScene() {
   const now = Date.now();
   return (
     <ForgettingCurveChart
+      // `interval_days_after` / `ease_after` は**曲線の形そのもの**。
+      // 型に在るのに渡していなかったので、安定度が NaN になり、線が
+      // 1本も描かれない図を検査していた(ハーネスを型検査の外に置いて
+      // いたので誰も気づけなかった。tsconfig に入れて初めて出た)。
       history={[
-        { reviewed_at: new Date(now - 21 * day).toISOString(), score: 4 },
-        { reviewed_at: new Date(now - 12 * day).toISOString(), score: 3 },
-        { reviewed_at: new Date(now - 4 * day).toISOString(), score: 5 },
+        {
+          reviewed_at: new Date(now - 21 * day).toISOString(),
+          score: 4,
+          interval_days_after: 3,
+          ease_after: 2.5,
+        },
+        {
+          reviewed_at: new Date(now - 12 * day).toISOString(),
+          score: 3,
+          interval_days_after: 6,
+          ease_after: 2.3,
+        },
+        {
+          reviewed_at: new Date(now - 4 * day).toISOString(),
+          score: 5,
+          interval_days_after: 12,
+          ease_after: 2.4,
+        },
       ]}
       currentEase={2.3}
       currentIntervalDays={6}
@@ -143,11 +159,16 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
     <ScanDetailSheet
       headword="珍珠奶茶"
       item={{
+        id: "d1",
+        kind: "object",
         headword: "珍珠奶茶",
         zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
         pinyin: "zhēn zhū nǎi chá",
         meaning_ja: "タピオカミルクティー",
+        pos: "名詞",
+        point: [0.5, 0.5],
         confidence: 0.92,
+        alternatives: ["奶茶", "飲料"],
       }}
       dict={
         verified
@@ -157,7 +178,11 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
               pinyin: "zhēn zhū nǎi chá",
               meaning_ja: "タピオカミルクティー",
               pos: "名詞",
+              tocfl_level: 2,
+              audio_path: null,
+              audio_url: null,
               source: "verified",
+              entry_type: "word",
             }
           : undefined
       }

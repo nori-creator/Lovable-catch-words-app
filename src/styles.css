@@ -142,6 +142,9 @@
   --color-accent-foreground: var(--accent-foreground);
   /* 状態の3色。**素の Tailwind の番号を直に書かない**ための入口。
      `text-ok` / `bg-bad/10` / `border-ok/60` のように普通に使える。 */
+  /* 文のかたまり。塗るのは動詞と目的語だけ(2色 + 素)。 */
+  --color-chunk-v: var(--chunk-v);
+  --color-chunk-o: var(--chunk-o);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
@@ -1046,6 +1049,9 @@
    テーマを6つ持っているのに、実際には明るい面ぶんしか無かった。
    明暗それぞれ、文字として 4.5:1 を満たす明度にする。 */
 :root {
+  /* 文のかたまりの2色。動詞は温かい側、目的語は冷たい側に離す。 */
+  --chunk-v: oklch(0.48 0.17 20);
+  --chunk-o: oklch(0.46 0.13 235);
   --ok: oklch(0.5 0.14 155);
   --warn: oklch(0.48 0.12 75);
   --bad: oklch(0.52 0.2 27);
@@ -1056,6 +1062,8 @@
 :root[data-ui-theme="ink"],
 :root[data-ui-theme="aurora"],
 :root[data-ui-theme="collection"] {
+  --chunk-v: oklch(0.78 0.15 22);
+  --chunk-o: oklch(0.78 0.12 235);
   --ok: oklch(0.82 0.15 158);
   --warn: oklch(0.85 0.14 82);
   --bad: oklch(0.76 0.16 27);
@@ -1389,6 +1397,29 @@
   .shelf-item span.shelf-stand {
     animation: none;
   }
+}
+
+/* 暗い面では、写真と絵文字の**彩度を一段落とす**。
+   黒地に明るい前提の色をそのまま置くと発光して見え、しかも
+   カテゴリーの絵文字(🍎🚗🏪)が画面でいちばん彩度の高い要素になって、
+   集めた語より先に目に入っていた(独立監査)。
+   写真そのものを作り替えるわけではないので、落とすのは 12% だけ。
+   明るい面では触らない — 元の写真がいちばん正しい。 */
+.dark .shelf-item img,
+:root[data-ui-theme="darkroom"] .shelf-item img,
+:root[data-ui-theme="nightmarket"] .shelf-item img,
+:root[data-ui-theme="ink"] .shelf-item img,
+:root[data-ui-theme="aurora"] .shelf-item img,
+:root[data-ui-theme="collection"] .shelf-item img {
+  filter: saturate(0.88);
+}
+.dark .cat-emoji,
+:root[data-ui-theme="darkroom"] .cat-emoji,
+:root[data-ui-theme="nightmarket"] .cat-emoji,
+:root[data-ui-theme="ink"] .cat-emoji,
+:root[data-ui-theme="aurora"] .cat-emoji,
+:root[data-ui-theme="collection"] .cat-emoji {
+  filter: saturate(0.7) opacity(0.85);
 }
 
 /* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */

@@ -204,7 +204,10 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                         h4 なのは、部屋(h3)の下という構造を読み上げにも残すため
                         (以前は div で、見出しの階層から棚が消えていた)。 */}
                     <h4 className="mb-1.5 flex items-baseline gap-1.5 px-0.5">
-                      <span aria-hidden className="text-sm leading-none">
+                      {/* `cat-emoji` は暗い面で彩度を落とすため(styles.css)。
+                          絵文字は黒地でいちばん彩度が高くなり、集めた語より
+                          先に目に入っていた。 */}
+                      <span aria-hidden className="cat-emoji text-sm leading-none">
                         {categoryEmoji(cat)}
                       </span>
                       <span className="text-[0.8125rem] font-medium text-muted-foreground">

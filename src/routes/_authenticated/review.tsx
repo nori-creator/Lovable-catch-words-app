@@ -30,6 +30,7 @@ import { LoadFailed } from "@/components/LoadFailed";
 import {
   Eye,
   Sparkles,
+  CheckCircle2,
   Check,
   X,
   Volume2,
@@ -375,7 +376,12 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
       className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-      {t(lv.labelKey)} {card.retention}%
+      {/* **段の名前だけを出す。** 「定着中 72%」と並べていたので、
+          同じ画面の帯にある「定着中 1(語)」と読み比べたときに
+          *定着中 = 72%* と読めてしまい、段の名前なのか比率なのかが
+          解けなかった(独立監査「語義が二重」)。
+          数字は曲線の中で、何の数字かと一緒に出す。押せば開く。 */}
+      {t(lv.labelKey)}
     </button>
   );
 }
@@ -1504,7 +1510,12 @@ export function LightModeCard({
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
-                  className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-all
+                  // `transition-all` は**焦点の輪郭まで遷移させる**。
+                  // 押した瞬間の色の変化だけが欲しいのに、輪郭が 0px から
+                  // 育つので、鍵盤で送った直後は「どこに居るか見えない」
+                  // 状態が続く(検査が実測 1.00:1 で落とした)。
+                  // 変えたいものだけ名指しする。
+                  className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -1699,7 +1710,7 @@ export function EmptyState() {
   if (cap?.capped) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8">
-        <Sparkles className="mb-2 h-6 w-6 text-primary" />
+        <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
         <p className="text-base font-semibold">{t("review.cappedTitle")}</p>
         <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">
           {t("review.cappedHint", { n: String(cap.limit) })}
@@ -1746,7 +1757,10 @@ export function DoneState({ onAgain }: { onAgain: () => void }) {
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-8">
-      <Sparkles className="mb-2 h-6 w-6 text-primary" />
+      {/* ✨ は多くのアプリで**AI生成の印**として定着しているので、
+          達成の印には使わない(独立監査「メタファの衝突」)。
+          終わったことを言うのは、輪の中のチェック。 */}
+      <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
       <p className="text-base font-semibold">{t("review.doneTitle")}</p>
       <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">{t("review.doneHint")}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2">

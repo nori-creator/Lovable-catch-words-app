@@ -34,7 +34,11 @@ import {
 } from "./scenes/pieces";
 import "@/styles.css";
 
-const SCENES: Record<string, (p: { q: URLSearchParams }) => ReactNode> = {
+// 値を `| undefined` にしておく。**`Record<string, T>` は「どの鍵でも在る」と
+// 言う型**なので、知らない名前を弾く下のガードが型の上では死んで見え、
+// 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
+// 型に嘘をつかせない。
+const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   shelf: ShelfScene,
   "load-failed": LoadFailedScene,
   "shelf-options": ShelfOptionsScene,
