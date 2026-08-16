@@ -10,7 +10,6 @@ import {
   type RoomKey,
 } from "@/lib/category";
 import type { StickerWithWord } from "@/lib/stickers.functions";
-import { STYLE_SPEC, spineColor, type ShelfStyle } from "@/lib/shelf-prefs";
 
 /**
  * 図鑑の棚。
@@ -48,9 +47,26 @@ type Props = {
   onOpen: (id: string) => void;
   /** 着弾中のステッカー — その棚を揺らし、そのスロットを光らせる。 */
   justCaught?: string;
-  /** 見え方。板・列数・モノの見せ方はここから一括で決まる。 */
-  style?: ShelfStyle;
 };
+
+/**
+ * 1段に並べる数。
+ *
+ * ## 見え方の選択肢をやめた
+ * ここには「棚 / 書架 / 標本」の3通りがあり、板の素材・列数・モノの見せ方が
+ * まとめて切り替わっていた。オーナーの指示で作り直した:
+ *
+ * > 違う方法を考えて。デザインやui uxを最高の品質を求めて。
+ * > 私が達成したいのはapple やGoogleの公式のようなアプリのクオリティ。
+ *
+ * 出した答えは**着せ替えを配るのをやめること**。Apple も Google も、
+ * 収集画面に「棚の素材」を選ばせない。1つに決めて、それを良くする。
+ * 実際に3通りを並べて見ると答えははっきりしていた —
+ * 木目は繰り返しグラデーションの安いテクスチャに見え、背表紙は
+ * 濃い色のブロックが並ぶだけで本には見えず、標本は隙間だらけだった。
+ * **3つの平凡より、1つの決定。**
+ */
+const PER_SHELF = 3;
 
 /**
  * 棚1つのおおよその高さ(px)。`contain-intrinsic-size` に渡す。
@@ -61,14 +77,11 @@ type Props = {
  *
  * ## 数値はビルド済みCSSでの実測値(390px幅)
  *
- * | | 段1 | 段2 | 段3 | 空 |
- * |---|---|---|---|---|
- * | モノ・素材なし | 125 | 236 | 347 | 58 |
- * | 背表紙・素材なし | 104 | 194 | 284 | 52 |
- * | モノ・板あり | 134 | 254 | 374 | 67 |
- * | 背表紙・板あり | 113 | 212 | 311 | — |
+ * | 段1 | 段2 | 段3 |
+ * |---|---|---|
+ * | 125 | 236 | 347 |
  *
- * → 見出し14px + 段(モノ111 / 背表紙90)、板を敷くと段ごとに +9px。
+ * → 見出し 14px + 段ごとに 111px。
  *
  * **空の棚を「段1つ分」で数えないこと。** 最初そうしていて 149px と
  * 見積もっていたが実測は 58px。棚は54個を常に全部描くので、まだ何も
@@ -78,18 +91,16 @@ type Props = {
  * 段の作りを変えたら測り直すこと。`npm run shelf:perf` が全変種の
  * ずれを見て5%を超えたら落とす。
  */
-function estimateShelfHeight(tiers: number, spines: boolean, thickPlank: boolean): number {
+function estimateShelfHeight(tiers: number): number {
   const HEAD = 14;
-  const plank = thickPlank ? 9 : 0;
   // 空の棚の枝は消した。**持っている棚しか描かないので届かない。**
   // 到達しない分岐を残すと、次に数字を直す人がそこも合わせようとする。
-  return HEAD + tiers * ((spines ? 90 : 111) + plank);
+  // 素材と背表紙も消したので、掛け合わせも無くなった(見え方は1つだけ)。
+  return HEAD + tiers * 111;
 }
 
-export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style = "shelf" }: Props) {
+export function DexShelf({ stickers, activeCategory, onOpen, justCaught }: Props) {
   const t = useT();
-  // 見え方から3つまとめて決まる。**掛け合わせを画面側で解かない。**
-  const { material, perShelf, spines } = STYLE_SPEC[style];
 
   /** カテゴリー → そのカテゴリーのステッカー。 */
   const byCategory = useMemo(() => {
@@ -152,7 +163,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
   const hasRepeats = useMemo(() => stickers.some((s) => s.encounter_count > 1), [stickers]);
 
   return (
-    <div className="space-y-8" data-shelf-material={material}>
+    <div className="space-y-8">
       {hasRepeats && (
         <p className="flex items-center gap-1.5 px-0.5 text-caption text-muted-foreground">
           <span className="rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground">
@@ -183,8 +194,8 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                 const landing = items.some((s) => s.id === justCaught);
                 // 1棚をN個ずつの段に割る。段ごとに棚板と題名を持つ。
                 const tiers: StickerWithWord[][] = [];
-                for (let i = 0; i < items.length; i += perShelf) {
-                  tiers.push(items.slice(i, i + perShelf));
+                for (let i = 0; i < items.length; i += PER_SHELF) {
+                  tiers.push(items.slice(i, i + PER_SHELF));
                 }
                 return (
                   <div
@@ -205,11 +216,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                         ? undefined
                         : {
                             contentVisibility: "auto",
-                            containIntrinsicSize: `auto ${estimateShelfHeight(
-                              tiers.length,
-                              spines,
-                              material !== "none",
-                            )}px`,
+                            containIntrinsicSize: `auto ${estimateShelfHeight(tiers.length)}px`,
                           }
                     }
                   >
@@ -236,18 +243,13 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
 
                     {tiers.map((tier, ti) => (
                       <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
-                        <div
-                          // 背表紙は隙間なく並べる。本は隣とくっついて立っている。
-                          className={`shelf-row ${spines ? "shelf-row-tight" : ""}`}
-                          style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
-                        >
+                        <div className="shelf-row">
                           {tier.map((s) => (
                             <ShelfItem
                               key={s.id}
                               sticker={s}
                               onOpen={onOpen}
                               landing={s.id === justCaught}
-                              spine={spines}
                             />
                           ))}
                         </div>
@@ -255,28 +257,20 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
                         <div className="shelf-rule" aria-hidden />
                         {/* 題名は棚板の下、モノと同じ列で揃える。
                             読み上げには要らない — ボタンが同じ語を名前として
-                            持っているので、ここを読むと全部2回聞こえる。
-                            背表紙のときは語が背に書いてあるので出さない
-                            (8列の下に語を並べても潰れて読めない)。 */}
-                        {!spines && (
-                          <div
-                            aria-hidden
-                            className="grid gap-3 pt-1.5"
-                            style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
-                          >
-                            {tier.map((s) => (
-                              <span
-                                key={s.id}
-                                lang="zh-Hant"
-                                // 名前は**絵の左端に揃える**。絵を左詰めにしたのに名前だけ
-                                // マスの中央のままだったので、絵の右にずれて見えていた。
-                                className="truncate text-left text-footnote font-medium leading-tight"
-                              >
-                                {s.word.headword}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                            持っているので、ここを読むと全部2回聞こえる。 */}
+                        <div aria-hidden className="shelf-row pt-1.5">
+                          {tier.map((s) => (
+                            <span
+                              key={s.id}
+                              lang="zh-Hant"
+                              // 名前は**絵の左端に揃える**。絵を左詰めにしたのに名前だけ
+                              // マスの中央のままだったので、絵の右にずれて見えていた。
+                              className="truncate text-left text-footnote font-medium leading-tight"
+                            >
+                              {s.word.headword}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -295,56 +289,16 @@ function ShelfItem({
   sticker: s,
   onOpen,
   landing,
-  spine = false,
 }: {
   sticker: StickerWithWord;
   onOpen: (id: string) => void;
   landing: boolean;
-  /** 背表紙として並べるか(密度 `spines`)。 */
-  spine?: boolean;
 }) {
   const t = useT();
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
   const cutout = s.cutout_thumb_url ?? s.cutout_url;
   const photo = s.object_thumb_url ?? s.object_url ?? s.placeholder_url;
-
-  // 背表紙は写真を出さない見え方。並べたときの一覧性がいちばん高い代わりに、
-  // 「自分が撮った写真」という、このアプリの芯にあるものが見えなくなる。
-  // だから既定にはしない。
-  if (spine) {
-    return (
-      <button
-        id={`dex-cell-${s.id}`}
-        onClick={() => onOpen(s.id)}
-        className={`shelf-item ${landing ? "slam-in slot-ignite" : ""}`}
-        lang="zh-Hant"
-        aria-label={
-          s.encounter_count > 1
-            ? t("dex.metCountAria", { word: s.word.headword, n: String(s.encounter_count) })
-            : s.word.headword
-        }
-      >
-        {/* 再会の回数は背表紙でも消さない。**このアプリの芯にある印**で、
-            以前ギャラリーには出ていたのに棚では消えていて直したところ。
-            見え方を1つ足すたびに落とすようでは意味がない。 */}
-        {s.encounter_count > 1 && (
-          <span
-            aria-hidden
-            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground shadow"
-          >
-            ×{s.encounter_count}
-          </span>
-        )}
-        <span
-          className="shelf-spine"
-          style={{ backgroundColor: spineColor(asCategoryKey(s.word.category_key)) }}
-        >
-          <span className="text-white">{s.word.headword}</span>
-        </span>
-      </button>
-    );
-  }
 
   return (
     <button

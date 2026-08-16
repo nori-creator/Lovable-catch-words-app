@@ -9,12 +9,10 @@
  */
 import { useState } from "react";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
-import { DexShelfOptions } from "@/components/DexShelfOptions";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
-import type { ShelfStyle } from "@/lib/shelf-prefs";
 
 /**
  * 色の組み合わせそのものを並べた見本。
@@ -68,12 +66,6 @@ export function LoadFailedScene({ q }: { q: URLSearchParams }) {
       <LoadFailed onRetry={() => {}} retrying={q.get("variant") === "retrying"} />
     </div>
   );
-}
-
-/** 棚の見え方を選ぶシート(完成した見え方3つ)。 */
-export function ShelfOptionsScene({ q }: { q: URLSearchParams }) {
-  const [style, setStyle] = useState<ShelfStyle>((q.get("style") ?? "shelf") as ShelfStyle);
-  return <DexShelfOptions style={style} onStyle={setStyle} onClose={() => {}} />;
 }
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */

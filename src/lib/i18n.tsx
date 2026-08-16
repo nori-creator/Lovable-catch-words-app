@@ -764,20 +764,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation" },
   "settings.study": { ja: "学習設定", en: "Study settings" },
   // 見え方は3つ。名前 + 一言で、何が変わるかを開く前に言う。
-  "shelf.styShelf": { ja: "棚", en: "Shelf" },
-  "shelf.styShelfNote": { ja: "切り抜きが立つ・3列", en: "Cut-outs standing, 3 across" },
-  "shelf.styLibrary": { ja: "書架", en: "Library" },
-  "shelf.styLibraryNote": {
-    ja: "背表紙で詰める・一覧しやすい",
-    en: "Packed spines, easiest to scan",
-  },
-  "shelf.stySpecimen": { ja: "標本", en: "Specimen" },
-  "shelf.stySpecimenNote": { ja: "大きく、余白を広く・2列", en: "Larger, more room, 2 across" },
-  "shelf.optTitle": { ja: "棚の見え方", en: "Shelf look" },
-  "shelf.optLiveHint": {
-    ja: "選ぶと後ろの棚がすぐ変わります。",
-    en: "The shelf behind changes as you pick.",
-  },
   "settings.feel": { ja: "音と手ざわり", en: "Sound & haptics" },
   "settings.soundLevel": { ja: "効果音", en: "Sound effects" },
   "settings.soundOff": { ja: "オフ", en: "Off" },

@@ -38,7 +38,7 @@
  *
  * ## 使い方
  *   node scripts/shelf-perf.mjs [件数] [素材] [並べ方]
- *   例: node scripts/shelf-perf.mjs 600 oak three
+ *   例: node scripts/shelf-perf.mjs 600
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -47,8 +47,6 @@ import http from "node:http";
 import path from "node:path";
 
 const COUNT = Number(process.argv[2] || 300);
-const MATERIAL = process.argv[3] || "none";
-const DENSITY = process.argv[4] || "three";
 const HARNESS_DIR = path.resolve("scripts/ui-harness");
 const HARNESS_OUT = path.resolve(".ui-harness");
 
@@ -79,7 +77,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const URL_ = `http://127.0.0.1:${server.address().port}/index.html?scene=shelf&count=${COUNT}&material=${MATERIAL}&density=${DENSITY}`;
+const URL_ = `http://127.0.0.1:${server.address().port}/index.html?scene=shelf&count=${COUNT}`;
 
 const browser = await chromium.launch({
   executablePath: process.env.PW_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -156,7 +154,7 @@ const firstOn = median(on.map((r) => r.first));
 const drift = on[0].estimated - on[0].actual;
 const driftPct = (Math.abs(drift) / on[0].actual) * 100;
 
-console.log(`件数 ${COUNT} / 素材 ${MATERIAL} / 並べ方 ${DENSITY}(中央値 ${runs} 回)`);
+console.log(`件数 ${COUNT}(中央値 ${runs} 回)`);
 console.log(`  最初の描画  切: ${firstOff.toFixed(1)}ms → 入: ${firstOn.toFixed(1)}ms`);
 console.log(`              ${(((firstOff - firstOn) / firstOff) * 100).toFixed(0)}% 減`);
 console.log(
