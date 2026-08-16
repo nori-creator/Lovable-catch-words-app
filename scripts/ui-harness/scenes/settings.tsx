@@ -18,45 +18,53 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { tStatic as t } from "@/lib/i18n";
 import { useState } from "react";
 
-/** 学習の設定。丸いボタンの列が2列・3列・5列で並ぶ。 */
+/**
+ * 学習の設定。丸いボタンの列が2列・3列・5列で並ぶ。
+ *
+ * **文言は書き写さず `tStatic` で引く。** 手で書いた「上限なし」を
+ * 置いていたせいで、独立監査が「丸が縦長に崩れて『上限な/し』と割れる」と
+ * 指摘した — 実物は「無制限」で、割れていたのは雛形だけだった。
+ * 部品を本物にしても、**入れる文字が別物なら別の画面を見ている**。
+ */
 export function SettingsChoicesScene() {
   const [mode, setMode] = useState("speaking");
   const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
   const [focus, setFocus] = useState("all");
   return (
-    <SettingsCard title="学習">
+    <SettingsCard title={t("settings.study")}>
       <div className="space-y-3">
         <ChoiceRow
           cols={2}
-          label="復習の型"
-          hint="話して答えるか、4つから選ぶか。"
+          label={t("settings.reviewMode")}
+          hint={t("settings.reviewModeHint")}
           value={mode}
           onChange={setMode}
           options={[
-            { value: "speaking", label: "話す" },
-            { value: "choice", label: "4択" },
+            { value: "speaking", label: t("settings.modeSpeaking") },
+            { value: "choice", label: t("settings.modeChoice") },
           ]}
         />
         <ChoiceRow
           cols={3}
-          label="発音の厳しさ"
+          label={t("settings.strictness")}
           value={strict}
           onChange={setStrict}
           options={[
-            { value: "easy", label: "やさしい" },
-            { value: "normal", label: "ふつう" },
-            { value: "strict", label: "きびしい" },
+            { value: "easy", label: t("settings.easy") },
+            { value: "normal", label: t("settings.normal") },
+            { value: "strict", label: t("settings.strict") },
           ]}
         />
         {/* 5列は**いちばん狭い**。390px の画面で 5 つの丸を並べるので、
             ここが押せる大きさと文字の収まりの下限になる。 */}
         <ChoiceRow
           cols={5}
-          label="1日の復習"
-          hint="ここで決めた数で今日ぶんが終わります。"
+          label={t("settings.reviewLimit")}
+          hint={t("settings.reviewLimitHint")}
           value={limit}
           onChange={setLimit}
           options={[
@@ -64,19 +72,19 @@ export function SettingsChoicesScene() {
             { value: 20, label: "20" },
             { value: 30, label: "30" },
             { value: 50, label: "50" },
-            { value: 0, label: "上限なし" },
+            { value: 0, label: t("settings.reviewLimitNone") },
           ]}
         />
         <ChoiceRow
           cols={3}
-          label="重点"
-          hint="苦手なものから出すか、新しいものから出すか。"
+          label={t("settings.reviewFocus")}
+          hint={t("settings.reviewFocusHint")}
           value={focus}
           onChange={setFocus}
           options={[
-            { value: "all", label: "ぜんぶ" },
-            { value: "weak", label: "苦手" },
-            { value: "new", label: "新しい" },
+            { value: "all", label: t("settings.focusAll") },
+            { value: "weak", label: t("settings.focusWeak") },
+            { value: "new", label: t("settings.focusNew") },
           ]}
         />
       </div>

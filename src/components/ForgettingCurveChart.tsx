@@ -139,6 +139,13 @@ export function ForgettingCurveChart({
   }
 
   const stroke = levelColor(level.level);
+  // 軸の右端。データ由来の端数(47日)ではなく**丸い値**にする —
+  // 端数がそのまま軸に出ていると、目盛りではなく不具合に見える。
+  // 10 の倍数なので半分は必ず 5 の倍数になり、真ん中の目盛りも丸い。
+  const axisMax = Math.max(
+    10,
+    Math.ceil(Math.max(...data.map((d) => d.t), nowPoint?.t ?? 0) / 10) * 10,
+  );
 
   return (
     <div>
@@ -181,7 +188,11 @@ export function ForgettingCurveChart({
               type="number"
               // 目盛りはデータ由来の端数(47d)ではなく**丸い値**にする。
               // 端数がそのまま軸に出ていると、目盛りではなく不具合に見える。
-              domain={[0, (max: number) => Math.ceil(max / 10) * 10]}
+              domain={[0, axisMax]}
+              // 目盛りは**自分で等間隔に置く。** 任せると端が領域の端に
+              // 引き寄せられ、0 / 15 / 30 / 50 のように最後だけ刻みが
+              // 変わる(実測)。刻みが揃っていない軸は読み違いを誘う。
+              ticks={[0, axisMax / 2, axisMax]}
               tickFormatter={(v) => t("curve.days", { n: String(Math.round(v)) })}
               stroke="var(--muted-foreground)"
               fontSize={11}
@@ -247,7 +258,12 @@ export function ForgettingCurveChart({
                 label={{
                   value: t("curve.youAreHere"),
                   position: "top",
-                  fill: stroke,
+                  // **線の色で塗らない。** 上の凡例に同じ注意書きがあるのに、
+                  // ここだけ `stroke`(線の色)のままだった。この注記は
+                  // **曲線が通る所に置かれる**ので、線と同じ色だと字が線に
+                  // 飲まれて読めない(実測: 緑の線が「ココ」を貫いていた)。
+                  // 縁取りは styles.css 側(SVG は className が要る)。
+                  fill: "var(--foreground)",
                   fontSize: 11,
                   fontWeight: 600,
                 }}

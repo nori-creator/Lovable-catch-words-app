@@ -1218,6 +1218,24 @@
 .mem-text {
   color: var(--mem);
 }
+/* 中央揃えの和文の改行。
+   `text-wrap: balance` は行の**長さ**は揃えるが、文節は見ない。実際
+   「カメラで街の言葉をかざす / と、ここに図鑑が育ちます。」と、
+   助詞の手前で切れていた(独立監査の指摘で撮った絵に写っていた)。
+   ブラウザに文節を教える。知らない環境では今までどおりの改行に戻るだけ。 */
+.ja-phrase {
+  word-break: auto-phrase;
+}
+
+/* 忘却曲線の「今ココ」。**折れ線が通る所に置かれる注記**なので、
+   下地の色で縁取りして、線の上でも字面が残るようにする。
+   `paint-order: stroke` が無いと縁取りが字の上に乗って字が痩せる。 */
+.recharts-reference-dot .recharts-label {
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 .mem-bar {
   background: var(--mem);
 }

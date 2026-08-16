@@ -419,22 +419,9 @@ function DexPage() {
       ) : view === "calendar" ? (
         <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-body text-muted-foreground">{t("dex.emptyTitle")}</p>
-          <p className="mt-1 text-footnote text-muted-foreground">{t("dex.emptyHint")}</p>
-          <Link
-            to="/capture"
-            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-          >
-            {t("dex.emptyCta")}
-          </Link>
-        </div>
+        <DexEmptyState />
       ) : filtered.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-body text-muted-foreground">
-            「{search}」{t("dex.noMatch")}
-          </p>
-        </div>
+        <DexNoMatch search={search} onClear={() => setSearch("")} />
       ) : view === "shelf" ? (
         <DexShelf
           stickers={filtered}
@@ -651,6 +638,55 @@ function DexPage() {
         }
       `}</style>
     </AppShell>
+  );
+}
+
+/**
+ * 図鑑に1枚も無いとき。**始めたばかりの人が最初に見る面**。
+ *
+ * ホームの空の面と同じ型(理由・次の一手・その場の導線)。ルートに
+ * 直書きのままだと `ui-audit` から描けず、機械の目に一度も映らない。
+ */
+export function DexEmptyState() {
+  const t = useT();
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+      {/* **見出しは見出しの重さで置く。** 説明と同じ太さ・同じ灰色だと、
+          6段の階調を持っていても、この画面では階層が消える。 */}
+      <p className="text-headline font-semibold text-foreground">{t("dex.emptyTitle")}</p>
+      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
+        {t("dex.emptyHint")}
+      </p>
+      <Link
+        to="/capture"
+        className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+      >
+        {t("dex.emptyCta")}
+      </Link>
+    </div>
+  );
+}
+
+/**
+ * 検索に一致しないとき。**行き止まりにしない** — 検索欄の×は
+ * 画面の上端にあり、絞り込んだ結果を見ている人の目線から遠い。
+ * 「無かった」と言うなら、その場に戻り道を置く。
+ */
+export function DexNoMatch({ search, onClear }: { search: string; onClear: () => void }) {
+  const t = useT();
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+      <p className="text-balance text-body text-muted-foreground">
+        「{search}」{t("dex.noMatch")}
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-secondary px-5 py-2.5 text-body font-semibold text-foreground"
+      >
+        {t("dex.clearSearch")}
+      </button>
+    </div>
   );
 }
 

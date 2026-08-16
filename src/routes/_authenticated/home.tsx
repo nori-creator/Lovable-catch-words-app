@@ -263,10 +263,13 @@ export function HomeEmptyState() {
   const t = useT();
   return (
     <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-      <p className="text-body text-muted-foreground">{t("home.emptyTitle")}</p>
+      {/* **見出しは見出しの重さで置く。** 図鑑の空の面と同じ型。 */}
+      <p className="text-headline font-semibold text-foreground">{t("home.emptyTitle")}</p>
       {/* 日本語は行の途中で折り返すと読みにくい(「ここ / に貼られます」に
-          なっていた)。`text-balance` で行の長さを揃える。 */}
-      <p className="mt-1 text-balance text-footnote text-muted-foreground">{t("home.emptyHint")}</p>
+          なっていた)。長さは `text-balance`、切る場所は `ja-phrase`。 */}
+      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
+        {t("home.emptyHint")}
+      </p>
       <Link
         to="/capture"
         className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
