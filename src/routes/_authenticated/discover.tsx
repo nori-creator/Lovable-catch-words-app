@@ -57,7 +57,7 @@ function DiscoverPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("discover.search")}
-            className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-body outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
       </section>
@@ -66,7 +66,7 @@ function DiscoverPage() {
         <section>
           <div className="mb-3 flex items-center gap-2">
             <Trophy className="h-5 w-5 text-amber-500" />
-            <h2 className="text-lg font-semibold tracking-tight">{t("discover.ranking")}</h2>
+            <h2 className="text-headline font-semibold tracking-tight">{t("discover.ranking")}</h2>
           </div>
           {!board ? (
             <div className="space-y-2">
@@ -75,7 +75,7 @@ function DiscoverPage() {
               ))}
             </div>
           ) : board.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-body text-muted-foreground">
               {t("discover.rankingEmpty")}
             </p>
           ) : (
@@ -88,7 +88,7 @@ function DiscoverPage() {
                     className="lift-soft flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
                   >
                     <div
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold ${
+                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-body font-bold ${
                         r.rank === 1
                           ? "bg-gradient-to-br from-amber-300 to-orange-500 text-white"
                           : r.rank === 2
@@ -110,19 +110,19 @@ function DiscoverPage() {
                         height={40}
                       />
                     ) : (
-                      <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-base font-semibold">
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-body font-semibold">
                         {(r.display_name ?? "?").slice(0, 1)}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">
+                      <div className="truncate text-body font-semibold">
                         {r.display_name ?? t("common.anon")}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-footnote text-muted-foreground">
                         {t("discover.stats", { words: r.sticker_count, posts: r.post_count })}
                       </div>
                     </div>
-                    <div className="text-sm font-bold text-primary">{r.xp} XP</div>
+                    <div className="text-body font-bold text-primary">{r.xp} XP</div>
                   </Link>
                 </li>
               ))}
@@ -134,12 +134,12 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-body font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("discover.users")}
               </h3>
             </div>
             {!users || users.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("discover.noUsers")}</p>
+              <p className="text-body text-muted-foreground">{t("discover.noUsers")}</p>
             ) : (
               <ul className="space-y-2">
                 {users.map((u) => (
@@ -159,11 +159,11 @@ function DiscoverPage() {
                           height={40}
                         />
                       ) : (
-                        <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-base font-semibold">
+                        <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-body font-semibold">
                           {(u.display_name ?? "?").slice(0, 1)}
                         </div>
                       )}
-                      <span className="text-sm font-semibold">
+                      <span className="text-body font-semibold">
                         {u.display_name ?? t("common.anon")}
                       </span>
                     </Link>
@@ -176,25 +176,25 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-body font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("discover.words")}
               </h3>
             </div>
             {!words || words.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("discover.noWords")}</p>
+              <p className="text-body text-muted-foreground">{t("discover.noWords")}</p>
             ) : (
               <ul className="grid grid-cols-2 gap-2">
                 {words.map((w) => (
                   <li key={w.id} className="rounded-2xl border border-border bg-card p-3">
                     <div className="flex items-baseline gap-2">
-                      <span lang="zh-Hant" className="text-base font-semibold">
+                      <span lang="zh-Hant" className="text-body font-semibold">
                         {w.headword}
                       </span>
-                      <span lang="zh-Hant" className="text-[11px] text-muted-foreground">
+                      <span lang="zh-Hant" className="text-caption text-muted-foreground">
                         {w.reading_zhuyin}
                       </span>
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{w.meaning_ja}</div>
+                    <div className="mt-0.5 text-footnote text-muted-foreground">{w.meaning_ja}</div>
                   </li>
                 ))}
               </ul>

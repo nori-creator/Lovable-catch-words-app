@@ -130,10 +130,10 @@ export function PendingCapturesCard({
         <span className="min-w-0 flex-1">
           {/* 📥 は外した。左に**写真そのもの**が既に在るので、絵文字は
               同じことを二度言っているうえ、暗い面で色が調整できない。 */}
-          <span className="block text-sm font-semibold text-foreground">
+          <span className="block text-body font-semibold text-foreground">
             {t("home.pendingCount")}: {pending.length}
           </span>
-          <span className="block text-xs text-muted-foreground">{t("home.pendingCta")}</span>
+          <span className="block text-footnote text-muted-foreground">{t("home.pendingCta")}</span>
         </span>
       </Link>
 
@@ -144,7 +144,7 @@ export function PendingCapturesCard({
       <div className="mt-2 flex justify-end">
         <button
           onClick={onDiscard}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground hover:bg-warn/12 hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote font-medium text-muted-foreground hover:bg-warn/12 hover:text-foreground"
         >
           <Trash2 className="h-3.5 w-3.5" />
           {confirming ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
@@ -263,13 +263,13 @@ export function HomeEmptyState() {
   const t = useT();
   return (
     <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-      <p className="text-sm text-muted-foreground">{t("home.emptyTitle")}</p>
+      <p className="text-body text-muted-foreground">{t("home.emptyTitle")}</p>
       {/* 日本語は行の途中で折り返すと読みにくい(「ここ / に貼られます」に
           なっていた)。`text-balance` で行の長さを揃える。 */}
-      <p className="mt-1 text-balance text-xs text-muted-foreground">{t("home.emptyHint")}</p>
+      <p className="mt-1 text-balance text-footnote text-muted-foreground">{t("home.emptyHint")}</p>
       <Link
         to="/capture"
-        className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+        className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
       >
         {t("home.emptyCta")}
       </Link>
@@ -284,7 +284,7 @@ export function JournalLink() {
     <div className="mt-4 text-center">
       <Link
         to="/journal"
-        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
+        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-body font-semibold shadow-sm"
       >
         <BookText className="h-4 w-4 text-primary" />
         {t("home.journal")}
@@ -319,7 +319,7 @@ export function PastDays({
             当てると「こ れ ま で の ペ ー ジ」と間延びして、区切りの小さな
             ラベルではなく別の見出しに見える。日本語は素の字間で組む。 */}
         <span
-          className={`text-[11px] text-muted-foreground ${
+          className={`text-caption text-muted-foreground ${
             isEn ? "uppercase tracking-[0.3em]" : "tracking-normal"
           }`}
         >
@@ -331,7 +331,7 @@ export function PastDays({
           古い日が黙って消えると**その日は何も撮らなかった**ように見える。
           出せていないなら、そう言う(§8)。 */}
       {truncated && (
-        <p role="status" className="rounded-xl bg-secondary px-3 py-2 text-[11px] text-foreground">
+        <p role="status" className="rounded-xl bg-secondary px-3 py-2 text-caption text-foreground">
           {t("dex.truncated", { n: String(shown), total: String(total) })}
         </p>
       )}
@@ -397,7 +397,7 @@ export function DayHeader({
   return (
     <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
       {label && (
-        <p className="text-[11px] uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
+        <p className="text-caption uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
       )}
       {/* §15 typography: tracking is size- AND script-specific.
           The serif *italic* is a Latin conceit — applied to a Japanese date
@@ -407,7 +407,7 @@ export function DayHeader({
           (CJK glyphs are full-width and need no tightening); English keeps the
           elegant serif italic. */}
       <h1
-        className={`${compact ? "mt-1 text-xl leading-[1.15]" : "mt-2 text-3xl leading-[1.12]"} font-serif ${
+        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} font-serif ${
           isEn ? "italic tracking-[-0.02em]" : "not-italic tracking-normal"
         }`}
       >
@@ -415,7 +415,7 @@ export function DayHeader({
       </h1>
       {/* 曜日も同じ。「土 曜 日」と割れて見えていた。 */}
       <p
-        className={`${compact ? "" : "mt-0.5"} text-xs text-muted-foreground ${
+        className={`${compact ? "" : "mt-0.5"} text-footnote text-muted-foreground ${
           isEn ? "uppercase tracking-[0.25em]" : "tracking-normal"
         }`}
       >
@@ -519,7 +519,7 @@ export function ScrapbookAlbum({
                     多く小さいと潰れるため、字間も少し開ける。 */}
                 <span
                   lang="zh-Hant"
-                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[14px] font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
+                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-body font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
                 >
                   {s.word.headword}
                 </span>
@@ -538,7 +538,7 @@ export function ScrapbookAlbum({
         {/* 台紙の上の字なので**固定のインク**。`text-amber-900/70` は
             番号直書き + 70% で、紙で 3.56:1、コルクで 2.35:1 しか無かった。 */}
         <span
-          className={`text-base text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
+          className={`text-body text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
         >
           — {stickers.length} {t("home.memories")}
         </span>

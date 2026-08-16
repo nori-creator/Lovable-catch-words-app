@@ -49,7 +49,7 @@ function NotificationsPage() {
       {items.length === 0 ? (
         <div className="grid place-items-center rounded-3xl border border-dashed border-border bg-card/50 py-16 text-center">
           <Bell className="mb-2 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">{t("notif.empty")}</p>
+          <p className="text-body text-muted-foreground">{t("notif.empty")}</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -79,18 +79,18 @@ function NotificationsPage() {
                     className="h-10 w-10 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-sm font-semibold">
+                  <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-body font-semibold">
                     {(n.actor?.display_name ?? "?").slice(0, 1)}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">
+                  <p className="truncate text-body">
                     <span className="font-semibold">
                       {n.actor?.display_name ?? t("common.someone")}
                     </span>
                     <span className="text-muted-foreground">{verb}</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">{fmtAgo(n.created_at)}</p>
+                  <p className="text-footnote text-muted-foreground">{fmtAgo(n.created_at)}</p>
                 </div>
                 <Icon className={`h-4 w-4 ${color}`} />
               </div>

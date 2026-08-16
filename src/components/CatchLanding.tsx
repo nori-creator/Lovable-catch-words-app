@@ -142,12 +142,12 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
           {reading && (
             <div
               lang="zh-Hant"
-              className="mt-2 text-xl font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
+              className="mt-2 text-title font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
             >
               {reading}
             </div>
           )}
-          <div className="mt-1 text-sm font-medium text-white/85">GET!</div>
+          <div className="mt-1 text-body font-medium text-white/85">GET!</div>
         </div>
       </>
     );

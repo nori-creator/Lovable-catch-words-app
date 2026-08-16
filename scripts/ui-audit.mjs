@@ -495,7 +495,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
   // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
   //  「下地を一枚も見ない」よりは実物に近い。)
-  const { spots, centered, brandFills } = await page.evaluate(() => {
+  const { spots, centered, brandFills, offScale, scale } = await page.evaluate(() => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -550,6 +550,16 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       .map((n) => parse(getComputedStyle(document.documentElement).getPropertyValue(n).trim()))
       .filter(Boolean)
       .map((c) => [c.r, c.g, c.b]);
+    const offScale = [];
+    // 階調は CSS の変数から読む。**検査の側に数字を書き写さない** —
+    // 書き写した瞬間に、片方だけ直されて静かにずれる。
+    const rootCs = getComputedStyle(document.documentElement);
+    const SCALE = new Set(
+      ["caption", "footnote", "body", "headline", "title", "hero"]
+        .map((n) => parseFloat(rootCs.getPropertyValue(`--text-${n}`)) * 16)
+        .filter((v) => v > 0)
+        .map((v) => Math.round(v * 100) / 100),
+    );
     for (const el of document.querySelectorAll("body *")) {
       const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
       if (!texts.length) continue;
@@ -600,6 +610,16 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       if (!line) continue;
       const lineCount = lineTops.size;
       const px = parseFloat(cs.fontSize);
+      // **階調の外の大きさを使わない。**
+      //
+      // 実測したら描かれている大きさが12種類あり、17と16、14と13、12と11の
+      // ように**1px しか違わない段**が並んでいた。1px 差は目には区別できない
+      // ので段として働かず、書くときの選択肢だけが増える。
+      // `styles.css` の `--text-*` に6段へ畳んだので、そこに無い大きさは落とす。
+      // 表を増やすなら、増やす理由を先に書くこと。
+      if (!SCALE.has(Math.round(px * 100) / 100)) {
+        offScale.push(`階調に無い大きさ ${px}px — "${own.slice(0, 16)}"`);
+      }
       // **中央揃えの本文が何行も続かないこと。**
       //
       // 中央揃えは行頭が毎行ずれるので、目が次の行の頭を探し直す。
@@ -651,9 +671,17 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         label: own.slice(0, 12),
       });
     }
-    return { spots: out, centered, brandFills };
+    return {
+      spots: out,
+      centered,
+      brandFills,
+      offScale: [...new Set(offScale)],
+      scale: [...SCALE],
+    };
   });
   centered.forEach((f) => issues.push(`[${name}] ${f}`));
+  if (!scale.length) issues.push(`[${name}] 書体の階調(--text-*)が読めない`);
+  offScale.forEach((f) => issues.push(`[${name}] ${f}`));
   if (spots.length) {
     const hide = await page.addStyleTag({
       // `-webkit-text-fill-color` まで消す。`color` だけだと、それを当てている

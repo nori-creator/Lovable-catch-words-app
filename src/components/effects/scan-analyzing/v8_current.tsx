@@ -39,7 +39,7 @@ export function ScanAnalyzing_v8current({ stage }: { stage: Stage }) {
 
       <div className="relative flex flex-col items-center gap-2.5">
         <p
-          className="text-[15px] font-medium tracking-[-0.01em] text-white"
+          className="text-body font-medium tracking-[-0.01em] text-white"
           style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
         >
           {t("scan.analyzing")}

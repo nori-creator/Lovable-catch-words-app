@@ -36,7 +36,7 @@ export function ScanAnalyzing_v6minimal({ stage }: { stage: Stage }) {
           <Sparkles className="h-5 w-5 animate-pulse" />
           <span className="font-semibold">AIが分析中...</span>
         </div>
-        <p className="text-sm text-white/80">少しだけ待ってね</p>
+        <p className="text-body text-white/80">少しだけ待ってね</p>
       </div>
     </div>
   );

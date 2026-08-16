@@ -60,7 +60,7 @@ function BrandMark() {
     // 全画面を通していちばん強い視覚要素になっていた(独立監査)。
     // 視線の起点に最も強いものを置くと、その画面の主役がそこを取れない。
     // 面は薄く、字は主色に。押せることは色で分かる。
-    <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-xs font-bold text-primary">
+    <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-footnote font-bold text-primary">
       C
     </div>
   );
@@ -108,7 +108,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                 持つ**ことになった — 直そうとした階層をむしろ壊していた。
                 これはどの画面にも出るアプリ名(道標)であって、その画面の
                 見出しではない。h1 は各画面が自分で持つ。 */}
-            <span className="text-sm font-medium tracking-[-0.01em] text-muted-foreground">
+            <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
               {title ?? "Catchwords"}
             </span>
           </Link>
@@ -147,7 +147,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                     }
                   }}
                   // §1 Response: react on press, not release.
-                  className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] text-muted-foreground transition-colors"
+                  className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground transition-colors"
                   activeProps={{ className: "text-primary" }}
                 >
                   {isScan ? (

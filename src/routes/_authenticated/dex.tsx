@@ -254,9 +254,9 @@ function DexPage() {
       <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
         <div className="pl-1">
           {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
-          <h1 className="text-base font-semibold tracking-tight">{t("dex.yours")}</h1>
+          <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
           {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-footnote text-muted-foreground">
             {t("dex.found")}{" "}
             <span className="font-semibold text-foreground">{captured.length}</span>
             <span className="mx-1.5">·</span>
@@ -348,7 +348,7 @@ function DexPage() {
       {truncated && (
         <p
           role="status"
-          className="mb-3 rounded-xl bg-secondary px-3 py-2 text-[11px] text-muted-foreground"
+          className="mb-3 rounded-xl bg-secondary px-3 py-2 text-caption text-muted-foreground"
         >
           {t("dex.truncated", {
             n: String(captured.length),
@@ -367,7 +367,7 @@ function DexPage() {
         <button
           onClick={() => setActiveCategory(null)}
           aria-label={t("dex.clearFilter")}
-          className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground"
+          className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-footnote font-medium text-primary-foreground"
         >
           {categoryEmoji(activeCategory)} {t(categoryLabelKey(activeCategory))}
           <X className="h-3.5 w-3.5" aria-hidden />
@@ -387,7 +387,7 @@ function DexPage() {
             <button
               onClick={() => setActiveCategory(null)}
               aria-pressed={activeCategory === null}
-              className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+              className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
                 activeCategory === null
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-secondary text-muted-foreground"
@@ -400,7 +400,7 @@ function DexPage() {
                 key={key}
                 onClick={() => setActiveCategory(key)}
                 aria-pressed={activeCategory === key}
-                className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
                   activeCategory === key
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-secondary text-muted-foreground"
@@ -436,18 +436,18 @@ function DexPage() {
         <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">{t("dex.emptyTitle")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t("dex.emptyHint")}</p>
+          <p className="text-body text-muted-foreground">{t("dex.emptyTitle")}</p>
+          <p className="mt-1 text-footnote text-muted-foreground">{t("dex.emptyHint")}</p>
           <Link
             to="/capture"
-            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+            className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
           >
             {t("dex.emptyCta")}
           </Link>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-body text-muted-foreground">
             「{search}」{t("dex.noMatch")}
           </p>
         </div>
@@ -463,12 +463,12 @@ function DexPage() {
         groups.map(([key, items]) => (
           <section key={key} className="mb-6">
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-base font-semibold tracking-tight">
+              <h3 className="text-body font-semibold tracking-tight">
                 {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
                 {categoryEmoji(key)} {t(categoryLabelKey(key))}
               </h3>
-              <span className="text-xs text-muted-foreground">{items.length}</span>
+              <span className="text-footnote text-muted-foreground">{items.length}</span>
             </div>
 
             {view === "gallery" && layout !== "album" ? (
@@ -532,21 +532,21 @@ function DexPage() {
                           <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
                             <span
                               lang="zh-Hant"
-                              className="text-base font-semibold text-muted-foreground"
+                              className="text-body font-semibold text-muted-foreground"
                             >
                               {s.word.headword}
                             </span>
                           </div>
                         )}
                         {s.encounter_count > 0 && (
-                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-[11px] font-bold text-amber-950 shadow">
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
                             ×{s.encounter_count}
                           </span>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
                           <div
                             lang="zh-Hant"
-                            className="truncate text-[12px] font-semibold text-white"
+                            className="truncate text-footnote font-semibold text-white"
                           >
                             {s.word.headword}
                           </div>
@@ -599,7 +599,7 @@ function DexPage() {
                         ) : (
                           <span
                             lang="zh-Hant"
-                            className="px-1 text-center text-[11px] font-semibold text-muted-foreground"
+                            className="px-1 text-center text-caption font-semibold text-muted-foreground"
                           >
                             {s.word.headword}
                           </span>
@@ -607,16 +607,19 @@ function DexPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span lang="zh-Hant" className="text-base font-semibold">
+                          <span lang="zh-Hant" className="text-body font-semibold">
                             {s.word.headword}
                           </span>
                           {s.word.reading_zhuyin && (
-                            <span lang="zh-Hant" className="truncate text-xs text-muted-foreground">
+                            <span
+                              lang="zh-Hant"
+                              className="truncate text-footnote text-muted-foreground"
+                            >
                               {s.word.reading_zhuyin}
                             </span>
                           )}
                         </div>
-                        <div className="truncate text-sm text-muted-foreground">
+                        <div className="truncate text-body text-muted-foreground">
                           {s.word.meaning_ja}
                         </div>
                       </div>
@@ -896,7 +899,7 @@ function DexCalendar({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <p className="text-sm font-semibold">{monthLabel}</p>
+        <p className="text-body font-semibold">{monthLabel}</p>
         <button
           onClick={() =>
             setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { ...c, m: c.m + 1 }))
@@ -941,14 +944,14 @@ function DexCalendar({
                 />
               )}
               <span
-                className={`absolute left-0.5 top-0.5 rounded px-1 text-[11px] font-semibold ${
+                className={`absolute left-0.5 top-0.5 rounded px-1 text-caption font-semibold ${
                   thumb ? "bg-black/55 text-white" : "text-muted-foreground"
                 }`}
               >
                 {day}
               </span>
               {items.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-[11px] font-bold text-white">
+                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-caption font-bold text-white">
                   {items.length}
                 </span>
               )}
@@ -959,7 +962,7 @@ function DexCalendar({
 
       {openDay && (
         <div className="mt-4">
-          <p className="mb-2 text-sm font-semibold">{openDay}</p>
+          <p className="mb-2 text-body font-semibold">{openDay}</p>
           <div className="grid grid-cols-3 gap-2.5">
             {dayItems.map((s) => {
               const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_url;
@@ -976,11 +979,11 @@ function DexCalendar({
                       />
                     ) : (
                       <div className="grid h-full place-items-center px-1 text-center">
-                        <Zh className="text-sm font-semibold">{s.word.headword}</Zh>
+                        <Zh className="text-body font-semibold">{s.word.headword}</Zh>
                       </div>
                     )}
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                      <Zh className="block truncate text-[12px] font-semibold text-white">
+                      <Zh className="block truncate text-footnote font-semibold text-white">
                         {s.word.headword}
                       </Zh>
                     </div>
@@ -993,7 +996,7 @@ function DexCalendar({
       )}
 
       {byDay.size === 0 && (
-        <p className="mt-6 text-center text-sm text-muted-foreground">{t("dex.calendarEmpty")}</p>
+        <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
       )}
     </section>
   );
@@ -1200,7 +1203,7 @@ function DexMap({
 
   if (!browserKey) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-card p-6 text-body text-muted-foreground">
         {t("dex.mapUnavailable")}
       </div>
     );
@@ -1237,7 +1240,7 @@ function DexMap({
             <button
               onClick={() => setDayFilter(null)}
               aria-pressed={dayFilter === null}
-              className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+              className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
                 dayFilter === null
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-secondary text-muted-foreground"
@@ -1250,7 +1253,7 @@ function DexMap({
                 key={d}
                 onClick={() => setDayFilter(d)}
                 aria-pressed={dayFilter === d}
-                className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-medium transition ${
+                className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
                   dayFilter === d
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-secondary text-muted-foreground"
@@ -1262,7 +1265,7 @@ function DexMap({
           </div>
         </div>
       )}
-      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
         <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
           {withLoc.length} {t("dex.items")}
@@ -1271,8 +1274,8 @@ function DexMap({
 
       {recent.length > 0 && (
         <section className="mt-5">
-          <h3 className="mb-1 text-sm font-semibold tracking-tight">{t("dex.placesTitle")}</h3>
-          <p className="mb-2 text-[11px] text-muted-foreground">{t("dex.placesHint")}</p>
+          <h3 className="mb-1 text-body font-semibold tracking-tight">{t("dex.placesTitle")}</h3>
+          <p className="mb-2 text-caption text-muted-foreground">{t("dex.placesHint")}</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
               const thumb =
@@ -1294,14 +1297,14 @@ function DexMap({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <span className="grid h-full w-full place-items-center text-2xl">
+                      <span className="grid h-full w-full place-items-center text-title">
                         {s.word.silhouette_emoji ?? "📍"}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 px-2 py-1.5">
                     <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span lang="zh-Hant" className="truncate text-xs font-medium">
+                    <span lang="zh-Hant" className="truncate text-footnote font-medium">
                       {s.word.headword}
                     </span>
                   </div>

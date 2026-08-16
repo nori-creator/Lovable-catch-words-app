@@ -173,7 +173,7 @@ export function WordCardSectionsEditor() {
         return (
           <li
             key={id}
-            className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-xs"
+            className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-footnote"
           >
             <span className={visible ? "" : "text-muted-foreground line-through"}>
               {t(`card.${meta.id}`)}
@@ -377,7 +377,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
-            <h1 lang="zh-Hant" className="text-4xl font-bold tracking-tight">
+            <h1 lang="zh-Hant" className="text-hero font-bold tracking-tight">
               {word.headword}
             </h1>
             <button
@@ -390,18 +390,18 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
               <Volume2 className="h-5 w-5" />
             </button>
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">
+          <div className="mt-1 text-body text-muted-foreground">
             <Reading zhuyin={word.reading_zhuyin} pinyin={word.pinyin} />
           </div>
           {(word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {word.part_of_speech && (
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground ring-1 ring-border">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
                   {posDisplay(word.part_of_speech)}
                 </span>
               )}
               {word.level && (
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground ring-1 ring-border">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
                   {word.level}
                 </span>
               )}
@@ -439,7 +439,7 @@ function ReportButton({ headword }: { headword: string }) {
     }
   }
   if (sent) {
-    return <span className="text-[11px] text-muted-foreground">{t("card.reportThanks")}</span>;
+    return <span className="text-caption text-muted-foreground">{t("card.reportThanks")}</span>;
   }
   return (
     <span className="relative ml-auto">
@@ -448,19 +448,19 @@ function ReportButton({ headword }: { headword: string }) {
         // §11: 見た目は小さいまま、当たり判定だけを 44px へ広げる
         // (`::before` を伸ばす)。文字は `/70` をやめる — 薄めた結果
         // 明るい面 3.04:1 / 暗い面 1.76:1 だった。
-        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground"
+        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground"
         aria-label={t("card.reportError")}
       >
         <Flag className="h-3 w-3" /> {t("card.report")}
       </button>
       {open && (
         <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-card p-1.5 shadow-xl">
-          <p className="px-2 py-1 text-[11px] text-muted-foreground">{t("card.reportWhat")}</p>
+          <p className="px-2 py-1 text-caption text-muted-foreground">{t("card.reportWhat")}</p>
           {kinds.map((k) => (
             <button
               key={k.kind}
               onClick={() => send(k.kind)}
-              className="block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-secondary"
+              className="block w-full rounded-lg px-2 py-1.5 text-left text-footnote hover:bg-secondary"
             >
               {k.label}
             </button>
@@ -518,12 +518,12 @@ function SectionCard({
       <div className="mb-2 flex items-center gap-2">
         {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
             丸そのものが何も言わなくなる。絵だけを地の上に置く。 */}
-        <span aria-hidden className="text-base leading-none">
+        <span aria-hidden className="text-body leading-none">
           {icon}
         </span>
         {/* 大文字化と広い字間はラテン文字の作法。見出しは日本語なので素で組む
             (ホームの「Past Pages」と同じ穴)。 */}
-        <h3 className="text-xs font-semibold text-foreground">{label}</h3>
+        <h3 className="text-footnote font-semibold text-foreground">{label}</h3>
         {canRegen && (
           <button
             onClick={regen}
@@ -574,14 +574,14 @@ function EmptySection({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border bg-secondary px-3 py-2.5">
-      <span className="text-[11px] text-muted-foreground">{t("card.notYet")}</span>
+      <span className="text-caption text-muted-foreground">{t("card.notYet")}</span>
       {canGenerate && (
         <button
           onClick={onGenerate}
           disabled={generating}
           aria-label={`${label}: ${t("card.generate")}`}
           // §11: 見た目は小さいまま、当たり判定だけを 44px へ。
-          className="relative inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
+          className="relative inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-caption font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
         >
           {generating ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -628,7 +628,7 @@ function Body({
 }) {
   switch (id) {
     case "meaning":
-      return <p className="text-base font-medium text-foreground">{word.meaning_ja}</p>;
+      return <p className="text-body font-medium text-foreground">{word.meaning_ja}</p>;
 
     case "usage_context": {
       // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
@@ -639,18 +639,18 @@ function Body({
           {(ex.frequency_level || ex.register_tag) && (
             <div className="flex flex-wrap items-center gap-2">
               {ex.frequency_level != null && ex.frequency_level > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-foreground ring-1 ring-border">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
                   {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
                 </span>
               )}
               {ex.register_tag && (
-                <span className="rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-foreground ring-1 ring-border">
+                <span className="rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
                   {ex.register_tag}
                 </span>
               )}
             </div>
           )}
-          {text && <p className="text-sm leading-relaxed">{text}</p>}
+          {text && <p className="text-body leading-relaxed">{text}</p>}
         </div>
       );
     }
@@ -660,8 +660,8 @@ function Body({
       // (色分けは「使い方チャンク」だけに残す)。
       return (
         <div className="space-y-1">
-          <p className="text-base">{word.example_sentence}</p>
-          <p className="text-xs text-muted-foreground">{word.example_translation}</p>
+          <p className="text-body">{word.example_sentence}</p>
+          <p className="text-footnote text-muted-foreground">{word.example_translation}</p>
         </div>
       );
 
@@ -671,12 +671,12 @@ function Body({
           {(ex.examples_extra ?? []).map((e, i) => (
             <li key={i} className="rounded-xl bg-secondary p-2">
               {e.scene && (
-                <p className="mb-1 text-[11px] font-medium text-muted-foreground">🎬 {e.scene}</p>
+                <p className="mb-1 text-caption font-medium text-muted-foreground">🎬 {e.scene}</p>
               )}
-              <p lang="zh-Hant" className="text-sm">
+              <p lang="zh-Hant" className="text-body">
                 {e.zh}
               </p>
-              <p className="text-[11px] text-muted-foreground">{e.ja}</p>
+              <p className="text-caption text-muted-foreground">{e.ja}</p>
             </li>
           ))}
         </ul>
@@ -691,7 +691,7 @@ function Body({
             {chunks.map((c, i) => (
               <div key={i} className="rounded-xl bg-secondary p-2.5">
                 <ChunkPills parts={c.parts} size="sm" />
-                {c.ja && <p className="mt-1 text-[11px] text-muted-foreground">{c.ja}</p>}
+                {c.ja && <p className="mt-1 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
             <ChunkLegend />
@@ -706,14 +706,14 @@ function Body({
               {ex.collocations!.map((c, i) => (
                 <span
                   key={i}
-                  className="rounded-full bg-secondary px-2.5 py-1 text-[12px] font-medium shadow-sm ring-1 ring-border"
+                  className="rounded-full bg-secondary px-2.5 py-1 text-footnote font-medium shadow-sm ring-1 ring-border"
                 >
                   {c}
                 </span>
               ))}
             </div>
           )}
-          {ex.word_order && <p className="text-sm leading-relaxed">{ex.word_order}</p>}
+          {ex.word_order && <p className="text-body leading-relaxed">{ex.word_order}</p>}
         </div>
       );
     }
@@ -749,23 +749,23 @@ function Body({
       }));
       const all = rel.length > 0 ? rel : [...legacySyn, ...legacyAnt];
       return (
-        <div className="space-y-2.5 text-sm">
+        <div className="space-y-2.5 text-body">
           {groups.map(({ kind, label, tone }) => {
             const items = all.filter((r) => r.kind === kind);
             if (items.length === 0) return null;
             return (
               <div key={kind}>
-                <span className="mr-2 text-[11px] text-muted-foreground">{label}</span>
+                <span className="mr-2 text-caption text-muted-foreground">{label}</span>
                 <div className="mt-1 space-y-1">
                   {items.map((r, i) => (
                     <div key={i} className="flex flex-wrap items-baseline gap-x-2">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-medium shadow-sm ring-1 ring-border ${tone}`}
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-footnote font-medium shadow-sm ring-1 ring-border ${tone}`}
                       >
                         {r.word}
                       </span>
                       {r.note && (
-                        <span className="text-[11px] text-muted-foreground">{r.note}</span>
+                        <span className="text-caption text-muted-foreground">{r.note}</span>
                       )}
                     </div>
                   ))}
@@ -774,21 +774,23 @@ function Body({
             );
           })}
           {ex.synonym_diff && rel.length === 0 && (
-            <p className="rounded-xl bg-secondary p-2 text-xs leading-relaxed">{ex.synonym_diff}</p>
+            <p className="rounded-xl bg-secondary p-2 text-footnote leading-relaxed">
+              {ex.synonym_diff}
+            </p>
           )}
         </div>
       );
     }
 
     case "pronunciation_tips":
-      return <p className="text-sm leading-relaxed">{ex.pronunciation_tips || ex.study_tips}</p>;
+      return <p className="text-body leading-relaxed">{ex.pronunciation_tips || ex.study_tips}</p>;
 
     case "etymology":
       return (
-        <div className="space-y-1 text-sm leading-relaxed">
+        <div className="space-y-1 text-body leading-relaxed">
           {ex.etymology && <p>{ex.etymology}</p>}
           {ex.radicals && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-footnote text-muted-foreground">
               {t("card.radicals")}: {ex.radicals}
             </p>
           )}
@@ -796,17 +798,19 @@ function Body({
       );
 
     case "mnemonic":
-      return <p className="text-sm italic leading-relaxed">「{ex.mnemonic}」</p>;
+      return <p className="text-body italic leading-relaxed">「{ex.mnemonic}」</p>;
 
     case "taiwan_note":
       return (
-        <div className="space-y-1.5 text-sm leading-relaxed">
+        <div className="space-y-1.5 text-body leading-relaxed">
           {ex.taiwan_note ? (
             <p>{ex.taiwan_note}</p>
           ) : (
             <>
               {ex.trivia && <p>{ex.trivia}</p>}
-              {ex.usage_note && <p className="text-xs text-muted-foreground">⚠️ {ex.usage_note}</p>}
+              {ex.usage_note && (
+                <p className="text-footnote text-muted-foreground">⚠️ {ex.usage_note}</p>
+              )}
             </>
           )}
         </div>
@@ -843,12 +847,12 @@ function MeasureWordRow({
     <>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <span lang="zh-Hant" className="text-[15px] font-semibold">
+          <span lang="zh-Hant" className="text-body font-semibold">
             {word}
           </span>
-          <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-[11px] text-muted-foreground" />
+          <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-caption text-muted-foreground" />
         </span>
-        {note && <span className="mt-0.5 block text-[11px] text-muted-foreground">{note}</span>}
+        {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
       </span>
       <button
         onClick={() => void pronounce(word)}
@@ -933,7 +937,7 @@ function WebImagesBody({
                 <button
                   onClick={() => void pick(c.url)}
                   disabled={picking !== null}
-                  className="absolute inset-0 grid place-items-center bg-black/0 text-[11px] font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
+                  className="absolute inset-0 grid place-items-center bg-black/0 text-caption font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
                   aria-label={t("card.useThisImage")}
                 >
                   {picking === c.url ? (
@@ -944,7 +948,7 @@ function WebImagesBody({
                 </button>
               )}
               {c.credit?.name && (
-                <figcaption className="pointer-events-none absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-[8px] text-white">
+                <figcaption className="pointer-events-none absolute bottom-0 inset-x-0 truncate bg-black/50 px-1 text-caption text-white">
                   📷 {c.credit.name}
                 </figcaption>
               )}
@@ -952,14 +956,14 @@ function WebImagesBody({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">{t("card.noImages")}</p>
+        <p className="text-footnote text-muted-foreground">{t("card.noImages")}</p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <button
           onClick={() => setSeed((v) => v + 1)}
           disabled={isFetching}
-          className="relative inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
+          className="relative inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-caption font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
         >
           {isFetching ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -972,13 +976,13 @@ function WebImagesBody({
           href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
           target="_blank"
           rel="noreferrer"
-          className="relative inline-flex items-center gap-1 text-xs text-primary-ink underline before:absolute before:-inset-x-1 before:-inset-y-3.5 before:content-['']"
+          className="relative inline-flex items-center gap-1 text-footnote text-primary-ink underline before:absolute before:-inset-x-1 before:-inset-y-3.5 before:content-['']"
         >
           {t("card.searchGoogle")} <ExternalLink className="h-3 w-3" />
         </a>
       </div>
       {onPickImage && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-caption text-muted-foreground">
           {t("card.useThisImage")} — {t("card.changePhoto")}
         </p>
       )}
@@ -1033,12 +1037,12 @@ function RealUsageBody({ headword }: { headword: string }) {
             href={l.href}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-sm shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
+            className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
-            <span className="text-base">{l.emoji}</span>
+            <span className="text-body">{l.emoji}</span>
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{l.label}</span>
-              <span className="block truncate text-[11px] text-muted-foreground">{l.hint}</span>
+              <span className="block truncate text-caption text-muted-foreground">{l.hint}</span>
             </span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>

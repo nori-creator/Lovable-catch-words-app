@@ -50,8 +50,8 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-1 flex-col items-center rounded-2xl bg-secondary/60 px-2 py-3">
-      <span className="text-lg font-bold tabular-nums">{value}</span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-headline font-bold tabular-nums">{value}</span>
+      <span className="text-caption text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -73,7 +73,7 @@ function UserProfilePage() {
   if (isLoading)
     return (
       <AppShell title={t("user.profile")}>
-        <div className="py-8 text-center text-sm text-muted-foreground">{t("user.loading")}</div>
+        <div className="py-8 text-center text-body text-muted-foreground">{t("user.loading")}</div>
       </AppShell>
     );
 
@@ -81,7 +81,7 @@ function UserProfilePage() {
     return (
       <AppShell title={t("user.profile")}>
         <div className="py-10 text-center">
-          <p className="text-sm text-muted-foreground">{t("user.loadFailed")}</p>
+          <p className="text-body text-muted-foreground">{t("user.loadFailed")}</p>
           <Button variant="outline" className="mt-4" onClick={() => refetch()}>
             {t("common.retry")}
           </Button>
@@ -114,15 +114,15 @@ function UserProfilePage() {
                 className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
               />
             ) : (
-              <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-2xl font-bold text-primary-foreground">
+              <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-[oklch(0.72_0.18_240)] text-title font-bold text-primary-foreground">
                 {(data.display_name ?? "?").slice(0, 1)}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-bold">
+              <h2 className="truncate text-title font-bold">
                 {data.display_name ?? t("common.anon")}
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-footnote text-muted-foreground">
                 {t("user.since", {
                   date: new Date(data.created_at).toLocaleDateString(
                     lang === "en" ? "en-US" : "ja-JP",
@@ -162,11 +162,11 @@ function UserProfilePage() {
         </div>
 
         <div>
-          <h3 className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+          <h3 className="mb-2 px-1 text-body font-semibold text-muted-foreground">
             {t("user.recentCatches")}
           </h3>
           {data.recent_stickers.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border bg-card/50 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border bg-card/50 py-8 text-center text-body text-muted-foreground">
               {t("user.noCatches")}
             </p>
           ) : (
@@ -188,13 +188,13 @@ function UserProfilePage() {
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
                     />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-3xl">
+                    <div className="grid h-full w-full place-items-center text-hero">
                       {s.emoji ?? "📍"}
                     </div>
                   )}
                   {s.headword && (
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                      <span lang="zh-Hant" className="text-[11px] font-semibold text-white">
+                      <span lang="zh-Hant" className="text-caption font-semibold text-white">
                         {s.headword}
                       </span>
                     </div>

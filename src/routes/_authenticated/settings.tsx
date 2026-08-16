@@ -61,7 +61,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 export function SettingsCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
-      <h3 className="mb-3 text-sm font-semibold text-muted-foreground">{title}</h3>
+      <h3 className="mb-3 text-body font-semibold text-muted-foreground">{title}</h3>
       {children}
     </section>
   );
@@ -116,7 +116,7 @@ export function ChoiceRow<T extends string | number>({
             role="radio"
             aria-checked={value === o.value}
             onClick={() => onChange(o.value)}
-            className={`min-h-11 rounded-full border py-2.5 text-sm ${
+            className={`min-h-11 rounded-full border py-2.5 text-body ${
               value === o.value
                 ? "border-primary bg-primary font-semibold text-primary-foreground"
                 : "border-border bg-background"
@@ -126,7 +126,7 @@ export function ChoiceRow<T extends string | number>({
           </button>
         ))}
       </div>
-      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1 text-caption text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -162,7 +162,7 @@ export function SelectRow({
       <Label htmlFor={id}>{label}</Label>
       <select
         id={id}
-        className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+        className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-body"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -172,7 +172,7 @@ export function SelectRow({
           </option>
         ))}
       </select>
-      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1 text-caption text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -521,11 +521,11 @@ export function DangerZone({
       open={defaultOpen}
       className="group rounded-2xl border border-destructive/30 bg-card p-4"
     >
-      <summary className="cursor-pointer list-none text-sm font-semibold text-destructive-ink [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-body font-semibold text-destructive-ink [&::-webkit-details-marker]:hidden">
         {t("settings.deleteAccount")}
       </summary>
       <div className="mt-3 space-y-3">
-        <p className="text-xs text-muted-foreground">{t("settings.deleteWarn")}</p>
+        <p className="text-footnote text-muted-foreground">{t("settings.deleteWarn")}</p>
         <div>
           <Label htmlFor="del-confirm">{t("settings.deleteTypeLabel")}</Label>
           <Input
@@ -591,7 +591,7 @@ function DeveloperPanel() {
   const row = (label: string, value: number | null | undefined, targetMs: number) => {
     const ok = value != null && value <= targetMs;
     return (
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center justify-between text-footnote">
         <span className="text-muted-foreground">{label}</span>
         <span
           className={
@@ -613,17 +613,17 @@ function DeveloperPanel() {
 
   return (
     <details className="group rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-sm font-semibold text-muted-foreground [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-body font-semibold text-muted-foreground [&::-webkit-details-marker]:hidden">
         {t("settings.devMetrics")}
       </summary>
       <div className="mt-3 space-y-2">
         {row(t("settings.metricDetect"), m?.detect_ms_median, 1200)}
         {row(t("settings.metricAudio"), m?.tap_to_audio_ms_median, 400)}
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {t("set.qualitySamples", { n: m?.samples ?? 0 })}
         </p>
         {adm?.isAdmin && (
-          <Link to="/admin/metrics" className="block text-xs text-primary underline">
+          <Link to="/admin/metrics" className="block text-footnote text-primary underline">
             {t("settings.kpiLink")}
           </Link>
         )}
@@ -701,7 +701,7 @@ export function AvatarRow() {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="press-in min-h-11 rounded-full border border-border bg-background px-4 text-sm font-medium disabled:opacity-60"
+          className="press-in min-h-11 rounded-full border border-border bg-background px-4 text-body font-medium disabled:opacity-60"
         >
           {busy
             ? t("settings.avatarSaving")
@@ -716,7 +716,7 @@ export function AvatarRow() {
               await clearAvatar();
               await qc.invalidateQueries({ queryKey: ["profile"] });
             }}
-            className="press-in min-h-11 rounded-full px-3 text-sm text-muted-foreground"
+            className="press-in min-h-11 rounded-full px-3 text-body text-muted-foreground"
           >
             {t("settings.avatarClear")}
           </button>
@@ -729,7 +729,7 @@ export function AvatarRow() {
           onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])}
         />
       </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.avatarHint")}</p>
+      <p className="mt-1 text-caption text-muted-foreground">{t("settings.avatarHint")}</p>
     </div>
   );
 }
@@ -799,7 +799,7 @@ export function PlaceReminderToggle() {
         onChange={(v) => void toggle(v)}
       />
       {blocked && (
-        <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+        <p className="mt-2 rounded-xl bg-amber-50 p-2 text-caption leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           {blocked === "unsupported"
             ? t("set.placeUnsupported")
             : blocked === "denied"
@@ -876,7 +876,7 @@ export function SoundAndHapticsPanel() {
         />
       </div>
 
-      <p className="mt-3 text-[11px] text-muted-foreground">{t("settings.feelInstantHint")}</p>
+      <p className="mt-3 text-caption text-muted-foreground">{t("settings.feelInstantHint")}</p>
     </SettingsCard>
   );
 }
@@ -895,8 +895,8 @@ export function ToggleRow({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-[11px] text-muted-foreground">{hint}</div>
+        <div className="text-body font-medium">{label}</div>
+        <div className="text-caption text-muted-foreground">{hint}</div>
       </div>
       {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
       <button
@@ -947,7 +947,7 @@ function AdminOnlySection() {
   if (!adm?.isAdmin) return null;
   return (
     <div className="space-y-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+      <p className="text-caption font-semibold uppercase tracking-wider text-primary">
         {t("settings.devOnly")}
       </p>
       <ThemeLabButton />
@@ -971,13 +971,13 @@ function UiThemePicker() {
   }
   return (
     <details className="rounded-2xl border border-border bg-card p-4" open>
-      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.themeCompare")}{" "}
-        <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+        <span className="ml-1 text-caption font-normal text-muted-foreground">
           ({UI_THEMES.length})
         </span>
       </summary>
-      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.themeHint")}</p>
+      <p className="mt-1 text-caption text-muted-foreground">{t("settings.themeHint")}</p>
       <ul className="mt-3 space-y-1.5">
         {UI_THEMES.map((themeMeta) => (
           <li key={themeMeta.id}>
@@ -996,15 +996,15 @@ function UiThemePicker() {
                 ))}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">
+                <span className="block text-body font-medium">
                   {themeMeta.name}
                   {themeMeta.id === "default" && (
-                    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
                       {t("settings.themeKeep")}
                     </span>
                   )}
                 </span>
-                <span className="block text-[11px] leading-snug text-muted-foreground">
+                <span className="block text-caption leading-snug text-muted-foreground">
                   {themeMeta.concept}
                 </span>
               </span>
@@ -1058,12 +1058,12 @@ function AiModelPanel() {
 
   return (
     <details className="rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.aiSwitch")}
       </summary>
 
       {data?.effective && (
-        <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-[11px] leading-relaxed">
+        <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
           <div className="font-semibold">{t("settings.aiRunning")}</div>
           <div className="text-muted-foreground">
             {t("set.aiEffective", {
@@ -1078,7 +1078,7 @@ function AiModelPanel() {
 
       {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
           「どのキーが実際に見えているか」を最初に出す。 */}
-      <div className="mt-2 rounded-xl border border-border p-2 text-[11px] leading-relaxed">
+      <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
         <div className="font-semibold">{t("settings.aiKeys")}</div>
         <ul className="mt-1 space-y-0.5">
           {(data?.presets ?? []).map((p) => (
@@ -1092,9 +1092,9 @@ function AiModelPanel() {
             </li>
           ))}
         </ul>
-        <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.aiKeysHint")}</p>
+        <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
         {data?.keyError && (
-          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-[11px] text-destructive">
+          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive">
             {data.keyError}
           </p>
         )}
@@ -1102,12 +1102,12 @@ function AiModelPanel() {
 
       <div className="mt-3 space-y-2">
         <div>
-          <Label className="text-xs">{t("settings.aiProvider")}</Label>
+          <Label className="text-footnote">{t("settings.aiProvider")}</Label>
           <select
             aria-label={t("set.aiProviderAria")}
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-body"
           >
             <option value="">{t("settings.aiEnvDefault")}</option>
             {(data?.presets ?? []).map((p) => (
@@ -1117,10 +1117,10 @@ function AiModelPanel() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[11px] text-muted-foreground">{t("settings.aiKeyNote")}</p>
+          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
         </div>
         <div>
-          <Label className="text-xs">{t("settings.aiFast")}</Label>
+          <Label className="text-footnote">{t("settings.aiFast")}</Label>
           <Input
             value={fast}
             onChange={(e) => setFast(e.target.value)}
@@ -1128,7 +1128,7 @@ function AiModelPanel() {
           />
         </div>
         <div>
-          <Label className="text-xs">{t("settings.aiRich")}</Label>
+          <Label className="text-footnote">{t("settings.aiRich")}</Label>
           <Input
             value={rich}
             onChange={(e) => setRich(e.target.value)}
@@ -1136,7 +1136,7 @@ function AiModelPanel() {
           />
         </div>
         <div>
-          <Label className="text-xs">{t("settings.aiPremium")}</Label>
+          <Label className="text-footnote">{t("settings.aiPremium")}</Label>
           <Input
             value={premium}
             onChange={(e) => setPremium(e.target.value)}
@@ -1146,11 +1146,11 @@ function AiModelPanel() {
 
         {/* βテスト〜ローンチで「機能ごとに別のAI」を試せるようにする。 */}
         <div className="rounded-xl border border-border p-2">
-          <div className="text-xs font-semibold">{t("settings.aiPerFeature")}</div>
+          <div className="text-footnote font-semibold">{t("settings.aiPerFeature")}</div>
           <div className="mt-2 space-y-2">
             {(data?.features ?? []).map((f) => (
               <div key={f.id}>
-                <Label className="text-[11px]">{t(`settings.aiFeature.${f.id}`)}</Label>
+                <Label className="text-caption">{t(`settings.aiFeature.${f.id}`)}</Label>
                 <Input
                   value={features[f.id] ?? ""}
                   onChange={(e) => setFeatures((prev) => ({ ...prev, [f.id]: e.target.value }))}
@@ -1159,13 +1159,15 @@ function AiModelPanel() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
+          <p className="mt-2 text-caption text-muted-foreground">
+            {t("settings.aiPerFeatureHint")}
+          </p>
         </div>
 
         <Button className="w-full" onClick={save} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.aiApply")}
         </Button>
-        <p className="text-[11px] text-muted-foreground">{t("settings.aiModelNote")}</p>
+        <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
       </div>
     </details>
   );

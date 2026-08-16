@@ -132,7 +132,7 @@ export function ForgettingCurveChart({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-xs text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border bg-card p-4 text-center text-footnote text-muted-foreground">
         {t("curve.empty")}
       </div>
     );
@@ -142,7 +142,7 @@ export function ForgettingCurveChart({
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-[11px]">
+      <div className="mb-2 flex items-center justify-between text-caption">
         <div className="inline-flex items-center gap-1.5">
           <span
             className="inline-block h-2.5 w-2.5 rounded-full"

@@ -61,8 +61,8 @@ function OnboardingPage() {
           <ScanLine className="h-10 w-10" />
         </div>
 
-        <h1 className="text-2xl font-bold tracking-tight">{t("ob.title")}</h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+        <h1 className="text-title font-bold tracking-tight">{t("ob.title")}</h1>
+        <p className="mt-3 text-body leading-relaxed text-muted-foreground">
           {t("ob.line1")}
           <br />
           {t("ob.line2before")}
@@ -78,7 +78,7 @@ function OnboardingPage() {
           ].map(({ icon: Icon, text }) => (
             <div
               key={text}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm"
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-body shadow-sm"
             >
               <Icon className="h-4 w-4 shrink-0 text-primary" />
               {text}
@@ -89,12 +89,12 @@ function OnboardingPage() {
         <button
           onClick={start}
           disabled={starting}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
         >
           <Camera className="h-5 w-5" />
           {t("ob.start")}
         </button>
-        <p className="mt-2 text-[11px] text-muted-foreground">{t("ob.privacy")}</p>
+        <p className="mt-2 text-caption text-muted-foreground">{t("ob.privacy")}</p>
       </div>
     </div>
   );

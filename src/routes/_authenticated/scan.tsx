@@ -803,7 +803,7 @@ function ScanPage() {
                   ].join(" ")}
                 />
                 {isText && state !== "owned" && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-[11px] font-bold text-foreground/70">
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-caption font-bold text-foreground/70">
                     A
                   </span>
                 )}
@@ -819,13 +819,13 @@ function ScanPage() {
                   <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-amber-300/40 blur-sm motion-reduce:animate-none" />
                 )}
                 {low && (
-                  <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-[11px] font-bold text-black">
+                  <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-caption font-bold text-black">
                     ?
                   </span>
                 )}
                 {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
                     B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
-                <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-[11px] font-semibold leading-tight text-white backdrop-blur-sm">
+                <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm">
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
                   <span lang="zh-Hant" className="truncate">
                     {it.headword}
@@ -861,7 +861,7 @@ function ScanPage() {
           {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
           {!snapshot && ready && zoomMax > 1 && (
             <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2">
-              <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+              <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-caption font-semibold text-white backdrop-blur">
                 {zoom.toFixed(1)}×
               </span>
               <input
@@ -880,7 +880,7 @@ function ScanPage() {
 
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
-            <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[11px] text-white backdrop-blur">
+            <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-caption text-white backdrop-blur">
               {detectMs !== null && <span>{t("scan.detectMs", { ms: detectMs })}</span>}
               {tapToAudioMs !== null && (
                 <span className="ml-2">{t("scan.audioMs", { ms: tapToAudioMs })}</span>
@@ -930,7 +930,7 @@ function ScanPage() {
           )}
 
           {error && (
-            <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
+            <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive">{error}</p>
           )}
 
           {/* 2) 操作: スキャン + 母語で調べる欄(常設)。
@@ -943,7 +943,7 @@ function ScanPage() {
                   <button
                     onClick={doScan}
                     disabled={!ready || scanning}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-base font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-body font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:opacity-50"
                   >
                     {scanning ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -971,7 +971,7 @@ function ScanPage() {
                       placeholder={
                         voiceListening ? t("scan.listening") : t("scan.searchPlaceholder")
                       }
-                      className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-sm shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
+                      className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-body shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                   <button
@@ -990,7 +990,7 @@ function ScanPage() {
                   <button
                     type="submit"
                     disabled={!manualQuery.trim()}
-                    className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg disabled:opacity-50"
+                    className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg disabled:opacity-50"
                   >
                     {t("scan.searchGo")}
                   </button>
@@ -1000,14 +1000,14 @@ function ScanPage() {
               <>
                 <button
                   onClick={reset}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground shadow"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-body font-medium text-secondary-foreground shadow"
                 >
                   <RotateCcw className="h-4 w-4" /> {t("scan.again")}
                 </button>
                 <button
                   onClick={doScan}
                   disabled={scanning}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground shadow"
                 >
                   <Camera className="h-4 w-4" /> {t("scan.rescan")}
                 </button>
@@ -1020,8 +1020,10 @@ function ScanPage() {
               and no explanation. */}
           {items !== null && !scanning && visibleItems.length === 0 && (
             <div className="rounded-2xl bg-background/80 p-4 text-center shadow-lg backdrop-blur-xl">
-              <p className="text-sm font-medium">{t("scan.nothingFound")}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("scan.nothingFoundHint")}</p>
+              <p className="text-body font-medium">{t("scan.nothingFound")}</p>
+              <p className="mt-1 text-footnote text-muted-foreground">
+                {t("scan.nothingFoundHint")}
+              </p>
             </div>
           )}
 
@@ -1030,7 +1032,7 @@ function ScanPage() {
             <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/80 p-1.5 shadow-lg backdrop-blur-xl">
               {
                 <div className="space-y-1.5">
-                  <p className="px-1 text-[11px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                  <p className="px-1 text-caption font-medium uppercase tracking-[0.15em] text-muted-foreground">
                     {t("scan.found")}
                   </p>
                   {visibleItems.map((it) => {
@@ -1052,17 +1054,17 @@ function ScanPage() {
                         />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline gap-2">
-                            <span lang="zh-Hant" className="truncate text-base font-semibold">
+                            <span lang="zh-Hant" className="truncate text-body font-semibold">
                               {it.headword}
                             </span>
                             {it.zhuyin && (
-                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                              <span className="shrink-0 text-caption text-muted-foreground">
                                 {it.zhuyin}
                               </span>
                             )}
                           </span>
                           {it.meaning_ja && (
-                            <span className="block truncate text-xs text-muted-foreground">
+                            <span className="block truncate text-footnote text-muted-foreground">
                               {it.meaning_ja}
                             </span>
                           )}
@@ -1070,11 +1072,11 @@ function ScanPage() {
                         {/* §2: don't lean on colour alone — reunion carries a text tag,
                       owned a check, new a chevron. */}
                         {st === "owned" ? (
-                          <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                          <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
                             <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
                           </span>
                         ) : st === "reunion" ? (
-                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
                             {t("scan.reunion")}
                           </span>
                         ) : (
@@ -1195,7 +1197,7 @@ function ScanChip({
     return (
       <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{t("scan.whichOne")}</p>
+          <p className="text-body font-medium text-muted-foreground">{t("scan.whichOne")}</p>
           <button
             onClick={onClose}
             aria-label={t("common.close")}
@@ -1209,7 +1211,7 @@ function ScanChip({
             <button
               key={c}
               onClick={() => onPickCandidate(c)}
-              className="rounded-full bg-amber-100 px-4 py-2.5 text-base font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+              className="rounded-full bg-amber-100 px-4 py-2.5 text-body font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
             >
               {c}?
             </button>
@@ -1227,7 +1229,7 @@ function ScanChip({
       }`}
     >
       {state === "reunion" && foundAt && (
-        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
+        <p className="mb-2 rounded-xl bg-amber-100 px-3 py-1.5 text-footnote font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
           {t("scan.foundDaysAgoBefore", { n: daysAgo(foundAt) })}
           <Zh>{headword}</Zh>
           {t("scan.foundDaysAgoAfter")}
@@ -1236,30 +1238,30 @@ function ScanChip({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <h2 lang="zh-Hant" className="text-2xl font-bold tracking-tight">
+            <h2 lang="zh-Hant" className="text-title font-bold tracking-tight">
               {headword}
             </h2>
             {state === "owned" && (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-caption font-semibold text-muted-foreground">
                 <Check className="h-3 w-3 text-ok" /> {t("scan.ownedTag")}
               </span>
             )}
             {verified ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/30">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-caption font-semibold text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/30">
                 {t("scan.verified")}
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
                 {t("scan.aiUnverified")}
               </span>
             )}
           </div>
-          <div lang="zh-Hant" className="mt-0.5 text-xs text-muted-foreground">
+          <div lang="zh-Hant" className="mt-0.5 text-footnote text-muted-foreground">
             {zhuyin} {pinyin && <span className="ml-2">{pinyin}</span>}
           </div>
-          <p className="mt-2 text-base font-medium">{meaning}</p>
+          <p className="mt-2 text-body font-medium">{meaning}</p>
           {pos && (
-            <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
+            <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
               {pos}
             </span>
           )}
@@ -1284,7 +1286,7 @@ function ScanChip({
           <button
             onClick={onExpand}
             disabled={expanding}
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-footnote font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
             title={t("scan.partsTitle")}
           >
             {expanding ? (
@@ -1297,7 +1299,7 @@ function ScanChip({
         )}
         <button
           onClick={onCatch}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-body font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
         >
           <BookOpen className="h-4 w-4" /> {t("scan.catch")}
         </button>
@@ -1369,7 +1371,7 @@ function DevMetrics({
     { key: "catch_ms", label: "キャッチ完了" },
   ];
   return (
-    <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-xs">
+    <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-footnote">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-2 text-amber-900 font-semibold"
@@ -1393,14 +1395,14 @@ function DevMetrics({
                   className={`tabular-nums font-mono ${ok ? "text-emerald-700" : bad ? "text-red-700" : "text-muted-foreground"}`}
                 >
                   {v === null ? "—" : `${v}ms`}
-                  <span className="ml-1 text-[11px] opacity-60">/ {t}</span>
+                  <span className="ml-1 text-caption opacity-60">/ {t}</span>
                 </span>
               </li>
             );
           })}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-amber-900/70">
+      <p className="mt-2 text-caption text-amber-900/70">
         表示切替: <code>?dev=1</code> か <code>localStorage.catchwords_dev=1</code>
       </p>
     </div>

@@ -41,7 +41,7 @@ function FeedPage() {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`rounded-full px-4 py-1.5 text-sm transition-all ${tab === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            className={`rounded-full px-4 py-1.5 text-body transition-all ${tab === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
           >
             {id === "following" ? t("feed.following") : t("feed.popular")}
           </button>
@@ -74,15 +74,15 @@ function EmptyState({ tab }: { tab: "following" | "popular" }) {
   return (
     <div className="rounded-3xl border border-dashed border-border bg-card/50 p-10 text-center">
       <Sparkles className="mx-auto h-8 w-8 text-muted-foreground" />
-      <h2 className="mt-3 text-base font-semibold">
+      <h2 className="mt-3 text-body font-semibold">
         {tab === "following" ? t("feed.emptyFollowing") : t("feed.emptyPopular")}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-body text-muted-foreground">
         {tab === "following" ? t("feed.hintFollowing") : t("feed.hintPopular")}
       </p>
       <Link
         to="/dex"
-        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-body font-medium text-primary-foreground"
       >
         {t("feed.postFromDex")}
       </Link>
@@ -123,15 +123,15 @@ function PostCard({ post }: { post: FeedPost }) {
         {post.author.avatar_url ? (
           <img src={post.author.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
         ) : (
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-footnote font-semibold text-primary">
             {initial}
           </div>
         )}
         <div className="flex-1">
-          <div className="text-sm font-semibold">
+          <div className="text-body font-semibold">
             {post.author.display_name ?? t("common.anon")}
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-caption text-muted-foreground">
             {new Date(post.created_at).toLocaleString(dateLocale, {
               month: "short",
               day: "numeric",
@@ -156,10 +156,10 @@ function PostCard({ post }: { post: FeedPost }) {
           )}
           {post.sticker?.word && (
             <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
-              <div lang="zh-Hant" className="text-lg font-bold leading-none">
+              <div lang="zh-Hant" className="text-headline font-bold leading-none">
                 {post.sticker.word.headword}
               </div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-caption text-muted-foreground">
                 <Zh>{post.sticker.word.reading_zhuyin}</Zh> · {post.sticker.word.meaning_ja}
               </div>
             </div>
@@ -171,7 +171,7 @@ function PostCard({ post }: { post: FeedPost }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => mut.mutate(!liked)}
-            className={`inline-flex items-center gap-1 text-sm transition-transform active:scale-95 ${liked ? "text-destructive" : "text-foreground"}`}
+            className={`inline-flex items-center gap-1 text-body transition-transform active:scale-95 ${liked ? "text-destructive" : "text-foreground"}`}
             aria-label={t("feed.like")}
           >
             <Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />
@@ -180,18 +180,18 @@ function PostCard({ post }: { post: FeedPost }) {
           <Link
             to="/post/$postId"
             params={{ postId: post.id }}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground"
+            className="inline-flex items-center gap-1 text-body text-muted-foreground"
           >
             <MessageCircle className="h-5 w-5" />
             <span className="tabular-nums">{post.comment_count}</span>
           </Link>
           {post.sticker?.location_name && (
-            <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="ml-auto inline-flex items-center gap-1 text-caption text-muted-foreground">
               <MapPin className="h-3 w-3" /> {post.sticker.location_name}
             </span>
           )}
         </div>
-        {post.caption && <p className="text-sm leading-relaxed">{post.caption}</p>}
+        {post.caption && <p className="text-body leading-relaxed">{post.caption}</p>}
       </div>
     </article>
   );

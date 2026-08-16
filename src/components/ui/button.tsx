@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
  * 見た目の種類(default / destructive …)より後に効く。
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium cursor-pointer disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 lift",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-body font-medium cursor-pointer disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 lift",
   {
     variants: {
       variant: {
@@ -51,7 +51,7 @@ const buttonVariants = cva(
         // apple-design §11: 44px is the minimum touch target. Default and icon
         // buttons meet the floor; `sm` stays compact for dense secondary rows.
         default: "h-11 px-4 py-2",
-        sm: "h-9 rounded-md px-3 text-xs",
+        sm: "h-9 rounded-md px-3 text-footnote",
         lg: "h-12 rounded-md px-8",
         icon: "h-11 w-11",
       },

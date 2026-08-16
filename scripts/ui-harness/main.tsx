@@ -85,7 +85,7 @@ function Frame({ children }: { children: ReactNode }) {
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
-          <span className="ml-2 text-base font-semibold tracking-[-0.02em]">Catchwords</span>
+          <span className="ml-2 text-body font-semibold tracking-[-0.02em]">Catchwords</span>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>

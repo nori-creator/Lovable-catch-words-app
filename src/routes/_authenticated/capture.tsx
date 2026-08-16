@@ -650,8 +650,8 @@ function CapturePage() {
       {step === "object" && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{t("capture.photoHint")}</p>
+            <h2 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
+            <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
           </div>
           <label className="block">
             <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
@@ -659,7 +659,7 @@ function CapturePage() {
                 <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
                   <Camera className="h-8 w-8" />
                 </span>
-                <span className="text-sm font-medium">{t("capture.tapToShoot")}</span>
+                <span className="text-body font-medium">{t("capture.tapToShoot")}</span>
               </div>
             </div>
             <input
@@ -674,13 +674,13 @@ function CapturePage() {
 
           <div className="flex items-center gap-3 pt-2">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">{t("capture.or")}</span>
+            <span className="text-footnote text-muted-foreground">{t("capture.or")}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
 
           <button
             onClick={() => setInputSheet({})}
-            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
+            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
           >
             <Keyboard className="h-4 w-4" />
             {t("capture.typeWord")}
@@ -689,20 +689,20 @@ function CapturePage() {
           {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
           <button
             onClick={() => navigate({ to: "/scan" })}
-            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground"
+            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
           >
             <ScanLine className="h-4 w-4" />
             {t("capture.openScan")}
           </button>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-body text-destructive">{error}</p>}
         </div>
       )}
 
       {step === "selfie" && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold tracking-tight">{t("capture.selfieTitle")}</h2>
-          <p className="text-sm text-muted-foreground">{t("capture.selfieHint")}</p>
+          <h2 className="text-title font-semibold tracking-tight">{t("capture.selfieTitle")}</h2>
+          <p className="text-body text-muted-foreground">{t("capture.selfieHint")}</p>
           {objectImg && (
             <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
               <img
@@ -716,7 +716,7 @@ function CapturePage() {
             <div className="grid aspect-[3/4] place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary">
               <div className="flex flex-col items-center gap-2">
                 <Camera className="h-10 w-10" />
-                <span className="text-sm">{t("capture.addSelfie")}</span>
+                <span className="text-body">{t("capture.addSelfie")}</span>
               </div>
             </div>
             <input
@@ -752,7 +752,7 @@ function CapturePage() {
               逃げ道が無かった(§16 Freedom & Recovery)。 */}
           <button
             onClick={cancelProcessing}
-            className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-sm font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
+            className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-body font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
           >
             {t("capture.cancel")}
           </button>
@@ -771,8 +771,8 @@ function CapturePage() {
               />
             </div>
           )}
-          <h2 className="text-xl font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
-          <p className="text-sm text-muted-foreground">{t("capture.pickHint")}</p>
+          <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
+          <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
           <div className="grid gap-2">
             {suggestions.map((s) => (
               <button
@@ -781,21 +781,21 @@ function CapturePage() {
                 className="lift flex items-baseline justify-between rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-accent/40"
               >
                 <div>
-                  <div lang="zh-Hant" className="text-base font-semibold">
+                  <div lang="zh-Hant" className="text-body font-semibold">
                     {s.headword}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-footnote text-muted-foreground">
                     <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
                   </div>
                 </div>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption text-muted-foreground">
                   {s.category_key}
                 </span>
               </button>
             ))}
           </div>
           <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-            <Label htmlFor="manual" className="text-xs text-muted-foreground">
+            <Label htmlFor="manual" className="text-footnote text-muted-foreground">
               {t("capture.otherWord")}
             </Label>
             <div className="mt-1 flex gap-2">
@@ -847,14 +847,14 @@ function CapturePage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                  <div className="grid h-full place-items-center text-body text-muted-foreground">
                     {t("capture.noSelfie")}
                   </div>
                 )}
               </div>
             </div>
           </div>
-          <p className="text-center text-[11px] text-muted-foreground">{t("capture.flipHint")}</p>
+          <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
 
           <WordCard
             word={{
@@ -871,7 +871,7 @@ function CapturePage() {
           />
 
           <div>
-            <Label htmlFor="caption" className="text-xs text-muted-foreground">
+            <Label htmlFor="caption" className="text-footnote text-muted-foreground">
               {t("capture.note")}
             </Label>
             <Textarea
@@ -883,7 +883,7 @@ function CapturePage() {
             />
           </div>
 
-          {loc?.name && <p className="text-xs text-muted-foreground">📍 {loc.name}</p>}
+          {loc?.name && <p className="text-footnote text-muted-foreground">📍 {loc.name}</p>}
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={reset} className="flex-1">
@@ -916,7 +916,7 @@ function CapturePage() {
             </div>
           )}
           {!landing && (
-            <p lang="zh-Hant" className="mt-6 text-lg font-bold tracking-tight text-white">
+            <p lang="zh-Hant" className="mt-6 text-headline font-bold tracking-tight text-white">
               {selectedHead}
             </p>
           )}
@@ -935,10 +935,10 @@ function CapturePage() {
       {step === "reencounter" && reenc && (
         <div className="space-y-4">
           <div className="rounded-3xl border border-amber-300/60 bg-gradient-to-br from-amber-50 to-white p-5 text-center shadow-lg">
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-xs font-bold text-amber-950">
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-footnote font-bold text-amber-950">
               <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-body text-muted-foreground">
               {t("cap.reencBefore")}
               {reenc.location_name
                 ? t("cap.reencAt", {
@@ -959,23 +959,23 @@ function CapturePage() {
                 />
               </div>
             )}
-            <div lang="zh-Hant" className="text-3xl font-bold tracking-tight">
+            <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
               {reenc.headword}
             </div>
-            <div lang="zh-Hant" className="mt-1 text-xs text-muted-foreground">
+            <div lang="zh-Hant" className="mt-1 text-footnote text-muted-foreground">
               {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
             </div>
 
             {!reencRevealed ? (
               <button
                 onClick={() => setReencRevealed(true)}
-                className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-sm font-semibold text-amber-900"
+                className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-body font-semibold text-amber-900"
               >
                 {t("capture.rememberQ")}
               </button>
             ) : (
               <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
-                <p className="text-lg font-semibold">{reenc.meaning_ja}</p>
+                <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
                 {!reencResult ? (
                   <div className="mt-3 flex gap-2">
                     <Button
@@ -995,11 +995,11 @@ function CapturePage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-3 space-y-2 text-sm">
+                  <div className="mt-3 space-y-2 text-body">
                     <p className="font-semibold">
                       {reencResult.recalled ? t("capture.reviewBest") : t("capture.willAsk")}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-footnote text-muted-foreground">
                       {t("cap.reunionNth", { n: reencResult.encounter_count })}
                       {reencResult.next_due_at &&
                         t("cap.nextReview", {
@@ -1040,10 +1040,10 @@ function CapturePage() {
             ) : (
               <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             )}
-            <p className="text-base font-semibold">{t("capture.offlineTitle")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t("capture.offlineHint")}</p>
+            <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
+            <p className="mt-1 text-body text-muted-foreground">{t("capture.offlineHint")}</p>
             {savedReason && (
-              <p className="mt-3 break-words text-xs text-muted-foreground">
+              <p className="mt-3 break-words text-footnote text-muted-foreground">
                 {t("capture.savedReason", { reason: savedReason })}
               </p>
             )}

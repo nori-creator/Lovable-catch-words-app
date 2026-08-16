@@ -373,7 +373,7 @@ export function ScanAnalyzing_v3crystal({ stage }: { stage: Stage }) {
           ))}
         </div>
         <p
-          className="font-display text-[15px] italic text-white/90"
+          className="font-display text-body italic text-white/90"
           style={{ textShadow: "0 1px 8px rgba(0,0,0,0.35)" }}
         >
           {label}

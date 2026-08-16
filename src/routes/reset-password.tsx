@@ -73,11 +73,11 @@ function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-xl font-bold shadow-lg shadow-primary/30">
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-title font-bold shadow-lg shadow-primary/30">
             C
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("rp.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-title font-semibold tracking-tight">{t("rp.title")}</h1>
+          <p className="mt-1 text-body text-muted-foreground">
             {mode === "request" ? t("rp.hintRequest") : t("rp.hintUpdate")}
           </p>
         </div>
@@ -120,7 +120,7 @@ function ResetPasswordPage() {
             </form>
           )}
 
-          <p className="mt-4 text-center text-xs text-muted-foreground">
+          <p className="mt-4 text-center text-footnote text-muted-foreground">
             <a href="/auth" className="inline-block py-3 -my-3 underline hover:text-foreground">
               {t("rp.backToLogin")}
             </a>

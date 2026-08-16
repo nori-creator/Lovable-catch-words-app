@@ -44,17 +44,17 @@ export function TokensScene() {
   return (
     <div className="space-y-3">
       {pairs.map(([cls, label]) => (
-        <div key={cls} className={`rounded-xl px-3 py-2 text-sm ${cls}`}>
+        <div key={cls} className={`rounded-xl px-3 py-2 text-body ${cls}`}>
           {label}
         </div>
       ))}
       {tints.map(([cls, label]) => (
-        <p key={cls} className={`text-sm ${cls}`}>
+        <p key={cls} className={`text-body ${cls}`}>
           {label}
         </p>
       ))}
       {/* 主色を薄く敷いた上の主色の文字。印(chip)でよく使う組み合わせ。 */}
-      <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary-ink">
+      <p className="rounded-xl bg-primary/10 px-3 py-2 text-body text-primary-ink">
         薄い主色の上の主色
       </p>
     </div>
@@ -94,7 +94,7 @@ export function ChunksScene() {
     <div className="space-y-6">
       {(["lg", "md", "sm"] as const).map((size) => (
         <div key={size}>
-          <p className="mb-2 text-xs text-muted-foreground">size={size}</p>
+          <p className="mb-2 text-footnote text-muted-foreground">size={size}</p>
           <ChunkPills parts={parts} size={size} />
         </div>
       ))}

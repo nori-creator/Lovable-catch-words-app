@@ -55,8 +55,8 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
   component: Consent,
   errorComponent: ({ error }) => (
     <main className="mx-auto max-w-md p-6">
-      <h1 className="text-lg font-semibold mb-2">{tStatic("oauth.loadFailed")}</h1>
-      <p className="text-sm text-muted-foreground break-all">
+      <h1 className="text-headline font-semibold mb-2">{tStatic("oauth.loadFailed")}</h1>
+      <p className="text-body text-muted-foreground break-all">
         {String((error as Error)?.message ?? error)}
       </p>
     </main>
@@ -95,23 +95,23 @@ function Consent() {
   return (
     <main className="mx-auto max-w-md p-6">
       <div className="rounded-2xl border bg-card p-6 shadow-sm">
-        <h1 className="text-xl font-semibold tracking-tight">
+        <h1 className="text-title font-semibold tracking-tight">
           {t("oauth.connectTitle", { client: clientName })}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("oauth.explain")}</p>
+        <p className="mt-2 text-body text-muted-foreground">{t("oauth.explain")}</p>
         {details?.redirect_uri && (
-          <p className="mt-3 text-xs text-muted-foreground break-all">
+          <p className="mt-3 text-footnote text-muted-foreground break-all">
             {t("oauth.redirectTo")} <span className="font-mono">{details.redirect_uri}</span>
           </p>
         )}
-        <ul className="mt-4 space-y-1 text-sm">
+        <ul className="mt-4 space-y-1 text-body">
           <li>{t("oauth.scope1")}</li>
           <li>{t("oauth.scope2")}</li>
           <li>{t("oauth.scope3")}</li>
         </ul>
-        <p className="mt-4 text-xs text-muted-foreground">{t("oauth.rlsNote")}</p>
+        <p className="mt-4 text-footnote text-muted-foreground">{t("oauth.rlsNote")}</p>
         {err && (
-          <p role="alert" className="mt-3 text-sm text-destructive">
+          <p role="alert" className="mt-3 text-body text-destructive">
             {err}
           </p>
         )}

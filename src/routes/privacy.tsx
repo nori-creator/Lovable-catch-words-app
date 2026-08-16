@@ -38,8 +38,8 @@ export const Route = createFileRoute("/privacy")({
 function PrivacyJa() {
   return (
     <>
-      <h1 className="mt-4 text-3xl font-bold tracking-tight">プライバシーポリシー</h1>
-      <p className="mt-1 text-xs text-muted-foreground">最終更新: 2026年6月22日</p>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">プライバシーポリシー</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年6月22日</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. 取得する情報</h2>
         <ul>
@@ -90,8 +90,8 @@ function PrivacyJa() {
 function PrivacyEn() {
   return (
     <>
-      <h1 className="mt-4 text-3xl font-bold tracking-tight">Privacy Policy</h1>
-      <p className="mt-1 text-xs text-muted-foreground">Last updated: 22 June 2026</p>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">Privacy Policy</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 22 June 2026</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. Information we collect</h2>
         <ul>
@@ -152,12 +152,12 @@ function PrivacyPage() {
     <article className="mx-auto max-w-2xl px-4 py-10">
       <Link
         to="/"
-        className="inline-block py-3 -my-3 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-block py-3 -my-3 text-body text-muted-foreground hover:text-foreground"
       >
         ← {t("common.back")}
       </Link>
       {lang === "en" ? <PrivacyEn /> : <PrivacyJa />}
-      <p className="mt-8 text-xs text-muted-foreground">
+      <p className="mt-8 text-footnote text-muted-foreground">
         <Link to="/terms" className="inline-block py-3 -my-3 underline">
           {t("auth.terms")}
         </Link>

@@ -177,17 +177,17 @@ function ReviewPage() {
     <AppShell title={t("title.review")}>
       <section className="mb-4">
         <div className="flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold leading-[1.1] tracking-[-0.02em]">
+          <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
             {t("review.today")}
           </h1>
           <div className="flex items-center gap-3">
             {cards && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-footnote text-muted-foreground">
                 {Math.min(idx, cards.length)} / {cards.length}
               </span>
             )}
             <div
-              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-[11px] font-semibold"
+              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
               role="tablist"
               aria-label={t("rv.modeAria")}
             >
@@ -236,7 +236,7 @@ function ReviewPage() {
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
                     {t("rv.overallTitle")}
                   </p>
                   {memStats && <MiniRetentionGraph series={memStats.series} />}
@@ -250,7 +250,7 @@ function ReviewPage() {
       {isLoading ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-sm text-muted-foreground">{t("review.preparing")}</p>
+          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
         </div>
       ) : isError ? (
         // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
@@ -272,7 +272,7 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <div className="rounded-2xl border border-border bg-card p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-sm text-muted-foreground">{t("review.preparing")}</p>
+          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
         </div>
       ) : current ? (
         lightMode ? (
@@ -348,7 +348,7 @@ export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
           ) : null,
         )}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
         {MEMORY_LEVELS.map((lv, i) =>
           counts[i] > 0 ? (
             <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
@@ -373,7 +373,7 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
       // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
       // すると主役の写真より重くなる)。**当たり判定だけ広げる。**
       // 実寸は 82x19 で、指の下限を割っていた。
-      className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
+      className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
       {/* **段の名前だけを出す。** 「定着中 72%」と並べていたので、
@@ -407,7 +407,7 @@ function MemoryOverviewPanel({
                 onClick={() => onOpenWord(w)}
                 className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
-                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-sm font-medium">
+                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-body font-medium">
                   {w.headword}
                 </span>
                 <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
@@ -416,11 +416,11 @@ function MemoryOverviewPanel({
                     style={{ width: `${w.retention}%` }}
                   />
                 </span>
-                <span className={`w-9 shrink-0 text-right text-[11px] font-semibold ${lv.text}`}>
+                <span className={`w-9 shrink-0 text-right text-caption font-semibold ${lv.text}`}>
                   {w.retention}%
                 </span>
                 <span
-                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-medium ${lv.chip}`}
+                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-caption font-medium ${lv.chip}`}
                 >
                   {t(lv.labelKey)}
                 </span>
@@ -429,7 +429,7 @@ function MemoryOverviewPanel({
           );
         })}
       </ul>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">{t("rv.tapForCurve")}</p>
+      <p className="mt-1.5 text-caption text-muted-foreground">{t("rv.tapForCurve")}</p>
     </div>
   );
 }
@@ -538,7 +538,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center justify-between">
-          <h3 lang="zh-Hant" className="text-lg font-bold">
+          <h3 lang="zh-Hant" className="text-headline font-bold">
             {word.headword}
           </h3>
           <button
@@ -551,7 +551,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         </div>
 
         {/* 現在の状態 */}
-        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote">
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}
           >
@@ -622,7 +622,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-8 text-center text-xs text-muted-foreground">
+          <p className="py-8 text-center text-footnote text-muted-foreground">
             {t("review.memoryLoading")}
           </p>
         )}
@@ -630,24 +630,24 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         {/* 数字で読める予測 */}
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[11px] text-muted-foreground">{t("memory.bestReview")}</div>
-            <div className="text-sm font-bold text-ok-ink">{bestLabel ?? "—"}</div>
+            <div className="text-caption text-muted-foreground">{t("memory.bestReview")}</div>
+            <div className="text-body font-bold text-ok-ink">{bestLabel ?? "—"}</div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[11px] text-muted-foreground">{t("memory.forgetIn")}</div>
+            <div className="text-caption text-muted-foreground">{t("memory.forgetIn")}</div>
             <div
-              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad-ink" : ""}`}
+              className={`text-body font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad-ink" : ""}`}
             >
               {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
             </div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-[11px] text-muted-foreground">{t("memory.nextDue")}</div>
-            <div className="text-sm font-bold">{dueLabel}</div>
+            <div className="text-caption text-muted-foreground">{t("memory.nextDue")}</div>
+            <div className="text-body font-bold">{dueLabel}</div>
           </div>
         </div>
 
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-caption leading-relaxed text-muted-foreground">
           {t("rv.formula1")}
           {t("rv.formula2")} <b className="text-ok-ink">{t("rv.greenLine")}</b>
           {t("rv.formula3")}
@@ -892,12 +892,12 @@ function SpeakingCard({
     <SwipeCard enabled={!loading} onSwipe={() => commitAndNext(feedback ? "success" : "skip")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
         <div className="mb-3 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary">
             <Mic className="h-3.5 w-3.5" />{" "}
             {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-caption text-muted-foreground">
               {isPhrase ? t("review.promptPhrase") : t("review.promptSpeak")}
             </span>
             <CardMemoryBadge card={card} onOpen={onOpenMemory} />
@@ -913,7 +913,7 @@ function SpeakingCard({
               className="h-full w-full object-contain p-4"
             />
           ) : (
-            <span className="px-3 text-center text-lg font-semibold text-muted-foreground">
+            <span className="px-3 text-center text-headline font-semibold text-muted-foreground">
               {card.meaning_ja}
             </span>
           )}
@@ -921,7 +921,7 @@ function SpeakingCard({
 
         {/* When & where the memory was made (§6-1: 場所・日時つき) */}
         {(takenLabel || card.location_name) && (
-          <div className="mb-3 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+          <div className="mb-3 flex items-center justify-center gap-3 text-caption text-muted-foreground">
             {takenLabel && (
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-3 w-3" /> {takenLabel}
@@ -937,8 +937,8 @@ function SpeakingCard({
 
         {/* Phrase cards: the scene is the front of the card (§5.2) */}
         {isPhrase && card.caption && (
-          <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-sm">
-            <span className="text-xs text-muted-foreground">{t("review.scene")}</span>
+          <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-body">
+            <span className="text-footnote text-muted-foreground">{t("review.scene")}</span>
             {card.caption}
           </p>
         )}
@@ -948,20 +948,20 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+            <div className="text-caption font-semibold uppercase tracking-wider text-primary">
               {t("review.todaysPattern")}
             </div>
-            <div lang="zh-Hant" className="mt-1 text-xl font-bold leading-snug tracking-wide">
+            <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
               {card.prompt_pattern.zh
                 .split(card.headword)
                 .join("◯".repeat(Math.max(1, card.headword.length)))}
             </div>
             {card.prompt_pattern.ja && (
-              <div className="mt-0.5 text-[11px] text-muted-foreground">
+              <div className="mt-0.5 text-caption text-muted-foreground">
                 {card.prompt_pattern.ja}
               </div>
             )}
-            <div className="mt-1 text-[11px] text-muted-foreground">{t("review.usePattern")}</div>
+            <div className="mt-1 text-caption text-muted-foreground">{t("review.usePattern")}</div>
           </div>
         )}
 
@@ -969,11 +969,11 @@ function SpeakingCard({
           パーツを組み合わせて質問に答える。 */}
         {!isPhrase && scaffold && !feedback && (
           <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-sky-800">
+            <div className="text-caption font-semibold uppercase tracking-wider text-sky-800">
               {t("review.teacherQ")}
             </div>
             <div className="mt-0.5 flex items-start gap-2">
-              <p className="flex-1 text-sm font-semibold text-sky-950">{scaffold.question_zh}</p>
+              <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
               <button
                 onClick={() => playText(scaffold.question_zh)}
                 className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
@@ -982,9 +982,9 @@ function SpeakingCard({
                 <Volume2 className="h-3 w-3" />
               </button>
             </div>
-            <p className="text-[11px] text-sky-800/80">{scaffold.question_ja}</p>
+            <p className="text-caption text-sky-800/80">{scaffold.question_ja}</p>
 
-            <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-sky-800">
+            <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-sky-800">
               {t("review.hintsLabel")}
             </div>
             {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
@@ -993,10 +993,10 @@ function SpeakingCard({
               {scaffold.parts.map((p, i) => (
                 <li key={i} className="rounded-xl bg-white/90 p-2.5 shadow-sm ring-1 ring-sky-200">
                   <div className="flex items-center gap-2">
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-caption font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+                    <span className="text-caption font-semibold uppercase tracking-wider text-sky-700">
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
@@ -1014,24 +1014,27 @@ function SpeakingCard({
                         size="lg"
                       />
                     ) : (
-                      <span lang="zh-Hant" className="text-lg font-bold leading-snug tracking-wide">
+                      <span
+                        lang="zh-Hant"
+                        className="text-headline font-bold leading-snug tracking-wide"
+                      >
                         {p.zh}
                       </span>
                     )}
                   </div>
                   {p.ja && (
-                    <p className="mt-1 text-[11px] leading-relaxed text-sky-900/70">{p.ja}</p>
+                    <p className="mt-1 text-caption leading-relaxed text-sky-900/70">{p.ja}</p>
                   )}
                 </li>
               ))}
             </ol>
             <ChunkLegend />
             {scaffold.caption_seed && (
-              <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-sky-900/80">
+              <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-caption text-sky-900/80">
                 {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
               </p>
             )}
-            <p className="mt-1.5 text-[11px] text-sky-800/70">{t("review.buildYourOwn")}</p>
+            <p className="mt-1.5 text-caption text-sky-800/70">{t("review.buildYourOwn")}</p>
           </div>
         )}
 
@@ -1075,16 +1078,16 @@ function SpeakingCard({
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
               placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
-              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
+              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-body"
               dir="auto"
             />
-            {error && <p className="text-xs text-bad-ink">{error}</p>}
+            {error && <p className="text-footnote text-bad-ink">{error}</p>}
 
             <div className="flex gap-2">
               <button
                 onClick={submit}
                 disabled={!transcript.trim() || loading}
-                className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
@@ -1096,7 +1099,7 @@ function SpeakingCard({
               </button>
               <button
                 onClick={() => commitAndNext("skip")}
-                className="rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground"
+                className="rounded-xl border border-border bg-background px-3 text-footnote text-muted-foreground"
               >
                 {t("review.skip")}
               </button>
@@ -1153,14 +1156,14 @@ function FeedbackView({
         className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-ok/10 ring-1 ring-ok/35" : goodTarget && score >= 3 ? "bg-warn/10 ring-1 ring-warn/35" : "bg-bad/10 ring-1 ring-bad/35"}`}
       >
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">
+          <span className="text-body font-semibold">
             {goodTarget && score >= 4
               ? t("review.natural")
               : goodTarget
                 ? t("review.almost")
                 : `「${card.headword}」${t("review.useTarget")}`}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-footnote text-muted-foreground">
             {t("review.naturalness")} {score}/5
           </span>
         </div>
@@ -1169,11 +1172,11 @@ function FeedbackView({
       {/* Your recording — video only; the mic belongs to speech recognition */}
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
             {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
-          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 text-caption leading-relaxed text-muted-foreground">
             {t("review.videoNoAudio")}
           </p>
         </div>
@@ -1181,15 +1184,15 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
           {t("review.you")}
         </div>
-        <div className="text-sm">{transcript}</div>
-        <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-body">{transcript}</div>
+        <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
           {t("review.corrected")}
         </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
-          <div className="flex-1 text-base font-medium">{feedback.corrected}</div>
+          <div className="flex-1 text-body font-medium">{feedback.corrected}</div>
           <button
             onClick={() => speakZhTW(feedback.corrected)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
@@ -1198,52 +1201,52 @@ function FeedbackView({
             <Volume2 className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">{feedback.correction_note}</p>
+        <p className="text-footnote text-muted-foreground">{feedback.correction_note}</p>
       </div>
 
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
             {t("review.sentenceBuild")}
           </span>
           {feedback.unlocked_branch && (
             <span
               lang="zh-Hant"
-              className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary"
             >
               {t("review.newBranch")}
             </span>
           )}
-          <span className="text-xs text-muted-foreground">{feedback.chunk_note}</span>
+          <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
         </div>
         <ChunkPills parts={feedback.chunk} />
         <ChunkLegend />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
               {t("review.whyOrder")}
             </div>
-            <p className="mt-0.5 text-xs leading-relaxed">{feedback.word_order_rule}</p>
+            <p className="mt-0.5 text-footnote leading-relaxed">{feedback.word_order_rule}</p>
           </div>
         )}
       </div>
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+        <div className="mb-1 text-caption font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
           {t("review.nativeFeel")}
         </div>
-        <p className="text-sm text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
+        <p className="text-body text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
       </div>
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+        <div className="text-caption font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
           {t("review.model")}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 text-sm">{feedback.model_answer}</div>
+          <div className="flex-1 text-body">{feedback.model_answer}</div>
           <button
             onClick={() => speakZhTW(feedback.model_answer)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
@@ -1253,7 +1256,7 @@ function FeedbackView({
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">
+          <div className="flex-1 text-body text-emerald-900/80 dark:text-emerald-200/80">
             {t("review.altWay")}
             {feedback.alt_answer}
           </div>
@@ -1271,14 +1274,14 @@ function FeedbackView({
         {round === 1 && (
           <button
             onClick={onRetry}
-            className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-sm font-semibold text-primary"
+            className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-body font-semibold text-primary"
           >
             <Repeat className="mr-1 inline h-4 w-4" /> {t("review.retryPattern")}
           </button>
         )}
         <button
           onClick={onNext}
-          className="lift flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+          className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground"
         >
           {t("rv.nextArrow")} <ArrowRight className="ml-1 inline h-4 w-4" />
         </button>
@@ -1315,11 +1318,11 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
     return (
       <div className="mb-1 rounded-xl bg-secondary/60 px-3 py-2">
         <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
-        <span lang="zh-Hant" className="ml-2 text-base font-semibold">
+        <span lang="zh-Hant" className="ml-2 text-body font-semibold">
           {card.top_chunk.zh}
         </span>
         {card.top_chunk.ja && (
-          <span className="ml-2 text-xs text-muted-foreground">{card.top_chunk.ja}</span>
+          <span className="ml-2 text-footnote text-muted-foreground">{card.top_chunk.ja}</span>
         )}
       </div>
     );
@@ -1334,7 +1337,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
             {chunks.map((c, i) => (
               <div key={i}>
                 <ChunkPills parts={c.parts} size="md" />
-                {c.ja && <p className="mt-0.5 text-[11px] text-muted-foreground">{c.ja}</p>}
+                {c.ja && <p className="mt-0.5 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
           </div>
@@ -1350,7 +1353,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
               <li key={i} className="flex flex-wrap items-baseline gap-x-1.5">
                 {/* 類義/反義/関連は色だけでなく**記号と語**でも区別する(§2)。 */}
                 <span
-                  className={`shrink-0 rounded px-1 text-[11px] font-bold ${
+                  className={`shrink-0 rounded px-1 text-caption font-bold ${
                     r.kind === "ant"
                       ? "bg-rose-200 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100"
                       : r.kind === "syn"
@@ -1364,10 +1367,10 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
                       ? t("rv.kindSyn")
                       : t("rv.kindRel")}
                 </span>
-                <span lang="zh-Hant" className="text-sm font-semibold">
+                <span lang="zh-Hant" className="text-body font-semibold">
                   {r.word}
                 </span>
-                {r.note && <span className="text-[11px] text-muted-foreground">{r.note}</span>}
+                {r.note && <span className="text-caption text-muted-foreground">{r.note}</span>}
               </li>
             ))}
           </ul>
@@ -1380,10 +1383,10 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
             {measures.map((m, i) => (
               <span key={i} className="flex items-baseline gap-1.5">
-                <span lang="zh-Hant" className="text-sm font-semibold">
+                <span lang="zh-Hant" className="text-body font-semibold">
                   {m.word}
                 </span>
-                {m.note && <span className="text-[11px] text-muted-foreground">{m.note}</span>}
+                {m.note && <span className="text-caption text-muted-foreground">{m.note}</span>}
               </span>
             ))}
           </div>
@@ -1393,7 +1396,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
       {note && (
         <section className="rounded-xl bg-teal-50 px-3 py-2 dark:bg-teal-500/10">
           <ExplainLabel tone="teal">{t("rv.goodToKnow")}</ExplainLabel>
-          <p className="mt-1 text-[12px] leading-relaxed">{note}</p>
+          <p className="mt-1 text-footnote leading-relaxed">{note}</p>
         </section>
       )}
     </div>
@@ -1416,7 +1419,7 @@ function ExplainLabel({
           ? "text-teal-900 dark:text-teal-200"
           : "text-muted-foreground";
   return (
-    <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>
+    <span className={`text-caption font-semibold uppercase tracking-wider ${color}`}>
       {children}
     </span>
   );
@@ -1495,7 +1498,7 @@ export function LightModeCard({
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-caption font-semibold text-foreground">
             {t("review.quizTag")}
           </span>
           <CardMemoryBadge card={card} onOpen={onOpenMemory} />
@@ -1516,7 +1519,7 @@ export function LightModeCard({
           </div>
         )}
         <div className="mb-2.5 text-center">
-          <div className="text-base font-semibold leading-snug">
+          <div className="text-body font-semibold leading-snug">
             {t("rv.whichIsBefore")}
             {card.meaning_ja}
             {t("rv.whichIsAfter")}
@@ -1560,7 +1563,7 @@ export function LightModeCard({
                   ${picked && !isPicked && !isAnswer ? "border-border/60" : ""}`}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-base font-medium">{c}</span>
+                    <span className="block truncate text-body font-medium">{c}</span>
                     {/* 注音は**装飾ではなく学習対象そのもの**。台湾華語で
                         日本語話者がいちばん間違えるのは声調で、その記号
                         (ˇ ˊ)は 11px の最も薄い階調では判読の瀬戸際だった
@@ -1568,7 +1571,7 @@ export function LightModeCard({
                     {reading && (
                       <span
                         lang="zh-Hant"
-                        className="block truncate text-[13px] text-foreground/70"
+                        className="block truncate text-footnote text-foreground/70"
                       >
                         {reading}
                       </span>
@@ -1619,7 +1622,7 @@ export function LightModeCard({
                 className={`-mx-4 mb-2 px-4 py-1.5 ${correct ? "bg-ok/12" : "bg-bad/12"}`}
                 role="status"
               >
-                <span className={`text-base font-bold ${correct ? "text-ok-ink" : "text-bad-ink"}`}>
+                <span className={`text-body font-bold ${correct ? "text-ok-ink" : "text-bad-ink"}`}>
                   {correct ? t("review.correct") : t("review.tryAgain")}
                 </span>
               </div>
@@ -1630,11 +1633,11 @@ export function LightModeCard({
               <div className="mb-1.5 flex items-center gap-2">
                 <span
                   lang="zh-Hant"
-                  className="shrink-0 whitespace-nowrap text-xl font-bold tracking-tight"
+                  className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
                 >
                   {card.headword}
                 </span>
-                <span lang="zh-Hant" className="min-w-0 truncate text-[13px] text-foreground/70">
+                <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
                   {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
                 </span>
                 <button
@@ -1650,7 +1653,7 @@ export function LightModeCard({
 
               <button
                 onClick={onNext}
-                className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
               >
                 {t("review.next")}
               </button>
@@ -1745,13 +1748,13 @@ export function EmptyState() {
     return (
       <div className="rounded-2xl border border-border bg-card p-8">
         <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
-        <p className="text-base font-semibold">{t("review.cappedTitle")}</p>
-        <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">
+        <p className="text-body font-semibold">{t("review.cappedTitle")}</p>
+        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
           {t("review.cappedHint", { n: String(cap.limit) })}
         </p>
         <Link
           to="/settings"
-          className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+          className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
         >
           {t("review.cappedCta")}
         </Link>
@@ -1763,11 +1766,11 @@ export function EmptyState() {
   // (「出ます。」だけが2行目に残る、という事故が3画面で出ていた)。
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card p-8">
-      <p className="text-base font-semibold">{t("review.empty")}</p>
-      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">{t("review.emptyHint")}</p>
+      <p className="text-body font-semibold">{t("review.empty")}</p>
+      <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.emptyHint")}</p>
       <Link
         to="/capture"
-        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
       >
         {t("review.goCatch")}
       </Link>
@@ -1795,18 +1798,18 @@ export function DoneState({ onAgain }: { onAgain: () => void }) {
           達成の印には使わない(独立監査「メタファの衝突」)。
           終わったことを言うのは、輪の中のチェック。 */}
       <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
-      <p className="text-base font-semibold">{t("review.doneTitle")}</p>
-      <p className="mt-1 max-w-[22em] text-sm text-muted-foreground">{t("review.doneHint")}</p>
+      <p className="text-body font-semibold">{t("review.doneTitle")}</p>
+      <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.doneHint")}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Link
           to="/dex"
-          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
         >
           {t("review.toDex")}
         </Link>
         <button
           onClick={onAgain}
-          className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-sm font-semibold text-primary-ink"
+          className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-body font-semibold text-primary-ink"
         >
           {t("review.again")}
         </button>
