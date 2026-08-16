@@ -17,8 +17,8 @@
  * 場面はURLの検索文字列で切り替える。
  *
  * ## 何を見ていないか(**書いておく**)
- * ・ホーム・設定はルートに直書きのままで**未検査**。復習は `export` を足して
- *   本物を描けるようにしたので入っている(同じやり方で足せる)。
+ * ・**設定画面**はルートに直書きのままで未検査。復習とホームは `export` を
+ *   足して本物を描けるようにしたので入っている(同じやり方で足せる)。
  *   手書きのHTMLを足して「見た」ことにはしない。
  * ・`WordCard` の `SECTION_THEME`(節ごとの淡い色の表、36箇所)は
  *   **明るい面の前提で固定**されている。暗いテーマに追従しないことは
@@ -147,10 +147,12 @@ const MODES = [
   // ── 棚以外。**棚しか見ていなかった**のがこれまでの穴。
   //
   // 明るい面・暗い面・高コントラストの3面ずつ見る。ここに入れているのは
-  // **markup がコンポーネントの中にあるもの**だけ。ルートに直書きされている
-  // 画面(ホーム・復習・設定)は入れていない — 入れると手書きのHTMLを
-  // 検査することになり、棚で潰したはずの「実物と違うものを見る検査」に戻る。
-  // 未検査であることは README ではなく、ここの一覧が事実として示す。
+  // **描かれる markup が本物と同じもの**だけ。ルートに直書きされていた画面は、
+  // ルート側に `export` を足してハーネスから本物を描くようにしてから入れる
+  // (復習・ホームはそうした)。似たHTMLを書き写すことはしない —
+  // それをやると、棚で潰したはずの「実物と違うものを見る検査」に戻る。
+  // **設定画面だけがまだ入っていない。** 未検査であることは README ではなく、
+  // ここの一覧が事実として示す。
   ...crossThemes("tokens", { scene: "tokens" }),
   ...crossThemes("failed", { scene: "load-failed" }),
   ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
@@ -170,6 +172,20 @@ const MODES = [
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
+  // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
+  ...crossThemes("home", { scene: "home" }),
+  ...crossThemes("home-empty", { scene: "home-empty" }),
+  ...crossThemes("home-past", { scene: "home-past" }),
+  // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
+  // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
+  ["home-frame", "", false, { scene: "home", bg: "frame" }],
+  ["home-notebook", "", false, { scene: "home", bg: "notebook" }],
+  ["home-cork", "", false, { scene: "home", bg: "cork" }],
+  ["home-cork-dark", 'class="dark"', false, { scene: "home", bg: "cork" }],
+  // 圏外で撮って預かっている写真の帯。**オフラインでしか出ない**ので、
+  // 目で見る機会が構造的に無い。
+  ...crossThemes("home-pending", { scene: "home-pending" }),
+  ["home-pending-confirm", "", false, { scene: "home-pending", variant: "confirm" }],
 ];
 
 /** 高コントラストのときに棚板が到達していなければならない濃さ。 */
@@ -307,45 +323,8 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         return acc;
       };
 
-      // 1. コントラスト
-      //
-      // **文字を持っている要素を全部見る。** 以前は `span, p, h3` に絞った上に
-      // 「子要素があれば飛ばす」としていたので、注音のように span を入れ子に
-      // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
-      // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
-      const hasOwnText = (el) =>
-        [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
-      for (const el of document.querySelectorAll("body *")) {
-        if (!hasOwnText(el)) continue;
-        const cs = getComputedStyle(el);
-        if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
-          continue;
-        }
-        const r = el.getBoundingClientRect();
-        if (r.width < 1 || r.height < 1) continue;
-        const fg = parse(cs.color);
-        const bg = bgOf(el);
-        if (!fg) continue;
-        // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
-        // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
-        // 祖先の `opacity` も効くので、根まで掛け合わせる。
-        let alpha = fg.a;
-        for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
-          alpha *= parseFloat(getComputedStyle(n).opacity);
-        }
-        const shown = over({ ...fg, a: Math.max(0, Math.min(1, alpha)) }, bg);
-        const L1 = lum(shown.r, shown.g, shown.b);
-        const L2 = lum(bg.r, bg.g, bg.b);
-        const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
-        const px = parseFloat(cs.fontSize);
-        const big = px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700);
-        const need = big ? 3 : 4.5;
-        if (ratio < need) {
-          out.push(
-            `コントラスト ${ratio.toFixed(2)} < ${need} — "${el.textContent.trim().slice(0, 12)}" ${px}px`,
-          );
-        }
-      }
+      // 1. 文字のコントラストは**この段では測らない**(下の別の段で画素から測る)。
+      //    理由はそちらのコメントに書いた。
       // 2. タップ領域 44px
       //
       // **見た目の箱ではなく、指が当たる範囲を見る。** 44px を割るからといって
@@ -423,6 +402,198 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   );
 
   found.forEach((f) => issues.push(`[${name}] ${f}`));
+
+  // ## 文字の下地は**塗られた画素から取る**
+  //
+  // ここに穴が空いていた。下地は祖先を遡って `background-color` を混ぜて
+  // 求めていたが、**`background-image`(グラデーション・模様)は
+  // `background-color` に現れない**。だから台紙も印画紙も棚板も、計算値の上では
+  // 「透明」で、遡りはそれらを素通りして `body` の色まで落ちていた。
+  //
+  // 実際、ホームを検査に入れた最初の実行で「暗いテーマの見出し語が 1.14:1」と
+  // 出た。だが印画紙は**テーマに関係なく白**なので、目に入る比は 17:1 ある。
+  // 検査が下地を1枚も見ずに body の黒を下地と呼んでいた。逆向きの穴も同じで、
+  // コルクの台紙(#c89a5b 固定)に薄い文字を載せても、以前の検査は白い body を
+  // 下地として 21:1 で通していた。**見逃しと空騒ぎの両方**が出る。
+  //
+  // 直し方: 文字だけを透明にして一度撮り、**その絵の画素**を下地として使う。
+  // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
+  // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
+  //  「下地を一枚も見ない」よりは実物に近い。)
+  const spots = await page.evaluate(() => {
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 1;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const paint = (s, base) => {
+      ctx.globalCompositeOperation = "copy";
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, 1, 1);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = s;
+      ctx.fillRect(0, 0, 1, 1);
+      return ctx.getImageData(0, 0, 1, 1).data;
+    };
+    // 色はブラウザに解かせる。このアプリの色は全部 oklch で、Chrome は
+    // 計算値も `oklch(…)` のまま返すので、文字列を自分で読むと何も取れない。
+    //
+    // ただし `fillStyle` は**読めない文字列を黙って無視する**(前の値が
+    // 残る)。`none` や空文字を渡すと、直前に測った色を「その要素の色」と
+    // して返してしまうので、先に受け付けられたかどうかを確かめる。
+    const accepts = (s) => {
+      ctx.fillStyle = "#000000";
+      ctx.fillStyle = s;
+      const onBlack = ctx.fillStyle;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = s;
+      return onBlack === ctx.fillStyle;
+    };
+    const parse = (s) => {
+      if (!s || !accepts(s)) return null;
+      const w = paint(s, "#fff");
+      const b = paint(s, "#000");
+      const a = 1 - (w[0] - b[0]) / 255;
+      if (a <= 0.001) return { r: 0, g: 0, b: 0, a: 0 };
+      return { r: b[0] / a, g: b[1] / a, b: b[2] / a, a };
+    };
+    // **文字を持っている要素を全部見る。** 以前は `span, p, h3` に絞った上に
+    // 「子要素があれば飛ばす」としていたので、注音のように span を入れ子に
+    // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
+    // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
+    const out = [];
+    for (const el of document.querySelectorAll("body *")) {
+      const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!texts.length) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
+        continue;
+      }
+      // **SVG の文字は `color` では塗られない。** グラフの目盛りや注記は
+      // `<text fill="…">` で描かれるので、`color` を読むと親から継いだ
+      // 別の色を測ることになる(実際、忘却曲線の目盛りは無関係な色で
+      // 採点されていた)。SVG の中では `fill` を見る。
+      const isSvg = el.namespaceURI === "http://www.w3.org/2000/svg";
+      const fg = parse(isSvg ? cs.fill : cs.color);
+      if (!fg) continue;
+      // 標本の範囲は**その要素が自分で持っている文字の箱**。
+      //
+      // 最初 `selectNodeContents(el)` で要素まるごとを範囲にしたが、これは
+      // 子のアイコンや画像の箱まで拾う。実際、記憶バッジ「定着中」では
+      // 先頭に来る 6×6 の印を文字だと思って測り、**そこは印そのものの色**
+      // なので比が 1.00 になっていた(存在しない不具合を6面ぶん報告した)。
+      // 自分の直下の文字ノードだけを範囲にして、**いちばん大きい行**を使う。
+      let line = null;
+      for (const node of texts) {
+        const rng = document.createRange();
+        rng.selectNodeContents(node);
+        for (const r of rng.getClientRects()) {
+          if (r.width < 2 || r.height < 2) continue;
+          if (!line || r.width * r.height > line.width * line.height) line = r;
+        }
+      }
+      if (!line) continue;
+      // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
+      // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
+      // 祖先の `opacity` も効くので、根まで掛け合わせる。
+      let alpha = fg.a * (isSvg ? parseFloat(cs.fillOpacity) || 1 : 1);
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        alpha *= parseFloat(getComputedStyle(n).opacity);
+      }
+      const px = parseFloat(cs.fontSize);
+      out.push({
+        x: line.x + window.scrollX,
+        y: line.y + window.scrollY,
+        w: line.width,
+        h: line.height,
+        r: fg.r,
+        g: fg.g,
+        b: fg.b,
+        a: Math.max(0, Math.min(1, alpha)),
+        px,
+        big: px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700),
+        label: texts
+          .map((n) => n.textContent)
+          .join("")
+          .trim()
+          .slice(0, 12),
+      });
+    }
+    return out;
+  });
+  if (spots.length) {
+    const hide = await page.addStyleTag({
+      // `-webkit-text-fill-color` まで消す。`color` だけだと、それを当てている
+      // 所(グラデーション文字など)が残って下地に混ざる。
+      //
+      // **SVG の文字は `color` では消えない。** グラフの目盛りは `fill` で
+      // 塗られているので、これを足すまで**字そのものを下地として測って**
+      // いた(比が 1〜2 になり、存在しない不具合が19件出た)。
+      // 消すのは `text`/`tspan` だけ。`*` に `fill:transparent` を当てると
+      // 折れ線や面まで消えて、今度は**本当の下地より易しい面**を測る。
+      content: `*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}text,tspan{fill:transparent!important}`,
+    });
+    const backdrop = await page.screenshot({ fullPage: true });
+    await hide.evaluate((n) => n.remove());
+    const bad = await page.evaluate(
+      ({ dataUrl, spots, dpr }) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement("canvas");
+            c.width = img.width;
+            c.height = img.height;
+            const x = c.getContext("2d", { willReadFrequently: true });
+            x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, c.width, c.height).data;
+            const lum = (r, g, b) => {
+              const f = (v) => {
+                v /= 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+              };
+              return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+            };
+            const out = [];
+            for (const s of spots) {
+              // 1点だけ読むと、縁の1画素や字間の隙間に当たったときに
+              // 全体の判断が振られる。文字の行の中に格子を張って、
+              // **明るさの中央値**を代表の下地とする。
+              const samples = [];
+              for (let gy = 1; gy <= 3; gy++) {
+                for (let gx = 1; gx <= 5; gx++) {
+                  const px = Math.round((s.x + (s.w * gx) / 6) * dpr);
+                  const py = Math.round((s.y + (s.h * gy) / 4) * dpr);
+                  if (px < 0 || py < 0 || px >= c.width || py >= c.height) continue;
+                  const i = (py * c.width + px) * 4;
+                  samples.push({ r: d[i], g: d[i + 1], b: d[i + 2] });
+                }
+              }
+              if (!samples.length) continue;
+              samples.sort((a, b) => lum(a.r, a.g, a.b) - lum(b.r, b.g, b.b));
+              const bg = samples[Math.floor(samples.length / 2)];
+              const shown = {
+                r: s.r * s.a + bg.r * (1 - s.a),
+                g: s.g * s.a + bg.g * (1 - s.a),
+                b: s.b * s.a + bg.b * (1 - s.a),
+              };
+              const L1 = lum(shown.r, shown.g, shown.b);
+              const L2 = lum(bg.r, bg.g, bg.b);
+              const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+              const need = s.big ? 3 : 4.5;
+              if (ratio < need) {
+                out.push(`コントラスト ${ratio.toFixed(2)} < ${need} — "${s.label}" ${s.px}px`);
+              }
+            }
+            resolve(out);
+          };
+          img.src = dataUrl;
+        }),
+      {
+        dataUrl: "data:image/png;base64," + backdrop.toString("base64"),
+        spots,
+        dpr: 2, // deviceScaleFactor
+      },
+    );
+    bad.forEach((f) => issues.push(`[${name}] ${f}`));
+  }
 
   // ## 棚板の濃さは**撮った絵の画素で測る**
   //

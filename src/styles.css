@@ -148,6 +148,10 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
+  /* アルバムの台紙・印画紙の上に載せる字。**テーマに追従させない**。
+     理由は下の --album-ink の定義に書いた。 */
+  --color-album-ink: var(--album-ink);
+  --color-album-ink-dim: var(--album-ink-dim);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -586,8 +590,25 @@
     0 0,
     56px 0;
 }
+/* ── アルバムの上に載せる字の色 ──────────────────────────────────────
+   台紙(紙・額・ノート・コルク)も印画紙も、**テーマに関係なく明るい面**で
+   固定してある。そこに `text-muted-foreground` のようなテーマ追従の色を
+   載せると、暗いテーマで「明るい灰色を白い印画紙に載せる」ことになる。
+   実際そうなっていて、画像がまだ無いカードの見出し語が暗いテーマで
+   2.39:1 だった。台紙が固定なら、その上の字も固定でなければ噛み合わない。
+
+   検査は画素で測るので、ここの数字は暗算ではなく実測で決めた:
+   いちばん暗い台紙(コルク)に対して 4.5:1 を満たす濃さが --album-ink、
+   いちばん明るい面(印画紙)に対して 4.5:1 を満たす薄さが --album-ink-dim。 */
+:root {
+  --album-ink: oklch(0.3 0.03 68);
+  --album-ink-dim: oklch(0.52 0.02 68);
+}
 .album-bg-cork {
-  background-color: #c89a5b;
+  /* コルクを少し明るくした。元の #c89a5b は、その上で 4.5:1 を満たす字が
+     ほぼ黒になり「コルクに黒マジック」になる。板を明るくするほうが、
+     字を濃くするより見た目が保つ。 */
+  background-color: #d8b184;
   background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.18) 1px, transparent 2px),
     radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.18) 1px, transparent 2px),

@@ -13,7 +13,7 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
+import { BookText, Image as ImageIcon, ImageOff, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -34,7 +34,6 @@ function dayKey(d: Date) {
 
 /** Offline captures waiting for AI analysis (queued in IndexedDB). */
 function PendingCapturesBanner() {
-  const t = useT();
   const [pending, setPending] = useState<PendingCapture[]>([]);
   /**
    * 「捨てる」の二段階目。**どの写真に対して構えているか**まで持つ。
@@ -71,15 +70,52 @@ function PendingCapturesBanner() {
   if (pending.length === 0) return null;
   const first = pending[0];
   return (
+    <PendingCapturesCard
+      pending={pending}
+      confirming={confirmingId === first.id}
+      onDiscard={() => {
+        if (confirmingId !== first.id) {
+          setConfirmingId(first.id);
+          return;
+        }
+        void removePendingCapture(first.id).then(() => {
+          setConfirmingId(null);
+          void listPendingCaptures().then(setPending);
+        });
+      }}
+    />
+  );
+}
+
+/**
+ * 預かり中の写真の帯(見た目だけ)。
+ *
+ * 状態(IndexedDB の読み直し・二段階の「捨てる」)は上の
+ * `PendingCapturesBanner` に残し、**描くところだけ**を切り出した。
+ * IndexedDB を触る側のままでは検査のハーネスから描けず、
+ * オフラインでしか出ないこの帯が一度も機械に見られていなかった。
+ */
+export function PendingCapturesCard({
+  pending,
+  confirming,
+  onDiscard,
+}: {
+  pending: PendingCapture[];
+  confirming: boolean;
+  onDiscard: () => void;
+}) {
+  const t = useT();
+  const first = pending[0];
+  return (
     // 全体を <Link> にすると**捨てる手段が置けない**。預かった写真は
     // 端末に残り続けるので、要らないものを消す道が要る(§16)。
-    <div className="mb-4 rounded-2xl border border-amber-300/60 bg-amber-50 p-3 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/40">
+    <div className="mb-4 rounded-2xl border border-warn/35 bg-warn/10 p-3 shadow-sm">
       <Link
         to="/capture"
         search={{ pending: first.id }}
         className="press-in flex items-center gap-3"
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-amber-200 dark:bg-amber-900/40 dark:ring-amber-700/40">
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-card ring-1 ring-warn/30">
           {first.object_img ? (
             <img
               src={first.object_img}
@@ -87,16 +123,16 @@ function PendingCapturesBanner() {
               className="h-full w-full object-cover"
             />
           ) : (
-            <WifiOff className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+            <WifiOff className="h-5 w-5 text-warn" />
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">
-            📥 {t("home.pendingCount")}: {pending.length}
+          {/* 📥 は外した。左に**写真そのもの**が既に在るので、絵文字は
+              同じことを二度言っているうえ、暗い面で色が調整できない。 */}
+          <span className="block text-sm font-semibold text-foreground">
+            {t("home.pendingCount")}: {pending.length}
           </span>
-          <span className="block text-xs text-amber-900/70 dark:text-amber-200/70">
-            {t("home.pendingCta")}
-          </span>
+          <span className="block text-xs text-muted-foreground">{t("home.pendingCta")}</span>
         </span>
       </Link>
 
@@ -106,20 +142,11 @@ function PendingCapturesBanner() {
           覆うほどの重さは要らない。 */}
       <div className="mt-2 flex justify-end">
         <button
-          onClick={() => {
-            if (confirmingId !== first.id) {
-              setConfirmingId(first.id);
-              return;
-            }
-            void removePendingCapture(first.id).then(() => {
-              setConfirmingId(null);
-              void listPendingCaptures().then(setPending);
-            });
-          }}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-amber-900/80 hover:bg-amber-100 dark:text-amber-200/80 dark:hover:bg-amber-900/40"
+          onClick={onDiscard}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground hover:bg-warn/12 hover:text-foreground"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          {confirmingId === first.id ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
+          {confirming ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
         </button>
       </div>
     </div>
@@ -136,7 +163,6 @@ const BG_OPTIONS = [
 type BgId = (typeof BG_OPTIONS)[number]["id"];
 
 function HomePage() {
-  const t = useT();
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
@@ -193,7 +219,13 @@ function HomePage() {
 
       <PendingCapturesBanner />
 
-      <BackgroundPicker current={bg} onChange={setBg} />
+      {/* 台紙を選ぶ列は、**台紙が出ているときだけ**。
+          1枚も無い日に4つの見本を並べても、押しても何も変わらない
+          (アルバムそのものが描かれていない)。押せるのに効かないものを
+          置かない — 初日に最初に見る画面なので、なおさら。 */}
+      {(todayStickers.length > 0 || pastDays.length > 0) && (
+        <BackgroundPicker current={bg} onChange={setBg} />
+      )}
 
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
@@ -202,71 +234,126 @@ function HomePage() {
         // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
         <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
       ) : todayStickers.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t("home.emptyTitle")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t("home.emptyHint")}</p>
-          <Link
-            to="/capture"
-            className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            {t("home.emptyCta")}
-          </Link>
-        </div>
+        <HomeEmptyState />
       ) : (
         <>
           <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} onOpen={setOpenId} />
-          <div className="mt-4 text-center">
-            <Link
-              to="/journal"
-              className="press-in inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
-            >
-              <BookText className="h-4 w-4 text-primary" />
-              {t("home.journal")}
-            </Link>
-          </div>
+          <JournalLink />
         </>
       )}
 
       {pastDays.length > 0 && (
-        <section className="mt-12 space-y-10">
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
-              {t("home.pastPages")}
-            </span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
-              古い日が黙って消えると**その日は何も撮らなかった**ように見える。
-              出せていないなら、そう言う(§8)。 */}
-          {stickers?.truncated && (
-            <p
-              role="status"
-              className="rounded-xl bg-secondary px-3 py-2 text-[11px] text-muted-foreground"
-            >
-              {t("dex.truncated", {
-                n: String(stickers.items.length),
-                total: String(stickers.total ?? stickers.items.length),
-              })}
-            </p>
-          )}
-          {pastDays.map(([k, items]) => (
-            <div key={k}>
-              {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
-                  midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
-                  for users west of UTC). */}
-              <DayHeader date={new Date(`${k}T00:00:00`)} compact />
-              <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={setOpenId} />
-            </div>
-          ))}
-        </section>
+        <PastDays
+          days={pastDays}
+          bgClass={bgClass}
+          onOpen={setOpenId}
+          truncated={stickers?.truncated ?? false}
+          shown={stickers?.items.length ?? 0}
+          total={stickers?.total ?? stickers?.items.length ?? 0}
+        />
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
 }
 
-function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: BgId) => void }) {
+/** 今日はまだ1枚も無いとき。**始めたばかりの人が最初に見る面**。 */
+export function HomeEmptyState() {
+  const t = useT();
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
+      <p className="text-sm text-muted-foreground">{t("home.emptyTitle")}</p>
+      {/* 日本語は行の途中で折り返すと読みにくい(「ここ / に貼られます」に
+          なっていた)。`text-balance` で行の長さを揃える。 */}
+      <p className="mt-1 text-balance text-xs text-muted-foreground">{t("home.emptyHint")}</p>
+      <Link
+        to="/capture"
+        className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+      >
+        {t("home.emptyCta")}
+      </Link>
+    </div>
+  );
+}
+
+/** 日記への唯一の入口。 */
+export function JournalLink() {
+  const t = useT();
+  return (
+    <div className="mt-4 text-center">
+      <Link
+        to="/journal"
+        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold shadow-sm"
+      >
+        <BookText className="h-4 w-4 text-primary" />
+        {t("home.journal")}
+      </Link>
+    </div>
+  );
+}
+
+/** 今日より前の日。区切り・打ち切りの断り・日ごとのアルバム。 */
+export function PastDays({
+  days,
+  bgClass,
+  onOpen,
+  truncated,
+  shown,
+  total,
+}: {
+  days: Array<[string, StickerWithWord[]]>;
+  bgClass: string;
+  onOpen: (id: string) => void;
+  truncated: boolean;
+  shown: number;
+  total: number;
+}) {
+  const t = useT();
+  const isEn = useUiLang() === "en";
+  return (
+    <section className="mt-12 space-y-10">
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        {/* §15: 大文字化と広い字間は**ラテン文字の作法**。全角の仮名漢字に
+            当てると「こ れ ま で の ペ ー ジ」と間延びして、区切りの小さな
+            ラベルではなく別の見出しに見える。日本語は素の字間で組む。 */}
+        <span
+          className={`text-[11px] text-muted-foreground ${
+            isEn ? "uppercase tracking-[0.3em]" : "tracking-normal"
+          }`}
+        >
+          {t("home.pastPages")}
+        </span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
+          古い日が黙って消えると**その日は何も撮らなかった**ように見える。
+          出せていないなら、そう言う(§8)。 */}
+      {truncated && (
+        <p role="status" className="rounded-xl bg-secondary px-3 py-2 text-[11px] text-foreground">
+          {t("dex.truncated", { n: String(shown), total: String(total) })}
+        </p>
+      )}
+      {days.map(([k, items]) => (
+        <div key={k}>
+          {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
+              midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
+              for users west of UTC). */}
+          <DayHeader date={new Date(`${k}T00:00:00`)} compact />
+          <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={onOpen} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export function BackgroundPicker({
+  current,
+  onChange,
+}: {
+  current: BgId;
+  onChange: (b: BgId) => void;
+}) {
   const t = useT();
   return (
     <div className="mb-3 flex items-center justify-end">
@@ -289,7 +376,15 @@ function BackgroundPicker({ current, onChange }: { current: BgId; onChange: (b: 
   );
 }
 
-function DayHeader({ date, label, compact }: { date: Date; label?: string; compact?: boolean }) {
+export function DayHeader({
+  date,
+  label,
+  compact,
+}: {
+  date: Date;
+  label?: string;
+  compact?: boolean;
+}) {
   const isEn = useUiLang() === "en";
   const locale = isEn ? "en-US" : "ja-JP";
   const dateLabel = date.toLocaleDateString(locale, {
@@ -317,8 +412,11 @@ function DayHeader({ date, label, compact }: { date: Date; label?: string; compa
       >
         {dateLabel}
       </h1>
+      {/* 曜日も同じ。「土 曜 日」と割れて見えていた。 */}
       <p
-        className={`${compact ? "" : "mt-0.5"} text-xs uppercase tracking-[0.25em] text-muted-foreground`}
+        className={`${compact ? "" : "mt-0.5"} text-xs text-muted-foreground ${
+          isEn ? "uppercase tracking-[0.25em]" : "tracking-normal"
+        }`}
       >
         {weekday}
       </p>
@@ -337,7 +435,7 @@ const ALBUM_SIZES = [
   "col-span-1 row-span-1",
 ];
 
-function ScrapbookAlbum({
+export function ScrapbookAlbum({
   stickers,
   bgClass,
   onOpen,
@@ -397,11 +495,19 @@ function ScrapbookAlbum({
                     />
                   </div>
                 ) : (
-                  // 画像がまだ無いカード: 単語そのものを見せる(段ボール絵は廃止)
-                  <div className="grid h-full w-full place-items-center px-2 text-center">
-                    <span lang="zh-Hant" className="text-lg font-semibold text-muted-foreground">
-                      {s.word.headword}
-                    </span>
+                  // 画像がまだ無いカード。
+                  //
+                  // **同じ語を2回書かない。** ここには見出し語を大きく置いて
+                  // いたが、下の白フチの帯にも同じ語が入る。撮った画像で見ると
+                  // 「腳踏車 / 腳踏車」と2段に並んでいて、誤りにしか見えない
+                  // (数字の検査は「読める濃さか」しか見ないので通っていた)。
+                  // 帯のほうが全カード共通なので、語は帯に一本化し、ここには
+                  // **写真がまだ無いこと**だけを静かに示す。
+                  <div className="grid h-full w-full place-items-center">
+                    <ImageOff
+                      aria-label={t("home.noPhotoYet")}
+                      className="h-6 w-6 text-album-ink-dim"
+                    />
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
@@ -412,7 +518,7 @@ function ScrapbookAlbum({
                     多く小さいと潰れるため、字間も少し開ける。 */}
                 <span
                   lang="zh-Hant"
-                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[14px] font-semibold leading-[22px] tracking-[0.02em] text-stone-900"
+                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-[14px] font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
                 >
                   {s.word.headword}
                 </span>
@@ -428,8 +534,10 @@ function ScrapbookAlbum({
           handwritten album caption; Japanese renders the whole line in one
           consistent face. (Same reason the headword above avoids .handwritten.) */}
       <div className="relative mt-8 text-right">
+        {/* 台紙の上の字なので**固定のインク**。`text-amber-900/70` は
+            番号直書き + 70% で、紙で 3.56:1、コルクで 2.35:1 しか無かった。 */}
         <span
-          className={`text-base text-amber-900/70 ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
+          className={`text-base text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
         >
           — {stickers.length} {t("home.memories")}
         </span>

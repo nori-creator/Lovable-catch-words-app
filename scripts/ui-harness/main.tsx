@@ -17,6 +17,7 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
+import { HomeEmptyScene, HomePastScene, HomePendingScene, HomeScene } from "./scenes/home";
 import {
   ReviewChoiceScene,
   ReviewEndScene,
@@ -40,6 +41,10 @@ import "@/styles.css";
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   shelf: ShelfScene,
+  home: HomeScene,
+  "home-empty": HomeEmptyScene,
+  "home-past": HomePastScene,
+  "home-pending": HomePendingScene,
   "load-failed": LoadFailedScene,
   "shelf-options": ShelfOptionsScene,
   chunks: ChunksScene,
