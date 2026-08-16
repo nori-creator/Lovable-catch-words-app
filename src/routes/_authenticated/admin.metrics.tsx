@@ -184,7 +184,7 @@ function SelfImprovePanel() {
             })
           : "まだ"}
         {" · 人間レビュー待ち "}
-        <span className={st?.needs_review ? "font-semibold text-warn" : ""}>
+        <span className={st?.needs_review ? "font-semibold text-warn-ink" : ""}>
           {st?.needs_review ?? 0}
         </span>{" "}
         件

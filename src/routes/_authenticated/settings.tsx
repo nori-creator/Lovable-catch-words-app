@@ -521,7 +521,7 @@ export function DangerZone({
       open={defaultOpen}
       className="group rounded-2xl border border-destructive/30 bg-card p-4"
     >
-      <summary className="cursor-pointer list-none text-sm font-semibold text-destructive [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-sm font-semibold text-destructive-ink [&::-webkit-details-marker]:hidden">
         {t("settings.deleteAccount")}
       </summary>
       <div className="mt-3 space-y-3">
@@ -598,8 +598,8 @@ function DeveloperPanel() {
             value == null
               ? "text-muted-foreground"
               : ok
-                ? "font-semibold text-ok"
-                : "font-semibold text-bad"
+                ? "font-semibold text-ok-ink"
+                : "font-semibold text-bad-ink"
           }
         >
           {value == null ? t("settings.metricNone") : `${(value / 1000).toFixed(2)}s`}
@@ -1084,7 +1084,7 @@ function AiModelPanel() {
           {(data?.presets ?? []).map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2">
               <span className="truncate">{p.label}</span>
-              <span className={p.key_present ? "text-ok" : "text-muted-foreground"}>
+              <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
                 {p.key_present
                   ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
                   : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}

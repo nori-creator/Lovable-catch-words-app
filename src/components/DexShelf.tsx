@@ -155,7 +155,7 @@ export function DexShelf({ stickers, activeCategory, onOpen, justCaught, style =
     <div className="space-y-8" data-shelf-material={material}>
       {hasRepeats && (
         <p className="flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground">
-          <span className="rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background">
+          <span className="rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-warn-foreground">
             ×2
           </span>
           {t("dex.metCountLegend")}
@@ -331,7 +331,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
+            className="absolute right-0 top-0 z-10 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-warn-foreground shadow"
           >
             ×{s.encounter_count}
           </span>
@@ -388,7 +388,7 @@ function ShelfItem({
         {s.encounter_count > 1 && (
           <span
             aria-hidden
-            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-background shadow"
+            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-[0.625rem] font-bold leading-[1.4] text-warn-foreground shadow"
           >
             ×{s.encounter_count}
           </span>

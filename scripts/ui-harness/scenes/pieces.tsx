@@ -37,9 +37,9 @@ export function TokensScene() {
     ["bg-accent text-accent-foreground", "強調の面の文字"],
   ];
   const tints = [
-    ["text-primary", "地の上の主色の文字"],
+    ["text-primary-ink", "地の上の主色の文字"],
     ["text-muted-foreground", "地の上の副次の文字"],
-    ["text-destructive", "地の上の警告の文字"],
+    ["text-destructive-ink", "地の上の警告の文字"],
   ];
   return (
     <div className="space-y-3">
@@ -54,7 +54,9 @@ export function TokensScene() {
         </p>
       ))}
       {/* 主色を薄く敷いた上の主色の文字。印(chip)でよく使う組み合わせ。 */}
-      <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">薄い主色の上の主色</p>
+      <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary-ink">
+        薄い主色の上の主色
+      </p>
     </div>
   );
 }

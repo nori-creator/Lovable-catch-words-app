@@ -117,7 +117,7 @@ export function DexShelfOptions({
               }`}
             >
               <span
-                className={`text-sm font-semibold ${style === v ? "text-primary" : "text-foreground"}`}
+                className={`text-sm font-semibold ${style === v ? "text-primary-ink" : "text-foreground"}`}
               >
                 {label[v].name}
               </span>

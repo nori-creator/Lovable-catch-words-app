@@ -148,6 +148,13 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
+  /* 地の上に**文字**として置くとき用。塗りより暗い(明るい面)/明るい(暗い面)。 */
+  --color-primary-ink: var(--primary-ink);
+  --color-destructive-ink: var(--destructive-ink);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-ok-ink: var(--ok-ink);
+  --color-warn-ink: var(--warn-ink);
+  --color-bad-ink: var(--bad-ink);
   /* アルバムの台紙・印画紙の上に載せる字。**テーマに追従させない**。
      理由は下の --album-ink の定義に書いた。 */
   --color-album-ink: var(--album-ink);
@@ -190,21 +197,36 @@
   --card-foreground: oklch(0.18 0.02 250);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 250);
-  /* Apple-style vivid blue */
-  /* 明度は**測って決めた**。0.62 のままだと白い文字で 3.60:1 で、
-     14px の本文の下限(4.5:1)を割る = アプリ中の主ボタンの文字が全部
-     未達だった。0.55 で 4.5:1 を越える。 */
-  --primary: oklch(0.52 0.21 255);
+  /* Apple-style vivid blue.
+     ## 一度暗くして、戻した
+     白い文字を 4.5:1 に乗せるために 0.62 → 0.52 まで落としたことがある。
+     数字は通ったが、**ブランドの青がどす黒くなった**(オーナー指摘)。
+     順序が逆だった: 色を暗くして文字を通すのではなく、
+     **色は色のまま、載せる文字のほうを選ぶ**(下の --primary-foreground)。
+     iOS の systemBlue(#007AFF)も白文字で 3.6:1 で、Apple はこの見た目を
+     採っている。ここも同じ判断にする — 決めたのはオーナー。 */
+  --primary: oklch(0.62 0.21 255);
   --primary-foreground: oklch(0.99 0 0);
+  /* 地の上に**文字**として置く青。`text-primary` と書きたくなる所は
+     `text-primary-ink`。
+
+     **列挙しない。塗りから導く。** テーマは6つあり、そのうち5つは
+     `:root[data-ui-theme=…]` で `--primary` を自分で上書きしている。
+     ink を明暗2箇所に書くと、その5テーマには**永久に届かない**
+     (高コントラストで一度これを踏んでいる)。
+     地の文字色へ寄せる混色にすれば、どのテーマの上書きにも自動で追従する
+     — 明るいテーマなら暗い側へ、暗いテーマなら明るい側へ動く。 */
+  --primary-ink: color-mix(in oklab, var(--primary) 72%, var(--foreground));
   --secondary: oklch(0.96 0.01 250);
   --secondary-foreground: oklch(0.22 0.03 255);
   --muted: oklch(0.96 0.01 250);
   --muted-foreground: oklch(0.5 0.02 255);
   --accent: oklch(0.94 0.04 250);
   --accent-foreground: oklch(0.25 0.08 255);
-  /* 白い文字を載せる面なので、明度は**測って決めた**(0.6 では 4.30:1)。 */
-  --destructive: oklch(0.55 0.22 25);
+  /* 同上。赤も 0.6 → 0.55 に落としていたのを戻す。 */
+  --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
+  --destructive-ink: color-mix(in oklab, var(--destructive) 72%, var(--foreground));
   --border: oklch(0.92 0.01 250);
   --input: oklch(0.94 0.01 250);
   --ring: oklch(0.62 0.21 255);
@@ -1068,14 +1090,29 @@
    `text-green-600` `bg-red-500/10` のように素の番号で書かれていた所を
    まとめる。番号直書きの問題は**暗いテーマに一切追従しない**こと —
    テーマを6つ持っているのに、実際には明るい面ぶんしか無かった。
-   明暗それぞれ、文字として 4.5:1 を満たす明度にする。 */
+
+   ## 1色で2役をやらせない(これが「どす黒くなった」原因)
+   最初、同じ1色を**塗りにも文字にも**使っていた。文字として 4.5:1 を
+   満たそうとすると明度を落とすしかなく、その結果**塗りまで暗くなった** —
+   緑も赤も沈んだ色になった(オーナー指摘)。
+   分ける。塗りは色として気持ちよく、文字は読めるように、それぞれ決める:
+     --ok      … 塗り・縁・印(地に対して 3:1。WCAG 1.4.11)
+     --ok-ink  … 地の上に置く**文字**(4.5:1)
+   `text-ok` と書きたくなる所は `text-ok-ink` を使う。 */
 :root {
   /* 文のかたまりの2色。動詞は温かい側、目的語は冷たい側に離す。 */
   --chunk-v: oklch(0.48 0.17 20);
   --chunk-o: oklch(0.46 0.13 235);
-  --ok: oklch(0.5 0.14 155);
-  --warn: oklch(0.48 0.12 75);
-  --bad: oklch(0.52 0.2 27);
+  --ok: oklch(0.64 0.17 155);
+  --warn: oklch(0.72 0.15 75);
+  --bad: oklch(0.62 0.23 27);
+  --ok-ink: oklch(0.48 0.14 155);
+  --warn-ink: oklch(0.46 0.12 75);
+  --bad-ink: oklch(0.52 0.2 27);
+  /* 琥珀の上に載せる文字。**白は乗らない** — 琥珀はどのテーマでも明るい側の
+     色なので、白を置くと 2.46:1 にしかならない(×3 の印がそうだった)。
+     明暗どちらのテーマでも濃い側の文字にする。 */
+  --warn-foreground: oklch(0.22 0.05 75);
 }
 .dark,
 :root[data-ui-theme="darkroom"],
@@ -1085,9 +1122,15 @@
 :root[data-ui-theme="collection"] {
   --chunk-v: oklch(0.78 0.15 22);
   --chunk-o: oklch(0.78 0.12 235);
-  --ok: oklch(0.82 0.15 158);
-  --warn: oklch(0.85 0.14 82);
-  --bad: oklch(0.76 0.16 27);
+  /* 暗い面では地が暗いので、塗りも文字も明るい側で足りる。
+     それでも2つに分けておく — 片方だけ調整したくなる日が来る。 */
+  --ok: oklch(0.76 0.18 158);
+  --warn: oklch(0.8 0.16 82);
+  --bad: oklch(0.7 0.2 27);
+  --ok-ink: oklch(0.85 0.15 158);
+  --warn-ink: oklch(0.87 0.14 82);
+  --bad-ink: oklch(0.78 0.16 27);
+  --warn-foreground: oklch(0.2 0.05 82);
 }
 
 /* ── 記憶の6段階の色 ────────────────────────────────────────────

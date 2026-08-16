@@ -972,7 +972,7 @@ function WebImagesBody({
           href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(headword)}`}
           target="_blank"
           rel="noreferrer"
-          className="relative inline-flex items-center gap-1 text-xs text-primary underline before:absolute before:-inset-x-1 before:-inset-y-3.5 before:content-['']"
+          className="relative inline-flex items-center gap-1 text-xs text-primary-ink underline before:absolute before:-inset-x-1 before:-inset-y-3.5 before:content-['']"
         >
           {t("card.searchGoogle")} <ExternalLink className="h-3 w-3" />
         </a>

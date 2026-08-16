@@ -631,12 +631,12 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
         <div className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-secondary/60 p-2">
             <div className="text-[11px] text-muted-foreground">{t("memory.bestReview")}</div>
-            <div className="text-sm font-bold text-ok">{bestLabel ?? "—"}</div>
+            <div className="text-sm font-bold text-ok-ink">{bestLabel ?? "—"}</div>
           </div>
           <div className="rounded-xl bg-secondary/60 p-2">
             <div className="text-[11px] text-muted-foreground">{t("memory.forgetIn")}</div>
             <div
-              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad" : ""}`}
+              className={`text-sm font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad-ink" : ""}`}
             >
               {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
             </div>
@@ -649,7 +649,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
 
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
           {t("rv.formula1")}
-          {t("rv.formula2")} <b className="text-ok">{t("rv.greenLine")}</b>
+          {t("rv.formula2")} <b className="text-ok-ink">{t("rv.greenLine")}</b>
           {t("rv.formula3")}
         </p>
       </div>
@@ -1078,7 +1078,7 @@ function SpeakingCard({
               className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-base"
               dir="auto"
             />
-            {error && <p className="text-xs text-bad">{error}</p>}
+            {error && <p className="text-xs text-bad-ink">{error}</p>}
 
             <div className="flex gap-2">
               <button
@@ -1619,7 +1619,7 @@ export function LightModeCard({
                 className={`-mx-4 mb-2 px-4 py-1.5 ${correct ? "bg-ok/12" : "bg-bad/12"}`}
                 role="status"
               >
-                <span className={`text-base font-bold ${correct ? "text-ok" : "text-bad"}`}>
+                <span className={`text-base font-bold ${correct ? "text-ok-ink" : "text-bad-ink"}`}>
                   {correct ? t("review.correct") : t("review.tryAgain")}
                 </span>
               </div>
@@ -1806,7 +1806,7 @@ export function DoneState({ onAgain }: { onAgain: () => void }) {
         </Link>
         <button
           onClick={onAgain}
-          className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-sm font-semibold text-primary"
+          className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-sm font-semibold text-primary-ink"
         >
           {t("review.again")}
         </button>
