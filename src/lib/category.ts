@@ -202,7 +202,16 @@ const CONTAINS: Array<[RegExp, CategoryKey]> = [
 export function normalizeCategory(headword: string, cat: string | null | undefined): CategoryKey {
   const h = (headword ?? "").trim();
   if (h) {
-    const exact = EXACT[h];
+    // **自分が持っている鍵だけを認める。**
+    // `EXACT[h]` は継承したプロパティにも当たるので、見出し語が
+    // `"constructor"` や `"toString"` だと Object.prototype の**関数**が
+    // 返り、それが真なのでそのまま「カテゴリー」として返っていた。
+    // 型は `CategoryKey` と言っているのに中身は関数、という嘘の値になる。
+    //
+    // 同じ穴は `asCategoryKey` で一度潰したのに、**すぐ隣のこの引きを
+    // 見落としていた**。1箇所直したら同じ形を探すこと。
+    // (文字キャッチは見出し語を人が打てるので、机上の話ではない)
+    const exact = Object.prototype.hasOwnProperty.call(EXACT, h) ? EXACT[h] : undefined;
     if (exact) return exact;
     for (const [re, key] of SUFFIX) if (re.test(h)) return key;
     for (const [re, key] of CONTAINS) if (re.test(h)) return key;

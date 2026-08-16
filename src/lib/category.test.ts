@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  CATEGORY_KEYS,
   CATEGORY_META,
   ROOM_KEYS,
   ROOM_CATEGORIES,
   asCategoryKey,
   categoryEmoji,
+  normalizeCategory,
 } from "./category";
 
 /**
@@ -64,5 +66,21 @@ describe("asCategoryKey", () => {
       expect(() => categoryEmoji(evil)).not.toThrow();
       expect(typeof categoryEmoji(evil)).toBe("string");
     }
+  });
+
+  it("見出し語が Object.prototype の名前でも、関数を返さない", () => {
+    // `EXACT[h]` も同じ穴を持っていた。`asCategoryKey` では潰したのに、
+    // **すぐ隣のこの引きだけ見落としていた**(1箇所直したら同じ形を探す)。
+    // 文字キャッチは見出し語を人が打てるので、机上の話ではない。
+    for (const evil of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+      const got = normalizeCategory(evil, null);
+      expect(typeof got, `${evil} で ${typeof got} が返った`).toBe("string");
+      expect(CATEGORY_KEYS as readonly string[]).toContain(got);
+    }
+  });
+
+  it("見出し語が既知でなければ、AI の答えを尊重する", () => {
+    expect(normalizeCategory("沒有この語", "drink")).toBe("drink");
+    expect(normalizeCategory("沒有この語", "存在しない鍵")).toBe("other");
   });
 });

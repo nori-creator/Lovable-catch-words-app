@@ -37,7 +37,6 @@ import {
   LoadFailedScene,
   PronunciationScene,
   ScanDetailScene,
-  ShelfOptionsScene,
   TokensScene,
 } from "./scenes/pieces";
 import "@/styles.css";
@@ -59,7 +58,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
-  "shelf-options": ShelfOptionsScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,
