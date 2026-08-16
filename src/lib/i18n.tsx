@@ -144,6 +144,15 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "全 {total} 件のうち、新しい {n} 件を表示しています。これより古いものはまだ出せていません。",
     en: "Showing the newest {n} of {total}. Older ones aren't loaded yet.",
   },
+  // 「×3」はこのアプリが決めた記号なので、出ているときは意味を添える。
+  "dex.metCountLegend": {
+    ja: "は、その言葉に出会った回数です",
+    en: "means how many times you've met that word",
+  },
+  "dex.metCountAria": {
+    ja: "{word} — {n} 回出会った",
+    en: "{word} — met {n} times",
+  },
   "dex.allCategories": { ja: "すべて", en: "All" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar" },
   "dex.calendarEmpty": {

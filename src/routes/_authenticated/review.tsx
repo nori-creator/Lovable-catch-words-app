@@ -1436,6 +1436,37 @@ export function LightModeCard({
   const phonetic = usePhoneticPref();
   const [picked, setPicked] = useState<string | null>(null);
   const startedAt = useRef<number>(Date.now());
+  /**
+   * 答え合わせの面が覆う高さ。**測った値を使う。**
+   *
+   * ここは `h-52`(208px)の決め打ちだった。実際の面は band + 見出し語 +
+   * よく使う形 + 「次へ」+ 下端の余白で 270px 前後あるので、
+   * **いちばん下の選択肢は送り切っても下敷きのままだった**
+   * (検査を足したら「雨傘の発音」が出てこないと出た)。
+   * 見比べて覚える場面で、外れの選択肢が読めないのは中身が無いのと同じ。
+   *
+   * 面の高さは言語や語の長さで変わるので、定数では合わせ続けられない。
+   * 実寸を観測して、その分だけ逃げ場を作る。
+   */
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelH, setPanelH] = useState(0);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) {
+      setPanelH(0);
+      return;
+    }
+    // **`contentRect` は使わない。** あれは内容の箱(padding を含まない)なので、
+    // この面が持っている下端の余白(safe-area + 下タブぶんの 4.5rem)が
+    // 丸ごと抜け落ちる。抜けた 72px ぶん逃げ場が足りず、いちばん下の
+    // 選択肢は下敷きのままだった — 定数をやめて測っても、測る所を
+    // 間違えれば同じことになる。実際に覆う高さは外枠の高さ。
+    const measure = () => setPanelH(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [picked]);
   // 正誤はクライアントで即時判定する。以前はサーバー応答を待つ間
   // `!showResult?.correct` が true になり、正解タップでも一瞬❌が出ていた。
   const correct = picked != null && picked === card.headword;
@@ -1560,14 +1591,17 @@ export function LightModeCard({
         {/* 答え合わせの面が下から覆う分の逃げ場。**これが無いと、覆われた
             選択肢はスクロールしても出てこない** — 見比べて覚える場面で
             外れの選択肢が読めなくなる(薄くするのをやめたのと同じ理由)。 */}
-        {picked && <div aria-hidden className="h-52" />}
+        {picked && <div aria-hidden style={{ height: panelH }} />}
         {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
             毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
             意味がないので出さない。例文は長くて読まれないため、
             「ネイティブが最もよく一緒に使う形」1つに絞る。 */}
         {picked && (
-          <div className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]">
+          <div
+            ref={panelRef}
+            className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+          >
             {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
                 影で浮いていることを示す。 */}

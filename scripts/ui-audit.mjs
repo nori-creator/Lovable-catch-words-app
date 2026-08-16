@@ -191,6 +191,10 @@ const MODES = [
   ...crossThemes("settings-selects", { scene: "settings-selects" }),
   ...crossThemes("settings-toggles", { scene: "settings-toggles" }),
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
+  // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている
+  // ことは分かっていたが、直す前にまず見えるようにする。
+  ...crossThemes("word-card", { scene: "word-card" }),
+  ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [
@@ -345,29 +349,87 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // 当たり判定だけ伸ばすのは正しいやり方で、`getBoundingClientRect()` は
       // それを見ない。44px 四方の四隅と中心で `elementFromPoint` を撃って、
       // 実際にその要素(かその中身)に当たるかで判定する。
+      // **祖先に当たったのを「当たった」と数えない。**
+      //
+      // 以前ここは `hit.contains(el)` も真としていた。つまり点が
+      // **そのボタンを含んでいる箱のどこか**に落ちれば合格で、
+      // 余白のある入れ物に入っている小さいボタンは何をしても通った
+      // (わざと当たり判定を外して確かめたら、実際に通り続けた)。
+      // 押して効くのはボタン自身(と `::before` で伸ばした範囲)だけなので、
+      // 自分か自分の中身に当たったときだけ数える。
       const hitsSelf = (el, x, y) => {
         const hit = document.elementFromPoint(x, y);
-        return !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+        return !!hit && (hit === el || el.contains(hit));
       };
+      // **画面の外に居るものは、先に画面の中へ運んでから撃つ。**
+      //
+      // `elementFromPoint` は表示領域の中しか答えない。以前はここで
+      // 画面外の点を捨てていて、残りが0個になると「押せる範囲を確かめられた」
+      // 側の分岐に入れず、**折り返しより下にある小さいボタンは全部
+      // 未達として出ていた**(実際、当たり判定を 44px に広げても数字が
+      // 1つも動かず、広げ方が悪いのだと2回作り直した。広げ方は正しくて、
+      // 検査が下を見ていなかった)。
+      const scrollBack = window.scrollY;
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
-        const r = el.getBoundingClientRect();
+        let r = el.getBoundingClientRect();
         if (r.width < 1 || r.height < 1) continue;
         if (r.width >= 44 && r.height >= 44) continue;
+        if (r.top < 24 || r.bottom > window.innerHeight - 24) {
+          el.scrollIntoView({ block: "center" });
+          r = el.getBoundingClientRect();
+        }
+        // **指は丸い。** 四角の四隅で撃つと、44px の丸ボタンが落ちる —
+        // 隅は円の外なので、当たるのは後ろの箱になる(実際、ちょうど 44px の
+        // 「閉じる」が未達として出た。指で押せば当たる)。
+        // 直径 44px の円を置き、中心と周囲8点で撃つ。四角いボタンにも
+        // そのまま使える(円は箱に収まる)。
         const cx = r.x + r.width / 2;
         const cy = r.y + r.height / 2;
-        const half = 22;
-        const pts = [
-          [cx - half + 1, cy - half + 1],
-          [cx + half - 1, cy - half + 1],
-          [cx - half + 1, cy + half - 1],
-          [cx + half - 1, cy + half - 1],
-        ].filter(([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight);
-        if (pts.length && pts.every(([x, y]) => hitsSelf(el, x, y))) continue;
+        const rad = 21;
+        const pts = [[cx, cy]];
+        for (let a = 0; a < 8; a++) {
+          const th = (a * Math.PI) / 4;
+          pts.push([cx + rad * Math.cos(th), cy + rad * Math.sin(th)]);
+        }
+        const inView = pts.filter(
+          ([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight,
+        );
+        // 運んでもなお全部は撃てない = そもそも画面に収まらない大きさ。
+        if (inView.length === pts.length && pts.every(([x, y]) => hitsSelf(el, x, y))) continue;
         const label = (el.getAttribute("aria-label") || el.title || el.textContent || "")
           .trim()
           .slice(0, 14);
         out.push(`タップ領域 ${Math.round(r.width)}x${Math.round(r.height)} < 44 — "${label}"`);
       }
+      // 2b. **押せるものが、何かの下敷きになったままでないこと**
+      //
+      // 画面下端に貼り付く面(答え合わせのパネルなど)は、後ろの中身を覆う。
+      // 覆うこと自体は普通だが、**送り切っても出てこない**なら、その中身は
+      // 事実上存在しない。逃げ場の高さを決め打ちにしていると必ずこれになる
+      // (実際、復習の4つ目の選択肢が最後まで隠れていた。見比べて覚える
+      //  場面で、外れの選択肢が読めない)。
+      //
+      // 大きさに関係なく全部見る。上の 44px の検査は小さいものしか見ない。
+      for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
+        if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") continue;
+        const r0 = el.getBoundingClientRect();
+        if (r0.width < 4 || r0.height < 4) continue;
+        el.scrollIntoView({ block: "center" });
+        const r = el.getBoundingClientRect();
+        const cx = r.x + r.width / 2;
+        const cy = r.y + r.height / 2;
+        if (cx < 0 || cy < 0 || cx >= window.innerWidth || cy >= window.innerHeight) continue;
+        if (hitsSelf(el, cx, cy)) continue;
+        const over = document.elementFromPoint(cx, cy);
+        const label = (el.getAttribute("aria-label") || el.title || el.textContent || "")
+          .trim()
+          .slice(0, 14);
+        out.push(
+          `送り切っても下敷きのまま: "${label}" ← <${over ? over.tagName.toLowerCase() : "?"}>`,
+        );
+      }
+      // 撮る面が変わらないように戻す。
+      window.scrollTo(0, scrollBack);
       // 3. 横のはみ出し
       if (document.documentElement.scrollWidth > window.innerWidth + 1) {
         out.push(`横にはみ出し ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
@@ -433,7 +495,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
   // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
   //  「下地を一枚も見ない」よりは実物に近い。)
-  const spots = await page.evaluate(() => {
+  const { spots, centered } = await page.evaluate(() => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -473,6 +535,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
     // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
     const out = [];
+    const centered = [];
     for (const el of document.querySelectorAll("body *")) {
       const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
       if (!texts.length) continue;
@@ -480,6 +543,17 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
         continue;
       }
+      // **絵文字は `color` で塗られない。** 自前の色を持った図形なので、
+      // 継いだ文字色と下地を比べても何も言っていない(実際、丸い印の中の
+      // 絵文字が13件「未達」として出た。目には普通に見えている)。
+      // 文字が絵文字と記号だけなら、この検査の対象から外す。
+      // ただし**絵文字を含む文**は外さない — 混ざっている場合、文字のほうは
+      // ちゃんと `color` で塗られるので測れる。
+      const own = texts
+        .map((n) => n.textContent)
+        .join("")
+        .trim();
+      if (!/[\p{L}\p{N}]/u.test(own)) continue;
       // **SVG の文字は `color` では塗られない。** グラフの目盛りや注記は
       // `<text fill="…">` で描かれるので、`color` を読むと親から継いだ
       // 別の色を測ることになる(実際、忘却曲線の目盛りは無関係な色で
@@ -495,15 +569,53 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // なので比が 1.00 になっていた(存在しない不具合を6面ぶん報告した)。
       // 自分の直下の文字ノードだけを範囲にして、**いちばん大きい行**を使う。
       let line = null;
+      // **行数は「箱の数」ではなく「段の数」。**
+      // 文字ノードが2つあると1行でも矩形は2つ返るので、数えると
+      // 1行の見出しが「3行」になった(実際そう出た)。上端が同じものは
+      // 同じ行なので、上端の種類を数える。
+      const lineTops = new Set();
       for (const node of texts) {
         const rng = document.createRange();
         rng.selectNodeContents(node);
         for (const r of rng.getClientRects()) {
           if (r.width < 2 || r.height < 2) continue;
+          lineTops.add(Math.round(r.top));
           if (!line || r.width * r.height > line.width * line.height) line = r;
         }
       }
       if (!line) continue;
+      const lineCount = lineTops.size;
+      const px = parseFloat(cs.fontSize);
+      // **中央揃えの本文が何行も続かないこと。**
+      //
+      // 中央揃えは行頭が毎行ずれるので、目が次の行の頭を探し直す。
+      // 1行なら気にならない。**折り返した瞬間**からその手間が始まる。
+      //
+      // 線を「3行以上」に置いたら、わざと全部の節を中央揃えにしても
+      // 1件も出なかった — この画面の本文はどれも2行までなので、
+      // **落ちようのない門**だった。折り返した本文(17px 未満)を線にする。
+      // 見出し・キャッチ(17px 以上)は2行までなら普通の作法なので外す。
+      //
+      // 抜け道は `text-wrap: balance` を当てたときだけにする。空の画面の
+      // 案内文のように「中央に2行で置くと決めた」ものは実際にあるが、
+      // それは**決めた印**を残してほしい。`text-balance` は行の長さを
+      // 揃える指定なので、印であると同時に実際に読みやすくなる。
+      // 一括で除外せず、1箇所ずつ意思表示させる。
+      //
+      // 短い語は**モノに付いた名札**で、中央に置くのが正しい(棚に立って
+      // いる「腳踏車」が2行になるのは、中央揃えのせいではなく幅のせい)。
+      // 見ているのは**文章**なので、12文字以上に限る。
+      const cs2 = getComputedStyle(el);
+      if (
+        cs2.textAlign === "center" &&
+        lineCount >= 2 &&
+        px < 17 &&
+        own.length >= 12 &&
+        cs2.textWrap !== "balance" &&
+        cs2.textWrapStyle !== "balance"
+      ) {
+        centered.push(`中央揃えのまま ${lineCount} 行に折り返している — "${own.slice(0, 16)}"`);
+      }
       // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
       // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
       // 祖先の `opacity` も効くので、根まで掛け合わせる。
@@ -511,7 +623,6 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
         alpha *= parseFloat(getComputedStyle(n).opacity);
       }
-      const px = parseFloat(cs.fontSize);
       out.push({
         x: line.x + window.scrollX,
         y: line.y + window.scrollY,
@@ -523,15 +634,12 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         a: Math.max(0, Math.min(1, alpha)),
         px,
         big: px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700),
-        label: texts
-          .map((n) => n.textContent)
-          .join("")
-          .trim()
-          .slice(0, 12),
+        label: own.slice(0, 12),
       });
     }
-    return out;
+    return { spots: out, centered };
   });
+  centered.forEach((f) => issues.push(`[${name}] ${f}`));
   if (spots.length) {
     const hide = await page.addStyleTag({
       // `-webkit-text-fill-color` まで消す。`color` だけだと、それを当てている
@@ -950,6 +1058,19 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     }
   }
 
+  // **撮る前に必ず先頭へ戻す。**
+  //
+  // ここまでの段で頁は動く(押せる範囲を確かめるために要素を画面へ運ぶし、
+  // Tab を送ると焦点のある要素までブラウザが勝手にスクロールする)。
+  // 頁が下がったまま全体を撮ると、**上のバーは貼り付いた位置に描かれる** —
+  // つまり画像の真ん中にバーが写り、その下の中身が隠れる。
+  // 実際、長い単語カードで「発音のコツ」がバーの下敷きになった絵が出て、
+  // 一瞬アプリの不具合に見えた。目で見る門に嘘の絵を渡さない。
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(120);
   await page.screenshot({ path: path.join(OUT, `ui-${name}.png`), fullPage: true });
   await page.close();
 }
