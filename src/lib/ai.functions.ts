@@ -5,6 +5,7 @@ import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
 import { isTargetHeadword } from "./target-language";
+import { REGEN_SECTIONS, type RegenSection } from "./card-sections";
 import {
   assertWithinDailyCap,
   getAi,
@@ -490,21 +491,10 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
 // words は共有テーブルなので updateWordExtras と同じ所有チェック
 // (この語のステッカーを持つユーザーのみ)+Pro 限定+日次キャップ。
 
-const REGEN_SECTIONS = [
-  "meaning",
-  "measure_words",
-  "usage_context",
-  "example",
-  "examples_extra",
-  "usage_chunks",
-  "related_words",
-  "quick_facts",
-  "pronunciation_tips",
-  "etymology",
-  "mnemonic",
-  "taiwan_note",
-] as const;
-export type RegenSection = (typeof REGEN_SECTIONS)[number];
+// 節の一覧は画面と**同じ出所**を見る。別々に持っていたので、
+// 片方にだけ足すと「押せるのに弾かれる / 作れるのにボタンが出ない」が
+// エラー無しで起きていた。
+export type { RegenSection } from "./card-sections";
 
 const RegenInput = z.object({
   word_id: z.string().uuid(),

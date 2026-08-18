@@ -21,6 +21,8 @@ import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { usableQuickFacts } from "@/lib/extras";
+// 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
+import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -48,21 +50,6 @@ export type WordCardData = {
  *   勉強のコツ                    → pronunciation_tips(発音のコツ)
  *   雑学+語法ノート              → taiwan_note(台湾メモ)
  */
-type SectionId =
-  | "meaning"
-  | "web_images"
-  | "usage_context"
-  | "example"
-  | "examples_extra"
-  | "usage_chunks"
-  | "measure_words"
-  | "related_words"
-  | "pronunciation_tips"
-  | "quick_facts"
-  | "etymology"
-  | "mnemonic"
-  | "taiwan_note"
-  | "real_usage";
 
 /** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
 const ALL_SECTIONS: { id: SectionId }[] = [
@@ -84,23 +71,6 @@ const ALL_SECTIONS: { id: SectionId }[] = [
   { id: "mnemonic" },
   { id: "taiwan_note" },
   { id: "real_usage" },
-];
-
-/** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
-const REGEN_SECTIONS: SectionId[] = [
-  "meaning",
-  "measure_words",
-  "usage_context",
-  "example",
-  "examples_extra",
-  "usage_chunks",
-  "measure_words",
-  "related_words",
-  "quick_facts",
-  "pronunciation_tips",
-  "etymology",
-  "mnemonic",
-  "taiwan_note",
 ];
 
 const PREF_KEY = "wordcard-prefs-v4";
@@ -506,9 +476,9 @@ function SectionCard({
   const regenFn = useServerFn(regenerateCardSection);
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
-  const canRegen = !!wordId && !!isPro && REGEN_SECTIONS.includes(id);
+  const canRegen = !!wordId && !!isPro && isRegenSection(id);
   // 未生成の項目は誰でも1回は作れる(Proでなくても「作る」ボタンは出す)。
-  const canGenerate = !!wordId && REGEN_SECTIONS.includes(id);
+  const canGenerate = !!wordId && isRegenSection(id);
 
   // Pro: この項目だけをワンタッチで作り直す。
   async function regen() {
