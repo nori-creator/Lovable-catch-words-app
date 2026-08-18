@@ -39,8 +39,11 @@ export function Prose({ text, className = "" }: { text: string; className?: stri
               );
             }
             if (s.kind === "reading") {
+              // 読みの**両側**に間を入れる。右を空けていなかったので
+              // 「珍 zhēn は」が「zhēnは」と続いて見えていた
+              // (和文と欧文の間の四分アキ)。
               return (
-                <span key={j} className="ml-0.5 font-mono text-footnote text-muted-foreground">
+                <span key={j} className="mx-0.5 font-mono text-footnote text-muted-foreground">
                   {s.text}
                 </span>
               );
