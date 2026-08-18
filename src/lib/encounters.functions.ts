@@ -120,9 +120,7 @@ export const recordEncounter = createServerFn({ method: "POST" })
     // exist until the migration is applied. The SRS update below still runs.
     const newCount = (sticker.encounter_count ?? 0) + 1;
     // 写真の列がまだ無い環境でも記録は残す — 列名を落として入れ直す。
-    // 型定義は生成物で、`image_path` / `cutout_path` はそれより新しい列。
-    // `shelf_key` のときと同じで、緩いクライアントとして扱う。
-    const row: Record<string, unknown> = {
+    const row = {
       user_id: userId,
       sticker_id: data.sticker_id,
       recalled: data.recalled,
@@ -132,10 +130,10 @@ export const recordEncounter = createServerFn({ method: "POST" })
       image_path: data.image_path ?? null,
       cutout_path: data.cutout_path ?? null,
     };
-    const ins = await supabase.from("encounters").insert(row as never);
+    const ins = await supabase.from("encounters").insert(row);
     if (ins.error && /image_path|cutout_path/.test(ins.error.message)) {
       const { image_path: _i, cutout_path: _c, ...legacy } = row;
-      await supabase.from("encounters").insert(legacy as never);
+      await supabase.from("encounters").insert(legacy);
     }
     await supabase
       .from("stickers")
@@ -236,7 +234,7 @@ export const listStickerPhotos = createServerFn({ method: "GET" })
         .eq("sticker_id", data.sticker_id)
         .eq("user_id", userId)
         .order("created_at", { ascending: true });
-      if (!error && rows) encounters = rows as unknown as typeof encounters;
+      if (!error && rows) encounters = rows;
     }
 
     const wanted: Array<{ path: string; taken_at: string; place: string | null; first: boolean }> =
