@@ -60,9 +60,18 @@ export const Route = createFileRoute("/_authenticated/settings")({
 /** 見出し付きの箱。設定はこの箱の連なりでできている。 */
 export function SettingsCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-4">
-      <h3 className="mb-3 text-body font-semibold text-muted-foreground">{title}</h3>
-      {children}
+    /* **章題は札の外・小さく置く。**
+     *
+     * これまで章題は札の中にあり、`text-body`(15px)の灰色。中の行の見出しも
+     * 同じ `text-body`(15px)だが**黒**なので、束ねる側が束ねられる側より
+     * 弱く見えていた(独立監査が2周続けて指摘した親子の逆転)。
+     *
+     * 純正の設定は章題を「小さい・灰色・札の外」に置く。大きさと位置の
+     * 両方で「これは見出しである」と言うので、色だけに頼らない。
+     * 6段の階調は既にあったので、footnote(13px)を当てるだけで足りる。 */
+    <section>
+      <h3 className="mb-1.5 px-1 text-footnote font-semibold text-muted-foreground">{title}</h3>
+      <div className="rounded-2xl border border-border bg-card p-4">{children}</div>
     </section>
   );
 }
@@ -286,7 +295,9 @@ function SettingsPage() {
 
   return (
     <AppShell title={t("title.settings")}>
-      <div className="space-y-4">
+      {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
+          差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
+      <div className="space-y-7">
         <SettingsCard title={t("settings.profile")}>
           <div className="space-y-3">
             <AvatarRow />

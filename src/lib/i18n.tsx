@@ -514,10 +514,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "pron.stopRec": { ja: "録音停止", en: "Stop recording" },
   "pron.startRec": { ja: "発音を録音", en: "Record your pronunciation" },
   "pron.listeningBefore": { ja: "聞き取り中…「", en: "Listening… say “" },
-  "pron.listeningAfter": { ja: "」と言ってみて", en: "”" },
+  "pron.listeningAfter": { ja: "」と言ってみてください", en: "”" },
   "pron.yours": { ja: "あなたの発音", en: "Your pronunciation" },
   "pron.pressBefore": { ja: "マイクを押して「", en: "Tap the mic and say “" },
-  "pron.pressAfter": { ja: "」と発音", en: "”" },
+  "pron.pressAfter": { ja: "」と言ってみてください", en: "”" },
   "pron.score": { ja: "スコア", en: "Score" },
   // --- フィード・ホーム・プロフィール・オンボーディング・再設定・ルート ---
   "feed.title": { ja: "フィード", en: "Feed" },
@@ -913,7 +913,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   // --- home ---
   "home.emptyTitle": { ja: "きょうのページはまだ白紙です。", en: "Today's page is still blank." },
   "home.emptyHint": {
-    ja: "街の看板やメニューをかざすと、最初の一枚がここに貼られます。",
+    ja: "街の看板やメニューにカメラをかざすと、最初の一枚がここに貼られます。",
     en: "Point your camera at a sign or menu and your first photo lands here.",
   },
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
@@ -1041,7 +1041,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "dex.noMatch": { ja: "に一致する単語はありません。", en: "— no matching words." },
   "dex.emptyTitle": { ja: "まだ何もキャッチしていません。", en: "Nothing caught yet." },
   "dex.emptyHint": {
-    ja: "カメラで街の言葉をかざすと、ここに図鑑が育ちます。",
+    ja: "街で見かけた言葉にカメラをかざすと、ここに図鑑が育ちます。",
     en: "Point the camera at words around you and your dex starts growing.",
   },
   "dex.emptyCta": { ja: "最初の一枚を撮る", en: "Take your first photo" },
@@ -1120,7 +1120,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。",
+    ja: "スピーキングは写真を見て話し、AIが添削します。4択は声を出せない場所向けです。",
     en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
@@ -1146,7 +1146,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.focusWeak": { ja: "忘れかけ", en: "Weakest" },
   "settings.focusNew": { ja: "覚えたて", en: "Newest" },
   "settings.reviewFocusHint": {
-    ja: "忘れかけ: 何度も間違えた語から。覚えたて: 復習回数が少ない語から。",
+    ja: "忘れかけは何度も間違えた語から、覚えたては復習回数が少ない語から出します。",
     en: "Weakest: words you keep missing first. Newest: words with the fewest reviews first.",
   },
   "settings.strictness": { ja: "発音判定の厳しさ", en: "Pronunciation strictness" },

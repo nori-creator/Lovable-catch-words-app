@@ -807,7 +807,11 @@ function Body({
           {ex.etymology && <Prose text={ex.etymology} />}
           {ex.radicals && (
             <p className="text-footnote text-muted-foreground">
-              {t("card.radicals")}: {ex.radicals}
+              {/* **約物で繋がない。** 「部首: 珍(王+参)」と半角コロンで
+                  繋いでいたが、和文の中の半角約物は字面が浮く。
+                  見出しと中身は余白で分ければ足りる。 */}
+              <span className="mr-2 font-medium">{t("card.radicals")}</span>
+              {ex.radicals}
             </p>
           )}
         </div>
