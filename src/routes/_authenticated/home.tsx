@@ -408,10 +408,18 @@ export function DayHeader({
           tracking pulls the digits into the following kanji, so they visibly
           collide. Japanese therefore renders upright with neutral tracking
           (CJK glyphs are full-width and need no tightening); English keeps the
-          elegant serif italic. */}
+          elegant serif italic.
+
+          **書体そのものも英語のときだけ。** ここは以前「斜体をやめる」
+          までしか直していなかったが、`font-serif` は当たったままだった。
+          Tailwind の serif は**ラテン専用**の並び(Georgia / Times)なので、
+          和文の日付では「2026」「8」「18」だけがセリフ体になり、
+          「年」「月」「日」はゴシックに落ちる — 1つの語の中で書体が割れる
+          (独立監査の指摘。全画面の最上部に常時出ていた)。
+          直した所の**兄弟**を探していなかった、という同じ形の見落とし。 */}
       <h1
-        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} font-serif ${
-          isEn ? "italic tracking-[-0.02em]" : "not-italic tracking-normal"
+        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} ${
+          isEn ? "font-serif italic tracking-[-0.02em]" : "not-italic tracking-normal"
         }`}
       >
         {dateLabel}
