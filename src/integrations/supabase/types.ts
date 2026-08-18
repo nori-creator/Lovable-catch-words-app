@@ -244,7 +244,9 @@ export type Database = {
       encounters: {
         Row: {
           created_at: string
+          cutout_path: string | null
           id: string
+          image_path: string | null
           lat: number | null
           lng: number | null
           location_name: string | null
@@ -254,7 +256,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cutout_path?: string | null
           id?: string
+          image_path?: string | null
           lat?: number | null
           lng?: number | null
           location_name?: string | null
@@ -264,7 +268,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cutout_path?: string | null
           id?: string
+          image_path?: string | null
           lat?: number | null
           lng?: number | null
           location_name?: string | null
@@ -572,7 +578,9 @@ export type Database = {
           onboarded: boolean
           plan: string
           pronunciation_strictness: string
+          review_daily_limit: number
           review_mode: string
+          review_stage_focus: string
           target_language: string
           ui_language: string
           updated_at: string
@@ -589,7 +597,9 @@ export type Database = {
           onboarded?: boolean
           plan?: string
           pronunciation_strictness?: string
+          review_daily_limit?: number
           review_mode?: string
+          review_stage_focus?: string
           target_language?: string
           ui_language?: string
           updated_at?: string
@@ -606,7 +616,9 @@ export type Database = {
           onboarded?: boolean
           plan?: string
           pronunciation_strictness?: string
+          review_daily_limit?: number
           review_mode?: string
+          review_stage_focus?: string
           target_language?: string
           ui_language?: string
           updated_at?: string
@@ -841,6 +853,7 @@ export type Database = {
           placeholder_credit: Json | null
           placeholder_image_url: string | null
           selfie_image_url: string | null
+          shelf_key: string | null
           taken_at: string
           user_id: string
           visibility: string
@@ -862,6 +875,7 @@ export type Database = {
           placeholder_credit?: Json | null
           placeholder_image_url?: string | null
           selfie_image_url?: string | null
+          shelf_key?: string | null
           taken_at?: string
           user_id: string
           visibility?: string
@@ -883,6 +897,7 @@ export type Database = {
           placeholder_credit?: Json | null
           placeholder_image_url?: string | null
           selfie_image_url?: string | null
+          shelf_key?: string | null
           taken_at?: string
           user_id?: string
           visibility?: string
@@ -936,6 +951,39 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_shelves: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          key: string
+          label: string
+          room_key: string
+          room_label: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          key: string
+          label: string
+          room_key: string
+          room_label: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          key?: string
+          label?: string
+          room_key?: string
+          room_label?: string
           user_id?: string
         }
         Relationships: []
