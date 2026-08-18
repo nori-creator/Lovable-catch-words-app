@@ -4,6 +4,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
+import { isTargetHeadword } from "./target-language";
 import {
   assertWithinDailyCap,
   getAi,
@@ -18,6 +19,7 @@ import {
   logUsage,
   parseJsonFromAiText,
   withModelFallback,
+  generateStructured,
 } from "./ai-provider.server";
 
 const SuggestInput = z.object({
@@ -156,6 +158,93 @@ const CardSchema = z.object({
 });
 
 export type GeneratedCard = z.infer<typeof CardSchema>;
+
+/**
+ * 母語で書いた「もの + その場の様子」から、**台湾華語の名詞の候補**を出す。
+ *
+ * ## なぜ1語に決め打ちしないか
+ * これまで日本語の入力は `generateCard` に直で渡り、**1語に決め打ち**して
+ * いた。「ティッシュ」と書くと1つだけ返ってくるが、台湾では
+ * 「衛生紙(トイレの)」と「面紙(ポケットの)」が別物で、どちらが欲しいかは
+ * **その場の様子を聞かないと決まらない**(オーナー指摘)。
+ * 決め打ちの代わりに、区別のついた候補を並べて選ばせる。
+ *
+ * ## 名詞だけ
+ * ここは「撮ったものの名前が分からない」ときの入口。動詞や形容詞を混ぜると
+ * 選ぶ手間が増えるだけで、欲しいものは出てこない。
+ */
+const WordCandidatesInput = z.object({
+  /** 母語で書いた物の名前(例: ティッシュ)。 */
+  query: z.string().min(1).max(60),
+  /** どこで・どんな様子だったか(任意)。候補を絞る手がかり。 */
+  scene: z.string().max(200).optional(),
+  targetLanguage: z.string().default("zh-TW"),
+});
+
+const CandidateSchema = z.object({
+  candidates: z
+    .array(
+      z.object({
+        headword: z.string(),
+        reading_zhuyin: z.string().default(""),
+        pinyin: z.string().default(""),
+        meaning_ja: z.string().default(""),
+        /** 他の候補との**違い**を一言で(例: トイレに置く方)。 */
+        distinction: z.string().default(""),
+      }),
+    )
+    .default([]),
+});
+
+export const suggestWordCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => WordCandidatesInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const ai = await getAiFor("scan");
+    await assertWithinDailyCap(context.userId, "suggest");
+    const levelRule = await levelInstruction(context.userId);
+    const langRule = await explanationLanguageRule(context.userId);
+
+    const sceneLine = data.scene?.trim()
+      ? `その場の様子: 「${data.scene.trim()}」。**この様子に合うものを優先**する。`
+      : "その場の様子は聞けていない。よくある使い分けを並べる。";
+
+    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す台湾華語の**名詞**の候補を挙げてください。
+
+${sceneLine}
+${levelRule}
+${langRule}
+
+守ること:
+- **名詞だけ**。動詞・形容詞は出さない。
+- **細かく分ける。** 母語の1語が台湾華語では複数の別語になることが多い。
+  例:「ティッシュ」→ 衛生紙(トイレに置く)/ 面紙(持ち歩く箱・ポケット)/ 濕紙巾(ウェット)
+  例:「お茶」→ 茶(飲み物一般)/ 茶葉(葉)/ 手搖飲(店で買う飲料)
+- それぞれの distinction に、**他とどう違うか**を短く書く(15文字程度)。
+  違いが書けない候補は挙げない — 同じ物の言い換えを並べても選べない。
+- 台湾で実際に使う語だけ。大陸語彙は禁止。繁体字。
+- 2〜5個。**確かなものだけ**。1つしか無いならそれだけ返す。`;
+
+    const raw = await generateStructured({
+      model: ai.gateway(ai.modelFast),
+      schema: CandidateSchema,
+      prompt,
+    });
+
+    // 生成物は必ず想定外を出す。**学んでいる言語でないものは落とす** —
+    // ここを通すと、母語がそのまま見出しになる元の不具合に戻る。
+    const seen = new Set<string>();
+    const candidates = raw.candidates
+      .map((c) => ({ ...c, headword: c.headword.trim() }))
+      .filter((c) => isTargetHeadword(c.headword, data.targetLanguage))
+      .filter((c) => {
+        if (seen.has(c.headword)) return false;
+        seen.add(c.headword);
+        return true;
+      })
+      .slice(0, 5);
+    return { candidates };
+  });
 
 export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

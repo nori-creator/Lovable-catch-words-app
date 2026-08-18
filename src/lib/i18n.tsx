@@ -998,6 +998,16 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "input.lookup": { ja: "調べてカードにする", en: "Look up & make a card" },
   "input.looking": { ja: "辞書とAIが調べています…", en: "Checking the dictionary and AI…" },
+  "input.sceneWord": {
+    ja: "どんな場面で見た？(例: トイレに置いてあった)",
+    en: "Where did you see it? (e.g. it was in the bathroom)",
+  },
+  "input.chooseTitle": { ja: "どれのことですか？", en: "Which one do you mean?" },
+  "input.chooseHint": {
+    ja: "「{q}」は台湾華語ではいくつかの語に分かれます。",
+    en: "\u201c{q}\u201d maps to several different Mandarin words.",
+  },
+  "input.chooseBack": { ja: "書き直す", en: "Edit what I typed" },
   "input.notTargetLang": {
     ja: "台湾華語の単語が見つかりませんでした。別の言い方で調べてみてください。",
     en: "Couldn't find a Mandarin word for that. Try describing it differently.",

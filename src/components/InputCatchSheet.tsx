@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   generateCard,
   generatePhraseCard,
+  suggestWordCandidates,
   type GeneratedCard,
   type GeneratedPhraseCard,
 } from "@/lib/ai.functions";
@@ -41,7 +42,7 @@ type Props = {
   onClose: () => void;
 };
 
-type Step = "input" | "loading" | "preview" | "saving";
+type Step = "input" | "loading" | "choose" | "preview" | "saving";
 
 type SR = {
   lang: string;
@@ -73,6 +74,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const cardFn = useServerFn(generateCard);
   const phraseFn = useServerFn(generatePhraseCard);
   const lookupFn = useServerFn(lookupHeadwords);
+  const candidatesFn = useServerFn(suggestWordCandidates);
   const saveGhostFn = useServerFn(saveGhostSticker);
 
   const [step, setStep] = useState<Step>("input");
@@ -80,6 +82,18 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [isPhrase, setIsPhrase] = useState(false);
   const [phraseTouched, setPhraseTouched] = useState(false);
   const [scene, setScene] = useState("");
+  /** 母語の入力から出した台湾華語の候補(2つ以上あれば選ばせる)。 */
+  const [wordChoices, setWordChoices] = useState<
+    Array<{
+      headword: string;
+      reading_zhuyin: string;
+      pinyin: string;
+      meaning_ja: string;
+      distinction: string;
+    }>
+  >([]);
+  // 選んだ直後に `text` を読むと、同じレンダーでは古い値しか見えない。
+  const wordChoiceRef = useRef<string | null>(null);
   const [listening, setListening] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [card, setCard] = useState<GeneratedCard | null>(null);
@@ -157,9 +171,50 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     rec.start();
   }
 
+  /**
+   * 母語で書いた入力から、まず**候補を並べる**。
+   *
+   * 母語の1語が台湾華語では別々の語に割れる(ティッシュ → 衛生紙 / 面紙)。
+   * 決め打ちで1語に落とすと、欲しかった方が二度と出てこない。
+   * 候補が1つに絞れたときだけ、そのままカードへ進む。
+   */
   async function lookupAndGenerate() {
     const headword = text.trim();
     if (!headword) return;
+    setErr(null);
+    // **毎回忘れてから始める。** 前の周の選択が残っていると、
+    // 書き直した語ではなく前に選んだ語でカードを作ってしまう。
+    // この関数の中で立てたものだけを信じる。
+    wordChoiceRef.current = null;
+    setStep("loading");
+    try {
+      if (!isPhrase && !isTargetHeadword(headword, "zh-TW")) {
+        // 母語で書かれている = どの語を指すかまだ決まっていない。
+        const { candidates: cands } = await candidatesFn({
+          data: { query: headword, scene: scene.trim() || undefined, targetLanguage: "zh-TW" },
+        });
+        if (cands.length > 1) {
+          setWordChoices(cands);
+          setStep("choose");
+          return;
+        }
+        // 1つしか無いなら選ばせる意味が無いので、そのまま進む。
+        // **`setText` の直後に `text` を読まない** — 同じレンダーでは
+        // 古い値しか見えないので、母語のまま次へ渡してしまう。
+        if (cands.length === 1) {
+          wordChoiceRef.current = cands[0].headword;
+          setText(cands[0].headword);
+        }
+      }
+      await buildCard(isPhrase ? headword : (wordChoiceRef.current ?? headword));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t("err.generateFailed"));
+      setStep("input");
+    }
+  }
+
+  /** 選ばれた見出し語(または句)でカードを作る。 */
+  async function buildCard(headword: string) {
     setErr(null);
     setStep("loading");
     try {
@@ -436,14 +491,16 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               ))}
             </div>
 
-            {isPhrase && (
-              <input
-                value={scene}
-                onChange={(e) => setScene(e.target.value)}
-                placeholder={t("input.scene")}
-                className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            )}
+            {/* 状況の欄は**単語のときにも出す。**
+                母語の1語が台湾華語では別々の語に割れることが多く
+                (ティッシュ → 衛生紙 / 面紙)、どれが欲しいかは
+                その場の様子を聞かないと決まらない。 */}
+            <input
+              value={scene}
+              onChange={(e) => setScene(e.target.value)}
+              placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
+              className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary/40"
+            />
 
             {err && (
               <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
@@ -462,6 +519,55 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 <Search className="h-5 w-5" />
               )}
               {step === "loading" ? t("input.looking") : t("input.lookup")}
+            </button>
+          </div>
+        )}
+
+        {step === "choose" && (
+          <div className="space-y-3">
+            {/* **どれか1つに決め打ちしない。** 母語の1語が台湾華語では
+                別の語に割れるので、違いを添えて並べ、学習者に選ばせる。 */}
+            <div>
+              <p className="text-headline font-semibold">{t("input.chooseTitle")}</p>
+              <p className="ja-phrase mt-1 text-footnote text-muted-foreground">
+                {t("input.chooseHint", { q: text.trim() })}
+              </p>
+            </div>
+            <ul className="space-y-2">
+              {wordChoices.map((c) => (
+                <li key={c.headword}>
+                  <button
+                    onClick={() => {
+                      wordChoiceRef.current = c.headword;
+                      setText(c.headword);
+                      void buildCard(c.headword);
+                    }}
+                    className="press-in w-full rounded-2xl border border-border bg-card p-3 text-left"
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <Zh className="text-title font-bold">{c.headword}</Zh>
+                      <span className="truncate text-footnote text-muted-foreground">
+                        {pickReading(phonetic, c.reading_zhuyin, c.pinyin)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-body">{c.meaning_ja}</p>
+                    {c.distinction && (
+                      <p className="mt-0.5 text-footnote text-primary-ink">{c.distinction}</p>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => {
+                // **前の選択を忘れる。** 残したまま書き直すと、
+                // 新しく書いた語ではなく前に選んだ語でカードを作ってしまう。
+                wordChoiceRef.current = null;
+                setStep("input");
+              }}
+              className="min-h-11 w-full rounded-full border border-border bg-card text-body font-medium"
+            >
+              {t("input.chooseBack")}
             </button>
           </div>
         )}
