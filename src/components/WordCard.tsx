@@ -20,6 +20,7 @@ import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
+import { usableQuickFacts } from "@/lib/extras";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -57,6 +58,7 @@ type SectionId =
   | "measure_words"
   | "related_words"
   | "pronunciation_tips"
+  | "quick_facts"
   | "etymology"
   | "mnemonic"
   | "taiwan_note"
@@ -67,6 +69,11 @@ const ALL_SECTIONS: { id: SectionId }[] = [
   { id: "meaning" },
   { id: "web_images" },
   { id: "usage_context" },
+  // **意味の真下には置かない。** 「ひと目でわかる」は上にあるほど効くが、
+  // 既にある語(139件)はこの項目を持たないので、一番目立つ位置に
+  // 「まだ作られていません」の空箱が出ることになる。同じ空箱が並ぶのは
+  // 独立監査が既に指摘した欠点で、その先頭を新しく1つ増やすのは割に合わない。
+  { id: "quick_facts" },
   { id: "example" },
   { id: "examples_extra" },
   { id: "usage_chunks" },
@@ -89,6 +96,7 @@ const REGEN_SECTIONS: SectionId[] = [
   "usage_chunks",
   "measure_words",
   "related_words",
+  "quick_facts",
   "pronunciation_tips",
   "etymology",
   "mnemonic",
@@ -236,6 +244,7 @@ export function WordCardSectionsEditor() {
  */
 const SECTION_ICON: Record<SectionId, string> = {
   meaning: "\u{1F4D6}",
+  quick_facts: "\u{1F4CB}",
   web_images: "\u{1F310}",
   usage_context: "\u{1F4CA}",
   example: "\u{1F4AC}",
@@ -315,6 +324,8 @@ export const WordCard = forwardRef<
           (ex.antonyms?.length ?? 0) > 0 ||
           !!ex.synonym_diff
         );
+      case "quick_facts":
+        return usableQuickFacts(ex.quick_facts).length > 0;
       case "pronunciation_tips":
         return !!(ex.pronunciation_tips || ex.study_tips);
       case "etymology":
@@ -780,6 +791,27 @@ function Body({
             </p>
           )}
         </div>
+      );
+    }
+
+    case "quick_facts": {
+      const facts = usableQuickFacts(ex.quick_facts);
+      if (facts.length === 0) return null;
+      // **本物の表にする。** `dl` を2列で組み、行ごとに薄い区切りを入れる。
+      // 見出しは短く固定幅寄り、中身は伸びる — 目が縦に「見出しの列」を
+      // 追えることが、表であることの値打ち。
+      return (
+        <dl className="divide-y divide-border overflow-hidden rounded-xl ring-1 ring-border">
+          {facts.map((f) => (
+            <div
+              key={f.label}
+              className="grid grid-cols-[6rem_1fr] gap-3 px-3 py-2 odd:bg-secondary/40"
+            >
+              <dt className="text-footnote font-semibold text-muted-foreground">{f.label}</dt>
+              <dd className="min-w-0 text-body">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
       );
     }
 

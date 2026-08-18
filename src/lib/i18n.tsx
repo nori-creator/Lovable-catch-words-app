@@ -881,6 +881,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks" },
   "card.measure_words": { ja: "量詞", en: "Measure words" },
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
+  "card.quick_facts": { ja: "ひと目でわかる", en: "At a glance" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips" },
   "card.etymology": { ja: "語源・部首", en: "Origin & radicals" },
   "card.mnemonic": { ja: "覚え方", en: "Memory hook" },

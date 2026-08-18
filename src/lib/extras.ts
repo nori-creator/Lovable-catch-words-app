@@ -79,6 +79,25 @@ export const ExtrasSchema = z.object({
     )
     .catch([]),
   /** 日本人向けの発音のコツ(声調・有気音・そり舌・鼻音韻尾など)。 */
+  /**
+   * 一目で分かる要点。**表として出す**ための、短い「見出し: 中身」の並び。
+   *
+   * ## なぜ地の文と別に持つか
+   * 解説はこれまで全部が地の文だった。描く側でどれだけ組み直しても、
+   * 中身が文である以上「読む」しかない(オーナー指摘:「文章だけでなく、
+   * 表のように一目で解説を理解できるように」)。表にしたいなら、
+   * **表になる形で生成させる**必要がある。
+   *
+   * 中身は短く。value が長い文になったら、それは地の文の項目の仕事。
+   */
+  quick_facts: z
+    .array(
+      z.object({
+        label: z.string(),
+        value: z.string(),
+      }),
+    )
+    .catch([]),
   pronunciation_tips: z.string().catch(""),
   /** 台湾での一言雑学(文化・習慣・歴史・流行)+語法の注意。 */
   taiwan_note: z.string().catch(""),
@@ -146,4 +165,33 @@ export function mergeExtras(
   }
   const res = ExtrasSchema.safeParse(base);
   return res.success ? res.data : emptyExtras();
+}
+
+/**
+ * 表に出せる要点だけを残す。
+ *
+ * **片側だけ埋まった行を残さない。** 表は行が揃っていることが値打ちなので、
+ * 見出しだけ・中身だけの行が混ざると、表に見えなくなる。
+ * 生成物は必ず片側を落としてくるので、描く前にここで閉じる。
+ */
+export function usableQuickFacts(
+  facts: ReadonlyArray<{ label?: string; value?: string }> | null | undefined,
+): Array<{ label: string; value: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ label: string; value: string }> = [];
+  for (const f of facts ?? []) {
+    const label = (f?.label ?? "").trim();
+    const value = (f?.value ?? "").trim();
+    if (!label || !value) continue;
+    // 同じ見出しが2行あると、どちらが正なのか読み手に決めさせることになる。
+    if (seen.has(label)) continue;
+    seen.add(label);
+    // 長い文は表の中身ではない。地の文の項目が引き受ける。
+    // 生成側には20字と言ってあるが、少しの超過では落とさない —
+    // 落とすのは「明らかに文になっている」ものだけ。
+    if (value.length > 40) continue;
+    out.push({ label, value });
+    if (out.length >= 6) break;
+  }
+  return out;
 }
