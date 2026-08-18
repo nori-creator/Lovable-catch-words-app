@@ -40,6 +40,7 @@ import {
   TokensScene,
   DexEmptyScene,
   DexNoMatchScene,
+  PhotoHistoryScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -62,6 +63,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
   "dex-no-match": DexNoMatchScene,
+  "photo-history": PhotoHistoryScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,

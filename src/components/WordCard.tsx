@@ -19,6 +19,7 @@ import { regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
+import { Prose } from "@/components/Prose";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -650,7 +651,7 @@ function Body({
               )}
             </div>
           )}
-          {text && <p className="text-body leading-relaxed">{text}</p>}
+          {text && <Prose text={text} />}
         </div>
       );
     }
@@ -713,7 +714,7 @@ function Body({
               ))}
             </div>
           )}
-          {ex.word_order && <p className="text-body leading-relaxed">{ex.word_order}</p>}
+          {ex.word_order && <Prose text={ex.word_order} />}
         </div>
       );
     }
@@ -783,12 +784,12 @@ function Body({
     }
 
     case "pronunciation_tips":
-      return <p className="text-body leading-relaxed">{ex.pronunciation_tips || ex.study_tips}</p>;
+      return <Prose text={ex.pronunciation_tips || ex.study_tips || ""} />;
 
     case "etymology":
       return (
         <div className="space-y-1 text-body leading-relaxed">
-          {ex.etymology && <p>{ex.etymology}</p>}
+          {ex.etymology && <Prose text={ex.etymology} />}
           {ex.radicals && (
             <p className="text-footnote text-muted-foreground">
               {t("card.radicals")}: {ex.radicals}
@@ -798,16 +799,16 @@ function Body({
       );
 
     case "mnemonic":
-      return <p className="text-body italic leading-relaxed">「{ex.mnemonic}」</p>;
+      return <Prose text={ex.mnemonic ?? ""} className="italic" />;
 
     case "taiwan_note":
       return (
         <div className="space-y-1.5 text-body leading-relaxed">
           {ex.taiwan_note ? (
-            <p>{ex.taiwan_note}</p>
+            <Prose text={ex.taiwan_note} />
           ) : (
             <>
-              {ex.trivia && <p>{ex.trivia}</p>}
+              {ex.trivia && <Prose text={ex.trivia} />}
               {ex.usage_note && (
                 <p className="text-footnote text-muted-foreground">⚠️ {ex.usage_note}</p>
               )}

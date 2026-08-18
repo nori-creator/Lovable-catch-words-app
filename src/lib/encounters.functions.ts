@@ -89,10 +89,17 @@ export const checkOwnedWord = createServerFn({ method: "GET" })
 
 const RecordInput = z.object({
   sticker_id: z.string().uuid(),
-  recalled: z.boolean(),
+  /**
+   * 思い出せたか。**再会そのものは当てものではない**ので、写真を撮っただけの
+   * 再会では null が来る(記録は残すが、復習の間隔は動かさない)。
+   */
+  recalled: z.boolean().nullable(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
   location_name: z.string().nullable().optional(),
+  /** 今回撮った写真。ここに来るまで**捨てられていた**。 */
+  image_path: z.string().nullable().optional(),
+  cutout_path: z.string().nullable().optional(),
 });
 
 export const recordEncounter = createServerFn({ method: "POST" })
@@ -112,22 +119,40 @@ export const recordEncounter = createServerFn({ method: "POST" })
     // Encounter log + counter are best-effort: the tables/columns may not
     // exist until the migration is applied. The SRS update below still runs.
     const newCount = (sticker.encounter_count ?? 0) + 1;
-    await supabase.from("encounters").insert({
+    // 写真の列がまだ無い環境でも記録は残す — 列名を落として入れ直す。
+    // 型定義は生成物で、`image_path` / `cutout_path` はそれより新しい列。
+    // `shelf_key` のときと同じで、緩いクライアントとして扱う。
+    const row: Record<string, unknown> = {
       user_id: userId,
       sticker_id: data.sticker_id,
       recalled: data.recalled,
       lat: data.lat ?? null,
       lng: data.lng ?? null,
       location_name: data.location_name ?? null,
-    });
+      image_path: data.image_path ?? null,
+      cutout_path: data.cutout_path ?? null,
+    };
+    const ins = await supabase.from("encounters").insert(row as never);
+    if (ins.error && /image_path|cutout_path/.test(ins.error.message)) {
+      const { image_path: _i, cutout_path: _c, ...legacy } = row;
+      await supabase.from("encounters").insert(legacy as never);
+    }
     await supabase
       .from("stickers")
       .update({ encounter_count: newCount })
       .eq("id", data.sticker_id)
       .eq("user_id", userId);
 
-    // A real-world encounter counts as a review: recalled = full marks, not
-    // recalled = lapse. Same SM-2 update as gradeReview.
+    // 復習の間隔を動かすのは、**当てものに答えたときだけ**。
+    //
+    // 以前は再会そのものを「満点の復習」として数えていた。しかし再会は
+    // 当てものではなく写真を撮る操作で、しかも**忘れたからもう一度撮る**
+    // ことの方が多い(オーナー指摘)。それを満点として数えると間隔が伸び、
+    // 一番出すべき語が出なくなる。答えが無い(null)なら記録だけ残す。
+    if (data.recalled === null) {
+      return { encounter_count: newCount, next_due_at: null, interval_days: null };
+    }
+
     const { data: review } = await supabase
       .from("reviews")
       .select("id, ease, interval_days, repetitions, blur_seen")
@@ -173,3 +198,85 @@ export const recordEncounter = createServerFn({ method: "POST" })
 
     return { encounter_count: newCount, next_due_at: nextDueAt, interval_days: intervalDays };
   });
+
+/**
+ * その単語をこれまでに撮った写真を、**古い順に**返す。
+ *
+ * 最初の1枚は `stickers` 側にあり、2枚目以降は再会1回につき1行
+ * (`encounters`)。詳細の画面はこの2つを混ぜて時系列に並べる。
+ * 署名付きURLは有効期限があるので、その場で作って返す。
+ */
+export const listStickerPhotos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ sticker_id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+
+    const { data: sticker } = await supabase
+      .from("stickers")
+      .select("id, object_image_url, cutout_image_url, taken_at, location_name")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!sticker) return { photos: [] as StickerPhoto[] };
+
+    // 写真の列がまだ無い環境では、この読みが丸ごと落ちる。
+    // **最初の1枚は必ず返す** — 再会の写真が読めないことと、
+    // 詳細に写真が1枚も出ないことは、見え方の重さが違う。
+    let encounters: Array<{
+      image_path: string | null;
+      cutout_path: string | null;
+      created_at: string;
+      location_name: string | null;
+    }> = [];
+    {
+      const { data: rows, error } = await supabase
+        .from("encounters")
+        .select("image_path, cutout_path, created_at, location_name")
+        .eq("sticker_id", data.sticker_id)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true });
+      if (!error && rows) encounters = rows as unknown as typeof encounters;
+    }
+
+    const wanted: Array<{ path: string; taken_at: string; place: string | null; first: boolean }> =
+      [];
+    const firstPath = sticker.cutout_image_url || sticker.object_image_url;
+    if (firstPath) {
+      wanted.push({
+        path: firstPath,
+        taken_at: sticker.taken_at,
+        place: sticker.location_name,
+        first: true,
+      });
+    }
+    for (const e of encounters) {
+      const p = e.cutout_path || e.image_path;
+      if (p) wanted.push({ path: p, taken_at: e.created_at, place: e.location_name, first: false });
+    }
+    if (wanted.length === 0) return { photos: [] as StickerPhoto[] };
+
+    const { data: signed } = await supabase.storage.from("stickers").createSignedUrls(
+      wanted.map((w) => w.path),
+      60 * 60 * 6,
+    );
+    const urlByPath = new Map<string, string>();
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl && !s.error) urlByPath.set(s.path, s.signedUrl);
+    }
+
+    const photos: StickerPhoto[] = [];
+    for (const w of wanted) {
+      const url = urlByPath.get(w.path);
+      if (url) photos.push({ url, taken_at: w.taken_at, place: w.place, first: w.first });
+    }
+    return { photos };
+  });
+
+export type StickerPhoto = {
+  url: string;
+  taken_at: string;
+  place: string | null;
+  /** 最初にこの単語を捕まえたときの1枚。 */
+  first: boolean;
+};

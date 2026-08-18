@@ -7,7 +7,11 @@ import { checkIsAdmin } from "@/lib/admin.functions";
 import { getAdminDashboard } from "@/lib/metrics.functions";
 import { pregenerateDictionaryTts } from "@/lib/tts.functions";
 import { getSelfImprovementStatus, runSelfImprovementNow } from "@/lib/selfimprove.functions";
-import { listEntryReports, resolveEntryReport } from "@/lib/reports.functions";
+import {
+  listEntryReports,
+  resolveEntryReport,
+  triageEntryReportsNow,
+} from "@/lib/reports.functions";
 import { BarChart3, Brain, Flag, Loader2, Users, Volume2 } from "lucide-react";
 
 /** KPI dashboard (roadmap §3) — admin only, one screen, numbers over charts. */
@@ -256,6 +260,9 @@ function SelfImprovePanel() {
 function EntryReportsPanel() {
   const listFn = useServerFn(listEntryReports);
   const resolveFn = useServerFn(resolveEntryReport);
+  const triageFn = useServerFn(triageEntryReportsNow);
+  const [triaging, setTriaging] = useState(false);
+  const [triageResult, setTriageResult] = useState<string | null>(null);
   const { data: reports, refetch } = useQuery({
     queryKey: ["entry-reports"],
     queryFn: () => listFn(),
@@ -286,6 +293,33 @@ function EntryReportsPanel() {
           {list.length}
         </span>
       </h2>
+      {/* **溜めるだけにしない。** これまで報告は並ぶだけで、誰も直していなかった。
+          AI に1件ずつ判定させ、AI由来の行で確信 0.85 以上のものだけ直す。
+          迷ったもの・公式由来の行は open のまま残して人間へ回す。 */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <button
+          onClick={async () => {
+            setTriaging(true);
+            setTriageResult(null);
+            try {
+              const r = await triageFn();
+              setTriageResult(
+                `見た ${r.checked} 件 — 直した ${r.fixed} / 報告を却下 ${r.dismissed} / 人間へ ${r.escalated}`,
+              );
+              void refetch();
+            } catch (e) {
+              setTriageResult(e instanceof Error ? e.message : "失敗しました");
+            } finally {
+              setTriaging(false);
+            }
+          }}
+          disabled={triaging || list.length === 0}
+          className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {triaging ? "判定中…" : "AIに判定させる"}
+        </button>
+        {triageResult && <span className="text-caption text-muted-foreground">{triageResult}</span>}
+      </div>
       {list.length === 0 ? (
         <p className="text-footnote text-muted-foreground">未対応の報告はありません。</p>
       ) : (

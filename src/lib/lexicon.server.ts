@@ -505,6 +505,146 @@ export type SelfImproveStep = { step: string; ok: boolean; detail: unknown };
  * 必ず記録する — 「機能してない」を無言にしないための可視化。
  * force=false(自動)は20時間スロットル、force=true(管理画面)は常に実行。
  */
+/**
+ * 利用者から届いた「この語はおかしい」を、AI に**1件ずつ**判定させて直す。
+ *
+ * ## なぜ要るか
+ * 報告は `entry_reports` に積まれ、管理画面に並ぶだけで、**誰も直していなかった**
+ * (オーナー指摘)。溜まるほど価値が下がる列になっていた。
+ *
+ * ## 抜き打ち監査と同じ手すりを使う
+ * ここは**全利用者が共有する辞書**を書き換える。報告は「見に行く理由」で
+ * あって、書き換えてよい根拠ではない。だから基準は下げない:
+ *   ・`source = "ai"` の行だけ自動で直す(公式由来は人間が見る)
+ *   ・確信 0.85 以上だけ
+ *   ・直した/直さなかったに関わらず `lexicon_audits` に必ず残す
+ *   ・**空文字で上書きしない** — 消すのは直すことではない
+ *
+ * 判定が付いたら報告を閉じる。AI が「報告の方が誤り」と見たら却下にする —
+ * 閉じないと列が永久に減らず、人間が見るべきものが埋もれる。
+ */
+export async function triageEntryReports(
+  batch = 10,
+): Promise<{ checked: number; fixed: number; dismissed: number; escalated: number }> {
+  const { data: reports } = await supabaseAdmin
+    .from("entry_reports")
+    .select("id, headword, kind, note")
+    .eq("status", "open")
+    .order("created_at", { ascending: true })
+    .limit(batch);
+  if (!reports || reports.length === 0) {
+    return { checked: 0, fixed: 0, dismissed: 0, escalated: 0 };
+  }
+
+  const heads = [...new Set(reports.map((r) => r.headword))];
+  const { data: entries } = await supabaseAdmin
+    .from("dictionary_entries")
+    .select("id, headword, zhuyin, pinyin, meaning_ja, pos, source")
+    .eq("language", "zh-TW")
+    .in("headword", heads);
+  const byHead = new Map((entries ?? []).map((e) => [e.headword, e as LexRow]));
+
+  const KIND_JA: Record<string, string> = {
+    pronunciation: "発音(注音・拼音)",
+    meaning: "意味",
+    pos: "品詞",
+    other: "その他",
+  };
+  const listing = reports
+    .map((r, i) => {
+      const e = byHead.get(r.headword);
+      const cur = e
+        ? `注音: ${e.zhuyin ?? "?"} / 拼音: ${e.pinyin ?? "?"} / 意味: ${e.meaning_ja} / 品詞: ${e.pos ?? "?"}`
+        : "(辞書に無い)";
+      return `${i + 1}. 「${r.headword}」 現在: ${cur}\n   利用者の指摘: ${KIND_JA[r.kind] ?? r.kind}が違う。${r.note || "(詳細なし)"}`;
+    })
+    .join("\n");
+
+  const ai = await getAiFor("audit");
+  const audit = await generateStructured({
+    model: ai.gateway(ai.modelRich),
+    schema: AuditSchema,
+    prompt: `あなたは台湾華語(zh-TW・台湾教育部準拠)の辞書校閲者です。
+利用者から「この項目が違う」という報告が届きました。**報告が正しいとは限りません。**
+現在の内容を自分で検証し、1件ずつ判定してください。
+
+${listing}
+
+各件について:
+- ok: **現在の内容が正しい**(= 報告の方が誤り)なら true
+- 現在の内容に誤りがある場合のみ、正しい zhuyin / pinyin / meaning_ja を埋める(正しい項目は空文字)
+- note: 何が誤りか、または報告のどこが誤解かを日本語で1文
+- confidence: 判定への確信度 0〜1。少しでも迷いがあれば 0.7 未満にする
+- 大陸中国の発音・簡体字・大陸語彙を「正」としない。台湾の標準を基準にする
+- headword は入力と同じ文字列をそのまま返す`,
+  });
+
+  const verdictByHead = new Map(audit.verdicts.map((v) => [v.headword, v]));
+  let fixed = 0;
+  let dismissed = 0;
+  let escalated = 0;
+
+  for (const r of reports) {
+    const v = verdictByHead.get(r.headword);
+    const row = byHead.get(r.headword);
+    if (!v) {
+      escalated += 1; // 判定が返ってこなかった → 人間へ
+      continue;
+    }
+
+    let applied = false;
+    if (!v.ok && row && row.source === "ai" && v.confidence >= 0.85) {
+      // **空文字で上書きしない。** 消すのは直すことではない。
+      const patch: { zhuyin?: string; pinyin?: string; meaning_ja?: string } = {};
+      if (v.zhuyin.trim()) patch.zhuyin = v.zhuyin.trim();
+      if (v.pinyin.trim()) patch.pinyin = v.pinyin.trim();
+      if (v.meaning_ja.trim()) patch.meaning_ja = v.meaning_ja.trim();
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabaseAdmin
+          .from("dictionary_entries")
+          .update(patch)
+          .eq("id", row.id)
+          .eq("source", "ai");
+        applied = !error;
+      }
+    }
+
+    if (row) {
+      await supabaseAdmin.from("lexicon_audits").insert({
+        entry_id: row.id,
+        headword: row.headword,
+        source: row.source,
+        ok: v.ok,
+        confidence: v.confidence,
+        suggestion: {
+          from: "user_report",
+          report_kind: r.kind,
+          report_note: r.note,
+          zhuyin: v.zhuyin,
+          pinyin: v.pinyin,
+          meaning_ja: v.meaning_ja,
+          note: v.note,
+        } as never,
+        applied,
+      });
+    }
+
+    // 報告を閉じる。**判定が付いたものだけ**閉じる —
+    // 迷ったものを閉じると、人間が見るべきものが消える。
+    if (applied) {
+      await supabaseAdmin.from("entry_reports").update({ status: "resolved" }).eq("id", r.id);
+      fixed += 1;
+    } else if (v.ok && v.confidence >= 0.85) {
+      await supabaseAdmin.from("entry_reports").update({ status: "dismissed" }).eq("id", r.id);
+      dismissed += 1;
+    } else {
+      escalated += 1; // open のまま。公式由来・低確信・辞書に無い語
+    }
+  }
+
+  return { checked: reports.length, fixed, dismissed, escalated };
+}
+
 export async function runSelfImprovement(
   userId: string,
   force = false,
@@ -530,6 +670,14 @@ export async function runSelfImprovement(
     record("audit", true, await runLexiconAudit(10));
   } catch (e) {
     record("audit", false, { error: (e as Error).message.slice(0, 300) });
+  }
+
+  // 利用者からの報告は、抜き打ち監査より**優先度が高い**(実際に困った人が
+  // いる)。同じ手すりで、同じ日の処理に載せる。
+  try {
+    record("reports", true, await triageEntryReports(10));
+  } catch (e) {
+    record("reports", false, { error: (e as Error).message.slice(0, 300) });
   }
 
   for (const s of steps) {

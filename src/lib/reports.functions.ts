@@ -88,3 +88,18 @@ export const resolveEntryReport = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * 管理画面用: 溜まっている報告を AI に判定させ、確かなものだけ直す(admin限定)。
+ *
+ * 実体は `lexicon.server.ts: triageEntryReports`。毎日の自己改善からも
+ * 同じ関数が呼ばれるので、**手で押したときと自動のときで挙動が違う**
+ * ということが起きない。
+ */
+export const triageEntryReportsNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const lex = await import("./lexicon.server");
+    return await lex.triageEntryReports(10);
+  });

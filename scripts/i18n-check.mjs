@@ -86,6 +86,60 @@ function incompleteEntries() {
   return out;
 }
 
+/** 仮名・漢字。約物や英数字は含めない。 */
+const JA = "\\u3041-\\u309f\\u30a0-\\u30ff\\u4e00-\\u9fff\\u3005\\u30fc";
+
+/**
+ * 和文の中の**半角の約物**を見る。
+ *
+ * ## なぜ要るか
+ * 和文の「?」「!」は全角が正しい。半角だと字面が上に浮き、前の字と
+ * ベタに詰まる — 「正解!」と「正解！」を並べれば分かる。純正の日本語UIに
+ * 半角の疑問符・感嘆符は出てこない。独立監査(書体)がこれを指摘し、
+ * 実際に撮った絵で確認できた。
+ *
+ * 括弧は**中身で決める**。`(zh-TW)` `(例 openai:gpt-5)` `({env} 未設定)` の
+ * ように英数字が入るものは半角のままが正しいので、
+ * **中身が全部和文のときだけ**全角にする。一律に置換すると、
+ * 英字を全角括弧で囲んだ見苦しい形が増える。
+ *
+ * コロンは見ない。「シーン: {s}」の形は和文UIでも広く使われていて、
+ * 全角にすると却って間延びする。規則にできないものを規則にしない。
+ *
+ * en は対象外 — 英語は半角が正しい。
+ */
+function halfWidthPunctuation() {
+  const s = fs.readFileSync(DICT_FILE, "utf8");
+  const out = [];
+  for (const m of s.matchAll(/^\s{2}"([\w.]+)":\s*\{/gm)) {
+    const start = m.index + m[0].length - 1;
+    let depth = 0;
+    let end = start;
+    for (let i = start; i < s.length; i++) {
+      if (s[i] === "{") depth++;
+      else if (s[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const body = s.slice(start, end + 1);
+    const line = s.slice(0, m.index).split("\n").length;
+    const ja = body.match(/\bja:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+    if (!ja) continue;
+    if (new RegExp(`[${JA}][?!]`).test(ja)) {
+      out.push(`${DICT_FILE}:${line}  ${m[1]} 和文のあとに半角の ? / ! : ${ja}`);
+    }
+    // 中身が全部和文(と読点・中黒)の括弧だけを見る。
+    if (new RegExp(`\\([${JA}、。・…]+\\)`).test(ja)) {
+      out.push(`${DICT_FILE}:${line}  ${m[1]} 和文だけの括弧が半角: ${ja}`);
+    }
+  }
+  return out;
+}
+
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -98,6 +152,7 @@ function walk(dir, out = []) {
 const problems = [];
 const defined = definedKeys(problems);
 problems.push(...incompleteEntries());
+problems.push(...halfWidthPunctuation());
 /** 動的に組み立てるキー(`t(\`cat.${x}\`)`)は前置きだけ見て、接頭辞の存在を確かめる。 */
 const prefixes = new Set([...defined].map((k) => k.split(".")[0]));
 

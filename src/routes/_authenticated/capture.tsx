@@ -17,6 +17,7 @@ import {
   ScanLine,
   PartyPopper,
   WifiOff,
+  ImagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,7 @@ import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounter
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
+import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
@@ -166,11 +168,11 @@ function CapturePage() {
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reenc, setReenc] = useState<OwnedWord | null>(null);
-  const [reencRevealed, setReencRevealed] = useState(false);
   const [reencResult, setReencResult] = useState<{
-    recalled: boolean;
+    recalled: boolean | null;
     encounter_count: number;
     next_due_at: string | null;
+    photo_saved: boolean;
   } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   // `pendingId` の同期版。runAi は同じレンダーの中で呼ばれるので、
@@ -182,7 +184,6 @@ function CapturePage() {
   // 「写真は預かりました(あとで続きができます)」と出て、
   // ユーザーは直らないものを待ち続けることになる。
   const [savedReason, setSavedReason] = useState<string | null>(null);
-  const [reencBusy, setReencBusy] = useState(false);
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
   const reencSubmittingRef = useRef(false);
@@ -418,9 +419,12 @@ function CapturePage() {
       if (runTokenRef.current !== token) return;
       if (owned) {
         setReenc(owned);
-        setReencRevealed(false);
         setReencResult(null);
         setStep("reencounter");
+        // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
+        // その単語の写真として足す。待つのは画面を出したあとなので、
+        // 学習者は演出を見ている間に終わる。
+        void cutoutPromise.then((cut) => recordReencounter(objectImg, cut));
         return;
       }
     } catch {
@@ -605,7 +609,6 @@ function CapturePage() {
     setError(null);
     setLanding(false);
     setReenc(null);
-    setReencRevealed(false);
     setReencResult(null);
     setPendingId(null);
     pendingIdRef.current = null;
@@ -630,33 +633,60 @@ function CapturePage() {
     reset();
   }
 
-  async function answerReencounter(recalled: boolean) {
+  /**
+   * 再会を記録する。**当てものは出さない。**
+   *
+   * これまでは「意味、覚えてる?」と伏せて出し、開くと母語の意味が出て、
+   * 「覚えてた / 忘れてた」を押させていた。撮った本人がその物の母語を
+   * 知らないはずがないので、問いとして成り立っていない(オーナー指摘)。
+   *
+   * 代わりに、**今回撮った写真をその単語に足す**。今まではここで写真を
+   * 捨てていた。復習の間隔は動かさない(`recalled: null`)。
+   */
+  async function recordReencounter(objectImg: string | null, cutoutImg: string | null) {
     if (!reenc || reencResult || reencSubmittingRef.current) return;
     reencSubmittingRef.current = true;
-    setReencBusy(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id ?? null;
+      const ts = Date.now();
+      // 写真の保存に失敗しても、再会の記録そのものは残す —
+      // 「撮ったのに何も起きなかった」が一番困る。
+      const [image_path, cutout_path] = userId
+        ? await Promise.all([
+            uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts }).catch(
+              () => null,
+            ),
+            uploadStickerImage({ userId, dataUrl: cutoutImg, kind: "encounter-cutout", ts }).catch(
+              () => null,
+            ),
+          ])
+        : [null, null];
+
       const res = await encounterFn({
         data: {
           sticker_id: reenc.sticker_id,
-          recalled,
+          recalled: null,
           lat: loc?.lat ?? null,
           lng: loc?.lng ?? null,
           location_name: loc?.name ?? null,
+          image_path,
+          cutout_path,
         },
       });
       setReencResult({
-        recalled,
+        recalled: null,
         encounter_count: res.encounter_count,
         next_due_at: res.next_due_at,
+        photo_saved: !!(image_path || cutout_path),
       });
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      await queryClient.invalidateQueries({ queryKey: ["reviews-due"] });
+      await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
     } catch (e) {
       console.error(e);
       toast.error(t("cap.recordFailed"));
     } finally {
       reencSubmittingRef.current = false;
-      setReencBusy(false);
     }
   }
 
@@ -981,50 +1011,24 @@ function CapturePage() {
               {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
             </div>
 
-            {!reencRevealed ? (
-              <button
-                onClick={() => setReencRevealed(true)}
-                className="lift mt-4 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 py-4 text-body font-semibold text-amber-900"
-              >
-                {t("capture.rememberQ")}
-              </button>
-            ) : (
-              <div className="mt-4 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
-                <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
-                {!reencResult ? (
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      onClick={() => answerReencounter(true)}
-                      disabled={reencBusy}
-                      className="flex-1"
-                    >
-                      {t("capture.remembered")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => answerReencounter(false)}
-                      disabled={reencBusy}
-                      className="flex-1"
-                    >
-                      {t("capture.forgot")}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-2 text-body">
-                    <p className="font-semibold">
-                      {reencResult.recalled ? t("capture.reviewBest") : t("capture.willAsk")}
-                    </p>
-                    <p className="text-footnote text-muted-foreground">
-                      {t("cap.reunionNth", { n: reencResult.encounter_count })}
-                      {reencResult.next_due_at &&
-                        t("cap.nextReview", {
-                          date: new Date(reencResult.next_due_at).toLocaleDateString(dateLocale),
-                        })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* **意味は伏せない。** 撮った本人がその物の母語を知らないはずが
+                ないので、「覚えてる?」と伏せる問いは成り立たない。
+                再会でやることは「前にいつ撮ったか」を思い出させることと、
+                今回の1枚をその単語に足すこと。 */}
+            <div className="mt-3 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
+              <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
+              <p className="mt-2 text-footnote text-muted-foreground">
+                {reencResult
+                  ? t("cap.reunionNth", { n: reencResult.encounter_count })
+                  : t("cap.reunionSaving")}
+              </p>
+              {reencResult?.photo_saved && (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-footnote font-medium text-ok-ink">
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  {t("cap.photoAdded")}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2">

@@ -74,9 +74,9 @@ const PLAIN: ChunkStyle = {
 };
 
 const STYLES: Record<string, ChunkStyle> = {
-  V: { bg: "bg-chunk-v/18", text: "text-chunk-v", dot: "bg-chunk-v", label: "動詞" },
-  O: { bg: "bg-chunk-o/18", text: "text-chunk-o", dot: "bg-chunk-o", label: "目的語" },
-  N: { bg: "bg-chunk-o/18", text: "text-chunk-o", dot: "bg-chunk-o", label: "名詞" },
+  V: { bg: "bg-chunk-v/18", text: "text-chunk-v-ink", dot: "bg-chunk-v", label: "動詞" },
+  O: { bg: "bg-chunk-o/18", text: "text-chunk-o-ink", dot: "bg-chunk-o", label: "目的語" },
+  N: { bg: "bg-chunk-o/18", text: "text-chunk-o-ink", dot: "bg-chunk-o", label: "名詞" },
   S: PLAIN,
   M: PLAIN,
   C: PLAIN,
