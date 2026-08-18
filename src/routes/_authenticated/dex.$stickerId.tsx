@@ -8,6 +8,8 @@ import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
+import { listStickerPhotos } from "@/lib/encounters.functions";
+import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useT } from "@/lib/i18n";
@@ -41,6 +43,7 @@ function StickerDetailPage() {
   const { stickerId } = Route.useParams();
   const fetchSticker = useServerFn(getSticker);
   const fetchMemory = useServerFn(getStickerMemoryHistory);
+  const fetchPhotos = useServerFn(listStickerPhotos);
   const {
     data: s,
     isLoading,
@@ -54,6 +57,12 @@ function StickerDetailPage() {
   const { data: mem } = useQuery({
     queryKey: ["memory", stickerId],
     queryFn: () => fetchMemory({ data: { sticker_id: stickerId } }),
+  });
+  // 同じものを撮り直した記録。**読めなくても詳細は開く** — 写真の一覧は
+  // 付け足しであって、この画面の本体ではない。
+  const { data: photoData } = useQuery({
+    queryKey: ["sticker-photos", stickerId],
+    queryFn: () => fetchPhotos({ data: { sticker_id: stickerId } }),
   });
   const [flipped, setFlipped] = useState(false);
 
@@ -229,6 +238,9 @@ function StickerDetailPage() {
               reviewCount={s.review_count ?? 0}
             />
           </div>
+
+          {/* 同じものに何度も出会った記録。再会が無ければ何も出ない。 */}
+          <StickerPhotoHistory photos={photoData?.photos ?? []} dateLocale={dateLocale} />
 
           {/* Full flat card kept for reference (B3) — collapsed by default */}
           <details className="group rounded-3xl border border-border bg-card shadow-sm">

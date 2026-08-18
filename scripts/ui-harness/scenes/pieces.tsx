@@ -14,6 +14,7 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
+import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 
 /**
  * 色の組み合わせそのものを並べた見本。
@@ -84,6 +85,26 @@ export function DexEmptyScene() {
 
 export function DexNoMatchScene() {
   return <DexNoMatch search="芒果" onClear={() => {}} />;
+}
+
+/**
+ * 同じものに何度も出会った記録。**再会があったときだけ**出る区画なので、
+ * 3枚(はじめて + 再会2回)の状態を撮る。1枚しか無いときは何も描かない
+ * ことも、別の場面で見る。
+ */
+export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
+  const one = q.get("one") === "1";
+  const shot = (c: string) =>
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${c}"/></svg>`,
+    );
+  const photos = [
+    { url: shot("#d0483c"), taken_at: "2026-05-02T09:00:00Z", place: "台北駅", first: true },
+    { url: shot("#4a90d9"), taken_at: "2026-06-14T12:00:00Z", place: null, first: false },
+    { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
+  ];
+  return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
 }
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */

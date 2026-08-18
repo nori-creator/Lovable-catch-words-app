@@ -202,6 +202,8 @@ const MODES = [
   // 最初に見る面なのに、ここまで一度も撮っていなかった。
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
+  // 同じものに何度も出会った記録(再会の写真が並ぶ区画)。
+  ...crossThemes("photo-history", { scene: "photo-history" }),
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [
