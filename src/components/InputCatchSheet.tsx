@@ -22,6 +22,7 @@ import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { Zh } from "@/components/Zh";
+import { isTargetHeadword } from "@/lib/target-language";
 
 /**
  * Input catch (§5.2): the entrance for words you can't photograph — heard in
@@ -170,7 +171,20 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
         const c = await cardFn({ data: { headword, targetLanguage: "zh-TW" } });
-        const resolved = c.headword_zh || headword;
+        // **解決できなかったときに入力をそのまま見出しにしない。**
+        // ここは `c.headword_zh || headword` と書いてあった。解決に失敗すると
+        // 日本語が見出しになり、「シャーペン」がカタカナのまま図鑑に入って
+        // 注音だけが下に付いていた。学んでいる言語でないものは見出しにしない。
+        const resolved = isTargetHeadword(c.headword_zh ?? "", "zh-TW")
+          ? c.headword_zh
+          : isTargetHeadword(headword, "zh-TW")
+            ? headword
+            : "";
+        if (!resolved) {
+          setErr(t("input.notTargetLang"));
+          setStep("input");
+          return;
+        }
         const lk = await lookupFn({ data: { headwords: [resolved] } }).catch(() => ({
           entries: {} as Record<string, DictionaryEntry>,
         }));
@@ -210,6 +224,12 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   async function save() {
     const headword = text.trim();
     if (!headword || step === "saving") return;
+    // 下見の画面で見出しを手で書き換えられるので、**保存の直前にもう一度見る。**
+    // 入口だけ閉じても、途中で書き換えられたら同じ所に戻る。
+    if (!isPhrase && !isTargetHeadword(headword, "zh-TW")) {
+      setErr(t("input.notTargetLang"));
+      return;
+    }
     setStep("saving");
     setErr(null);
     try {

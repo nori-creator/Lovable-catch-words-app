@@ -182,6 +182,8 @@
   /* 文のかたまり。塗るのは動詞と目的語だけ(2色 + 素)。 */
   --color-chunk-v: var(--chunk-v);
   --color-chunk-o: var(--chunk-o);
+  --color-chunk-v-ink: var(--chunk-v-ink);
+  --color-chunk-o-ink: var(--chunk-o-ink);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
@@ -1138,11 +1140,18 @@
    `text-ok` と書きたくなる所は `text-ok-ink` を使う。 */
 :root {
   /* 文のかたまりの2色。動詞は温かい側、目的語は冷たい側に離す。 */
-  --chunk-v: oklch(0.48 0.17 20);
-  --chunk-o: oklch(0.46 0.13 235);
+  /* **塗りと文字を分ける。** 1つの色で両方をまかなうと、文字の 4.5:1 に
+     合わせて塗りまで暗くなる — `--primary` で同じ失敗をした。
+     凡例の丸や帯は「意味を持つ図形」なので 3:1 でよく、鮮やかでよい。 */
+  --chunk-v: oklch(0.62 0.21 20);
+  --chunk-o: oklch(0.6 0.17 235);
   --ok: oklch(0.64 0.17 155);
   --warn: oklch(0.72 0.15 75);
   --bad: oklch(0.62 0.23 27);
+  /* 文字用。**列挙せず派生で作る** — テーマが --chunk-* を上書きしたとき、
+     書き写した値は付いてこない。前景に寄せるので明暗どちらでも成り立つ。 */
+  --chunk-v-ink: color-mix(in oklab, var(--chunk-v) 60%, var(--foreground));
+  --chunk-o-ink: color-mix(in oklab, var(--chunk-o) 60%, var(--foreground));
   --ok-ink: oklch(0.48 0.14 155);
   --warn-ink: oklch(0.46 0.12 75);
   --bad-ink: oklch(0.52 0.2 27);
@@ -1177,12 +1186,12 @@
    しか無かった。明暗それぞれで、文字として 4.5:1・帯として 3:1 を満たす
    明度を測って決める。 */
 :root {
-  --mem-0: oklch(0.5 0.19 27);
-  --mem-1: oklch(0.48 0.14 55);
-  --mem-2: oklch(0.46 0.11 85);
-  --mem-3: oklch(0.45 0.13 135);
-  --mem-4: oklch(0.46 0.12 160);
-  --mem-5: oklch(0.48 0.15 245);
+  --mem-0: oklch(0.62 0.22 27);
+  --mem-1: oklch(0.68 0.17 55);
+  --mem-2: oklch(0.73 0.15 85);
+  --mem-3: oklch(0.68 0.18 135);
+  --mem-4: oklch(0.64 0.16 160);
+  --mem-5: oklch(0.62 0.17 245);
 }
 .dark,
 :root[data-ui-theme="darkroom"],
@@ -1215,8 +1224,11 @@
 .mem-lv-5 {
   --mem: var(--mem-5);
 }
+/* **帯は `--mem` のまま、文字だけ寄せる。** 6段の色は「忘れかけ→定着」の
+   並びを表す図形なので、鮮やかさが情報そのもの。文字として読ませる所だけ
+   前景に寄せて 4.5:1 を取る(`--primary` / `--primary-ink` と同じ形)。 */
 .mem-text {
-  color: var(--mem);
+  color: color-mix(in oklab, var(--mem) 60%, var(--foreground));
 }
 /* 中央揃えの和文の改行。
    `text-wrap: balance` は行の**長さ**は揃えるが、文節は見ない。実際
@@ -1243,7 +1255,7 @@
    敷いた分だけ地が色に寄るので、文字との差はわずかに縮む — そこも測る。 */
 .mem-chip {
   background: color-mix(in oklab, var(--mem) 14%, var(--card));
-  color: var(--mem);
+  color: color-mix(in oklab, var(--mem) 60%, var(--foreground));
 }
 
 /* Deep-ocean body ambience (only in dark) */
