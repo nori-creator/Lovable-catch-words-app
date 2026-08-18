@@ -496,7 +496,14 @@ function SectionCard({
   }
 
   return (
-    <section className="lift rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <section
+      className={`lift rounded-2xl border border-border bg-card p-4 shadow-sm ${
+        // **意味の下だけ間合いを空ける。** 節がすべて等間隔だと、
+        // 14枚がひと続きの壁になる。ここで一度切ると「答え」と
+        // 「それ以外」に割れる(近いものほど近く、の原則)。
+        id === "meaning" ? "mb-3" : ""
+      }`}
+    >
       <div className="mb-2 flex items-center gap-2">
         {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
             丸そのものが何も言わなくなる。絵だけを地の上に置く。 */}
@@ -610,7 +617,13 @@ function Body({
 }) {
   switch (id) {
     case "meaning":
-      return <p className="text-body font-medium text-foreground">{word.meaning_ja}</p>;
+      // **この画面を開く理由がこの一行。** これまで注釈と同じ 15px で置いて
+      // いたので、2800px スクロールするカードの中で「答え」と「脚注」が
+      // 寸法上まったく同じだった(独立監査が実測で指摘)。
+      // 6段の階調の title(22px)に上げて、二番目の着地点を作る。
+      return (
+        <p className="text-title font-semibold leading-snug text-foreground">{word.meaning_ja}</p>
+      );
 
     case "usage_context": {
       // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
@@ -778,7 +791,7 @@ function Body({
               className="grid grid-cols-[6rem_1fr] gap-3 px-3 py-2 odd:bg-secondary/40"
             >
               <dt className="text-footnote font-semibold text-muted-foreground">{f.label}</dt>
-              <dd className="min-w-0 text-body">{f.value}</dd>
+              <dd className="ja-phrase min-w-0 text-balance text-body">{f.value}</dd>
             </div>
           ))}
         </dl>

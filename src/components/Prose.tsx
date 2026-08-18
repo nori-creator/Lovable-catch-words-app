@@ -17,7 +17,15 @@ export function Prose({ text, className = "" }: { text: string; className?: stri
   return (
     <div className={`space-y-2 text-body leading-relaxed ${className}`}>
       {paragraphs.map((spans, i) => (
-        <p key={i}>
+        // **最終行に1〜2文字だけ残さない。** 段落に割ったことで
+        // 「日本語の『ちん』より息を強く前に出してくださ / い。」のように
+        // 1行目いっぱい・2行目に「い。」だけ、という組みが出ていた
+        // (独立監査の指摘。自分が入れた段落分けが作った崩れ)。
+        //
+        // 行の長さを揃えると最終行が伸びる。実測: 最終行 30px → 168px。
+        // `auto-phrase` は切る**位置**を、`balance` は行の**長さ**を決める —
+        // 役目が違うので両方いる。
+        <p key={i} className="ja-phrase text-balance">
           {spans.map((s, j) => {
             if (s.kind === "term") {
               return (

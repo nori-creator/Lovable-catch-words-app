@@ -41,6 +41,19 @@ describe("splitParagraphs", () => {
 });
 
 describe("splitSpans", () => {
+  // 解説には「日本語の『ちん』より」のように**母語を引用する**書き方が出る。
+  // 中身を見ずに印を付けていたので、かなに中国語の体裁を着せていた。
+  it.each(["ちん", "タピオカ", "けしごむ", "pencil"])(
+    "学ぶ言語でない「%s」は印にしない(括弧ごと素の文字で残す)",
+    (inner) => {
+      expect(splitSpans(`日本語の「${inner}」より`)).toEqual([
+        { kind: "text", text: "日本語の" },
+        { kind: "text", text: `「${inner}」` },
+        { kind: "text", text: "より" },
+      ]);
+    },
+  );
+
   it("「」の中を語として切り出す", () => {
     expect(splitSpans("「文旦」は果物です")).toEqual([
       { kind: "term", text: "文旦" },
@@ -70,14 +83,28 @@ describe("splitSpans", () => {
     ]);
   });
 
-  it("元の文字を落とさない(印の記号ぶんを除いて)", () => {
-    const src = "「文旦」の「文(wén)」は鼻音";
+  // **不変条件は「中身の文字を落とさない」。** 印の記号(「」())は
+  // 飾りなので置き場所が変わってよいが、語や読みそのものが消えてはいけない。
+  it.each([
+    "「文旦」の「文(wén)」は鼻音",
+    "日本語の「ちん」より息を強く",
+    "「奶(nǎi)」は三声なので、一度下げる",
+    "文旦(果物)は台湾の秋の味",
+  ])("中身の文字を落とさない(%s)", (src) => {
     const joined = splitSpans(src)
-      .map((s) =>
-        s.kind === "text" ? s.text : s.kind === "term" ? `「${s.text}」` : `(${s.text})`,
-      )
+      .map((s) => s.text)
       .join("");
-    expect(joined).toBe(src);
+    const strip = (x: string) => x.replace(/[「」（）()]/g, "");
+    expect(strip(joined)).toBe(strip(src));
+  });
+
+  it("語のうしろの読みは、語と分けて取り出す(印の付き方を揃える)", () => {
+    // 「珍珠奶茶」には印が付くのに「珍(zhēn)」には付かない、が起きていた。
+    expect(splitSpans("「珍(zhēn)」は一声")).toEqual([
+      { kind: "term", text: "珍" },
+      { kind: "reading", text: "zhēn" },
+      { kind: "text", text: "は一声" },
+    ]);
   });
 });
 
