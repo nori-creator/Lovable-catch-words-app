@@ -888,10 +888,10 @@ function SpeakingCard({
     onNext();
   }
 
+  // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
+  // (最低評価)で記録され、写真をなぞっただけの人が記憶度を落としていた。
+  // ライトモードの札と同じく、結果が出てから次へ送る。
   return (
-    {/* 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
-        (最低評価)で記録され、写真をなぞっただけの人が記憶度を落として
-        いた。ライトモードの札と同じく、結果が出てから次へ送る。 */}
     <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
         <div className="mb-3 flex items-center justify-between">
