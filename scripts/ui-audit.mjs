@@ -30,8 +30,12 @@
  *   スキャンの詳細・出会いの記録・色の土台)
  *
  * ### 場面がまだ無い
- *   ・`scan`(1425行)・`capture`(1106行) — **カメラと端末の許可に依る**。
- *     偽の映像を流し込む仕掛けを先に作らないと、撮れるのは許可待ちの面だけ。
+ *   ・`capture` の**撮っている最中の2段**(`object` / `selfie`)と `scan`(1425行)
+ *     — `<video>` を持つので、偽の映像を流し込む仕掛けが先に要る。
+ *     ただし `capture` は**8段のうち6段がカメラと関係無かった**
+ *     (語を選ぶ・再会・カード・保存中・圏外で預かった)。
+ *     「カメラ依存」でひとまとめにして未検査にしていたのは大雑把すぎた。
+ *     いま入っているのは語を選ぶ面と再会の面。残り4段はまだ。
  *   ・`journal` / `feed` / `discover` / `u.$userId` / `post.$postId` /
  *     `notifications` / `onboarding` — 人に見せる側の画面。どれも
  *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
@@ -269,6 +273,12 @@ const MODES = [
   // **ホームで写真を押すと開く面。** この app でいちばん大きい未検査の
   // 画面だった(929行)。取り消せない操作(削除の2段目)まで撮る。
   ...crossThemes("sheet", { scene: "sticker-sheet" }),
+  // 撮ったあとに語を選ぶ面と、同じものに再会した面。
+  // **`capture.tsx` を丸ごと「カメラ依存」にして未検査にしていたが、
+  // 8段のうち6段はカメラと関係が無かった。**
+  ...crossThemes("cap-pick", { scene: "capture-pick" }),
+  ...crossThemes("cap-reunion", { scene: "capture-reunion" }),
+  ["cap-reunion-saving", "", false, { scene: "capture-reunion", variant: "saving" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],

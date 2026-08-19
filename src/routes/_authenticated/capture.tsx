@@ -809,76 +809,14 @@ function CapturePage() {
       )}
 
       {step === "select" && (
-        <div className="space-y-4">
-          {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
-          {objectImg && (
-            <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg">
-              <img
-                src={objectImg}
-                alt={t("cap.photoTaken")}
-                className="h-full w-full object-cover pop-in"
-              />
-            </div>
-          )}
-          <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
-          <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
-          <div className="grid gap-2">
-            {suggestions.map((s) => (
-              // 札そのものを押すと**その語で決まる**。中の発音ボタンは
-              // 別の行き先なので、入れ子のボタンにはせず横に並べる
-              // (入れ子の `<button>` は正しくない markup で、押し分けも効かない)。
-              <div
-                key={s.headword}
-                className="lift flex items-center gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary hover:bg-accent/40"
-              >
-                <button
-                  onClick={() => confirmWord(s.headword, s, { skipImagePick: true })}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <div lang="zh-Hant" className="text-body font-semibold">
-                    {s.headword}
-                  </div>
-                  <div className="text-footnote text-muted-foreground">
-                    <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
-                  </div>
-                  {/* **使い分けの一言(NORI指定)。**
-                      日本語の1語が台湾華語では複数の別語になるので、
-                      意味だけ並べても「どれも同じに見える」。 */}
-                  {s.distinction && (
-                    <div className="mt-0.5 text-footnote text-primary-ink">{s.distinction}</div>
-                  )}
-                </button>
-                {/* **発音ボタン(NORI指定)。** 選ぶ前に音で確かめられる。 */}
-                <button
-                  onClick={() => void pronounce(s.headword)}
-                  aria-label={t("common.playWord", { word: s.headword })}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
-                >
-                  <Volume2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-            <Label htmlFor="manual" className="text-footnote text-muted-foreground">
-              {t("capture.otherWord")}
-            </Label>
-            <div className="mt-1 flex gap-2">
-              <Input
-                id="manual"
-                value={manualWord}
-                onChange={(e) => setManualWord(e.target.value)}
-                placeholder={t("cap.wordPlaceholder")}
-              />
-              <Button
-                disabled={!manualWord.trim()}
-                onClick={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
-              >
-                {t("capture.useThis")}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PickWordPanel
+          objectImg={objectImg}
+          suggestions={suggestions}
+          manualWord={manualWord}
+          setManualWord={setManualWord}
+          onPick={(s) => confirmWord(s.headword, s, { skipImagePick: true })}
+          onManual={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
+        />
       )}
 
       {step === "card" && card && (
@@ -998,75 +936,15 @@ function CapturePage() {
       )}
 
       {step === "reencounter" && reenc && (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-amber-300/60 bg-gradient-to-br from-amber-50 to-white p-5 text-center shadow-lg">
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400/90 px-3 py-1 text-footnote font-bold text-amber-950">
-              <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
-            </div>
-            <p className="mt-2 text-body text-muted-foreground">
-              {t("cap.reencBefore")}
-              {reenc.location_name
-                ? t("cap.reencAt", {
-                    place: reenc.location_name,
-                    date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
-                  })
-                : t("cap.reencOn", {
-                    date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
-                  })}
-              {t("cap.reencAfter")}
-            </p>
-            {reenc.cutout_url && (
-              <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-white shadow ring-1 ring-black/5">
-                <img
-                  src={reenc.cutout_url}
-                  alt={reenc.headword}
-                  className="h-full w-full object-contain p-2"
-                />
-              </div>
-            )}
-            <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
-              {reenc.headword}
-            </div>
-            <div lang="zh-Hant" className="mt-1 text-footnote text-muted-foreground">
-              {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
-            </div>
-
-            {/* **意味は伏せない。** 撮った本人がその物の母語を知らないはずが
-                ないので、「覚えてる?」と伏せる問いは成り立たない。
-                再会でやることは「前にいつ撮ったか」を思い出させることと、
-                今回の1枚をその単語に足すこと。 */}
-            <div className="mt-3 rounded-2xl bg-white/80 p-4 ring-1 ring-amber-200">
-              <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
-              <p className="mt-2 text-footnote text-muted-foreground">
-                {reencResult
-                  ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
-                  : t("cap.reunionSaving")}
-              </p>
-              {reencResult?.photo_saved && (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-footnote font-medium text-ok-ink">
-                  <ImagePlus className="h-3.5 w-3.5" />
-                  {t("cap.photoAdded")}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> {t("capture.shootAnother")}
-            </Button>
-            {reencResult && (
-              <Button
-                onClick={() =>
-                  navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })
-                }
-                className="flex-1"
-              >
-                {t("capture.seeInDex")}
-              </Button>
-            )}
-          </div>
-        </div>
+        <ReencounterPanel
+          reenc={reenc}
+          reencResult={reencResult}
+          dateLocale={dateLocale}
+          onAgain={reset}
+          onSeeInDex={() =>
+            navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })
+          }
+        />
       )}
 
       {step === "offlineSaved" && (
@@ -1121,5 +999,201 @@ function CapturePage() {
         />
       )}
     </AppShell>
+  );
+}
+
+/**
+ * 同じものにもう一度出会ったときの面。
+ *
+ * **意味は伏せない。** 撮った本人がその物の母語を知らないはずがないので、
+ * 「覚えてる?」と伏せる問いは成り立たない(オーナー指摘)。
+ * ここでやるのは「前にいつ撮ったか」を思い出させることと、
+ * 今回の1枚をその単語に足すこと。
+ *
+ * ルートが状態機械を持つので、描く所だけを出して検査の雛形から呼べるように
+ * する。**この面は今まで一度も機械の目に映っていなかった。**
+ */
+export function ReencounterPanel({
+  reenc,
+  reencResult,
+  dateLocale,
+  onAgain,
+  onSeeInDex,
+}: {
+  reenc: OwnedWord;
+  reencResult: { encounter_count: number; photo_saved?: boolean } | null;
+  dateLocale: string;
+  onAgain: () => void;
+  onSeeInDex: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      {/* **素の Tailwind の番号と `white` の直書きをやめる。**
+          `from-amber-50 to-white` は明るい面の前提で固定なので、暗いテーマでは
+          面だけ白いまま、文字はテーマの明るい色になり、**見出し語が 1.01:1
+          = 完全に読めない**状態だった(検査に入れて初めて写った)。
+          琥珀はこの app のトークン `--warn` が持っている。 */}
+      <div className="rounded-3xl border border-warn/40 bg-[color-mix(in_oklab,var(--warn)_12%,var(--card))] p-5 text-center shadow-lg">
+        {/* 琥珀の上の文字は `--warn-foreground`。**白は乗らない** —
+            琥珀はどのテーマでも明るい側の色なので、白を置くと 2.46:1 にしかならない。 */}
+        <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-warn px-3 py-1 text-footnote font-bold text-warn-foreground">
+          <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
+        </div>
+        <p className="ja-phrase mt-2 text-balance text-body text-muted-foreground">
+          {t("cap.reencBefore")}
+          {reenc.location_name
+            ? t("cap.reencAt", {
+                place: reenc.location_name,
+                date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
+              })
+            : t("cap.reencOn", {
+                date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
+              })}
+          {t("cap.reencAfter")}
+        </p>
+        {reenc.cutout_url && (
+          <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-card shadow ring-1 ring-border">
+            <img
+              src={reenc.cutout_url}
+              alt={reenc.headword}
+              className="h-full w-full object-contain p-2"
+            />
+          </div>
+        )}
+        <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
+          {reenc.headword}
+        </div>
+        <div lang="zh-Hant" className="mt-1 text-footnote text-muted-foreground">
+          {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
+        </div>
+
+        {/* **意味は伏せない。** 撮った本人がその物の母語を知らないはずが
+              ないので、「覚えてる?」と伏せる問いは成り立たない。
+              再会でやることは「前にいつ撮ったか」を思い出させることと、
+              今回の1枚をその単語に足すこと。 */}
+        <div className="mt-3 rounded-2xl bg-card/90 p-4 ring-1 ring-warn/30">
+          <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
+          <p className="mt-2 text-footnote text-muted-foreground">
+            {reencResult
+              ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
+              : t("cap.reunionSaving")}
+          </p>
+          {reencResult?.photo_saved && (
+            <p className="mt-1 inline-flex items-center gap-1.5 text-footnote font-medium text-ok-ink">
+              <ImagePlus className="h-3.5 w-3.5" />
+              {t("cap.photoAdded")}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onAgain} className="flex-1">
+          <Camera className="mr-1 h-4 w-4" /> {t("capture.shootAnother")}
+        </Button>
+        {reencResult && (
+          <Button onClick={onSeeInDex} className="flex-1">
+            {t("capture.seeInDex")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 撮ったあとに語を選ぶ面。
+ *
+ * 候補には**使い分けの一言**と**発音ボタン**が付く(オーナー指摘)。
+ * 日本語の1語が台湾華語では複数の別語になるので、意味だけ並べても
+ * 「どれも同じに見える」。
+ *
+ * ルートが状態機械とカメラを持つので、描く所だけを出す。
+ * **カメラが要るのは撮る2段だけ**で、ここから先は写真の data URL さえ
+ * あれば描ける。
+ */
+export function PickWordPanel({
+  objectImg,
+  suggestions,
+  manualWord,
+  setManualWord,
+  onPick,
+  onManual,
+}: {
+  objectImg: string | null;
+  suggestions: Suggestion[];
+  manualWord: string;
+  setManualWord: (v: string) => void;
+  onPick: (s: Suggestion) => void;
+  onManual: () => void;
+}) {
+  const t = useT();
+  const pronounce = usePronounce();
+  return (
+    <div className="space-y-4">
+      {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
+      {objectImg && (
+        <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg">
+          <img
+            src={objectImg}
+            alt={t("cap.photoTaken")}
+            className="h-full w-full object-cover pop-in"
+          />
+        </div>
+      )}
+      <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
+      <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
+      <div className="grid gap-2">
+        {suggestions.map((s) => (
+          // 札そのものを押すと**その語で決まる**。中の発音ボタンは
+          // 別の行き先なので、入れ子のボタンにはせず横に並べる
+          // (入れ子の `<button>` は正しくない markup で、押し分けも効かない)。
+          <div
+            key={s.headword}
+            className="lift flex items-center gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary hover:bg-accent/40"
+          >
+            <button onClick={() => onPick(s)} className="min-w-0 flex-1 text-left">
+              <div lang="zh-Hant" className="text-body font-semibold">
+                {s.headword}
+              </div>
+              <div className="text-footnote text-muted-foreground">
+                <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
+              </div>
+              {/* **使い分けの一言(NORI指定)。**
+                    日本語の1語が台湾華語では複数の別語になるので、
+                    意味だけ並べても「どれも同じに見える」。 */}
+              {s.distinction && (
+                <div className="mt-0.5 text-footnote text-primary-ink">{s.distinction}</div>
+              )}
+            </button>
+            {/* **発音ボタン(NORI指定)。** 選ぶ前に音で確かめられる。 */}
+            <button
+              onClick={() => void pronounce(s.headword)}
+              aria-label={t("common.playWord", { word: s.headword })}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-2xl border border-dashed border-border bg-card p-3">
+        <Label htmlFor="manual" className="text-footnote text-muted-foreground">
+          {t("capture.otherWord")}
+        </Label>
+        <div className="mt-1 flex gap-2">
+          <Input
+            id="manual"
+            value={manualWord}
+            onChange={(e) => setManualWord(e.target.value)}
+            placeholder={t("cap.wordPlaceholder")}
+          />
+          <Button disabled={!manualWord.trim()} onClick={onManual}>
+            {t("capture.useThis")}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
