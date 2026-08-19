@@ -325,6 +325,9 @@ const MODES = [
   ["sheet-failed", "", false, { scene: "sticker-sheet", variant: "failed" }],
   ["sheet-candidates", "", false, { scene: "sticker-sheet", variant: "candidates" }],
   ["sheet-pro", "", false, { scene: "sticker-sheet", variant: "pro" }],
+  // 写真が1枚しか無いカード。**「撮った写真」の区画が出ないこと**が正しい姿
+  // (上に同じ絵が大きく出ているので、小さく並べ直しても高さが増えるだけ)。
+  ["sheet-onephoto", "", false, { scene: "sticker-sheet", variant: "onephoto" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が

@@ -8,6 +8,7 @@ import {
 } from "@/lib/images.functions";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
+import { toImageDataUrl } from "@/lib/sticker-upload";
 
 type Props = {
   query: string;
@@ -49,13 +50,9 @@ export function ImagePicker({ query, onPicked }: Props) {
   async function pickCandidate(c: ImageCandidate) {
     setPicking(c.url);
     try {
-      // Unsplash URLs need server-side fetch (CORS). data: URLs (AI) can be used as-is.
-      if (c.url.startsWith("data:")) {
-        onPicked(c.url);
-      } else {
-        const { dataUrl } = await fetchFn({ data: { url: c.url } });
-        onPicked(dataUrl);
-      }
+      // ネットの画像はサーバ経由(CORS)、AIの生成画像はそのまま使える。
+      // その判断は toImageDataUrl が1箇所で持つ。
+      onPicked(await toImageDataUrl(c.url, fetchFn));
     } catch (e) {
       console.error(e);
       setPicking(null);

@@ -28,8 +28,9 @@ export const v4hold: LandingRunner = async (ctx: LandingCtx) => {
     await new Promise((r) => setTimeout(r, HOLD_MS));
     return;
   }
-  // 飛ぶ画像がマウントされる1フレームを待つ
-  await new Promise((r) => setTimeout(r, 30));
+  // ここで待つ必要はもう無い。**飛ぶ画像が載るのを待つのは呼ぶ側の仕事**
+  // (`runCatchLanding` が ref を見張る)。ここに置いてあった 30ms の待ちは、
+  // 渡された `fly` が既に「その瞬間の写し」だったので**一度も効いていなかった**。
   const startEl = ctx.startEl;
   const fly = ctx.fly;
   const dexEl = ctx.dexEl;

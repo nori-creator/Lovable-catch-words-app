@@ -1,4 +1,5 @@
-import { forwardRef } from "react";
+import { forwardRef, type RefObject } from "react";
+import { waitForRef } from "@/lib/wait-for-ref";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { getVariant } from "@/lib/effect-lab";
@@ -45,7 +46,12 @@ export function playCatchChime() {
  */
 export async function runCatchLanding(ctx: {
   startEl: HTMLElement | null;
-  fly: HTMLImageElement | null;
+  /**
+   * 飛ぶ絵の ref。**中身ではなく ref を渡す。**
+   * 覆いの層は呼ぶ側の `setLanding(true)` で初めて描かれるので、
+   * `.current` を先に読むと必ず null になる(`lib/wait-for-ref.ts` に経緯)。
+   */
+  fly: RefObject<HTMLImageElement | null>;
   speakLine?: () => void;
 }): Promise<void> {
   // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
@@ -67,7 +73,7 @@ export async function runCatchLanding(ctx: {
   const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v4hold;
   await run({
     startEl: ctx.startEl,
-    fly: ctx.fly,
+    fly: await waitForRef(ctx.fly),
     dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
     speakLine: ctx.speakLine,
   });

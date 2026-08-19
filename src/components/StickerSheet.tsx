@@ -29,6 +29,9 @@ import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functio
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
+import { toImageDataUrl } from "@/lib/sticker-upload";
+import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
+import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { useT, useUiLang } from "@/lib/i18n";
@@ -48,6 +51,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const reportFn = useServerFn(reportWordIssue);
   const [reporting, setReporting] = useState(false);
   const fetchProfile = useServerFn(getMyProfile);
+  const fetchPhotos = useServerFn(listStickerPhotos);
   const deleteFn = useServerFn(deleteSticker);
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -76,6 +80,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
     staleTime: 60_000,
+  });
+  /**
+   * 同じものを撮り直した記録。**読めなくてもカードは開く** —
+   * 写真の一覧は付け足しであって、この画面の本体ではない。
+   * 鍵は `/dex/$stickerId` と同じなので、どちらから来ても読み直しは起きない。
+   */
+  const { data: photoData } = useQuery({
+    queryKey: ["sticker-photos", stickerId],
+    queryFn: () => fetchPhotos({ data: { sticker_id: stickerId! } }),
+    enabled: !!stickerId,
   });
   /**
    * いま何かの写真が載っているか(= 差し替えると失われるものがあるか)。
@@ -127,7 +141,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
         if (s.placeholder_url || s.selfie_url) return;
         const cand = candidates[0];
         if (!cand) return;
-        const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
+        const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
         const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
         const blob = await (await fetch(small)).blob();
         const { data: userData } = await supabase.auth.getUser();
@@ -170,7 +184,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     if (!s || swapping) return;
     setSwapping(cand.url);
     try {
-      const { dataUrl } = await fetchImageFn({ data: { url: cand.url } });
+      const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
       const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
       const blob = await (await fetch(small)).blob();
       const { data: userData } = await supabase.auth.getUser();
@@ -214,7 +228,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
     // 素通しだった — 同じ破壊操作の入口で守りが揃っていなかった。
     if (hasPhoto && !window.confirm(t("card.replacePhotoConfirm"))) return;
     try {
-      const { dataUrl } = await fetchImageFn({ data: { url } });
+      const dataUrl = await toImageDataUrl(url, fetchImageFn);
       const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
       const blob = await (await fetch(small)).blob();
       const { data: userData } = await supabase.auth.getUser();
@@ -635,6 +649,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             swapping={swapping}
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
+            photos={photoData?.photos ?? []}
           />
         )}
       </div>
@@ -683,6 +698,7 @@ export function StickerSheetBody({
   swapping,
   swapWebImage,
   applyWebImage,
+  photos,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   uiLang: string;
@@ -721,6 +737,11 @@ export function StickerSheetBody({
     source: string;
   }) => void;
   applyWebImage: (url: string) => void;
+  /**
+   * この単語をこれまでに撮った写真。
+   * 2枚未満なら `StickerPhotoHistory` 自身が何も描かないので、ここでは分岐しない。
+   */
+  photos: StickerPhoto[];
 }) {
   const t = useT();
   return (
@@ -919,6 +940,14 @@ export function StickerSheetBody({
         </div>
         {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
       </section>
+
+      {/* 同じものに何度も出会った記録。
+          **図鑑からここに来る人が大多数**なのに、これまでは
+          `/dex/$stickerId` を直に開いた人にしか出ていなかった。
+          2回目3回目に撮った写真は保存されていたのに、
+          図鑑からは永久に辿り着けなかった(オーナー指摘 2026-08-18)。
+          再会が無ければ何も描かない。 */}
+      <StickerPhotoHistory photos={photos} dateLocale={uiLang === "en" ? "en-US" : "ja-JP"} />
 
       <WordCard
         word={{

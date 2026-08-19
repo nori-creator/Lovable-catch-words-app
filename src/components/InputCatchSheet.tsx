@@ -33,6 +33,7 @@ import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
+import { toImageDataUrl } from "@/lib/sticker-upload";
 import { Zh } from "@/components/Zh";
 import { isTargetHeadword } from "@/lib/target-language";
 
@@ -325,12 +326,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // 仮画像: サーバー経由で取得(CORS回避)→自分のフォルダにアップロード。
         try {
           const cand = candidates[picked];
-          // AI-generated placeholders arrive as a data: URL; fetchImageFn only
-          // accepts https (SSRF guard) and would throw, silently dropping the
-          // image the user just previewed. Use the data URL directly in that case.
-          const dataUrl = cand.url.startsWith("data:")
-            ? cand.url
-            : (await fetchImageFn({ data: { url: cand.url } })).dataUrl;
+          // ネットの画像はサーバ経由、AIの生成画像はそのまま。
+          // その判断は toImageDataUrl が1箇所で持つ。
+          const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
           const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
           const blob = await (await fetch(small)).blob();
           const { data: userData } = await supabase.auth.getUser();

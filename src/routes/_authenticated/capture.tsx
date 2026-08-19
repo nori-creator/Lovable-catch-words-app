@@ -573,7 +573,9 @@ function CapturePage() {
       try {
         await runCatchLanding({
           startEl: heroBoxRef.current,
-          fly: flyRef.current,
+          // ref のまま渡す。演出の層はこの直前の setLanding(true) で
+          // 初めて描かれるので、ここで .current を読むと必ず null になる。
+          fly: flyRef,
           speakLine: () => void pronounce(selectedHead),
         });
       } catch (e) {

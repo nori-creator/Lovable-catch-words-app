@@ -30,7 +30,7 @@ import {
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
-import { normalizeExtras, type ChunkPart } from "./extras";
+import { normalizeExtras, withoutMeasureWordEcho, type ChunkPart } from "./extras";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -107,10 +107,12 @@ export type DueReviewCard = {
  * 並べてあるので先頭が最頻。パーツを繋いで読める1行にする。
  * 旧データ(collocations だけ)にも耐えるようフォールバックを持つ。
  */
-function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
+function topChunkOf(rawExtras: unknown, headword: string): { zh: string; ja: string } | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
-  const chunk = ex.usage_chunks?.[0];
+  // 量詞は答え合わせの「量詞」の行で読む。先頭の型がその写しだと、
+  // 同じ「一張」が2行続けて出る(オーナー指摘 2026-08-18)。
+  const chunk = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)[0];
   const zh = chunk?.parts?.map((p) => p.text).join("") ?? "";
   if (zh.trim()) return { zh, ja: chunk?.ja ?? "" };
   const legacy = ex.collocations?.[0];
@@ -129,10 +131,11 @@ function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
  *  - note     : 知っておくと得な一言
  * 量は絞る — 4択の答え合わせは一瞬で読めることが最優先。
  */
-function explainOf(rawExtras: unknown): ReviewExplain | null {
+function explainOf(rawExtras: unknown, headword: string): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
-  const chunks = (ex.usage_chunks ?? [])
+  // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
+  const chunks = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)
     .filter((c) => (c.parts?.length ?? 0) > 0)
     .slice(0, 3)
     .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
@@ -458,8 +461,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         example_translation: w.example_translation,
         // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
         // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
-        top_chunk: topChunkOf(w.extras),
-        explain: explainOf(w.extras),
+        top_chunk: topChunkOf(w.extras, w.headword),
+        explain: explainOf(w.extras, w.headword),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,

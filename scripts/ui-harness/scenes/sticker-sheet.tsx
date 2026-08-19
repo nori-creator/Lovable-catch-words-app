@@ -39,6 +39,32 @@ const STICKER = {
   word: FULL,
 } as never;
 
+/**
+ * 同じものを撮り直した記録。
+ * **2枚以上でないと区画そのものが出ない**ので、雛形も必ず2枚以上にする。
+ * 1枚の場面は「出ないこと」が正しい姿なので、別の変種にはしない。
+ */
+const PHOTOS = [
+  {
+    url: shot(400, 400, "#b07a4a"),
+    taken_at: "2026-08-01T12:30:00Z",
+    place: "士林夜市",
+    first: true,
+  },
+  {
+    url: shot(400, 400, "#7a9c5a"),
+    taken_at: "2026-08-09T18:05:00Z",
+    place: "永康街",
+    first: false,
+  },
+  {
+    url: shot(400, 400, "#8b5fa8"),
+    taken_at: "2026-08-17T09:12:00Z",
+    place: null,
+    first: false,
+  },
+];
+
 const CANDIDATES = [
   { url: shot(160, 160, "#d0483c"), source: "web" },
   { url: shot(160, 160, "#f5a623"), source: "web" },
@@ -95,6 +121,9 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           swapping={null}
           swapWebImage={() => {}}
           applyWebImage={() => {}}
+          // 再会の写真。図鑑からこの面を開いた人が辿り着けるようになった所
+          // (2026-08-19)。1枚しか無い場面では区画ごと出ない。
+          photos={variant === "onephoto" ? PHOTOS.slice(0, 1) : PHOTOS}
         />
       </div>
     </div>

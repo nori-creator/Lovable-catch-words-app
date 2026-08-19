@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { emptyExtras, normalizeExtras, hasExtrasContent, mergeExtras } from "./extras";
+import {
+  emptyExtras,
+  normalizeExtras,
+  hasExtrasContent,
+  mergeExtras,
+  withoutMeasureWordEcho,
+} from "./extras";
 
 /**
  * 単語カードの「中身」(用例・関連語・台湾での言い方…)の正規化と合流。
@@ -86,5 +92,53 @@ describe("mergeExtras", () => {
     const before = JSON.stringify(saved);
     mergeExtras(saved, { collocations: ["新しい"] });
     expect(JSON.stringify(saved)).toBe(before);
+  });
+});
+
+/**
+ * 量詞は「量詞」の欄で読む。「使い方」で同じ物をもう一度読ませない。
+ * ただし量詞の型そのものを禁じると、使い方が動詞と目的語だけに戻る。
+ * その線引きをここに置く。
+ */
+describe("withoutMeasureWordEcho", () => {
+  const mw = [{ word: "一張" }];
+  const chunk = (...texts: string[]) => ({
+    parts: texts.map((text) => ({ text, pos: "" })),
+    ja: "",
+  });
+
+  it("量詞と見出し語しか無い型は落とす", () => {
+    const out = withoutMeasureWordEcho([chunk("一張", "衛生紙")], mw, "衛生紙");
+    expect(out).toEqual([]);
+  });
+
+  it("数を落とした素の量詞でも同じ物と見なす", () => {
+    const out = withoutMeasureWordEcho([chunk("張", "衛生紙")], mw, "衛生紙");
+    expect(out).toEqual([]);
+  });
+
+  it("動詞が付いた型は残す", () => {
+    const out = withoutMeasureWordEcho([chunk("拿", "一張", "衛生紙")], mw, "衛生紙");
+    expect(out).toHaveLength(1);
+  });
+
+  it("量詞と関係ない型はそのまま残る", () => {
+    const list = [chunk("用", "衛生紙", "擦")];
+    expect(withoutMeasureWordEcho(list, mw, "衛生紙")).toEqual(list);
+  });
+
+  it("量詞が無いカードは素通し", () => {
+    const list = [chunk("一張", "衛生紙")];
+    expect(withoutMeasureWordEcho(list, [], "衛生紙")).toEqual(list);
+    expect(withoutMeasureWordEcho(list, null, "衛生紙")).toEqual(list);
+  });
+
+  it("空のパーツしか無い型は落とす(描いても何も出ない)", () => {
+    expect(withoutMeasureWordEcho([chunk("", " ")], mw, "衛生紙")).toEqual([]);
+  });
+
+  it("null / undefined でも落ちない", () => {
+    expect(withoutMeasureWordEcho(null, mw, "衛生紙")).toEqual([]);
+    expect(withoutMeasureWordEcho(undefined, undefined, "")).toEqual([]);
   });
 });
