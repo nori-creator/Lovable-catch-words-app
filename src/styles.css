@@ -1189,6 +1189,112 @@
   --warn-foreground: oklch(0.2 0.05 82);
 }
 
+/* ── 品詞の色(詞類表) ──────────────────────────────────────────
+   **明るさは全部そろえる(NORI指定)。** 変えるのは色相だけ。
+   1つ1つ好きな色を選ぶと、同じ文の中で「濃い品詞」と「薄い品詞」が
+   でき、色の違いが品詞の違いではなく**重要度の違い**に読めてしまう。
+   明度と彩度を固定して色相だけ回せば、10色が対等に並ぶ。
+
+   色相が回りきらない所(黄・水色)は彩度を落としてある —
+   `oklch` の指定は sRGB の外を平気で指せるので、そのまま置くと
+   ブラウザが黙って詰めて**明度まで変わる**。詰められない値を選ぶ。
+
+   塗りと文字は分ける(`--primary` / `--primary-ink` と同じ形)。
+   帯は意味を持つ図形なので 3:1、文字は 4.5:1。 */
+:root {
+  /* 色相は10群を等間隔(約35度)に置く。彩度は**内容語と機能語で分ける** —
+     10色を全部同じ鮮やかさにすると、緑・青緑・水色のように隣り合う色相が
+     見分けにくいまま並ぶ。名詞・動詞・状態動詞・量詞(文の中身)を鮮やかに、
+     助動詞・副詞・接続詞・介詞・助詞・限定詞(文の接着剤)を淡くすると、
+     色相で品詞が分かり、**鮮やかさで骨格が分かる**。 */
+  --pos-v: oklch(0.62 0.21 25);
+  --pos-n: var(--primary);
+  --pos-vs: oklch(0.62 0.17 145);
+  --pos-m: oklch(0.62 0.13 210);
+  --pos-conj: oklch(0.62 0.11 55);
+  --pos-adv: oklch(0.62 0.1 95);
+  --pos-det: oklch(0.62 0.09 180);
+  --pos-vaux: oklch(0.62 0.11 295);
+  --pos-prep: oklch(0.62 0.12 330);
+  --pos-ptc: oklch(0.62 0.05 260);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --pos-v: oklch(0.78 0.15 25);
+  --pos-vs: oklch(0.78 0.13 145);
+  --pos-m: oklch(0.8 0.1 210);
+  --pos-conj: oklch(0.8 0.08 55);
+  --pos-adv: oklch(0.82 0.08 95);
+  --pos-det: oklch(0.79 0.07 180);
+  --pos-vaux: oklch(0.78 0.09 295);
+  --pos-prep: oklch(0.78 0.1 330);
+  --pos-ptc: oklch(0.78 0.04 260);
+}
+.pos-v {
+  --pos: var(--pos-v);
+}
+.pos-n {
+  --pos: var(--pos-n);
+}
+.pos-vs {
+  --pos: var(--pos-vs);
+}
+.pos-vaux {
+  --pos: var(--pos-vaux);
+}
+.pos-adv {
+  --pos: var(--pos-adv);
+}
+.pos-m {
+  --pos: var(--pos-m);
+}
+.pos-conj {
+  --pos: var(--pos-conj);
+}
+.pos-prep {
+  --pos: var(--pos-prep);
+}
+.pos-ptc {
+  --pos: var(--pos-ptc);
+}
+.pos-det {
+  --pos: var(--pos-det);
+}
+/* かたまりの札。**浮かせる(NORI指定)。**
+   地に薄く色を敷き、同じ色の縁と、下に落ちる影で持ち上げる。
+   押すと沈んで跳ね返る — 触れる物だと分かる手応え。 */
+.chunk-pill {
+  background: color-mix(in oklab, var(--pos) 16%, var(--card));
+  color: color-mix(in oklab, var(--pos) 60%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--pos) 32%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--pos) 24%, transparent),
+    0 4px 10px -4px color-mix(in oklab, var(--pos) 32%, transparent);
+  transition:
+    transform 0.16s var(--spring-bounce),
+    box-shadow 0.16s ease;
+}
+.chunk-pill:active {
+  transform: translateY(1px) scale(0.95);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chunk-pill {
+    transition: none;
+  }
+  .chunk-pill:active {
+    transform: none;
+  }
+}
+/* 凡例の丸。 */
+.pos-dot {
+  background: var(--pos);
+}
+
 /* ── 記憶の6段階の色 ────────────────────────────────────────────
    赤 → 橙 → 黄 → 黄緑 → 緑 → 青 の並びは「忘れかけ〜長期記憶」の順序を
    そのまま表す。以前は素の Tailwind の番号(`text-red-600` など)で書いて

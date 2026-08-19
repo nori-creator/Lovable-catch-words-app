@@ -1058,7 +1058,11 @@ function SpeakingCard({
                 </li>
               ))}
             </ol>
-            <ChunkLegend />
+            <ChunkLegend
+              parts={scaffold.parts.flatMap((p) =>
+                p.chunks.map((c) => ({ text: c.text, pos: c.pos })),
+              )}
+            />
             {scaffold.caption_seed && (
               <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-caption text-sky-900/80">
                 {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
@@ -1251,7 +1255,7 @@ function FeedbackView({
           <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
         </div>
         <ChunkPills parts={feedback.chunk} />
-        <ChunkLegend />
+        <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
             <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1373,7 +1377,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
               </div>
             ))}
           </div>
-          <ChunkLegend />
+          <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
         </section>
       )}
 

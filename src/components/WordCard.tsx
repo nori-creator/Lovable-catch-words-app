@@ -23,7 +23,7 @@ import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { usableQuickFacts } from "@/lib/extras";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
-import { isReferenceSection, isRegenSection, type SectionId } from "@/lib/card-sections";
+import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -582,12 +582,14 @@ function SectionCard({
   return (
     <section
       className={[
-        // 参考の節は**札をやめて地の上に直接置く**。同じ体裁の箱が14枚
-        // 並ぶと、目が最初に着地する場所が物理的に無くなる(独立監査)。
-        // 順序と表示は利用者の設定のまま — 変えるのは重さだけ。
-        isReferenceSection(id)
-          ? "px-1"
-          : "lift rounded-2xl border border-border bg-card p-4 shadow-sm",
+        // **どの節も同じ札に入れる(NORI指定)。**
+        // 一時期、語源・部首 / 覚え方 / 台湾メモ の3つだけ札をやめて地の上に
+        // 直接置いていた(「同じ箱が14枚並ぶと目の着地点が無くなる」という
+        // 独立監査の指摘への答え)。だが実際に見ると、**その3つだけ枠が
+        // 抜け落ちて崩れて見える** — 重さの差ではなく、作りかけに見える。
+        //
+        // 重さは箱の有無ではなく、**間合い**で付ける(下の `mb-3`)。
+        "lift rounded-2xl border border-border bg-card p-4 shadow-sm",
         // **意味の下だけ間合いを空ける。** 節がすべて等間隔だと、
         // 14枚がひと続きの壁になる。ここで一度切ると「答え」と
         // 「それ以外」に割れる(近いものほど近く、の原則)。
@@ -753,7 +755,9 @@ function Body({
                 {c.ja && <p className="mt-1 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
-            <ChunkLegend />
+            {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
+                同じ丸が何度も並ぶ。 */}
+            <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
           </div>
         );
       }

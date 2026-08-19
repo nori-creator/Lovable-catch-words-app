@@ -62,22 +62,3 @@ export type RegenSection = (typeof REGEN_SECTIONS)[number];
 export function isRegenSection(id: SectionId): id is RegenSection {
   return (REGEN_SECTIONS as readonly string[]).includes(id);
 }
-
-/**
- * 参考として置く節。**主役ではないので、札の体裁を持たせない。**
- *
- * ## なぜ「折りたたむ」ではなく「体裁を変える」か
- * 独立監査は「ヒーロー / 本体 / 折りたたみ の3段にせよ」と言った。
- * しかしこのカードには**利用者が節を並べ替え・非表示にできる設定**がある。
- * 段で畳むと、台湾メモを2番目に動かした人の指定を無視して畳むことになる —
- * 設定と段組みが同じものを別々に決めようとして喧嘩する。
- *
- * 順序と表示は利用者のもの、**重さ**は設計のもの、と分ける。
- * 参考の節は札をやめて地の上に直接置く。並び順も表示設定もそのまま効き、
- * それでいて「ここから先は参考」と目に見える。
- */
-export const REFERENCE_SECTIONS = ["etymology", "mnemonic", "taiwan_note", "real_usage"] as const;
-
-export function isReferenceSection(id: SectionId): boolean {
-  return (REFERENCE_SECTIONS as readonly string[]).includes(id);
-}

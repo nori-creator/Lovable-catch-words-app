@@ -308,7 +308,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞) を使う。
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
-- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"O"}]。よく使う動詞・量詞・定番チャンクを優先。
+- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"N"}]。**その語が実際に現れる形を品詞ごとに網羅する** — 動詞と目的語だけでなく、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)・限定詞(Det)・助詞(Ptc)の型も、ネイティブの使用頻度が高い順に入れる。
   **${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先して選ぶ**。該当する型があれば ja の説明に「母語だとこう言いたくなるが中国語ではこの順」と一言添える。
 ${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
@@ -501,7 +501,19 @@ const RegenInput = z.object({
   section: z.enum(REGEN_SECTIONS),
 });
 
-const CHUNK_RULE = `チャンクは {text: 繁体字パーツ, pos: 役割} の配列。pos は S/V(V1,V2)/O(O1,O2)/M/C/Ptc。`;
+/**
+ * チャンクの記号。**役割(S/V/O)ではなく詞類表(NORI指定)。**
+ *
+ * 以前は S/V/O/M/C/Ptc という「文の役割」で出させていた。画面では動詞と
+ * 目的語しか色が付かず、残りは全部同じ灰色になっていた — 名詞なのか
+ * 副詞なのか介詞なのかが読み取れない。台湾華語では
+ * 「この語は Vs(状態動詞)であって V ではない」ことが語順を決めるので、
+ * 学習の中身そのものが落ちていた。
+ *
+ * 台湾の教材(國語教學中心系)の詞類表をそのまま使う。`POS_TABLE` と
+ * 同じ記号なので、単語の品詞欄と帯の色が同じ体系で読める。
+ */
+const CHUNK_RULE = `チャンクは {text: 繁体字パーツ, pos: 詞類} の配列。pos は台湾の詞類表の記号を使う: N(名詞)/V(及物動詞)/Vi(不及物)/V-sep(離合詞)/Vs(状態動詞=形容詞)/Vst(状態及物)/Vs-attr/Vs-pred/Vs-sep/Vaux(助動詞)/Vp(変化動詞)/Vpt/Vp-sep/Adv(副詞)/Conj(接続詞)/Prep(介詞)/M(量詞)/Ptc(助詞)/Det(限定詞)。**文を構成する全パーツに付ける**(助詞の「的」「了」「嗎」、副詞の「很」「已經」、限定詞の「這」も省かない)。役割記号(S/O/C/P)は使わない。`;
 
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -606,7 +618,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。よく使う動詞・量詞・定番チャンク優先。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。**使用頻度の高い順に、品詞の型を散らす** — 動詞+目的語だけに寄せず、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も入れる。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z
             .array(

@@ -119,14 +119,23 @@ export function ChunksScene() {
   // `chunkStyle` の分類記号をそのまま使う(S/V/O/N/M/C/P)。品詞名で書くと
   // どれかの色に畳まれて、出ない組み合わせが残る。
   // 塗るのは動詞と目的語だけになったので、素の面(S/M/C/P)も必ず1つは出す。
+  // **詞類表の10群を全部出す。** 1つでも欠けると、その色は一度も
+  // 撮られない(色は測るまで信用しない)。古い役割記号(S/O)も混ぜて、
+  // production に既に入っているデータが名詞の色に落ちることも見る。
   const parts = [
     { text: "我", pos: "S" },
-    { text: "想喝", pos: "V" },
+    { text: "已經", pos: "Adv" },
+    { text: "想", pos: "Vaux" },
+    { text: "喝", pos: "V" },
+    { text: "這", pos: "Det" },
+    { text: "一杯", pos: "M" },
+    { text: "很", pos: "Adv" },
+    { text: "好喝", pos: "Vs" },
+    { text: "的", pos: "Ptc" },
     { text: "珍珠奶茶", pos: "O" },
-    { text: "一杯", pos: "N" },
-    { text: "很", pos: "M" },
-    { text: "在夜市", pos: "C" },
-    { text: "嗎", pos: "P" },
+    { text: "在夜市", pos: "Prep" },
+    { text: "而且", pos: "Conj" },
+    { text: "價錢", pos: "N" },
   ];
   return (
     <div className="space-y-6">
@@ -136,7 +145,7 @@ export function ChunksScene() {
           <ChunkPills parts={parts} size={size} />
         </div>
       ))}
-      <ChunkLegend />
+      <ChunkLegend parts={parts} />
     </div>
   );
 }

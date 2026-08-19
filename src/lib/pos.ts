@@ -42,71 +42,126 @@ export function posDisplay(pos: string | null | undefined): string {
 // 色は第2の手がかり: ラベル文字も必ず一緒に描く(色覚多様性)。
 // ---------------------------------------------------------------------------
 
+/**
+ * 色を持つ品詞の群。**詞類表の10群(NORI指定)。**
+ *
+ * ## なぜ2色から10群に戻したか
+ * 一時期、塗るのは動詞と目的語だけにしていた(「色を全部に配ると、色は
+ * 何も指さなくなる」という独立監査の指摘への答え)。だが実際のカードでは
+ * **動詞と目的語しか色が付かず、残りは全部同じ灰色**で、名詞なのか
+ * 副詞なのか介詞なのかが読み取れなかった。台湾華語の学習では
+ * 「この語は Vs(状態動詞)であって V ではない」ことが語順を決めるので、
+ * そこを潰すと教材として成り立たない。
+ *
+ * 虹にならないようにするのは**色相ではなく明度**の側で担保する —
+ * 明度と彩度を固定して色相だけを回すので、10色が対等に並び、
+ * どれか1つが勝手に主役に見えることが無い(`--pos-*` を見ること)。
+ */
+export type PosGroup = "n" | "v" | "vs" | "vaux" | "adv" | "m" | "conj" | "prep" | "ptc" | "det";
+
 export type ChunkStyle = {
-  bg: string;
-  text: string;
-  /** 凡例の丸。**実体のクラス名を持つ。**
-      `text-` を `bg-` に置換して作っていたが、Tailwind は**実行時に組み立てた
-      クラス名を見つけられない**ので、そのクラスは生成されず丸が消えていた。 */
+  /** 札そのもの。色は `--pos` を経由するので、クラスは2つで足りる。 */
+  pill: string;
+  /** 凡例の丸。 */
   dot: string;
   label: string;
 };
 
-/**
- * チャンクの配色 — **2色 + 素**。
- *
- * もとは S/V/O/N/M/C/P に7色のパステルを当てていた。独立監査の指摘:
- *
- * > 文を見た瞬間に虹が目に入り、**どこが主節かは分からない**。
- *
- * 色を全部に配ると、色は何も指さなくなる。このアプリが教えているのは
- * `prompt_pattern`(V+O のような型)そのものなので、**動詞と目的語だけ**
- * 塗り、残りは素の面にする。塗られている2つを追えば文の骨格が読める。
- *
- * 色は第2の手がかり。凡例に語(動詞・目的語)を必ず添えるので、
- * 色が読めなくても意味は落ちない。
- */
-const PLAIN: ChunkStyle = {
-  bg: "bg-secondary",
-  text: "text-foreground",
-  dot: "bg-foreground",
-  label: "そのほか",
-};
-
-const STYLES: Record<string, ChunkStyle> = {
-  V: { bg: "bg-chunk-v/18", text: "text-chunk-v-ink", dot: "bg-chunk-v", label: "動詞" },
-  O: { bg: "bg-chunk-o/18", text: "text-chunk-o-ink", dot: "bg-chunk-o", label: "目的語" },
-  N: { bg: "bg-chunk-o/18", text: "text-chunk-o-ink", dot: "bg-chunk-o", label: "名詞" },
-  S: PLAIN,
-  M: PLAIN,
-  C: PLAIN,
-  P: PLAIN,
+const GROUP_LABEL: Record<PosGroup, string> = {
+  n: "名詞",
+  v: "動詞",
+  vs: "状態動詞(形容詞)",
+  vaux: "助動詞",
+  adv: "副詞",
+  m: "量詞",
+  conj: "接続詞",
+  prep: "介詞",
+  ptc: "助詞",
+  det: "限定詞",
 };
 
 /**
- * 役割ラベル(S/V/V1/V2/O/O1/M/Adv/C/Conj/Prep/Ptc/Det/N…)を配色に解決。
- * V1/V2 のような番号付きも V の色に落ちる。
+ * 詞類表の記号 → 群。**長い記号から先に見る。**
+ * `Vs-attr` を `V` より先に判定しないと、状態動詞が全部ただの動詞になる。
  */
-export function chunkStyle(pos: string): ChunkStyle {
+const EXACT: Record<string, PosGroup> = {
+  N: "n",
+  V: "v",
+  Vi: "v",
+  "V-sep": "v",
+  Vp: "v",
+  Vpt: "v",
+  "Vp-sep": "v",
+  Vs: "vs",
+  Vst: "vs",
+  "Vs-attr": "vs",
+  "Vs-pred": "vs",
+  "Vs-sep": "vs",
+  Vaux: "vaux",
+  Adv: "adv",
+  Conj: "conj",
+  Prep: "prep",
+  M: "m",
+  Ptc: "ptc",
+  Det: "det",
+};
+
+/**
+ * 古いデータの役割記号。**production に既に入っている語を壊さない。**
+ * S(主語)と O(目的語)はふつう名詞句なので名詞の色に落とす。
+ * C は補語、P は助詞として書かれていた。
+ */
+const LEGACY: Record<string, PosGroup> = {
+  S: "n",
+  O: "n",
+  C: "prep",
+  P: "ptc",
+};
+
+export function posGroup(pos: string): PosGroup {
   const p = (pos || "").trim();
-  if (/^S/i.test(p)) return STYLES.S;
-  if (/^V/i.test(p)) return STYLES.V;
-  if (/^O/i.test(p)) return STYLES.O;
-  if (/^N/i.test(p)) return STYLES.N;
-  if (/^(M|Adv)/i.test(p)) return STYLES.M;
-  if (/^(C|Conj|Prep)/i.test(p)) return STYLES.C;
-  if (/^(P|Ptc|Det)/i.test(p)) return STYLES.P;
-  return STYLES.M;
+  if (!p) return "ptc";
+  const exact = EXACT[p];
+  if (exact) return exact;
+  // V1 / V2 / O1 / O2 のような番号付き。番号を落として引き直す。
+  const numless = p.replace(/[0-9０-９]+$/, "");
+  const byNum = EXACT[numless] ?? LEGACY[numless];
+  if (byNum) return byNum;
+  const legacy = LEGACY[p];
+  if (legacy) return legacy;
+  // 表に無い綴り。**長い順に前方一致**で拾う(Vs-attr → Vs → V の順)。
+  const prefixes: Array<[RegExp, PosGroup]> = [
+    [/^Vaux/i, "vaux"],
+    [/^Vs/i, "vs"],
+    [/^Vst/i, "vs"],
+    [/^V/i, "v"],
+    [/^Adv/i, "adv"],
+    [/^Conj/i, "conj"],
+    [/^Prep/i, "prep"],
+    [/^Det/i, "det"],
+    [/^Ptc/i, "ptc"],
+    [/^M/i, "m"],
+    [/^N/i, "n"],
+  ];
+  for (const [re, g] of prefixes) if (re.test(p)) return g;
+  return "ptc";
 }
 
-/** 凡例に出す代表色(順序固定)。 */
+export function chunkStyle(pos: string): ChunkStyle {
+  const g = posGroup(pos);
+  return { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: GROUP_LABEL[g] };
+}
+
 /**
- * 凡例。**塗っているものだけ**を出す。
- * 以前は6項目あり、しかも凡例の記号(Ptc)と帯に出る記号(P)が
- * 食い違っていた(独立監査)。記号そのものを帯から外したので、
- * 凡例は「色 → 何か」を言えば足りる。
+ * 凡例。**その文に実際に出てきた群だけ**を、詞類表の並びで出す。
+ * 出ていない群まで並べると、色と語の対応を探す手間だけが増える。
  */
-export const CHUNK_LEGEND: Array<{ key: string; style: ChunkStyle }> = [
-  { key: "V", style: STYLES.V },
-  { key: "O", style: STYLES.O },
-];
+const GROUP_ORDER: PosGroup[] = ["n", "v", "vs", "vaux", "adv", "m", "conj", "prep", "ptc", "det"];
+
+export function chunkLegendFor(poses: string[]): Array<{ key: PosGroup; style: ChunkStyle }> {
+  const seen = new Set(poses.map(posGroup));
+  return GROUP_ORDER.filter((g) => seen.has(g)).map((g) => ({
+    key: g,
+    style: { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: GROUP_LABEL[g] },
+  }));
+}
