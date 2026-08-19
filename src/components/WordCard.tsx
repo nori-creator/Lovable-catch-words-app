@@ -17,7 +17,6 @@ import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functio
 import { reportEntry } from "@/lib/reports.functions";
 import { generateCard, regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
-import { formatCount } from "@/lib/count";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
@@ -331,9 +330,7 @@ export const WordCard = forwardRef<
   return (
     <div className="space-y-3">
       <HeaderRow word={word} autoplay={autoplay} />
-      {wordId && missing.length > 0 && (
-        <FillCardPrompt wordId={wordId} headword={word.headword} missing={missing.length} />
-      )}
+      {wordId && missing.length > 0 && <FillCardPrompt wordId={wordId} headword={word.headword} />}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard
@@ -358,15 +355,7 @@ export const WordCard = forwardRef<
  * 待たされたうえに11回ぶんの費用がかかる。ここは既にある
  * `generateCard` → `updateWordExtras` の道を通す(手動の作り直しと同じ道)。
  */
-function FillCardPrompt({
-  wordId,
-  headword,
-  missing,
-}: {
-  wordId: string;
-  headword: string;
-  missing: number;
-}) {
+function FillCardPrompt({ wordId, headword }: { wordId: string; headword: string }) {
   const t = useT();
   const qc = useQueryClient();
   const enrich = useServerFn(generateCard);
@@ -406,21 +395,26 @@ function FillCardPrompt({
     }
   }
 
+  // **枠は出さない(NORI指定)。** 以前は破線の箱に「このカードはまだ
+  // 途中です」と見出しと説明を入れていたが、カードの上に**中身の無い箱**が
+  // 1つ増えるだけで、読む物が増えて主役の語が下がっていた。
+  // 残すのは行動そのもの ——「仕上げる」ボタン1つ。空の節は隠してあるので、
+  // これを消すと**仕上げる手段が無くなる**(節ごとの「作る」は前の周に
+  // 畳んである)。失敗したときだけ、その一言を添える。
   return (
-    <section className="rounded-2xl border border-dashed border-primary/40 bg-primary/[0.04] p-4">
-      <p className="text-headline font-semibold">{t("card.fillTitle")}</p>
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {failed ? t("card.fillFailed") : t("card.fillBody", { n: formatCount(missing) })}
-      </p>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button
         onClick={() => void fill()}
         disabled={busy}
-        className="press-in mt-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:opacity-60"
+        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {busy ? t("card.filling") : failed ? t("card.fillRetry") : t("card.fillCta")}
       </button>
-    </section>
+      {failed && (
+        <p className="ja-phrase text-footnote text-destructive-ink">{t("card.fillFailed")}</p>
+      )}
+    </div>
   );
 }
 

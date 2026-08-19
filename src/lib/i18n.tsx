@@ -900,11 +900,6 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks" },
   "card.measure_words": { ja: "量詞", en: "Measure words" },
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
-  "card.fillTitle": { ja: "このカードはまだ途中です", en: "This card isn't finished yet" },
-  "card.fillBody": {
-    ja: "{n}項目がまだありません。まとめて作れます。",
-    en: "{n} sections are still missing. You can fill them all at once.",
-  },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
   "card.filling": { ja: "作っています…", en: "Writing it…" },
   "card.fillFailed": {

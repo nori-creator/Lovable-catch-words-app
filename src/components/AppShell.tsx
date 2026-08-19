@@ -121,9 +121,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           設定でONにした人だけ動く(既定はOFF)。 */}
       <PlaceMemoryWatcher />
 
-      {/* Bottom tab bar — a floating translucent material (§12: .app-sheet gives
-          the glass, a bright top edge, and an upward shadow because it's a large
-          surface; reduced-transparency/contrast collapse it to solid). */}
+      {/* 下のタブ帯。**後ろは透けない(NORI指定)。** `.app-sheet` は上端の
+          明るい線と上向きの影だけを持つ不透明な面で、浮いていることは
+          縁と影で伝える。 */}
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
         <ul className="mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
           {items.map(({ to, labelKey, icon: Icon }) => {
@@ -151,12 +151,12 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
                   activeProps={{ className: "text-primary" }}
                 >
                   {isScan ? (
-                    // グラデーションの終点を**トークンから作る**。
-                    // `oklch(0.72 0.18 240)` と直に書いていたので、テーマや
-                    // 主色を測って直しても**ここだけ置き去り**になり、白い
-                    // アイコンに対して 2.37:1 だった(図形の下限 3:1 未満)。
-                    // 主色より必ず暗い側へ寄せるので、白は主色の上と同等以上に読める。
-                    <span className="-mt-7 grid h-14 w-14 place-items-center rounded-full bg-[linear-gradient(to_bottom_right,var(--primary),color-mix(in_oklab,var(--primary)_78%,black))] text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
+                    // **主色そのもの(NORI指定)。** 以前は右下へ向かって
+                    // 22% の黒を混ぜるグラデーションで、丸の下半分が沈んで
+                    // 設定の青より暗く見えていた。同じ画面に同じ青が2種類
+                    // 並ぶのをやめる。白のアイコンは主色の上の文字と同じ
+                    // 組み合わせになるので、読みやすさは主色の側で保証される。
+                    <span className="-mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
                       <Icon className="h-6 w-6" />
                     </span>
                   ) : (

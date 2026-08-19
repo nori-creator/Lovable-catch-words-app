@@ -368,7 +368,11 @@ function DexPage() {
           一覧・ギャラリー・地図・カレンダーには階層が無いので、そちらでは
           この行が絞り込みの手段として要る。 */}
       {captured.length > 0 && view !== "shelf" && (
-        <div className="-mx-4 mb-3 overflow-x-auto px-4">
+        // カレンダーのときは**下の余白を空けない(NORI指定)**。
+        // 日付(月送り)の帯がカテゴリーの帯から離れて浮いていて、
+        // 「絞り込みの一部」なのか「中身の見出し」なのかが決まらなかった。
+        // 隙間を無くして1つの塊にする。
+        <div className={`-mx-4 overflow-x-auto px-4 ${view === "calendar" ? "mb-0" : "mb-3"}`}>
           <div className="flex w-max gap-1.5">
             <button
               onClick={() => setActiveCategory(null)}
@@ -897,7 +901,9 @@ function DexCalendar({
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between">
+      {/* 月送りの帯。**カテゴリーの帯の直下にくっつく(NORI指定)。**
+          上の余白は上の帯が持たない側に寄せてあるので、ここでは足さない。 */}
+      <div className="mb-2 flex items-center justify-between pt-1">
         <button
           onClick={() =>
             setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))
@@ -1189,7 +1195,6 @@ function DexMap({
 
   useEffect(() => {
     if (mapInstance.current) renderMarkers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown]);
 
   // Tapping a photo below pans+zooms the map to where it was caught.

@@ -1020,14 +1020,17 @@
   border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
-/* ─── Translucent sheet surface (apple-design §12) ───
-   A floating material layer: content scrolls under a real translucent glass,
-   with a bright top edge (light catching the material) and a deeper shadow
-   because it's a large surface. */
+/* ─── 下のタブ帯の面 ───
+   以前はすりガラス(78%の地 + blur 28px)だった。**後ろが透ける(NORI指定)。**
+   写真や棚がそのまま透けて、その上に小さなアイコンと短い文字が乗るので、
+   何の上に居るかで読みやすさが変わっていた。復習でも同じ事に一度当たって
+   いて(答え合わせの面を `app-sheet` から差し替えた跡が残っている)、
+   そこでは直したのにこちらは半透明のままだった。
+
+   透けさせない。上端の線と影は残す — 面が浮いていることは、透明度では
+   なく**縁と影**で伝わる。 */
 .app-sheet {
-  background: color-mix(in oklab, var(--card) 78%, transparent);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: var(--card);
   border-top: 1px solid color-mix(in oklab, var(--foreground) 12%, white 30%);
   box-shadow: 0 -8px 40px -12px color-mix(in oklab, var(--foreground) 40%, transparent);
 }
@@ -1054,13 +1057,12 @@
   .seg-pill,
   .glass-bar,
   .lift-glass,
-  .app-sheet,
   .room-head {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  /* `.app-sheet` はここに書かなくてよくなった — 既定から不透明。 */
   .seg-pill,
-  .app-sheet,
   .room-head {
     background: var(--card) !important;
   }
@@ -1086,9 +1088,12 @@
        頼んだ人に何も返していないことになる。 */
     --shelf-line-a: 0.65;
   }
-  .seg-pill,
-  .app-sheet {
+  .seg-pill {
     background: var(--card) !important;
+    border-color: color-mix(in oklab, var(--foreground) 32%, transparent) !important;
+  }
+  /* 帯はもともと不透明。強めるのは縁だけでよい。 */
+  .app-sheet {
     border-color: color-mix(in oklab, var(--foreground) 32%, transparent) !important;
   }
 }
@@ -1143,8 +1148,13 @@
   /* **塗りと文字を分ける。** 1つの色で両方をまかなうと、文字の 4.5:1 に
      合わせて塗りまで暗くなる — `--primary` で同じ失敗をした。
      凡例の丸や帯は「意味を持つ図形」なので 3:1 でよく、鮮やかでよい。 */
-  --chunk-v: oklch(0.62 0.21 20);
-  --chunk-o: oklch(0.6 0.17 235);
+  /* **青は設定の主色そのもの(NORI指定)。** `oklch(0.6 0.17 235)` は
+     主色より彩度が低く色相も緑寄りで、同じ画面に主色と並ぶと沈んで
+     見えていた(「どす黒い」)。値を写すのではなく `--primary` を指す —
+     テーマが主色を変えたら、かたまりの青も一緒に動く。
+     赤は主色と同じ彩度まで上げて、青と釣り合わせる。 */
+  --chunk-v: oklch(0.64 0.23 25);
+  --chunk-o: var(--primary);
   --ok: oklch(0.64 0.17 155);
   --warn: oklch(0.72 0.15 75);
   --bad: oklch(0.62 0.23 27);
@@ -1186,12 +1196,15 @@
    しか無かった。明暗それぞれで、文字として 4.5:1・帯として 3:1 を満たす
    明度を測って決める。 */
 :root {
-  --mem-0: oklch(0.62 0.22 27);
-  --mem-1: oklch(0.68 0.17 55);
-  --mem-2: oklch(0.73 0.15 85);
-  --mem-3: oklch(0.68 0.18 135);
-  --mem-4: oklch(0.64 0.16 160);
-  --mem-5: oklch(0.62 0.17 245);
+  /* **もっと明るく(NORI指定)。** 上げるのは主に彩度 — 明度を上げると
+     `.mem-text`(60%混ぜ)が薄くなって 4.5:1 を割る。最後の青は
+     設定の主色に合わせて、画面の中に2種類の青が並ばないようにする。 */
+  --mem-0: oklch(0.63 0.24 27);
+  --mem-1: oklch(0.7 0.2 55);
+  --mem-2: oklch(0.76 0.18 85);
+  --mem-3: oklch(0.7 0.21 140);
+  --mem-4: oklch(0.67 0.19 165);
+  --mem-5: var(--primary);
 }
 .dark,
 :root[data-ui-theme="darkroom"],
