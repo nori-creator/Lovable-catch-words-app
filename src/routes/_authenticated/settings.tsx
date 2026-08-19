@@ -1116,7 +1116,7 @@ function AiModelPanel() {
         </ul>
         <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
         {data?.keyError && (
-          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive">
+          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
             {data.keyError}
           </p>
         )}

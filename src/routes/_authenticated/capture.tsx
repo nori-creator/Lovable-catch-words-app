@@ -744,7 +744,7 @@ function CapturePage() {
             {t("capture.openScan")}
           </button>
 
-          {error && <p className="text-body text-destructive">{error}</p>}
+          {error && <p className="text-body text-destructive-ink">{error}</p>}
         </div>
       )}
 

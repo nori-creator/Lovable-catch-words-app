@@ -443,7 +443,7 @@ function TtsPregenPanel() {
           ` · 今回生成 ${progress.done} 語${progress.failed ? ` / 失敗 ${progress.failed}` : ""}`}
       </p>
       {errors.length > 0 && (
-        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-caption text-destructive">
+        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-caption text-destructive-ink">
           {errors.some((e) => e.includes("402"))
             ? "音声の一括生成にはクレジット/課金が必要です（402 Payment Required）。Lovableのプラン設定を確認してください。単語の発音は端末の音声で代替されるので、アプリ内の再生は動きます。"
             : errors.join(" / ")}

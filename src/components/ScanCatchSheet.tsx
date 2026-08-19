@@ -467,7 +467,7 @@ export function ScanCatchSheet({
           </div>
 
           {err && (
-            <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+            <p className="mt-3 rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink">
               {err}
             </p>
           )}

@@ -930,7 +930,9 @@ function ScanPage() {
           )}
 
           {error && (
-            <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive">{error}</p>
+            <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive-ink">
+              {error}
+            </p>
           )}
 
           {/* 2) 操作: スキャン + 母語で調べる欄(常設)。

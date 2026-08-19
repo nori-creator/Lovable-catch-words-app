@@ -515,7 +515,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             />
 
             {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink">
                 {err}
               </p>
             )}
@@ -717,7 +717,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             </div>
 
             {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive">
+              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink">
                 {err}
               </p>
             )}

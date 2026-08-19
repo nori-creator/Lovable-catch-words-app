@@ -212,6 +212,12 @@ const MODES = [
   ...crossThemes("pron", { scene: "pronunciation" }),
   ...crossThemes("detail-ai", { scene: "scan-detail" }),
   ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
+  // **出来上がった側**。今まで骨組みしか撮っていなかったので、
+  // このシートの中身(解説そのもの)は一度も機械の目に映っていなかった。
+  ...crossThemes("detail-ready", { scene: "scan-detail", variant: "ready" }),
+  // 生成に失敗した面。
+  ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
+  ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
   ...crossThemes("review-memory", { scene: "review-memory" }),
   // 見出し(「3 / 12」の進捗と進捗バー、出題の型の切替)も一緒に描く。

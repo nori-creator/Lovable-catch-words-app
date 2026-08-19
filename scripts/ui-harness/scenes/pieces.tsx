@@ -15,6 +15,8 @@ import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { FULL } from "./word-card";
+import type { GeneratedCard } from "@/lib/ai.functions";
 
 /**
  * 色の組み合わせそのものを並べた見本。
@@ -202,8 +204,37 @@ export function PronunciationScene() {
  * スキャンで見つけた語の詳細。出所が「検証済み」か「AI生成」かで
  * 下の但し書きが変わる。1タップ前のシートと食い違っていた場所。
  */
+/**
+ * 生成が**終わった**カード。`Promise` は毎回作らず一度だけ作る —
+ * 描き直すたびに新しい `Promise` を渡すと、中の `useEffect` が回り続けて
+ * 撮る面が安定しない。
+ */
+const READY: Promise<GeneratedCard> = Promise.resolve({
+  headword_zh: "珍珠奶茶",
+  reading_zhuyin: FULL.reading_zhuyin,
+  pinyin: FULL.pinyin,
+  meaning_ja: FULL.meaning_ja,
+  part_of_speech: FULL.part_of_speech,
+  level: FULL.level,
+  category_key: "drink",
+  example_sentence: FULL.example_sentence,
+  example_translation: FULL.example_translation,
+  new_shelf: null,
+  extras: FULL.extras,
+} as GeneratedCard);
+
+/** ずっと生成中のまま。**待っている面も検査の対象。** */
+const PENDING: Promise<GeneratedCard> = new Promise(() => {});
+
+/** 生成に失敗した面。**押しても何も起きない**のと区別が付くかを見る。 */
+const FAILED: Promise<GeneratedCard> = Promise.reject(new Error("AIの生成に失敗しました"));
+// 誰も受け取らないと node/ブラウザが「未処理の拒否」として騒ぐ。
+// シートの中で必ず受け取るが、渡る前に一度なだめておく。
+FAILED.catch(() => {});
+
 export function ScanDetailScene({ q }: { q: URLSearchParams }) {
-  const verified = q.get("variant") === "verified";
+  const variant = q.get("variant");
+  const verified = variant === "verified";
   return (
     <ScanDetailSheet
       headword="珍珠奶茶"
@@ -235,11 +266,10 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
             }
           : undefined
       }
-      cardPromise={
-        new Promise(() => {
-          /* 生成中のまま。**待っている面も検査の対象**。 */
-        })
-      }
+      // 生成中・出来上がり・失敗の3面。**今まで生成中しか撮っていなかった**
+      // ので、このシートの中身(解説そのもの)は一度も機械の目に映って
+      // いなかった。待っている骨組みだけを見て「合格」と言っていた。
+      cardPromise={variant === "ready" ? READY : variant === "failed" ? FAILED : PENDING}
       onClose={() => {}}
     />
   );

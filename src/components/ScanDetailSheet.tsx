@@ -71,7 +71,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {err ? (
-          <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive">{err}</p>
+          <p className="rounded-xl bg-destructive/10 p-3 text-body text-destructive-ink">{err}</p>
         ) : !card ? (
           /* **回る輪だけを置かない。** 何がどこに出るのか分からないまま
              待たされるうえ、届いた瞬間に画面が丸ごと入れ替わって視線が

@@ -111,7 +111,7 @@ function Consent() {
         </ul>
         <p className="mt-4 text-footnote text-muted-foreground">{t("oauth.rlsNote")}</p>
         {err && (
-          <p role="alert" className="mt-3 text-body text-destructive">
+          <p role="alert" className="mt-3 text-body text-destructive-ink">
             {err}
           </p>
         )}

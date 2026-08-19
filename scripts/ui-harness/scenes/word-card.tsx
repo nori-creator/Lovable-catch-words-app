@@ -13,8 +13,14 @@ import {
 } from "@/routes/_authenticated/dex.$stickerId";
 import { emptyExtras } from "@/lib/extras";
 
-/** 中身が一通り埋まった語。節を一度に全部出すため、なるべく多くを埋める。 */
-const FULL = {
+/**
+ * 中身が一通り埋まった語。節を一度に全部出すため、なるべく多くを埋める。
+ *
+ * **外に出しているのは、2つ目を書かせないため。** スキャンの詳細でも
+ * 同じ語を描くので、そちらで別の見本を書くと片方だけ古くなる
+ * (設定の場面で実際にそれをやって、実在しない文言を撮り続けた)。
+ */
+export const FULL = {
   headword: "珍珠奶茶",
   reading_zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
   pinyin: "zhēn zhū nǎi chá",

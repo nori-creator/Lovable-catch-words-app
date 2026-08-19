@@ -815,7 +815,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                 何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
             {!enriching && enrichError && (
               <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-footnote">
-                <p className="font-semibold text-destructive">{t("card.enrichFailed")}</p>
+                <p className="font-semibold text-destructive-ink">{t("card.enrichFailed")}</p>
                 <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
                 <button
                   onClick={() => {
