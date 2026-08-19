@@ -26,7 +26,12 @@ export function setUiLang(lang: UiLang) {
   }
 }
 
-const DICT: Record<string, { ja: string; en: string }> = {
+/**
+ * 表に出る文字は全部ここに在る。**外に出しているのは検査のため** —
+ * 和文の約物の決めごと(`ja-punctuation.ts`)を辞書全体に当てて、
+ * 手で直した決めごとが次の文字列で戻らないようにする。
+ */
+export const DICT: Record<string, { ja: string; en: string }> = {
   // --- 動的ページタイトル ---
   "page.post": { ja: "投稿 {id} — Catchwords", en: "Post {id} — Catchwords" },
   "page.userProfile": {
@@ -800,13 +805,13 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "A short buzz when a word lands in the dex.",
   },
   "settings.feelInstantHint": {
-    ja: "選ぶとすぐ保存されます(下の「保存」は不要)。",
+    ja: "選ぶとすぐ保存されます（下の「保存」は不要）。",
     en: "Saved the moment you pick — no need to press Save.",
   },
   "settings.appearance": { ja: "外観", en: "Appearance" },
   "settings.theme": { ja: "テーマ", en: "Theme" },
   "settings.save": { ja: "保存", en: "Save" },
-  "settings.saving": { ja: "保存中...", en: "Saving..." },
+  "settings.saving": { ja: "保存中…", en: "Saving..." },
   "settings.saved": { ja: "保存しました", en: "Saved" },
   "settings.signout": { ja: "サインアウト", en: "Sign out" },
   // --- capture ---
@@ -1193,7 +1198,9 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.langJa": { ja: "日本語", en: "Japanese" },
   "settings.langEn": { ja: "English", en: "English" },
-  "settings.langZhTw": { ja: "台湾華語 (zh-TW)", en: "Taiwanese Mandarin (zh-TW)" },
+  // 符号は見せない。この束の他の4行(日本語 / English / 母語 / 表示言語)は
+  // どれも言語の名前だけを出すのに、ここだけ `(zh-TW)` を足していた。
+  "settings.langZhTw": { ja: "台湾華語", en: "Taiwanese Mandarin" },
   "settings.deleteWarn": {
     ja: "集めた単語カード・写真・復習の記録・日記など、すべてのデータが完全に削除されます。この操作は取り消せません。",
     en: "Every card, photo, review record and journal entry is permanently deleted. This cannot be undone.",

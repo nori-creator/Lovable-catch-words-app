@@ -226,6 +226,9 @@ const MODES = [
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 同じものに何度も出会った記録(再会の写真が並ぶ区画)。
   ...crossThemes("photo-history", { scene: "photo-history" }),
+  // 保存を押した直後。文字が「保存」から「保存中...」に伸びて押せなくなる。
+  // 伸びた側を撮らないと、待っている間の面が未検査のままになる。
+  ["settings-saving", "", false, { scene: "settings-danger", variant: "saving" }],
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [

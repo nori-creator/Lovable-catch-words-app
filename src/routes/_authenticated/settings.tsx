@@ -149,7 +149,7 @@ export function ChoiceRow<T extends string | number>({
  * 以前は片方が `.replace()` で作った表記、もう片方が手書きの6行で、
  * どちらも同じ文字列を別々に作っていた(ずれても誰も気づかない形)。
  */
-const TOCFL_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
+export const TOCFL_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
   value: `TOCFL-${n}`,
   label: `TOCFL Level ${n}`,
 }));
@@ -327,14 +327,17 @@ function SettingsPage() {
             <SelectRow
               id="lang-cur"
               label={t("settings.currentLevel")}
-              hint={t("settings.levelHint")}
               value={currentLevel}
               onChange={setCurrentLevel}
               options={TOCFL_LEVELS}
             />
+            {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
+                書いてあるのに、以前は1つ目の下に置いていたので、まだ見て
+                いない言葉を指して説明していた。 */}
             <SelectRow
               id="lang-level"
               label={t("settings.levelGoal")}
+              hint={t("settings.levelHint")}
               value={levelGoal}
               onChange={setLevelGoal}
               options={TOCFL_LEVELS}
