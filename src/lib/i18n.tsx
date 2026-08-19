@@ -141,7 +141,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.kindAnt": { ja: "反", en: "ant" },
   "rv.kindRel": { ja: "関", en: "rel" },
   "dex.truncated": {
-    ja: "全 {total} 件のうち、新しい {n} 件を表示しています。これより古いものはまだ出せていません。",
+    ja: "全{total}件のうち、新しい{n}件を表示しています。これより古いものはまだ出せていません。",
     en: "Showing the newest {n} of {total}. Older ones aren't loaded yet.",
   },
   // 「×3」はこのアプリが決めた記号なので、出ているときは意味を添える。
@@ -150,7 +150,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "means how many times you've met that word",
   },
   "dex.metCountAria": {
-    ja: "{word} — {n} 回出会った",
+    ja: "{word} — {n}回出会った",
     en: "{word} — met {n} times",
   },
   "dex.allCategories": { ja: "すべて", en: "All" },
@@ -389,7 +389,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cap.reencAt": { ja: "{date}に{place}で", en: "at {place} on {date}" },
   "cap.reencOn": { ja: "{date}に", en: "on {date}" },
   "cap.reencAfter": { ja: "ゲットしています。", en: "." },
-  "cap.reunionNth": { ja: "再会 {n} 回目", en: "Reunion #{n}" },
+  "cap.reunionNth": { ja: "再会{n}回目", en: "Reunion #{n}" },
   "photos.title": { ja: "この言葉に出会った記録", en: "Times you met this word" },
   "photos.count": { ja: "{n}枚", en: "{n} photos" },
   "photos.first": { ja: "はじめて", en: "First" },
@@ -514,10 +514,10 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "pron.stopRec": { ja: "録音停止", en: "Stop recording" },
   "pron.startRec": { ja: "発音を録音", en: "Record your pronunciation" },
   "pron.listeningBefore": { ja: "聞き取り中…「", en: "Listening… say “" },
-  "pron.listeningAfter": { ja: "」と言ってみて", en: "”" },
+  "pron.listeningAfter": { ja: "」と言ってみてください", en: "”" },
   "pron.yours": { ja: "あなたの発音", en: "Your pronunciation" },
   "pron.pressBefore": { ja: "マイクを押して「", en: "Tap the mic and say “" },
-  "pron.pressAfter": { ja: "」と発音", en: "”" },
+  "pron.pressAfter": { ja: "」と言ってみてください", en: "”" },
   "pron.score": { ja: "スコア", en: "Score" },
   // --- フィード・ホーム・プロフィール・オンボーディング・再設定・ルート ---
   "feed.title": { ja: "フィード", en: "Feed" },
@@ -881,6 +881,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks" },
   "card.measure_words": { ja: "量詞", en: "Measure words" },
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
+  "card.quick_facts": { ja: "ひと目でわかる", en: "At a glance" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips" },
   "card.etymology": { ja: "語源・部首", en: "Origin & radicals" },
   "card.mnemonic": { ja: "覚え方", en: "Memory hook" },
@@ -912,7 +913,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   // --- home ---
   "home.emptyTitle": { ja: "きょうのページはまだ白紙です。", en: "Today's page is still blank." },
   "home.emptyHint": {
-    ja: "街の看板やメニューをかざすと、最初の一枚がここに貼られます。",
+    ja: "街の看板やメニューにカメラをかざすと、最初の一枚がここに貼られます。",
     en: "Point your camera at a sign or menu and your first photo lands here.",
   },
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
@@ -1040,7 +1041,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "dex.noMatch": { ja: "に一致する単語はありません。", en: "— no matching words." },
   "dex.emptyTitle": { ja: "まだ何もキャッチしていません。", en: "Nothing caught yet." },
   "dex.emptyHint": {
-    ja: "カメラで街の言葉をかざすと、ここに図鑑が育ちます。",
+    ja: "街で見かけた言葉にカメラをかざすと、ここに図鑑が育ちます。",
     en: "Point the camera at words around you and your dex starts growing.",
   },
   "dex.emptyCta": { ja: "最初の一枚を撮る", en: "Take your first photo" },
@@ -1119,7 +1120,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "スピーキング: 写真を見てその時の経験を話す→AIが添削。4択: 声を出せない場所向けのクイズ。",
+    ja: "スピーキングは写真を見て話し、AIが添削します。4択は声を出せない場所向けです。",
     en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
@@ -1145,7 +1146,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "settings.focusWeak": { ja: "忘れかけ", en: "Weakest" },
   "settings.focusNew": { ja: "覚えたて", en: "Newest" },
   "settings.reviewFocusHint": {
-    ja: "忘れかけ: 何度も間違えた語から。覚えたて: 復習回数が少ない語から。",
+    ja: "忘れかけは何度も間違えた語から、覚えたては復習回数が少ない語から出します。",
     en: "Weakest: words you keep missing first. Newest: words with the fewest reviews first.",
   },
   "settings.strictness": { ja: "発音判定の厳しさ", en: "Pronunciation strictness" },
@@ -1308,7 +1309,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "home.pendingDiscard": { ja: "捨てる", en: "Discard" },
   "home.pendingDiscardConfirm": { ja: "本当に捨てる？", en: "Really discard?" },
   "home.pendingCta": { ja: "タップしてAI解析を再開する", en: "Tap to resume AI analysis" },
-  "home.pendingCount": { ja: "解析待ちの写真", en: "Photos waiting for analysis" },
+  "home.pendingCount": { ja: "解析待ちの写真 {n}枚", en: "{n} photos waiting for analysis" },
   "card.openMapsLabel": { ja: "Google マップで開く →", en: "Open in Google Maps →" },
   "review.videoTip": {
     ja: "設定で「録画」をONにすると、話した時の自撮り動画も残せます",

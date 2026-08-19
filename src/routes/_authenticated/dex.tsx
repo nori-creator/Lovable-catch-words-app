@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
@@ -335,8 +336,8 @@ function DexPage() {
           className="mb-3 rounded-xl bg-secondary px-3 py-2 text-caption text-muted-foreground"
         >
           {t("dex.truncated", {
-            n: String(captured.length),
-            total: String(totalCount ?? captured.length),
+            n: formatCount(captured.length),
+            total: formatCount(totalCount ?? captured.length),
           })}
         </p>
       )}

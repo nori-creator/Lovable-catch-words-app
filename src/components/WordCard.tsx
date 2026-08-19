@@ -20,6 +20,9 @@ import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
+import { usableQuickFacts } from "@/lib/extras";
+// 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
+import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -47,26 +50,17 @@ export type WordCardData = {
  *   勉強のコツ                    → pronunciation_tips(発音のコツ)
  *   雑学+語法ノート              → taiwan_note(台湾メモ)
  */
-type SectionId =
-  | "meaning"
-  | "web_images"
-  | "usage_context"
-  | "example"
-  | "examples_extra"
-  | "usage_chunks"
-  | "measure_words"
-  | "related_words"
-  | "pronunciation_tips"
-  | "etymology"
-  | "mnemonic"
-  | "taiwan_note"
-  | "real_usage";
 
 /** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
 const ALL_SECTIONS: { id: SectionId }[] = [
   { id: "meaning" },
   { id: "web_images" },
   { id: "usage_context" },
+  // **意味の真下には置かない。** 「ひと目でわかる」は上にあるほど効くが、
+  // 既にある語(139件)はこの項目を持たないので、一番目立つ位置に
+  // 「まだ作られていません」の空箱が出ることになる。同じ空箱が並ぶのは
+  // 独立監査が既に指摘した欠点で、その先頭を新しく1つ増やすのは割に合わない。
+  { id: "quick_facts" },
   { id: "example" },
   { id: "examples_extra" },
   { id: "usage_chunks" },
@@ -77,22 +71,6 @@ const ALL_SECTIONS: { id: SectionId }[] = [
   { id: "mnemonic" },
   { id: "taiwan_note" },
   { id: "real_usage" },
-];
-
-/** Pro のワンタッチ再生成に対応している項目(外部リンク系は対象外)。 */
-const REGEN_SECTIONS: SectionId[] = [
-  "meaning",
-  "measure_words",
-  "usage_context",
-  "example",
-  "examples_extra",
-  "usage_chunks",
-  "measure_words",
-  "related_words",
-  "pronunciation_tips",
-  "etymology",
-  "mnemonic",
-  "taiwan_note",
 ];
 
 const PREF_KEY = "wordcard-prefs-v4";
@@ -236,6 +214,7 @@ export function WordCardSectionsEditor() {
  */
 const SECTION_ICON: Record<SectionId, string> = {
   meaning: "\u{1F4D6}",
+  quick_facts: "\u{1F4CB}",
   web_images: "\u{1F310}",
   usage_context: "\u{1F4CA}",
   example: "\u{1F4AC}",
@@ -315,6 +294,8 @@ export const WordCard = forwardRef<
           (ex.antonyms?.length ?? 0) > 0 ||
           !!ex.synonym_diff
         );
+      case "quick_facts":
+        return usableQuickFacts(ex.quick_facts).length > 0;
       case "pronunciation_tips":
         return !!(ex.pronunciation_tips || ex.study_tips);
       case "etymology":
@@ -495,9 +476,9 @@ function SectionCard({
   const regenFn = useServerFn(regenerateCardSection);
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
-  const canRegen = !!wordId && !!isPro && REGEN_SECTIONS.includes(id);
+  const canRegen = !!wordId && !!isPro && isRegenSection(id);
   // 未生成の項目は誰でも1回は作れる(Proでなくても「作る」ボタンは出す)。
-  const canGenerate = !!wordId && REGEN_SECTIONS.includes(id);
+  const canGenerate = !!wordId && isRegenSection(id);
 
   // Pro: この項目だけをワンタッチで作り直す。
   async function regen() {
@@ -515,7 +496,14 @@ function SectionCard({
   }
 
   return (
-    <section className="lift rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <section
+      className={`lift rounded-2xl border border-border bg-card p-4 shadow-sm ${
+        // **意味の下だけ間合いを空ける。** 節がすべて等間隔だと、
+        // 14枚がひと続きの壁になる。ここで一度切ると「答え」と
+        // 「それ以外」に割れる(近いものほど近く、の原則)。
+        id === "meaning" ? "mb-3" : ""
+      }`}
+    >
       <div className="mb-2 flex items-center gap-2">
         {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
             丸そのものが何も言わなくなる。絵だけを地の上に置く。 */}
@@ -629,7 +617,13 @@ function Body({
 }) {
   switch (id) {
     case "meaning":
-      return <p className="text-body font-medium text-foreground">{word.meaning_ja}</p>;
+      // **この画面を開く理由がこの一行。** これまで注釈と同じ 15px で置いて
+      // いたので、2800px スクロールするカードの中で「答え」と「脚注」が
+      // 寸法上まったく同じだった(独立監査が実測で指摘)。
+      // 6段の階調の title(22px)に上げて、二番目の着地点を作る。
+      return (
+        <p className="text-title font-semibold leading-snug text-foreground">{word.meaning_ja}</p>
+      );
 
     case "usage_context": {
       // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
@@ -783,6 +777,27 @@ function Body({
       );
     }
 
+    case "quick_facts": {
+      const facts = usableQuickFacts(ex.quick_facts);
+      if (facts.length === 0) return null;
+      // **本物の表にする。** `dl` を2列で組み、行ごとに薄い区切りを入れる。
+      // 見出しは短く固定幅寄り、中身は伸びる — 目が縦に「見出しの列」を
+      // 追えることが、表であることの値打ち。
+      return (
+        <dl className="divide-y divide-border overflow-hidden rounded-xl ring-1 ring-border">
+          {facts.map((f) => (
+            <div
+              key={f.label}
+              className="grid grid-cols-[6rem_1fr] gap-3 px-3 py-2 odd:bg-secondary/40"
+            >
+              <dt className="text-footnote font-semibold text-muted-foreground">{f.label}</dt>
+              <dd className="ja-phrase min-w-0 text-balance text-body">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      );
+    }
+
     case "pronunciation_tips":
       return <Prose text={ex.pronunciation_tips || ex.study_tips || ""} />;
 
@@ -792,7 +807,11 @@ function Body({
           {ex.etymology && <Prose text={ex.etymology} />}
           {ex.radicals && (
             <p className="text-footnote text-muted-foreground">
-              {t("card.radicals")}: {ex.radicals}
+              {/* **約物で繋がない。** 「部首: 珍(王+参)」と半角コロンで
+                  繋いでいたが、和文の中の半角約物は字面が浮く。
+                  見出しと中身は余白で分ければ足りる。 */}
+              <span className="mr-2 font-medium">{t("card.radicals")}</span>
+              {ex.radicals}
             </p>
           )}
         </div>

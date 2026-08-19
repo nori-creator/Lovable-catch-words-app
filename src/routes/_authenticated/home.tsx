@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { BookText, Image as ImageIcon, ImageOff, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -131,7 +132,7 @@ export function PendingCapturesCard({
           {/* 📥 は外した。左に**写真そのもの**が既に在るので、絵文字は
               同じことを二度言っているうえ、暗い面で色が調整できない。 */}
           <span className="block text-body font-semibold text-foreground">
-            {t("home.pendingCount")}: {pending.length}
+            {t("home.pendingCount", { n: formatCount(pending.length) })}
           </span>
           <span className="block text-footnote text-muted-foreground">{t("home.pendingCta")}</span>
         </span>
@@ -335,7 +336,7 @@ export function PastDays({
           出せていないなら、そう言う(§8)。 */}
       {truncated && (
         <p role="status" className="rounded-xl bg-secondary px-3 py-2 text-caption text-foreground">
-          {t("dex.truncated", { n: String(shown), total: String(total) })}
+          {t("dex.truncated", { n: formatCount(shown), total: formatCount(total) })}
         </p>
       )}
       {days.map(([k, items]) => (
@@ -408,10 +409,18 @@ export function DayHeader({
           tracking pulls the digits into the following kanji, so they visibly
           collide. Japanese therefore renders upright with neutral tracking
           (CJK glyphs are full-width and need no tightening); English keeps the
-          elegant serif italic. */}
+          elegant serif italic.
+
+          **書体そのものも英語のときだけ。** ここは以前「斜体をやめる」
+          までしか直していなかったが、`font-serif` は当たったままだった。
+          Tailwind の serif は**ラテン専用**の並び(Georgia / Times)なので、
+          和文の日付では「2026」「8」「18」だけがセリフ体になり、
+          「年」「月」「日」はゴシックに落ちる — 1つの語の中で書体が割れる
+          (独立監査の指摘。全画面の最上部に常時出ていた)。
+          直した所の**兄弟**を探していなかった、という同じ形の見落とし。 */}
       <h1
-        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} font-serif ${
-          isEn ? "italic tracking-[-0.02em]" : "not-italic tracking-normal"
+        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} ${
+          isEn ? "font-serif italic tracking-[-0.02em]" : "not-italic tracking-normal"
         }`}
       >
         {dateLabel}
@@ -543,7 +552,8 @@ export function ScrapbookAlbum({
         <span
           className={`text-body text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
         >
-          — {stickers.length} {t("home.memories")}
+          — {formatCount(stickers.length)}
+          {t("home.memories")}
         </span>
       </div>
     </div>

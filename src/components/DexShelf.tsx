@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { buildShelfPlan, type UserShelf } from "@/lib/shelf-plan";
 
@@ -293,7 +294,7 @@ function ShelfItem({
       lang="zh-Hant"
       aria-label={
         s.encounter_count > 1
-          ? t("dex.metCountAria", { word: s.word.headword, n: String(s.encounter_count) })
+          ? t("dex.metCountAria", { word: s.word.headword, n: formatCount(s.encounter_count) })
           : s.word.headword
       }
     >

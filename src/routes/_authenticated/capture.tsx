@@ -35,6 +35,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { Zh } from "@/components/Zh";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -1019,7 +1020,7 @@ function CapturePage() {
               <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
               <p className="mt-2 text-footnote text-muted-foreground">
                 {reencResult
-                  ? t("cap.reunionNth", { n: reencResult.encounter_count })
+                  ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
                   : t("cap.reunionSaving")}
               </p>
               {reencResult?.photo_saved && (
