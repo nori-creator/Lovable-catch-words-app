@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { claimAudio, stopOtherAudio } from "@/lib/audio";
+import { claimAudio } from "@/lib/audio";
+import { speakZhTW } from "@/lib/speak";
+import { usePronounce } from "@/lib/use-pronounce";
 import {
   getDueReviews,
   gradeReview,
@@ -63,19 +65,10 @@ function readBool(key: string, def = false) {
 }
 
 // ---- speech helpers --------------------------------------------------------
-function speakZhTW(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  stopOtherAudio();
-  const u = new SpeechSynthesisUtterance(text);
-  const voices = window.speechSynthesis.getVoices();
-  const v =
-    voices.find((vo) => /zh-TW|zh-Hant|cmn-Hant/i.test(vo.lang)) ??
-    voices.find((vo) => /^zh/i.test(vo.lang));
-  if (v) u.voice = v;
-  u.lang = v?.lang ?? "zh-TW";
-  u.rate = 0.95;
-  window.speechSynthesis.speak(u);
-}
+// **この画面が自前の `speakZhTW` を持っていた。** 条件が `/^zh/` だったので
+// 台湾の声が無い端末では**大陸の普通話**を掴み、しかも毎回選び直すので
+// 回ごとに声が変わっていた(オーナー指摘「音声の声がたまに異なる。
+// 様々な別のソフトの声がする」)。声の選び方は `lib/speak.ts` の1箇所だけ。
 let sharedAudio: HTMLAudioElement | null = null;
 function playAudio(card: DueReviewCard) {
   if (card.audio_url) {
@@ -167,10 +160,10 @@ function ReviewPage() {
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
-  const lightMode =
+  const choiceMode =
     (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
   function setMode(next: "speaking" | "choice") {
-    if ((lightMode ? "choice" : "speaking") === next) return;
+    if ((choiceMode ? "choice" : "speaking") === next) return;
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
@@ -199,7 +192,7 @@ function ReviewPage() {
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
           progress={progress}
-          lightMode={lightMode}
+          choiceMode={choiceMode}
           onMode={setMode}
         />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
@@ -257,7 +250,7 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <ReviewPreparing />
       ) : current ? (
-        lightMode ? (
+        choiceMode ? (
           <LightModeCard
             key={current.review_id}
             card={current}
@@ -917,7 +910,7 @@ function SpeakingCard({
 
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
   // (最低評価)で記録され、写真をなぞっただけの人が記憶度を落としていた。
-  // ライトモードの札と同じく、結果が出てから次へ送る。
+  // 4択の札と同じく、結果が出てから次へ送る。
   return (
     <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
@@ -1181,6 +1174,10 @@ function FeedbackView({
   onNext: (correct?: boolean) => void;
 }) {
   const t = useT();
+  // 添削文・手本・言い換えも**カードの読み上げと同じ声**で聞かせる。
+  // ここだけ端末の音声を直に叩いていたので、同じ画面の中で声が変わっていた。
+  // `usePronounce` はサーバの合成を先に試し、駄目なときだけ端末に落ちる。
+  const pronounce = usePronounce();
   const goodTarget = feedback.used_target;
   const score = feedback.natural_score;
   return (
@@ -1228,7 +1225,7 @@ function FeedbackView({
         <div lang="zh-Hant" className="flex items-start gap-2">
           <div className="flex-1 text-body font-medium">{feedback.corrected}</div>
           <button
-            onClick={() => speakZhTW(feedback.corrected)}
+            onClick={() => void pronounce(feedback.corrected)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
             aria-label={t("rv.hearCorrection")}
           >
@@ -1282,7 +1279,7 @@ function FeedbackView({
         <div className="flex items-center gap-2">
           <div className="flex-1 text-body">{feedback.model_answer}</div>
           <button
-            onClick={() => speakZhTW(feedback.model_answer)}
+            onClick={() => void pronounce(feedback.model_answer)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
             aria-label={t("rv.hearModel")}
           >
@@ -1295,7 +1292,7 @@ function FeedbackView({
             {feedback.alt_answer}
           </div>
           <button
-            onClick={() => speakZhTW(feedback.alt_answer)}
+            onClick={() => void pronounce(feedback.alt_answer)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
             aria-label={t("rv.hearAlt")}
           >
@@ -1834,7 +1831,7 @@ export function ReviewHeader({
   answered,
   total,
   progress,
-  lightMode,
+  choiceMode,
   onMode,
 }: {
   /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
@@ -1842,7 +1839,7 @@ export function ReviewHeader({
   total: number | null;
   /** 0〜100。 */
   progress: number;
-  lightMode: boolean;
+  choiceMode: boolean;
   onMode: (m: "speaking" | "choice") => void;
 }) {
   const t = useT();
@@ -1865,7 +1862,7 @@ export function ReviewHeader({
           >
             <span
               aria-hidden
-              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${choiceMode ? "translate-x-full" : "translate-x-0"}`}
             />
             {/* **見た目は小さいまま、当たり判定だけを 44px へ広げる。**
                 実測 72×25px しかなく、下限(44)を大きく割っていた。
@@ -1874,18 +1871,18 @@ export function ReviewHeader({
                 縦にだけ広げる — 横に広げると隣の切替と重なる。 */}
             <button
               role="tab"
-              aria-selected={!lightMode}
+              aria-selected={!choiceMode}
               onClick={() => onMode("speaking")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!choiceMode ? "text-foreground" : "text-muted-foreground"}`}
             >
               {t("review.speak")}
             </button>
             <button
               role="tab"
-              aria-selected={lightMode}
+              aria-selected={choiceMode}
               onClick={() => onMode("choice")}
               title={t("rv.quietMode")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${choiceMode ? "text-foreground" : "text-muted-foreground"}`}
             >
               {t("review.choice")}
             </button>

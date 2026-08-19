@@ -841,6 +841,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "scan.catch": { ja: "キャッチ", en: "Catch" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…" },
   "scan.zoom": { ja: "ズーム", en: "Zoom" },
+  "scan.flipCamera": { ja: "カメラを前後で切り替える", en: "Switch front / back camera" },
   "scan.listening": { ja: "聞き取り中…", en: "Listening…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now" },
   // --- review extras ---
@@ -1147,8 +1148,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "スピーキングは写真を見て話し、AIが添削します。4択は声を出せない場所向けです。",
-    en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
+    ja: "「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1184,8 +1185,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "settings.dark": { ja: "ダーク", en: "Dark" },
   "settings.system": { ja: "システム", en: "System" },
   "settings.saveFailed": { ja: "保存に失敗しました", en: "Could not save" },
-  "settings.modeSpeaking": { ja: "🎤 スピーキング", en: "🎤 Speaking" },
-  "settings.modeChoice": { ja: "👆 4択（ライト）", en: "👆 Quiz (light)" },
+  // 復習の画面のつまみと**同じ言葉**にする。設定で選ぶのはあの切替の既定値
+  // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
+  // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
+  // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
+  "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin" },
   "settings.phoneticHint": {

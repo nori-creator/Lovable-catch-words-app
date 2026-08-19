@@ -545,14 +545,18 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             </div>
             <ul className="space-y-2">
               {wordChoices.map((c) => (
-                <li key={c.headword}>
+                // 撮った写真の候補(capture.tsx の PickWordPanel)と**同じ形**にする。
+                // どちらも「母語の1語が台湾華語では割れる」を解く同じ札で、
+                // 撮った側にだけ発音ボタンが付いていた(オーナー指定)。
+                // 片方だけ直すと、同じ役目の札が2つの見た目で残る。
+                <li key={c.headword} className="flex items-stretch gap-2">
                   <button
                     onClick={() => {
                       wordChoiceRef.current = c.headword;
                       setText(c.headword);
                       void buildCard(c.headword);
                     }}
-                    className="press-in w-full rounded-2xl border border-border bg-card p-3 text-left"
+                    className="press-in min-w-0 flex-1 rounded-2xl border border-border bg-card p-3 text-left"
                   >
                     <div className="flex items-baseline gap-2">
                       <Zh className="text-title font-bold">{c.headword}</Zh>
@@ -564,6 +568,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                     {c.distinction && (
                       <p className="mt-0.5 text-footnote text-primary-ink">{c.distinction}</p>
                     )}
+                  </button>
+                  {/* **発音ボタン。** 選ぶ前に音で確かめられる。 */}
+                  <button
+                    onClick={() => void pronounce(c.headword)}
+                    aria-label={t("common.playWord", { word: c.headword })}
+                    className="grid h-11 w-11 shrink-0 place-items-center self-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
+                  >
+                    <Volume2 className="h-4 w-4" />
                   </button>
                 </li>
               ))}

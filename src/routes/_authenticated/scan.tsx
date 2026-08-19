@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
+  SwitchCamera,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -137,6 +138,14 @@ function ScanPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // ズーム(1 = 等倍)。端末が対応していれば光学/デジタルズーム、
   // 非対応なら CSS の scale で代用する。
+  /**
+   * どちらのカメラを覗いているか。
+   *
+   * ずっと背面固定だった。撮る側(`capture.tsx`)には自撮りの段があるのに、
+   * かざす側には**前後を替える手立てが無かった**(オーナー指摘)。
+   * 自分や連れの持ち物にかざしたい場面が普通にある。
+   */
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [zoom, setZoom] = useState(1);
   const [zoomMax, setZoomMax] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
@@ -234,11 +243,20 @@ function ScanPage() {
   // ---- camera lifecycle ----
   useEffect(() => {
     let cancelled = false;
+    // 前のカメラの能力を持ち越さない。前面は倍率を持たないことが多く、
+    // 背面の上限のままだと**動かないつまみ**が残る。
+    setReady(false);
+    setZoom(1);
+    setZoomMax(1);
+    zoomCapsRef.current = null;
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
+            // `ideal` のまま渡す。`exact` にすると前面しか無い端末・
+            // 背面しか無い端末で `OverconstrainedError` になり、
+            // 切り替えたとたんカメラが真っ黒になる。
+            facingMode: { ideal: facing },
             width: { ideal: 1280 },
             height: { ideal: 1280 },
           },
@@ -293,10 +311,11 @@ function ScanPage() {
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-    // カメラ起動は初回のみ。t を依存に入れると表示言語を変えた瞬間に
-    // カメラが再起動してしまう(エラー文の言語のためにそこまでする必要はない)。
+    // 起動し直すのは**前後を替えたときだけ**。t を依存に入れると
+    // 表示言語を変えた瞬間にカメラが再起動してしまう
+    // (エラー文の言語のためにそこまでする必要はない)。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [facing]);
 
   /** ズーム値をカメラ(または表示)に反映する。 */
   const applyZoom = useCallback((next: number) => {
@@ -747,6 +766,9 @@ function ScanPage() {
               playsInline
               muted
               className="absolute inset-0 h-full w-full object-cover"
+              // **前面でも鏡像にしない。** 自撮りの見慣れた向きは鏡像だが、
+              // ここは見つけた物の上に印を落とす画面で、印の座標は
+              // 撮った絵のままの向きで来る。鏡にすると印と物がずれる。
               // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
               style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
             />
@@ -781,6 +803,21 @@ function ScanPage() {
             >
               <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
             </div>
+          )}
+
+          {/* 前後の切替。ズームの逆側(左)に置く — 同じ側に積むと、
+              倍率を持たない前面カメラに替えた瞬間に位置が飛ぶ。
+              倍率つまみは条件付きで出るが、こちらは覗いている間つねに出す。 */}
+          {!snapshot && (
+            <button
+              type="button"
+              onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+              aria-label={t("scan.flipCamera")}
+              aria-pressed={facing === "user"}
+              className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-95"
+            >
+              <SwitchCamera className="h-5 w-5" />
+            </button>
           )}
 
           {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
