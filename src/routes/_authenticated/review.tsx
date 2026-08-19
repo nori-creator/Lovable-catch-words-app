@@ -194,51 +194,13 @@ function ReviewPage() {
   return (
     <AppShell title={t("title.review")}>
       <section className="mb-4">
-        <div className="flex items-baseline justify-between">
-          <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
-            {t("review.today")}
-          </h1>
-          <div className="flex items-center gap-3">
-            {cards && (
-              <span className="text-footnote text-muted-foreground">
-                {Math.min(idx, cards.length)} / {cards.length}
-              </span>
-            )}
-            <div
-              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
-              role="tablist"
-              aria-label={t("rv.modeAria")}
-            >
-              <span
-                aria-hidden
-                className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
-              />
-              <button
-                role="tab"
-                aria-selected={!lightMode}
-                onClick={() => setMode("speaking")}
-                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {t("review.speak")}
-              </button>
-              <button
-                role="tab"
-                aria-selected={lightMode}
-                onClick={() => setMode("choice")}
-                title={t("rv.quietMode")}
-                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {t("review.choice")}
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        <ReviewHeader
+          answered={cards ? Math.min(idx, cards.length) : null}
+          total={cards?.length ?? null}
+          progress={progress}
+          lightMode={lightMode}
+          onMode={setMode}
+        />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
         {memOverview && memOverview.words.length > 0 && (
@@ -1815,6 +1777,90 @@ export function EmptyState() {
         </Link>
       }
     />
+  );
+}
+
+/**
+ * 復習の見出し — 「今日の復習」・**いま何問目か**・出題の型の切替・進捗バー。
+ *
+ * ## なぜ切り出したか
+ * 検査の場面が**札だけ**を描いていて、この見出しが入っていなかった。
+ * その絵を見た独立監査が「クイズに進捗(3/12)が無い」と指摘した —
+ * 実物には最初からあるのに。**雛形が実物の一部しか描いていないと、
+ * 監査も自分も「無い」と誤って判断する。**
+ *
+ * ルートに直書きのままでは場面から描けないので、ここへ出す。
+ * (復習・ホーム・設定で同じことを何度もやっている。)
+ */
+export function ReviewHeader({
+  answered,
+  total,
+  progress,
+  lightMode,
+  onMode,
+}: {
+  /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
+  answered: number | null;
+  total: number | null;
+  /** 0〜100。 */
+  progress: number;
+  lightMode: boolean;
+  onMode: (m: "speaking" | "choice") => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
+          {t("review.today")}
+        </h1>
+        <div className="flex items-center gap-3">
+          {answered !== null && total !== null && (
+            <span className="text-footnote text-muted-foreground">
+              {formatCount(answered)} / {formatCount(total)}
+            </span>
+          )}
+          <div
+            className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
+            role="tablist"
+            aria-label={t("rv.modeAria")}
+          >
+            <span
+              aria-hidden
+              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+            />
+            {/* **見た目は小さいまま、当たり判定だけを 44px へ広げる。**
+                実測 72×25px しかなく、下限(44)を大きく割っていた。
+                この画面の主要な切替なのに、雛形が見出しを描いていなかった
+                ので**一度も測られていなかった**。
+                縦にだけ広げる — 横に広げると隣の切替と重なる。 */}
+            <button
+              role="tab"
+              aria-selected={!lightMode}
+              onClick={() => onMode("speaking")}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {t("review.speak")}
+            </button>
+            <button
+              role="tab"
+              aria-selected={lightMode}
+              onClick={() => onMode("choice")}
+              title={t("rv.quietMode")}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {t("review.choice")}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </>
   );
 }
 

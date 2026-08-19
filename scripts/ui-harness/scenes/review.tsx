@@ -14,6 +14,7 @@ import {
   EmptyState,
   LightModeCard,
   MemoryLevelSummary,
+  ReviewHeader,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 
@@ -81,7 +82,17 @@ export function ReviewMemoryScene() {
 
 /** 4択のカード。**アプリでいちばん多く押される画面。** */
 export function ReviewChoiceScene() {
-  return <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />;
+  // **見出しも一緒に描く。** 札だけを描いていたせいで、独立監査が
+  // 「クイズに進捗(3/12)が無い」と指摘した — 実物には最初からある。
+  // 部品だけを切り出した絵は、その画面の絵ではない。
+  return (
+    <>
+      <section className="mb-4">
+        <ReviewHeader answered={3} total={12} progress={25} lightMode onMode={() => {}} />
+      </section>
+      <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />
+    </>
+  );
 }
 
 /** 答え合わせの解説。 */
