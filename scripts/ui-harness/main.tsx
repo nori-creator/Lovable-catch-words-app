@@ -17,18 +17,34 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
-import { HomeEmptyScene, HomePastScene, HomePendingScene, HomeScene } from "./scenes/home";
+import { OnboardingScene } from "./scenes/onboarding";
+import { StickerSheetScene } from "./scenes/sticker-sheet";
+import { CapturePickScene, CaptureReunionScene } from "./scenes/capture";
+import { ScanChipScene } from "./scenes/scan";
+import {
+  HomeEmptyScene,
+  HomeLoadingScene,
+  HomePastScene,
+  HomePendingScene,
+  HomeScene,
+} from "./scenes/home";
 import {
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsSelectsScene,
   SettingsTogglesScene,
 } from "./scenes/settings";
-import { WordCardEmptyScene, WordCardScene } from "./scenes/word-card";
+import {
+  StickerDetailScene,
+  StickerHeroScene,
+  WordCardEmptyScene,
+  WordCardScene,
+} from "./scenes/word-card";
 import {
   ReviewChoiceScene,
   ReviewEndScene,
   ReviewExplainScene,
+  ReviewLoadingScene,
   ReviewMemoryScene,
 } from "./scenes/review";
 import {
@@ -50,8 +66,10 @@ import "@/styles.css";
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   shelf: ShelfScene,
+  onboarding: OnboardingScene,
   home: HomeScene,
   "home-empty": HomeEmptyScene,
+  "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,
@@ -59,6 +77,12 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
   "word-card": WordCardScene,
+  "sticker-detail": StickerDetailScene,
+  "sticker-hero": StickerHeroScene,
+  "sticker-sheet": StickerSheetScene,
+  "capture-pick": CapturePickScene,
+  "capture-reunion": CaptureReunionScene,
+  "scan-chip": ScanChipScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
@@ -70,6 +94,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-detail": ScanDetailScene,
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
+  "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
   "review-end": ReviewEndScene,
@@ -101,6 +126,15 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * 枠(上のバー・下タブ)を被せない場面。
+ *
+ * 全画面の面にバーと帯を足して撮ると、**実物に無いものを検査する**ことに
+ * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
+ * どちらも「別の画面を見ている」なので、場面ごとに決める。
+ */
+const BARE = new Set(["onboarding", "sticker-sheet"]);
+
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";
 const Scene = SCENES[wanted];
@@ -127,9 +161,13 @@ requestAnimationFrame(() =>
 createRoot(document.getElementById("root")!).render(
   Scene ? (
     <QueryClientProvider client={qc}>
-      <Frame>
+      {BARE.has(wanted) ? (
         <Scene q={q} />
-      </Frame>
+      ) : (
+        <Frame>
+          <Scene q={q} />
+        </Frame>
+      )}
     </QueryClientProvider>
   ) : (
     <p>unknown scene</p>

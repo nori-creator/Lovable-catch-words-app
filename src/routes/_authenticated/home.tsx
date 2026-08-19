@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
+import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
@@ -13,7 +14,7 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon, ImageOff, Trash2, WifiOff } from "lucide-react";
+import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
@@ -257,7 +258,7 @@ function HomePage() {
       )}
 
       {isLoading ? (
-        <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
+        <HomeLoading />
       ) : isError ? (
         // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
         // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
@@ -286,25 +287,34 @@ function HomePage() {
   );
 }
 
+/**
+ * 読み込み中の台紙。**起動するたびに必ず通る面**なのに、ルートの三項の
+ * 中に直書きだったので雛形から呼べず、一度も撮っていなかった。
+ *
+ * 高さは実物のアルバムとほぼ同じにしておく — 低いものを置くと、
+ * 読み終わった瞬間に下の「過去の日」が突き落とされる。
+ */
+export function HomeLoading() {
+  return <div className="h-72 animate-pulse rounded-3xl bg-secondary" />;
+}
+
 /** 今日はまだ1枚も無いとき。**始めたばかりの人が最初に見る面**。 */
 export function HomeEmptyState() {
   const t = useT();
   return (
-    <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-      {/* **見出しは見出しの重さで置く。** 図鑑の空の面と同じ型。 */}
-      <p className="text-headline font-semibold text-foreground">{t("home.emptyTitle")}</p>
-      {/* 日本語は行の途中で折り返すと読みにくい(「ここ / に貼られます」に
-          なっていた)。長さは `text-balance`、切る場所は `ja-phrase`。 */}
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {t("home.emptyHint")}
-      </p>
-      <Link
-        to="/capture"
-        className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("home.emptyCta")}
-      </Link>
-    </div>
+    <EmptyState
+      icon={BookText}
+      title={t("home.emptyTitle")}
+      hint={t("home.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="press-in inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("home.emptyCta")}
+        </Link>
+      }
+    />
   );
 }
 
@@ -430,29 +440,23 @@ export function DayHeader({
       {label && (
         <p className="text-caption uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
       )}
-      {/* §15 typography: tracking is size- AND script-specific.
-          The serif *italic* is a Latin conceit — applied to a Japanese date
-          ("2026年8月2日") the browser synthesises the slant and the negative
-          tracking pulls the digits into the following kanji, so they visibly
-          collide. Japanese therefore renders upright with neutral tracking
-          (CJK glyphs are full-width and need no tightening); English keeps the
-          elegant serif italic.
+      {/* 日付。**端末の公式の書体をそのまま使う(NORI指定)** — iPhone なら
+          Apple の SF Pro、Android なら Google の Roboto(`--font-display`)。
 
-          **書体そのものも英語のときだけ。** ここは以前「斜体をやめる」
-          までしか直していなかったが、`font-serif` は当たったままだった。
-          Tailwind の serif は**ラテン専用**の並び(Georgia / Times)なので、
-          和文の日付では「2026」「8」「18」だけがセリフ体になり、
-          「年」「月」「日」はゴシックに落ちる — 1つの語の中で書体が割れる
-          (独立監査の指摘。全画面の最上部に常時出ていた)。
-          直した所の**兄弟**を探していなかった、という同じ形の見落とし。 */}
+          以前は英語のときだけセリフ体の斜体で組んでいた。セリフ体は
+          ラテン専用の作りなので、和文の日付では「2026」「8」「18」だけが
+          セリフになり「年」「月」「日」はゴシックに落ちる —
+          **1つの語の中で書体が割れる**。言語で書体を出し分けて逃げていたが、
+          そもそも書体で差を付けるのをやめた。差は大きさと字間で付ける。 */}
       <h1
-        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} ${
-          isEn ? "font-serif italic tracking-[-0.02em]" : "not-italic tracking-normal"
+        className={`font-display ${
+          compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"
         }`}
       >
         {dateLabel}
       </h1>
-      {/* 曜日も同じ。「土 曜 日」と割れて見えていた。 */}
+      {/* 曜日。字間を広げるのは**ラテン文字の作法**なので英語のときだけ。
+          和文に当てると「土 曜 日」と割れて見える。 */}
       <p
         className={`${compact ? "" : "mt-0.5"} text-footnote text-muted-foreground ${
           isEn ? "uppercase tracking-[0.25em]" : "tracking-normal"
@@ -543,8 +547,18 @@ export function ScrapbookAlbum({
                   // (数字の検査は「読める濃さか」しか見ないので通っていた)。
                   // 帯のほうが全カード共通なので、語は帯に一本化し、ここには
                   // **写真がまだ無いこと**だけを静かに示す。
+                  // **斜線の入った記号は使わない。** `ImageOff` は
+                  // 「画像が壊れています」の記号として定着していて、
+                  // 実際そう読まれた(独立監査が「壊れ画像アイコンの素通し」
+                  // と指摘)。ここは壊れているのではなく**まだ撮っていない**
+                  // だけなので、素の絵の記号で「ここに写真が入る」と言う。
+                  //
+                  // (監査は「図鑑と同じく語を大きく置け」と言ったが、それは
+                  //  違う。ホームは下の白フチの帯に同じ語が入るので、
+                  //  置くと「腳踏車 / 腳踏車」と二段に並ぶ — 一度直した跡が
+                  //  すぐ上のコメントに残っている。)
                   <div className="grid h-full w-full place-items-center">
-                    <ImageOff
+                    <ImageIcon
                       aria-label={t("home.noPhotoYet")}
                       className="h-6 w-6 text-album-ink-dim"
                     />

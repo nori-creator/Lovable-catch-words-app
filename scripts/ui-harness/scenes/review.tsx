@@ -9,11 +9,12 @@
  */
 import {
   AnswerExplain,
-  CardMemoryBadge,
   DoneState,
   EmptyState,
   LightModeCard,
   MemoryLevelSummary,
+  ReviewHeader,
+  ReviewPreparing,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 
@@ -55,8 +56,30 @@ const CARD: DueReviewCard = {
   ],
 };
 
-/** 記憶レベルの帯 + 1枚ぶんのバッジ。復習を開いた瞬間に見えるもの。 */
-export function ReviewMemoryScene() {
+/**
+ * 出題を組み立てている間。**この画面でいちばん先に見る面**。
+ * 見出しは先に出ているので、その下に1枚だけ置かれた絵になる。
+ */
+export function ReviewLoadingScene() {
+  return (
+    <>
+      <section className="mb-4">
+        <ReviewHeader answered={null} total={null} progress={0} lightMode onMode={() => {}} />
+      </section>
+      <ReviewPreparing />
+    </>
+  );
+}
+
+/**
+ * 復習を開いた瞬間の上半分。見出しと、記憶レベルの帯。
+ *
+ * 帯は実物では**押せる**(押すと語ごとの一覧が開く)。素の `div` として
+ * 撮っていた間は、押せる大きさも焦点の輪も一度も測っていなかった。
+ * 実物と同じく `<section className="mb-4">` の中に、見出しと一緒に置く。
+ */
+export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
+  const open = q.get("variant") === "open";
   const words = [72, 44, 91, 12, 60, 33].map((retention, i) => ({
     sticker_id: `s${i}`,
     headword: ["珍珠奶茶", "夜市", "捷運", "雨傘", "蘋果", "咖啡"][i],
@@ -72,16 +95,30 @@ export function ReviewMemoryScene() {
     ease: 2.4,
   }));
   return (
-    <div className="space-y-4">
-      <MemoryLevelSummary words={words} />
-      <CardMemoryBadge card={CARD} onOpen={() => {}} />
-    </div>
+    <section className="mb-4">
+      <ReviewHeader answered={3} total={12} progress={25} lightMode onMode={() => {}} />
+      {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
+          変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
+      <button className="w-full text-left" aria-expanded={open}>
+        <MemoryLevelSummary words={words} expanded={open} />
+      </button>
+    </section>
   );
 }
 
 /** 4択のカード。**アプリでいちばん多く押される画面。** */
 export function ReviewChoiceScene() {
-  return <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />;
+  // **見出しも一緒に描く。** 札だけを描いていたせいで、独立監査が
+  // 「クイズに進捗(3/12)が無い」と指摘した — 実物には最初からある。
+  // 部品だけを切り出した絵は、その画面の絵ではない。
+  return (
+    <>
+      <section className="mb-4">
+        <ReviewHeader answered={3} total={12} progress={25} lightMode onMode={() => {}} />
+      </section>
+      <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />
+    </>
+  );
 }
 
 /** 答え合わせの解説。 */
@@ -91,5 +128,13 @@ export function ReviewExplainScene() {
 
 /** 今日ぶんが無いとき・終わったとき。**普通の日にいちばんよく見る面**。 */
 export function ReviewEndScene({ q }: { q: URLSearchParams }) {
-  return q.get("variant") === "done" ? <DoneState onAgain={() => {}} /> : <EmptyState />;
+  // 完了の面は**成績つき**で撮る。数えていない回(0問)は成績を出さない
+  // 分岐なので、そちらも別の場面で見る。
+  if (q.get("variant") === "done") {
+    return <DoneState onAgain={() => {}} answered={12} correct={10} />;
+  }
+  if (q.get("variant") === "done-nocount") {
+    return <DoneState onAgain={() => {}} />;
+  }
+  return <EmptyState />;
 }

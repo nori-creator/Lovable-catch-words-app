@@ -29,6 +29,7 @@ import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
+import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -367,7 +368,11 @@ function DexPage() {
           一覧・ギャラリー・地図・カレンダーには階層が無いので、そちらでは
           この行が絞り込みの手段として要る。 */}
       {captured.length > 0 && view !== "shelf" && (
-        <div className="-mx-4 mb-3 overflow-x-auto px-4">
+        // カレンダーのときは**下の余白を空けない(NORI指定)**。
+        // 日付(月送り)の帯がカテゴリーの帯から離れて浮いていて、
+        // 「絞り込みの一部」なのか「中身の見出し」なのかが決まらなかった。
+        // 隙間を無くして1つの塊にする。
+        <div className={`-mx-4 overflow-x-auto px-4 ${view === "calendar" ? "mb-0" : "mb-3"}`}>
           <div className="flex w-max gap-1.5">
             <button
               onClick={() => setActiveCategory(null)}
@@ -651,20 +656,19 @@ function DexPage() {
 export function DexEmptyState() {
   const t = useT();
   return (
-    <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-      {/* **見出しは見出しの重さで置く。** 説明と同じ太さ・同じ灰色だと、
-          6段の階調を持っていても、この画面では階層が消える。 */}
-      <p className="text-headline font-semibold text-foreground">{t("dex.emptyTitle")}</p>
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {t("dex.emptyHint")}
-      </p>
-      <Link
-        to="/capture"
-        className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("dex.emptyCta")}
-      </Link>
-    </div>
+    <EmptyState
+      icon={Library}
+      title={t("dex.emptyTitle")}
+      hint={t("dex.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("dex.emptyCta")}
+        </Link>
+      }
+    />
   );
 }
 
@@ -897,7 +901,9 @@ function DexCalendar({
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between">
+      {/* 月送りの帯。**カテゴリーの帯の直下にくっつく(NORI指定)。**
+          上の余白は上の帯が持たない側に寄せてあるので、ここでは足さない。 */}
+      <div className="mb-2 flex items-center justify-between pt-1">
         <button
           onClick={() =>
             setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))
@@ -1189,7 +1195,6 @@ function DexMap({
 
   useEffect(() => {
     if (mapInstance.current) renderMarkers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown]);
 
   // Tapping a photo below pans+zooms the map to where it was caught.
@@ -1276,7 +1281,7 @@ function DexMap({
       )}
       <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary-ink">
           {withLoc.length} {t("dex.items")}
         </span>
       </div>

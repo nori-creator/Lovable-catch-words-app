@@ -6,10 +6,21 @@
  * 決めてあった箇所。まず見えるようにする。
  */
 import { WordCard } from "@/components/WordCard";
+import {
+  BackToDexLink,
+  StickerDetailBody,
+  StickerDetailHero,
+} from "@/routes/_authenticated/dex.$stickerId";
 import { emptyExtras } from "@/lib/extras";
 
-/** 中身が一通り埋まった語。節を一度に全部出すため、なるべく多くを埋める。 */
-const FULL = {
+/**
+ * 中身が一通り埋まった語。節を一度に全部出すため、なるべく多くを埋める。
+ *
+ * **外に出しているのは、2つ目を書かせないため。** スキャンの詳細でも
+ * 同じ語を描くので、そちらで別の見本を書くと片方だけ古くなる
+ * (設定の場面で実際にそれをやって、実在しない文言を撮り続けた)。
+ */
+export const FULL = {
   headword: "珍珠奶茶",
   reading_zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
   pinyin: "zhēn zhū nǎi chá",
@@ -123,3 +134,140 @@ export function WordCardEmptyScene() {
 // ネットの画像の節は**自分で取りに行く**(extras には入っていない)。
 // ハーネスでは通信が返ってこないので、上の2つの場面の中で
 // 「読み込み中の節」として写る。それも見たい面なので、別の場面は作らない。
+
+/**
+ * 語の詳細の**既定の見え方**。
+ *
+ * これまで撮っていたのは `WordCard` を裸で描いた絵だったが、実物では
+ * それは `<details>`「すべて見る」の中で閉じている。つまり
+ * **この画面は一度も機械の目に映っていなかった**。
+ * 独立監査3体はここを「一番長く見られる画面」として採点していたので、
+ * 採点の前提そのものが実物と違っていた。
+ */
+const shot = (w: number, h: number, c: string) =>
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="${c}"/></svg>`,
+  );
+
+const STICKER = {
+  id: "s1",
+  word_id: "w1",
+  created_at: "2026-08-01T12:30:00Z",
+  taken_at: "2026-08-01T12:30:00Z",
+  caption: "士林夜市で並んでいるときに",
+  location_name: "士林夜市",
+  lat: 25.088,
+  lng: 121.524,
+  object_url: shot(600, 600, "#b07a4a"),
+  cutout_url: null,
+  selfie_url: shot(600, 600, "#4a90d9"),
+  placeholder_url: null,
+  placeholder_credit: null,
+  branch_plan: null,
+  review_count: 2,
+  word: FULL,
+} as never;
+
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = Date.UTC(2026, 7, 19, 3, 0, 0);
+
+/**
+ * 語の詳細の**既定の見え方そのもの**。
+ *
+ * 今までここは `StickerDetailHero`(上半分)だけを撮っていた。
+ * さらにその前は `WordCard` を裸で撮っていて、**実物では
+ * `<details>`「すべて見る」の中で閉じている面**を
+ * 「一番長く見られる画面」として採点していた。
+ *
+ * ここでは実物の並びをそのまま描く:
+ *   戻る → 写真(表裏) → 見出し語・意味 → 語の木 → 出会った記録 →
+ *   「すべて見る」(**閉じたまま**) → 記憶の曲線 → 地図
+ *
+ * **開いた側は撮らない。** 開いた中身は `word-card` の場面が受け持つ。
+ * ここで開くと、また「既定では見えない面」を既定として採点することになる。
+ */
+export function StickerDetailScene() {
+  return (
+    <>
+      <BackToDexLink />
+      <StickerDetailBody
+        sticker={STICKER}
+        dateLocale="ja-JP"
+        photos={[
+          {
+            url: shot(160, 160, "#d0483c"),
+            taken_at: "2026-05-02T09:00:00Z",
+            place: "台北駅",
+            first: true,
+          },
+          {
+            url: shot(160, 160, "#f5a623"),
+            taken_at: "2026-08-01T18:00:00Z",
+            place: "士林夜市",
+            first: false,
+          },
+        ]}
+        memory={
+          {
+            history: [
+              {
+                reviewed_at: new Date(NOW - 21 * DAY).toISOString(),
+                score: 4,
+                interval_days_after: 3,
+                ease_after: 2.5,
+              },
+              {
+                reviewed_at: new Date(NOW - 12 * DAY).toISOString(),
+                score: 3,
+                interval_days_after: 6,
+                ease_after: 2.3,
+              },
+              {
+                reviewed_at: new Date(NOW - 4 * DAY).toISOString(),
+                score: 5,
+                interval_days_after: 12,
+                ease_after: 2.4,
+              },
+            ],
+            current: {
+              ease: 2.3,
+              interval_days: 6,
+              last_reviewed_at: new Date(NOW - 4 * DAY).toISOString(),
+              due_at: new Date(NOW + 2 * DAY).toISOString(),
+            },
+          } as never
+        }
+      />
+    </>
+  );
+}
+
+/** 上半分だけ。写真の裏表と「いつ・どこで」を大きく見るための場面。 */
+export function StickerHeroScene() {
+  return (
+    <StickerDetailHero
+      dateLocale="ja-JP"
+      sticker={
+        {
+          id: "s1",
+          word_id: "w1",
+          created_at: "2026-08-01T12:30:00Z",
+          taken_at: "2026-08-01T12:30:00Z",
+          caption: "士林夜市で並んでいるときに",
+          location_name: "士林夜市",
+          lat: 25.088,
+          lng: 121.524,
+          object_url: shot(600, 600, "#b07a4a"),
+          cutout_url: null,
+          selfie_url: shot(600, 600, "#4a90d9"),
+          placeholder_url: null,
+          placeholder_credit: null,
+          branch_plan: null,
+          review_count: 2,
+          word: FULL,
+        } as never
+      }
+    />
+  );
+}

@@ -29,10 +29,15 @@ export function Prose({ text, className = "" }: { text: string; className?: stri
           {spans.map((s, j) => {
             if (s.kind === "term") {
               return (
+                // **語の途中で折り返させない。** 和文は文字単位で折り返すので、
+                // 印を付けた語も「少 / 冰」と割れる。塗りが2行にちぎれると、
+                // どこからどこまでが1語なのかが読めなくなる — 印を付けた
+                // 意味そのものが消える(実物の台湾メモで起きていた)。
+                // 語ごと次の行へ送る。
                 <span
                   key={j}
                   lang="zh-Hant"
-                  className="rounded bg-primary/10 px-1 font-semibold text-primary-ink"
+                  className="inline-block whitespace-nowrap rounded bg-primary/10 px-1 font-semibold text-primary-ink"
                 >
                   {s.text}
                 </span>

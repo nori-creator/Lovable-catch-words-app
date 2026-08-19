@@ -210,7 +210,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
           </div>
         )}
       </div>
-      {error && <p className="text-footnote text-destructive">{error}</p>}
+      {error && <p className="text-footnote text-destructive-ink">{error}</p>}
     </section>
   );
 }

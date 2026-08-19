@@ -17,14 +17,13 @@ import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functio
 import { reportEntry } from "@/lib/reports.functions";
 import { generateCard, regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
-import { formatCount } from "@/lib/count";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { usableQuickFacts } from "@/lib/extras";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
-import { isReferenceSection, isRegenSection, type SectionId } from "@/lib/card-sections";
+import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -331,9 +330,7 @@ export const WordCard = forwardRef<
   return (
     <div className="space-y-3">
       <HeaderRow word={word} autoplay={autoplay} />
-      {wordId && missing.length > 0 && (
-        <FillCardPrompt wordId={wordId} headword={word.headword} missing={missing.length} />
-      )}
+      {wordId && missing.length > 0 && <FillCardPrompt wordId={wordId} headword={word.headword} />}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard
@@ -358,15 +355,7 @@ export const WordCard = forwardRef<
  * 待たされたうえに11回ぶんの費用がかかる。ここは既にある
  * `generateCard` → `updateWordExtras` の道を通す(手動の作り直しと同じ道)。
  */
-function FillCardPrompt({
-  wordId,
-  headword,
-  missing,
-}: {
-  wordId: string;
-  headword: string;
-  missing: number;
-}) {
+function FillCardPrompt({ wordId, headword }: { wordId: string; headword: string }) {
   const t = useT();
   const qc = useQueryClient();
   const enrich = useServerFn(generateCard);
@@ -406,21 +395,26 @@ function FillCardPrompt({
     }
   }
 
+  // **枠は出さない(NORI指定)。** 以前は破線の箱に「このカードはまだ
+  // 途中です」と見出しと説明を入れていたが、カードの上に**中身の無い箱**が
+  // 1つ増えるだけで、読む物が増えて主役の語が下がっていた。
+  // 残すのは行動そのもの ——「仕上げる」ボタン1つ。空の節は隠してあるので、
+  // これを消すと**仕上げる手段が無くなる**(節ごとの「作る」は前の周に
+  // 畳んである)。失敗したときだけ、その一言を添える。
   return (
-    <section className="rounded-2xl border border-dashed border-primary/40 bg-primary/[0.04] p-4">
-      <p className="text-headline font-semibold">{t("card.fillTitle")}</p>
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {failed ? t("card.fillFailed") : t("card.fillBody", { n: formatCount(missing) })}
-      </p>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button
         onClick={() => void fill()}
         disabled={busy}
-        className="press-in mt-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:opacity-60"
+        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {busy ? t("card.filling") : failed ? t("card.fillRetry") : t("card.fillCta")}
       </button>
-    </section>
+      {failed && (
+        <p className="ja-phrase text-footnote text-destructive-ink">{t("card.fillFailed")}</p>
+      )}
+    </div>
   );
 }
 
@@ -588,12 +582,14 @@ function SectionCard({
   return (
     <section
       className={[
-        // 参考の節は**札をやめて地の上に直接置く**。同じ体裁の箱が14枚
-        // 並ぶと、目が最初に着地する場所が物理的に無くなる(独立監査)。
-        // 順序と表示は利用者の設定のまま — 変えるのは重さだけ。
-        isReferenceSection(id)
-          ? "px-1"
-          : "lift rounded-2xl border border-border bg-card p-4 shadow-sm",
+        // **どの節も同じ札に入れる(NORI指定)。**
+        // 一時期、語源・部首 / 覚え方 / 台湾メモ の3つだけ札をやめて地の上に
+        // 直接置いていた(「同じ箱が14枚並ぶと目の着地点が無くなる」という
+        // 独立監査の指摘への答え)。だが実際に見ると、**その3つだけ枠が
+        // 抜け落ちて崩れて見える** — 重さの差ではなく、作りかけに見える。
+        //
+        // 重さは箱の有無ではなく、**間合い**で付ける(下の `mb-3`)。
+        "lift rounded-2xl border border-border bg-card p-4 shadow-sm",
         // **意味の下だけ間合いを空ける。** 節がすべて等間隔だと、
         // 14枚がひと続きの壁になる。ここで一度切ると「答え」と
         // 「それ以外」に割れる(近いものほど近く、の原則)。
@@ -617,7 +613,11 @@ function SectionCard({
             disabled={regenerating}
             aria-label={`${label}: ${t("card.regen")}`}
             title={t("card.regen")}
-            className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-60"
+            // **Pro の人にしか出ないので、今まで一度も測られていなかった。**
+            // 節ごとに1つ、14個並ぶ小さな印。見た目は 32px のままでいい
+            // (節の見出しより重くすると、どれが中身か分からなくなる)。
+            // 当たり判定だけ 44px へ広げる。押せない間は薄くせず、色を落とす。
+            className="relative ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-secondary hover:text-foreground disabled:text-muted-foreground/40"
           >
             {regenerating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -759,7 +759,9 @@ function Body({
                 {c.ja && <p className="mt-1 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
-            <ChunkLegend />
+            {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
+                同じ丸が何度も並ぶ。 */}
+            <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
           </div>
         );
       }
@@ -888,7 +890,10 @@ function Body({
       );
 
     case "mnemonic":
-      return <Prose text={ex.mnemonic ?? ""} className="italic" />;
+      // 斜体は当てない。**和文に斜体の字面は無い**ので、ブラウザが字を
+      // 傾けて偽造する(日付のセリフ斜体で直したのと同じ話の兄弟)。
+      // 覚え方は本文と同じ組みで読ませる。
+      return <Prose text={ex.mnemonic ?? ""} />;
 
     case "taiwan_note":
       return (

@@ -25,8 +25,11 @@ import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
 import { useT, useUiLang } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
+// このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
+import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
   Eye,
   Sparkles,
@@ -43,6 +46,8 @@ import {
   ArrowRight,
   Clock,
   MapPin,
+  CalendarCheck,
+  ChevronDown,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 
@@ -144,6 +149,20 @@ function ReviewPage() {
   });
 
   const [idx, setIdx] = useState(0);
+  /**
+   * この回の成績。**完了の面で見せるためだけ**に数える。
+   *
+   * 1問ごとの採点はサーバへ送っているのに、画面側では捨てていたので、
+   * 「今日の復習、終わりました」以上のことが言えなかった
+   * (独立監査: 直前まで数えていた情報が完了の瞬間に消えている)。
+   */
+  const [tally, setTally] = useState({ answered: 0, correct: 0 });
+  const advance = (correct?: boolean) => {
+    setIdx((i) => i + 1);
+    if (correct !== undefined) {
+      setTally((v) => ({ answered: v.answered + 1, correct: v.correct + (correct ? 1 : 0) }));
+    }
+  };
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
@@ -176,51 +195,13 @@ function ReviewPage() {
   return (
     <AppShell title={t("title.review")}>
       <section className="mb-4">
-        <div className="flex items-baseline justify-between">
-          <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
-            {t("review.today")}
-          </h1>
-          <div className="flex items-center gap-3">
-            {cards && (
-              <span className="text-footnote text-muted-foreground">
-                {Math.min(idx, cards.length)} / {cards.length}
-              </span>
-            )}
-            <div
-              className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
-              role="tablist"
-              aria-label={t("rv.modeAria")}
-            >
-              <span
-                aria-hidden
-                className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
-              />
-              <button
-                role="tab"
-                aria-selected={!lightMode}
-                onClick={() => setMode("speaking")}
-                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {t("review.speak")}
-              </button>
-              <button
-                role="tab"
-                aria-selected={lightMode}
-                onClick={() => setMode("choice")}
-                title={t("rv.quietMode")}
-                className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {t("review.choice")}
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        <ReviewHeader
+          answered={cards ? Math.min(idx, cards.length) : null}
+          total={cards?.length ?? null}
+          progress={progress}
+          lightMode={lightMode}
+          onMode={setMode}
+        />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
         {memOverview && memOverview.words.length > 0 && (
@@ -230,7 +211,7 @@ function ReviewPage() {
               aria-expanded={memListOpen}
               className="w-full text-left"
             >
-              <MemoryLevelSummary words={memOverview.words} />
+              <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
             </button>
             {memListOpen && (
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
@@ -248,10 +229,7 @@ function ReviewPage() {
       </section>
 
       {isLoading ? (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
-        </div>
+        <ReviewPreparing />
       ) : isError ? (
         // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
         // 200枚溜まっていても「今日の復習はありません」と出ていた。
@@ -264,8 +242,11 @@ function ReviewPage() {
         <EmptyState />
       ) : done ? (
         <DoneState
+          answered={tally.answered}
+          correct={tally.correct}
           onAgain={() => {
             setIdx(0);
+            setTally({ answered: 0, correct: 0 });
             refetch();
           }}
         />
@@ -274,23 +255,20 @@ function ReviewPage() {
         // keeps the previous cards during refetch, so without this guard the
         // already-graded card[0] would render and stay interactive — a second
         // tap would grade it again and corrupt the SRS schedule/history.
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
-        </div>
+        <ReviewPreparing />
       ) : current ? (
         lightMode ? (
           <LightModeCard
             key={current.review_id}
             card={current}
-            onNext={() => setIdx((i) => i + 1)}
+            onNext={advance}
             onOpenMemory={() => setMemModal(memWordOf(current))}
           />
         ) : (
           <SpeakingCard
             key={current.review_id}
             card={current}
-            onNext={() => setIdx((i) => i + 1)}
+            onNext={advance}
             onOpenMemory={() => setMemModal(memWordOf(current))}
           />
         )
@@ -330,7 +308,38 @@ function memWordOf(card: DueReviewCard): MemoryWord {
  */
 
 /** 記憶レベル6段階の帯+件数チップ(復習ページを開いた瞬間に見える)。 */
-export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
+/**
+ * 出題を組み立てている間の面。**この画面でいちばん先に見る面**なのに、
+ * ルートの三項の中に直書きで、しかも**同じ5行が2箇所に複製**されていた
+ * (最初の読み込みと、「もう一度」で取り直している間)。
+ * 片方だけ直せば静かにずれる形なので、1つにまとめて雛形から呼べるようにする。
+ */
+export function ReviewPreparing() {
+  const t = useT();
+  return (
+    <div className="rounded-2xl border border-border bg-card p-8 text-center">
+      <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
+      <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
+    </div>
+  );
+}
+
+/**
+ * 記憶の段ごとの内訳(色の帯と凡例)。
+ *
+ * `expanded` を渡すと**開閉の印(山形)を出す**。これを渡さないと、
+ * 押せる帯なのに押せると分かる印が何も無い絵になる。実際そうなっていて、
+ * 実物では `<button>` で包んで `aria-expanded` まで付いていたのに、
+ * 目で見える手掛かりは1つも無かった(読み上げには在るのに、見えている
+ * 人にだけ無い、という逆さまの状態)。
+ */
+export function MemoryLevelSummary({
+  words,
+  expanded,
+}: {
+  words: MemoryWord[];
+  expanded?: boolean;
+}) {
   const t = useT();
   const counts = MEMORY_LEVELS.map(
     (lv) =>
@@ -341,15 +350,27 @@ export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
   const total = words.length || 1;
   return (
     <div className="mt-3">
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-        {MEMORY_LEVELS.map((lv, i) =>
-          counts[i] > 0 ? (
-            <div
-              key={lv.level}
-              className={lv.bar}
-              style={{ width: `${(counts[i] / total) * 100}%` }}
-            />
-          ) : null,
+      {/* 印は帯の**右端**に置く。凡例は折り返すので、そちらの末尾に付けると
+          行によって位置が変わり、開閉の印に見えなくなる。 */}
+      <div className="flex items-center gap-2">
+        <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+          {MEMORY_LEVELS.map((lv, i) =>
+            counts[i] > 0 ? (
+              <div
+                key={lv.level}
+                className={lv.bar}
+                style={{ width: `${(counts[i] / total) * 100}%` }}
+              />
+            ) : null,
+          )}
+        </div>
+        {expanded !== undefined && (
+          <ChevronDown
+            aria-hidden
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
         )}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
@@ -670,7 +691,7 @@ function SpeakingCard({
   onOpenMemory,
 }: {
   card: DueReviewCard;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
 }) {
   const grade = useServerFn(gradeReview);
@@ -863,6 +884,8 @@ function SpeakingCard({
 
   async function commitAndNext(kind: "success" | "skip") {
     if (graded) {
+      // 既に採点済み(2回目の「次へ」)。**数え直さない** —
+      // 同じ問題を2回数えると成績が実際より良く見える。
       onNext();
       return;
     }
@@ -889,7 +912,7 @@ function SpeakingCard({
       // an unrecorded review simply comes up again next time.
       toast.error(t("review.gradeFailed"));
     }
-    onNext();
+    onNext(result === "success");
   }
 
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
@@ -899,7 +922,7 @@ function SpeakingCard({
     <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
         <div className="mb-3 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary-ink">
             <Mic className="h-3.5 w-3.5" />{" "}
             {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
           </span>
@@ -955,7 +978,7 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-caption font-semibold uppercase tracking-wider text-primary">
+            <div className="text-caption font-semibold uppercase tracking-wider text-primary-ink">
               {t("review.todaysPattern")}
             </div>
             <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
@@ -1035,7 +1058,11 @@ function SpeakingCard({
                 </li>
               ))}
             </ol>
-            <ChunkLegend />
+            <ChunkLegend
+              parts={scaffold.parts.flatMap((p) =>
+                p.chunks.map((c) => ({ text: c.text, pos: c.pos })),
+              )}
+            />
             {scaffold.caption_seed && (
               <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-caption text-sky-900/80">
                 {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
@@ -1094,7 +1121,7 @@ function SpeakingCard({
               <button
                 onClick={submit}
                 disabled={!transcript.trim() || loading}
-                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:opacity-50"
+                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
@@ -1151,7 +1178,7 @@ function FeedbackView({
   transcript: string;
   videoUrl: string | null;
   onRetry: () => void;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
 }) {
   const t = useT();
   const goodTarget = feedback.used_target;
@@ -1228,7 +1255,7 @@ function FeedbackView({
           <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
         </div>
         <ChunkPills parts={feedback.chunk} />
-        <ChunkLegend />
+        <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
             <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1287,7 +1314,9 @@ function FeedbackView({
           </button>
         )}
         <button
-          onClick={onNext}
+          // 引数を渡さない。ここは話す側の面で、正誤は `commitAndNext` が
+          // 既に数えている(二重に数えない)。
+          onClick={() => onNext()}
           className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground"
         >
           {t("rv.nextArrow")} <ArrowRight className="ml-1 inline h-4 w-4" />
@@ -1348,7 +1377,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
               </div>
             ))}
           </div>
-          <ChunkLegend />
+          <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
         </section>
       )}
 
@@ -1438,7 +1467,7 @@ export function LightModeCard({
   onOpenMemory,
 }: {
   card: DueReviewCard;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
 }) {
   const grade = useServerFn(gradeReview);
@@ -1659,7 +1688,10 @@ export function LightModeCard({
               <AnswerExplain card={card} />
 
               <button
-                onClick={onNext}
+                // **`onClick={onNext}` と書かない。** クリックの event が
+                // 第1引数に渡り、`correct` として truthy に見えるので、
+                // 不正解も正解として数えられてしまう。
+                onClick={() => onNext(correct)}
                 className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
               >
                 {t("review.next")}
@@ -1753,35 +1785,124 @@ export function EmptyState() {
 
   if (cap?.capped) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-8">
-        <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
-        <p className="text-body font-semibold">{t("review.cappedTitle")}</p>
-        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.cappedHint", { n: String(cap.limit) })}
-        </p>
-        <Link
-          to="/settings"
-          className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-        >
-          {t("review.cappedCta")}
-        </Link>
-      </div>
+      <EmptyStateCard
+        icon={CheckCircle2}
+        title={t("review.cappedTitle")}
+        hint={t("review.cappedHint", { n: formatCount(cap.limit) })}
+        action={
+          <Link
+            to="/settings"
+            className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+          >
+            {t("review.cappedCta")}
+          </Link>
+        }
+      />
     );
   }
 
-  // 本文は左揃え・幅を絞る。中央揃えの日本語は末尾の1〜2文字が孤立する
-  // (「出ます。」だけが2行目に残る、という事故が3画面で出ていた)。
+  // **図鑑・ホームと同じ部品を使う。** ここだけ左寄せ・角丸2xl・
+  // 見出し15pxで、3画面が別々の形をしていた。左寄せにしていたのは
+  // 「中央揃えの和文は末尾が孤立する」ためだったが、その原因は
+  // `text-balance` + `ja-phrase` で潰してあるので揃えられる。
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-8">
-      <p className="text-body font-semibold">{t("review.empty")}</p>
-      <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.emptyHint")}</p>
-      <Link
-        to="/capture"
-        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("review.goCatch")}
-      </Link>
-    </div>
+    <EmptyStateCard
+      icon={CalendarCheck}
+      title={t("review.empty")}
+      hint={t("review.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("review.goCatch")}
+        </Link>
+      }
+    />
+  );
+}
+
+/**
+ * 復習の見出し — 「今日の復習」・**いま何問目か**・出題の型の切替・進捗バー。
+ *
+ * ## なぜ切り出したか
+ * 検査の場面が**札だけ**を描いていて、この見出しが入っていなかった。
+ * その絵を見た独立監査が「クイズに進捗(3/12)が無い」と指摘した —
+ * 実物には最初からあるのに。**雛形が実物の一部しか描いていないと、
+ * 監査も自分も「無い」と誤って判断する。**
+ *
+ * ルートに直書きのままでは場面から描けないので、ここへ出す。
+ * (復習・ホーム・設定で同じことを何度もやっている。)
+ */
+export function ReviewHeader({
+  answered,
+  total,
+  progress,
+  lightMode,
+  onMode,
+}: {
+  /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
+  answered: number | null;
+  total: number | null;
+  /** 0〜100。 */
+  progress: number;
+  lightMode: boolean;
+  onMode: (m: "speaking" | "choice") => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
+          {t("review.today")}
+        </h1>
+        <div className="flex items-center gap-3">
+          {answered !== null && total !== null && (
+            <span className="text-footnote text-muted-foreground">
+              {formatCount(answered)} / {formatCount(total)}
+            </span>
+          )}
+          <div
+            className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
+            role="tablist"
+            aria-label={t("rv.modeAria")}
+          >
+            <span
+              aria-hidden
+              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+            />
+            {/* **見た目は小さいまま、当たり判定だけを 44px へ広げる。**
+                実測 72×25px しかなく、下限(44)を大きく割っていた。
+                この画面の主要な切替なのに、雛形が見出しを描いていなかった
+                ので**一度も測られていなかった**。
+                縦にだけ広げる — 横に広げると隣の切替と重なる。 */}
+            <button
+              role="tab"
+              aria-selected={!lightMode}
+              onClick={() => onMode("speaking")}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {t("review.speak")}
+            </button>
+            <button
+              role="tab"
+              aria-selected={lightMode}
+              onClick={() => onMode("choice")}
+              title={t("rv.quietMode")}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {t("review.choice")}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </>
   );
 }
 
@@ -1797,7 +1918,16 @@ export function EmptyState() {
  * ・文章は中央揃えをやめる。日本語の中央揃え2行組みは、末尾の1〜2文字が
  *   必ず孤立する(3画面で同じ事故が出ていた)。
  */
-export function DoneState({ onAgain }: { onAgain: () => void }) {
+export function DoneState({
+  onAgain,
+  answered = 0,
+  correct = 0,
+}: {
+  onAgain: () => void;
+  /** この回に答えた数。0 なら成績は出さない(数えていない回)。 */
+  answered?: number;
+  correct?: number;
+}) {
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-8">
@@ -1806,6 +1936,15 @@ export function DoneState({ onAgain }: { onAgain: () => void }) {
           終わったことを言うのは、輪の中のチェック。 */}
       <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
       <p className="text-body font-semibold">{t("review.doneTitle")}</p>
+      {/* **結果を出す。** 1問ごとの採点はサーバへ送っていたのに、
+          画面では捨てていたので「終わりました」以上のことが言えなかった
+          (独立監査)。数えていない回(0問)では出さない — 「0問中0問正解」は
+          達成ではなく故障に見える。 */}
+      {answered > 0 && (
+        <p className="mt-2 text-title font-semibold">
+          {t("review.doneScore", { n: formatCount(answered), c: formatCount(correct) })}
+        </p>
+      )}
       <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.doneHint")}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Link

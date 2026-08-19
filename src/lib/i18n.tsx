@@ -26,7 +26,12 @@ export function setUiLang(lang: UiLang) {
   }
 }
 
-const DICT: Record<string, { ja: string; en: string }> = {
+/**
+ * 表に出る文字は全部ここに在る。**外に出しているのは検査のため** —
+ * 和文の約物の決めごと(`ja-punctuation.ts`)を辞書全体に当てて、
+ * 手で直した決めごとが次の文字列で戻らないようにする。
+ */
+export const DICT: Record<string, { ja: string; en: string }> = {
   // --- 動的ページタイトル ---
   "page.post": { ja: "投稿 {id} — Catchwords", en: "Post {id} — Catchwords" },
   "page.userProfile": {
@@ -94,7 +99,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
-  "rv.overallTitle": { ja: "全体の記憶率(前後2週間)", en: "Overall retention (±2 weeks)" },
+  "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
     en: "Tap to see each word's forgetting curve and when you're predicted to forget it",
@@ -457,7 +462,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "set.uiLangAria": { ja: "表示言語", en: "App language" },
   "set.deleteWord": { ja: "削除", en: "DELETE" },
   "set.qualitySamples": {
-    ja: "直近{n}回のスキャンから算出(仕様§9の合格ライン)",
+    ja: "直近{n}回のスキャンから算出（仕様§9の合格ライン）",
     en: "Computed from your last {n} scans (spec §9 pass line)",
   },
   "set.placeLabel": { ja: "場所で思い出す", en: "Remember by place" },
@@ -702,6 +707,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "common.card": { ja: "カード", en: "Card" },
   "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
   "common.photoOf": { ja: "「{word}」の写真", en: 'Photo of "{word}"' },
+  "common.playWord": { ja: "「{word}」を聞く", en: 'Listen to "{word}"' },
   "common.imageOf": { ja: "「{word}」の画像", en: 'Image for "{word}"' },
   "common.stickerOf": { ja: "「{word}」のステッカー", en: 'Sticker for "{word}"' },
   "common.memoryOf": { ja: "「{word}」の思い出", en: 'Memory of "{word}"' },
@@ -800,13 +806,13 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "A short buzz when a word lands in the dex.",
   },
   "settings.feelInstantHint": {
-    ja: "選ぶとすぐ保存されます(下の「保存」は不要)。",
+    ja: "選ぶとすぐ保存されます（下の「保存」は不要）。",
     en: "Saved the moment you pick — no need to press Save.",
   },
   "settings.appearance": { ja: "外観", en: "Appearance" },
   "settings.theme": { ja: "テーマ", en: "Theme" },
   "settings.save": { ja: "保存", en: "Save" },
-  "settings.saving": { ja: "保存中...", en: "Saving..." },
+  "settings.saving": { ja: "保存中…", en: "Saving..." },
   "settings.saved": { ja: "保存しました", en: "Saved" },
   "settings.signout": { ja: "サインアウト", en: "Sign out" },
   // --- capture ---
@@ -825,7 +831,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "scan.rescan": { ja: "再スキャン", en: "Scan again" },
   "scan.found": { ja: "見つかった単語", en: "Words found" },
   "scan.searchPlaceholder": {
-    ja: "候補に無い？日本語で調べる(例: マンゴー)",
+    ja: "候補に無い？日本語で調べる（例: マンゴー）",
     en: "Not listed? Search in your language (e.g. mango)",
   },
   "scan.searchGo": { ja: "調べる", en: "Search" },
@@ -856,6 +862,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "review.goCatch": { ja: "撮りに行く", en: "Go catch one" },
   // 「ノルマ」は課された量という含意が強く、達成を祝う語ではない(独立監査)。
   "review.doneTitle": { ja: "今日の復習、終わりました", en: "Today's review is done" },
+  "review.doneScore": { ja: "{n}問中{c}問が正解", en: "{c} of {n} correct" },
   "review.doneHint": { ja: "また明日の復習で会いましょう。", en: "See you in tomorrow's review." },
   "review.again": { ja: "もう少し続ける", en: "Keep going" },
   "review.toDex": { ja: "図鑑を見る", en: "Open the shelf" },
@@ -894,11 +901,6 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks" },
   "card.measure_words": { ja: "量詞", en: "Measure words" },
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
-  "card.fillTitle": { ja: "このカードはまだ途中です", en: "This card isn't finished yet" },
-  "card.fillBody": {
-    ja: "{n}項目がまだありません。まとめて作れます。",
-    en: "{n} sections are still missing. You can fill them all at once.",
-  },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
   "card.filling": { ja: "作っています…", en: "Writing it…" },
   "card.fillFailed": {
@@ -1025,7 +1027,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "input.lookup": { ja: "調べてカードにする", en: "Look up & make a card" },
   "input.looking": { ja: "辞書とAIが調べています…", en: "Checking the dictionary and AI…" },
   "input.sceneWord": {
-    ja: "どんな場面で見た？(例: トイレに置いてあった)",
+    ja: "どんな場面で見た？（例: トイレに置いてあった）",
     en: "Where did you see it? (e.g. it was in the bathroom)",
   },
   "input.chooseTitle": { ja: "どれのことですか？", en: "Which one do you mean?" },
@@ -1101,7 +1103,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "API keys stay in environment variables — never stored in the database.",
   },
   "settings.aiFast": {
-    ja: "速い系(スキャン・候補・4択の生成)",
+    ja: "速い系（スキャン・候補・4択の生成）",
     en: "Fast (scan, candidates, quiz)",
   },
   "settings.aiRich": { ja: "詳しい系（カード・添削）", en: "Rich (cards, corrections)" },
@@ -1192,7 +1194,9 @@ const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.langJa": { ja: "日本語", en: "Japanese" },
   "settings.langEn": { ja: "English", en: "English" },
-  "settings.langZhTw": { ja: "台湾華語 (zh-TW)", en: "Taiwanese Mandarin (zh-TW)" },
+  // 符号は見せない。この束の他の4行(日本語 / English / 母語 / 表示言語)は
+  // どれも言語の名前だけを出すのに、ここだけ `(zh-TW)` を足していた。
+  "settings.langZhTw": { ja: "台湾華語", en: "Taiwanese Mandarin" },
   "settings.deleteWarn": {
     ja: "集めた単語カード・写真・復習の記録・日記など、すべてのデータが完全に削除されます。この操作は取り消せません。",
     en: "Every card, photo, review record and journal entry is permanently deleted. This cannot be undone.",

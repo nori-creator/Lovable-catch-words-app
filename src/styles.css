@@ -74,48 +74,6 @@
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
     U+A720-A7FF;
 }
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-normal-latin.woff2) format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-normal-latin-ext.woff2) format("woff2");
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-italic-latin.woff2) format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-italic-latin-ext.woff2) format("woff2");
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -339,8 +297,31 @@
   --shadow-elegant:
     0 20px 60px -20px color-mix(in oklab, var(--primary) 45%, transparent),
     0 4px 14px -6px color-mix(in oklab, var(--primary) 20%, transparent);
-  --font-display: "Instrument Serif", "Iowan Old Style", "Apple Garamond", Georgia, serif;
-  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  /* ## 書体は**端末の公式の書体**を使う(NORI指定)
+     iPhone なら Apple の SF Pro、Android なら Google の Roboto。
+     どちらも「Apple や Google の公式サイトの書体」そのもので、
+     しかも**その端末で一番よく調整されている** — 字間も、小さい字の
+     太さも、和文との並びも、OS が面倒を見る。Web フォントを積むより
+     速くて、オフラインでも崩れない。
+
+     和文は SF Pro / Roboto に無いので、そのまま Apple の Hiragino Sans /
+     Google の Noto Sans JP に落ちる。これも各社の公式の和文書体。
+
+     Inter は最後尾。SF も Roboto も無い環境(この検査機の Linux など)で
+     見た目を保つための保険で、**表に出る端末では使われない**。
+
+     大きい文字用(`--font-display`)は Instrument Serif をやめた。
+     セリフ体はラテン専用の作りなので、和文の日付に当てると
+     「2026」「8」だけがセリフになり「年」「月」がゴシックに落ちて、
+     1つの語の中で書体が割れていた(ホームの最上部に常時出ていた)。
+     字面の書体は本文と同じにして、**大きさと字間だけで差を付ける**。 */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto,
+    "Hiragino Sans", "Noto Sans JP", "Inter", sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Segoe UI", Roboto,
+    "Hiragino Sans", "Noto Sans JP", "Inter", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, "Roboto Mono", "JetBrains Mono", monospace;
   /* Motion curves (apple-design §4/§7): a critically-damped iOS sheet curve for
      non-gesture transitions, a soft ease-out, and a springy overshoot reserved
      for momentum-driven moments only. */
@@ -383,10 +364,13 @@
   --shelf-line-a: 0.45;
   --shelf-lip-a: 0.1;
 }
+/* 大きい文字。**書体で差を付けず、大きさと字間で差を付ける。**
+   数字は等幅の桁(`tabular-nums`)にする — 日付や件数が1桁変わるたびに
+   前後の字がずれると、同じ場所にある物が動いて見える。 */
 .font-display {
   font-family: var(--font-display);
-  font-feature-settings: "liga", "dlig";
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 .font-mono-tight {
   font-family: var(--font-mono);
@@ -430,17 +414,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-family:
-      "Inter",
-      -apple-system,
-      BlinkMacSystemFont,
-      "SF Pro Display",
-      "Segoe UI",
-      Roboto,
-      "Hiragino Sans",
-      "Noto Sans JP",
-      system-ui,
-      sans-serif;
+    font-family: var(--font-ui);
+    /* Inter だけが持つ字形の指定(1 の飾りを落とす等)。SF や Roboto では
+       無視されるだけなので、保険が使われたときのために残す。 */
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     letter-spacing: -0.011em;
   }
@@ -1020,14 +996,17 @@
   border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
-/* ─── Translucent sheet surface (apple-design §12) ───
-   A floating material layer: content scrolls under a real translucent glass,
-   with a bright top edge (light catching the material) and a deeper shadow
-   because it's a large surface. */
+/* ─── 下のタブ帯の面 ───
+   以前はすりガラス(78%の地 + blur 28px)だった。**後ろが透ける(NORI指定)。**
+   写真や棚がそのまま透けて、その上に小さなアイコンと短い文字が乗るので、
+   何の上に居るかで読みやすさが変わっていた。復習でも同じ事に一度当たって
+   いて(答え合わせの面を `app-sheet` から差し替えた跡が残っている)、
+   そこでは直したのにこちらは半透明のままだった。
+
+   透けさせない。上端の線と影は残す — 面が浮いていることは、透明度では
+   なく**縁と影**で伝わる。 */
 .app-sheet {
-  background: color-mix(in oklab, var(--card) 78%, transparent);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: var(--card);
   border-top: 1px solid color-mix(in oklab, var(--foreground) 12%, white 30%);
   box-shadow: 0 -8px 40px -12px color-mix(in oklab, var(--foreground) 40%, transparent);
 }
@@ -1054,13 +1033,12 @@
   .seg-pill,
   .glass-bar,
   .lift-glass,
-  .app-sheet,
   .room-head {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  /* `.app-sheet` はここに書かなくてよくなった — 既定から不透明。 */
   .seg-pill,
-  .app-sheet,
   .room-head {
     background: var(--card) !important;
   }
@@ -1086,9 +1064,12 @@
        頼んだ人に何も返していないことになる。 */
     --shelf-line-a: 0.65;
   }
-  .seg-pill,
-  .app-sheet {
+  .seg-pill {
     background: var(--card) !important;
+    border-color: color-mix(in oklab, var(--foreground) 32%, transparent) !important;
+  }
+  /* 帯はもともと不透明。強めるのは縁だけでよい。 */
+  .app-sheet {
     border-color: color-mix(in oklab, var(--foreground) 32%, transparent) !important;
   }
 }
@@ -1143,8 +1124,13 @@
   /* **塗りと文字を分ける。** 1つの色で両方をまかなうと、文字の 4.5:1 に
      合わせて塗りまで暗くなる — `--primary` で同じ失敗をした。
      凡例の丸や帯は「意味を持つ図形」なので 3:1 でよく、鮮やかでよい。 */
-  --chunk-v: oklch(0.62 0.21 20);
-  --chunk-o: oklch(0.6 0.17 235);
+  /* **青は設定の主色そのもの(NORI指定)。** `oklch(0.6 0.17 235)` は
+     主色より彩度が低く色相も緑寄りで、同じ画面に主色と並ぶと沈んで
+     見えていた(「どす黒い」)。値を写すのではなく `--primary` を指す —
+     テーマが主色を変えたら、かたまりの青も一緒に動く。
+     赤は主色と同じ彩度まで上げて、青と釣り合わせる。 */
+  --chunk-v: oklch(0.64 0.23 25);
+  --chunk-o: var(--primary);
   --ok: oklch(0.64 0.17 155);
   --warn: oklch(0.72 0.15 75);
   --bad: oklch(0.62 0.23 27);
@@ -1179,6 +1165,158 @@
   --warn-foreground: oklch(0.2 0.05 82);
 }
 
+/* ── 語の木の枝の札 ────────────────────────────────────────────
+   素の Tailwind の番号(`bg-sky-50 text-sky-900`)で書かれていたので、
+   **暗いテーマに一切追従していなかった** — 暗い面では木の上だけ
+   near-white の札が光っていた。明暗それぞれで色を決め、塗り・文字・縁は
+   1つの変数から導く(`.chunk-pill` と同じ形)。 */
+:root {
+  --tree-collocation: oklch(0.62 0.19 240);
+  --tree-example: oklch(0.6 0.16 160);
+  --tree-synonym: oklch(0.62 0.18 295);
+  --tree-antonym: oklch(0.62 0.19 15);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --tree-collocation: oklch(0.78 0.13 240);
+  --tree-example: oklch(0.78 0.12 160);
+  --tree-synonym: oklch(0.78 0.12 295);
+  --tree-antonym: oklch(0.78 0.13 15);
+}
+.tree-collocation {
+  --tree: var(--tree-collocation);
+}
+.tree-example {
+  --tree: var(--tree-example);
+}
+.tree-synonym {
+  --tree: var(--tree-synonym);
+}
+.tree-antonym {
+  --tree: var(--tree-antonym);
+}
+.tree-pill {
+  background: color-mix(in oklab, var(--tree) 14%, var(--card));
+  color: color-mix(in oklab, var(--tree) 55%, var(--foreground));
+  --tw-ring-color: color-mix(in oklab, var(--tree) 34%, transparent);
+  transition: transform 0.16s var(--spring-bounce);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-pill {
+    transition: none;
+  }
+}
+
+/* ── 品詞の色(詞類表) ──────────────────────────────────────────
+   **明るさは全部そろえる(NORI指定)。** 変えるのは色相だけ。
+   1つ1つ好きな色を選ぶと、同じ文の中で「濃い品詞」と「薄い品詞」が
+   でき、色の違いが品詞の違いではなく**重要度の違い**に読めてしまう。
+   明度と彩度を固定して色相だけ回せば、10色が対等に並ぶ。
+
+   色相が回りきらない所(黄・水色)は彩度を落としてある —
+   `oklch` の指定は sRGB の外を平気で指せるので、そのまま置くと
+   ブラウザが黙って詰めて**明度まで変わる**。詰められない値を選ぶ。
+
+   塗りと文字は分ける(`--primary` / `--primary-ink` と同じ形)。
+   帯は意味を持つ図形なので 3:1、文字は 4.5:1。 */
+:root {
+  /* 色相は10群を等間隔(約35度)に置く。彩度は**内容語と機能語で分ける** —
+     10色を全部同じ鮮やかさにすると、緑・青緑・水色のように隣り合う色相が
+     見分けにくいまま並ぶ。名詞・動詞・状態動詞・量詞(文の中身)を鮮やかに、
+     助動詞・副詞・接続詞・介詞・助詞・限定詞(文の接着剤)を淡くすると、
+     色相で品詞が分かり、**鮮やかさで骨格が分かる**。 */
+  --pos-v: oklch(0.62 0.21 25);
+  --pos-n: var(--primary);
+  --pos-vs: oklch(0.62 0.17 145);
+  --pos-m: oklch(0.62 0.13 210);
+  --pos-conj: oklch(0.62 0.11 55);
+  --pos-adv: oklch(0.62 0.1 95);
+  --pos-det: oklch(0.62 0.09 180);
+  --pos-vaux: oklch(0.62 0.11 295);
+  --pos-prep: oklch(0.62 0.12 330);
+  --pos-ptc: oklch(0.62 0.05 260);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --pos-v: oklch(0.78 0.15 25);
+  --pos-vs: oklch(0.78 0.13 145);
+  --pos-m: oklch(0.8 0.1 210);
+  --pos-conj: oklch(0.8 0.08 55);
+  --pos-adv: oklch(0.82 0.08 95);
+  --pos-det: oklch(0.79 0.07 180);
+  --pos-vaux: oklch(0.78 0.09 295);
+  --pos-prep: oklch(0.78 0.1 330);
+  --pos-ptc: oklch(0.78 0.04 260);
+}
+.pos-v {
+  --pos: var(--pos-v);
+}
+.pos-n {
+  --pos: var(--pos-n);
+}
+.pos-vs {
+  --pos: var(--pos-vs);
+}
+.pos-vaux {
+  --pos: var(--pos-vaux);
+}
+.pos-adv {
+  --pos: var(--pos-adv);
+}
+.pos-m {
+  --pos: var(--pos-m);
+}
+.pos-conj {
+  --pos: var(--pos-conj);
+}
+.pos-prep {
+  --pos: var(--pos-prep);
+}
+.pos-ptc {
+  --pos: var(--pos-ptc);
+}
+.pos-det {
+  --pos: var(--pos-det);
+}
+/* かたまりの札。**浮かせる(NORI指定)。**
+   地に薄く色を敷き、同じ色の縁と、下に落ちる影で持ち上げる。
+   押すと沈んで跳ね返る — 触れる物だと分かる手応え。 */
+.chunk-pill {
+  background: color-mix(in oklab, var(--pos) 16%, var(--card));
+  color: color-mix(in oklab, var(--pos) 60%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--pos) 32%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--pos) 24%, transparent),
+    0 4px 10px -4px color-mix(in oklab, var(--pos) 32%, transparent);
+  transition:
+    transform 0.16s var(--spring-bounce),
+    box-shadow 0.16s ease;
+}
+.chunk-pill:active {
+  transform: translateY(1px) scale(0.95);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chunk-pill {
+    transition: none;
+  }
+  .chunk-pill:active {
+    transform: none;
+  }
+}
+/* 凡例の丸。 */
+.pos-dot {
+  background: var(--pos);
+}
+
 /* ── 記憶の6段階の色 ────────────────────────────────────────────
    赤 → 橙 → 黄 → 黄緑 → 緑 → 青 の並びは「忘れかけ〜長期記憶」の順序を
    そのまま表す。以前は素の Tailwind の番号(`text-red-600` など)で書いて
@@ -1186,12 +1324,15 @@
    しか無かった。明暗それぞれで、文字として 4.5:1・帯として 3:1 を満たす
    明度を測って決める。 */
 :root {
-  --mem-0: oklch(0.62 0.22 27);
-  --mem-1: oklch(0.68 0.17 55);
-  --mem-2: oklch(0.73 0.15 85);
-  --mem-3: oklch(0.68 0.18 135);
-  --mem-4: oklch(0.64 0.16 160);
-  --mem-5: oklch(0.62 0.17 245);
+  /* **もっと明るく(NORI指定)。** 上げるのは主に彩度 — 明度を上げると
+     `.mem-text`(60%混ぜ)が薄くなって 4.5:1 を割る。最後の青は
+     設定の主色に合わせて、画面の中に2種類の青が並ばないようにする。 */
+  --mem-0: oklch(0.63 0.24 27);
+  --mem-1: oklch(0.7 0.2 55);
+  --mem-2: oklch(0.76 0.18 85);
+  --mem-3: oklch(0.7 0.21 140);
+  --mem-4: oklch(0.67 0.19 165);
+  --mem-5: var(--primary);
 }
 .dark,
 :root[data-ui-theme="darkroom"],
@@ -1784,6 +1925,23 @@
    drop vestibular slide/scale/parallax/overshoot but keep a short opacity fade so
    entrances still read. Every transform-driven entrance is neutralised here. */
 @media (prefers-reduced-motion: reduce) {
+  /* Tailwind の `animate-pulse` / `animate-ping`。
+     ここに在るのは**この規則が自作のクラス名だけを列挙していたから**。
+     読み込み中の骨組みは全画面で `animate-pulse` を使っていて、
+     動きを減らす設定にしていても26箇所が脈打ち続けていた。
+     起動して最初に見る面(ホームの骨組み)も、その1つ。
+     一部だけ `motion-reduce:animate-none` を手で足してあったが、
+     手で足す物は次に書く人には見えない — 名前の方で止める。
+
+     `animate-spin` はここに入れない。回転を止めると、待たされている
+     人には「固まった」に見える。動きを減らす設定は**手応えを消す設定
+     ではない**(apple-design Part VI)。回っている物は状態を伝える
+     図形なので残し、装飾の脈だけを止める。 */
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+
   .ken-burns-a,
   .ken-burns-b,
   .breathe,

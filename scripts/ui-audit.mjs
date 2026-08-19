@@ -17,13 +17,59 @@
  * 場面はURLの検索文字列で切り替える。
  *
  * ## 何を見ていないか(**書いておく**)
- * ・**ルート直書きのまま検査に入っていない画面は、もう無い。**
- *   復習・ホーム・設定は、ルート側に `export` を足して本物を描けるように
- *   してから入れた。手書きのHTMLを足して「見た」ことにはしない。
+ *
+ * ここには一度「**ルート直書きのまま検査に入っていない画面は、もう無い**」と
+ * 書いてあった。**嘘だった。** 復習・ホーム・設定を入れ終えた時に書いた
+ * つもりの一文が、そのまま全体の話として残っていた。
+ * 何を見ていないかを書き留める場所が「見ていない物は無い」と言っていたら、
+ * この一覧そのものが役に立たない。数えた結果を置く。
+ *
+ * ### 場面が在る(本物のコンポーネントを描いている)
+ *   home / review / settings / dex(棚・空・空振り) / dex.$stickerId(札の詳細)
+ *   と、画面をまたぐ部品(取得の失敗・語のかたまり・忘却曲線・発音・
+ *   スキャンの詳細・出会いの記録・色の土台)
+ *
+ * ### 場面がまだ無い
+ *   ・**撮っている最中の面だけ**が `<video>` を持つ。偽の映像を流し込む
+ *     仕掛けが先に要るのはそこだけ。
+ *     「カメラ依存」で `capture`(1106行)と `scan`(1425行)を丸ごと未検査に
+ *     していたのは大雑把すぎた — `capture` は**8段のうち6段**が、`scan` は
+ *     `<video>` が**1箇所だけ**で、撮った後の面は静止画の上に描かれる。
+ *     いま入っているのは語を選ぶ面・再会の面・語の札(5通り)。
+ *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中・
+ *     圏外で預かった面・見つからなかった面・結果の一覧。
+ *   ・`journal` / `feed` / `discover` / `u.$userId` / `post.$postId` /
+ *     `notifications` / `onboarding` — 人に見せる側の画面。どれも
+ *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
+ *   ・`admin.metrics` / `admin.dictionary` — 管理者だけが見る。
+ *   ・`auth` / `reset-password` / `terms` / `privacy` — 入口と法務。
+ *
+ * つまり**画面の数で言えば、見ているのは半分に満たない**。
+ * 合格は「見た所に欠陥が無い」であって、「欠陥が無い」ではない。
+ *
+ * ### 検査機のフォント都合で、絵が実機と違う所
+ * ・**この容器には CJK の太字が1つも無い**(`WenQuanYi Zen Hei Regular` だけ)。
+ *   `font-semibold` の付いた和文は Chrome が太さを合成するが、**幅は細字の
+ *   ままで組む**ので、太った字が隣にはみ出して重なって写る
+ *   (入れて最初に見る画面の「瞬間的に」で確認)。
+ *   **実機の話ではない** — iOS の PingFang / Hiragino には実物の太字が
+ *   在るので、幅も正しく出る。ここを app の欠陥として直してはいけない。
+ *   絵で字の重なりを見たら、まず `fc-match "sans-serif:lang=ja:weight=bold"` を見る。
+ *
+ * ### 見えているが、絵が実物と同じ意味ではない所
  * ・`WordCard` の `SECTION_THEME`(節ごとの淡い色の表、36箇所)は
  *   **明るい面の前提で固定**されている。暗いテーマに追従しないことは
  *   分かっているが、直すには「暗い面で節をどう見せるか」を決める必要が
  *   あるので、色の付け替えだけを先にやらない。ここに場面を足してから直す。
+ * ・**`word-card` の場面は、実物では畳まれている面を開いた状態で撮っている。**
+ *   語の詳細(`dex.$stickerId`)の既定の見え方は
+ *     戻る → 写真(表裏) → 見出し語・意味・品詞 → 語の木 →
+ *     出会った記録 → `<details>`「すべて見る」(**閉じている**) → 記憶の曲線
+ *   で、`WordCard` はその `<details>` の中。独立監査3体はこの場面を
+ *   「一番長く見られる画面」として採点したが、**既定では開いていない**。
+ *   指摘そのもの(節の重さが揃っている等)は開いた状態の話として有効だが、
+ *   重み付けは実物と違う。**詳細画面そのものの場面はまだ無い** —
+ *   ルートが問い合わせを持つので、出すには切り出しが要る。
  *
  * ## 測り方の原則
  * **数字は自分で作らない。ブラウザに測らせる。**
@@ -169,8 +215,17 @@ const MODES = [
   ...crossThemes("pron", { scene: "pronunciation" }),
   ...crossThemes("detail-ai", { scene: "scan-detail" }),
   ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
+  // **出来上がった側**。今まで骨組みしか撮っていなかったので、
+  // このシートの中身(解説そのもの)は一度も機械の目に映っていなかった。
+  ...crossThemes("detail-ready", { scene: "scan-detail", variant: "ready" }),
+  // 生成に失敗した面。
+  ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
+  ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
   ...crossThemes("review-memory", { scene: "review-memory" }),
+  // 見出し(「3 / 12」の進捗と進捗バー、出題の型の切替)も一緒に描く。
+  // 以前は札だけだったので、独立監査が「クイズに進捗が無い」と誤指摘した
+  // — 実物には最初からある。**部品だけを切り出した絵は、その画面の絵ではない。**
   ...crossThemes("review-choice", { scene: "review-choice" }),
   ...crossThemes("review-explain", { scene: "review-explain" }),
   // 押したあとの面。正解と不正解でそれぞれ色が変わる。
@@ -178,9 +233,18 @@ const MODES = [
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
+  // 数えていない回(完了だけ)。「0問中0問正解」を出さないことの見張り。
+  ["review-done-nocount", "", false, { scene: "review-end", variant: "done-nocount" }],
   // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
   ...crossThemes("home", { scene: "home" }),
+  // **入れて最初に見る画面。** 上のバーも下タブも無い全画面なので、
+  // 雛形の枠を外して撮る(`BARE`)。
+  ...crossThemes("onboarding", { scene: "onboarding" }),
+  ["onboarding-starting", "", false, { scene: "onboarding", variant: "starting" }],
   ...crossThemes("home-empty", { scene: "home-empty" }),
+  // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
+  ...crossThemes("home-loading", { scene: "home-loading" }),
+  ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
@@ -200,6 +264,39 @@ const MODES = [
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
   // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている
   // ことは分かっていたが、直す前にまず見えるようにする。
+  // **語の詳細の既定の見え方。** 写真(表裏)・いつどこで・見出し語と意味。
+  // これまで撮っていたのは `WordCard` を裸で描いた絵だけで、実物では
+  // それは `<details>` の中で閉じている。この画面は一度も撮っていなかった。
+  // **語の詳細そのもの。** 実物の既定の並びを丸ごと描く
+  // (「すべて見る」は**閉じたまま** — 開いた中身は `word-card` が受け持つ)。
+  ...crossThemes("sticker-detail", { scene: "sticker-detail" }),
+  // 上半分だけを大きく見る面。写真の裏表と「いつ・どこで」。
+  ...crossThemes("sticker-hero", { scene: "sticker-hero" }),
+  // **ホームで写真を押すと開く面。** この app でいちばん大きい未検査の
+  // 画面だった(929行)。取り消せない操作(削除の2段目)まで撮る。
+  ...crossThemes("sheet", { scene: "sticker-sheet" }),
+  // 撮ったあとに語を選ぶ面と、同じものに再会した面。
+  // **`capture.tsx` を丸ごと「カメラ依存」にして未検査にしていたが、
+  // 8段のうち6段はカメラと関係が無かった。**
+  ...crossThemes("cap-pick", { scene: "capture-pick" }),
+  ...crossThemes("cap-reunion", { scene: "capture-reunion" }),
+  ["cap-reunion-saving", "", false, { scene: "capture-reunion", variant: "saving" }],
+  // 語の印を押したときの札。**scan でいちばん読む所**で、素の Tailwind の
+  // 番号がいちばん密に残っている所でもある。
+  ...crossThemes("chip-new", { scene: "scan-chip" }),
+  ...crossThemes("chip-reunion", { scene: "scan-chip", variant: "reunion" }),
+  ["chip-owned", "", false, { scene: "scan-chip", variant: "owned" }],
+  ["chip-owned-dark", 'class="dark"', false, { scene: "scan-chip", variant: "owned" }],
+  ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
+  ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
+  ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
+  ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
+  ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
+  ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
+  ["sheet-deleting", "", false, { scene: "sticker-sheet", variant: "deleting" }],
+  ["sheet-failed", "", false, { scene: "sticker-sheet", variant: "failed" }],
+  ["sheet-candidates", "", false, { scene: "sticker-sheet", variant: "candidates" }],
+  ["sheet-pro", "", false, { scene: "sticker-sheet", variant: "pro" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -208,6 +305,11 @@ const MODES = [
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 同じものに何度も出会った記録(再会の写真が並ぶ区画)。
   ...crossThemes("photo-history", { scene: "photo-history" }),
+  // 保存を押した直後。文字が「保存」から「保存中...」に伸びて押せなくなる。
+  // 伸びた側を撮らないと、待っている間の面が未検査のままになる。
+  ["settings-saving", "", false, { scene: "settings-danger", variant: "saving" }],
+  // 記憶の帯を開いた側。印(山形)の向きが変わる。
+  ["review-memory-open", "", false, { scene: "review-memory", variant: "open" }],
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [
@@ -237,6 +339,13 @@ const LINE_MIN_RATIO = 3;
  * 意味を持つUIの図形と同じ下限(WCAG 1.4.11 / 2.4.7)。
  */
 const FOCUS_MIN_RATIO = 3;
+
+/**
+ * 枠(上のバー・下タブ)を被せずに撮る場面。**雛形の `BARE` と同じ一覧**。
+ * こちらにも書くのは、バーが無いことを咎める段がここに在るため。
+ * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
+ */
+const BARE_SCENES = new Set(["onboarding", "sticker-sheet"]);
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -273,6 +382,32 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     }
   }
   await page.waitForTimeout(400);
+
+  /**
+   * **登場の途中で測らない。**
+   *
+   * ここに穴が空いていた。400ms 待つだけだったので、遅れて始まる登場の
+   * アニメーションは**まだ途中**だった。語の木の枝は 300ms 遅れて 700ms
+   * かけて現れるので、撮った時点の不透明度は 3 割ほど。検査は文字を
+   * 「薄い」と読み、**実際には 7.2:1 ある文字を 2.25:1 と報告していた**。
+   * 数字が実測と合わないので追いかけて初めて分かった。
+   *
+   * 終わりのあるアニメーションだけを待つ。`animate-pulse` や `animate-spin`
+   * は無限に続くので待つと止まらない — 回数が有限のものだけを対象にする。
+   * 2秒で諦めるのは、待ち続けて検査ごと止まらないため。
+   */
+  await page.evaluate(
+    () =>
+      Promise.race([
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getComputedTiming?.().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => {})),
+        ),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]),
+  );
 
   // 場面がちゃんと立ち上がったか。**空のページは指摘0で緑になる**ので、
   // 「何も出ていない」を合格と取り違えないように、先にここで確かめる。
@@ -383,7 +518,30 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // 1つも動かず、広げ方が悪いのだと2回作り直した。広げ方は正しくて、
       // 検査が下を見ていなかった)。
       const scrollBack = window.scrollY;
+      /**
+       * **見えていない物を採点しない。**
+       *
+       * 閉じた `<details>` の中身は `content-visibility: hidden` になるが、
+       * **子孫は矩形を返し続ける**。だから「すべて見る」を閉じたまま撮った
+       * 語の詳細で、開かないと出てこないボタン3つが「押せる大きさが足りない」
+       * として上がっていた — 押すどころか見えない物を測っていた。
+       *
+       * `checkVisibility` は `content-visibility` も `visibility` も
+       * `opacity:0` も見てくれる。自分で `display` を辿るより確実。
+       */
+      const isShown = (el) =>
+        // `inert` の中は**そもそも押せない**(鍵盤も指も届かない)。
+        // 裏を向いたカードの面のように、見えているのに触れない所を
+        // 「押せる大きさが足りない」と数えても直しようがない。
+        !el.closest("[inert]") &&
+        (!el.checkVisibility ||
+          el.checkVisibility({
+            contentVisibilityAuto: true,
+            opacityProperty: true,
+            visibilityProperty: true,
+          }));
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
+        if (!isShown(el)) continue;
         let r = el.getBoundingClientRect();
         if (r.width < 1 || r.height < 1) continue;
         if (r.width >= 44 && r.height >= 44) continue;
@@ -425,6 +583,10 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // 大きさに関係なく全部見る。上の 44px の検査は小さいものしか見ない。
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
         if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") continue;
+        // `inert` の中は覆われていて当たり前(裏を向いたカードの面など)。
+        // **押せないと決めてある物**を「下敷きだ」と言っても直しようがない。
+        // 上の押せる大きさの段と同じ物差しで外す。
+        if (!isShown(el)) continue;
         const r0 = el.getBoundingClientRect();
         if (r0.width < 4 || r0.height < 4) continue;
         el.scrollIntoView({ block: "center" });
@@ -578,6 +740,19 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       if (!texts.length) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
+        continue;
+      }
+      // 閉じた `<details>` の中身も外す。`content-visibility: hidden` は
+      // `display`/`visibility` には現れないのに、子孫は矩形を返し続ける
+      // (押せる大きさの段で同じ穴に落ちた)。
+      if (
+        el.checkVisibility &&
+        !el.checkVisibility({
+          contentVisibilityAuto: true,
+          opacityProperty: true,
+          visibilityProperty: true,
+        })
+      ) {
         continue;
       }
       // **絵文字は `color` で塗られない。** 自前の色を持った図形なので、
@@ -759,8 +934,18 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
               );
               const need = onBrand ? 3 : s.big ? 3 : 4.5;
               if (ratio < need) {
+                // **測った物をそのまま出す。** 比だけを出していたので、
+                // 「実測は 8:1 なのに検査は 1.64 と言う」ときに、どちらが
+                // 間違っているのかを追う手掛かりが何も無かった。
+                // 文字色・下地・座標を添えれば、その場で突き合わせられる。
+                const hex = (c) =>
+                  "#" +
+                  [c.r, c.g, c.b]
+                    .map((v) => Math.round(v).toString(16).padStart(2, "0"))
+                    .join("");
                 out.push(
                   `コントラスト ${ratio.toFixed(2)} < ${need} — "${s.label}" ${s.px}px` +
+                    ` [字 ${hex(s)} / 地 ${hex(bg)} @${Math.round(s.x)},${Math.round(s.y)}]` +
                     (onBrand ? "(ブランドの塗りの上)" : ""),
                 );
               }
@@ -990,10 +1175,12 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   //   ・低すぎる → 止まった見出しが半透明のバーの裏に潜り、上端がぼやける
   //     (実際に起きた。3.25rem 決め打ちで、バーは 3.5rem だった)
   // どちらも画像を見ても「なんとなく変」で終わる。数字で見る。
-  const stick = await page.evaluate(async () => {
+  const stick = await page.evaluate(async (bare) => {
     const out = [];
     const bar = document.querySelector("header");
-    if (!bar) return ["上のバーが無い(ハーネスが実物と違う)"];
+    // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
+    // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
+    if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
     // バーが本当に貼り付いているか。ここが relative だと、下の
     // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
     if (getComputedStyle(bar).position !== "sticky") {
@@ -1033,7 +1220,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     window.scrollTo(0, 0);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     return [...new Set(out)];
-  });
+  }, BARE_SCENES.has(scene.scene ?? ""));
   stick.forEach((f) => issues.push(`[${name}] ${f}`));
 
   // ## 鍵盤で辿ったとき、いまどこに居るかが見えること(WCAG 2.4.7)
@@ -1137,6 +1324,65 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   await page.screenshot({ path: path.join(OUT, `ui-${name}.png`), fullPage: true });
   await page.close();
 }
+
+/**
+ * ## 動きを減らす設定での検査
+ *
+ * `prefers-reduced-motion: reduce` を立てて開き、**まだ動いている
+ * アニメーションの名前を数える**。止まっていなければならない物が
+ * 1つでも走っていれば落とす。
+ *
+ * ### なぜ要るか
+ * この app の reduced-motion の規則は、`ken-burns-a` `breathe` のように
+ * **自作のクラス名を1つずつ並べて**書いてある。だから Tailwind が配る
+ * `animate-pulse` は誰も止めていなかった — 読み込み中の骨組みは全画面で
+ * それを使っているので、動きを減らす設定にしていても26箇所が脈打って
+ * いた。名前を並べる規則は、名前を足し忘れた瞬間に静かに穴が開く。
+ * **穴が開いたことを機械に言わせる。**
+ *
+ * ### 何を止めて、何を残すか
+ * `spin` は残す。回転を止めると、待たされている人には「固まった」に
+ * 見える。動きを減らす設定は手応えを消す設定ではない。
+ * ここで見るのは「止めると決めた物が本当に止まっているか」だけ。
+ */
+const MOTION_STOP = ["pulse", "ping"];
+/** 走っていてよい物。ここに無い名前が出たら、決めていない動きが増えた合図。 */
+const MOTION_KEEP = ["spin"];
+// 脈打つ物が実際に居る場面だけを見る。**居ない場面で緑にしても何の
+// 保証にもならない**ので、下の「1つも見つからなかった」で担保する。
+const MOTION_SCENES = ["scan-detail", "word-card", "home-loading", "review-loading"];
+let motionSeen = 0;
+for (const scene of MOTION_SCENES) {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 800 },
+    reducedMotion: "reduce",
+  });
+  await page.goto(sceneUrl(BASE, { scene }), { waitUntil: "load" });
+  await page.waitForTimeout(400);
+  const { running, marked } = await page.evaluate(() => ({
+    // `animationName` を持つ物だけが CSS アニメーション(transition は持たない)。
+    running: document.getAnimations().map((a) => a.animationName).filter(Boolean),
+    marked: document.querySelectorAll('[class*="animate-"]').length,
+  }));
+  if (!marked) {
+    issues.push(`[動きを減らす/${scene}] animate-* の要素が1つも無い(場面が違う疑い)`);
+    await page.close();
+    continue;
+  }
+  motionSeen += marked;
+  for (const nm of running) {
+    if (MOTION_STOP.includes(nm)) {
+      issues.push(`[動きを減らす/${scene}] 止まるべき動きが走っている: ${nm}`);
+    } else if (!MOTION_KEEP.includes(nm)) {
+      issues.push(`[動きを減らす/${scene}] 決めていない動きが走っている: ${nm}`);
+    }
+  }
+  await page.close();
+}
+if (!motionSeen) {
+  issues.push("[動きを減らす] 見た場面のどこにも animate-* が無かった(検査が空回りしている)");
+}
+
 await browser.close();
 server.close();
 

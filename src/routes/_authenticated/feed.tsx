@@ -123,7 +123,7 @@ function PostCard({ post }: { post: FeedPost }) {
         {post.author.avatar_url ? (
           <img src={post.author.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
         ) : (
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-footnote font-semibold text-primary">
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/15 text-footnote font-semibold text-primary-ink">
             {initial}
           </div>
         )}

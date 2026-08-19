@@ -197,7 +197,7 @@ function SelfImprovePanel() {
         毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-caption text-primary">
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-caption text-primary-ink">
           {result}
         </pre>
       )}
@@ -341,7 +341,7 @@ function EntryReportsPanel() {
               <span className="ml-auto flex gap-1">
                 <button
                   onClick={() => resolve(r.id, "resolved")}
-                  className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary"
+                  className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary-ink"
                 >
                   対応済み
                 </button>
@@ -443,7 +443,7 @@ function TtsPregenPanel() {
           ` · 今回生成 ${progress.done} 語${progress.failed ? ` / 失敗 ${progress.failed}` : ""}`}
       </p>
       {errors.length > 0 && (
-        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-caption text-destructive">
+        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-caption text-destructive-ink">
           {errors.some((e) => e.includes("402"))
             ? "音声の一括生成にはクレジット/課金が必要です（402 Payment Required）。Lovableのプラン設定を確認してください。単語の発音は端末の音声で代替されるので、アプリ内の再生は動きます。"
             : errors.join(" / ")}
