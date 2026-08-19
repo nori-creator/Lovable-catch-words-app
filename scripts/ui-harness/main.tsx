@@ -19,8 +19,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
-import { CapturePickScene, CaptureReunionScene } from "./scenes/capture";
-import { ScanChipScene } from "./scenes/scan";
+import { CaptureOfflineScene, CapturePickScene, CaptureReunionScene } from "./scenes/capture";
+import { ScanChipScene, ScanFoundScene, ScanNothingScene } from "./scenes/scan";
 import {
   HomeEmptyScene,
   HomeLoadingScene,
@@ -83,6 +83,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-pick": CapturePickScene,
   "capture-reunion": CaptureReunionScene,
   "scan-chip": ScanChipScene,
+  "scan-found": ScanFoundScene,
+  "scan-nothing": ScanNothingScene,
+  "capture-offline": CaptureOfflineScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,

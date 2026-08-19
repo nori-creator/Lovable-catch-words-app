@@ -948,37 +948,12 @@ function CapturePage() {
       )}
 
       {step === "offlineSaved" && (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-border bg-card p-8 text-center">
-            {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
-                WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
-            {typeof navigator !== "undefined" && navigator.onLine === false ? (
-              <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            ) : (
-              <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            )}
-            <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
-            <p className="mt-1 text-body text-muted-foreground">{t("capture.offlineHint")}</p>
-            {savedReason && (
-              <p className="mt-3 break-words text-footnote text-muted-foreground">
-                {t("capture.savedReason", { reason: savedReason })}
-              </p>
-            )}
-          </div>
-          {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
-              「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
-          <Button onClick={() => void runAi()} className="lift w-full">
-            <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
-              {t("capture.toHome")}
-            </Button>
-            <Button variant="outline" onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
-            </Button>
-          </div>
-        </div>
+        <OfflineSavedPanel
+          savedReason={savedReason}
+          onRetry={() => void runAi()}
+          onHome={() => navigate({ to: "/home" })}
+          onAgain={reset}
+        />
       )}
       {inputSheet && (
         <InputCatchSheet
@@ -1193,6 +1168,63 @@ export function PickWordPanel({
             {t("capture.useThis")}
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 圏外で撮って、端末に預かった面。**オフラインのときにしか出ない**ので、
+ * 今まで誰も見ていなかった。
+ *
+ * その場でもう一度試せる道を必ず残す — ここが「ホームへ」と「もう一枚撮る」
+ * だけだと、一時的な失敗で作業が途切れる。
+ */
+export function OfflineSavedPanel({
+  savedReason,
+  onRetry,
+  onHome,
+  onAgain,
+}: {
+  savedReason: string | null;
+  onRetry: () => void;
+  onHome: () => void;
+  onAgain: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-border bg-card p-8 text-center">
+        {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
+              WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
+        {typeof navigator !== "undefined" && navigator.onLine === false ? (
+          <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        ) : (
+          <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        )}
+        <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
+        {/* 中央に2行で置くと決めた案内文。行の長さを揃える。 */}
+        <p className="ja-phrase mt-1 text-balance text-body text-muted-foreground">
+          {t("capture.offlineHint")}
+        </p>
+        {savedReason && (
+          <p className="ja-phrase mt-3 text-balance break-words text-footnote text-muted-foreground">
+            {t("capture.savedReason", { reason: savedReason })}
+          </p>
+        )}
+      </div>
+      {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
+            「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
+      <Button onClick={onRetry} className="lift w-full">
+        <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
+      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onHome} className="flex-1">
+          {t("capture.toHome")}
+        </Button>
+        <Button variant="outline" onClick={onAgain} className="flex-1">
+          <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
+        </Button>
       </div>
     </div>
   );

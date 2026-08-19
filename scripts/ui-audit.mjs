@@ -35,9 +35,9 @@
  *     「カメラ依存」で `capture`(1106行)と `scan`(1425行)を丸ごと未検査に
  *     していたのは大雑把すぎた — `capture` は**8段のうち6段**が、`scan` は
  *     `<video>` が**1箇所だけ**で、撮った後の面は静止画の上に描かれる。
- *     いま入っているのは語を選ぶ面・再会の面・語の札(5通り)。
- *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中・
- *     圏外で預かった面・見つからなかった面・結果の一覧。
+ *     いま入っているのは語を選ぶ面・再会の面・圏外で預かった面・
+ *     語の札(5通り)・結果の一覧・見つからなかった面。
+ *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中。
  *   ・`journal` / `feed` / `discover` / `u.$userId` / `post.$postId` /
  *     `notifications` / `onboarding` — 人に見せる側の画面。どれも
  *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
@@ -290,6 +290,14 @@ const MODES = [
   ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
+  // 見つかった語の一覧。**3通りの出会い方を1つずつ**入れてある。
+  // ガラスのシートなので、下に写真を敷いて撮る(白地だと実際より読みやすく写る)。
+  ...crossThemes("scan-found", { scene: "scan-found" }),
+  // 撮ったのに何も見つからなかった面。**失敗ではなく結果**なので警告にしない。
+  ...crossThemes("scan-nothing", { scene: "scan-nothing" }),
+  // 圏外で撮って端末に預かった面。オフラインのときにしか出ない。
+  ...crossThemes("cap-offline", { scene: "capture-offline" }),
+  ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],

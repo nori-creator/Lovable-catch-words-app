@@ -7,7 +7,11 @@
  * 偽の映像を流す仕掛けを作るまでは入れない。一覧に書いておく。
  */
 import { useState } from "react";
-import { PickWordPanel, ReencounterPanel } from "@/routes/_authenticated/capture";
+import {
+  OfflineSavedPanel,
+  PickWordPanel,
+  ReencounterPanel,
+} from "@/routes/_authenticated/capture";
 
 const shot = (w: number, h: number, c: string) =>
   "data:image/svg+xml;utf8," +
@@ -93,6 +97,21 @@ export function CaptureReunionScene({ q }: { q: URLSearchParams }) {
       reencResult={done ? { encounter_count: 3, photo_saved: true } : null}
       onAgain={() => {}}
       onSeeInDex={() => {}}
+    />
+  );
+}
+
+/**
+ * 圏外で撮って端末に預かった面。**オフラインのときにしか出ない**ので、
+ * 今まで誰も見ていなかった。理由が付いている回と付いていない回を撮る。
+ */
+export function CaptureOfflineScene({ q }: { q: URLSearchParams }) {
+  return (
+    <OfflineSavedPanel
+      savedReason={q.get("variant") === "reason" ? "ネットワークに繋がりませんでした" : null}
+      onRetry={() => {}}
+      onHome={() => {}}
+      onAgain={() => {}}
     />
   );
 }

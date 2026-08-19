@@ -1019,76 +1019,11 @@ function ScanPage() {
           {/* Nothing found: a completed scan produced no target-language words.
               Without this the user just stares at a frozen photo with no dots
               and no explanation. */}
-          {items !== null && !scanning && visibleItems.length === 0 && (
-            <div className="rounded-2xl bg-background/80 p-4 text-center shadow-lg backdrop-blur-xl">
-              <p className="text-body font-medium">{t("scan.nothingFound")}</p>
-              <p className="mt-1 text-footnote text-muted-foreground">
-                {t("scan.nothingFoundHint")}
-              </p>
-            </div>
-          )}
+          {items !== null && !scanning && visibleItems.length === 0 && <ScanNothingFound />}
 
           {/* 3) 見つかった単語(スクロールできるガラスのシート) */}
           {visibleItems.length > 0 && !scanning && (
-            <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/80 p-1.5 shadow-lg backdrop-blur-xl">
-              {
-                <div className="space-y-1.5">
-                  <p className="px-1 text-caption font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                    {t("scan.found")}
-                  </p>
-                  {visibleItems.map((it) => {
-                    const st = dotStateFor(it.headword, scanCtx);
-                    return (
-                      <button
-                        key={it.id}
-                        onClick={() => openChip(it)}
-                        className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
-                      >
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                            st === "owned"
-                              ? "bg-emerald-400"
-                              : st === "reunion"
-                                ? "bg-amber-400"
-                                : "bg-sky-400"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-2">
-                            <span lang="zh-Hant" className="truncate text-body font-semibold">
-                              {it.headword}
-                            </span>
-                            {it.zhuyin && (
-                              <span className="shrink-0 text-caption text-muted-foreground">
-                                {it.zhuyin}
-                              </span>
-                            )}
-                          </span>
-                          {it.meaning_ja && (
-                            <span className="block truncate text-footnote text-muted-foreground">
-                              {it.meaning_ja}
-                            </span>
-                          )}
-                        </span>
-                        {/* §2: don't lean on colour alone — reunion carries a text tag,
-                      owned a check, new a chevron. */}
-                        {st === "owned" ? (
-                          <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
-                            <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
-                          </span>
-                        ) : st === "reunion" ? (
-                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
-                            {t("scan.reunion")}
-                          </span>
-                        ) : (
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              }
-            </div>
+            <ScanFoundList items={visibleItems} scanCtx={scanCtx} onOpen={openChip} />
           )}
         </div>
 
@@ -1436,4 +1371,108 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
     return () => ro.disconnect();
   }, [ref]);
   return size;
+}
+
+/**
+ * 撮った枠から見つかった語の一覧。**scan で結果を読む所**。
+ *
+ * 出会い方(はじめて / 持っている / 再会)で行の印が変わる。
+ * `<video>` は使わない — ここは静止画の上に乗るガラスのシート。
+ */
+export function ScanFoundList({
+  items,
+  scanCtx,
+  onOpen,
+}: {
+  items: DetectedItem[];
+  scanCtx: ScanCtx | undefined;
+  onOpen: (it: DetectedItem) => void;
+}) {
+  const t = useT();
+  const visibleItems = items;
+  const openChip = onOpen;
+  if (!visibleItems.length) return null;
+  return (
+    <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-1.5 shadow-lg backdrop-blur-xl">
+      {
+        <div className="space-y-1.5">
+          <p className="px-1 text-caption font-medium uppercase tracking-[0.15em] text-muted-foreground">
+            {t("scan.found")}
+          </p>
+          {visibleItems.map((it) => {
+            const st = dotStateFor(it.headword, scanCtx);
+            return (
+              <button
+                key={it.id}
+                onClick={() => openChip(it)}
+                className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
+              >
+                <span
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    st === "owned"
+                      ? "bg-emerald-400"
+                      : st === "reunion"
+                        ? "bg-amber-400"
+                        : "bg-sky-400"
+                  }`}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-2">
+                    <span lang="zh-Hant" className="truncate text-body font-semibold">
+                      {it.headword}
+                    </span>
+                    {it.zhuyin && (
+                      <span className="shrink-0 text-caption text-muted-foreground">
+                        {it.zhuyin}
+                      </span>
+                    )}
+                  </span>
+                  {it.meaning_ja && (
+                    <span className="block truncate text-footnote text-muted-foreground">
+                      {it.meaning_ja}
+                    </span>
+                  )}
+                </span>
+                {/* §2: don't lean on colour alone — reunion carries a text tag,
+                    owned a check, new a chevron. */}
+                {st === "owned" ? (
+                  <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
+                    <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
+                  </span>
+                ) : st === "reunion" ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                    {t("scan.reunion")}
+                  </span>
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+}
+
+/**
+ * 撮ったのに何も見つからなかった面。
+ *
+ * **これは失敗ではなく結果**なので、赤くも警告にもしない。次にどうすれば
+ * よいかを一言添える。撮った写真の上に乗るガラスのシート。
+ */
+export function ScanNothingFound() {
+  const t = useT();
+  // ガラスは 80% だった。**後ろは撮った写真**なので、暗い被写体の上では
+  // 面が中間色に寄り、副次の文字が 4.17:1 まで落ちていた(実測)。
+  // 何が後ろに来ても読めるところまで濃くする — 下のタブ帯で同じ話を
+  // オーナーから受けている(「後ろ透けないようにして」)。
+  return (
+    <div className="rounded-2xl bg-background/95 p-4 text-center shadow-lg backdrop-blur-xl">
+      <p className="text-body font-medium">{t("scan.nothingFound")}</p>
+      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
+        {t("scan.nothingFoundHint")}
+      </p>
+    </div>
+  );
 }
