@@ -64,7 +64,6 @@ function StickerDetailPage() {
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId } }),
   });
-  const [flipped, setFlipped] = useState(false);
 
   return (
     <AppShell title={t("card.title")}>
@@ -103,133 +102,7 @@ function StickerDetailPage() {
         </div>
       ) : (
         <>
-          {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
-          <div
-            className="perspective-[1200px] mb-4"
-            role="button"
-            tabIndex={0}
-            aria-label={flipped ? t("card.flipBack") : t("card.flipSelfie")}
-            onClick={() => setFlipped((f) => !f)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setFlipped((f) => !f);
-              }
-            }}
-          >
-            <div
-              className={`card-flip relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl cursor-pointer ${flipped ? "flipped" : ""}`}
-            >
-              <div className="card-face absolute inset-0 grid place-items-center bg-secondary overflow-hidden">
-                {s.object_url ? (
-                  <img
-                    src={s.object_url}
-                    alt={t("common.photoOf", { word: s.word.headword })}
-                    className="hero-pop h-full w-full object-cover"
-                  />
-                ) : s.cutout_url ? (
-                  <img
-                    src={s.cutout_url}
-                    alt={s.word.headword}
-                    className="hero-pop max-h-[92%] max-w-[92%] object-contain"
-                  />
-                ) : s.placeholder_url ? (
-                  // ネット画像。仮扱いせず普通の絵として見せる(#67)。
-                  <>
-                    <img
-                      src={s.placeholder_url}
-                      alt={t("common.imageOf", { word: s.word.headword })}
-                      className="hero-pop absolute inset-0 h-full w-full object-cover"
-                    />
-                    {s.placeholder_credit?.name && (
-                      <a
-                        href={s.placeholder_credit.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
-                      >
-                        📷 {s.placeholder_credit.name}
-                      </a>
-                    )}
-                  </>
-                ) : (
-                  <span
-                    lang="zh-Hant"
-                    className="px-4 text-center text-hero font-semibold text-muted-foreground"
-                  >
-                    {s.word.headword}
-                  </span>
-                )}
-                {s.selfie_url && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
-                    {t("card.tapForSelfie")}
-                  </span>
-                )}
-              </div>
-              <div className="card-face card-back absolute inset-0 overflow-hidden bg-secondary">
-                {s.selfie_url ? (
-                  <img
-                    src={s.selfie_url}
-                    alt={t("common.selfieOf")}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-body text-muted-foreground">
-                    {t("card.noSelfie")}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* When & Where — shown right under the photo, inside the word area */}
-          <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />
-                {new Date(s.created_at).toLocaleString(dateLocale, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-              {(s.location_name || (s.lat != null && s.lng != null)) && (
-                <a
-                  href={
-                    s.lat != null && s.lng != null
-                      ? `https://www.google.com/maps?q=${s.lat},${s.lng}`
-                      : `https://www.google.com/maps?q=${encodeURIComponent(s.location_name ?? "")}`
-                  }
-                  target="_blank"
-                  rel="noreferrer"
-                  className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary"
-                >
-                  <MapPin className="h-3.5 w-3.5" />
-                  {s.location_name ?? t("card.openMap")}
-                </a>
-              )}
-            </div>
-            {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
-          </section>
-
-          {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
-          <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-            <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
-              {s.word.headword}
-            </div>
-            <div lang="zh-Hant" className="mt-1 text-body text-muted-foreground">
-              {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
-            </div>
-            <div className="mt-2 text-headline font-medium">{s.word.meaning_ja}</div>
-            {s.word.part_of_speech && (
-              <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
-                {s.word.part_of_speech}
-              </span>
-            )}
-          </section>
+          <StickerDetailHero sticker={s} dateLocale={dateLocale} />
 
           {/* §6 word tree: photo at the center, branches unlock per review */}
           <div className="mb-4">
@@ -318,5 +191,159 @@ function StickerDetailPage() {
         </>
       )}
     </AppShell>
+  );
+}
+
+/**
+ * 語の詳細の上半分 — 写真(表裏)・いつどこで・見出し語と意味。
+ *
+ * ## なぜ切り出したか
+ * この画面は**一度も機械の目に映っていなかった**。検査の場面は
+ * `WordCard` を裸で描いていたが、実物ではそれは `<details>`
+ * 「すべて見る」の中で、既定では閉じている。つまり独立監査3体は
+ * **既定では見えない面**を「一番長く見られる画面」として採点していた。
+ *
+ * ルートが問い合わせを持っているので、描く所だけをここへ出す。
+ * (復習・ホーム・設定で同じことを何度もやっている。)
+ */
+export function StickerDetailHero({
+  sticker: s,
+  dateLocale,
+}: {
+  sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
+  dateLocale: string;
+}) {
+  const t = useT();
+  const [flipped, setFlipped] = useState(false);
+  return (
+    <>
+      {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
+      <div
+        className="perspective-[1200px] mb-4"
+        role="button"
+        tabIndex={0}
+        aria-label={flipped ? t("card.flipBack") : t("card.flipSelfie")}
+        onClick={() => setFlipped((f) => !f)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setFlipped((f) => !f);
+          }
+        }}
+      >
+        <div
+          className={`card-flip relative aspect-square w-full overflow-hidden rounded-3xl shadow-xl cursor-pointer ${flipped ? "flipped" : ""}`}
+        >
+          <div className="card-face absolute inset-0 grid place-items-center bg-secondary overflow-hidden">
+            {s.object_url ? (
+              <img
+                src={s.object_url}
+                alt={t("common.photoOf", { word: s.word.headword })}
+                className="hero-pop h-full w-full object-cover"
+              />
+            ) : s.cutout_url ? (
+              <img
+                src={s.cutout_url}
+                alt={s.word.headword}
+                className="hero-pop max-h-[92%] max-w-[92%] object-contain"
+              />
+            ) : s.placeholder_url ? (
+              // ネット画像。仮扱いせず普通の絵として見せる(#67)。
+              <>
+                <img
+                  src={s.placeholder_url}
+                  alt={t("common.imageOf", { word: s.word.headword })}
+                  className="hero-pop absolute inset-0 h-full w-full object-cover"
+                />
+                {s.placeholder_credit?.name && (
+                  <a
+                    href={s.placeholder_credit.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
+                  >
+                    📷 {s.placeholder_credit.name}
+                  </a>
+                )}
+              </>
+            ) : (
+              <span
+                lang="zh-Hant"
+                className="px-4 text-center text-hero font-semibold text-muted-foreground"
+              >
+                {s.word.headword}
+              </span>
+            )}
+            {s.selfie_url && (
+              <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
+                {t("card.tapForSelfie")}
+              </span>
+            )}
+          </div>
+          <div className="card-face card-back absolute inset-0 overflow-hidden bg-secondary">
+            {s.selfie_url ? (
+              <img
+                src={s.selfie_url}
+                alt={t("common.selfieOf")}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-body text-muted-foreground">
+                {t("card.noSelfie")}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* When & Where — shown right under the photo, inside the word area */}
+      <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            {new Date(s.created_at).toLocaleString(dateLocale, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          {(s.location_name || (s.lat != null && s.lng != null)) && (
+            <a
+              href={
+                s.lat != null && s.lng != null
+                  ? `https://www.google.com/maps?q=${s.lat},${s.lng}`
+                  : `https://www.google.com/maps?q=${encodeURIComponent(s.location_name ?? "")}`
+              }
+              target="_blank"
+              rel="noreferrer"
+              className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              {s.location_name ?? t("card.openMap")}
+            </a>
+          )}
+        </div>
+        {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+      </section>
+
+      {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
+      <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
+        <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
+          {s.word.headword}
+        </div>
+        <div lang="zh-Hant" className="mt-1 text-body text-muted-foreground">
+          {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
+        </div>
+        <div className="mt-2 text-headline font-medium">{s.word.meaning_ja}</div>
+        {s.word.part_of_speech && (
+          <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
+            {s.word.part_of_speech}
+          </span>
+        )}
+      </section>
+    </>
   );
 }

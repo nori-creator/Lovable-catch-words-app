@@ -60,7 +60,7 @@ function BrandMark() {
     // 全画面を通していちばん強い視覚要素になっていた(独立監査)。
     // 視線の起点に最も強いものを置くと、その画面の主役がそこを取れない。
     // 面は薄く、字は主色に。押せることは色で分かる。
-    <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-footnote font-bold text-primary">
+    <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-footnote font-bold text-primary-ink">
       C
     </div>
   );

@@ -777,7 +777,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="lift inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary"
+                    className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     {s.location_name ?? t("card.openMap")}

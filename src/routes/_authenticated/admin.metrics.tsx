@@ -341,7 +341,7 @@ function EntryReportsPanel() {
               <span className="ml-auto flex gap-1">
                 <button
                   onClick={() => resolve(r.id, "resolved")}
-                  className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary"
+                  className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary-ink"
                 >
                   対応済み
                 </button>

@@ -6,6 +6,7 @@
  * 決めてあった箇所。まず見えるようにする。
  */
 import { WordCard } from "@/components/WordCard";
+import { StickerDetailHero } from "@/routes/_authenticated/dex.$stickerId";
 import { emptyExtras } from "@/lib/extras";
 
 /** 中身が一通り埋まった語。節を一度に全部出すため、なるべく多くを埋める。 */
@@ -123,3 +124,45 @@ export function WordCardEmptyScene() {
 // ネットの画像の節は**自分で取りに行く**(extras には入っていない)。
 // ハーネスでは通信が返ってこないので、上の2つの場面の中で
 // 「読み込み中の節」として写る。それも見たい面なので、別の場面は作らない。
+
+/**
+ * 語の詳細の**既定の見え方**。
+ *
+ * これまで撮っていたのは `WordCard` を裸で描いた絵だったが、実物では
+ * それは `<details>`「すべて見る」の中で閉じている。つまり
+ * **この画面は一度も機械の目に映っていなかった**。
+ * 独立監査3体はここを「一番長く見られる画面」として採点していたので、
+ * 採点の前提そのものが実物と違っていた。
+ */
+export function StickerDetailScene() {
+  const shot = (w: number, h: number, c: string) =>
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="${c}"/></svg>`,
+    );
+  return (
+    <StickerDetailHero
+      dateLocale="ja-JP"
+      sticker={
+        {
+          id: "s1",
+          word_id: "w1",
+          created_at: "2026-08-01T12:30:00Z",
+          taken_at: "2026-08-01T12:30:00Z",
+          caption: "士林夜市で並んでいるときに",
+          location_name: "士林夜市",
+          lat: 25.088,
+          lng: 121.524,
+          object_url: shot(600, 600, "#b07a4a"),
+          cutout_url: null,
+          selfie_url: shot(600, 600, "#4a90d9"),
+          placeholder_url: null,
+          placeholder_credit: null,
+          branch_plan: null,
+          review_count: 2,
+          word: FULL,
+        } as never
+      }
+    />
+  );
+}

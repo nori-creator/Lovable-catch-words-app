@@ -214,6 +214,10 @@ const MODES = [
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
   // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている
   // ことは分かっていたが、直す前にまず見えるようにする。
+  // **語の詳細の既定の見え方。** 写真(表裏)・いつどこで・見出し語と意味。
+  // これまで撮っていたのは `WordCard` を裸で描いた絵だけで、実物では
+  // それは `<details>` の中で閉じている。この画面は一度も撮っていなかった。
+  ...crossThemes("sticker-detail", { scene: "sticker-detail" }),
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が

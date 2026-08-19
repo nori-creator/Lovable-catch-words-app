@@ -1276,7 +1276,7 @@ function DexMap({
       )}
       <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary-ink">
           {withLoc.length} {t("dex.items")}
         </span>
       </div>
