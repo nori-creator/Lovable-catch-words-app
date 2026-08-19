@@ -84,6 +84,7 @@ function PendingCapturesBanner() {
           void listPendingCaptures().then(setPending);
         });
       }}
+      onCancelDiscard={() => setConfirmingId(null)}
     />
   );
 }
@@ -100,10 +101,13 @@ export function PendingCapturesCard({
   pending,
   confirming,
   onDiscard,
+  onCancelDiscard,
 }: {
   pending: PendingCapture[];
   confirming: boolean;
   onDiscard: () => void;
+  /** 構えを解く。**見える形で置く** — 取り消す道が要る。 */
+  onCancelDiscard: () => void;
 }) {
   const t = useT();
   const first = pending[0];
@@ -139,13 +143,35 @@ export function PendingCapturesCard({
       </Link>
 
       {/* 捨てるのは取り消せない。写真は二度と撮れないものなので、
-          一度目のタップでは実行せず「本当に?」に変える。
+          一度目のタップでは実行せず、二度目で捨てる。
           モーダルは出さない — この場で決まる小さな判断に、画面を
-          覆うほどの重さは要らない。 */}
-      <div className="mt-2 flex justify-end">
+          覆うほどの重さは要らない。
+
+          ただし構えたときは:
+          ・**やめる道を画面に出す。** 以前は文字が入れ替わるだけで、
+            取り消す方法が「どこか別の場所を触る」という見えない操作しか
+            無かった(独立監査の指摘)
+          ・**何が起きるかを言う。** 「本当に捨てる?」は結果を言っていない。
+            この帯は「2枚」と数えているのに、捨てるのは**上に写っている
+            1枚だけ**なので、そこを取り違えられない文言にする
+          ・**取り消せない操作の色にする。** 同じ灰色のままだと、
+            周りの文字と見分けがつかない */}
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        {confirming && (
+          <button
+            onClick={onCancelDiscard}
+            className="inline-flex min-h-11 items-center rounded-full px-3 text-footnote font-medium text-muted-foreground hover:text-foreground"
+          >
+            {t("home.pendingDiscardCancel")}
+          </button>
+        )}
         <button
           onClick={onDiscard}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote font-medium text-muted-foreground hover:bg-warn/12 hover:text-foreground"
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote font-medium ${
+            confirming
+              ? "bg-destructive/12 text-destructive-ink"
+              : "text-muted-foreground hover:bg-warn/12 hover:text-foreground"
+          }`}
         >
           <Trash2 className="h-3.5 w-3.5" />
           {confirming ? t("home.pendingDiscardConfirm") : t("home.pendingDiscard")}
@@ -165,6 +191,7 @@ const BG_OPTIONS = [
 type BgId = (typeof BG_OPTIONS)[number]["id"];
 
 function HomePage() {
+  const t = useT();
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
@@ -234,7 +261,7 @@ function HomePage() {
       ) : isError ? (
         // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
         // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatHome")} />
       ) : todayStickers.length === 0 ? (
         <HomeEmptyState />
       ) : (

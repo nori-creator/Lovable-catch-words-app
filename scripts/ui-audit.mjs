@@ -159,7 +159,11 @@ const MODES = [
   // 何を見て何を見ていないかは README ではなく、ここの一覧が事実として示す。
   ...crossThemes("tokens", { scene: "tokens" }),
   ...crossThemes("failed", { scene: "load-failed" }),
+  // 再試行中は**見出しも文言もボタン名も**変わる。以前はアイコンが回るだけで、
+  // 押せたのかどうか分からなかった(独立監査の指摘)。
   ["failed-retrying", "", false, { scene: "load-failed", variant: "retrying" }],
+  // 何を読み込めなかったかを名指しした面。
+  ["failed-named", "", false, { scene: "load-failed", variant: "named" }],
   ...crossThemes("chunks", { scene: "chunks" }),
   ...crossThemes("curve", { scene: "curve" }),
   ...crossThemes("pron", { scene: "pronunciation" }),

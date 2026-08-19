@@ -85,7 +85,11 @@ function StickerDetailPage() {
         // 通信の失敗を「見つかりません」と言ってはいけない。
         // ユーザーはそれを「消えた」と受け取り、**自分の記録が失われた**と
         // 思ってしまう。やり直せば戻るものは、やり直せると言う(§8)。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        <LoadFailed
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+          what={t("err.whatWordCard")}
+        />
       ) : !s ? (
         <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-body text-muted-foreground">{t("card.notFound")}</p>

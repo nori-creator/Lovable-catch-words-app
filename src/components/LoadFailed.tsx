@@ -21,10 +21,18 @@ import { useT } from "@/lib/i18n";
 export function LoadFailed({
   onRetry,
   retrying = false,
+  what,
 }: {
   onRetry: () => void;
   /** 再試行が走っている間はボタンを回す(押した手応えを返す)。 */
   retrying?: boolean;
+  /**
+   * **何が**読み込めなかったか(「今日の復習」「図鑑」など)。
+   *
+   * 無いと「読み込めませんでした」としか言えず、画面のどこが欠けたのか
+   * 分からない(独立監査の指摘)。渡せる所からは渡す。
+   */
+  what?: string;
 }) {
   const t = useT();
   // オフラインなら理由が分かっているので、そう言う。
@@ -40,11 +48,21 @@ export function LoadFailed({
       <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
         {offline ? <WifiOff className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
       </span>
+      {/* **再試行中に「失敗しました」と言い続けない。**
+          押したのに画面が依然として失敗を主張していると、押せたのかどうか
+          分からず二度三度押すことになる(独立監査の指摘)。
+          走っている間は、走っていると言う。 */}
       <p className="text-body font-semibold">
-        {offline ? t("err.offlineTitle") : t("err.loadTitle")}
+        {retrying
+          ? t("err.retryingTitle")
+          : offline
+            ? t("err.offlineTitle")
+            : what
+              ? t("err.loadTitleOf", { what })
+              : t("err.loadTitle")}
       </p>
-      <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-        {offline ? t("err.offlineHint") : t("err.loadHint")}
+      <p className="ja-phrase mt-1 max-w-[22em] text-balance text-body text-muted-foreground">
+        {retrying ? t("err.retryingHint") : offline ? t("err.offlineHint") : t("err.loadHint")}
       </p>
       <button
         onClick={onRetry}
@@ -56,7 +74,7 @@ export function LoadFailed({
         className="lift mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
       >
         <RefreshCw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
-        {t("err.retry")}
+        {retrying ? t("err.retrying") : t("err.retry")}
       </button>
     </div>
   );

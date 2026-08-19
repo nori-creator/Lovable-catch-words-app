@@ -255,7 +255,11 @@ function ReviewPage() {
       ) : isError ? (
         // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
         // 200枚溜まっていても「今日の復習はありません」と出ていた。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        <LoadFailed
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+          what={t("err.whatReview")}
+        />
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (

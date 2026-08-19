@@ -404,7 +404,7 @@ function DexPage() {
           描き、再試行の手段も出ないままだった(§8)。 */}
       {isError && captured.length === 0 ? (
         // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatDex")} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -1225,6 +1225,7 @@ function DexMap({
     // 「もう一度」が二度と効かない再試行ボタンを作っていた。
     return (
       <LoadFailed
+        what={t("err.whatMap")}
         onRetry={() => {
           setMapFailed(false);
           setMapAttempt((n) => n + 1);

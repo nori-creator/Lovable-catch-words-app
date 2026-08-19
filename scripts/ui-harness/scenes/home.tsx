@@ -135,6 +135,7 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
       pending={pending}
       confirming={q.get("variant") === "confirm"}
       onDiscard={() => {}}
+      onCancelDiscard={() => {}}
     />
   );
 }
