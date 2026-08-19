@@ -613,6 +613,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             busy={busy}
             deleteArmed={deleteArmed}
             handleDelete={handleDelete}
+            onCancelDelete={() => setDeleteArmed(false)}
             handleImageFile={handleImageFile}
             fileInputRef={fileInputRef}
             heroPressStart={heroPressStart}
@@ -664,6 +665,7 @@ export function StickerSheetBody({
   busy,
   deleteArmed,
   handleDelete,
+  onCancelDelete,
   handleImageFile,
   fileInputRef,
   heroPressStart,
@@ -695,6 +697,8 @@ export function StickerSheetBody({
   /** 削除は2段。1回目で「本当に削除?」に変わり、4秒で戻る。 */
   deleteArmed: boolean;
   handleDelete: () => void;
+  /** 2段目から降りる。時間切れを待たずに取り消せるようにする。 */
+  onCancelDelete: () => void;
   handleImageFile: (f: File) => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   heroPressStart: () => void;
@@ -1022,7 +1026,7 @@ export function StickerSheetBody({
       )}
 
       {/* カード管理: 写真の変更は写真上の📷アイコン/長押し。削除は2段階。 */}
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex items-center justify-end gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -1034,6 +1038,20 @@ export function StickerSheetBody({
             e.target.value = "";
           }}
         />
+        {/* **やめる手立てを画面に置く(オーナー指摘の形の兄弟)。**
+            2段目に入ると4秒で自動的に戻るが、それは**待つ**という手立てで
+            あって、押して取り消す手立てではない。取り消せない操作の
+            手前で「やっぱりやめる」と思った人に、押せるものが1つも無い
+            のはおかしい(圏外で預かった写真を捨てる確認で同じ指摘を受けた)。
+            武装しているときだけ出す。 */}
+        {deleteArmed && busy === null && (
+          <button
+            onClick={onCancelDelete}
+            className="flex min-h-11 items-center justify-center rounded-2xl border border-border bg-card px-4 py-3 text-footnote font-medium"
+          >
+            {t("home.pendingDiscardCancel")}
+          </button>
+        )}
         <button
           onClick={handleDelete}
           disabled={busy !== null}

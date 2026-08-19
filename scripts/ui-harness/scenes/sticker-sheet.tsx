@@ -75,6 +75,7 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           busy={variant === "deleting" ? "delete" : null}
           deleteArmed={variant === "armed" || variant === "deleting"}
           handleDelete={() => {}}
+          onCancelDelete={() => {}}
           handleImageFile={() => {}}
           fileInputRef={fileInputRef}
           heroPressStart={() => {}}
