@@ -35,6 +35,7 @@ import {
   ReviewChoiceScene,
   ReviewEndScene,
   ReviewExplainScene,
+  ReviewLoadingScene,
   ReviewMemoryScene,
 } from "./scenes/review";
 import {
@@ -78,6 +79,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-detail": ScanDetailScene,
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
+  "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
   "review-end": ReviewEndScene,

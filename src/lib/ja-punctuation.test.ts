@@ -13,6 +13,27 @@ describe("和文の約物の検査", () => {
     expect(found).toEqual([{ rule: "paren", found: "(下の「保存」は不要)" }]);
   });
 
+  it("数字や記号は和文の側に数える(欧文が混じらなければ全角)", () => {
+    // 最初の規則は「中身が全部かな・漢字」で書いていて、数字が1つ入って
+    // いるだけで見逃していた(「全体の記憶率(前後2週間)」)。
+    expect(checkJaPunctuation("全体の記憶率(前後2週間)")).toEqual([
+      { rule: "paren", found: "(前後2週間)" },
+    ]);
+    expect(checkJaPunctuation("算出(仕様§9の合格ライン)")).toEqual([
+      { rule: "paren", found: "(仕様§9の合格ライン)" },
+    ]);
+  });
+
+  it("和文が1文字も無い括弧は触らない", () => {
+    // 番号や式。和文の文ではないので全角にする理由が無い。
+    expect(checkJaPunctuation("手順(3)を見る")).toEqual([]);
+    expect(checkJaPunctuation("(1/2)")).toEqual([]);
+  });
+
+  it("差し込みが入る括弧は見逃す(中身が実行時まで分からない)", () => {
+    expect(checkJaPunctuation("直近({n}回)")).toEqual([]);
+  });
+
   it("欧文や符号が混じる括弧は見逃す", () => {
     // 全角括弧の中に欧文を入れると左右だけ不自然に空く。半角のままでよい。
     expect(checkJaPunctuation("台湾華語 (zh-TW)")).toEqual([]);

@@ -47,6 +47,7 @@ import {
   Clock,
   MapPin,
   CalendarCheck,
+  ChevronDown,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 
@@ -210,7 +211,7 @@ function ReviewPage() {
               aria-expanded={memListOpen}
               className="w-full text-left"
             >
-              <MemoryLevelSummary words={memOverview.words} />
+              <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
             </button>
             {memListOpen && (
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
@@ -228,10 +229,7 @@ function ReviewPage() {
       </section>
 
       {isLoading ? (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
-        </div>
+        <ReviewPreparing />
       ) : isError ? (
         // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
         // 200枚溜まっていても「今日の復習はありません」と出ていた。
@@ -257,10 +255,7 @@ function ReviewPage() {
         // keeps the previous cards during refetch, so without this guard the
         // already-graded card[0] would render and stay interactive — a second
         // tap would grade it again and corrupt the SRS schedule/history.
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
-          <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
-        </div>
+        <ReviewPreparing />
       ) : current ? (
         lightMode ? (
           <LightModeCard
@@ -313,7 +308,38 @@ function memWordOf(card: DueReviewCard): MemoryWord {
  */
 
 /** 記憶レベル6段階の帯+件数チップ(復習ページを開いた瞬間に見える)。 */
-export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
+/**
+ * 出題を組み立てている間の面。**この画面でいちばん先に見る面**なのに、
+ * ルートの三項の中に直書きで、しかも**同じ5行が2箇所に複製**されていた
+ * (最初の読み込みと、「もう一度」で取り直している間)。
+ * 片方だけ直せば静かにずれる形なので、1つにまとめて雛形から呼べるようにする。
+ */
+export function ReviewPreparing() {
+  const t = useT();
+  return (
+    <div className="rounded-2xl border border-border bg-card p-8 text-center">
+      <Sparkles className="mx-auto mb-2 h-6 w-6 animate-pulse text-primary" />
+      <p className="text-body text-muted-foreground">{t("review.preparing")}</p>
+    </div>
+  );
+}
+
+/**
+ * 記憶の段ごとの内訳(色の帯と凡例)。
+ *
+ * `expanded` を渡すと**開閉の印(山形)を出す**。これを渡さないと、
+ * 押せる帯なのに押せると分かる印が何も無い絵になる。実際そうなっていて、
+ * 実物では `<button>` で包んで `aria-expanded` まで付いていたのに、
+ * 目で見える手掛かりは1つも無かった(読み上げには在るのに、見えている
+ * 人にだけ無い、という逆さまの状態)。
+ */
+export function MemoryLevelSummary({
+  words,
+  expanded,
+}: {
+  words: MemoryWord[];
+  expanded?: boolean;
+}) {
   const t = useT();
   const counts = MEMORY_LEVELS.map(
     (lv) =>
@@ -324,15 +350,27 @@ export function MemoryLevelSummary({ words }: { words: MemoryWord[] }) {
   const total = words.length || 1;
   return (
     <div className="mt-3">
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-        {MEMORY_LEVELS.map((lv, i) =>
-          counts[i] > 0 ? (
-            <div
-              key={lv.level}
-              className={lv.bar}
-              style={{ width: `${(counts[i] / total) * 100}%` }}
-            />
-          ) : null,
+      {/* 印は帯の**右端**に置く。凡例は折り返すので、そちらの末尾に付けると
+          行によって位置が変わり、開閉の印に見えなくなる。 */}
+      <div className="flex items-center gap-2">
+        <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+          {MEMORY_LEVELS.map((lv, i) =>
+            counts[i] > 0 ? (
+              <div
+                key={lv.level}
+                className={lv.bar}
+                style={{ width: `${(counts[i] / total) * 100}%` }}
+              />
+            ) : null,
+          )}
+        </div>
+        {expanded !== undefined && (
+          <ChevronDown
+            aria-hidden
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
         )}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">

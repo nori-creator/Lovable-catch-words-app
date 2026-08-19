@@ -43,12 +43,32 @@ const JA_CHAR = "ぁ-んァ-ヶ一-龥々ー、。「」『』（）";
 const COUNTERS = "枚回件語日個人分秒歳冊本匹";
 
 /**
- * 中身が丸ごと和文の半角括弧。`(zh-TW)` のように欧文や符号が混じる物は
- * 半角のままでよい(全角括弧の中に欧文を入れると、その欧文の左右だけ
- * 不自然に空く)。入れ子は見ない — i18n に入れ子の括弧は無いし、
- * 有ったとしてもこの正規表現は静かに見逃すだけで、嘘の合格は作らない。
+ * 和文の半角括弧。
+ *
+ * ## 「和文の括弧」の見分け方
+ * **中身に欧文が混じらないこと**で見る。最初は「中身が全部かな・漢字」で
+ * 書いたが、それだと「全体の記憶率(前後2週間)」を見逃した — 数字が1つ
+ * 入っているだけで和文でなくなる訳がない。和文の中で算用数字は普通に使う
+ * (6枚・2週間)。同じ理由で `§` や中黒も和文の側に数える。
+ *
+ * 欧文が混じる物は半角のままでよい(`(zh-TW)` `(TOCFL Level 2)`)。
+ * 全角括弧の中に欧文を入れると、その欧文の左右だけ不自然に空く。
+ *
+ * 和文が1文字も無い物(`(3)` のような番号)も触らない。括弧の中が
+ * 数字だけなら、それは和文の文ではない。
+ *
+ * `{n}` のような差し込みは中身が実行時まで分からないので見逃す。
+ * 入れ子も見ない — 静かに見逃すだけで、嘘の合格は作らない。
  */
-const HALF_PAREN = new RegExp(`\\([${JA_CHAR}〜・]+\\)`, "g");
+const HALF_PAREN = /\(([^()]*)\)/g;
+
+/** 半角のままでよい括弧か。 */
+function parenIsFine(inner: string): boolean {
+  if (!inner) return true;
+  if (/[A-Za-z]/.test(inner)) return true; // 欧文が混じる
+  if (inner.includes("{")) return true; // 差し込み
+  return !/[ぁ-んァ-ヶ一-龥]/.test(inner); // 和文が1文字も無い
+}
 
 /** 和文の直後の半角 `!` `?`。前が欧文なら半角のままでよい(`OK!`)。 */
 const HALF_BANG = new RegExp(`[${JA_CHAR}][!?]`, "g");
@@ -60,7 +80,6 @@ const COUNTER_SPACE = new RegExp(`[0-9０-９]\\s+[${COUNTERS}]`, "g");
 const ASCII_ELLIPSIS = /\.\.\./g;
 
 const RULES: readonly [JaPunctRule, RegExp][] = [
-  ["paren", HALF_PAREN],
   ["bang", HALF_BANG],
   ["counter", COUNTER_SPACE],
   ["ellipsis", ASCII_ELLIPSIS],
@@ -73,6 +92,10 @@ const RULES: readonly [JaPunctRule, RegExp][] = [
  */
 export function checkJaPunctuation(text: string): JaPunctIssue[] {
   const out: JaPunctIssue[] = [];
+  HALF_PAREN.lastIndex = 0;
+  for (const m of text.matchAll(HALF_PAREN)) {
+    if (!parenIsFine(m[1])) out.push({ rule: "paren", found: m[0] });
+  }
   for (const [rule, re] of RULES) {
     // `g` 付きの正規表現は `lastIndex` を持ち回るので、使う前に必ず戻す。
     re.lastIndex = 0;

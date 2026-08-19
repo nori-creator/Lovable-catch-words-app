@@ -195,6 +195,9 @@ const MODES = [
   // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
   ...crossThemes("home", { scene: "home" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
+  // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
+  ...crossThemes("home-loading", { scene: "home-loading" }),
+  ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
@@ -229,6 +232,8 @@ const MODES = [
   // 保存を押した直後。文字が「保存」から「保存中...」に伸びて押せなくなる。
   // 伸びた側を撮らないと、待っている間の面が未検査のままになる。
   ["settings-saving", "", false, { scene: "settings-danger", variant: "saving" }],
+  // 記憶の帯を開いた側。印(山形)の向きが変わる。
+  ["review-memory-open", "", false, { scene: "review-memory", variant: "open" }],
   // 確認語を入れて赤いボタンが効くようになった面。押さないと出ない。
   ["settings-danger-armed", "", false, { scene: "settings-danger", variant: "armed" }],
   [
@@ -1184,7 +1189,7 @@ const MOTION_STOP = ["pulse", "ping"];
 const MOTION_KEEP = ["spin"];
 // 脈打つ物が実際に居る場面だけを見る。**居ない場面で緑にしても何の
 // 保証にもならない**ので、下の「1つも見つからなかった」で担保する。
-const MOTION_SCENES = ["scan-detail", "word-card", "home-loading"];
+const MOTION_SCENES = ["scan-detail", "word-card", "home-loading", "review-loading"];
 let motionSeen = 0;
 for (const scene of MOTION_SCENES) {
   const page = await browser.newPage({

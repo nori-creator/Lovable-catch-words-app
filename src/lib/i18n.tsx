@@ -99,7 +99,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
-  "rv.overallTitle": { ja: "全体の記憶率(前後2週間)", en: "Overall retention (±2 weeks)" },
+  "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
     en: "Tap to see each word's forgetting curve and when you're predicted to forget it",
@@ -462,7 +462,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "set.uiLangAria": { ja: "表示言語", en: "App language" },
   "set.deleteWord": { ja: "削除", en: "DELETE" },
   "set.qualitySamples": {
-    ja: "直近{n}回のスキャンから算出(仕様§9の合格ライン)",
+    ja: "直近{n}回のスキャンから算出（仕様§9の合格ライン）",
     en: "Computed from your last {n} scans (spec §9 pass line)",
   },
   "set.placeLabel": { ja: "場所で思い出す", en: "Remember by place" },
@@ -830,7 +830,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "scan.rescan": { ja: "再スキャン", en: "Scan again" },
   "scan.found": { ja: "見つかった単語", en: "Words found" },
   "scan.searchPlaceholder": {
-    ja: "候補に無い？日本語で調べる(例: マンゴー)",
+    ja: "候補に無い？日本語で調べる（例: マンゴー）",
     en: "Not listed? Search in your language (e.g. mango)",
   },
   "scan.searchGo": { ja: "調べる", en: "Search" },
@@ -1031,7 +1031,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "input.lookup": { ja: "調べてカードにする", en: "Look up & make a card" },
   "input.looking": { ja: "辞書とAIが調べています…", en: "Checking the dictionary and AI…" },
   "input.sceneWord": {
-    ja: "どんな場面で見た？(例: トイレに置いてあった)",
+    ja: "どんな場面で見た？（例: トイレに置いてあった）",
     en: "Where did you see it? (e.g. it was in the bathroom)",
   },
   "input.chooseTitle": { ja: "どれのことですか？", en: "Which one do you mean?" },
@@ -1107,7 +1107,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     en: "API keys stay in environment variables — never stored in the database.",
   },
   "settings.aiFast": {
-    ja: "速い系(スキャン・候補・4択の生成)",
+    ja: "速い系（スキャン・候補・4択の生成）",
     en: "Fast (scan, candidates, quiz)",
   },
   "settings.aiRich": { ja: "詳しい系（カード・添削）", en: "Rich (cards, corrections)" },
