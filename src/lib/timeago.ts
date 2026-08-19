@@ -47,10 +47,3 @@ export function timeAgoStatic(iso: string): string {
   const { key, vars } = pick(secs);
   return tStatic(key, vars);
 }
-
-/** 日数から直接作る(場所の思い出しのように日数しか持っていない場合)。 */
-export function daysAgoLabel(days: number, t: (k: string, v?: Vars) => string): string {
-  if (days >= 365) return t("ago.years", { n: Math.floor(days / 365) });
-  if (days >= 30) return t("ago.months", { n: Math.floor(days / 30) });
-  return t("ago.days", { n: days });
-}

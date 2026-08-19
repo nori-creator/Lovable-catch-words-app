@@ -969,9 +969,7 @@ function AdminOnlySection() {
   if (!adm?.isAdmin) return null;
   return (
     <div className="space-y-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-3">
-      <p className="text-caption font-semibold uppercase tracking-wider text-primary">
-        {t("settings.devOnly")}
-      </p>
+      <p className="text-caption font-semibold label-caps text-primary">{t("settings.devOnly")}</p>
       <ThemeLabButton />
       <EffectLabButton />
       <UiThemePicker />

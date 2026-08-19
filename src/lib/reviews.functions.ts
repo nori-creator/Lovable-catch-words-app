@@ -30,7 +30,7 @@ import {
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
-import { normalizeExtras, type ChunkPart } from "./extras";
+import { normalizeExtras, withoutMeasureWordEcho, type ChunkPart } from "./extras";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -107,10 +107,12 @@ export type DueReviewCard = {
  * 並べてあるので先頭が最頻。パーツを繋いで読める1行にする。
  * 旧データ(collocations だけ)にも耐えるようフォールバックを持つ。
  */
-function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
+function topChunkOf(rawExtras: unknown, headword: string): { zh: string; ja: string } | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
-  const chunk = ex.usage_chunks?.[0];
+  // 量詞は答え合わせの「量詞」の行で読む。先頭の型がその写しだと、
+  // 同じ「一張」が2行続けて出る(オーナー指摘 2026-08-18)。
+  const chunk = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)[0];
   const zh = chunk?.parts?.map((p) => p.text).join("") ?? "";
   if (zh.trim()) return { zh, ja: chunk?.ja ?? "" };
   const legacy = ex.collocations?.[0];
@@ -129,10 +131,11 @@ function topChunkOf(rawExtras: unknown): { zh: string; ja: string } | null {
  *  - note     : 知っておくと得な一言
  * 量は絞る — 4択の答え合わせは一瞬で読めることが最優先。
  */
-function explainOf(rawExtras: unknown): ReviewExplain | null {
+function explainOf(rawExtras: unknown, headword: string): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
-  const chunks = (ex.usage_chunks ?? [])
+  // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
+  const chunks = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)
     .filter((c) => (c.parts?.length ?? 0) > 0)
     .slice(0, 3)
     .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
@@ -203,9 +206,23 @@ async function getReviewPrefs(
 
 export const getDueReviews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<DueReviewCard[]> => {
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        /**
+         * 名指しで先に出したい1枚。場所の知らせを押して来たときに使う。
+         * **期限も1日の上限も無視する** — 押した人はその言葉を思い出したくて
+         * 押しているので、「今日の分は終わりです」と返すのは答えになっていない。
+         */
+        sticker_id: z.string().uuid().optional(),
+      })
+      .optional()
+      .parse(input ?? undefined),
+  )
+  .handler(async ({ context, data: input }): Promise<DueReviewCard[]> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
+    const wantedSticker = input?.sticker_id ?? null;
 
     // 1日の上限(NORI指摘: 開くたびに新しい単語が無限に出て終われない)。
     // 「今日すでに何枚やったか」を review_history から数え、残り枚数だけ返す。
@@ -223,7 +240,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
       // 上限に当たったときも空配列を返す。**画面側は「今日の分は終わり」と
       // 「そもそも出る語が無い」を区別できないので**、下の
       // `getReviewCapState` で別途聞けるようにしてある(§8)。
-      if (remaining === 0) return [];
+      // 名指しで来た1枚だけは通す(下で改めて読む)。
+      if (remaining === 0 && !wantedSticker) return [];
     }
     // 1回のフェッチは最大10枚のまま(体感の軽さ)。残り枚数がそれ未満なら絞る。
     const fetchLimit = Math.min(10, remaining);
@@ -289,6 +307,27 @@ export const getDueReviews = createServerFn({ method: "GET" })
       } | null;
     };
     const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
+
+    // 名指しの1枚を先頭へ。
+    // 既に今日の列に居るなら**動かすだけ**(二重に出さない)。
+    // 居ないなら期限を無視して1枚だけ読む — 早めに復習しても SRS は壊れない
+    // (間隔が伸びるだけ)。読めなくても列そのものは返す。
+    if (wantedSticker) {
+      const at = rows.findIndex((r) => r.sticker_id === wantedSticker);
+      if (at > 0) {
+        rows.unshift(...rows.splice(at, 1));
+      } else if (at < 0) {
+        const { data: one } = await supabase
+          .from("reviews")
+          .select(dueSelect(true))
+          .eq("user_id", userId)
+          .eq("sticker_id", wantedSticker)
+          .maybeSingle();
+        const row = one as unknown as DueRow | null;
+        if (row?.stickers?.words) rows.unshift(row);
+      }
+    }
+
     if (rows.length === 0) return [];
 
     // Word-tree unlock counts: one review_history row per completed review.
@@ -458,8 +497,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         example_translation: w.example_translation,
         // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
         // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
-        top_chunk: topChunkOf(w.extras),
-        explain: explainOf(w.extras),
+        top_chunk: topChunkOf(w.extras, w.headword),
+        explain: explainOf(w.extras, w.headword),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,

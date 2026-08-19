@@ -58,3 +58,26 @@ export async function uploadStickerImage(opts: {
   void putCachedImage(path, blob);
   return path;
 }
+
+/**
+ * 画像の URL を、保存できる data URL にする。
+ *
+ * ネットの画像は CORS があるのでサーバ経由で取りに行くしかない。
+ * **AI が作った画像は最初から `data:image/png;base64,…` で返ってくる**
+ * (`images.functions.ts` の `generateOneAiImage`)ので、取りに行く必要が無い。
+ *
+ * ## なぜ関数にしたか
+ * この判断が `ImagePicker.tsx` にしか無く、`StickerSheet.tsx` の3箇所は
+ * **無条件に**サーバへ渡していた。`fetchImageAsDataUrl` は `https:` 以外を
+ * 投げる(SSRF 除け)ので、生成画像は**画面に出るのに押しても保存できない**
+ * 状態だった(自動の仮画像は無言で失敗、差し替えは「写真の取得に失敗」)。
+ * 判断が2箇所に散っている限り片方だけ直る。だから1つにする。
+ */
+export async function toImageDataUrl(
+  url: string,
+  fetchImage: (args: { data: { url: string } }) => Promise<{ dataUrl: string }>,
+): Promise<string> {
+  if (url.startsWith("data:")) return url;
+  const { dataUrl } = await fetchImage({ data: { url } });
+  return dataUrl;
+}

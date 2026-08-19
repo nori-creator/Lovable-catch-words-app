@@ -30,8 +30,11 @@ export function StickerPhotoHistory({
   );
   if (ordered.length < 2) return null;
 
+  // 上下どちらにも間を取る。この区画は「上の写真」と「下の解説」の
+  // あいだに割って入るので、片側だけ空けると下がくっつく。
+  // 描かない(1枚以下)ときは section ごと出ないので、空の余白は残らない。
   return (
-    <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+    <section className="my-4 rounded-3xl border border-border bg-card p-4">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-headline font-semibold">{t("photos.title")}</h2>
         <span className="text-caption text-muted-foreground">

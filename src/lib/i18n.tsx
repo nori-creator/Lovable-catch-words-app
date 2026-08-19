@@ -694,16 +694,13 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "place.rememberBefore": { ja: "「", en: "Remember “" },
   "place.rememberAfter": { ja: "」覚えてる？", en: "”?" },
   // --- 場所の思い出し・共通 ---
-  "place.remember": { ja: "「{word}」覚えてる？", en: 'Remember "{word}"?' },
-  "place.caughtHere": {
-    ja: "{when}、{where}撮った言葉{meaning}",
-    en: "A word you caught {where} {when}{meaning}",
-  },
-  "place.hereAbouts": { ja: "この辺りで", en: "around here" },
-  "place.atPlace": { ja: "{name}で", en: "at {name}" },
-  "place.yearsAgo": { ja: "{n}年前", en: "{n} year(s) ago" },
-  "place.monthsAgo": { ja: "{n}ヶ月前", en: "{n} month(s) ago" },
-  "place.daysAgo": { ja: "{n}日前", en: "{n} day(s) ago" },
+  // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
+  // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
+  // 思い出す鍵は市の名前ではなく**いつ撮ったか**なので、日付を先に出し、
+  // 日付が読めないときだけ場所の名前に落ちる。
+  "place.caughtOn": { ja: "{date}にここで撮った言葉", en: "You caught this here on {date}" },
+  "place.caughtAt": { ja: "{name}で撮った言葉", en: "You caught this at {name}" },
+  "place.caughtHereShort": { ja: "この辺りで撮った言葉", en: "You caught this around here" },
   "common.card": { ja: "カード", en: "Card" },
   "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
   "common.photoOf": { ja: "「{word}」の写真", en: 'Photo of "{word}"' },
@@ -841,6 +838,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "scan.catch": { ja: "キャッチ", en: "Catch" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…" },
   "scan.zoom": { ja: "ズーム", en: "Zoom" },
+  "scan.flipCamera": { ja: "カメラを前後で切り替える", en: "Switch front / back camera" },
   "scan.listening": { ja: "聞き取り中…", en: "Listening…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now" },
   // --- review extras ---
@@ -952,6 +950,14 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "home.background": { ja: "背景", en: "Background" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close" },
+  // ヘッダーのアイコンを押すと出る、自分の記録。
+  "me.open": { ja: "自分の記録を見る", en: "See your record" },
+  "me.you": { ja: "あなた", en: "You" },
+  "me.streak": { ja: "続いている", en: "Streak" },
+  "me.days": { ja: "{n}日", en: "{n} days" },
+  "me.captured": { ja: "集めた言葉", en: "Words caught" },
+  "me.level": { ja: "レベル", en: "Level" },
+  "me.due": { ja: "今日の復習", en: "Due today" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },
@@ -1147,8 +1153,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "スピーキングは写真を見て話し、AIが添削します。4択は声を出せない場所向けです。",
-    en: "Speaking: talk about the photo and AI corrects you. Quiz: for when you can't speak out loud.",
+    ja: "「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1184,8 +1190,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "settings.dark": { ja: "ダーク", en: "Dark" },
   "settings.system": { ja: "システム", en: "System" },
   "settings.saveFailed": { ja: "保存に失敗しました", en: "Could not save" },
-  "settings.modeSpeaking": { ja: "🎤 スピーキング", en: "🎤 Speaking" },
-  "settings.modeChoice": { ja: "👆 4択（ライト）", en: "👆 Quiz (light)" },
+  // 復習の画面のつまみと**同じ言葉**にする。設定で選ぶのはあの切替の既定値
+  // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
+  // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
+  // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
+  "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin" },
   "settings.phoneticHint": {

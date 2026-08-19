@@ -195,3 +195,47 @@ export function usableQuickFacts(
   }
   return out;
 }
+
+/**
+ * 量詞の欄と重なる「使い方」の型を落とす。
+ *
+ * 名詞のカードには量詞の欄(measure_words)があり、そこに「一張」が並ぶ。
+ * その**すぐ上**の「使い方」に「一張 + 衛生紙」だけの型が出ると、
+ * 同じ物を続けて2度読まされる(オーナー指摘 2026-08-18:
+ * 「名詞の場合は量詞の欄があるから、チャンクの欄で同じものを表示しないで」)。
+ *
+ * **落とすのは「量詞と見出し語しか無い」型だけ。**
+ * 「拿 + 一張 + 衛生紙」のように動詞や述語が付いた型は残す —
+ * それは量詞の一覧には無い情報で、ネイティブの使い方そのものだから。
+ * 量詞の型を丸ごと禁じると、逆に「動詞と目的語しか無い」状態に戻ってしまう
+ * (オーナー指摘 2026-08-19:「品詞をすべて網羅して」)。
+ */
+export function withoutMeasureWordEcho(
+  chunks: ReadonlyArray<UsageChunk> | null | undefined,
+  measureWords: ReadonlyArray<{ word?: string } | null | undefined> | null | undefined,
+  headword: string,
+): UsageChunk[] {
+  const list = (chunks ?? []).filter(Boolean) as UsageChunk[];
+  // 量詞が1つも無ければ重なりようがない。素通しする。
+  const cores = new Set(
+    (measureWords ?? []).map((m) => measureWordCore(m?.word ?? "")).filter((w) => w.length > 0),
+  );
+  if (cores.size === 0) return list;
+
+  const head = headword.trim();
+  return list.filter((c) => {
+    const parts = (c.parts ?? []).map((p) => (p?.text ?? "").trim()).filter((t) => t.length > 0);
+    if (parts.length === 0) return false;
+    // 量詞と見出し語以外のパーツが1つでもあれば、その型は情報を足している。
+    return parts.some((t) => !cores.has(measureWordCore(t)) && t !== head);
+  });
+}
+
+/**
+ * 量詞から数を落として本体だけにする(「一張」「兩張」「3張」→「張」)。
+ * 生成側は数付きで出すが、チャンクでは素の「張」で現れることがあるため、
+ * 見比べる前に同じ形に揃える。
+ */
+function measureWordCore(word: string): string {
+  return word.trim().replace(/^[0-9０-９一二三四五六七八九十兩几幾半個]*(?=.)/u, "");
+}

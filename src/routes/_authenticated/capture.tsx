@@ -573,7 +573,9 @@ function CapturePage() {
       try {
         await runCatchLanding({
           startEl: heroBoxRef.current,
-          fly: flyRef.current,
+          // ref のまま渡す。演出の層はこの直前の setLanding(true) で
+          // 初めて描かれるので、ここで .current を読むと必ず null になる。
+          fly: flyRef,
           speakLine: () => void pronounce(selectedHead),
         });
       } catch (e) {
@@ -820,83 +822,20 @@ function CapturePage() {
       )}
 
       {step === "card" && card && (
-        <div className="space-y-4">
-          <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
-            <div
-              className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
-            >
-              <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
-                <div className="grid h-full place-items-center p-6">
-                  {cutoutImg ? (
-                    <img
-                      src={cutoutImg}
-                      alt={selectedHead}
-                      className="max-h-full max-w-full object-contain cutout-pop"
-                    />
-                  ) : objectImg ? (
-                    <img
-                      src={objectImg}
-                      alt={selectedHead}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : null}
-                </div>
-              </div>
-              <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-                {selfieImg ? (
-                  <img
-                    src={selfieImg}
-                    alt={t("cap.selfie")}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-body text-muted-foreground">
-                    {t("capture.noSelfie")}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
-
-          <WordCard
-            word={{
-              headword: selectedHead,
-              reading_zhuyin: card.reading_zhuyin,
-              pinyin: card.pinyin,
-              meaning_ja: card.meaning_ja,
-              part_of_speech: card.part_of_speech,
-              level: card.level,
-              example_sentence: card.example_sentence,
-              example_translation: card.example_translation,
-              extras: card.extras ?? null,
-            }}
-          />
-
-          <div>
-            <Label htmlFor="caption" className="text-footnote text-muted-foreground">
-              {t("capture.note")}
-            </Label>
-            <Textarea
-              id="caption"
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder={t("capture.notePlaceholder")}
-              rows={2}
-            />
-          </div>
-
-          {loc?.name && <p className="text-footnote text-muted-foreground">📍 {loc.name}</p>}
-
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reset} className="flex-1">
-              {t("capture.redo")}
-            </Button>
-            <Button onClick={handleSave} className="lift flex-1">
-              <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
-            </Button>
-          </div>
-        </div>
+        <CaptureCardPanel
+          card={card}
+          selectedHead={selectedHead}
+          cutoutImg={cutoutImg}
+          objectImg={objectImg}
+          selfieImg={selfieImg}
+          flipped={flipped}
+          setFlipped={setFlipped}
+          caption={caption}
+          setCaption={setCaption}
+          placeName={loc?.name ?? null}
+          onRedo={reset}
+          onSave={handleSave}
+        />
       )}
 
       {step === "saving" && (
@@ -948,37 +887,12 @@ function CapturePage() {
       )}
 
       {step === "offlineSaved" && (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-border bg-card p-8 text-center">
-            {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
-                WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
-            {typeof navigator !== "undefined" && navigator.onLine === false ? (
-              <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            ) : (
-              <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            )}
-            <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
-            <p className="mt-1 text-body text-muted-foreground">{t("capture.offlineHint")}</p>
-            {savedReason && (
-              <p className="mt-3 break-words text-footnote text-muted-foreground">
-                {t("capture.savedReason", { reason: savedReason })}
-              </p>
-            )}
-          </div>
-          {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
-              「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
-          <Button onClick={() => void runAi()} className="lift w-full">
-            <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate({ to: "/home" })} className="flex-1">
-              {t("capture.toHome")}
-            </Button>
-            <Button variant="outline" onClick={reset} className="flex-1">
-              <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
-            </Button>
-          </div>
-        </div>
+        <OfflineSavedPanel
+          savedReason={savedReason}
+          onRetry={() => void runAi()}
+          onHome={() => navigate({ to: "/home" })}
+          onAgain={reset}
+        />
       )}
       {inputSheet && (
         <InputCatchSheet
@@ -1193,6 +1107,173 @@ export function PickWordPanel({
             {t("capture.useThis")}
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 圏外で撮って、端末に預かった面。**オフラインのときにしか出ない**ので、
+ * 今まで誰も見ていなかった。
+ *
+ * その場でもう一度試せる道を必ず残す — ここが「ホームへ」と「もう一枚撮る」
+ * だけだと、一時的な失敗で作業が途切れる。
+ */
+export function OfflineSavedPanel({
+  savedReason,
+  onRetry,
+  onHome,
+  onAgain,
+}: {
+  savedReason: string | null;
+  onRetry: () => void;
+  onHome: () => void;
+  onAgain: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-border bg-card p-8 text-center">
+        {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
+              WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
+        {typeof navigator !== "undefined" && navigator.onLine === false ? (
+          <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        ) : (
+          <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        )}
+        <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
+        {/* 中央に2行で置くと決めた案内文。行の長さを揃える。 */}
+        <p className="ja-phrase mt-1 text-balance text-body text-muted-foreground">
+          {t("capture.offlineHint")}
+        </p>
+        {savedReason && (
+          <p className="ja-phrase mt-3 text-balance break-words text-footnote text-muted-foreground">
+            {t("capture.savedReason", { reason: savedReason })}
+          </p>
+        )}
+      </div>
+      {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
+            「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
+      <Button onClick={onRetry} className="lift w-full">
+        <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
+      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onHome} className="flex-1">
+          {t("capture.toHome")}
+        </Button>
+        <Button variant="outline" onClick={onAgain} className="flex-1">
+          <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 生成が終わったカードの面。**撮るたびに必ず通る。**
+ *
+ * 表は切り抜き(または撮った写真)、裏は解説。押すと裏返る。
+ * 下に一言を書く欄と、図鑑へ入れるボタン。
+ *
+ * `<video>` は使わない — ここまで来ると写真は静止画になっている。
+ */
+export function CaptureCardPanel({
+  card,
+  selectedHead,
+  cutoutImg,
+  objectImg,
+  selfieImg,
+  flipped,
+  setFlipped,
+  caption,
+  setCaption,
+  placeName,
+  onRedo,
+  onSave,
+}: {
+  card: CardData;
+  selectedHead: string;
+  cutoutImg: string | null;
+  objectImg: string | null;
+  /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
+  selfieImg: string | null;
+  flipped: boolean;
+  setFlipped: (f: (v: boolean) => boolean) => void;
+  caption: string;
+  setCaption: (v: string) => void;
+  placeName: string | null;
+  onRedo: () => void;
+  onSave: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
+        <div
+          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
+        >
+          <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
+            <div className="grid h-full place-items-center p-6">
+              {cutoutImg ? (
+                <img
+                  src={cutoutImg}
+                  alt={selectedHead}
+                  className="max-h-full max-w-full object-contain cutout-pop"
+                />
+              ) : objectImg ? (
+                <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
+              ) : null}
+            </div>
+          </div>
+          <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+            {selfieImg ? (
+              <img src={selfieImg} alt={t("cap.selfie")} className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full place-items-center text-body text-muted-foreground">
+                {t("capture.noSelfie")}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
+
+      <WordCard
+        word={{
+          headword: selectedHead,
+          reading_zhuyin: card.reading_zhuyin,
+          pinyin: card.pinyin,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech,
+          level: card.level,
+          example_sentence: card.example_sentence,
+          example_translation: card.example_translation,
+          extras: card.extras ?? null,
+        }}
+      />
+
+      <div>
+        <Label htmlFor="caption" className="text-footnote text-muted-foreground">
+          {t("capture.note")}
+        </Label>
+        <Textarea
+          id="caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder={t("capture.notePlaceholder")}
+          rows={2}
+        />
+      </div>
+
+      {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onRedo} className="flex-1">
+          {t("capture.redo")}
+        </Button>
+        <Button onClick={onSave} className="lift flex-1">
+          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
+        </Button>
       </div>
     </div>
   );

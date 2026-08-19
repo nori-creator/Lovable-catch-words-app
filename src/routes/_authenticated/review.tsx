@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { claimAudio, stopOtherAudio } from "@/lib/audio";
+import { claimAudio } from "@/lib/audio";
+import { speakZhTW } from "@/lib/speak";
+import { usePronounce } from "@/lib/use-pronounce";
 import {
   getDueReviews,
   gradeReview,
@@ -63,19 +65,10 @@ function readBool(key: string, def = false) {
 }
 
 // ---- speech helpers --------------------------------------------------------
-function speakZhTW(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  stopOtherAudio();
-  const u = new SpeechSynthesisUtterance(text);
-  const voices = window.speechSynthesis.getVoices();
-  const v =
-    voices.find((vo) => /zh-TW|zh-Hant|cmn-Hant/i.test(vo.lang)) ??
-    voices.find((vo) => /^zh/i.test(vo.lang));
-  if (v) u.voice = v;
-  u.lang = v?.lang ?? "zh-TW";
-  u.rate = 0.95;
-  window.speechSynthesis.speak(u);
-}
+// **この画面が自前の `speakZhTW` を持っていた。** 条件が `/^zh/` だったので
+// 台湾の声が無い端末では**大陸の普通話**を掴み、しかも毎回選び直すので
+// 回ごとに声が変わっていた(オーナー指摘「音声の声がたまに異なる。
+// 様々な別のソフトの声がする」)。声の選び方は `lib/speak.ts` の1箇所だけ。
 let sharedAudio: HTMLAudioElement | null = null;
 function playAudio(card: DueReviewCard) {
   if (card.audio_url) {
@@ -101,6 +94,14 @@ function playText(text: string, audioUrl?: string | null) {
 }
 
 export const Route = createFileRoute("/_authenticated/review")({
+  /**
+   * `?sticker=<id>` — その1枚を先頭に置いて始める。
+   * 場所の知らせを押したときの行き先。押した人は**その言葉**を思い出したくて
+   * 押しているので、今日の順番の先頭に割り込ませる。
+   */
+  validateSearch: (search: Record<string, unknown>): { sticker?: string } => {
+    return typeof search.sticker === "string" && search.sticker ? { sticker: search.sticker } : {};
+  },
   head: () => ({
     meta: [
       { title: tStatic("page.review") },
@@ -120,6 +121,8 @@ function ReviewPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
+  // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
+  const { sticker: wantedSticker } = Route.useSearch();
   const {
     data: cards,
     isLoading,
@@ -127,8 +130,10 @@ function ReviewPage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["reviews-due"],
-    queryFn: () => fetchDue(),
+    // 名指しの1枚は列の中身を変えるので、**鍵にも入れる**。
+    // 入れないと、前に読んだ普通の列がそのまま出てくる。
+    queryKey: ["reviews-due", wantedSticker ?? null],
+    queryFn: () => fetchDue(wantedSticker ? { data: { sticker_id: wantedSticker } } : undefined),
     staleTime: 0,
   });
   const { data: memStats } = useQuery({
@@ -167,10 +172,10 @@ function ReviewPage() {
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
-  const lightMode =
+  const choiceMode =
     (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
   function setMode(next: "speaking" | "choice") {
-    if ((lightMode ? "choice" : "speaking") === next) return;
+    if ((choiceMode ? "choice" : "speaking") === next) return;
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
@@ -199,7 +204,7 @@ function ReviewPage() {
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
           progress={progress}
-          lightMode={lightMode}
+          choiceMode={choiceMode}
           onMode={setMode}
         />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
@@ -217,7 +222,7 @@ function ReviewPage() {
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
-                  <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
                     {t("rv.overallTitle")}
                   </p>
                   {memStats && <MiniRetentionGraph series={memStats.series} />}
@@ -257,7 +262,7 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <ReviewPreparing />
       ) : current ? (
-        lightMode ? (
+        choiceMode ? (
           <LightModeCard
             key={current.review_id}
             card={current}
@@ -917,7 +922,7 @@ function SpeakingCard({
 
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
   // (最低評価)で記録され、写真をなぞっただけの人が記憶度を落としていた。
-  // ライトモードの札と同じく、結果が出てから次へ送る。
+  // 4択の札と同じく、結果が出てから次へ送る。
   return (
     <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
@@ -978,7 +983,7 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-caption font-semibold uppercase tracking-wider text-primary-ink">
+            <div className="text-caption font-semibold label-caps text-primary-ink">
               {t("review.todaysPattern")}
             </div>
             <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
@@ -999,7 +1004,7 @@ function SpeakingCard({
           パーツを組み合わせて質問に答える。 */}
         {!isPhrase && scaffold && !feedback && (
           <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-            <div className="text-caption font-semibold uppercase tracking-wider text-sky-800">
+            <div className="text-caption font-semibold label-caps text-sky-800">
               {t("review.teacherQ")}
             </div>
             <div className="mt-0.5 flex items-start gap-2">
@@ -1014,7 +1019,7 @@ function SpeakingCard({
             </div>
             <p className="text-caption text-sky-800/80">{scaffold.question_ja}</p>
 
-            <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-sky-800">
+            <div className="mt-2 text-caption font-semibold label-caps text-sky-800">
               {t("review.hintsLabel")}
             </div>
             {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
@@ -1026,7 +1031,7 @@ function SpeakingCard({
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-caption font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-caption font-semibold uppercase tracking-wider text-sky-700">
+                    <span className="text-caption font-semibold label-caps text-sky-700">
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
@@ -1181,6 +1186,10 @@ function FeedbackView({
   onNext: (correct?: boolean) => void;
 }) {
   const t = useT();
+  // 添削文・手本・言い換えも**カードの読み上げと同じ声**で聞かせる。
+  // ここだけ端末の音声を直に叩いていたので、同じ画面の中で声が変わっていた。
+  // `usePronounce` はサーバの合成を先に試し、駄目なときだけ端末に落ちる。
+  const pronounce = usePronounce();
   const goodTarget = feedback.used_target;
   const score = feedback.natural_score;
   return (
@@ -1206,7 +1215,7 @@ function FeedbackView({
       {/* Your recording — video only; the mic belongs to speech recognition */}
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
-          <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-2 text-caption font-semibold label-caps text-muted-foreground">
             {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
@@ -1218,17 +1227,17 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-caption font-semibold label-caps text-muted-foreground">
           {t("review.you")}
         </div>
         <div className="text-body">{transcript}</div>
-        <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="mt-2 text-caption font-semibold label-caps text-muted-foreground">
           {t("review.corrected")}
         </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
           <div className="flex-1 text-body font-medium">{feedback.corrected}</div>
           <button
-            onClick={() => speakZhTW(feedback.corrected)}
+            onClick={() => void pronounce(feedback.corrected)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
             aria-label={t("rv.hearCorrection")}
           >
@@ -1241,7 +1250,7 @@ function FeedbackView({
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-caption font-semibold label-caps text-muted-foreground">
             {t("review.sentenceBuild")}
           </span>
           {feedback.unlocked_branch && (
@@ -1258,7 +1267,7 @@ function FeedbackView({
         <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-caption font-semibold label-caps text-muted-foreground">
               {t("review.whyOrder")}
             </div>
             <p className="mt-0.5 text-footnote leading-relaxed">{feedback.word_order_rule}</p>
@@ -1268,7 +1277,7 @@ function FeedbackView({
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-caption font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+        <div className="mb-1 text-caption font-semibold label-caps text-indigo-900 dark:text-indigo-200">
           {t("review.nativeFeel")}
         </div>
         <p className="text-body text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
@@ -1276,13 +1285,13 @@ function FeedbackView({
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-caption font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+        <div className="text-caption font-semibold label-caps text-emerald-900 dark:text-emerald-200">
           {t("review.model")}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-body">{feedback.model_answer}</div>
           <button
-            onClick={() => speakZhTW(feedback.model_answer)}
+            onClick={() => void pronounce(feedback.model_answer)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
             aria-label={t("rv.hearModel")}
           >
@@ -1295,7 +1304,7 @@ function FeedbackView({
             {feedback.alt_answer}
           </div>
           <button
-            onClick={() => speakZhTW(feedback.alt_answer)}
+            onClick={() => void pronounce(feedback.alt_answer)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
             aria-label={t("rv.hearAlt")}
           >
@@ -1454,11 +1463,7 @@ function ExplainLabel({
         : tone === "teal"
           ? "text-teal-900 dark:text-teal-200"
           : "text-muted-foreground";
-  return (
-    <span className={`text-caption font-semibold uppercase tracking-wider ${color}`}>
-      {children}
-    </span>
-  );
+  return <span className={`text-caption font-semibold label-caps ${color}`}>{children}</span>;
 }
 
 export function LightModeCard({
@@ -1838,7 +1843,7 @@ export function ReviewHeader({
   answered,
   total,
   progress,
-  lightMode,
+  choiceMode,
   onMode,
 }: {
   /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
@@ -1846,7 +1851,7 @@ export function ReviewHeader({
   total: number | null;
   /** 0〜100。 */
   progress: number;
-  lightMode: boolean;
+  choiceMode: boolean;
   onMode: (m: "speaking" | "choice") => void;
 }) {
   const t = useT();
@@ -1869,7 +1874,7 @@ export function ReviewHeader({
           >
             <span
               aria-hidden
-              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${lightMode ? "translate-x-full" : "translate-x-0"}`}
+              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${choiceMode ? "translate-x-full" : "translate-x-0"}`}
             />
             {/* **見た目は小さいまま、当たり判定だけを 44px へ広げる。**
                 実測 72×25px しかなく、下限(44)を大きく割っていた。
@@ -1878,18 +1883,18 @@ export function ReviewHeader({
                 縦にだけ広げる — 横に広げると隣の切替と重なる。 */}
             <button
               role="tab"
-              aria-selected={!lightMode}
+              aria-selected={!choiceMode}
               onClick={() => onMode("speaking")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!choiceMode ? "text-foreground" : "text-muted-foreground"}`}
             >
               {t("review.speak")}
             </button>
             <button
               role="tab"
-              aria-selected={lightMode}
+              aria-selected={choiceMode}
               onClick={() => onMode("choice")}
               title={t("rv.quietMode")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${lightMode ? "text-foreground" : "text-muted-foreground"}`}
+              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${choiceMode ? "text-foreground" : "text-muted-foreground"}`}
             >
               {t("review.choice")}
             </button>

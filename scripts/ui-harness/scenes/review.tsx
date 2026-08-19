@@ -64,7 +64,7 @@ export function ReviewLoadingScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={null} total={null} progress={0} lightMode onMode={() => {}} />
+        <ReviewHeader answered={null} total={null} progress={0} choiceMode onMode={() => {}} />
       </section>
       <ReviewPreparing />
     </>
@@ -96,7 +96,7 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
   }));
   return (
     <section className="mb-4">
-      <ReviewHeader answered={3} total={12} progress={25} lightMode onMode={() => {}} />
+      <ReviewHeader answered={3} total={12} progress={25} choiceMode onMode={() => {}} />
       {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
           変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
       <button className="w-full text-left" aria-expanded={open}>
@@ -114,7 +114,7 @@ export function ReviewChoiceScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={3} total={12} progress={25} lightMode onMode={() => {}} />
+        <ReviewHeader answered={3} total={12} progress={25} choiceMode onMode={() => {}} />
       </section>
       <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />
     </>

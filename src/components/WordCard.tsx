@@ -21,7 +21,7 @@ import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
-import { usableQuickFacts } from "@/lib/extras";
+import { usableQuickFacts, withoutMeasureWordEcho } from "@/lib/extras";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
 import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
@@ -289,8 +289,10 @@ export const WordCard = forwardRef<
       case "examples_extra":
         return (ex.examples_extra?.length ?? 0) > 0;
       case "usage_chunks":
+        // 量詞と重なる型は描く前に落とすので、空かどうかも落とした後で見る。
+        // ここと Body で違う数を見ていると、見出しだけの節が出る。
         return (
-          (ex.usage_chunks?.length ?? 0) > 0 ||
+          withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, word.headword).length > 0 ||
           (ex.collocations?.length ?? 0) > 0 ||
           !!ex.word_order
         );
@@ -749,7 +751,8 @@ function Body({
 
     case "usage_chunks": {
       // ネイティブがこの単語をどう組み合わせるか — 型をパーツ色分けで。
-      const chunks = ex.usage_chunks ?? [];
+      // 量詞は真下の「量詞」の欄で読むので、そこと重なるだけの型は落とす。
+      const chunks = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, word.headword);
       if (chunks.length > 0) {
         return (
           <div className="space-y-2">

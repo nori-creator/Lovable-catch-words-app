@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
+  SwitchCamera,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -137,6 +138,14 @@ function ScanPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // ズーム(1 = 等倍)。端末が対応していれば光学/デジタルズーム、
   // 非対応なら CSS の scale で代用する。
+  /**
+   * どちらのカメラを覗いているか。
+   *
+   * ずっと背面固定だった。撮る側(`capture.tsx`)には自撮りの段があるのに、
+   * かざす側には**前後を替える手立てが無かった**(オーナー指摘)。
+   * 自分や連れの持ち物にかざしたい場面が普通にある。
+   */
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [zoom, setZoom] = useState(1);
   const [zoomMax, setZoomMax] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
@@ -234,11 +243,20 @@ function ScanPage() {
   // ---- camera lifecycle ----
   useEffect(() => {
     let cancelled = false;
+    // 前のカメラの能力を持ち越さない。前面は倍率を持たないことが多く、
+    // 背面の上限のままだと**動かないつまみ**が残る。
+    setReady(false);
+    setZoom(1);
+    setZoomMax(1);
+    zoomCapsRef.current = null;
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
+            // `ideal` のまま渡す。`exact` にすると前面しか無い端末・
+            // 背面しか無い端末で `OverconstrainedError` になり、
+            // 切り替えたとたんカメラが真っ黒になる。
+            facingMode: { ideal: facing },
             width: { ideal: 1280 },
             height: { ideal: 1280 },
           },
@@ -293,10 +311,11 @@ function ScanPage() {
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-    // カメラ起動は初回のみ。t を依存に入れると表示言語を変えた瞬間に
-    // カメラが再起動してしまう(エラー文の言語のためにそこまでする必要はない)。
+    // 起動し直すのは**前後を替えたときだけ**。t を依存に入れると
+    // 表示言語を変えた瞬間にカメラが再起動してしまう
+    // (エラー文の言語のためにそこまでする必要はない)。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [facing]);
 
   /** ズーム値をカメラ(または表示)に反映する。 */
   const applyZoom = useCallback((next: number) => {
@@ -747,6 +766,9 @@ function ScanPage() {
               playsInline
               muted
               className="absolute inset-0 h-full w-full object-cover"
+              // **前面でも鏡像にしない。** 自撮りの見慣れた向きは鏡像だが、
+              // ここは見つけた物の上に印を落とす画面で、印の座標は
+              // 撮った絵のままの向きで来る。鏡にすると印と物がずれる。
               // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
               style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
             />
@@ -766,88 +788,13 @@ function ScanPage() {
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
           {scanning && scanStage !== "idle" && <ScanEffect stage={scanStage} />}
 
-          {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
-          {visibleItems.map((it) => {
-            const low = it.confidence < 0.75;
-            const isText = it.kind === "text";
-            const expanded = subItems.some((s) => s.parentId === it.id);
-            const state = dotStateFor(it.headword, scanCtx);
-            // apple-design: three soft glass "lights", one per state —
-            //   new (未発見)                      → white
-            //   owned (スキャン済み=写真あり)       → green
-            //   reunion (文字/音声で登録・写真なし) → amber
-            // All share the same glow + ring treatment so they read as one
-            // family rather than loud, clashing dots.
-            const marker =
-              state === "owned"
-                ? "bg-emerald-400 ring-emerald-100/70 shadow-[0_0_10px_2px_rgba(52,211,153,0.5)]"
-                : state === "reunion"
-                  ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
-                  : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
-            return (
-              <button
-                key={it.id}
-                onClick={() => openChip(it)}
-                style={dotStyle(it)}
-                // §11: the dot is 16px but the tap target is padded to the 44px
-                // floor — these on-camera markers are the primary interaction.
-                className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
-                aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
-              >
-                <span
-                  className={[
-                    "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
-                    marker,
-                    low ? "opacity-70" : "",
-                    expanded ? "ring-2 ring-amber-200/80" : "",
-                  ].join(" ")}
-                />
-                {isText && state !== "owned" && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-caption font-bold text-foreground/70">
-                    A
-                  </span>
-                )}
-                {state === "owned" && (
-                  <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
-                  </span>
-                )}
-                {state === "new" && (
-                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-white/30 motion-reduce:animate-none" />
-                )}
-                {state === "reunion" && (
-                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-amber-300/40 blur-sm motion-reduce:animate-none" />
-                )}
-                {low && (
-                  <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-caption font-bold text-black">
-                    ?
-                  </span>
-                )}
-                {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
-                    B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
-                <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
-                  <span lang="zh-Hant" className="truncate">
-                    {it.headword}
-                    {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-          {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
-          {subItems.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => openChip(s)}
-              style={dotStyle(s)}
-              className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
-              aria-label={t("scan.partOf", { word: s.headword })}
-            >
-              <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
-              <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
-            </button>
-          ))}
+          <ScanDots
+            items={visibleItems}
+            subItems={subItems}
+            scanCtx={scanCtx}
+            dotStyle={dotStyle}
+            onOpen={openChip}
+          />
           {/* parts loader (§3.5) — subtle pulse over the parent region */}
           {expandingId && items?.find((i) => i.id === expandingId) && (
             <div
@@ -856,6 +803,21 @@ function ScanPage() {
             >
               <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
             </div>
+          )}
+
+          {/* 前後の切替。ズームの逆側(左)に置く — 同じ側に積むと、
+              倍率を持たない前面カメラに替えた瞬間に位置が飛ぶ。
+              倍率つまみは条件付きで出るが、こちらは覗いている間つねに出す。 */}
+          {!snapshot && (
+            <button
+              type="button"
+              onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+              aria-label={t("scan.flipCamera")}
+              aria-pressed={facing === "user"}
+              className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-95"
+            >
+              <SwitchCamera className="h-5 w-5" />
+            </button>
           )}
 
           {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
@@ -1019,76 +981,11 @@ function ScanPage() {
           {/* Nothing found: a completed scan produced no target-language words.
               Without this the user just stares at a frozen photo with no dots
               and no explanation. */}
-          {items !== null && !scanning && visibleItems.length === 0 && (
-            <div className="rounded-2xl bg-background/80 p-4 text-center shadow-lg backdrop-blur-xl">
-              <p className="text-body font-medium">{t("scan.nothingFound")}</p>
-              <p className="mt-1 text-footnote text-muted-foreground">
-                {t("scan.nothingFoundHint")}
-              </p>
-            </div>
-          )}
+          {items !== null && !scanning && visibleItems.length === 0 && <ScanNothingFound />}
 
           {/* 3) 見つかった単語(スクロールできるガラスのシート) */}
           {visibleItems.length > 0 && !scanning && (
-            <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/80 p-1.5 shadow-lg backdrop-blur-xl">
-              {
-                <div className="space-y-1.5">
-                  <p className="px-1 text-caption font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                    {t("scan.found")}
-                  </p>
-                  {visibleItems.map((it) => {
-                    const st = dotStateFor(it.headword, scanCtx);
-                    return (
-                      <button
-                        key={it.id}
-                        onClick={() => openChip(it)}
-                        className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
-                      >
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                            st === "owned"
-                              ? "bg-emerald-400"
-                              : st === "reunion"
-                                ? "bg-amber-400"
-                                : "bg-sky-400"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-2">
-                            <span lang="zh-Hant" className="truncate text-body font-semibold">
-                              {it.headword}
-                            </span>
-                            {it.zhuyin && (
-                              <span className="shrink-0 text-caption text-muted-foreground">
-                                {it.zhuyin}
-                              </span>
-                            )}
-                          </span>
-                          {it.meaning_ja && (
-                            <span className="block truncate text-footnote text-muted-foreground">
-                              {it.meaning_ja}
-                            </span>
-                          )}
-                        </span>
-                        {/* §2: don't lean on colour alone — reunion carries a text tag,
-                      owned a check, new a chevron. */}
-                        {st === "owned" ? (
-                          <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
-                            <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
-                          </span>
-                        ) : st === "reunion" ? (
-                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
-                            {t("scan.reunion")}
-                          </span>
-                        ) : (
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              }
-            </div>
+            <ScanFoundList items={visibleItems} scanCtx={scanCtx} onOpen={openChip} />
           )}
         </div>
 
@@ -1436,4 +1333,230 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
     return () => ro.disconnect();
   }, [ref]);
   return size;
+}
+
+/**
+ * 撮った枠から見つかった語の一覧。**scan で結果を読む所**。
+ *
+ * 出会い方(はじめて / 持っている / 再会)で行の印が変わる。
+ * `<video>` は使わない — ここは静止画の上に乗るガラスのシート。
+ */
+export function ScanFoundList({
+  items,
+  scanCtx,
+  onOpen,
+}: {
+  items: DetectedItem[];
+  scanCtx: ScanCtx | undefined;
+  onOpen: (it: DetectedItem) => void;
+}) {
+  const t = useT();
+  const visibleItems = items;
+  const openChip = onOpen;
+  if (!visibleItems.length) return null;
+  return (
+    <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-1.5 shadow-lg backdrop-blur-xl">
+      {
+        <div className="space-y-1.5">
+          <p className="px-1 text-caption font-medium label-caps text-muted-foreground">
+            {t("scan.found")}
+          </p>
+          {visibleItems.map((it) => {
+            const st = dotStateFor(it.headword, scanCtx);
+            return (
+              <button
+                key={it.id}
+                onClick={() => openChip(it)}
+                className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
+              >
+                <span
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    st === "owned"
+                      ? "bg-emerald-400"
+                      : st === "reunion"
+                        ? "bg-amber-400"
+                        : "bg-sky-400"
+                  }`}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-2">
+                    <span lang="zh-Hant" className="truncate text-body font-semibold">
+                      {it.headword}
+                    </span>
+                    {it.zhuyin && (
+                      <span className="shrink-0 text-caption text-muted-foreground">
+                        {it.zhuyin}
+                      </span>
+                    )}
+                  </span>
+                  {it.meaning_ja && (
+                    <span className="block truncate text-footnote text-muted-foreground">
+                      {it.meaning_ja}
+                    </span>
+                  )}
+                </span>
+                {/* §2: don't lean on colour alone — reunion carries a text tag,
+                    owned a check, new a chevron. */}
+                {st === "owned" ? (
+                  <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
+                    <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
+                  </span>
+                ) : st === "reunion" ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
+                    {t("scan.reunion")}
+                  </span>
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+}
+
+/**
+ * 撮ったのに何も見つからなかった面。
+ *
+ * **これは失敗ではなく結果**なので、赤くも警告にもしない。次にどうすれば
+ * よいかを一言添える。撮った写真の上に乗るガラスのシート。
+ */
+export function ScanNothingFound() {
+  const t = useT();
+  // ガラスは 80% だった。**後ろは撮った写真**なので、暗い被写体の上では
+  // 面が中間色に寄り、副次の文字が 4.17:1 まで落ちていた(実測)。
+  // 何が後ろに来ても読めるところまで濃くする — 下のタブ帯で同じ話を
+  // オーナーから受けている(「後ろ透けないようにして」)。
+  return (
+    <div className="rounded-2xl bg-background/95 p-4 text-center shadow-lg backdrop-blur-xl">
+      <p className="text-body font-medium">{t("scan.nothingFound")}</p>
+      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
+        {t("scan.nothingFoundHint")}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 撮った枠の上に乗る、見つけた語の印。**scan の中心**。
+ *
+ * 出会い方で光の色が変わる(はじめて=白 / 持っている=緑 / 再会=琥珀)。
+ * 印そのものは 16px だが、当たり判定は 44px に広げてある — カメラの上の
+ * この印がこの画面の主な操作だから。
+ *
+ * `<video>` は使わない。印は**撮った静止画の上**に置かれるので、
+ * 写真さえ渡せば実物と同じ絵になる。
+ */
+export function ScanDots({
+  items,
+  subItems,
+  scanCtx,
+  dotStyle,
+  onOpen,
+}: {
+  items: DetectedItem[];
+  subItems: SubItem[];
+  scanCtx: ScanCtx | undefined;
+  /** 印を置く位置。枠の大きさに依るので、計算はルート側に残す。 */
+  dotStyle: (it: DetectedItem) => React.CSSProperties;
+  /** 印を押したとき。**部品の印も同じ所へ行く** — `SubItem` は
+      `DetectedItem` を広げた型なので、別の口を作ると使われない道が増える。 */
+  onOpen: (it: DetectedItem) => void;
+}) {
+  const t = useT();
+  const visibleItems = items;
+  const openChip = onOpen;
+  return (
+    <>
+      {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
+      {visibleItems.map((it) => {
+        const low = it.confidence < 0.75;
+        const isText = it.kind === "text";
+        const expanded = subItems.some((s) => s.parentId === it.id);
+        const state = dotStateFor(it.headword, scanCtx);
+        // apple-design: three soft glass "lights", one per state —
+        //   new (未発見)                      → white
+        //   owned (スキャン済み=写真あり)       → green
+        //   reunion (文字/音声で登録・写真なし) → amber
+        // All share the same glow + ring treatment so they read as one
+        // family rather than loud, clashing dots.
+        const marker =
+          state === "owned"
+            ? "bg-emerald-400 ring-emerald-100/70 shadow-[0_0_10px_2px_rgba(52,211,153,0.5)]"
+            : state === "reunion"
+              ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
+              : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
+        return (
+          <button
+            key={it.id}
+            onClick={() => openChip(it)}
+            style={dotStyle(it)}
+            // §11: the dot is 16px but the tap target is padded to the 44px
+            // floor — these on-camera markers are the primary interaction.
+            className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
+            aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
+          >
+            <span
+              className={[
+                "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
+                marker,
+                low ? "opacity-70" : "",
+                expanded ? "ring-2 ring-amber-200/80" : "",
+              ].join(" ")}
+            />
+            {isText && state !== "owned" && (
+              // **印の色はテーマに従わない**(写真の上に置く光なので、
+              // 白・緑・琥珀に固定してある)。その上に載せる字だけ
+              // `text-foreground/70` にしていたので、暗いテーマでは
+              // **白い印の上の白い字**になって消えていた(実測 1.06:1)。
+              // 地が固定なら、字も固定にする。
+              <span className="pointer-events-none absolute inset-0 grid place-items-center text-caption font-bold text-black/70">
+                A
+              </span>
+            )}
+            {state === "owned" && (
+              <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+              </span>
+            )}
+            {state === "new" && (
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-white/30 motion-reduce:animate-none" />
+            )}
+            {state === "reunion" && (
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-amber-300/40 blur-sm motion-reduce:animate-none" />
+            )}
+            {low && (
+              <span className="pointer-events-none absolute -bottom-1 rounded-full bg-amber-400 px-1 text-caption font-bold text-black">
+                ?
+              </span>
+            )}
+            {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
+                  B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
+            <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm">
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
+              <span lang="zh-Hant" className="truncate">
+                {it.headword}
+                {it.zhuyin && <span className="ml-1 font-normal opacity-90">{it.zhuyin}</span>}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+      {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
+      {subItems.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => openChip(s)}
+          style={dotStyle(s)}
+          className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
+          aria-label={t("scan.partOf", { word: s.headword })}
+        >
+          <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
+          <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
+        </button>
+      ))}
+    </>
+  );
 }

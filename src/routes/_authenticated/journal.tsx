@@ -201,7 +201,7 @@ function JournalPage() {
           何日も書いてきた人にとっては、記録が消えたように見える。 */}
       {isLoading && (
         <section className="mt-10" role="status" aria-label={t("common.loading")}>
-          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote label-caps text-muted-foreground">
             {t("journal.past")}
           </h3>
           <div className="space-y-3">
@@ -214,7 +214,7 @@ function JournalPage() {
 
       {isError && (
         <section className="mt-10">
-          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote label-caps text-muted-foreground">
             {t("journal.past")}
           </h3>
           <LoadFailed
@@ -227,7 +227,7 @@ function JournalPage() {
 
       {!isLoading && !isError && past.length > 0 && (
         <section className="mt-10">
-          <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
+          <h3 className="mb-3 text-footnote label-caps text-muted-foreground">
             {t("journal.past")}
           </h3>
           <ul className="space-y-3">
@@ -260,11 +260,22 @@ function JournalPage() {
   );
 }
 
-function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?: boolean }) {
+/**
+ * 「ネイティブならこう言う」。日記を直したあとに出る、言い換えの一覧。
+ *
+ * `export` にしたのは検査の雛形から描くため。ここは問い合わせを持たない。
+ */
+export function NativePhrases({
+  phrases,
+  compact,
+}: {
+  phrases: NativePhrase[];
+  compact?: boolean;
+}) {
   const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
-      <div className="mb-2 flex items-center gap-1.5 text-caption uppercase tracking-[0.25em] text-primary-ink">
+      <div className="mb-2 flex items-center gap-1.5 text-caption label-caps text-primary-ink">
         <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">
@@ -286,7 +297,10 @@ function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?
   );
 }
 
-function EntryBlock({
+/**
+ * 直した文と、その下に添える気づき。日記の結果の主役。
+ */
+export function EntryBlock({
   label,
   body,
   subtle,
@@ -300,15 +314,11 @@ function EntryBlock({
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-1 text-caption uppercase tracking-[0.25em] text-muted-foreground">
-        {label}
-      </div>
+      <div className="mb-1 text-caption label-caps text-muted-foreground">{label}</div>
       <p className="text-body leading-relaxed tracking-wide">{body}</p>
       {subtle && (
         <>
-          <div className="mt-3 text-caption uppercase tracking-[0.25em] text-muted-foreground">
-            {subtleLabel}
-          </div>
+          <div className="mt-3 text-caption label-caps text-muted-foreground">{subtleLabel}</div>
           <p className="whitespace-pre-line text-footnote text-muted-foreground">{subtle}</p>
         </>
       )}

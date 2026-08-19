@@ -134,7 +134,7 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-body font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-body font-semibold label-caps text-muted-foreground">
                 {t("discover.users")}
               </h3>
             </div>
@@ -176,7 +176,7 @@ function DiscoverPage() {
           <section>
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-body font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-body font-semibold label-caps text-muted-foreground">
                 {t("discover.words")}
               </h3>
             </div>

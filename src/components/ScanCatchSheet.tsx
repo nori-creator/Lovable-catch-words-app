@@ -175,7 +175,9 @@ export function ScanCatchSheet({
     setPhase("landing");
     await runCatchLanding({
       startEl: cutoutBoxRef.current,
-      fly: flyRef.current,
+      // ref のまま渡す。演出の層はこの直前の setPhase("landing") で
+      // 初めて描かれるので、ここで .current を読むと必ず null になる。
+      fly: flyRef,
       speakLine: () => void pronounceRef.current?.(headword),
     });
   }

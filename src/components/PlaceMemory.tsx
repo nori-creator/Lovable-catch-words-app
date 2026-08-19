@@ -6,6 +6,15 @@
  * 通知だけだと見逃されるし、カードだけだと歩いている最中に気づけない。
  *
  * 位置情報は設定でONにした人だけ取りに行く(既定はOFF)。
+ *
+ * ## 2026-08-19 の作り直し(オーナー指摘4件)
+ * - **上から出す。** 下から出していたが、通知は端末では上から降りてくる。
+ *   同じ知らせが場所によって上下から来ると、別の物に見える。
+ * - **撮ったときの写真を必ず付ける。** 場所の丸い印では何も思い出せない。
+ *   思い出す手がかりは写真そのもの。
+ * - **押したら復習が始まる。** 図鑑へ飛ばすだけだった。カードを眺めるのと
+ *   思い出そうとするのは別の行為で、この知らせが誘いたいのは後者。
+ * - **訳は出さない。** 「覚えてる?」と聞いておいて答えを並べていた。
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -20,13 +29,12 @@ import {
   isPlaceReminderEnabled,
   markNotified,
   notifyMemory,
+  takenDateLabel,
 } from "@/lib/place-reminder";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
-import { daysAgoLabel } from "@/lib/timeago";
 
 export function PlaceMemoryWatcher() {
-  const t = useT();
   const fetchNearby = useServerFn(getNearbyMemories);
   const navigate = useNavigate();
   const [hit, setHit] = useState<NearbyMemory | null>(null);
@@ -82,41 +90,70 @@ export function PlaceMemoryWatcher() {
 
   if (!hit) return null;
 
-  const when = daysAgoLabel(hit.days_ago, t);
-
   return (
-    <div className="fixed inset-x-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50">
+    <PlaceMemoryCard
+      memory={hit}
+      onDismiss={() => setHit(null)}
+      onStart={() => {
+        setHit(null);
+        void navigate({ to: "/review", search: { sticker: hit.sticker_id } });
+      }}
+    />
+  );
+}
+
+/**
+ * 知らせそのもの。通信も位置も持たないので、検査の雛形からそのまま撮れる。
+ */
+export function PlaceMemoryCard({
+  memory,
+  onStart,
+  onDismiss,
+}: {
+  memory: Pick<NearbyMemory, "headword" | "location_name" | "image_url"> & {
+    taken_at?: string | null;
+  };
+  onStart: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useT();
+  const date = takenDateLabel(memory.taken_at);
+  const line = date
+    ? t("place.caughtOn", { date })
+    : memory.location_name
+      ? t("place.caughtAt", { name: memory.location_name })
+      : t("place.caughtHereShort");
+  return (
+    // **上から。** 端末の通知と同じ向きから降りてくる。
+    // 安全域(ノッチ)を避けてから、その下に置く。
+    <div className="fixed inset-x-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 material-in">
       <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-lg">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-          <MapPin className="h-5 w-5" />
-        </span>
-        <button
-          onClick={() => {
-            setHit(null);
-            void navigate({ to: "/dex", search: { justCaught: hit.sticker_id } });
-          }}
-          className="min-w-0 flex-1 text-left"
-        >
+        {/* **撮ったときの写真。** これが思い出す手がかりそのもの。
+            まだ画像が無いカード(文字から作った語)だけ、場所の印に落ちる。 */}
+        {memory.image_url ? (
+          <img
+            src={memory.image_url}
+            alt=""
+            className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-black/5"
+          />
+        ) : (
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary-ink">
+            <MapPin className="h-5 w-5" />
+          </span>
+        )}
+        <button onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
           <span className="block truncate text-body font-semibold">
             {/* 単語の前後で文が分かれる。日本語は「〇〇」覚えてる?、英語は
                 Remember "〇〇"? と語順が違うので前後を別キーにしている。
                 単語だけ <Zh> で囲む必要があり、1文にまとめられない。 */}
             {t("place.rememberBefore")}
-            <Zh>{hit.headword}</Zh>
+            <Zh>{memory.headword}</Zh>
             {t("place.rememberAfter")}
           </span>
-          <span className="block truncate text-caption text-muted-foreground">
-            {t("place.caughtHere", {
-              when,
-              where: hit.location_name
-                ? t("place.atPlace", { name: hit.location_name })
-                : t("place.hereAbouts"),
-              meaning: hit.meaning_ja ? `(${hit.meaning_ja})` : "",
-            })}
-          </span>
+          <span className="block truncate text-caption text-muted-foreground">{line}</span>
         </button>
         <button
-          onClick={() => setHit(null)}
+          onClick={onDismiss}
           aria-label={t("common.close")}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"
         >

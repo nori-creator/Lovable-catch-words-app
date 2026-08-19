@@ -35,9 +35,9 @@
  *     「カメラ依存」で `capture`(1106行)と `scan`(1425行)を丸ごと未検査に
  *     していたのは大雑把すぎた — `capture` は**8段のうち6段**が、`scan` は
  *     `<video>` が**1箇所だけ**で、撮った後の面は静止画の上に描かれる。
- *     いま入っているのは語を選ぶ面・再会の面・語の札(5通り)。
- *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中・
- *     圏外で預かった面・見つからなかった面・結果の一覧。
+ *     いま入っているのは語を選ぶ面・再会の面・圏外で預かった面・
+ *     語の札(5通り)・結果の一覧・見つからなかった面。
+ *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中。
  *   ・`journal` / `feed` / `discover` / `u.$userId` / `post.$postId` /
  *     `notifications` / `onboarding` — 人に見せる側の画面。どれも
  *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
@@ -46,6 +46,17 @@
  *
  * つまり**画面の数で言えば、見ているのは半分に満たない**。
  * 合格は「見た所に欠陥が無い」であって、「欠陥が無い」ではない。
+ *
+ * ### 見た目の方針として**わざと固定してある色**(直さない)
+ * ・写真を載せる面は**テーマに関係なく白**。アルバムの印画紙も、
+ *   撮った直後のカードの表(`from-sky-50 to-white`)も同じ考え。
+ *   暗いテーマでは白い面が明るく浮くが、**それは欠陥ではなく決め事**。
+ *   文字が乗らないので機械も落とさない。次の周で「暗い面で浮いている」と
+ *   言いたくなったら、まずここを読むこと — 変えるならオーナーの判断。
+ * ・撮った枠に乗る印(白・緑・琥珀)も固定。写真の上に置く光なので、
+ *   テーマで色を変えると意味(はじめて/持っている/再会)が崩れる。
+ *   **地が固定なら、その上に載せる字も固定にする**(そこを間違えて
+ *   暗い面で白い印の上の白い字になっていた)。
  *
  * ### 検査機のフォント都合で、絵が実機と違う所
  * ・**この容器には CJK の太字が1つも無い**(`WenQuanYi Zen Hei Regular` だけ)。
@@ -290,6 +301,23 @@ const MODES = [
   ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
+  // 見つかった語の一覧。**3通りの出会い方を1つずつ**入れてある。
+  // ガラスのシートなので、下に写真を敷いて撮る(白地だと実際より読みやすく写る)。
+  ...crossThemes("scan-found", { scene: "scan-found" }),
+  // 撮ったのに何も見つからなかった面。**失敗ではなく結果**なので警告にしない。
+  ...crossThemes("scan-nothing", { scene: "scan-nothing" }),
+  // 撮った枠に印が乗る面。**scan の中心**で、素の番号がいちばん密な所。
+  ...crossThemes("scan-dots", { scene: "scan-dots" }),
+  // 圏外で撮って端末に預かった面。オフラインのときにしか出ない。
+  ...crossThemes("cap-offline", { scene: "capture-offline" }),
+  ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],
+  // 生成が終わったカードの面。**撮るたびに必ず通る。** 表と裏の両方。
+  ...crossThemes("cap-card", { scene: "capture-card" }),
+  ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
+  ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
+  // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
+  ...crossThemes("journal-result", { scene: "journal-result" }),
+  ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
@@ -297,6 +325,17 @@ const MODES = [
   ["sheet-failed", "", false, { scene: "sticker-sheet", variant: "failed" }],
   ["sheet-candidates", "", false, { scene: "sticker-sheet", variant: "candidates" }],
   ["sheet-pro", "", false, { scene: "sticker-sheet", variant: "pro" }],
+  // 写真が1枚しか無いカード。**「撮った写真」の区画が出ないこと**が正しい姿
+  // (上に同じ絵が大きく出ているので、小さく並べ直しても高さが増えるだけ)。
+  ["sheet-onephoto", "", false, { scene: "sticker-sheet", variant: "onephoto" }],
+  // ヘッダーのアイコンを押すと出る自分の記録。数字が届く前も撮る。
+  ["user-panel", "", false, { scene: "user-panel" }],
+  ["user-panel-dark", 'class="dark"', false, { scene: "user-panel" }],
+  ["user-panel-loading", "", false, { scene: "user-panel", loading: "1" }],
+  // 場所の知らせ。上から降りてくる帯。写真が無いカードの姿も見る。
+  ["place-memory", "", false, { scene: "place-memory" }],
+  ["place-memory-dark", 'class="dark"', false, { scene: "place-memory" }],
+  ["place-memory-nophoto", "", false, { scene: "place-memory", nophoto: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -670,7 +709,8 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
   // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
   //  「下地を一枚も見ない」よりは実物に近い。)
-  const { spots, centered, brandFills, offScale, scale } = await page.evaluate(() => {
+  const { spots, centered, spaced, counterOnDash, brandFills, offScale, scale } =
+    await page.evaluate(() => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -711,6 +751,8 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
     const out = [];
     const centered = [];
+    const spaced = [];
+    const counterOnDash = [];
     // ## ブランドの塗りの上だけは 3:1 で見る
     //
     // 白い文字を 4.5:1 に乗せるために**塗りの青を暗くした**ことがあり、
@@ -838,6 +880,42 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       ) {
         centered.push(`中央揃えのまま ${lineCount} 行に折り返している — "${own.slice(0, 16)}"`);
       }
+      // **和文に字間を広げていないこと。**
+      //
+      // 字間を広げて小さく組むのは**ラテン文字の作法**(小見出しの
+      // スモールキャップス)。和文の字はもともと正方形の枠に収まって
+      // いるので、そこへ字間を足すと「直 し た 文」と一字ずつ離れて、
+      // 語のかたまりが見えなくなる。
+      //
+      // この app では一度ホームの曜日で直している(「土 曜 日」と割れて
+      // 見えた → 字間を広げるのは英語のときだけ)。だが**同じ形が他の
+      // 画面に残っていた** — 日記の見出しが `tracking-[0.25em]` のまま。
+      // 手で洗うと必ず取りこぼすので、規則そのものを門にする。
+      //
+      // 詰める側(負の値)は見出しの普通の作法なので見ない。
+      // 0.06em は「見て分かるほど開いている」の下限として実測で決めた。
+      if (/[ぁ-んァ-ヶ一-龥]/u.test(own)) {
+        const ls = parseFloat(cs.letterSpacing);
+        if (Number.isFinite(ls) && ls > px * 0.06) {
+          spaced.push(
+            `和文の字間が広い ${(ls / px).toFixed(2)}em — "${own.slice(0, 14)}" ${px}px`,
+          );
+        }
+      }
+      // **数字の代わりの記号に助数詞を付けていないこと。**
+      //
+      // 読み込み中の欄を `—` で埋め、それを `{n}日` のような雛形に
+      // 差し込むと `—日` になる。和文ではダッシュ・長音符と漢数字の一が
+      // 見分けられないので、**「一日」と読める**。待っていることを表す
+      // 記号が、意味のある値として読まれてしまう(2026-08-19、自分の記録の
+      // 欄で実際に出した)。
+      //
+      // これは**組み上がった後**にしか現れないので、i18n の文言を見る
+      // 検査では捕まらない。描かれた字を見るここでしか捕まえられない。
+      const fake = own.match(/[—–\-ー−]\s*[枚回件語日個人分秒歳冊本匹]/u);
+      if (fake) {
+        counterOnDash.push(`数字の代わりの記号に助数詞が付いている — "${own.slice(0, 16)}"`);
+      }
       // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
       // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
       // 祖先の `opacity` も効くので、根まで掛け合わせる。
@@ -862,12 +940,16 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     return {
       spots: out,
       centered,
+      spaced,
+      counterOnDash,
       brandFills,
       offScale: [...new Set(offScale)],
       scale: [...SCALE],
     };
   });
   centered.forEach((f) => issues.push(`[${name}] ${f}`));
+  spaced.forEach((f) => issues.push(`[${name}] ${f}`));
+  counterOnDash.forEach((f) => issues.push(`[${name}] ${f}`));
   if (!scale.length) issues.push(`[${name}] 書体の階調(--text-*)が読めない`);
   offScale.forEach((f) => issues.push(`[${name}] ${f}`));
   if (spots.length) {

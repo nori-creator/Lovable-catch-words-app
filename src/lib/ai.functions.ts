@@ -319,7 +319,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞) を使う。
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
-- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"N"}]。**その語が実際に現れる形を品詞ごとに網羅する** — 動詞と目的語だけでなく、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)・限定詞(Det)・助詞(Ptc)の型も、ネイティブの使用頻度が高い順に入れる。
+- usage_chunks: ネイティブが「${data.headword}」をどう組み合わせて使うかの型・コロケーションを3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"N"}]。**その語が実際に現れる形を品詞ごとに網羅する** — 動詞と目的語だけでなく、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)・限定詞(Det)・助詞(Ptc)の型も、ネイティブの使用頻度が高い順に入れる。ただし**「量詞+「${data.headword}」だけ」の型は作らない** — それは下の measure_words 欄と丸ごと同じ物になる。量詞を使うなら必ず動詞や述語と一緒の形(例: 拿一張衛生紙)にする。
   **${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先して選ぶ**。該当する型があれば ja の説明に「母語だとこう言いたくなるが中国語ではこの順」と一言添える。
 ${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
@@ -629,7 +629,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。**使用頻度の高い順に、品詞の型を散らす** — 動詞+目的語だけに寄せず、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も入れる。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」をどう組み合わせるかの型・コロケーションを4〜5個。**使用頻度の高い順に、品詞の型を散らす** — 動詞+目的語だけに寄せず、量詞(M)・状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も入れる。ただし**「量詞+「${head}」だけ」の型は作らない**(量詞の欄と丸ごと同じになる)。量詞を使うなら動詞や述語と一緒の形にする。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z
             .array(
