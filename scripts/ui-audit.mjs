@@ -295,6 +295,8 @@ const MODES = [
   ...crossThemes("scan-found", { scene: "scan-found" }),
   // 撮ったのに何も見つからなかった面。**失敗ではなく結果**なので警告にしない。
   ...crossThemes("scan-nothing", { scene: "scan-nothing" }),
+  // 撮った枠に印が乗る面。**scan の中心**で、素の番号がいちばん密な所。
+  ...crossThemes("scan-dots", { scene: "scan-dots" }),
   // 圏外で撮って端末に預かった面。オフラインのときにしか出ない。
   ...crossThemes("cap-offline", { scene: "capture-offline" }),
   ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],

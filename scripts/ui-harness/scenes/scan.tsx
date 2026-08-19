@@ -5,7 +5,7 @@
  * **1箇所だけ**で、しかも撮る前の枝の中。撮った後の面は静止画の上に描かれる。
  * ここは素の Tailwind の番号がいちばん密に残っている所でもある(72箇所)。
  */
-import { ScanChip, ScanFoundList, ScanNothingFound } from "@/routes/_authenticated/scan";
+import { ScanChip, ScanDots, ScanFoundList, ScanNothingFound } from "@/routes/_authenticated/scan";
 
 const BASE = {
   headword: "珍珠奶茶",
@@ -106,8 +106,12 @@ export function ScanFoundScene() {
   } as never;
   return (
     <div
-      className="min-h-[60vh] rounded-3xl p-4"
-      style={{ background: "linear-gradient(160deg,#3a2c1e,#7a5a3a)" }}
+      style={{
+        minHeight: 480,
+        padding: 16,
+        borderRadius: 24,
+        background: "linear-gradient(160deg,#3a2c1e,#7a5a3a)",
+      }}
     >
       <ScanFoundList items={items} scanCtx={ctx} onOpen={() => {}} />
     </div>
@@ -118,10 +122,77 @@ export function ScanFoundScene() {
 export function ScanNothingScene() {
   return (
     <div
-      className="min-h-[40vh] rounded-3xl p-4"
-      style={{ background: "linear-gradient(160deg,#3a2c1e,#7a5a3a)" }}
+      style={{
+        minHeight: 320,
+        padding: 16,
+        borderRadius: 24,
+        background: "linear-gradient(160deg,#3a2c1e,#7a5a3a)",
+      }}
     >
       <ScanNothingFound />
+    </div>
+  );
+}
+
+/**
+ * 撮った枠の上に印が乗った面。**scan の中心**で、素の Tailwind の番号が
+ * いちばん密に残っている所。
+ *
+ * 出会い方3通りの光と、確信の低い印、文字の印、部品の印を1枚に並べる。
+ * **印は写真の上にしか出ない**ので、実物と同じ暗さの地を敷いて撮る —
+ * 白地の上で撮ると、白い光が消えて「はじめて」の印だけ写らない。
+ */
+export function ScanDotsScene() {
+  const mk = (
+    id: string,
+    headword: string,
+    point: [number, number],
+    confidence: number,
+    kind: "object" | "text" = "object",
+  ) => ({
+    id,
+    kind,
+    headword,
+    zhuyin: "ㄅㄟ ㄗ˙",
+    pinyin: "bēi zi",
+    meaning_ja: "コップ",
+    pos: "N",
+    point,
+    confidence,
+    alternatives: [] as string[],
+  });
+  const items = [
+    mk("d1", "珍珠奶茶", [250, 200], 0.95), // はじめて(白)
+    mk("d2", "杯子", [600, 260], 0.9), // 持っている(緑)
+    mk("d3", "吸管", [420, 520], 0.88), // 再会(琥珀)
+    mk("d4", "冰塊", [760, 620], 0.5), // 確信が低い
+    mk("d5", "半糖", [180, 700], 0.9, "text"), // 文字の印
+  ] as never[];
+  const subItems = [{ ...mk("s1", "珍珠", [330, 300], 0.9), parentId: "d1", sub: true }] as never[];
+  const ctx = {
+    owned: { 杯子: { has_photo: true }, 吸管: { has_photo: false } },
+    tappedSet: new Set<string>(),
+  } as never;
+  return (
+    <div
+      style={{
+        position: "relative",
+        height: 480,
+        width: "100%",
+        overflow: "hidden",
+        borderRadius: 24,
+        background: "linear-gradient(160deg,#2a1f14,#6b4f33)",
+      }}
+    >
+      <ScanDots
+        items={items}
+        subItems={subItems}
+        scanCtx={ctx}
+        // 実物は枠の大きさから計算する。ここでは枠を固定してあるので
+        // 同じ式(1000分率)をそのまま使う。
+        dotStyle={(it) => ({ left: (it.point[0] / 1000) * 358, top: (it.point[1] / 1000) * 480 })}
+        onOpen={() => {}}
+      />
     </div>
   );
 }

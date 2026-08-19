@@ -20,7 +20,7 @@ import { ShelfScene } from "./scenes/shelf";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { CaptureOfflineScene, CapturePickScene, CaptureReunionScene } from "./scenes/capture";
-import { ScanChipScene, ScanFoundScene, ScanNothingScene } from "./scenes/scan";
+import { ScanChipScene, ScanDotsScene, ScanFoundScene, ScanNothingScene } from "./scenes/scan";
 import {
   HomeEmptyScene,
   HomeLoadingScene,
@@ -85,6 +85,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-chip": ScanChipScene,
   "scan-found": ScanFoundScene,
   "scan-nothing": ScanNothingScene,
+  "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
@@ -130,6 +131,20 @@ function Frame({ children }: { children: ReactNode }) {
 }
 
 /**
+ * ## 場面の足場に Tailwind のクラスを書かない
+ *
+ * `styles.css` は `@source "../src"` なので、**Tailwind が走査するのは
+ * `src` だけ**。雛形のファイルにしか出てこないクラスは生成されず、
+ * **静かに何も起きない**。
+ *
+ * 実際、印を撮る場面で `h-[520px]` を書いたら箱の高さが 0 になり、
+ * 撮った写真の代わりにページの白い地の上に印が乗って、白い印が
+ * 「コントラスト 1.03」で16件落ちた。**地を敷いたつもりで敷けていない**、
+ * この検査でいちばん危ない形そのもの。
+ *
+ * 場面の足場(高さ・背景・余白)は**インラインの `style`** で書く。
+ * 部品を並べるときに使うクラスは `src` に在るものなので問題ない。
+ *
  * 枠(上のバー・下タブ)を被せない場面。
  *
  * 全画面の面にバーと帯を足して撮ると、**実物に無いものを検査する**ことに
