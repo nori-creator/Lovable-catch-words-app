@@ -141,7 +141,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "rv.kindAnt": { ja: "反", en: "ant" },
   "rv.kindRel": { ja: "関", en: "rel" },
   "dex.truncated": {
-    ja: "全 {total} 件のうち、新しい {n} 件を表示しています。これより古いものはまだ出せていません。",
+    ja: "全{total}件のうち、新しい{n}件を表示しています。これより古いものはまだ出せていません。",
     en: "Showing the newest {n} of {total}. Older ones aren't loaded yet.",
   },
   // 「×3」はこのアプリが決めた記号なので、出ているときは意味を添える。
@@ -150,7 +150,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
     en: "means how many times you've met that word",
   },
   "dex.metCountAria": {
-    ja: "{word} — {n} 回出会った",
+    ja: "{word} — {n}回出会った",
     en: "{word} — met {n} times",
   },
   "dex.allCategories": { ja: "すべて", en: "All" },
@@ -389,7 +389,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "cap.reencAt": { ja: "{date}に{place}で", en: "at {place} on {date}" },
   "cap.reencOn": { ja: "{date}に", en: "on {date}" },
   "cap.reencAfter": { ja: "ゲットしています。", en: "." },
-  "cap.reunionNth": { ja: "再会 {n} 回目", en: "Reunion #{n}" },
+  "cap.reunionNth": { ja: "再会{n}回目", en: "Reunion #{n}" },
   "photos.title": { ja: "この言葉に出会った記録", en: "Times you met this word" },
   "photos.count": { ja: "{n}枚", en: "{n} photos" },
   "photos.first": { ja: "はじめて", en: "First" },
@@ -1309,7 +1309,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "home.pendingDiscard": { ja: "捨てる", en: "Discard" },
   "home.pendingDiscardConfirm": { ja: "本当に捨てる？", en: "Really discard?" },
   "home.pendingCta": { ja: "タップしてAI解析を再開する", en: "Tap to resume AI analysis" },
-  "home.pendingCount": { ja: "解析待ちの写真", en: "Photos waiting for analysis" },
+  "home.pendingCount": { ja: "解析待ちの写真 {n}枚", en: "{n} photos waiting for analysis" },
   "card.openMapsLabel": { ja: "Google マップで開く →", en: "Open in Google Maps →" },
   "review.videoTip": {
     ja: "設定で「録画」をONにすると、話した時の自撮り動画も残せます",

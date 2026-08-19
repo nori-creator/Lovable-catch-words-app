@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { BookText, Image as ImageIcon, ImageOff, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -131,7 +132,7 @@ export function PendingCapturesCard({
           {/* 📥 は外した。左に**写真そのもの**が既に在るので、絵文字は
               同じことを二度言っているうえ、暗い面で色が調整できない。 */}
           <span className="block text-body font-semibold text-foreground">
-            {t("home.pendingCount")}: {pending.length}
+            {t("home.pendingCount", { n: formatCount(pending.length) })}
           </span>
           <span className="block text-footnote text-muted-foreground">{t("home.pendingCta")}</span>
         </span>
@@ -335,7 +336,7 @@ export function PastDays({
           出せていないなら、そう言う(§8)。 */}
       {truncated && (
         <p role="status" className="rounded-xl bg-secondary px-3 py-2 text-caption text-foreground">
-          {t("dex.truncated", { n: String(shown), total: String(total) })}
+          {t("dex.truncated", { n: formatCount(shown), total: formatCount(total) })}
         </p>
       )}
       {days.map(([k, items]) => (
@@ -551,7 +552,8 @@ export function ScrapbookAlbum({
         <span
           className={`text-body text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
         >
-          — {stickers.length} {t("home.memories")}
+          — {formatCount(stickers.length)}
+          {t("home.memories")}
         </span>
       </div>
     </div>
