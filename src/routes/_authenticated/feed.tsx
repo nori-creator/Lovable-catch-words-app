@@ -55,7 +55,7 @@ function FeedPage() {
           ))}
         </div>
       ) : isError ? (
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatFeed")} />
       ) : !data || data.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (

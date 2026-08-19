@@ -63,9 +63,16 @@ export function TokensScene() {
 
 /** 取得に失敗したときの面。全ルートが共有する。 */
 export function LoadFailedScene({ q }: { q: URLSearchParams }) {
+  const variant = q.get("variant");
   return (
     <div className="space-y-4">
-      <LoadFailed onRetry={() => {}} retrying={q.get("variant") === "retrying"} />
+      <LoadFailed
+        onRetry={() => {}}
+        retrying={variant === "retrying"}
+        // **何を**読み込めなかったかを名指しできる。渡さない面も撮る
+        // (渡していない呼び出し元がまだ残っていないかは一覧で見る)。
+        what={variant === "named" ? "今日の復習" : undefined}
+      />
     </div>
   );
 }

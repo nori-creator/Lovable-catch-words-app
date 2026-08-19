@@ -15,14 +15,16 @@ import {
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { reportEntry } from "@/lib/reports.functions";
-import { regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
+import { generateCard, regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
+import { updateWordExtras } from "@/lib/stickers.functions";
+import { formatCount } from "@/lib/count";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { usableQuickFacts } from "@/lib/extras";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
-import { isRegenSection, type SectionId } from "@/lib/card-sections";
+import { isReferenceSection, isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -260,9 +262,17 @@ export const WordCard = forwardRef<
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
 
   /**
-   * 中身があるか。**表示するかどうかの判定には使わない** —
-   * 項目は常に全部並べ、空のときは「未生成」の枠と生成ボタンを出す
-   * (以前は空項目を丸ごと隠していたため「項目が消えた」ように見えていた)。
+   * 中身があるか。
+   *
+   * ## 空の節はもう並べない
+   * 以前は「項目が消えたように見える」のを避けるため、空でも枠と生成ボタンを
+   * 出していた。その結果、**撮った直後の語では同じ灰色の空箱が11個積み上がる**。
+   * 街で言葉を見つけて写真を撮った直後 — この app で一番気持ちが乗っている
+   * 瞬間の直後に、それが出てくる(独立監査が最重要として指摘)。
+   *
+   * 空の節は隠し、代わりに**上に「カードを仕上げる」を1つ**置く。
+   * 何項目足りないかは数で言う。押せば1回の生成で全部埋まるので、
+   * 11回押して11回待つ必要も無い。
    */
   const hasContent = (id: SectionId): boolean => {
     switch (id) {
@@ -312,11 +322,20 @@ export const WordCard = forwardRef<
     }
   };
 
+  // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
+  const missing = prefs.order.filter(
+    (id) => isVisible(id) && isRegenSection(id) && !hasContent(id),
+  );
+  const shown = prefs.order.filter((id) => isVisible(id) && !missing.includes(id));
+
   return (
     <div className="space-y-3">
       <HeaderRow word={word} autoplay={autoplay} />
+      {wordId && missing.length > 0 && (
+        <FillCardPrompt wordId={wordId} headword={word.headword} missing={missing.length} />
+      )}
       <div className="grid gap-3">
-        {prefs.order.filter(isVisible).map((id) => (
+        {shown.map((id) => (
           <SectionCard
             key={id}
             id={id}
@@ -331,6 +350,79 @@ export const WordCard = forwardRef<
     </div>
   );
 });
+
+/**
+ * 「このカードを仕上げる」。空の節を全部まとめて1つの行動にする。
+ *
+ * **1回の生成で全項目が埋まる。** 節ごとの生成を11回押させると、11回
+ * 待たされたうえに11回ぶんの費用がかかる。ここは既にある
+ * `generateCard` → `updateWordExtras` の道を通す(手動の作り直しと同じ道)。
+ */
+function FillCardPrompt({
+  wordId,
+  headword,
+  missing,
+}: {
+  wordId: string;
+  headword: string;
+  missing: number;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const enrich = useServerFn(generateCard);
+  const saveExtras = useServerFn(updateWordExtras);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function fill() {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const card = await enrich({ data: { headword, targetLanguage: "zh-TW" } });
+      await saveExtras({
+        data: {
+          word_id: wordId,
+          extras: card.extras,
+          patch: {
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+            meaning_ja: card.meaning_ja,
+          },
+        },
+      });
+      await qc.invalidateQueries({ queryKey: ["sticker"] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+    } catch {
+      // **黙って戻さない。** 押したのに何も起きないと、壊れているのと
+      // 区別がつかない。もう一度押せることを画面で言う。
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-dashed border-primary/40 bg-primary/[0.04] p-4">
+      <p className="text-headline font-semibold">{t("card.fillTitle")}</p>
+      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
+        {failed ? t("card.fillFailed") : t("card.fillBody", { n: formatCount(missing) })}
+      </p>
+      <button
+        onClick={() => void fill()}
+        disabled={busy}
+        className="press-in mt-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:opacity-60"
+      >
+        {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+        {busy ? t("card.filling") : failed ? t("card.fillRetry") : t("card.fillCta")}
+      </button>
+    </section>
+  );
+}
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const t = useT();
@@ -477,8 +569,6 @@ function SectionCard({
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
   const canRegen = !!wordId && !!isPro && isRegenSection(id);
-  // 未生成の項目は誰でも1回は作れる(Proでなくても「作る」ボタンは出す)。
-  const canGenerate = !!wordId && isRegenSection(id);
 
   // Pro: この項目だけをワンタッチで作り直す。
   async function regen() {
@@ -497,12 +587,20 @@ function SectionCard({
 
   return (
     <section
-      className={`lift rounded-2xl border border-border bg-card p-4 shadow-sm ${
+      className={[
+        // 参考の節は**札をやめて地の上に直接置く**。同じ体裁の箱が14枚
+        // 並ぶと、目が最初に着地する場所が物理的に無くなる(独立監査)。
+        // 順序と表示は利用者の設定のまま — 変えるのは重さだけ。
+        isReferenceSection(id)
+          ? "px-1"
+          : "lift rounded-2xl border border-border bg-card p-4 shadow-sm",
         // **意味の下だけ間合いを空ける。** 節がすべて等間隔だと、
         // 14枚がひと続きの壁になる。ここで一度切ると「答え」と
         // 「それ以外」に割れる(近いものほど近く、の原則)。
-        id === "meaning" ? "mb-3" : ""
-      }`}
+        id === "meaning" ? "mb-3" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="mb-2 flex items-center gap-2">
         {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
@@ -530,13 +628,7 @@ function SectionCard({
         )}
       </div>
       {empty ? (
-        <EmptySection
-          label={label}
-          canGenerate={canGenerate}
-          generating={regenerating}
-          onGenerate={regen}
-          t={t}
-        />
+        <EmptySection t={t} />
       ) : (
         <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
       )}
@@ -545,41 +637,19 @@ function SectionCard({
 }
 
 /**
- * まだ生成されていない項目。空でも枠は必ず見せ、
- * 「何が入る場所なのか」と「作る手段」をその場に置く。
+ * まだ中身が無い項目。
+ *
+ * ## 「作る」ボタンはここに置かない
+ * **AI で作れる節は、空なら並べない**(上の「カードを仕上げる」に畳む)。
+ * つまりここへ来るのは `web_images` / `real_usage` のような
+ * **生成物ではない節**だけで、`canGenerate` は構造上いつも false だった。
+ * 押せないボタンの分岐を残しておくと、次に読む人が
+ * 「ここから作れる」と誤解する。到達しない道は置かない。
  */
-function EmptySection({
-  label,
-  canGenerate,
-  generating,
-  onGenerate,
-  t,
-}: {
-  label: string;
-  canGenerate: boolean;
-  generating: boolean;
-  onGenerate: () => void;
-  t: (k: string) => string;
-}) {
+function EmptySection({ t }: { t: (k: string) => string }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border bg-secondary px-3 py-2.5">
+    <div className="rounded-xl border border-dashed border-border bg-secondary px-3 py-2.5">
       <span className="text-caption text-muted-foreground">{t("card.notYet")}</span>
-      {canGenerate && (
-        <button
-          onClick={onGenerate}
-          disabled={generating}
-          aria-label={`${label}: ${t("card.generate")}`}
-          // §11: 見た目は小さいまま、当たり判定だけを 44px へ。
-          className="relative inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-caption font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"
-        >
-          {generating ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3 w-3" />
-          )}
-          {t("card.generate")}
-        </button>
-      )}
     </div>
   );
 }

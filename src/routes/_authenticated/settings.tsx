@@ -281,7 +281,11 @@ function SettingsPage() {
     return (
       <AppShell title={t("title.settings")}>
         {profileFailed ? (
-          <LoadFailed onRetry={() => void refetchProfile()} retrying={profileFetching} />
+          <LoadFailed
+            onRetry={() => void refetchProfile()}
+            retrying={profileFetching}
+            what={t("err.whatSettings")}
+          />
         ) : (
           <div className="space-y-4" role="status" aria-label={t("common.loading")}>
             {[0, 1, 2].map((i) => (

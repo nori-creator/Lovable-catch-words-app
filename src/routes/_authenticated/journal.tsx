@@ -217,7 +217,11 @@ function JournalPage() {
           <h3 className="mb-3 text-footnote uppercase tracking-[0.3em] text-muted-foreground">
             {t("journal.past")}
           </h3>
-          <LoadFailed onRetry={() => void refetch()} retrying={isFetching} />
+          <LoadFailed
+            onRetry={() => void refetch()}
+            retrying={isFetching}
+            what={t("err.whatJournal")}
+          />
         </section>
       )}
 
