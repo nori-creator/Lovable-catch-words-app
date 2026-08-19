@@ -217,7 +217,7 @@ function ReviewPage() {
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
-                  <p className="mb-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
                     {t("rv.overallTitle")}
                   </p>
                   {memStats && <MiniRetentionGraph series={memStats.series} />}
@@ -978,7 +978,7 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-caption font-semibold uppercase tracking-wider text-primary-ink">
+            <div className="text-caption font-semibold label-caps text-primary-ink">
               {t("review.todaysPattern")}
             </div>
             <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
@@ -999,7 +999,7 @@ function SpeakingCard({
           パーツを組み合わせて質問に答える。 */}
         {!isPhrase && scaffold && !feedback && (
           <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-            <div className="text-caption font-semibold uppercase tracking-wider text-sky-800">
+            <div className="text-caption font-semibold label-caps text-sky-800">
               {t("review.teacherQ")}
             </div>
             <div className="mt-0.5 flex items-start gap-2">
@@ -1014,7 +1014,7 @@ function SpeakingCard({
             </div>
             <p className="text-caption text-sky-800/80">{scaffold.question_ja}</p>
 
-            <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-sky-800">
+            <div className="mt-2 text-caption font-semibold label-caps text-sky-800">
               {t("review.hintsLabel")}
             </div>
             {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
@@ -1026,7 +1026,7 @@ function SpeakingCard({
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-caption font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-caption font-semibold uppercase tracking-wider text-sky-700">
+                    <span className="text-caption font-semibold label-caps text-sky-700">
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
@@ -1206,7 +1206,7 @@ function FeedbackView({
       {/* Your recording — video only; the mic belongs to speech recognition */}
       {videoUrl && (
         <div className="rounded-2xl bg-secondary/50 p-3">
-          <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-2 text-caption font-semibold label-caps text-muted-foreground">
             {t("review.watchYourself")}
           </div>
           <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
@@ -1218,11 +1218,11 @@ function FeedbackView({
 
       {/* Your line vs corrected */}
       <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-caption font-semibold label-caps text-muted-foreground">
           {t("review.you")}
         </div>
         <div className="text-body">{transcript}</div>
-        <div className="mt-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="mt-2 text-caption font-semibold label-caps text-muted-foreground">
           {t("review.corrected")}
         </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
@@ -1241,7 +1241,7 @@ function FeedbackView({
       {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
       <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-caption font-semibold label-caps text-muted-foreground">
             {t("review.sentenceBuild")}
           </span>
           {feedback.unlocked_branch && (
@@ -1258,7 +1258,7 @@ function FeedbackView({
         <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-caption font-semibold label-caps text-muted-foreground">
               {t("review.whyOrder")}
             </div>
             <p className="mt-0.5 text-footnote leading-relaxed">{feedback.word_order_rule}</p>
@@ -1268,7 +1268,7 @@ function FeedbackView({
 
       {/* Native feel */}
       <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-caption font-semibold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+        <div className="mb-1 text-caption font-semibold label-caps text-indigo-900 dark:text-indigo-200">
           {t("review.nativeFeel")}
         </div>
         <p className="text-body text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
@@ -1276,7 +1276,7 @@ function FeedbackView({
 
       {/* Model answers */}
       <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-caption font-semibold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+        <div className="text-caption font-semibold label-caps text-emerald-900 dark:text-emerald-200">
           {t("review.model")}
         </div>
         <div className="flex items-center gap-2">
@@ -1454,11 +1454,7 @@ function ExplainLabel({
         : tone === "teal"
           ? "text-teal-900 dark:text-teal-200"
           : "text-muted-foreground";
-  return (
-    <span className={`text-caption font-semibold uppercase tracking-wider ${color}`}>
-      {children}
-    </span>
-  );
+  return <span className={`text-caption font-semibold label-caps ${color}`}>{children}</span>;
 }
 
 export function LightModeCard({

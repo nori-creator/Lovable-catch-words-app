@@ -1321,7 +1321,7 @@ export function ScanFoundList({
     <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-1.5 shadow-lg backdrop-blur-xl">
       {
         <div className="space-y-1.5">
-          <p className="px-1 text-caption font-medium uppercase tracking-[0.15em] text-muted-foreground">
+          <p className="px-1 text-caption font-medium label-caps text-muted-foreground">
             {t("scan.found")}
           </p>
           {visibleItems.map((it) => {

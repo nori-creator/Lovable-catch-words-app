@@ -315,6 +315,9 @@ const MODES = [
   ...crossThemes("cap-card", { scene: "capture-card" }),
   ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
+  // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
+  ...crossThemes("journal-result", { scene: "journal-result" }),
+  ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
@@ -695,7 +698,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
   // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
   //  「下地を一枚も見ない」よりは実物に近い。)
-  const { spots, centered, brandFills, offScale, scale } = await page.evaluate(() => {
+  const { spots, centered, spaced, brandFills, offScale, scale } = await page.evaluate(() => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -736,6 +739,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
     const out = [];
     const centered = [];
+    const spaced = [];
     // ## ブランドの塗りの上だけは 3:1 で見る
     //
     // 白い文字を 4.5:1 に乗せるために**塗りの青を暗くした**ことがあり、
@@ -863,6 +867,28 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       ) {
         centered.push(`中央揃えのまま ${lineCount} 行に折り返している — "${own.slice(0, 16)}"`);
       }
+      // **和文に字間を広げていないこと。**
+      //
+      // 字間を広げて小さく組むのは**ラテン文字の作法**(小見出しの
+      // スモールキャップス)。和文の字はもともと正方形の枠に収まって
+      // いるので、そこへ字間を足すと「直 し た 文」と一字ずつ離れて、
+      // 語のかたまりが見えなくなる。
+      //
+      // この app では一度ホームの曜日で直している(「土 曜 日」と割れて
+      // 見えた → 字間を広げるのは英語のときだけ)。だが**同じ形が他の
+      // 画面に残っていた** — 日記の見出しが `tracking-[0.25em]` のまま。
+      // 手で洗うと必ず取りこぼすので、規則そのものを門にする。
+      //
+      // 詰める側(負の値)は見出しの普通の作法なので見ない。
+      // 0.06em は「見て分かるほど開いている」の下限として実測で決めた。
+      if (/[ぁ-んァ-ヶ一-龥]/u.test(own)) {
+        const ls = parseFloat(cs.letterSpacing);
+        if (Number.isFinite(ls) && ls > px * 0.06) {
+          spaced.push(
+            `和文の字間が広い ${(ls / px).toFixed(2)}em — "${own.slice(0, 14)}" ${px}px`,
+          );
+        }
+      }
       // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
       // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
       // 祖先の `opacity` も効くので、根まで掛け合わせる。
@@ -887,12 +913,14 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     return {
       spots: out,
       centered,
+      spaced,
       brandFills,
       offScale: [...new Set(offScale)],
       scale: [...SCALE],
     };
   });
   centered.forEach((f) => issues.push(`[${name}] ${f}`));
+  spaced.forEach((f) => issues.push(`[${name}] ${f}`));
   if (!scale.length) issues.push(`[${name}] 書体の階調(--text-*)が読めない`);
   offScale.forEach((f) => issues.push(`[${name}] ${f}`));
   if (spots.length) {

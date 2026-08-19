@@ -351,21 +351,15 @@ export function PastDays({
   total: number;
 }) {
   const t = useT();
-  const isEn = useUiLang() === "en";
   return (
     <section className="mt-12 space-y-10">
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-border" />
         {/* §15: 大文字化と広い字間は**ラテン文字の作法**。全角の仮名漢字に
             当てると「こ れ ま で の ペ ー ジ」と間延びして、区切りの小さな
-            ラベルではなく別の見出しに見える。日本語は素の字間で組む。 */}
-        <span
-          className={`text-caption text-muted-foreground ${
-            isEn ? "uppercase tracking-[0.3em]" : "tracking-normal"
-          }`}
-        >
-          {t("home.pastPages")}
-        </span>
+            ラベルではなく別の見出しに見える。`.label-caps` が表示言語で
+            切り替えるので、ここで書き分けない。 */}
+        <span className="label-caps text-caption text-muted-foreground">{t("home.pastPages")}</span>
         <span className="h-px flex-1 bg-border" />
       </div>
       {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
@@ -437,9 +431,7 @@ export function DayHeader({
   const weekday = date.toLocaleDateString(locale, { weekday: "long" });
   return (
     <section className={compact ? "mb-3 text-center" : "mb-6 text-center"}>
-      {label && (
-        <p className="text-caption uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
-      )}
+      {label && <p className="text-caption label-caps text-muted-foreground">{label}</p>}
       {/* 日付。**端末の公式の書体をそのまま使う(NORI指定)** — iPhone なら
           Apple の SF Pro、Android なら Google の Roboto(`--font-display`)。
 
@@ -455,13 +447,11 @@ export function DayHeader({
       >
         {dateLabel}
       </h1>
-      {/* 曜日。字間を広げるのは**ラテン文字の作法**なので英語のときだけ。
-          和文に当てると「土 曜 日」と割れて見える。 */}
-      <p
-        className={`${compact ? "" : "mt-0.5"} text-footnote text-muted-foreground ${
-          isEn ? "uppercase tracking-[0.25em]" : "tracking-normal"
-        }`}
-      >
+      {/* 曜日。字間を広げるのは**ラテン文字の作法**なので、和文では効かない
+          ようにしてある(`.label-caps` が表示言語で切り替える)。
+          以前はここで `isEn ? … : …` と書き分けていたが、同じ形が20箇所
+          あったので CSS 側にまとめた。 */}
+      <p className={`${compact ? "" : "mt-0.5"} label-caps text-footnote text-muted-foreground`}>
         {weekday}
       </p>
       <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
