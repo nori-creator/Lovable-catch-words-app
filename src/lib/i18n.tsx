@@ -856,6 +856,7 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "review.goCatch": { ja: "撮りに行く", en: "Go catch one" },
   // 「ノルマ」は課された量という含意が強く、達成を祝う語ではない(独立監査)。
   "review.doneTitle": { ja: "今日の復習、終わりました", en: "Today's review is done" },
+  "review.doneScore": { ja: "{n}問中{c}問が正解", en: "{c} of {n} correct" },
   "review.doneHint": { ja: "また明日の復習で会いましょう。", en: "See you in tomorrow's review." },
   "review.again": { ja: "もう少し続ける", en: "Keep going" },
   "review.toDex": { ja: "図鑑を見る", en: "Open the shelf" },

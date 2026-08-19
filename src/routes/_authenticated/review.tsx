@@ -25,6 +25,7 @@ import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
 import { useT, useUiLang } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
 import {
@@ -144,6 +145,20 @@ function ReviewPage() {
   });
 
   const [idx, setIdx] = useState(0);
+  /**
+   * この回の成績。**完了の面で見せるためだけ**に数える。
+   *
+   * 1問ごとの採点はサーバへ送っているのに、画面側では捨てていたので、
+   * 「今日の復習、終わりました」以上のことが言えなかった
+   * (独立監査: 直前まで数えていた情報が完了の瞬間に消えている)。
+   */
+  const [tally, setTally] = useState({ answered: 0, correct: 0 });
+  const advance = (correct?: boolean) => {
+    setIdx((i) => i + 1);
+    if (correct !== undefined) {
+      setTally((v) => ({ answered: v.answered + 1, correct: v.correct + (correct ? 1 : 0) }));
+    }
+  };
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
@@ -264,8 +279,11 @@ function ReviewPage() {
         <EmptyState />
       ) : done ? (
         <DoneState
+          answered={tally.answered}
+          correct={tally.correct}
           onAgain={() => {
             setIdx(0);
+            setTally({ answered: 0, correct: 0 });
             refetch();
           }}
         />
@@ -283,14 +301,14 @@ function ReviewPage() {
           <LightModeCard
             key={current.review_id}
             card={current}
-            onNext={() => setIdx((i) => i + 1)}
+            onNext={advance}
             onOpenMemory={() => setMemModal(memWordOf(current))}
           />
         ) : (
           <SpeakingCard
             key={current.review_id}
             card={current}
-            onNext={() => setIdx((i) => i + 1)}
+            onNext={advance}
             onOpenMemory={() => setMemModal(memWordOf(current))}
           />
         )
@@ -670,7 +688,7 @@ function SpeakingCard({
   onOpenMemory,
 }: {
   card: DueReviewCard;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
 }) {
   const grade = useServerFn(gradeReview);
@@ -863,6 +881,8 @@ function SpeakingCard({
 
   async function commitAndNext(kind: "success" | "skip") {
     if (graded) {
+      // 既に採点済み(2回目の「次へ」)。**数え直さない** —
+      // 同じ問題を2回数えると成績が実際より良く見える。
       onNext();
       return;
     }
@@ -889,7 +909,7 @@ function SpeakingCard({
       // an unrecorded review simply comes up again next time.
       toast.error(t("review.gradeFailed"));
     }
-    onNext();
+    onNext(result === "success");
   }
 
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
@@ -1151,7 +1171,7 @@ function FeedbackView({
   transcript: string;
   videoUrl: string | null;
   onRetry: () => void;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
 }) {
   const t = useT();
   const goodTarget = feedback.used_target;
@@ -1287,7 +1307,9 @@ function FeedbackView({
           </button>
         )}
         <button
-          onClick={onNext}
+          // 引数を渡さない。ここは話す側の面で、正誤は `commitAndNext` が
+          // 既に数えている(二重に数えない)。
+          onClick={() => onNext()}
           className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground"
         >
           {t("rv.nextArrow")} <ArrowRight className="ml-1 inline h-4 w-4" />
@@ -1438,7 +1460,7 @@ export function LightModeCard({
   onOpenMemory,
 }: {
   card: DueReviewCard;
-  onNext: () => void;
+  onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
 }) {
   const grade = useServerFn(gradeReview);
@@ -1659,7 +1681,10 @@ export function LightModeCard({
               <AnswerExplain card={card} />
 
               <button
-                onClick={onNext}
+                // **`onClick={onNext}` と書かない。** クリックの event が
+                // 第1引数に渡り、`correct` として truthy に見えるので、
+                // 不正解も正解として数えられてしまう。
+                onClick={() => onNext(correct)}
                 className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
               >
                 {t("review.next")}
@@ -1797,7 +1822,16 @@ export function EmptyState() {
  * ・文章は中央揃えをやめる。日本語の中央揃え2行組みは、末尾の1〜2文字が
  *   必ず孤立する(3画面で同じ事故が出ていた)。
  */
-export function DoneState({ onAgain }: { onAgain: () => void }) {
+export function DoneState({
+  onAgain,
+  answered = 0,
+  correct = 0,
+}: {
+  onAgain: () => void;
+  /** この回に答えた数。0 なら成績は出さない(数えていない回)。 */
+  answered?: number;
+  correct?: number;
+}) {
   const t = useT();
   return (
     <div className="rounded-2xl border border-border bg-card p-8">
@@ -1806,6 +1840,15 @@ export function DoneState({ onAgain }: { onAgain: () => void }) {
           終わったことを言うのは、輪の中のチェック。 */}
       <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
       <p className="text-body font-semibold">{t("review.doneTitle")}</p>
+      {/* **結果を出す。** 1問ごとの採点はサーバへ送っていたのに、
+          画面では捨てていたので「終わりました」以上のことが言えなかった
+          (独立監査)。数えていない回(0問)では出さない — 「0問中0問正解」は
+          達成ではなく故障に見える。 */}
+      {answered > 0 && (
+        <p className="mt-2 text-title font-semibold">
+          {t("review.doneScore", { n: formatCount(answered), c: formatCount(correct) })}
+        </p>
+      )}
       <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.doneHint")}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Link

@@ -171,6 +171,12 @@ const MODES = [
   ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
   ...crossThemes("review-memory", { scene: "review-memory" }),
+  // **札だけを描いている。** ルートの見出し(「3 / 12」の進捗と進捗バー、
+  // 表示モードの切替)はこの絵に入っていない。独立監査が
+  // 「クイズに進捗が無い」と指摘したが、実物には最初からある —
+  // 部品だけを切り出した絵を見て「無い」と判断されたもの。
+  // ルート側の見出しを `export` して場面に入れるまで、ここは
+  // **「札の検査であって画面の検査ではない」**と読むこと。
   ...crossThemes("review-choice", { scene: "review-choice" }),
   ...crossThemes("review-explain", { scene: "review-explain" }),
   // 押したあとの面。正解と不正解でそれぞれ色が変わる。
@@ -178,6 +184,8 @@ const MODES = [
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
+  // 数えていない回(完了だけ)。「0問中0問正解」を出さないことの見張り。
+  ["review-done-nocount", "", false, { scene: "review-end", variant: "done-nocount" }],
   // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
   ...crossThemes("home", { scene: "home" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),

@@ -91,5 +91,13 @@ export function ReviewExplainScene() {
 
 /** 今日ぶんが無いとき・終わったとき。**普通の日にいちばんよく見る面**。 */
 export function ReviewEndScene({ q }: { q: URLSearchParams }) {
-  return q.get("variant") === "done" ? <DoneState onAgain={() => {}} /> : <EmptyState />;
+  // 完了の面は**成績つき**で撮る。数えていない回(0問)は成績を出さない
+  // 分岐なので、そちらも別の場面で見る。
+  if (q.get("variant") === "done") {
+    return <DoneState onAgain={() => {}} answered={12} correct={10} />;
+  }
+  if (q.get("variant") === "done-nocount") {
+    return <DoneState onAgain={() => {}} />;
+  }
+  return <EmptyState />;
 }
