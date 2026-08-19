@@ -122,7 +122,7 @@ function DiscoverPage() {
                         {t("discover.stats", { words: r.sticker_count, posts: r.post_count })}
                       </div>
                     </div>
-                    <div className="text-body font-bold text-primary">{r.xp} XP</div>
+                    <div className="text-body font-bold text-primary-ink">{r.xp} XP</div>
                   </Link>
                 </li>
               ))}

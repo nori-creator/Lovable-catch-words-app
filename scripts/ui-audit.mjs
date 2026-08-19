@@ -258,7 +258,11 @@ const MODES = [
   // **語の詳細の既定の見え方。** 写真(表裏)・いつどこで・見出し語と意味。
   // これまで撮っていたのは `WordCard` を裸で描いた絵だけで、実物では
   // それは `<details>` の中で閉じている。この画面は一度も撮っていなかった。
+  // **語の詳細そのもの。** 実物の既定の並びを丸ごと描く
+  // (「すべて見る」は**閉じたまま** — 開いた中身は `word-card` が受け持つ)。
   ...crossThemes("sticker-detail", { scene: "sticker-detail" }),
+  // 上半分だけを大きく見る面。写真の裏表と「いつ・どこで」。
+  ...crossThemes("sticker-hero", { scene: "sticker-hero" }),
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -344,6 +348,32 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     }
   }
   await page.waitForTimeout(400);
+
+  /**
+   * **登場の途中で測らない。**
+   *
+   * ここに穴が空いていた。400ms 待つだけだったので、遅れて始まる登場の
+   * アニメーションは**まだ途中**だった。語の木の枝は 300ms 遅れて 700ms
+   * かけて現れるので、撮った時点の不透明度は 3 割ほど。検査は文字を
+   * 「薄い」と読み、**実際には 7.2:1 ある文字を 2.25:1 と報告していた**。
+   * 数字が実測と合わないので追いかけて初めて分かった。
+   *
+   * 終わりのあるアニメーションだけを待つ。`animate-pulse` や `animate-spin`
+   * は無限に続くので待つと止まらない — 回数が有限のものだけを対象にする。
+   * 2秒で諦めるのは、待ち続けて検査ごと止まらないため。
+   */
+  await page.evaluate(
+    () =>
+      Promise.race([
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getComputedTiming?.().iterations !== Infinity)
+            .map((a) => a.finished.catch(() => {})),
+        ),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]),
+  );
 
   // 場面がちゃんと立ち上がったか。**空のページは指摘0で緑になる**ので、
   // 「何も出ていない」を合格と取り違えないように、先にここで確かめる。
@@ -454,7 +484,26 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // 1つも動かず、広げ方が悪いのだと2回作り直した。広げ方は正しくて、
       // 検査が下を見ていなかった)。
       const scrollBack = window.scrollY;
+      /**
+       * **見えていない物を採点しない。**
+       *
+       * 閉じた `<details>` の中身は `content-visibility: hidden` になるが、
+       * **子孫は矩形を返し続ける**。だから「すべて見る」を閉じたまま撮った
+       * 語の詳細で、開かないと出てこないボタン3つが「押せる大きさが足りない」
+       * として上がっていた — 押すどころか見えない物を測っていた。
+       *
+       * `checkVisibility` は `content-visibility` も `visibility` も
+       * `opacity:0` も見てくれる。自分で `display` を辿るより確実。
+       */
+      const isShown = (el) =>
+        !el.checkVisibility ||
+        el.checkVisibility({
+          contentVisibilityAuto: true,
+          opacityProperty: true,
+          visibilityProperty: true,
+        });
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
+        if (!isShown(el)) continue;
         let r = el.getBoundingClientRect();
         if (r.width < 1 || r.height < 1) continue;
         if (r.width >= 44 && r.height >= 44) continue;
@@ -651,6 +700,19 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
         continue;
       }
+      // 閉じた `<details>` の中身も外す。`content-visibility: hidden` は
+      // `display`/`visibility` には現れないのに、子孫は矩形を返し続ける
+      // (押せる大きさの段で同じ穴に落ちた)。
+      if (
+        el.checkVisibility &&
+        !el.checkVisibility({
+          contentVisibilityAuto: true,
+          opacityProperty: true,
+          visibilityProperty: true,
+        })
+      ) {
+        continue;
+      }
       // **絵文字は `color` で塗られない。** 自前の色を持った図形なので、
       // 継いだ文字色と下地を比べても何も言っていない(実際、丸い印の中の
       // 絵文字が13件「未達」として出た。目には普通に見えている)。
@@ -830,8 +892,18 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
               );
               const need = onBrand ? 3 : s.big ? 3 : 4.5;
               if (ratio < need) {
+                // **測った物をそのまま出す。** 比だけを出していたので、
+                // 「実測は 8:1 なのに検査は 1.64 と言う」ときに、どちらが
+                // 間違っているのかを追う手掛かりが何も無かった。
+                // 文字色・下地・座標を添えれば、その場で突き合わせられる。
+                const hex = (c) =>
+                  "#" +
+                  [c.r, c.g, c.b]
+                    .map((v) => Math.round(v).toString(16).padStart(2, "0"))
+                    .join("");
                 out.push(
                   `コントラスト ${ratio.toFixed(2)} < ${need} — "${s.label}" ${s.px}px` +
+                    ` [字 ${hex(s)} / 地 ${hex(bg)} @${Math.round(s.x)},${Math.round(s.y)}]` +
                     (onBrand ? "(ブランドの塗りの上)" : ""),
                 );
               }

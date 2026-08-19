@@ -197,7 +197,7 @@ function SelfImprovePanel() {
         毎日の自動実行は「監査(点検)」のみ。ニュース観察・AI合成コーパスは「今すぐ実行」でのみ走ります(戦略転換)。
       </p>
       {result && (
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-caption text-primary">
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-primary/5 p-2 text-caption text-primary-ink">
           {result}
         </pre>
       )}

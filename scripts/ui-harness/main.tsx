@@ -31,7 +31,12 @@ import {
   SettingsSelectsScene,
   SettingsTogglesScene,
 } from "./scenes/settings";
-import { StickerDetailScene, WordCardEmptyScene, WordCardScene } from "./scenes/word-card";
+import {
+  StickerDetailScene,
+  StickerHeroScene,
+  WordCardEmptyScene,
+  WordCardScene,
+} from "./scenes/word-card";
 import {
   ReviewChoiceScene,
   ReviewEndScene,
@@ -70,6 +75,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-danger": SettingsDangerScene,
   "word-card": WordCardScene,
   "sticker-detail": StickerDetailScene,
+  "sticker-hero": StickerHeroScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,

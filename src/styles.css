@@ -1165,6 +1165,52 @@
   --warn-foreground: oklch(0.2 0.05 82);
 }
 
+/* ── 語の木の枝の札 ────────────────────────────────────────────
+   素の Tailwind の番号(`bg-sky-50 text-sky-900`)で書かれていたので、
+   **暗いテーマに一切追従していなかった** — 暗い面では木の上だけ
+   near-white の札が光っていた。明暗それぞれで色を決め、塗り・文字・縁は
+   1つの変数から導く(`.chunk-pill` と同じ形)。 */
+:root {
+  --tree-collocation: oklch(0.62 0.19 240);
+  --tree-example: oklch(0.6 0.16 160);
+  --tree-synonym: oklch(0.62 0.18 295);
+  --tree-antonym: oklch(0.62 0.19 15);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --tree-collocation: oklch(0.78 0.13 240);
+  --tree-example: oklch(0.78 0.12 160);
+  --tree-synonym: oklch(0.78 0.12 295);
+  --tree-antonym: oklch(0.78 0.13 15);
+}
+.tree-collocation {
+  --tree: var(--tree-collocation);
+}
+.tree-example {
+  --tree: var(--tree-example);
+}
+.tree-synonym {
+  --tree: var(--tree-synonym);
+}
+.tree-antonym {
+  --tree: var(--tree-antonym);
+}
+.tree-pill {
+  background: color-mix(in oklab, var(--tree) 14%, var(--card));
+  color: color-mix(in oklab, var(--tree) 55%, var(--foreground));
+  --tw-ring-color: color-mix(in oklab, var(--tree) 34%, transparent);
+  transition: transform 0.16s var(--spring-bounce);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-pill {
+    transition: none;
+  }
+}
+
 /* ── 品詞の色(詞類表) ──────────────────────────────────────────
    **明るさは全部そろえる(NORI指定)。** 変えるのは色相だけ。
    1つ1つ好きな色を選ぶと、同じ文の中で「濃い品詞」と「薄い品詞」が

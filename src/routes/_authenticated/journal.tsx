@@ -152,7 +152,7 @@ function JournalPage() {
                 setDraft(leftover.text);
                 setLeftover(null);
               }}
-              className="min-h-11 shrink-0 rounded-full px-3 text-footnote font-semibold text-primary"
+              className="min-h-11 shrink-0 rounded-full px-3 text-footnote font-semibold text-primary-ink"
             >
               {t("journal.leftoverRestore")}
             </button>
@@ -264,7 +264,7 @@ function NativePhrases({ phrases, compact }: { phrases: NativePhrase[]; compact?
   const t = useT();
   return (
     <div className={compact ? "" : "rounded-2xl border border-primary/20 bg-primary/5 p-4"}>
-      <div className="mb-2 flex items-center gap-1.5 text-caption uppercase tracking-[0.25em] text-primary">
+      <div className="mb-2 flex items-center gap-1.5 text-caption uppercase tracking-[0.25em] text-primary-ink">
         <Quote className="h-3 w-3" /> {t("journal.nativeWould")}
       </div>
       <ul className="space-y-2">

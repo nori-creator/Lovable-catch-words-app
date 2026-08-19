@@ -67,12 +67,7 @@ function StickerDetailPage() {
 
   return (
     <AppShell title={t("card.title")}>
-      <Link
-        to="/dex"
-        className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-body text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> {t("card.backToDex")}
-      </Link>
+      <BackToDexLink />
 
       {isLoading ? (
         <div
@@ -101,96 +96,153 @@ function StickerDetailPage() {
           </Link>
         </div>
       ) : (
-        <>
-          <StickerDetailHero sticker={s} dateLocale={dateLocale} />
-
-          {/* §6 word tree: photo at the center, branches unlock per review */}
-          <div className="mb-4">
-            <WordTreeView
-              headword={s.word.headword}
-              photoUrl={s.cutout_url ?? s.object_url ?? s.placeholder_url}
-              emoji={s.word.silhouette_emoji}
-              branchPlanRaw={s.branch_plan}
-              extras={s.word.extras}
-              reviewCount={s.review_count ?? 0}
-            />
-          </div>
-
-          {/* 同じものに何度も出会った記録。再会が無ければ何も出ない。 */}
-          <StickerPhotoHistory photos={photoData?.photos ?? []} dateLocale={dateLocale} />
-
-          {/* Full flat card kept for reference (B3) — collapsed by default */}
-          <details className="group rounded-3xl border border-border bg-card shadow-sm">
-            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-body font-semibold [&::-webkit-details-marker]:hidden">
-              {t("card.seeAll")}
-              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="px-2 pb-2">
-              <WordCard
-                word={{
-                  headword: s.word.headword,
-                  reading_zhuyin: s.word.reading_zhuyin,
-                  pinyin: s.word.pinyin,
-                  meaning_ja: s.word.meaning_ja,
-                  part_of_speech: s.word.part_of_speech,
-                  level: s.word.level,
-                  example_sentence: s.word.example_sentence,
-                  example_translation: s.word.example_translation,
-                  extras: s.word.extras,
-                }}
-              />
-            </div>
-          </details>
-
-          <section className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-primary" />
-                <h2 className="text-body font-semibold">{t("card.memoryCurve")}</h2>
-              </div>
-              {mem?.current?.due_at && (
-                <div className="flex items-center gap-1 text-caption text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {t("card.nextDue", {
-                    date: new Date(mem.current.due_at).toLocaleDateString(dateLocale),
-                  })}
-                </div>
-              )}
-            </div>
-            <ForgettingCurveChart
-              history={mem?.history ?? []}
-              currentEase={mem?.current?.ease ?? 2.5}
-              currentIntervalDays={mem?.current?.interval_days ?? 1}
-              lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
-            />
-          </section>
-
-          {s.lat != null && s.lng != null && (
-            <section className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-              <a
-                href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="block"
-              >
-                <iframe
-                  title={t("common.mapTitle")}
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
-                  className="pointer-events-none h-48 w-full"
-                  loading="lazy"
-                />
-                <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
-                  </span>
-                  <span className="text-primary">{t("card.openGoogleMaps")}</span>
-                </div>
-              </a>
-            </section>
-          )}
-        </>
+        <StickerDetailBody
+          sticker={s}
+          memory={mem}
+          photos={photoData?.photos}
+          dateLocale={dateLocale}
+        />
       )}
     </AppShell>
+  );
+}
+
+/** 図鑑へ戻る。**取得の成否にかかわらず必ず出る** — 失敗した面から
+    抜け出せなくなるのを防ぐため、枝の外に置いてある。 */
+export function BackToDexLink() {
+  const t = useT();
+  return (
+    <Link
+      to="/dex"
+      className="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-body text-muted-foreground hover:text-foreground"
+    >
+      <ArrowLeft className="h-4 w-4" /> {t("card.backToDex")}
+    </Link>
+  );
+}
+
+/**
+ * 語の詳細の**既定の見え方そのもの**。
+ *
+ * ## なぜ切り出したか
+ * 検査の場面は `WordCard` を裸で描いていた。だが実物ではそれは
+ * `<details>`「すべて見る」の中で、**既定では閉じている**。
+ * つまり独立監査3体は「一番長く見られる画面」として
+ * **既定では見えない面**を採点し、私もそれを確かめずに繰り返した。
+ *
+ * 実物の既定の並びはこう:
+ *   戻る → 写真(表裏) → 見出し語・意味・品詞 → 語の木 →
+ *   出会った記録 → 「すべて見る」(閉じ) → 記憶の曲線 → 地図
+ *
+ * ルートが3つの問い合わせを持っているので、**描く所だけ**をここへ出す。
+ * 引数はどれも「取れたら渡す」— 記憶も写真も地図も、無ければ出ないのが
+ * 実物の振る舞いなので、そのまま任意にしてある。
+ */
+export function StickerDetailBody({
+  sticker: s,
+  memory,
+  photos,
+  dateLocale,
+}: {
+  sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
+  memory?: Awaited<ReturnType<typeof getStickerMemoryHistory>>;
+  photos?: Awaited<ReturnType<typeof listStickerPhotos>>["photos"];
+  dateLocale: string;
+}) {
+  const t = useT();
+  const mem = memory;
+  const photoData = photos ? { photos } : undefined;
+  return (
+    <>
+      <StickerDetailHero sticker={s} dateLocale={dateLocale} />
+
+      {/* §6 word tree: photo at the center, branches unlock per review */}
+      <div className="mb-4">
+        <WordTreeView
+          headword={s.word.headword}
+          photoUrl={s.cutout_url ?? s.object_url ?? s.placeholder_url}
+          emoji={s.word.silhouette_emoji}
+          branchPlanRaw={s.branch_plan}
+          extras={s.word.extras}
+          reviewCount={s.review_count ?? 0}
+        />
+      </div>
+
+      {/* 同じものに何度も出会った記録。再会が無ければ何も出ない。 */}
+      <StickerPhotoHistory photos={photoData?.photos ?? []} dateLocale={dateLocale} />
+
+      {/* Full flat card kept for reference (B3) — collapsed by default */}
+      <details className="group rounded-3xl border border-border bg-card shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-body font-semibold [&::-webkit-details-marker]:hidden">
+          {t("card.seeAll")}
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-2 pb-2">
+          <WordCard
+            word={{
+              headword: s.word.headword,
+              reading_zhuyin: s.word.reading_zhuyin,
+              pinyin: s.word.pinyin,
+              meaning_ja: s.word.meaning_ja,
+              part_of_speech: s.word.part_of_speech,
+              level: s.word.level,
+              example_sentence: s.word.example_sentence,
+              example_translation: s.word.example_translation,
+              extras: s.word.extras,
+            }}
+          />
+        </div>
+      </details>
+
+      <section className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            <h2 className="text-body font-semibold">{t("card.memoryCurve")}</h2>
+          </div>
+          {mem?.current?.due_at && (
+            <div className="flex items-center gap-1 text-caption text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {t("card.nextDue", {
+                date: new Date(mem.current.due_at).toLocaleDateString(dateLocale),
+              })}
+            </div>
+          )}
+        </div>
+        <ForgettingCurveChart
+          history={mem?.history ?? []}
+          currentEase={mem?.current?.ease ?? 2.5}
+          currentIntervalDays={mem?.current?.interval_days ?? 1}
+          lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
+        />
+      </section>
+
+      {s.lat != null && s.lng != null && (
+        <section className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+          <a
+            href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+            target="_blank"
+            rel="noreferrer"
+            className="block"
+          >
+            <iframe
+              title={t("common.mapTitle")}
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
+              className="pointer-events-none h-48 w-full"
+              loading="lazy"
+            />
+            <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
+              </span>
+              {/* 地の上の主色の**文字**は `text-primary-ink`。塗りの色を
+                      そのまま文字にすると 3.69:1 まで落ちる(実測)。 */}
+              <span className="text-primary-ink">{t("card.openGoogleMaps")}</span>
+            </div>
+          </a>
+        </section>
+      )}
+    </>
   );
 }
 

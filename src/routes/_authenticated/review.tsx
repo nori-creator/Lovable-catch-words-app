@@ -922,7 +922,7 @@ function SpeakingCard({
     <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
         <div className="mb-3 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary-ink">
             <Mic className="h-3.5 w-3.5" />{" "}
             {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
           </span>
@@ -978,7 +978,7 @@ function SpeakingCard({
           (答えを見せない)。答え合わせは添削画面で。 */}
         {!isPhrase && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-caption font-semibold uppercase tracking-wider text-primary">
+            <div className="text-caption font-semibold uppercase tracking-wider text-primary-ink">
               {t("review.todaysPattern")}
             </div>
             <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
