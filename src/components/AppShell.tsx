@@ -2,10 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { useT } from "@/lib/i18n";
+import { getMyStats, type UserStats } from "@/lib/stats.functions";
+import { formatCount } from "@/lib/count";
+import { useT, useUiLang } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
@@ -31,19 +33,11 @@ const items: Item[] = [
 ];
 
 /**
- * ヘッダーの丸アイコン。設定で顔写真を登録していればそれを出す。
+ * ヘッダーの丸アイコンそのもの。設定で顔写真を登録していればそれを出す。
  * 「自分の写真が毎画面にいる」ほうがアプリに愛着が湧く(NORI指定)。
- * 未設定のうちは従来のマークにフォールバックするので、写真が無くても崩れない。
- * (ログイン画面のアイコンとアプリアイコンは別途差し替える予定。)
+ * 未設定のうちは従来のマークに落ちるので、写真が無くても崩れない。
  */
-function BrandMark() {
-  const fetchProfile = useServerFn(getMyProfile);
-  const { data: profile } = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => fetchProfile(),
-    staleTime: 5 * 60 * 1000,
-  });
-  const avatar = (profile as { avatar_url?: string | null } | undefined)?.avatar_url;
+function BrandMark({ avatar }: { avatar?: string | null }) {
   if (avatar) {
     return (
       <img
@@ -63,6 +57,129 @@ function BrandMark() {
     <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-footnote font-bold text-primary-ink">
       C
     </div>
+  );
+}
+
+/**
+ * アイコンを押すと出る、自分の記録。
+ *
+ * ## なぜ要るか
+ * `getMyStats`(連続日数・集めた数・レベル・今日の復習)は**書いてあるのに
+ * どの画面からも呼ばれていなかった**。数えているのに誰にも見えない。
+ * オーナー指摘「アイコンをタップするとそのユーザー情報が出る。ストリークとか。
+ * 段階的に友達機能や投稿機能のときに使える」。
+ *
+ * 描く所だけを外に出して、検査の雛形から本物の見た目を撮れるようにする
+ * (通信を持ったままだと雛形に載せられない)。
+ */
+export function UserPanel({
+  name,
+  avatar,
+  stats,
+  onClose,
+}: {
+  name: string;
+  avatar?: string | null;
+  /** まだ届いていない間は null。数字の代わりに「—」を出す。 */
+  stats: UserStats | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const uiLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  /**
+   * まだ届いていない欄。
+   *
+   * **助数詞は数と一緒でなければ付けない。** 最初 `—日` と出していたが、
+   * 和文では長音符・ダッシュと漢数字の一が見分けられず、
+   * **「一日」と読めてしまう**(検査の絵で気づいた)。
+   * 待っていることを表す記号に、意味のある値を読ませてはいけない。
+   */
+  const DASH = "—";
+  const num = (v: number) => formatCount(v, uiLocale);
+  const rows: Array<{ key: string; label: string; value: string }> = [
+    // **連続日数を先頭に置く。** 続いていること自体が戻ってくる理由になる。
+    {
+      key: "streak",
+      label: t("me.streak"),
+      value: stats ? t("me.days", { n: num(stats.streak) }) : DASH,
+    },
+    { key: "captured", label: t("me.captured"), value: stats ? num(stats.captured_total) : DASH },
+    { key: "level", label: t("me.level"), value: stats ? num(stats.level) : DASH },
+    { key: "due", label: t("me.due"), value: stats ? num(stats.reviews_due) : DASH },
+  ];
+  return (
+    <div className="w-64 rounded-2xl border border-border bg-card p-3 shadow-xl">
+      <div className="flex items-center gap-2.5">
+        <BrandMark avatar={avatar} />
+        <span className="min-w-0 flex-1 truncate text-body font-semibold">{name}</span>
+      </div>
+      <dl className="mt-3 space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-baseline justify-between gap-3">
+            <dt className="text-footnote text-muted-foreground">{r.label}</dt>
+            <dd className="text-body font-semibold tabular-nums">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <Link
+        to="/settings"
+        onClick={onClose}
+        className="mt-3 grid min-h-11 w-full place-items-center rounded-full bg-secondary text-footnote font-medium"
+      >
+        {t("nav.settings")}
+      </Link>
+    </div>
+  );
+}
+
+/** アイコン + 押したときに開く記録。状態と通信はここが持つ。 */
+function BrandMenu() {
+  const t = useT();
+  const fetchProfile = useServerFn(getMyProfile);
+  const fetchStats = useServerFn(getMyStats);
+  const [open, setOpen] = useState(false);
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 5 * 60 * 1000,
+  });
+  // **開くまで数えない。** どの画面にも出るヘッダーなので、
+  // 常に取りに行くと全画面が1本ずつ余計な問い合わせを持つことになる。
+  const { data: stats } = useQuery({
+    queryKey: ["my-stats"],
+    queryFn: () => fetchStats(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const p = profile as { avatar_url?: string | null; display_name?: string | null } | undefined;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={t("me.open")}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl active:scale-95 motion-reduce:active:scale-100"
+      >
+        <BrandMark avatar={p?.avatar_url} />
+      </button>
+      {open && (
+        <>
+          {/* 外を触ったら閉じる。読み上げには出さない(閉じる手立ては
+              下のボタンではなく Esc と外側の指なので、名前を付けても
+              たどり着けるものが増えない)。 */}
+          <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div className="absolute left-3 top-[calc(100%+0.25rem)] z-50">
+            <UserPanel
+              name={p?.display_name || t("me.you")}
+              avatar={p?.avatar_url}
+              stats={(stats as UserStats | undefined) ?? null}
+              onClose={() => setOpen(false)}
+            />
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -96,22 +213,27 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       >
         {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
             止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
-        <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
-          <Link
-            to="/home"
-            className="flex items-center gap-2 transition-transform duration-150 active:scale-95"
-          >
-            <BrandMark />
-            {/* §15: app title is a small headline — tight tracking, no wrapping.
-                **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
-                単語カードにはすでに h1 があるので、**全ページが h1 を2つ
-                持つ**ことになった — 直そうとした階層をむしろ壊していた。
-                これはどの画面にも出るアプリ名(道標)であって、その画面の
-                見出しではない。h1 は各画面が自分で持つ。 */}
-            <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
-              {title ?? "Catchwords"}
-            </span>
-          </Link>
+        {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
+        <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
+                以前はアイコンごと `/home` の Link に入れていたが、
+                押せるものの中に押せるものを入れることになるうえ、
+                アイコンを押した人は必ずホームへ飛ばされていた。
+                行き先は名前のほうが持つ。 */}
+            <BrandMenu />
+            <Link to="/home" className="transition-transform duration-150 active:scale-95">
+              {/* §15: app title is a small headline — tight tracking, no wrapping.
+                  **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
+                  単語カードにはすでに h1 があるので、**全ページが h1 を2つ
+                  持つ**ことになった — 直そうとした階層をむしろ壊していた。
+                  これはどの画面にも出るアプリ名(道標)であって、その画面の
+                  見出しではない。h1 は各画面が自分で持つ。 */}
+              <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
+                {title ?? "Catchwords"}
+              </span>
+            </Link>
+          </div>
         </div>
       </header>
 

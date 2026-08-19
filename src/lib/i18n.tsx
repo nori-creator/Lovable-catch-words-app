@@ -953,6 +953,14 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "home.background": { ja: "背景", en: "Background" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close" },
+  // ヘッダーのアイコンを押すと出る、自分の記録。
+  "me.open": { ja: "自分の記録を見る", en: "See your record" },
+  "me.you": { ja: "あなた", en: "You" },
+  "me.streak": { ja: "続いている", en: "Streak" },
+  "me.days": { ja: "{n}日", en: "{n} days" },
+  "me.captured": { ja: "集めた言葉", en: "Words caught" },
+  "me.level": { ja: "レベル", en: "Level" },
+  "me.due": { ja: "今日の復習", en: "Due today" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },

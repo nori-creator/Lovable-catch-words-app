@@ -15,6 +15,7 @@ import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { UserPanel } from "@/components/AppShell";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
 
@@ -114,6 +115,39 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
     { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
   ];
   return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
+}
+
+/**
+ * ヘッダーのアイコンを押すと出る、自分の記録。
+ *
+ * `getMyStats` は書いてあるのにどこからも呼ばれておらず、
+ * **連続日数も集めた数も一度も画面に出ていなかった**(2026-08-19)。
+ * 数字がまだ届いていない状態も撮る — そこが「—」で埋まるか、
+ * 空欄のまま抜けるかは見た目の重さが違う。
+ */
+export function UserPanelScene({ q }: { q: URLSearchParams }) {
+  const loading = q.get("loading") === "1";
+  return (
+    <div style={{ padding: 16 }}>
+      <UserPanel
+        name="のり"
+        avatar={null}
+        stats={
+          loading
+            ? null
+            : {
+                xp: 1240,
+                level: 5,
+                streak: 12,
+                captured_total: 63,
+                reviews_due: 8,
+                reviews_done_today: 4,
+              }
+        }
+        onClose={() => {}}
+      />
+    </div>
+  );
 }
 
 /** 語のかたまり(品詞で色分けした帯)と、その凡例。 */

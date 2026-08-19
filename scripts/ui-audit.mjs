@@ -328,6 +328,10 @@ const MODES = [
   // 写真が1枚しか無いカード。**「撮った写真」の区画が出ないこと**が正しい姿
   // (上に同じ絵が大きく出ているので、小さく並べ直しても高さが増えるだけ)。
   ["sheet-onephoto", "", false, { scene: "sticker-sheet", variant: "onephoto" }],
+  // ヘッダーのアイコンを押すと出る自分の記録。数字が届く前も撮る。
+  ["user-panel", "", false, { scene: "user-panel" }],
+  ["user-panel-dark", 'class="dark"', false, { scene: "user-panel" }],
+  ["user-panel-loading", "", false, { scene: "user-panel", loading: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -701,7 +705,8 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   // グラデーションでも模様でも画像でも合成でも、目に入るものがそのまま出る。
   // (文字の**上**に半透明の膜が乗る場合だけは近似のままだが、以前の
   //  「下地を一枚も見ない」よりは実物に近い。)
-  const { spots, centered, spaced, brandFills, offScale, scale } = await page.evaluate(() => {
+  const { spots, centered, spaced, counterOnDash, brandFills, offScale, scale } =
+    await page.evaluate(() => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -743,6 +748,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     const out = [];
     const centered = [];
     const spaced = [];
+    const counterOnDash = [];
     // ## ブランドの塗りの上だけは 3:1 で見る
     //
     // 白い文字を 4.5:1 に乗せるために**塗りの青を暗くした**ことがあり、
@@ -892,6 +898,20 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
           );
         }
       }
+      // **数字の代わりの記号に助数詞を付けていないこと。**
+      //
+      // 読み込み中の欄を `—` で埋め、それを `{n}日` のような雛形に
+      // 差し込むと `—日` になる。和文ではダッシュ・長音符と漢数字の一が
+      // 見分けられないので、**「一日」と読める**。待っていることを表す
+      // 記号が、意味のある値として読まれてしまう(2026-08-19、自分の記録の
+      // 欄で実際に出した)。
+      //
+      // これは**組み上がった後**にしか現れないので、i18n の文言を見る
+      // 検査では捕まらない。描かれた字を見るここでしか捕まえられない。
+      const fake = own.match(/[—–\-ー−]\s*[枚回件語日個人分秒歳冊本匹]/u);
+      if (fake) {
+        counterOnDash.push(`数字の代わりの記号に助数詞が付いている — "${own.slice(0, 16)}"`);
+      }
       // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
       // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
       // 祖先の `opacity` も効くので、根まで掛け合わせる。
@@ -917,6 +937,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       spots: out,
       centered,
       spaced,
+      counterOnDash,
       brandFills,
       offScale: [...new Set(offScale)],
       scale: [...SCALE],
@@ -924,6 +945,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   });
   centered.forEach((f) => issues.push(`[${name}] ${f}`));
   spaced.forEach((f) => issues.push(`[${name}] ${f}`));
+  counterOnDash.forEach((f) => issues.push(`[${name}] ${f}`));
   if (!scale.length) issues.push(`[${name}] 書体の階調(--text-*)が読めない`);
   offScale.forEach((f) => issues.push(`[${name}] ${f}`));
   if (spots.length) {
