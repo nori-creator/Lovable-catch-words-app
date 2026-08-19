@@ -440,29 +440,23 @@ export function DayHeader({
       {label && (
         <p className="text-caption uppercase tracking-[0.35em] text-muted-foreground">{label}</p>
       )}
-      {/* §15 typography: tracking is size- AND script-specific.
-          The serif *italic* is a Latin conceit — applied to a Japanese date
-          ("2026年8月2日") the browser synthesises the slant and the negative
-          tracking pulls the digits into the following kanji, so they visibly
-          collide. Japanese therefore renders upright with neutral tracking
-          (CJK glyphs are full-width and need no tightening); English keeps the
-          elegant serif italic.
+      {/* 日付。**端末の公式の書体をそのまま使う(NORI指定)** — iPhone なら
+          Apple の SF Pro、Android なら Google の Roboto(`--font-display`)。
 
-          **書体そのものも英語のときだけ。** ここは以前「斜体をやめる」
-          までしか直していなかったが、`font-serif` は当たったままだった。
-          Tailwind の serif は**ラテン専用**の並び(Georgia / Times)なので、
-          和文の日付では「2026」「8」「18」だけがセリフ体になり、
-          「年」「月」「日」はゴシックに落ちる — 1つの語の中で書体が割れる
-          (独立監査の指摘。全画面の最上部に常時出ていた)。
-          直した所の**兄弟**を探していなかった、という同じ形の見落とし。 */}
+          以前は英語のときだけセリフ体の斜体で組んでいた。セリフ体は
+          ラテン専用の作りなので、和文の日付では「2026」「8」「18」だけが
+          セリフになり「年」「月」「日」はゴシックに落ちる —
+          **1つの語の中で書体が割れる**。言語で書体を出し分けて逃げていたが、
+          そもそも書体で差を付けるのをやめた。差は大きさと字間で付ける。 */}
       <h1
-        className={`${compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"} ${
-          isEn ? "font-serif italic tracking-[-0.02em]" : "not-italic tracking-normal"
+        className={`font-display ${
+          compact ? "mt-1 text-title leading-[1.15]" : "mt-2 text-hero leading-[1.12]"
         }`}
       >
         {dateLabel}
       </h1>
-      {/* 曜日も同じ。「土 曜 日」と割れて見えていた。 */}
+      {/* 曜日。字間を広げるのは**ラテン文字の作法**なので英語のときだけ。
+          和文に当てると「土 曜 日」と割れて見える。 */}
       <p
         className={`${compact ? "" : "mt-0.5"} text-footnote text-muted-foreground ${
           isEn ? "uppercase tracking-[0.25em]" : "tracking-normal"

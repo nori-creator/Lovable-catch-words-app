@@ -74,48 +74,6 @@
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
     U+A720-A7FF;
 }
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-normal-latin.woff2) format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-normal-latin-ext.woff2) format("woff2");
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-italic-latin.woff2) format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/fonts/InstrumentSerif-400-italic-latin-ext.woff2) format("woff2");
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -339,8 +297,31 @@
   --shadow-elegant:
     0 20px 60px -20px color-mix(in oklab, var(--primary) 45%, transparent),
     0 4px 14px -6px color-mix(in oklab, var(--primary) 20%, transparent);
-  --font-display: "Instrument Serif", "Iowan Old Style", "Apple Garamond", Georgia, serif;
-  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  /* ## 書体は**端末の公式の書体**を使う(NORI指定)
+     iPhone なら Apple の SF Pro、Android なら Google の Roboto。
+     どちらも「Apple や Google の公式サイトの書体」そのもので、
+     しかも**その端末で一番よく調整されている** — 字間も、小さい字の
+     太さも、和文との並びも、OS が面倒を見る。Web フォントを積むより
+     速くて、オフラインでも崩れない。
+
+     和文は SF Pro / Roboto に無いので、そのまま Apple の Hiragino Sans /
+     Google の Noto Sans JP に落ちる。これも各社の公式の和文書体。
+
+     Inter は最後尾。SF も Roboto も無い環境(この検査機の Linux など)で
+     見た目を保つための保険で、**表に出る端末では使われない**。
+
+     大きい文字用(`--font-display`)は Instrument Serif をやめた。
+     セリフ体はラテン専用の作りなので、和文の日付に当てると
+     「2026」「8」だけがセリフになり「年」「月」がゴシックに落ちて、
+     1つの語の中で書体が割れていた(ホームの最上部に常時出ていた)。
+     字面の書体は本文と同じにして、**大きさと字間だけで差を付ける**。 */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto,
+    "Hiragino Sans", "Noto Sans JP", "Inter", sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Segoe UI", Roboto,
+    "Hiragino Sans", "Noto Sans JP", "Inter", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, "Roboto Mono", "JetBrains Mono", monospace;
   /* Motion curves (apple-design §4/§7): a critically-damped iOS sheet curve for
      non-gesture transitions, a soft ease-out, and a springy overshoot reserved
      for momentum-driven moments only. */
@@ -383,10 +364,13 @@
   --shelf-line-a: 0.45;
   --shelf-lip-a: 0.1;
 }
+/* 大きい文字。**書体で差を付けず、大きさと字間で差を付ける。**
+   数字は等幅の桁(`tabular-nums`)にする — 日付や件数が1桁変わるたびに
+   前後の字がずれると、同じ場所にある物が動いて見える。 */
 .font-display {
   font-family: var(--font-display);
-  font-feature-settings: "liga", "dlig";
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 .font-mono-tight {
   font-family: var(--font-mono);
@@ -430,17 +414,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-family:
-      "Inter",
-      -apple-system,
-      BlinkMacSystemFont,
-      "SF Pro Display",
-      "Segoe UI",
-      Roboto,
-      "Hiragino Sans",
-      "Noto Sans JP",
-      system-ui,
-      sans-serif;
+    font-family: var(--font-ui);
+    /* Inter だけが持つ字形の指定(1 の飾りを落とす等)。SF や Roboto では
+       無視されるだけなので、保険が使われたときのために残す。 */
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     letter-spacing: -0.011em;
   }

@@ -886,7 +886,10 @@ function Body({
       );
 
     case "mnemonic":
-      return <Prose text={ex.mnemonic ?? ""} className="italic" />;
+      // 斜体は当てない。**和文に斜体の字面は無い**ので、ブラウザが字を
+      // 傾けて偽造する(日付のセリフ斜体で直したのと同じ話の兄弟)。
+      // 覚え方は本文と同じ組みで読ませる。
+      return <Prose text={ex.mnemonic ?? ""} />;
 
     case "taiwan_note":
       return (
