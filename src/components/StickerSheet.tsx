@@ -1,3 +1,4 @@
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -601,329 +602,464 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             </div>
           </div>
         ) : (
-          <>
-            {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
-            <div
-              className="perspective-1200 mb-4"
-              // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
-              // ボタンとして振る舞うのも自撮りがあるときだけにする。
-              role={hasSelfie ? "button" : undefined}
-              tabIndex={hasSelfie ? 0 : undefined}
-              aria-label={
-                hasSelfie ? (flipped ? t("card.flipBack") : t("card.flipToSelfie")) : undefined
-              }
-              onClick={() => {
-                // 長押し(写真の変更)が成立した後のクリックは無視する。
-                if (longPressFired.current) {
-                  longPressFired.current = false;
-                  return;
-                }
-                if (!hasSelfie) return;
-                setFlipped((f) => !f);
-              }}
-              onPointerDown={heroPressStart}
-              onPointerUp={heroPressEnd}
-              onPointerLeave={heroPressEnd}
-              onPointerCancel={heroPressEnd}
-              onContextMenu={(e) => e.preventDefault()}
-              onKeyDown={(e) => {
-                if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
-                  e.preventDefault();
-                  setFlipped((f) => !f);
-                }
-              }}
-            >
-              <div
-                className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
-              >
-                {/* Front: original photo WITH background — fills the frame, no side gutters */}
-                <div className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl">
-                  {s.object_url ? (
-                    <CachedImg
-                      src={s.object_url}
-                      alt={t("common.photoOf", { word: s.word.headword })}
-                      className="hero-pop absolute inset-0 h-full w-full object-cover"
-                    />
-                  ) : s.cutout_url ? (
-                    <CachedImg
-                      src={s.cutout_url}
-                      alt={s.word.headword}
-                      className="hero-pop absolute inset-0 h-full w-full object-cover"
-                    />
-                  ) : s.placeholder_url ? (
-                    // ネット画像。**仮ではなくカードの絵として普通に見せる**
-                    // (段ボール/ゴースト表現は廃止 2026-07-28)。
-                    // 気に入らなければ下の候補から選び直せる。
-                    <>
-                      <img
-                        src={s.placeholder_url}
-                        alt={t("common.imageOf", { word: s.word.headword })}
-                        className="hero-pop absolute inset-0 h-full w-full object-cover"
-                      />
-                      {s.placeholder_credit?.name && (
-                        <a
-                          href={s.placeholder_credit.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
-                        >
-                          📷 {s.placeholder_credit.name}
-                        </a>
-                      )}
-                    </>
-                  ) : (
-                    <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
-                      <span className="text-footnote text-muted-foreground">
-                        {t("card.findingImage")}
-                      </span>
-                    </div>
-                  )}
-                  {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // 長押しには確認があるのに、常時見えているこちらだけ
-                      // 素通しだった。押しやすいほうが無防備なのは逆。
-                      if (hasPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
-                      fileInputRef.current?.click();
-                    }}
-                    aria-label={t("card.changePhoto")}
-                    className="absolute bottom-2 left-2 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition active:scale-95"
-                  >
-                    {busy === "image" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
-                  </button>
-                  {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
-                  {hasSelfie && (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
-                      {t("card.flipToSelfie")}
-                    </span>
-                  )}
-                </div>
-
-                {/* Back: the selfie (you + the thing) */}
-                <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl">
-                  {hasSelfie ? (
-                    <>
-                      <img
-                        src={s.selfie_url!}
-                        alt={t("card.selfie")}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
-                        {t("card.flipBack")}
-                      </span>
-                    </>
-                  ) : (
-                    <div className="grid h-full place-items-center gap-1 text-center text-body text-muted-foreground">
-                      <span>{t("card.noSelfie")}</span>
-                      <span className="text-caption">{t("card.flipBack")}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
-                自分で撮った写真があるカードには出さない(#67)。 */}
-            {!s.object_url && !s.cutout_url && webCandidates.length > 1 && (
-              <section className="mb-4">
-                <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
-                  {t("card.pickAnotherImage")}
-                </div>
-                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                  {webCandidates.map((c) => (
-                    <button
-                      key={c.url}
-                      onClick={() => void swapWebImage(c)}
-                      disabled={!!swapping}
-                      className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
-                      aria-label={t("card.pickAnotherImage")}
-                    >
-                      <img src={c.url} alt="" className="h-full w-full object-cover" />
-                      {swapping === c.url && (
-                        <span className="absolute inset-0 grid place-items-center bg-black/40">
-                          <Loader2 className="h-4 w-4 animate-spin text-white" />
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* When & Where chip */}
-            <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />
-                  {new Date(s.created_at).toLocaleString(uiLang === "en" ? "en-US" : "ja-JP", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-                {(s.location_name || (s.lat != null && s.lng != null)) && (
-                  <a
-                    href={
-                      s.lat != null && s.lng != null
-                        ? `https://www.google.com/maps?q=${s.lat},${s.lng}`
-                        : `https://www.google.com/maps?q=${encodeURIComponent(s.location_name ?? "")}`
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
-                  >
-                    <MapPin className="h-3.5 w-3.5" />
-                    {s.location_name ?? t("card.openMap")}
-                  </a>
-                )}
-              </div>
-              {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
-            </section>
-
-            <WordCard
-              word={{
-                headword: s.word.headword,
-                reading_zhuyin: s.word.reading_zhuyin,
-                pinyin: s.word.pinyin,
-                meaning_ja: s.word.meaning_ja,
-                part_of_speech: s.word.part_of_speech,
-                level: s.word.level,
-                example_sentence: s.word.example_sentence,
-                example_translation: s.word.example_translation,
-                extras: s.word.extras,
-              }}
-              wordId={s.word_id}
-              isPro={isPro}
-              onPickImage={applyWebImage}
-            />
-
-            {enriching && (
-              <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-footnote text-primary">
-                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                {t("card.preparing")}
-              </div>
-            )}
-
-            {/* 解説の生成に失敗したときは、空欄のまま黙らせない。
-                何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
-            {!enriching && enrichError && (
-              <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-footnote">
-                <p className="font-semibold text-destructive-ink">{t("card.enrichFailed")}</p>
-                <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
-                <button
-                  onClick={() => {
-                    setEnrichError(null);
-                    enrichedRef.current.clear();
-                    void qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-                  }}
-                  className="press-in mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 font-medium"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {t("card.enrichRetry")}
-                </button>
-              </div>
-            )}
-
-            {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
-            {!enriching &&
-              (isPro ? (
-                <button
-                  onClick={regenerate}
-                  disabled={regenerating}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-2.5 text-footnote font-semibold text-primary disabled:opacity-60"
-                >
-                  {regenerating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                  {regenerating ? t("card.regenerating") : t("card.regenAll")}
-                </button>
-              ) : (
-                <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-footnote text-muted-foreground">
-                  <Lock className="h-3.5 w-3.5" />
-                  {t("card.regenPro")}
-                </div>
-              ))}
-
-            {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
-            <div className="mt-4 text-center">
-              <button
-                onClick={reportIssue}
-                disabled={reporting}
-                className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-footnote font-medium text-muted-foreground disabled:opacity-60"
-              >
-                {reporting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Flag className="h-3.5 w-3.5" />
-                )}
-                {reporting ? t("card.reportFixing") : t("card.reportPrompt")}
-              </button>
-            </div>
-
-            {s.lat != null && s.lng != null && (
-              <a
-                href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-5 block overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
-              >
-                <iframe
-                  title={t("common.mapTitle")}
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
-                  className="pointer-events-none h-48 w-full"
-                  loading="lazy"
-                />
-                <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
-                  </span>
-                  <span className="text-primary">{t("card.openMapsLabel")}</span>
-                </div>
-              </a>
-            )}
-
-            {/* カード管理: 写真の変更は写真上の📷アイコン/長押し。削除は2段階。 */}
-            <div className="mt-5 flex justify-end">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleImageFile(f);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                onClick={handleDelete}
-                disabled={busy !== null}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-footnote font-medium transition-colors disabled:opacity-60 ${
-                  deleteArmed
-                    ? "border-bad bg-bad text-white"
-                    : "border-red-200 bg-red-50 text-red-700"
-                }`}
-              >
-                {busy === "delete" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3.5 w-3.5" />
-                )}
-                {deleteArmed ? t("card.deleteConfirm") : t("card.delete")}
-              </button>
-            </div>
-          </>
+          <StickerSheetBody
+            sticker={s}
+            uiLang={uiLang}
+            isPro={isPro}
+            flipped={flipped}
+            setFlipped={setFlipped}
+            hasSelfie={hasSelfie}
+            hasPhoto={hasPhoto}
+            busy={busy}
+            deleteArmed={deleteArmed}
+            handleDelete={handleDelete}
+            handleImageFile={handleImageFile}
+            fileInputRef={fileInputRef}
+            heroPressStart={heroPressStart}
+            heroPressEnd={heroPressEnd}
+            longPressFired={longPressFired}
+            enriching={enriching}
+            enrichError={enrichError}
+            setEnrichError={setEnrichError}
+            onEnrichRetry={() => {
+              setEnrichError(null);
+              enrichedRef.current.clear();
+              void qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+            }}
+            regenerating={regenerating}
+            regenerate={regenerate}
+            reporting={reporting}
+            reportIssue={reportIssue}
+            webCandidates={webCandidates}
+            swapping={swapping}
+            swapWebImage={swapWebImage}
+            applyWebImage={applyWebImage}
+          />
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * ホームや図鑑で写真を押すと開く面の**中身**。
+ *
+ * ## なぜ切り出したか
+ * この app でいちばん大きい未検査の画面だった(929行)。ルートが2つの
+ * 問い合わせと10個の状態を持っているので、そのままでは検査の雛形から
+ * 描けない。**描く所だけ**をここへ出す(復習・ホーム・設定・語の詳細で
+ * 同じことを何度もやっている)。
+ *
+ * 引数が多いのは、この面が**実際に多くの状態で見た目を変える**から。
+ * 減らすために束ねると、束の中のどれが効いているのかが型で見えなくなる。
+ */
+export function StickerSheetBody({
+  sticker: s,
+  uiLang,
+  isPro,
+  flipped,
+  setFlipped,
+  hasSelfie,
+  hasPhoto,
+  busy,
+  deleteArmed,
+  handleDelete,
+  handleImageFile,
+  fileInputRef,
+  heroPressStart,
+  heroPressEnd,
+  longPressFired,
+  enriching,
+  enrichError,
+  setEnrichError,
+  onEnrichRetry,
+  regenerating,
+  regenerate,
+  reporting,
+  reportIssue,
+  webCandidates,
+  swapping,
+  swapWebImage,
+  applyWebImage,
+}: {
+  sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
+  uiLang: string;
+  isPro: boolean;
+  /** 写真の裏(自撮り)を見ているか。 */
+  flipped: boolean;
+  setFlipped: Dispatch<SetStateAction<boolean>>;
+  hasSelfie: boolean;
+  hasPhoto: boolean;
+  /** 走っている重い操作。写真の差し替えと削除で見た目が変わる。 */
+  busy: null | "delete" | "image";
+  /** 削除は2段。1回目で「本当に削除?」に変わり、4秒で戻る。 */
+  deleteArmed: boolean;
+  handleDelete: () => void;
+  handleImageFile: (f: File) => void;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  heroPressStart: () => void;
+  heroPressEnd: () => void;
+  longPressFired: RefObject<boolean>;
+  enriching: boolean;
+  enrichError: string | null;
+  setEnrichError: Dispatch<SetStateAction<string | null>>;
+  /** 「もう一度作る」。印を消して問い合わせをやり直す。 */
+  onEnrichRetry: () => void;
+  regenerating: boolean;
+  regenerate: () => void;
+  reporting: boolean;
+  reportIssue: () => void;
+  webCandidates: Array<{ url: string; credit?: { name?: string; link?: string }; source: string }>;
+  swapping: string | null;
+  swapWebImage: (cand: {
+    url: string;
+    credit?: { name?: string; link?: string };
+    source: string;
+  }) => void;
+  applyWebImage: (url: string) => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
+      <div
+        className="perspective-1200 mb-4"
+        // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
+        // ボタンとして振る舞うのも自撮りがあるときだけにする。
+        role={hasSelfie ? "button" : undefined}
+        tabIndex={hasSelfie ? 0 : undefined}
+        aria-label={hasSelfie ? (flipped ? t("card.flipBack") : t("card.flipToSelfie")) : undefined}
+        onClick={() => {
+          // 長押し(写真の変更)が成立した後のクリックは無視する。
+          if (longPressFired.current) {
+            longPressFired.current = false;
+            return;
+          }
+          if (!hasSelfie) return;
+          setFlipped((f) => !f);
+        }}
+        onPointerDown={heroPressStart}
+        onPointerUp={heroPressEnd}
+        onPointerLeave={heroPressEnd}
+        onPointerCancel={heroPressEnd}
+        onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if (hasSelfie && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            setFlipped((f) => !f);
+          }
+        }}
+      >
+        <div
+          className={`card-flip relative aspect-[4/5] w-full ${hasSelfie ? "cursor-pointer" : ""} ${flipped ? "flipped" : ""}`}
+        >
+          {/* Front: original photo WITH background — fills the frame, no side gutters */}
+          {/* **裏を向いている面は触れない。** `backface-visibility` で見えなく
+              なるだけでは、中のボタンが鍵盤の止まり木として残り、
+              指で押しても手前の面に当たる(検査に「送り切っても下敷きの
+              まま」と出た)。`inert` で丸ごと外す。 */}
+          <div
+            inert={flipped}
+            className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl"
+          >
+            {s.object_url ? (
+              <CachedImg
+                src={s.object_url}
+                alt={t("common.photoOf", { word: s.word.headword })}
+                className="hero-pop absolute inset-0 h-full w-full object-cover"
+              />
+            ) : s.cutout_url ? (
+              <CachedImg
+                src={s.cutout_url}
+                alt={s.word.headword}
+                className="hero-pop absolute inset-0 h-full w-full object-cover"
+              />
+            ) : s.placeholder_url ? (
+              // ネット画像。**仮ではなくカードの絵として普通に見せる**
+              // (段ボール/ゴースト表現は廃止 2026-07-28)。
+              // 気に入らなければ下の候補から選び直せる。
+              <>
+                <img
+                  src={s.placeholder_url}
+                  alt={t("common.imageOf", { word: s.word.headword })}
+                  className="hero-pop absolute inset-0 h-full w-full object-cover"
+                />
+                {s.placeholder_credit?.name && (
+                  <a
+                    href={s.placeholder_credit.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute bottom-2 left-3 text-caption text-white/90 drop-shadow"
+                  >
+                    📷 {s.placeholder_credit.name}
+                  </a>
+                )}
+              </>
+            ) : (
+              <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
+                <span className="text-footnote text-muted-foreground">
+                  {t("card.findingImage")}
+                </span>
+              </div>
+            )}
+            {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // 長押しには確認があるのに、常時見えているこちらだけ
+                // 素通しだった。押しやすいほうが無防備なのは逆。
+                if (hasPhoto && !window.confirm(t("card.changePhotoConfirm"))) return;
+                fileInputRef.current?.click();
+              }}
+              aria-label={t("card.changePhoto")}
+              // 見た目は 40px のままでいい(写真の隅の小さな印なので、
+              // 44px の塊にすると写真より重くなる)。**当たり判定だけ広げる。**
+              className="absolute bottom-2 left-2 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition before:absolute before:-inset-0.5 before:content-[''] active:scale-95"
+            >
+              {busy === "image" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            {/* 裏返せるカードだけに案内を出す(自撮りが無いカードは回らない)。 */}
+            {hasSelfie && (
+              <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
+                {t("card.flipToSelfie")}
+              </span>
+            )}
+          </div>
+
+          {/* Back: the selfie (you + the thing) */}
+          <div
+            inert={!flipped}
+            className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl bg-secondary shadow-xl"
+          >
+            {hasSelfie ? (
+              <>
+                <img
+                  src={s.selfie_url!}
+                  alt={t("card.selfie")}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-1 text-caption text-white backdrop-blur">
+                  {t("card.flipBack")}
+                </span>
+              </>
+            ) : (
+              <div className="grid h-full place-items-center gap-1 text-center text-body text-muted-foreground">
+                <span>{t("card.noSelfie")}</span>
+                <span className="text-caption">{t("card.flipBack")}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
+            自分で撮った写真があるカードには出さない(#67)。 */}
+      {!s.object_url && !s.cutout_url && webCandidates.length > 1 && (
+        <section className="mb-4">
+          <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
+            {t("card.pickAnotherImage")}
+          </div>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {webCandidates.map((c) => (
+              <button
+                key={c.url}
+                onClick={() => void swapWebImage(c)}
+                disabled={!!swapping}
+                className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
+                aria-label={t("card.pickAnotherImage")}
+              >
+                <img src={c.url} alt="" className="h-full w-full object-cover" />
+                {swapping === c.url && (
+                  <span className="absolute inset-0 grid place-items-center bg-black/40">
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* When & Where chip */}
+      <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            {new Date(s.created_at).toLocaleString(uiLang === "en" ? "en-US" : "ja-JP", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          {(s.location_name || (s.lat != null && s.lng != null)) && (
+            <a
+              href={
+                s.lat != null && s.lng != null
+                  ? `https://www.google.com/maps?q=${s.lat},${s.lng}`
+                  : `https://www.google.com/maps?q=${encodeURIComponent(s.location_name ?? "")}`
+              }
+              target="_blank"
+              rel="noreferrer"
+              className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              {s.location_name ?? t("card.openMap")}
+            </a>
+          )}
+        </div>
+        {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+      </section>
+
+      <WordCard
+        word={{
+          headword: s.word.headword,
+          reading_zhuyin: s.word.reading_zhuyin,
+          pinyin: s.word.pinyin,
+          meaning_ja: s.word.meaning_ja,
+          part_of_speech: s.word.part_of_speech,
+          level: s.word.level,
+          example_sentence: s.word.example_sentence,
+          example_translation: s.word.example_translation,
+          extras: s.word.extras,
+        }}
+        wordId={s.word_id}
+        isPro={isPro}
+        onPickImage={applyWebImage}
+      />
+
+      {enriching && (
+        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-footnote text-primary-ink">
+          <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+          {t("card.preparing")}
+        </div>
+      )}
+
+      {/* 解説の生成に失敗したときは、空欄のまま黙らせない。
+            何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
+      {!enriching && enrichError && (
+        <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-footnote">
+          <p className="font-semibold text-destructive-ink">{t("card.enrichFailed")}</p>
+          <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
+          <button
+            onClick={onEnrichRetry}
+            className="press-in mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 font-medium"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t("card.enrichRetry")}
+          </button>
+        </div>
+      )}
+
+      {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
+      {!enriching &&
+        (isPro ? (
+          <button
+            onClick={regenerate}
+            disabled={regenerating}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl min-h-11 border border-primary/30 bg-primary/5 py-3 text-footnote font-semibold text-primary-ink disabled:border-border disabled:bg-secondary disabled:text-muted-foreground"
+          >
+            {regenerating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {regenerating ? t("card.regenerating") : t("card.regenAll")}
+          </button>
+        ) : (
+          <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-footnote text-muted-foreground">
+            <Lock className="h-3.5 w-3.5" />
+            {t("card.regenPro")}
+          </div>
+        ))}
+
+      {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
+      <div className="mt-4 text-center">
+        <button
+          onClick={() => reportIssue()}
+          disabled={reporting}
+          className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-footnote font-medium text-muted-foreground disabled:opacity-60"
+        >
+          {reporting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Flag className="h-3.5 w-3.5" />
+          )}
+          {reporting ? t("card.reportFixing") : t("card.reportPrompt")}
+        </button>
+      </div>
+
+      {s.lat != null && s.lng != null && (
+        <a
+          href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-5 block overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
+        >
+          <iframe
+            title={t("common.mapTitle")}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
+            // 押せない飾りなので**タブ順から外す**。既定では iframe に
+            // 焦点が入るが、中身は `pointer-events-none` で触れないうえ
+            // 焦点の輪も出ないので、鍵盤で辿ると「どこに居るか分からない
+            // 止まり木」が1つできていた(実測 1.00:1)。押す先は外側の `<a>`。
+            tabIndex={-1}
+            className="pointer-events-none h-48 w-full"
+            loading="lazy"
+          />
+          <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
+            </span>
+            <span className="text-primary-ink">{t("card.openMapsLabel")}</span>
+          </div>
+        </a>
+      )}
+
+      {/* カード管理: 写真の変更は写真上の📷アイコン/長押し。削除は2段階。 */}
+      <div className="mt-5 flex justify-end">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleImageFile(f);
+            e.target.value = "";
+          }}
+        />
+        <button
+          onClick={handleDelete}
+          disabled={busy !== null}
+          // **取り消せない操作。** ここは4つ直してある:
+          // ・高さが 42px で指の下限を割っていた → `min-h-11`
+          // ・`disabled:opacity-60` で、消している最中の白文字が **1.78:1**
+          //   まで落ちて読めなくなっていた(塗りと文字が一緒に薄くなる)
+          // ・`border-red-200 bg-red-50 text-red-700` は素の Tailwind の
+          //   番号で、**暗いテーマに一切追従しない**
+          // ・武装した側の白文字が暗い面で 2.97:1(意味を持つ塗りの下限 3 割れ)
+          // 全部トークンの組に置き換える。塗りと文字の組は土台の検査が
+          // どのテーマでも読める比を保証している。
+          className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-footnote font-medium transition-colors disabled:border-border disabled:bg-secondary disabled:text-muted-foreground ${
+            deleteArmed
+              ? "border-destructive bg-destructive text-destructive-foreground"
+              : "border-destructive/30 bg-destructive/10 text-destructive-ink"
+          }`}
+        >
+          {busy === "delete" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
+          {deleteArmed ? t("card.deleteConfirm") : t("card.delete")}
+        </button>
+      </div>
+    </>
   );
 }

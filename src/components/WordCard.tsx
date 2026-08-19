@@ -613,7 +613,11 @@ function SectionCard({
             disabled={regenerating}
             aria-label={`${label}: ${t("card.regen")}`}
             title={t("card.regen")}
-            className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-60"
+            // **Pro の人にしか出ないので、今まで一度も測られていなかった。**
+            // 節ごとに1つ、14個並ぶ小さな印。見た目は 32px のままでいい
+            // (節の見出しより重くすると、どれが中身か分からなくなる)。
+            // 当たり判定だけ 44px へ広げる。押せない間は薄くせず、色を落とす。
+            className="relative ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-secondary hover:text-foreground disabled:text-muted-foreground/40"
           >
             {regenerating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

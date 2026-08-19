@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { OnboardingScene } from "./scenes/onboarding";
+import { StickerSheetScene } from "./scenes/sticker-sheet";
 import {
   HomeEmptyScene,
   HomeLoadingScene,
@@ -76,6 +77,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "sticker-detail": StickerDetailScene,
   "sticker-hero": StickerHeroScene,
+  "sticker-sheet": StickerSheetScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
@@ -126,7 +128,7 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
-const BARE = new Set(["onboarding"]);
+const BARE = new Set(["onboarding", "sticker-sheet"]);
 
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";

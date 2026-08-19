@@ -228,6 +228,11 @@ export function StickerDetailBody({
             <iframe
               title={t("common.mapTitle")}
               src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
+              // 押せない飾りなので**タブ順から外す**。既定では iframe に
+              // 焦点が入るが、中身は `pointer-events-none` で触れないうえ
+              // 焦点の輪も出ないので、鍵盤で辿ると「どこに居るか分からない
+              // 止まり木」が1つできていた。押す先は外側の `<a>`。
+              tabIndex={-1}
               className="pointer-events-none h-48 w-full"
               loading="lazy"
             />

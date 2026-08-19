@@ -37,9 +37,6 @@
  *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
  *   ・`admin.metrics` / `admin.dictionary` — 管理者だけが見る。
  *   ・`auth` / `reset-password` / `terms` / `privacy` — 入口と法務。
- *   ・`StickerSheet`(929行) — **ホームで写真を押すと開く面**。
- *     裏返し・長押し・削除の二段確認が1つの部品に絡んでいて、
- *     切り出すには先に状態を解く必要がある。
  *
  * つまり**画面の数で言えば、見ているのは半分に満たない**。
  * 合格は「見た所に欠陥が無い」であって、「欠陥が無い」ではない。
@@ -269,6 +266,16 @@ const MODES = [
   ...crossThemes("sticker-detail", { scene: "sticker-detail" }),
   // 上半分だけを大きく見る面。写真の裏表と「いつ・どこで」。
   ...crossThemes("sticker-hero", { scene: "sticker-hero" }),
+  // **ホームで写真を押すと開く面。** この app でいちばん大きい未検査の
+  // 画面だった(929行)。取り消せない操作(削除の2段目)まで撮る。
+  ...crossThemes("sheet", { scene: "sticker-sheet" }),
+  ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
+  ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
+  ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
+  ["sheet-deleting", "", false, { scene: "sticker-sheet", variant: "deleting" }],
+  ["sheet-failed", "", false, { scene: "sticker-sheet", variant: "failed" }],
+  ["sheet-candidates", "", false, { scene: "sticker-sheet", variant: "candidates" }],
+  ["sheet-pro", "", false, { scene: "sticker-sheet", variant: "pro" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -317,7 +324,7 @@ const FOCUS_MIN_RATIO = 3;
  * こちらにも書くのは、バーが無いことを咎める段がここに在るため。
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
-const BARE_SCENES = new Set(["onboarding"]);
+const BARE_SCENES = new Set(["onboarding", "sticker-sheet"]);
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -502,12 +509,16 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
        * `opacity:0` も見てくれる。自分で `display` を辿るより確実。
        */
       const isShown = (el) =>
-        !el.checkVisibility ||
-        el.checkVisibility({
-          contentVisibilityAuto: true,
-          opacityProperty: true,
-          visibilityProperty: true,
-        });
+        // `inert` の中は**そもそも押せない**(鍵盤も指も届かない)。
+        // 裏を向いたカードの面のように、見えているのに触れない所を
+        // 「押せる大きさが足りない」と数えても直しようがない。
+        !el.closest("[inert]") &&
+        (!el.checkVisibility ||
+          el.checkVisibility({
+            contentVisibilityAuto: true,
+            opacityProperty: true,
+            visibilityProperty: true,
+          }));
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
         if (!isShown(el)) continue;
         let r = el.getBoundingClientRect();
@@ -551,6 +562,10 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       // 大きさに関係なく全部見る。上の 44px の検査は小さいものしか見ない。
       for (const el of document.querySelectorAll("button, a[href], [role='button']")) {
         if (el.hasAttribute("disabled") || el.getAttribute("aria-hidden") === "true") continue;
+        // `inert` の中は覆われていて当たり前(裏を向いたカードの面など)。
+        // **押せないと決めてある物**を「下敷きだ」と言っても直しようがない。
+        // 上の押せる大きさの段と同じ物差しで外す。
+        if (!isShown(el)) continue;
         const r0 = el.getBoundingClientRect();
         if (r0.width < 4 || r0.height < 4) continue;
         el.scrollIntoView({ block: "center" });
