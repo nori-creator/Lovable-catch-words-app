@@ -29,6 +29,8 @@ export type NearbyMemory = {
   location_name: string | null;
   /** 撮ってから何日経ったか。 */
   days_ago: number;
+  /** 撮った日そのもの。通知の文面は「何日前」ではなく**日付**で出す。 */
+  taken_at: string;
   /** いまいる場所からの距離(m)。 */
   distance_m: number;
   image_url: string | null;
@@ -98,6 +100,7 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
           meaning_ja: r.words!.meaning_ja,
           location_name: r.location_name,
           days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
+          taken_at: r.created_at,
           distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
           image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
         }))

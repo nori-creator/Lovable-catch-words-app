@@ -332,6 +332,10 @@ const MODES = [
   ["user-panel", "", false, { scene: "user-panel" }],
   ["user-panel-dark", 'class="dark"', false, { scene: "user-panel" }],
   ["user-panel-loading", "", false, { scene: "user-panel", loading: "1" }],
+  // 場所の知らせ。上から降りてくる帯。写真が無いカードの姿も見る。
+  ["place-memory", "", false, { scene: "place-memory" }],
+  ["place-memory-dark", 'class="dark"', false, { scene: "place-memory" }],
+  ["place-memory-nophoto", "", false, { scene: "place-memory", nophoto: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が

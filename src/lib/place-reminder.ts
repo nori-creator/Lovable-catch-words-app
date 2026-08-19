@@ -18,7 +18,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import { tStatic } from "@/lib/i18n";
+import { getUiLang, tStatic } from "@/lib/i18n";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -31,8 +31,26 @@ export type NearbyMemoryLike = {
   meaning_ja: string | null;
   location_name: string | null;
   days_ago: number;
+  /** 撮った日。文面は「何日前」ではなく**日付**で出す。 */
+  taken_at?: string | null;
   distance_m: number;
 };
+
+/**
+ * 撮った日を「8月1日」の形にする。
+ * 日付が読めないときは空文字を返す — **推測で日付を作らない**。
+ */
+export function takenDateLabel(takenAt: string | null | undefined): string {
+  if (!takenAt) return "";
+  const d = new Date(takenAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const locale = getUiLang() === "en" ? "en-US" : "ja-JP";
+  try {
+    return d.toLocaleDateString(locale, { month: "long", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
 
 export function isPlaceReminderEnabled(): boolean {
   if (typeof localStorage === "undefined") return false;
@@ -171,22 +189,22 @@ export async function requestNotificationPermissionDetailed(): Promise<Notificat
  * React の外から呼ばれるので `tStatic` を使う(フックは使えない)。
  */
 export function buildMessage(m: NearbyMemoryLike): { title: string; body: string } {
-  const where = m.location_name
-    ? tStatic("place.atPlace", { name: m.location_name })
-    : tStatic("place.hereAbouts");
-  const when =
-    m.days_ago >= 365
-      ? tStatic("ago.years", { n: Math.floor(m.days_ago / 365) })
-      : m.days_ago >= 30
-        ? tStatic("ago.months", { n: Math.floor(m.days_ago / 30) })
-        : tStatic("ago.days", { n: m.days_ago });
+  // **意味は書かない。** 通知そのものが「覚えてる?」という問いなので、
+  // 答えを並べたら問いが成り立たない(オーナー指摘
+  // 「通知バナーに日本語訳を書いてるけど消して。テストの意味がなくなる」)。
+  //
+  // 場所も市の名前では言わない。「Taipei City で撮った」は
+  // 思い出す手がかりにならない — 思い出す鍵は**いつ**のほう。
+  // 撮った日が読めないときだけ、場所の名前に落ちる。
+  const date = takenDateLabel(m.taken_at);
+  const body = date
+    ? tStatic("place.caughtOn", { date })
+    : m.location_name
+      ? tStatic("place.caughtAt", { name: m.location_name })
+      : tStatic("place.caughtHereShort");
   return {
     title: tStatic("place.rememberBefore") + m.headword + tStatic("place.rememberAfter"),
-    body: tStatic("place.caughtHere", {
-      when,
-      where,
-      meaning: m.meaning_ja ? `(${m.meaning_ja})` : "",
-    }),
+    body,
   };
 }
 

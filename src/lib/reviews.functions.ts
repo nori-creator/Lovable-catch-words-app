@@ -206,9 +206,23 @@ async function getReviewPrefs(
 
 export const getDueReviews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<DueReviewCard[]> => {
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        /**
+         * 名指しで先に出したい1枚。場所の知らせを押して来たときに使う。
+         * **期限も1日の上限も無視する** — 押した人はその言葉を思い出したくて
+         * 押しているので、「今日の分は終わりです」と返すのは答えになっていない。
+         */
+        sticker_id: z.string().uuid().optional(),
+      })
+      .optional()
+      .parse(input ?? undefined),
+  )
+  .handler(async ({ context, data: input }): Promise<DueReviewCard[]> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
+    const wantedSticker = input?.sticker_id ?? null;
 
     // 1日の上限(NORI指摘: 開くたびに新しい単語が無限に出て終われない)。
     // 「今日すでに何枚やったか」を review_history から数え、残り枚数だけ返す。
@@ -226,7 +240,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
       // 上限に当たったときも空配列を返す。**画面側は「今日の分は終わり」と
       // 「そもそも出る語が無い」を区別できないので**、下の
       // `getReviewCapState` で別途聞けるようにしてある(§8)。
-      if (remaining === 0) return [];
+      // 名指しで来た1枚だけは通す(下で改めて読む)。
+      if (remaining === 0 && !wantedSticker) return [];
     }
     // 1回のフェッチは最大10枚のまま(体感の軽さ)。残り枚数がそれ未満なら絞る。
     const fetchLimit = Math.min(10, remaining);
@@ -292,6 +307,27 @@ export const getDueReviews = createServerFn({ method: "GET" })
       } | null;
     };
     const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
+
+    // 名指しの1枚を先頭へ。
+    // 既に今日の列に居るなら**動かすだけ**(二重に出さない)。
+    // 居ないなら期限を無視して1枚だけ読む — 早めに復習しても SRS は壊れない
+    // (間隔が伸びるだけ)。読めなくても列そのものは返す。
+    if (wantedSticker) {
+      const at = rows.findIndex((r) => r.sticker_id === wantedSticker);
+      if (at > 0) {
+        rows.unshift(...rows.splice(at, 1));
+      } else if (at < 0) {
+        const { data: one } = await supabase
+          .from("reviews")
+          .select(dueSelect(true))
+          .eq("user_id", userId)
+          .eq("sticker_id", wantedSticker)
+          .maybeSingle();
+        const row = one as unknown as DueRow | null;
+        if (row?.stickers?.words) rows.unshift(row);
+      }
+    }
+
     if (rows.length === 0) return [];
 
     // Word-tree unlock counts: one review_history row per completed review.

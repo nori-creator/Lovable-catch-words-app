@@ -16,6 +16,7 @@ import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
+import { PlaceMemoryCard } from "@/components/PlaceMemory";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
 
@@ -115,6 +116,34 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
     { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
   ];
   return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
+}
+
+/**
+ * 場所の知らせ。**上から降りてくる**帯で、撮ったときの写真が付く。
+ *
+ * これまで下から出ていて、写真も付かず、押すと図鑑へ飛ぶだけだった
+ * (オーナー指摘4件、2026-08-19に作り直し)。
+ * 画像がまだ無いカードの姿も撮る — そこだけ場所の印に落ちる。
+ */
+export function PlaceMemoryScene({ q }: { q: URLSearchParams }) {
+  const noPhoto = q.get("nophoto") === "1";
+  const shot =
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#b07a4a"/></svg>',
+    );
+  return (
+    <PlaceMemoryCard
+      memory={{
+        headword: "珍珠奶茶",
+        location_name: "士林夜市",
+        image_url: noPhoto ? null : shot,
+        taken_at: "2026-08-01T12:30:00Z",
+      }}
+      onStart={() => {}}
+      onDismiss={() => {}}
+    />
+  );
 }
 
 /**

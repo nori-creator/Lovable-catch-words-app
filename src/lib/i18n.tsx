@@ -694,16 +694,13 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "place.rememberBefore": { ja: "「", en: "Remember “" },
   "place.rememberAfter": { ja: "」覚えてる？", en: "”?" },
   // --- 場所の思い出し・共通 ---
-  "place.remember": { ja: "「{word}」覚えてる？", en: 'Remember "{word}"?' },
-  "place.caughtHere": {
-    ja: "{when}、{where}撮った言葉{meaning}",
-    en: "A word you caught {where} {when}{meaning}",
-  },
-  "place.hereAbouts": { ja: "この辺りで", en: "around here" },
-  "place.atPlace": { ja: "{name}で", en: "at {name}" },
-  "place.yearsAgo": { ja: "{n}年前", en: "{n} year(s) ago" },
-  "place.monthsAgo": { ja: "{n}ヶ月前", en: "{n} month(s) ago" },
-  "place.daysAgo": { ja: "{n}日前", en: "{n} day(s) ago" },
+  // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
+  // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
+  // 思い出す鍵は市の名前ではなく**いつ撮ったか**なので、日付を先に出し、
+  // 日付が読めないときだけ場所の名前に落ちる。
+  "place.caughtOn": { ja: "{date}にここで撮った言葉", en: "You caught this here on {date}" },
+  "place.caughtAt": { ja: "{name}で撮った言葉", en: "You caught this at {name}" },
+  "place.caughtHereShort": { ja: "この辺りで撮った言葉", en: "You caught this around here" },
   "common.card": { ja: "カード", en: "Card" },
   "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
   "common.photoOf": { ja: "「{word}」の写真", en: 'Photo of "{word}"' },

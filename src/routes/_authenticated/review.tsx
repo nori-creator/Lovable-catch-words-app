@@ -94,6 +94,14 @@ function playText(text: string, audioUrl?: string | null) {
 }
 
 export const Route = createFileRoute("/_authenticated/review")({
+  /**
+   * `?sticker=<id>` — その1枚を先頭に置いて始める。
+   * 場所の知らせを押したときの行き先。押した人は**その言葉**を思い出したくて
+   * 押しているので、今日の順番の先頭に割り込ませる。
+   */
+  validateSearch: (search: Record<string, unknown>): { sticker?: string } => {
+    return typeof search.sticker === "string" && search.sticker ? { sticker: search.sticker } : {};
+  },
   head: () => ({
     meta: [
       { title: tStatic("page.review") },
@@ -113,6 +121,8 @@ function ReviewPage() {
   const fetchProfile = useServerFn(getMyProfile);
   const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
+  // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
+  const { sticker: wantedSticker } = Route.useSearch();
   const {
     data: cards,
     isLoading,
@@ -120,8 +130,10 @@ function ReviewPage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["reviews-due"],
-    queryFn: () => fetchDue(),
+    // 名指しの1枚は列の中身を変えるので、**鍵にも入れる**。
+    // 入れないと、前に読んだ普通の列がそのまま出てくる。
+    queryKey: ["reviews-due", wantedSticker ?? null],
+    queryFn: () => fetchDue(wantedSticker ? { data: { sticker_id: wantedSticker } } : undefined),
     staleTime: 0,
   });
   const { data: memStats } = useQuery({

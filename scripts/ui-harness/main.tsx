@@ -64,6 +64,7 @@ import {
   DexNoMatchScene,
   PhotoHistoryScene,
   UserPanelScene,
+  PlaceMemoryScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -102,6 +103,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "dex-no-match": DexNoMatchScene,
   "photo-history": PhotoHistoryScene,
   "user-panel": UserPanelScene,
+  "place-memory": PlaceMemoryScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,
