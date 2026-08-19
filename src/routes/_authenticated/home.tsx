@@ -13,7 +13,7 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useState } from "react";
-import { BookText, Image as ImageIcon, ImageOff, Trash2, WifiOff } from "lucide-react";
+import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
@@ -543,8 +543,18 @@ export function ScrapbookAlbum({
                   // (数字の検査は「読める濃さか」しか見ないので通っていた)。
                   // 帯のほうが全カード共通なので、語は帯に一本化し、ここには
                   // **写真がまだ無いこと**だけを静かに示す。
+                  // **斜線の入った記号は使わない。** `ImageOff` は
+                  // 「画像が壊れています」の記号として定着していて、
+                  // 実際そう読まれた(独立監査が「壊れ画像アイコンの素通し」
+                  // と指摘)。ここは壊れているのではなく**まだ撮っていない**
+                  // だけなので、素の絵の記号で「ここに写真が入る」と言う。
+                  //
+                  // (監査は「図鑑と同じく語を大きく置け」と言ったが、それは
+                  //  違う。ホームは下の白フチの帯に同じ語が入るので、
+                  //  置くと「腳踏車 / 腳踏車」と二段に並ぶ — 一度直した跡が
+                  //  すぐ上のコメントに残っている。)
                   <div className="grid h-full w-full place-items-center">
-                    <ImageOff
+                    <ImageIcon
                       aria-label={t("home.noPhotoYet")}
                       className="h-6 w-6 text-album-ink-dim"
                     />
