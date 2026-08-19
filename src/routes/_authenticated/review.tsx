@@ -28,6 +28,8 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
+// このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
+import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
   Eye,
   Sparkles,
@@ -44,6 +46,7 @@ import {
   ArrowRight,
   Clock,
   MapPin,
+  CalendarCheck,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 
@@ -1778,35 +1781,40 @@ export function EmptyState() {
 
   if (cap?.capped) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-8">
-        <CheckCircle2 className="mb-2 h-6 w-6 text-ok" />
-        <p className="text-body font-semibold">{t("review.cappedTitle")}</p>
-        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.cappedHint", { n: String(cap.limit) })}
-        </p>
-        <Link
-          to="/settings"
-          className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-        >
-          {t("review.cappedCta")}
-        </Link>
-      </div>
+      <EmptyStateCard
+        icon={CheckCircle2}
+        title={t("review.cappedTitle")}
+        hint={t("review.cappedHint", { n: formatCount(cap.limit) })}
+        action={
+          <Link
+            to="/settings"
+            className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+          >
+            {t("review.cappedCta")}
+          </Link>
+        }
+      />
     );
   }
 
-  // 本文は左揃え・幅を絞る。中央揃えの日本語は末尾の1〜2文字が孤立する
-  // (「出ます。」だけが2行目に残る、という事故が3画面で出ていた)。
+  // **図鑑・ホームと同じ部品を使う。** ここだけ左寄せ・角丸2xl・
+  // 見出し15pxで、3画面が別々の形をしていた。左寄せにしていたのは
+  // 「中央揃えの和文は末尾が孤立する」ためだったが、その原因は
+  // `text-balance` + `ja-phrase` で潰してあるので揃えられる。
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-8">
-      <p className="text-body font-semibold">{t("review.empty")}</p>
-      <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.emptyHint")}</p>
-      <Link
-        to="/capture"
-        className="mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("review.goCatch")}
-      </Link>
-    </div>
+    <EmptyStateCard
+      icon={CalendarCheck}
+      title={t("review.empty")}
+      hint={t("review.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("review.goCatch")}
+        </Link>
+      }
+    />
   );
 }
 

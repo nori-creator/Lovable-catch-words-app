@@ -29,6 +29,7 @@ import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
+import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -651,20 +652,19 @@ function DexPage() {
 export function DexEmptyState() {
   const t = useT();
   return (
-    <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
-      {/* **見出しは見出しの重さで置く。** 説明と同じ太さ・同じ灰色だと、
-          6段の階調を持っていても、この画面では階層が消える。 */}
-      <p className="text-headline font-semibold text-foreground">{t("dex.emptyTitle")}</p>
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {t("dex.emptyHint")}
-      </p>
-      <Link
-        to="/capture"
-        className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("dex.emptyCta")}
-      </Link>
-    </div>
+    <EmptyState
+      icon={Library}
+      title={t("dex.emptyTitle")}
+      hint={t("dex.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("dex.emptyCta")}
+        </Link>
+      }
+    />
   );
 }
 

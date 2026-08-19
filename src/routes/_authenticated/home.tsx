@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
+import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
@@ -290,21 +291,19 @@ function HomePage() {
 export function HomeEmptyState() {
   const t = useT();
   return (
-    <div className="rounded-3xl border border-dashed border-border bg-card p-10 text-center">
-      {/* **見出しは見出しの重さで置く。** 図鑑の空の面と同じ型。 */}
-      <p className="text-headline font-semibold text-foreground">{t("home.emptyTitle")}</p>
-      {/* 日本語は行の途中で折り返すと読みにくい(「ここ / に貼られます」に
-          なっていた)。長さは `text-balance`、切る場所は `ja-phrase`。 */}
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
-        {t("home.emptyHint")}
-      </p>
-      <Link
-        to="/capture"
-        className="press-in mt-4 inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
-      >
-        {t("home.emptyCta")}
-      </Link>
-    </div>
+    <EmptyState
+      icon={BookText}
+      title={t("home.emptyTitle")}
+      hint={t("home.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="press-in inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("home.emptyCta")}
+        </Link>
+      }
+    />
   );
 }
 
