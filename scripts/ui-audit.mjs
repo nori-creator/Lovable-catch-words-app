@@ -1158,6 +1158,65 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   await page.screenshot({ path: path.join(OUT, `ui-${name}.png`), fullPage: true });
   await page.close();
 }
+
+/**
+ * ## 動きを減らす設定での検査
+ *
+ * `prefers-reduced-motion: reduce` を立てて開き、**まだ動いている
+ * アニメーションの名前を数える**。止まっていなければならない物が
+ * 1つでも走っていれば落とす。
+ *
+ * ### なぜ要るか
+ * この app の reduced-motion の規則は、`ken-burns-a` `breathe` のように
+ * **自作のクラス名を1つずつ並べて**書いてある。だから Tailwind が配る
+ * `animate-pulse` は誰も止めていなかった — 読み込み中の骨組みは全画面で
+ * それを使っているので、動きを減らす設定にしていても26箇所が脈打って
+ * いた。名前を並べる規則は、名前を足し忘れた瞬間に静かに穴が開く。
+ * **穴が開いたことを機械に言わせる。**
+ *
+ * ### 何を止めて、何を残すか
+ * `spin` は残す。回転を止めると、待たされている人には「固まった」に
+ * 見える。動きを減らす設定は手応えを消す設定ではない。
+ * ここで見るのは「止めると決めた物が本当に止まっているか」だけ。
+ */
+const MOTION_STOP = ["pulse", "ping"];
+/** 走っていてよい物。ここに無い名前が出たら、決めていない動きが増えた合図。 */
+const MOTION_KEEP = ["spin"];
+// 脈打つ物が実際に居る場面だけを見る。**居ない場面で緑にしても何の
+// 保証にもならない**ので、下の「1つも見つからなかった」で担保する。
+const MOTION_SCENES = ["scan-detail", "word-card", "home-loading"];
+let motionSeen = 0;
+for (const scene of MOTION_SCENES) {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 800 },
+    reducedMotion: "reduce",
+  });
+  await page.goto(sceneUrl(BASE, { scene }), { waitUntil: "load" });
+  await page.waitForTimeout(400);
+  const { running, marked } = await page.evaluate(() => ({
+    // `animationName` を持つ物だけが CSS アニメーション(transition は持たない)。
+    running: document.getAnimations().map((a) => a.animationName).filter(Boolean),
+    marked: document.querySelectorAll('[class*="animate-"]').length,
+  }));
+  if (!marked) {
+    issues.push(`[動きを減らす/${scene}] animate-* の要素が1つも無い(場面が違う疑い)`);
+    await page.close();
+    continue;
+  }
+  motionSeen += marked;
+  for (const nm of running) {
+    if (MOTION_STOP.includes(nm)) {
+      issues.push(`[動きを減らす/${scene}] 止まるべき動きが走っている: ${nm}`);
+    } else if (!MOTION_KEEP.includes(nm)) {
+      issues.push(`[動きを減らす/${scene}] 決めていない動きが走っている: ${nm}`);
+    }
+  }
+  await page.close();
+}
+if (!motionSeen) {
+  issues.push("[動きを減らす] 見た場面のどこにも animate-* が無かった(検査が空回りしている)");
+}
+
 await browser.close();
 server.close();
 

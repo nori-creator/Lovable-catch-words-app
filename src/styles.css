@@ -1784,6 +1784,23 @@
    drop vestibular slide/scale/parallax/overshoot but keep a short opacity fade so
    entrances still read. Every transform-driven entrance is neutralised here. */
 @media (prefers-reduced-motion: reduce) {
+  /* Tailwind の `animate-pulse` / `animate-ping`。
+     ここに在るのは**この規則が自作のクラス名だけを列挙していたから**。
+     読み込み中の骨組みは全画面で `animate-pulse` を使っていて、
+     動きを減らす設定にしていても26箇所が脈打ち続けていた。
+     起動して最初に見る面(ホームの骨組み)も、その1つ。
+     一部だけ `motion-reduce:animate-none` を手で足してあったが、
+     手で足す物は次に書く人には見えない — 名前の方で止める。
+
+     `animate-spin` はここに入れない。回転を止めると、待たされている
+     人には「固まった」に見える。動きを減らす設定は**手応えを消す設定
+     ではない**(apple-design Part VI)。回っている物は状態を伝える
+     図形なので残し、装飾の脈だけを止める。 */
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+
   .ken-burns-a,
   .ken-burns-b,
   .breathe,

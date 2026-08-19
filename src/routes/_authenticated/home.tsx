@@ -258,7 +258,7 @@ function HomePage() {
       )}
 
       {isLoading ? (
-        <div className="h-72 animate-pulse rounded-3xl bg-secondary" />
+        <HomeLoading />
       ) : isError ? (
         // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
         // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
@@ -285,6 +285,17 @@ function HomePage() {
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </AppShell>
   );
+}
+
+/**
+ * 読み込み中の台紙。**起動するたびに必ず通る面**なのに、ルートの三項の
+ * 中に直書きだったので雛形から呼べず、一度も撮っていなかった。
+ *
+ * 高さは実物のアルバムとほぼ同じにしておく — 低いものを置くと、
+ * 読み終わった瞬間に下の「過去の日」が突き落とされる。
+ */
+export function HomeLoading() {
+  return <div className="h-72 animate-pulse rounded-3xl bg-secondary" />;
 }
 
 /** 今日はまだ1枚も無いとき。**始めたばかりの人が最初に見る面**。 */

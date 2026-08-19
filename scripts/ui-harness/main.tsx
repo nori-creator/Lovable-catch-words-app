@@ -17,7 +17,13 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
-import { HomeEmptyScene, HomePastScene, HomePendingScene, HomeScene } from "./scenes/home";
+import {
+  HomeEmptyScene,
+  HomeLoadingScene,
+  HomePastScene,
+  HomePendingScene,
+  HomeScene,
+} from "./scenes/home";
 import {
   SettingsChoicesScene,
   SettingsDangerScene,
@@ -52,6 +58,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   shelf: ShelfScene,
   home: HomeScene,
   "home-empty": HomeEmptyScene,
+  "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,

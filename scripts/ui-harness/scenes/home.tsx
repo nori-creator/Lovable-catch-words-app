@@ -10,6 +10,7 @@ import {
   BackgroundPicker,
   DayHeader,
   HomeEmptyState,
+  HomeLoading,
   JournalLink,
   PastDays,
   PendingCapturesCard,
@@ -99,6 +100,19 @@ export function HomeEmptyScene() {
     <>
       <DayHeader date={new Date()} />
       <HomeEmptyState />
+    </>
+  );
+}
+
+/**
+ * 読み込み中。**起動するたびに必ず通る面**。
+ * 上のバーと日付は先に出ているので、その下に台紙だけが空いている絵になる。
+ */
+export function HomeLoadingScene() {
+  return (
+    <>
+      <DayHeader date={new Date()} />
+      <HomeLoading />
     </>
   );
 }
