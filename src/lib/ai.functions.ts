@@ -38,6 +38,10 @@ const SuggestionSchema = z.object({
         reading_zhuyin: z.string().optional().default(""),
         pinyin: z.string().optional().default(""),
         meaning_ja: z.string(),
+        /** 他の候補との**使い分け**を一言(例: トイレに置く方)。
+            日本語の1語が台湾華語では複数の別語になるので、意味だけでは選べない。
+            出せなかった回もあるので既定は空 — 空なら描かない。 */
+        distinction: z.string().optional().default(""),
         category_key: z.enum(CATEGORY_KEYS),
       }),
     )
@@ -74,7 +78,14 @@ ${langRule}
 - 看板・標識 → "sign"、お店 → "shop"、建物 → "building"
 - 文房具 → "stationery"、本 → "book"、お金 → "money"、薬 → "medicine"
 
-**"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**`
+**"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
+
+**distinction(使い分けの一言)を必ず書く:**
+日本語の1語が台湾華語では複数の別語になることが多い。だから候補を見た人が
+**なぜこの語であって隣の語ではないのか**を選べるようにする。
+- 他の候補と何が違うかを15文字程度で(例: 衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」)
+- 候補が1つしか出ない語でも、その語が指す範囲を一言で(例: 杯子→「取っ手なしのコップ」)
+- 意味の言い換えは書かない。**選ぶ手がかりにならない一言は無いのと同じ。**`
         : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
 
     let content: string;
@@ -87,7 +98,7 @@ ${langRule}
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。suggestionsは必ず5件。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。suggestionsは必ず5件。`,
               },
               { type: "image", image: data.imageBase64 },
             ],

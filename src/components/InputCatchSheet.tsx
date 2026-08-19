@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ImagePlus, Keyboard, Loader2, Mic, Search, Sparkles, Square, X } from "lucide-react";
+import {
+  ImagePlus,
+  Keyboard,
+  Loader2,
+  Mic,
+  Search,
+  Sparkles,
+  Square,
+  Volume2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -20,6 +30,7 @@ import {
   type ImageCandidate,
 } from "@/lib/images.functions";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { usePronounce } from "@/lib/use-pronounce";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { Zh } from "@/components/Zh";
@@ -107,6 +118,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const phonetic = usePhoneticPref();
+  const pronounce = usePronounce();
   const t = useT();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
@@ -511,7 +523,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             <button
               onClick={lookupAndGenerate}
               disabled={!text.trim() || step === "loading"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
             >
               {step === "loading" ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -641,6 +653,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-baseline gap-2">
                 <h2 className="text-title font-bold tracking-tight">{text.trim()}</h2>
+                {/* **発音ボタン(NORI指定)。** 決める前に音で確かめられる。 */}
+                <button
+                  onClick={() => void pronounce(text.trim())}
+                  aria-label={t("common.playWord", { word: text.trim() })}
+                  className="grid h-11 w-11 shrink-0 place-items-center self-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
                 {verified ? (
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-caption font-semibold text-emerald-900 ring-1 ring-emerald-200">
                     {t("input.verified")}
@@ -690,14 +710,10 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 </div>
               )}
 
-              {!isPhrase && card?.example_sentence && (
-                <p className="mt-2 text-body">
-                  {card.example_sentence}
-                  <span className="block text-footnote text-muted-foreground">
-                    {card.example_translation}
-                  </span>
-                </p>
-              )}
+              {/* 例文はここに出さない(NORI指定)。**選ぶ前に読む物ではない。**
+                  この面は「この語で合っているか」を決める所で、例文まで
+                  並べると読む物が増えて決めにくくなる。例文は保存後の
+                  単語カードに載るので、失われるものは無い。 */}
             </div>
 
             {err && (
@@ -709,7 +725,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             <button
               onClick={save}
               disabled={step === "saving"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
             >
               {step === "saving" ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

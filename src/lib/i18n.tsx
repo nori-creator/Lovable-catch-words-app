@@ -707,6 +707,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "common.card": { ja: "カード", en: "Card" },
   "common.closeEdit": { ja: "編集を閉じる", en: "Close editing" },
   "common.photoOf": { ja: "「{word}」の写真", en: 'Photo of "{word}"' },
+  "common.playWord": { ja: "「{word}」を聞く", en: 'Listen to "{word}"' },
   "common.imageOf": { ja: "「{word}」の画像", en: 'Image for "{word}"' },
   "common.stickerOf": { ja: "「{word}」のステッカー", en: 'Sticker for "{word}"' },
   "common.memoryOf": { ja: "「{word}」の思い出", en: 'Memory of "{word}"' },
