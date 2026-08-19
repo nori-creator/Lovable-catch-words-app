@@ -5,6 +5,8 @@ let lastCapturedError: { error: unknown; at: number } | undefined;
 const TTL_MS = 5_000;
 
 function record(error: unknown) {
+  // Keep aborts too: h3 may replace them with an opaque HTTPError response,
+  // and server.ts needs the original cause to avoid rendering a fatal page.
   lastCapturedError = { error, at: Date.now() };
 }
 

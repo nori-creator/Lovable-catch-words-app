@@ -1,5 +1,6 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
+import { isRequestAbortError } from "./lib/abort-error";
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { configuredServerOrigin, makeServerFnFetch } from "@/lib/server-origin";
@@ -8,6 +9,9 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
+    if (isRequestAbortError(error)) {
+      return new Response(null, { status: 204 });
+    }
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
