@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import {
+  CaptureCardPanel,
   OfflineSavedPanel,
   PickWordPanel,
   ReencounterPanel,
@@ -112,6 +113,43 @@ export function CaptureOfflineScene({ q }: { q: URLSearchParams }) {
       onRetry={() => {}}
       onHome={() => {}}
       onAgain={() => {}}
+    />
+  );
+}
+
+/**
+ * 生成が終わったカードの面。**撮るたびに必ず通る。**
+ * 表(切り抜き)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
+ */
+export function CaptureCardScene({ q }: { q: URLSearchParams }) {
+  const v = q.get("variant");
+  const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
+  const [caption, setCaption] = useState(v === "back" ? "士林夜市で並んでいるときに" : "");
+  return (
+    <CaptureCardPanel
+      card={
+        {
+          reading_zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
+          pinyin: "zhēn zhū nǎi chá",
+          meaning_ja: "タピオカミルクティー",
+          part_of_speech: "N",
+          level: "TOCFL-2",
+          category_key: "drink",
+          example_sentence: "我想喝一杯珍珠奶茶。",
+          example_translation: "タピオカミルクティーを一杯飲みたい。",
+        } as never
+      }
+      selectedHead="珍珠奶茶"
+      cutoutImg={shot(400, 400, "#b07a4a")}
+      objectImg={shot(400, 400, "#8a7f6a")}
+      selfieImg={v === "noselfie" ? null : shot(400, 400, "#4a90d9")}
+      flipped={flipped}
+      setFlipped={setFlipped}
+      caption={caption}
+      setCaption={setCaption}
+      placeName="士林夜市"
+      onRedo={() => {}}
+      onSave={() => {}}
     />
   );
 }

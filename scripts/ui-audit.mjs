@@ -47,6 +47,17 @@
  * つまり**画面の数で言えば、見ているのは半分に満たない**。
  * 合格は「見た所に欠陥が無い」であって、「欠陥が無い」ではない。
  *
+ * ### 見た目の方針として**わざと固定してある色**(直さない)
+ * ・写真を載せる面は**テーマに関係なく白**。アルバムの印画紙も、
+ *   撮った直後のカードの表(`from-sky-50 to-white`)も同じ考え。
+ *   暗いテーマでは白い面が明るく浮くが、**それは欠陥ではなく決め事**。
+ *   文字が乗らないので機械も落とさない。次の周で「暗い面で浮いている」と
+ *   言いたくなったら、まずここを読むこと — 変えるならオーナーの判断。
+ * ・撮った枠に乗る印(白・緑・琥珀)も固定。写真の上に置く光なので、
+ *   テーマで色を変えると意味(はじめて/持っている/再会)が崩れる。
+ *   **地が固定なら、その上に載せる字も固定にする**(そこを間違えて
+ *   暗い面で白い印の上の白い字になっていた)。
+ *
  * ### 検査機のフォント都合で、絵が実機と違う所
  * ・**この容器には CJK の太字が1つも無い**(`WenQuanYi Zen Hei Regular` だけ)。
  *   `font-semibold` の付いた和文は Chrome が太さを合成するが、**幅は細字の
@@ -300,6 +311,10 @@ const MODES = [
   // 圏外で撮って端末に預かった面。オフラインのときにしか出ない。
   ...crossThemes("cap-offline", { scene: "capture-offline" }),
   ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],
+  // 生成が終わったカードの面。**撮るたびに必ず通る。** 表と裏の両方。
+  ...crossThemes("cap-card", { scene: "capture-card" }),
+  ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
+  ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
