@@ -30,12 +30,14 @@
  *   スキャンの詳細・出会いの記録・色の土台)
  *
  * ### 場面がまだ無い
- *   ・`capture` の**撮っている最中の2段**(`object` / `selfie`)と `scan`(1425行)
- *     — `<video>` を持つので、偽の映像を流し込む仕掛けが先に要る。
- *     ただし `capture` は**8段のうち6段がカメラと関係無かった**
- *     (語を選ぶ・再会・カード・保存中・圏外で預かった)。
- *     「カメラ依存」でひとまとめにして未検査にしていたのは大雑把すぎた。
- *     いま入っているのは語を選ぶ面と再会の面。残り4段はまだ。
+ *   ・**撮っている最中の面だけ**が `<video>` を持つ。偽の映像を流し込む
+ *     仕掛けが先に要るのはそこだけ。
+ *     「カメラ依存」で `capture`(1106行)と `scan`(1425行)を丸ごと未検査に
+ *     していたのは大雑把すぎた — `capture` は**8段のうち6段**が、`scan` は
+ *     `<video>` が**1箇所だけ**で、撮った後の面は静止画の上に描かれる。
+ *     いま入っているのは語を選ぶ面・再会の面・語の札(5通り)。
+ *     まだ入っていないのは、撮った枠に印が乗る面・カードの面・保存中・
+ *     圏外で預かった面・見つからなかった面・結果の一覧。
  *   ・`journal` / `feed` / `discover` / `u.$userId` / `post.$postId` /
  *     `notifications` / `onboarding` — 人に見せる側の画面。どれも
  *     問い合わせを持つルート直書きなので、出すには切り出しが要る。
@@ -279,6 +281,15 @@ const MODES = [
   ...crossThemes("cap-pick", { scene: "capture-pick" }),
   ...crossThemes("cap-reunion", { scene: "capture-reunion" }),
   ["cap-reunion-saving", "", false, { scene: "capture-reunion", variant: "saving" }],
+  // 語の印を押したときの札。**scan でいちばん読む所**で、素の Tailwind の
+  // 番号がいちばん密に残っている所でもある。
+  ...crossThemes("chip-new", { scene: "scan-chip" }),
+  ...crossThemes("chip-reunion", { scene: "scan-chip", variant: "reunion" }),
+  ["chip-owned", "", false, { scene: "scan-chip", variant: "owned" }],
+  ["chip-owned-dark", 'class="dark"', false, { scene: "scan-chip", variant: "owned" }],
+  ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
+  ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
+  ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],

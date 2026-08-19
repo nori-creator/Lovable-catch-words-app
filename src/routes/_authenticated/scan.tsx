@@ -911,7 +911,6 @@ function ScanPage() {
               verified={verified}
               state={dotStateFor(displayHeadword, scanCtx)}
               foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
-              item={chip.item}
               candidates={
                 chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []
               }
@@ -1158,7 +1157,15 @@ function ScanPage() {
   );
 }
 
-function ScanChip({
+/**
+ * 語の印を押したときに出る札。**scan の中でいちばん読む所**で、
+ * 出会い方(はじめて / 持っている / 再会)で見た目が変わる。
+ *
+ * `export` にしたのは検査の雛形から描くため。ここは `<video>` を使わない —
+ * scan で映像が要るのは撮る前の1箇所だけで、**撮った後の面は静止画で全部
+ * 描ける**(`capture` と同じ構図だった)。
+ */
+export function ScanChip({
   headword,
   zhuyin,
   pinyin,
@@ -1184,7 +1191,6 @@ function ScanChip({
   verified: boolean;
   state: DotState;
   foundAt: string | null;
-  item: DetectedItem;
   candidates: string[];
   expanding: boolean;
   canExpand: boolean;
@@ -1203,7 +1209,11 @@ function ScanChip({
           <button
             onClick={onClose}
             aria-label={t("common.close")}
-            className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-muted-foreground"
+            // **出口は 44px を割らない。** この札は画面を覆っていて、ここが
+            // 唯一の出口。小さいほど「閉じられない」に直結する
+            // (同じ事をスキャンの詳細シートで直したのに、こちらへ伝わって
+            // いなかった)。
+            className="-mr-2 grid h-11 w-11 place-items-center rounded-full text-muted-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1288,7 +1298,9 @@ function ScanChip({
           <button
             onClick={onExpand}
             disabled={expanding}
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-footnote font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:opacity-60 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
+            // 押せない間は薄くしない。**塗りと文字が一緒に薄くなって
+            // 読めなくなる**(実測 3.18:1)。専用の面と文字色に切り替える。
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-footnote font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:ring-border motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
             title={t("scan.partsTitle")}
           >
             {expanding ? (
