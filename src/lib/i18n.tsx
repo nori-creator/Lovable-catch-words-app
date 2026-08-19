@@ -881,6 +881,18 @@ const DICT: Record<string, { ja: string; en: string }> = {
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks" },
   "card.measure_words": { ja: "量詞", en: "Measure words" },
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
+  "card.fillTitle": { ja: "このカードはまだ途中です", en: "This card isn't finished yet" },
+  "card.fillBody": {
+    ja: "{n}項目がまだありません。まとめて作れます。",
+    en: "{n} sections are still missing. You can fill them all at once.",
+  },
+  "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
+  "card.filling": { ja: "作っています…", en: "Writing it…" },
+  "card.fillFailed": {
+    ja: "うまく作れませんでした。通信を確かめて、もう一度お試しください。",
+    en: "Couldn't write it. Check your connection and try again.",
+  },
+  "card.fillRetry": { ja: "もう一度ためす", en: "Try again" },
   "card.quick_facts": { ja: "ひと目でわかる", en: "At a glance" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips" },
   "card.etymology": { ja: "語源・部首", en: "Origin & radicals" },
