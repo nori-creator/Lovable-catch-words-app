@@ -44,6 +44,15 @@
  * つまり**画面の数で言えば、見ているのは半分に満たない**。
  * 合格は「見た所に欠陥が無い」であって、「欠陥が無い」ではない。
  *
+ * ### 検査機のフォント都合で、絵が実機と違う所
+ * ・**この容器には CJK の太字が1つも無い**(`WenQuanYi Zen Hei Regular` だけ)。
+ *   `font-semibold` の付いた和文は Chrome が太さを合成するが、**幅は細字の
+ *   ままで組む**ので、太った字が隣にはみ出して重なって写る
+ *   (入れて最初に見る画面の「瞬間的に」で確認)。
+ *   **実機の話ではない** — iOS の PingFang / Hiragino には実物の太字が
+ *   在るので、幅も正しく出る。ここを app の欠陥として直してはいけない。
+ *   絵で字の重なりを見たら、まず `fc-match "sans-serif:lang=ja:weight=bold"` を見る。
+ *
  * ### 見えているが、絵が実物と同じ意味ではない所
  * ・`WordCard` の `SECTION_THEME`(節ごとの淡い色の表、36箇所)は
  *   **明るい面の前提で固定**されている。暗いテーマに追従しないことは
@@ -219,6 +228,10 @@ const MODES = [
   ["review-done-nocount", "", false, { scene: "review-end", variant: "done-nocount" }],
   // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
   ...crossThemes("home", { scene: "home" }),
+  // **入れて最初に見る画面。** 上のバーも下タブも無い全画面なので、
+  // 雛形の枠を外して撮る(`BARE`)。
+  ...crossThemes("onboarding", { scene: "onboarding" }),
+  ["onboarding-starting", "", false, { scene: "onboarding", variant: "starting" }],
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
   ...crossThemes("home-loading", { scene: "home-loading" }),
@@ -288,6 +301,13 @@ const LINE_MIN_RATIO = 3;
  * 意味を持つUIの図形と同じ下限(WCAG 1.4.11 / 2.4.7)。
  */
 const FOCUS_MIN_RATIO = 3;
+
+/**
+ * 枠(上のバー・下タブ)を被せずに撮る場面。**雛形の `BARE` と同じ一覧**。
+ * こちらにも書くのは、バーが無いことを咎める段がここに在るため。
+ * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
+ */
+const BARE_SCENES = new Set(["onboarding"]);
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -1041,10 +1061,12 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   //   ・低すぎる → 止まった見出しが半透明のバーの裏に潜り、上端がぼやける
   //     (実際に起きた。3.25rem 決め打ちで、バーは 3.5rem だった)
   // どちらも画像を見ても「なんとなく変」で終わる。数字で見る。
-  const stick = await page.evaluate(async () => {
+  const stick = await page.evaluate(async (bare) => {
     const out = [];
     const bar = document.querySelector("header");
-    if (!bar) return ["上のバーが無い(ハーネスが実物と違う)"];
+    // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
+    // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
+    if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
     // バーが本当に貼り付いているか。ここが relative だと、下の
     // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
     if (getComputedStyle(bar).position !== "sticky") {
@@ -1084,7 +1106,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     window.scrollTo(0, 0);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     return [...new Set(out)];
-  });
+  }, BARE_SCENES.has(scene.scene ?? ""));
   stick.forEach((f) => issues.push(`[${name}] ${f}`));
 
   // ## 鍵盤で辿ったとき、いまどこに居るかが見えること(WCAG 2.4.7)

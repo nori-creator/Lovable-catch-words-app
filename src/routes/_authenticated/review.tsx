@@ -1117,7 +1117,7 @@ function SpeakingCard({
               <button
                 onClick={submit}
                 disabled={!transcript.trim() || loading}
-                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:opacity-50"
+                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">

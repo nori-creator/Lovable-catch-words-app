@@ -54,6 +54,18 @@ function OnboardingPage() {
     }
   }
 
+  return <OnboardingCard starting={starting} onStart={() => void start()} />;
+}
+
+/**
+ * 入れて最初に見る画面。**この app で唯一、上のバーも下タブも無い全画面**。
+ *
+ * 見た目だけを持つ部品として切り出してある。ルート側は問い合わせと
+ * 遷移を持つので、そのままでは検査の雛形から描けなかった —
+ * つまり**新しい人が最初に見る画面が、一度も機械の目に入っていなかった**。
+ */
+export function OnboardingCard({ starting, onStart }: { starting: boolean; onStart: () => void }) {
+  const t = useT();
   return (
     <div className="grid min-h-screen place-items-center bg-background px-6">
       <div className="w-full max-w-sm text-center">
@@ -62,7 +74,10 @@ function OnboardingPage() {
         </div>
 
         <h1 className="text-title font-bold tracking-tight">{t("ob.title")}</h1>
-        <p className="mt-3 text-body leading-relaxed text-muted-foreground">
+        {/* 中央揃えのまま折り返すと、行頭が毎行ずれて目が戻り道を探す。
+            ここは中央に置くと決めた案内文なので、`text-balance` で
+            **行の長さを揃える**(決めた印であり、実際に読みやすくもなる)。 */}
+        <p className="mt-3 text-balance text-body leading-relaxed text-muted-foreground">
           {t("ob.line1")}
           <br />
           {t("ob.line2before")}
@@ -87,9 +102,9 @@ function OnboardingPage() {
         </div>
 
         <button
-          onClick={start}
+          onClick={onStart}
           disabled={starting}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
         >
           <Camera className="h-5 w-5" />
           {t("ob.start")}

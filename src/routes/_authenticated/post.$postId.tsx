@@ -195,7 +195,7 @@ function PostPage() {
                 type="submit"
                 aria-label={t("post.sendComment")}
                 disabled={!body.trim() || commentMut.isPending}
-                className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+                className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
               >
                 <Send className="h-4 w-4" />
               </button>

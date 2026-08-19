@@ -943,7 +943,7 @@ function ScanPage() {
                   <button
                     onClick={doScan}
                     disabled={!ready || scanning}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-body font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-body font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
                   >
                     {scanning ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -990,7 +990,7 @@ function ScanPage() {
                   <button
                     type="submit"
                     disabled={!manualQuery.trim()}
-                    className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg disabled:opacity-50"
+                    className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
                   >
                     {t("scan.searchGo")}
                   </button>

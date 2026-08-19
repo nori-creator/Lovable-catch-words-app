@@ -173,7 +173,7 @@ function JournalPage() {
           <button
             disabled={correctMut.isPending || draft.trim().length < 2}
             onClick={() => correctMut.mutate()}
-            className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-footnote font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:opacity-50"
+            className="lift inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-footnote font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
           >
             <Wand2 className="h-4 w-4" />
             {correctMut.isPending ? t("journal.correcting") : t("journal.askCorrect")}
