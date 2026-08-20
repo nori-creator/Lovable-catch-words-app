@@ -267,6 +267,7 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
+  ...crossThemes("home-writing", { scene: "home-writing" }),
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
   ["home-frame", "", false, { scene: "home", bg: "frame" }],

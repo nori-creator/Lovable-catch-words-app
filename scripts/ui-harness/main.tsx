@@ -43,6 +43,7 @@ import {
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  HomeWritingScene,
 } from "./scenes/home";
 import {
   SettingsChoicesScene,
@@ -96,6 +97,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
+  "home-writing": HomeWritingScene,
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,

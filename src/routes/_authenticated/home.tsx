@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
+import { JournalWritingPage } from "@/components/JournalWritingPage";
+import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -218,6 +220,8 @@ function HomePage() {
   const [openId, setOpenId] = useState<string | null>(null);
   /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
   const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
+  /** 見開きの右ページ(今日の日記を書く紙)を開いているか。 */
+  const [writing, setWriting] = useState(false);
 
   const [bg, setBg] = useState<BgId>("paper");
   useEffect(() => {
@@ -313,7 +317,16 @@ function HomePage() {
               setOpenPhotoPicker(true);
             }}
           />
-          <JournalLink />
+          {/* 「日記を書く」は別の画面に飛ばさない(オーナー指摘)。
+              押すとこのページがめくれて、**左に今日の写真・右に書く紙**が
+              向かい合う。読む側(`DayJournalPage`)と同じ紙・同じ綴じ目。 */}
+          {writing ? (
+            <JournalWritingPage onClose={() => setWriting(false)}>
+              <JournalComposer showHeading={false} />
+            </JournalWritingPage>
+          ) : (
+            <JournalLink onWrite={() => setWriting(true)} />
+          )}
         </>
       )}
 
@@ -376,17 +389,39 @@ export function HomeEmptyState() {
 }
 
 /** 日記への唯一の入口。 */
-export function JournalLink() {
+/**
+ * 日記への入口。
+ *
+ * `onWrite` を渡すと**その場でページをめくる**(オーナー指摘: アルバムの
+ * 写真と日記が別の機能に分離していた)。渡さない場所では今までどおり
+ * 日記の画面へのリンクとして働く — 過去の日記を読む道を塞がない。
+ */
+export function JournalLink({ onWrite }: { onWrite?: () => void }) {
   const t = useT();
+  const cls =
+    "press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-body font-semibold shadow-sm";
   return (
-    <div className="mt-4 text-center">
-      <Link
-        to="/journal"
-        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-body font-semibold shadow-sm"
-      >
-        <BookText className="h-4 w-4 text-primary" />
-        {t("home.journal")}
-      </Link>
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+      {onWrite ? (
+        <>
+          <button onClick={onWrite} className={cls}>
+            <BookText className="h-4 w-4 text-primary" />
+            {t("home.writeToday")}
+          </button>
+          {/* 過去の日記を読む道は残す。書く場所が変わっただけ。 */}
+          <Link
+            to="/journal"
+            className="min-h-11 px-3 text-footnote font-semibold text-primary-ink"
+          >
+            {t("home.pastJournals")}
+          </Link>
+        </>
+      ) : (
+        <Link to="/journal" className={cls}>
+          <BookText className="h-4 w-4 text-primary" />
+          {t("home.journal")}
+        </Link>
+      )}
     </div>
   );
 }
