@@ -15,6 +15,8 @@ import {
   MemoryLevelSummary,
   ReviewHeader,
   ReviewPreparing,
+  SayResult,
+  SpeakingCard,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 
@@ -64,7 +66,7 @@ export function ReviewLoadingScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={null} total={null} progress={0} choiceMode onMode={() => {}} />
+        <ReviewHeader answered={null} total={null} progress={0} mode="choice" onMode={() => {}} />
       </section>
       <ReviewPreparing />
     </>
@@ -102,7 +104,7 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
         answered={3}
         total={12}
         progress={25}
-        choiceMode
+        mode="choice"
         onMode={() => {}}
         reviewStreak={7}
       />
@@ -123,7 +125,7 @@ export function ReviewChoiceScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={3} total={12} progress={25} choiceMode onMode={() => {}} />
+        <ReviewHeader answered={3} total={12} progress={25} mode="choice" onMode={() => {}} />
       </section>
       <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />
     </>
@@ -146,4 +148,61 @@ export function ReviewEndScene({ q }: { q: URLSearchParams }) {
     return <DoneState onAgain={() => {}} />;
   }
   return <EmptyState />;
+}
+
+/**
+ * 「言うだけ」の段の出題(要望 #32 の L2)。
+ *
+ * **型も足場も出ていない面**なので、何を求められているかが1行で
+ * 伝わっているかを見る。ここに何も無いと、写真と録音ボタンだけが
+ * 置かれた画面になり、人は「文を作るのか、単語だけか」を推測することになる。
+ *
+ * 本物の `SpeakingCard` をそのまま描く。足場の取得は
+ * `format="say"` のとき止まっているので、通信は起きない。
+ */
+export function ReviewSayScene() {
+  return (
+    <>
+      <section className="mb-4">
+        <ReviewHeader answered={2} total={9} progress={22} mode="hybrid" onMode={() => {}} />
+      </section>
+      <SpeakingCard card={CARD} format="say" onNext={() => {}} onOpenMemory={() => {}} />
+    </>
+  );
+}
+
+/**
+ * 「言うだけ」の答え合わせ。通じた面と通じなかった面の両方。
+ *
+ * カードごと描くと、この節に辿り着くまでに写真と録音欄で数千pxになる
+ * (「出会う」の節で一度やった失敗)。判定の面だけを直に描く。
+ */
+export function ReviewSayResultScene({ q }: { q: URLSearchParams }) {
+  const ok = q.get("variant") !== "ng";
+  return (
+    <SayResult
+      card={CARD}
+      ok={ok}
+      heard={ok ? "珍珠奶茶" : "真豬奶茶"}
+      onRetry={() => {}}
+      onNext={() => {}}
+    />
+  );
+}
+
+/**
+ * 見出しの3択そのもの。**滑る丸がどの札を覆っているか**を3通りとも見る。
+ *
+ * 2択のときの `w-1/2` を残したまま3つ目を足すと、丸が最後の札の
+ * 半分しか覆わない — 押しているのに選ばれていないように見える。
+ * 位置で意味を伝える部品は、位置が合っている絵で確かめる。
+ */
+export function ReviewModeTabsScene({ q }: { q: URLSearchParams }) {
+  const raw = q.get("variant") ?? "hybrid";
+  const mode = raw === "speaking" || raw === "choice" ? raw : "hybrid";
+  return (
+    <section className="mb-4">
+      <ReviewHeader answered={3} total={12} progress={25} mode={mode} onMode={() => {}} />
+    </section>
+  );
 }

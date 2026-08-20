@@ -35,7 +35,13 @@ const UpdateInput = z.object({
   /** TOCFL の現在レベル(生成物の語彙帯を現在→目標に収めるのに使う)。 */
   current_level: z.string().optional(),
   pronunciation_strictness: z.enum(["easy", "normal", "strict"]).optional(),
-  review_mode: z.enum(["speaking", "choice"]).optional(),
+  /**
+   * 復習の出題形式。`hybrid` は記憶の段階に合わせる(`lib/review-format.ts`)。
+   * **DB の検査制約と同じ集合でなければならない** —
+   * `20260820060000_review_mode_hybrid.sql` で 'hybrid' を足してある。
+   * ここだけ広げると保存が毎回制約違反で落ちる。
+   */
+  review_mode: z.enum(["speaking", "choice", "hybrid"]).optional(),
   /** 1日に出す復習の最大枚数(0 = 無制限)。DB側にも同じ範囲の制約がある。 */
   review_daily_limit: z.number().int().min(0).max(200).optional(),
   /** どの記憶段階を優先して出すか。 */

@@ -24,6 +24,12 @@ import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import {
+  normalizeReviewMode,
+  reviewFormatFor,
+  saidTarget,
+  type ReviewModePref,
+} from "@/lib/review-format";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
@@ -181,10 +187,15 @@ function ReviewPage() {
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
   // Stored in profiles.review_mode; the header toggle flips it optimistically.
-  const choiceMode =
-    (profile as { review_mode?: string } | null | undefined)?.review_mode === "choice";
-  function setMode(next: "speaking" | "choice") {
-    if ((choiceMode ? "choice" : "speaking") === next) return;
+  //
+  // **`hybrid` は「1枚ずつ形が変わる」ので真偽値に潰せない。**
+  // ここを boolean にしていたせいで、サーバが毎回送っている `card.mode` を
+  // 画面が受け取る場所そのものが無かった(`lib/review-format.ts` の注釈)。
+  const mode = normalizeReviewMode(
+    (profile as { review_mode?: string } | null | undefined)?.review_mode,
+  );
+  function setMode(next: ReviewModePref) {
+    if (mode === next) return;
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
@@ -201,6 +212,21 @@ function ReviewPage() {
   const current: DueReviewCard | undefined = cards?.[idx];
   const done = cards && idx >= cards.length;
 
+  /**
+   * **この1枚をどの形で出すか。** 「おまかせ」のときだけ札ごとに変わる。
+   * 根拠は記憶レベル — すぐ隣に出ているバッジと同じ関数から決まるので、
+   * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
+   */
+  const format = current
+    ? reviewFormatFor({
+        pref: mode,
+        retention: current.retention,
+        intervalDays: current.interval_days,
+        repetitions: current.repetitions,
+        entryType: current.entry_type,
+      })
+    : null;
+
   const progress = useMemo(() => {
     if (!cards?.length) return 0;
     return Math.round((idx / cards.length) * 100);
@@ -213,7 +239,7 @@ function ReviewPage() {
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
           progress={progress}
-          choiceMode={choiceMode}
+          mode={mode}
           onMode={setMode}
           reviewStreak={myStats?.review_streak ?? null}
         />
@@ -272,7 +298,7 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <ReviewPreparing />
       ) : current ? (
-        choiceMode ? (
+        format === "choice" ? (
           <LightModeCard
             key={current.review_id}
             card={current}
@@ -283,6 +309,7 @@ function ReviewPage() {
           <SpeakingCard
             key={current.review_id}
             card={current}
+            format={format === "say" ? "say" : "compose"}
             onNext={advance}
             onOpenMemory={() => setMemModal(memWordOf(current))}
           />
@@ -700,12 +727,19 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
 // ============================================================================
 // Speaking-output card (§6)
 // ============================================================================
-function SpeakingCard({
+export function SpeakingCard({
   card,
+  format = "compose",
   onNext,
   onOpenMemory,
 }: {
   card: DueReviewCard;
+  /**
+   * `say` = 写真を見てその1語を声に出すだけ(型も足場も出さない)。
+   * `compose` = 型を提示して一文を作る(これまでの姿)。
+   * 決めているのは `lib/review-format.ts`。
+   */
+  format?: "say" | "compose";
   onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
 }) {
@@ -717,10 +751,13 @@ function SpeakingCard({
 
   // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
   // フレーズカードはロールプレイなので対象外。lazyに取得し失敗は無視。
+  // 「言うだけ」の段では足場を**取りに行かない**。
+  // 見せない物のためにAIを呼ぶのは、費用も待ち時間も丸ごと無駄。
+  const isSay = format === "say";
   const { data: scaffold } = useQuery({
     queryKey: ["speaking-scaffold", card.sticker_id],
     queryFn: () => scaffoldFn({ data: { sticker_id: card.sticker_id } }),
-    enabled: card.entry_type !== "phrase",
+    enabled: card.entry_type !== "phrase" && !isSay,
     staleTime: 60 * 60 * 1000,
     retry: false,
   });
@@ -728,6 +765,8 @@ function SpeakingCard({
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
   const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
+  /** `say` の段の判定。まだ答えていなければ null。 */
+  const [saidOk, setSaidOk] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoOn, setVideoOn] = useState(false);
@@ -883,6 +922,12 @@ function SpeakingCard({
 
   async function submit() {
     if (!transcript.trim() || loading) return;
+    // 1語言うだけの段は**その場で判定する**(理由は `saidTarget` の注釈)。
+    if (isSay) {
+      setError(null);
+      setSaidOk(saidTarget(transcript, card.headword));
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -908,7 +953,9 @@ function SpeakingCard({
     // §6 3-level SRS: success=5 / hint=2 (失念) / skip・不成立=1.
     // "Success" additionally requires the AI's objective check (used the
     // target word, natural enough) — the honest-grading idea from main.
-    const objectiveOk = !!feedback && feedback.used_target && feedback.natural_score >= 3;
+    const objectiveOk = isSay
+      ? saidOk === true
+      : !!feedback && feedback.used_target && feedback.natural_score >= 3;
     // ヒント(答え表示)は廃止したので "hint" 判定は無くなった。
     const result: "success" | "hint" | "skip" =
       kind === "skip" ? "skip" : objectiveOk ? "success" : "skip";
@@ -933,8 +980,11 @@ function SpeakingCard({
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
   // (最低評価)で記録され、写真をなぞっただけの人が記憶度を落としていた。
   // 4択の札と同じく、結果が出てから次へ送る。
+  /** 答え終わったか。**形が2つあるので、真偽の出所を1つに絞る。** */
+  const answered = isSay ? saidOk !== null : !!feedback;
+
   return (
-    <SwipeCard enabled={!loading && !!feedback} onSwipe={() => commitAndNext("success")}>
+    <SwipeCard enabled={!loading && answered} onSwipe={() => commitAndNext("success")}>
       <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
         <div className="mb-3 flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary-ink">
@@ -942,8 +992,16 @@ function SpeakingCard({
             {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
           </span>
           <div className="flex items-center gap-2">
+            {/* **求めている物を2つ書かない。** 下に「写真を見て、声に出す」と
+                出しているのに、ここが「単語を使って一文で」のままだった
+                (検査の絵で気づいた)。同じ画面で違う指示が2つ出ていたら、
+                人はどちらに従えばいいか分からない。 */}
             <span className="text-caption text-muted-foreground">
-              {isPhrase ? t("review.promptPhrase") : t("review.promptSpeak")}
+              {isPhrase
+                ? t("review.promptPhrase")
+                : isSay
+                  ? t("rv.promptSay")
+                  : t("review.promptSpeak")}
             </span>
             <CardMemoryBadge card={card} onOpen={onOpenMemory} />
           </div>
@@ -991,7 +1049,7 @@ function SpeakingCard({
         {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
           使う型を1つ指定して、その型で言わせる。単語部分は伏せ字のまま
           (答えを見せない)。答え合わせは添削画面で。 */}
-        {!isPhrase && card.prompt_pattern && (
+        {!isPhrase && !isSay && card.prompt_pattern && (
           <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
             <div className="text-caption font-semibold label-caps text-primary-ink">
               {t("review.todaysPattern")}
@@ -1010,9 +1068,33 @@ function SpeakingCard({
           </div>
         )}
 
+        {/* 「言うだけ」の段。**何を求められているかを1行で言う** —
+          型も質問も出ていない面で、いきなり録音ボタンだけ在ると
+          「何を話せばいいのか」が分からない。 */}
+        {isSay && !answered && (
+          <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
+            <div className="text-body font-semibold text-primary-ink">{t("rv.formatSay")}</div>
+            <div className="mt-0.5 text-caption text-muted-foreground">{t("rv.formatSayHint")}</div>
+          </div>
+        )}
+
+        {isSay && saidOk !== null && (
+          <SayResult
+            card={card}
+            ok={saidOk}
+            heard={transcript}
+            onRetry={() => {
+              setSaidOk(null);
+              setTranscript("");
+              setVideoUrl(null);
+            }}
+            onNext={() => commitAndNext(saidOk ? "success" : "skip")}
+          />
+        )}
+
         {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
           パーツを組み合わせて質問に答える。 */}
-        {!isPhrase && scaffold && !feedback && (
+        {!isPhrase && scaffold && !answered && (
           <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
             <div className="text-caption font-semibold label-caps text-sky-800">
               {t("review.teacherQ")}
@@ -1106,7 +1188,7 @@ function SpeakingCard({
         )}
 
         {/* Recording controls */}
-        {!feedback && (
+        {!answered && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-4">
               <button
@@ -1142,6 +1224,10 @@ function SpeakingCard({
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> {t("review.grading")}
                   </span>
+                ) : isSay ? (
+                  // ここは AI に投げない(`saidTarget` がその場で見る)ので、
+                  // 「送信してフィードバック」とは名乗らない。
+                  t("rv.sayCheck")
                 ) : (
                   t("review.submit")
                 )}
@@ -1157,7 +1243,7 @@ function SpeakingCard({
         )}
 
         {/* AI feedback */}
-        {feedback && (
+        {!isSay && feedback && (
           <FeedbackView
             card={card}
             feedback={feedback}
@@ -1175,6 +1261,95 @@ function SpeakingCard({
         )}
       </article>
     </SwipeCard>
+  );
+}
+
+/**
+ * 「言うだけ」の段の答え合わせ。
+ *
+ * 添削の面(`FeedbackView`)を使い回さない。あちらは**文**を直す画面で、
+ * 1語しか言っていない人に「自然さ 2/5」「語順の決まり」を並べても、
+ * 直す所が無いことを長く説明されるだけになる。
+ *
+ * ここで見せるのは3つだけ — 通じたか、正しい語と読み、そして音。
+ */
+export function SayResult({
+  card,
+  ok,
+  heard,
+  onRetry,
+  onNext,
+}: {
+  card: DueReviewCard;
+  ok: boolean;
+  heard: string;
+  onRetry: () => void;
+  onNext: () => void;
+}) {
+  const t = useT();
+  const phonetic = usePhoneticPref();
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      {/* 判定は**面で伝える**。色が読めない人にも文字で伝わるようにする
+          (4択の面で直したのと同じ理由)。 */}
+      <div className={`-mx-4 mb-2 px-4 py-1.5 ${ok ? "bg-ok/12" : "bg-bad/12"}`} role="status">
+        <span className={`text-body font-bold ${ok ? "text-ok-ink" : "text-bad-ink"}`}>
+          {ok ? t("review.correct") : t("review.tryAgain")}
+        </span>
+      </div>
+
+      <div className="mb-1.5 flex items-center gap-2">
+        <span
+          lang="zh-Hant"
+          className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
+        >
+          {card.headword}
+        </span>
+        <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
+          {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
+        </span>
+        <button
+          onClick={() => playAudio(card)}
+          className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+          aria-label={t("card.playPron")}
+        >
+          <Volume2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* **通じなかったときだけ、聞こえた音を見せる。**
+          合っているときに「あなた: 面紙」と出しても何も足さない。 */}
+      {!ok && heard.trim() && (
+        <p className="mb-2 rounded-xl bg-secondary/60 p-2 text-footnote text-muted-foreground">
+          {t("review.you")}「{heard.trim()}」
+        </p>
+      )}
+
+      {/* **塗ってあるボタンは「次にやるべきこと」を指す。**
+          通じなかった回に「次へ」を塗ると、画面が「もう一度覚えよう」と
+          言った直後に、いちばん目立つボタンが立ち去る側になる
+          (完了の面で一度直したのと同じ自己矛盾)。
+          外したときは言い直す側を、通じたときは進む側を塗る。 */}
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={onRetry}
+          className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
+            ok ? "border border-border bg-background" : "bg-primary text-primary-foreground"
+          }`}
+        >
+          <Repeat className="mr-1 inline h-4 w-4" />
+          {t("rv.sayRetry")}
+        </button>
+        <button
+          onClick={onNext}
+          className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
+            ok ? "bg-primary text-primary-foreground" : "border border-border bg-background"
+          }`}
+        >
+          {t("review.next")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1849,11 +2024,25 @@ export function EmptyState() {
  * ルートに直書きのままでは場面から描けないので、ここへ出す。
  * (復習・ホーム・設定で同じことを何度もやっている。)
  */
+/**
+ * 見出しの切替の並び。**設定画面と同じ順**にしておく —
+ * 同じ選択肢が画面ごとに違う順で出ると、押し間違いを誘う。
+ */
+const MODE_TABS: ReadonlyArray<{
+  id: ReviewModePref;
+  labelKey: string;
+  titleKey?: string;
+}> = [
+  { id: "hybrid", labelKey: "review.auto", titleKey: "rv.autoMode" },
+  { id: "speaking", labelKey: "review.speak" },
+  { id: "choice", labelKey: "review.choice", titleKey: "rv.quietMode" },
+];
+
 export function ReviewHeader({
   answered,
   total,
   progress,
-  choiceMode,
+  mode,
   onMode,
   reviewStreak,
 }: {
@@ -1862,8 +2051,9 @@ export function ReviewHeader({
   total: number | null;
   /** 0〜100。 */
   progress: number;
-  choiceMode: boolean;
-  onMode: (m: "speaking" | "choice") => void;
+  /** いま選ばれている出題モード。`hybrid` は札ごとに形が変わる。 */
+  mode: ReviewModePref;
+  onMode: (m: ReviewModePref) => void;
   /**
    * 復習した日が何日続いているか。まだ届いていなければ null。
    * **0 のときは出さない** — 「0日続いている」は続いていないことの遠回しな
@@ -1887,45 +2077,51 @@ export function ReviewHeader({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {answered !== null && total !== null && (
-            <span className="text-footnote text-muted-foreground">
-              {formatCount(answered)} / {formatCount(total)}
-            </span>
-          )}
-          <div
-            className="relative flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
-            role="tablist"
-            aria-label={t("rv.modeAria")}
+        {answered !== null && total !== null && (
+          <span className="shrink-0 text-footnote text-muted-foreground">
+            {formatCount(answered)} / {formatCount(total)}
+          </span>
+        )}
+      </div>
+
+      {/* **切替は見出しと同じ行に置かない。**
+          2つのときは見出しの隣に収まっていたが、3つ目を足した絵では
+          「おまか / せ」と札の中で折れ、押し出された見出しまで
+          「きょうの復 / 習」と割れた(検査の絵で気づいた)。
+          日本語と英語で語の幅が違う以上、**固定幅に賭けない** —
+          行を分けて、3つで等分する。
+
+          滑る丸は「今どれか」を**位置で**示すので、札の数と分母を必ず
+          一致させる。2つ用の `w-1/2` のまま3つ目を足すと、
+          丸が最後の札の半分しか覆わない。 */}
+      <div
+        className="relative mt-2 flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
+        role="tablist"
+        aria-label={t("rv.modeAria")}
+      >
+        <span
+          aria-hidden
+          className="absolute inset-y-0.5 left-0.5 rounded-full bg-background shadow transition-transform duration-200"
+          style={{
+            width: `calc((100% - 0.25rem) / ${MODE_TABS.length})`,
+            transform: `translateX(${MODE_TABS.findIndex((m) => m.id === mode) * 100}%)`,
+          }}
+        />
+        {/* 当たり判定は 44px を下回らせない。この画面の主要な切替なのに、
+            雛形が見出しを描いていなかったので**一度も測られていなかった**
+            ことがある(実測 72×25px)。 */}
+        {MODE_TABS.map((m) => (
+          <button
+            key={m.id}
+            role="tab"
+            aria-selected={mode === m.id}
+            onClick={() => onMode(m.id)}
+            title={m.titleKey ? t(m.titleKey) : undefined}
+            className={`relative z-10 min-h-11 flex-1 rounded-full px-1 text-center leading-tight transition-colors ${mode === m.id ? "text-foreground" : "text-muted-foreground"}`}
           >
-            <span
-              aria-hidden
-              className={`absolute inset-y-0.5 w-1/2 rounded-full bg-background shadow transition-transform duration-200 ${choiceMode ? "translate-x-full" : "translate-x-0"}`}
-            />
-            {/* **見た目は小さいまま、当たり判定だけを 44px へ広げる。**
-                実測 72×25px しかなく、下限(44)を大きく割っていた。
-                この画面の主要な切替なのに、雛形が見出しを描いていなかった
-                ので**一度も測られていなかった**。
-                縦にだけ広げる — 横に広げると隣の切替と重なる。 */}
-            <button
-              role="tab"
-              aria-selected={!choiceMode}
-              onClick={() => onMode("speaking")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${!choiceMode ? "text-foreground" : "text-muted-foreground"}`}
-            >
-              {t("review.speak")}
-            </button>
-            <button
-              role="tab"
-              aria-selected={choiceMode}
-              onClick={() => onMode("choice")}
-              title={t("rv.quietMode")}
-              className={`relative z-10 w-[4.5rem] rounded-full py-1 text-center transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] ${choiceMode ? "text-foreground" : "text-muted-foreground"}`}
-            >
-              {t("review.choice")}
-            </button>
-          </div>
-        </div>
+            {t(m.labelKey)}
+          </button>
+        ))}
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div

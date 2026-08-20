@@ -99,6 +99,18 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
+  "rv.autoMode": {
+    ja: "記憶の段階に合わせて出題の形を変えます",
+    en: "Picks the task format to match how well you remember each word",
+  },
+  "rv.formatSay": { ja: "写真を見て、声に出す", en: "Look at the photo and say it" },
+  "rv.formatSayHint": {
+    ja: "いまは1語だけ。文を作るのは、もう少し覚えてから。",
+    en: "Just the word for now — sentences come once it sticks.",
+  },
+  "rv.promptSay": { ja: "この単語を声に出して", en: "Say this word out loud" },
+  "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
+  "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
   "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
@@ -768,6 +780,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "title.capture": { ja: "集める", en: "Catch" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review" },
+  "review.auto": { ja: "🎯 おまかせ", en: "🎯 Auto" },
   "review.speak": { ja: "🎤 話す", en: "🎤 Speak" },
   "review.choice": { ja: "👆 4択", en: "👆 Quiz" },
   // --- dex ---
@@ -1190,8 +1203,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
-    en: "“Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
+    ja: "「おまかせ」は記憶の段階で形が変わります（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“Auto” matches the task to how well you remember each word (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1231,6 +1244,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
   // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
   // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  "settings.modeHybrid": { ja: "🎯 おまかせ", en: "🎯 Auto" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },

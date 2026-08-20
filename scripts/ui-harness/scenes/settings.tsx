@@ -46,20 +46,27 @@ import { useState } from "react";
  * 学習の束。丸いボタンの列が2列・3列・5列で並び、末尾にスイッチが2つ付く。
  */
 export function SettingsChoicesScene() {
-  const [mode, setMode] = useState("speaking");
+  const [mode, setMode] = useState("hybrid");
   const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
   const [focus, setFocus] = useState("all");
   return (
     <SettingsCard title={t("settings.study")}>
       <div className="space-y-3">
+        {/* **実物と同じ3択にする。**
+            「おまかせ」を足したとき、ここは2択のまま写しが残っていて、
+            下の説明文だけが「おまかせ」を語る絵になっていた
+            (検査の絵で気づいた)。選択肢を手で写している限り、
+            実物が変わっても絵は変わらない — このハーネスが避けようとして
+            いる形そのものなので、写しは増やさず本物と同じ並びを保つ。 */}
         <ChoiceRow
-          cols={2}
+          cols={3}
           label={t("settings.reviewMode")}
           hint={t("settings.reviewModeHint")}
           value={mode}
           onChange={setMode}
           options={[
+            { value: "hybrid", label: t("settings.modeHybrid") },
             { value: "speaking", label: t("settings.modeSpeaking") },
             { value: "choice", label: t("settings.modeChoice") },
           ]}

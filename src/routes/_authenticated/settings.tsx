@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
+import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
@@ -212,7 +213,7 @@ function SettingsPage() {
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
   const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
-  const [reviewMode, setReviewMode] = useState<"speaking" | "choice">("speaking");
+  const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [saving, setSaving] = useState(false);
@@ -228,9 +229,7 @@ function SettingsPage() {
       ((profile as { current_level?: string | null }).current_level ?? "") || "TOCFL-1",
     );
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
-    setReviewMode(
-      ((profile as { review_mode?: string }).review_mode as "speaking" | "choice") ?? "speaking",
-    );
+    setReviewMode(normalizeReviewMode((profile as { review_mode?: string }).review_mode));
     const p = profile as { review_daily_limit?: number | null; review_stage_focus?: string | null };
     setReviewLimit(typeof p.review_daily_limit === "number" ? p.review_daily_limit : 20);
     setReviewFocus(
@@ -371,13 +370,16 @@ function SettingsPage() {
 
         <SettingsCard title={t("settings.study")}>
           <div className="space-y-3">
+            {/* 「おまかせ」は記憶の段階で形を変える(`lib/review-format.ts`)。
+                既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
             <ChoiceRow
-              cols={2}
+              cols={3}
               label={t("settings.reviewMode")}
               hint={t("settings.reviewModeHint")}
               value={reviewMode}
               onChange={setReviewMode}
               options={[
+                { value: "hybrid", label: t("settings.modeHybrid") },
                 { value: "speaking", label: t("settings.modeSpeaking") },
                 { value: "choice", label: t("settings.modeChoice") },
               ]}
