@@ -21,6 +21,7 @@ import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
+import { InputCatchScene } from "./scenes/input-catch";
 import {
   CaptureCardScene,
   CaptureOfflineScene,
@@ -114,6 +115,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
+  "input-catch": InputCatchScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,

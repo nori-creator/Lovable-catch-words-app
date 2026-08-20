@@ -329,6 +329,12 @@ const MODES = [
   ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
   // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
   ...crossThemes("word-candidate", { scene: "word-candidate" }),
+  // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
+  // ここまで場面が1つも無く、壊れた姿を機械が一度も見ていなかった。
+  ...crossThemes("input-catch", { scene: "input-catch" }),
+  ["input-catch-typed", "", false, { scene: "input-catch", variant: "typed" }],
+  ["input-catch-loading", "", false, { scene: "input-catch", variant: "loading" }],
+  ...crossThemes("input-catch-error", { scene: "input-catch", variant: "error" }),
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],

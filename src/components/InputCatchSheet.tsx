@@ -455,77 +455,26 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {(step === "input" || step === "loading") && (
-          <div className="mx-auto max-w-sm space-y-4">
-            <p className="text-center text-body text-muted-foreground">{t("input.lead")}</p>
-
-            {canSpeak && initialMode === "voice" && (
-              <button
-                onClick={toggleRecord}
-                disabled={step === "loading"}
-                className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
-                  listening
-                    ? "bg-bad text-white shadow-bad/30"
-                    : "bg-primary text-primary-foreground shadow-primary/30"
-                }`}
-                aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
-              >
-                {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
-              </button>
-            )}
-            <p className="text-center text-caption text-muted-foreground">
-              {initialMode === "voice" && canSpeak
-                ? listening
-                  ? t("input.listening")
-                  : t("input.micHint")
-                : t("input.textHint")}
-            </p>
-
-            <div className="relative">
-              <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  // **単語とフレーズで欄を分けない**(オーナー指摘 2026-08-20)。
-                  // 打つ人にとっては同じ「言葉を入れる」動作で、どちらなのかを
-                  // 先に決めさせる理由が無い。長さと句読点で自動的に決める。
-                  setIsPhrase(guessIsPhrase(e.target.value));
-                }}
-                placeholder={t("sheet.inputPlaceholder")}
-                className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-
-            {/* 状況の欄は**単語のときにも出す。**
-                母語の1語が台湾華語では別々の語に割れることが多く
-                (ティッシュ → 衛生紙 / 面紙)、どれが欲しいかは
-                その場の様子を聞かないと決まらない。 */}
-            <input
-              value={scene}
-              onChange={(e) => setScene(e.target.value)}
-              placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
-              className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary/40"
-            />
-
-            {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink">
-                {err}
-              </p>
-            )}
-
-            <button
-              onClick={lookupAndGenerate}
-              disabled={!text.trim() || step === "loading"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-            >
-              {step === "loading" ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-              {step === "loading" ? t("input.looking") : t("input.lookup")}
-            </button>
-          </div>
+          <InputCatchFace
+            text={text}
+            onText={(v) => {
+              setText(v);
+              // **単語とフレーズで欄を分けない**(オーナー指摘 2026-08-20)。
+              // 打つ人にとっては同じ「言葉を入れる」動作で、どちらなのかを
+              // 先に決めさせる理由が無い。長さと句読点で自動的に決める。
+              setIsPhrase(guessIsPhrase(v));
+            }}
+            scene={scene}
+            onScene={setScene}
+            isPhrase={isPhrase}
+            error={err}
+            loading={step === "loading"}
+            onSubmit={lookupAndGenerate}
+            showMic={canSpeak && initialMode === "voice"}
+            voiceHints={initialMode === "voice" && canSpeak}
+            listening={listening}
+            onToggleRecord={toggleRecord}
+          />
         )}
 
         {step === "choose" && (
@@ -729,6 +678,128 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 打ち込む面。**この画面はこれまで検査の場面が1つも無かった。**
+ *
+ * オーナーが2度「単語の文字入力がエラーが出て、機能してない」と言った
+ * 画面がここで、そのとき出ていたのは英語の1行(
+ * "AI did not return a structured card")だった。
+ * **壊れた姿を機械が一度も撮っていなかった**ことと無関係ではない。
+ *
+ * シートは通信も画面の遷移も持つので、そのままでは場面から描けない。
+ * 打ち込む面だけを、通信も状態も持たない部品として出す —
+ * 見出しや復習の札で何度もやってきたのと同じ形。
+ * これで「空のとき」「打った後」「探している間」「失敗したとき」を
+ * 実物のまま撮れる。
+ */
+export function InputCatchFace({
+  text,
+  onText,
+  scene,
+  onScene,
+  isPhrase,
+  error,
+  loading,
+  onSubmit,
+  showMic,
+  voiceHints,
+  listening,
+  onToggleRecord,
+}: {
+  text: string;
+  onText: (v: string) => void;
+  scene: string;
+  onScene: (v: string) => void;
+  /** 長さと句読点から自動で決まる。状況欄の言い方が変わる。 */
+  isPhrase: boolean;
+  /** 失敗したときの一言。**必ず読める言葉で**渡すこと。 */
+  error: string | null;
+  loading: boolean;
+  onSubmit: () => void;
+  showMic: boolean;
+  voiceHints: boolean;
+  listening: boolean;
+  onToggleRecord: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="mx-auto max-w-sm space-y-4">
+      {/* **中央に2行で置くと決めた印を残す**(検査の門が求めている)。
+          `text-balance` は行の長さを揃えるので印であると同時に読みやすくなり、
+          `ja-phrase` は日本語を**文節で**折る — オーナーの絵では
+          「写真がな / くても図鑑に。」と語の途中で割れていた。
+          この画面はここまで検査の場面が無く、一度も測られていなかった。 */}
+      <p className="ja-phrase text-balance text-center text-body text-muted-foreground">
+        {t("input.lead")}
+      </p>
+
+      {showMic && (
+        <button
+          onClick={onToggleRecord}
+          disabled={loading}
+          className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
+            listening
+              ? "bg-bad text-white shadow-bad/30"
+              : "bg-primary text-primary-foreground shadow-primary/30"
+          }`}
+          aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
+        >
+          {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
+        </button>
+      )}
+      <p className="ja-phrase text-balance text-center text-caption text-muted-foreground">
+        {voiceHints ? (listening ? t("input.listening") : t("input.micHint")) : t("input.textHint")}
+      </p>
+
+      {/* **焦点の輪を薄くしない。**
+          `ring-primary/40` は実測 1.68:1 で、下限(3:1)の半分ほどしか
+          無かった — 打つことが用事そのものの画面で、いま**どちらの欄に
+          居るのかが見えない**状態だった。この画面はここまで検査の場面が
+          無く、一度も測られていなかった。 */}
+      <div className="relative">
+        <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={text}
+          onChange={(e) => onText(e.target.value)}
+          placeholder={t("sheet.inputPlaceholder")}
+          className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
+        />
+      </div>
+
+      {/* 状況の欄は**単語のときにも出す。**
+          母語の1語が台湾華語では別々の語に割れることが多く
+          (ティッシュ → 衛生紙 / 面紙)、どれが欲しいかは
+          その場の様子を聞かないと決まらない。 */}
+      <input
+        value={scene}
+        onChange={(e) => onScene(e.target.value)}
+        placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
+        className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
+      />
+
+      {/* 失敗の一言。**打った文字は消さない** — 出し直すのに
+          もう一度打たせるのは、失敗の上に手間を重ねること。 */}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink"
+        >
+          {error}
+        </p>
+      )}
+
+      <button
+        onClick={onSubmit}
+        disabled={!text.trim() || loading}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+      >
+        {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+        {loading ? t("input.looking") : t("input.lookup")}
+      </button>
     </div>
   );
 }
