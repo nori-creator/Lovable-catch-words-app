@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { upsertWord } from "./stickers.functions";
@@ -32,7 +33,7 @@ const GhostInput = z.object({
     extras: ExtrasSchema.optional(),
     entry_type: z.enum(["word", "phrase"]).default("word"),
   }),
-  language: z.string().default("zh-TW"),
+  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
   capture_type: z.enum(["text", "voice"]),
   caption: z.string().nullable().optional(),
   /**

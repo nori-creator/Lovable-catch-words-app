@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { emptyExtras } from "@/lib/extras";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
@@ -229,10 +230,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     /** 候補が1つに決まったときの種(意味と読み)。 */
     let soleCandidate: CandidateSeed | undefined;
     try {
-      if (!isPhrase && !isTargetHeadword(headword, "zh-TW")) {
+      if (!isPhrase && !isTargetHeadword(headword, DEFAULT_TARGET_LANGUAGE)) {
         // 母語で書かれている = どの語を指すかまだ決まっていない。
         const { candidates: cands } = await candidatesFn({
-          data: { query: headword, scene: scene.trim() || undefined, targetLanguage: "zh-TW" },
+          data: {
+            query: headword,
+            scene: scene.trim() || undefined,
+            targetLanguage: DEFAULT_TARGET_LANGUAGE,
+          },
         });
         if (cands.length > 1) {
           setWordChoices(cands);
@@ -314,7 +319,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
         realCardRef.current = null;
-        const inflight = cardFn({ data: { headword, targetLanguage: "zh-TW" } })
+        const inflight = cardFn({ data: { headword, targetLanguage: DEFAULT_TARGET_LANGUAGE } })
           .then((got) => {
             if (runTokenRef.current === token) realCardRef.current = got;
             return got;
@@ -331,9 +336,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // ここは `c.headword_zh || headword` と書いてあった。解決に失敗すると
         // 日本語が見出しになり、「シャーペン」がカタカナのまま図鑑に入って
         // 注音だけが下に付いていた。学んでいる言語でないものは見出しにしない。
-        const resolved = isTargetHeadword(c.headword_zh ?? "", "zh-TW")
+        const resolved = isTargetHeadword(c.headword_zh ?? "", DEFAULT_TARGET_LANGUAGE)
           ? c.headword_zh
-          : isTargetHeadword(headword, "zh-TW")
+          : isTargetHeadword(headword, DEFAULT_TARGET_LANGUAGE)
             ? headword
             : "";
         if (!resolved) {
@@ -391,7 +396,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     if (!headword || step === "saving") return;
     // 下見の画面で見出しを手で書き換えられるので、**保存の直前にもう一度見る。**
     // 入口だけ閉じても、途中で書き換えられたら同じ所に戻る。
-    if (!isPhrase && !isTargetHeadword(headword, "zh-TW")) {
+    if (!isPhrase && !isTargetHeadword(headword, DEFAULT_TARGET_LANGUAGE)) {
       setErr(t("input.notTargetLang"));
       return;
     }
@@ -504,7 +509,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       const res = await saveGhostFn({
         data: {
           word,
-          language: "zh-TW",
+          language: DEFAULT_TARGET_LANGUAGE,
           capture_type: initialMode === "voice" && canSpeak ? "voice" : "text",
           caption: isPhrase && scene ? scene : null,
           object_path,

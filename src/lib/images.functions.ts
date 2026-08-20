@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
@@ -11,7 +12,7 @@ export type ImageCandidate = {
 
 const SearchInput = z.object({
   query: z.string().min(1).max(120),
-  language: z.string().default("zh-TW"),
+  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 /**

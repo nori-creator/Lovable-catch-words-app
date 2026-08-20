@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { MAP_DISPLAY_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pickAreaName, pickPlaceName, placeLine, type GeocodeResult } from "./place-name";
@@ -13,7 +14,7 @@ const Input = z.object({
    * `Taipei City` のような英語が出ていたのは、ここが指定されないまま
    * 呼ばれた古い経路の名残(オーナー指摘 2026-08-20)。
    */
-  language: z.string().default("zh-TW"),
+  language: z.string().default(MAP_DISPLAY_LANGUAGE),
 });
 
 export const geocodeLocation = createServerFn({ method: "POST" })
@@ -25,7 +26,7 @@ export const geocodeLocation = createServerFn({ method: "POST" })
     if (!apiKey || !lovableKey) {
       return { location_name: null as string | null, place: null, area: null };
     }
-    const lang = encodeURIComponent(data.language || "zh-TW");
+    const lang = encodeURIComponent(data.language || MAP_DISPLAY_LANGUAGE);
     const url = `https://connector-gateway.lovable.dev/google_maps/maps/api/geocode/json?latlng=${data.lat},${data.lng}&language=${lang}`;
     try {
       const res = await fetch(url, {

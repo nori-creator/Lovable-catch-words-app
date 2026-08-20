@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { nextSrs } from "./reviews.functions";
@@ -25,7 +26,7 @@ export type OwnedWord = {
 
 const CheckInput = z.object({
   headword: z.string().min(1),
-  language: z.string().default("zh-TW"),
+  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 export const checkOwnedWord = createServerFn({ method: "GET" })

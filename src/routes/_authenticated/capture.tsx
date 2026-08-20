@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -353,7 +354,7 @@ function CapturePage() {
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
       const suggestRes = await suggestFn({
-        data: { imageBase64: aiImage, targetLanguage: "zh-TW" },
+        data: { imageBase64: aiImage, targetLanguage: DEFAULT_TARGET_LANGUAGE },
       });
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
@@ -433,7 +434,9 @@ function CapturePage() {
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
     try {
-      const { owned } = await ownedFn({ data: { headword: head, language: "zh-TW" } });
+      const { owned } = await ownedFn({
+        data: { headword: head, language: DEFAULT_TARGET_LANGUAGE },
+      });
       if (runTokenRef.current !== token) return;
       if (owned) {
         setReenc(owned);
@@ -462,14 +465,20 @@ function CapturePage() {
           example_translation: "",
         });
         cardFn({
-          data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key },
+          data: {
+            headword: head,
+            targetLanguage: DEFAULT_TARGET_LANGUAGE,
+            hintCategory: hint.category_key,
+          },
         })
           .then((c) => {
             if (runTokenRef.current === token) setCard(c);
           })
           .catch(() => {});
       } else {
-        const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
+        const c = await cardFn({
+          data: { headword: head, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+        });
         if (runTokenRef.current !== token) return;
         setCard(c);
       }
@@ -569,7 +578,7 @@ function CapturePage() {
           // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
           // このアプリで何度もやっている「直したものが動く経路に無い」形。
           new_shelf: card.new_shelf ?? null,
-          language: "zh-TW",
+          language: DEFAULT_TARGET_LANGUAGE,
           object_path,
           cutout_path,
           selfie_path,

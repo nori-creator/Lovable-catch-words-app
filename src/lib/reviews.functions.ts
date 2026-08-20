@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 // 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
@@ -415,7 +416,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const { data: dictRows } = await supabaseAdmin
         .from("dictionary_entries")
         .select("headword, zhuyin, pinyin")
-        .eq("language", "zh-TW")
+        .eq("language", DEFAULT_TARGET_LANGUAGE)
         .lte("tocfl_level", lvl)
         .gte("id", pivot)
         .limit(40);
@@ -464,7 +465,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
       }
     }
     const audioPaths = await Promise.all(
-      rows.map((r) => ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, r.stickers!.words!.headword)),
+      rows.map((r) =>
+        ttsObjectPath(DEFAULT_TARGET_LANGUAGE, TTS_VOICE_DEFAULT, r.stickers!.words!.headword),
+      ),
     );
     const audioUrlByPath = new Map<string, string>();
     {

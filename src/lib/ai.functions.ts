@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -39,7 +40,7 @@ import {
 const SuggestInput = z.object({
   // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
   imageBase64: z.string().min(100).max(8_000_000),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
   levelGoal: z.string().default("TOCFL-2"),
 });
 
@@ -102,7 +103,7 @@ export const suggestWords = createServerFn({ method: "POST" })
             `(例: 「純棉短袖」「客家小炒」)。一般名詞は既に知っている。`;
 
     const prompt =
-      data.targetLanguage === "zh-TW"
+      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
         ? `この画像から、台湾華語の学習対象として有用な名詞を5つ選んでください。
 - 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
 ${specificity}
@@ -189,7 +190,7 @@ ${langRule}
 
 const CardInput = z.object({
   headword: z.string().min(1),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
   hintCategory: z.string().optional(),
 });
 
@@ -216,7 +217,7 @@ const WordCandidatesInput = z.object({
   query: z.string().min(1).max(60),
   /** どこで・どんな様子だったか(任意)。候補を絞る手がかり。 */
   scene: z.string().max(200).optional(),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 const CandidateSchema = z.object({
@@ -314,7 +315,7 @@ export const generateCard = createServerFn({ method: "POST" })
     const learnerL1 = l1Info.speakerJa;
 
     const prompt =
-      data.targetLanguage === "zh-TW"
+      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
         ? `「${data.headword}」について、台湾華語(繁体字)の語彙カードを生成してください。
 
 ${langRule}
@@ -532,7 +533,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
 const PhraseInput = z.object({
   phrase: z.string().min(1).max(80),
   scene: z.string().max(200).default(""),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 const PhraseCardSchema = z.object({
