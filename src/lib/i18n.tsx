@@ -1253,6 +1253,22 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
   // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
   // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  // --- 主役の写真を選ぶ(要望 #17) ---
+  "photo.pickTitle": { ja: "この札の主役の写真", en: "Main photo for this card" },
+  "photo.followSetting": { ja: "設定に従う", en: "Follow my setting" },
+  "photo.followSettingHint": {
+    ja: "画面ごとに合う絵が出ます（いまの既定）",
+    en: "Each screen picks what suits it (current default)",
+  },
+  "photo.roleObject": { ja: "元の写真", en: "Photo" },
+  "photo.roleCutout": { ja: "切り抜き", en: "Cut-out" },
+  "photo.roleSelfie": { ja: "自撮り", en: "Selfie" },
+  "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image" },
+  "photo.replaceFile": { ja: "別の写真に差し替える", en: "Replace with another photo" },
+  "photo.saveFailedMigration": {
+    ja: "この端末のデータベースがまだ新しい設定に対応していません（管理者に連絡してください）。",
+    en: "The database hasn't been migrated for this setting yet (please contact the admin).",
+  },
   "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
   "settings.photoPrefHint": {
     ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",

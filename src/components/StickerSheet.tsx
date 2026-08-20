@@ -25,6 +25,7 @@ import {
   deleteSticker,
   replaceStickerPhoto,
   setStickerPlaceholder,
+  setStickerHeroRole,
 } from "@/lib/stickers.functions";
 import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functions";
 import { generateCard } from "@/lib/ai.functions";
@@ -36,6 +37,9 @@ import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.fu
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
+import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
+import type { PhotoRole } from "@/lib/sticker-photo";
+import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { useT, useUiLang } from "@/lib/i18n";
 import { LoadFailed } from "@/components/LoadFailed";
 
@@ -56,6 +60,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const fetchPhotos = useServerFn(listStickerPhotos);
   const deleteFn = useServerFn(deleteSticker);
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
+  const setHeroRoleFn = useServerFn(setStickerHeroRole);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<null | "delete" | "image">(null);
   // 削除の誤操作防止: 1回目のタップで「本当に削除?」に変わり、4秒で元に戻る。
@@ -269,12 +274,43 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   // 押さえれば変えられる。長押し成立後のクリックはフリップさせない。
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
+  const [heroPickerOpen, setHeroPickerOpen] = useState(false);
+  const [savingHero, setSavingHero] = useState(false);
+
+  /**
+   * この1枚の主役を決める(要望 #17)。
+   * **失敗を握り潰さない** — 移行がまだ当たっていない環境では
+   * 保存できないので、その理由をそのまま出す。
+   */
+  async function pickHeroRole(role: PhotoRole | null) {
+    if (savingHero) return;
+    setSavingHero(true);
+    try {
+      const res = await setHeroRoleFn({
+        data: { sticker_id: stickerId, hero_role: role },
+      });
+      if (!res.saved) {
+        toast.error(t("photo.saveFailedMigration"));
+        return;
+      }
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      setHeroPickerOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
+    } finally {
+      setSavingHero(false);
+    }
+  }
   function heroPressStart() {
     longPressFired.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-      if (window.confirm(t("card.changePhotoConfirm"))) fileInputRef.current?.click();
+      // **`window.confirm` をやめた(要望 #17)。**
+      // 以前はここが素のネイティブの窓で、押すとファイル選択へ**直行**して
+      // いた。つまり「表示する絵を選ぶ」ができず、要望の半分しか無かった。
+      // しかもあの窓はこのアプリの字体にも暗いテーマにも従わない。
+      setHeroPickerOpen(true);
     }, 550);
   }
   function heroPressEnd() {
@@ -668,6 +704,30 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           />
         )}
       </div>
+
+      {/* 長押しで開く「主役の写真」の面(要望 #17)。
+          **札の上に重ねる** — 別の画面へ飛ばすと、選んだ結果を
+          その場で確かめられない。 */}
+      {heroPickerOpen && s && (
+        <div
+          className="absolute inset-0 z-20 overflow-y-auto bg-background/95 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("photo.pickTitle")}
+        >
+          <HeroPhotoPicker
+            sources={s}
+            current={s.hero_role ?? null}
+            saving={savingHero}
+            onPick={(role) => void pickHeroRole(role)}
+            onReplaceFile={() => {
+              setHeroPickerOpen(false);
+              fileInputRef.current?.click();
+            }}
+            onClose={() => setHeroPickerOpen(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -761,8 +821,14 @@ export function StickerSheetBody({
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
   encounter?: EncounterEstimate | null;
 }) {
-  /** 表に出す1枚。**役も見る** — ネット画像のときだけ出典を添えるため。 */
-  const hero = pickStickerPhoto(s);
+  /**
+   * 表に出す1枚。**役も見る** — ネット画像のときだけ出典を添えるため。
+   *
+   * 優先順は「この札の指定(長押しで決めた物) → 設定 → 画面の意図」。
+   * 札の指定がいちばん細かい話なので、いちばん強い。
+   */
+  const photoPref = usePhotoPref();
+  const hero = pickStickerPhoto(s, { prefer: s.hero_role ?? resolvePrefer(photoPref, null) });
   const t = useT();
   return (
     <>

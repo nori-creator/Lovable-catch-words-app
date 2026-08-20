@@ -287,7 +287,10 @@ function ShelfItem({
   // スキャン経由)は素の写真を小さな額に入れて置く。
   // **切り抜きが在るかどうかで置き方が変わる**ので、URLだけでなく
   // どの役が選ばれたかも見る(`sticker-photo.ts` が役を返す)。
-  const picked = pickStickerPhoto(s, { prefer: resolvePrefer(photoPref, "cutout"), thumb: true });
+  const picked = pickStickerPhoto(s, {
+    prefer: s.hero_role ?? resolvePrefer(photoPref, "cutout"),
+    thumb: true,
+  });
   const cutout = picked?.role === "cutout" ? picked.url : null;
   const photo = cutout ? null : (picked?.url ?? null);
 

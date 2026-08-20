@@ -335,6 +335,10 @@ const MODES = [
   ["input-catch-typed", "", false, { scene: "input-catch", variant: "typed" }],
   ["input-catch-loading", "", false, { scene: "input-catch", variant: "loading" }],
   ...crossThemes("input-catch-error", { scene: "input-catch", variant: "error" }),
+  // 主役の写真を選ぶ面(要望 #17)。前は `window.confirm` の素の窓だった。
+  ...crossThemes("hero-picker", { scene: "hero-picker" }),
+  ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
+  ["hero-picker-picked", "", false, { scene: "hero-picker", variant: "picked" }],
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],

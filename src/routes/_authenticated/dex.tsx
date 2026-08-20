@@ -797,7 +797,7 @@ function PackGallery({
     <div className="pk-collection" data-layout={layout}>
       {items.map((s) => {
         // 小さく並ぶ所なので縮小版を先に使う。
-        const photo = stickerPhotoUrl(s, { thumb: true });
+        const photo = stickerPhotoUrl(s, { prefer: s.hero_role, thumb: true });
         return (
           <button
             key={s.id}

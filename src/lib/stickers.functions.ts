@@ -39,6 +39,13 @@ export type StickerWithWord = {
   /** 'photo' | 'text' | 'voice' — non-photo catches are ghosts (§5.3). */
   capture_type: string;
   /**
+   * この1枚を表に出すときの主役(要望 #17)。null なら設定に従う。
+   * 列がまだ無い環境では undefined のまま来るので `?` を付けてある。
+   * **文字列のまま持つ** — `pickStickerPhoto` の `prefer` が
+   * 知らない値を既定の順に落としてくれるので、ここで縛る必要が無い。
+   */
+  hero_role?: string | null;
+  /**
    * その人だけの棚の上書き(AI が作った棚)。null なら語の分類を使う。
    * 列がまだ無い環境では undefined のまま来る。
    */
@@ -163,7 +170,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const wordCols =
       "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
+    // `hero_role` だけが無い環境のための段。**ゴーストの列と一緒くたにしない**
+    // — 一緒にすると、この移行だけ当たっていない環境でネット画像まで落ちる。
+    const noHeroCols = fullCols.replace(", hero_role", "");
     // Migration not applied yet — fall back to the photo-only shape.
     // **新しい列を1つ足すたびに、無い環境でも読める形を残す。**
     // ここを忘れると、列が無い環境で図鑑が丸ごと空になる。
@@ -192,6 +202,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
 
     let cols = fullCols;
     let first = await page(cols, 0, true);
+    if (first.error && /hero_role/.test(first.error.message)) {
+      cols = noHeroCols;
+      first = await page(cols, 0, true);
+    }
     if (first.error && /capture_type|placeholder/.test(first.error.message)) {
       cols = legacyCols;
       first = await page(cols, 0, true);
@@ -252,6 +266,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
       object_image_url: string | null;
       cutout_image_url: string | null;
       selfie_image_url: string | null;
+      hero_role?: string | null;
       capture_type?: string | null;
       placeholder_image_url?: string | null;
       placeholder_credit?: PlaceholderCredit | null;
@@ -299,6 +314,9 @@ export const listMyStickers = createServerFn({ method: "GET" })
         id: row.id,
         word_id: row.word_id,
         shelf_key: row.shelf_key ?? null,
+        /** 長押しで決めた主役。**一覧にも効かせる** —
+            詳細でだけ効くと「変えたのに図鑑では変わらない」になる。 */
+        hero_role: row.hero_role ?? null,
         caption: row.caption,
         location_name: row.location_name,
         lat: row.lat,
@@ -331,26 +349,33 @@ export const getSticker = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const cols = (withGhost: boolean) =>
-      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
+    // `hero_role` は別の段にする。**ゴーストの列と一緒くたにしない** —
+    // 一緒にすると、`hero_role` の移行だけ当たっていない環境で
+    // ネット画像(placeholder)まで丸ごと落ちる。無い列だけを諦める。
+    const cols = (withGhost: boolean, withHero: boolean) =>
+      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
 
     // Try to read as owner first (RLS-scoped); retry without ghost columns
     // when the migration hasn't been applied.
-    let { data: row, error } = await supabase
-      .from("stickers")
-      .select(cols(true))
-      .eq("id", data.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    let heroCols = true;
     let ghostCols = true;
-    if (error && /capture_type|placeholder|branch_plan/.test(error.message)) {
-      ghostCols = false;
-      ({ data: row, error } = await supabase
+    const read = () =>
+      supabase
         .from("stickers")
-        .select(cols(false))
+        .select(cols(ghostCols, heroCols))
         .eq("id", data.id)
         .eq("user_id", userId)
-        .maybeSingle());
+        .maybeSingle();
+    let { data: row, error } = await read();
+    // **無い列だけを諦める。** 列が無いときは `data: null` ではなく
+    // **error** が返る(以前ここを `!row` で判定して外した)。
+    if (error && /hero_role/.test(error.message)) {
+      heroCols = false;
+      ({ data: row, error } = await read());
+    }
+    if (error && /capture_type|placeholder|branch_plan/.test(error.message)) {
+      ghostCols = false;
+      ({ data: row, error } = await read());
     }
     if (error) throw new Error(error.message);
 
@@ -380,7 +405,7 @@ export const getSticker = createServerFn({ method: "GET" })
       if (!canSee) return null;
       const res = await supabaseAdmin
         .from("stickers")
-        .select(cols(ghostCols))
+        .select(cols(ghostCols, heroCols))
         .eq("id", data.id)
         .maybeSingle();
       if (res.error) throw new Error(res.error.message);
@@ -389,6 +414,8 @@ export const getSticker = createServerFn({ method: "GET" })
     if (!row) return null;
     type StickerRow = {
       id: string;
+      /** 主役の絵。移行が当たっていない環境では届かない。 */
+      hero_role?: string | null;
       user_id: string;
       word_id: string;
       caption: string | null;
@@ -458,6 +485,9 @@ export const getSticker = createServerFn({ method: "GET" })
       object_thumb_url: null,
       cutout_thumb_url: null,
       capture_type: r.capture_type ?? "photo",
+      /** null なら設定に従う。**知らない値も素通しでよい** —
+          `pickStickerPhoto` の `prefer` が既定の順に落としてくれる。 */
+      hero_role: r.hero_role ?? null,
       placeholder_url: r.placeholder_image_url
         ? (urlMap.get(r.placeholder_image_url) ?? null)
         : null,
@@ -1003,4 +1033,45 @@ export const setStickerPlaceholder = createServerFn({ method: "POST" })
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * この1枚の「主役の絵」を決める(要望 #17)。
+ *
+ * > 「写真ごとに長押しで表示画像を変更できるようにしたい」
+ *
+ * 設定の既定(`lib/photo-pref.ts`)は全部の札に効く。
+ * 「この1枚だけは切り抜きで見たい」はそこでは言えないので、札に持たせる。
+ * `null` を渡すと設定に従う状態へ戻る。
+ *
+ * **列がまだ無い環境では、静かに諦める。**
+ * 移行が当たっていないだけでキャッチや閲覧まで壊すのは行き過ぎなので、
+ * 保存できなかったことだけを返し、投げない。
+ */
+export const setStickerHeroRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sticker_id: z.string().uuid(),
+        /** null = 設定に従う。 */
+        hero_role: z.enum(["object", "cutout", "selfie", "placeholder"]).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<{ saved: boolean; reason?: string }> => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("stickers")
+      .update({ hero_role: data.hero_role } as never)
+      .eq("id", data.sticker_id)
+      // **自分の札だけ。** RLS も同じことを言うが、ここでも言っておく。
+      .eq("user_id", userId);
+    if (!error) return { saved: true };
+    if (/hero_role/.test(error.message)) {
+      // 移行待ち。**黙って飲まない** — 記録には残す。
+      console.warn("setStickerHeroRole: 列がまだ無い", error.message);
+      return { saved: false, reason: "migration" };
+    }
+    throw new Error(error.message);
   });

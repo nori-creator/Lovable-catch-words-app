@@ -178,7 +178,9 @@ export function StickerDetailBody({
       <div className="mb-4">
         <WordTreeView
           headword={s.word.headword}
-          photoUrl={stickerPhotoUrl(s, { prefer: resolvePrefer(photoPref, "cutout") })}
+          photoUrl={stickerPhotoUrl(s, {
+            prefer: s.hero_role ?? resolvePrefer(photoPref, "cutout"),
+          })}
           emoji={s.word.silhouette_emoji}
           branchPlanRaw={s.branch_plan}
           extras={s.word.extras}

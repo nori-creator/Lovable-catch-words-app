@@ -511,7 +511,10 @@ export function ScrapbookAlbum({
           // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`
           // に1つだけ置いてある — 以前はここを含む7箇所がそれぞれ違う順で
           // 選んでいて、同じ札が画面をまたぐと別の写真で出ていた。
-          const heroUrl = stickerPhotoUrl(s, { prefer: resolvePrefer(photoPref, "selfie") });
+          // 優先順は「この札の指定(長押し) → 設定 → 画面の意図」。
+          const heroUrl = stickerPhotoUrl(s, {
+            prefer: s.hero_role ?? resolvePrefer(photoPref, "selfie"),
+          });
 
           return (
             <button
