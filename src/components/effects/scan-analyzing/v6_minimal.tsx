@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n";
 import { Sparkles } from "lucide-react";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
@@ -14,6 +15,7 @@ import { haptic } from "@/lib/haptics";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v6minimal({ stage }: { stage: Stage }) {
+  const t = useT();
   useEffect(() => {
     Sound.scanStart();
     haptic("light");
@@ -34,9 +36,9 @@ export function ScanAnalyzing_v6minimal({ stage }: { stage: Stage }) {
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-6 pb-10 pt-20 text-center text-white">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 animate-pulse" />
-          <span className="font-semibold">AIが分析中...</span>
+          <span className="font-semibold">{t("scan.analyzing")}</span>
         </div>
-        <p className="text-body text-white/80">少しだけ待ってね</p>
+        <p className="text-body text-white/80">{t("scan.justAMoment")}</p>
       </div>
     </div>
   );

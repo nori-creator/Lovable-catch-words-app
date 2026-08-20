@@ -1022,6 +1022,19 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "me.doneToday": { ja: "今日やった復習", en: "Reviewed today" },
   "me.due": { ja: "待っている復習", en: "Waiting" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
+  // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
+  // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
+  "scan.stageSensing": { ja: "シーンを感知しています", en: "Sensing the scene…" },
+  "scan.stageReading": { ja: "対象を解析しています", en: "Reading the object…" },
+  "scan.stageMatching": { ja: "辞書と照合しています", en: "Matching the dictionary…" },
+  // 結晶の版だけは言葉づかいが違う(そういう演出として作ってある)。
+  "scan.crystalSensing": { ja: "銀の露をひろげています", en: "Spreading silver dew…" },
+  "scan.crystalReading": { ja: "世界を読んでいます", en: "Reading the world…" },
+  "scan.crystalMatching": { ja: "言葉が結晶化します", en: "Words are crystallizing…" },
+  // 全画面の版は短い言い切り。
+  "scan.fullSensing": { ja: "空間を捉える", en: "Catching the space" },
+  "scan.fullReading": { ja: "文字と物を読む", en: "Reading words and things" },
+  "scan.fullMatching": { ja: "台湾華語と照合", en: "Matching Taiwanese Mandarin" },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },
   "common.cancel": { ja: "キャンセル", en: "Cancel" },

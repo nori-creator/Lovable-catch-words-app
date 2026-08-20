@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -22,6 +23,7 @@ import { haptic } from "@/lib/haptics";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v2liquid({ stage }: { stage: Stage }) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<Stage>(stage);
   const rafRef = useRef<number | null>(null);
@@ -359,10 +361,10 @@ export function ScanAnalyzing_v2liquid({ stage }: { stage: Stage }) {
 
   const label =
     stage === "sensing"
-      ? "シーンを感知しています"
+      ? t("scan.stageSensing")
       : stage === "reading"
-        ? "対象を解析しています"
-        : "辞書と照合しています";
+        ? t("scan.stageReading")
+        : t("scan.stageMatching");
 
   return (
     <div className="absolute inset-0 overflow-hidden">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -20,13 +21,16 @@ import { haptic } from "@/lib/haptics";
 
 type Stage = "sensing" | "reading" | "matching";
 
-const STEPS: { key: Stage; label: string }[] = [
-  { key: "sensing", label: "空間を捉える" },
-  { key: "reading", label: "文字と物を読む" },
-  { key: "matching", label: "台湾華語と照合" },
+// **鍵だけを並べる。** ここは部品の外(モジュールの高さ)なので、
+// 表示言語はまだ決まっていない。訳すのは描くときで、ここではない。
+const STEPS: { key: Stage; labelKey: string }[] = [
+  { key: "sensing", labelKey: "scan.fullSensing" },
+  { key: "reading", labelKey: "scan.fullReading" },
+  { key: "matching", labelKey: "scan.fullMatching" },
 ];
 
 export function ScanAnalyzing_v7fullscreen({ stage }: { stage: Stage }) {
+  const t = useT();
   const idx = stage === "sensing" ? 0 : stage === "reading" ? 1 : 2;
   // 経過時間で微妙に表情を変える(同じ絵が止まって見えると長く感じる)。
   const [tick, setTick] = useState(0);
@@ -105,7 +109,7 @@ export function ScanAnalyzing_v7fullscreen({ stage }: { stage: Stage }) {
             className="text-body font-semibold tracking-[-0.01em] text-white"
             style={{ textShadow: "0 1px 12px rgba(0,0,0,0.6)" }}
           >
-            {STEPS[idx].label}
+            {t(STEPS[idx].labelKey)}
             <span className="ml-1 inline-block w-6 text-left opacity-70">
               {".".repeat((tick % 3) + 1)}
             </span>

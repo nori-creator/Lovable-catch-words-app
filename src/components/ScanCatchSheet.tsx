@@ -449,21 +449,25 @@ export function ScanCatchSheet({
                     <Camera className="h-5 w-5" />
                   </div>
                 )}
-                <button
-                  onClick={() => selfieInputRef.current?.click()}
-                  type="button"
-                  className="rounded-full bg-secondary px-3 py-1.5 text-footnote font-medium text-secondary-foreground active:scale-95"
-                >
+                {/* **押す物そのものを `<label>` にする(オーナー指摘 2026-08-20)。**
+                    「自撮りする」を押してもインカメラにならない、という指摘。
+                    `capture="user"` は前から付いていたので、違いは**押し方**
+                    だった — ここは `button` から `.click()` を投げていて、
+                    端末によっては**その場の指の操作**と見なされず、
+                    前後どちらのカメラかの指定ごと落ちる。
+                    撮る経路(`capture.tsx`)は最初から `<label>` で包んであり、
+                    そちらは効いている。同じ形に揃える。 */}
+                <label className="min-h-11 cursor-pointer rounded-full bg-secondary px-3 py-1.5 text-footnote font-medium text-secondary-foreground active:scale-95 motion-reduce:active:scale-100 inline-flex items-center">
                   {selfieDataUrl ? t("sheet.retakeSelfie") : t("sheet.addSelfie")}
-                </button>
-                <input
-                  ref={selfieInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleSelfie(e.target.files[0])}
-                />
+                  <input
+                    ref={selfieInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleSelfie(e.target.files[0])}
+                  />
+                </label>
               </div>
             </div>
           </div>

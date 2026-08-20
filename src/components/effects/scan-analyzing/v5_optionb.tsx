@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 
@@ -14,6 +15,7 @@ import { haptic } from "@/lib/haptics";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v5optionb({ stage }: { stage: Stage }) {
+  const t = useT();
   useEffect(() => {
     Sound.scanStart();
     haptic("light");
@@ -40,7 +42,7 @@ export function ScanAnalyzing_v5optionb({ stage }: { stage: Stage }) {
           className="text-body font-medium tracking-[-0.01em] text-white"
           style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
         >
-          AIが分析中…
+          {t("scan.analyzing")}
         </p>
         {/* The only thing that moves is a width — a calm progress read-out. */}
         <div className="flex gap-1.5" aria-hidden>
