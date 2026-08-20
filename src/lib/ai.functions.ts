@@ -329,6 +329,9 @@ ${l1Gram}
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
 - register_scale: 話し言葉⇄書き言葉の度合いを **-2〜+2 の整数**で。-2=完全に口語(友達との会話・SNSだけ)/ -1=やや口語 / 0=中立(どちらでも普通に使う)/ +1=やや書面 / +2=完全に書面(新聞・論文・公文書だけ)。**判断できない語でも必ず出す** — 中立なら 0
+- scene_weights: **その語にどこで出会うか**の分布。鍵は次の8つだけで、他を作らない: eat(食べ物・飲み物)/ town(街・店・看板・乗り物)/ house(家の中・家具・道具)/ wear(服・持ち物)/ play(遊び・趣味・道具)/ nature(自然・天気・動植物)/ people(人・体・仕事)/ marks(文字・記号・色・形・お金・書類)。合計が1になる小数で、当てはまらない部屋は入れない。例: 芒果 → {"eat":0.7,"town":0.2,"nature":0.1}
+- season_months: 旬の月を1〜12の整数の配列で(例: 芒果なら [5,6,7,8])。**通年なら空配列**
+- region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
 - quick_facts: **表で一目で分かる要点**を3〜5行。各 {label:見出し(4〜6字), value:中身(**20字以内**・文にしない)}。
@@ -363,7 +366,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
-      `frequency_level, register_tag, register_scale, related_words[{word,kind,note}], ` +
+      `frequency_level, register_tag, register_scale, scene_weights, season_months, region_scope, ` +
+      `related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
       `quick_facts[{label,value}], ` +
       `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +

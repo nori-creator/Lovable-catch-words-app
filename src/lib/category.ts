@@ -356,3 +356,67 @@ export function asCategoryKey(key: string | null | undefined): CategoryKey {
 export function categoryEmoji(key: string | null | undefined): string {
   return CATEGORY_META[asCategoryKey(key)].emoji;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   出会う確率のための「場面」— 部屋をそのまま使う。
+
+   語がどこで出るかと、その人がどこに居るかを**同じ鍵**で並べないと、
+   内積(`lib/rarity.ts` の `sceneOverlap`)は意味を持たない。
+   場面の語彙を新しく作らず、図鑑の部屋をそのまま流用する。
+   ───────────────────────────────────────────────────────────────── */
+
+/** 未知の部屋名を安全に受ける。 */
+export function isRoomKey(key: string): key is RoomKey {
+  return (ROOM_KEYS as readonly string[]).includes(key);
+}
+
+/**
+ * AI が出した場面の分布を、**知っている部屋だけに畳んで合計1に直す**。
+ *
+ * 生成側には「8つの鍵だけを使え」と書いてあるが、書いてあることと
+ * 返ってくる物は別。知らない鍵をそのまま内積に入れると、片方にしか
+ * 無い鍵は必ず 0 を掛けることになり、**まじめに答えた語ほど低く出る**。
+ *
+ * 使える物が1つも無ければ null を返す(補正を掛けない、が正しい姿)。
+ */
+export function normalizeRoomWeights(
+  input: Record<string, number> | null | undefined,
+): Record<RoomKey, number> | null {
+  if (!input) return null;
+  const kept: Partial<Record<RoomKey, number>> = {};
+  let sum = 0;
+  for (const [k, v] of Object.entries(input)) {
+    if (!isRoomKey(k)) continue;
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    kept[k] = (kept[k] ?? 0) + n;
+    sum += n;
+  }
+  if (sum <= 0) return null;
+  const out = {} as Record<RoomKey, number>;
+  for (const [k, v] of Object.entries(kept)) out[k as RoomKey] = v / sum;
+  return out;
+}
+
+/**
+ * その人が撮ったもののカテゴリーから、**どの部屋によく居る人か**を出す。
+ *
+ * 撮った物が1枚も無いうちは null(= 補正を掛けない)。
+ * ここで一様分布を返してもよさそうに見えるが、それは
+ * 「全部の部屋に均等に居る」と**言い切る**ことになる。知らないなら黙る。
+ */
+export function roomMixFromCategories(
+  categoryKeys: ReadonlyArray<string | null | undefined>,
+): Record<RoomKey, number> | null {
+  const counts: Partial<Record<RoomKey, number>> = {};
+  let total = 0;
+  for (const key of categoryKeys) {
+    const room = CATEGORY_META[asCategoryKey(key)].room;
+    counts[room] = (counts[room] ?? 0) + 1;
+    total += 1;
+  }
+  if (total === 0) return null;
+  const out = {} as Record<RoomKey, number>;
+  for (const [k, v] of Object.entries(counts)) out[k as RoomKey] = v / total;
+  return out;
+}
