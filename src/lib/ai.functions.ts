@@ -4,6 +4,12 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
+import {
+  worldExampleRule,
+  exampleSourceRule,
+  DIARY_COUNT,
+  type PersonalMaterial,
+} from "./example-sources";
 import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
@@ -337,6 +343,7 @@ ${levelRule}
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
 - example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
+  ${worldExampleRule(NL)}
 - example_translation: 例文の訳(${NL})
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
@@ -350,6 +357,7 @@ pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾
 ${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
 - examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+  ${worldExampleRule(NL)}
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
@@ -630,12 +638,40 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
     const { data: owned } = await supabase
       .from("stickers")
-      .select("id")
+      .select("id, caption, location_name, taken_at")
       .eq("user_id", userId)
       .eq("word_id", data.word_id)
+      .order("taken_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (!owned) throw new Error("この単語を編集する権限がありません");
+
+    // 例文をその人の記録から作るための材料(オーナー指摘)。
+    // **例文の項目を作り直すときだけ**読む — ほかの項目には要らないし、
+    // 毎回2本の問い合わせを足す理由が無い。
+    let material: PersonalMaterial = {};
+    if (data.section === "example" || data.section === "examples_extra") {
+      const st = owned as {
+        caption?: string | null;
+        location_name?: string | null;
+        taken_at?: string | null;
+      };
+      // 日記が読めなくても例文は作れる。**失敗で全体を落とさない。**
+      const { data: diaryRows } = await supabase
+        .from("journal_entries")
+        .select("user_draft")
+        .eq("user_id", userId)
+        .order("entry_date", { ascending: false })
+        .limit(DIARY_COUNT);
+      material = {
+        caption: st.caption ?? null,
+        place: st.location_name ?? null,
+        takenAt: st.taken_at ?? null,
+        diaries: ((diaryRows ?? []) as Array<{ user_draft: string | null }>).map(
+          (d) => d.user_draft,
+        ),
+      };
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: word, error } = await supabaseAdmin
@@ -691,7 +727,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       example: {
-        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
         schema: z.object({
           example_sentence: z.string().min(1),
           example_translation: z.string().catch(""),
@@ -701,7 +737,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       examples_extra: {
-        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
         schema: z.object({
           examples_extra: z
             .array(
