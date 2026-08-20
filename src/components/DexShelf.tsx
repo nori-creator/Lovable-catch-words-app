@@ -76,13 +76,14 @@ const PER_SHELF = 3;
  * 代わりに「そこにどれだけの高さがあるか」を先に伝えるため — 伝えないと
  * 画面外の棚が高さ0に潰れ、スクロールバーが伸び縮みして掴めなくなる。
  *
- * ## 数値はビルド済みCSSでの実測値(390px幅)
+ * ## 数値はビルド済みCSSでの実測値(390px幅、段を「箱」にしたあと)
  *
  * | 段1 | 段2 | 段3 |
  * |---|---|---|
- * | 125 | 236 | 347 |
+ * | 153 | 302 | 451 |
  *
- * → 見出し 14px + 段ごとに 111px。
+ * → 見出し 20px + 1段 133px + 段の間 16px。
+
  *
  * **空の棚を「段1つ分」で数えないこと。** 最初そうしていて 149px と
  * 見積もっていたが実測は 58px。棚は54個を常に全部描くので、まだ何も
@@ -93,12 +94,12 @@ const PER_SHELF = 3;
  * ずれを見て5%を超えたら落とす。
  */
 function estimateShelfHeight(tiers: number): number {
-  const HEAD = 14;
-  // 空の棚の枝は消した。**持っている棚しか描かないので届かない。**
-  // 到達しない分岐を残すと、次に数字を直す人がそこも合わせようとする。
-  // 素材と背表紙も消したので、掛け合わせも無くなった(見え方は1つだけ)。
-  return HEAD + tiers * 111;
+  const HEAD = 20;
+  // 段を「箱」にしたので測り直した(390px幅、ビルド済みCSS):
+  // 見出し 19.5px + 1段 133px、2段目以降は段の間 16px が足される。
+  return HEAD + tiers * 133 + Math.max(0, tiers - 1) * 16;
 }
+
 
 export function DexShelf({
   stickers,
@@ -228,19 +229,24 @@ export function DexShelf({
                     </h4>
 
                     {tiers.map((tier, ti) => (
-                      <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
-                        <div className="shelf-row">
-                          {tier.map((s) => (
-                            <ShelfItem
-                              key={s.id}
-                              sticker={s}
-                              onOpen={onOpen}
-                              landing={s.id === justCaught}
-                            />
-                          ))}
+                      <div key={ti} className={ti > 0 ? "mt-4" : undefined}>
+                        {/* 段は「箱」— 奥まった面の中にモノが立ち、
+                            手前に小口のある板が来る(.shelf-bay + .shelf-rule)。 */}
+                        <div className="shelf-bay">
+                          <div className="shelf-row">
+                            {tier.map((s) => (
+                              <ShelfItem
+                                key={s.id}
+                                sticker={s}
+                                onOpen={onOpen}
+                                landing={s.id === justCaught}
+                              />
+                            ))}
+                          </div>
                         </div>
-                        {/* 棚板 — 板ではなく線 */}
+                        {/* 棚板 — 小口のある板 */}
                         <div className="shelf-rule" aria-hidden />
+
                         {/* 題名は棚板の下、モノと同じ列で揃える。
                             読み上げには要らない — ボタンが同じ語を名前として
                             持っているので、ここを読むと全部2回聞こえる。 */}

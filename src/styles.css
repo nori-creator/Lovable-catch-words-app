@@ -341,7 +341,7 @@
   /* モノを置く枠の高さ。**固定**にする — 画像が届いてから高さが決まると、
      読み込みのたびに下の棚が全部ずり下がる(CachedImg は解決前に大きさの
      無い span を出すので、実際そうなっていた)。 */
-  --shelf-item-h: 4.25rem;
+  --shelf-item-h: 5.25rem;
   --shelf-shadow-a: 0.45;
   /* 棚板の濃さ。**3:1 を割らないこと**(意味を持つUIの図形の下限)。
      0.22 で引いていたが、明るい面での実測は 1.55:1 — 独立監査に
@@ -1720,11 +1720,39 @@
   filter: saturate(0.7) opacity(0.85);
 }
 
-/* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。 */
+/* 接地影 — 1要素につき1つだけ。切り抜きの形に沿わせたいので drop-shadow。
+   **映り込み**も一緒に付ける: 板は磨かれた面なので、モノの下端が薄く映る。
+   `-webkit-box-reflect` は画像の複製を作らないので追加の読み込みが無い
+   (Chromium/WebKit 両対応。効かない環境では単に映り込みが無いだけ)。 */
 .shelf-item .shelf-stand {
   /* 接地影。棚板に触れている一点が濃く、すぐ薄くなる。 */
   filter: drop-shadow(0 3px 3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)));
+  -webkit-box-reflect: below 0
+    linear-gradient(to bottom, transparent 78%, rgb(0 0 0 / 0.16) 100%);
 }
+/* モノが板に触れている一点の濃い影。切り抜きの輪郭に沿う drop-shadow
+   だけだと、下端が細いモノ(瓶・傘)が浮いて見えた。楕円を1枚敷く。 */
+.shelf-item::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 4%;
+  width: 68%;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    hsl(var(--shelf-shadow) / calc(var(--shelf-shadow-a) * 0.55)) 0%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf-item .shelf-stand {
+    -webkit-box-reflect: unset;
+  }
+}
+
 /* 切り抜きが無い行は、素の写真を小さな額に入れて置く。
    「切り抜きが無い」ことを欠陥に見せない。 */
 /* 額は写真に**張り付く**。
@@ -1745,23 +1773,80 @@
     0 3px 6px -2px hsl(var(--shelf-shadow) / var(--shelf-shadow-a));
 }
 
-/* 棚板。板ではなく線 — ただし「線がある」とはっきり分かる濃さが要る。
-   上に細い明るい縁(光が当たっている面)、下に影(板の厚みの裏)。
-   最初 8% で引いたら明るい背景でほぼ見えず、棚に見えなかった。 */
-.shelf-rule {
-  height: 2px;
-  border-radius: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 6%,
-    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 94%,
-    transparent 100%
-  );
+/* ── 棚を「箱」にする ────────────────────────────────────────────────
+   参考動画(実機のコレクションアプリ)と並べて見ると、線1本では
+   **モノが紙のように貼り付いて**見えていた。本物の棚に見える要素を
+   数えると3つしか無い:
+     1. 奥まった面   — 上が暗く下が明るい(庫内の環境遮蔽)
+     2. 板の前小口   — 上に光の縁、下に落ち影(厚みがある)
+     3. 接地と映り込み — モノが板に触れ、板に薄く映る
+   素材(木目)は足さない。写真テクスチャを足した瞬間に安く見えるのは
+   前に検証済み。**光だけで奥行きを作る。** */
+.shelf-bay {
+  position: relative;
+  padding: 0.625rem 0.625rem 0;
+  border-radius: 14px 14px 3px 3px;
+  /* 映り込みは**板の手前で切る**。切らないと、板の下・題名の上に
+     半端な影が漏れて「浮いた紙」に逆戻りする。 */
+  overflow: hidden;
+  /* 庫内の面。**一様な地の色 + 上からの光**で作る。
+     地は背景よりわずかに沈める(奥にある面は必ず暗い)。
+     その上に、庫内灯が上中央から回り込む楕円の明かりを1枚だけ重ねる。
+     床(板)に近い最後の数%はまた沈む — 面と板が接する隅の陰。 */
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 88%,
+      color-mix(in oklab, var(--foreground) 7%, transparent) 100%
+    ),
+    radial-gradient(
+      130% 105% at 50% -18%,
+      color-mix(in oklab, var(--card) 92%, transparent) 0%,
+      transparent 68%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--foreground) 8%, transparent) 0%,
+      color-mix(in oklab, var(--foreground) 4.5%, transparent) 55%,
+      color-mix(in oklab, var(--foreground) 5.5%, transparent) 100%
+    );
+  /* 天井と側板の陰。内側にだけ落ちるので、箱の中に見える。 */
   box-shadow:
-    0 -1px 0 rgb(255 255 255 / var(--shelf-lip-a)),
-    0 3px 6px -3px hsl(var(--shelf-shadow) / 0.5);
+    inset 0 3px 6px -3px hsl(var(--shelf-shadow) / calc(var(--shelf-shadow-a) * 0.85)),
+    inset 7px 0 9px -9px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)),
+    inset -7px 0 9px -9px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)),
+    inset 0 1px 0 rgb(255 255 255 / calc(var(--shelf-lip-a) * 0.5));
 }
+
+
+/* 棚板。線ではなく**小口のある板**。
+   上 1px の光の縁 → 板の面 → 下に落ちる影、の3段で厚みを出す。 */
+.shelf-rule {
+  position: relative;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 100%), transparent) 0%,
+    color-mix(in oklab, var(--foreground) calc(var(--shelf-line-a) * 62%), transparent) 100%
+  );
+  box-shadow: 0 -1px 0 rgb(255 255 255 / var(--shelf-lip-a));
+}
+/* 板の下に落ちる影 — これが「板が手前に出ている」の正体。 */
+.shelf-rule::after {
+  content: "";
+  position: absolute;
+  inset: 100% 1.5% auto 1.5%;
+  height: 9px;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--shelf-shadow) / calc(var(--shelf-shadow-a) * 0.5)),
+    transparent 78%
+  );
+  pointer-events: none;
+}
+
 
 /* ── 素材と背表紙は消した ──────────────────────────────────────────
    ここには板の素材(木・ガラス・コンクリート…)と背表紙の見え方が
