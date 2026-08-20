@@ -5,7 +5,13 @@
  * **1箇所だけ**で、しかも撮る前の枝の中。撮った後の面は静止画の上に描かれる。
  * ここは素の Tailwind の番号がいちばん密に残っている所でもある(72箇所)。
  */
-import { ScanChip, ScanDots, ScanFoundList, ScanNothingFound } from "@/routes/_authenticated/scan";
+import {
+  ScanCameraControls,
+  ScanChip,
+  ScanDots,
+  ScanFoundList,
+  ScanNothingFound,
+} from "@/routes/_authenticated/scan";
 
 const BASE = {
   headword: "珍珠奶茶",
@@ -192,6 +198,33 @@ export function ScanDotsScene() {
         // 同じ式(1000分率)をそのまま使う。
         dotStyle={(it) => ({ left: (it.point[0] / 1000) * 358, top: (it.point[1] / 1000) * 480 })}
         onOpen={() => {}}
+      />
+    </div>
+  );
+}
+
+/**
+ * 覗いている最中の面に載る操作 — **前後の切替と倍率。**
+ *
+ * `<video>` に偽の映像は流せないので、**同じ寸法の暗い面**を敷いて、
+ * その上に本物の操作を載せて測る。載せる相手が暗いことが要点で、
+ * 白地の上で撮ると当たり判定も対比も別物になる(前に一度やらかしている)。
+ */
+export function ScanCameraScene({ q }: { q: URLSearchParams }) {
+  const noZoom = q.get("nozoom") === "1";
+  return (
+    // 足場はインラインの `style`。雛形にしか無いクラスは生成されない。
+    <div style={{ position: "relative", inset: 0, height: "100vh", background: "#111318" }}>
+      <ScanCameraControls
+        hidden={false}
+        facing="environment"
+        onFlip={() => {}}
+        // 前面カメラは倍率を持たないことが多い。**つまみが出ない姿**も撮る。
+        showZoom={!noZoom}
+        zoom={2.4}
+        zoomMin={1}
+        zoomMax={6}
+        onZoom={() => {}}
       />
     </div>
   );

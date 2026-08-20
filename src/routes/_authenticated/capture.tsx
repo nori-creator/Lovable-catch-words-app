@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -839,39 +839,12 @@ function CapturePage() {
       )}
 
       {step === "saving" && (
-        // 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
-        // 見せ場は暗転した中で始まる。明るい背景だと切り抜きの縁も「キラッ」も
-        // 沈んでしまう(スキャンのシートも同じく暗い)。
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
-          {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
-              飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
-          {(cutoutImg ?? objectImg) && (
-            <div
-              ref={heroBoxRef}
-              className={`grid aspect-square w-64 max-w-[78vw] place-items-center ${landing ? "opacity-0" : ""}`}
-            >
-              <img
-                src={(cutoutImg ?? objectImg)!}
-                alt=""
-                className="catch-rise max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
-              />
-            </div>
-          )}
-          {!landing && (
-            <p lang="zh-Hant" className="mt-6 text-headline font-bold tracking-tight text-white">
-              {selectedHead}
-            </p>
-          )}
-          <style>{`
-            @keyframes catchRise {
-              0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
-              45%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
-              100% { transform: translateY(-14px) scale(1.02); opacity: 1; }
-            }
-            .catch-rise { animation: catchRise 620ms var(--ease-out-soft) both; }
-            @media (prefers-reduced-motion: reduce) { .catch-rise { animation: none; } }
-          `}</style>
-        </div>
+        <CaptureSavingPanel
+          image={cutoutImg ?? objectImg}
+          headword={selectedHead}
+          landing={landing}
+          heroBoxRef={heroBoxRef}
+        />
       )}
 
       {step === "reencounter" && reenc && (
@@ -913,6 +886,61 @@ function CapturePage() {
         />
       )}
     </AppShell>
+  );
+}
+
+/**
+ * 保存中の面 — **撮るたびに必ず通るのに、一度も測っていなかった。**
+ *
+ * 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
+ * 見せ場は暗転した中で始まる。明るい背景だと切り抜きの縁も「キラッ」も
+ * 沈んでしまう(スキャンのシートも同じく暗い)。
+ *
+ * ルートが状態機械を持つので、描く所だけを出して検査の雛形から呼べるようにする。
+ */
+export function CaptureSavingPanel({
+  image,
+  headword,
+  landing,
+  heroBoxRef,
+}: {
+  image: string | null;
+  headword: string;
+  /** 飛行が始まったか。始まったら元の絵と字を消して、上に載る層へ渡す。 */
+  landing: boolean;
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
+      {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
+          飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
+      {image && (
+        <div
+          ref={heroBoxRef}
+          className={`grid aspect-square w-64 max-w-[78vw] place-items-center ${landing ? "opacity-0" : ""}`}
+        >
+          <img
+            src={image}
+            alt=""
+            className="catch-rise max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
+      {!landing && (
+        <p lang="zh-Hant" className="mt-6 text-headline font-bold tracking-tight text-white">
+          {headword}
+        </p>
+      )}
+      <style>{`
+        @keyframes catchRise {
+          0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
+          45%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
+          100% { transform: translateY(-14px) scale(1.02); opacity: 1; }
+        }
+        .catch-rise { animation: catchRise 620ms var(--ease-out-soft) both; }
+        @media (prefers-reduced-motion: reduce) { .catch-rise { animation: none; } }
+      `}</style>
+    </div>
   );
 }
 

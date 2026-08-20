@@ -23,10 +23,17 @@ import { JournalResultScene } from "./scenes/journal";
 import {
   CaptureCardScene,
   CaptureOfflineScene,
+  CaptureSavingScene,
   CapturePickScene,
   CaptureReunionScene,
 } from "./scenes/capture";
-import { ScanChipScene, ScanDotsScene, ScanFoundScene, ScanNothingScene } from "./scenes/scan";
+import {
+  ScanCameraScene,
+  ScanChipScene,
+  ScanDotsScene,
+  ScanFoundScene,
+  ScanNothingScene,
+} from "./scenes/scan";
 import {
   HomeEmptyScene,
   HomeLoadingScene,
@@ -97,6 +104,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
   "capture-card": CaptureCardScene,
+  "capture-saving": CaptureSavingScene,
+  "scan-camera": ScanCameraScene,
   "journal-result": JournalResultScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
@@ -165,7 +174,7 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
-const BARE = new Set(["onboarding", "sticker-sheet"]);
+const BARE = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera"]);
 
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";
