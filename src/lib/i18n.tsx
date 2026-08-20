@@ -121,6 +121,46 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
   "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
+  // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
+  // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
+  "corpus.more": {
+    ja: "もっと詳しく（外部のコーパス・押すと語をコピー）",
+    en: "Dig deeper (outside corpora — tapping copies the word)",
+  },
+  "corpus.copied": {
+    ja: "「{w}」をコピーしました。向こうの検索欄に貼ってください。",
+    en: "Copied “{w}” — paste it into their search box.",
+  },
+  "corpus.coctLevel": { ja: "国教院・語の級", en: "COCT word levels" },
+  "corpus.coctLevelHint": {
+    ja: "国教院の詞語分級標準検索。この語が何級かを実データで確かめられます。",
+    en: "The Ministry-of-Education word grading system — check this word's official level.",
+  },
+  "corpus.coctCore": { ja: "国教院・基礎語彙", en: "COCT core vocabulary" },
+  "corpus.coctCoreHint": {
+    ja: "国教院の基礎詞彙検索。教える側が「基礎」と決めた語に入っているかが分かります。",
+    en: "The core-vocabulary index — whether teachers count this word as foundational.",
+  },
+  "corpus.sinica": { ja: "中研院・平衡語料庫", en: "Sinica Balanced Corpus" },
+  "corpus.sinicaHint": {
+    ja: "中央研究院の現代漢語平衡語料庫。品詞と頻度の裏取りに使えます。",
+    en: "Academia Sinica's balanced corpus — the reference for part of speech and frequency.",
+  },
+  "corpus.cwn": { ja: "中文詞彙網路", en: "Chinese Wordnet" },
+  "corpus.cwnHint": {
+    ja: "語義がいくつに分かれるか、どの語と近いかを、研究の定義で読めます。",
+    en: "How many senses a word splits into, and which words sit next to it.",
+  },
+  "corpus.coctBilingual": { ja: "国教院・華英索引典", en: "COCT bilingual concordance" },
+  "corpus.coctBilingualHint": {
+    ja: "実際の文と英訳が並びます。どんな文の中に出るかを見るならここ。",
+    en: "Real sentences beside their English — the place to see the word in context.",
+  },
+  "corpus.sketch": { ja: "Sketch Engine", en: "Sketch Engine" },
+  "corpus.sketchHint": {
+    ja: "一緒に使う語の一覧が最も詳しい系統。ただしログインが要ります。",
+    en: "The best collocation lists anywhere — but it needs an account.",
+  },
   // --- もう一度撮る提案(src/lib/retake.ts) ---
   "retake.title": { ja: "、もう一度撮ってみる？", en: " — shoot it again?" },
   "retake.lapsing": {

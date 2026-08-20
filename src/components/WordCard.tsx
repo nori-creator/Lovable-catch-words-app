@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
+import { CorpusLinks } from "@/components/CorpusLinks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -874,6 +875,10 @@ function Body({
               「夜市」と「うれしい時」が同じ顔で並ぶと、何の一覧か分からない。 */}
           <EncounterLabels labels={ex.encounter_labels ?? []} />
           {text && <Prose text={text} />}
+          {/* 頻度と級は、外のコーパスで裏が取れる。**取り込みはしない**
+              (許可を取っていない) ので、見に行く先だけを置く
+              — `src/lib/corpus-links.ts`。 */}
+          <CorpusLinks section="usage_context" headword={word.headword} />
         </div>
       );
     }
@@ -922,6 +927,8 @@ function Body({
             {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
                 同じ丸が何度も並ぶ。 */}
             <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
+            {/* 一緒に使う語の一覧は、コーパスのほうが桁違いに詳しい。 */}
+            <CorpusLinks section="usage_chunks" headword={word.headword} />
           </div>
         );
       }
@@ -941,6 +948,7 @@ function Body({
             </div>
           )}
           {ex.word_order && <Prose text={ex.word_order} />}
+          <CorpusLinks section="usage_chunks" headword={word.headword} />
         </div>
       );
     }
@@ -1005,6 +1013,9 @@ function Body({
               {ex.synonym_diff}
             </p>
           )}
+          {/* 類義語の違いは、いまは AI の当て推量だけ。研究の定義で
+              確かめられる場所へ渡す。 */}
+          <CorpusLinks section="related_words" headword={word.headword} />
         </div>
       );
     }
@@ -1059,7 +1070,12 @@ function Body({
         />
       );
     case "real_usage":
-      return <RealUsageBody headword={word.headword} />;
+      return (
+        <>
+          <RealUsageBody headword={word.headword} />
+          <CorpusLinks section="real_usage" headword={word.headword} />
+        </>
+      );
   }
 }
 
