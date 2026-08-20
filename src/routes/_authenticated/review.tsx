@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { claimAudio } from "@/lib/audio";
 import { speakZhTW } from "@/lib/speak";
 import { usePronounce } from "@/lib/use-pronounce";
+import { getMyStats } from "@/lib/stats.functions";
 import {
   getDueReviews,
   gradeReview,
@@ -136,6 +137,14 @@ function ReviewPage() {
     queryFn: () => fetchDue(wantedSticker ? { data: { sticker_id: wantedSticker } } : undefined),
     staleTime: 0,
   });
+  // 続いている日数。ヘッダーの記録の面と鍵を揃えてあるので、
+  // どちらを先に開いても読み直しは起きない。
+  const fetchMyStats = useServerFn(getMyStats);
+  const { data: myStats } = useQuery({
+    queryKey: ["my-stats"],
+    queryFn: () => fetchMyStats(),
+    staleTime: 60_000,
+  });
   const { data: memStats } = useQuery({
     queryKey: ["memory-stats"],
     queryFn: () => fetchStats(),
@@ -206,6 +215,7 @@ function ReviewPage() {
           progress={progress}
           choiceMode={choiceMode}
           onMode={setMode}
+          reviewStreak={myStats?.review_streak ?? null}
         />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
@@ -1845,6 +1855,7 @@ export function ReviewHeader({
   progress,
   choiceMode,
   onMode,
+  reviewStreak,
 }: {
   /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
   answered: number | null;
@@ -1853,15 +1864,30 @@ export function ReviewHeader({
   progress: number;
   choiceMode: boolean;
   onMode: (m: "speaking" | "choice") => void;
+  /**
+   * 復習した日が何日続いているか。まだ届いていなければ null。
+   * **0 のときは出さない** — 「0日続いている」は続いていないことの遠回しな
+   * 言い方で、読む人に何も足さない。
+   */
+  reviewStreak?: number | null;
 }) {
   const t = useT();
   return (
     <>
       <div className="flex items-baseline justify-between">
-        <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
-          {t("review.today")}
-        </h1>
-        <div className="flex items-center gap-3">
+        <div className="min-w-0">
+          <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
+            {t("review.today")}
+          </h1>
+          {/* 続いていることは、今日ここを開いた理由そのもの。
+              数字は `review_history` を数えたもので、1日の上限と同じ出所。 */}
+          {typeof reviewStreak === "number" && reviewStreak > 0 && (
+            <p className="mt-0.5 text-footnote text-muted-foreground">
+              {t("rv.streakLine", { n: formatCount(reviewStreak) })}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
           {answered !== null && total !== null && (
             <span className="text-footnote text-muted-foreground">
               {formatCount(answered)} / {formatCount(total)}

@@ -9,6 +9,7 @@
  */
 import { useState } from "react";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
+import { RegisterMeter } from "@/components/WordCard";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
@@ -17,6 +18,7 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
+import type { RegisterScale } from "@/lib/register-scale";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
 
@@ -119,6 +121,28 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
 }
 
 /**
+ * 口語⇄書き言葉のメーター、**5段すべて**。
+ *
+ * 1段でも撮り漏らすと、その位置と言葉は一度も測られない。
+ * 目盛りが無いカード(古い139語)では**区画そのものが出ない**のが正しい姿なので、
+ * それも最後に並べる — 真ん中に針を置くと「どちらでも使う」と言い切ったことになる。
+ */
+export function RegisterMeterScene() {
+  // 目盛りは5段しかないので**全部並べる**。1段でも撮り漏らすと、
+  // その位置と言葉は一度も測られない。
+  const steps: RegisterScale[] = [-2, -1, 0, 1, 2];
+  return (
+    // 足場はインラインの `style`。雛形にしか無いクラスは生成されない
+    // (`styles.css` は `@source "../src"`)。
+    <div style={{ display: "grid", gap: 20, padding: 16 }}>
+      {steps.map((v) => (
+        <RegisterMeter key={v} scale={v} />
+      ))}
+    </div>
+  );
+}
+
+/**
  * 場所の知らせ。**上から降りてくる**帯で、撮ったときの写真が付く。
  *
  * これまで下から出ていて、写真も付かず、押すと図鑑へ飛ぶだけだった
@@ -167,7 +191,10 @@ export function UserPanelScene({ q }: { q: URLSearchParams }) {
             : {
                 xp: 1240,
                 level: 5,
-                streak: 12,
+                // 撮った連続と復習した連続は**わざと違う数**にしておく。
+                // 同じ数だと、取り違えて出していても絵で気づけない。
+                capture_streak: 12,
+                review_streak: 5,
                 captured_total: 63,
                 reviews_due: 8,
                 reviews_done_today: 4,

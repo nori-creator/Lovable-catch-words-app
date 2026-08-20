@@ -4,11 +4,14 @@
  * として未検査にしていたが、**8段のうち6段はカメラと関係が無かった**。
  *
  * 撮っている最中の2段(`object` / `selfie`)は `<video>` を持つので、
- * 偽の映像を流す仕掛けを作るまでは入れない。一覧に書いておく。
+ * 偽の映像を流す仕掛けを作るまでは入れない。
+ * 映像の上に**載る操作**(前後の切替・倍率)は `scan.tsx` 側で部品にして、
+ * 同じ寸法の暗い面を敷いて撮っている(`scan.tsx` の場面)。
  */
 import { useState } from "react";
 import {
   CaptureCardPanel,
+  CaptureSavingPanel,
   OfflineSavedPanel,
   PickWordPanel,
   ReencounterPanel,
@@ -150,6 +153,24 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
       placeName="士林夜市"
       onRedo={() => {}}
       onSave={() => {}}
+    />
+  );
+}
+
+/**
+ * 保存中の暗転 — **撮るたびに必ず通るのに、一度も測っていなかった面。**
+ *
+ * 飛行の前(絵と字が見えている)と、飛行が始まった後(元の絵と字を消して
+ * 上に載る層へ渡した状態)の2通りを撮る。後者は**空に見えるのが正しい姿**で、
+ * 実際に飛ぶ絵は別の層(`CatchLandingOverlay`)が描く。
+ */
+export function CaptureSavingScene({ q }: { q: URLSearchParams }) {
+  const landing = q.get("landing") === "1";
+  return (
+    <CaptureSavingPanel
+      image={shot(600, 600, "#b07a4a")}
+      headword="珍珠奶茶"
+      landing={landing}
     />
   );
 }

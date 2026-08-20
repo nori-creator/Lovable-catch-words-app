@@ -96,7 +96,16 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
   }));
   return (
     <section className="mb-4">
-      <ReviewHeader answered={3} total={12} progress={25} choiceMode onMode={() => {}} />
+      {/* 続いている日数はここに出る。**0 のときは出ない**のが正しい姿なので、
+          読み込み中の面(下)で「出ないこと」も一緒に見る。 */}
+      <ReviewHeader
+        answered={3}
+        total={12}
+        progress={25}
+        choiceMode
+        onMode={() => {}}
+        reviewStreak={7}
+      />
       {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
           変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
       <button className="w-full text-left" aria-expanded={open}>

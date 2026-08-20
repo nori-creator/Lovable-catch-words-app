@@ -22,6 +22,13 @@ import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { usableQuickFacts, withoutMeasureWordEcho } from "@/lib/extras";
+import {
+  REGISTER_MAX,
+  REGISTER_MIN,
+  registerLabelKey,
+  registerScaleOf,
+  type RegisterScale,
+} from "@/lib/register-scale";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
 import { isRegenSection, type SectionId } from "@/lib/card-sections";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
@@ -278,11 +285,16 @@ export const WordCard = forwardRef<
       case "meaning":
         return !!word.meaning_ja;
       case "usage_context":
+        // **Body が実際に描くものと同じ条件を見る。** 以前は `register_tag` が
+        // 在れば中身ありと数えていたが、いまその札はメーターに変わっていて、
+        // 読み取れない文字列だと何も描かない。数え方と描き方がずれると、
+        // 見出しだけの空の節が出る(`usage_chunks` で踏んだのと同じ穴)。
         return !!(
           ex.usage_context ||
           ex.register_note ||
           ex.common_situation ||
-          ex.frequency_level
+          ex.frequency_level ||
+          registerScaleOf(ex) !== null
         );
       case "example":
         return !!word.example_sentence;
@@ -674,6 +686,47 @@ function FrequencyMeter({ level }: { level: number }) {
   );
 }
 
+/**
+ * 話し言葉 ⇄ 書き言葉のメーター。
+ *
+ * ## 色だけに頼らない
+ * 針の**位置**・**文字**・色の3つが同じことを言う。色覚の違う人にも、
+ * 明るい屋外で色が飛んでいる人にも、同じだけ伝わる必要がある
+ * (このアプリは街を歩きながら使う)。
+ *
+ * ## 「分からない」を真ん中に置かない
+ * 目盛りが無い語ではこの区画そのものを出さない。真ん中に針を置くと
+ * 「どちらでも使う」と言い切ったことになる(`lib/register-scale.ts`)。
+ */
+export function RegisterMeter({ scale }: { scale: RegisterScale }) {
+  const t = useT();
+  const label = t(registerLabelKey(scale));
+  // -2..+2 を 0..100% に。真ん中(0)がちょうど 50%。
+  const pct = ((scale - REGISTER_MIN) / (REGISTER_MAX - REGISTER_MIN)) * 100;
+  return (
+    <div className="w-full" role="img" aria-label={`${t("card.register")}: ${label}`} title={label}>
+      <div className="flex items-baseline justify-between text-caption text-muted-foreground">
+        <span>{t("card.regSpoken")}</span>
+        <span className="font-semibold text-foreground">{label}</span>
+        <span>{t("card.regWritten")}</span>
+      </div>
+      <div className="relative mt-1.5 h-2 rounded-full bg-gradient-to-r from-warn/45 via-secondary to-primary/45">
+        {/* 中立の位置に薄い目印。針がそこに在るのか、たまたま近いのかを分ける。 */}
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+        {/* **針の通り道を内側に寄せる。** 帯の端に置くと針が半分はみ出して
+            切れて見え、両端の2段だけ別物のように見えた(検査の絵で気づいた)。
+            針の半径(7px)ぶん狭めた中を 0〜100% で動かす。 */}
+        <span className="pointer-events-none absolute inset-y-0 left-[7px] right-[7px] block">
+          <span
+            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
+            style={{ left: `${pct}%` }}
+          />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function Body({
   id,
   word,
@@ -698,25 +751,23 @@ function Body({
       );
 
     case "usage_context": {
-      // 統合表示: 頻度メーター+口語/書面タグ+どこで見て使うかの説明。
+      // 統合表示: 頻度メーター + 口語⇄書面のメーター + どこで見て使うかの説明。
       const text =
         ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
+      const registerScale = registerScaleOf(ex);
       return (
         <div className="space-y-2">
-          {(ex.frequency_level || ex.register_tag) && (
+          {ex.frequency_level != null && ex.frequency_level > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              {ex.frequency_level != null && ex.frequency_level > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
-                  {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
-                </span>
-              )}
-              {ex.register_tag && (
-                <span className="rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
-                  {ex.register_tag}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
+                {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
+              </span>
             </div>
           )}
+          {/* 口語⇄書面。**札から目盛りへ。** 「口語」と1語だけ置いても
+              「どのくらい」が言えない(オーナー要望)。目盛りが無い古いカードは
+              文字列から写し、写せなければ何も出さない。 */}
+          {registerScale !== null && <RegisterMeter scale={registerScale} />}
           {text && <Prose text={text} />}
         </div>
       );

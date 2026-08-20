@@ -805,40 +805,16 @@ function ScanPage() {
             </div>
           )}
 
-          {/* 前後の切替。ズームの逆側(左)に置く — 同じ側に積むと、
-              倍率を持たない前面カメラに替えた瞬間に位置が飛ぶ。
-              倍率つまみは条件付きで出るが、こちらは覗いている間つねに出す。 */}
-          {!snapshot && (
-            <button
-              type="button"
-              onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-              aria-label={t("scan.flipCamera")}
-              aria-pressed={facing === "user"}
-              className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-95"
-            >
-              <SwitchCamera className="h-5 w-5" />
-            </button>
-          )}
-
-          {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
-          {!snapshot && ready && zoomMax > 1 && (
-            <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2">
-              <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-caption font-semibold text-white backdrop-blur">
-                {zoom.toFixed(1)}×
-              </span>
-              <input
-                type="range"
-                aria-label={t("scan.zoom")}
-                min={zoomCapsRef.current?.min ?? 1}
-                max={zoomMax}
-                step={0.1}
-                value={zoom}
-                onChange={(e) => applyZoom(Number(e.target.value))}
-                className="h-40 w-11 cursor-pointer accent-white"
-                style={{ writingMode: "vertical-lr", direction: "rtl" }}
-              />
-            </div>
-          )}
+          <ScanCameraControls
+            hidden={!!snapshot}
+            facing={facing}
+            onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+            showZoom={ready && zoomMax > 1}
+            zoom={zoom}
+            zoomMin={zoomCapsRef.current?.min ?? 1}
+            zoomMax={zoomMax}
+            onZoom={applyZoom}
+          />
 
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
@@ -1436,6 +1412,76 @@ export function ScanNothingFound() {
         {t("scan.nothingFoundHint")}
       </p>
     </div>
+  );
+}
+
+/**
+ * 覗いている間だけカメラの上に載る操作。**前後の切替と倍率。**
+ *
+ * 前後の切替は 2026-08-19 に足した所で、それまで背面固定だった。
+ * ここを部品として出すのは、**映像の上に載る操作は雛形で撮れないと
+ * 一度も測られない**から。偽の映像は流せないので、雛形では同じ寸法の
+ * 暗い面を敷いて、その上に載せて測る。
+ *
+ * 左右に分けて置く理由: 同じ側に積むと、倍率を持たない前面カメラへ
+ * 替えた瞬間に切替ボタンの位置が飛ぶ。倍率つまみは条件付きで出るが、
+ * 切替は覗いている間つねに出す。
+ */
+export function ScanCameraControls({
+  hidden,
+  facing,
+  onFlip,
+  showZoom,
+  zoom,
+  zoomMin,
+  zoomMax,
+  onZoom,
+}: {
+  /** 撮った絵を止めている間は操作を出さない。 */
+  hidden: boolean;
+  facing: "environment" | "user";
+  onFlip: () => void;
+  /** 倍率を持たない端末では出さない(動かないつまみを置かない)。 */
+  showZoom: boolean;
+  zoom: number;
+  zoomMin: number;
+  zoomMax: number;
+  onZoom: (v: number) => void;
+}) {
+  const t = useT();
+  if (hidden) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onFlip}
+        aria-label={t("scan.flipCamera")}
+        aria-pressed={facing === "user"}
+        className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-95"
+      >
+        <SwitchCamera className="h-5 w-5" />
+      </button>
+
+      {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
+      {showZoom && (
+        <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2">
+          <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-caption font-semibold text-white backdrop-blur">
+            {zoom.toFixed(1)}×
+          </span>
+          <input
+            type="range"
+            aria-label={t("scan.zoom")}
+            min={zoomMin}
+            max={zoomMax}
+            step={0.1}
+            value={zoom}
+            onChange={(e) => onZoom(Number(e.target.value))}
+            className="h-40 w-11 cursor-pointer accent-white"
+            style={{ writingMode: "vertical-lr", direction: "rtl" }}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

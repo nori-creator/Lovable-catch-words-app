@@ -336,6 +336,17 @@ const MODES = [
   ["place-memory", "", false, { scene: "place-memory" }],
   ["place-memory-dark", 'class="dark"', false, { scene: "place-memory" }],
   ["place-memory-nophoto", "", false, { scene: "place-memory", nophoto: "1" }],
+  // 口語⇄書面のメーター、5段すべて + 古いカード + 出さない場合。
+  // 1段でも撮り漏らすと、その位置と言葉は一度も測られない。
+  ["register-meter", "", false, { scene: "register-meter" }],
+  ["register-meter-dark", 'class="dark"', false, { scene: "register-meter" }],
+  // 保存中の暗転。**撮るたびに必ず通るのに一度も測っていなかった。**
+  // 飛行が始まった後は空に見えるのが正しい姿(飛ぶ絵は別の層が描く)。
+  ["capture-saving", "", false, { scene: "capture-saving" }],
+  ["capture-saving-landing", "", false, { scene: "capture-saving", landing: "1" }],
+  // 覗いている最中に映像の上へ載る操作。倍率を持たない端末の姿も見る。
+  ["scan-camera", "", false, { scene: "scan-camera" }],
+  ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
@@ -384,7 +395,19 @@ const FOCUS_MIN_RATIO = 3;
  * こちらにも書くのは、バーが無いことを咎める段がここに在るため。
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
-const BARE_SCENES = new Set(["onboarding", "sticker-sheet"]);
+const BARE_SCENES = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera"]);
+
+/**
+ * **字が1つも無いのが正しい面。**
+ *
+ * - `capture-saving-landing`: 飛行が始まった瞬間。元の絵も字も消して、
+ *   上に載る層(`CatchLandingOverlay`)へ見た目を渡した状態。空が正解。
+ * - `scan-camera-nozoom`: 倍率を持たない端末。残るのは前後の切替の記号だけ。
+ *
+ * ここに足すのは「そう設計したから字が無い」面だけ。
+ * 「なぜか出ない」面を黙らせるために足さない。
+ */
+const WORDLESS_SCENES = new Set(["capture-saving-landing", "scan-camera-nozoom"]);
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -459,7 +482,11 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
     await page.close();
     continue;
   }
-  if (mounted.text < 4) {
+  // **字が無いのが正しい面もある。** ここは「組み上がったのに何も描けて
+  // いない」を捕まえる網なので、はじめから字を持たない面だけを名指しで通す。
+  // 名指しにする理由は、網そのものを緩めると次に本当に描けていない面が
+  // 静かに緑になるから(以前それで真っ白なページを撮っていた)。
+  if (mounted.text < 4 && !WORDLESS_SCENES.has(name)) {
     issues.push(`[${name}] 画面に文字が1つも出ていない(描けていない疑い)`);
   }
 
