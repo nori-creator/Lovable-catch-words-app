@@ -19,7 +19,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
-import { JournalResultScene } from "./scenes/journal";
+import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import {
   CaptureCardScene,
   CaptureOfflineScene,
@@ -111,6 +111,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-saving": CaptureSavingScene,
   "scan-camera": ScanCameraScene,
   "journal-result": JournalResultScene,
+  "journal-scaffold": JournalScaffoldScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,

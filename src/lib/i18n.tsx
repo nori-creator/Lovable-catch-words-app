@@ -99,6 +99,15 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
+  // --- 日記の足場(要望 #88) ---
+  "jr.scaffoldTitle": { ja: "今日撮ったものから", en: "From what you caught today" },
+  "jr.aboutCapture": { ja: "「{w}」のこと", en: "about “{w}”" },
+  "jr.useThese": { ja: "この型が使えます", en: "Patterns you can use" },
+  "jr.tapToInsert": { ja: "押すと下に入ります", en: "Tap to drop it into your draft" },
+  "jr.noCaptures": {
+    ja: "今日はまだ何も撮っていないので、質問は出せません。1つ撮ると、その物のことを聞きます。",
+    en: "Nothing caught today yet, so there are no questions. Catch one and they'll be about it.",
+  },
   "rv.autoMode": {
     ja: "記憶の段階に合わせて出題の形を変えます",
     en: "Picks the task format to match how well you remember each word",

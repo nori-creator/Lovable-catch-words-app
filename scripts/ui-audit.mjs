@@ -325,6 +325,8 @@ const MODES = [
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
   // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
   ...crossThemes("journal-result", { scene: "journal-result" }),
+  // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
+  ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
