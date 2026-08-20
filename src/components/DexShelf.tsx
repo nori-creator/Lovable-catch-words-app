@@ -228,19 +228,24 @@ export function DexShelf({
                     </h4>
 
                     {tiers.map((tier, ti) => (
-                      <div key={ti} className={ti > 0 ? "mt-3" : undefined}>
-                        <div className="shelf-row">
-                          {tier.map((s) => (
-                            <ShelfItem
-                              key={s.id}
-                              sticker={s}
-                              onOpen={onOpen}
-                              landing={s.id === justCaught}
-                            />
-                          ))}
+                      <div key={ti} className={ti > 0 ? "mt-4" : undefined}>
+                        {/* 段は「箱」— 奥まった面の中にモノが立ち、
+                            手前に小口のある板が来る(.shelf-bay + .shelf-rule)。 */}
+                        <div className="shelf-bay">
+                          <div className="shelf-row">
+                            {tier.map((s) => (
+                              <ShelfItem
+                                key={s.id}
+                                sticker={s}
+                                onOpen={onOpen}
+                                landing={s.id === justCaught}
+                              />
+                            ))}
+                          </div>
                         </div>
-                        {/* 棚板 — 板ではなく線 */}
+                        {/* 棚板 — 小口のある板 */}
                         <div className="shelf-rule" aria-hidden />
+
                         {/* 題名は棚板の下、モノと同じ列で揃える。
                             読み上げには要らない — ボタンが同じ語を名前として
                             持っているので、ここを読むと全部2回聞こえる。 */}
