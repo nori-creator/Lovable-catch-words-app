@@ -96,15 +96,32 @@ export function UserPanel({
    */
   const DASH = "—";
   const num = (v: number) => formatCount(v, uiLocale);
+  const days = (v: number) => t("me.days", { n: num(v) });
   const rows: Array<{ key: string; label: string; value: string }> = [
     // **連続日数を先頭に置く。** 続いていること自体が戻ってくる理由になる。
+    //
+    // 撮った連続と復習した連続は**別の数**。先週はここに撮ったほうだけを
+    // 「続いている」と出していたが、要望の「連続何日」は復習のほうだった。
+    // どちらが何なのか、名前で分かるようにする。
     {
-      key: "streak",
-      label: t("me.streak"),
-      value: stats ? t("me.days", { n: num(stats.streak) }) : DASH,
+      key: "capture-streak",
+      label: t("me.captureStreak"),
+      value: stats ? days(stats.capture_streak) : DASH,
+    },
+    {
+      key: "review-streak",
+      label: t("me.reviewStreak"),
+      value: stats ? days(stats.review_streak) : DASH,
     },
     { key: "captured", label: t("me.captured"), value: stats ? num(stats.captured_total) : DASH },
     { key: "level", label: t("me.level"), value: stats ? num(stats.level) : DASH },
+    // **「今日の復習」と書いて残りの数を出していた。** 読んだ人は
+    // 「今日8回やった」と読む。やった数と待っている数は別なので、別の行にする。
+    {
+      key: "done-today",
+      label: t("me.doneToday"),
+      value: stats ? num(stats.reviews_done_today) : DASH,
+    },
     { key: "due", label: t("me.due"), value: stats ? num(stats.reviews_due) : DASH },
   ];
   return (

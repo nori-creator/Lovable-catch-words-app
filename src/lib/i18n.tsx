@@ -99,6 +99,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
+  "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
   "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
@@ -953,11 +954,17 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // ヘッダーのアイコンを押すと出る、自分の記録。
   "me.open": { ja: "自分の記録を見る", en: "See your record" },
   "me.you": { ja: "あなた", en: "You" },
-  "me.streak": { ja: "続いている", en: "Streak" },
+  // **撮った連続と復習した連続は別の数。** 片方だけ「続いている」と書くと
+  // どちらのことか分からない(要望の「連続何日」は復習のほう)。
+  "me.captureStreak": { ja: "撮った日が続いている", en: "Capture streak" },
+  "me.reviewStreak": { ja: "復習した日が続いている", en: "Review streak" },
   "me.days": { ja: "{n}日", en: "{n} days" },
   "me.captured": { ja: "集めた言葉", en: "Words caught" },
   "me.level": { ja: "レベル", en: "Level" },
-  "me.due": { ja: "今日の復習", en: "Due today" },
+  // **やった数と待っている数を混ぜない。** 「今日の復習」で待っている数を
+  // 出していたので、やった数と読めてしまっていた。
+  "me.doneToday": { ja: "今日やった復習", en: "Reviewed today" },
+  "me.due": { ja: "待っている復習", en: "Waiting" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },

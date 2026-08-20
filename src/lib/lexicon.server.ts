@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 import { generateStructured, getAi, getAiFor } from "./ai-provider.server";
+import { taiwanUsageFrom, type TaiwanUsage } from "./taiwan-usage";
 
 /**
  * 自動で貯まる共有辞書 (2026-07-14):
@@ -23,7 +24,16 @@ export type LexiconCandidate = {
   meaning_ja?: string | null;
   pos?: string | null;
   confidence?: number;
-  taiwan_usage?: string | null;
+  /**
+   * **地の文を渡せない形にしてある。** この列には
+   * `check (taiwan_usage in ('common','written','spoken','rare'))` が付いていて、
+   * 呼ぶ側2箇所が日本語の1文を渡していた。`upsert` は一括なので、
+   * 1行でも制約に当たると**その回の語が1つも入らない**。
+   * 型で止める(`taiwanUsageFrom` を通してから渡す)。
+   */
+  taiwan_usage?: TaiwanUsage | null;
+  /** 使う場面などの地の文。制約の無い `notes` 列へ入れる。 */
+  notes?: string | null;
   entry_type?: "word" | "phrase";
 };
 
@@ -43,17 +53,23 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
         pinyin: c.pinyin || null,
         meaning_ja: c.meaning_ja!,
         pos: c.pos || null,
-        taiwan_usage: c.taiwan_usage || null,
+        taiwan_usage: c.taiwan_usage ?? null,
+        notes: c.notes?.trim() || null,
         source: "ai",
         entry_type: c.entry_type ?? "word",
       }));
     if (rows.length === 0) return;
-    await supabaseAdmin.from("dictionary_entries").upsert(rows as never, {
+    const { error } = await supabaseAdmin.from("dictionary_entries").upsert(rows as never, {
       onConflict: "language,headword,entry_type",
       ignoreDuplicates: true, // = DO NOTHING: 既存(特にverified)を絶対に触らない
     });
-  } catch {
+    // **黙って飲まない。** ここは `catch {}` だけだったので、制約違反で
+    // 一括まるごと落ちていたのに2か月気づかなかった。
+    // 蓄積はおまけなので投げはしないが、落ちたことは必ず言う。
+    if (error) console.warn("learnLexiconEntries failed", error.message, `rows=${rows.length}`);
+  } catch (e) {
     // 蓄積はおまけ — 失敗してもスキャン本体を絶対に止めない。
+    console.warn("learnLexiconEntries threw", e instanceof Error ? e.message : e);
   }
 }
 
@@ -488,7 +504,10 @@ ${candidateWords.length > 0 ? `\n加えて、次はニュース見出しから�
       pinyin: w.pinyin,
       meaning_ja: w.meaning_ja,
       pos: w.pos,
-      taiwan_usage: w.usage || null,
+      // 使う場面は**1文の地の文**。制約付きの列には入れられないので、
+      // 読める分だけ4値へ写し、文そのものは `notes` へ置く。
+      taiwan_usage: taiwanUsageFrom({ prose: w.usage }),
+      notes: w.usage || null,
       confidence: 1,
     })),
   );

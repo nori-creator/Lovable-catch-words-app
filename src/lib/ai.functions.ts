@@ -5,6 +5,7 @@ import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
 import { isTargetHeadword } from "./target-language";
+import { taiwanUsageFrom } from "./taiwan-usage";
 import { REGEN_SECTIONS, type RegenSection } from "./card-sections";
 import {
   assertWithinDailyCap,
@@ -415,7 +416,15 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
           pinyin: card.pinyin,
           meaning_ja: card.meaning_ja,
           pos: card.part_of_speech,
-          taiwan_usage: card.extras?.usage_context || card.extras?.common_situation || null,
+          // **地の文を入れない。** ここは制約付きの列で、
+          // `usage_context`(「スーパーや夜市でよく見かける」)を直に入れていた。
+          // 一括 upsert なので、その1行のせいで**その回の語が1つも入らない**。
+          taiwan_usage: taiwanUsageFrom({
+            registerTag: card.extras?.register_tag,
+            frequencyLevel: card.extras?.frequency_level,
+            prose: card.extras?.usage_context || card.extras?.common_situation,
+          }),
+          notes: card.extras?.usage_context || card.extras?.common_situation || null,
         },
       ]),
     );

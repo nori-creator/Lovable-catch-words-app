@@ -167,7 +167,10 @@ export function UserPanelScene({ q }: { q: URLSearchParams }) {
             : {
                 xp: 1240,
                 level: 5,
-                streak: 12,
+                // 撮った連続と復習した連続は**わざと違う数**にしておく。
+                // 同じ数だと、取り違えて出していても絵で気づけない。
+                capture_streak: 12,
+                review_streak: 5,
                 captured_total: 63,
                 reviews_due: 8,
                 reviews_done_today: 4,
