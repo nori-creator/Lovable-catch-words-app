@@ -121,6 +121,11 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
   "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
+  // --- TOCFL の段々(src/lib/tocfl.ts) ---
+  "tocfl.title": { ja: "TOCFL", en: "TOCFL" },
+  "tocfl.level": { ja: "{n}級", en: "Level {n}" },
+  "tocfl.out": { ja: "級外の語", en: "Not in the lists" },
+  "tocfl.outShort": { ja: "外", en: "—" },
   // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
   "corpus.more": {

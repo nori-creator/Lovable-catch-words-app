@@ -55,6 +55,7 @@ import {
   StickerHeroScene,
   WordCardEmptyScene,
   WordCardScene,
+  TocflLadderScene,
 } from "./scenes/word-card";
 import {
   ReviewChoiceScene,
@@ -120,6 +121,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "input-catch": InputCatchScene,
   "hero-picker": HeroPickerScene,
   "word-card-empty": WordCardEmptyScene,
+  "tocfl-ladder": TocflLadderScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
   "dex-no-match": DexNoMatchScene,

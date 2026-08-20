@@ -249,6 +249,7 @@ const MODES = [
   ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
+  ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
   ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
   ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),

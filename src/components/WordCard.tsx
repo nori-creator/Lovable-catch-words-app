@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { CorpusLinks } from "@/components/CorpusLinks";
+import { TocflLadder } from "@/components/TocflLadder";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -495,14 +496,12 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
                   {posDisplay(word.part_of_speech)}
                 </span>
               )}
-              {word.level && (
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
-                  {word.level}
-                </span>
-              )}
               <ReportButton headword={word.headword} />
             </div>
           )}
+          {/* 級は札1つではなく**段々**で見せる(オーナー指摘)。
+              `TOCFL-2` とだけ書かれても、2が6段のどこなのか分からない。 */}
+          <TocflLadder level={word.level} className="mt-2" />
         </div>
       </div>
     </div>
