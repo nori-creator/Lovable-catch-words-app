@@ -179,8 +179,27 @@ function ReviewPage() {
    * (独立監査: 直前まで数えていた情報が完了の瞬間に消えている)。
    */
   const [tally, setTally] = useState({ answered: 0, correct: 0 });
+  /**
+   * 記憶の集計を読み直す。
+   *
+   * **これが無いと「復習したのに記憶率が動かない」ように見える。**
+   * どちらの問い合わせも `staleTime: 60_000` で、誰も無効化していなかったので、
+   * 1枚採点しても上のバッジも下の折れ線も採点前の値のままだった。
+   *
+   * 1枚ごとには呼ばない — どちらもその人の復習を全部読む問い合わせなので、
+   * 20枚やれば20往復になる。**見せる直前**(束を終えたとき / 一覧を開いたとき)
+   * にだけ読み直す。
+   */
+  const refreshMemory = () => {
+    void qc.invalidateQueries({ queryKey: ["memory-stats"] });
+    void qc.invalidateQueries({ queryKey: ["memory-overview"] });
+    void qc.invalidateQueries({ queryKey: ["my-stats"] });
+  };
   const advance = (correct?: boolean) => {
-    setIdx((i) => i + 1);
+    // **更新関数の中で副作用を起こさない**(StrictMode で2回走る)。
+    const next = idx + 1;
+    setIdx(next);
+    if (cards && next >= cards.length) refreshMemory();
     if (correct !== undefined) {
       setTally((v) => ({ answered: v.answered + 1, correct: v.correct + (correct ? 1 : 0) }));
     }
@@ -257,7 +276,10 @@ function ReviewPage() {
         {memOverview && memOverview.words.length > 0 && (
           <>
             <button
-              onClick={() => setMemListOpen((v) => !v)}
+              onClick={() => {
+                if (!memListOpen) refreshMemory();
+                setMemListOpen((v) => !v);
+              }}
               aria-expanded={memListOpen}
               className="w-full text-left"
             >
@@ -1924,10 +1946,20 @@ import {
   CartesianGrid,
 } from "recharts";
 
+/**
+ * 全体の記憶率(前後2週間)。
+ *
+ * **過去は記録から作った実際の値**で、未来だけが予測。
+ * 以前はここが「いまの状態を過去へ投げ返した線」だったので、
+ * 復習した瞬間に過去14日が全部 100% に跳ね上がっていた。
+ *
+ * その日に**まだ無かった**語しか無い日は `null` が来る — 0% ではないので、
+ * 線をそこで切る(`connectNulls` を付けない)。
+ */
 function MiniRetentionGraph({
   series,
 }: {
-  series: Array<{ day_offset: number; avg_retention: number }>;
+  series: Array<{ day_offset: number; avg_retention: number | null; counted?: number }>;
 }) {
   const t = useT();
   return (
@@ -1943,7 +1975,7 @@ function MiniRetentionGraph({
           />
           <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
-            formatter={(v: number) => [`${v}%`, t("rv.avgRetention")]}
+            formatter={(v) => [v == null ? "—" : `${v}%`, t("rv.avgRetention")]}
             labelFormatter={(l) =>
               l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` })
             }

@@ -5,6 +5,12 @@ import { z } from "zod";
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
 import { nextSrs, retentionNow, modeFor, stabilityOf } from "@/lib/srs";
+import {
+  buildRetentionSeries,
+  type RetentionCard,
+  type RetentionEvent,
+  type RetentionPoint,
+} from "@/lib/retention-series";
 export { nextSrs } from "@/lib/srs";
 // 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
 import {
@@ -820,61 +826,56 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
   });
 
 export type OverallMemoryStats = {
-  avg_retention: number; // 0-100
+  /** いまの平均記憶率(0-100)。数えられる語が無ければ null。 */
+  avg_retention: number | null;
   total_cards: number;
   due_now: number;
-  series: Array<{ day_offset: number; avg_retention: number }>; // -14..+14
+  /** -14..+14。過去は `review_history` から復元した**その日の状態**。 */
+  series: RetentionPoint[];
 };
 
 export const getOverallMemoryStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<OverallMemoryStats> => {
     const { supabase, userId } = context;
-    const { data: rows } = await supabase
-      .from("reviews")
-      .select("ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
-      .eq("user_id", userId);
+    // 過去側は**記録**から作る。ここを現在の状態から作っていたせいで、
+    // 復習した瞬間に過去14日が全部 100% に塗り替わっていた
+    // (`src/lib/retention-series.ts` の冒頭に経緯)。
+    const [{ data: rows }, { data: hist }] = await Promise.all([
+      supabase
+        .from("reviews")
+        .select("sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
+        .eq("user_id", userId),
+      supabase
+        .from("review_history")
+        .select("sticker_id, reviewed_at, interval_days_after, ease_after")
+        .eq("user_id", userId)
+        .order("reviewed_at", { ascending: true })
+        .limit(5000),
+    ]);
     type StatRow = {
+      sticker_id: string;
       ease: number;
       interval_days: number;
       last_reviewed_at: string | null;
       due_at: string | null;
       stickers?: { taken_at?: string | null } | null;
     };
-    // 未復習でも「出会った日」を起点に科学的な減衰を描く(以前はこの行が
-    // last_reviewed_at=null で 100% 固定になり、線が消えていた)。
-    const cards = ((rows ?? []) as unknown as StatRow[]).map((r) => ({
+    const raw = (rows ?? []) as unknown as StatRow[];
+    const cards: RetentionCard[] = raw.map((r) => ({
+      sticker_id: r.sticker_id,
+      taken_at: r.stickers?.taken_at ?? null,
       ease: r.ease,
       interval_days: r.interval_days,
-      last_reviewed_at: r.last_reviewed_at ?? r.stickers?.taken_at ?? null,
-      due_at: r.due_at,
+      last_reviewed_at: r.last_reviewed_at,
     }));
+    const events = (hist ?? []) as unknown as RetentionEvent[];
     const now = Date.now();
-    const dueNow = cards.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
+    const dueNow = raw.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
 
-    function retentionAt(
-      card: { ease: number; interval_days: number; last_reviewed_at: string | null },
-      atMs: number,
-    ): number {
-      if (!card.last_reviewed_at) return 100;
-      const dt = (atMs - new Date(card.last_reviewed_at).getTime()) / 86400_000;
-      if (dt <= 0) return 100;
-      const stability = Math.max(0.5, card.interval_days * Math.max(1, card.ease));
-      return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stability)));
-    }
+    const { series, avg_retention } = buildRetentionSeries({ cards, events, nowMs: now });
 
-    const series: Array<{ day_offset: number; avg_retention: number }> = [];
-    for (let d = -14; d <= 14; d++) {
-      const at = now + d * 86400_000;
-      const vals = cards.map((c) => retentionAt(c, at));
-      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      series.push({ day_offset: d, avg_retention: Math.round(avg) });
-    }
-    const avgRet = cards.length
-      ? Math.round(cards.map((c) => retentionAt(c, now)).reduce((a, b) => a + b, 0) / cards.length)
-      : 0;
-
-    return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
+    return { avg_retention, total_cards: cards.length, due_now: dueNow, series };
   });
 
 // --- B5 記憶の状態ビジュアライズ ---------------------------------------------
