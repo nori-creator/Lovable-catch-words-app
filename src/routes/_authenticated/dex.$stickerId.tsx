@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -175,7 +176,7 @@ export function StickerDetailBody({
       <div className="mb-4">
         <WordTreeView
           headword={s.word.headword}
-          photoUrl={s.cutout_url ?? s.object_url ?? s.placeholder_url}
+          photoUrl={stickerPhotoUrl(s, { prefer: "cutout" })}
           emoji={s.word.silhouette_emoji}
           branchPlanRaw={s.branch_plan}
           extras={s.word.extras}

@@ -102,6 +102,9 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
           days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
           taken_at: r.created_at,
           distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
+          // 落ち方は `sticker-photo.ts` と同じ順(元写真 → 切り抜き →
+          // 自撮り → ネット画像)。**サーバ側なので保存パスで持っている**が、
+          // 順番だけは画面と揃える。
           image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
         }))
         .filter((m) => m.distance_m <= data.radius_m)

@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -111,7 +112,9 @@ export function StickerSheet({ stickerId, onClose }: Props) {
    * だから**文面で断定しない** — 「あなたが撮った写真」とは言わず、
    * 「いまの写真」と言う。仮画像しか無いゴーストのときは訊かない。
    */
-  const hasPhoto = !!(s?.object_url || s?.cutout_url);
+  const hasPhoto = hasOwnPhoto(s);
+  /** 表に出す1枚。役も見るので URL だけでなく組で持つ。 */
+  const hero = pickStickerPhoto(s);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
@@ -758,6 +761,8 @@ export function StickerSheetBody({
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
   encounter?: EncounterEstimate | null;
 }) {
+  /** 表に出す1枚。**役も見る** — ネット画像のときだけ出典を添えるため。 */
+  const hero = pickStickerPhoto(s);
   const t = useT();
   return (
     <>
@@ -802,25 +807,25 @@ export function StickerSheetBody({
             inert={flipped}
             className="card-face absolute inset-0 overflow-hidden rounded-3xl shadow-xl"
           >
-            {s.object_url ? (
+            {/* どの絵を出すかは `sticker-photo.ts` が1箇所で決める。
+                ネット画像だけは**出典を添える**必要があるので役を見る。 */}
+            {hero && hero.role !== "placeholder" ? (
               <CachedImg
-                src={s.object_url}
-                alt={t("common.photoOf", { word: s.word.headword })}
+                src={hero.url}
+                alt={
+                  hero.role === "cutout"
+                    ? s.word.headword
+                    : t("common.photoOf", { word: s.word.headword })
+                }
                 className="hero-pop absolute inset-0 h-full w-full object-cover"
               />
-            ) : s.cutout_url ? (
-              <CachedImg
-                src={s.cutout_url}
-                alt={s.word.headword}
-                className="hero-pop absolute inset-0 h-full w-full object-cover"
-              />
-            ) : s.placeholder_url ? (
+            ) : hero ? (
               // ネット画像。**仮ではなくカードの絵として普通に見せる**
               // (段ボール/ゴースト表現は廃止 2026-07-28)。
               // 気に入らなければ下の候補から選び直せる。
               <>
                 <img
-                  src={s.placeholder_url}
+                  src={hero.url}
                   alt={t("common.imageOf", { word: s.word.headword })}
                   className="hero-pop absolute inset-0 h-full w-full object-cover"
                 />

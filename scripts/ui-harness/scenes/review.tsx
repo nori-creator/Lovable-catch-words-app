@@ -35,6 +35,7 @@ const CARD: DueReviewCard = {
   category_key: "drink",
   entry_type: "word",
   cutout_url: null,
+  object_url: null,
   placeholder_url: null,
   audio_url: null,
   caption: "夜市で",

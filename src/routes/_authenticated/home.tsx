@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -503,7 +504,10 @@ export function ScrapbookAlbum({
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie;
           // ghosts show their placeholder (clearly temporary).
-          const heroUrl = s.selfie_url ?? s.object_url ?? s.cutout_url ?? s.placeholder_url ?? null;
+          // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`
+          // に1つだけ置いてある — 以前はここを含む7箇所がそれぞれ違う順で
+          // 選んでいて、同じ札が画面をまたぐと別の写真で出ていた。
+          const heroUrl = stickerPhotoUrl(s, { prefer: "selfie" });
 
           return (
             <button

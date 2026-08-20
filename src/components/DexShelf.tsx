@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -281,8 +282,11 @@ function ShelfItem({
   const t = useT();
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
-  const cutout = s.cutout_thumb_url ?? s.cutout_url;
-  const photo = s.object_thumb_url ?? s.object_url ?? s.placeholder_url;
+  // **切り抜きが在るかどうかで置き方が変わる**ので、URLだけでなく
+  // どの役が選ばれたかも見る(`sticker-photo.ts` が役を返す)。
+  const picked = pickStickerPhoto(s, { prefer: "cutout", thumb: true });
+  const cutout = picked?.role === "cutout" ? picked.url : null;
+  const photo = cutout ? null : (picked?.url ?? null);
 
   return (
     <button

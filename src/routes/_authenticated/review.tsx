@@ -24,6 +24,7 @@ import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import {
   normalizeReviewMode,
   reviewFormatFor,
@@ -783,7 +784,10 @@ export function SpeakingCard({
 
   const isPhrase = card.entry_type === "phrase";
   // Ghost cards (§5.3): the placeholder stands in until a real photo exists.
-  const heroUrl = card.cutout_url ?? card.placeholder_url;
+  // **切り抜き優先だが、無ければ撮った元の写真に落ちる。**
+  // ここは `cutout ?? placeholder` だけを見ていたので、切り抜きの無い札
+  // (かざして撮った札)は写真なしで出題されていた。
+  const heroUrl = stickerPhotoUrl(card, { prefer: "cutout" });
   const takenLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const takenLabel = card.taken_at
     ? new Date(card.taken_at).toLocaleDateString(takenLocale, { month: "short", day: "numeric" })
@@ -1735,10 +1739,10 @@ export function LightModeCard({
             以前は灰色の板に意味を書いていたが、そのすぐ下の問いが
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
-        {(card.cutout_url ?? card.placeholder_url) && (
+        {stickerPhotoUrl(card, { prefer: "cutout" }) && (
           <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
-              src={(card.cutout_url ?? card.placeholder_url)!}
+              src={stickerPhotoUrl(card, { prefer: "cutout" })!}
               alt={t("rv.targetAlt")}
               className="h-full max-h-[32vh] w-full object-contain"
             />
