@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -538,39 +539,25 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               </p>
             </div>
             <ul className="space-y-2">
+              {/* 撮った写真の候補(`capture.tsx` の `PickWordPanel`)と
+                  **同じ部品**を使う。ここには「同じ形にする」という注意書きが
+                  あっただけで写しが残っており、実際に2つの見た目になっていた。
+                  注意書きは写しを1つにしない。 */}
               {wordChoices.map((c) => (
-                // 撮った写真の候補(capture.tsx の PickWordPanel)と**同じ形**にする。
-                // どちらも「母語の1語が台湾華語では割れる」を解く同じ札で、
-                // 撮った側にだけ発音ボタンが付いていた(オーナー指定)。
-                // 片方だけ直すと、同じ役目の札が2つの見た目で残る。
-                <li key={c.headword} className="flex items-stretch gap-2">
-                  <button
-                    onClick={() => {
+                <li key={c.headword}>
+                  <WordCandidateRow
+                    headword={c.headword}
+                    zhuyin={c.reading_zhuyin}
+                    pinyin={c.pinyin}
+                    meaning={c.meaning_ja}
+                    distinction={c.distinction}
+                    onPick={() => {
                       wordChoiceRef.current = c.headword;
                       setText(c.headword);
                       void buildCard(c.headword);
                     }}
-                    className="press-in min-w-0 flex-1 rounded-2xl border border-border bg-card p-3 text-left"
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <Zh className="text-title font-bold">{c.headword}</Zh>
-                      <span className="truncate text-footnote text-muted-foreground">
-                        {pickReading(phonetic, c.reading_zhuyin, c.pinyin)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-body">{c.meaning_ja}</p>
-                    {c.distinction && (
-                      <p className="mt-0.5 text-footnote text-primary-ink">{c.distinction}</p>
-                    )}
-                  </button>
-                  {/* **発音ボタン。** 選ぶ前に音で確かめられる。 */}
-                  <button
-                    onClick={() => void pronounce(c.headword)}
-                    aria-label={t("common.playWord", { word: c.headword })}
-                    className="grid h-11 w-11 shrink-0 place-items-center self-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
-                  >
-                    <Volume2 className="h-4 w-4" />
-                  </button>
+                    onPronounce={() => void pronounce(c.headword)}
+                  />
                 </li>
               ))}
             </ul>

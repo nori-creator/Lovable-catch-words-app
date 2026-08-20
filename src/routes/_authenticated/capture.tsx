@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1079,37 +1080,21 @@ export function PickWordPanel({
       <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
       <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
       <div className="grid gap-2">
+        {/* 札の中身は `WordCandidateRow` に1つだけ置いてある。
+            打ち込んだ語の候補(`InputCatchSheet`)と**同じ役目・同じ見た目**で、
+            以前はここに写しがあったせいで見出し語の大きさが違い、
+            **表記の設定(注音/拼音)もこちら側だけ読んでいなかった**。 */}
         {suggestions.map((s) => (
-          // 札そのものを押すと**その語で決まる**。中の発音ボタンは
-          // 別の行き先なので、入れ子のボタンにはせず横に並べる
-          // (入れ子の `<button>` は正しくない markup で、押し分けも効かない)。
-          <div
+          <WordCandidateRow
             key={s.headword}
-            className="lift flex items-center gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary hover:bg-accent/40"
-          >
-            <button onClick={() => onPick(s)} className="min-w-0 flex-1 text-left">
-              <div lang="zh-Hant" className="text-body font-semibold">
-                {s.headword}
-              </div>
-              <div className="text-footnote text-muted-foreground">
-                <Zh>{s.reading_zhuyin || s.pinyin}</Zh> · {s.meaning_ja}
-              </div>
-              {/* **使い分けの一言(NORI指定)。**
-                    日本語の1語が台湾華語では複数の別語になるので、
-                    意味だけ並べても「どれも同じに見える」。 */}
-              {s.distinction && (
-                <div className="mt-0.5 text-footnote text-primary-ink">{s.distinction}</div>
-              )}
-            </button>
-            {/* **発音ボタン(NORI指定)。** 選ぶ前に音で確かめられる。 */}
-            <button
-              onClick={() => void pronounce(s.headword)}
-              aria-label={t("common.playWord", { word: s.headword })}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
-            >
-              <Volume2 className="h-4 w-4" />
-            </button>
-          </div>
+            headword={s.headword}
+            zhuyin={s.reading_zhuyin}
+            pinyin={s.pinyin}
+            meaning={s.meaning_ja}
+            distinction={s.distinction}
+            onPick={() => onPick(s)}
+            onPronounce={() => void pronounce(s.headword)}
+          />
         ))}
       </div>
       <div className="rounded-2xl border border-dashed border-border bg-card p-3">

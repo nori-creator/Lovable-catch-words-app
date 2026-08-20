@@ -327,6 +327,8 @@ const MODES = [
   ...crossThemes("journal-result", { scene: "journal-result" }),
   // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
   ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
+  // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
+  ...crossThemes("word-candidate", { scene: "word-candidate" }),
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],

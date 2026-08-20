@@ -4,6 +4,12 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
+import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
+
+// 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
+// 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
+// 呼ぶ側に押し付けない。
+export type { GeneratedCard };
 import { isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import { REGEN_SECTIONS, type RegenSection } from "./card-sections";
@@ -43,10 +49,15 @@ const SuggestionSchema = z.object({
             日本語の1語が台湾華語では複数の別語になるので、意味だけでは選べない。
             出せなかった回もあるので既定は空 — 空なら描かない。 */
         distinction: z.string().optional().default(""),
-        category_key: z.enum(CATEGORY_KEYS),
+        // カード側で踏んだのと同じ罠。棚名が一覧の外だと、
+        // **5件まとめて**落ちて「AI did not return structured suggestions」
+        // しか残らない。棚は後から直せるので、ここで語を捨てない。
+        category_key: z.enum(CATEGORY_KEYS).catch("other"),
       }),
     )
-    .length(5),
+    // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
+    .min(1)
+    .max(8),
 });
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -81,12 +92,17 @@ ${langRule}
 
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
 
-**distinction(使い分けの一言)を必ず書く:**
-日本語の1語が台湾華語では複数の別語になることが多い。だから候補を見た人が
-**なぜこの語であって隣の語ではないのか**を選べるようにする。
-- 他の候補と何が違うかを15文字程度で(例: 衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」)
-- 候補が1つしか出ない語でも、その語が指す範囲を一言で(例: 杯子→「取っ手なしのコップ」)
-- 意味の言い換えは書かない。**選ぶ手がかりにならない一言は無いのと同じ。**`
+**distinction(使い分けの一言)は、区別が要るときだけ書く:**
+書くのは「母語では1語なのに台湾華語では**別の語に分かれる**」場合だけ。
+そのときだけ、見た人が**なぜこの語であって隣の語ではないのか**を選べる。
+- 書く例: 衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」
+- 書く例: 湯→「スープ(お湯ではない)」のように、母語からの連想を外す必要があるとき
+- **書かない**: 母語と一対一で、迷いようがない語。
+  「雞肉」に「鶏の肉全般を指す表現」と書くのは意味の言い換えでしかなく、
+  読む人に何も足さない(オーナー指摘 2026-08-20)。そういう語は
+  distinction を**空文字**にする。
+- 迷ったら空にする。**選ぶ手がかりにならない一言は、無いより悪い** —
+  全部の行に何か書いてあると、本当に区別が要る行が埋もれる。`
         : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
 
     let content: string;
@@ -110,7 +126,7 @@ ${langRule}
     } catch {
       throw new Error("画像のAI読み込みに失敗しました");
     }
-    if (!content) throw new Error("AI did not return suggestions");
+    if (!content) throw new Error("AIから候補が返りませんでした。もう一度お試しください。");
 
     await logUsage(context.supabase, context.userId, "suggest");
 
@@ -122,8 +138,13 @@ ${langRule}
           category_key: normalizeCategory(s.headword, s.category_key),
         })),
       };
-    } catch {
-      throw new Error("AI did not return structured suggestions");
+    } catch (e) {
+      // **理由を飲まない**(カード生成で踏んだのと同じ)。
+      console.warn("suggestWords: 候補の形が合わない", {
+        why: e instanceof Error ? e.message : String(e),
+        head: content.slice(0, 300),
+      });
+      throw new Error("候補の形が整いませんでした。もう一度お試しください。");
     }
   });
 
@@ -135,42 +156,7 @@ const CardInput = z.object({
 
 // extras の形は src/lib/extras.ts が唯一の定義(共有)。
 
-const CardSchema = z.object({
-  // 入力が日本語だった場合に解決された台湾華語の見出し語(繁体字)。
-  headword_zh: z.string().default(""),
-  reading_zhuyin: z.string().default(""),
-  pinyin: z.string().default(""),
-  meaning_ja: z.string(),
-  part_of_speech: z.string().default("名詞"),
-  level: z.string().default("TOCFL-2"),
-  category_key: z.enum(CATEGORY_KEYS),
-  example_sentence: z.string(),
-  example_translation: z.string(),
-  /**
-   * どの棚にも当てはまらないときの**新しい棚の提案**。
-   *
-   * `category_key` は既定の54個に縛ったまま残す — 提案が使えなかったとき
-   * (形が壊れている・既存と同じ・DBが受け付けない)に**必ず戻る先**が要る。
-   * 提案は「あれば嬉しい」もので、無くてもキャッチは成立する。
-   * ここを緩く受けるのは、生成物が必ず想定外を出すから。形を直すのも
-   * 諦めるのも `shelf-proposal.ts` で完結させる。
-   */
-  new_shelf: z
-    .object({
-      // 型が違うものは**投げずに落とす**。1項目の型違いでカード生成が
-      // 丸ごと失敗すると、棚が増えないどころか語が取れない。
-      key: z.string().optional().catch(undefined),
-      label: z.string().optional().catch(undefined),
-      emoji: z.string().optional().catch(undefined),
-      room_key: z.string().optional().catch(undefined),
-      room_label: z.string().optional().catch(undefined),
-    })
-    .nullish()
-    .catch(null),
-  extras: ExtrasSchema.default(() => emptyExtras()),
-});
-
-export type GeneratedCard = z.infer<typeof CardSchema>;
+// カードの形は `lib/card-schema.ts` が唯一の定義(試験もそこに在る)。
 
 /**
  * 母語で書いた「もの + その場の様子」から、**台湾華語の名詞の候補**を出す。
@@ -379,11 +365,36 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       const result = await withModelFallback(ai, preferredModel, (m) =>
         generateText({ model: ai.gateway(m), prompt: `${prompt}${jsonTail}${extraPush}` }),
       );
+      // **失敗の理由を飲まない。**
+      //
+      // ここは `catch {}` で全部を握り潰し、"AI did not return a structured
+      // card" という英語の1行だけを残していた。JSONが壊れていたのか、
+      // どの項目が形に合わなかったのか、そもそも空だったのかが
+      // **誰にも分からない**ので、2か月直せなかった
+      // (`learnLexiconEntries` の `catch {}` で辞書の蓄積が死んでいたのと
+      //  同じ形)。何が落ちたかは必ず記録に残す。
+      let raw: unknown;
       try {
-        return CardSchema.parse(parseJsonFromAiText(result.text));
+        raw = parseJsonFromAiText(result.text);
       } catch {
-        throw new Error("AI did not return a structured card");
+        console.warn("generateCard: JSONとして読めない", {
+          headword: data.headword,
+          head: result.text.slice(0, 300),
+        });
+        throw new CardShapeError("JSONとして読めない返答");
       }
+      const checked = CardSchema.safeParse(raw);
+      if (checked.success) return checked.data;
+      const why = checked.error.issues
+        .slice(0, 3)
+        .map((i) => `${i.path.join(".") || "(根)"}: ${i.message}`)
+        .join(" / ");
+      console.warn("generateCard: カードの形が合わない", {
+        headword: data.headword,
+        why,
+        head: result.text.slice(0, 300),
+      });
+      throw new CardShapeError(why);
     };
     const extrasLookEmpty = (c: GeneratedCard): boolean => {
       const e = c.extras;
@@ -397,7 +408,26 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
         (e.examples_extra?.length ?? 0) > 0;
       return !filled;
     };
-    let card = await genOnce();
+    // 形が合わなかったときも**1度だけ**やり直す。以前は一発勝負で、
+    // モデルが1項目外しただけでその語が永久にカードにならなかった。
+    let card: GeneratedCard;
+    try {
+      card = await genOnce();
+    } catch (e) {
+      if (!(e instanceof CardShapeError)) throw e;
+      card = await genOnce(
+        `\n\n前回の返答は形が合いませんでした(${e.message})。` +
+          `**JSONオブジェクト1つだけ**を、上に挙げたキーで返してください。` +
+          `category_key は指定した一覧の中から必ず1つ選ぶこと。`,
+      ).catch((again: unknown) => {
+        // 2回とも駄目なら、**その人に読める言葉で**伝える。
+        // 英語の1行を日本語の画面に出したまま2か月放置していた。
+        throw new Error(
+          `カードの形が整いませんでした。もう一度お試しください。` +
+            `(${again instanceof Error ? again.message : String(again)})`,
+        );
+      });
+    }
     if (extrasLookEmpty(card)) {
       // 1回だけ、空を明確に禁止して作り直す。
       try {
