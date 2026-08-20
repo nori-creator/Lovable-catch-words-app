@@ -65,6 +65,7 @@ import {
   PhotoHistoryScene,
   UserPanelScene,
   PlaceMemoryScene,
+  RegisterMeterScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -104,6 +105,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "photo-history": PhotoHistoryScene,
   "user-panel": UserPanelScene,
   "place-memory": PlaceMemoryScene,
+  "register-meter": RegisterMeterScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,

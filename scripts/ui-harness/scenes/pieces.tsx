@@ -9,6 +9,7 @@
  */
 import { useState } from "react";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
+import { RegisterMeter } from "@/components/WordCard";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
@@ -17,6 +18,7 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
+import type { RegisterScale } from "@/lib/register-scale";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
 
@@ -116,6 +118,28 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
     { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
   ];
   return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
+}
+
+/**
+ * 口語⇄書き言葉のメーター、**5段すべて**。
+ *
+ * 1段でも撮り漏らすと、その位置と言葉は一度も測られない。
+ * 目盛りが無いカード(古い139語)では**区画そのものが出ない**のが正しい姿なので、
+ * それも最後に並べる — 真ん中に針を置くと「どちらでも使う」と言い切ったことになる。
+ */
+export function RegisterMeterScene() {
+  // 目盛りは5段しかないので**全部並べる**。1段でも撮り漏らすと、
+  // その位置と言葉は一度も測られない。
+  const steps: RegisterScale[] = [-2, -1, 0, 1, 2];
+  return (
+    // 足場はインラインの `style`。雛形にしか無いクラスは生成されない
+    // (`styles.css` は `@source "../src"`)。
+    <div style={{ display: "grid", gap: 20, padding: 16 }}>
+      {steps.map((v) => (
+        <RegisterMeter key={v} scale={v} />
+      ))}
+    </div>
+  );
 }
 
 /**

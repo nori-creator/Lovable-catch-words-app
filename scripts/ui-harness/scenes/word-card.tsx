@@ -34,6 +34,9 @@ export const FULL = {
     usage_context: "夜市でも店でも毎日使う。口語でも書面でも同じ形で通じる。",
     frequency_level: 5,
     register_tag: "口語",
+    // 目盛りも入れて、**実物のカードの中**でメーターを測る。
+    // 部品だけを並べた絵は、その画面の絵ではない。
+    register_scale: -1,
     example_chunks: [
       { text: "我", pos: "S" },
       { text: "想喝", pos: "V" },

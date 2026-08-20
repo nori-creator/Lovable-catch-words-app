@@ -336,6 +336,10 @@ const MODES = [
   ["place-memory", "", false, { scene: "place-memory" }],
   ["place-memory-dark", 'class="dark"', false, { scene: "place-memory" }],
   ["place-memory-nophoto", "", false, { scene: "place-memory", nophoto: "1" }],
+  // 口語⇄書面のメーター、5段すべて + 古いカード + 出さない場合。
+  // 1段でも撮り漏らすと、その位置と言葉は一度も測られない。
+  ["register-meter", "", false, { scene: "register-meter" }],
+  ["register-meter-dark", 'class="dark"', false, { scene: "register-meter" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が

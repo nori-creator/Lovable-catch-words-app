@@ -915,6 +915,13 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.real_usage": { ja: "実際の使われ方", en: "Seen in the wild" },
   "card.sections": { ja: "表示する項目と順番", en: "Sections & order" },
   "card.regen": { ja: "この項目をAIで作り直す(Pro)", en: "Regenerate this section (Pro)" },
+  // 口語⇄書面のメーター。**色だけに頼らない**ので、5段それぞれに言葉を置く。
+  "card.register": { ja: "話し言葉か書き言葉か", en: "Spoken or written" },
+  "card.regSpoken": { ja: "話し言葉", en: "Spoken" },
+  "card.regSpokenish": { ja: "やや話し言葉", en: "Leans spoken" },
+  "card.regNeutral": { ja: "どちらでも", en: "Either" },
+  "card.regWrittenish": { ja: "やや書き言葉", en: "Leans written" },
+  "card.regWritten": { ja: "書き言葉", en: "Written" },
   "card.frequency": { ja: "頻度", en: "Frequency" },
   "card.synonym": { ja: "類義", en: "Similar" },
   "card.antonym": { ja: "反義", en: "Opposite" },

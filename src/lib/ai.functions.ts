@@ -328,6 +328,7 @@ ${l1Gram}
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
+- register_scale: 話し言葉⇄書き言葉の度合いを **-2〜+2 の整数**で。-2=完全に口語(友達との会話・SNSだけ)/ -1=やや口語 / 0=中立(どちらでも普通に使う)/ +1=やや書面 / +2=完全に書面(新聞・論文・公文書だけ)。**判断できない語でも必ず出す** — 中立なら 0
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
 - quick_facts: **表で一目で分かる要点**を3〜5行。各 {label:見出し(4〜6字), value:中身(**20字以内**・文にしない)}。
@@ -362,7 +363,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
-      `frequency_level, register_tag, related_words[{word,kind,note}], ` +
+      `frequency_level, register_tag, register_scale, related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
       `quick_facts[{label,value}], ` +
       `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
@@ -603,11 +604,12 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_context: {
-        prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面"}`,
+        prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面","register_scale":-2〜+2の整数(-2=完全に口語 / 0=中立 / +2=完全に書面)}`,
         schema: z.object({
           usage_context: z.string(),
           frequency_level: z.number().int().min(1).max(5).catch(3),
           register_tag: z.string().catch(""),
+          register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
         }),
       },
       example: {

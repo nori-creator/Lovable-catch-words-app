@@ -59,8 +59,15 @@ export const ExtrasSchema = z.object({
   usage_context: z.string().catch(""),
   /** 使用頻度レベル 1〜5(5=毎日レベル)。視覚メーター用。 */
   frequency_level: z.number().int().min(1).max(5).nullable().catch(null),
-  /** 「口語」「書面」「口語・書面」など。 */
+  /** 「口語」「書面」「口語・書面」など。**消さない** — 古いカードの拠り所。 */
   register_tag: z.string().catch(""),
+  /**
+   * 話し言葉⇄書き言葉の目盛り(-2=完全に口語 / 0=中立 / +2=完全に書面)。
+   * 文字列のままでは段階にできずメーターが作れないので、数でも持つ。
+   * 古いカードは持っていないので **null が普通**(`lib/register-scale.ts` が
+   * 文字列から写す)。0 に落とさない — 0 は「どちらでも使う」という主張。
+   */
+  register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
   /** 使い方の型・チャンク(コロケーション+語順を統合、品詞色分け)。 */
   usage_chunks: z.array(UsageChunkSchema).catch([]),
   /** メイン例文のパーツ分解。 */
