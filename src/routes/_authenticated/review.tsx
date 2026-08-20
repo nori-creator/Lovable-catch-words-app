@@ -45,6 +45,7 @@ import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
   Eye,
   Sparkles,
+  BookMarked,
   CheckCircle2,
   Check,
   X,
@@ -300,6 +301,17 @@ function ReviewPage() {
             )}
           </>
         )}
+        {/* 単語帳は**図鑑とは別の本棚**(オーナー指摘)。図鑑は「街で出会って
+            自分で撮った物」の記録なので混ぜない。入口は復習の側に置く。 */}
+        <div className="mt-3 text-center">
+          <Link
+            to="/wordbooks"
+            className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-footnote font-semibold shadow-sm"
+          >
+            <BookMarked className="h-4 w-4 text-primary" aria-hidden />
+            {t("wb.openShelf")}
+          </Link>
+        </div>
       </section>
 
       {isLoading ? (

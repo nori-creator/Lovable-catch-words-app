@@ -268,6 +268,18 @@ const MODES = [
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
   ...crossThemes("home-writing", { scene: "home-writing" }),
+  ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
+  ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
+  // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
+  ...crossThemes("wordbook-quiz-right", {
+    scene: "wordbook-quiz",
+    click: "ul li:nth-child(2) button",
+  }),
+  ...crossThemes("wordbook-quiz-wrong", {
+    scene: "wordbook-quiz",
+    click: "ul li:nth-child(1) button",
+  }),
+  ["wordbook-quiz-nomeaning", "", false, { scene: "wordbook-quiz-nomeaning" }],
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
   ["home-frame", "", false, { scene: "home", bg: "frame" }],

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fileToDataUrl } from "@/lib/file-data-url";
 import { Loader2, Search, Upload, Sparkles } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -14,15 +15,6 @@ type Props = {
   query: string;
   onPicked: (dataUrl: string) => void;
 };
-
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
 
 export function ImagePicker({ query, onPicked }: Props) {
   const t = useT();

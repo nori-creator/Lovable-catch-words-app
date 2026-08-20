@@ -38,6 +38,11 @@ import {
   ScanNothingScene,
 } from "./scenes/scan";
 import {
+  WordbookShelfScene,
+  WordbookQuizScene,
+  WordbookQuizNoMeaningScene,
+} from "./scenes/wordbook";
+import {
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -98,6 +103,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
   "home-writing": HomeWritingScene,
+  "wordbook-shelf": WordbookShelfScene,
+  "wordbook-quiz": WordbookQuizScene,
+  "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,
