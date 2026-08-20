@@ -47,9 +47,14 @@ import { LoadFailed } from "@/components/LoadFailed";
 type Props = {
   stickerId: string | null;
   onClose: () => void;
+  /**
+   * 開いた瞬間に「主役の写真」の面を出す。
+   * ホームのアルバムを**長押し**して来たときに立つ(オーナー指摘 2026-08-20)。
+   */
+  openPhotoPicker?: boolean;
 };
 
-export function StickerSheet({ stickerId, onClose }: Props) {
+export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const t = useT();
   const uiLang = useUiLang();
   const fetchSticker = useServerFn(getSticker);
@@ -277,6 +282,10 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
   const [heroPickerOpen, setHeroPickerOpen] = useState(false);
+  // ホームのアルバムを長押しで来たときは、開いた瞬間に写真の面を出す。
+  useEffect(() => {
+    if (openPhotoPicker && stickerId) setHeroPickerOpen(true);
+  }, [openPhotoPicker, stickerId]);
   const [savingHero, setSavingHero] = useState(false);
 
   /**

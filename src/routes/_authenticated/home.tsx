@@ -17,7 +17,7 @@ import {
   removePendingCapture,
   type PendingCapture,
 } from "@/lib/offline-queue";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -216,6 +216,8 @@ function HomePage() {
     gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
+  /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
+  const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
 
   const [bg, setBg] = useState<BgId>("paper");
   useEffect(() => {
@@ -302,7 +304,15 @@ function HomePage() {
         <HomeEmptyState />
       ) : (
         <>
-          <ScrapbookAlbum stickers={todayStickers} bgClass={bgClass} onOpen={setOpenId} />
+          <ScrapbookAlbum
+            stickers={todayStickers}
+            bgClass={bgClass}
+            onOpen={setOpenId}
+            onLongPress={(id) => {
+              setOpenId(id);
+              setOpenPhotoPicker(true);
+            }}
+          />
           <JournalLink />
         </>
       )}
@@ -316,9 +326,20 @@ function HomePage() {
           shown={stickers?.items.length ?? 0}
           total={stickers?.total ?? stickers?.items.length ?? 0}
           journals={journalsByDay}
+          onLongPress={(id) => {
+            setOpenId(id);
+            setOpenPhotoPicker(true);
+          }}
         />
       )}
-      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      <StickerSheet
+        stickerId={openId}
+        openPhotoPicker={openPhotoPicker}
+        onClose={() => {
+          setOpenId(null);
+          setOpenPhotoPicker(false);
+        }}
+      />
     </AppShell>
   );
 }
@@ -379,6 +400,7 @@ export function PastDays({
   shown,
   total,
   journals,
+  onLongPress,
 }: {
   days: Array<[string, StickerWithWord[]]>;
   bgClass: string;
@@ -386,6 +408,8 @@ export function PastDays({
   truncated: boolean;
   shown: number;
   total: number;
+  /** 写真の長押し。渡さなければ何もしない。 */
+  onLongPress?: (id: string) => void;
   /**
    * 日付(YYYY-MM-DD)ごとの日記(要望 #22)。
    * **無い日は入っていない** — 日記の無い日に空の枠を並べると、
@@ -419,7 +443,12 @@ export function PastDays({
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
               for users west of UTC). */}
           <DayHeader date={new Date(`${k}T00:00:00`)} compact />
-          <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={onOpen} />
+          <ScrapbookAlbum
+            stickers={items}
+            bgClass={bgClass}
+            onOpen={onOpen}
+            onLongPress={onLongPress}
+          />
           {/* 写真のページの**向かい**に日記を置く(要望 #22)。
               使った語は `used_sticker_ids` から出す — 書かれてはいたが
               **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
@@ -532,10 +561,17 @@ export function ScrapbookAlbum({
   stickers,
   bgClass,
   onOpen,
+  onLongPress,
 }: {
   stickers: StickerWithWord[];
   bgClass: string;
   onOpen: (id: string) => void;
+  /**
+   * 写真を長押ししたとき(オーナー指摘 2026-08-20)。
+   * 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
+   * 切り抜きできるようにして」。渡さなければ長押しは何もしない。
+   */
+  onLongPress?: (id: string) => void;
 }) {
   const t = useT();
   const isEn = useUiLang() === "en";
@@ -552,6 +588,23 @@ export function ScrapbookAlbum({
 
   // 設定で主役を選んでいれば、そちらが画面の意図(自撮り)に勝つ。
   const photoPref = usePhotoPref();
+
+  // 長押し(550ms)。**詳細の画面と同じ長さ**にする — 同じ動作が場所によって
+  // 違う長さだと、どちらかが「効かない」と感じられる。
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  function startPress(id: string) {
+    longPressFired.current = false;
+    pressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+      onLongPress?.(id);
+    }, 550);
+  }
+  function endPress() {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  }
 
   return (
     // リアル・アルバム: .album-page が紙の繊維と周辺減光を持つ台紙。
@@ -576,7 +629,22 @@ export function ScrapbookAlbum({
           return (
             <button
               key={s.id}
-              onClick={() => onOpen(s.id)}
+              onClick={() => {
+                // 長押しが成立した回の「離す」でカードを開かない。
+                if (longPressFired.current) {
+                  longPressFired.current = false;
+                  return;
+                }
+                onOpen(s.id);
+              }}
+              // **アルバムの写真も長押しで主役を選べる**(オーナー指摘 2026-08-20)。
+              // 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
+              // 切り抜きできるようにして」。詳細の画面には既に在るので、
+              // 同じ入口をここにも開ける — 押さえた写真そのものを直せる。
+              onPointerDown={() => startPress(s.id)}
+              onPointerUp={endPress}
+              onPointerLeave={endPress}
+              onContextMenu={(e) => e.preventDefault()}
               // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
               className={`photo-lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}

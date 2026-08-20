@@ -164,8 +164,13 @@ function CapturePage() {
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
-  /** 速さのつまみ(要望 #18)。既定は今まで通り「切り抜いてから見せる」。 */
+  /** 速さのつまみ(要望 #18)。既定は「切り抜きモード」。 */
   const catchSpeed = useCatchSpeed();
+  /**
+   * 走っている切り抜き。**カードを出す時刻とは切り離す。**
+   * 切り抜きモードで待つのは「図鑑に入れる直前」だけ。
+   */
+  const cutoutPromiseRef = useRef<Promise<string | null> | null>(null);
   const [selfieImg, setSelfieImg] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedHead, setSelectedHead] = useState<string>("");
@@ -402,10 +407,13 @@ function CapturePage() {
     // タップした瞬間に切り抜きを始める。失敗しても写真のまま進める
     // (切り抜きは見た目の格上げであって、キャッチの条件ではない)。
     //
-    // **速さを選んだ人は待たせない(要望 #18)。**
+    // ## **カードは、どちらのモードでも待たせずに出す**(オーナー指摘 2026-08-20)
+    // 「モードにかかわらず、最速で図鑑に追加できるようにする」。
     // ここは切り抜きが終わるまでカードを出さない作りで、意味も発音も
     // 候補から既に入っているのに**背景を消す処理のために画面が止まって**
-    // いた。切り抜きは詳細の画面から後で掛けられる。
+    // いた。切り抜きモードで変わるのは「図鑑に入れる前に切り抜くかどうか」
+    // であって、**カードを見せる時刻ではない**。
+    // だから待つのは保存の直前(`save`)だけにする。
     const wantCutout = cutoutAtCatch(catchSpeed);
     const cutoutPromise: Promise<string | null> =
       objectImg && wantCutout
@@ -414,6 +422,7 @@ function CapturePage() {
             return null;
           })
         : Promise.resolve(null);
+    cutoutPromiseRef.current = cutoutPromise;
 
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
@@ -458,13 +467,14 @@ function CapturePage() {
         if (runTokenRef.current !== token) return;
         setCard(c);
       }
-      // 切り抜きが出来上がってからカードを見せる — 切り抜かれた絵が「ポン」と
-      // 現れるところまでが、タップに対する返事。
-      // 速さを選んでいるときは待たない(`cutoutPromise` は即座に null)。
-      const cut = (await cutoutPromise) ?? objectImg;
+      // **カードは待たずに出す。** 切り抜きが間に合えば、あとから絵が
+      // 差し替わる(「ポン」と現れる返事はそのまま残る)。
       if (runTokenRef.current !== token) return;
-      setCutoutImg(cut);
+      setCutoutImg(objectImg);
       setStep("card");
+      void cutoutPromise.then((cut) => {
+        if (cut && runTokenRef.current === token) setCutoutImg(cut);
+      });
       // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
       // 端末に貯めて設定の開発者欄で見る(理由は `lib/catch-speed.ts`)。
       recordCatchTiming({
@@ -522,11 +532,16 @@ function CapturePage() {
         return path;
       }
 
+      // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
+      // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
+      // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
+      const cutForSave = (await cutoutPromiseRef.current) ?? cutoutImg;
+
       // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
       // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
       const [object_path, cutout_path, selfie_path] = await Promise.all([
         upload(objectImg, "object"),
-        upload(cutoutImg, "cutout").catch(() => null),
+        upload(cutForSave, "cutout").catch(() => null),
         upload(selfieImg, "selfie").catch(() => null),
       ]);
 
