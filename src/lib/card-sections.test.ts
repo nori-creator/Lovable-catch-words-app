@@ -24,8 +24,14 @@ describe("節の一覧", () => {
     expect(isRegenSection("real_usage")).toBe(false);
   });
 
-  it("表の節は作り直せる(押せるのに弾かれる状態にしない)", () => {
-    expect(isRegenSection("quick_facts")).toBe(true);
+  it("解説の節は作り直せる(押せるのに弾かれる状態にしない)", () => {
+    expect(isRegenSection("usage_chunks")).toBe(true);
+  });
+
+  // 「ひと目でわかる」の表は 2026-08-20 にオーナー指示で丸ごと外した。
+  // 節が消えたのに生成の指示だけ残ると、**誰も見ない物を毎回作って払う**。
+  it("外した節は一覧に残っていない", () => {
+    expect(SECTION_IDS).not.toContain("quick_facts" as SectionId);
   });
 });
 
@@ -49,7 +55,7 @@ describe("見出しの文言", () => {
   const dict = fs.readFileSync("src/lib/i18n.tsx", "utf8");
 
   // 未定義の鍵は t() が**鍵の名前をそのまま返す**ので、
-  // 画面に "card.quick_facts" と出る。赤くもならない。
+  // 画面に "card.usage_chunks" と出る。赤くもならない。
   it.each([...SECTION_IDS])("card.%s の文言が定義されている", (id) => {
     expect(dict).toContain(`"card.${id}"`);
   });

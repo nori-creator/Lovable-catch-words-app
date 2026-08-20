@@ -31,6 +31,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
+import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
@@ -86,6 +87,16 @@ export function StickerSheet({ stickerId, onClose }: Props) {
    * 写真の一覧は付け足しであって、この画面の本体ではない。
    * 鍵は `/dex/$stickerId` と同じなので、どちらから来ても読み直しは起きない。
    */
+  // 「今週出会う見込み」。**カードの中から勝手に走らせない** —
+  // 全利用者を数える問い合わせなので、呼ぶ側が1回だけ取って渡す。
+  // 読めなくてもカードは開く(節が1つ出ないだけ)。
+  const fetchEncounter = useServerFn(getEncounterEstimate);
+  const { data: encounter } = useQuery({
+    queryKey: ["encounter", s?.word_id ?? null],
+    queryFn: () => fetchEncounter({ data: { word_id: s!.word_id } }),
+    enabled: !!s?.word_id,
+    staleTime: 6 * 60 * 60 * 1000,
+  });
   const { data: photoData } = useQuery({
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId! } }),
@@ -650,6 +661,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
             photos={photoData?.photos ?? []}
+            encounter={encounter ?? null}
           />
         )}
       </div>
@@ -699,6 +711,7 @@ export function StickerSheetBody({
   swapWebImage,
   applyWebImage,
   photos,
+  encounter,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   uiLang: string;
@@ -742,6 +755,8 @@ export function StickerSheetBody({
    * 2枚未満なら `StickerPhotoHistory` 自身が何も描かないので、ここでは分岐しない。
    */
   photos: StickerPhoto[];
+  /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
+  encounter?: EncounterEstimate | null;
 }) {
   const t = useT();
   return (
@@ -964,6 +979,7 @@ export function StickerSheetBody({
         wordId={s.word_id}
         isPro={isPro}
         onPickImage={applyWebImage}
+        encounter={encounter}
       />
 
       {enriching && (

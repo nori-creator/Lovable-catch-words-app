@@ -18,6 +18,8 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
+import { EncounterPanel } from "@/components/EncounterPanel";
+import type { EncounterEstimate } from "@/lib/encounter.functions";
 import type { RegisterScale } from "@/lib/register-scale";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
@@ -118,6 +120,92 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
     { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
   ];
   return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
+}
+
+/**
+ * 「今週出会う見込み」とレア度。
+ *
+ * **★1〜★5すべてと、出所3通りを1枚に並べる。** 1段でも撮り漏らすと、
+ * その位置と言葉は一度も測られない。
+ * 出所の札は**数字と同じ画面に必ず居させる**決まりなので、
+ * 3通り全部が実際に出ることをここで見る。
+ *
+ * 人数は「実測」のときだけ入っている(本番の利用者は4人で、
+ * 「4人中3人」はほとんど個人を指すため server 側が止めている)。
+ */
+export function EncounterScene() {
+  const rows: Array<{ note: string; data: EncounterEstimate }> = [
+    {
+      note: "★1 推定",
+      data: {
+        probability: 0.97,
+        stars: 1,
+        confidence: "estimate",
+        observed_users: null,
+        top_rooms: ["eat", "town"],
+        region_scope: null,
+        season_months: [],
+      },
+    },
+    {
+      note: "★3 混ぜた",
+      data: {
+        probability: 0.42,
+        stars: 3,
+        confidence: "blended",
+        observed_users: null,
+        top_rooms: ["house", "marks"],
+        region_scope: null,
+        season_months: [],
+      },
+    },
+    {
+      note: "★5 実測 + 地域限定 + 季節",
+      data: {
+        probability: 0.04,
+        stars: 5,
+        confidence: "measured",
+        observed_users: 37,
+        top_rooms: ["eat", "nature", "town"],
+        region_scope: "台南",
+        season_months: [5, 6, 7, 8],
+      },
+    },
+    {
+      note: "★2 / ★4 と、飛んでいる季節",
+      data: {
+        probability: 0.7,
+        stars: 2,
+        confidence: "measured",
+        observed_users: 120,
+        top_rooms: ["play"],
+        region_scope: null,
+        // 12月と1月をまたぐ旬。**繋がっていると決めつけない**形を見る。
+        season_months: [12, 1, 2],
+      },
+    },
+    {
+      note: "★4 場面のデータが無いカード",
+      data: {
+        probability: 0.24,
+        stars: 4,
+        confidence: "estimate",
+        observed_users: null,
+        top_rooms: [],
+        region_scope: null,
+        season_months: [],
+      },
+    },
+  ];
+  return (
+    <div style={{ display: "grid", gap: 16, padding: 16 }}>
+      {rows.map((r) => (
+        <div key={r.note} style={{ borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
+          <EncounterPanel data={r.data} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**

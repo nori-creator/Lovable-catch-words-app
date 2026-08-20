@@ -23,7 +23,6 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
-import { geocodeLocation } from "@/lib/geocode.functions";
 import { saveSticker } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
@@ -35,6 +34,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
+import { useCatchLocation } from "@/lib/use-catch-location";
 import { useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { Zh } from "@/components/Zh";
@@ -168,7 +168,14 @@ function CapturePage() {
   const [manualWord, setManualWord] = useState<string>("");
   const [card, setCard] = useState<CardData | null>(null);
   const [caption, setCaption] = useState("");
-  const [loc, setLoc] = useState<{ lat: number; lng: number; name: string | null } | null>(null);
+  /**
+   * どこで撮ったか。**画面を開いた時から温めておき、保存の直前に短く待つ。**
+   * 以前は解析の頭で `getCurrentPosition` を投げっぱなしにしていたので、
+   * 候補を早く選んだ回や初回フィックスが遅い回で `loc` が null のまま
+   * 保存されていた(オーナー指摘「地図のデータが保存されてない」)。
+   * かざす側は既にこの形で解いてあり、その解がこちらに伝わっていなかった。
+   */
+  const { loc, resolve: resolveLocation, setLoc } = useCatchLocation();
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reenc, setReenc] = useState<OwnedWord | null>(null);
@@ -220,7 +227,6 @@ function CapturePage() {
 
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
-  const geocodeFn = useServerFn(geocodeLocation);
   const saveFn = useServerFn(saveSticker);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
@@ -246,7 +252,6 @@ function CapturePage() {
   useEffect(() => {
     if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
     handledParamRef.current = `w:${wordParam}`;
-    tryGetLocation();
     setInputSheet({ text: wordParam, auto: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
@@ -316,24 +321,6 @@ function CapturePage() {
     await runAi();
   }
 
-  function tryGetLocation() {
-    if (loc || !("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { location_name } = await geocodeFn({
-            data: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-          });
-          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: location_name });
-        } catch {
-          setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null });
-        }
-      },
-      () => {},
-      { timeout: 5000 },
-    );
-  }
-
   async function runAi(imgOverride?: string) {
     const img = imgOverride ?? objectImg;
     if (!img) return;
@@ -342,7 +329,6 @@ function CapturePage() {
     setStep("processing");
     setError(null);
     setSavedReason(null);
-    tryGetLocation();
 
     try {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
@@ -374,14 +360,15 @@ function CapturePage() {
       // ただし**この写真がキューから復元されたものなら、預け直さない**。
       // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
+      const here = await resolveLocation();
       const saved = pendingIdRef.current
         ? pendingIdRef.current
         : await enqueueCapture({
             object_img: img,
             selfie_img: selfieImg,
-            lat: loc?.lat ?? null,
-            lng: loc?.lng ?? null,
-            location_name: loc?.name ?? null,
+            lat: here.lat,
+            lng: here.lng,
+            location_name: here.name,
           });
       if (runTokenRef.current !== token) return;
       if (saved) {
@@ -477,6 +464,9 @@ function CapturePage() {
     if (!card || !selectedHead) return;
     setStep("saving");
     try {
+      // 温めてある位置を**ここで確定させる**。状態を直に読むと、
+      // 候補を早く選んだ回はまだ届いていない。
+      const here = await resolveLocation();
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error("Not signed in");
@@ -543,9 +533,9 @@ function CapturePage() {
           cutout_path,
           selfie_path,
           caption: caption || null,
-          location_name: loc?.name ?? null,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
+          location_name: here.name,
+          lat: here.lat,
+          lng: here.lng,
         },
       });
 
@@ -653,6 +643,8 @@ function CapturePage() {
     if (!reenc || reencResult || reencSubmittingRef.current) return;
     reencSubmittingRef.current = true;
     try {
+      // 再会も「どこで会い直したか」が残るべき記録。
+      const here = await resolveLocation();
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id ?? null;
       const ts = Date.now();
@@ -673,9 +665,9 @@ function CapturePage() {
         data: {
           sticker_id: reenc.sticker_id,
           recalled: null,
-          lat: loc?.lat ?? null,
-          lng: loc?.lng ?? null,
-          location_name: loc?.name ?? null,
+          lat: here.lat,
+          lng: here.lng,
+          location_name: here.name,
           image_path,
           cutout_path,
         },

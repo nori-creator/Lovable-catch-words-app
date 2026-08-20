@@ -7,6 +7,7 @@ import { WordCard } from "@/components/WordCard";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
+import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.functions";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
@@ -60,6 +61,16 @@ function StickerDetailPage() {
   });
   // 同じものを撮り直した記録。**読めなくても詳細は開く** — 写真の一覧は
   // 付け足しであって、この画面の本体ではない。
+  // 「今週出会う見込み」。**カードの中から勝手に走らせない** —
+  // 全利用者を数える問い合わせなので、呼ぶ側が1回だけ取って渡す。
+  // 読めなくてもカードは開く(節が1つ出ないだけ)。
+  const fetchEncounter = useServerFn(getEncounterEstimate);
+  const { data: encounter } = useQuery({
+    queryKey: ["encounter", s?.word_id ?? null],
+    queryFn: () => fetchEncounter({ data: { word_id: s!.word_id } }),
+    enabled: !!s?.word_id,
+    staleTime: 6 * 60 * 60 * 1000,
+  });
   const { data: photoData } = useQuery({
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId } }),
@@ -101,6 +112,7 @@ function StickerDetailPage() {
           memory={mem}
           photos={photoData?.photos}
           dateLocale={dateLocale}
+          encounter={encounter ?? null}
         />
       )}
     </AppShell>
@@ -143,11 +155,14 @@ export function StickerDetailBody({
   memory,
   photos,
   dateLocale,
+  encounter,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   memory?: Awaited<ReturnType<typeof getStickerMemoryHistory>>;
   photos?: Awaited<ReturnType<typeof listStickerPhotos>>["photos"];
   dateLocale: string;
+  /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
+  encounter?: EncounterEstimate | null;
 }) {
   const t = useT();
   const mem = memory;
@@ -190,6 +205,7 @@ export function StickerDetailBody({
               example_translation: s.word.example_translation,
               extras: s.word.extras,
             }}
+            encounter={encounter ?? null}
           />
         </div>
       </details>

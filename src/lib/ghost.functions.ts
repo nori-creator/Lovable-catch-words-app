@@ -35,6 +35,18 @@ const GhostInput = z.object({
   language: z.string().default("zh-TW"),
   capture_type: z.enum(["text", "voice"]),
   caption: z.string().nullable().optional(),
+  /**
+   * どこで拾った言葉か。
+   *
+   * **前はここが無く、保存時に `null` を直に書いていた。** 文字や声から
+   * 拾った語は、たとえ街角で聞いた言葉でも**位置を持てなかった**
+   * (オーナー指摘「単語をキャッチしたときの地図のデータが保存されてない」)。
+   * 場所で思い出す仕組み(`PlaceMemory`)も、地図の画面も、この経路の語だけ
+   * 素通りしていた。
+   */
+  location_name: z.string().nullable().optional(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
   // B2: ユーザーが自分の画像を添付した場合の実写パス。設定されると
   // object_image_url が入り、そのカードはゴーストでなくなる(実物あり)。
   object_path: z.string().nullable().optional(),
@@ -73,9 +85,9 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
       cutout_image_url: null,
       selfie_image_url: null,
       caption: data.caption ?? null,
-      location_name: null,
-      lat: null,
-      lng: null,
+      location_name: data.location_name ?? null,
+      lat: data.lat ?? null,
+      lng: data.lng ?? null,
     };
     let res = await supabase
       .from("stickers")

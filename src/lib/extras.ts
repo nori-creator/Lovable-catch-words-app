@@ -68,6 +68,44 @@ export const ExtrasSchema = z.object({
    * 文字列から写す)。0 に落とさない — 0 は「どちらでも使う」という主張。
    */
   register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
+  /**
+   * その語に**どこで出会うか**の分布。鍵は図鑑の部屋
+   * (`category.ts` の `ROOM_KEYS`: eat / town / house / wear / play /
+   * nature / people / marks)。合計はおよそ1。
+   *
+   * **自由な場面名を作らせない。** 出会う確率は「語が出る場面」と
+   * 「その人が居る場面」の内積で出す(`lib/rarity.ts` の `sceneOverlap`)。
+   * その人の側は撮ったものの部屋から数えるので、**両方が同じ鍵で並んで
+   * いないと内積が意味を持たない**。
+   *
+   * 古いカードは持っていない。無ければ場面の補正は掛からない。
+   */
+  scene_weights: z.record(z.string(), z.number()).nullable().catch(null),
+  /** 旬の月(1〜12)。通年なら空。季節外れの補正に使う。 */
+  season_months: z.array(z.number().int().min(1).max(12)).catch([]),
+  /** 「台南」「台湾」など、そこでしか見ないもの。限定が無ければ空。 */
+  region_scope: z.string().catch(""),
+  /**
+   * 「今週出会う見込み」の**計算結果の控え**(`encounter.functions.ts` が置く)。
+   *
+   * ここだけは**人が書いた物ではなく、機械が数えた物**。全利用者を数える
+   * 問い合わせが要るので、カードを開くたびには数えず1日1回に留める。
+   * 形が変わっても古い控えで落ちないよう、中身は緩く受けて `at` だけ見る。
+   */
+  encounter: z
+    .object({
+      /** いつ数えたか。これを見て1日1回に留める。 */
+      at: z.string(),
+      probability: z.number().catch(0),
+      stars: z.number().int().min(1).max(5).catch(3),
+      confidence: z.enum(["estimate", "blended", "measured"]).catch("estimate"),
+      observed_users: z.number().int().nullable().catch(null),
+      top_rooms: z.array(z.string()).catch([]),
+      region_scope: z.string().nullable().catch(null),
+      season_months: z.array(z.number().int()).catch([]),
+    })
+    .nullable()
+    .catch(null),
   /** 使い方の型・チャンク(コロケーション+語順を統合、品詞色分け)。 */
   usage_chunks: z.array(UsageChunkSchema).catch([]),
   /** メイン例文のパーツ分解。 */
@@ -96,6 +134,14 @@ export const ExtrasSchema = z.object({
    * **表になる形で生成させる**必要がある。
    *
    * 中身は短く。value が長い文になったら、それは地の文の項目の仕事。
+   */
+  /**
+   * 【退役】「ひと目でわかる」の表。
+   *
+   * 2026-08-20 にオーナー指示で**画面からも生成からも外した**。
+   * ここに残してあるのは**既にDBに入っている139語の中身を消さないため**だけ。
+   * スキーマから外すと `normalizeExtras` が落とし、次の保存で静かに消える。
+   * 読む所も書く所も無いので、新しく増えることはない。
    */
   quick_facts: z
     .array(
@@ -172,35 +218,6 @@ export function mergeExtras(
   }
   const res = ExtrasSchema.safeParse(base);
   return res.success ? res.data : emptyExtras();
-}
-
-/**
- * 表に出せる要点だけを残す。
- *
- * **片側だけ埋まった行を残さない。** 表は行が揃っていることが値打ちなので、
- * 見出しだけ・中身だけの行が混ざると、表に見えなくなる。
- * 生成物は必ず片側を落としてくるので、描く前にここで閉じる。
- */
-export function usableQuickFacts(
-  facts: ReadonlyArray<{ label?: string; value?: string }> | null | undefined,
-): Array<{ label: string; value: string }> {
-  const seen = new Set<string>();
-  const out: Array<{ label: string; value: string }> = [];
-  for (const f of facts ?? []) {
-    const label = (f?.label ?? "").trim();
-    const value = (f?.value ?? "").trim();
-    if (!label || !value) continue;
-    // 同じ見出しが2行あると、どちらが正なのか読み手に決めさせることになる。
-    if (seen.has(label)) continue;
-    seen.add(label);
-    // 長い文は表の中身ではない。地の文の項目が引き受ける。
-    // 生成側には20字と言ってあるが、少しの超過では落とさない —
-    // 落とすのは「明らかに文になっている」ものだけ。
-    if (value.length > 40) continue;
-    out.push({ label, value });
-    if (out.length >= 6) break;
-  }
-  return out;
 }
 
 /**
