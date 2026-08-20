@@ -1253,6 +1253,15 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
   // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
   // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
+  "settings.photoPrefHint": {
+    ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
+    en: "“Auto” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
+  },
+  "settings.photoAuto": { ja: "おまかせ", en: "Auto" },
+  "settings.photoObject": { ja: "元の写真", en: "Photo" },
+  "settings.photoCutout": { ja: "切り抜き", en: "Cut-out" },
+  "settings.photoSelfie": { ja: "自撮り", en: "Selfie" },
   "settings.modeHybrid": { ja: "🎯 おまかせ", en: "🎯 Auto" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },

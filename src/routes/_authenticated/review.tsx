@@ -25,6 +25,7 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import {
   normalizeReviewMode,
   reviewFormatFor,
@@ -749,6 +750,8 @@ export function SpeakingCard({
   const scaffoldFn = useServerFn(getSpeakingScaffold);
   const t = useT();
   const phonetic = usePhoneticPref();
+  // 設定で主役を選んでいれば、復習の意図(切り抜き)より優先する。
+  const photoPref = usePhotoPref();
 
   // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
   // フレーズカードはロールプレイなので対象外。lazyに取得し失敗は無視。
@@ -787,7 +790,7 @@ export function SpeakingCard({
   // **切り抜き優先だが、無ければ撮った元の写真に落ちる。**
   // ここは `cutout ?? placeholder` だけを見ていたので、切り抜きの無い札
   // (かざして撮った札)は写真なしで出題されていた。
-  const heroUrl = stickerPhotoUrl(card, { prefer: "cutout" });
+  const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
   const takenLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   const takenLabel = card.taken_at
     ? new Date(card.taken_at).toLocaleDateString(takenLocale, { month: "short", day: "numeric" })
@@ -1667,6 +1670,9 @@ export function LightModeCard({
   const grade = useServerFn(gradeReview);
   const t = useT();
   const phonetic = usePhoneticPref();
+  const photoPref = usePhotoPref();
+  /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
+  const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
   const [picked, setPicked] = useState<string | null>(null);
   const startedAt = useRef<number>(Date.now());
   /**
@@ -1739,10 +1745,10 @@ export function LightModeCard({
             以前は灰色の板に意味を書いていたが、そのすぐ下の問いが
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
-        {stickerPhotoUrl(card, { prefer: "cutout" }) && (
+        {heroUrl && (
           <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
-              src={stickerPhotoUrl(card, { prefer: "cutout" })!}
+              src={heroUrl}
               alt={t("rv.targetAlt")}
               className="h-full max-h-[32vh] w-full object-contain"
             />

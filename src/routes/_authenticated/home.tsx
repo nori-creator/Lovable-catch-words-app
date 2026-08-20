@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -492,6 +493,9 @@ export function ScrapbookAlbum({
     [stickers],
   );
 
+  // 設定で主役を選んでいれば、そちらが画面の意図(自撮り)に勝つ。
+  const photoPref = usePhotoPref();
+
   return (
     // リアル・アルバム: .album-page が紙の繊維と周辺減光を持つ台紙。
     // 各写真は白フチの印画紙(.photo-print)を三角コーナーで留める —
@@ -507,7 +511,7 @@ export function ScrapbookAlbum({
           // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`
           // に1つだけ置いてある — 以前はここを含む7箇所がそれぞれ違う順で
           // 選んでいて、同じ札が画面をまたぐと別の写真で出ていた。
-          const heroUrl = stickerPhotoUrl(s, { prefer: "selfie" });
+          const heroUrl = stickerPhotoUrl(s, { prefer: resolvePrefer(photoPref, "selfie") });
 
           return (
             <button

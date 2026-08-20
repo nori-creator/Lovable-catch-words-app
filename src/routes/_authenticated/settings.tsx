@@ -21,6 +21,7 @@ import { useTheme } from "@/components/theme-provider";
 import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
+import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
@@ -83,6 +84,9 @@ export function SettingsCard({ title, children }: { title: string; children: Rea
 const CHOICE_COLS = {
   2: "grid-cols-2",
   3: "grid-cols-3",
+  // **文字で書く。** `grid-cols-${n}` のように組み立てると Tailwind が
+  // その名前を見つけられず、そのクラスだけ生成されない。
+  4: "grid-cols-4",
   5: "grid-cols-5",
 } as const;
 
@@ -214,9 +218,15 @@ function SettingsPage() {
   const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
+  const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [saving, setSaving] = useState(false);
+  // 端末ごとの設定なので、プロフィールの到着を待たずに読む
+  // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
+  useEffect(() => {
+    setPhotoPrefState(getPhotoPref());
+  }, []);
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
@@ -382,6 +392,25 @@ function SettingsPage() {
                 { value: "hybrid", label: t("settings.modeHybrid") },
                 { value: "speaking", label: t("settings.modeSpeaking") },
                 { value: "choice", label: t("settings.modeChoice") },
+              ]}
+            />
+            {/* 要望 #16「表示画像(切り抜き/元画像/自撮り)を設定から選べる」。
+                端末ごとの設定にしてある(理由は `lib/photo-pref.ts`)ので、
+                保存はここで即座に効く — サーバへは行かない。 */}
+            <ChoiceRow
+              cols={4}
+              label={t("settings.photoPref")}
+              hint={t("settings.photoPrefHint")}
+              value={photoPref}
+              onChange={(v) => {
+                setPhotoPrefState(v);
+                setPhotoPref(v);
+              }}
+              options={[
+                { value: "auto", label: t("settings.photoAuto") },
+                { value: "object", label: t("settings.photoObject") },
+                { value: "cutout", label: t("settings.photoCutout") },
+                { value: "selfie", label: t("settings.photoSelfie") },
               ]}
             />
             <ChoiceRow

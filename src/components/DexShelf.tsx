@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { CachedImg } from "@/lib/image-cache";
 import { useT } from "@/lib/i18n";
@@ -280,11 +281,13 @@ function ShelfItem({
   landing: boolean;
 }) {
   const t = useT();
+  // 設定で主役を選んでいれば、棚の意図(切り抜きを立てる)より優先する。
+  const photoPref = usePhotoPref();
   // 棚に「立てる」のは切り抜き。切り抜きが無い行(古い行・文字/音声キャッチ・
   // スキャン経由)は素の写真を小さな額に入れて置く。
   // **切り抜きが在るかどうかで置き方が変わる**ので、URLだけでなく
   // どの役が選ばれたかも見る(`sticker-photo.ts` が役を返す)。
-  const picked = pickStickerPhoto(s, { prefer: "cutout", thumb: true });
+  const picked = pickStickerPhoto(s, { prefer: resolvePrefer(photoPref, "cutout"), thumb: true });
   const cutout = picked?.role === "cutout" ? picked.url : null;
   const photo = cutout ? null : (picked?.url ?? null);
 
