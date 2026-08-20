@@ -165,3 +165,26 @@ export function chunkLegendFor(poses: string[]): Array<{ key: PosGroup; style: C
     style: { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: GROUP_LABEL[g] },
   }));
 }
+
+/**
+ * 日本語で書かれた品詞が**物(名詞)を指しているか**。
+ *
+ * ## なぜ `posGroup` と別なのか
+ * `posGroup` が読むのは台湾の詞類表の記号(`N` / `Vs` / `Ptc` …)。
+ * こちらが読むのは**スキャンが返す日本語**(「名詞」「動詞」「形容詞」)。
+ * 語彙が違うものを1つの関数に詰めると、どちらの規則も曖昧になる。
+ *
+ * ## なぜ要るのか
+ * カメラのスキャンは名詞だけを返す約束になった(オーナー指示 2026-08-20:
+ * 絵を用意できるのが物だけのため)。だが**プロンプトは指示であって強制ではない**。
+ * 「名詞だけ」と書いても動詞は返ってくるので、返ってきた物を実際に絞る。
+ *
+ * 品詞が空のものは**通す**。スキャンは写っている物を挙げているので、
+ * 札が付いていないだけで落とすと本物の候補が消える。
+ */
+export function isNounLike(pos: string | null | undefined): boolean {
+  const p = (pos ?? "").trim();
+  if (!p) return true; // 札が無い = 分からない。分からないことを理由に捨てない
+  if (/名詞|名詞句|固有名/.test(p)) return true;
+  return !/動詞|形容詞|副詞|助詞|助動詞|接続|介詞|量詞|限定詞/.test(p);
+}

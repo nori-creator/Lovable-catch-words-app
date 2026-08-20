@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
+import { isNounLike } from "./pos";
 import { assertWithinDailyCap, getAi, getAiFor, logUsage } from "./ai-provider.server";
 
 /**
@@ -86,7 +87,8 @@ const PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習ア
   (曖昧な物を無理に足すより、確実な4個の方が良い)。大きく写っている・
   学習価値の高いものを優先。
 - 各項目に zhuyin(注音)・pinyin・meaning_ja(日本語訳)・pos(名詞/動詞など日本語)を必ず埋める。
-- 名詞だけでなく、シーンの中心的な**状態・動作**も学べるようにする: 画像を最もよく表す動詞または形容詞を1〜2個まで追加してよい(例: 湯気の立つ麺→「熱」、雨の街→「下雨」、走る人→「跑步」)。kind=object、pos=動詞/形容詞、point はその様子が見える場所。無理にひねり出さず、はっきり写っている時だけ。
+- **名詞だけを返す。** 動詞・形容詞・副詞・量詞は出さない。写真に写っている
+  「物」の名前だけを挙げる。
 
 出力スキーマ:
 {
@@ -148,6 +150,23 @@ export const detectScan = createServerFn({ method: "POST" })
     }
 
     await logUsage(supabase, userId, "scan_detect");
+
+    // **返ってきた物を実際に絞る。** プロンプトには「名詞だけ」と書いてあるが、
+    // 書いてあることと返ってくる物は別(この app で何度も踏んでいる)。
+    //
+    // ## なぜ名詞だけなのか(オーナー指示 2026-08-20)
+    // 一時期は「湯気の立つ麺→熱」のように状態・動作も1〜2個足していた。
+    // だが**カードに載せる絵を用意できるのは物だけ**で、動詞のカードは
+    // 写真が撮れず、絵の無いカードが図鑑に混ざる。
+    // ネットの画像・動画・GIF を引く経路と生成の経路ができてから、
+    // 他の品詞に広げる。それまでは名詞に絞る。
+    //
+    // ※ここは**写真に写った物**の候補。人が打ち込んだ言葉の候補
+    // (ai.functions.ts の suggestWordCandidates)は別で、そちらは品詞を
+    // 絞らない — 「走る」と打った人に候補が1つも返らなくなるため。
+    //
+    // 品詞の札が無いものは通す — 分からないことを理由に捨てない。
+    parsed.items = parsed.items.filter((it) => isNounLike(it.pos));
 
     // 自動で貯まる共有辞書: AIが今調べた読み・意味を蓄積(fire-and-forget)。
     // 次のスキャンからは辞書ヒット=AI再問い合わせゼロで即表示になる。
@@ -248,6 +267,9 @@ export const detectParts = createServerFn({ method: "POST" })
     }
 
     await logUsage(context.supabase, context.userId, "scan_parts");
+
+    // 部品の候補も名詞だけ(上の検出と同じ約束)。
+    parsed.items = parsed.items.filter((it) => isNounLike(it.pos));
     void import("./lexicon.server").then(({ learnLexiconEntries }) =>
       learnLexiconEntries(parsed.items),
     );

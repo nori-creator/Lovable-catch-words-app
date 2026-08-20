@@ -1143,16 +1143,42 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ScaffoldInput.parse(input))
   .handler(async ({ context, data }): Promise<SpeakingScaffold> => {
     const { supabase, userId } = context;
-    const { data: st } = await supabase
+    // `speaking_scaffold` は 2026-08-20 に足した列。**無い環境でも読める形**を
+    // 残す(この app では新しい列を足すたびにこの形にしている)。
+    const cols = (withScaffold: boolean) =>
+      `id, caption, location_name, taken_at, created_at, object_image_url, cutout_image_url, branch_plan, word_id${
+        withScaffold ? ", speaking_scaffold" : ""
+      }, words(headword, meaning_ja, extras)`;
+    let res = await supabase
       .from("stickers")
-      .select("id, caption, branch_plan, word_id, words(headword, meaning_ja, extras)")
+      .select(cols(true))
       .eq("id", data.sticker_id)
       .eq("user_id", userId)
       .maybeSingle();
+    // **列が無いときは `data: null` ではなくエラーが返る。**
+    // 「読めなかった」を「カードが無い」と取り違えると、
+    // 列を足す前の環境で復習が丸ごと開かなくなる。
+    let hasScaffoldColumn = true;
+    if (res.error && /speaking_scaffold/.test(res.error.message)) {
+      hasScaffoldColumn = false;
+      res = (await supabase
+        .from("stickers")
+        .select(cols(false))
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId)
+        .maybeSingle()) as unknown as typeof res;
+    }
+    const st = res.data;
     const row = st as unknown as {
       caption: string | null;
+      location_name: string | null;
+      taken_at: string | null;
+      created_at: string | null;
+      object_image_url: string | null;
+      cutout_image_url: string | null;
       branch_plan?: unknown;
       word_id: string;
+      speaking_scaffold?: unknown;
       words: {
         headword: string;
         meaning_ja: string;
