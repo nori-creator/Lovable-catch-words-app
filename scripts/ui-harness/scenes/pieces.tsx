@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
 import { RegisterMeter } from "@/components/WordCard";
+import { EncounterLabels } from "@/components/EncounterLabels";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
@@ -226,6 +227,28 @@ export function RegisterMeterScene() {
       {steps.map((v) => (
         <RegisterMeter key={v} scale={v} />
       ))}
+      {/* **短い形も5段すべて撮る**(オーナー指摘 2026-08-20 で足した形)。
+          頻度の札の横に並ぶので、実際に並べた姿で見る — 針が端で
+          切れていないか、名前が札からはみ出していないか。 */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {steps.map((v) => (
+          <RegisterMeter key={`c${v}`} scale={v} compact />
+        ))}
+      </div>
+      <EncounterLabels
+        labels={[
+          { kind: "place", label: "夜市" },
+          { kind: "place", label: "スーパー" },
+          { kind: "media", label: "メニュー" },
+          { kind: "media", label: "看板" },
+          { kind: "situation", label: "注文するとき" },
+          { kind: "emotion", label: "うれしい時" },
+          { kind: "time", label: "夜" },
+          { kind: "season", label: "夏" },
+        ]}
+      />
+      {/* 札が1つも無い語では**区画ごと出ない**のが正しい姿。 */}
+      <EncounterLabels labels={[]} />
     </div>
   );
 }

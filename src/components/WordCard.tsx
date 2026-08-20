@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { EncounterLabels } from "@/components/EncounterLabels";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -711,11 +712,49 @@ function FrequencyMeter({ level }: { level: number }) {
  * 目盛りが無い語ではこの区画そのものを出さない。真ん中に針を置くと
  * 「どちらでも使う」と言い切ったことになる(`lib/register-scale.ts`)。
  */
-export function RegisterMeter({ scale }: { scale: RegisterScale }) {
+export function RegisterMeter({
+  scale,
+  compact = false,
+}: {
+  scale: RegisterScale;
+  /**
+   * 頻度の札の**横に並べる**形(オーナー指摘 2026-08-20)。
+   *
+   * > 「話し言葉と書き言葉のメーターが横長すぎるが、コンパクトにして
+   * >  頻度のバーの横に並べて」
+   *
+   * 幅いっぱいに置くと、たった5段しかない目盛りのために1行を丸ごと使う。
+   * 短い帯にして、名前は帯の左に置く。**両端の言葉(口語/書面)は落とす** —
+   * 帯そのものが左右の向きを示しているし、名前がどちら寄りかを言う。
+   */
+  compact?: boolean;
+}) {
   const t = useT();
   const label = t(registerLabelKey(scale));
   // -2..+2 を 0..100% に。真ん中(0)がちょうど 50%。
   const pct = ((scale - REGISTER_MIN) / (REGISTER_MAX - REGISTER_MIN)) * 100;
+  if (compact) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border"
+        role="img"
+        aria-label={`${t("card.register")}: ${label}`}
+        title={`${t("card.regSpoken")} ⇄ ${t("card.regWritten")}`}
+      >
+        {label}
+        <span className="relative block h-2 w-14 rounded-full bg-gradient-to-r from-warn/45 via-background to-primary/45">
+          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+          {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
+          <span className="pointer-events-none absolute inset-y-0 left-[6px] right-[6px] block">
+            <span
+              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
+              style={{ left: `${pct}%` }}
+            />
+          </span>
+        </span>
+      </span>
+    );
+  }
   return (
     <div className="w-full" role="img" aria-label={`${t("card.register")}: ${label}`} title={label}>
       <div className="flex items-baseline justify-between text-caption text-muted-foreground">
@@ -815,19 +854,25 @@ function Body({
       const text =
         ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
       const registerScale = registerScaleOf(ex);
+      const hasFreq = ex.frequency_level != null && ex.frequency_level > 0;
       return (
         <div className="space-y-2">
-          {ex.frequency_level != null && ex.frequency_level > 0 && (
+          {/* **頻度と口語⇄書面は同じ行に並べる**(オーナー指摘 2026-08-20)。
+              どちらも「この語がどういう語か」の目盛りで、別々の行に置くと
+              縦に伸びるだけで読みやすくならない。 */}
+          {(hasFreq || registerScale !== null) && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
-                {t("card.frequency")} <FrequencyMeter level={ex.frequency_level} />
-              </span>
+              {hasFreq && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
+                  {t("card.frequency")} <FrequencyMeter level={ex.frequency_level!} />
+                </span>
+              )}
+              {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
             </div>
           )}
-          {/* 口語⇄書面。**札から目盛りへ。** 「口語」と1語だけ置いても
-              「どのくらい」が言えない(オーナー要望)。目盛りが無い古いカードは
-              文字列から写し、写せなければ何も出さない。 */}
-          {registerScale !== null && <RegisterMeter scale={registerScale} />}
+          {/* 出会いやすい所を具体的な札で。**種類ごとに色を分ける** —
+              「夜市」と「うれしい時」が同じ顔で並ぶと、何の一覧か分からない。 */}
+          <EncounterLabels labels={ex.encounter_labels ?? []} />
           {text && <Prose text={text} />}
         </div>
       );

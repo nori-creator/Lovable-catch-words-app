@@ -68,16 +68,49 @@ export const suggestWords = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "suggest");
     // レベルはクライアントの申告ではなく**プロフィールを正**とする
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
-    const levelRule = await levelInstruction(context.userId);
+    // 級は**細かさの目安**としてだけ使う(下の `specificity`)。
+    const levelGoal = await getUserLevelGoal(context.userId);
+    const levelNum = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
     const langRule = await explanationLanguageRule(context.userId);
+
+    // **ここに `levelInstruction` をそのまま掛けない。**
+    //
+    // あれは「語彙は必ずこの範囲に収める」と言う指示で、**解説や例文**には
+    // 正しい。しかし**学ぶ語の候補**に掛けると、その人が既に知っている
+    // 語しか出せなくなる。オーナー指摘(2026-08-20):
+    //
+    //   「三杯雞の画像をとっても雞肉としか表示されない。服を撮ったときに
+    //     衣服としか表示されない。レベルの高い人が衣服という単語を
+    //     調べないよね。短袖とかは調べるけど」
+    //
+    // 候補にとってレベルは**上限ではなく下限**で、「どこまで細かい名前で
+    // 呼ぶか」を決める物。だから級の縛りは外し、細かさの指示に置き換える。
+    const specificity =
+      levelNum <= 2
+        ? `学習者は入門〜基礎級。**日常でその物を指すときの普通の名前**で呼ぶ` +
+          `(例: 「短袖」より「T恤」、「三杯雞」はそのまま「三杯雞」)。`
+        : levelNum <= 4
+          ? `学習者は進階〜高階級。**店や献立で実際に使われる名前**まで細かく` +
+            `(例: 服なら「短袖」「洋裝」、料理なら「三杯雞」「滷肉飯」)。`
+          : `学習者は流利級以上。**その道の人が使う正確な名前**まで細かく` +
+            `(例: 「純棉短袖」「客家小炒」)。一般名詞は既に知っている。`;
 
     const prompt =
       data.targetLanguage === "zh-TW"
         ? `この画像から、台湾華語の学習対象として有用な名詞を5つ選んでください。
 - 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
-${levelRule}
+${specificity}
 ${langRule}
 - 画像に明確に写っているものだけ
+
+**写っている物そのものの名前を出す（いちばん大事）:**
+- 台湾人がその写真を見て**最初に口にする名前**を出す。
+  料理なら料理名（三杯雞・滷肉飯・珍珠奶茶）であって、材料名（雞肉・米）ではない。
+  服なら形の名前（短袖・洋裝・外套）であって、上位の分類（衣服・服裝）ではない。
+- **上位の分類語に逃げない。** 「衣服」「食物」「飲料」「動物」は、
+  それ以上細かく呼べない写真のときだけ。
+- **確からしい順に並べる。** 1つ目が「これは何か」への答え。
+  自信の無いものを上に置かない。
 
 **カテゴリ分類ルール（厳守）:**
 - 手・足・顔・目・耳・鼻・口・髪・指・肩・膝など人体部位 → "body"
@@ -115,7 +148,7 @@ ${langRule}
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。suggestionsは必ず5件。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
@@ -319,6 +352,15 @@ ${l1Gram}
 - examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
+- encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
+  各 {kind, label}。kind は place(場所) / situation(状況) / emotion(気持ち) /
+  time(時刻・時期) / media(媒体) / season(季節) のどれか。
+  label は**2〜5文字の具体名**(${NL})。例:
+  「スーパー」「夜市」「駅」「メニュー」「看板」「ニュース」「道」
+  「誕生日」「夜」「春」「うれしい時」。
+  **抽象語を書かない** —「日常」「いろいろ」「一般的」は札にならない。
+  その語に**特に**出会いやすい所だけを挙げる。どこでも出会う語なら
+  無理に埋めず少なく返す。
 - register_tag: "口語" / "書面" / "口語・書面" のどれか
 - register_scale: 話し言葉⇄書き言葉の度合いを **-2〜+2 の整数**で。-2=完全に口語(友達との会話・SNSだけ)/ -1=やや口語 / 0=中立(どちらでも普通に使う)/ +1=やや書面 / +2=完全に書面(新聞・論文・公文書だけ)。**判断できない語でも必ず出す** — 中立なら 0
 - scene_weights: **その語にどこで出会うか**の分布。鍵は次の8つだけで、他を作らない: eat(食べ物・飲み物)/ town(街・店・看板・乗り物)/ house(家の中・家具・道具)/ wear(服・持ち物)/ play(遊び・趣味・道具)/ nature(自然・天気・動植物)/ people(人・体・仕事)/ marks(文字・記号・色・形・お金・書類)。合計が1になる小数で、当てはまらない部屋は入れない。例: 芒果 → {"eat":0.7,"town":0.2,"nature":0.1}
@@ -354,7 +396,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
-      `frequency_level, register_tag, register_scale, scene_weights, season_months, region_scope, ` +
+      `frequency_level, register_tag, register_scale, encounter_labels[{kind,label}], ` +
+      `scene_weights, season_months, region_scope, ` +
       `related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
       `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
