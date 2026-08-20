@@ -1234,9 +1234,12 @@ function RealUsageBody({ headword }: { headword: string }) {
   const links: { label: string; hint: string; href: string; emoji: string }[] = [
     {
       emoji: "🎬",
+      // **台湾の動画に絞る**(オーナー指摘 2026-08-20)。
+      // `youglish` は仕組み上1本ずつしか見せないので、「複数見たい」に
+      // 応えるのはこちら側。地域と言語を指定して、台湾で撮られた動画に寄せる。
       label: t("card.ytLabel"),
       hint: t("card.ytHint"),
-      href: `https://www.youtube.com/results?search_query=${q}`,
+      href: `https://www.youtube.com/results?search_query=${q}&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW`,
     },
     {
       emoji: "🗣️",
@@ -1251,10 +1254,29 @@ function RealUsageBody({ headword }: { headword: string }) {
       href: `https://www.dcard.tw/search?query=${q}`,
     },
     {
+      emoji: "🧵",
+      // Threads(オーナー指摘)。いま台湾でいちばん短文が流れている所で、
+      // 「その語が実際にどう使われているか」がそのまま並ぶ。
+      label: t("card.threadsLabel"),
+      hint: t("card.threadsHint"),
+      href: `https://www.threads.com/search?q=${q}`,
+    },
+    {
       emoji: "📰",
+      // **Google 検索にして台湾の記事だけに限定**(オーナー指摘)。
+      // `news.google.com` は見出しの一覧で、本文の中でどう使われているかが
+      // 読めない。`cr=countryTW` と `lr=lang_zh-TW` で台湾の中国語の頁に絞る。
       label: t("card.newsLabel"),
       hint: t("card.newsHint"),
-      href: `https://news.google.com/search?q=${q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant`,
+      href: `https://www.google.com/search?q=${q}&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW`,
+    },
+    {
+      emoji: "🔤",
+      // 実例の対訳。**その語がどんな文の中に出るか**を並べて見せる所で、
+      // 「どの語と一緒に使うか」「どんな場面か」はここから読める。
+      label: t("card.contextLabel"),
+      hint: t("card.contextHint"),
+      href: `https://context.reverso.net/translation/chinese-japanese/${q}`,
     },
     {
       emoji: "📖",
