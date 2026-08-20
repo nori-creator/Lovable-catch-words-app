@@ -339,6 +339,7 @@ const MODES = [
   ...crossThemes("hero-picker", { scene: "hero-picker" }),
   ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
   ["hero-picker-picked", "", false, { scene: "hero-picker", variant: "picked" }],
+  ...crossThemes("hero-picker-cutout", { scene: "hero-picker", variant: "cutout" }),
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],

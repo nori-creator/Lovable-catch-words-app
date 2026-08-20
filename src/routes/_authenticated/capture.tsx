@@ -28,6 +28,7 @@ import { saveSticker } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
+import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
@@ -163,6 +164,8 @@ function CapturePage() {
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
+  /** 速さのつまみ(要望 #18)。既定は今まで通り「切り抜いてから見せる」。 */
+  const catchSpeed = useCatchSpeed();
   const [selfieImg, setSelfieImg] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedHead, setSelectedHead] = useState<string>("");
@@ -394,15 +397,23 @@ function CapturePage() {
     pronounce.prefetch(head);
     setWaitKind("cutout");
     setStep("processing");
+    const startedAt = Date.now();
 
     // タップした瞬間に切り抜きを始める。失敗しても写真のまま進める
     // (切り抜きは見た目の格上げであって、キャッチの条件ではない)。
-    const cutoutPromise: Promise<string | null> = objectImg
-      ? removeBackgroundSmart(objectImg).catch((e) => {
-          console.warn("background removal failed, using original", e);
-          return null;
-        })
-      : Promise.resolve(null);
+    //
+    // **速さを選んだ人は待たせない(要望 #18)。**
+    // ここは切り抜きが終わるまでカードを出さない作りで、意味も発音も
+    // 候補から既に入っているのに**背景を消す処理のために画面が止まって**
+    // いた。切り抜きは詳細の画面から後で掛けられる。
+    const wantCutout = cutoutAtCatch(catchSpeed);
+    const cutoutPromise: Promise<string | null> =
+      objectImg && wantCutout
+        ? removeBackgroundSmart(objectImg).catch((e) => {
+            console.warn("background removal failed, using original", e);
+            return null;
+          })
+        : Promise.resolve(null);
 
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
@@ -449,10 +460,18 @@ function CapturePage() {
       }
       // 切り抜きが出来上がってからカードを見せる — 切り抜かれた絵が「ポン」と
       // 現れるところまでが、タップに対する返事。
+      // 速さを選んでいるときは待たない(`cutoutPromise` は即座に null)。
       const cut = (await cutoutPromise) ?? objectImg;
       if (runTokenRef.current !== token) return;
       setCutoutImg(cut);
       setStep("card");
+      // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
+      // 端末に貯めて設定の開発者欄で見る(理由は `lib/catch-speed.ts`)。
+      recordCatchTiming({
+        ms: Date.now() - startedAt,
+        speed: catchSpeed,
+        cutout: wantCutout,
+      });
     } catch (e) {
       console.error(e);
       if (runTokenRef.current !== token) return;

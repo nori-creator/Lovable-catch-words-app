@@ -1075,3 +1075,40 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
     }
     throw new Error(error.message);
   });
+
+const AttachCutoutInput = z.object({
+  sticker_id: z.string().uuid(),
+  cutout_path: z.string().min(1),
+});
+
+/**
+ * あとから切り抜きだけを足す(要望 #18 の後半)。
+ *
+ * > 「キャッチ時に切り抜きするしない(**後から詳細画面でも切り抜ける**)」
+ *
+ * 速さを選んだ人はキャッチの瞬間に切り抜かない(`lib/catch-speed.ts`)。
+ * その道しか無ければ「速さを選ぶ = 二度と切り抜けない」になってしまうので、
+ * 詳細の画面から掛け直せるようにする。
+ *
+ * `replaceStickerPhoto` とは別にしてある。あちらは**元の写真を差し替える**
+ * 操作で、古い切り抜きを消す。こちらは元の写真をそのままに、
+ * **切り抜きだけを足す**。同じ関数にすると、掛け直すたびに元写真の
+ * 差し替え扱いになる。
+ */
+export const attachStickerCutout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => AttachCutoutInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    // **他人の場所に書かせない。** 差し替えの側と同じ門を通す。
+    if (!data.cutout_path.startsWith(`${userId}/`)) {
+      throw new Error("不正な画像パスです");
+    }
+    const { error } = await supabase
+      .from("stickers")
+      .update({ cutout_image_url: data.cutout_path })
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

@@ -1264,11 +1264,27 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "photo.roleCutout": { ja: "切り抜き", en: "Cut-out" },
   "photo.roleSelfie": { ja: "自撮り", en: "Selfie" },
   "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image" },
+  "photo.cutoutNow": { ja: "いま切り抜く", en: "Cut it out now" },
+  "photo.cuttingOut": { ja: "切り抜いています…", en: "Cutting out…" },
+  "photo.cutoutFailed": {
+    ja: "切り抜けませんでした。もう一度お試しください。",
+    en: "Couldn't cut it out. Please try again.",
+  },
   "photo.replaceFile": { ja: "別の写真に差し替える", en: "Replace with another photo" },
   "photo.saveFailedMigration": {
     ja: "この端末のデータベースがまだ新しい設定に対応していません（管理者に連絡してください）。",
     en: "The database hasn't been migrated for this setting yet (please contact the admin).",
   },
+  "settings.catchSpeed": { ja: "キャッチの速さ", en: "Catch speed" },
+  "settings.catchSpeedHint": {
+    ja: "「丁寧」は切り抜いてからカードを出します。「速い」は待たずに出して、切り抜きは詳細の画面から後で掛けられます。",
+    en: "“Careful” cuts the object out before showing the card. “Fast” shows it right away; you can cut it out later from the card.",
+  },
+  "settings.speedDetail": { ja: "丁寧", en: "Careful" },
+  "settings.speedFast": { ja: "速い", en: "Fast" },
+  "set.catchSpeedMetrics": { ja: "キャッチにかかった時間", en: "Time a catch took" },
+  "set.catchSpeedN": { ja: "{n}回", en: "{n}×" },
+  "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log" },
   "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
   "settings.photoPrefHint": {
     ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",

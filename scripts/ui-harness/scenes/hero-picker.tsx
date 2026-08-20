@@ -9,6 +9,8 @@
  * - `full`   … 4種類とも在る札
  * - `few`    … 元写真しか無い札(**押せない選択肢を並べていないか**)
  * - `picked` … すでに選んである札(どれが選ばれているか一目で分かるか)
+ * - `cutout` … **切り抜きがまだ無い札**(「いま切り抜く」が出る。
+ *   速さを選んだ人がここから掛け直せないと、設定が片道になる)
  */
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 
@@ -20,7 +22,8 @@ const SQ = (hue: number) =>
 
 export function HeroPickerScene({ q }: { q: URLSearchParams }) {
   const variant = q.get("variant") ?? "full";
-  const few = variant === "few";
+  // 「いま切り抜く」は**切り抜きがまだ無い札**にだけ出る。
+  const few = variant === "few" || variant === "cutout";
   return (
     <HeroPhotoPicker
       sources={
@@ -37,6 +40,7 @@ export function HeroPickerScene({ q }: { q: URLSearchParams }) {
       saving={false}
       onPick={() => {}}
       onReplaceFile={() => {}}
+      onCutoutNow={variant === "cutout" ? () => {} : undefined}
       onClose={() => {}}
     />
   );

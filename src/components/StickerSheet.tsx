@@ -26,6 +26,7 @@ import {
   replaceStickerPhoto,
   setStickerPlaceholder,
   setStickerHeroRole,
+  attachStickerCutout,
 } from "@/lib/stickers.functions";
 import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functions";
 import { generateCard } from "@/lib/ai.functions";
@@ -61,6 +62,7 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   const deleteFn = useServerFn(deleteSticker);
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const setHeroRoleFn = useServerFn(setStickerHeroRole);
+  const attachCutoutFn = useServerFn(attachStickerCutout);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<null | "delete" | "image">(null);
   // 削除の誤操作防止: 1回目のタップで「本当に削除?」に変わり、4秒で元に戻る。
@@ -377,6 +379,51 @@ export function StickerSheet({ stickerId, onClose }: Props) {
   }
 
   // B3: 写真を差し替え(file picker → downscale → upload → attach)。
+  /**
+   * あとから切り抜きを掛ける(要望 #18 の後半)。
+   *
+   * 速さを選んだ人はキャッチの瞬間に切り抜いていない。その道しか無ければ
+   * 「速さを選ぶ = 二度と切り抜けない」になるので、ここから掛け直せる。
+   * 切り抜きは**この端末の上で**走る(サーバに画像を送らない)。
+   */
+  async function cutoutNow() {
+    if (!stickerId || !s?.object_url || busy) return;
+    setBusy("image");
+    try {
+      const { removeBackgroundSmart } = await import("@/lib/cutout");
+      // 署名URLから読み直す。**元の写真を差し替えない** — 足すのは切り抜きだけ。
+      const srcBlob = await (await fetch(s.object_url)).blob();
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(srcBlob);
+      });
+      const cut = await removeBackgroundSmart(dataUrl);
+      if (!cut) throw new Error("cutout failed");
+      const blob = await (await fetch(cut)).blob();
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) throw new Error("Not signed in");
+      const path = `${uid}/${Date.now()}-cutout.png`;
+      const { error } = await supabase.storage
+        .from("stickers")
+        .upload(path, blob, { contentType: blob.type, upsert: false });
+      if (error) throw error;
+      void putCachedImage(path, blob);
+      await attachCutoutFn({ data: { sticker_id: stickerId, cutout_path: path } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      setHeroPickerOpen(false);
+    } catch (e) {
+      // **黙って飲まない。** 待ったのに何も起きないのがいちばん困る。
+      console.warn("cutout failed", e);
+      toast.error(t("photo.cutoutFailed"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleImageFile(file: File) {
     if (!stickerId || busy) return;
     setBusy("image");
@@ -718,12 +765,13 @@ export function StickerSheet({ stickerId, onClose }: Props) {
           <HeroPhotoPicker
             sources={s}
             current={s.hero_role ?? null}
-            saving={savingHero}
+            saving={savingHero || busy === "image"}
             onPick={(role) => void pickHeroRole(role)}
             onReplaceFile={() => {
               setHeroPickerOpen(false);
               fileInputRef.current?.click();
             }}
+            onCutoutNow={s.object_url && !s.cutout_url ? () => void cutoutNow() : undefined}
             onClose={() => setHeroPickerOpen(false)}
           />
         </div>

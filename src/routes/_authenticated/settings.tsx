@@ -22,6 +22,15 @@ import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
+import {
+  clearCatchTimings,
+  getCatchSpeed,
+  readCatchTimings,
+  setCatchSpeed,
+  summarizeCatchTimings,
+  type CatchSpeed,
+  type CatchTimingSummary,
+} from "@/lib/catch-speed";
 import { L1_ORDER, L1_TABLE } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
@@ -219,6 +228,7 @@ function SettingsPage() {
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
+  const [catchSpeed, setCatchSpeedState] = useState<CatchSpeed>("detail");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [saving, setSaving] = useState(false);
@@ -226,6 +236,7 @@ function SettingsPage() {
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
   useEffect(() => {
     setPhotoPrefState(getPhotoPref());
+    setCatchSpeedState(getCatchSpeed());
   }, []);
   useEffect(() => {
     if (!profile) return;
@@ -411,6 +422,23 @@ function SettingsPage() {
                 { value: "object", label: t("settings.photoObject") },
                 { value: "cutout", label: t("settings.photoCutout") },
                 { value: "selfie", label: t("settings.photoSelfie") },
+              ]}
+            />
+            {/* 要望 #18「キャッチ時に切り抜きするしない」。
+                **既定は今まで通り「丁寧」** — 速さのために見た目を落とすかは
+                人が決めることで、黙って切り替えるものではない。 */}
+            <ChoiceRow
+              cols={2}
+              label={t("settings.catchSpeed")}
+              hint={t("settings.catchSpeedHint")}
+              value={catchSpeed}
+              onChange={(v) => {
+                setCatchSpeedState(v);
+                setCatchSpeed(v);
+              }}
+              options={[
+                { value: "detail", label: t("settings.speedDetail") },
+                { value: "fast", label: t("settings.speedFast") },
               ]}
             />
             <ChoiceRow
@@ -625,6 +653,25 @@ function AdminOnlyDeveloperPanel() {
   return <DeveloperPanel />;
 }
 
+/**
+ * 「切り抜きあり/なし」の1行(要望 #73)。
+ * **件数を必ず添える** — 1件の中央値と20件の中央値を同じ顔で出さない。
+ */
+function CatchTimingRow({ label, median, n }: { label: string; median: number | null; n: number }) {
+  const t = useT();
+  return (
+    <div className="flex items-center justify-between text-footnote">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={median == null ? "text-muted-foreground" : "font-semibold"}>
+        {median == null ? t("settings.metricNone") : `${(median / 1000).toFixed(2)}s`}
+        <span className="ml-1 font-normal text-muted-foreground">
+          ({t("set.catchSpeedN", { n: String(n) })})
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /** §7: median speeds over the last 20 scans vs. the spec targets. */
 function DeveloperPanel() {
   const t = useT();
@@ -640,6 +687,11 @@ function DeveloperPanel() {
     queryFn: () => adminFn(),
     staleTime: 300_000,
   });
+  // 端末の記録なので、描いたあとに読む(サーバ側では localStorage が無い)。
+  const [timings, setTimings] = useState<CatchTimingSummary>(() => summarizeCatchTimings([]));
+  useEffect(() => {
+    setTimings(summarizeCatchTimings(readCatchTimings()));
+  }, []);
 
   const row = (label: string, value: number | null | undefined, targetMs: number) => {
     const ok = value != null && value <= targetMs;
@@ -675,6 +727,36 @@ function DeveloperPanel() {
         <p className="text-caption text-muted-foreground">
           {t("set.qualitySamples", { n: m?.samples ?? 0 })}
         </p>
+
+        {/* 要望 #73「切り抜きあり/なし・ファストモードの時間を計測して比較」。
+            端末に貯めた記録から出す(理由は `lib/catch-speed.ts`)。
+            **記録が無い側は「—」** — 0 と書くと「0秒で終わった」と読める。 */}
+        <div className="border-t border-border pt-2">
+          <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
+            {t("set.catchSpeedMetrics")}
+          </p>
+          <CatchTimingRow
+            label={t("settings.speedDetail")}
+            median={timings.detail.median}
+            n={timings.detail.n}
+          />
+          <CatchTimingRow
+            label={t("settings.speedFast")}
+            median={timings.fast.median}
+            n={timings.fast.n}
+          />
+          {timings.detail.n + timings.fast.n > 0 && (
+            <button
+              onClick={() => {
+                clearCatchTimings();
+                setTimings(summarizeCatchTimings(readCatchTimings()));
+              }}
+              className="mt-1 min-h-11 text-footnote text-muted-foreground underline"
+            >
+              {t("set.catchSpeedClear")}
+            </button>
+          )}
+        </div>
         {adm?.isAdmin && (
           <Link to="/admin/metrics" className="block text-footnote text-primary underline">
             {t("settings.kpiLink")}

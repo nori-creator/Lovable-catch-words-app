@@ -1,4 +1,4 @@
-import { Check, ImageUp, X } from "lucide-react";
+import { Check, ImageUp, Scissors, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
 import type { PhotoRole, PhotoSources } from "@/lib/sticker-photo";
@@ -44,6 +44,7 @@ export function HeroPhotoPicker({
   current,
   onPick,
   onReplaceFile,
+  onCutoutNow,
   onClose,
   saving,
 }: {
@@ -53,6 +54,12 @@ export function HeroPhotoPicker({
   onPick: (role: PhotoRole | null) => void;
   /** 「別の写真に差し替える」。前からあった道はここに残す。 */
   onReplaceFile: () => void;
+  /**
+   * 「いま切り抜く」(要望 #18 の後半)。
+   * **切り抜きがまだ無い札のときだけ**渡される。既に在る札に出しても、
+   * 押しても同じ絵が出来るだけで、待たせるぶん損をする。
+   */
+  onCutoutNow?: () => void;
   onClose: () => void;
   saving: boolean;
 }) {
@@ -123,6 +130,20 @@ export function HeroPhotoPicker({
           );
         })}
       </ul>
+
+      {/* 速さを選んだ人はキャッチの瞬間に切り抜いていない。
+          **ここから掛け直せる** — でないと「速さを選ぶ = 二度と切り抜けない」
+          になり、設定が片道になってしまう。 */}
+      {onCutoutNow && (
+        <button
+          onClick={onCutoutNow}
+          disabled={saving}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"
+        >
+          <Scissors className="h-4 w-4" />
+          {saving ? t("photo.cuttingOut") : t("photo.cutoutNow")}
+        </button>
+      )}
 
       {/* 前からあった道。**消さない** — 「そもそも別の写真にしたい」は
           「どれを主役にするか」とは別の用事。 */}
