@@ -1003,6 +1003,11 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
   "card.filling": { ja: "作っています…", en: "Writing it…" },
+  // 裏で上から順に作っているときの一行(src/components/WordCard.tsx)。
+  "card.fillingOrdered": {
+    ja: "解説を上から順に作っています（{done}/{total}）",
+    en: "Writing the rest, top to bottom ({done}/{total})",
+  },
   "card.fillFailed": {
     ja: "うまく作れませんでした。通信を確かめて、もう一度お試しください。",
     en: "Couldn't write it. Check your connection and try again.",

@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
-import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
+import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
 import {
   worldExampleRule,
   exampleSourceRule,
@@ -18,7 +18,7 @@ import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 export type { GeneratedCard };
 import { isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
-import { REGEN_SECTIONS, type RegenSection } from "./card-sections";
+import { REGEN_SECTIONS, sectionHasContent, type RegenSection } from "./card-sections";
 import {
   assertWithinDailyCap,
   getAi,
@@ -606,6 +606,15 @@ export type { RegenSection } from "./card-sections";
 const RegenInput = z.object({
   word_id: z.string().uuid(),
   section: z.enum(REGEN_SECTIONS),
+  /**
+   * **まだ空のときだけ作る**(初回の作成)。裏で項目を上から順に埋めていく
+   * 仕組みが使う。
+   *
+   * 「作り直し」(すでに在る解説を捨てて作り直す)は Pro のまま。
+   * **カードを最初に完成させることまで有料にはしない** — 無料の人の
+   * カードが意味だけで止まってしまう。
+   */
+  only_if_empty: z.boolean().optional().default(false),
 });
 
 /**
@@ -632,7 +641,9 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       levelInstruction: lvl,
       explanationLanguageRule: langFn,
     } = await import("./ai-provider.server");
-    if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
+    if (!data.only_if_empty && !(await proCheck(userId))) {
+      throw new Error("項目の再生成は Pro 限定です");
+    }
     await assertWithinDailyCap(userId, "card");
 
     // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
@@ -682,6 +693,22 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       .eq("id", data.word_id)
       .maybeSingle();
     if (error || !word) throw new Error("単語が見つかりません");
+
+    // すでに埋まっている節を、裏の自動生成が上書きしない。
+    // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
+    // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
+    // 言い続ける — 止まらない生成になる。
+    if (
+      data.only_if_empty &&
+      sectionHasContent(data.section, {
+        headword: word.headword as string,
+        meaning_ja: word.meaning_ja as string | null,
+        example_sentence: word.example_sentence as string | null,
+        extras: normalizeExtras(word.extras),
+      })
+    ) {
+      return { ok: true, section: data.section, filled: false };
+    }
 
     const levelRule = await lvl(userId);
     const langRule = await langFn(userId);
@@ -800,7 +827,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
 
     const { prompt, schema } = spec[data.section];
     const ai = await getAiFor("card");
-    const result = await withModelFallback(ai, ai.modelRichPremium, (m) =>
+    // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
+    // 無料の人にも項目は埋まる — 書き手が変わるだけ。
+    const model = (await proCheck(userId)) ? ai.modelRichPremium : ai.modelRich;
+    const result = await withModelFallback(ai, model, (m) =>
       generateText({ model: ai.gateway(m), prompt }),
     );
     let out: Record<string, unknown>;
@@ -837,5 +867,5 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     if (upErr) throw new Error(upErr.message);
 
     await logUsage(context.supabase, userId, "card");
-    return { ok: true, section: data.section };
+    return { ok: true, section: data.section, filled: true };
   });

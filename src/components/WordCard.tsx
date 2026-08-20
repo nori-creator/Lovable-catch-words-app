@@ -18,9 +18,10 @@ import {
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
 import { reportEntry } from "@/lib/reports.functions";
-import { generateCard, regenerateCardSection, type RegenSection } from "@/lib/ai.functions";
+import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
+import { formatCount } from "@/lib/count";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
@@ -36,7 +37,14 @@ import {
   type RegisterScale,
 } from "@/lib/register-scale";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
-import { isRegenSection, type SectionId } from "@/lib/card-sections";
+import {
+  isRegenSection,
+  missingSections,
+  sectionHasContent,
+  type RegenSection,
+  type SectionId,
+} from "@/lib/card-sections";
+import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -278,86 +286,33 @@ export const WordCard = forwardRef<
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
 
   /**
-   * 中身があるか。
+   * 中身があるか。**判定は `card-sections.ts` の1つだけ**を使う。
    *
-   * ## 空の節はもう並べない
-   * 以前は「項目が消えたように見える」のを避けるため、空でも枠と生成ボタンを
-   * 出していた。その結果、**撮った直後の語では同じ灰色の空箱が11個積み上がる**。
-   * 街で言葉を見つけて写真を撮った直後 — この app で一番気持ちが乗っている
-   * 瞬間の直後に、それが出てくる(独立監査が最重要として指摘)。
-   *
-   * 空の節は隠し、代わりに**上に「カードを仕上げる」を1つ**置く。
-   * 何項目足りないかは数で言う。押せば1回の生成で全部埋まるので、
-   * 11回押して11回待つ必要も無い。
+   * ここに写しを置いていたときは、server 側が「まだ空だ」と考えて作り直し、
+   * 画面は「埋まっている」と考える、という食い違いが起こり得た
+   * (裏で順に作る仕組みでは、それが止まらない生成になる)。
    */
-  const hasContent = (id: SectionId): boolean => {
-    switch (id) {
-      case "meaning":
-        return !!word.meaning_ja;
-      case "usage_context":
-        // **Body が実際に描くものと同じ条件を見る。** 以前は `register_tag` が
-        // 在れば中身ありと数えていたが、いまその札はメーターに変わっていて、
-        // 読み取れない文字列だと何も描かない。数え方と描き方がずれると、
-        // 見出しだけの空の節が出る(`usage_chunks` で踏んだのと同じ穴)。
-        return !!(
-          ex.usage_context ||
-          ex.register_note ||
-          ex.common_situation ||
-          ex.frequency_level ||
-          registerScaleOf(ex) !== null
-        );
-      case "encounter":
-        // **数えた答えが届いているときだけ**出す。
-        // まだ届いていない/そもそも数えられない古いカードでは、
-        // 節そのものを出さないのが正しい姿(空の枠を並べない)。
-        return !!encounter;
-      case "example":
-        return !!word.example_sentence;
-      case "examples_extra":
-        return (ex.examples_extra?.length ?? 0) > 0;
-      case "usage_chunks":
-        // 量詞と重なる型は描く前に落とすので、空かどうかも落とした後で見る。
-        // ここと Body で違う数を見ていると、見出しだけの節が出る。
-        return (
-          withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, word.headword).length > 0 ||
-          (ex.collocations?.length ?? 0) > 0 ||
-          !!ex.word_order
-        );
-      case "measure_words":
-        return (ex.measure_words?.length ?? 0) > 0;
-      case "related_words":
-        return (
-          (ex.related_words?.length ?? 0) > 0 ||
-          (ex.synonyms?.length ?? 0) > 0 ||
-          (ex.antonyms?.length ?? 0) > 0 ||
-          !!ex.synonym_diff
-        );
-      case "pronunciation_tips":
-        return !!(ex.pronunciation_tips || ex.study_tips);
-      case "etymology":
-        return !!ex.etymology || !!ex.radicals;
-      case "mnemonic":
-        return !!ex.mnemonic;
-      case "taiwan_note":
-        return !!(ex.taiwan_note || ex.trivia || ex.usage_note);
-      // 外部データのセクションは常に描画できる(A10)。
-      case "web_images":
-        return true;
-      case "real_usage":
-        return true;
-    }
+  const contentInput = {
+    headword: word.headword,
+    meaning_ja: word.meaning_ja,
+    example_sentence: word.example_sentence,
+    extras: (word.extras ?? null) as WordExtrasDTO | null,
+    hasEncounter: !!encounter,
   };
+  const hasContent = (id: SectionId): boolean => sectionHasContent(id, contentInput);
 
   // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
-  const missing = prefs.order.filter(
-    (id) => isVisible(id) && isRegenSection(id) && !hasContent(id),
+  // 並びは**画面の並びそのまま**。`missingSections` はその順を崩さない
+  // (裏で作る順もこれ = オーナーの「項目の上から順に」)。
+  const missing = missingSections(prefs.order.filter(isVisible), contentInput);
+  const shown = prefs.order.filter(
+    (id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id),
   );
-  const shown = prefs.order.filter((id) => isVisible(id) && !missing.includes(id));
 
   return (
     <div className="space-y-3">
       <HeaderRow word={word} autoplay={autoplay} />
-      {wordId && missing.length > 0 && <FillCardPrompt wordId={wordId} headword={word.headword} />}
+      {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard
@@ -383,66 +338,136 @@ export const WordCard = forwardRef<
  * 待たされたうえに11回ぶんの費用がかかる。ここは既にある
  * `generateCard` → `updateWordExtras` の道を通す(手動の作り直しと同じ道)。
  */
-function FillCardPrompt({ wordId, headword }: { wordId: string; headword: string }) {
+/**
+ * まだ作られていない項目を、**裏で、上から順に**作る。
+ *
+ * オーナー: 「候補を選択した瞬間から裏で単語の詳細のすべての項目を
+ * 作り始めてる。項目の上から順に。また単語の詳細の項目は未生成の場合は
+ * ユーザーに項目自体を見せない。生成されたら項目を表示するようにする。」
+ *
+ * ## ボタンをやめた
+ * ここには「カードを仕上げる」ボタンが在って、押すまで何も起きなかった。
+ * 押さない人のカードは意味だけのまま残る。**待たせない代わりに、押させない。**
+ * 失敗したときだけボタンに戻す — 押しても直らない物を黙って再試行し続けない。
+ *
+ * ## 1節ずつ、順番どおりに
+ * 1節できるたびに札を読み直すので、**上の項目から順に現れる**。
+ * まとめて作って一度に出すと、順番は見えないし、途中で失敗したら
+ * 全部が無くなる。
+ *
+ * ## 暴走させない蓋
+ * 節ごとに1回 AI を呼ぶので、上限(`MAX_AUTO_FILL`)と連続失敗の打ち切り
+ * (`MAX_FAILURES`)を `src/lib/auto-fill.ts` に置いてテストしてある。
+ */
+function AutoFillSections({
+  wordId,
+  missing,
+}: {
+  wordId: string;
+  missing: readonly RegenSection[];
+}) {
   const t = useT();
   const qc = useQueryClient();
-  const enrich = useServerFn(generateCard);
-  const saveExtras = useServerFn(updateWordExtras);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const fillFn = useServerFn(regenerateCardSection);
+  const [state, setState] = useState<{ done: number; total: number; failed: boolean }>({
+    done: 0,
+    total: 0,
+    failed: false,
+  });
+  /** もう一度押されたら作り直す合図。 */
+  const [retryNonce, setRetryNonce] = useState(0);
 
-  async function fill() {
-    if (busy) return;
-    setBusy(true);
-    setFailed(false);
-    try {
-      const card = await enrich({ data: { headword, targetLanguage: "zh-TW" } });
-      await saveExtras({
-        data: {
-          word_id: wordId,
-          extras: card.extras,
-          patch: {
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            meaning_ja: card.meaning_ja,
-          },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker"] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-    } catch {
-      // **黙って戻さない。** 押したのに何も起きないと、壊れているのと
-      // 区別がつかない。もう一度押せることを画面で言う。
-      setFailed(true);
-    } finally {
-      setBusy(false);
-    }
+  /**
+   * **最新の「足りない節」を ref で持つ。**
+   *
+   * ここを効果の依存に入れると、1節できるたびに札を読み直す → 一覧が変わる
+   * → 効果が作り直される → **走っている途中の輪が中断される**。
+   * 進む数も毎回 0 に戻って、進み具合が読めなくなる。
+   * 効果は語が変わったときだけ作り直し、中身は毎回 ref から読む。
+   */
+  const missingRef = useRef<readonly RegenSection[]>(missing);
+  missingRef.current = missing;
+  /** この語で試した節。**失敗した節も入れる**(入れないと同じ節を回り続ける)。 */
+  const attemptedRef = useRef<Set<string>>(new Set());
+  const wordRef = useRef(wordId);
+  if (wordRef.current !== wordId) {
+    wordRef.current = wordId;
+    attemptedRef.current = new Set();
   }
 
-  // **枠は出さない(NORI指定)。** 以前は破線の箱に「このカードはまだ
-  // 途中です」と見出しと説明を入れていたが、カードの上に**中身の無い箱**が
-  // 1つ増えるだけで、読む物が増えて主役の語が下がっていた。
-  // 残すのは行動そのもの ——「仕上げる」ボタン1つ。空の節は隠してあるので、
-  // これを消すと**仕上げる手段が無くなる**(節ごとの「作る」は前の周に
-  // 畳んである)。失敗したときだけ、その一言を添える。
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button
-        onClick={() => void fill()}
-        disabled={busy}
-        className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-      >
-        {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-        {busy ? t("card.filling") : failed ? t("card.fillRetry") : t("card.fillCta")}
-      </button>
-      {failed && (
+  useEffect(() => {
+    let cancelled = false;
+    const attempted = attemptedRef.current;
+    // 1回開いたときに作る数の上限。**この画面ぶんの合計**で数える —
+    // 1周ごとに数え直すと、周を重ねて何節でも作れてしまう。
+    const budget = MAX_AUTO_FILL - attempted.size;
+    if (budget <= 0) return;
+    const planned = nextAutoFillQueue(missingRef.current, attempted, budget).length;
+    if (planned === 0) return;
+
+    void (async () => {
+      let failures = 0;
+      let done = 0;
+      setState({ done: 0, total: planned, failed: false });
+      while (!cancelled) {
+        const left = MAX_AUTO_FILL - attempted.size;
+        const [section] = nextAutoFillQueue(missingRef.current, attempted, Math.max(0, left));
+        if (!section) break;
+        attempted.add(section);
+        try {
+          await fillFn({ data: { word_id: wordId, section, only_if_empty: true } });
+          failures = 0;
+          // できた節をすぐ出す。ここで読み直すから「上から順に現れる」。
+          await qc.invalidateQueries({ queryKey: ["sticker"] });
+          await qc.invalidateQueries({ queryKey: ["stickers"] });
+        } catch {
+          failures += 1;
+          // **同じ失敗を繰り返さない。** 上限に当たった / 鍵が無い、のような
+          // 直らない失敗で AI を叩き続けない。
+          if (failures >= MAX_FAILURES) {
+            if (!cancelled) setState({ done, total: planned, failed: true });
+            return;
+          }
+        }
+        done += 1;
+        if (!cancelled) setState({ done, total: planned, failed: false });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordId, retryNonce]);
+
+  if (state.failed) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          onClick={() => {
+            attemptedRef.current = new Set();
+            setState({ done: 0, total: 0, failed: false });
+            setRetryNonce((n) => n + 1);
+          }}
+          className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground"
+        >
+          {t("card.fillRetry")}
+        </button>
         <p className="ja-phrase text-footnote text-destructive-ink">{t("card.fillFailed")}</p>
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  if (state.total === 0 || state.done >= state.total) return null;
+
+  return (
+    <p className="flex items-center gap-2 text-footnote text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      {t("card.fillingOrdered", {
+        done: formatCount(state.done),
+        total: formatCount(state.total),
+      })}
+    </p>
   );
 }
 
