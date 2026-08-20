@@ -100,7 +100,6 @@ function estimateShelfHeight(tiers: number): number {
   return HEAD + tiers * 133 + Math.max(0, tiers - 1) * 16;
 }
 
-
 export function DexShelf({
   stickers,
   activeCategory,
