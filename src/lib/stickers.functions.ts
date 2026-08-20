@@ -91,7 +91,7 @@ type SignedUrlsClient = {
  */
 const SIGN_BATCH = 500;
 
-async function signUrlMap(
+export async function signUrlMap(
   supabase: SignedUrlsClient,
   paths: (string | null | undefined)[],
 ): Promise<Map<string, string>> {

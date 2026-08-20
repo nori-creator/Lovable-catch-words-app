@@ -220,13 +220,20 @@ function ReviewPage() {
    * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
    */
   const format = current
-    ? reviewFormatFor({
-        pref: mode,
-        retention: current.retention,
-        intervalDays: current.interval_days,
-        repetitions: current.repetitions,
-        entryType: current.entry_type,
-      })
+    ? // **場所の知らせから来た1枚は、必ず4択にする**(オーナー指摘 2026-08-20)。
+      //
+      // 知らせの文面は「『タピオカミルクティー』は台湾華語で?」という
+      // 問いなので、押した先が発話や作文だと問いと答えが噛み合わない。
+      // 4択は既に「写真+意味 → 台湾華語を選ぶ」向きなので、形だけ揃える。
+      wantedSticker && current.sticker_id === wantedSticker
+      ? "choice"
+      : reviewFormatFor({
+          pref: mode,
+          retention: current.retention,
+          intervalDays: current.interval_days,
+          repetitions: current.repetitions,
+          entryType: current.entry_type,
+        })
     : null;
 
   const progress = useMemo(() => {

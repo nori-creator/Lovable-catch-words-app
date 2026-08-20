@@ -713,14 +713,23 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "notif.followed": { ja: "さんがフォローしました", en: " followed you" },
   "common.someone": { ja: "誰か", en: "Someone" },
   // --- 場所の思い出し(文の前後) ---
+  // **「」の中は母語**(オーナー指摘 2026-08-20)。
+  // 押した先の問題は「写真+日本語 → 台湾華語を4択」なので、通知に
+  // 台湾華語を出すと**開いた瞬間に答えが分かる**。
   "place.rememberBefore": { ja: "「", en: "Remember “" },
-  "place.rememberAfter": { ja: "」覚えてる？", en: "”?" },
+  "place.rememberAfter": { ja: "」は台湾華語で？", en: "” in Taiwanese Mandarin?" },
   // --- 場所の思い出し・共通 ---
   // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
   // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
   // 思い出す鍵は市の名前ではなく**いつ撮ったか**なので、日付を先に出し、
   // 日付が読めないときだけ場所の名前に落ちる。
-  "place.caughtOn": { ja: "{date}にここで撮った言葉", en: "You caught this here on {date}" },
+  // 「ここ」ではなく**地名**で言う(オーナー指摘)。地名が取れない回だけ
+  // 日付だけに落ちる。
+  "place.caughtOnAt": {
+    ja: "{date}に{name}で撮った言葉",
+    en: "You caught this at {name} on {date}",
+  },
+  "place.caughtOn": { ja: "{date}に撮った言葉", en: "You caught this on {date}" },
   "place.caughtAt": { ja: "{name}で撮った言葉", en: "You caught this at {name}" },
   "place.caughtHereShort": { ja: "この辺りで撮った言葉", en: "You caught this around here" },
   "common.card": { ja: "カード", en: "Card" },
