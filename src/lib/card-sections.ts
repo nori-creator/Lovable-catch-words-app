@@ -16,7 +16,6 @@ export const SECTION_IDS = [
   "meaning",
   "web_images",
   "usage_context",
-  "quick_facts",
   "example",
   "examples_extra",
   "usage_chunks",
@@ -38,7 +37,6 @@ export type SectionId = (typeof SECTION_IDS)[number];
 export const REGEN_SECTIONS = [
   "meaning",
   "usage_context",
-  "quick_facts",
   "example",
   "examples_extra",
   "usage_chunks",

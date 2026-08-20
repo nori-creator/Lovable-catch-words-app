@@ -222,14 +222,20 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
       ? `その場の様子: 「${data.scene.trim()}」。**この様子に合うものを優先**する。`
       : "その場の様子は聞けていない。よくある使い分けを並べる。";
 
-    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す台湾華語の**名詞**の候補を挙げてください。
+    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す台湾華語の候補を挙げてください。
 
 ${sceneLine}
 ${levelRule}
 ${langRule}
 
 守ること:
-- **名詞だけ**。動詞・形容詞は出さない。
+- **品詞を選ばない。** 書かれた物が動詞なら動詞、形容詞なら形容詞で答える
+  (「走る」→ 跑步 / 跑、「速い」→ 快)。
+  ここは**写真に写った物の候補ではなく、人が打ち込んだ言葉**なので、
+  名詞に絞ると動詞や形容詞を打った人に候補が1つも返らない。
+  返らないと母語のまま次へ渡り、最後に「学んでいる言語の単語ではありません」
+  とだけ出る — 打った人には**機能が壊れているようにしか見えない**
+  (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
 - **細かく分ける。** 母語の1語が台湾華語では複数の別語になることが多い。
   例:「ティッシュ」→ 衛生紙(トイレに置く)/ 面紙(持ち歩く箱・ポケット)/ 濕紙巾(ウェット)
   例:「お茶」→ 茶(飲み物一般)/ 茶葉(葉)/ 手搖飲(店で買う飲料)
@@ -334,10 +340,6 @@ ${l1Gram}
 - region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
-- quick_facts: **表で一目で分かる要点**を3〜5行。各 {label:見出し(4〜6字), value:中身(**20字以内**・文にしない)}。
-  見出しの例: 使う場面 / 丁寧さ / よく一緒に / 注意 / 言い換え。
-  **長い説明はここに書かない** — 表は「探している事が縦に並んで見える」ことが値打ちで、
-  文を入れると他の項目と同じ壁になる。書けない見出しは**出さない**(空欄の行を作らない)。
 - pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  この語の声調の型と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
@@ -369,7 +371,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       `frequency_level, register_tag, register_scale, scene_weights, season_months, region_scope, ` +
       `related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
-      `quick_facts[{label,value}], ` +
       `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
@@ -668,14 +669,6 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
               }),
             )
             .min(1),
-        }),
-      },
-      quick_facts: {
-        // **表に入る短さで書かせる。** 長い説明が来ると、表が他の項目と
-        // 同じ壁になる。20字を超えたものは描く前に落とす(usableQuickFacts)。
-        prompt: `${base}\n「${head}」について、表で一目で分かる要点を3〜5行(${NL})。各行 label は4〜6字の見出し、value は20字以内・文にしない。見出しの例: 使う場面 / 丁寧さ / よく一緒に / 注意 / 言い換え。書けない見出しは出さない。\n{"quick_facts":[{"label":"","value":""}]}`,
-        schema: z.object({
-          quick_facts: z.array(z.object({ label: z.string(), value: z.string() })).min(1),
         }),
       },
       pronunciation_tips: {

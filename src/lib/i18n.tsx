@@ -907,7 +907,6 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     en: "Couldn't write it. Check your connection and try again.",
   },
   "card.fillRetry": { ja: "もう一度ためす", en: "Try again" },
-  "card.quick_facts": { ja: "ひと目でわかる", en: "At a glance" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips" },
   "card.etymology": { ja: "語源・部首", en: "Origin & radicals" },
   "card.mnemonic": { ja: "覚え方", en: "Memory hook" },
@@ -1038,8 +1037,6 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "台湾華語でも日本語でもOK（日本語は自動で台湾華語に変換されます）",
     en: "Type in Mandarin or your own language — we'll convert it",
   },
-  "input.word": { ja: "単語", en: "Word" },
-  "input.phrase": { ja: "フレーズ", en: "Phrase" },
   "input.scene": {
     ja: "シーン: どこで・誰が・何と言った？（任意）",
     en: "Scene: where / who / what was said (optional)",

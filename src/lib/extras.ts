@@ -135,6 +135,14 @@ export const ExtrasSchema = z.object({
    *
    * 中身は短く。value が長い文になったら、それは地の文の項目の仕事。
    */
+  /**
+   * 【退役】「ひと目でわかる」の表。
+   *
+   * 2026-08-20 にオーナー指示で**画面からも生成からも外した**。
+   * ここに残してあるのは**既にDBに入っている139語の中身を消さないため**だけ。
+   * スキーマから外すと `normalizeExtras` が落とし、次の保存で静かに消える。
+   * 読む所も書く所も無いので、新しく増えることはない。
+   */
   quick_facts: z
     .array(
       z.object({
@@ -210,35 +218,6 @@ export function mergeExtras(
   }
   const res = ExtrasSchema.safeParse(base);
   return res.success ? res.data : emptyExtras();
-}
-
-/**
- * 表に出せる要点だけを残す。
- *
- * **片側だけ埋まった行を残さない。** 表は行が揃っていることが値打ちなので、
- * 見出しだけ・中身だけの行が混ざると、表に見えなくなる。
- * 生成物は必ず片側を落としてくるので、描く前にここで閉じる。
- */
-export function usableQuickFacts(
-  facts: ReadonlyArray<{ label?: string; value?: string }> | null | undefined,
-): Array<{ label: string; value: string }> {
-  const seen = new Set<string>();
-  const out: Array<{ label: string; value: string }> = [];
-  for (const f of facts ?? []) {
-    const label = (f?.label ?? "").trim();
-    const value = (f?.value ?? "").trim();
-    if (!label || !value) continue;
-    // 同じ見出しが2行あると、どちらが正なのか読み手に決めさせることになる。
-    if (seen.has(label)) continue;
-    seen.add(label);
-    // 長い文は表の中身ではない。地の文の項目が引き受ける。
-    // 生成側には20字と言ってあるが、少しの超過では落とさない —
-    // 落とすのは「明らかに文になっている」ものだけ。
-    if (value.length > 40) continue;
-    out.push({ label, value });
-    if (out.length >= 6) break;
-  }
-  return out;
 }
 
 /**

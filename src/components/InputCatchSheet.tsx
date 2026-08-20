@@ -31,6 +31,7 @@ import {
 } from "@/lib/images.functions";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
+import { useCatchLocation } from "@/lib/use-catch-location";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
@@ -92,7 +93,6 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [step, setStep] = useState<Step>("input");
   const [text, setText] = useState(initialText ?? "");
   const [isPhrase, setIsPhrase] = useState(false);
-  const [phraseTouched, setPhraseTouched] = useState(false);
   const [scene, setScene] = useState("");
   /** 母語の入力から出した台湾華語の候補(2つ以上あれば選ばせる)。 */
   const [wordChoices, setWordChoices] = useState<
@@ -120,6 +120,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const phonetic = usePhoneticPref();
   const pronounce = usePronounce();
+  const { resolve: resolveLocation } = useCatchLocation();
   const t = useT();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
@@ -175,7 +176,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
       const trimmed = t.trim();
       setText(trimmed);
-      if (!phraseTouched) setIsPhrase(guessIsPhrase(trimmed));
+      setIsPhrase(guessIsPhrase(trimmed));
     };
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
@@ -301,6 +302,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     setStep("saving");
     setErr(null);
     try {
+      // 画面を開いた時から温めてある。ここで**短く待つだけ**で、
+      // 取れなくてもキャッチは止めない(`use-catch-location.tsx` に理由)。
+      const here = await resolveLocation();
       // ユーザーが添付した画像があればそれを実写として使う。無ければ
       // Web検索の候補を仮画像(placeholder)として自動添付する。
       let object_path: string | null = null;
@@ -400,6 +404,12 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           object_path,
           placeholder_path,
           placeholder_credit,
+          // **文字・声から拾った語にも場所を残す。** ここは前まで
+          // server 側で null を直に書いていたので、この経路の語だけ
+          // 地図にも「場所で思い出す」にも出てこなかった。
+          location_name: here.name,
+          lat: here.lat,
+          lng: here.lng,
         },
       });
 
@@ -475,30 +485,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 value={text}
                 onChange={(e) => {
                   setText(e.target.value);
-                  if (!phraseTouched) setIsPhrase(guessIsPhrase(e.target.value));
+                  // **単語とフレーズで欄を分けない**(オーナー指摘 2026-08-20)。
+                  // 打つ人にとっては同じ「言葉を入れる」動作で、どちらなのかを
+                  // 先に決めさせる理由が無い。長さと句読点で自動的に決める。
+                  setIsPhrase(guessIsPhrase(e.target.value));
                 }}
                 placeholder={t("sheet.inputPlaceholder")}
                 className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary/40"
               />
-            </div>
-
-            <div className="flex justify-center gap-2">
-              {([false, true] as const).map((v) => (
-                <button
-                  key={String(v)}
-                  onClick={() => {
-                    setIsPhrase(v);
-                    setPhraseTouched(true);
-                  }}
-                  className={`rounded-full border px-4 py-1.5 text-body ${
-                    isPhrase === v
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card"
-                  }`}
-                >
-                  {v ? t("input.phrase") : t("input.word")}
-                </button>
-              ))}
             </div>
 
             {/* 状況の欄は**単語のときにも出す。**

@@ -21,7 +21,8 @@ import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
-import { usableQuickFacts, withoutMeasureWordEcho } from "@/lib/extras";
+import { withoutMeasureWordEcho } from "@/lib/extras";
+import { splitAroundTerm } from "@/lib/mark-term";
 import {
   REGISTER_MAX,
   REGISTER_MIN,
@@ -68,7 +69,6 @@ const ALL_SECTIONS: { id: SectionId }[] = [
   // 既にある語(139件)はこの項目を持たないので、一番目立つ位置に
   // 「まだ作られていません」の空箱が出ることになる。同じ空箱が並ぶのは
   // 独立監査が既に指摘した欠点で、その先頭を新しく1つ増やすのは割に合わない。
-  { id: "quick_facts" },
   { id: "example" },
   { id: "examples_extra" },
   { id: "usage_chunks" },
@@ -222,7 +222,6 @@ export function WordCardSectionsEditor() {
  */
 const SECTION_ICON: Record<SectionId, string> = {
   meaning: "\u{1F4D6}",
-  quick_facts: "\u{1F4CB}",
   web_images: "\u{1F310}",
   usage_context: "\u{1F4CA}",
   example: "\u{1F4AC}",
@@ -317,8 +316,6 @@ export const WordCard = forwardRef<
           (ex.antonyms?.length ?? 0) > 0 ||
           !!ex.synonym_diff
         );
-      case "quick_facts":
-        return usableQuickFacts(ex.quick_facts).length > 0;
       case "pronunciation_tips":
         return !!(ex.pronunciation_tips || ex.study_tips);
       case "etymology":
@@ -727,6 +724,45 @@ export function RegisterMeter({ scale }: { scale: RegisterScale }) {
   );
 }
 
+/**
+ * 例文の中の見出し語に印を付ける。
+ *
+ * 印の見た目は**地の文の解説と同じ**(`Prose` の `term`)。同じ「この語だ」を
+ * 指す印が画面の中で2通りあると、別の意味だと読まれる。
+ *
+ * **語の途中で折り返させない。** 和文・中文は文字単位で折り返すので、
+ * 印を付けた語も「珍珠 / 奶茶」と割れる。塗りが2行にちぎれると、
+ * どこからどこまでが1語なのかが読めなくなる — 印を付けた意味が消える。
+ */
+function MarkedSentence({
+  text,
+  term,
+  className = "",
+}: {
+  text: string | null | undefined;
+  term: string;
+  className?: string;
+}) {
+  const spans = splitAroundTerm(text, term);
+  if (spans.length === 0) return null;
+  return (
+    <p lang="zh-Hant" className={className}>
+      {spans.map((s, i) =>
+        s.hit ? (
+          <span
+            key={i}
+            className="inline-block whitespace-nowrap rounded bg-primary/10 px-1 font-semibold text-primary-ink"
+          >
+            {s.text}
+          </span>
+        ) : (
+          <span key={i}>{s.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 function Body({
   id,
   word,
@@ -774,11 +810,11 @@ function Body({
     }
 
     case "example":
-      // 品詞ごとの色分けは外し、元のプレーンな例文表示に戻す
-      // (色分けは「使い方チャンク」だけに残す)。
+      // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
+      // 代わりに**その語がどこに出ているか**だけを印で示す。
       return (
         <div className="space-y-1">
-          <p className="text-body">{word.example_sentence}</p>
+          <MarkedSentence text={word.example_sentence} term={word.headword} className="text-body" />
           <p className="text-footnote text-muted-foreground">{word.example_translation}</p>
         </div>
       );
@@ -791,9 +827,7 @@ function Body({
               {e.scene && (
                 <p className="mb-1 text-caption font-medium text-muted-foreground">🎬 {e.scene}</p>
               )}
-              <p lang="zh-Hant" className="text-body">
-                {e.zh}
-              </p>
+              <MarkedSentence text={e.zh} term={word.headword} className="text-body" />
               <p className="text-caption text-muted-foreground">{e.ja}</p>
             </li>
           ))}
@@ -900,27 +934,6 @@ function Body({
             </p>
           )}
         </div>
-      );
-    }
-
-    case "quick_facts": {
-      const facts = usableQuickFacts(ex.quick_facts);
-      if (facts.length === 0) return null;
-      // **本物の表にする。** `dl` を2列で組み、行ごとに薄い区切りを入れる。
-      // 見出しは短く固定幅寄り、中身は伸びる — 目が縦に「見出しの列」を
-      // 追えることが、表であることの値打ち。
-      return (
-        <dl className="divide-y divide-border overflow-hidden rounded-xl ring-1 ring-border">
-          {facts.map((f) => (
-            <div
-              key={f.label}
-              className="grid grid-cols-[6rem_1fr] gap-3 px-3 py-2 odd:bg-secondary/40"
-            >
-              <dt className="text-footnote font-semibold text-muted-foreground">{f.label}</dt>
-              <dd className="ja-phrase min-w-0 text-balance text-body">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
       );
     }
 
