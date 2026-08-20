@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
+import { AlbumSpanTabs } from "@/components/AlbumSpanTabs";
+import { ALBUM_SPANS, groupBySpan, spanHeading, keyToDate, type AlbumSpan } from "@/lib/album-span";
 import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -239,18 +241,30 @@ function HomePage() {
   const today = new Date();
   const todayKey = dayKey(today);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, StickerWithWord[]>();
-    for (const s of stickers?.items ?? []) {
-      const k = dayKey(new Date(s.created_at));
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(s);
-    }
-    return Array.from(map.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [stickers]);
+  /**
+   * 今日の1冊は**必ず日で切る**。今日は「今日」であって週でも月でもない。
+   * 束ね方が効くのは、下に続く「これまでのページ」のほう。
+   */
+  const byDay = useMemo(
+    () => groupBySpan(stickers?.items ?? [], (s) => new Date(s.created_at), "day"),
+    [stickers],
+  );
+  const todayStickers = byDay.find(([k]) => k === todayKey)?.[1] ?? [];
 
-  const todayStickers = grouped.find(([k]) => k === todayKey)?.[1] ?? [];
-  const pastDays = grouped.filter(([k]) => k !== todayKey);
+  /** これまでのページの束ね方(オーナー指摘⑪)。端末に覚えさせる。 */
+  const [span, setSpan] = useState<AlbumSpan>("day");
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("album-span") : null;
+    if (saved && (ALBUM_SPANS as readonly string[]).includes(saved)) setSpan(saved as AlbumSpan);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("album-span", span);
+  }, [span]);
+
+  const pastDays = useMemo(() => {
+    const past = (stickers?.items ?? []).filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
+    return groupBySpan(past, (s) => new Date(s.created_at), span);
+  }, [stickers, todayKey, span]);
 
   /**
    * 日付ごとの日記(要望 #22)。
@@ -308,9 +322,12 @@ function HomePage() {
         <HomeEmptyState />
       ) : (
         <>
+          {/* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
+              過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
           <ScrapbookAlbum
             stickers={todayStickers}
             bgClass={bgClass}
+            opening
             onOpen={setOpenId}
             onLongPress={(id) => {
               setOpenId(id);
@@ -339,6 +356,8 @@ function HomePage() {
           shown={stickers?.items.length ?? 0}
           total={stickers?.total ?? stickers?.items.length ?? 0}
           journals={journalsByDay}
+          span={span}
+          onSpan={setSpan}
           onLongPress={(id) => {
             setOpenId(id);
             setOpenPhotoPicker(true);
@@ -436,6 +455,8 @@ export function PastDays({
   total,
   journals,
   onLongPress,
+  span = "day",
+  onSpan,
 }: {
   days: Array<[string, StickerWithWord[]]>;
   bgClass: string;
@@ -443,6 +464,10 @@ export function PastDays({
   truncated: boolean;
   shown: number;
   total: number;
+  /** 束ね方(オーナー指摘⑪)。既定は今までどおり日ごと。 */
+  span?: AlbumSpan;
+  /** 渡さなければ切替の帯を出さない。 */
+  onSpan?: (s: AlbumSpan) => void;
   /** 写真の長押し。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
   /**
@@ -453,6 +478,7 @@ export function PastDays({
   journals?: Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>;
 }) {
   const t = useT();
+  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
   return (
     <section className="mt-12 space-y-10">
       <div className="flex items-center gap-3">
@@ -464,6 +490,8 @@ export function PastDays({
         <span className="label-caps text-caption text-muted-foreground">{t("home.pastPages")}</span>
         <span className="h-px flex-1 bg-border" />
       </div>
+      {/* 日 / 週 / 月(オーナー指摘⑪)。3ヶ月遡ると日では90ページになる。 */}
+      {onSpan && <AlbumSpanTabs value={span} onChange={onSpan} />}
       {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
           古い日が黙って消えると**その日は何も撮らなかった**ように見える。
           出せていないなら、そう言う(§8)。 */}
@@ -477,7 +505,14 @@ export function PastDays({
           {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
               for users west of UTC). */}
-          <DayHeader date={new Date(`${k}T00:00:00`)} compact />
+          {/* 日は今までどおり日付の見出し。週と月は**束の名前**を出す —
+              週番号は読めないので、始まりと終わりの日で言う
+              (`spanHeading`)。 */}
+          {span === "day" ? (
+            <DayHeader date={keyToDate(k)} compact />
+          ) : (
+            <SpanHeader label={spanHeading(k, span, dateLocale)} count={items.length} />
+          )}
           <ScrapbookAlbum
             stickers={items}
             bgClass={bgClass}
@@ -489,7 +524,10 @@ export function PastDays({
               **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
               id を突き合わせるだけでよく、問い合わせは増えない。 */}
           {(() => {
-            const j = journals?.get(k);
+            // **日記の紙は日ごとのページにだけ挟む。** 週や月の束には
+            // 何日ぶんもの日記が入り得るので、どれを見開きに置くのか
+            // 決められない(適当に1日ぶんだけ出すと、書いた日が消える)。
+            const j = span === "day" ? journals?.get(k) : undefined;
             if (!j) return null;
             const used = new Set(j.used_sticker_ids);
             return (
@@ -582,6 +620,26 @@ export function DayHeader({
   );
 }
 
+/**
+ * 週・月の束の見出し(オーナー指摘⑪)。
+ *
+ * `DayHeader` と**同じ形**にする — 同じ位置に別の顔の見出しが出ると、
+ * 束ね方を変えた瞬間に「別の画面に来た」と感じる。日付が「範囲」に
+ * 変わり、曜日の代わりに枚数が出るだけ。
+ */
+function SpanHeader({ label, count }: { label: string; count: number }) {
+  const t = useT();
+  return (
+    <section className="mb-3 text-center">
+      <h2 className="font-display mt-1 text-title leading-[1.15]">{label}</h2>
+      <p className="label-caps text-footnote text-muted-foreground">
+        {t("home.spanCount", { n: formatCount(count) })}
+      </p>
+      <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
+    </section>
+  );
+}
+
 const ALBUM_ROTATIONS = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
 const ALBUM_SIZES = [
   "col-span-2 row-span-2",
@@ -597,6 +655,7 @@ export function ScrapbookAlbum({
   bgClass,
   onOpen,
   onLongPress,
+  opening,
 }: {
   stickers: StickerWithWord[];
   bgClass: string;
@@ -607,6 +666,12 @@ export function ScrapbookAlbum({
    * 切り抜きできるようにして」。渡さなければ長押しは何もしない。
    */
   onLongPress?: (id: string) => void;
+  /**
+   * 表紙が開く演出を付けるか(オーナー指摘⑪)。
+   * **1日に何度も開く画面なので、既定は付けない。** 付けるのは
+   * 「今日のアルバム」を最初に描いたときだけ(呼ぶ側が決める)。
+   */
+  opening?: boolean;
 }) {
   const t = useT();
   const isEn = useUiLang() === "en";
@@ -646,7 +711,7 @@ export function ScrapbookAlbum({
     // 各写真は白フチの印画紙(.photo-print)を三角コーナーで留める —
     // 子供の頃のアルバムの再現。本の厚み表現は廃止(NORI指定)。
     <div
-      className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass}`}
+      className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass} ${opening ? "album-open" : ""}`}
     >
       <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {

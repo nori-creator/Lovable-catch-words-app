@@ -267,6 +267,8 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
+  ["home-past-week", "", false, { scene: "home-past", span: "week" }],
+  ["home-past-month", "", false, { scene: "home-past", span: "month" }],
   ...crossThemes("home-writing", { scene: "home-writing" }),
   ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
   ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),

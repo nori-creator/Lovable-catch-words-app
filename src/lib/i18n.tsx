@@ -1146,6 +1146,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // 見開きの右ページ(ホームでその場で書く)。
   "home.writeToday": { ja: "今日の日記を書く", en: "Write today's journal" },
   "home.pastJournals": { ja: "これまでの日記", en: "Past journals" },
+  // これまでのページの束ね方(src/lib/album-span.ts)。
+  "home.spanAria": { ja: "ページの束ね方", en: "How pages are grouped" },
+  "home.span.day": { ja: "日", en: "Day" },
+  "home.span.week": { ja: "週", en: "Week" },
+  "home.span.month": { ja: "月", en: "Month" },
+  "home.spanCount": { ja: "{n}枚", en: "{n} photos" },
   // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
   "home.dayJournal": { ja: "この日の日記", en: "That day's diary" },
   "home.dayJournalUsed": { ja: "使った言葉", en: "Words used" },

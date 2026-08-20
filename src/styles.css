@@ -1374,6 +1374,34 @@
   --mem-4: oklch(0.84 0.14 160);
   --mem-5: oklch(0.8 0.13 245);
 }
+/* ── アルバムの表紙が開く ──────────────────────────────────
+   オーナー指摘⑪「アルバムを開く演出」。本を開く動きなので、綴じ目
+   (左端)を軸に回す。ページをめくる `.page-turn` より角度を大きく、
+   時間も長めにして「表紙」と「中の紙」を区別する。
+
+   **1回開いたら二度と回さない。** ホームは1日に何度も開く画面なので、
+   毎回2秒の演出が挟まると邪魔にしかならない(呼ぶ側が付け外しする)。 */
+@keyframes album-open {
+  from {
+    transform: perspective(1400px) rotateY(-84deg);
+    opacity: 0.2;
+  }
+  to {
+    transform: perspective(1400px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+.album-open {
+  transform-origin: left center;
+  animation: album-open 620ms cubic-bezier(0.25, 0.8, 0.3, 1) both;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .album-open {
+    animation: none;
+  }
+}
+
 /* ── 日記を書くときの「ページがめくれる」 ──────────────────
    オーナー: 「今日の日記を書くボタンを押したら、ホームのアルバムのページが
    めくれて、左に今日撮った写真、右ページに日記を書く。」
