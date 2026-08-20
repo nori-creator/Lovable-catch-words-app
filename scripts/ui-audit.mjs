@@ -242,6 +242,14 @@ const MODES = [
   // 押したあとの面。正解と不正解でそれぞれ色が変わる。
   ...crossThemes("review-right", { scene: "review-choice", click: "ul li:nth-child(1) button" }),
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
+  // 記憶の段階で形が変わる所(要望 #32)。**3つの形が全部出ることを見る** —
+  // ★の段を確率で切って3段しか使っていなかったのと同じ取りこぼしを避ける。
+  ...crossThemes("review-say", { scene: "review-say" }),
+  ...crossThemes("review-say-ok", { scene: "review-say-result" }),
+  ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
+  ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
+  ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
+  ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
   // 数えていない回(完了だけ)。「0問中0問正解」を出さないことの見張り。
@@ -317,6 +325,21 @@ const MODES = [
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
   // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
   ...crossThemes("journal-result", { scene: "journal-result" }),
+  // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
+  ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
+  // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
+  ...crossThemes("word-candidate", { scene: "word-candidate" }),
+  // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
+  // ここまで場面が1つも無く、壊れた姿を機械が一度も見ていなかった。
+  ...crossThemes("input-catch", { scene: "input-catch" }),
+  ["input-catch-typed", "", false, { scene: "input-catch", variant: "typed" }],
+  ["input-catch-loading", "", false, { scene: "input-catch", variant: "loading" }],
+  ...crossThemes("input-catch-error", { scene: "input-catch", variant: "error" }),
+  // 主役の写真を選ぶ面(要望 #17)。前は `window.confirm` の素の窓だった。
+  ...crossThemes("hero-picker", { scene: "hero-picker" }),
+  ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
+  ["hero-picker-picked", "", false, { scene: "hero-picker", variant: "picked" }],
+  ...crossThemes("hero-picker-cutout", { scene: "hero-picker", variant: "cutout" }),
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
@@ -461,17 +484,16 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
    * は無限に続くので待つと止まらない — 回数が有限のものだけを対象にする。
    * 2秒で諦めるのは、待ち続けて検査ごと止まらないため。
    */
-  await page.evaluate(
-    () =>
-      Promise.race([
-        Promise.all(
-          document
-            .getAnimations()
-            .filter((a) => a.effect?.getComputedTiming?.().iterations !== Infinity)
-            .map((a) => a.finished.catch(() => {})),
-        ),
-        new Promise((r) => setTimeout(r, 2000)),
-      ]),
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getComputedTiming?.().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => {})),
+      ),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]),
   );
 
   // 場面がちゃんと立ち上がったか。**空のページは指摘0で緑になる**ので、
@@ -741,242 +763,242 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   //  「下地を一枚も見ない」よりは実物に近い。)
   const { spots, centered, spaced, counterOnDash, brandFills, offScale, scale } =
     await page.evaluate(() => {
-    const cv = document.createElement("canvas");
-    cv.width = cv.height = 1;
-    const ctx = cv.getContext("2d", { willReadFrequently: true });
-    const paint = (s, base) => {
-      ctx.globalCompositeOperation = "copy";
-      ctx.fillStyle = base;
-      ctx.fillRect(0, 0, 1, 1);
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = s;
-      ctx.fillRect(0, 0, 1, 1);
-      return ctx.getImageData(0, 0, 1, 1).data;
-    };
-    // 色はブラウザに解かせる。このアプリの色は全部 oklch で、Chrome は
-    // 計算値も `oklch(…)` のまま返すので、文字列を自分で読むと何も取れない。
-    //
-    // ただし `fillStyle` は**読めない文字列を黙って無視する**(前の値が
-    // 残る)。`none` や空文字を渡すと、直前に測った色を「その要素の色」と
-    // して返してしまうので、先に受け付けられたかどうかを確かめる。
-    const accepts = (s) => {
-      ctx.fillStyle = "#000000";
-      ctx.fillStyle = s;
-      const onBlack = ctx.fillStyle;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillStyle = s;
-      return onBlack === ctx.fillStyle;
-    };
-    const parse = (s) => {
-      if (!s || !accepts(s)) return null;
-      const w = paint(s, "#fff");
-      const b = paint(s, "#000");
-      const a = 1 - (w[0] - b[0]) / 255;
-      if (a <= 0.001) return { r: 0, g: 0, b: 0, a: 0 };
-      return { r: b[0] / a, g: b[1] / a, b: b[2] / a, a };
-    };
-    // **文字を持っている要素を全部見る。** 以前は `span, p, h3` に絞った上に
-    // 「子要素があれば飛ばす」としていたので、注音のように span を入れ子に
-    // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
-    // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
-    const out = [];
-    const centered = [];
-    const spaced = [];
-    const counterOnDash = [];
-    // ## ブランドの塗りの上だけは 3:1 で見る
-    //
-    // 白い文字を 4.5:1 に乗せるために**塗りの青を暗くした**ことがあり、
-    // 数字は通ったがブランドの青がどす黒くなった(オーナー指摘で差し戻し)。
-    // 順序が逆だった — 色は色のまま置き、文字のほうを選ぶ。
-    // ただし鮮やかな青(iOS の systemBlue 相当)に白を置くと物理的に
-    // 3.6:1 が上限で、4.5:1 は**色を捨てないと届かない**。
-    // Apple も systemBlue + 白をそのまま出荷している。ここはオーナーが
-    // 「色を優先する」と決めたので、**塗りの上に限って** 1.4.11 と同じ
-    // 3:1 を下限にする。地の上の文字は 4.5:1 のまま — 逃げ道を広げない。
-    const brandFills = ["--primary", "--destructive", "--ok", "--warn", "--bad"]
-      .map((n) => parse(getComputedStyle(document.documentElement).getPropertyValue(n).trim()))
-      .filter(Boolean)
-      .map((c) => [c.r, c.g, c.b]);
-    const offScale = [];
-    // 階調は CSS の変数から読む。**検査の側に数字を書き写さない** —
-    // 書き写した瞬間に、片方だけ直されて静かにずれる。
-    const rootCs = getComputedStyle(document.documentElement);
-    const SCALE = new Set(
-      ["caption", "footnote", "body", "headline", "title", "hero"]
-        .map((n) => parseFloat(rootCs.getPropertyValue(`--text-${n}`)) * 16)
-        .filter((v) => v > 0)
-        .map((v) => Math.round(v * 100) / 100),
-    );
-    for (const el of document.querySelectorAll("body *")) {
-      const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
-      if (!texts.length) continue;
-      const cs = getComputedStyle(el);
-      if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
-        continue;
-      }
-      // 閉じた `<details>` の中身も外す。`content-visibility: hidden` は
-      // `display`/`visibility` には現れないのに、子孫は矩形を返し続ける
-      // (押せる大きさの段で同じ穴に落ちた)。
-      if (
-        el.checkVisibility &&
-        !el.checkVisibility({
-          contentVisibilityAuto: true,
-          opacityProperty: true,
-          visibilityProperty: true,
-        })
-      ) {
-        continue;
-      }
-      // **絵文字は `color` で塗られない。** 自前の色を持った図形なので、
-      // 継いだ文字色と下地を比べても何も言っていない(実際、丸い印の中の
-      // 絵文字が13件「未達」として出た。目には普通に見えている)。
-      // 文字が絵文字と記号だけなら、この検査の対象から外す。
-      // ただし**絵文字を含む文**は外さない — 混ざっている場合、文字のほうは
-      // ちゃんと `color` で塗られるので測れる。
-      const own = texts
-        .map((n) => n.textContent)
-        .join("")
-        .trim();
-      if (!/[\p{L}\p{N}]/u.test(own)) continue;
-      // **SVG の文字は `color` では塗られない。** グラフの目盛りや注記は
-      // `<text fill="…">` で描かれるので、`color` を読むと親から継いだ
-      // 別の色を測ることになる(実際、忘却曲線の目盛りは無関係な色で
-      // 採点されていた)。SVG の中では `fill` を見る。
-      const isSvg = el.namespaceURI === "http://www.w3.org/2000/svg";
-      const fg = parse(isSvg ? cs.fill : cs.color);
-      if (!fg) continue;
-      // 標本の範囲は**その要素が自分で持っている文字の箱**。
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const paint = (s, base) => {
+        ctx.globalCompositeOperation = "copy";
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = s;
+        ctx.fillRect(0, 0, 1, 1);
+        return ctx.getImageData(0, 0, 1, 1).data;
+      };
+      // 色はブラウザに解かせる。このアプリの色は全部 oklch で、Chrome は
+      // 計算値も `oklch(…)` のまま返すので、文字列を自分で読むと何も取れない。
       //
-      // 最初 `selectNodeContents(el)` で要素まるごとを範囲にしたが、これは
-      // 子のアイコンや画像の箱まで拾う。実際、記憶バッジ「定着中」では
-      // 先頭に来る 6×6 の印を文字だと思って測り、**そこは印そのものの色**
-      // なので比が 1.00 になっていた(存在しない不具合を6面ぶん報告した)。
-      // 自分の直下の文字ノードだけを範囲にして、**いちばん大きい行**を使う。
-      let line = null;
-      // **行数は「箱の数」ではなく「段の数」。**
-      // 文字ノードが2つあると1行でも矩形は2つ返るので、数えると
-      // 1行の見出しが「3行」になった(実際そう出た)。上端が同じものは
-      // 同じ行なので、上端の種類を数える。
-      const lineTops = new Set();
-      for (const node of texts) {
-        const rng = document.createRange();
-        rng.selectNodeContents(node);
-        for (const r of rng.getClientRects()) {
-          if (r.width < 2 || r.height < 2) continue;
-          lineTops.add(Math.round(r.top));
-          if (!line || r.width * r.height > line.width * line.height) line = r;
+      // ただし `fillStyle` は**読めない文字列を黙って無視する**(前の値が
+      // 残る)。`none` や空文字を渡すと、直前に測った色を「その要素の色」と
+      // して返してしまうので、先に受け付けられたかどうかを確かめる。
+      const accepts = (s) => {
+        ctx.fillStyle = "#000000";
+        ctx.fillStyle = s;
+        const onBlack = ctx.fillStyle;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = s;
+        return onBlack === ctx.fillStyle;
+      };
+      const parse = (s) => {
+        if (!s || !accepts(s)) return null;
+        const w = paint(s, "#fff");
+        const b = paint(s, "#000");
+        const a = 1 - (w[0] - b[0]) / 255;
+        if (a <= 0.001) return { r: 0, g: 0, b: 0, a: 0 };
+        return { r: b[0] / a, g: b[1] / a, b: b[2] / a, a };
+      };
+      // **文字を持っている要素を全部見る。** 以前は `span, p, h3` に絞った上に
+      // 「子要素があれば飛ばす」としていたので、注音のように span を入れ子に
+      // して組んだ文字は一度も見ていなかった(飛ばした側にこそ、小さくて
+      // 薄い文字が集まっている)。自分の直下に文字を持つ要素を対象にする。
+      const out = [];
+      const centered = [];
+      const spaced = [];
+      const counterOnDash = [];
+      // ## ブランドの塗りの上だけは 3:1 で見る
+      //
+      // 白い文字を 4.5:1 に乗せるために**塗りの青を暗くした**ことがあり、
+      // 数字は通ったがブランドの青がどす黒くなった(オーナー指摘で差し戻し)。
+      // 順序が逆だった — 色は色のまま置き、文字のほうを選ぶ。
+      // ただし鮮やかな青(iOS の systemBlue 相当)に白を置くと物理的に
+      // 3.6:1 が上限で、4.5:1 は**色を捨てないと届かない**。
+      // Apple も systemBlue + 白をそのまま出荷している。ここはオーナーが
+      // 「色を優先する」と決めたので、**塗りの上に限って** 1.4.11 と同じ
+      // 3:1 を下限にする。地の上の文字は 4.5:1 のまま — 逃げ道を広げない。
+      const brandFills = ["--primary", "--destructive", "--ok", "--warn", "--bad"]
+        .map((n) => parse(getComputedStyle(document.documentElement).getPropertyValue(n).trim()))
+        .filter(Boolean)
+        .map((c) => [c.r, c.g, c.b]);
+      const offScale = [];
+      // 階調は CSS の変数から読む。**検査の側に数字を書き写さない** —
+      // 書き写した瞬間に、片方だけ直されて静かにずれる。
+      const rootCs = getComputedStyle(document.documentElement);
+      const SCALE = new Set(
+        ["caption", "footnote", "body", "headline", "title", "hero"]
+          .map((n) => parseFloat(rootCs.getPropertyValue(`--text-${n}`)) * 16)
+          .filter((v) => v > 0)
+          .map((v) => Math.round(v * 100) / 100),
+      );
+      for (const el of document.querySelectorAll("body *")) {
+        const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!texts.length) continue;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.1) {
+          continue;
         }
-      }
-      if (!line) continue;
-      const lineCount = lineTops.size;
-      const px = parseFloat(cs.fontSize);
-      // **階調の外の大きさを使わない。**
-      //
-      // 実測したら描かれている大きさが12種類あり、17と16、14と13、12と11の
-      // ように**1px しか違わない段**が並んでいた。1px 差は目には区別できない
-      // ので段として働かず、書くときの選択肢だけが増える。
-      // `styles.css` の `--text-*` に6段へ畳んだので、そこに無い大きさは落とす。
-      // 表を増やすなら、増やす理由を先に書くこと。
-      if (!SCALE.has(Math.round(px * 100) / 100)) {
-        offScale.push(`階調に無い大きさ ${px}px — "${own.slice(0, 16)}"`);
-      }
-      // **中央揃えの本文が何行も続かないこと。**
-      //
-      // 中央揃えは行頭が毎行ずれるので、目が次の行の頭を探し直す。
-      // 1行なら気にならない。**折り返した瞬間**からその手間が始まる。
-      //
-      // 線を「3行以上」に置いたら、わざと全部の節を中央揃えにしても
-      // 1件も出なかった — この画面の本文はどれも2行までなので、
-      // **落ちようのない門**だった。折り返した本文(17px 未満)を線にする。
-      // 見出し・キャッチ(17px 以上)は2行までなら普通の作法なので外す。
-      //
-      // 抜け道は `text-wrap: balance` を当てたときだけにする。空の画面の
-      // 案内文のように「中央に2行で置くと決めた」ものは実際にあるが、
-      // それは**決めた印**を残してほしい。`text-balance` は行の長さを
-      // 揃える指定なので、印であると同時に実際に読みやすくなる。
-      // 一括で除外せず、1箇所ずつ意思表示させる。
-      //
-      // 短い語は**モノに付いた名札**で、中央に置くのが正しい(棚に立って
-      // いる「腳踏車」が2行になるのは、中央揃えのせいではなく幅のせい)。
-      // 見ているのは**文章**なので、12文字以上に限る。
-      const cs2 = getComputedStyle(el);
-      if (
-        cs2.textAlign === "center" &&
-        lineCount >= 2 &&
-        px < 17 &&
-        own.length >= 12 &&
-        cs2.textWrap !== "balance" &&
-        cs2.textWrapStyle !== "balance"
-      ) {
-        centered.push(`中央揃えのまま ${lineCount} 行に折り返している — "${own.slice(0, 16)}"`);
-      }
-      // **和文に字間を広げていないこと。**
-      //
-      // 字間を広げて小さく組むのは**ラテン文字の作法**(小見出しの
-      // スモールキャップス)。和文の字はもともと正方形の枠に収まって
-      // いるので、そこへ字間を足すと「直 し た 文」と一字ずつ離れて、
-      // 語のかたまりが見えなくなる。
-      //
-      // この app では一度ホームの曜日で直している(「土 曜 日」と割れて
-      // 見えた → 字間を広げるのは英語のときだけ)。だが**同じ形が他の
-      // 画面に残っていた** — 日記の見出しが `tracking-[0.25em]` のまま。
-      // 手で洗うと必ず取りこぼすので、規則そのものを門にする。
-      //
-      // 詰める側(負の値)は見出しの普通の作法なので見ない。
-      // 0.06em は「見て分かるほど開いている」の下限として実測で決めた。
-      if (/[ぁ-んァ-ヶ一-龥]/u.test(own)) {
-        const ls = parseFloat(cs.letterSpacing);
-        if (Number.isFinite(ls) && ls > px * 0.06) {
-          spaced.push(
-            `和文の字間が広い ${(ls / px).toFixed(2)}em — "${own.slice(0, 14)}" ${px}px`,
-          );
+        // 閉じた `<details>` の中身も外す。`content-visibility: hidden` は
+        // `display`/`visibility` には現れないのに、子孫は矩形を返し続ける
+        // (押せる大きさの段で同じ穴に落ちた)。
+        if (
+          el.checkVisibility &&
+          !el.checkVisibility({
+            contentVisibilityAuto: true,
+            opacityProperty: true,
+            visibilityProperty: true,
+          })
+        ) {
+          continue;
         }
+        // **絵文字は `color` で塗られない。** 自前の色を持った図形なので、
+        // 継いだ文字色と下地を比べても何も言っていない(実際、丸い印の中の
+        // 絵文字が13件「未達」として出た。目には普通に見えている)。
+        // 文字が絵文字と記号だけなら、この検査の対象から外す。
+        // ただし**絵文字を含む文**は外さない — 混ざっている場合、文字のほうは
+        // ちゃんと `color` で塗られるので測れる。
+        const own = texts
+          .map((n) => n.textContent)
+          .join("")
+          .trim();
+        if (!/[\p{L}\p{N}]/u.test(own)) continue;
+        // **SVG の文字は `color` では塗られない。** グラフの目盛りや注記は
+        // `<text fill="…">` で描かれるので、`color` を読むと親から継いだ
+        // 別の色を測ることになる(実際、忘却曲線の目盛りは無関係な色で
+        // 採点されていた)。SVG の中では `fill` を見る。
+        const isSvg = el.namespaceURI === "http://www.w3.org/2000/svg";
+        const fg = parse(isSvg ? cs.fill : cs.color);
+        if (!fg) continue;
+        // 標本の範囲は**その要素が自分で持っている文字の箱**。
+        //
+        // 最初 `selectNodeContents(el)` で要素まるごとを範囲にしたが、これは
+        // 子のアイコンや画像の箱まで拾う。実際、記憶バッジ「定着中」では
+        // 先頭に来る 6×6 の印を文字だと思って測り、**そこは印そのものの色**
+        // なので比が 1.00 になっていた(存在しない不具合を6面ぶん報告した)。
+        // 自分の直下の文字ノードだけを範囲にして、**いちばん大きい行**を使う。
+        let line = null;
+        // **行数は「箱の数」ではなく「段の数」。**
+        // 文字ノードが2つあると1行でも矩形は2つ返るので、数えると
+        // 1行の見出しが「3行」になった(実際そう出た)。上端が同じものは
+        // 同じ行なので、上端の種類を数える。
+        const lineTops = new Set();
+        for (const node of texts) {
+          const rng = document.createRange();
+          rng.selectNodeContents(node);
+          for (const r of rng.getClientRects()) {
+            if (r.width < 2 || r.height < 2) continue;
+            lineTops.add(Math.round(r.top));
+            if (!line || r.width * r.height > line.width * line.height) line = r;
+          }
+        }
+        if (!line) continue;
+        const lineCount = lineTops.size;
+        const px = parseFloat(cs.fontSize);
+        // **階調の外の大きさを使わない。**
+        //
+        // 実測したら描かれている大きさが12種類あり、17と16、14と13、12と11の
+        // ように**1px しか違わない段**が並んでいた。1px 差は目には区別できない
+        // ので段として働かず、書くときの選択肢だけが増える。
+        // `styles.css` の `--text-*` に6段へ畳んだので、そこに無い大きさは落とす。
+        // 表を増やすなら、増やす理由を先に書くこと。
+        if (!SCALE.has(Math.round(px * 100) / 100)) {
+          offScale.push(`階調に無い大きさ ${px}px — "${own.slice(0, 16)}"`);
+        }
+        // **中央揃えの本文が何行も続かないこと。**
+        //
+        // 中央揃えは行頭が毎行ずれるので、目が次の行の頭を探し直す。
+        // 1行なら気にならない。**折り返した瞬間**からその手間が始まる。
+        //
+        // 線を「3行以上」に置いたら、わざと全部の節を中央揃えにしても
+        // 1件も出なかった — この画面の本文はどれも2行までなので、
+        // **落ちようのない門**だった。折り返した本文(17px 未満)を線にする。
+        // 見出し・キャッチ(17px 以上)は2行までなら普通の作法なので外す。
+        //
+        // 抜け道は `text-wrap: balance` を当てたときだけにする。空の画面の
+        // 案内文のように「中央に2行で置くと決めた」ものは実際にあるが、
+        // それは**決めた印**を残してほしい。`text-balance` は行の長さを
+        // 揃える指定なので、印であると同時に実際に読みやすくなる。
+        // 一括で除外せず、1箇所ずつ意思表示させる。
+        //
+        // 短い語は**モノに付いた名札**で、中央に置くのが正しい(棚に立って
+        // いる「腳踏車」が2行になるのは、中央揃えのせいではなく幅のせい)。
+        // 見ているのは**文章**なので、12文字以上に限る。
+        const cs2 = getComputedStyle(el);
+        if (
+          cs2.textAlign === "center" &&
+          lineCount >= 2 &&
+          px < 17 &&
+          own.length >= 12 &&
+          cs2.textWrap !== "balance" &&
+          cs2.textWrapStyle !== "balance"
+        ) {
+          centered.push(`中央揃えのまま ${lineCount} 行に折り返している — "${own.slice(0, 16)}"`);
+        }
+        // **和文に字間を広げていないこと。**
+        //
+        // 字間を広げて小さく組むのは**ラテン文字の作法**(小見出しの
+        // スモールキャップス)。和文の字はもともと正方形の枠に収まって
+        // いるので、そこへ字間を足すと「直 し た 文」と一字ずつ離れて、
+        // 語のかたまりが見えなくなる。
+        //
+        // この app では一度ホームの曜日で直している(「土 曜 日」と割れて
+        // 見えた → 字間を広げるのは英語のときだけ)。だが**同じ形が他の
+        // 画面に残っていた** — 日記の見出しが `tracking-[0.25em]` のまま。
+        // 手で洗うと必ず取りこぼすので、規則そのものを門にする。
+        //
+        // 詰める側(負の値)は見出しの普通の作法なので見ない。
+        // 0.06em は「見て分かるほど開いている」の下限として実測で決めた。
+        if (/[ぁ-んァ-ヶ一-龥]/u.test(own)) {
+          const ls = parseFloat(cs.letterSpacing);
+          if (Number.isFinite(ls) && ls > px * 0.06) {
+            spaced.push(
+              `和文の字間が広い ${(ls / px).toFixed(2)}em — "${own.slice(0, 14)}" ${px}px`,
+            );
+          }
+        }
+        // **数字の代わりの記号に助数詞を付けていないこと。**
+        //
+        // 読み込み中の欄を `—` で埋め、それを `{n}日` のような雛形に
+        // 差し込むと `—日` になる。和文ではダッシュ・長音符と漢数字の一が
+        // 見分けられないので、**「一日」と読める**。待っていることを表す
+        // 記号が、意味のある値として読まれてしまう(2026-08-19、自分の記録の
+        // 欄で実際に出した)。
+        //
+        // これは**組み上がった後**にしか現れないので、i18n の文言を見る
+        // 検査では捕まらない。描かれた字を見るここでしか捕まえられない。
+        const fake = own.match(/[—–\-ー−]\s*[枚回件語日個人分秒歳冊本匹]/u);
+        if (fake) {
+          counterOnDash.push(`数字の代わりの記号に助数詞が付いている — "${own.slice(0, 16)}"`);
+        }
+        // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
+        // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
+        // 祖先の `opacity` も効くので、根まで掛け合わせる。
+        let alpha = fg.a * (isSvg ? parseFloat(cs.fillOpacity) || 1 : 1);
+        for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+          alpha *= parseFloat(getComputedStyle(n).opacity);
+        }
+        out.push({
+          x: line.x + window.scrollX,
+          y: line.y + window.scrollY,
+          w: line.width,
+          h: line.height,
+          r: fg.r,
+          g: fg.g,
+          b: fg.b,
+          a: Math.max(0, Math.min(1, alpha)),
+          px,
+          big: px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700),
+          label: own.slice(0, 12),
+        });
       }
-      // **数字の代わりの記号に助数詞を付けていないこと。**
-      //
-      // 読み込み中の欄を `—` で埋め、それを `{n}日` のような雛形に
-      // 差し込むと `—日` になる。和文ではダッシュ・長音符と漢数字の一が
-      // 見分けられないので、**「一日」と読める**。待っていることを表す
-      // 記号が、意味のある値として読まれてしまう(2026-08-19、自分の記録の
-      // 欄で実際に出した)。
-      //
-      // これは**組み上がった後**にしか現れないので、i18n の文言を見る
-      // 検査では捕まらない。描かれた字を見るここでしか捕まえられない。
-      const fake = own.match(/[—–\-ー−]\s*[枚回件語日個人分秒歳冊本匹]/u);
-      if (fake) {
-        counterOnDash.push(`数字の代わりの記号に助数詞が付いている — "${own.slice(0, 16)}"`);
-      }
-      // **`opacity` を掛ける。** 掛けていなかったので、`opacity-60` を
-      // 当てた 9px の品詞ラベルが 8:1 として通っていた(実際は 3.1:1)。
-      // 祖先の `opacity` も効くので、根まで掛け合わせる。
-      let alpha = fg.a * (isSvg ? parseFloat(cs.fillOpacity) || 1 : 1);
-      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
-        alpha *= parseFloat(getComputedStyle(n).opacity);
-      }
-      out.push({
-        x: line.x + window.scrollX,
-        y: line.y + window.scrollY,
-        w: line.width,
-        h: line.height,
-        r: fg.r,
-        g: fg.g,
-        b: fg.b,
-        a: Math.max(0, Math.min(1, alpha)),
-        px,
-        big: px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700),
-        label: own.slice(0, 12),
-      });
-    }
-    return {
-      spots: out,
-      centered,
-      spaced,
-      counterOnDash,
-      brandFills,
-      offScale: [...new Set(offScale)],
-      scale: [...SCALE],
-    };
-  });
+      return {
+        spots: out,
+        centered,
+        spaced,
+        counterOnDash,
+        brandFills,
+        offScale: [...new Set(offScale)],
+        scale: [...SCALE],
+      };
+    });
   centered.forEach((f) => issues.push(`[${name}] ${f}`));
   spaced.forEach((f) => issues.push(`[${name}] ${f}`));
   counterOnDash.forEach((f) => issues.push(`[${name}] ${f}`));
@@ -1052,9 +1074,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
                 // 文字色・下地・座標を添えれば、その場で突き合わせられる。
                 const hex = (c) =>
                   "#" +
-                  [c.r, c.g, c.b]
-                    .map((v) => Math.round(v).toString(16).padStart(2, "0"))
-                    .join("");
+                  [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
                 out.push(
                   `コントラスト ${ratio.toFixed(2)} < ${need} — "${s.label}" ${s.px}px` +
                     ` [字 ${hex(s)} / 地 ${hex(bg)} @${Math.round(s.x)},${Math.round(s.y)}]` +
@@ -1287,52 +1307,55 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   //   ・低すぎる → 止まった見出しが半透明のバーの裏に潜り、上端がぼやける
   //     (実際に起きた。3.25rem 決め打ちで、バーは 3.5rem だった)
   // どちらも画像を見ても「なんとなく変」で終わる。数字で見る。
-  const stick = await page.evaluate(async (bare) => {
-    const out = [];
-    const bar = document.querySelector("header");
-    // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
-    // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
-    if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
-    // バーが本当に貼り付いているか。ここが relative だと、下の
-    // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
-    if (getComputedStyle(bar).position !== "sticky") {
-      out.push(`上のバーが sticky ではない(${getComputedStyle(bar).position})`);
-    }
-    const barH = bar.getBoundingClientRect().height;
-    const measure = () => {
-      for (const head of document.querySelectorAll(".room-head")) {
-        const stickyTop = parseFloat(getComputedStyle(head).top);
-        if (Math.abs(stickyTop - barH) > 0.5) {
-          out.push(`部屋見出しの止まる位置 ${stickyTop}px がバーの高さ ${barH}px と違う`);
-        }
-        const h = head.getBoundingClientRect();
-        const sec = head.parentElement.getBoundingClientRect();
-        // sticky の3つの局面をまとめて1つの式で言う:
-        //   ① まだ流れの中 → 部屋の上端にいる
-        //   ② 止まっている → バーの下端にいる
-        //   ③ 部屋が出ていく → 部屋の下端に押し上げられる
-        // どれでもない位置にいるなら、中身に重なっているか裏に潜っている。
-        // ③ は**マージン箱**で押し上がるので、下マージンぶん引く。
-        const mb = parseFloat(getComputedStyle(head).marginBottom) || 0;
-        const want = Math.min(Math.max(sec.top, stickyTop), sec.bottom - h.height - mb);
-        if (Math.abs(h.top - want) > 1) {
-          out.push(
-            `部屋見出し「${head.textContent}」の位置がおかしい ` +
-              `(${h.top.toFixed(1)} ≠ ${want.toFixed(1)}: ` +
-              `部屋 ${sec.top.toFixed(1)}〜${sec.bottom.toFixed(1)} / 止まる位置 ${stickyTop})`,
-          );
-        }
+  const stick = await page.evaluate(
+    async (bare) => {
+      const out = [];
+      const bar = document.querySelector("header");
+      // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
+      // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
+      if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
+      // バーが本当に貼り付いているか。ここが relative だと、下の
+      // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
+      if (getComputedStyle(bar).position !== "sticky") {
+        out.push(`上のバーが sticky ではない(${getComputedStyle(bar).position})`);
       }
-    };
-    measure();
-    // 止まった状態も見る。スクロール前だけだと「潜る」側を一度も踏まない。
-    window.scrollTo(0, 400);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    measure();
-    window.scrollTo(0, 0);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return [...new Set(out)];
-  }, BARE_SCENES.has(scene.scene ?? ""));
+      const barH = bar.getBoundingClientRect().height;
+      const measure = () => {
+        for (const head of document.querySelectorAll(".room-head")) {
+          const stickyTop = parseFloat(getComputedStyle(head).top);
+          if (Math.abs(stickyTop - barH) > 0.5) {
+            out.push(`部屋見出しの止まる位置 ${stickyTop}px がバーの高さ ${barH}px と違う`);
+          }
+          const h = head.getBoundingClientRect();
+          const sec = head.parentElement.getBoundingClientRect();
+          // sticky の3つの局面をまとめて1つの式で言う:
+          //   ① まだ流れの中 → 部屋の上端にいる
+          //   ② 止まっている → バーの下端にいる
+          //   ③ 部屋が出ていく → 部屋の下端に押し上げられる
+          // どれでもない位置にいるなら、中身に重なっているか裏に潜っている。
+          // ③ は**マージン箱**で押し上がるので、下マージンぶん引く。
+          const mb = parseFloat(getComputedStyle(head).marginBottom) || 0;
+          const want = Math.min(Math.max(sec.top, stickyTop), sec.bottom - h.height - mb);
+          if (Math.abs(h.top - want) > 1) {
+            out.push(
+              `部屋見出し「${head.textContent}」の位置がおかしい ` +
+                `(${h.top.toFixed(1)} ≠ ${want.toFixed(1)}: ` +
+                `部屋 ${sec.top.toFixed(1)}〜${sec.bottom.toFixed(1)} / 止まる位置 ${stickyTop})`,
+            );
+          }
+        }
+      };
+      measure();
+      // 止まった状態も見る。スクロール前だけだと「潜る」側を一度も踏まない。
+      window.scrollTo(0, 400);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      measure();
+      window.scrollTo(0, 0);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return [...new Set(out)];
+    },
+    BARE_SCENES.has(scene.scene ?? ""),
+  );
   stick.forEach((f) => issues.push(`[${name}] ${f}`));
 
   // ## 鍵盤で辿ったとき、いまどこに居るかが見えること(WCAG 2.4.7)
@@ -1473,7 +1496,10 @@ for (const scene of MOTION_SCENES) {
   await page.waitForTimeout(400);
   const { running, marked } = await page.evaluate(() => ({
     // `animationName` を持つ物だけが CSS アニメーション(transition は持たない)。
-    running: document.getAnimations().map((a) => a.animationName).filter(Boolean),
+    running: document
+      .getAnimations()
+      .map((a) => a.animationName)
+      .filter(Boolean),
     marked: document.querySelectorAll('[class*="animate-"]').length,
   }));
   if (!marked) {

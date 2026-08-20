@@ -698,6 +698,7 @@ const DAILY_CAPS: Record<string, number> = {
   speaking_feedback: 200,
   tts: 500,
   correction: 100,
+  journal_prompt: 60,
   card: 200,
   phrase_card: 100,
   suggest: 300,

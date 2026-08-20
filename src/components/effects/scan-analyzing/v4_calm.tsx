@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
@@ -16,6 +17,7 @@ import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v4calm({ stage }: { stage: Stage }) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function ScanAnalyzing_v4calm({ stage }: { stage: Stage }) {
           className="text-body font-medium tracking-[-0.01em] text-white/95"
           style={{ textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}
         >
-          AIが分析中…
+          {t("scan.analyzing")}
         </p>
         {/* Three calm progress ticks — the only thing that moves is a width. */}
         <div className="flex gap-1.5" aria-hidden>

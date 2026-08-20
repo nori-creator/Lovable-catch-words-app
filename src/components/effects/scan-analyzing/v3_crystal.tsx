@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
@@ -23,6 +24,7 @@ import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 type Stage = "sensing" | "reading" | "matching";
 
 export function ScanAnalyzing_v3crystal({ stage }: { stage: Stage }) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<Stage>(stage);
   const rafRef = useRef<number | null>(null);
@@ -351,10 +353,10 @@ export function ScanAnalyzing_v3crystal({ stage }: { stage: Stage }) {
 
   const label =
     stage === "sensing"
-      ? "銀の露をひろげています"
+      ? t("scan.crystalSensing")
       : stage === "reading"
-        ? "世界を読んでいます"
-        : "言葉が結晶化します";
+        ? t("scan.crystalReading")
+        : t("scan.crystalMatching");
 
   return (
     <div className="absolute inset-0 overflow-hidden">

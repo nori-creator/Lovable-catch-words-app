@@ -767,7 +767,13 @@ function MarkedSentence({
         s.hit ? (
           <span
             key={i}
-            className="inline-block whitespace-nowrap rounded bg-primary/10 px-1 font-semibold text-primary-ink"
+            // **地の上に重ねない色で塗る。**
+            // `bg-primary/10` は透ける塗りなので、節の地が青みを帯びている
+            // 所では青が二重になり、同じ指定でも他より濃く出る
+            // (検査: ここだけ 4.36 で下限割れ、他は 4.39〜4.49 で通った)。
+            // 下に何が在っても同じ濃さになるよう、カードの地と混ぜた
+            // **不透明な色**にする。
+            className="inline-block whitespace-nowrap rounded px-1 font-semibold text-primary-ink [background:color-mix(in_oklab,var(--primary)_10%,var(--card))]"
           >
             {s.text}
           </span>

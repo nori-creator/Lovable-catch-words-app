@@ -200,3 +200,138 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     await logUsage(supabase, userId, "correction");
     return inserted as JournalEntry;
   });
+
+// ============================================================================
+// 書く「前」の足場(要望 #88)
+// ============================================================================
+
+/**
+ * 日記は**白紙がいちばん厳しい**。
+ *
+ * 要望(2026-07-14):
+ * 「日記に誘導・質問が必要。レベルに合う型・チャンク・文法 +
+ *  今日撮った物・コメント・場所からの自然な質問」
+ *
+ * これまでこの画面には `placeholder` の一文しか無かった。
+ * 「今日のことを台湾華語で書いてみよう」とだけ言われて空欄を渡されるのは、
+ * 復習のスピーキングで一度直したのと同じ形 — あちらは足場
+ * (`getSpeakingScaffold`)を作って解いたので、こちらも同じ形で解く。
+ *
+ * ## 材料はその人の今日だけ
+ * 質問は**その人が今日撮った物・書いた一言・居た場所**から作る。
+ * 汎用の「今日は何をしましたか」を出さない — それは白紙と同じで、
+ * しかも「あなたのことを聞いている」という嘘が付く。
+ *
+ * ## 撮っていない日は出さない
+ * 材料が無ければ `null` を返す。**一般的な質問で埋めない。**
+ * 出せない日に何かを出すより、出せない理由が分かるほうがいい。
+ */
+export type JournalPrompt = {
+  /** どの1枚から作った質問か。画面で「何のことか」を示すのに使う。 */
+  sticker_id: string | null;
+  question_zh: string;
+  question_ja: string;
+};
+
+export type JournalPattern = { zh: string; ja: string };
+
+export type JournalScaffold = {
+  prompts: JournalPrompt[];
+  /** その人のレベルで使える型。押すと下書きに足せる。 */
+  patterns: JournalPattern[];
+  /** 質問のもとになった撮影。何のことか分からない質問にしない。 */
+  captures: Array<{
+    id: string;
+    headword: string;
+    caption: string | null;
+    location_name: string | null;
+  }>;
+};
+
+export const getJournalPrompts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<JournalScaffold | null> => {
+    const { supabase, userId } = context;
+    const { stickers } = await getTodaysCaptures(supabase, userId);
+    // **今日の材料が無ければ何も出さない。** 上限も使わない(AIを呼ばない)。
+    if (stickers.length === 0) return null;
+
+    await assertWithinDailyCap(userId, "journal_prompt");
+    const ai = await getAiFor("journal");
+    const levelRule = await levelInstruction(userId);
+    const langRule = await explanationLanguageRule(userId);
+    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    const l1 = await l1Rule(userId, "grammar");
+
+    // 参照を **番号で** 返させる。見出し語で返させると、同じ語を2回撮った日に
+    // どちらの1枚か決まらない。番号なら1対1で戻せる。
+    const list = stickers
+      .map((s, i) => {
+        const head = s.word?.headword ?? "?";
+        const meaning = s.word?.meaning_ja ?? "";
+        const where = s.location_name ? ` @${s.location_name}` : "";
+        const note = s.caption ? ` 一言「${s.caption}」` : "";
+        return `${i + 1}. ${head}(${meaning})${where}${note}`;
+      })
+      .join("\n");
+
+    const Schema = z.object({
+      prompts: z
+        .array(
+          z.object({
+            /** 1始まりの番号。範囲外・欠落は下で null に落とす。 */
+            capture: z.number().int().nullable(),
+            question_zh: z.string().min(1),
+            question_ja: z.string().min(1),
+          }),
+        )
+        .min(1)
+        .max(3),
+      patterns: z
+        .array(z.object({ zh: z.string().min(1), ja: z.string() }))
+        .min(1)
+        .max(3),
+    });
+
+    const out = await generateStructured({
+      model: ai.gateway(ai.modelRich),
+      schema: Schema,
+      prompt:
+        `あなたは台湾華語(繁體字)の先生。学習者がこれから今日の日記を書きます。\n` +
+        `白紙から書くのは難しいので、**書き出しのきっかけになる質問**を作ってください。\n` +
+        `${langRule}\n${levelRule}\n${l1}\n\n` +
+        `今日この人が撮ったもの:\n${list}\n\n` +
+        `次を出力:\n` +
+        `- prompts: 質問を3つ。**必ず上の撮影のどれかに結びつける**(capture にその番号)。\n` +
+        `  一般論の質問(「今日は何をしましたか」)は禁止。その人の**気持ち・思い出・` +
+        `そのとき考えたこと**を引き出す質問にする。一言が書いてあるものは、その気持ちを深める。\n` +
+        `  question_zh は学習者のレベルで読める短い繁體字の質問。question_ja はその訳(${NL})。\n` +
+        `- patterns: その質問に答えるときに使える文型を2〜3個。zh は「我今天在…」のような` +
+        `**書き出しの形**(穴埋めできる形)、ja はどんなときに使うかの一言(${NL})。`,
+    });
+
+    await logUsage(supabase, userId, "journal_prompt");
+
+    // **番号は信じきらない。** 範囲外なら結び付けを諦めて null にする —
+    // 間違った1枚を指すより、指さないほうが害が小さい。
+    const prompts: JournalPrompt[] = out.prompts.map((p) => {
+      const i = typeof p.capture === "number" ? p.capture - 1 : -1;
+      const hit = i >= 0 && i < stickers.length ? stickers[i] : null;
+      return {
+        sticker_id: hit?.id ?? null,
+        question_zh: p.question_zh,
+        question_ja: p.question_ja,
+      };
+    });
+
+    return {
+      prompts,
+      patterns: out.patterns,
+      captures: stickers.map((s) => ({
+        id: s.id,
+        headword: s.word?.headword ?? "",
+        caption: s.caption,
+        location_name: s.location_name,
+      })),
+    };
+  });

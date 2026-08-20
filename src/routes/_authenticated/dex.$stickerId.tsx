@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -165,6 +167,7 @@ export function StickerDetailBody({
   encounter?: EncounterEstimate | null;
 }) {
   const t = useT();
+  const photoPref = usePhotoPref();
   const mem = memory;
   const photoData = photos ? { photos } : undefined;
   return (
@@ -175,7 +178,9 @@ export function StickerDetailBody({
       <div className="mb-4">
         <WordTreeView
           headword={s.word.headword}
-          photoUrl={s.cutout_url ?? s.object_url ?? s.placeholder_url}
+          photoUrl={stickerPhotoUrl(s, {
+            prefer: s.hero_role ?? resolvePrefer(photoPref, "cutout"),
+          })}
           emoji={s.word.silhouette_emoji}
           branchPlanRaw={s.branch_plan}
           extras={s.word.extras}

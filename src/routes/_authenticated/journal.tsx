@@ -3,7 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
-import { listJournal, correctMyJournal, type NativePhrase } from "@/lib/journal.functions";
+import {
+  listJournal,
+  correctMyJournal,
+  getJournalPrompts,
+  type NativePhrase,
+} from "@/lib/journal.functions";
+import { JournalScaffold } from "@/components/JournalScaffold";
 import { BookText, Quote, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
@@ -30,6 +36,7 @@ function JournalPage() {
   const qc = useQueryClient();
   const fetchJournal = useServerFn(listJournal);
   const correct = useServerFn(correctMyJournal);
+  const promptsFn = useServerFn(getJournalPrompts);
 
   const {
     data: entries,
@@ -45,6 +52,20 @@ function JournalPage() {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
   const todayEntry = entries?.find((e) => e.entry_date === today);
   const past = (entries ?? []).filter((e) => e.entry_date !== today);
+
+  /**
+   * 書く**前**の足場(要望 #88)。今日撮った物から質問を作る。
+   *
+   * **添削が済んだ日は出さない。** もう書いた人に「書き出しの質問」を
+   * 出しても、済んだことを勧めているだけになる。
+   * 失敗しても黙って消える — 足場が無いこと自体は日記を止めない。
+   */
+  const { data: scaffold } = useQuery({
+    queryKey: ["journal-prompts", today],
+    queryFn: () => promptsFn(),
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
 
   const [draft, setDraft] = useState("");
   const [savedLocally, setSavedLocally] = useState(false);
@@ -157,6 +178,18 @@ function JournalPage() {
               {t("journal.leftoverRestore")}
             </button>
           </div>
+        )}
+
+        {/* 白紙を渡さない。**まだ添削していない日だけ**出す。 */}
+        {scaffold && !todayEntry?.correction && (
+          <JournalScaffold
+            data={scaffold}
+            onUsePattern={(zh) =>
+              // 末尾に足す。**書いた物を消さない** — 押し間違いで
+              // 途中まで書いた文が消えるのがいちばん困る。
+              setDraft((d) => (d.trim() ? `${d.replace(/\s+$/, "")}\n${zh}` : zh))
+            }
+          />
         )}
 
         <Textarea

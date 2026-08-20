@@ -91,24 +91,42 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
     };
 
     const now = Date.now();
-    return (
-      ((rows ?? []) as unknown as Row[])
-        .filter((r) => r.words)
-        .map((r) => ({
-          sticker_id: r.id,
-          headword: r.words!.headword,
-          meaning_ja: r.words!.meaning_ja,
-          location_name: r.location_name,
-          days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
-          taken_at: r.created_at,
-          distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
-          image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
-        }))
-        .filter((m) => m.distance_m <= data.radius_m)
-        // 撮ったばかりの物を「覚えてる?」と聞いても意味がないので、
-        // **1日以上経ったもの**だけを対象にする。
-        .filter((m) => m.days_ago >= 1)
-        .sort((a, b) => a.distance_m - b.distance_m)
-        .slice(0, data.limit)
+    const near = ((rows ?? []) as unknown as Row[])
+      .filter((r) => r.words)
+      .map((r) => ({
+        sticker_id: r.id,
+        headword: r.words!.headword,
+        meaning_ja: r.words!.meaning_ja,
+        location_name: r.location_name,
+        days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
+        taken_at: r.created_at,
+        distance_m: Math.round(distanceMeters(data.lat, data.lng, r.lat, r.lng)),
+        // 落ち方は `sticker-photo.ts` と同じ順(元写真 → 切り抜き →
+        // 自撮り → ネット画像)。**サーバ側なので保存パスで持っている**が、
+        // 順番だけは画面と揃える。
+        image_url: r.object_image_url ?? r.cutout_image_url ?? r.placeholder_image_url,
+      }))
+      .filter((m) => m.distance_m <= data.radius_m)
+      // 撮ったばかりの物を「覚えてる?」と聞いても意味がないので、
+      // **1日以上経ったもの**だけを対象にする。
+      .filter((m) => m.days_ago >= 1)
+      .sort((a, b) => a.distance_m - b.distance_m)
+      .slice(0, data.limit);
+
+    // **署名していない保存パスを画面に渡さない。**
+    //
+    // ここは `image_url` に**保存パスをそのまま**入れていた。`stickers` は
+    // 非公開のバケットなので、`<img src="user-id/123-object.jpg">` は
+    // 何を待っても読めない。オーナー指摘「これ覚えてる?の通知の画像が
+    // 表示されてない」の正体がこれで、場所のバナーの写真も同じ理由で
+    // ずっと出ていなかった(印のアイコンに落ちていた)。
+    const { signUrlMap } = await import("./stickers.functions");
+    const urlMap = await signUrlMap(
+      supabase,
+      near.map((m) => m.image_url),
     );
+    return near.map((m) => ({
+      ...m,
+      image_url: m.image_url ? (urlMap.get(m.image_url) ?? null) : null,
+    }));
   });

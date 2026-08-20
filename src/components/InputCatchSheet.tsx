@@ -1,4 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { emptyExtras } from "@/lib/extras";
+import { WordCandidateRow } from "@/components/WordCandidateRow";
+import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
+
+/**
+ * 候補1件。**意味と読みが既に入っている** — 要望 #19 が言う
+ * 「意味と発音だけで即登録」の材料は、ここに揃っている。
+ */
+type CandidateSeed = {
+  headword: string;
+  reading_zhuyin: string;
+  pinyin: string;
+  meaning_ja: string;
+  distinction: string;
+};
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -95,17 +110,27 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [isPhrase, setIsPhrase] = useState(false);
   const [scene, setScene] = useState("");
   /** 母語の入力から出した台湾華語の候補(2つ以上あれば選ばせる)。 */
-  const [wordChoices, setWordChoices] = useState<
-    Array<{
-      headword: string;
-      reading_zhuyin: string;
-      pinyin: string;
-      meaning_ja: string;
-      distinction: string;
-    }>
-  >([]);
+  const [wordChoices, setWordChoices] = useState<CandidateSeed[]>([]);
   // 選んだ直後に `text` を読むと、同じレンダーでは古い値しか見えない。
   const wordChoiceRef = useRef<string | null>(null);
+  /**
+   * 何回目の問い合わせか。**古い回の結果で新しい語を上書きしない**
+   * (候補を選び直したときに前の問い合わせが後から着く)。
+   * 撮る経路には最初から在った門で、こちらには無かった。
+   */
+  const runTokenRef = useRef(0);
+  const catchSpeed = useCatchSpeed();
+  /**
+   * 裏で走っている「詳しいカード」。
+   *
+   * **仮のカードのまま保存させない。** 仮のカードは棚を決められないので
+   * `other` を置いてあり、保存はそれをそのまま書き込む
+   * (`category_key: card?.category_key ?? "other"`)。あとから走る
+   * 自動補完は `extras` しか直さないので、**棚が `other` で固定される**。
+   * 画面は先に出す(速さの取り分はそこ)が、保存の直前だけは待つ。
+   */
+  const cardPromiseRef = useRef<Promise<GeneratedCard | null> | null>(null);
+  const realCardRef = useRef<GeneratedCard | null>(null);
   const [listening, setListening] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [card, setCard] = useState<GeneratedCard | null>(null);
@@ -201,6 +226,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     // この関数の中で立てたものだけを信じる。
     wordChoiceRef.current = null;
     setStep("loading");
+    /** 候補が1つに決まったときの種(意味と読み)。 */
+    let soleCandidate: CandidateSeed | undefined;
     try {
       if (!isPhrase && !isTargetHeadword(headword, "zh-TW")) {
         // 母語で書かれている = どの語を指すかまだ決まっていない。
@@ -218,17 +245,36 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         if (cands.length === 1) {
           wordChoiceRef.current = cands[0].headword;
           setText(cands[0].headword);
+          soleCandidate = cands[0];
         }
       }
-      await buildCard(isPhrase ? headword : (wordChoiceRef.current ?? headword));
+      await buildCard(isPhrase ? headword : (wordChoiceRef.current ?? headword), soleCandidate);
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("err.generateFailed"));
       setStep("input");
     }
   }
 
-  /** 選ばれた見出し語(または句)でカードを作る。 */
-  async function buildCard(headword: string) {
+  /**
+   * 選ばれた見出し語(または句)でカードを作る。
+   *
+   * ## 待たせている物(要望 #19/#80「意味と発音だけで即登録し、詳細は後から」)
+   * ここは**全部を直列で待つ**作りだった:
+   * 候補を出す → **詳しいカードを作る** → 辞書を引く → やっと画面。
+   * 詳しいカードには型・共起語・発音のコツ・語源・部首・覚え方…まで
+   * 入るので、いちばん重い。撮る経路(`capture.tsx`)は候補から
+   * 意味と読みを**先に入れて**画面を出し、詳しい所は裏で入れ替えている
+   * のに、こちらにはその段が無かった。
+   *
+   * `seed`(候補の意味と読み)が在って「速い」を選んでいるときは、
+   * まずそれで画面を出し、詳しいカードは裏で作って差し替える。
+   * **保存してしまっても直る** — 詳細の画面が、中身の無い語を初めて
+   * 開いたときに自動で作り直す(`StickerSheet` の auto-enrich)。
+   * それが要望の言う「詳細は後から」そのもの。
+   */
+  async function buildCard(headword: string, seed?: CandidateSeed) {
+    const token = ++runTokenRef.current;
+    const startedAt = Date.now();
     setErr(null);
     setStep("loading");
     try {
@@ -237,9 +283,50 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         setPhraseCard(pc);
         setDict(null);
       } else {
+        // 「速い」を選んでいて、候補から意味と読みが取れているときは
+        // **先に画面を出す。** 詳しいカードは下で裏に回す。
+        const fast = !cutoutAtCatch(catchSpeed) && !!seed;
+        if (fast && seed) {
+          setCard({
+            headword_zh: seed.headword,
+            reading_zhuyin: seed.reading_zhuyin,
+            pinyin: seed.pinyin,
+            meaning_ja: seed.meaning_ja,
+            part_of_speech: "名詞",
+            level: "TOCFL-2",
+            // 棚は詳しいカードが決める。それまでは仮置き
+            // (`CardSchema` も決められないときは `other` に落とす)。
+            category_key: "other",
+            example_sentence: "",
+            example_translation: "",
+            new_shelf: null,
+            extras: emptyExtras(),
+          });
+          setDict(null);
+          setStep("preview");
+          recordCatchTiming({
+            ms: Date.now() - startedAt,
+            speed: catchSpeed,
+            cutout: false,
+          });
+        }
+
         // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
-        const c = await cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+        realCardRef.current = null;
+        const inflight = cardFn({ data: { headword, targetLanguage: "zh-TW" } })
+          .then((got) => {
+            if (runTokenRef.current === token) realCardRef.current = got;
+            return got;
+          })
+          .catch(() => null);
+        cardPromiseRef.current = inflight;
+        const c = await inflight;
+        if (!c) throw new Error(t("err.generateFailed"));
+        // **古い回の結果で新しい語を上書きしない。**
+        // 候補を選び直したときに前の問い合わせが後から着くと、
+        // 画面には新しい語が出ているのに中身だけ前の語になる。
+        if (runTokenRef.current !== token) return;
         // **解決できなかったときに入力をそのまま見出しにしない。**
         // ここは `c.headword_zh || headword` と書いてあった。解決に失敗すると
         // 日本語が見出しになり、「シャーペン」がカタカナのまま図鑑に入って
@@ -254,10 +341,15 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           setStep("input");
           return;
         }
-        const lk = await lookupFn({ data: { headwords: [resolved] } }).catch(() => ({
-          entries: {} as Record<string, DictionaryEntry>,
-        }));
-        setDict(lk.entries[resolved] ?? null);
+        // **辞書は待たない。** これは添え物で、無くても画面は成り立つ
+        // (失敗しても空で通す作りに既になっている)。待っていたぶんだけ
+        // 画面が遅れていた。
+        void lookupFn({ data: { headwords: [resolved] } })
+          .then((lk) => {
+            if (runTokenRef.current !== token) return;
+            setDict(lk.entries[resolved] ?? null);
+          })
+          .catch(() => {});
         setCard(c);
         if (resolved !== headword) setText(resolved);
         // 仮画像候補をWeb検索(失敗しても保存は続行できる)。
@@ -269,7 +361,11 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           .catch(() => {});
       }
       setStep("preview");
+      if (!seed) {
+        recordCatchTiming({ ms: Date.now() - startedAt, speed: catchSpeed, cutout: false });
+      }
     } catch (e) {
+      if (runTokenRef.current !== token) return;
       setErr(e instanceof Error ? e.message : t("err.generateFailed"));
       setStep("input");
     }
@@ -302,6 +398,12 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     setStep("saving");
     setErr(null);
     try {
+      // **仮のカードのまま書き込まない。** 速さを選んで先に画面が出ている
+      // ときは、詳しいカードが着くまでここで待つ(理由は `cardPromiseRef`)。
+      if (cardPromiseRef.current && !realCardRef.current) {
+        const got = await cardPromiseRef.current;
+        if (got) setCard(got);
+      }
       // 画面を開いた時から温めてある。ここで**短く待つだけ**で、
       // 取れなくてもキャッチは止めない(`use-catch-location.tsx` に理由)。
       const here = await resolveLocation();
@@ -355,6 +457,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         }
       }
 
+      /** 書き込みに使うカード。**本物が在ればそちら。** */
+      const saved = realCardRef.current ?? card;
       const word = isPhrase
         ? {
             headword,
@@ -383,15 +487,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           }
         : {
             headword,
-            reading_zhuyin: dict?.zhuyin || card?.reading_zhuyin || "",
-            pinyin: dict?.pinyin || card?.pinyin || "",
-            meaning_ja: dict?.meaning_ja || card?.meaning_ja || headword,
-            part_of_speech: dict?.pos || card?.part_of_speech || "名詞",
-            level: card?.level ?? "TOCFL-2",
-            category_key: card?.category_key ?? "other",
-            example_sentence: card?.example_sentence ?? "",
-            example_translation: card?.example_translation ?? "",
-            extras: card?.extras,
+            // **仮ではなく本物を書く。** `setCard` は非同期に効くので、
+            // 上で待った結果は `card` にはまだ映っていないことがある。
+            reading_zhuyin: dict?.zhuyin || saved?.reading_zhuyin || "",
+            pinyin: dict?.pinyin || saved?.pinyin || "",
+            meaning_ja: dict?.meaning_ja || saved?.meaning_ja || headword,
+            part_of_speech: dict?.pos || saved?.part_of_speech || "名詞",
+            level: saved?.level ?? "TOCFL-2",
+            category_key: saved?.category_key ?? "other",
+            example_sentence: saved?.example_sentence ?? "",
+            example_translation: saved?.example_translation ?? "",
+            extras: saved?.extras,
             entry_type: "word" as const,
           };
 
@@ -454,77 +560,26 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {(step === "input" || step === "loading") && (
-          <div className="mx-auto max-w-sm space-y-4">
-            <p className="text-center text-body text-muted-foreground">{t("input.lead")}</p>
-
-            {canSpeak && initialMode === "voice" && (
-              <button
-                onClick={toggleRecord}
-                disabled={step === "loading"}
-                className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
-                  listening
-                    ? "bg-bad text-white shadow-bad/30"
-                    : "bg-primary text-primary-foreground shadow-primary/30"
-                }`}
-                aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
-              >
-                {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
-              </button>
-            )}
-            <p className="text-center text-caption text-muted-foreground">
-              {initialMode === "voice" && canSpeak
-                ? listening
-                  ? t("input.listening")
-                  : t("input.micHint")
-                : t("input.textHint")}
-            </p>
-
-            <div className="relative">
-              <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  // **単語とフレーズで欄を分けない**(オーナー指摘 2026-08-20)。
-                  // 打つ人にとっては同じ「言葉を入れる」動作で、どちらなのかを
-                  // 先に決めさせる理由が無い。長さと句読点で自動的に決める。
-                  setIsPhrase(guessIsPhrase(e.target.value));
-                }}
-                placeholder={t("sheet.inputPlaceholder")}
-                className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-
-            {/* 状況の欄は**単語のときにも出す。**
-                母語の1語が台湾華語では別々の語に割れることが多く
-                (ティッシュ → 衛生紙 / 面紙)、どれが欲しいかは
-                その場の様子を聞かないと決まらない。 */}
-            <input
-              value={scene}
-              onChange={(e) => setScene(e.target.value)}
-              placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
-              className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary/40"
-            />
-
-            {err && (
-              <p className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink">
-                {err}
-              </p>
-            )}
-
-            <button
-              onClick={lookupAndGenerate}
-              disabled={!text.trim() || step === "loading"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-            >
-              {step === "loading" ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-              {step === "loading" ? t("input.looking") : t("input.lookup")}
-            </button>
-          </div>
+          <InputCatchFace
+            text={text}
+            onText={(v) => {
+              setText(v);
+              // **単語とフレーズで欄を分けない**(オーナー指摘 2026-08-20)。
+              // 打つ人にとっては同じ「言葉を入れる」動作で、どちらなのかを
+              // 先に決めさせる理由が無い。長さと句読点で自動的に決める。
+              setIsPhrase(guessIsPhrase(v));
+            }}
+            scene={scene}
+            onScene={setScene}
+            isPhrase={isPhrase}
+            error={err}
+            loading={step === "loading"}
+            onSubmit={lookupAndGenerate}
+            showMic={canSpeak && initialMode === "voice"}
+            voiceHints={initialMode === "voice" && canSpeak}
+            listening={listening}
+            onToggleRecord={toggleRecord}
+          />
         )}
 
         {step === "choose" && (
@@ -538,39 +593,27 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               </p>
             </div>
             <ul className="space-y-2">
+              {/* 撮った写真の候補(`capture.tsx` の `PickWordPanel`)と
+                  **同じ部品**を使う。ここには「同じ形にする」という注意書きが
+                  あっただけで写しが残っており、実際に2つの見た目になっていた。
+                  注意書きは写しを1つにしない。 */}
               {wordChoices.map((c) => (
-                // 撮った写真の候補(capture.tsx の PickWordPanel)と**同じ形**にする。
-                // どちらも「母語の1語が台湾華語では割れる」を解く同じ札で、
-                // 撮った側にだけ発音ボタンが付いていた(オーナー指定)。
-                // 片方だけ直すと、同じ役目の札が2つの見た目で残る。
-                <li key={c.headword} className="flex items-stretch gap-2">
-                  <button
-                    onClick={() => {
+                <li key={c.headword}>
+                  <WordCandidateRow
+                    headword={c.headword}
+                    zhuyin={c.reading_zhuyin}
+                    pinyin={c.pinyin}
+                    meaning={c.meaning_ja}
+                    distinction={c.distinction}
+                    onPick={() => {
                       wordChoiceRef.current = c.headword;
                       setText(c.headword);
-                      void buildCard(c.headword);
+                      // 候補には**意味と読みが既に入っている**。
+                      // 「速い」ではこれで先に画面を出す(要望 #19)。
+                      void buildCard(c.headword, c);
                     }}
-                    className="press-in min-w-0 flex-1 rounded-2xl border border-border bg-card p-3 text-left"
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <Zh className="text-title font-bold">{c.headword}</Zh>
-                      <span className="truncate text-footnote text-muted-foreground">
-                        {pickReading(phonetic, c.reading_zhuyin, c.pinyin)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-body">{c.meaning_ja}</p>
-                    {c.distinction && (
-                      <p className="mt-0.5 text-footnote text-primary-ink">{c.distinction}</p>
-                    )}
-                  </button>
-                  {/* **発音ボタン。** 選ぶ前に音で確かめられる。 */}
-                  <button
-                    onClick={() => void pronounce(c.headword)}
-                    aria-label={t("common.playWord", { word: c.headword })}
-                    className="grid h-11 w-11 shrink-0 place-items-center self-center rounded-full bg-primary/10 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
-                  >
-                    <Volume2 className="h-4 w-4" />
-                  </button>
+                    onPronounce={() => void pronounce(c.headword)}
+                  />
                 </li>
               ))}
             </ul>
@@ -742,6 +785,128 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 打ち込む面。**この画面はこれまで検査の場面が1つも無かった。**
+ *
+ * オーナーが2度「単語の文字入力がエラーが出て、機能してない」と言った
+ * 画面がここで、そのとき出ていたのは英語の1行(
+ * "AI did not return a structured card")だった。
+ * **壊れた姿を機械が一度も撮っていなかった**ことと無関係ではない。
+ *
+ * シートは通信も画面の遷移も持つので、そのままでは場面から描けない。
+ * 打ち込む面だけを、通信も状態も持たない部品として出す —
+ * 見出しや復習の札で何度もやってきたのと同じ形。
+ * これで「空のとき」「打った後」「探している間」「失敗したとき」を
+ * 実物のまま撮れる。
+ */
+export function InputCatchFace({
+  text,
+  onText,
+  scene,
+  onScene,
+  isPhrase,
+  error,
+  loading,
+  onSubmit,
+  showMic,
+  voiceHints,
+  listening,
+  onToggleRecord,
+}: {
+  text: string;
+  onText: (v: string) => void;
+  scene: string;
+  onScene: (v: string) => void;
+  /** 長さと句読点から自動で決まる。状況欄の言い方が変わる。 */
+  isPhrase: boolean;
+  /** 失敗したときの一言。**必ず読める言葉で**渡すこと。 */
+  error: string | null;
+  loading: boolean;
+  onSubmit: () => void;
+  showMic: boolean;
+  voiceHints: boolean;
+  listening: boolean;
+  onToggleRecord: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="mx-auto max-w-sm space-y-4">
+      {/* **中央に2行で置くと決めた印を残す**(検査の門が求めている)。
+          `text-balance` は行の長さを揃えるので印であると同時に読みやすくなり、
+          `ja-phrase` は日本語を**文節で**折る — オーナーの絵では
+          「写真がな / くても図鑑に。」と語の途中で割れていた。
+          この画面はここまで検査の場面が無く、一度も測られていなかった。 */}
+      <p className="ja-phrase text-balance text-center text-body text-muted-foreground">
+        {t("input.lead")}
+      </p>
+
+      {showMic && (
+        <button
+          onClick={onToggleRecord}
+          disabled={loading}
+          className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
+            listening
+              ? "bg-bad text-white shadow-bad/30"
+              : "bg-primary text-primary-foreground shadow-primary/30"
+          }`}
+          aria-label={listening ? t("sheet.stopRepeat") : t("sheet.repeat")}
+        >
+          {listening ? <Square className="h-6 w-6" /> : <Mic className="h-7 w-7" />}
+        </button>
+      )}
+      <p className="ja-phrase text-balance text-center text-caption text-muted-foreground">
+        {voiceHints ? (listening ? t("input.listening") : t("input.micHint")) : t("input.textHint")}
+      </p>
+
+      {/* **焦点の輪を薄くしない。**
+          `ring-primary/40` は実測 1.68:1 で、下限(3:1)の半分ほどしか
+          無かった — 打つことが用事そのものの画面で、いま**どちらの欄に
+          居るのかが見えない**状態だった。この画面はここまで検査の場面が
+          無く、一度も測られていなかった。 */}
+      <div className="relative">
+        <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={text}
+          onChange={(e) => onText(e.target.value)}
+          placeholder={t("sheet.inputPlaceholder")}
+          className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-body outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
+        />
+      </div>
+
+      {/* 状況の欄は**単語のときにも出す。**
+          母語の1語が台湾華語では別々の語に割れることが多く
+          (ティッシュ → 衛生紙 / 面紙)、どれが欲しいかは
+          その場の様子を聞かないと決まらない。 */}
+      <input
+        value={scene}
+        onChange={(e) => onScene(e.target.value)}
+        placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
+        className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-body outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
+      />
+
+      {/* 失敗の一言。**打った文字は消さない** — 出し直すのに
+          もう一度打たせるのは、失敗の上に手間を重ねること。 */}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl bg-destructive/10 p-2 text-footnote text-destructive-ink"
+        >
+          {error}
+        </p>
+      )}
+
+      <button
+        onClick={onSubmit}
+        disabled={!text.trim() || loading}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+      >
+        {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+        {loading ? t("input.looking") : t("input.lookup")}
+      </button>
     </div>
   );
 }

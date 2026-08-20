@@ -30,6 +30,12 @@ export type NearbyMemoryLike = {
   headword: string;
   meaning_ja: string | null;
   location_name: string | null;
+  /**
+   * 撮ったときの写真(**署名済みのURL**)。
+   * 以前ここには保存パスがそのまま入っていて、非公開のバケットなので
+   * 通知にもバナーにも絵が出ていなかった。
+   */
+  image_url?: string | null;
   days_ago: number;
   /** 撮った日。文面は「何日前」ではなく**日付**で出す。 */
   taken_at?: string | null;
@@ -189,21 +195,36 @@ export async function requestNotificationPermissionDetailed(): Promise<Notificat
  * React の外から呼ばれるので `tStatic` を使う(フックは使えない)。
  */
 export function buildMessage(m: NearbyMemoryLike): { title: string; body: string } {
-  // **意味は書かない。** 通知そのものが「覚えてる?」という問いなので、
-  // 答えを並べたら問いが成り立たない(オーナー指摘
-  // 「通知バナーに日本語訳を書いてるけど消して。テストの意味がなくなる」)。
+  // ## 「」の中は**母語**にする(オーナー指摘 2026-08-20)
   //
-  // 場所も市の名前では言わない。「Taipei City で撮った」は
-  // 思い出す手がかりにならない — 思い出す鍵は**いつ**のほう。
-  // 撮った日が読めないときだけ、場所の名前に落ちる。
+  // ここは長らく**台湾華語の見出し語**を出していた。押した先の問題は
+  // 「写真 + 母語 → 台湾華語を4択」なので、通知に台湾華語が書いてあると
+  // **開いた瞬間に答えが分かる**。問いのつもりが答えの表示になっていた。
+  //
+  // 以前「通知バナーに日本語訳を書いてるけど消して。テストの意味が
+  // なくなる」という指摘を受けて訳を消したが、**消す半分を間違えていた** —
+  // 消すべきは答えのほう(台湾華語)で、問いのほう(母語)ではない。
+  //
+  // 母語が分からない札では問いを立てられないので、そのときだけ
+  // 見出し語のまま出す(何も知らせないよりはよい)。
+  const ask = (m.meaning_ja ?? "").trim() || m.headword;
+
+  // ## 場所は**地名**で言う(オーナー指摘)
+  // 「ここで撮った」では、通知を見た人がどこの話か分からない。
+  // 地名は `place-name.ts` が具体的な物を選ぶようになったので、
+  // 日付と地名を両方出せるときは両方出す。
   const date = takenDateLabel(m.taken_at);
-  const body = date
-    ? tStatic("place.caughtOn", { date })
-    : m.location_name
-      ? tStatic("place.caughtAt", { name: m.location_name })
-      : tStatic("place.caughtHereShort");
+  const place = (m.location_name ?? "").trim();
+  const body =
+    date && place
+      ? tStatic("place.caughtOnAt", { date, name: place })
+      : date
+        ? tStatic("place.caughtOn", { date })
+        : place
+          ? tStatic("place.caughtAt", { name: place })
+          : tStatic("place.caughtHereShort");
   return {
-    title: tStatic("place.rememberBefore") + m.headword + tStatic("place.rememberAfter"),
+    title: tStatic("place.rememberBefore") + ask + tStatic("place.rememberAfter"),
     body,
   };
 }
@@ -221,6 +242,9 @@ export async function notifyMemory(m: NearbyMemoryLike): Promise<void> {
             id: hashId(m.sticker_id),
             title,
             body,
+            // **撮ったときの写真を付ける**(オーナー指摘 2026-08-20)。
+            // 思い出す手がかりは写真そのもので、文字ではない。
+            ...(m.image_url ? { attachments: [{ id: "photo", url: m.image_url }] } : {}),
             // すぐ出す。
             schedule: { at: new Date(Date.now() + 500) },
             extra: { sticker_id: m.sticker_id },
@@ -230,7 +254,13 @@ export async function notifyMemory(m: NearbyMemoryLike): Promise<void> {
       return;
     }
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification(title, { body, tag: m.sticker_id });
+      // web も同じ。`icon` はどの端末でも出る小さい絵、`image` は
+      // 対応している端末でだけ大きく出る。**両方渡して端末に選ばせる。**
+      new Notification(title, {
+        body,
+        tag: m.sticker_id,
+        ...(m.image_url ? { icon: m.image_url, image: m.image_url } : {}),
+      } as NotificationOptions);
     }
   } catch {
     /* 通知が出せなくても、画面上のカードは出るので致命的ではない */

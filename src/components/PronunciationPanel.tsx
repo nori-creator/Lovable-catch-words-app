@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { stopOtherAudio } from "@/lib/audio";
+import { pickZhTWVoice } from "@/lib/speak";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
 
@@ -39,14 +40,23 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     };
   }, []);
 
-  const pickVoice = () => {
-    const prefs = ["zh-TW", "zh-Hant", "cmn-Hant-TW", "zh-HK", "zh-CN"];
-    for (const p of prefs) {
-      const v = voices.find((vo) => vo.lang.toLowerCase().startsWith(p.toLowerCase()));
-      if (v) return v;
-    }
-    return voices.find((v) => v.lang.toLowerCase().startsWith("zh"));
-  };
+  /**
+   * **声の選び方はここに書かない。**
+   *
+   * ここには以前、独自の選び方があった — `zh-TW` から順に見て、
+   * 最後は `zh` で始まる声なら何でも採る、という形。つまり台湾の声が
+   * 無い端末では**大陸の普通話**で読み上げていた。声調も語彙も違う音を、
+   * 「発音を確かめる画面」で手本として鳴らしていたことになる。
+   *
+   * オーナー指摘「音声の声がたまに異なる。声質を統一したい」を受けて
+   * `lib/speak.ts` に**点数で決めきる選び方**を置き、復習の画面の写しは
+   * そのとき消した。**ところがこの画面の写しは残っていた** — 直した
+   * つもりの問題が、隣の画面でそのまま生きていた(`speakZhTW` を1箇所に
+   * まとめたときと同じ取りこぼし)。
+   *
+   * 読み上げの開始・終了で見た目が変わるので `speakZhTW` はそのまま
+   * 使えない(あちらは合図を返さない)。**選ぶ所だけ**を共有する。
+   */
 
   const speak = (slow = false) => {
     if (!("speechSynthesis" in window)) {
@@ -55,7 +65,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     }
     stopOtherAudio();
     const u = new SpeechSynthesisUtterance(headword);
-    const v = pickVoice();
+    const v = pickZhTWVoice(voices);
     if (v) u.voice = v;
     u.lang = v?.lang ?? "zh-TW";
     u.rate = slow ? 0.7 : 0.95;

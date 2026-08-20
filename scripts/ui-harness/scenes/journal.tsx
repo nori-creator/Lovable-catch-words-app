@@ -6,6 +6,7 @@
  * どちらも問い合わせを持たない純粋な見た目。
  */
 import { EntryBlock, NativePhrases } from "@/routes/_authenticated/journal";
+import { JournalScaffold } from "@/components/JournalScaffold";
 
 const PHRASES = [
   {
@@ -33,5 +34,50 @@ export function JournalResultScene({ q }: { q: URLSearchParams }) {
       />
       <NativePhrases phrases={PHRASES} compact={compact} />
     </div>
+  );
+}
+
+/**
+ * 書く**前**の足場(要望 #88)。
+ *
+ * ここに何も無かった頃は、`placeholder` の一文だけを渡して空欄に向かわせて
+ * いた。質問が「その人の今日」に結び付いているか、型が押せると分かるか —
+ * 絵で確かめる所。
+ */
+export function JournalScaffoldScene() {
+  return (
+    <JournalScaffold
+      data={{
+        prompts: [
+          {
+            sticker_id: "s1",
+            question_zh: "你今天為什麼想喝珍珠奶茶?",
+            question_ja: "今日はどうしてタピオカミルクティーが飲みたくなったの?",
+          },
+          {
+            sticker_id: "s2",
+            question_zh: "在士林夜市看到什麼最讓你驚訝?",
+            question_ja: "士林夜市でいちばん驚いたものは?",
+          },
+          {
+            // **結び付けに失敗した質問も撮る。** 番号が範囲外のときは
+            // 1枚を指さずに出す形にしてあるので、その姿も見ておく。
+            sticker_id: null,
+            question_zh: "今天的天氣讓你想起什麼?",
+            question_ja: "今日の天気で思い出したことは?",
+          },
+        ],
+        patterns: [
+          { zh: "我今天在…", ja: "今日どこで何をしたか" },
+          { zh: "因為…所以…", ja: "理由を言うとき" },
+          { zh: "讓我想起…", ja: "思い出したことを言うとき" },
+        ],
+        captures: [
+          { id: "s1", headword: "珍珠奶茶", caption: "夜市で", location_name: "士林夜市" },
+          { id: "s2", headword: "臭豆腐", caption: null, location_name: "士林夜市" },
+        ],
+      }}
+      onUsePattern={() => {}}
+    />
   );
 }

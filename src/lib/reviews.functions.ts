@@ -76,6 +76,8 @@ export type DueReviewCard = {
   category_key: string | null;
   entry_type: string;
   cutout_url: string | null;
+  /** 撮った元の写真。切り抜きが無い札はこれで出す。 */
+  object_url: string | null;
   /** Ghost cards (§5.3): temporary stand-in image so review isn't a blank. */
   placeholder_url: string | null;
   audio_url: string | null; // cached TTS if it exists; client falls back to speechSynthesis
@@ -248,7 +250,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const fetchLimit = Math.min(10, remaining);
 
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
     // 記憶段階の優先度(設定):
     //   weak = 忘れかけ(ease が低い=何度も間違えた語)から先に
     //   new  = 覚えたて(復習回数が少ない語)から先に
@@ -269,7 +271,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       ({ data, error } = (await supabase
         .from("reviews")
         .select(
-          "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
+          "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
         )
         .eq("user_id", userId)
         .lte("due_at", nowIso)
@@ -288,6 +290,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       last_reviewed_at: string | null;
       stickers: {
         cutout_image_url: string | null;
+        object_image_url: string | null;
         caption: string | null;
         location_name: string | null;
         taken_at: string | null;
@@ -406,8 +409,19 @@ export const getDueReviews = createServerFn({ method: "GET" })
     for (const c of choiceRows ?? []) cached.set(c.word_id, c.distractors ?? []);
 
     // Batch-sign all image and audio URLs in two calls instead of one per card.
+    // **元写真も署名する。**
+    //
+    // ここは切り抜きとネット画像しか取っていなかった。つまり
+    // **切り抜きの無い札は写真なしで復習に出ていた** — かざして撮った札は
+    // 設計上いま切り抜きを作らないので、その一群がまるごと該当する。
+    // 「写真を見て、その語を言う」が復習の中身なのに、写真が無い。
+    // (7箇所の選び方を `sticker-photo.ts` に集めていて気づいた。)
     const cutoutPaths = rows
-      .flatMap((r) => [r.stickers!.cutout_image_url, r.stickers!.placeholder_image_url ?? null])
+      .flatMap((r) => [
+        r.stickers!.cutout_image_url,
+        r.stickers!.object_image_url ?? null,
+        r.stickers!.placeholder_image_url ?? null,
+      ])
       .filter((p): p is string => !!p);
     const cutoutUrlByPath = new Map<string, string>();
     if (cutoutPaths.length > 0) {
@@ -503,6 +517,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
+        object_url: row.stickers!.object_image_url
+          ? (cutoutUrlByPath.get(row.stickers!.object_image_url) ?? null)
+          : null,
         placeholder_url: row.stickers!.placeholder_image_url
           ? (cutoutUrlByPath.get(row.stickers!.placeholder_image_url) ?? null)
           : null,

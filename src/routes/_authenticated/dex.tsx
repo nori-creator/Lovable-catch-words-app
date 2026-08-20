@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -795,12 +796,8 @@ function PackGallery({
   return (
     <div className="pk-collection" data-layout={layout}>
       {items.map((s) => {
-        const photo =
-          s.object_thumb_url ??
-          s.object_url ??
-          s.cutout_thumb_url ??
-          s.cutout_url ??
-          s.placeholder_url;
+        // 小さく並ぶ所なので縮小版を先に使う。
+        const photo = stickerPhotoUrl(s, { prefer: s.hero_role, thumb: true });
         return (
           <button
             key={s.id}
@@ -930,12 +927,7 @@ function DexCalendar({
           if (day == null) return <div key={`x${i}`} />;
           const key = `${cursor.y}-${`${cursor.m + 1}`.padStart(2, "0")}-${`${day}`.padStart(2, "0")}`;
           const items = byDay.get(key) ?? [];
-          const thumb = items[0]
-            ? (items[0].object_thumb_url ??
-              items[0].object_url ??
-              items[0].cutout_thumb_url ??
-              items[0].cutout_url)
-            : null;
+          const thumb = stickerPhotoUrl(items[0], { thumb: true });
           const has = items.length > 0;
           return (
             <button
@@ -979,7 +971,7 @@ function DexCalendar({
           <p className="mb-2 text-body font-semibold">{openDay}</p>
           <div className="grid grid-cols-3 gap-2.5">
             {dayItems.map((s) => {
-              const photo = s.object_thumb_url ?? s.object_url ?? s.cutout_url;
+              const photo = stickerPhotoUrl(s, { thumb: true });
               return (
                 <button key={s.id} onClick={() => onOpen(s.id)} className="block text-left">
                   <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary shadow-md ring-1 ring-black/5">
@@ -1164,7 +1156,7 @@ function DexMap({
       });
       // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
       // Thumbs first: a pin head is 52px, a 400px thumb is already 8x overkill.
-      const photoUrl = s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
+      const photoUrl = stickerPhotoUrl(s, { thumb: true });
       if (photoUrl) {
         const cached = pinIconCache.current.get(s.id);
         const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);
@@ -1292,8 +1284,7 @@ function DexMap({
           <p className="mb-2 text-caption text-muted-foreground">{t("dex.placesHint")}</p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {recent.map((s) => {
-              const thumb =
-                s.object_thumb_url ?? s.cutout_thumb_url ?? s.object_url ?? s.cutout_url;
+              const thumb = stickerPhotoUrl(s, { thumb: true });
               return (
                 <button
                   key={s.id}

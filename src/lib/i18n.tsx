@@ -99,6 +99,27 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "声を出せない場所用の4択モード",
     en: "Multiple-choice mode for when you can't speak out loud",
   },
+  // --- 日記の足場(要望 #88) ---
+  "jr.scaffoldTitle": { ja: "今日撮ったものから", en: "From what you caught today" },
+  "jr.aboutCapture": { ja: "「{w}」のこと", en: "about “{w}”" },
+  "jr.useThese": { ja: "この型が使えます", en: "Patterns you can use" },
+  "jr.tapToInsert": { ja: "押すと下に入ります", en: "Tap to drop it into your draft" },
+  "jr.noCaptures": {
+    ja: "今日はまだ何も撮っていないので、質問は出せません。1つ撮ると、その物のことを聞きます。",
+    en: "Nothing caught today yet, so there are no questions. Catch one and they'll be about it.",
+  },
+  "rv.autoMode": {
+    ja: "記憶の段階に合わせて出題の形を変えます",
+    en: "Picks the task format to match how well you remember each word",
+  },
+  "rv.formatSay": { ja: "写真を見て、声に出す", en: "Look at the photo and say it" },
+  "rv.formatSayHint": {
+    ja: "いまは1語だけ。文を作るのは、もう少し覚えてから。",
+    en: "Just the word for now — sentences come once it sticks.",
+  },
+  "rv.promptSay": { ja: "この単語を声に出して", en: "Say this word out loud" },
+  "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
+  "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
   "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
@@ -692,14 +713,23 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "notif.followed": { ja: "さんがフォローしました", en: " followed you" },
   "common.someone": { ja: "誰か", en: "Someone" },
   // --- 場所の思い出し(文の前後) ---
+  // **「」の中は母語**(オーナー指摘 2026-08-20)。
+  // 押した先の問題は「写真+日本語 → 台湾華語を4択」なので、通知に
+  // 台湾華語を出すと**開いた瞬間に答えが分かる**。
   "place.rememberBefore": { ja: "「", en: "Remember “" },
-  "place.rememberAfter": { ja: "」覚えてる？", en: "”?" },
+  "place.rememberAfter": { ja: "」は台湾華語で？", en: "” in Taiwanese Mandarin?" },
   // --- 場所の思い出し・共通 ---
   // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
   // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
   // 思い出す鍵は市の名前ではなく**いつ撮ったか**なので、日付を先に出し、
   // 日付が読めないときだけ場所の名前に落ちる。
-  "place.caughtOn": { ja: "{date}にここで撮った言葉", en: "You caught this here on {date}" },
+  // 「ここ」ではなく**地名**で言う(オーナー指摘)。地名が取れない回だけ
+  // 日付だけに落ちる。
+  "place.caughtOnAt": {
+    ja: "{date}に{name}で撮った言葉",
+    en: "You caught this at {name} on {date}",
+  },
+  "place.caughtOn": { ja: "{date}に撮った言葉", en: "You caught this on {date}" },
   "place.caughtAt": { ja: "{name}で撮った言葉", en: "You caught this at {name}" },
   "place.caughtHereShort": { ja: "この辺りで撮った言葉", en: "You caught this around here" },
   "common.card": { ja: "カード", en: "Card" },
@@ -768,6 +798,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "title.capture": { ja: "集める", en: "Catch" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review" },
+  "review.auto": { ja: "🎯 おまかせ", en: "🎯 Auto" },
   "review.speak": { ja: "🎤 話す", en: "🎤 Speak" },
   "review.choice": { ja: "👆 4択", en: "👆 Quiz" },
   // --- dex ---
@@ -977,6 +1008,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
   "home.journal": { ja: "今日の日記を書く", en: "Write today's journal" },
   // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
+  "home.dayJournal": { ja: "この日の日記", en: "That day's diary" },
+  "home.dayJournalUsed": { ja: "使った言葉", en: "Words used" },
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages" },
   "home.memories": { ja: "枚の思い出", en: "memories caught" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet" },
@@ -998,6 +1031,19 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "me.doneToday": { ja: "今日やった復習", en: "Reviewed today" },
   "me.due": { ja: "待っている復習", en: "Waiting" },
   "common.loading": { ja: "読み込み中", en: "Loading" },
+  // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
+  // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
+  "scan.stageSensing": { ja: "シーンを感知しています", en: "Sensing the scene…" },
+  "scan.stageReading": { ja: "対象を解析しています", en: "Reading the object…" },
+  "scan.stageMatching": { ja: "辞書と照合しています", en: "Matching the dictionary…" },
+  // 結晶の版だけは言葉づかいが違う(そういう演出として作ってある)。
+  "scan.crystalSensing": { ja: "銀の露をひろげています", en: "Spreading silver dew…" },
+  "scan.crystalReading": { ja: "世界を読んでいます", en: "Reading the world…" },
+  "scan.crystalMatching": { ja: "言葉が結晶化します", en: "Words are crystallizing…" },
+  // 全画面の版は短い言い切り。
+  "scan.fullSensing": { ja: "空間を捉える", en: "Catching the space" },
+  "scan.fullReading": { ja: "文字と物を読む", en: "Reading words and things" },
+  "scan.fullMatching": { ja: "台湾華語と照合", en: "Matching Taiwanese Mandarin" },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment" },
   "common.cancel": { ja: "キャンセル", en: "Cancel" },
@@ -1190,8 +1236,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
-    en: "“Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
+    ja: "「おまかせ」は記憶の段階で形が変わります（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“Auto” matches the task to how well you remember each word (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1231,6 +1277,48 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // なので、名前が違うと同じ物だと分からない。「ライト」は復習の重さを指す
   // 造語で、明るさの設定(settings.light)と字面が同じになって二重に紛らわしい
   // ので落とす(オーナー指摘「ライトonって名前は不自然」)。
+  // --- 主役の写真を選ぶ(要望 #17) ---
+  "photo.pickTitle": { ja: "この札の主役の写真", en: "Main photo for this card" },
+  "photo.followSetting": { ja: "設定に従う", en: "Follow my setting" },
+  "photo.followSettingHint": {
+    ja: "画面ごとに合う絵が出ます（いまの既定）",
+    en: "Each screen picks what suits it (current default)",
+  },
+  "photo.roleObject": { ja: "元の写真", en: "Photo" },
+  "photo.roleCutout": { ja: "切り抜き", en: "Cut-out" },
+  "photo.roleSelfie": { ja: "自撮り", en: "Selfie" },
+  "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image" },
+  "photo.cutoutNow": { ja: "いま切り抜く", en: "Cut it out now" },
+  "photo.cuttingOut": { ja: "切り抜いています…", en: "Cutting out…" },
+  "photo.cutoutFailed": {
+    ja: "切り抜けませんでした。もう一度お試しください。",
+    en: "Couldn't cut it out. Please try again.",
+  },
+  "photo.replaceFile": { ja: "別の写真に差し替える", en: "Replace with another photo" },
+  "photo.saveFailedMigration": {
+    ja: "この端末のデータベースがまだ新しい設定に対応していません（管理者に連絡してください）。",
+    en: "The database hasn't been migrated for this setting yet (please contact the admin).",
+  },
+  "settings.catchSpeed": { ja: "キャッチのしかた", en: "How a catch works" },
+  "settings.catchSpeedHint": {
+    ja: "カードはどちらでもすぐ出ます。違うのは図鑑に入れる前に切り抜くかどうかだけ。ファストは切り抜かずに入れて、あとから写真を長押しして切り抜けます。",
+    en: "The card appears right away either way. The only difference is whether the object is cut out before it goes into the dex. Fast skips it — long-press the photo later to cut it out.",
+  },
+  "settings.speedDetail": { ja: "切り抜き", en: "Cut-out" },
+  "settings.speedFast": { ja: "ファスト", en: "Fast" },
+  "set.catchSpeedMetrics": { ja: "キャッチにかかった時間", en: "Time a catch took" },
+  "set.catchSpeedN": { ja: "{n}回", en: "{n}×" },
+  "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log" },
+  "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
+  "settings.photoPrefHint": {
+    ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
+    en: "“Auto” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
+  },
+  "settings.photoAuto": { ja: "おまかせ", en: "Auto" },
+  "settings.photoObject": { ja: "元の写真", en: "Photo" },
+  "settings.photoCutout": { ja: "切り抜き", en: "Cut-out" },
+  "settings.photoSelfie": { ja: "自撮り", en: "Selfie" },
+  "settings.modeHybrid": { ja: "🎯 おまかせ", en: "🎯 Auto" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },

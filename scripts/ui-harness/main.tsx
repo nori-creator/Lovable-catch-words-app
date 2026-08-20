@@ -19,7 +19,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
-import { JournalResultScene } from "./scenes/journal";
+import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
+import { WordCandidateScene } from "./scenes/word-candidate";
+import { InputCatchScene } from "./scenes/input-catch";
+import { HeroPickerScene } from "./scenes/hero-picker";
 import {
   CaptureCardScene,
   CaptureOfflineScene,
@@ -58,6 +61,9 @@ import {
   ReviewEndScene,
   ReviewExplainScene,
   ReviewLoadingScene,
+  ReviewModeTabsScene,
+  ReviewSayResultScene,
+  ReviewSayScene,
   ReviewMemoryScene,
 } from "./scenes/review";
 import {
@@ -108,6 +114,10 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-saving": CaptureSavingScene,
   "scan-camera": ScanCameraScene,
   "journal-result": JournalResultScene,
+  "journal-scaffold": JournalScaffoldScene,
+  "word-candidate": WordCandidateScene,
+  "input-catch": InputCatchScene,
+  "hero-picker": HeroPickerScene,
   "word-card-empty": WordCardEmptyScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
@@ -127,6 +137,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
   "review-end": ReviewEndScene,
+  "review-say": ReviewSayScene,
+  "review-say-result": ReviewSayResultScene,
+  "review-mode-tabs": ReviewModeTabsScene,
 };
 
 /**
