@@ -16,6 +16,7 @@ export const SECTION_IDS = [
   "meaning",
   "web_images",
   "usage_context",
+  "encounter",
   "example",
   "examples_extra",
   "usage_chunks",

@@ -921,6 +921,32 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.regNeutral": { ja: "どちらでも", en: "Either" },
   "card.regWrittenish": { ja: "やや書き言葉", en: "Leans written" },
   "card.regWritten": { ja: "書き言葉", en: "Written" },
+  // 「今週出会う見込み」とレア度。**数字と出所は必ず同じ画面に居させる。**
+  "card.encounter": { ja: "出会う見込み", en: "Chance of meeting it" },
+  "enc.thisWeek": { ja: "今週この言葉に出会う見込み", en: "Chance you meet it this week" },
+  "enc.where": { ja: "よく出会う所", en: "Where" },
+  "enc.onlyIn": { ja: "{place}限定", en: "{place} only" },
+  "enc.season": { ja: "{months}ごろ", en: "Around {months}" },
+  "enc.rarityAria": { ja: "レア度 5段階中{n}", en: "Rarity {n} of 5" },
+  "enc.rarity1": { ja: "どこにでもある", en: "Everywhere" },
+  "enc.rarity2": { ja: "よく見かける", en: "Common" },
+  "enc.rarity3": { ja: "ときどき", en: "Sometimes" },
+  "enc.rarity4": { ja: "めずらしい", en: "Uncommon" },
+  "enc.rarity5": { ja: "めったに会えない", en: "Rare" },
+  // 出所。**推定を実測の顔で出さない。**
+  "enc.srcEstimate": {
+    ja: "推定 — 級と言葉の頻度から見積もった数です",
+    en: "Estimate — from level and word frequency",
+  },
+  "enc.srcBlended": {
+    ja: "推定と実測を混ぜた数です",
+    en: "Estimate blended with real observations",
+  },
+  "enc.srcMeasured": { ja: "実際に撮られた記録から出した数です", en: "From real catches" },
+  "enc.srcMeasuredN": {
+    ja: "実測 — {n}人が実際に撮っています",
+    en: "Measured — {n} people have caught it",
+  },
   "card.frequency": { ja: "頻度", en: "Frequency" },
   "card.synonym": { ja: "類義", en: "Similar" },
   "card.antonym": { ja: "反義", en: "Opposite" },

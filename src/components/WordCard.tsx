@@ -23,6 +23,8 @@ import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { withoutMeasureWordEcho } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { EncounterPanel } from "@/components/EncounterPanel";
+import type { EncounterEstimate } from "@/lib/encounter.functions";
 import {
   REGISTER_MAX,
   REGISTER_MIN,
@@ -65,10 +67,9 @@ const ALL_SECTIONS: { id: SectionId }[] = [
   { id: "meaning" },
   { id: "web_images" },
   { id: "usage_context" },
-  // **意味の真下には置かない。** 「ひと目でわかる」は上にあるほど効くが、
-  // 既にある語(139件)はこの項目を持たないので、一番目立つ位置に
-  // 「まだ作られていません」の空箱が出ることになる。同じ空箱が並ぶのは
-  // 独立監査が既に指摘した欠点で、その先頭を新しく1つ増やすのは割に合わない。
+  // 頻度の話の真下に置く。「どのくらい使う言葉か」と
+  // 「自分が今週それに出会うか」は続けて読みたい。
+  { id: "encounter" },
   { id: "example" },
   { id: "examples_extra" },
   { id: "usage_chunks" },
@@ -224,6 +225,7 @@ const SECTION_ICON: Record<SectionId, string> = {
   meaning: "\u{1F4D6}",
   web_images: "\u{1F310}",
   usage_context: "\u{1F4CA}",
+  encounter: "\u{1F3AF}",
   example: "\u{1F4AC}",
   examples_extra: "\u{2795}",
   usage_chunks: "\u{1F9E9}",
@@ -246,10 +248,16 @@ export const WordCard = forwardRef<
     /** 指定すると Pro の項目別ワンタッチ再生成が有効になる。 */
     wordId?: string;
     isPro?: boolean;
+    /**
+     * 「今週出会う見込み」。**呼ぶ側が取ってきて渡す。**
+     * 全利用者を数える問い合わせなので、カードの中から勝手に走らせない。
+     * 届いていなければ節そのものを出さない。
+     */
+    encounter?: EncounterEstimate | null;
     /** ネット画像を「この画像にする」で選んだとき(カードの写真に採用)。 */
     onPickImage?: (url: string) => void | Promise<void>;
   }
->(function WordCard({ word, autoplay = true, wordId, isPro = false, onPickImage }, ref) {
+>(function WordCard({ word, autoplay = true, wordId, isPro = false, onPickImage, encounter }, ref) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
 
@@ -295,6 +303,11 @@ export const WordCard = forwardRef<
           ex.frequency_level ||
           registerScaleOf(ex) !== null
         );
+      case "encounter":
+        // **数えた答えが届いているときだけ**出す。
+        // まだ届いていない/そもそも数えられない古いカードでは、
+        // 節そのものを出さないのが正しい姿(空の枠を並べない)。
+        return !!encounter;
       case "example":
         return !!word.example_sentence;
       case "examples_extra":
@@ -352,6 +365,7 @@ export const WordCard = forwardRef<
             isPro={isPro}
             empty={!hasContent(id)}
             onPickImage={onPickImage}
+            encounter={encounter}
           />
         ))}
       </div>
@@ -557,6 +571,7 @@ function SectionCard({
   isPro,
   empty,
   onPickImage,
+  encounter,
 }: {
   id: SectionId;
   word: WordCardData;
@@ -565,6 +580,7 @@ function SectionCard({
   /** 中身がまだ無い(AIが未生成)。枠は出し、生成ボタンを見せる。 */
   empty?: boolean;
   onPickImage?: (url: string) => void | Promise<void>;
+  encounter?: EncounterEstimate | null;
 }) {
   const icon = SECTION_ICON[id];
   const t = useT();
@@ -641,7 +657,7 @@ function SectionCard({
       {empty ? (
         <EmptySection t={t} />
       ) : (
-        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} encounter={encounter} />
       )}
     </section>
   );
@@ -769,12 +785,14 @@ function Body({
   ex,
   t,
   onPickImage,
+  encounter,
 }: {
   id: SectionId;
   word: WordCardData;
   ex: WordExtras;
   t: (k: string) => string;
   onPickImage?: (url: string) => void | Promise<void>;
+  encounter?: EncounterEstimate | null;
 }) {
   switch (id) {
     case "meaning":
@@ -808,6 +826,9 @@ function Body({
         </div>
       );
     }
+
+    case "encounter":
+      return encounter ? <EncounterPanel data={encounter} /> : null;
 
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
