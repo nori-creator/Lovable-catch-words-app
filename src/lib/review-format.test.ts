@@ -59,19 +59,19 @@ describe("reviewFormatFor", () => {
     ).toBe("compose");
   });
 
-  it("おまかせ: 忘れかけの語は4択に落ちる", () => {
+  it("AIが選ぶ: 忘れかけの語は4択に落ちる", () => {
     expect(
       reviewFormatFor({ pref: "hybrid", retention: 20, intervalDays: 10, repetitions: 5 }),
     ).toBe("choice");
   });
 
-  it("おまかせ: うろ覚えは発音", () => {
+  it("AIが選ぶ: うろ覚えは発音", () => {
     expect(
       reviewFormatFor({ pref: "hybrid", retention: 60, intervalDays: 5, repetitions: 2 }),
     ).toBe("say");
   });
 
-  it("おまかせ: 長く覚えている語は作文発話", () => {
+  it("AIが選ぶ: 長く覚えている語は作文発話", () => {
     expect(
       reviewFormatFor({ pref: "hybrid", retention: 90, intervalDays: 60, repetitions: 10 }),
     ).toBe("compose");

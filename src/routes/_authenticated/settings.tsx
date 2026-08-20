@@ -391,7 +391,7 @@ function SettingsPage() {
 
         <SettingsCard title={t("settings.study")}>
           <div className="space-y-3">
-            {/* 「おまかせ」は記憶の段階で形を変える(`lib/review-format.ts`)。
+            {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
                 既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
             <ChoiceRow
               cols={3}

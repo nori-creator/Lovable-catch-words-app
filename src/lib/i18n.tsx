@@ -109,8 +109,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     en: "Nothing caught today yet, so there are no questions. Catch one and they'll be about it.",
   },
   "rv.autoMode": {
-    ja: "記憶の段階に合わせて出題の形を変えます",
-    en: "Picks the task format to match how well you remember each word",
+    ja: "AI が記憶の段階を見て、出題の形を選びます",
+    en: "AI reads how well you remember and picks the task format",
   },
   "rv.formatSay": { ja: "写真を見て、声に出す", en: "Look at the photo and say it" },
   "rv.formatSayHint": {
@@ -811,7 +811,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "title.capture": { ja: "集める", en: "Catch" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review" },
-  "review.auto": { ja: "🎯 おまかせ", en: "🎯 Auto" },
+  "review.auto": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks" },
   "review.speak": { ja: "🎤 話す", en: "🎤 Speak" },
   "review.choice": { ja: "👆 4択", en: "👆 Quiz" },
   // --- dex ---
@@ -1256,8 +1256,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "「おまかせ」は記憶の段階で形が変わります（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
-    en: "“Auto” matches the task to how well you remember each word (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
+    ja: "「AIが選ぶ」は、その単語をどれだけ覚えているかを見て AI が出題の形を決めます（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“AI picks” looks at how well you remember each word and chooses the task (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1331,14 +1331,14 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log" },
   "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
   "settings.photoPrefHint": {
-    ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
-    en: "“Auto” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
+    ja: "「画面ごと」は画面に合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
+    en: "“Per screen” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
   },
-  "settings.photoAuto": { ja: "おまかせ", en: "Auto" },
+  "settings.photoAuto": { ja: "画面ごと", en: "Per screen" },
   "settings.photoObject": { ja: "元の写真", en: "Photo" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie" },
-  "settings.modeHybrid": { ja: "🎯 おまかせ", en: "🎯 Auto" },
+  "settings.modeHybrid": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },
