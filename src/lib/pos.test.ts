@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { POS_TABLE, chunkLegendFor, chunkStyle, posGroup } from "./pos";
+import { POS_TABLE, chunkLegendFor, chunkStyle, posGroup, isNounLike } from "./pos";
 
 describe("詞類表の記号 → 色の群", () => {
   it("表に在る記号は全部どこかの群に入る(取りこぼしが無い)", () => {
@@ -65,5 +65,37 @@ describe("凡例", () => {
 
   it("何も無ければ空(空の凡例だけが残らない)", () => {
     expect(chunkLegendFor([])).toEqual([]);
+  });
+});
+
+/**
+ * カメラのスキャンは名詞だけを返す約束(オーナー指示 2026-08-20)。
+ * **プロンプトは指示であって強制ではない**ので、返ってきた物を実際に絞る。
+ */
+describe("isNounLike", () => {
+  it("名詞は通す", () => {
+    expect(isNounLike("名詞")).toBe(true);
+    expect(isNounLike("固有名詞")).toBe(true);
+  });
+
+  it("動詞・形容詞・副詞は落とす", () => {
+    expect(isNounLike("動詞")).toBe(false);
+    expect(isNounLike("形容詞")).toBe(false);
+    expect(isNounLike("副詞")).toBe(false);
+    expect(isNounLike("状態動詞")).toBe(false);
+  });
+
+  it("名詞とも書いてあれば通す(写真に写っているのは物)", () => {
+    expect(isNounLike("名詞・動詞")).toBe(true);
+  });
+
+  it("**札が無いものは通す。** 分からないことを理由に捨てない", () => {
+    expect(isNounLike("")).toBe(true);
+    expect(isNounLike(null)).toBe(true);
+    expect(isNounLike(undefined)).toBe(true);
+  });
+
+  it("知らない札は通す(勝手に落とさない)", () => {
+    expect(isNounLike("なにか新しい札")).toBe(true);
   });
 });

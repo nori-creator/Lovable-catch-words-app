@@ -29,6 +29,7 @@ import {
   logUsage,
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { readScaffoldBox, scaffoldCacheKey } from "./scaffold-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 import { normalizeExtras, withoutMeasureWordEcho, type ChunkPart } from "./extras";
 
@@ -1136,6 +1137,14 @@ const ScaffoldSchema = z.object({
     .max(5),
 });
 
+/** 撮った日を「8月1日」の形に。読めなければ何も言わない。 */
+function takenLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `撮った日: ${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
 
 export const getSpeakingScaffold = createServerFn({ method: "POST" })
@@ -1143,16 +1152,42 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ScaffoldInput.parse(input))
   .handler(async ({ context, data }): Promise<SpeakingScaffold> => {
     const { supabase, userId } = context;
-    const { data: st } = await supabase
+    // `speaking_scaffold` は 2026-08-20 に足した列。**無い環境でも読める形**を
+    // 残す(この app では新しい列を足すたびにこの形にしている)。
+    const cols = (withScaffold: boolean) =>
+      `id, caption, location_name, taken_at, created_at, object_image_url, cutout_image_url, branch_plan, word_id${
+        withScaffold ? ", speaking_scaffold" : ""
+      }, words(headword, meaning_ja, extras)`;
+    let res = await supabase
       .from("stickers")
-      .select("id, caption, branch_plan, word_id, words(headword, meaning_ja, extras)")
+      .select(cols(true))
       .eq("id", data.sticker_id)
       .eq("user_id", userId)
       .maybeSingle();
+    // **列が無いときは `data: null` ではなくエラーが返る。**
+    // 「読めなかった」を「カードが無い」と取り違えると、
+    // 列を足す前の環境で復習が丸ごと開かなくなる。
+    let hasScaffoldColumn = true;
+    if (res.error && /speaking_scaffold/.test(res.error.message)) {
+      hasScaffoldColumn = false;
+      res = (await supabase
+        .from("stickers")
+        .select(cols(false))
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId)
+        .maybeSingle()) as unknown as typeof res;
+    }
+    const st = res.data;
     const row = st as unknown as {
       caption: string | null;
+      location_name: string | null;
+      taken_at: string | null;
+      created_at: string | null;
+      object_image_url: string | null;
+      cutout_image_url: string | null;
       branch_plan?: unknown;
       word_id: string;
+      speaking_scaffold?: unknown;
       words: {
         headword: string;
         meaning_ja: string;
@@ -1163,23 +1198,24 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const w = row.words;
     const captionSeed = row.caption?.trim() || null;
 
-    // キャッシュは**表示言語 × 母語**ごとに分ける。
-    // 表示言語: 英語設定なら英語の足場を出す(日本語のヒントが残るのを防ぐ)。
-    // 母語: grammar のヒントが母語の弱点に合わせて変わるので、母語を
-    // 切り替えたら別の足場になる。v4 で母語を鍵に加えた。
+    // ## 控えは**語ではなく、その1枚**に置く
+    //
+    // 前は `words.extras` に語単位で置いていた。`words` は利用者どうしで
+    // 共有される表なので、そこへ「その人が撮ったときの一言」から作った質問を
+    // 書き込むと、**同じ語を持つ別の利用者にその人の思い出が出る**。
+    // 個人の記憶を混ぜてよい場所ではない(だから `stickers` に列を足した)。
+    //
+    // 鍵は 表示言語 × 母語 × **一言の指紋**。
+    // 表示言語: 英語設定なら英語の足場を出す。
+    // 母語: grammar のヒントが母語の弱点に合わせて変わる。
+    // 一言: 書き直したら質問も作り直す — 古い一言から作った問いが残ると、
+    //       本人にとって身に覚えのないことを聞かれる。
     const lang = await getExplanationLanguage(userId);
     const l1Code = await getLearnerL1Code(userId);
-    const cacheKey = `speaking_scaffold_v4_${lang}_${l1Code}`;
-    const cached = (w.extras as Record<string, unknown> | null)?.[cacheKey];
-    const cachedParsed = cached
-      ? (() => {
-          try {
-            return ScaffoldSchema.parse(cached);
-          } catch {
-            return null;
-          }
-        })()
-      : null;
+    const cacheKey = scaffoldCacheKey({ lang, l1: l1Code, caption: captionSeed });
+    const cachedParsed = readScaffoldBox(row.speaking_scaffold, cacheKey, (v) =>
+      ScaffoldSchema.parse(v),
+    );
     if (cachedParsed) {
       return { ...cachedParsed, caption_seed: captionSeed };
     }
@@ -1195,13 +1231,42 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
     const pattern = resolveBranches(plan, 1).justUnlocked;
 
+    // ## その人の思い出をプロンプトに渡す
+    //
+    // ここが本題(要望 2026-08-18:「質問はユーザーの内面の気持ち、思い出、
+    // 感情、個人的な情報を引き出すようにAIが考える。そのうえで自分の撮った
+    // 時の感想、一言をもとに型やフレーズ、語法のヒントを表示」)。
+    //
+    // **前は一言も場所も日付も渡していなかった。** それでいて
+    // 「写真の状況に沿った質問」と書いてあったので、ずっと空振りしていた。
+    const memory = [
+      captionSeed ? `撮ったときの一言:「${captionSeed}」` : null,
+      row.location_name ? `撮った場所: ${row.location_name}` : null,
+      takenLabel(row.taken_at ?? row.created_at),
+      row.cutout_image_url || row.object_image_url ? "自分で撮った写真がある" : null,
+    ]
+      .filter(Boolean)
+      .join(" / ");
+
     const scaffold = await generateStructured({
       model: ai.gateway(ai.modelFast),
       schema: ScaffoldSchema,
       prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。${langRule}学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
+${memory ? `この学習者がこの言葉を拾ったときの記録 — ${memory}\n` : ""}
 次を厳密なJSONで返してください:
-- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。先生が授業でするような、写真の状況に沿った質問。
+- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。
+${
+  captionSeed
+    ? `  **上の「一言」に書かれた気持ち・出来事を受けて聞く。** 学習者が自分で書いたことなので、
+  そこから広げると答えが自分の中に既にある状態になる。
+  例:「美味しかった」→ また食べたいか / 誰と行きたいか。「疲れた」→ どんなときにそう感じるか。
+  一言をそのまま繰り返さない。**その先を聞く。**`
+    : `  一言が書かれていないので、**その物を見たときの気持ち・思い出・したいこと**を
+  引き出す質問にする(例: いつ使うか / 誰を思い出すか / 次はどうしたいか)。
+  「これは何ですか」のような、見れば分かることは聞かない。`
+}
+  場所や日付が分かっているなら、それを手がかりにしてよい(「〜で見たとき」)。
 - question_ja: その質問の訳(解説言語で)
 - parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja, kind, chunks}。
   **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
@@ -1219,18 +1284,19 @@ ${l1Order}
     chunks の text を順に繋ぐと zh に一致すること。`,
     });
 
-    // words.extras に足場をマージ保存(insert-only的に既存extrasを保持)。
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const nextExtras = { ...(w.extras ?? {}), [cacheKey]: scaffold };
-      await supabaseAdmin
-        .from("words")
-        .update({ extras: nextExtras as never })
-        .eq("id", row.word_id);
-      await logUsage(supabase, userId, "speaking_feedback");
-    } catch {
-      /* キャッシュ保存の失敗は致命的でない */
+    // 控えは**その1枚**へ。列がまだ無い環境では保存を諦めるだけで、
+    // 足場そのものは返す(毎回作り直しになるが、間違った物は出ない)。
+    if (hasScaffoldColumn) {
+      const { error } = await supabase
+        .from("stickers")
+        // 型定義は生成物で、`speaking_scaffold` はそれより新しい列。
+        // `shelf_key` のときと同じで、緩いクライアントとして扱う。
+        .update({ speaking_scaffold: { key: cacheKey, scaffold } } as never)
+        .eq("id", data.sticker_id)
+        .eq("user_id", userId);
+      if (error) console.warn("scaffold cache write failed", error.message);
     }
+    await logUsage(supabase, userId, "speaking_feedback");
 
     return { ...scaffold, caption_seed: captionSeed };
   });
