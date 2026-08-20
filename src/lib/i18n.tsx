@@ -999,6 +999,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
   "home.journal": { ja: "今日の日記を書く", en: "Write today's journal" },
   // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
+  "home.dayJournal": { ja: "この日の日記", en: "That day's diary" },
+  "home.dayJournalUsed": { ja: "使った言葉", en: "Words used" },
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages" },
   "home.memories": { ja: "枚の思い出", en: "memories caught" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet" },

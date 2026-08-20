@@ -117,11 +117,29 @@ export function HomeLoadingScene() {
   );
 }
 
-/** 過去の日。区切り線と、出し切れていないときの断り。 */
+/**
+ * 過去の日。区切り線と、出し切れていないときの断り。
+ *
+ * **日記の在る日と無い日を1枚に入れる**(要望 #22)。
+ * 無い日に空の枠が並んでいないか、在る日が写真のページと
+ * 向かい合って見えるか — どちらも絵でしか分からない。
+ */
 export function HomePastScene() {
   const days: Array<[string, StickerWithWord[]]> = [1, 2].map((d) => [
     new Date(Date.now() - d * 86400000).toLocaleDateString("en-CA"),
     FIXTURES.slice(0, 4).map((f, i) => makeSticker(f, i, d)),
+  ]);
+  // 1日目にだけ日記を置く。2日目は**何も出ないのが正しい姿**。
+  const first = days[0];
+  const journals = new Map([
+    [
+      first[0],
+      {
+        body: "今天在士林夜市喝了珍珠奶茶。天氣很熱,所以我點了少冰。老闆問我要不要加珍珠,我說要。",
+        note: "「去」の後ろに「了」を入れると、行った動作が完了したことがはっきりします。",
+        used_sticker_ids: [first[1][0].id, first[1][2].id],
+      },
+    ],
   ]);
   return (
     <PastDays
@@ -131,6 +149,7 @@ export function HomePastScene() {
       truncated
       shown={1000}
       total={1342}
+      journals={journals}
     />
   );
 }

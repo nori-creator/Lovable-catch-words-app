@@ -1,4 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { DayJournalPage } from "@/components/DayJournalPage";
+import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
@@ -243,6 +245,37 @@ function HomePage() {
 
   const todayStickers = grouped.find(([k]) => k === todayKey)?.[1] ?? [];
   const pastDays = grouped.filter(([k]) => k !== todayKey);
+
+  /**
+   * 日付ごとの日記(要望 #22)。
+   *
+   * 日記の画面と**同じ問い合わせ鍵**を使うので、どちらかを開いていれば
+   * もう一方は取り直さない。失敗しても黙って消える — 日記が出ないことで
+   * ホームを止めない。
+   *
+   * **直した文が在ればそちら、無ければ下書き。** 添削前の日も本には残る。
+   */
+  const fetchJournal = useServerFn(listJournal);
+  const { data: journalEntries } = useQuery({
+    queryKey: ["journal"],
+    queryFn: () => fetchJournal(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const journalsByDay = useMemo(() => {
+    const m = new Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>();
+    for (const e of journalEntries ?? []) {
+      const body = (e.correction ?? e.user_draft ?? "").trim();
+      // **空の日は入れない。** 入れると空の紙が本に挟まる。
+      if (!body) continue;
+      m.set(e.entry_date, {
+        body,
+        note: e.feedback_ja,
+        used_sticker_ids: e.used_sticker_ids ?? [],
+      });
+    }
+    return m;
+  }, [journalEntries]);
   const bgClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
 
   return (
@@ -282,6 +315,7 @@ function HomePage() {
           truncated={stickers?.truncated ?? false}
           shown={stickers?.items.length ?? 0}
           total={stickers?.total ?? stickers?.items.length ?? 0}
+          journals={journalsByDay}
         />
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
@@ -344,6 +378,7 @@ export function PastDays({
   truncated,
   shown,
   total,
+  journals,
 }: {
   days: Array<[string, StickerWithWord[]]>;
   bgClass: string;
@@ -351,6 +386,12 @@ export function PastDays({
   truncated: boolean;
   shown: number;
   total: number;
+  /**
+   * 日付(YYYY-MM-DD)ごとの日記(要望 #22)。
+   * **無い日は入っていない** — 日記の無い日に空の枠を並べると、
+   * 本が書き損じの束に見える。
+   */
+  journals?: Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>;
 }) {
   const t = useT();
   return (
@@ -379,6 +420,22 @@ export function PastDays({
               for users west of UTC). */}
           <DayHeader date={new Date(`${k}T00:00:00`)} compact />
           <ScrapbookAlbum stickers={items} bgClass={bgClass} onOpen={onOpen} />
+          {/* 写真のページの**向かい**に日記を置く(要望 #22)。
+              使った語は `used_sticker_ids` から出す — 書かれてはいたが
+              **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
+              id を突き合わせるだけでよく、問い合わせは増えない。 */}
+          {(() => {
+            const j = journals?.get(k);
+            if (!j) return null;
+            const used = new Set(j.used_sticker_ids);
+            return (
+              <DayJournalPage
+                body={j.body}
+                note={j.note}
+                usedWords={items.filter((s) => used.has(s.id)).map((s) => s.word.headword)}
+              />
+            );
+          })()}
         </div>
       ))}
     </section>
