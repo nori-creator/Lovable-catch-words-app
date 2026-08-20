@@ -4,7 +4,7 @@ import { z } from "zod";
 // 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
-import { nextSrs, retentionNow, modeFor, stabilityOf } from "@/lib/srs";
+import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
 import {
   buildRetentionSeries,
   type RetentionCard,
@@ -91,6 +91,10 @@ export type DueReviewCard = {
   location_name: string | null;
   taken_at: string | null;
   review_count: number; // completed reviews so far (word-tree unlock count)
+  /** 思い出せなかった回数(score < 3)。「もう一度撮ろう」の判定に使う。 */
+  lapses: number;
+  /** この語でこれまでに撮った写真の枚数(最初の1枚 + 再会)。 */
+  photo_count: number;
   /**
    * §6/B7: the pattern (branch) THIS review teaches — shown as the task
    * ("この型を使って一文") instead of the harder free-form 例文作れ.
@@ -341,16 +345,37 @@ export const getDueReviews = createServerFn({ method: "GET" })
     if (rows.length === 0) return [];
 
     // Word-tree unlock counts: one review_history row per completed review.
+    // **つまずいた回数もここで数える** — `repetitions` は連続正解の回数で、
+    // つまずくたびに 0 に戻るので「何度もやったのに覚えられない」語ほど
+    // 小さくなる。撮り直しの判定に使えるのは通算の回数のほう
+    // (`src/lib/retake.ts`)。
     const stickerIds = rows.map((r) => r.sticker_id);
     const reviewCounts = new Map<string, number>();
+    const lapseCounts = new Map<string, number>();
     {
       const { data: histRows } = await supabase
         .from("review_history")
+        .select("sticker_id, score")
+        .eq("user_id", userId)
+        .in("sticker_id", stickerIds);
+      for (const h of (histRows ?? []) as Array<{ sticker_id: string; score: number | null }>) {
+        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+        if ((h.score ?? 5) < LAPSE_SCORE) {
+          lapseCounts.set(h.sticker_id, (lapseCounts.get(h.sticker_id) ?? 0) + 1);
+        }
+      }
+    }
+    // 撮った枚数 = 最初の1枚 + 再会の回数。列がまだ無い環境でも
+    // **落とさない** — 数えられなければ「1枚」として扱い、提案は出る。
+    const encounterCounts = new Map<string, number>();
+    {
+      const { data: encRows } = await supabase
+        .from("encounters")
         .select("sticker_id")
         .eq("user_id", userId)
         .in("sticker_id", stickerIds);
-      for (const h of histRows ?? []) {
-        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+      for (const e of (encRows ?? []) as Array<{ sticker_id: string }>) {
+        encounterCounts.set(e.sticker_id, (encounterCounts.get(e.sticker_id) ?? 0) + 1);
       }
     }
 
@@ -534,6 +559,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         location_name: row.stickers!.location_name,
         taken_at: row.stickers!.taken_at,
         review_count: reviewCount,
+        lapses: lapseCounts.get(row.sticker_id) ?? 0,
+        photo_count: 1 + (encounterCounts.get(row.sticker_id) ?? 0),
         prompt_pattern: promptPattern,
         blur_seen: row.blur_seen,
         ease: row.ease,

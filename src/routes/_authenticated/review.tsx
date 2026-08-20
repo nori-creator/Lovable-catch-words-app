@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +39,7 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
+import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
@@ -125,6 +126,7 @@ export const Route = createFileRoute("/_authenticated/review")({
 
 function ReviewPage() {
   const t = useT();
+  const navigate = useNavigate();
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const fetchProfile = useServerFn(getMyProfile);
@@ -329,22 +331,37 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <ReviewPreparing />
       ) : current ? (
-        format === "choice" ? (
-          <LightModeCard
-            key={current.review_id}
-            card={current}
-            onNext={advance}
-            onOpenMemory={() => setMemModal(memWordOf(current))}
+        <>
+          {format === "choice" ? (
+            <LightModeCard
+              key={current.review_id}
+              card={current}
+              onNext={advance}
+              onOpenMemory={() => setMemModal(memWordOf(current))}
+            />
+          ) : (
+            <SpeakingCard
+              key={current.review_id}
+              card={current}
+              format={format === "say" ? "say" : "compose"}
+              onNext={advance}
+              onOpenMemory={() => setMemModal(memWordOf(current))}
+            />
+          )}
+          {/* 「どうしても覚えられない語は、もう一度撮ってみよう」(オーナー指摘)。
+              出す形は3つあるので、**札の外に1度だけ**置く。中に入れると
+              4択・発話・作文の3箇所に同じ判断を書くことになり、
+              いずれ食い違う。条件は `src/lib/retake.ts` が持つ。 */}
+          <RetakeSuggestion
+            headword={current.headword}
+            reviewCount={current.review_count}
+            lapses={current.lapses}
+            intervalDays={current.interval_days}
+            retention={current.retention}
+            photoCount={current.photo_count}
+            onRetake={() => void navigate({ to: "/capture", search: { retake: current.headword } })}
           />
-        ) : (
-          <SpeakingCard
-            key={current.review_id}
-            card={current}
-            format={format === "say" ? "say" : "compose"}
-            onNext={advance}
-            onOpenMemory={() => setMemModal(memWordOf(current))}
-          />
-        )
+        </>
       ) : null}
 
       {memModal && <ForgettingCurveModal word={memModal} onClose={() => setMemModal(null)} />}

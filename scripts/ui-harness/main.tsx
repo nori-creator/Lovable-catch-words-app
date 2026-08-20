@@ -62,6 +62,7 @@ import {
   ReviewExplainScene,
   ReviewLoadingScene,
   ReviewModeTabsScene,
+  RetakeSuggestionScene,
   ReviewSayResultScene,
   ReviewSayScene,
   ReviewMemoryScene,
@@ -140,6 +141,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-say": ReviewSayScene,
   "review-say-result": ReviewSayResultScene,
   "review-mode-tabs": ReviewModeTabsScene,
+  "retake-suggestion": RetakeSuggestionScene,
 };
 
 /**

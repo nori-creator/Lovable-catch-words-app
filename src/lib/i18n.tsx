@@ -121,6 +121,18 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
   "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
+  // --- もう一度撮る提案(src/lib/retake.ts) ---
+  "retake.title": { ja: "、もう一度撮ってみる？", en: " — shoot it again?" },
+  "retake.lapsing": {
+    ja: "{n}回出しましたが、まだつまずいています。同じ物をもう一度撮ると、新しい写真・場所・一言が手がかりになります。",
+    en: "You've seen it {n} times and it still slips. Catching the same thing again gives you a fresh photo, place and note to hang the memory on.",
+  },
+  "retake.stuck": {
+    ja: "{n}回出しましたが、間隔が伸びていません。もう一度撮って、思い出す手がかりを増やしませんか。",
+    en: "Seen {n} times, but the interval isn't growing. Catch it again to give yourself another way in.",
+  },
+  "retake.cta": { ja: "撮りに行く", en: "Go catch it" },
+  "retake.hint": { ja: "「{w}」をもう一度撮ってみましょう", en: "Catch “{w}” again" },
   "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
