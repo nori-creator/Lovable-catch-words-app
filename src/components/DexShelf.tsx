@@ -93,12 +93,12 @@ const PER_SHELF = 3;
  * ずれを見て5%を超えたら落とす。
  */
 function estimateShelfHeight(tiers: number): number {
-  const HEAD = 14;
-  // 空の棚の枝は消した。**持っている棚しか描かないので届かない。**
-  // 到達しない分岐を残すと、次に数字を直す人がそこも合わせようとする。
-  // 素材と背表紙も消したので、掛け合わせも無くなった(見え方は1つだけ)。
-  return HEAD + tiers * 111;
+  const HEAD = 20;
+  // 段を「箱」にしたので測り直した(390px幅、ビルド済みCSS):
+  // 見出し 19.5px + 1段 133px、2段目以降は段の間 16px が足される。
+  return HEAD + tiers * 133 + Math.max(0, tiers - 1) * 16;
 }
+
 
 export function DexShelf({
   stickers,
