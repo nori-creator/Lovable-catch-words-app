@@ -700,6 +700,7 @@ const DAILY_CAPS: Record<string, number> = {
   correction: 100,
   journal_prompt: 60,
   card: 200,
+  wordbook: 60, // 1枚の写真で最大60語。取り込みは1日に何度もやる物ではない
   phrase_card: 100,
   suggest: 300,
   removebg: 100, // paid per image — tighter than the free-tier guards

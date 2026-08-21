@@ -6,6 +6,7 @@
  * 決めてあった箇所。まず見えるようにする。
  */
 import { WordCard } from "@/components/WordCard";
+import { TocflLadder } from "@/components/TocflLadder";
 import {
   BackToDexLink,
   StickerDetailBody,
@@ -259,5 +260,29 @@ export function StickerHeroScene() {
         } as never
       }
     />
+  );
+}
+
+/**
+ * TOCFL の段々。**6級ぶんと級外**を並べて、どの段が立っているかを見る。
+ *
+ * 級だけを変えた同じ図を並べるのは、**段の高さと色が級ごとに違う**こと
+ * そのものが情報だから。1枚だけ撮ると「立っている段が正しいか」しか
+ * 分からず、順番が壊れていても気づけない。
+ */
+export function TocflLadderScene() {
+  const levels = ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"];
+  return (
+    <div className="space-y-3">
+      {levels.map((l) => (
+        <div key={l} className="rounded-2xl border border-border bg-card p-3">
+          <TocflLadder level={l} />
+        </div>
+      ))}
+      {/* 分からない語は**何も描かない**のが正しい(空の枠だけが残る)。 */}
+      <div className="rounded-2xl border border-border bg-card p-3">
+        <TocflLadder level={null} />
+      </div>
+    </div>
   );
 }

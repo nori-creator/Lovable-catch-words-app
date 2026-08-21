@@ -88,6 +88,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "page.notifications": { ja: "通知 — Catchwords", en: "Notifications — Catchwords" },
   "page.discover": { ja: "発見 — Catchwords", en: "Discover — Catchwords" },
   "page.journal": { ja: "日記 — Catchwords", en: "Journal — Catchwords" },
+  "page.wordbooks": { ja: "単語帳 — Catchwords", en: "Wordbooks — Catchwords" },
   "page.onboarding": { ja: "ようこそ — Catchwords", en: "Welcome — Catchwords" },
   "page.auth": { ja: "ログイン — Catchwords", en: "Sign in — Catchwords" },
   "page.reset": { ja: "パスワード再設定 — Catchwords", en: "Reset password — Catchwords" },
@@ -109,8 +110,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     en: "Nothing caught today yet, so there are no questions. Catch one and they'll be about it.",
   },
   "rv.autoMode": {
-    ja: "記憶の段階に合わせて出題の形を変えます",
-    en: "Picks the task format to match how well you remember each word",
+    ja: "AI が記憶の段階を見て、出題の形を選びます",
+    en: "AI reads how well you remember and picks the task format",
   },
   "rv.formatSay": { ja: "写真を見て、声に出す", en: "Look at the photo and say it" },
   "rv.formatSayHint": {
@@ -121,6 +122,116 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "rv.sayCheck": { ja: "言えたか見る", en: "Check it" },
   "rv.sayRetry": { ja: "言い直す", en: "Say it again" },
   "rv.streakLine": { ja: "復習が{n}日続いています", en: "{n}-day review streak" },
+  // --- 単語帳の取り込み(src/lib/wordbook.ts) ---
+  "wb.title": { ja: "単語帳", en: "Wordbooks" },
+  "wb.shootBook": { ja: "単語帳を撮る", en: "Photograph a wordbook" },
+  "wb.shootHint": {
+    ja: "単語が並んだページを、まっすぐ明るい所で撮ってください。並んでいる語をまとめて取り込みます。",
+    en: "Shoot a page of listed words, straight on and well lit. Every word on it comes in at once.",
+  },
+  "wb.reading": { ja: "読み取っています…", en: "Reading the page…" },
+  "wb.extractFailed": { ja: "読み取れませんでした", en: "Couldn't read that page" },
+  "wb.confirmTitle": { ja: "この語で合っていますか", en: "Do these look right?" },
+  "wb.confirmHint": {
+    ja: "違う語が混ざっていたら、右の×で外してください。外した語は入りません。",
+    en: "Drop anything that came out wrong with the × — dropped words are not saved.",
+  },
+  "wb.bookTitle": { ja: "単語帳の名前", en: "Wordbook name" },
+  "wb.bookTitlePlaceholder": { ja: "例: TOCFL 2級 第3課", en: "e.g. TOCFL 2, unit 3" },
+  "wb.dropWord": { ja: "「{word}」を外す", en: "Drop “{word}”" },
+  "wb.saveN": { ja: "{n}語を取り込む", en: "Import {n} words" },
+  "wb.saved": { ja: "{n}語を取り込みました", en: "Imported {n} words" },
+  "wb.saveFailed": { ja: "取り込めませんでした", en: "Couldn't import those" },
+  "wb.emptyTitle": { ja: "まだ単語帳がありません", en: "No wordbooks yet" },
+  "wb.emptyBody": {
+    ja: "教科書や自作のリストを撮ると、そこに並ぶ語をまとめて取り込んで、図鑑とは別に復習できます。",
+    en: "Photograph a textbook page or your own list to bring every word in at once and review it apart from your dex.",
+  },
+  "wb.whatShelf": { ja: "単語帳の一覧", en: "your wordbooks" },
+  "wb.whatDue": { ja: "今日の出題", en: "today's questions" },
+  "wb.dueN": { ja: "今日 {n}語", en: "{n} due today" },
+  "wb.doneForToday": { ja: "今日はおしまい", en: "Done for today" },
+  "wb.learnedOf": { ja: "覚えた {n}／{total}", en: "{n} of {total} learned" },
+  "wb.delete": { ja: "「{title}」を消す", en: "Delete “{title}”" },
+  "wb.confirmDelete": {
+    ja: "「{title}」を語ごと消します。戻せません。",
+    en: "Delete “{title}” and every word in it. This can't be undone.",
+  },
+  "wb.deleteFailed": { ja: "消せませんでした", en: "Couldn't delete it" },
+  "wb.reviewTitle": { ja: "単語帳の復習", en: "Wordbook review" },
+  "wb.backToShelf": { ja: "単語帳の一覧へ", en: "Back to wordbooks" },
+  "wb.pickTheWord": { ja: "この意味の語はどれ", en: "Which word means this" },
+  "wb.noMeaning": { ja: "（意味が読み取れていません）", en: "(no meaning was read)" },
+  "wb.progress": { ja: "{done}／{total}", en: "{done}/{total}" },
+  "wb.finished": { ja: "この本の今日ぶんは終わりです", en: "That's today's batch" },
+  "wb.score": { ja: "{correct}／{total} 正解", en: "{correct} of {total} right" },
+  "wb.gradeFailed": {
+    ja: "採点を送れませんでした。この語はまた出ます。",
+    en: "Couldn't record that answer — the word will come round again.",
+  },
+  "wb.allDoneTitle": { ja: "今日出す語はありません", en: "Nothing due today" },
+  "wb.allDoneBody": {
+    ja: "この本の語は、次に出る日まで休みます。ほかの本を選ぶか、新しく取り込んでください。",
+    en: "This book rests until its words come due. Pick another book, or import a new one.",
+  },
+  "wb.openShelf": { ja: "単語帳で復習する", en: "Review a wordbook" },
+  // --- TOCFL の段々(src/lib/tocfl.ts) ---
+  "tocfl.title": { ja: "TOCFL", en: "TOCFL" },
+  "tocfl.level": { ja: "{n}級", en: "Level {n}" },
+  "tocfl.out": { ja: "級外の語", en: "Not in the lists" },
+  "tocfl.outShort": { ja: "外", en: "—" },
+  // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
+  // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
+  "corpus.more": {
+    ja: "もっと詳しく（外部のコーパス・押すと語をコピー）",
+    en: "Dig deeper (outside corpora — tapping copies the word)",
+  },
+  "corpus.copied": {
+    ja: "「{w}」をコピーしました。向こうの検索欄に貼ってください。",
+    en: "Copied “{w}” — paste it into their search box.",
+  },
+  "corpus.coctLevel": { ja: "国教院・語の級", en: "COCT word levels" },
+  "corpus.coctLevelHint": {
+    ja: "国教院の詞語分級標準検索。この語が何級かを実データで確かめられます。",
+    en: "The Ministry-of-Education word grading system — check this word's official level.",
+  },
+  "corpus.coctCore": { ja: "国教院・基礎語彙", en: "COCT core vocabulary" },
+  "corpus.coctCoreHint": {
+    ja: "国教院の基礎詞彙検索。教える側が「基礎」と決めた語に入っているかが分かります。",
+    en: "The core-vocabulary index — whether teachers count this word as foundational.",
+  },
+  "corpus.sinica": { ja: "中研院・平衡語料庫", en: "Sinica Balanced Corpus" },
+  "corpus.sinicaHint": {
+    ja: "中央研究院の現代漢語平衡語料庫。品詞と頻度の裏取りに使えます。",
+    en: "Academia Sinica's balanced corpus — the reference for part of speech and frequency.",
+  },
+  "corpus.cwn": { ja: "中文詞彙網路", en: "Chinese Wordnet" },
+  "corpus.cwnHint": {
+    ja: "語義がいくつに分かれるか、どの語と近いかを、研究の定義で読めます。",
+    en: "How many senses a word splits into, and which words sit next to it.",
+  },
+  "corpus.coctBilingual": { ja: "国教院・華英索引典", en: "COCT bilingual concordance" },
+  "corpus.coctBilingualHint": {
+    ja: "実際の文と英訳が並びます。どんな文の中に出るかを見るならここ。",
+    en: "Real sentences beside their English — the place to see the word in context.",
+  },
+  "corpus.sketch": { ja: "Sketch Engine", en: "Sketch Engine" },
+  "corpus.sketchHint": {
+    ja: "一緒に使う語の一覧が最も詳しい系統。ただしログインが要ります。",
+    en: "The best collocation lists anywhere — but it needs an account.",
+  },
+  // --- もう一度撮る提案(src/lib/retake.ts) ---
+  "retake.title": { ja: "、もう一度撮ってみる？", en: " — shoot it again?" },
+  "retake.lapsing": {
+    ja: "{n}回出しましたが、まだつまずいています。同じ物をもう一度撮ると、新しい写真・場所・一言が手がかりになります。",
+    en: "You've seen it {n} times and it still slips. Catching the same thing again gives you a fresh photo, place and note to hang the memory on.",
+  },
+  "retake.stuck": {
+    ja: "{n}回出しましたが、間隔が伸びていません。もう一度撮って、思い出す手がかりを増やしませんか。",
+    en: "Seen {n} times, but the interval isn't growing. Catch it again to give yourself another way in.",
+  },
+  "retake.cta": { ja: "撮りに行く", en: "Go catch it" },
+  "retake.hint": { ja: "「{w}」をもう一度撮ってみましょう", en: "Catch “{w}” again" },
   "rv.overallTitle": { ja: "全体の記憶率（前後2週間）", en: "Overall retention (±2 weeks)" },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
@@ -811,7 +922,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "title.capture": { ja: "集める", en: "Catch" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review" },
-  "review.auto": { ja: "🎯 おまかせ", en: "🎯 Auto" },
+  "review.auto": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks" },
   "review.speak": { ja: "🎤 話す", en: "🎤 Speak" },
   "review.choice": { ja: "👆 4択", en: "👆 Quiz" },
   // --- dex ---
@@ -946,6 +1057,11 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
   "card.filling": { ja: "作っています…", en: "Writing it…" },
+  // 裏で上から順に作っているときの一行(src/components/WordCard.tsx)。
+  "card.fillingOrdered": {
+    ja: "解説を上から順に作っています（{done}/{total}）",
+    en: "Writing the rest, top to bottom ({done}/{total})",
+  },
   "card.fillFailed": {
     ja: "うまく作れませんでした。通信を確かめて、もう一度お試しください。",
     en: "Couldn't write it. Check your connection and try again.",
@@ -1027,6 +1143,15 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside" },
   "home.journal": { ja: "今日の日記を書く", en: "Write today's journal" },
+  // 見開きの右ページ(ホームでその場で書く)。
+  "home.writeToday": { ja: "今日の日記を書く", en: "Write today's journal" },
+  "home.pastJournals": { ja: "これまでの日記", en: "Past journals" },
+  // これまでのページの束ね方(src/lib/album-span.ts)。
+  "home.spanAria": { ja: "ページの束ね方", en: "How pages are grouped" },
+  "home.span.day": { ja: "日", en: "Day" },
+  "home.span.week": { ja: "週", en: "Week" },
+  "home.span.month": { ja: "月", en: "Month" },
+  "home.spanCount": { ja: "{n}枚", en: "{n} photos" },
   // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
   "home.dayJournal": { ja: "この日の日記", en: "That day's diary" },
   "home.dayJournalUsed": { ja: "使った言葉", en: "Words used" },
@@ -1256,8 +1381,8 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode" },
   "settings.reviewModeHint": {
-    ja: "「おまかせ」は記憶の段階で形が変わります（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
-    en: "“Auto” matches the task to how well you remember each word (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
+    ja: "「AIが選ぶ」は、その単語をどれだけ覚えているかを見て AI が出題の形を決めます（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
+    en: "“AI picks” looks at how well you remember each word and chooses the task (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
   },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo" },
@@ -1331,14 +1456,14 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log" },
   "settings.photoPref": { ja: "札の主役の写真", en: "Main photo on a card" },
   "settings.photoPrefHint": {
-    ja: "「おまかせ」は画面ごとに合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
-    en: "“Auto” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
+    ja: "「画面ごと」は画面に合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
+    en: "“Per screen” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
   },
-  "settings.photoAuto": { ja: "おまかせ", en: "Auto" },
+  "settings.photoAuto": { ja: "画面ごと", en: "Per screen" },
   "settings.photoObject": { ja: "元の写真", en: "Photo" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie" },
-  "settings.modeHybrid": { ja: "🎯 おまかせ", en: "🎯 Auto" },
+  "settings.modeHybrid": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },

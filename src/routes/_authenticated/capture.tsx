@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -44,12 +45,18 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/capture")({
-  validateSearch: (search: Record<string, unknown>): { word?: string; pending?: string } => {
-    const out: { word?: string; pending?: string } = {};
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { word?: string; pending?: string; retake?: string } => {
+    const out: { word?: string; pending?: string; retake?: string } = {};
     // 派生キャッチ: /capture?word=咖啡 で文字入力フローを自動実行
     if (typeof search.word === "string" && search.word) out.word = search.word;
     // オフラインキューからの復元: /capture?pending=<id>
     if (typeof search.pending === "string" && search.pending) out.pending = search.pending;
+    // 撮り直しの提案から来たとき: /capture?retake=雨傘
+    // **文字入力は走らせない** — 目的はカメラで撮り直すことなので、
+    // 「何を撮りに来たか」を思い出させる一行を出すだけにする。
+    if (typeof search.retake === "string" && search.retake) out.retake = search.retake;
     return out;
   },
   head: () => ({
@@ -157,7 +164,7 @@ function CapturePage() {
   const pronounce = usePronounce();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { word: wordParam, pending: pendingParam } = Route.useSearch();
+  const { word: wordParam, pending: pendingParam, retake: retakeParam } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("photo");
   // 文字入力キャッチはアプリ共通の InputCatchSheet に統一(重複UIの解消)。
   const [inputSheet, setInputSheet] = useState<null | { text?: string; auto?: boolean }>(null);
@@ -347,7 +354,7 @@ function CapturePage() {
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
       const suggestRes = await suggestFn({
-        data: { imageBase64: aiImage, targetLanguage: "zh-TW" },
+        data: { imageBase64: aiImage, targetLanguage: DEFAULT_TARGET_LANGUAGE },
       });
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
@@ -427,7 +434,9 @@ function CapturePage() {
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
     try {
-      const { owned } = await ownedFn({ data: { headword: head, language: "zh-TW" } });
+      const { owned } = await ownedFn({
+        data: { headword: head, language: DEFAULT_TARGET_LANGUAGE },
+      });
       if (runTokenRef.current !== token) return;
       if (owned) {
         setReenc(owned);
@@ -456,14 +465,20 @@ function CapturePage() {
           example_translation: "",
         });
         cardFn({
-          data: { headword: head, targetLanguage: "zh-TW", hintCategory: hint.category_key },
+          data: {
+            headword: head,
+            targetLanguage: DEFAULT_TARGET_LANGUAGE,
+            hintCategory: hint.category_key,
+          },
         })
           .then((c) => {
             if (runTokenRef.current === token) setCard(c);
           })
           .catch(() => {});
       } else {
-        const c = await cardFn({ data: { headword: head, targetLanguage: "zh-TW" } });
+        const c = await cardFn({
+          data: { headword: head, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+        });
         if (runTokenRef.current !== token) return;
         setCard(c);
       }
@@ -563,7 +578,7 @@ function CapturePage() {
           // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
           // このアプリで何度もやっている「直したものが動く経路に無い」形。
           new_shelf: card.new_shelf ?? null,
-          language: "zh-TW",
+          language: DEFAULT_TARGET_LANGUAGE,
           object_path,
           cutout_path,
           selfie_path,
@@ -731,6 +746,14 @@ function CapturePage() {
             <h2 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
             <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
           </div>
+          {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
+              思い出させる。ここに来るまでに数タップ挟まるので、
+              単語を持ってこないと目的が消える。 */}
+          {retakeParam && (
+            <p className="ja-phrase rounded-2xl bg-secondary px-3 py-2 text-footnote font-semibold">
+              {t("retake.hint", { w: retakeParam })}
+            </p>
+          )}
           <label className="block">
             <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
               <div className="flex flex-col items-center gap-2">

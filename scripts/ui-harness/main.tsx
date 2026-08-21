@@ -38,11 +38,17 @@ import {
   ScanNothingScene,
 } from "./scenes/scan";
 import {
+  WordbookShelfScene,
+  WordbookQuizScene,
+  WordbookQuizNoMeaningScene,
+} from "./scenes/wordbook";
+import {
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  HomeWritingScene,
 } from "./scenes/home";
 import {
   SettingsChoicesScene,
@@ -55,6 +61,7 @@ import {
   StickerHeroScene,
   WordCardEmptyScene,
   WordCardScene,
+  TocflLadderScene,
 } from "./scenes/word-card";
 import {
   ReviewChoiceScene,
@@ -62,6 +69,7 @@ import {
   ReviewExplainScene,
   ReviewLoadingScene,
   ReviewModeTabsScene,
+  RetakeSuggestionScene,
   ReviewSayResultScene,
   ReviewSayScene,
   ReviewMemoryScene,
@@ -94,6 +102,10 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
+  "home-writing": HomeWritingScene,
+  "wordbook-shelf": WordbookShelfScene,
+  "wordbook-quiz": WordbookQuizScene,
+  "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,
@@ -119,6 +131,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "input-catch": InputCatchScene,
   "hero-picker": HeroPickerScene,
   "word-card-empty": WordCardEmptyScene,
+  "tocfl-ladder": TocflLadderScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
   "dex-no-match": DexNoMatchScene,
@@ -140,6 +153,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-say": ReviewSayScene,
   "review-say-result": ReviewSayResultScene,
   "review-mode-tabs": ReviewModeTabsScene,
+  "retake-suggestion": RetakeSuggestionScene,
 };
 
 /**

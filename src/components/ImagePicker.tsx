@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { fileToDataUrl } from "@/lib/file-data-url";
 import { Loader2, Search, Upload, Sparkles } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -15,15 +17,6 @@ type Props = {
   onPicked: (dataUrl: string) => void;
 };
 
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
 export function ImagePicker({ query, onPicked }: Props) {
   const t = useT();
   const searchFn = useServerFn(searchImageCandidates);
@@ -37,7 +30,7 @@ export function ImagePicker({ query, onPicked }: Props) {
     setLoading(true);
     setSearched(true);
     try {
-      const { candidates } = await searchFn({ data: { query, language: "zh-TW" } });
+      const { candidates } = await searchFn({ data: { query, language: DEFAULT_TARGET_LANGUAGE } });
       setCandidates(candidates);
     } catch (e) {
       console.error(e);

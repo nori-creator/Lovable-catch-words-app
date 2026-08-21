@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { z } from "zod";
 import { generateStructured, getAi, getAiFor } from "./ai-provider.server";
 import { taiwanUsageFrom, type TaiwanUsage } from "./taiwan-usage";
@@ -47,7 +48,7 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
           (c.confidence ?? 1) >= 0.8 && CJK_ONLY.test(c.headword) && !!c.zhuyin && !!c.meaning_ja,
       )
       .map((c) => ({
-        language: "zh-TW",
+        language: DEFAULT_TARGET_LANGUAGE,
         headword: c.headword,
         zhuyin: c.zhuyin!,
         pinyin: c.pinyin || null,
@@ -132,7 +133,7 @@ async function sampleEntries(source: string, n: number): Promise<LexRow[]> {
   const { data: a } = await supabaseAdmin
     .from("dictionary_entries")
     .select(sel)
-    .eq("language", "zh-TW")
+    .eq("language", DEFAULT_TARGET_LANGUAGE)
     .eq("source", source)
     .gte("id", pivot)
     .limit(n);
@@ -140,7 +141,7 @@ async function sampleEntries(source: string, n: number): Promise<LexRow[]> {
   const { data: b } = await supabaseAdmin
     .from("dictionary_entries")
     .select(sel)
-    .eq("language", "zh-TW")
+    .eq("language", DEFAULT_TARGET_LANGUAGE)
     .eq("source", source)
     .lt("id", pivot)
     .limit(n - (a?.length ?? 0));
@@ -230,7 +231,7 @@ async function loadHeadwordSet(): Promise<{ heads: Set<string>; maxLen: number }
     const { data } = await supabaseAdmin
       .from("dictionary_entries")
       .select("headword")
-      .eq("language", "zh-TW")
+      .eq("language", DEFAULT_TARGET_LANGUAGE)
       .range(from, from + 999);
     if (!data || data.length === 0) break;
     for (const r of data) {
@@ -559,7 +560,7 @@ export async function triageEntryReports(
   const { data: entries } = await supabaseAdmin
     .from("dictionary_entries")
     .select("id, headword, zhuyin, pinyin, meaning_ja, pos, source")
-    .eq("language", "zh-TW")
+    .eq("language", DEFAULT_TARGET_LANGUAGE)
     .in("headword", heads);
   const byHead = new Map((entries ?? []).map((e) => [e.headword, e as LexRow]));
 

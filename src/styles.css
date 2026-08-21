@@ -111,7 +111,6 @@
   --text-title--line-height: 1.3;
   --text-hero: 2rem; /* 32px — 主役の語 */
   --text-hero--line-height: 1.15;
-
 }
 
 @theme inline {
@@ -1375,6 +1374,91 @@
   --mem-4: oklch(0.84 0.14 160);
   --mem-5: oklch(0.8 0.13 245);
 }
+/* ── アルバムの表紙が開く ──────────────────────────────────
+   オーナー指摘⑪「アルバムを開く演出」。本を開く動きなので、綴じ目
+   (左端)を軸に回す。ページをめくる `.page-turn` より角度を大きく、
+   時間も長めにして「表紙」と「中の紙」を区別する。
+
+   **1回開いたら二度と回さない。** ホームは1日に何度も開く画面なので、
+   毎回2秒の演出が挟まると邪魔にしかならない(呼ぶ側が付け外しする)。 */
+@keyframes album-open {
+  from {
+    transform: perspective(1400px) rotateY(-84deg);
+    opacity: 0.2;
+  }
+  to {
+    transform: perspective(1400px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+.album-open {
+  transform-origin: left center;
+  animation: album-open 620ms cubic-bezier(0.25, 0.8, 0.3, 1) both;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .album-open {
+    animation: none;
+  }
+}
+
+/* ── 日記を書くときの「ページがめくれる」 ──────────────────
+   オーナー: 「今日の日記を書くボタンを押したら、ホームのアルバムのページが
+   めくれて、左に今日撮った写真、右ページに日記を書く。」
+
+   本を開く動きなので、**綴じ目を軸に回す**(`transform-origin: left`)。
+   中央を軸に回すと紙が裏返る動きになり、めくった感じにならない。
+   動きを減らす設定では、回さず出すだけ — 位置は同じなので迷わない。 */
+@keyframes page-turn {
+  from {
+    transform: perspective(1200px) rotateY(-58deg);
+    opacity: 0;
+  }
+  to {
+    transform: perspective(1200px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+.page-turn {
+  transform-origin: left center;
+  animation: page-turn 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-turn {
+    animation: none;
+  }
+}
+
+/* ── TOCFL の6級 + 級外の色 ────────────────────────────
+   記憶の6段(--mem-*)とは**わざと違う系統**にする。同じ画面に「記憶の段」と
+   「語の級」が並ぶので、赤→青の並びを両方に使うと、どちらの目盛りを
+   見ているのか読めなくなる。こちらは青緑→紫の一系統で「高くなる」だけを
+   表し、彩度ではなく**深さ**で級を伝える。
+   級外は色相を持たせない(灰) — 難しさの順番の上に置けない語だから。 */
+:root {
+  --tocfl-1: oklch(0.84 0.11 195);
+  --tocfl-2: oklch(0.78 0.13 220);
+  --tocfl-3: oklch(0.72 0.15 245);
+  --tocfl-4: oklch(0.66 0.16 270);
+  --tocfl-5: oklch(0.6 0.17 295);
+  --tocfl-6: oklch(0.54 0.18 315);
+  --tocfl-out: oklch(0.72 0.02 260);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --tocfl-1: oklch(0.86 0.1 195);
+  --tocfl-2: oklch(0.82 0.12 220);
+  --tocfl-3: oklch(0.78 0.14 245);
+  --tocfl-4: oklch(0.75 0.15 270);
+  --tocfl-5: oklch(0.72 0.16 295);
+  --tocfl-6: oklch(0.7 0.17 315);
+  --tocfl-out: oklch(0.7 0.02 260);
+}
 .mem-lv-0 {
   --mem: var(--mem-0);
 }
@@ -1727,8 +1811,7 @@
 .shelf-item .shelf-stand {
   /* 接地影。棚板に触れている一点が濃く、すぐ薄くなる。 */
   filter: drop-shadow(0 3px 3px hsl(var(--shelf-shadow) / var(--shelf-shadow-a)));
-  -webkit-box-reflect: below 0
-    linear-gradient(to bottom, transparent 78%, rgb(0 0 0 / 0.16) 100%);
+  -webkit-box-reflect: below 0 linear-gradient(to bottom, transparent 78%, rgb(0 0 0 / 0.16) 100%);
 }
 /* モノが板に触れている一点の濃い影。切り抜きの輪郭に沿う drop-shadow
    だけだと、下端が細いモノ(瓶・傘)が浮いて見えた。楕円を1枚敷く。 */
@@ -1818,7 +1901,6 @@
     inset 0 1px 0 rgb(255 255 255 / calc(var(--shelf-lip-a) * 0.5));
 }
 
-
 /* 棚板。線ではなく**小口のある板**。
    上 1px の光の縁 → 板の面 → 下に落ちる影、の3段で厚みを出す。 */
 .shelf-rule {
@@ -1846,7 +1928,6 @@
   );
   pointer-events: none;
 }
-
 
 /* ── 素材と背表紙は消した ──────────────────────────────────────────
    ここには板の素材(木・ガラス・コンクリート…)と背表紙の見え方が

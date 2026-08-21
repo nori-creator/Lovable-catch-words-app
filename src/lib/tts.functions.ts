@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
@@ -14,7 +15,7 @@ const Input = z.object({
   text: z.string().min(1).max(400),
   voice: z.string().optional().default(TTS_VOICE_DEFAULT),
   speed: z.number().optional().default(DEFAULT_SPEED),
-  language: z.string().optional().default("zh-TW"),
+  language: z.string().optional().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 /**
@@ -163,7 +164,7 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       supabaseAdmin
         .from("dictionary_entries")
         .select("id, headword", { count: "exact" })
-        .eq("language", "zh-TW")
+        .eq("language", DEFAULT_TARGET_LANGUAGE)
         .is("audio_path", null)
         .or(`tocfl_level.lte.${data.level_max},tocfl_level.is.null`);
 
@@ -189,7 +190,11 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       // 429が3連続したらこのバッチは中断 — 叩き続けても失敗が増えるだけ。
       if (consecutiveRateLimited >= 3) break;
       try {
-        const path = await ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, entry.headword);
+        const path = await ttsObjectPath(
+          DEFAULT_TARGET_LANGUAGE,
+          TTS_VOICE_DEFAULT,
+          entry.headword,
+        );
         // Reuse audio already cached by on-demand taps.
         const { data: existing } = await supabaseAdmin.storage
           .from("tts")

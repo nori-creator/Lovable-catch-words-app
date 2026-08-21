@@ -16,6 +16,9 @@ import {
   PendingCapturesCard,
   ScrapbookAlbum,
 } from "@/routes/_authenticated/home";
+import { JournalWritingPage } from "@/components/JournalWritingPage";
+import { JournalComposer } from "@/components/JournalComposer";
+import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 
@@ -124,16 +127,25 @@ export function HomeLoadingScene() {
  * 無い日に空の枠が並んでいないか、在る日が写真のページと
  * 向かい合って見えるか — どちらも絵でしか分からない。
  */
-export function HomePastScene() {
-  const days: Array<[string, StickerWithWord[]]> = [1, 2].map((d) => [
-    new Date(Date.now() - d * 86400000).toLocaleDateString("en-CA"),
+export function HomePastScene({ q }: { q: URLSearchParams }) {
+  // 束ね方(オーナー指摘⑪)。日以外では**日記の紙を出さない**ので、
+  // その3通りを1つの場面で撮り分ける。
+  const raw = q.get("span") ?? "day";
+  const span: AlbumSpan = raw === "week" || raw === "month" ? raw : "day";
+  // **本物と同じ束ね方で作る。** ここで日ごとの塊を手で並べて見出しだけ
+  // 週にすると、重なった範囲(「8/19–8/25」と「8/18–8/24」)が並ぶ、
+  // 実際には起こらない絵になる。束ねるのはルートと同じ `groupBySpan`。
+  const shots = [1, 2, 9, 40].flatMap((d) =>
     FIXTURES.slice(0, 4).map((f, i) => makeSticker(f, i, d)),
-  ]);
-  // 1日目にだけ日記を置く。2日目は**何も出ないのが正しい姿**。
+  );
+  const days = groupBySpan(shots, (s) => new Date(s.created_at), span);
+  // いちばん新しい束の1日目にだけ日記を置く。ほかは**何も出ないのが正しい姿**。
   const first = days[0];
   const journals = new Map([
     [
-      first[0],
+      // 日記は**地方時の**日付を鍵に持つ。`created_at` は UTC の文字列
+      // なので、頭10文字を切ると UTC より西の人で1日ずれる。
+      localDayKey(new Date(first[1][0].created_at)),
       {
         body: "今天在士林夜市喝了珍珠奶茶。天氣很熱,所以我點了少冰。老闆問我要不要加珍珠,我說要。",
         note: "「去」の後ろに「了」を入れると、行った動作が完了したことがはっきりします。",
@@ -150,6 +162,8 @@ export function HomePastScene() {
       shown={1000}
       total={1342}
       journals={journals}
+      span={span}
+      onSpan={() => {}}
     />
   );
 }
@@ -170,5 +184,25 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
       onDiscard={() => {}}
       onCancelDiscard={() => {}}
     />
+  );
+}
+
+/**
+ * 日記を**書く**ときの見開き(オーナー指摘)。
+ *
+ * 左(上)に今日の写真、右(下)に書く紙。読む側の `DayJournalPage` と
+ * **同じ紙・同じ綴じ目**になっているかは、並べた絵でしか分からない。
+ * `JournalComposer` は問い合わせが空のまま描かれる — それでも
+ * 「白紙・足場・ボタン」の配置は本物と同じ。
+ */
+export function HomeWritingScene() {
+  return (
+    <>
+      <DayHeader date={new Date()} />
+      <ScrapbookAlbum stickers={today} bgClass="album-bg-paper" onOpen={() => {}} />
+      <JournalWritingPage onClose={() => {}}>
+        <JournalComposer showHeading={false} />
+      </JournalWritingPage>
+    </>
   );
 }

@@ -248,6 +248,8 @@ const MODES = [
   ...crossThemes("review-say-ok", { scene: "review-say-result" }),
   ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
+  ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
+  ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
   ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
   ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),
@@ -265,6 +267,21 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
+  ["home-past-week", "", false, { scene: "home-past", span: "week" }],
+  ["home-past-month", "", false, { scene: "home-past", span: "month" }],
+  ...crossThemes("home-writing", { scene: "home-writing" }),
+  ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
+  ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
+  // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
+  ...crossThemes("wordbook-quiz-right", {
+    scene: "wordbook-quiz",
+    click: "ul li:nth-child(2) button",
+  }),
+  ...crossThemes("wordbook-quiz-wrong", {
+    scene: "wordbook-quiz",
+    click: "ul li:nth-child(1) button",
+  }),
+  ["wordbook-quiz-nomeaning", "", false, { scene: "wordbook-quiz-nomeaning" }],
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
   ["home-frame", "", false, { scene: "home", bg: "frame" }],

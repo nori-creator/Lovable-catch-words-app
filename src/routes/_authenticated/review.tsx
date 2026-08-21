@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,11 +39,13 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
+import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
   Eye,
   Sparkles,
+  BookMarked,
   CheckCircle2,
   Check,
   X,
@@ -125,6 +127,7 @@ export const Route = createFileRoute("/_authenticated/review")({
 
 function ReviewPage() {
   const t = useT();
+  const navigate = useNavigate();
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const fetchProfile = useServerFn(getMyProfile);
@@ -179,8 +182,27 @@ function ReviewPage() {
    * (独立監査: 直前まで数えていた情報が完了の瞬間に消えている)。
    */
   const [tally, setTally] = useState({ answered: 0, correct: 0 });
+  /**
+   * 記憶の集計を読み直す。
+   *
+   * **これが無いと「復習したのに記憶率が動かない」ように見える。**
+   * どちらの問い合わせも `staleTime: 60_000` で、誰も無効化していなかったので、
+   * 1枚採点しても上のバッジも下の折れ線も採点前の値のままだった。
+   *
+   * 1枚ごとには呼ばない — どちらもその人の復習を全部読む問い合わせなので、
+   * 20枚やれば20往復になる。**見せる直前**(束を終えたとき / 一覧を開いたとき)
+   * にだけ読み直す。
+   */
+  const refreshMemory = () => {
+    void qc.invalidateQueries({ queryKey: ["memory-stats"] });
+    void qc.invalidateQueries({ queryKey: ["memory-overview"] });
+    void qc.invalidateQueries({ queryKey: ["my-stats"] });
+  };
   const advance = (correct?: boolean) => {
-    setIdx((i) => i + 1);
+    // **更新関数の中で副作用を起こさない**(StrictMode で2回走る)。
+    const next = idx + 1;
+    setIdx(next);
+    if (cards && next >= cards.length) refreshMemory();
     if (correct !== undefined) {
       setTally((v) => ({ answered: v.answered + 1, correct: v.correct + (correct ? 1 : 0) }));
     }
@@ -215,7 +237,7 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
-   * **この1枚をどの形で出すか。** 「おまかせ」のときだけ札ごとに変わる。
+   * **この1枚をどの形で出すか。** 「AIが選ぶ」のときだけ札ごとに変わる。
    * 根拠は記憶レベル — すぐ隣に出ているバッジと同じ関数から決まるので、
    * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
    */
@@ -257,7 +279,10 @@ function ReviewPage() {
         {memOverview && memOverview.words.length > 0 && (
           <>
             <button
-              onClick={() => setMemListOpen((v) => !v)}
+              onClick={() => {
+                if (!memListOpen) refreshMemory();
+                setMemListOpen((v) => !v);
+              }}
               aria-expanded={memListOpen}
               className="w-full text-left"
             >
@@ -276,6 +301,17 @@ function ReviewPage() {
             )}
           </>
         )}
+        {/* 単語帳は**図鑑とは別の本棚**(オーナー指摘)。図鑑は「街で出会って
+            自分で撮った物」の記録なので混ぜない。入口は復習の側に置く。 */}
+        <div className="mt-3 text-center">
+          <Link
+            to="/wordbooks"
+            className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-footnote font-semibold shadow-sm"
+          >
+            <BookMarked className="h-4 w-4 text-primary" aria-hidden />
+            {t("wb.openShelf")}
+          </Link>
+        </div>
       </section>
 
       {isLoading ? (
@@ -307,22 +343,37 @@ function ReviewPage() {
         // tap would grade it again and corrupt the SRS schedule/history.
         <ReviewPreparing />
       ) : current ? (
-        format === "choice" ? (
-          <LightModeCard
-            key={current.review_id}
-            card={current}
-            onNext={advance}
-            onOpenMemory={() => setMemModal(memWordOf(current))}
+        <>
+          {format === "choice" ? (
+            <LightModeCard
+              key={current.review_id}
+              card={current}
+              onNext={advance}
+              onOpenMemory={() => setMemModal(memWordOf(current))}
+            />
+          ) : (
+            <SpeakingCard
+              key={current.review_id}
+              card={current}
+              format={format === "say" ? "say" : "compose"}
+              onNext={advance}
+              onOpenMemory={() => setMemModal(memWordOf(current))}
+            />
+          )}
+          {/* 「どうしても覚えられない語は、もう一度撮ってみよう」(オーナー指摘)。
+              出す形は3つあるので、**札の外に1度だけ**置く。中に入れると
+              4択・発話・作文の3箇所に同じ判断を書くことになり、
+              いずれ食い違う。条件は `src/lib/retake.ts` が持つ。 */}
+          <RetakeSuggestion
+            headword={current.headword}
+            reviewCount={current.review_count}
+            lapses={current.lapses}
+            intervalDays={current.interval_days}
+            retention={current.retention}
+            photoCount={current.photo_count}
+            onRetake={() => void navigate({ to: "/capture", search: { retake: current.headword } })}
           />
-        ) : (
-          <SpeakingCard
-            key={current.review_id}
-            card={current}
-            format={format === "say" ? "say" : "compose"}
-            onNext={advance}
-            onOpenMemory={() => setMemModal(memWordOf(current))}
-          />
-        )
+        </>
       ) : null}
 
       {memModal && <ForgettingCurveModal word={memModal} onClose={() => setMemModal(null)} />}
@@ -1924,10 +1975,20 @@ import {
   CartesianGrid,
 } from "recharts";
 
+/**
+ * 全体の記憶率(前後2週間)。
+ *
+ * **過去は記録から作った実際の値**で、未来だけが予測。
+ * 以前はここが「いまの状態を過去へ投げ返した線」だったので、
+ * 復習した瞬間に過去14日が全部 100% に跳ね上がっていた。
+ *
+ * その日に**まだ無かった**語しか無い日は `null` が来る — 0% ではないので、
+ * 線をそこで切る(`connectNulls` を付けない)。
+ */
 function MiniRetentionGraph({
   series,
 }: {
-  series: Array<{ day_offset: number; avg_retention: number }>;
+  series: Array<{ day_offset: number; avg_retention: number | null; counted?: number }>;
 }) {
   const t = useT();
   return (
@@ -1943,7 +2004,7 @@ function MiniRetentionGraph({
           />
           <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
           <Tooltip
-            formatter={(v: number) => [`${v}%`, t("rv.avgRetention")]}
+            formatter={(v) => [v == null ? "—" : `${v}%`, t("rv.avgRetention")]}
             labelFormatter={(l) =>
               l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` })
             }

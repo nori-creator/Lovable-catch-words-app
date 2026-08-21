@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { speechLangOf } from "@/lib/target-lang";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { stopOtherAudio } from "@/lib/audio";
 import { pickZhTWVoice } from "@/lib/speak";
@@ -67,7 +68,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     const u = new SpeechSynthesisUtterance(headword);
     const v = pickZhTWVoice(voices);
     if (v) u.voice = v;
-    u.lang = v?.lang ?? "zh-TW";
+    u.lang = v?.lang ?? speechLangOf();
     u.rate = slow ? 0.7 : 0.95;
     u.pitch = 1;
     u.onstart = () => setSpeaking(true);

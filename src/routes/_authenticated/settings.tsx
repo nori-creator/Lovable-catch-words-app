@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -222,7 +223,7 @@ function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
-  const [targetLanguage, setTargetLanguage] = useState("zh-TW");
+  const [targetLanguage, setTargetLanguage] = useState<string>(DEFAULT_TARGET_LANGUAGE);
   const [levelGoal, setLevelGoal] = useState("TOCFL-2");
   const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
@@ -340,7 +341,7 @@ function SettingsPage() {
               value={targetLanguage}
               onChange={setTargetLanguage}
               options={[
-                { value: "zh-TW", label: t("settings.langZhTw") },
+                { value: DEFAULT_TARGET_LANGUAGE, label: t("settings.langZhTw") },
                 { value: "en", label: t("settings.langEn") },
               ]}
             />
@@ -391,7 +392,7 @@ function SettingsPage() {
 
         <SettingsCard title={t("settings.study")}>
           <div className="space-y-3">
-            {/* 「おまかせ」は記憶の段階で形を変える(`lib/review-format.ts`)。
+            {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
                 既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
             <ChoiceRow
               cols={3}

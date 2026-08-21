@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
@@ -526,7 +527,7 @@ const SaveStickerInput = z.object({
     })
     .nullish()
     .catch(null),
-  language: z.string().default("zh-TW"),
+  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
   object_path: z.string().nullable().optional(),
   cutout_path: z.string().nullable().optional(),
   selfie_path: z.string().nullable().optional(),

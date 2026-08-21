@@ -1,9 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
-import { ExtrasSchema, emptyExtras, mergeExtras } from "./extras";
+import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
+import {
+  worldExampleRule,
+  exampleSourceRule,
+  DIARY_COUNT,
+  type PersonalMaterial,
+} from "./example-sources";
 import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
@@ -12,7 +19,7 @@ import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 export type { GeneratedCard };
 import { isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
-import { REGEN_SECTIONS, type RegenSection } from "./card-sections";
+import { REGEN_SECTIONS, sectionHasContent, type RegenSection } from "./card-sections";
 import {
   assertWithinDailyCap,
   getAi,
@@ -33,7 +40,7 @@ import {
 const SuggestInput = z.object({
   // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
   imageBase64: z.string().min(100).max(8_000_000),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
   levelGoal: z.string().default("TOCFL-2"),
 });
 
@@ -96,7 +103,7 @@ export const suggestWords = createServerFn({ method: "POST" })
             `(例: 「純棉短袖」「客家小炒」)。一般名詞は既に知っている。`;
 
     const prompt =
-      data.targetLanguage === "zh-TW"
+      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
         ? `この画像から、台湾華語の学習対象として有用な名詞を5つ選んでください。
 - 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
 ${specificity}
@@ -183,7 +190,7 @@ ${langRule}
 
 const CardInput = z.object({
   headword: z.string().min(1),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
   hintCategory: z.string().optional(),
 });
 
@@ -210,7 +217,7 @@ const WordCandidatesInput = z.object({
   query: z.string().min(1).max(60),
   /** どこで・どんな様子だったか(任意)。候補を絞る手がかり。 */
   scene: z.string().max(200).optional(),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 const CandidateSchema = z.object({
@@ -308,7 +315,7 @@ export const generateCard = createServerFn({ method: "POST" })
     const learnerL1 = l1Info.speakerJa;
 
     const prompt =
-      data.targetLanguage === "zh-TW"
+      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
         ? `「${data.headword}」について、台湾華語(繁体字)の語彙カードを生成してください。
 
 ${langRule}
@@ -337,6 +344,7 @@ ${levelRule}
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
 - example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
+  ${worldExampleRule(NL)}
 - example_translation: 例文の訳(${NL})
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
@@ -350,6 +358,7 @@ pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾
 ${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
 - examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+  ${worldExampleRule(NL)}
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
@@ -524,7 +533,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
 const PhraseInput = z.object({
   phrase: z.string().min(1).max(80),
   scene: z.string().max(200).default(""),
-  targetLanguage: z.string().default("zh-TW"),
+  targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 const PhraseCardSchema = z.object({
@@ -598,6 +607,15 @@ export type { RegenSection } from "./card-sections";
 const RegenInput = z.object({
   word_id: z.string().uuid(),
   section: z.enum(REGEN_SECTIONS),
+  /**
+   * **まだ空のときだけ作る**(初回の作成)。裏で項目を上から順に埋めていく
+   * 仕組みが使う。
+   *
+   * 「作り直し」(すでに在る解説を捨てて作り直す)は Pro のまま。
+   * **カードを最初に完成させることまで有料にはしない** — 無料の人の
+   * カードが意味だけで止まってしまう。
+   */
+  only_if_empty: z.boolean().optional().default(false),
 });
 
 /**
@@ -624,18 +642,48 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       levelInstruction: lvl,
       explanationLanguageRule: langFn,
     } = await import("./ai-provider.server");
-    if (!(await proCheck(userId))) throw new Error("項目の再生成は Pro 限定です");
+    if (!data.only_if_empty && !(await proCheck(userId))) {
+      throw new Error("項目の再生成は Pro 限定です");
+    }
     await assertWithinDailyCap(userId, "card");
 
     // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
     const { data: owned } = await supabase
       .from("stickers")
-      .select("id")
+      .select("id, caption, location_name, taken_at")
       .eq("user_id", userId)
       .eq("word_id", data.word_id)
+      .order("taken_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (!owned) throw new Error("この単語を編集する権限がありません");
+
+    // 例文をその人の記録から作るための材料(オーナー指摘)。
+    // **例文の項目を作り直すときだけ**読む — ほかの項目には要らないし、
+    // 毎回2本の問い合わせを足す理由が無い。
+    let material: PersonalMaterial = {};
+    if (data.section === "example" || data.section === "examples_extra") {
+      const st = owned as {
+        caption?: string | null;
+        location_name?: string | null;
+        taken_at?: string | null;
+      };
+      // 日記が読めなくても例文は作れる。**失敗で全体を落とさない。**
+      const { data: diaryRows } = await supabase
+        .from("journal_entries")
+        .select("user_draft")
+        .eq("user_id", userId)
+        .order("entry_date", { ascending: false })
+        .limit(DIARY_COUNT);
+      material = {
+        caption: st.caption ?? null,
+        place: st.location_name ?? null,
+        takenAt: st.taken_at ?? null,
+        diaries: ((diaryRows ?? []) as Array<{ user_draft: string | null }>).map(
+          (d) => d.user_draft,
+        ),
+      };
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: word, error } = await supabaseAdmin
@@ -646,6 +694,22 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       .eq("id", data.word_id)
       .maybeSingle();
     if (error || !word) throw new Error("単語が見つかりません");
+
+    // すでに埋まっている節を、裏の自動生成が上書きしない。
+    // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
+    // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
+    // 言い続ける — 止まらない生成になる。
+    if (
+      data.only_if_empty &&
+      sectionHasContent(data.section, {
+        headword: word.headword as string,
+        meaning_ja: word.meaning_ja as string | null,
+        example_sentence: word.example_sentence as string | null,
+        extras: normalizeExtras(word.extras),
+      })
+    ) {
+      return { ok: true, section: data.section, filled: false };
+    }
 
     const levelRule = await lvl(userId);
     const langRule = await langFn(userId);
@@ -691,7 +755,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       example: {
-        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
         schema: z.object({
           example_sentence: z.string().min(1),
           example_translation: z.string().catch(""),
@@ -701,7 +765,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       examples_extra: {
-        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
         schema: z.object({
           examples_extra: z
             .array(
@@ -764,7 +828,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
 
     const { prompt, schema } = spec[data.section];
     const ai = await getAiFor("card");
-    const result = await withModelFallback(ai, ai.modelRichPremium, (m) =>
+    // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
+    // 無料の人にも項目は埋まる — 書き手が変わるだけ。
+    const model = (await proCheck(userId)) ? ai.modelRichPremium : ai.modelRich;
+    const result = await withModelFallback(ai, model, (m) =>
       generateText({ model: ai.gateway(m), prompt }),
     );
     let out: Record<string, unknown>;
@@ -801,5 +868,5 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     if (upErr) throw new Error(upErr.message);
 
     await logUsage(context.supabase, userId, "card");
-    return { ok: true, section: data.section };
+    return { ok: true, section: data.section, filled: true };
   });

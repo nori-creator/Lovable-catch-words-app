@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { DEFAULT_TARGET_LANGUAGE, speechLangOf } from "@/lib/target-lang";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -169,7 +170,7 @@ function ScanPage() {
       const hit = cache.get(headword);
       if (hit) return hit;
       const t0 = performance.now();
-      const p = cardFn({ data: { headword, targetLanguage: "zh-TW" } });
+      const p = cardFn({ data: { headword, targetLanguage: DEFAULT_TARGET_LANGUAGE } });
       cache.set(headword, p);
       p.then(() => {
         prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
@@ -608,7 +609,7 @@ function ScanPage() {
         if ("speechSynthesis" in window) {
           stopOtherAudio();
           const u = new SpeechSynthesisUtterance(headword);
-          u.lang = "zh-TW";
+          u.lang = speechLangOf();
           speechSynthesis.speak(u);
           reportTap(Math.round(performance.now() - t0));
         } else {

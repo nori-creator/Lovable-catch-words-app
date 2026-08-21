@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -307,7 +308,7 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
     z
       .object({
         headwords: z.array(z.string()).max(20),
-        language: z.string().default("zh-TW"),
+        language: z.string().default(DEFAULT_TARGET_LANGUAGE),
       })
       .parse(input),
   )

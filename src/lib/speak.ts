@@ -19,6 +19,7 @@
  */
 
 import { stopOtherAudio } from "@/lib/audio";
+import { speechLangOf } from "./target-lang";
 
 /** 判定に必要な所だけ。試験から素の物を渡せるようにしておく。 */
 export type VoiceLike = { name: string; lang: string };
@@ -89,7 +90,7 @@ export function speakZhTW(text: string, rate = 0.95): void {
     if (voice) u.voice = voice;
     // 声を当てられないときも**台湾華語だと伝える**。
     // 大陸の声で埋めるより、端末に決めさせるほうが害が小さい。
-    u.lang = voice?.lang ?? "zh-TW";
+    u.lang = voice?.lang ?? speechLangOf();
     u.rate = rate;
     // 音声の被り対策: 直前に鳴っている <audio>(サーバーTTS)も止めてから話す。
     // synth.cancel() だけでは Audio 要素は止まらず、二重に聞こえていた。

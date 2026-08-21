@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type DictionaryImportRow = {
@@ -65,7 +66,7 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
       entry_type: r.entry_type?.trim() || "word",
       scene_tags: r.scene_tags && r.scene_tags.length > 0 ? r.scene_tags : null,
       notes: r.notes?.trim() || null,
-      language: "zh-TW",
+      language: DEFAULT_TARGET_LANGUAGE,
     }));
 
     // Chunked upsert on (language, headword, entry_type)

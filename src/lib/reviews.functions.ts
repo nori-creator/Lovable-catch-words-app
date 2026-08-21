@@ -1,10 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 // 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
-import { nextSrs, retentionNow, modeFor, stabilityOf } from "@/lib/srs";
+import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
+import {
+  buildRetentionSeries,
+  type RetentionCard,
+  type RetentionEvent,
+  type RetentionPoint,
+} from "@/lib/retention-series";
 export { nextSrs } from "@/lib/srs";
 // 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
 import {
@@ -85,6 +92,10 @@ export type DueReviewCard = {
   location_name: string | null;
   taken_at: string | null;
   review_count: number; // completed reviews so far (word-tree unlock count)
+  /** 思い出せなかった回数(score < 3)。「もう一度撮ろう」の判定に使う。 */
+  lapses: number;
+  /** この語でこれまでに撮った写真の枚数(最初の1枚 + 再会)。 */
+  photo_count: number;
   /**
    * §6/B7: the pattern (branch) THIS review teaches — shown as the task
    * ("この型を使って一文") instead of the harder free-form 例文作れ.
@@ -335,16 +346,37 @@ export const getDueReviews = createServerFn({ method: "GET" })
     if (rows.length === 0) return [];
 
     // Word-tree unlock counts: one review_history row per completed review.
+    // **つまずいた回数もここで数える** — `repetitions` は連続正解の回数で、
+    // つまずくたびに 0 に戻るので「何度もやったのに覚えられない」語ほど
+    // 小さくなる。撮り直しの判定に使えるのは通算の回数のほう
+    // (`src/lib/retake.ts`)。
     const stickerIds = rows.map((r) => r.sticker_id);
     const reviewCounts = new Map<string, number>();
+    const lapseCounts = new Map<string, number>();
     {
       const { data: histRows } = await supabase
         .from("review_history")
+        .select("sticker_id, score")
+        .eq("user_id", userId)
+        .in("sticker_id", stickerIds);
+      for (const h of (histRows ?? []) as Array<{ sticker_id: string; score: number | null }>) {
+        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+        if ((h.score ?? 5) < LAPSE_SCORE) {
+          lapseCounts.set(h.sticker_id, (lapseCounts.get(h.sticker_id) ?? 0) + 1);
+        }
+      }
+    }
+    // 撮った枚数 = 最初の1枚 + 再会の回数。列がまだ無い環境でも
+    // **落とさない** — 数えられなければ「1枚」として扱い、提案は出る。
+    const encounterCounts = new Map<string, number>();
+    {
+      const { data: encRows } = await supabase
+        .from("encounters")
         .select("sticker_id")
         .eq("user_id", userId)
         .in("sticker_id", stickerIds);
-      for (const h of histRows ?? []) {
-        reviewCounts.set(h.sticker_id, (reviewCounts.get(h.sticker_id) ?? 0) + 1);
+      for (const e of (encRows ?? []) as Array<{ sticker_id: string }>) {
+        encounterCounts.set(e.sticker_id, (encounterCounts.get(e.sticker_id) ?? 0) + 1);
       }
     }
 
@@ -384,7 +416,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const { data: dictRows } = await supabaseAdmin
         .from("dictionary_entries")
         .select("headword, zhuyin, pinyin")
-        .eq("language", "zh-TW")
+        .eq("language", DEFAULT_TARGET_LANGUAGE)
         .lte("tocfl_level", lvl)
         .gte("id", pivot)
         .limit(40);
@@ -433,7 +465,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
       }
     }
     const audioPaths = await Promise.all(
-      rows.map((r) => ttsObjectPath("zh-TW", TTS_VOICE_DEFAULT, r.stickers!.words!.headword)),
+      rows.map((r) =>
+        ttsObjectPath(DEFAULT_TARGET_LANGUAGE, TTS_VOICE_DEFAULT, r.stickers!.words!.headword),
+      ),
     );
     const audioUrlByPath = new Map<string, string>();
     {
@@ -528,6 +562,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         location_name: row.stickers!.location_name,
         taken_at: row.stickers!.taken_at,
         review_count: reviewCount,
+        lapses: lapseCounts.get(row.sticker_id) ?? 0,
+        photo_count: 1 + (encounterCounts.get(row.sticker_id) ?? 0),
         prompt_pattern: promptPattern,
         blur_seen: row.blur_seen,
         ease: row.ease,
@@ -820,61 +856,56 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
   });
 
 export type OverallMemoryStats = {
-  avg_retention: number; // 0-100
+  /** いまの平均記憶率(0-100)。数えられる語が無ければ null。 */
+  avg_retention: number | null;
   total_cards: number;
   due_now: number;
-  series: Array<{ day_offset: number; avg_retention: number }>; // -14..+14
+  /** -14..+14。過去は `review_history` から復元した**その日の状態**。 */
+  series: RetentionPoint[];
 };
 
 export const getOverallMemoryStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<OverallMemoryStats> => {
     const { supabase, userId } = context;
-    const { data: rows } = await supabase
-      .from("reviews")
-      .select("ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
-      .eq("user_id", userId);
+    // 過去側は**記録**から作る。ここを現在の状態から作っていたせいで、
+    // 復習した瞬間に過去14日が全部 100% に塗り替わっていた
+    // (`src/lib/retention-series.ts` の冒頭に経緯)。
+    const [{ data: rows }, { data: hist }] = await Promise.all([
+      supabase
+        .from("reviews")
+        .select("sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
+        .eq("user_id", userId),
+      supabase
+        .from("review_history")
+        .select("sticker_id, reviewed_at, interval_days_after, ease_after")
+        .eq("user_id", userId)
+        .order("reviewed_at", { ascending: true })
+        .limit(5000),
+    ]);
     type StatRow = {
+      sticker_id: string;
       ease: number;
       interval_days: number;
       last_reviewed_at: string | null;
       due_at: string | null;
       stickers?: { taken_at?: string | null } | null;
     };
-    // 未復習でも「出会った日」を起点に科学的な減衰を描く(以前はこの行が
-    // last_reviewed_at=null で 100% 固定になり、線が消えていた)。
-    const cards = ((rows ?? []) as unknown as StatRow[]).map((r) => ({
+    const raw = (rows ?? []) as unknown as StatRow[];
+    const cards: RetentionCard[] = raw.map((r) => ({
+      sticker_id: r.sticker_id,
+      taken_at: r.stickers?.taken_at ?? null,
       ease: r.ease,
       interval_days: r.interval_days,
-      last_reviewed_at: r.last_reviewed_at ?? r.stickers?.taken_at ?? null,
-      due_at: r.due_at,
+      last_reviewed_at: r.last_reviewed_at,
     }));
+    const events = (hist ?? []) as unknown as RetentionEvent[];
     const now = Date.now();
-    const dueNow = cards.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
+    const dueNow = raw.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
 
-    function retentionAt(
-      card: { ease: number; interval_days: number; last_reviewed_at: string | null },
-      atMs: number,
-    ): number {
-      if (!card.last_reviewed_at) return 100;
-      const dt = (atMs - new Date(card.last_reviewed_at).getTime()) / 86400_000;
-      if (dt <= 0) return 100;
-      const stability = Math.max(0.5, card.interval_days * Math.max(1, card.ease));
-      return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stability)));
-    }
+    const { series, avg_retention } = buildRetentionSeries({ cards, events, nowMs: now });
 
-    const series: Array<{ day_offset: number; avg_retention: number }> = [];
-    for (let d = -14; d <= 14; d++) {
-      const at = now + d * 86400_000;
-      const vals = cards.map((c) => retentionAt(c, at));
-      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      series.push({ day_offset: d, avg_retention: Math.round(avg) });
-    }
-    const avgRet = cards.length
-      ? Math.round(cards.map((c) => retentionAt(c, now)).reduce((a, b) => a + b, 0) / cards.length)
-      : 0;
-
-    return { avg_retention: avgRet, total_cards: cards.length, due_now: dueNow, series };
+    return { avg_retention, total_cards: cards.length, due_now: dueNow, series };
   });
 
 // --- B5 記憶の状態ビジュアライズ ---------------------------------------------

@@ -988,6 +988,79 @@ export type Database = {
         }
         Relationships: []
       }
+      // --- 手で足した(単語帳の取り込み) ------------------------------------
+      // `supabase/migrations/20260820200000_wordbooks.sql` を当てたあと、
+      // 型を作り直せばこの手書きは消えて同じ物が生成される。当てるまでの間、
+      // **型が無いという理由でこの機能を書けない**状態にしないために置く。
+      wordbooks: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wordbook_entries: {
+        Row: {
+          created_at: string
+          due_at: string
+          ease: number
+          headword: string
+          id: string
+          interval_days: number
+          last_reviewed_at: string | null
+          meaning_ja: string | null
+          pinyin: string | null
+          reading_zhuyin: string | null
+          repetitions: number
+          user_id: string
+          wordbook_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_at?: string
+          ease?: number
+          headword: string
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          meaning_ja?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          repetitions?: number
+          user_id: string
+          wordbook_id: string
+        }
+        Update: {
+          created_at?: string
+          due_at?: string
+          ease?: number
+          headword?: string
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          meaning_ja?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          repetitions?: number
+          user_id?: string
+          wordbook_id?: string
+        }
+        Relationships: []
+      }
       words: {
         Row: {
           category_key: string | null
