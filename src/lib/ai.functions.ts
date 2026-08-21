@@ -5,6 +5,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
+import { scrubForeignNotes } from "./note-language";
 import {
   worldExampleRule,
   exampleSourceRule,
@@ -376,7 +377,7 @@ ${l1Gram}
 - season_months: 旬の月を1〜12の整数の配列で(例: 芒果なら [5,6,7,8])。**通年なら空配列**
 - region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
-- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列
+- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  この語の声調の型と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
@@ -524,7 +525,14 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
       // 古い言語のカードだけを作り直せる(#65)。
       // あわせて**どの母語向けに書いたか**も刻む。発音のコツと語順の説明は
       // 母語ごとに中身が変わるので、母語を変えたら作り直す必要がある。
-      extras: { ...card.extras, explain_lang: explainLang, explain_l1: l1Info.code },
+      // **学ぶ言語で返ってきた注記を落とす**(オーナー報告「量詞の説明が
+      // 台湾華語になってる」)。プロンプトで言うだけでは 0 にならないので、
+      // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
+      extras: {
+        ...scrubForeignNotes(card.extras ?? {}, explainLang),
+        explain_lang: explainLang,
+        explain_l1: l1Info.code,
+      },
     };
   });
 
@@ -731,7 +739,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ meaning_ja: z.string().min(1) }),
       },
       measure_words: {
-        prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
+        prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
         schema: z.object({
           measure_words: z
             .array(
@@ -843,7 +851,11 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
 
     // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。
     const baseUpdate: Record<string, unknown> = {};
-    const extrasPatch: Record<string, unknown> = { ...out };
+    // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
+    // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
+    const extrasPatch: Record<string, unknown> = {
+      ...scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+    };
     if (data.section === "meaning") {
       delete extrasPatch.meaning_ja;
       if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;

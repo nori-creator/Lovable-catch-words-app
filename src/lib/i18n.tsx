@@ -178,6 +178,11 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // --- TOCFL の段々(src/lib/tocfl.ts) ---
   "tocfl.title": { ja: "TOCFL", en: "TOCFL" },
   "tocfl.level": { ja: "{n}級", en: "Level {n}" },
+  "tocfl.levelInBand": { ja: "{n}級（Band {band}）", en: "Level {n} · Band {band}" },
+  // TOCFL は6級を2つずつ3つの帯にまとめる。帯の名前は公式のもの。
+  "tocfl.bandA": { ja: "A", en: "A" },
+  "tocfl.bandB": { ja: "B", en: "B" },
+  "tocfl.bandC": { ja: "C", en: "C" },
   "tocfl.out": { ja: "級外の語", en: "Not in the lists" },
   "tocfl.outShort": { ja: "外", en: "—" },
   // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
@@ -1002,6 +1007,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "出題形式の変更を保存できませんでした。通信を確かめてもう一度お試しください。",
     en: "Couldn't save the review mode. Check your connection and try again.",
   },
+  // 端末では効いているが、他の端末へ持っていく控えが取れなかったとき。
+  // **失敗ではないので赤くしない。**
+  "review.modeLocalOnly": {
+    ja: "この端末では変わりました。ほかの端末には引き継がれません。",
+    en: "Changed on this device. It won't carry to your other devices.",
+  },
   "review.cappedTitle": { ja: "今日の分は終わりです", en: "That's today's batch" },
   "review.cappedHint": {
     ja: "1日 {n} 枚に設定しています。まだ復習したい語は残っていますが、明日また出します。もっとやりたいときは設定で枚数を増やせます。",
@@ -1057,11 +1068,6 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "card.related_words": { ja: "にてる言葉・関連語", en: "Similar & related words" },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card" },
   "card.filling": { ja: "作っています…", en: "Writing it…" },
-  // 裏で上から順に作っているときの一行(src/components/WordCard.tsx)。
-  "card.fillingOrdered": {
-    ja: "解説を上から順に作っています（{done}/{total}）",
-    en: "Writing the rest, top to bottom ({done}/{total})",
-  },
   "card.fillFailed": {
     ja: "うまく作れませんでした。通信を確かめて、もう一度お試しください。",
     en: "Couldn't write it. Check your connection and try again.",

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  bandOf,
+  levelsInBand,
+  bandLabelKey,
+  TOCFL_BANDS,
   parseTocflStep,
   stepHeight,
   stepColorVar,
@@ -64,5 +68,33 @@ describe("stepColorVar / stepLabelKey", () => {
     expect(stepLabelKey(3)).toBe("tocfl.level");
     expect(stepLabelKey(TOCFL_OUT)).toBe("tocfl.out");
     expect(stepLabelKey(3)).not.toBe(stepLabelKey(TOCFL_OUT));
+  });
+});
+
+describe("TOCFL の帯", () => {
+  it("2級ずつ3つの帯に分かれる", () => {
+    expect(bandOf(1)).toBe("A");
+    expect(bandOf(2)).toBe("A");
+    expect(bandOf(3)).toBe("B");
+    expect(bandOf(4)).toBe("B");
+    expect(bandOf(5)).toBe("C");
+    expect(bandOf(6)).toBe("C");
+  });
+
+  it("**どの級もどれか1つの帯に入る**(抜けも重なりも無い)", () => {
+    const all = TOCFL_BANDS.flatMap(levelsInBand);
+    expect([...all].sort()).toEqual([...TOCFL_LEVELS]);
+    expect(new Set(all).size).toBe(TOCFL_LEVELS.length);
+  });
+
+  it("帯ごとに2級ずつ、小さい順", () => {
+    expect(levelsInBand("A")).toEqual([1, 2]);
+    expect(levelsInBand("B")).toEqual([3, 4]);
+    expect(levelsInBand("C")).toEqual([5, 6]);
+  });
+
+  it("帯ごとに違う文言を指す", () => {
+    const keys = TOCFL_BANDS.map(bandLabelKey);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
