@@ -1320,6 +1320,9 @@ export function CaptureCardPanel({
           example_translation: card.example_translation,
           extras: card.extras ?? null,
         }}
+        // 撮った直後は**意味と発音だけ**。残りは裏の生成が届いた順に現れる
+        // (オーナー指摘 2026-08-21)。
+        minimal
       />
 
       <div>

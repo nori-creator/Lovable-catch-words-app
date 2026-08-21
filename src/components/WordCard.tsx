@@ -21,7 +21,6 @@ import { reportEntry } from "@/lib/reports.functions";
 import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
-import { formatCount } from "@/lib/count";
 import { Reading } from "@/lib/phonetic";
 import { useT } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
@@ -267,8 +266,16 @@ export const WordCard = forwardRef<
     encounter?: EncounterEstimate | null;
     /** ネット画像を「この画像にする」で選んだとき(カードの写真に採用)。 */
     onPickImage?: (url: string) => void | Promise<void>;
+    /**
+     * 撮った直後の面。**意味と発音だけを出す**(オーナー指摘 2026-08-21)。
+     * 図鑑の詳細では使わない — そちらは全部出るのが正しい。
+     */
+    minimal?: boolean;
   }
->(function WordCard({ word, autoplay = true, wordId, isPro = false, onPickImage, encounter }, ref) {
+>(function WordCard(
+  { word, autoplay = true, wordId, isPro = false, onPickImage, encounter, minimal = false },
+  ref,
+) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
 
@@ -299,7 +306,20 @@ export const WordCard = forwardRef<
     extras: (word.extras ?? null) as WordExtrasDTO | null,
     hasEncounter: !!encounter,
   };
-  const hasContent = (id: SectionId): boolean => sectionHasContent(id, contentInput);
+  /**
+   * **撮った直後は「意味と発音」だけ**(オーナー指摘 2026-08-21)。
+   *
+   * > 「単語の候補をタップしたときは、意味と発音の項目だけ表示して。
+   * >  その分生成を速くしたい。その他の項目は裏で項目の上から順に生成して。」
+   *
+   * 外を見に行くだけの節(ネットの画像・実際の使われ方)と、数えた答えが要る
+   * 「出会う見込み」は、**その語について何も生成できていなくても描けてしまう**。
+   * だから撮った直後の面にだけ並んでいた。ここではその3つを伏せて、
+   * 生成が届いた項目から順に現れるようにする。
+   */
+  const ALWAYS_DRAWABLE: readonly SectionId[] = ["web_images", "real_usage", "encounter"];
+  const hasContent = (id: SectionId): boolean =>
+    minimal && ALWAYS_DRAWABLE.includes(id) ? false : sectionHasContent(id, contentInput);
 
   // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
   // 並びは**画面の並びそのまま**。`missingSections` はその順を崩さない
@@ -458,17 +478,15 @@ function AutoFillSections({
     );
   }
 
-  if (state.total === 0 || state.done >= state.total) return null;
-
-  return (
-    <p className="flex items-center gap-2 text-footnote text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-      {t("card.fillingOrdered", {
-        done: formatCount(state.done),
-        total: formatCount(state.total),
-      })}
-    </p>
-  );
+  // **進み具合を出さない**(オーナー指摘 2026-08-21)。
+  //
+  // > 「実際に生成するときに解説を上から順に作っていますと単語の詳細に
+  // >  表示させないで。」
+  //
+  // 項目は**できた順に現れる**ので、それ自体が進み具合になっている。
+  // その上に「3/8」と書くと、読む物が増えるだけで、待つ理由が増える。
+  // 失敗したときだけボタンに戻る(上の分岐)。
+  return null;
 }
 
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
@@ -870,9 +888,9 @@ function Body({
       // いたので、2800px スクロールするカードの中で「答え」と「脚注」が
       // 寸法上まったく同じだった(独立監査が実測で指摘)。
       // 6段の階調の title(22px)に上げて、二番目の着地点を作る。
-      return (
-        <p className="text-title font-semibold leading-snug text-foreground">{word.meaning_ja}</p>
-      );
+      // **太字にしない**(オーナー指摘 2026-08-21「日本語の意味の文字が
+      // 太すぎる」)。大きさで着地点は作れているので、太さは足さない。
+      return <p className="text-title leading-snug text-foreground">{word.meaning_ja}</p>;
 
     case "usage_context": {
       // 統合表示: 頻度メーター + 口語⇄書面のメーター + どこで見て使うかの説明。

@@ -60,7 +60,10 @@ export function WordCandidateRow({
       <button onClick={onPick} className="min-w-0 flex-1 py-3 text-left">
         <div className="flex items-baseline gap-3">
           {/* 主役。**縮ませない** — 長い訳に押されて語が割れるのが一番困る。 */}
-          <Zh className="shrink-0 text-title font-bold leading-tight tracking-tight">{headword}</Zh>
+          {/* **太字にしない**(オーナー指摘 2026-08-21「候補の文字太すぎる」)。
+              大きさ(title=22px)だけで十分に主役になる。繁体字は画数が多いので、
+              太らせると小さい画面で字が潰れる。 */}
+          <Zh className="shrink-0 text-title leading-tight tracking-tight">{headword}</Zh>
           {/* 訳は右端へ。溢れるときは訳のほうを詰める。 */}
           <span className="min-w-0 flex-1 truncate text-right text-footnote text-muted-foreground">
             {meaning}

@@ -66,3 +66,32 @@ export function stepColorVar(step: TocflStep): string {
 export function stepLabelKey(step: TocflStep): string {
   return step === TOCFL_OUT ? "tocfl.out" : "tocfl.level";
 }
+
+/**
+ * TOCFL の帯(Band)。
+ *
+ * オーナー指摘 2026-08-21:
+ * > 「1.2.3.4.5.6.だけだとこれが TOCFL のレベルだと分かりづらい。
+ * >  また 1.2.3.4.5.6 だけでなく Band A,B,C にも視覚的に分けて」
+ *
+ * TOCFL は6つの級を**2つずつ3つの帯**にまとめている。級だけを並べると
+ * 「6段のうちの何段目か」しか読めないが、帯まで見えると
+ * 「入門のかたまりの中の上」のように**位置の意味**が読める。
+ */
+export const TOCFL_BANDS = ["A", "B", "C"] as const;
+export type TocflBand = (typeof TOCFL_BANDS)[number];
+
+/** その級が属する帯。1-2=A / 3-4=B / 5-6=C。 */
+export function bandOf(level: TocflLevel): TocflBand {
+  return level <= 2 ? "A" : level <= 4 ? "B" : "C";
+}
+
+/** 帯に属する級(小さい順)。 */
+export function levelsInBand(band: TocflBand): TocflLevel[] {
+  return TOCFL_LEVELS.filter((l) => bandOf(l) === band);
+}
+
+/** 帯の名前の翻訳キー。 */
+export function bandLabelKey(band: TocflBand): string {
+  return `tocfl.band${band}`;
+}
