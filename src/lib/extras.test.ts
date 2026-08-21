@@ -5,6 +5,8 @@ import {
   hasExtrasContent,
   mergeExtras,
   withoutMeasureWordEcho,
+  refineUsageChunks,
+  MAX_CHUNKS,
 } from "./extras";
 
 /**
@@ -140,5 +142,59 @@ describe("withoutMeasureWordEcho", () => {
   it("null / undefined でも落ちない", () => {
     expect(withoutMeasureWordEcho(null, mw, "衛生紙")).toEqual([]);
     expect(withoutMeasureWordEcho(undefined, undefined, "")).toEqual([]);
+  });
+});
+
+/**
+ * 型の厳選(オーナー指摘 2026-08-21「チャンク、型の精度が低い、適当に
+ * なってる…型やチャンクは長すぎないで」)。
+ *
+ * プロンプトで頼むだけでは足りないので、**返ってきた物のほうを落とす**。
+ * ここで守るのは「短く・重ならず・情報がある型だけが残る」こと。
+ */
+describe("refineUsageChunks", () => {
+  const chunk = (...texts: string[]) => ({
+    parts: texts.map((text) => ({ text, pos: "N" })),
+    ja: "",
+  });
+
+  it("長すぎる型を落とす(例文になってしまう)", () => {
+    const short = chunk("帶", "雨傘");
+    const long = chunk("今天", "下雨", "所以", "我帶了雨傘");
+    expect(refineUsageChunks([short, long], [], "雨傘")).toEqual([short]);
+  });
+
+  it("パーツが多すぎる型を落とす", () => {
+    const many = chunk("我", "今天", "早上", "帶了", "雨傘");
+    expect(refineUsageChunks([many], [], "雨傘")).toEqual([]);
+  });
+
+  it("見出し語しか無い型を落とす(その語を見れば分かる)", () => {
+    expect(refineUsageChunks([chunk("雨傘")], [], "雨傘")).toEqual([]);
+  });
+
+  it("同じ文字列の型は1つだけ残す", () => {
+    const a = { ...chunk("帶", "雨傘"), ja: "傘を持つ" };
+    const b = { ...chunk("帶", "雨傘"), ja: "かさを持参する" };
+    expect(refineUsageChunks([a, b], [], "雨傘")).toEqual([a]);
+  });
+
+  it(`${MAX_CHUNKS}個で切る(生成側は頻度の高い順に並べるので後ろから)`, () => {
+    const many = Array.from({ length: 12 }, (_, i) => chunk(`用${i}`, "雨傘"));
+    const got = refineUsageChunks(many, [], "雨傘");
+    expect(got).toHaveLength(MAX_CHUNKS);
+    expect(got[0]).toEqual(many[0]);
+  });
+
+  it("量詞と丸ごと重なる型は今までどおり落ちる", () => {
+    const echo = chunk("一把", "雨傘");
+    const real = chunk("帶", "雨傘");
+    expect(refineUsageChunks([echo, real], [{ word: "一把" }], "雨傘")).toEqual([real]);
+  });
+
+  it("空・null で落ちない", () => {
+    expect(refineUsageChunks(null, null, "雨傘")).toEqual([]);
+    expect(refineUsageChunks([], [], "雨傘")).toEqual([]);
+    expect(refineUsageChunks([chunk("")], [], "雨傘")).toEqual([]);
   });
 });

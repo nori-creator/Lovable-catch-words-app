@@ -255,6 +255,63 @@ export function mergeExtras(
  * 量詞の型を丸ごと禁じると、逆に「動詞と目的語しか無い」状態に戻ってしまう
  * (オーナー指摘 2026-08-19:「品詞をすべて網羅して」)。
  */
+/** 型1つの長さの上限(繁体字の文字数)。これを超えると「型」ではなく文になる。 */
+export const MAX_CHUNK_CHARS = 8;
+/** 型1つのパーツ数の上限。 */
+export const MAX_CHUNK_PARTS = 4;
+/** カードに並べる型の数の上限。 */
+export const MAX_CHUNKS = 5;
+
+/** その型の繁体字をつないだもの。 */
+function chunkText(c: UsageChunk): string {
+  return (c.parts ?? [])
+    .map((p) => (p?.text ?? "").trim())
+    .filter(Boolean)
+    .join("");
+}
+
+/**
+ * 使い方の型を**厳選する**(オーナー指摘 2026-08-21)。
+ *
+ * > 「チャンク、型の精度が低い、適当になってる。ネイティブが最も高い確率で
+ * >  その単語をどんな言葉と一緒に使うか…厳選して、スピーキングの時に
+ * >  使えるように教えて。型やチャンクは長すぎないで。」
+ *
+ * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
+ * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
+ *
+ * 落とすのは4つ:
+ * 1. 量詞の欄と丸ごと重なる型(下の `withoutMeasureWordEcho`)
+ * 2. **長すぎる型** — 8文字を超えると口に乗る「型」ではなく例文になる。
+ *    例文の欄が別に在るので、ここが文になると欄の意味が重なる
+ * 3. 見出し語しか無い型(情報が0)
+ * 4. 同じ文字列の重複
+ *
+ * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
+ * 切るのは後ろから。
+ */
+export function refineUsageChunks(
+  chunks: ReadonlyArray<UsageChunk> | null | undefined,
+  measureWords: ReadonlyArray<{ word?: string } | null | undefined> | null | undefined,
+  headword: string,
+): UsageChunk[] {
+  const head = headword.trim();
+  const seen = new Set<string>();
+  return withoutMeasureWordEcho(chunks, measureWords, headword)
+    .filter((c) => {
+      const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
+      if (parts.length === 0 || parts.length > MAX_CHUNK_PARTS) return false;
+      const text = chunkText(c);
+      if (text.length === 0 || text.length > MAX_CHUNK_CHARS) return false;
+      // 見出し語だけの型は、その語を見れば分かることしか言っていない。
+      if (text === head) return false;
+      if (seen.has(text)) return false;
+      seen.add(text);
+      return true;
+    })
+    .slice(0, MAX_CHUNKS);
+}
+
 export function withoutMeasureWordEcho(
   chunks: ReadonlyArray<UsageChunk> | null | undefined,
   measureWords: ReadonlyArray<{ word?: string } | null | undefined> | null | undefined,
