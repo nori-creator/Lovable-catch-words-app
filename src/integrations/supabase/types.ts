@@ -988,6 +988,83 @@ export type Database = {
         }
         Relationships: []
       }
+      wordbook_entries: {
+        Row: {
+          created_at: string
+          due_at: string
+          ease: number
+          headword: string
+          id: string
+          interval_days: number
+          last_reviewed_at: string | null
+          meaning_ja: string | null
+          pinyin: string | null
+          reading_zhuyin: string | null
+          repetitions: number
+          user_id: string
+          wordbook_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_at?: string
+          ease?: number
+          headword: string
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          meaning_ja?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          repetitions?: number
+          user_id: string
+          wordbook_id: string
+        }
+        Update: {
+          created_at?: string
+          due_at?: string
+          ease?: number
+          headword?: string
+          id?: string
+          interval_days?: number
+          last_reviewed_at?: string | null
+          meaning_ja?: string | null
+          pinyin?: string | null
+          reading_zhuyin?: string | null
+          repetitions?: number
+          user_id?: string
+          wordbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordbook_entries_wordbook_id_fkey"
+            columns: ["wordbook_id"]
+            isOneToOne: false
+            referencedRelation: "wordbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordbooks: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       words: {
         Row: {
           category_key: string | null
