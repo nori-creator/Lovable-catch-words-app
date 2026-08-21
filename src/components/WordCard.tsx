@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
+import { heroSearchQuery } from "@/lib/hero-image";
 import { reportEntry } from "@/lib/reports.functions";
 import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
@@ -1182,7 +1183,13 @@ function WebImagesBody({
       (
         await searchFn({
           data: {
-            query: seed === 0 ? meaningJa || headword : `${meaningJa || headword} ${headword}`,
+            // **探す言葉の作り方は1箇所**(`hero-image.ts`)。詳細が自動で
+            // あてがう絵と、ここで選び直せる絵が別の検索から来ていると、
+            // 「変えたのに似た絵しか出ない」の理由が読めなくなる。
+            query:
+              seed === 0
+                ? heroSearchQuery({ headword, meaning: meaningJa })
+                : `${heroSearchQuery({ headword, meaning: meaningJa })} ${headword}`,
           },
         })
       ).candidates,
