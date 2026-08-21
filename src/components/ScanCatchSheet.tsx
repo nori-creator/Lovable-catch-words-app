@@ -456,8 +456,10 @@ export function ScanCatchSheet({
                     だった — ここは `button` から `.click()` を投げていて、
                     端末によっては**その場の指の操作**と見なされず、
                     前後どちらのカメラかの指定ごと落ちる。
-                    撮る経路(`capture.tsx`)は最初から `<label>` で包んであり、
-                    そちらは効いている。同じ形に揃える。 */}
+                    撮る経路(`capture.tsx`)も `<label>` で包んであるが、
+                    **自撮りの段に入った瞬間に同じ input へ自動の click を
+                    投げていた**ので、そちらも同じ理由で壊れていた
+                    (2026-08-21 に自動の click ごと外した)。 */}
                 <label className="min-h-11 cursor-pointer rounded-full bg-secondary px-3 py-1.5 text-footnote font-medium text-secondary-foreground active:scale-95 motion-reduce:active:scale-100 inline-flex items-center">
                   {selfieDataUrl ? t("sheet.retakeSelfie") : t("sheet.addSelfie")}
                   <input

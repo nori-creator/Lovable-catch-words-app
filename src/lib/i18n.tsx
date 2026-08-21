@@ -1002,6 +1002,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
     ja: "出題形式の変更を保存できませんでした。通信を確かめてもう一度お試しください。",
     en: "Couldn't save the review mode. Check your connection and try again.",
   },
+  // 端末では効いているが、他の端末へ持っていく控えが取れなかったとき。
+  // **失敗ではないので赤くしない。**
+  "review.modeLocalOnly": {
+    ja: "この端末では変わりました。ほかの端末には引き継がれません。",
+    en: "Changed on this device. It won't carry to your other devices.",
+  },
   "review.cappedTitle": { ja: "今日の分は終わりです", en: "That's today's batch" },
   "review.cappedHint": {
     ja: "1日 {n} 枚に設定しています。まだ復習したい語は残っていますが、明日また出します。もっとやりたいときは設定で枚数を増やせます。",

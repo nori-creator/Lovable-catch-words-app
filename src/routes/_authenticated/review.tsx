@@ -40,6 +40,7 @@ import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
 import { RetakeSuggestion } from "@/components/RetakeSuggestion";
+import { useReviewMode, setStoredReviewMode } from "@/lib/review-mode-pref";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import {
@@ -210,27 +211,29 @@ function ReviewPage() {
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   const [memListOpen, setMemListOpen] = useState(false);
   // §6/§10-3: speaking is the default; 4択 stays as "light mode".
-  // Stored in profiles.review_mode; the header toggle flips it optimistically.
   //
   // **`hybrid` は「1枚ずつ形が変わる」ので真偽値に潰せない。**
   // ここを boolean にしていたせいで、サーバが毎回送っている `card.mode` を
   // 画面が受け取る場所そのものが無かった(`lib/review-format.ts` の注釈)。
-  const mode = normalizeReviewMode(
-    (profile as { review_mode?: string } | null | undefined)?.review_mode,
-  );
+  //
+  // **選んだ形は端末が持つ**(オーナー報告「AIが選ぶを押したらエラーが出た」)。
+  // DB の列には `'hybrid'` を許す移行が要るので、当たっていない間は保存が
+  // 制約違反で落ち、つまみが戻っていた。DB は他の端末へ持っていくための
+  // 控えに格下げして、控えが失敗しても選んだ形はこの端末で効くようにする
+  // (`src/lib/review-mode-pref.ts`)。
+  const mode = useReviewMode((profile as { review_mode?: string } | null | undefined)?.review_mode);
   function setMode(next: ReviewModePref) {
     if (mode === next) return;
+    // まず端末に書く。**ここが本命**なので、この先が全部失敗しても効く。
+    setStoredReviewMode(next);
     qc.setQueryData(["profile"], (old: unknown) =>
       old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
     );
-    // **失敗を握り潰さない。**
-    //
-    // 以前は `.catch(() => {})` だったので、保存に失敗すると直後の
-    // `invalidateQueries` でトグルが黙って元の位置に戻るだけだった。
-    // ユーザーには「押したのに戻った」としか見えず、なぜかは分からない。
-    void updateProfileFn({ data: { review_mode: next } })
-      .catch(() => toast.error(t("review.modeSaveFailed")))
-      .finally(() => qc.invalidateQueries({ queryKey: ["profile"] }));
+    // 控えの保存。**失敗しても選択は戻さない** — 戻すと「押したのに戻った」
+    // になる。移行がまだ当たっていない場合だけ、その旨を静かに知らせる。
+    void updateProfileFn({ data: { review_mode: next } }).catch(() =>
+      toast(t("review.modeLocalOnly")),
+    );
   }
 
   const current: DueReviewCard | undefined = cards?.[idx];

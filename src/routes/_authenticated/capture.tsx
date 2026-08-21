@@ -226,7 +226,6 @@ function CapturePage() {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
-  const selfieAutoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
   /**
    * 「いま有効な作業はどれか」を表す番号。
@@ -253,8 +252,14 @@ function CapturePage() {
     preloadCutout();
   }, []);
 
-  // Auto-open the rear camera when landing on /capture (unless we arrived
-  // with a derived-catch word or an offline-queue restore).
+  // 着いたらすぐ**外**カメラを開く(派生キャッチとオフライン復元のときは除く)。
+  //
+  // **自撮り側の自動 click は外したが、こちらは残す。** 壊れ方が違う:
+  // ここは `capture="environment"` で、端末が既定で開くのも外カメラなので、
+  // 自動の click が効かなかったときの結果は「開かない」— 下の `<label>` を
+  // 押せば済む。自撮り側は既定と逆を向いているので、効かなかったときに
+  // **逆のカメラが開く**。1タップ減らす価値と、間違ったカメラが開く害は
+  // 釣り合わない。ここは②「一瞬でも早く」の本線なので、タップを増やさない。
   useEffect(() => {
     if (autoOpenedRef.current) return;
     if (step !== "object") return;
@@ -294,17 +299,20 @@ function CapturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingParam]);
 
-  // Auto-open front camera as soon as the selfie step begins.
-  useEffect(() => {
-    if (step !== "selfie") {
-      selfieAutoOpenedRef.current = false;
-      return;
-    }
-    if (selfieAutoOpenedRef.current) return;
-    selfieAutoOpenedRef.current = true;
-    const t = setTimeout(() => selfieInputRef.current?.click(), 120);
-    return () => clearTimeout(t);
-  }, [step]);
+  // **自動でカメラを開かない**(オーナー報告 2026-08-21)。
+  //
+  // > 「自撮りを追加ってボタン押しても、カメラが自動的にインカメラに
+  // >  なってない。」
+  //
+  // ここは自撮りの段に入った瞬間に `selfieInputRef.current?.click()` を
+  // `setTimeout` から投げていた。**指で押していない click** なので、
+  // 端末によっては何も起きないか、開いても `capture="user"` が無視されて
+  // 外カメラや選択ダイアログが出る。前の周にスキャン側で同じ形を直したとき、
+  // 「撮る経路は `<label>` なので効いている」と書いたが、**この自動の
+  // click が残っていた**ぶんだけ、そちらも壊れていた。
+  //
+  // 下の `<label>` を指で押せば `capture="user"` はそのまま効く。
+  // 1タップ増えるが、**開いたカメラが逆を向いている**よりよい。
 
   async function handleObjectFile(file: File) {
     // **写真を読めなかったことを言う。**

@@ -1,5 +1,10 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import {
+  getStoredReviewMode,
+  setStoredReviewMode,
+  resolveReviewMode,
+} from "@/lib/review-mode-pref";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -251,7 +256,12 @@ function SettingsPage() {
       ((profile as { current_level?: string | null }).current_level ?? "") || "TOCFL-1",
     );
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
-    setReviewMode(normalizeReviewMode((profile as { review_mode?: string }).review_mode));
+    // **この端末で選んだ値が勝つ**(`src/lib/review-mode-pref.ts`)。
+    // DB の列に 'hybrid' を許す移行が当たっていないと保存が落ちるので、
+    // DB は他の端末へ持っていくための控えでしかない。
+    setReviewMode(
+      resolveReviewMode(getStoredReviewMode(), (profile as { review_mode?: string }).review_mode),
+    );
     const p = profile as { review_daily_limit?: number | null; review_stage_focus?: string | null };
     setReviewLimit(typeof p.review_daily_limit === "number" ? p.review_daily_limit : 20);
     setReviewFocus(
@@ -276,11 +286,16 @@ function SettingsPage() {
           level_goal: levelGoal,
           current_level: currentLevel,
           pronunciation_strictness: strictness,
-          review_mode: reviewMode,
           review_daily_limit: reviewLimit,
           review_stage_focus: reviewFocus,
         },
       });
+      // **出題形式は別に送る。** 同じ payload に混ぜると、この1列の制約違反で
+      // 名前も言語もレベルも**まとめて保存されない**。端末には既に書いて
+      // あるので、ここが落ちてもその端末では選んだ形が効く。
+      await updateProfile({ data: { review_mode: reviewMode } }).catch(() =>
+        toast(t("review.modeLocalOnly")),
+      );
       setUiLang(uiLanguage === "en" ? "en" : "ja");
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.saved"));
@@ -399,7 +414,12 @@ function SettingsPage() {
               label={t("settings.reviewMode")}
               hint={t("settings.reviewModeHint")}
               value={reviewMode}
-              onChange={setReviewMode}
+              onChange={(v) => {
+                const next = normalizeReviewMode(v);
+                setReviewMode(next);
+                // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
+                setStoredReviewMode(next);
+              }}
               options={[
                 { value: "hybrid", label: t("settings.modeHybrid") },
                 { value: "speaking", label: t("settings.modeSpeaking") },
