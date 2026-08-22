@@ -25,11 +25,11 @@ import {
   reportWordIssue,
   deleteSticker,
   replaceStickerPhoto,
-  setStickerPlaceholder,
   setStickerHeroRole,
   attachStickerCutout,
 } from "@/lib/stickers.functions";
-import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functions";
+import { fetchImageAsDataUrl } from "@/lib/images.functions";
+import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { downscaleDataUrl } from "@/lib/cutout";
@@ -140,109 +140,17 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
 
-  // 画像なしカード(段ボール絵)の根絶: 詳細を開いた時に1枚も画像が無ければ、
-  // Web検索の画像を仮画像として自動添付する(1回だけ・失敗しても致命的でない)。
-  const searchImagesFn = useServerFn(searchImageCandidates);
-  const fetchImageFn = useServerFn(fetchImageAsDataUrl);
-  const setPlaceholderFn = useServerFn(setStickerPlaceholder);
-  const autoImgRef = useRef<Set<string>>(new Set());
-  // ネット画像の候補(複数)。自動で1枚目を入れ、残りは「別の画像に変える」
-  // 候補として下に並べる。ユーザーが気に入らなければタップで差し替え。
-  const [webCandidates, setWebCandidates] = useState<
-    { url: string; credit?: { name?: string; link?: string }; source: string }[]
-  >([]);
-  const [swapping, setSwapping] = useState<string | null>(null);
-  useEffect(() => {
-    if (!s) return;
-    // 自分の写真があるカードは触らない(候補も出さない)。
-    if (s.object_url || s.cutout_url) return;
-    if (autoImgRef.current.has(s.id)) return;
-    autoImgRef.current.add(s.id);
-    void (async () => {
-      try {
-        const { candidates } = await searchImagesFn({
-          data: { query: s.word.meaning_ja || s.word.headword },
-        });
-        setWebCandidates(candidates.slice(0, 6));
-        // すでに画像が入っているなら候補を出すだけで自動差し替えはしない。
-        if (s.placeholder_url || s.selfie_url) return;
-        const cand = candidates[0];
-        if (!cand) return;
-        const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
-        const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
-        const blob = await (await fetch(small)).blob();
-        const { data: userData } = await supabase.auth.getUser();
-        const userId = userData.user?.id;
-        if (!userId) return;
-        const path = `${userId}/${Date.now()}-placeholder.jpg`;
-        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-          contentType: blob.type,
-          upsert: false,
-        });
-        if (error) return;
-        void putCachedImage(path, blob);
-        await setPlaceholderFn({
-          data: {
-            sticker_id: s.id,
-            placeholder_path: path,
-            placeholder_credit: cand.credit
-              ? { ...cand.credit, source: cand.source }
-              : { source: cand.source },
-          },
-        });
-        await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
-        await qc.invalidateQueries({ queryKey: ["stickers"] });
-      } catch {
-        /* 仮画像は任意 */
-      }
-    })();
-  }, [s, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
-
   /**
-   * 自動で入ったネット画像を、別の候補に差し替える。
-   * 自分で撮った写真ではないので object ではなく placeholder 側を入れ替える
-   * (あとで実物を撮ったときに、その写真が正として上書きされる)。
+   * 絵の無い札の見出しに、ネットの画像をあてがう。
+   *
+   * **手続きは `useAutoHero` が1つだけ持っている** — 同じことを図鑑の
+   * 詳細ページ(`/dex/$stickerId`)でもやる必要があり、ここに直に書いて
+   * いたせいで、あちらだけ見出しが空のままだった。
    */
-  async function swapWebImage(cand: {
-    url: string;
-    credit?: { name?: string; link?: string };
-    source: string;
-  }) {
-    if (!s || swapping) return;
-    setSwapping(cand.url);
-    try {
-      const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
-      const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
-      const blob = await (await fetch(small)).blob();
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) return;
-      const path = `${userId}/${Date.now()}-placeholder.jpg`;
-      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-        contentType: blob.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      void putCachedImage(path, blob);
-      await setPlaceholderFn({
-        data: {
-          sticker_id: s.id,
-          placeholder_path: path,
-          placeholder_credit: cand.credit
-            ? { ...cand.credit, source: cand.source }
-            : { source: cand.source },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      toast.success(t("card.imageSet"));
-    } catch (e) {
-      console.warn("Swap web image failed", e);
-      toast.error(t("card.photoFailed"));
-    } finally {
-      setSwapping(null);
-    }
-  }
+  const { candidates: webCandidates, swapping, swap: swapWebImage } = useAutoHero(s);
+  // 「この画像にする」(下の `applyWebImage`)はネット画像を**実写として**
+  // 採用するので、仮画像の経路とは別物。取ってくる所だけ共通。
+  const fetchImageFn = useServerFn(fetchImageAsDataUrl);
 
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
   async function applyWebImage(url: string) {

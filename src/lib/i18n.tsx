@@ -1303,7 +1303,12 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "dex.list": { ja: "リスト表示", en: "List view" },
   "dex.map": { ja: "地図表示", en: "Map view" },
   "dex.searchAria": { ja: "図鑑を検索", en: "Search the dex" },
-  "dex.clearFilter": { ja: "絞り込みを解除", en: "Clear filter" },
+  // 図鑑の絞り込み(オーナー指摘 2026-08-21「ボタンを押したら選択肢が
+  // 出てきて選べるように」)。ボタンの名前は**選んでいないときに出る名前**。
+  "dex.filterCategory": { ja: "カテゴリー", en: "Category" },
+  "dex.filterDay": { ja: "日付", en: "Date" },
+  "dex.filterOpen": { ja: "{name}を選ぶ", en: "Choose {name}" },
+  "dex.filterClearAll": { ja: "絞り込みをすべて解除", en: "Clear all filters" },
   "dex.clearSearch": { ja: "検索をクリア", en: "Clear search" },
   "dex.noMatch": { ja: "に一致する単語はありません。", en: "— no matching words." },
   "dex.emptyTitle": { ja: "まだ何もキャッチしていません。", en: "Nothing caught yet." },

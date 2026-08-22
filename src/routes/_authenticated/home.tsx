@@ -716,14 +716,20 @@ export function ScrapbookAlbum({
       <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
-          // Fallback to the plain object photo only when there's no selfie;
-          // ghosts show their placeholder (clearly temporary).
+          // Fallback to the plain object photo only when there's no selfie.
           // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`
           // に1つだけ置いてある — 以前はここを含む7箇所がそれぞれ違う順で
           // 選んでいて、同じ札が画面をまたぐと別の写真で出ていた。
           // 優先順は「この札の指定(長押し) → 設定 → 画面の意図」。
+          //
+          // **ネットの絵はアルバムに貼らない**(オーナー指摘 2026-08-21
+          // 「文字入力した単語はホームのアルバムに単語の文字だけ書いて」)。
+          // アルバムは自分が出会って撮った物の記録で、借りてきた絵を同じ紙に
+          // 貼ると、撮った日の思い出と見分けが付かなくなる。ネットの絵は
+          // **単語の詳細の見出し**という置き場所を別に持っている。
           const heroUrl = stickerPhotoUrl(s, {
             prefer: s.hero_role ?? resolvePrefer(photoPref, "selfie"),
+            exclude: ["placeholder"],
           });
 
           return (
@@ -765,29 +771,33 @@ export function ScrapbookAlbum({
                     />
                   </div>
                 ) : (
-                  // 画像がまだ無いカード。
+                  // **写真の無い札は、その語の文字そのものを札にする**
+                  // (オーナー指摘 2026-08-21「文字入力した単語はホームの
+                  // アルバムに単語の文字だけ書いて」)。
                   //
-                  // **同じ語を2回書かない。** ここには見出し語を大きく置いて
-                  // いたが、下の白フチの帯にも同じ語が入る。撮った画像で見ると
-                  // 「腳踏車 / 腳踏車」と2段に並んでいて、誤りにしか見えない
-                  // (数字の検査は「読める濃さか」しか見ないので通っていた)。
-                  // 帯のほうが全カード共通なので、語は帯に一本化し、ここには
-                  // **写真がまだ無いこと**だけを静かに示す。
-                  // **斜線の入った記号は使わない。** `ImageOff` は
-                  // 「画像が壊れています」の記号として定着していて、
-                  // 実際そう読まれた(独立監査が「壊れ画像アイコンの素通し」
-                  // と指摘)。ここは壊れているのではなく**まだ撮っていない**
-                  // だけなので、素の絵の記号で「ここに写真が入る」と言う。
+                  // 前は「ここに写真が入る」を示す絵の記号を置いていた。
+                  // 文字を入れて調べた語には**そもそも写真が来ない**ので、
+                  // その札は永久に空の記号のまま並ぶことになる。
+                  // (`ImageOff` の斜線は「壊れています」と読まれるため、
+                  //  素の絵の記号に一度直した跡がある。今回それも外した。)
                   //
-                  // (監査は「図鑑と同じく語を大きく置け」と言ったが、それは
-                  //  違う。ホームは下の白フチの帯に同じ語が入るので、
-                  //  置くと「腳踏車 / 腳踏車」と二段に並ぶ — 一度直した跡が
-                  //  すぐ上のコメントに残っている。)
-                  <div className="grid h-full w-full place-items-center">
-                    <ImageIcon
-                      aria-label={t("home.noPhotoYet")}
-                      className="h-6 w-6 text-album-ink-dim"
-                    />
+                  // **同じ語を2回書かない。** 下の白フチの帯にも見出し語が
+                  // 入るので、両方出すと「腳踏車 / 腳踏車」と二段に並んで
+                  // 誤りにしか見えない。だからこの場合だけ帯を出さない
+                  // (帯側の `heroUrl &&` がその約束)。
+                  //
+                  // **字は札の大きさに合わせる。** 台紙の枠は 1〜2 マスで
+                  // 大きさが変わる。どれも同じ字にすると、大きい札だけが
+                  // 白い板の真ん中に小さな字が浮いた絵になる(絵で見つけた)。
+                  <div className="grid h-full w-full place-items-center px-1">
+                    <span
+                      lang="zh-Hant"
+                      className={`line-clamp-2 text-center font-semibold leading-tight tracking-[0.02em] text-album-ink ${
+                        size.includes("col-span-2") ? "text-title" : "text-headline"
+                      }`}
+                    >
+                      {s.word.headword}
+                    </span>
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
@@ -796,12 +806,14 @@ export function ScrapbookAlbum({
                     §3 Clarity: 見出し語はこのカードの主役なので、細く薄い字では
                     なく「やや大きく・semibold・不透明」で読ませる。繁体字は画数が
                     多く小さいと潰れるため、字間も少し開ける。 */}
-                <span
-                  lang="zh-Hant"
-                  className="absolute inset-x-1 bottom-0.5 truncate text-center text-body font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
-                >
-                  {s.word.headword}
-                </span>
+                {heroUrl && (
+                  <span
+                    lang="zh-Hant"
+                    className="absolute inset-x-1 bottom-0.5 truncate text-center text-body font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
+                  >
+                    {s.word.headword}
+                  </span>
+                )}
               </div>
             </button>
           );

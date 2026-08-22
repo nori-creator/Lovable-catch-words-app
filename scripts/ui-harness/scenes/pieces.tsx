@@ -16,6 +16,8 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
+import { DexHeader } from "@/routes/_authenticated/dex";
+import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
@@ -101,6 +103,39 @@ export function DexEmptyScene() {
 
 export function DexNoMatchScene() {
   return <DexNoMatch search="芒果" onClear={() => {}} />;
+}
+
+/**
+ * 「あなたの図鑑」の欄(オーナー指摘 2026-08-21)。
+ *
+ * **ルートに書かれている本物を描く。** 図鑑を開くたび必ず見る所なのに、
+ * これまで一度も写真に撮っていなかった。
+ *
+ * **開いた絵まで撮る。** 閉じたボタンだけを見ても、選択肢が画面の右端で
+ * 切れていないか・指で押せる高さがあるかは分からない。`ui-audit` の
+ * `click` で押してから撮る。
+ */
+export function DexFilterScene({ q }: { q: URLSearchParams }) {
+  const many = q.get("many") === "1";
+  const cats = many
+    ? ["food", "drink", "vehicle", "clothing", "kitchenware", "plant", "animal", "other"]
+    : ["food", "drink", "vehicle"];
+  const [filter, setFilter] = useState<DexFilter>({
+    category: null,
+    day: q.get("day") === "1" ? "2026-08-20" : null,
+  });
+  return (
+    <DexHeader
+      found={63}
+      caught={41}
+      view="shelf"
+      onView={() => {}}
+      filter={filter}
+      onFilter={setFilter}
+      categories={cats.map((key, i) => ({ key, count: 12 - i }))}
+      days={["2026-08-21", "2026-08-20", "2026-08-19"].map((key, i) => ({ key, count: 3 - i }))}
+    />
+  );
 }
 
 /**

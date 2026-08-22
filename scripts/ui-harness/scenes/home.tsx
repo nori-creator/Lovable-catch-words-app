@@ -29,16 +29,22 @@ const svg = (w: number, h: number, color: string) =>
   );
 
 /**
- * アルバムに並ぶ3通り: ①自撮りがある ②モノの写真だけ ③画像がまだ無い。
+ * アルバムに並ぶ4通り: ①自撮りがある ②モノの写真だけ ③画像がまだ無い
+ * ④**ネットの絵しか無い**(文字キャッチの語)。
  * 台紙の上でどれも同じ大きさの白フチに収まるかを見たいので、縦横比も変える。
+ *
+ * ④が要る理由(オーナー指摘 2026-08-21): 文字で入れた語はアルバムに
+ * **字だけ**で並ぶ。詳細を開くとネットの絵が見出しに入るので、その絵が
+ * アルバム側へ回り込んでいないかは**絵でしか確かめられない**。
  */
-const FIXTURES: Array<{ head: string; selfie?: string; object?: string }> = [
+const FIXTURES: Array<{ head: string; selfie?: string; object?: string; net?: string }> = [
   { head: "珍珠奶茶", selfie: svg(120, 160, "#b07a4a") },
   { head: "夜市", object: svg(200, 120, "#d0483c") },
   { head: "腳踏車" },
   { head: "芒果", selfie: svg(140, 140, "#f5a623") },
   { head: "捷運", object: svg(110, 190, "#4a90d9") },
   { head: "雨傘" },
+  { head: "獎學金", net: svg(160, 160, "#2f8f5b") },
 ];
 
 function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
@@ -59,7 +65,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
     object_thumb_url: null,
     cutout_thumb_url: null,
     capture_type: "photo",
-    placeholder_url: null,
+    placeholder_url: f.net ?? null,
     placeholder_credit: null,
     word: {
       headword: f.head,

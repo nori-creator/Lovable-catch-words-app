@@ -108,3 +108,64 @@ describe("hasOwnPhoto", () => {
     expect(hasOwnPhoto(null)).toBe(false);
   });
 });
+
+/**
+ * オーナー指摘 2026-08-21:
+ * > 「文字入力した単語はホームのアルバムに**単語の文字だけ**書いて。」
+ *
+ * アルバムはネットの絵を貼らない。詳細では逆にそれが見出しになるので、
+ * 「持っていない」ことにはせず、**画面ごとに外す**。
+ */
+describe("exclude — 画面ごとに外す役", () => {
+  it("外した役は選ばれない", () => {
+    expect(pickStickerPhoto({ placeholder_url: "net.jpg" }, { exclude: ["placeholder"] })).toBe(
+      null,
+    );
+  });
+
+  it("外しても、残りの役からは普通に選ぶ", () => {
+    const got = pickStickerPhoto(
+      { object_url: "o.jpg", placeholder_url: "net.jpg" },
+      { exclude: ["placeholder"] },
+    );
+    expect(got?.role).toBe("object");
+  });
+
+  it("**外す役は `prefer` より強い**(好みで押し戻せない)", () => {
+    expect(
+      pickStickerPhoto(
+        { placeholder_url: "net.jpg" },
+        { prefer: "placeholder", exclude: ["placeholder"] },
+      ),
+    ).toBe(null);
+    // 好みが外した役でも、残りからは選ぶ
+    expect(
+      pickStickerPhoto(
+        { selfie_url: "me.jpg", placeholder_url: "net.jpg" },
+        { prefer: "placeholder", exclude: ["placeholder"] },
+      )?.role,
+    ).toBe("selfie");
+  });
+
+  it("複数まとめて外せる", () => {
+    expect(
+      pickStickerPhoto(
+        { selfie_url: "me.jpg", placeholder_url: "net.jpg" },
+        { exclude: ["selfie", "placeholder"] },
+      ),
+    ).toBe(null);
+  });
+
+  it("**外さないときは今までどおり**(既定の振る舞いを変えない)", () => {
+    expect(pickStickerPhoto({ placeholder_url: "net.jpg" })?.role).toBe("placeholder");
+    expect(pickStickerPhoto({ placeholder_url: "net.jpg" }, { exclude: [] })?.role).toBe(
+      "placeholder",
+    );
+  });
+
+  it("`stickerPhotoUrl` からも外せる", () => {
+    expect(stickerPhotoUrl({ placeholder_url: "net.jpg" }, { exclude: ["placeholder"] })).toBe(
+      null,
+    );
+  });
+});

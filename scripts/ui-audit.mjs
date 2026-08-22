@@ -396,6 +396,31 @@ const MODES = [
   // 最初に見る面なのに、ここまで一度も撮っていなかった。
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
+  // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
+  // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
+  ["dex-filter", "", false, { scene: "dex-filter" }],
+  ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
+  ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],
+  // **右端のボタンも撮る。** 揃える側を測って決めているので、左端だけ見て
+  // いると反対側の切れに気づけない(右揃えの決め打ちで一度切れた)。
+  [
+    "dex-filter-open-right",
+    "",
+    false,
+    { scene: "dex-filter", click: "section [aria-haspopup] >> nth=1" },
+  ],
+  [
+    "dex-filter-open-many",
+    "",
+    false,
+    { scene: "dex-filter", many: "1", click: "section [aria-haspopup]" },
+  ],
+  [
+    "dex-filter-open-dark",
+    'class="dark"',
+    false,
+    { scene: "dex-filter", click: "section [aria-haspopup]" },
+  ],
   // 同じものに何度も出会った記録(再会の写真が並ぶ区画)。
   ...crossThemes("photo-history", { scene: "photo-history" }),
   // 保存を押した直後。文字が「保存」から「保存中...」に伸びて押せなくなる。

@@ -28,6 +28,18 @@ import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
+import {
+  NO_FILTER,
+  applyDexFilter,
+  categoryOptions,
+  dayOptions,
+  isFiltering,
+  stickerDayKey,
+  pruneFilter,
+  type DexFilter,
+  type FilterOption,
+} from "@/lib/dex-filter";
+import { FilterMenu } from "@/components/FilterMenu";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
@@ -166,8 +178,14 @@ function DexPage() {
 
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
   const layout = useUiLayout();
-  /** null = すべて。カテゴリー名のボタンで絞り込む。 */
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  /**
+   * 絞り込み(カテゴリー・日付)。どちらも `null` は「すべて」。
+   *
+   * **日付をここへ上げた**(オーナー指摘 2026-08-21)。前は地図の中だけに
+   * 在り、一覧・棚・カレンダーには手段が無く、地図を離れると黙って消えた。
+   */
+  const [filter, setFilter] = useState<DexFilter>(NO_FILTER);
+  const activeCategory = filter.category;
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
@@ -181,7 +199,9 @@ function DexPage() {
     )
       setView(saved);
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
-    if (savedCat) setActiveCategory(savedCat);
+    // **日付は覚えない。** 「その日だけ」は今この場の見方で、次に開いた
+    // ときまで続くと「図鑑が減った」ようにしか見えない。
+    if (savedCat) setFilter((f) => ({ ...f, category: savedCat }));
   }, []);
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
@@ -194,33 +214,20 @@ function DexPage() {
     else localStorage.removeItem("dex-category");
   }, [activeCategory]);
 
-  /** ボタンに並べるカテゴリー: 持っている物だけを多い順に。 */
-  const categoryCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of captured) {
-      // 正規化してから数える。生のキーで数えると、DBに残る古いキー
-      // (place / object)が「その他」と同じラベルの別チップになり、
-      // 同じ名前のチップが2つ並んで押すたび違う結果が出ていた。
-      const k = asCategoryKey(s.word.category_key);
-      map.set(k, (map.get(k) ?? 0) + 1);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [captured]);
+  /** ボタンに並べる選択肢。数え方は `dex-filter.ts` が1つだけ持つ。 */
+  const catOptions = useMemo(() => categoryOptions(captured), [captured]);
+  const dOptions = useMemo(() => dayOptions(captured), [captured]);
 
-  // 選んだカテゴリーが1件も無くなったら「すべて」に戻す(空画面で詰まらせない)。
+  // 選んだ物が1件も無くなったら「すべて」に戻す(空画面で詰まらせない)。
   useEffect(() => {
-    if (activeCategory && !categoryCounts.some(([k]) => k === activeCategory)) {
-      setActiveCategory(null);
-    }
-  }, [activeCategory, categoryCounts]);
+    setFilter((f) => pruneFilter(f, { categories: catOptions, days: dOptions }));
+  }, [catOptions, dOptions]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const byCategory = activeCategory
-      ? captured.filter((s) => asCategoryKey(s.word.category_key) === activeCategory)
-      : captured;
-    if (!q) return byCategory;
-    return byCategory.filter((s) => {
+    const byFilter = applyDexFilter(captured, filter);
+    if (!q) return byFilter;
+    return byFilter.filter((s) => {
       const w = s.word;
       // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
       // category_key は "kitchenware" のような英語キーなので、それだけでは
@@ -236,7 +243,7 @@ function DexPage() {
         catLabel.toLowerCase().includes(q)
       );
     });
-  }, [captured, search, activeCategory, t]);
+  }, [captured, search, filter, t]);
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
@@ -250,51 +257,19 @@ function DexPage() {
 
   return (
     <AppShell title={t("title.dex")}>
-      <section className="mb-3 flex items-center justify-between rounded-2xl border border-border bg-card p-3">
-        <div className="pl-1">
-          {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
-          <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
-          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
-          <p className="text-footnote text-muted-foreground">
-            {t("dex.found")}{" "}
-            <span className="font-semibold text-foreground">{captured.length}</span>
-            <span className="mx-1.5">·</span>
-            {t("dex.caught")}{" "}
-            <span className="font-semibold text-foreground">
-              {
-                captured.filter(
-                  (s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url,
-                ).length
-              }
-            </span>
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="flex gap-1 rounded-full bg-secondary p-1">
-            {(
-              [
-                ["shelf", Library, t("dex.shelf")],
-                ["gallery", LayoutGrid, t("dex.gallery")],
-                ["list", List, t("dex.list")],
-                ["map", MapIcon, t("dex.map")],
-                ["calendar", CalendarDays, t("dex.calendar")],
-              ] as const
-            ).map(([v, Icon, label]) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                aria-label={label}
-                aria-pressed={view === v}
-                className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
-                  view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-[18px] w-[18px]" />
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      <DexHeader
+        found={captured.length}
+        caught={
+          captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
+            .length
+        }
+        view={view}
+        onView={setView}
+        filter={filter}
+        onFilter={setFilter}
+        categories={catOptions}
+        days={dOptions}
+      />
 
       {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
           地図表示のときも出す。 */}
@@ -344,65 +319,9 @@ function DexPage() {
         </p>
       )}
 
-      {/* 棚表示で絞り込みが残っているときの**解除口**。
-          チップ列を隠しただけにしたら、ギャラリーでカテゴリーを選んでから
-          棚へ切り替えた人は、54棚のうち53棚が消えた状態から抜け出せなく
-          なっていた(絞り込みは効いたままなのに、それを示すものも解く
-          手段も画面に無い)。しかも表示もカテゴリーも保存されるので、
-          次に開いてもその状態で始まる。 */}
-      {view === "shelf" && activeCategory && (
-        <button
-          onClick={() => setActiveCategory(null)}
-          aria-label={t("dex.clearFilter")}
-          className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-4 text-footnote font-medium text-primary-foreground"
-        >
-          {categoryEmoji(activeCategory)} {t(categoryLabelKey(activeCategory))}
-          <X className="h-3.5 w-3.5" aria-hidden />
-        </button>
-      )}
-
-      {/* カテゴリーの絞り込みチップ。
-          **棚を見ているときは出さない。** 棚そのものが部屋→棚の階層で
-          同じ分類を持っているので、同じ絵文字・同じ件数のものが上下に
-          2回並ぶ。しかも一方は平坦・一方は階層なので「どちらが図鑑の
-          本体か」が決まらない(独立監査の指摘)。
-          一覧・ギャラリー・地図・カレンダーには階層が無いので、そちらでは
-          この行が絞り込みの手段として要る。 */}
-      {captured.length > 0 && view !== "shelf" && (
-        // カレンダーのときは**下の余白を空けない(NORI指定)**。
-        // 日付(月送り)の帯がカテゴリーの帯から離れて浮いていて、
-        // 「絞り込みの一部」なのか「中身の見出し」なのかが決まらなかった。
-        // 隙間を無くして1つの塊にする。
-        <div className={`-mx-4 overflow-x-auto px-4 ${view === "calendar" ? "mb-0" : "mb-3"}`}>
-          <div className="flex w-max gap-1.5">
-            <button
-              onClick={() => setActiveCategory(null)}
-              aria-pressed={activeCategory === null}
-              className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
-                activeCategory === null
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {t("dex.allCategories")} {captured.length}
-            </button>
-            {categoryCounts.map(([key, count]) => (
-              <button
-                key={key}
-                onClick={() => setActiveCategory(key)}
-                aria-pressed={activeCategory === key}
-                className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
-                  activeCategory === key
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                {categoryEmoji(key)} {t(categoryLabelKey(key))} {count}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* 絞り込みの丸を横に並べる列は**やめた**(オーナー指摘 2026-08-21)。
+          上の「あなたの図鑑」の欄にボタンが2つあり、押すと選択肢が出る。
+          棚だけ別の解除口を持たせていたのも、そこへ一本化した。 */}
 
       {/* 読み込み中と失敗は**表示形式より先**に判定する。以前この2つは
           map / calendar の下に置かれていたので、地図とカレンダーだけは
@@ -836,14 +755,6 @@ function PackGallery({
   );
 }
 
-/** ローカル日付キー(YYYY-MM-DD)。UTC変換で日付がずれないよう自前で組む。 */
-function dayKeyOf(iso: string): string {
-  const d = new Date(iso);
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
 /**
  * カレンダー表示: その日に撮った写真が、その日のマスに入る。
  * 「いつ何を集めたか」が一目で分かる — 日記としての図鑑。
@@ -860,7 +771,7 @@ function DexCalendar({
   const byDay = useMemo(() => {
     const m = new Map<string, typeof stickers>();
     for (const s of stickers) {
-      const k = dayKeyOf(s.created_at);
+      const k = stickerDayKey(s.created_at);
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(s);
     }
@@ -1015,21 +926,11 @@ function DexMap({
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
 }) {
-  // 撮った日で地図を絞る(NORI指定)。選べるのは**実際に写真がある日だけ**なので、
-  // 押しても何も出ない日付は最初から並ばない。
-  const [dayFilter, setDayFilter] = useState<string | null>(null);
-  const availableDays = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of stickers) if (s.lat != null && s.lng != null) set.add(dayKeyOf(s.created_at));
-    return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
-  }, [stickers]);
-  useEffect(() => {
-    if (dayFilter && !availableDays.includes(dayFilter)) setDayFilter(null);
-  }, [dayFilter, availableDays]);
-  const shown = useMemo(
-    () => (dayFilter ? stickers.filter((s) => dayKeyOf(s.created_at) === dayFilter) : stickers),
-    [stickers, dayFilter],
-  );
+  // 撮った日の絞り込みは**この中に持たない**(オーナー指摘 2026-08-21)。
+  // 前はここだけが日付の列を持っていて、一覧・棚・カレンダーには手段が
+  // 無く、地図を離れると選んだ日が黙って消えた。いまは上の
+  // 「あなたの図鑑」の欄で絞られた物が `stickers` として降りてくる。
+  const shown = stickers;
   const shownRef = useRef(shown);
   shownRef.current = shown;
   const mapRef = useRef<HTMLDivElement>(null);
@@ -1238,39 +1139,6 @@ function DexMap({
         className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
       />
 
-      {/* 撮った日で絞る。並ぶのは**写真がある日だけ**(新しい順)なので、
-          押しても何も出ない日付は存在しない。 */}
-      {availableDays.length > 1 && (
-        <div className="-mx-4 mt-3 overflow-x-auto px-4">
-          <div className="flex w-max gap-1.5">
-            <button
-              onClick={() => setDayFilter(null)}
-              aria-pressed={dayFilter === null}
-              className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
-                dayFilter === null
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {t("dex.allDays")}
-            </button>
-            {availableDays.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDayFilter(d)}
-                aria-pressed={dayFilter === d}
-                className={`min-h-9 shrink-0 rounded-full px-3.5 text-footnote font-medium transition ${
-                  dayFilter === d
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                {d.slice(5).replace("-", "/")}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
         <span>{t("dex.withLocation")}</span>
         <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary-ink">
@@ -1320,6 +1188,127 @@ function DexMap({
         </section>
       )}
     </>
+  );
+}
+
+/**
+ * 「あなたの図鑑」の欄。見出し・数・表示の切替と、**絞り込みのボタン2つ**。
+ *
+ * オーナー指摘 2026-08-21:
+ * > 「図鑑のカテゴリーや日付の選択は、**選択肢をすべて表示するのではなく、
+ * >  ボタンを押したら選択肢が出てきて選べる**ようにして。またカテゴリーと
+ * >  日付のボタンは**あなたの図鑑の欄に収めて**。」
+ *
+ * 前はカテゴリーの丸が持っている数だけ横に伸び(60語で十数個)、日付の列は
+ * **地図の中にだけ**在った。集めた物を見る画面なのに、道具のほうが場所を
+ * 取っていた。ボタン2つに畳んで、この欄の中へ入れる。
+ *
+ * **ルートから切り出してある**のは検査のため。ここは図鑑を開くたび必ず
+ * 見る所なのに、ルートに直書きだと一度も写真に撮れない。
+ */
+export function DexHeader({
+  found,
+  caught,
+  view,
+  onView,
+  filter,
+  onFilter,
+  categories,
+  days,
+}: {
+  found: number;
+  caught: number;
+  view: ViewMode;
+  onView: (v: ViewMode) => void;
+  filter: DexFilter;
+  onFilter: (f: DexFilter) => void;
+  categories: readonly FilterOption[];
+  days: readonly FilterOption[];
+}) {
+  const t = useT();
+  return (
+    <section className="mb-3 rounded-2xl border border-border bg-card p-3">
+      {/* 見出しと数は**1行を丸ごと使う**。表示の切替(丸5つ=228px)を
+          同じ行の右に置いていたら、390px の画面で「あなたの図/鑑」と
+          2行に割れていた。数の検査は割れを見ないので、絵で見つけた。 */}
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="pl-1">
+          {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
+          <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
+          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
+          <p className="text-footnote text-muted-foreground">
+            {t("dex.found")} <span className="font-semibold text-foreground">{found}</span>
+            <span className="mx-1.5">·</span>
+            {t("dex.caught")} <span className="font-semibold text-foreground">{caught}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* 表示の切替と絞り込みは同じ行に置き、入らなければ折り返す。 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+        <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
+          {(
+            [
+              ["shelf", Library, t("dex.shelf")],
+              ["gallery", LayoutGrid, t("dex.gallery")],
+              ["list", List, t("dex.list")],
+              ["map", MapIcon, t("dex.map")],
+              ["calendar", CalendarDays, t("dex.calendar")],
+            ] as const
+          ).map(([v, Icon, label]) => (
+            <button
+              key={v}
+              onClick={() => onView(v)}
+              aria-label={label}
+              aria-pressed={view === v}
+              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+                view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
+              }`}
+            >
+              <Icon className="h-[18px] w-[18px]" />
+            </button>
+          ))}
+        </div>
+
+        {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と
+            同じ行に並べ、入らなければ折り返す。 */}
+        {(categories.length > 0 || days.length > 0) && (
+          <>
+            <FilterMenu
+              name={t("dex.filterCategory")}
+              value={filter.category}
+              options={categories}
+              allLabel={t("dex.allCategories")}
+              labelOf={(k) => `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`}
+              onChange={(category) => onFilter({ ...filter, category })}
+            />
+            <FilterMenu
+              name={t("dex.filterDay")}
+              value={filter.day}
+              options={days}
+              allLabel={t("dex.allDays")}
+              labelOf={(k) => k.slice(5).replace("-", "/")}
+              onChange={(day) => onFilter({ ...filter, day })}
+            />
+            {/* 絞り込んでいるときだけ解除口を出す。**棚にだけ別の解除口**を
+                持たせていたのも、ここへ一本化した。
+                **字ではなく×だけ**にする — 文字で置くと2つのボタンと
+                並びきらず、欄の中で4行目に折り返していた(絵で見つけた)。
+                読み上げには `aria-label` で同じことを言う。 */}
+            {isFiltering(filter) && (
+              <button
+                onClick={() => onFilter(NO_FILTER)}
+                aria-label={t("dex.filterClearAll")}
+                title={t("dex.filterClearAll")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
