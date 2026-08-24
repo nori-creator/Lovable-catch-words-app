@@ -37,6 +37,7 @@ import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { VoiceVideoNote } from "@/components/VoiceVideoNote";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
@@ -1000,6 +1001,13 @@ export function StickerSheetBody({
           図鑑からは永久に辿り着けなかった(オーナー指摘 2026-08-18)。
           再会が無ければ何も描かない。 */}
       <StickerPhotoHistory photos={photos} dateLocale={uiLang === "en" ? "en-US" : "ja-JP"} />
+
+      {/* 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+          **キャッチの保存経路には入れない** — あそこは「一瞬でも早く」の
+          本体で、いちばん壊してはいけない所。保存が終わったこのカードから
+          撮る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
+          記録」だから。 */}
+      <VoiceVideoNote stickerId={s.id} videoUrl={s.voice_video_url} />
 
       <WordCard
         word={{

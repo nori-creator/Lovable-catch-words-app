@@ -1309,6 +1309,35 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
   //  タイトルが見えるように」)。読み上げ用の棚の名前。
   "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf" },
+  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+  "voice.title": { ja: "一言の動画", en: "Video note" },
+  "voice.hint": {
+    ja: "この語に出会ったときの気持ちを、15秒までの自撮りで残せます。",
+    en: "Record up to 15 seconds about how it felt to meet this word.",
+  },
+  "voice.record": { ja: "一言を撮る", en: "Record a note" },
+  "voice.retake": { ja: "撮り直す", en: "Record again" },
+  "voice.stop": { ja: "止める（あと{n}秒）", en: "Stop ({n}s left)" },
+  "voice.delete": { ja: "この動画を消す", en: "Delete this video" },
+  "voice.confirmDelete": {
+    ja: "この一言の動画を消しますか？元に戻せません。",
+    en: "Delete this video note? This can't be undone.",
+  },
+  "voice.saved": { ja: "一言を残しました", en: "Video note saved" },
+  "voice.saveFailed": { ja: "保存できませんでした", en: "Couldn't save that" },
+  "voice.tooBig": { ja: "動画が大きすぎます", en: "That video is too large" },
+  "voice.noCamera": {
+    ja: "カメラとマイクを使えませんでした",
+    en: "Couldn't use the camera and microphone",
+  },
+  "voice.unsupported": {
+    ja: "この端末では動画を撮れません",
+    en: "This device can't record video",
+  },
+  "voice.needsMigration": {
+    ja: "まだ保存先の準備ができていません（移行待ち）",
+    en: "Storage isn't ready yet (migration pending)",
+  },
   // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
   "home.shelfAria": { ja: "アルバムの本棚", en: "Album shelf" },
   "home.bookDay": { ja: "日ごと", en: "By day" },

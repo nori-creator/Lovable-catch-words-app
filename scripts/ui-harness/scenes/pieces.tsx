@@ -19,6 +19,7 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
 import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { VoiceVideoNote } from "@/components/VoiceVideoNote";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
 import { EncounterPanel } from "@/components/EncounterPanel";
@@ -507,6 +508,24 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
       // いなかった。待っている骨組みだけを見て「合格」と言っていた。
       cardPromise={variant === "ready" ? READY : variant === "failed" ? FAILED : PENDING}
       onClose={() => {}}
+    />
+  );
+}
+
+/**
+ * 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+ *
+ * **撮る前と撮った後の2通りを撮る。** 撮っている最中はカメラが要るので
+ * ここでは出せないが、その2つは日常的に見る面。
+ * 動画そのものは足場では鳴らせないので、`src` は空のままにして
+ * **枠と操作の並び**だけを見る。
+ */
+export function VoiceVideoScene({ q }: { q: URLSearchParams }) {
+  const done = q.get("done") === "1";
+  return (
+    <VoiceVideoNote
+      stickerId="00000000-0000-0000-0000-000000000001"
+      videoUrl={done ? "data:video/webm;base64," : null}
     />
   );
 }

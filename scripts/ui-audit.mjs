@@ -411,6 +411,10 @@ const MODES = [
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
+  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
+  ...crossThemes("voice-video", { scene: "voice-video" }),
+  ["voice-video-done", "", false, { scene: "voice-video", done: "1" }],
+  ["voice-video-done-dark", 'class="dark"', false, { scene: "voice-video", done: "1" }],
   ["dex-filter", "", false, { scene: "dex-filter" }],
   ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
   ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],
