@@ -23,6 +23,19 @@
  * 項目」に引っ張られる。実際に**通じなくなる順**を先に宣言しておくと、
  * 限られた2〜3文のアドバイスがちゃんと致命傷から埋まる。
  *
+ * ## 2026-08-24: 学習言語ごとに分かれる場所を作った
+ * この表は**台湾華語を学ぶときの**干渉項目。英語版では中身が丸ごと変わる
+ * (日本語話者の英語の難所は声調ではなく冠詞・強勢・語末子音)。
+ *
+ * 見出しまで違う — 台湾華語は【量詞】が要るが、英語には量詞が無く、
+ * 代わりに【冠詞・可算】が要る。そこで**整形の見出しを表に出して**、
+ * 学習言語で引けるようにした(`RULE_LABELS`)。第4段で英語の欄を足すときに
+ * 触るのはその表だけで、`formatL1Rule` の中身は触らない。
+ *
+ * **台湾華語の出力は1文字も変えていない。** `l1.test.ts` が
+ * `__fixtures__/l1-prompts.zh-TW.json`(この変更の前に採った現物)と
+ * 突き合わせて、12母語 × 4用途の48通りを全部見ている。
+ *
  * ## 出典の考え方
  * 対照言語学で広く知られる母語干渉(L1 transfer)の項目を、台湾華語(注音)
  * の記号に対応づけて整理したもの。英語話者の第2声↔第3声の混同が、
@@ -31,6 +44,8 @@
  * 日本語話者の有気/無気の不区別も同様に確立した記述。台湾華語側の事実
  * (そり舌の浅さ・軽声の少なさ・兒化の不在)は台湾華語の記述研究による。
  */
+
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 
 export type L1Code =
   | "ja"
@@ -702,12 +717,66 @@ export type L1RuleKind =
   | "both";
 
 /**
+ * プロンプトに書く見出し。**学習言語で変わる。**
+ *
+ * 台湾華語には【量詞】が要り、英語には無い。英語には【冠詞・可算】が
+ * 要り、台湾華語には無い。見出しを `formatL1Rule` の中に直に書くと、
+ * 英語の欄を足すときにその関数を分岐で埋めることになる — この app が
+ * 声・写真・演出で繰り返した形。**並びを表に出して、回すだけにする。**
+ */
+type RuleLabels = {
+  /** 音韻の節(出す順)。 */
+  phonology: readonly (readonly [keyof L1Phonology, string])[];
+  /** 文法の節(出す順)。 */
+  grammar: readonly (readonly [keyof L1Grammar, string])[];
+  /** 語順に絞ったときに出す節(`grammar` の部分集合)。 */
+  wordorder: readonly (keyof L1Grammar)[];
+  /** その学習言語そのものの事情の見出し。 */
+  target: string;
+};
+
+const ZH_TW_LABELS: RuleLabels = {
+  phonology: [
+    ["consonants", "子音"],
+    ["finals", "韻母"],
+    ["tones", "声調"],
+    ["prosody", "リズム"],
+    ["advantages", "この母語だから有利な点"],
+  ],
+  grammar: [
+    ["wordOrder", "語順"],
+    ["aspect", "時制・アスペクト"],
+    ["measureWords", "量詞"],
+    ["particles", "助詞・的/得/地"],
+    ["negation", "否定"],
+    ["patterns", "崩れやすい構文"],
+    ["falseFriends", "語彙の罠"],
+  ],
+  wordorder: ["wordOrder", "particles", "patterns"],
+  target: "台湾華語の事情",
+};
+
+/**
+ * 学習言語 → 見出しの表。
+ *
+ * **知らない言語は台湾華語の見出しに落とす。** 見出しが空のまま
+ * プロンプトへ流れると、モデルは節の区切りを見失う。
+ */
+const RULE_LABELS: Record<string, RuleLabels> = {
+  [DEFAULT_TARGET_LANGUAGE]: ZH_TW_LABELS,
+};
+
+/**
  * L1Info を、指定した観点の**プロンプト断片**へ整形する。
  *
  * ここで文字列を組み立てておくのは、呼び出し側(ai.functions / reviews /
  * journal)がそれぞれ違う整形をして表記が揺れるのを防ぐため。
+ *
+ * `targetLang` は学習言語。省略すると既定の学習言語で整形する
+ * (いまはそれしか無いので、**呼ぶ側の動きは1つも変わらない**)。
  */
-export function formatL1Rule(info: L1Info, kind: L1RuleKind): string {
+export function formatL1Rule(info: L1Info, kind: L1RuleKind, targetLang?: string | null): string {
+  const labels = RULE_LABELS[normalizeTargetLanguage(targetLang)] ?? ZH_TW_LABELS;
   const wantPhon = kind === "pronunciation" || kind === "both";
   const wantGram = kind === "grammar" || kind === "both";
   const wantOrder = kind === "wordorder";
@@ -720,36 +789,24 @@ export function formatL1Rule(info: L1Info, kind: L1RuleKind): string {
   );
 
   if (wantPhon) {
-    const p = info.phonology;
-    parts.push(
-      `【子音】${p.consonants}`,
-      `【韻母】${p.finals}`,
-      `【声調】${p.tones}`,
-      `【リズム】${p.prosody}`,
-      `【この母語だから有利な点】${p.advantages}`,
-    );
+    for (const [key, label] of labels.phonology) {
+      parts.push(`【${label}】${info.phonology[key]}`);
+    }
   }
 
-  const g = info.grammar;
   if (wantGram) {
-    parts.push(
-      `【語順】${g.wordOrder}`,
-      `【時制・アスペクト】${g.aspect}`,
-      `【量詞】${g.measureWords}`,
-      `【助詞・的/得/地】${g.particles}`,
-      `【否定】${g.negation}`,
-      `【崩れやすい構文】${g.patterns}`,
-      `【語彙の罠】${g.falseFriends}`,
-    );
+    for (const [key, label] of labels.grammar) {
+      parts.push(`【${label}】${info.grammar[key]}`);
+    }
   } else if (wantOrder) {
-    parts.push(
-      `【語順】${g.wordOrder}`,
-      `【助詞・的/得/地】${g.particles}`,
-      `【崩れやすい構文】${g.patterns}`,
-    );
+    // 見出しは文法の表から引く。**別に書き写さない** — 写すと片方だけ直る。
+    const byKey = new Map(labels.grammar);
+    for (const key of labels.wordorder) {
+      parts.push(`【${byKey.get(key) ?? key}】${info.grammar[key]}`);
+    }
   }
 
-  parts.push(`【台湾華語の事情】${info.taiwan}`);
+  parts.push(`【${labels.target}】${info.taiwan}`);
 
   parts.push(
     "上の項目は網羅リストであって、全部書けという意味ではない。" +

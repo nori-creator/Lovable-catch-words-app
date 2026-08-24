@@ -250,6 +250,10 @@ const MODES = [
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
+  // **CEFR も同じ部品で描けているか**を絵で確かめる(2026-08-24 の二言語化)。
+  // 「6段 + 3帯で形が同じはず」は思い込みかもしれないので、両方撮って並べる。
+  // CEFR 側には TOEFL / IELTS の目盛りが添う。
+  ...crossThemes("cefr-ladder", { scene: "tocfl-ladder", scale: "cefr" }),
   ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
   ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),

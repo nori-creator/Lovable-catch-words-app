@@ -24,7 +24,9 @@ import { Label } from "@/components/ui/label";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
-import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
+import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
+import { targetProfile } from "@/lib/target-profile";
+import { levelOptions } from "@/lib/level-scale";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
@@ -165,14 +167,14 @@ export function ChoiceRow<T extends string | number>({
 }
 
 /**
- * TOCFL の6段階。「いまの級」と「目標の級」で**同じ一覧**を使う。
+ * 級の6段階。「いまの級」と「目標の級」で**同じ一覧**を使う。
  * 以前は片方が `.replace()` で作った表記、もう片方が手書きの6行で、
  * どちらも同じ文字列を別々に作っていた(ずれても誰も気づかない形)。
+ *
+ * 2026-08-24: `TOCFL-${n}` の決め打ちをやめ、学習言語の目盛りから作る。
+ * いまの学習言語は台湾華語だけなので**中身は1文字も変わらない**。
  */
-export const TOCFL_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
-  value: `TOCFL-${n}`,
-  label: `TOCFL Level ${n}`,
-}));
+export const LEVEL_OPTIONS = levelOptions(targetProfile(null).levels);
 
 /** 選択肢の一覧から1つ選ぶ(選択肢が多いものは丸いボタンでは入らない)。 */
 export function SelectRow({
@@ -365,7 +367,7 @@ function SettingsPage() {
               label={t("settings.currentLevel")}
               value={currentLevel}
               onChange={setCurrentLevel}
-              options={TOCFL_LEVELS}
+              options={LEVEL_OPTIONS}
             />
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
                 書いてあるのに、以前は1つ目の下に置いていたので、まだ見て
@@ -376,7 +378,7 @@ function SettingsPage() {
               hint={t("settings.levelHint")}
               value={levelGoal}
               onChange={setLevelGoal}
-              options={TOCFL_LEVELS}
+              options={LEVEL_OPTIONS}
             />
             <PhoneticRow />
             {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
@@ -556,21 +558,28 @@ function SettingsPage() {
   );
 }
 
-/** 発音表記: 注音かピンインのどちらか一方だけを全画面で表示する。 */
-export function PhoneticRow() {
+/**
+ * 読みの表記: その言語の書き方のうち**どれか一方だけ**を全画面で表示する。
+ *
+ * 台湾華語は注音と拼音、英語は米式と英式の IPA。並びは
+ * `target-profile.ts` が持っていて、ここは**それを回すだけ**。
+ * 2つを直に書くと、英語版でこの関数の中に分岐が生える。
+ */
+export function PhoneticRow({ lang }: { lang?: string } = {}) {
   const t = useT();
-  const pref = usePhoneticPref();
+  const profile = targetProfile(lang);
+  const pref = useReadingPref(profile);
+  // 列は 2〜5 しか用意がない。読みの数をそのまま渡すと、1つしか無い言語を
+  // 足した日に**クラス名が undefined になって並びが崩れる**。挟んでおく。
+  const cols = Math.min(5, Math.max(2, profile.readings.length)) as keyof typeof CHOICE_COLS;
   return (
     <ChoiceRow
-      cols={2}
+      cols={cols}
       label={t("settings.phonetic")}
       hint={t("settings.phoneticHint")}
       value={pref}
-      onChange={setPhoneticPref}
-      options={[
-        { value: "zhuyin", label: t("settings.zhuyin") },
-        { value: "pinyin", label: t("settings.pinyin") },
-      ]}
+      onChange={(k) => setReadingPref(profile, k)}
+      options={profile.readings.map((k) => ({ value: k, label: t(readingLabelKey(k)) }))}
     />
   );
 }

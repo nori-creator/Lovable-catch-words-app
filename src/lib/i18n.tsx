@@ -186,6 +186,11 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "tocfl.bandC": { ja: "C", en: "C" },
   "tocfl.out": { ja: "級外の語", en: "Not in the lists" },
   "tocfl.outShort": { ja: "外", en: "—" },
+  // CEFR の言い方(2026-08-24 の二言語化)。
+  // **「A1級」と書かない** — 級は TOCFL の数え方で、CEFR の段は
+  // それ自体が名前(A1)。数え方の言葉を足すと別の体系に見える。
+  "cefr.levelInBand": { ja: "{n}（Band {band}）", en: "{n} · Band {band}" },
+  "cefr.out": { ja: "CEFR の外の語", en: "Outside the CEFR bands" },
   // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
   "corpus.more": {
@@ -1531,6 +1536,9 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin" },
+  // 英語版の読みの表記。既定はアメリカ英語(オーナー決定 2026-08-24)。
+  "settings.ipaUs": { ja: "IPA アメリカ", en: "IPA (US)" },
+  "settings.ipaUk": { ja: "IPA イギリス", en: "IPA (UK)" },
   "settings.phoneticHint": {
     ja: "図鑑・復習・詳細カードなどアプリ全体で、選んだ表記だけを表示します。",
     en: "Only the notation you pick is shown across the whole app.",

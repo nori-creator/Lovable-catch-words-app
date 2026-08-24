@@ -31,7 +31,7 @@ import {
   SelectRow,
   SettingsCard,
   SoundAndHapticsPanel,
-  TOCFL_LEVELS,
+  LEVEL_OPTIONS,
   VideoRecordingToggle,
 } from "@/routes/_authenticated/settings";
 import { Button } from "@/components/ui/button";
@@ -177,7 +177,7 @@ export function SettingsSelectsScene() {
           label={t("settings.currentLevel")}
           value={cur}
           onChange={setCur}
-          options={TOCFL_LEVELS}
+          options={LEVEL_OPTIONS}
         />
         <SelectRow
           id="lang-level"
@@ -185,7 +185,7 @@ export function SettingsSelectsScene() {
           hint={t("settings.levelHint")}
           value={goal}
           onChange={setGoal}
-          options={TOCFL_LEVELS}
+          options={LEVEL_OPTIONS}
         />
         <PhoneticRow />
         <SelectRow
