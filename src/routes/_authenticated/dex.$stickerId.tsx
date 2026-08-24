@@ -15,6 +15,7 @@ import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
+import { useAutoHero } from "@/hooks/use-auto-hero";
 import { useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -77,6 +78,14 @@ function StickerDetailPage() {
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId } }),
   });
+  /**
+   * 絵の無い札の見出しに、ネットの画像をあてがう(オーナー指摘 2026-08-21)。
+   *
+   * **札のシートと同じ物を呼ぶ。** これまではシートの中に直に書いてあり、
+   * この画面には無かったので、図鑑から開いた文字キャッチの語は
+   * いつまでも見出しが空(語の字だけ)のままだった。
+   */
+  useAutoHero(s);
 
   return (
     <AppShell title={t("card.title")}>

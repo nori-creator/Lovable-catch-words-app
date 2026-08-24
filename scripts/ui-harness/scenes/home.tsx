@@ -17,6 +17,8 @@ import {
   ScrapbookAlbum,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
+import { AlbumSpread } from "@/components/AlbumSpread";
+import { AlbumShelf } from "@/components/AlbumShelf";
 import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -29,16 +31,22 @@ const svg = (w: number, h: number, color: string) =>
   );
 
 /**
- * アルバムに並ぶ3通り: ①自撮りがある ②モノの写真だけ ③画像がまだ無い。
+ * アルバムに並ぶ4通り: ①自撮りがある ②モノの写真だけ ③画像がまだ無い
+ * ④**ネットの絵しか無い**(文字キャッチの語)。
  * 台紙の上でどれも同じ大きさの白フチに収まるかを見たいので、縦横比も変える。
+ *
+ * ④が要る理由(オーナー指摘 2026-08-21): 文字で入れた語はアルバムに
+ * **字だけ**で並ぶ。詳細を開くとネットの絵が見出しに入るので、その絵が
+ * アルバム側へ回り込んでいないかは**絵でしか確かめられない**。
  */
-const FIXTURES: Array<{ head: string; selfie?: string; object?: string }> = [
+const FIXTURES: Array<{ head: string; selfie?: string; object?: string; net?: string }> = [
   { head: "珍珠奶茶", selfie: svg(120, 160, "#b07a4a") },
   { head: "夜市", object: svg(200, 120, "#d0483c") },
   { head: "腳踏車" },
   { head: "芒果", selfie: svg(140, 140, "#f5a623") },
   { head: "捷運", object: svg(110, 190, "#4a90d9") },
   { head: "雨傘" },
+  { head: "獎學金", net: svg(160, 160, "#2f8f5b") },
 ];
 
 function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
@@ -59,7 +67,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
     object_thumb_url: null,
     cutout_thumb_url: null,
     capture_type: "photo",
-    placeholder_url: null,
+    placeholder_url: f.net ?? null,
     placeholder_credit: null,
     word: {
       headword: f.head,
@@ -205,4 +213,55 @@ export function HomeWritingScene() {
       </JournalWritingPage>
     </>
   );
+}
+
+/**
+ * 本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+ *
+ * **束ね方を3通りとも撮る。** 週と月は「小さく・多く」が注文なので、
+ * 実際に小さくなって多く並んでいるかは絵でしか分からない。
+ * 1枚選んだ形(左に絵・右に日記)も別に撮る。
+ */
+export function HomeSpreadScene({ q }: { q: URLSearchParams }) {
+  const raw = q.get("span") ?? "day";
+  const span: AlbumSpan = raw === "week" || raw === "month" ? raw : "day";
+  // 日をまたいで散らす。月ごとにすると1つの束に何十枚も入る。
+  const shots = [1, 2, 3, 9, 10, 11, 40, 41].flatMap((d) =>
+    FIXTURES.map((f, i) => makeSticker(f, i, d)),
+  );
+  const groups = groupBySpan(shots, (s) => new Date(s.created_at), span).map(([key, items]) => ({
+    key,
+    items,
+  }));
+  const journals = new Map([
+    [
+      localDayKey(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+      {
+        body: "今天在夜市喝了珍珠奶茶。老闆說我的中文變好了，很開心。",
+        note: "「變好了」がうまく使えています。",
+        used_sticker_ids: ["s1-0"],
+      },
+    ],
+  ]);
+  return (
+    <>
+      <AlbumShelf onOpen={() => {}} current={span} />
+      <div className="mt-3">
+        <AlbumSpread
+          span={span}
+          onSpan={() => {}}
+          groups={groups}
+          journals={journals}
+          bgClass="album-bg-paper"
+          onClose={() => {}}
+          onOpenSticker={() => {}}
+        />
+      </div>
+    </>
+  );
+}
+
+/** 棚だけ。閉じているときにホームの上で何を占めるかを見る。 */
+export function HomeShelfScene() {
+  return <AlbumShelf onOpen={() => {}} current={null} />;
 }

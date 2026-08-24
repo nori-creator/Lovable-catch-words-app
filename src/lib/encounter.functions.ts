@@ -3,7 +3,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { normalizeExtras } from "./extras";
 import { normalizeRoomWeights, roomMixFromCategories } from "./category";
-import { estimateEncounter, TOCFL_BAND_SIZES, type RarityConfidence } from "./rarity";
+import {
+  countUserWeeks,
+  estimateEncounter,
+  TOCFL_BAND_SIZES,
+  type RarityConfidence,
+} from "./rarity";
 
 /**
  * 「その言葉に、今週どのくらい出会いそうか」を実データで出す所。
@@ -33,6 +38,16 @@ const Input = z.object({ word_id: z.string().uuid() });
 export type EncounterEstimate = {
   /** 今週1回以上出会う見込み(0〜1)。 */
   probability: number;
+  /**
+   * その見込みの**幅**(80% の信用区間)。
+   *
+   * **点だけを出さない。** 4人しか使っていないアプリで「58%」と言い切るのは
+   * 精密なのではなく精密なふり(オーナー指摘 2026-08-21「適当すぎる」)。
+   * 人が増えれば区間はひとりでに狭くなる。
+   *
+   * 古い `extras.encounter` には入っていないので、無いことがある。
+   */
+  interval?: { lo: number; hi: number };
   stars: 1 | 2 | 3 | 4 | 5;
   /** **画面に必ず出す。** 推定か、混ぜたか、実測か。 */
   confidence: RarityConfidence;
@@ -48,6 +63,13 @@ export type EncounterEstimate = {
 
 /** 直近どれだけのコーパスを見るか。古すぎる観測は今の街を語らない。 */
 const CORPUS_WINDOW_DAYS = 90;
+/**
+ * 観測をどこまで遡って数えるか(日)。
+ *
+ * **短すぎると数が集まらず、長すぎると昔の癖を今の話にしてしまう。**
+ * 12週ぶん。季節の補正が別に掛かるので、季節を跨ぐ長さは要らない。
+ */
+const OBS_WINDOW_DAYS = 84;
 
 /** 1日1回まで数え直す。カードを開くたびに全利用者を数えない。 */
 const CACHE_HOURS = 24;
@@ -97,13 +119,27 @@ export const getEncounterEstimate = createServerFn({ method: "GET" })
     const corpusWordCount = sum(wordRows.data);
     const corpusTotalCount = sum(allRows.data);
 
-    // ── 3. 何人が撮ったか / 何人が活動しているか ─────────────────
+    // ── 3. 観測を**週の単位**で数える ─────────────────────────────
+    //
+    // ## なぜ人数ではないのか(オーナー指摘 2026-08-21「適当すぎる」)
+    // 押しのけようとしているのは「**その週に**1回以上出会う確率」。
+    // 前はここが「これまでにその語を撮った**のべ人数** ÷ 活動者数」で、
+    // **いつの話か**が抜けていた。4人中3人が1年かけて撮っていれば
+    // 「今週 75% 出会う」に引っ張られる。物差しが違う数を突き合わせていた。
+    //
+    // 数えるのは「(人, 週) の組」。分子はその語を撮った組、分母は
+    // その人がそのアプリを使っていた組。これで事前と同じ物差しになる。
+    const obsSince = new Date(Date.now() - OBS_WINDOW_DAYS * 86_400_000).toISOString();
     const [caught, active] = await Promise.all([
-      supabaseAdmin.from("stickers").select("user_id").eq("word_id", word.id),
-      supabaseAdmin.from("stickers").select("user_id"),
+      supabaseAdmin
+        .from("stickers")
+        .select("user_id, created_at")
+        .eq("word_id", word.id)
+        .gte("created_at", obsSince),
+      supabaseAdmin.from("stickers").select("user_id, created_at").gte("created_at", obsSince),
     ]);
-    const caughtUsers = new Set((caught.data ?? []).map((r) => r.user_id)).size;
-    const activeUsers = new Set((active.data ?? []).map((r) => r.user_id)).size;
+    const caughtUserWeeks = countUserWeeks(caught.data);
+    const activeUserWeeks = countUserWeeks(active.data);
 
     // ── 4. その人がどの部屋によく居るか ───────────────────────────
     // 自分の行だけでよいので、ここは普通の接続で足りる。
@@ -135,8 +171,8 @@ export const getEncounterEstimate = createServerFn({ method: "GET" })
       // 利用者の居場所はまだ持っていない。**知らないので下げない**
       // (`regionFactor` は空を渡すと補正を掛けない)。
       userRegion: null,
-      caughtUsers,
-      activeUsers,
+      caughtUsers: caughtUserWeeks,
+      activeUsers: activeUserWeeks,
     });
 
     const result: EncounterEstimate = {
@@ -145,6 +181,9 @@ export const getEncounterEstimate = createServerFn({ method: "GET" })
       confidence: out.confidence,
       // **人数は「実測」と名乗れる規模になってから。**
       observed_users: out.confidence === "measured" ? out.observedUsers : null,
+      // **点だけを出さない。** 4人しか使っていないのに「58%」と言い切るのは
+      // 精密なのではなく精密なふり(オーナー指摘「適当すぎる」)。
+      interval: out.interval,
       top_rooms: topRooms(wordScenes),
       region_scope: regionScope || null,
       season_months: seasonMonths,

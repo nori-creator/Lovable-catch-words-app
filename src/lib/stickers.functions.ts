@@ -54,6 +54,15 @@ export type StickerWithWord = {
   /** Signed URL of the temporary stand-in image for ghosts. */
   placeholder_url: string | null;
   placeholder_credit: PlaceholderCredit | null;
+  /**
+   * 一言の自撮り動画の署名付きURL(オーナー決定 2026-08-21 = B案)。
+   *
+   * **`getSticker` でしか届かない。** 一覧に混ぜると札の数だけ署名を作る
+   * ことになり、図鑑を開くのが遅くなる — 動画は詳細でしか見ないので、
+   * そこでだけ作る(`branch_plan` と同じ扱い)。
+   * 自撮りと同じで**自分にしか出さない**。
+   */
+  voice_video_url?: string | null;
   /** §6 word tree: branch plan frozen at save time (getSticker only). */
   branch_plan?: Array<{ type: string; zh: string; ja?: string }> | null;
   /** §6 word tree: completed reviews = unlocked branch count (getSticker only). */
@@ -353,17 +362,21 @@ export const getSticker = createServerFn({ method: "GET" })
     // `hero_role` は別の段にする。**ゴーストの列と一緒くたにしない** —
     // 一緒にすると、`hero_role` の移行だけ当たっていない環境で
     // ネット画像(placeholder)まで丸ごと落ちる。無い列だけを諦める。
-    const cols = (withGhost: boolean, withHero: boolean) =>
-      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
+    // 一言の動画(`voice_video_url`)も**別の段**にする。ここを一緒くたに
+    // すると、動画の移行だけ当たっていない環境で主役やネット画像まで
+    // 丸ごと落ちる。無い列だけを諦める。
+    const cols = (withGhost: boolean, withHero: boolean, withVoice: boolean) =>
+      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withVoice ? ", voice_video_url" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
 
     // Try to read as owner first (RLS-scoped); retry without ghost columns
     // when the migration hasn't been applied.
     let heroCols = true;
     let ghostCols = true;
+    let voiceCols = true;
     const read = () =>
       supabase
         .from("stickers")
-        .select(cols(ghostCols, heroCols))
+        .select(cols(ghostCols, heroCols, voiceCols))
         .eq("id", data.id)
         .eq("user_id", userId)
         .maybeSingle();
@@ -372,6 +385,10 @@ export const getSticker = createServerFn({ method: "GET" })
     // **error** が返る(以前ここを `!row` で判定して外した)。
     if (error && /hero_role/.test(error.message)) {
       heroCols = false;
+      ({ data: row, error } = await read());
+    }
+    if (error && /voice_video_url/.test(error.message)) {
+      voiceCols = false;
       ({ data: row, error } = await read());
     }
     if (error && /capture_type|placeholder|branch_plan/.test(error.message)) {
@@ -406,7 +423,7 @@ export const getSticker = createServerFn({ method: "GET" })
       if (!canSee) return null;
       const res = await supabaseAdmin
         .from("stickers")
-        .select(cols(ghostCols, heroCols))
+        .select(cols(ghostCols, heroCols, voiceCols))
         .eq("id", data.id)
         .maybeSingle();
       if (res.error) throw new Error(res.error.message);
@@ -417,6 +434,8 @@ export const getSticker = createServerFn({ method: "GET" })
       id: string;
       /** 主役の絵。移行が当たっていない環境では届かない。 */
       hero_role?: string | null;
+      /** 一言の自撮り動画の場所。移行が当たっていない環境では届かない。 */
+      voice_video_url?: string | null;
       user_id: string;
       word_id: string;
       caption: string | null;
@@ -458,6 +477,8 @@ export const getSticker = createServerFn({ method: "GET" })
         r.object_image_url,
         r.cutout_image_url,
         isOwner ? r.selfie_image_url : null,
+        // 一言の動画は**自分だけ**。自撮りと同じ扱いで、他人には渡さない。
+        isOwner ? (r.voice_video_url ?? null) : null,
         r.placeholder_image_url ?? null,
       ]),
       encounterCounts(supabase, [r.id]),
@@ -493,6 +514,9 @@ export const getSticker = createServerFn({ method: "GET" })
         ? (urlMap.get(r.placeholder_image_url) ?? null)
         : null,
       placeholder_credit: r.placeholder_credit ?? null,
+      /** 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。自分だけに出す。 */
+      voice_video_url:
+        isOwner && r.voice_video_url ? (urlMap.get(r.voice_video_url) ?? null) : null,
       branch_plan: (r.branch_plan as StickerWithWord["branch_plan"]) ?? null,
       review_count: reviewCount,
       word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
@@ -1072,6 +1096,51 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
     if (/hero_role/.test(error.message)) {
       // 移行待ち。**黙って飲まない** — 記録には残す。
       console.warn("setStickerHeroRole: 列がまだ無い", error.message);
+      return { saved: false, reason: "migration" };
+    }
+    throw new Error(error.message);
+  });
+
+/**
+ * その札の「一言の自撮り動画」を結び付ける(オーナー決定 2026-08-21 = B案)。
+ *
+ * 中身は先に `stickers` バケットへ上げてあり、ここは**場所を書き留めるだけ**。
+ * 置き場所の決め方は `src/lib/voice-video.ts` の `voiceVideoPath` が唯一の正。
+ *
+ * **列がまだ無い環境では、静かに諦める。** 移行が当たっていないだけで
+ * カードの閲覧まで壊すのは行き過ぎなので、保存できなかったことだけを返す
+ * (`setStickerHeroRole` と同じ形)。
+ *
+ * `null` を渡すと外す(撮り直しの前に消したいとき)。
+ */
+export const setStickerVoiceVideo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sticker_id: z.string().uuid(),
+        /** null = 外す。 */
+        voice_video_path: z.string().min(1).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<{ saved: boolean; reason?: string }> => {
+    const { supabase, userId } = context;
+    // **他人のフォルダを指させない。** 上げる側とは別の経路なので、
+    // ここでももう一度見る(`setStickerPlaceholder` と同じ守り)。
+    if (data.voice_video_path && !data.voice_video_path.startsWith(`${userId}/`)) {
+      throw new Error("不正な動画パスです");
+    }
+    const { error } = await supabase
+      .from("stickers")
+      .update({ voice_video_url: data.voice_video_path } as never)
+      .eq("id", data.sticker_id)
+      // **自分の札だけ。** RLS も同じことを言うが、ここでも言っておく。
+      .eq("user_id", userId);
+    if (!error) return { saved: true };
+    if (/voice_video_url/.test(error.message)) {
+      // 移行待ち。**黙って飲まない** — 記録には残す。
+      console.warn("setStickerVoiceVideo: 列がまだ無い", error.message);
       return { saved: false, reason: "migration" };
     }
     throw new Error(error.message);

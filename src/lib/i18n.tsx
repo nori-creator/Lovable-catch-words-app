@@ -152,6 +152,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "wb.dueN": { ja: "今日 {n}語", en: "{n} due today" },
   "wb.doneForToday": { ja: "今日はおしまい", en: "Done for today" },
   "wb.learnedOf": { ja: "覚えた {n}／{total}", en: "{n} of {total} learned" },
+  "wb.review": { ja: "この単語帳を復習する", en: "Review this wordbook" },
   "wb.delete": { ja: "「{title}」を消す", en: "Delete “{title}”" },
   "wb.confirmDelete": {
     ja: "「{title}」を語ごと消します。戻せません。",
@@ -1303,7 +1304,63 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "dex.list": { ja: "リスト表示", en: "List view" },
   "dex.map": { ja: "地図表示", en: "Map view" },
   "dex.searchAria": { ja: "図鑑を検索", en: "Search the dex" },
-  "dex.clearFilter": { ja: "絞り込みを解除", en: "Clear filter" },
+  // 図鑑の絞り込み(オーナー指摘 2026-08-21「ボタンを押したら選択肢が
+  // 出てきて選べるように」)。ボタンの名前は**選んでいないときに出る名前**。
+  // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
+  //  タイトルが見えるように」)。読み上げ用の棚の名前。
+  "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf" },
+  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+  // 見込みの幅(オーナー指摘 2026-08-21「適当すぎる」)。
+  // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
+  "enc.range": { ja: "だいたい {lo}〜{hi}%", en: "roughly {lo}–{hi}%" },
+  "voice.title": { ja: "一言の動画", en: "Video note" },
+  "voice.hint": {
+    ja: "この語に出会ったときの気持ちを、15秒までの自撮りで残せます。",
+    en: "Record up to 15 seconds about how it felt to meet this word.",
+  },
+  "voice.record": { ja: "一言を撮る", en: "Record a note" },
+  "voice.retake": { ja: "撮り直す", en: "Record again" },
+  "voice.stop": { ja: "止める（あと{n}秒）", en: "Stop ({n}s left)" },
+  "voice.delete": { ja: "この動画を消す", en: "Delete this video" },
+  "voice.confirmDelete": {
+    ja: "この一言の動画を消しますか？元に戻せません。",
+    en: "Delete this video note? This can't be undone.",
+  },
+  "voice.saved": { ja: "一言を残しました", en: "Video note saved" },
+  "voice.saveFailed": { ja: "保存できませんでした", en: "Couldn't save that" },
+  "voice.tooBig": { ja: "動画が大きすぎます", en: "That video is too large" },
+  "voice.noCamera": {
+    ja: "カメラとマイクを使えませんでした",
+    en: "Couldn't use the camera and microphone",
+  },
+  "voice.unsupported": {
+    ja: "この端末では動画を撮れません",
+    en: "This device can't record video",
+  },
+  "voice.needsMigration": {
+    ja: "まだ保存先の準備ができていません（移行待ち）",
+    en: "Storage isn't ready yet (migration pending)",
+  },
+  // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+  "home.shelfAria": { ja: "アルバムの本棚", en: "Album shelf" },
+  "home.bookDay": { ja: "日ごと", en: "By day" },
+  "home.bookWeek": { ja: "週ごと", en: "By week" },
+  "home.bookMonth": { ja: "月ごと", en: "By month" },
+  "home.openBook": { ja: "{name}のアルバムを開く", en: "Open the {name} album" },
+  "home.spreadEmpty": {
+    ja: "まだ前のページがありません",
+    en: "No earlier pages yet",
+  },
+  "home.noJournalThatDay": { ja: "この日の日記はありません", en: "No journal for that day" },
+  "home.olderSpread": { ja: "前へ", en: "Older" },
+  "home.newerSpread": { ja: "次へ", en: "Newer" },
+  "home.prevPage": { ja: "前のページ", en: "Previous page" },
+  "home.nextPage": { ja: "次のページ", en: "Next page" },
+  "home.backToSpread": { ja: "見開きに戻る", en: "Back to the spread" },
+  "dex.filterCategory": { ja: "カテゴリー", en: "Category" },
+  "dex.filterDay": { ja: "日付", en: "Date" },
+  "dex.filterOpen": { ja: "{name}を選ぶ", en: "Choose {name}" },
+  "dex.filterClearAll": { ja: "絞り込みをすべて解除", en: "Clear all filters" },
   "dex.clearSearch": { ja: "検索をクリア", en: "Clear search" },
   "dex.noMatch": { ja: "に一致する単語はありません。", en: "— no matching words." },
   "dex.emptyTitle": { ja: "まだ何もキャッチしていません。", en: "Nothing caught yet." },

@@ -16,7 +16,10 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
+import { DexHeader } from "@/routes/_authenticated/dex";
+import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { VoiceVideoNote } from "@/components/VoiceVideoNote";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
 import { EncounterPanel } from "@/components/EncounterPanel";
@@ -104,6 +107,39 @@ export function DexNoMatchScene() {
 }
 
 /**
+ * 「あなたの図鑑」の欄(オーナー指摘 2026-08-21)。
+ *
+ * **ルートに書かれている本物を描く。** 図鑑を開くたび必ず見る所なのに、
+ * これまで一度も写真に撮っていなかった。
+ *
+ * **開いた絵まで撮る。** 閉じたボタンだけを見ても、選択肢が画面の右端で
+ * 切れていないか・指で押せる高さがあるかは分からない。`ui-audit` の
+ * `click` で押してから撮る。
+ */
+export function DexFilterScene({ q }: { q: URLSearchParams }) {
+  const many = q.get("many") === "1";
+  const cats = many
+    ? ["food", "drink", "vehicle", "clothing", "kitchenware", "plant", "animal", "other"]
+    : ["food", "drink", "vehicle"];
+  const [filter, setFilter] = useState<DexFilter>({
+    category: null,
+    day: q.get("day") === "1" ? "2026-08-20" : null,
+  });
+  return (
+    <DexHeader
+      found={63}
+      caught={41}
+      view="shelf"
+      onView={() => {}}
+      filter={filter}
+      onFilter={setFilter}
+      categories={cats.map((key, i) => ({ key, count: 12 - i }))}
+      days={["2026-08-21", "2026-08-20", "2026-08-19"].map((key, i) => ({ key, count: 3 - i }))}
+    />
+  );
+}
+
+/**
  * 同じものに何度も出会った記録。**再会があったときだけ**出る区画なので、
  * 3枚(はじめて + 再会2回)の状態を撮る。1枚しか無いときは何も描かない
  * ことも、別の場面で見る。
@@ -167,12 +203,19 @@ export function EncounterScene() {
         stars: 5,
         confidence: "measured",
         observed_users: 37,
+        // 実測が貯まった語。**幅が狭い**。
+        // 区間は必ず点を挟む — 挟んでいない絵は、そこだけ見ると
+        // 不具合にしか見えない(最初この行に別の語の幅を貼って、
+        // 「4% / だいたい 52〜63%」という絵になった)。
+        interval: { lo: 0.02, hi: 0.07 },
         top_rooms: ["eat", "nature", "town"],
         region_scope: "台南",
         season_months: [5, 6, 7, 8],
       },
     },
     {
+      // **幅の無い古い札**も撮る。`extras.encounter` に貯めた昔の結果には
+      // 区間が入っていないので、そのときに何も足さないことを絵で見る。
       note: "★2 / ★4 と、飛んでいる季節",
       data: {
         probability: 0.7,
@@ -192,6 +235,9 @@ export function EncounterScene() {
         stars: 4,
         confidence: "estimate",
         observed_users: null,
+        // まだ誰も撮っていない語。**幅が広い** — どれだけ分かっていないかが
+        // そのまま見える(オーナー指摘「適当すぎる」への答え)。
+        interval: { lo: 0.06, hi: 0.55 },
         top_rooms: [],
         region_scope: null,
         season_months: [],
@@ -472,6 +518,24 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
       // いなかった。待っている骨組みだけを見て「合格」と言っていた。
       cardPromise={variant === "ready" ? READY : variant === "failed" ? FAILED : PENDING}
       onClose={() => {}}
+    />
+  );
+}
+
+/**
+ * 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+ *
+ * **撮る前と撮った後の2通りを撮る。** 撮っている最中はカメラが要るので
+ * ここでは出せないが、その2つは日常的に見る面。
+ * 動画そのものは足場では鳴らせないので、`src` は空のままにして
+ * **枠と操作の並び**だけを見る。
+ */
+export function VoiceVideoScene({ q }: { q: URLSearchParams }) {
+  const done = q.get("done") === "1";
+  return (
+    <VoiceVideoNote
+      stickerId="00000000-0000-0000-0000-000000000001"
+      videoUrl={done ? "data:video/webm;base64," : null}
     />
   );
 }

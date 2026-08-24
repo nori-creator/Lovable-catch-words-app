@@ -1,4 +1,4 @@
-import { withoutMeasureWordEcho, type WordExtrasDTO } from "./extras";
+import { refineUsageChunks, type WordExtrasDTO } from "./extras";
 import { registerScaleOf } from "./register-scale";
 
 /**
@@ -112,7 +112,7 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
       return (ex.examples_extra?.length ?? 0) > 0;
     case "usage_chunks":
       return (
-        withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, input.headword).length > 0 ||
+        refineUsageChunks(ex.usage_chunks, ex.measure_words, input.headword).length > 0 ||
         (ex.collocations?.length ?? 0) > 0 ||
         !!ex.word_order
       );

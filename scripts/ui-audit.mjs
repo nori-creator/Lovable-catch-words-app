@@ -270,7 +270,20 @@ const MODES = [
   ["home-past-week", "", false, { scene: "home-past", span: "week" }],
   ["home-past-month", "", false, { scene: "home-past", span: "month" }],
   ...crossThemes("home-writing", { scene: "home-writing" }),
+  // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+  // **束ね方を3通りとも撮る** — 週と月は「小さく・多く」が注文なので、
+  // 実際にそうなっているかは絵でしか分からない。
+  ...crossThemes("home-shelf", { scene: "home-shelf" }),
+  ["home-spread", "", false, { scene: "home-spread" }],
+  ["home-spread-dark", 'class="dark"', false, { scene: "home-spread" }],
+  ["home-spread-week", "", false, { scene: "home-spread", span: "week" }],
+  ["home-spread-month", "", false, { scene: "home-spread", span: "month" }],
+  // 1枚選んだ形(左に絵・右に日記)。
+  ["home-spread-picked", "", false, { scene: "home-spread", click: ".album-tile" }],
   ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
+  // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
+  ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],
+  ["wordbook-shelf-many-dark", 'class="dark"', false, { scene: "wordbook-shelf", many: "1" }],
   ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
   // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
   ...crossThemes("wordbook-quiz-right", {
@@ -396,6 +409,35 @@ const MODES = [
   // 最初に見る面なのに、ここまで一度も撮っていなかった。
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
+  // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
+  // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
+  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
+  ...crossThemes("voice-video", { scene: "voice-video" }),
+  ["voice-video-done", "", false, { scene: "voice-video", done: "1" }],
+  ["voice-video-done-dark", 'class="dark"', false, { scene: "voice-video", done: "1" }],
+  ["dex-filter", "", false, { scene: "dex-filter" }],
+  ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
+  ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],
+  // **右端のボタンも撮る。** 揃える側を測って決めているので、左端だけ見て
+  // いると反対側の切れに気づけない(右揃えの決め打ちで一度切れた)。
+  [
+    "dex-filter-open-right",
+    "",
+    false,
+    { scene: "dex-filter", click: "section [aria-haspopup] >> nth=1" },
+  ],
+  [
+    "dex-filter-open-many",
+    "",
+    false,
+    { scene: "dex-filter", many: "1", click: "section [aria-haspopup]" },
+  ],
+  [
+    "dex-filter-open-dark",
+    'class="dark"',
+    false,
+    { scene: "dex-filter", click: "section [aria-haspopup]" },
+  ],
   // 同じものに何度も出会った記録(再会の写真が並ぶ区画)。
   ...crossThemes("photo-history", { scene: "photo-history" }),
   // 保存を押した直後。文字が「保存」から「保存中...」に伸びて押せなくなる。

@@ -66,6 +66,17 @@ export type PickOptions = {
   prefer?: PhotoRole | string | null;
   /** 一覧のように小さく出す所では縮小版を先に使う。 */
   thumb?: boolean;
+  /**
+   * その画面では**使わない**役。
+   *
+   * ホームのアルバムが `placeholder` を外す(オーナー指摘 2026-08-21
+   * 「文字入力した単語はホームのアルバムに単語の文字だけ書いて」)。
+   * アルバムは**自分が出会って撮った物の記録**なので、ネットから来た絵を
+   * 貼ると、撮った日の思い出と借り物が同じ紙の上で見分けられなくなる。
+   * 単語の詳細では逆に、その絵が見出しになる — だから
+   * 「無かったことにする」のではなく、**画面ごとに外す**。
+   */
+  exclude?: readonly PhotoRole[];
 };
 
 function isRole(v: unknown): v is PhotoRole {
@@ -103,9 +114,13 @@ export function pickStickerPhoto(
 ): PickedPhoto | null {
   if (!sources) return null;
   const wantThumb = options.thumb === true;
-  const order: PhotoRole[] = isRole(options.prefer)
+  const base: PhotoRole[] = isRole(options.prefer)
     ? [options.prefer, ...FALLBACK.filter((r) => r !== options.prefer)]
     : [...FALLBACK];
+  // **外す役は `prefer` より強い。** 画面が「これは載せない」と言った物を、
+  // 設定の好みが押し戻せてしまうと、外した意味が無くなる。
+  const excluded = options.exclude ?? [];
+  const order = base.filter((r) => !excluded.includes(r));
   for (const role of order) {
     const hit = urlFor(sources, role, wantThumb);
     if (hit) return hit;

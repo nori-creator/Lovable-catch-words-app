@@ -48,6 +48,7 @@ import {
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useCatchLocation } from "@/lib/use-catch-location";
+import { heroSearchQuery } from "@/lib/hero-image";
 import { useT } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
@@ -358,7 +359,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         setCard(c);
         if (resolved !== headword) setText(resolved);
         // 仮画像候補をWeb検索(失敗しても保存は続行できる)。
-        void searchImagesFn({ data: { query: c.meaning_ja || resolved } })
+        void searchImagesFn({
+          data: { query: heroSearchQuery({ headword: resolved, meaning: c.meaning_ja }) },
+        })
           .then(({ candidates: cands }) => {
             setCandidates(cands);
             setPicked(0);

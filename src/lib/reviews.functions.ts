@@ -38,7 +38,7 @@ import {
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { readScaffoldBox, scaffoldCacheKey } from "./scaffold-cache";
 import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
-import { normalizeExtras, withoutMeasureWordEcho, type ChunkPart } from "./extras";
+import { normalizeExtras, refineUsageChunks, type ChunkPart } from "./extras";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -126,7 +126,7 @@ function topChunkOf(rawExtras: unknown, headword: string): { zh: string; ja: str
   if (!ex) return null;
   // 量詞は答え合わせの「量詞」の行で読む。先頭の型がその写しだと、
   // 同じ「一張」が2行続けて出る(オーナー指摘 2026-08-18)。
-  const chunk = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)[0];
+  const chunk = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword)[0];
   const zh = chunk?.parts?.map((p) => p.text).join("") ?? "";
   if (zh.trim()) return { zh, ja: chunk?.ja ?? "" };
   const legacy = ex.collocations?.[0];
@@ -149,7 +149,7 @@ function explainOf(rawExtras: unknown, headword: string): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
   // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
-  const chunks = withoutMeasureWordEcho(ex.usage_chunks, ex.measure_words, headword)
+  const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword)
     .filter((c) => (c.parts?.length ?? 0) > 0)
     .slice(0, 3)
     .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
