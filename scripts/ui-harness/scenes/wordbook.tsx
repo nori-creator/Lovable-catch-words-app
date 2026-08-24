@@ -38,9 +38,38 @@ const BOOKS: WordbookSummary[] = [
   },
 ];
 
-export function WordbookShelfScene() {
-  return <WordbookShelf books={BOOKS} onOpen={() => {}} onDelete={() => {}} />;
+/**
+ * 単語帳の本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、
+ * 背表紙のタイトルが見えるように」)。
+ *
+ * **冊数を変えて2通り撮る。** 3冊では棚に見えても、10冊並べたときに
+ * 横へあふれるか・題が潰れるかは、その絵でしか分からない。
+ */
+export function WordbookShelfScene({ q }: { q: URLSearchParams }) {
+  const books =
+    q.get("many") === "1"
+      ? [
+          ...BOOKS,
+          ...Array.from({ length: 7 }, (_, i) => ({
+            ...BOOKS[0],
+            id: `m${i}`,
+            title: MANY_TITLES[i],
+          })),
+        ]
+      : BOOKS;
+  return <WordbookShelf books={books} onOpen={() => {}} onDelete={() => {}} />;
 }
+
+/** 題の長さも文字種もばらばらにする — 幅と縦書きの両方を見たい。 */
+const MANY_TITLES = [
+  "旅",
+  "料理の語",
+  "新TOCFL必考詞彙1500",
+  "看板と標識",
+  "MRT",
+  "ドラマで拾った言い回し",
+  "仕事メール",
+];
 
 const CARD: WordbookCard = {
   id: "e1",

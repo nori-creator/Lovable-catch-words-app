@@ -271,6 +271,9 @@ const MODES = [
   ["home-past-month", "", false, { scene: "home-past", span: "month" }],
   ...crossThemes("home-writing", { scene: "home-writing" }),
   ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
+  // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
+  ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],
+  ["wordbook-shelf-many-dark", 'class="dark"', false, { scene: "wordbook-shelf", many: "1" }],
   ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
   // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
   ...crossThemes("wordbook-quiz-right", {

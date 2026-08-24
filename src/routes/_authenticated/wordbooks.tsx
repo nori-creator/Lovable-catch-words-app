@@ -85,8 +85,12 @@ function WordbooksPage() {
         />
       ) : (
         <>
-          <ImportButton onExtracted={setDraft} />
-          <section className="mt-6">
+          {/* **棚が先、取り込みが後**(オーナー指摘 2026-08-21
+              「復習の単語帳の復習は**上部に**リアルな本の本棚を作って」)。
+              前は「単語帳を撮る」が上に居て、持っている本を見るのに
+              一度その下まで目を落とす必要があった。持っている人にとっては
+              棚が本体で、撮るのは足すときだけの入口。 */}
+          <section>
             {isLoading ? (
               <div className="space-y-2" role="status" aria-label={t("common.loading")}>
                 {[0, 1].map((i) => (
@@ -111,6 +115,9 @@ function WordbooksPage() {
               />
             )}
           </section>
+          <div className="mt-6">
+            <ImportButton onExtracted={setDraft} />
+          </div>
         </>
       )}
     </AppShell>

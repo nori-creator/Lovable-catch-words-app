@@ -1459,6 +1459,60 @@
   --tocfl-6: oklch(0.7 0.17 315);
   --tocfl-out: oklch(0.7 0.02 260);
 }
+/* ── 本棚の背表紙の色 ────────────────────────────────
+   本物の棚は色が揃っていない。ただし**この app の青**を壊さないよう、
+   彩度は抑えて紙と革の側に寄せる(赤・青・緑・茶・藍・臙脂・苔・砂)。
+   `--spine-N-ink` はその上に載せる字の色 — 明るい背には濃い字、
+   暗い背には淡い字を組にして持たせる。**組で持つ**のは、背だけ変えて
+   字が読めなくなる事故を止めるため。
+   暗い面では**背を暗く・字を明るく**する。前に暗い面で色が発光した
+   ことがあるので、明度を上げずに彩度だけを少し落とす。
+
+   **芥子(5)と青磁(7)は目分量で外した。** 最初に置いた値は
+   4.5 を割っていて(暗い面の芥子 3.69 / 明るい面の青磁 3.79)、検査が
+   弾いた。字を白にするか黒にするかで要る明度が逆になる色なので、
+   oklch から sRGB に直して比を計算してから決め直してある。 */
+:root {
+  --spine-1: oklch(0.52 0.13 25); /* 臙脂 */
+  --spine-2: oklch(0.5 0.11 250); /* 藍 */
+  --spine-3: oklch(0.5 0.09 145); /* 苔 */
+  --spine-4: oklch(0.46 0.07 65); /* 革 */
+  --spine-5: oklch(0.68 0.12 85); /* 芥子(明るい背) */
+  --spine-6: oklch(0.44 0.1 300); /* 葡萄 */
+  --spine-7: oklch(0.48 0.08 200); /* 青磁 */
+  --spine-8: oklch(0.82 0.04 90); /* 砂(明るい背) */
+  --spine-1-ink: oklch(0.97 0.01 90);
+  --spine-2-ink: oklch(0.97 0.01 90);
+  --spine-3-ink: oklch(0.97 0.01 90);
+  --spine-4-ink: oklch(0.97 0.01 90);
+  --spine-5-ink: oklch(0.22 0.03 90);
+  --spine-6-ink: oklch(0.97 0.01 90);
+  --spine-7-ink: oklch(0.97 0.01 90);
+  --spine-8-ink: oklch(0.28 0.04 60);
+  /* 棚板と背板。木の面はここだけで決める。 */
+  --shelf-board: oklch(0.44 0.05 60);
+  --shelf-back: oklch(0.3 0.03 55);
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --spine-1: oklch(0.46 0.11 25);
+  --spine-2: oklch(0.44 0.1 250);
+  --spine-3: oklch(0.44 0.08 145);
+  --spine-4: oklch(0.4 0.06 65);
+  --spine-5: oklch(0.68 0.11 85);
+  --spine-6: oklch(0.4 0.09 300);
+  --spine-7: oklch(0.46 0.07 200);
+  --spine-8: oklch(0.66 0.04 90);
+  --spine-5-ink: oklch(0.18 0.03 90);
+  --spine-8-ink: oklch(0.2 0.04 60);
+  --shelf-board: oklch(0.34 0.04 60);
+  --shelf-back: oklch(0.22 0.02 55);
+}
+
 .mem-lv-0 {
   --mem: var(--mem-0);
 }

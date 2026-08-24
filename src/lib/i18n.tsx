@@ -152,6 +152,7 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "wb.dueN": { ja: "今日 {n}語", en: "{n} due today" },
   "wb.doneForToday": { ja: "今日はおしまい", en: "Done for today" },
   "wb.learnedOf": { ja: "覚えた {n}／{total}", en: "{n} of {total} learned" },
+  "wb.review": { ja: "この単語帳を復習する", en: "Review this wordbook" },
   "wb.delete": { ja: "「{title}」を消す", en: "Delete “{title}”" },
   "wb.confirmDelete": {
     ja: "「{title}」を語ごと消します。戻せません。",
@@ -1305,6 +1306,9 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "dex.searchAria": { ja: "図鑑を検索", en: "Search the dex" },
   // 図鑑の絞り込み(オーナー指摘 2026-08-21「ボタンを押したら選択肢が
   // 出てきて選べるように」)。ボタンの名前は**選んでいないときに出る名前**。
+  // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
+  //  タイトルが見えるように」)。読み上げ用の棚の名前。
+  "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf" },
   "dex.filterCategory": { ja: "カテゴリー", en: "Category" },
   "dex.filterDay": { ja: "日付", en: "Date" },
   "dex.filterOpen": { ja: "{name}を選ぶ", en: "Choose {name}" },
