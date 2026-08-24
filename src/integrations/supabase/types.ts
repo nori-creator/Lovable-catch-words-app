@@ -988,31 +988,6 @@ export type Database = {
         }
         Relationships: []
       }
-      // --- 手で足した(単語帳の取り込み) ------------------------------------
-      // `supabase/migrations/20260820200000_wordbooks.sql` を当てたあと、
-      // 型を作り直せばこの手書きは消えて同じ物が生成される。当てるまでの間、
-      // **型が無いという理由でこの機能を書けない**状態にしないために置く。
-      wordbooks: {
-        Row: {
-          created_at: string
-          id: string
-          title: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          title: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          title?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       wordbook_entries: {
         Row: {
           created_at: string
@@ -1058,6 +1033,35 @@ export type Database = {
           repetitions?: number
           user_id?: string
           wordbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordbook_entries_wordbook_id_fkey"
+            columns: ["wordbook_id"]
+            isOneToOne: false
+            referencedRelation: "wordbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordbooks: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string
         }
         Relationships: []
       }
