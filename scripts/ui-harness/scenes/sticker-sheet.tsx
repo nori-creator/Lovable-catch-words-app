@@ -91,6 +91,28 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
         <StickerSheetBody
           sticker={STICKER}
           uiLang="ja"
+          /**
+           * 解説の**共有キャッシュ**(2026-08-24)。
+           *
+           * `?cached=1` で「その人向けの解説が既に在る」場合を撮る。
+           * 既定は `null` = キャッシュに無い語で、古い `words` の列に落ちる。
+           * **両方撮る** — 落ちる側が壊れていても、キャッシュが効いている
+           * 環境では気づけない(移行が当たる前の全員がその側に居る)。
+           */
+          explanation={
+            q.get("cached") === "1"
+              ? {
+                  explain_lang: "ja",
+                  l1: "ja",
+                  // **意味だけを差し替えた形**にする。解説(extras)が null でも
+                  // 意味と例文訳は共有キャッシュから出る、が正しい振る舞い。
+                  meaning: "タピオカミルクティー（共有キャッシュから）",
+                  example_translation: "タピオカミルクティーを1杯ください。",
+                  extras: null,
+                  source: "ai",
+                }
+              : null
+          }
           isPro={variant === "pro"}
           flipped={flipped}
           setFlipped={setFlipped}

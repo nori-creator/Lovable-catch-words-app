@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -32,6 +32,14 @@ import { fetchImageAsDataUrl } from "@/lib/images.functions";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
+import { getWordExplanation } from "@/lib/word-explanation.functions";
+import {
+  explanationKey,
+  needsGeneration,
+  resolveDisplayWord,
+  shouldWriteSharedColumns,
+  type ExplanationRow,
+} from "@/lib/word-explanation";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
@@ -92,6 +100,16 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     enabled: !!stickerId,
     staleTime: 5 * 60 * 1000,
   });
+  /**
+   * 解説の**共有キャッシュ**(2026-08-24)。
+   *
+   * 札とは**別の鍵**で持つ。裏で項目を1つずつ埋めていく間、写真や場所まで
+   * 取り直す必要は無い。解説が届いたときに解説だけが描き直る。
+   *
+   * 鍵に表示言語と母語を入れる — 解説はその2つで中身が変わる物なので、
+   * 別の組み合わせを同じ鍵で持つと取り違える。
+   */
+  const fetchExplanation = useServerFn(getWordExplanation);
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -134,6 +152,21 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   // 変えたら解説を作り直す(下の useEffect)。
   const nativeLang =
     (profile as { native_language?: string } | null | undefined)?.native_language || "ja";
+  /**
+   * その人に出す解説を1つに決める鍵。表示言語と母語で中身が変わる。
+   * **`useMemo` で固定する** — 毎回新しい物を返すと、これを見ている
+   * 下の `useEffect` が回り続ける。
+   */
+  const wantKey = useMemo(() => explanationKey(uiLang, nativeLang), [uiLang, nativeLang]);
+  const { data: explanation } = useQuery({
+    queryKey: ["word-explanation", s?.word_id ?? null, wantKey.explainLang, wantKey.l1],
+    queryFn: () =>
+      fetchExplanation({
+        data: { word_id: s!.word_id, explain_lang: wantKey.explainLang, l1: wantKey.l1 },
+      }),
+    enabled: !!s?.word_id,
+    staleTime: 30 * 60 * 1000,
+  });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
@@ -407,14 +440,32 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     const missingNewFields =
       !ex ||
       ![ex.usage_chunks, ex.usage_context, ex.related_words, ex.pronunciation_tips].every(filled);
-    // #65: 表示言語を切り替えたら解説もその言語にする。
-    // extras.explain_lang が今の言語と違う(または空=旧データ)なら作り直す。
-    // 生成は言語ごとに1回だけで、以後は保存された解説をそのまま出す。
-    const wrongLanguage = !!ex && (ex.explain_lang || "ja") !== uiLang;
-    // 母語を変えたときも作り直す。日本語話者向けに書いた「有気音の区別が無い」
-    // という発音のコツは、韓国語話者にはそのまま当てはまらない。
-    const wrongL1 = !!ex && (ex.explain_l1 || "ja") !== nativeLang;
-    if (!isEmpty && !missingNewFields && !wrongLanguage && !wrongL1) return;
+    /**
+     * **開くたびの作り直しをここで止める**(2026-08-24)。
+     *
+     * 前はこう書いてあった:
+     *
+     *     const wrongLanguage = (ex.explain_lang || "ja") !== uiLang;
+     *     const wrongL1       = (ex.explain_l1   || "ja") !== nativeLang;
+     *
+     * 解説が全ユーザー共有の1行(`words.extras`)に載っていたので、表示言語か
+     * 母語が違う人が開くと**丸ごと作り直して上書き**するしかなかった。
+     * 日本語の人と韓国語の人が同じ語を持っていたら、互いに開くたび永久に
+     * 作り直し合う — 遅く、高く、しかも解説が毎回揺れる。
+     *
+     * 解説を `word_explanations (語 × 解説の言語 × 母語)` に分けたので、
+     * **その組み合わせの解説が無いときだけ**作ればよくなった。
+     * 判断は `src/lib/word-explanation.ts` が1つだけ持つ。
+     */
+    // 解説の問い合わせがまだ返っていないうちは動かない。**待たずに作ると、
+    // 既に在る解説をもう一度作ってしまう**(直したかった物そのもの)。
+    if (!explanation) return;
+    // 移行待ちの環境では共有キャッシュがまだ無い。**そこで作りに行かない** —
+    // 作っても保存できないので、AIを呼ぶだけ無駄になる。古い `words.extras`
+    // をそのまま出す(いままでどおり動く)。
+    if (explanation.unavailable) return;
+    const wantsGeneration = needsGeneration(explanation.picked, wantKey);
+    if (!isEmpty && !missingNewFields && !wantsGeneration) return;
     /**
      * 共有されている列を書き換えていいのは、**本当に欠けているときだけ**。
      *
@@ -424,13 +475,12 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
      * **設定を触っただけで保存済みの意味が書き換わり、4択の選択肢も
      * 揺れていた**(独立監査の指摘)。しかも他人のカードごと。
      *
-     * 解説(`extras`)は `explain_lang` の印が付いていて、言語が違えば
-     * 各自が開いたときに作り直される = 自己修復する。だから言語切替の
-     * ときは**解説だけ**を入れ替え、共有の列には触らない。
+     * 解説は `word_explanations` に移した(2026-08-24)ので、言語切替の
+     * ときは**解説だけ**が別の行として並ぶ。共有の列には触らない。
      *
-     * 根本的には「解説の言語」がユーザーごとの持ち物なのに共有の行に
-     * 載っているのが問題で、そこを直すには列を足す必要がある(いま流せない)。
-     * docs/ に残すべき宿題。
+     * (この注記には「根本的には解説の言語がユーザーごとの持ち物なのに
+     *  共有の行に載っているのが問題で、そこを直すには列を足す必要がある
+     *  — docs/ に残すべき宿題」と書いてあった。**その宿題を片付けた。**)
      */
     // **共有列を書きに行くかどうかは、共有列そのものを見て決める。**
     //
@@ -440,12 +490,12 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     // 共有列に書きに行っていた(同じ語を持つ他人のカードごと書き換わる)。
     // 「言語が変わっただけか」を正確にしても直らない。**知りたいのは
     // 共有列が実際に欠けているかどうか**で、それは共有列を見れば分かる。
-    const sharedMissing = ![
-      s.word.meaning_ja,
-      s.word.pinyin,
-      s.word.reading_zhuyin,
-      s.word.example_sentence,
-    ].every(filled);
+    // 判定は `word-explanation.ts` が1つだけ持つ(server 側も同じ物を見る)。
+    const sharedMissing = shouldWriteSharedColumns({
+      meaning: s.word.meaning_ja,
+      reading: s.word.reading_zhuyin || s.word.pinyin,
+      example: s.word.example_sentence,
+    });
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
@@ -488,7 +538,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang]);
+  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang, explanation, wantKey]);
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -635,6 +685,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
           <StickerSheetBody
             sticker={s}
             uiLang={uiLang}
+            // その人向けの解説(共有キャッシュ)。無ければ古い列に落ちる。
+            explanation={explanation?.picked ?? null}
             isPro={isPro}
             flipped={flipped}
             setFlipped={setFlipped}
@@ -714,6 +766,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
 export function StickerSheetBody({
   sticker: s,
   uiLang,
+  explanation,
   isPro,
   flipped,
   setFlipped,
@@ -745,6 +798,12 @@ export function StickerSheetBody({
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   uiLang: string;
+  /**
+   * その人向けの解説(`word_explanations` の共有キャッシュ)。
+   * **無ければ古い `words` の列に落ちる** — 移行が当たる前でも、
+   * キャッシュにまだ無い語でも、いままでどおり出る。
+   */
+  explanation: ExplanationRow | null;
   isPro: boolean;
   /** 写真の裏(自撮り)を見ているか。 */
   flipped: boolean;
@@ -796,6 +855,18 @@ export function StickerSheetBody({
    */
   const photoPref = usePhotoPref();
   const hero = pickStickerPhoto(s, { prefer: s.hero_role ?? resolvePrefer(photoPref, null) });
+  /**
+   * 画面に出す意味・例文訳・解説。共有キャッシュを先に見て、無ければ
+   * 古い `words` の列に落ちる(落とし方は `word-explanation.ts`)。
+   */
+  const display = resolveDisplayWord(
+    {
+      meaning: s.word.meaning_ja,
+      exampleTranslation: s.word.example_translation,
+      extras: s.word.extras,
+    },
+    explanation,
+  );
   const t = useT();
   return (
     <>
@@ -1014,12 +1085,22 @@ export function StickerSheetBody({
           headword: s.word.headword,
           reading_zhuyin: s.word.reading_zhuyin,
           pinyin: s.word.pinyin,
-          meaning_ja: s.word.meaning_ja,
           part_of_speech: s.word.part_of_speech,
           level: s.word.level,
           example_sentence: s.word.example_sentence,
-          example_translation: s.word.example_translation,
-          extras: s.word.extras,
+          // **その人向けの解説を先に見る**(2026-08-24)。
+          //
+          // 意味・例文訳・解説は「読む人の言語と母語」で中身が変わる物なので、
+          // 全ユーザー共有の `words` の列ではなく `word_explanations` が正。
+          // 無ければ古い列に落ちる — 移行が当たる前でも、共有キャッシュに
+          // まだ無い語でも、いままでどおり出る。
+          //
+          // **落とし方は `word-explanation.ts` が持つ。** 3項目それぞれで
+          // `||` と `??` を書き分けることになり、1つ取り違えても誰も
+          // 気づかない(この画面の写真は下半分しか撮れていない)。
+          meaning_ja: display.meaning,
+          example_translation: display.exampleTranslation,
+          extras: display.extras,
         }}
         wordId={s.word_id}
         isPro={isPro}

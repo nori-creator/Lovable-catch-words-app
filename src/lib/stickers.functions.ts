@@ -865,7 +865,11 @@ export const updateWordExtras = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: word, error: readErr } = await supabaseAdmin
       .from("words")
-      .select("id, source, extras")
+      // 意味と例文訳も読む。下で共有キャッシュに置くとき、`patch` が
+      // 意味を運んでこない回(項目だけ作り直したとき)の落とし所になる。
+      // ここを空のまま置くと「意味が空 = 未完成」と数えられて、次に開いた
+      // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
+      .select("id, source, extras, meaning_ja, example_translation")
       .eq("id", data.word_id)
       .maybeSingle();
     if (readErr) throw new Error(readErr.message);
@@ -890,6 +894,39 @@ export const updateWordExtras = createServerFn({ method: "POST" })
       .update(update as never)
       .eq("id", data.word_id);
     if (error) throw new Error(error.message);
+
+    /**
+     * **解説を共有キャッシュにも置く**(2026-08-24)。
+     *
+     * `words` は `(language, headword)` で全ユーザー共有の1行。ところが解説は
+     * 読む人の言語と母語で中身が変わるので、そこに置くと**開くたびに作り直して
+     * 上書きし合う**(遅い・高い・解説が揺れる)。置き場所を
+     * `word_explanations (word_id, explain_lang, l1)` に分けた。
+     *
+     * ここに足したのは、**書く所が既に1つに集まっていたから**。生成の経路が
+     * 増えても、保存は必ずここを通る。2箇所に分けると片方だけ書き忘れて
+     * 「作ったのに次に開くとまた作る」になる(この app が何度も踏んだ形)。
+     *
+     * 置けなくても**カードの保存は成功として返す** — 共有キャッシュは
+     * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
+     */
+    const ex = (data.extras ?? {}) as Record<string, unknown>;
+    void import("./word-explanation.functions").then(({ saveWordExplanation }) =>
+      saveWordExplanation(supabaseAdmin as never, {
+        word_id: data.word_id,
+        explain_lang: String(ex.explain_lang ?? ""),
+        l1: String(ex.explain_l1 ?? ""),
+        // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
+        meaning: String(
+          data.patch?.meaning_ja || (word as { meaning_ja?: string | null }).meaning_ja || "",
+        ),
+        example_translation:
+          data.patch?.example_translation ??
+          (word as { example_translation?: string | null }).example_translation ??
+          null,
+        extras: merged as Record<string, unknown>,
+      }),
+    );
     return { ok: true };
   });
 
