@@ -61,4 +61,15 @@ export function speechLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
  * 「士林夜市」のほうが、その場所の名前として通じる)。
  * 学習言語が英語になっても、ここは付いていかない。
  */
+/**
+ * **中文で書かれた解説の言語。**
+ *
+ * 上の3つに続く4つ目の使われ方(2026-08-25、英語の種辞書を入れるときに出た)。
+ * ECDICT の語釈は中文で、それを台湾の学習者に出すために正体字へ直す。
+ * このとき `meanings` の鍵に入るのは**解説を書いた言語**であって、
+ * 学習言語ではない — 英語版では「学習言語=en / 解説の言語=zh-TW」になる。
+ * 同じ定数にすると、英語のカードの中文語釈が `en` の鍵に入る。
+ */
+export const CHINESE_EXPLANATION_LANGUAGE = "zh-TW";
+
 export const MAP_DISPLAY_LANGUAGE = "zh-TW";
