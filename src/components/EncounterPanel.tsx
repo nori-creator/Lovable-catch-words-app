@@ -26,12 +26,27 @@ import type { RarityConfidence } from "@/lib/rarity";
 export function EncounterPanel({ data }: { data: EncounterEstimate }) {
   const t = useT();
   const pct = Math.round(data.probability * 100);
+  // **幅も出す。** 4人しか使っていないアプリで「58%」と言い切るのは
+  // 精密なのではなく精密なふり(オーナー指摘 2026-08-21「適当すぎる」)。
+  // 幅は人が増えればひとりでに狭くなるので、**どれだけ分かっていないか**が
+  // そのまま見える。古い `extras.encounter` には入っていないので、
+  // 無ければ何も足さない。
+  const lo = data.interval ? Math.round(data.interval.lo * 100) : null;
+  const hi = data.interval ? Math.round(data.interval.hi * 100) : null;
+  // 丸めて同じ数になったら幅を出さない(「58〜58%」と書かない)。
+  const showRange = lo != null && hi != null && hi > lo;
   return (
     <div className="space-y-2.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-body">{t("enc.thisWeek")}</span>
         <span className="text-title font-semibold tabular-nums">{pct}%</span>
       </div>
+
+      {showRange && (
+        <p className="-mt-1.5 text-right text-caption tabular-nums text-muted-foreground">
+          {t("enc.range", { lo: String(lo), hi: String(hi) })}
+        </p>
+      )}
 
       <Stars n={data.stars} />
 

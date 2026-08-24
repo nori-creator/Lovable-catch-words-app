@@ -1310,6 +1310,9 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   //  タイトルが見えるように」)。読み上げ用の棚の名前。
   "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf" },
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+  // 見込みの幅(オーナー指摘 2026-08-21「適当すぎる」)。
+  // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
+  "enc.range": { ja: "だいたい {lo}〜{hi}%", en: "roughly {lo}–{hi}%" },
   "voice.title": { ja: "一言の動画", en: "Video note" },
   "voice.hint": {
     ja: "この語に出会ったときの気持ちを、15秒までの自撮りで残せます。",

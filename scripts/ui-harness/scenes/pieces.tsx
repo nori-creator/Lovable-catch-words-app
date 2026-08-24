@@ -203,12 +203,19 @@ export function EncounterScene() {
         stars: 5,
         confidence: "measured",
         observed_users: 37,
+        // 実測が貯まった語。**幅が狭い**。
+        // 区間は必ず点を挟む — 挟んでいない絵は、そこだけ見ると
+        // 不具合にしか見えない(最初この行に別の語の幅を貼って、
+        // 「4% / だいたい 52〜63%」という絵になった)。
+        interval: { lo: 0.02, hi: 0.07 },
         top_rooms: ["eat", "nature", "town"],
         region_scope: "台南",
         season_months: [5, 6, 7, 8],
       },
     },
     {
+      // **幅の無い古い札**も撮る。`extras.encounter` に貯めた昔の結果には
+      // 区間が入っていないので、そのときに何も足さないことを絵で見る。
       note: "★2 / ★4 と、飛んでいる季節",
       data: {
         probability: 0.7,
@@ -228,6 +235,9 @@ export function EncounterScene() {
         stars: 4,
         confidence: "estimate",
         observed_users: null,
+        // まだ誰も撮っていない語。**幅が広い** — どれだけ分かっていないかが
+        // そのまま見える(オーナー指摘「適当すぎる」への答え)。
+        interval: { lo: 0.06, hi: 0.55 },
         top_rooms: [],
         region_scope: null,
         season_months: [],

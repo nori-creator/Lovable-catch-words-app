@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   atLeastOnce,
+  countUserWeeks,
+  rarityStarsFromLambda,
   blendPerMillion,
   estimateEncounter,
   perMillionFromRank,
@@ -135,8 +137,37 @@ describe("regionFactor", () => {
 describe("atLeastOnce", () => {
   it("0 なら 0、大きくなるほど 1 に近づく", () => {
     expect(atLeastOnce(0)).toBe(0);
-    expect(atLeastOnce(1)).toBeCloseTo(0.632, 2);
-    expect(atLeastOnce(100)).toBeCloseTo(1, 6);
+    // **1 には貼り付かない。** 固まって出る物は「その週にたまたま
+    // 一度も通らない」がいつまでも残る(負の二項の言い分)。
+    expect(atLeastOnce(100)).toBeGreaterThan(0.9);
+    expect(atLeastOnce(100)).toBeLessThan(1);
+    expect(atLeastOnce(100, Infinity)).toBeCloseTo(1, 6);
+  });
+
+  it("**`r = Infinity` でポアソンに戻る**(2つの式が1つの関数に同居している)", () => {
+    expect(atLeastOnce(1, Infinity)).toBeCloseTo(1 - Math.exp(-1), 9);
+    expect(atLeastOnce(0.5, Infinity)).toBeCloseTo(1 - Math.exp(-0.5), 9);
+  });
+
+  it("**固まって出る物は、同じ平均でも「今週会える」が低い**", () => {
+    // 語は固まって出る(burstiness)。ポアソンのままだと、たまにしか
+    // 見ない語を「今週たぶん会える」と言ってしまう。
+    for (const lambda of [0.2, 1, 3]) {
+      expect(atLeastOnce(lambda)).toBeLessThan(atLeastOnce(lambda, Infinity));
+    }
+  });
+
+  it("ばらつきが小さいほど「1回も会わない」が増える", () => {
+    expect(atLeastOnce(1, 0.2)).toBeLessThan(atLeastOnce(1, 5));
+  });
+
+  it("λ が増えれば必ず増える", () => {
+    let prev = -1;
+    for (const l of [0, 0.1, 0.5, 1, 2, 5, 20]) {
+      const p = atLeastOnce(l);
+      expect(p).toBeGreaterThan(prev);
+      prev = p;
+    }
   });
 
   it("必ず 0〜1", () => {
@@ -214,12 +245,26 @@ describe("rarityStars", () => {
   });
 
   it("境目は「1つ星ごとにおよそ半分の回数」", () => {
-    // λ=2 の少し上下で★1と★2に分かれる。
-    expect(rarityStars(atLeastOnce(2.1))).toBe(1);
-    expect(rarityStars(atLeastOnce(1.9))).toBe(2);
-    expect(rarityStars(atLeastOnce(0.9))).toBe(3);
-    expect(rarityStars(atLeastOnce(0.4))).toBe(4);
-    expect(rarityStars(atLeastOnce(0.2))).toBe(5);
+    // **λ をそのまま渡す。** 確率から戻すと、負の二項で出した数を
+    // ポアソンの式で読み直すことになり、別の星が出る。
+    expect(rarityStarsFromLambda(2.1)).toBe(1);
+    expect(rarityStarsFromLambda(1.9)).toBe(2);
+    expect(rarityStarsFromLambda(0.9)).toBe(3);
+    expect(rarityStarsFromLambda(0.4)).toBe(4);
+    expect(rarityStarsFromLambda(0.2)).toBe(5);
+  });
+
+  it("**確率から入る古い口はポアソンで戻す**(互換のためだけに残してある)", () => {
+    expect(rarityStars(1 - Math.exp(-2.1))).toBe(1);
+    expect(rarityStars(1 - Math.exp(-0.2))).toBe(5);
+  });
+
+  it("壊れた λ でも 1〜5 に収まる", () => {
+    for (const v of [-1, Number.NaN, Infinity]) {
+      const st = rarityStarsFromLambda(v);
+      expect(st).toBeGreaterThanOrEqual(1);
+      expect(st).toBeLessThanOrEqual(5);
+    }
   });
 
   it("壊れた確率でも 1〜5 に収まる", () => {
@@ -324,5 +369,85 @@ describe("weeklyEncounterRate", () => {
 
   it("負の入力でも 0 未満にならない", () => {
     expect(weeklyEncounterRate({ perMillion: -5, wordsPerWeek: -1 })).toBe(0);
+  });
+});
+
+/**
+ * オーナー指摘 2026-08-21「出会う見込みの確率が**適当すぎる**」の受け皿。
+ *
+ * いちばん効いた直しは**物差しを揃えたこと**。事前は「その週に」の話なのに、
+ * 観測が「これまでに」の話だった。
+ */
+describe("countUserWeeks", () => {
+  const monday = "2026-08-17T09:00:00Z"; // 月曜
+  const sameWeek = "2026-08-20T09:00:00Z"; // 同じ週の木曜
+  const nextWeek = "2026-08-25T09:00:00Z"; // 次の週
+
+  it("(人, 週) の組を数える", () => {
+    expect(
+      countUserWeeks([
+        { user_id: "a", created_at: monday },
+        { user_id: "b", created_at: monday },
+      ]),
+    ).toBe(2);
+  });
+
+  it("**同じ週に何回撮っても1つ**(固まって出るぶんを二重に数えない)", () => {
+    expect(
+      countUserWeeks([
+        { user_id: "a", created_at: monday },
+        { user_id: "a", created_at: sameWeek },
+        { user_id: "a", created_at: sameWeek },
+      ]),
+    ).toBe(1);
+  });
+
+  it("週が変われば別の組", () => {
+    expect(
+      countUserWeeks([
+        { user_id: "a", created_at: monday },
+        { user_id: "a", created_at: nextWeek },
+      ]),
+    ).toBe(2);
+  });
+
+  it("**壊れた行で落ちない**(数えられる物だけ数える)", () => {
+    expect(
+      countUserWeeks([
+        { user_id: "a", created_at: monday },
+        { user_id: null, created_at: monday },
+        { user_id: "b", created_at: null },
+        { user_id: "c", created_at: "not a date" },
+      ]),
+    ).toBe(1);
+  });
+
+  it("空・null でも 0", () => {
+    expect(countUserWeeks([])).toBe(0);
+    expect(countUserWeeks(null)).toBe(0);
+    expect(countUserWeeks(undefined)).toBe(0);
+  });
+});
+
+describe("見込みの幅(信用区間)", () => {
+  it("**点だけを返さない**", () => {
+    const out = estimateEncounter({ level: 3 });
+    expect(out.interval.lo).toBeLessThanOrEqual(out.probability);
+    expect(out.interval.hi).toBeGreaterThanOrEqual(out.probability);
+  });
+
+  it("**観測が増えるほど幅は狭くなる**(これが「精密」の意味)", () => {
+    const few = estimateEncounter({ level: 3, caughtUsers: 2, activeUsers: 4 });
+    const many = estimateEncounter({ level: 3, caughtUsers: 500, activeUsers: 1000 });
+    expect(many.interval.hi - many.interval.lo).toBeLessThan(few.interval.hi - few.interval.lo);
+  });
+
+  it("幅は 0〜1 に収まる", () => {
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      const { interval } = estimateEncounter({ level });
+      expect(interval.lo).toBeGreaterThanOrEqual(0);
+      expect(interval.hi).toBeLessThanOrEqual(1);
+      expect(interval.lo).toBeLessThanOrEqual(interval.hi);
+    }
   });
 });
