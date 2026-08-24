@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { AlbumSpanTabs } from "@/components/AlbumSpanTabs";
+import { AlbumSpread } from "@/components/AlbumSpread";
+import { AlbumShelf } from "@/components/AlbumShelf";
 import { ALBUM_SPANS, groupBySpan, spanHeading, keyToDate, type AlbumSpan } from "@/lib/album-span";
 import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
@@ -261,10 +263,21 @@ function HomePage() {
     if (typeof window !== "undefined") localStorage.setItem("album-span", span);
   }, [span]);
 
-  const pastDays = useMemo(() => {
+  /**
+   * これまでの束。**見開きに渡す** — 縦に何十個も並べるのをやめた
+   * (オーナー指摘 2026-08-21「ホームの日、週、月のボタンを消して…
+   *  本棚にして…タップするとページがめくれて」)。
+   */
+  const pastGroups = useMemo(() => {
     const past = (stickers?.items ?? []).filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
-    return groupBySpan(past, (s) => new Date(s.created_at), span);
+    return groupBySpan(past, (s) => new Date(s.created_at), span).map(([key, items]) => ({
+      key,
+      items,
+    }));
   }, [stickers, todayKey, span]);
+
+  /** 本棚から開いた束ね方。`null` なら棚が閉じたまま。 */
+  const [openedSpan, setOpenedSpan] = useState<AlbumSpan | null>(null);
 
   /**
    * 日付ごとの日記(要望 #22)。
@@ -304,12 +317,37 @@ function HomePage() {
 
       <PendingCapturesBanner />
 
-      {/* 台紙を選ぶ列は、**台紙が出ているときだけ**。
-          1枚も無い日に4つの見本を並べても、押しても何も変わらない
-          (アルバムそのものが描かれていない)。押せるのに効かないものを
-          置かない — 初日に最初に見る画面なので、なおさら。 */}
-      {(todayStickers.length > 0 || pastDays.length > 0) && (
-        <BackgroundPicker current={bg} onChange={setBg} />
+      {/* **台紙を選ぶ列があった所を本棚にした**(オーナー指摘 2026-08-21
+          「今、アルバムの壁紙を変更するところを、本物の本の背表紙の本棚に
+          して、背表紙に日週、月ごとの本」)。台紙の選択は見開きの中へ
+          移した — 紙が実際に見えている所で選ぶほうが確かめやすい。
+          棚は**前のページが在るときだけ**出す。1冊も無いのに棚だけ
+          置くと、押しても白紙が開く。 */}
+      {pastGroups.length > 0 && (
+        <div className="mb-3">
+          <AlbumShelf
+            onOpen={(s) => {
+              setSpan(s);
+              setOpenedSpan(s);
+            }}
+            current={openedSpan}
+          />
+        </div>
+      )}
+
+      {openedSpan && (
+        <div className="mb-4">
+          <AlbumSpread
+            span={span}
+            onSpan={setSpan}
+            groups={pastGroups}
+            journals={journalsByDay}
+            bgClass={bgClass}
+            onClose={() => setOpenedSpan(null)}
+            onOpenSticker={setOpenId}
+          />
+          <BackgroundPicker current={bg} onChange={setBg} />
+        </div>
       )}
 
       {isLoading ? (
@@ -347,23 +385,11 @@ function HomePage() {
         </>
       )}
 
-      {pastDays.length > 0 && (
-        <PastDays
-          days={pastDays}
-          bgClass={bgClass}
-          onOpen={setOpenId}
-          truncated={stickers?.truncated ?? false}
-          shown={stickers?.items.length ?? 0}
-          total={stickers?.total ?? stickers?.items.length ?? 0}
-          journals={journalsByDay}
-          span={span}
-          onSpan={setSpan}
-          onLongPress={(id) => {
-            setOpenId(id);
-            setOpenPhotoPicker(true);
-          }}
-        />
-      )}
+      {/* 「これまでのページ」を縦に並べるのは**やめた**(オーナー指摘
+          2026-08-21「ホームの日記について。これまでの日記を消して」
+          「ホームの画面の日、週、月のボタンを消して」)。過去は上の本棚から
+          見開きで開く。`PastDays` は残してあるが、ここからは呼ばない
+          — 検査の雛形がまだ本物として撮っているため。 */}
       <StickerSheet
         stickerId={openId}
         openPhotoPicker={openPhotoPicker}

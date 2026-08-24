@@ -270,6 +270,16 @@ const MODES = [
   ["home-past-week", "", false, { scene: "home-past", span: "week" }],
   ["home-past-month", "", false, { scene: "home-past", span: "month" }],
   ...crossThemes("home-writing", { scene: "home-writing" }),
+  // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+  // **束ね方を3通りとも撮る** — 週と月は「小さく・多く」が注文なので、
+  // 実際にそうなっているかは絵でしか分からない。
+  ...crossThemes("home-shelf", { scene: "home-shelf" }),
+  ["home-spread", "", false, { scene: "home-spread" }],
+  ["home-spread-dark", 'class="dark"', false, { scene: "home-spread" }],
+  ["home-spread-week", "", false, { scene: "home-spread", span: "week" }],
+  ["home-spread-month", "", false, { scene: "home-spread", span: "month" }],
+  // 1枚選んだ形(左に絵・右に日記)。
+  ["home-spread-picked", "", false, { scene: "home-spread", click: ".album-tile" }],
   ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
   // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
   ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],

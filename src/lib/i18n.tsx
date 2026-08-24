@@ -1309,6 +1309,22 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
   //  タイトルが見えるように」)。読み上げ用の棚の名前。
   "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf" },
+  // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+  "home.shelfAria": { ja: "アルバムの本棚", en: "Album shelf" },
+  "home.bookDay": { ja: "日ごと", en: "By day" },
+  "home.bookWeek": { ja: "週ごと", en: "By week" },
+  "home.bookMonth": { ja: "月ごと", en: "By month" },
+  "home.openBook": { ja: "{name}のアルバムを開く", en: "Open the {name} album" },
+  "home.spreadEmpty": {
+    ja: "まだ前のページがありません",
+    en: "No earlier pages yet",
+  },
+  "home.noJournalThatDay": { ja: "この日の日記はありません", en: "No journal for that day" },
+  "home.olderSpread": { ja: "前へ", en: "Older" },
+  "home.newerSpread": { ja: "次へ", en: "Newer" },
+  "home.prevPage": { ja: "前のページ", en: "Previous page" },
+  "home.nextPage": { ja: "次のページ", en: "Next page" },
+  "home.backToSpread": { ja: "見開きに戻る", en: "Back to the spread" },
   "dex.filterCategory": { ja: "カテゴリー", en: "Category" },
   "dex.filterDay": { ja: "日付", en: "Date" },
   "dex.filterOpen": { ja: "{name}を選ぶ", en: "Choose {name}" },

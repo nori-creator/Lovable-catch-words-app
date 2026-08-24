@@ -34,44 +34,69 @@ export function DayJournalPage({
   note,
   /** その日の札のうち、日記に使った語の見出し。 */
   usedWords,
+  /**
+   * **すでにアルバムの台紙の上に置かれているか。**
+   *
+   * 台紙(`album-bg-*`)は明るい面でテーマに関わらず固定してある。その上に
+   * `text-foreground` のようなテーマ追従の色を載せると、暗いテーマで
+   * 「白い字を生成りの紙に載せる」ことになる — 見開きに入れた最初の版が
+   * まさにそれで、検査がコントラスト 1.00 で弾いた。
+   * 台紙が固定なら、**その上の字も固定**でなければ噛み合わない
+   * (`--album-ink` / `--album-ink-dim`。理由は `styles.css` にも書いてある)。
+   *
+   * 単体で置くとき(既定)は自分で紙を敷き、字はテーマに従う。
+   */
+  onPaper = false,
 }: {
   body: string;
   note?: string | null;
   usedWords: readonly string[];
+  onPaper?: boolean;
 }) {
   const t = useT();
+  const ink = onPaper ? "text-album-ink" : "text-foreground";
+  const dim = onPaper ? "text-album-ink" : "text-muted-foreground";
   return (
-    <div className="album-page relative mt-3 rounded-2xl border border-border p-5 sm:p-7">
+    <div
+      className={
+        onPaper
+          ? "relative"
+          : "album-page relative mt-3 rounded-2xl border border-border p-5 sm:p-7"
+      }
+    >
       {/* 見開きの**綴じ目**。写真のページと向かい合っていることを、
-          言葉ではなく形で示す。 */}
-      <span aria-hidden className="absolute inset-x-8 -top-px h-px bg-border" />
+          言葉ではなく形で示す。すでに見開きの中に居るときは要らない
+          (本物の綴じ目がその外側に在る)。 */}
+      {!onPaper && <span aria-hidden className="absolute inset-x-8 -top-px h-px bg-border" />}
       <div className="flex items-center gap-1.5">
-        <Quote className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="label-caps text-caption text-muted-foreground">
-          {t("home.dayJournal")}
-        </span>
+        <Quote className={`h-3.5 w-3.5 ${dim}`} />
+        <span className={`label-caps text-caption ${dim}`}>{t("home.dayJournal")}</span>
       </div>
 
       {/* 日記は**手書きの字**で置く。写真のページと同じ本の中に在る物なので、
           画面の本文と同じ顔にしない。 */}
-      <p className="ja-phrase mt-2 whitespace-pre-wrap text-body leading-relaxed text-foreground">
+      <p className={`ja-phrase mt-2 whitespace-pre-wrap text-body leading-relaxed ${ink}`}>
         {body}
       </p>
 
       {note && (
-        <p className="ja-phrase mt-2 border-t border-border pt-2 text-footnote text-muted-foreground">
-          {note}
-        </p>
+        <p className={`ja-phrase mt-2 border-t border-border pt-2 text-footnote ${dim}`}>{note}</p>
       )}
 
       {usedWords.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-caption text-muted-foreground">{t("home.dayJournalUsed")}</span>
+          <span className={`text-caption ${dim}`}>{t("home.dayJournalUsed")}</span>
           {usedWords.map((w) => (
             <span
               key={w}
               lang="zh-Hant"
-              className="rounded-full bg-secondary px-2 py-0.5 text-caption font-semibold text-foreground ring-1 ring-border"
+              // 紙の上では**紙の色で**囲む。`bg-secondary` はテーマ追従なので、
+              // 暗いテーマで生成りの紙に暗い札が乗って読めなくなる。
+              className={`rounded-full px-2 py-0.5 text-caption font-semibold ring-1 ${
+                onPaper
+                  ? "bg-white/55 text-album-ink ring-album-ink/25"
+                  : "bg-secondary text-foreground ring-border"
+              }`}
             >
               {w}
             </span>

@@ -17,6 +17,8 @@ import {
   ScrapbookAlbum,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
+import { AlbumSpread } from "@/components/AlbumSpread";
+import { AlbumShelf } from "@/components/AlbumShelf";
 import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -211,4 +213,55 @@ export function HomeWritingScene() {
       </JournalWritingPage>
     </>
   );
+}
+
+/**
+ * 本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
+ *
+ * **束ね方を3通りとも撮る。** 週と月は「小さく・多く」が注文なので、
+ * 実際に小さくなって多く並んでいるかは絵でしか分からない。
+ * 1枚選んだ形(左に絵・右に日記)も別に撮る。
+ */
+export function HomeSpreadScene({ q }: { q: URLSearchParams }) {
+  const raw = q.get("span") ?? "day";
+  const span: AlbumSpan = raw === "week" || raw === "month" ? raw : "day";
+  // 日をまたいで散らす。月ごとにすると1つの束に何十枚も入る。
+  const shots = [1, 2, 3, 9, 10, 11, 40, 41].flatMap((d) =>
+    FIXTURES.map((f, i) => makeSticker(f, i, d)),
+  );
+  const groups = groupBySpan(shots, (s) => new Date(s.created_at), span).map(([key, items]) => ({
+    key,
+    items,
+  }));
+  const journals = new Map([
+    [
+      localDayKey(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+      {
+        body: "今天在夜市喝了珍珠奶茶。老闆說我的中文變好了，很開心。",
+        note: "「變好了」がうまく使えています。",
+        used_sticker_ids: ["s1-0"],
+      },
+    ],
+  ]);
+  return (
+    <>
+      <AlbumShelf onOpen={() => {}} current={span} />
+      <div className="mt-3">
+        <AlbumSpread
+          span={span}
+          onSpan={() => {}}
+          groups={groups}
+          journals={journals}
+          bgClass="album-bg-paper"
+          onClose={() => {}}
+          onOpenSticker={() => {}}
+        />
+      </div>
+    </>
+  );
+}
+
+/** 棚だけ。閉じているときにホームの上で何を占めるかを見る。 */
+export function HomeShelfScene() {
+  return <AlbumShelf onOpen={() => {}} current={null} />;
 }
