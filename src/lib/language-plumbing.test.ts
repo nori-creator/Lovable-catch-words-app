@@ -361,3 +361,29 @@ describe("第2段: 消したものが戻ってこない", () => {
     expect(read("components/StickerSheet.tsx")).toContain("card.openMap");
   });
 });
+
+describe("中身の無いプロフィールで端末の言語を上書きしない", () => {
+  it("`getMyProfile` の逃げ道は決め打ちの言語を書かない", () => {
+    // main(Lovable)が私用の列を読めないときの逃げ道を足したとき、
+    // `target_language: "zh-TW"` / `ui_language: "ja"` / `level_goal: "TOCFL-2"`
+    // を直に書いていた。**直したばかりの根っこがそのまま再発する形。**
+    const src = codeOnly(read("lib/profile.functions.ts"));
+    expect(src).not.toContain('target_language: "zh-TW"');
+    expect(src).not.toContain('level_goal: "TOCFL-2"');
+    expect(src).toContain("DEFAULT_TARGET_LANGUAGE");
+    expect(src).toContain("levels.toStored(");
+  });
+
+  it("逃げ道は「これは設定ではない」と印を付ける", () => {
+    const src = codeOnly(read("lib/profile.functions.ts"));
+    expect(src).toContain("partial: true");
+  });
+
+  it("写す側はその印を見て、端末を上書きしない", () => {
+    // 印だけ付けて読む側が見ていなければ、何も守られていない。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/if \(p\.partial\) return;/);
+    // 印を見るのが `setTargetLang` **より前**であること。
+    expect(src.indexOf("p.partial")).toBeLessThan(src.indexOf("setTargetLang(p."));
+  });
+});

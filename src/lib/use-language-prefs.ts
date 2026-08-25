@@ -48,8 +48,21 @@ export function useLanguagePrefsSync(): void {
   });
 
   useEffect(() => {
-    const p = data as { target_language?: string; ui_language?: string } | undefined;
+    const p = data as
+      | { target_language?: string; ui_language?: string; partial?: boolean }
+      | undefined;
     if (!p) return;
+    /**
+     * **中身の無いプロフィールで上書きしない。**
+     *
+     * `getMyProfile` は私用の列が読めなかったとき、既定を詰めた行を
+     * `partial: true` 付きで返す。そこに入っている言語は「その人の設定」
+     * ではなく置き場所なので、写すと**英語を学んでいる人の端末が黙って
+     * 台湾華語に戻る** — 直したばかりの根っこがそのまま再発する。
+     *
+     * 端末の写しは前のまま残すのが正しい。次に本物が届いたときに揃う。
+     */
+    if (p.partial) return;
     // `setTargetLang` / `setUiLang` は同じ値なら何も知らせないので、
     // プロフィールが届くたびに描き直しが起きることはない。
     setTargetLang(p.target_language);
