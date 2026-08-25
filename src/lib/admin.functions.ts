@@ -70,7 +70,7 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
     // 新しい列(`reading_primary`/`reading_alt`/`level_step`)はどの言語でも
     // 正しいので、そちらは必ず書く。
     const isLegacyLanguage = language === DEFAULT_TARGET_LANGUAGE;
-    const legacy = <T,>(v: T): T | null => (isLegacyLanguage ? v : null);
+    const legacy = <T>(v: T): T | null => (isLegacyLanguage ? v : null);
 
     const payload = ok.map((r) => ({
       headword: r.headword,

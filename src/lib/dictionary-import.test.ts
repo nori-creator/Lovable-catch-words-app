@@ -248,9 +248,7 @@ describe("名前に言語が入っている列を、他の言語で使わない"
   it("**古い列は既定の言語のときだけ書く**", () => {
     // `legacy()` を通していること。素の値を直に入れていないこと。
     for (const col of ["zhuyin", "pinyin", "tocfl_level", "taiwan_usage"]) {
-      expect(src, `${col} が legacy() を通っていない`).toMatch(
-        new RegExp(`\\b${col}: legacy\\(`),
-      );
+      expect(src, `${col} が legacy() を通っていない`).toMatch(new RegExp(`\\b${col}: legacy\\(`));
     }
   });
 
