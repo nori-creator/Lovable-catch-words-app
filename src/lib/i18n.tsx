@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { TargetLanguage } from "./target-lang";
 
 /**
  * 軽量i18n(2026-07-25): アプリの主要な操作面(ナビ・見出し・設定)を
@@ -44,6 +45,39 @@ export const UI_LANG_LABEL_KEYS: Record<UiLang, string> = {
   ja: "settings.langJa",
   en: "settings.langEn",
   "zh-TW": "settings.langZhTw",
+};
+
+/**
+ * **プロンプトの中でその言語を何と呼ぶか。**
+ *
+ * `UI_LANG_LABEL_KEYS` は画面に出す名前(その言語自身で書く)、
+ * こちらは AI への指示文の中で使う名前で、**指示文が日本語なので
+ * 日本語で書く**。用途が違うので同じ表にはしない。
+ *
+ * server 側(`ai-provider.server.ts`)に置きたくなるが、そちらに置くと
+ * `"zh-TW"` の直書きが1つ増えて `target-lang.test.ts` の門に当たる。
+ * 表示言語の一覧を持っているのはここなので、名前もここが持つのが正しい。
+ */
+export const UI_LANG_PROMPT_NAMES: Record<UiLang, string> = {
+  ja: "日本語",
+  en: "英語",
+  "zh-TW": "繁體中文(台湾)",
+};
+
+/**
+ * **学んでいる言語**の名前の翻訳キー。
+ *
+ * `UI_LANG_LABEL_KEYS`(表示言語)とは別物。いまは両方に `ja` があるが、
+ * 意味が違う — あちらは「画面を日本語にする」、こちらは「日本語を学ぶ」。
+ * 同じ表にすると、日本語を学ぶ版を足した日に片方の意味が壊れる。
+ *
+ * 鍵の一覧そのものは `target-lang.ts` の `TARGET_LANGUAGES` が持つ。
+ * ここは名前だけ。設定の一覧はここを回すので、言語を足して
+ * ここを直し忘れると**型で落ちる**(選べない言語ができない)。
+ */
+export const TARGET_LANG_LABEL_KEYS: Record<TargetLanguage, string> = {
+  "zh-TW": "settings.langZhTw",
+  en: "settings.langEn",
 };
 
 /**
@@ -1785,6 +1819,28 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.mnemonic": { ja: "覚え方", en: "Memory hook", "zh-TW": "記憶方法" },
   "card.taiwan_note": { ja: "台湾メモ", en: "Taiwan note", "zh-TW": "台灣筆記" },
   "card.real_usage": { ja: "実際の使われ方", en: "Seen in the wild", "zh-TW": "實際上怎麼用" },
+  // --- 英語のカードだけの節 ------------------------------------------------
+  // 台湾華語のカードには出ない。**それでも3言語ぶん訳す** — 英語を学ぶ
+  // 台湾の人はアプリを繁體中文で使うので、節の名前が日本語で出たら
+  // その人の画面が壊れている。
+  "card.forms": { ja: "活用", en: "Word forms", "zh-TW": "詞形變化" },
+  "card.countability": { ja: "数え方と冠詞", en: "Countability", "zh-TW": "可數與冠詞" },
+  "card.stress": { ja: "強く読む所", en: "Stress", "zh-TW": "重音" },
+  "card.phrasal_verbs": { ja: "句動詞", en: "Phrasal verbs", "zh-TW": "片語動詞" },
+  "card.culture_note": { ja: "文化の一言", en: "Culture note", "zh-TW": "文化筆記" },
+  // 活用の名前。**表の左の列**に出る短い名前で、文にしない。
+  "card.formPlural": { ja: "複数形", en: "Plural", "zh-TW": "複數" },
+  "card.formPast": { ja: "過去形", en: "Past", "zh-TW": "過去式" },
+  "card.formPastParticiple": { ja: "過去分詞", en: "Past participle", "zh-TW": "過去分詞" },
+  "card.formIng": { ja: "-ing 形", en: "-ing form", "zh-TW": "-ing 形" },
+  "card.formThird": { ja: "三単現", en: "3rd person", "zh-TW": "第三人稱單數" },
+  "card.formComparative": { ja: "比較級", en: "Comparative", "zh-TW": "比較級" },
+  "card.formSuperlative": { ja: "最上級", en: "Superlative", "zh-TW": "最高級" },
+  // 数え方。
+  "card.countable": { ja: "数えられる", en: "Countable", "zh-TW": "可數" },
+  "card.uncountable": { ja: "数えられない", en: "Uncountable", "zh-TW": "不可數" },
+  "card.countBoth": { ja: "どちらもある", en: "Both", "zh-TW": "兩者皆可" },
+  "card.article": { ja: "冠詞", en: "Article", "zh-TW": "冠詞" },
   "card.sections": {
     ja: "表示する項目と順番",
     en: "Sections & order",

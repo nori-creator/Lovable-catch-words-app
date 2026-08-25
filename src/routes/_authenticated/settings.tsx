@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import {
   getStoredReviewMode,
   setStoredReviewMode,
@@ -26,8 +26,8 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
-import { levelOptions } from "@/lib/level-scale";
-import { UI_LANGS, UI_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
+import { levelOptions, restoreLevel } from "@/lib/level-scale";
+import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
 import { DATA_SOURCES } from "@/lib/data-sources";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
@@ -174,9 +174,27 @@ export function ChoiceRow<T extends string | number>({
  * どちらも同じ文字列を別々に作っていた(ずれても誰も気づかない形)。
  *
  * 2026-08-24: `TOCFL-${n}` の決め打ちをやめ、学習言語の目盛りから作る。
- * いまの学習言語は台湾華語だけなので**中身は1文字も変わらない**。
+ * 2026-08-25: **学習言語ごとに切り替える。** 英語を選べるようにした日
+ * (第4段)から、この一覧が固定だと英語の学習者に**TOCFL 準備級**が
+ * 並ぶ。台湾華語の級で英語の学習者の目標を測ることになるので、
+ * 級の物差しは学習言語から引く(台湾華語=TOCFL / 英語=CEFR)。
  */
-export const LEVEL_OPTIONS = levelOptions(targetProfile(null).levels);
+export function levelOptionsFor(targetLanguage: string | null | undefined) {
+  return levelOptions(targetProfile(targetLanguage).levels);
+}
+
+/** 検査の足場と、まだ学習言語を知らない所のための既定。 */
+export const LEVEL_OPTIONS = levelOptionsFor(null);
+
+/**
+ * プロフィールが届く前に置いておく級。
+ * **`"TOCFL-1"` と直に書かない** — 目盛りの表記を知っているのは
+ * `level-scale.ts` で、ここに写しを置くと表記を変えた日にずれる。
+ */
+const LEVEL_SCALE_DEFAULT = {
+  current: restoreLevel(targetProfile(null).levels, null, 1),
+  goal: restoreLevel(targetProfile(null).levels, null, 2),
+};
 
 /** 選択肢の一覧から1つ選ぶ(選択肢が多いものは丸いボタンでは入らない)。 */
 export function SelectRow({
@@ -233,8 +251,24 @@ function SettingsPage() {
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
   const [targetLanguage, setTargetLanguage] = useState<string>(DEFAULT_TARGET_LANGUAGE);
-  const [levelGoal, setLevelGoal] = useState("TOCFL-2");
-  const [currentLevel, setCurrentLevel] = useState("TOCFL-1");
+  const [levelGoal, setLevelGoal] = useState(() => LEVEL_SCALE_DEFAULT.goal);
+  const [currentLevel, setCurrentLevel] = useState(() => LEVEL_SCALE_DEFAULT.current);
+  /** 級の一覧は**学習言語で変わる**(台湾華語=TOCFL / 英語=CEFR)。 */
+  const levelChoices = levelOptionsFor(targetLanguage);
+
+  /**
+   * 学習言語を選び直したら、級の表記も載せ替える。
+   *
+   * **ここを繋がないと選択が空に見える。** 英語に切り替えた瞬間、
+   * 一覧は CEFR(A1〜C2)になるのに、選ばれている値は `"TOCFL-2"` の
+   * ままで一覧に無い。段(1〜6)だけ引き継いで表記を作り直す。
+   */
+  const pickTargetLanguage = (next: string) => {
+    const scale = targetProfile(next).levels;
+    setTargetLanguage(next);
+    setCurrentLevel((prev) => restoreLevel(scale, prev, 1));
+    setLevelGoal((prev) => restoreLevel(scale, prev, 2));
+  };
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
@@ -259,10 +293,15 @@ function SettingsPage() {
     const nextUi = normalizeUiLang(profile.ui_language);
     setUiLanguage(nextUi);
     setUiLang(nextUi);
+    // **級より先に学習言語を読む。** 級の表記はその言語の目盛りで決まる。
     setTargetLanguage(profile.target_language);
-    setLevelGoal(profile.level_goal);
+    // 保存されている級を**その言語の表記に載せ替える**。台湾華語で
+    // 2級だった人が英語に切り替えていれば `"TOCFL-2"` が残っているので、
+    // そのまま渡すと CEFR の一覧に無い値になり、選択が空に見える。
+    const scale = targetProfile(profile.target_language).levels;
+    setLevelGoal(restoreLevel(scale, profile.level_goal, 2));
     setCurrentLevel(
-      ((profile as { current_level?: string | null }).current_level ?? "") || "TOCFL-1",
+      restoreLevel(scale, (profile as { current_level?: string | null }).current_level, 1),
     );
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
     // **この端末で選んだ値が勝つ**(`src/lib/review-mode-pref.ts`)。
@@ -365,18 +404,21 @@ function SettingsPage() {
               id="lang-target"
               label={t("settings.targetLang")}
               value={targetLanguage}
-              onChange={setTargetLanguage}
-              options={[
-                { value: DEFAULT_TARGET_LANGUAGE, label: t("settings.langZhTw") },
-                { value: "en", label: t("settings.langEn") },
-              ]}
+              onChange={pickTargetLanguage}
+              // **一覧を書き並べない。** `TARGET_LANGUAGES` を回す —
+              // ここに手書きの写しを置くと、言語を足したときにここだけ
+              // 増えない(または、外したのにここだけ残る)。
+              options={TARGET_LANGUAGES.map((code) => ({
+                value: code,
+                label: t(TARGET_LANG_LABEL_KEYS[code]),
+              }))}
             />
             <SelectRow
               id="lang-cur"
               label={t("settings.currentLevel")}
               value={currentLevel}
               onChange={setCurrentLevel}
-              options={LEVEL_OPTIONS}
+              options={levelChoices}
             />
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
                 書いてあるのに、以前は1つ目の下に置いていたので、まだ見て
@@ -387,7 +429,7 @@ function SettingsPage() {
               hint={t("settings.levelHint")}
               value={levelGoal}
               onChange={setLevelGoal}
-              options={LEVEL_OPTIONS}
+              options={levelChoices}
             />
             <PhoneticRow />
             {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で

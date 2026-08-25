@@ -159,13 +159,32 @@ describe("headwordOk — 母語のまま図鑑に入れない", () => {
 });
 
 describe("いまの画面と食い違っていない", () => {
-  it("**台湾華語の項目は `card-sections.ts` の並びと同じ**", () => {
-    // ここがずれると、プロフィールに在るのに描けない項目(または逆)が出る。
-    // 第2段の約束は「見た目を変えない」なので、いまは完全一致でなければならない。
-    expect([...ZH_TW_PROFILE.sections]).toEqual([...SECTION_IDS]);
+  /**
+   * ## 第2段からの引き継ぎ
+   * ここは以前「台湾華語の項目 == `SECTION_IDS` **完全一致**」と
+   * 「英語だけの項目は `SECTION_IDS` に**まだ無い**」を見ていた。
+   * 第2段の約束が「見た目を1つも変えない」だったからで、
+   * その時点では正しい門だった。
+   *
+   * 第4段(2026-08-25)で英語の項目を実際に足したので、両方とも
+   * **意味が反転する**。完全一致は成り立たない(`SECTION_IDS` の方が
+   * 英語の5項目ぶん多い)。見るべき不変は「**どちらにも在る**」
+   * — プロフィールに在るのに描けない項目、描けるのにどの言語からも
+   * 参照されない項目、のどちらも作らないこと。
+   */
+  it("**台湾華語の項目は、全部 `card-sections.ts` に在る**(在るのに描けない物を作らない)", () => {
+    for (const s of ZH_TW_PROFILE.sections) {
+      expect((SECTION_IDS as readonly string[]).includes(s), s).toBe(true);
+    }
   });
 
-  it("英語だけの項目は、まだ `card-sections.ts` に無い(第4段で足す)", () => {
+  it("**英語の項目も、全部 `card-sections.ts` に在る**", () => {
+    for (const s of EN_PROFILE.sections) {
+      expect((SECTION_IDS as readonly string[]).includes(s), s).toBe(true);
+    }
+  });
+
+  it("**英語だけの5項目は、台湾華語のカードには出ない**", () => {
     const enOnly: ProfileSection[] = [
       "forms",
       "countability",
@@ -174,8 +193,22 @@ describe("いまの画面と食い違っていない", () => {
       "culture_note",
     ];
     for (const s of enOnly) {
-      expect((SECTION_IDS as readonly string[]).includes(s)).toBe(false);
+      expect(EN_PROFILE.sections, s).toContain(s);
+      expect(ZH_TW_PROFILE.sections, s).not.toContain(s);
     }
+  });
+
+  it("**台湾華語だけの2項目は、英語のカードには出ない**", () => {
+    // 量詞は英語に無い。台湾メモの位置には `culture_note` が入る。
+    for (const s of ["measure_words", "taiwan_note"] as ProfileSection[]) {
+      expect(ZH_TW_PROFILE.sections, s).toContain(s);
+      expect(EN_PROFILE.sections, s).not.toContain(s);
+    }
+  });
+
+  it("**`SECTION_IDS` に、どちらからも参照されない項目が無い**(死んだ節を作らない)", () => {
+    const used = new Set([...ZH_TW_PROFILE.sections, ...EN_PROFILE.sections]);
+    for (const id of SECTION_IDS) expect([...used], id).toContain(id);
   });
 });
 

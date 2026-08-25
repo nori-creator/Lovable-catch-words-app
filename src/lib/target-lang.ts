@@ -28,8 +28,17 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
-/** いま選べる学習言語。増えたらここに足す。 */
-export const TARGET_LANGUAGES = ["zh-TW"] as const;
+/**
+ * いま選べる学習言語。増えたらここに足す。
+ *
+ * **2026-08-25 に英語を足した**(オーナー要望「英語を学ぶ台湾人向けの版」)。
+ * 足すのはこの1行だが、効くのはここだけではない — カードの項目
+ * (`target-profile.ts` の `sections`)、級の目盛り(TOCFL / CEFR)、
+ * 見出し語の受け入れ(`headwordOk`)、読み(注音・拼音 / IPA)、
+ * 読み上げの言語が、**全部この値から引かれる**。
+ * `if (lang === …)` を書き足す形にしなかったのはそのため。
+ */
+export const TARGET_LANGUAGES = ["zh-TW", "en"] as const;
 export type TargetLanguage = (typeof TARGET_LANGUAGES)[number];
 
 /** 既定の学習言語。 */
@@ -50,7 +59,15 @@ export function normalizeTargetLanguage(raw: string | null | undefined): TargetL
  * ことで、英語版を足すときにここだけ見れば済む。
  */
 export function speechLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
-  return normalizeTargetLanguage(target);
+  // **`normalizeTargetLanguage` をそのまま返さない。** 英語を足した日
+  // (2026-08-25)まではたまたま一致していたが、`"en"` を読み上げに渡すと
+  // 端末は地域を自分で決める — イギリスの声で読む端末が出る。
+  // オーナー決定「アメリカ英語を既定」がここまで届くように、表で持つ。
+  const SPEECH: Record<TargetLanguage, string> = {
+    "zh-TW": DEFAULT_TARGET_LANGUAGE,
+    en: "en-US",
+  };
+  return SPEECH[normalizeTargetLanguage(target)];
 }
 
 /**

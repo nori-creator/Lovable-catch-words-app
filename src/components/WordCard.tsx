@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, Fragment, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { CorpusLinks } from "@/components/CorpusLinks";
 import { TocflLadder } from "@/components/TocflLadder";
@@ -41,9 +41,11 @@ import {
   isRegenSection,
   missingSections,
   sectionHasContent,
+  sectionsFor,
   type RegenSection,
   type SectionId,
 } from "@/lib/card-sections";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
@@ -53,6 +55,18 @@ export type WordExtras = Partial<WordExtrasDTO>;
 
 export type WordCardData = {
   headword: string;
+  /** 第一の読み（台湾華語=注音 / 英語=米式IPA）。無ければ古い列に落ちる。 */
+  reading_primary?: string | null;
+  /** 第二の読み（台湾華語=拼音 / 英語=英式IPA）。 */
+  reading_alt?: string | null;
+  /**
+   * その語を**何語として覚えているか**。
+   *
+   * カードに出る節・読みの種類・級の目盛りが全部ここから決まる。
+   * 空なら既定の学習言語(`targetProfile` が落とす) — 英語を選べる
+   * ようにする前に入った149語はこの列を持っていない。
+   */
+  language?: string | null;
   reading_zhuyin?: string | null;
   pinyin?: string | null;
   meaning_ja: string;
@@ -73,25 +87,41 @@ export type WordCardData = {
  *   雑学+語法ノート              → taiwan_note(台湾メモ)
  */
 
-/** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
-const ALL_SECTIONS: { id: SectionId }[] = [
-  { id: "meaning" },
-  { id: "web_images" },
-  { id: "usage_context" },
-  // 頻度の話の真下に置く。「どのくらい使う言葉か」と
-  // 「自分が今週それに出会うか」は続けて読みたい。
-  { id: "encounter" },
-  { id: "example" },
-  { id: "examples_extra" },
-  { id: "usage_chunks" },
-  { id: "measure_words" },
-  { id: "related_words" },
-  { id: "pronunciation_tips" },
-  { id: "etymology" },
-  { id: "mnemonic" },
-  { id: "taiwan_note" },
-  { id: "real_usage" },
-];
+/**
+ * 並べ替えの一覧が拠り所にする、**節の全部**。
+ *
+ * ## なぜ手書きの写しをやめたか
+ * ここには節の並びが**3つ目の写し**として手で書かれていた
+ * (`target-profile.ts` の `sections`、`card-sections.ts` の `SECTION_IDS`、
+ * そしてここ)。英語のカードの項目を足したとき、ここだけ足し忘れると
+ * **設定の並べ替えに出てこない節**ができる — 型でもビルドでも落ちない。
+ *
+ * 並びは言語ごとに違うので、**両方の言語の並びを畳んで**作る。
+ * `sectionsFor()` が出所で、ここは順序を混ぜているだけ。
+ *
+ * ## 畳み方
+ * 台湾華語の並びを土台にして、英語にしか無い節を「**英語の並びで直前に
+ * 来る共通の節のうしろ**」へ差し込む。こうすると、どちらの言語の人から
+ * 見ても自分の節が自然な位置に並ぶ。
+ */
+const ALL_SECTIONS: { id: SectionId }[] = (() => {
+  const base = [...sectionsFor(DEFAULT_TARGET_LANGUAGE)];
+  for (const other of TARGET_LANGUAGES) {
+    const list = sectionsFor(other);
+    let at = -1;
+    for (const id of list) {
+      const found = base.indexOf(id);
+      if (found >= 0) {
+        at = found;
+        continue;
+      }
+      // 共通の節がまだ1つも出ていなければ先頭へ。
+      at = at < 0 ? 0 : at + 1;
+      base.splice(at, 0, id);
+    }
+  }
+  return base.map((id) => ({ id }));
+})();
 
 const PREF_KEY = "wordcard-prefs-v4";
 const PREF_EVENT = "wordcard-prefs-changed";
@@ -247,6 +277,12 @@ const SECTION_ICON: Record<SectionId, string> = {
   mnemonic: "\u{1F4A1}",
   taiwan_note: "\u{1F1F9}\u{1F1FC}",
   real_usage: "\u{1F3AC}",
+  // --- 英語のカードだけの節 ------------------------------------------------
+  forms: "\u{1F504}",
+  countability: "\u{1F9FA}",
+  stress: "\u{1F941}",
+  phrasal_verbs: "\u{1F517}",
+  culture_note: "\u{1F30D}",
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
@@ -325,8 +361,23 @@ export const WordCard = forwardRef<
   // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
   // 並びは**画面の並びそのまま**。`missingSections` はその順を崩さない
   // (裏で作る順もこれ = オーナーの「項目の上から順に」)。
-  const missing = missingSections(prefs.order.filter(isVisible), contentInput);
-  const shown = prefs.order.filter(
+  /**
+   * **この語の言語に在る節だけを並べる。**
+   *
+   * 並べ替えの設定(`prefs.order`)は言語をまたいだ全部の節を持っている
+   * — 台湾華語の語と英語の語を両方持っている人が、1つの一覧で並びを
+   * 決められるようにするため。そのまま描くと、英語のカードに**量詞と
+   * 台湾メモ**が出て、台湾華語のカードに**冠詞と強勢**が出る。
+   *
+   * さらに大事なのは `missing` の側で、ここを絞らないと**英語の語の
+   * 量詞を AI に作らせ続ける**ことになる。「英語に量詞は無い」ので
+   * 何を作っても `sectionHasContent` は満たされず、上限に当たるまで
+   * 呼び続けて、待ち時間もお金も払う。
+   */
+  const inThisLanguage = new Set<SectionId>(sectionsFor(word.language));
+  const order = prefs.order.filter((id) => inThisLanguage.has(id));
+  const missing = missingSections(order.filter(isVisible), contentInput);
+  const shown = order.filter(
     (id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id),
   );
 
@@ -531,7 +582,16 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             </button>
           </div>
           <div className="mt-1 text-body text-muted-foreground">
-            <Reading zhuyin={word.reading_zhuyin} pinyin={word.pinyin} />
+            {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
+                プロフィールで考えるので、英語の語に注音/拼音を探しに行き、
+                IPA を持っていても読みが空になる。 */}
+            <Reading
+              lang={word.language ?? undefined}
+              zhuyin={word.reading_zhuyin}
+              pinyin={word.pinyin}
+              ipaUs={word.reading_primary}
+              ipaUk={word.reading_alt}
+            />
           </div>
           {(word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1103,6 +1163,128 @@ function Body({
           )}
         </div>
       );
+
+    // --- 英語のカードだけの節 ------------------------------------------
+    case "forms": {
+      // **AI を1回も呼ばずに埋まる唯一の節。** 中身は ECDICT の `exchange`
+      // 欄から取り込みのときに入る。だから「作る」のボタンも出ない
+      // (`REGEN_SECTIONS` に入れていない)。
+      const f = ex.forms;
+      if (!f) return null;
+      const rows: Array<[string, string]> = [
+        [t("card.formPlural"), f.plural],
+        [t("card.formPast"), f.past],
+        [t("card.formPastParticiple"), f.pastParticiple],
+        [t("card.formIng"), f.ing],
+        [t("card.formThird"), f.third],
+        [t("card.formComparative"), f.comparative],
+        [t("card.formSuperlative"), f.superlative],
+      ].filter(([, v]) => !!v) as Array<[string, string]>;
+      if (rows.length === 0) return null;
+      return (
+        // 語形は**表で読む物**。左に名前、右に形。行が短いので
+        // 2列に折り返して、縦に伸びるのを抑える。
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-body sm:grid-cols-[auto_1fr_auto_1fr]">
+          {rows.map(([label, value]) => (
+            <Fragment key={label}>
+              <dt className="text-caption text-muted-foreground">{label}</dt>
+              <dd className="font-medium">{value}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      );
+    }
+
+    case "countability": {
+      const c = ex.countability;
+      if (!c) return null;
+      const KIND_KEY: Record<"countable" | "uncountable" | "both", string> = {
+        countable: "card.countable",
+        uncountable: "card.uncountable",
+        both: "card.countBoth",
+      };
+      return (
+        <div className="space-y-2 text-body">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="inline-block rounded-full bg-secondary px-2.5 py-0.5 text-footnote font-medium shadow-sm ring-1 ring-border">
+              {t(KIND_KEY[c.kind])}
+            </span>
+            {c.article && (
+              <span className="text-caption text-muted-foreground">
+                {/* 冠詞は**その語に実際に付く形**を出す。「a/an のどちらか」
+                    ではなく "an" と書いてあることに意味がある。 */}
+                <span className="mr-1.5">{t("card.article")}</span>
+                <span className="font-medium text-foreground">{c.article}</span>
+              </span>
+            )}
+          </div>
+          {c.note && <Prose text={c.note} />}
+        </div>
+      );
+    }
+
+    case "stress": {
+      const st = ex.stress;
+      const syl = st?.syllables ?? [];
+      if (syl.length === 0) return null;
+      return (
+        <div className="space-y-2">
+          {/* 強勢は**大きさで見せる**。記号(ˈ)を打っても、声調の言語の
+              話者には「印が付いている」以上のことが伝わらない。
+              強い音節を大きく濃く、弱い音節を小さく薄くして、
+              **見た目がそのまま読み方**になるようにする。 */}
+          <p className="flex flex-wrap items-baseline gap-x-0.5">
+            {syl.map((sy, i) => {
+              const primary = st?.primary === i;
+              const secondary = st?.secondary === i;
+              return (
+                <span key={i} className="flex items-baseline">
+                  {i > 0 && <span className="mx-0.5 text-muted-foreground">·</span>}
+                  <span
+                    className={
+                      primary
+                        ? "text-title font-semibold text-foreground"
+                        : secondary
+                          ? "text-body font-medium text-foreground"
+                          : "text-body text-muted-foreground"
+                    }
+                  >
+                    {sy}
+                  </span>
+                </span>
+              );
+            })}
+          </p>
+          {st?.note && <Prose text={st.note} />}
+        </div>
+      );
+    }
+
+    case "phrasal_verbs":
+      return (
+        <ul className="space-y-1.5">
+          {(ex.phrasal_verbs ?? []).map((pv, i) => (
+            <li key={i} className="rounded-xl bg-secondary px-3 py-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-body font-semibold">{pv.phrase}</span>
+                {pv.meaning && (
+                  <span className="text-footnote text-muted-foreground">{pv.meaning}</span>
+                )}
+              </div>
+              {pv.example && (
+                <p className="mt-1 text-footnote leading-relaxed text-muted-foreground">
+                  {pv.example}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      );
+
+    case "culture_note":
+      // 台湾華語のカードの `taiwan_note` にあたる欄。組みは合わせる —
+      // 同じ位置の同じ役割の節が、言語で違う見た目になる理由が無い。
+      return <Prose text={ex.culture_note ?? ""} />;
 
     case "web_images":
       return (

@@ -89,6 +89,19 @@ export type TargetProfile = {
   readings: readonly ReadingKind[];
   /** その言語のカードに出る項目(上から順)。 */
   sections: readonly ProfileSection[];
+  /**
+   * **プロンプトの中でこの言語を何と呼ぶか。**
+   *
+   * 生成の指示文は日本語で書いてあり、その中に
+   * 「台湾華語(繁体字)の単語「~」について」と**直に書かれていた**。
+   * 英語のカードをそこへ流すと、AI は英語の語を渡されながら
+   * 「台湾華語の単語だ」と言われる。呼び名は言語ごとに違うので、
+   * 言語の表が持つ。
+   *
+   * アメリカ英語を既定にする決定(オーナー 2026-08-24)も、
+   * ここに書いてあることで生成まで届く。
+   */
+  promptName: string;
   /** 級の目盛り。 */
   levels: LevelScale;
   /**
@@ -153,6 +166,7 @@ export const ZH_TW_PROFILE: TargetProfile = {
     "real_usage",
   ],
   levels: TOCFL_SCALE,
+  promptName: "台湾華語(繁体字)",
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
   chunkRoles: ["S", "V", "O", "M", "C", "Ptc"],
   headwordOk: (raw) => {
@@ -207,6 +221,8 @@ export const EN_PROFILE: TargetProfile = {
     "real_usage",
   ],
   levels: CEFR_SCALE,
+  // オーナー決定 2026-08-24「アメリカ英語を既定」。生成にもそう言う。
+  promptName: "英語(アメリカ英語)",
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)
   chunkRoles: ["S", "V", "O", "Adv", "Prep", "Det"],
   headwordOk: (raw) => {

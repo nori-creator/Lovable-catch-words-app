@@ -5,11 +5,13 @@ import {
   SECTION_IDS,
   isRegenSection,
   sectionHasContent,
+  sectionsFor,
   missingSections,
   type SectionContentInput,
   type SectionId,
 } from "./card-sections";
 import { normalizeExtras } from "./extras";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "./target-lang";
 
 /**
  * ここで見ているのは「2箇所に書かれた同じ物が食い違わないこと」。
@@ -44,19 +46,82 @@ describe("節の一覧", () => {
   });
 });
 
-describe("画面の既定の並び", () => {
-  const src = fs.readFileSync("src/components/WordCard.tsx", "utf8");
-  const ordered = [...src.matchAll(/\{ id: "([\w_]+)" \}/g)].map((m) => m[1] as SectionId);
+describe("sectionsFor — 言語ごとの並び", () => {
+  /**
+   * ## 画面の並びを**文字列として読む**のをやめた
+   * 前の版はここで `WordCard.tsx` を正規表現で読んで `{ id: "…" }` を
+   * 数えていた。並びが手書きの写しだったからそれで足りたが、
+   * 写しをやめて `sectionsFor()` から畳むようにしたので、正規表現は
+   * **0件を拾って静かに通る**(実際、書き換えた直後にこの試験は
+   * 「0件が0件と一致する」で緑になりかけた)。
+   *
+   * 見るべき不変は「どの節も、少なくとも1つの言語のカードには出る」こと。
+   * どこにも出ない節は**画面に一度も出ない死んだ節**で、エラーも出ない。
+   */
+  const everywhere = new Set(TARGET_LANGUAGES.flatMap((l) => [...sectionsFor(l)]));
 
-  it("並びに出てくる節は、全部一覧に在る", () => {
-    expect(ordered.length).toBeGreaterThan(0);
-    for (const id of ordered) expect(SECTION_IDS).toContain(id);
+  it("**一覧の節は、必ずどこかの言語のカードに出る**(死んだ節を作らない)", () => {
+    for (const id of SECTION_IDS) expect([...everywhere], id).toContain(id);
   });
 
-  // 節を足したのに並びへ入れ忘れると、**その節は画面に一度も出ない**。
-  // エラーは出ないので、目でも気づけない。
-  it("一覧の節は、全部並びに入っている", () => {
-    for (const id of SECTION_IDS) expect(ordered).toContain(id);
+  it("**どの言語の並びも、一覧の中の物だけ**(知らない節を描かない)", () => {
+    for (const l of TARGET_LANGUAGES) {
+      for (const id of sectionsFor(l)) expect(SECTION_IDS, `${l}: ${id}`).toContain(id);
+    }
+  });
+
+  it("並びに重複が無い(同じ節が2回出ない)", () => {
+    for (const l of TARGET_LANGUAGES) {
+      const list = sectionsFor(l);
+      expect(new Set(list).size, l).toBe(list.length);
+    }
+  });
+
+  it("知らない言語は既定の並びに落とす(空のカードを描かない)", () => {
+    expect(sectionsFor(null)).toEqual(sectionsFor(DEFAULT_TARGET_LANGUAGE));
+    expect(sectionsFor("kl-GL")).toEqual(sectionsFor(DEFAULT_TARGET_LANGUAGE));
+  });
+
+  it("**言語ごとに中身が違う**(全部同じなら分ける意味が無い)", () => {
+    const zh = sectionsFor(DEFAULT_TARGET_LANGUAGE);
+    // 量詞は台湾華語だけ。英語に量詞は無い。
+    expect(zh).toContain("measure_words");
+    expect(sectionsFor("en")).not.toContain("measure_words");
+    // 冠詞は英語だけ。台湾華語に冠詞は無い。
+    expect(sectionsFor("en")).toContain("countability");
+    expect(zh).not.toContain("countability");
+  });
+});
+
+describe("英語のカードの節", () => {
+  it("**活用は作り直せない**(辞書の事実で、AI に作らせる物ではない)", () => {
+    // AI に作らせると "child" の複数形が "childs" になり得る。
+    // ECDICT の exchange 欄から取り込みのときに入る。
+    expect(isRegenSection("forms")).toBe(false);
+  });
+
+  it("残り4つは作り直せる(押せるのに弾かれる状態にしない)", () => {
+    for (const id of ["countability", "stress", "phrasal_verbs", "culture_note"] as const) {
+      expect(isRegenSection(id), id).toBe(true);
+    }
+  });
+
+  it("**活用が空の語では節を出さない**(見出しだけの空の節を作らない)", () => {
+    // 不変化名詞など、活用が1つも無い語。`forms` の箱は在るが中身は空。
+    const none = input({ headword: "sheep", extras: ex({ forms: {} }) });
+    expect(sectionHasContent("forms", none)).toBe(false);
+    // `lemma` は原形で、活用そのものではない。これだけでは節にしない。
+    const lemmaOnly = input({ headword: "sheep", extras: ex({ forms: { lemma: "sheep" } }) });
+    expect(sectionHasContent("forms", lemmaOnly)).toBe(false);
+    const has = input({ headword: "go", extras: ex({ forms: { past: "went" } }) });
+    expect(sectionHasContent("forms", has)).toBe(true);
+  });
+
+  it("強勢は音節に切れているときだけ(note だけでは節にしない)", () => {
+    const noteOnly = input({ extras: ex({ stress: { syllables: [], note: "最初を強く" } }) });
+    expect(sectionHasContent("stress", noteOnly)).toBe(false);
+    const cut = input({ extras: ex({ stress: { syllables: ["pho", "to"], primary: 0 } }) });
+    expect(sectionHasContent("stress", cut)).toBe(true);
   });
 });
 
@@ -199,6 +264,12 @@ describe("missingSections", () => {
         etymology: "雨+傘",
         mnemonic: "雨の傘",
         taiwan_note: "台湾では",
+        // 英語のカードの節も埋める。**片方の言語だけ埋めて緑にしない** —
+        // それでは「作り終わったのに作り直し続ける」を捕まえられない。
+        countability: { kind: "countable", article: "an", note: "" },
+        stress: { syllables: ["um", "brel", "la"], primary: 1 },
+        phrasal_verbs: [{ phrase: "put up", meaning: "さす", example: "" }],
+        culture_note: "英では brolly",
       }),
     });
     expect(missingSections([...SECTION_IDS], full)).toEqual([]);

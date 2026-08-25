@@ -38,6 +38,40 @@ const ExampleExtraSchema = z.object({
   chunks: z.array(ChunkPartSchema).catch([]),
 });
 
+/**
+ * 語形(英語)。**AI を1回も呼ばずに埋まる**唯一の節。
+ *
+ * ECDICT の `exchange` 欄が `p:went/d:gone/i:going/3:goes` の形で持っていて、
+ * `lexicon-import.ts` の `parseExchange` がここに写す。生成に頼らないので
+ * 待ち時間もお金もかからず、しかも辞書由来なので間違えない。
+ *
+ * **同じ形を取り込み側とカード側の2箇所に書かない。** 取り込みの script も
+ * ここを import する — 片方に欄を足して片方に足し忘れると、DB には入って
+ * いるのに画面に出ない(逆も起きる)という、この app が何度もやった形になる。
+ *
+ * 全部 `.catch("")` にして、無い活用は空文字にする。`null` と `""` を
+ * 混ぜると描く側で二重に判定する羽目になる。
+ */
+export const WordFormsSchema = z.object({
+  /** 複数形(名詞)。"child" → "children" */
+  plural: z.string().catch(""),
+  /** 過去形(動詞)。"go" → "went" */
+  past: z.string().catch(""),
+  /** 過去分詞(動詞)。"go" → "gone" */
+  pastParticiple: z.string().catch(""),
+  /** 現在分詞・動名詞。"go" → "going" */
+  ing: z.string().catch(""),
+  /** 三人称単数現在。"go" → "goes" */
+  third: z.string().catch(""),
+  /** 比較級(形容詞・副詞)。"good" → "better" */
+  comparative: z.string().catch(""),
+  /** 最上級。"good" → "best" */
+  superlative: z.string().catch(""),
+  /** 原形。活用形で引いたときに元の語へ戻す("went" → "go")。 */
+  lemma: z.string().catch(""),
+});
+export type WordForms = z.infer<typeof WordFormsSchema>;
+
 export const ExtrasSchema = z.object({
   // --- 旧フィールド(古いカードの表示互換のため保持) ---------------------
   collocations: z.array(z.string()).catch([]),
@@ -175,6 +209,68 @@ export const ExtrasSchema = z.object({
   pronunciation_tips: z.string().catch(""),
   /** 台湾での一言雑学(文化・習慣・歴史・流行)+語法の注意。 */
   taiwan_note: z.string().catch(""),
+  // --- 英語のカードだけの欄 ------------------------------------------------
+  // 台湾華語のカードには出ない(`target-profile.ts` の `sections` が決める)。
+  // 逆に `measure_words` は英語のカードには出ない — 英語に量詞は無い。
+  /**
+   * 語形。**辞書から入るので AI を呼ばない。**
+   * `null` は「まだ引いていない」、全欄が空のオブジェクトは
+   * 「引いたが活用が無い語(不変化名詞など)」で、意味が違う。
+   */
+  forms: WordFormsSchema.nullable().catch(null),
+  /**
+   * 可算/不可算と冠詞。
+   *
+   * **中国語話者にとって最大の誤りの元。** 中国語に冠詞は無いので、
+   * "I bought furniture" と "I bought a furniture" のどちらが正しいかは
+   * 母語からは分からない。台湾華語話者向けの版(指摘⑬)の中心にあたる。
+   */
+  countability: z
+    .object({
+      kind: z.enum(["countable", "uncountable", "both"]).catch("countable"),
+      /** その語に付く冠詞の形("a" / "an" / "the" / "—")。 */
+      article: z.string().catch(""),
+      /** 使い分けの一言(both のときは、どちらの意味でどちらになるか)。 */
+      note: z.string().catch(""),
+    })
+    .nullable()
+    .catch(null),
+  /**
+   * どの音節を強く読むか。
+   *
+   * **通じるかどうかを最も左右する。** 音を全部正しく出しても強勢の位置が
+   * 違うと英語話者には別の語に聞こえる(PREsent / preSENT)。中国語は
+   * 声調言語で強勢が語の意味を変えないため、意識に上りにくい。
+   *
+   * `syllables` は音節に切った綴り、`primary`/`secondary` はその添字。
+   */
+  stress: z
+    .object({
+      syllables: z.array(z.string()).catch([]),
+      primary: z.number().int().min(0).nullable().catch(null),
+      secondary: z.number().int().min(0).nullable().catch(null),
+      note: z.string().catch(""),
+    })
+    .nullable()
+    .catch(null),
+  /**
+   * 句動詞。動詞のカードで、台湾華語なら量詞が入る枠が空く所に入る。
+   * "give up" / "give in" のように、語そのものからは意味が読めない物。
+   */
+  phrasal_verbs: z
+    .array(
+      z.object({
+        phrase: z.string(),
+        meaning: z.string().catch(""),
+        example: z.string().catch(""),
+      }),
+    )
+    .catch([]),
+  /**
+   * 文化の一言。台湾華語のカードの `taiwan_note` にあたる欄。
+   * 米/英の違い(elevator / lift)、その語にまつわる習慣など。
+   */
+  culture_note: z.string().catch(""),
   /**
    * この解説を**どの言語で書いたか**("ja" / "en")。
    * 設定の表示言語を英語に変えたとき、日本語のまま残った古い解説を
