@@ -313,6 +313,7 @@ const MODES = [
   // ルート直書きのまま未検査の画面がゼロになる。
   ...crossThemes("settings-choices", { scene: "settings-choices" }),
   ...crossThemes("settings-selects", { scene: "settings-selects" }),
+  ...crossThemes("settings-sources", { scene: "settings-sources" }),
   ...crossThemes("settings-toggles", { scene: "settings-toggles" }),
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
   // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている

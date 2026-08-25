@@ -56,6 +56,7 @@ import {
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsSelectsScene,
+  SettingsSourcesScene,
   SettingsTogglesScene,
 } from "./scenes/settings";
 import {
@@ -115,6 +116,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-pending": HomePendingScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,
+  "settings-sources": SettingsSourcesScene,
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
   "word-card": WordCardScene,

@@ -27,6 +27,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions } from "@/lib/level-scale";
+import { DATA_SOURCES } from "@/lib/data-sources";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
@@ -527,6 +528,8 @@ function SettingsPage() {
 
         <SoundAndHapticsPanel />
 
+        <DataSourcesCard />
+
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.save")}
         </Button>
@@ -558,6 +561,45 @@ function SettingsPage() {
         <DangerZone />
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * データの出典。
+ *
+ * **これは飾りではなく、利用の条件。** CEFR-J は商用可だが
+ * **出典明記が条件**で、README に書くだけでは足りない — 条件は
+ * 利用者に見える所に要る。中身は `src/lib/data-sources.ts`。
+ *
+ * リンクは新しいタブで開く。`noopener` を付けるのは、開いた先から
+ * こちらの窓を触られないようにするため。
+ */
+export function DataSourcesCard() {
+  const t = useT();
+  return (
+    <SettingsCard title={t("settings.sources")}>
+      <p className="mb-3 text-footnote text-muted-foreground">{t("settings.sourcesHint")}</p>
+      <ul className="space-y-3">
+        {DATA_SOURCES.map((s) => (
+          <li key={s.id}>
+            <a
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              // 指が届く高さを確保する（44px）。一覧の項目もタップ対象。
+              className="flex min-h-11 flex-col justify-center rounded-lg px-1 py-1"
+            >
+              <span className="text-body font-semibold text-foreground">{s.name}</span>
+              <span className="text-footnote text-muted-foreground">{t(s.noteKey)}</span>
+              <span className="text-caption text-muted-foreground">
+                {s.author} · {s.license}
+                {s.attributionRequired ? ` · ${t("sources.required")}` : ""}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </SettingsCard>
   );
 }
 

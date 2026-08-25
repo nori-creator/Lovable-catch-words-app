@@ -26,6 +26,7 @@ import {
   AvatarRow,
   ChoiceRow,
   DangerZone,
+  DataSourcesCard,
   PhoneticRow,
   PlaceReminderToggle,
   SelectRow,
@@ -221,6 +222,14 @@ export function SettingsSelectsScene() {
  * **外観の束は今まで一度も撮っていなかった。** 明暗を選ぶのはこの束
  * なので、検査が6面を回る根拠そのものがここに在る。
  */
+/**
+ * データの出典。**利用の条件**なので、絵に入れて見えることを確かめる
+ * （CEFR-J は商用可だが出典明記が条件）。
+ */
+export function SettingsSourcesScene() {
+  return <DataSourcesCard />;
+}
+
 export function SettingsTogglesScene() {
   const [theme, setTheme] = useState("system");
   return (

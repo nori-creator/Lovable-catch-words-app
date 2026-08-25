@@ -1537,6 +1537,24 @@ export const DICT: Record<string, { ja: string; en: string }> = {
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin" },
   // 英語版の読みの表記。既定はアメリカ英語(オーナー決定 2026-08-24)。
+  // --- 出典（商用利用の条件。`src/lib/data-sources.ts` と対で持つ） ---
+  "settings.sources": { ja: "データの出典", en: "Data sources" },
+  "settings.sourcesHint": {
+    ja: "単語の意味・発音・レベルは、下のデータをもとに作っています。",
+    en: "Word meanings, pronunciations and levels are built from the data below.",
+  },
+  "sources.required": { ja: "出典の明記が条件", en: "Attribution required" },
+  "sources.ecdict": {
+    ja: "英語の意味・品詞・活用・頻度・検定タグ",
+    en: "English meanings, part of speech, inflections, frequency and exam tags",
+  },
+  "sources.cmudict": { ja: "アメリカ英語の発音", en: "American English pronunciation" },
+  "sources.cefrjWordlist": { ja: "英単語の CEFR レベル", en: "CEFR levels for English words" },
+  "sources.cefrjGrammar": { ja: "英文法の CEFR レベル", en: "CEFR levels for English grammar" },
+  "sources.opencc": {
+    ja: "簡体字から台湾正体字への変換",
+    en: "Simplified to Taiwanese traditional Chinese",
+  },
   "settings.ipaUs": { ja: "IPA アメリカ", en: "IPA (US)" },
   "settings.ipaUk": { ja: "IPA イギリス", en: "IPA (UK)" },
   "settings.phoneticHint": {
