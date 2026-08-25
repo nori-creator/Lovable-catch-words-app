@@ -8,20 +8,51 @@ type MyProfile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    // Own-row full read is exposed through a database helper scoped to
-    // auth.uid(). This keeps private profile columns hidden from other users
-    // without requiring the service-role key for normal profile loading.
-    const { data, error } = await (
-      context.supabase as unknown as {
-        rpc: (fn: "get_my_profile") => Promise<{
-          data: MyProfile | null;
-          error: { message: string } | null;
-        }>;
-      }
-    ).rpc("get_my_profile");
-    if (error) throw new Error(error.message);
-    return data;
+  .handler(async ({ context }): Promise<MyProfile | null> => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(
+        "id, display_name, avatar_url, native_language, ui_language, target_language, level_goal, pronunciation_strictness, onboarded, created_at, updated_at, album_bg, plan, review_mode, current_level, review_daily_limit, review_stage_focus",
+      )
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!error) return data as MyProfile | null;
+    if (!/permission denied|not allowed|does not have|column .* does not exist|schema cache/i.test(error.message)) {
+      throw new Error(error.message);
+    }
+
+    // Some environments intentionally grant only public profile columns to the
+    // browser-facing role. Do not fall back to the service-role key here: home,
+    // onboarding, and settings must not white-screen if that secret is absent.
+    const { data: publicData, error: publicError } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, created_at, onboarded")
+      .eq("id", userId)
+      .maybeSingle();
+    if (publicError) throw new Error(publicError.message);
+    if (!publicData) return null;
+
+    return {
+      id: publicData.id,
+      display_name: publicData.display_name,
+      avatar_url: publicData.avatar_url,
+      created_at: publicData.created_at,
+      updated_at: publicData.created_at,
+      native_language: "ja",
+      ui_language: "ja",
+      target_language: "zh-TW",
+      level_goal: "TOCFL-2",
+      pronunciation_strictness: "normal",
+      onboarded: publicData.onboarded,
+      album_bg: "paper",
+      plan: "free",
+      review_mode: "speaking",
+      current_level: null,
+      review_daily_limit: 20,
+      review_stage_focus: "all",
+    };
   });
 
 const UpdateInput = z.object({
