@@ -38,7 +38,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useCatchLocation } from "@/lib/use-catch-location";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { Zh } from "@/components/Zh";
 import { useUiLang } from "@/lib/i18n";
@@ -160,7 +160,7 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 function CapturePage() {
   const t = useT();
   // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   const pronounce = usePronounce();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

@@ -250,6 +250,10 @@ const MODES = [
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
+  // **CEFR も同じ部品で描けているか**を絵で確かめる(2026-08-24 の二言語化)。
+  // 「6段 + 3帯で形が同じはず」は思い込みかもしれないので、両方撮って並べる。
+  // CEFR 側には TOEFL / IELTS の目盛りが添う。
+  ...crossThemes("cefr-ladder", { scene: "tocfl-ladder", scale: "cefr" }),
   ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
   ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),
@@ -309,6 +313,13 @@ const MODES = [
   // ルート直書きのまま未検査の画面がゼロになる。
   ...crossThemes("settings-choices", { scene: "settings-choices" }),
   ...crossThemes("settings-selects", { scene: "settings-selects" }),
+  ...crossThemes("settings-sources", { scene: "settings-sources" }),
+  // 繁體中文（2026-08-25）。**訳しただけでは足りない** — 字が入りきるか、
+  // 行が折り返して崩れないかは絵でしか分からない。台湾の人が最初に触る
+  // 3面（設定・図鑑・復習）を撮る。
+  ...crossThemes("zh-settings", { scene: "settings-selects", lang: "zh-TW" }),
+  ...crossThemes("zh-home", { scene: "home", lang: "zh-TW" }),
+  ...crossThemes("zh-review", { scene: "review-choice", lang: "zh-TW" }),
   ...crossThemes("settings-toggles", { scene: "settings-toggles" }),
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
   // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている
@@ -324,6 +335,12 @@ const MODES = [
   // **ホームで写真を押すと開く面。** この app でいちばん大きい未検査の
   // 画面だった(929行)。取り消せない操作(削除の2段目)まで撮る。
   ...crossThemes("sheet", { scene: "sticker-sheet" }),
+  // 解説の**共有キャッシュ**が効いている側(2026-08-24)。
+  // 既定の `sheet` はキャッシュに無い語 = 古い `words` の列に落ちる側。
+  // **両方撮る** — 落ちる側が壊れていても、キャッシュが効いている環境では
+  // 気づけない(移行が当たる前の全員がその側に居る)。
+  ["sheet-cached", "", false, { scene: "sticker-sheet", cached: "1" }],
+  ["sheet-cached-dark", 'class="dark"', false, { scene: "sticker-sheet", cached: "1" }],
   // 撮ったあとに語を選ぶ面と、同じものに再会した面。
   // **`capture.tsx` を丸ごと「カメラ依存」にして未検査にしていたが、
   // 8段のうち6段はカメラと関係が無かった。**

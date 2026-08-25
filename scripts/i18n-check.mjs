@@ -20,6 +20,11 @@ import path from "node:path";
 
 const SRC = "src";
 const DICT_FILE = "src/lib/i18n.tsx";
+/**
+ * 埋まっていることを求める言語。
+ * `src/lib/i18n.tsx` の `UI_LANGS` と**必ず同じにすること**。
+ */
+const LANGS = ["ja", "en", "zh-TW"];
 
 /**
  * 定義済みのキーを集める。`"a.b": {` の形だけを見る。
@@ -40,7 +45,7 @@ function definedKeys(problems) {
 }
 
 /**
- * ja と en が**両方**埋まっているかを見る。
+ * ja と en と zh-TW が**全部**埋まっているかを見る。
  *
  * ## なぜ要るか
  * 片方が抜けていても `t()` は落ちない。`DICT[key]?.[lang] ?? DICT[key]?.ja`
@@ -71,12 +76,17 @@ function incompleteEntries() {
     }
     const body = s.slice(start, end + 1);
     const line = s.slice(0, m.index).split("\n").length;
-    for (const lang of ["ja", "en"]) {
+    // 2026-08-25: 繁體中文を足した。**ここを広げないと**、訳し忘れた項目が
+    // 日本語のまま台湾の人の画面に出て、誰も気づかない(下の en の事故と同じ形)。
+    for (const lang of LANGS) {
       // **引用符は3種類ある。** 最初これを二重引用符だけで見ていて、
       // `en: 'Photo of "{word}"'` の形(中に二重引用符があるので単引用符で
       // 書いてある)を9件まとめて「en が無い」と誤って報告した。
       // 検査が嘘をつくと、直す必要のないものを直しに行くことになる。
-      const has = new RegExp(`\\b${lang}:\\s*("|'|\`)`).test(body);
+      // `zh-TW` は識別子にできないので `"zh-TW":` と引用符つきで書く。
+      // `\b` は引用符の前では効かないので、鍵の書き方ごと組み立てる。
+      const key = /^[a-z]+$/.test(lang) ? `\\b${lang}:` : `"${lang}":`;
+      const has = new RegExp(`${key}\\s*("|'|\`)`).test(body);
       if (!has) out.push(`${DICT_FILE}:${line}  ${m[1]} に ${lang} が無い`);
       // 空文字(`en: ""`)は**わざと**であることがある(単位の接尾辞など、
       // 英語では何も付けないもの)。書いてあるなら選択とみなして通す。

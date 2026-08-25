@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Heart, MessageCircle, MapPin, Sparkles } from "lucide-react";
 import { Zh } from "@/components/Zh";
 import { toast } from "sonner";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -92,7 +92,7 @@ function EmptyState({ tab }: { tab: "following" | "popular" }) {
 
 function PostCard({ post }: { post: FeedPost }) {
   const t = useT();
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   const qc = useQueryClient();
   const like = useServerFn(toggleLike);
   const [optimistic, setOptimistic] = useState<{ liked: boolean; count: number } | null>(null);

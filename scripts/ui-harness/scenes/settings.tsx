@@ -26,19 +26,20 @@ import {
   AvatarRow,
   ChoiceRow,
   DangerZone,
+  DataSourcesCard,
   PhoneticRow,
   PlaceReminderToggle,
   SelectRow,
   SettingsCard,
   SoundAndHapticsPanel,
-  TOCFL_LEVELS,
+  LEVEL_OPTIONS,
   VideoRecordingToggle,
 } from "@/routes/_authenticated/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { L1_ORDER, L1_TABLE } from "@/lib/l1";
-import { tStatic as t } from "@/lib/i18n";
+import { L1_TABLE, l1ChoicesFor } from "@/lib/l1";
+import { UI_LANGS, UI_LANG_LABEL_KEYS, getUiLang, tStatic as t } from "@/lib/i18n";
 import { LogOut } from "lucide-react";
 import { useState } from "react";
 
@@ -158,7 +159,7 @@ export function SettingsSelectsScene() {
   const [cur, setCur] = useState("TOCFL-2");
   const [goal, setGoal] = useState("TOCFL-4");
   const [native, setNative] = useState("ja");
-  const [ui, setUi] = useState("ja");
+  const [ui, setUi] = useState<string>(() => getUiLang());
   return (
     <SettingsCard title={t("settings.language")}>
       <div className="space-y-3">
@@ -177,7 +178,7 @@ export function SettingsSelectsScene() {
           label={t("settings.currentLevel")}
           value={cur}
           onChange={setCur}
-          options={TOCFL_LEVELS}
+          options={LEVEL_OPTIONS}
         />
         <SelectRow
           id="lang-level"
@@ -185,7 +186,7 @@ export function SettingsSelectsScene() {
           hint={t("settings.levelHint")}
           value={goal}
           onChange={setGoal}
-          options={TOCFL_LEVELS}
+          options={LEVEL_OPTIONS}
         />
         <PhoneticRow />
         <SelectRow
@@ -194,17 +195,20 @@ export function SettingsSelectsScene() {
           hint={t("settings.nativeLangHint")}
           value={native}
           onChange={setNative}
-          options={L1_ORDER.map((code) => ({ value: code, label: L1_TABLE[code].labelJa }))}
+          options={l1ChoicesFor(target).map((code) => ({
+            value: code,
+            // **本物と同じ選び方にする。** ここだけ `labelJa` に決め打つと、
+            // 繁體中文の画面を撮っても日本語の言語名が写り、実物と違う絵を
+            // 検査することになる（この app が繰り返してきた形）。
+            label: ui === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
+          }))}
         />
         <SelectRow
           id="lang-ui"
           label={t("settings.uiLang")}
           value={ui}
           onChange={setUi}
-          options={[
-            { value: "ja", label: t("settings.langJa") },
-            { value: "en", label: t("settings.langEn") },
-          ]}
+          options={UI_LANGS.map((code) => ({ value: code, label: t(UI_LANG_LABEL_KEYS[code]) }))}
         />
       </div>
     </SettingsCard>
@@ -218,6 +222,14 @@ export function SettingsSelectsScene() {
  * **外観の束は今まで一度も撮っていなかった。** 明暗を選ぶのはこの束
  * なので、検査が6面を回る根拠そのものがここに在る。
  */
+/**
+ * データの出典。**利用の条件**なので、絵に入れて見えることを確かめる
+ * （CEFR-J は商用可だが出典明記が条件）。
+ */
+export function SettingsSourcesScene() {
+  return <DataSourcesCard />;
+}
+
 export function SettingsTogglesScene() {
   const [theme, setTheme] = useState("system");
   return (

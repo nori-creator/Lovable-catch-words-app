@@ -24,7 +24,11 @@ import { Label } from "@/components/ui/label";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
-import { usePhoneticPref, setPhoneticPref } from "@/lib/phonetic";
+import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
+import { targetProfile } from "@/lib/target-profile";
+import { levelOptions } from "@/lib/level-scale";
+import { UI_LANGS, UI_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
+import { DATA_SOURCES } from "@/lib/data-sources";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
@@ -37,7 +41,7 @@ import {
   type CatchSpeed,
   type CatchTimingSummary,
 } from "@/lib/catch-speed";
-import { L1_ORDER, L1_TABLE } from "@/lib/l1";
+import { L1_TABLE, l1ChoicesFor, pickL1 } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
 import { EffectLabButton } from "@/components/EffectLab";
@@ -165,14 +169,14 @@ export function ChoiceRow<T extends string | number>({
 }
 
 /**
- * TOCFL の6段階。「いまの級」と「目標の級」で**同じ一覧**を使う。
+ * 級の6段階。「いまの級」と「目標の級」で**同じ一覧**を使う。
  * 以前は片方が `.replace()` で作った表記、もう片方が手書きの6行で、
  * どちらも同じ文字列を別々に作っていた(ずれても誰も気づかない形)。
+ *
+ * 2026-08-24: `TOCFL-${n}` の決め打ちをやめ、学習言語の目盛りから作る。
+ * いまの学習言語は台湾華語だけなので**中身は1文字も変わらない**。
  */
-export const TOCFL_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
-  value: `TOCFL-${n}`,
-  label: `TOCFL Level ${n}`,
-}));
+export const LEVEL_OPTIONS = levelOptions(targetProfile(null).levels);
 
 /** 選択肢の一覧から1つ選ぶ(選択肢が多いものは丸いボタンでは入らない)。 */
 export function SelectRow({
@@ -247,9 +251,14 @@ function SettingsPage() {
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
-    setNativeLanguage(profile.native_language);
-    setUiLanguage(profile.ui_language);
-    setUiLang(profile.ui_language === "en" ? "en" : "ja");
+    // **一覧に無い値をそのまま渡さない。** 母語を12から3に絞ったので
+    // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
+    // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
+    setNativeLanguage(pickL1(profile.native_language, profile.target_language));
+    // **知らない値をそのまま渡さない。** 一覧に無い値だと選択が空に見える。
+    const nextUi = normalizeUiLang(profile.ui_language);
+    setUiLanguage(nextUi);
+    setUiLang(nextUi);
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
     setCurrentLevel(
@@ -296,7 +305,9 @@ function SettingsPage() {
       await updateProfile({ data: { review_mode: reviewMode } }).catch(() =>
         toast(t("review.modeLocalOnly")),
       );
-      setUiLang(uiLanguage === "en" ? "en" : "ja");
+      // **ここで "ja" に落とさない。** 繁體中文を選んだ人が保存するたびに
+      // 日本語へ戻ってしまう（型でもビルドでも落ちない）。
+      setUiLang(normalizeUiLang(uiLanguage));
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.saved"));
     } catch (e) {
@@ -365,7 +376,7 @@ function SettingsPage() {
               label={t("settings.currentLevel")}
               value={currentLevel}
               onChange={setCurrentLevel}
-              options={TOCFL_LEVELS}
+              options={LEVEL_OPTIONS}
             />
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
                 書いてあるのに、以前は1つ目の下に置いていたので、まだ見て
@@ -376,7 +387,7 @@ function SettingsPage() {
               hint={t("settings.levelHint")}
               value={levelGoal}
               onChange={setLevelGoal}
-              options={TOCFL_LEVELS}
+              options={LEVEL_OPTIONS}
             />
             <PhoneticRow />
             {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
@@ -387,9 +398,11 @@ function SettingsPage() {
               hint={t("settings.nativeLangHint")}
               value={nativeLanguage}
               onChange={setNativeLanguage}
-              options={L1_ORDER.map((code) => ({
+              options={l1ChoicesFor(targetLanguage).map((code) => ({
                 value: code,
-                label: uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa,
+                // 繁體中文の画面に日本語の言語名を出さない。母語の名前は
+                // 訳を持っていないので、日本語以外は英語名に寄せる。
+                label: uiLanguage === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
               }))}
             />
             <SelectRow
@@ -397,10 +410,12 @@ function SettingsPage() {
               label={t("settings.uiLang")}
               value={uiLanguage}
               onChange={setUiLanguage}
-              options={[
-                { value: "ja", label: t("settings.langJa") },
-                { value: "en", label: t("settings.langEn") },
-              ]}
+              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
+              // ここを直し忘れると、訳したのに選べない状態になる。
+              options={UI_LANGS.map((code) => ({
+                value: code,
+                label: t(UI_LANG_LABEL_KEYS[code]),
+              }))}
             />
           </div>
         </SettingsCard>
@@ -522,6 +537,8 @@ function SettingsPage() {
 
         <SoundAndHapticsPanel />
 
+        <DataSourcesCard />
+
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.save")}
         </Button>
@@ -556,21 +573,67 @@ function SettingsPage() {
   );
 }
 
-/** 発音表記: 注音かピンインのどちらか一方だけを全画面で表示する。 */
-export function PhoneticRow() {
+/**
+ * データの出典。
+ *
+ * **これは飾りではなく、利用の条件。** CEFR-J は商用可だが
+ * **出典明記が条件**で、README に書くだけでは足りない — 条件は
+ * 利用者に見える所に要る。中身は `src/lib/data-sources.ts`。
+ *
+ * リンクは新しいタブで開く。`noopener` を付けるのは、開いた先から
+ * こちらの窓を触られないようにするため。
+ */
+export function DataSourcesCard() {
   const t = useT();
-  const pref = usePhoneticPref();
+  return (
+    <SettingsCard title={t("settings.sources")}>
+      <p className="mb-3 text-footnote text-muted-foreground">{t("settings.sourcesHint")}</p>
+      <ul className="space-y-3">
+        {DATA_SOURCES.map((s) => (
+          <li key={s.id}>
+            <a
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              // 指が届く高さを確保する（44px）。一覧の項目もタップ対象。
+              className="flex min-h-11 flex-col justify-center rounded-lg px-1 py-1"
+            >
+              <span className="text-body font-semibold text-foreground">{s.name}</span>
+              <span className="text-footnote text-muted-foreground">{t(s.noteKey)}</span>
+              <span className="text-caption text-muted-foreground">
+                {s.author} · {s.license}
+                {s.attributionRequired ? ` · ${t("sources.required")}` : ""}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </SettingsCard>
+  );
+}
+
+/**
+ * 読みの表記: その言語の書き方のうち**どれか一方だけ**を全画面で表示する。
+ *
+ * 台湾華語は注音と拼音、英語は米式と英式の IPA。並びは
+ * `target-profile.ts` が持っていて、ここは**それを回すだけ**。
+ * 2つを直に書くと、英語版でこの関数の中に分岐が生える。
+ */
+export function PhoneticRow({ lang }: { lang?: string } = {}) {
+  const t = useT();
+  const profile = targetProfile(lang);
+  const pref = useReadingPref(profile);
+  // 列は 2〜5 しか用意がない。読みの数をそのまま渡すと、1つしか無い言語を
+  // 足した日に**クラス名が undefined になって並びが崩れる**。挟んでおく。
+  const cols = Math.min(5, Math.max(2, profile.readings.length)) as keyof typeof CHOICE_COLS;
   return (
     <ChoiceRow
-      cols={2}
+      cols={cols}
       label={t("settings.phonetic")}
       hint={t("settings.phoneticHint")}
       value={pref}
-      onChange={setPhoneticPref}
-      options={[
-        { value: "zhuyin", label: t("settings.zhuyin") },
-        { value: "pinyin", label: t("settings.pinyin") },
-      ]}
+      onChange={(k) => setReadingPref(profile, k)}
+      options={profile.readings.map((k) => ({ value: k, label: t(readingLabelKey(k)) }))}
     />
   );
 }

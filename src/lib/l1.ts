@@ -23,6 +23,19 @@
  * 項目」に引っ張られる。実際に**通じなくなる順**を先に宣言しておくと、
  * 限られた2〜3文のアドバイスがちゃんと致命傷から埋まる。
  *
+ * ## 2026-08-24: 学習言語ごとに分かれる場所を作った
+ * この表は**台湾華語を学ぶときの**干渉項目。英語版では中身が丸ごと変わる
+ * (日本語話者の英語の難所は声調ではなく冠詞・強勢・語末子音)。
+ *
+ * 見出しまで違う — 台湾華語は【量詞】が要るが、英語には量詞が無く、
+ * 代わりに【冠詞・可算】が要る。そこで**整形の見出しを表に出して**、
+ * 学習言語で引けるようにした(`RULE_LABELS`)。第4段で英語の欄を足すときに
+ * 触るのはその表だけで、`formatL1Rule` の中身は触らない。
+ *
+ * **台湾華語の出力は1文字も変えていない。** `l1.test.ts` が
+ * `__fixtures__/l1-prompts.zh-TW.json`(この変更の前に採った現物)と
+ * 突き合わせて、12母語 × 4用途の48通りを全部見ている。
+ *
  * ## 出典の考え方
  * 対照言語学で広く知られる母語干渉(L1 transfer)の項目を、台湾華語(注音)
  * の記号に対応づけて整理したもの。英語話者の第2声↔第3声の混同が、
@@ -32,19 +45,13 @@
  * (そり舌の浅さ・軽声の少なさ・兒化の不在)は台湾華語の記述研究による。
  */
 
-export type L1Code =
-  | "ja"
-  | "en"
-  | "ko"
-  | "vi"
-  | "th"
-  | "id"
-  | "es"
-  | "fr"
-  | "de"
-  | "ru"
-  | "pt"
-  | "tl";
+import {
+  CHINESE_EXPLANATION_LANGUAGE,
+  DEFAULT_TARGET_LANGUAGE,
+  normalizeTargetLanguage,
+} from "./target-lang";
+
+export type L1Code = "ja" | "en" | typeof CHINESE_EXPLANATION_LANGUAGE;
 
 export type L1Phonology = {
   /** 子音(声母)の干渉。有気/無気・そり舌・f/h など。 */
@@ -337,352 +344,184 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
   },
 
   // ==========================================================================
-  // 以下10言語 — 同じ構造に整理。ja/en ほどの密度は持たせないが、
-  // どの節にも「その母語ならでは」の具体を必ず1つ以上書く。
+  // 台湾華語 — **英語を学ぶ台湾人**向け(指摘⑬の本体)。
+  //
+  // 上の2つと違い、この欄は**学習言語が英語のとき**に使う。台湾華語話者が
+  // 台湾華語を学ぶことは無いので、他の欄と同じ「台湾華語を学ぶときの
+  // つまずき」を書いても一度も使われない。
   // ==========================================================================
-  ko: {
-    code: "ko",
-    labelJa: "韓国語",
-    labelEn: "Korean",
-    speakerJa: "韓国語話者",
-    speakerEn: "Korean speakers",
+  [CHINESE_EXPLANATION_LANGUAGE]: {
+    code: CHINESE_EXPLANATION_LANGUAGE,
+    labelJa: "台湾華語",
+    labelEn: "Taiwanese Mandarin",
+    speakerJa: "台湾華語話者",
+    speakerEn: "Taiwanese Mandarin speakers",
     priority: [
-      "声調(母語に無い)",
-      "ㄈ(f)が母語に無く ㄆ(p)で代用する",
-      "無気音 ㄅㄉㄍ を濃音(ㅃㄸㄲ)で置き換えて硬く聞こえる",
+      "冠詞(a/an/the)。**中国語に冠詞が無い**ので、付け忘れと付けすぎの両方が起きる",
+      "語末の子音と複数の -s(中国語の音節は -n/-ng 以外で終わらないので、まるごと落ちる)",
+      "動詞の形(時制・三単現)。中国語は語形が変わらず 了/過/在 で表すため、屈折そのものが無い",
     ],
     phonology: {
       consonants:
-        "平音・激音・濃音の3系列があるため**有気/無気の区別自体は得意(有利)**だが、" +
-        "無気音 ㄅㄉㄍ を濃音(ㅃㄸㄲ)で代用して硬く聞こえる。" +
-        "ㄈ(f)が母語に無く ㄆ(p)で代用する。" +
-        "そり舌 ㄓㄔㄕㄖ が無く ㄗㄘㄙ や l/r で代用する。",
-      finals: "ㄩ(ü)が無い。パッチムの影響で末子音を内破させ、解放が弱くなる。",
-      tones: "声調が無く、韓国語の文末イントネーションを持ち込む。第2声と第3声の混同が起きやすい。",
-      prosody:
-        "音節末を詰める癖(パッチム)により -n/-ng の後に余分な閉鎖が入る。" +
-        "語頭の平音が有声化する規則を中国語に持ち込みがち。",
-      advantages:
-        "**-n/-ng/-m の区別が母語にあるので鼻音韻尾は得意**(日本語話者より明確に有利)。" +
-        "漢字語彙が多く共通するので語彙の推測が効く。有気/無気の3系列も土台になる。",
-    },
-    grammar: {
-      wordOrder: "母語が SOV なので目的語を動詞の前に置きがち。修飾語の前置は母語と同じで有利。",
-      aspect: "「了」を韓国語の過去語尾と同一視しやすい。「過」「在」「著」の使い分けが要点。",
-      measureWords: "母語にも助数詞があるので概念は理解できる(有利)が、対応する語が違う。",
-      particles: "助詞をそのまま訳そうとする。「的」の過剰使用にも注意。",
-      negation: "「不」と「沒」の使い分け。母語の 안/못 の区別とは対応しない。",
-      patterns:
-        "敬語体系が違うため中国語の丁寧さを語尾で表そうとする" +
-        "(中国語は「請/麻煩/一下/可以…嗎」など語彙と構文で表す)。離合詞にも注意。",
-      falseFriends: "韓国漢字語と中国語で意味がずれる語に注意(工夫/放心/愛人/約束など)。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  vi: {
-    code: "vi",
-    labelJa: "ベトナム語",
-    labelEn: "Vietnamese",
-    speakerJa: "ベトナム語話者",
-    speakerEn: "Vietnamese speakers",
-    priority: [
-      "母語の6声調に引きずられる(特に第3声を hỏi/ngã 調で置き換える)",
-      "末子音を内破させるため -n/-ng の解放が弱い",
-      "そり舌 ㄓㄔㄕ と ㄗㄘㄙ の区別",
-    ],
-    phonology: {
-      consonants: "そり舌 ㄓㄔㄕ と ㄗㄘㄙ の区別が難しい。有気/無気は母語にある程度対応がある。",
-      finals: "ㄩ(ü)が要練習。母音体系が豊富なので単母音は比較的得意。",
+        "【θ/ð】think・this の音。中国語に無く、s/z または t/d に置き換わる" +
+        "(think→sink、this→dis)。舌先を上下の歯で軽く挟む。" +
+        "【l と r】語頭は区別できるが**語末の l**(feel, ball)が落ちやすい。" +
+        "英語の r は中国語の ㄖ とは違い、舌を反らせるが摩擦を伴わない。" +
+        "【v】中国語に無く w に置き換わる(very→wery)。上の歯を下唇に当てる。" +
+        "【語末の子音】これが最大の難所。中国語の音節は母音か -n/-ng で終わるので、" +
+        "**bad→ba、like→lai** のように語末が消える。消えると過去形の -ed も複数の -s も" +
+        "聞こえなくなり、文法の誤りに見えてしまう。" +
+        "【子音の連続】street・texts のような並びが中国語に無く、母音を挟んでしまう" +
+        "(street→si-tu-reet)。",
+      finals:
+        "【母音の数】英語は中国語よりはるかに母音が多い。特に " +
+        "ship/sheep(ɪ と iː)、bad/bed(æ と ɛ)、full/fool(ʊ と uː)の3組が潰れやすい。" +
+        "【曖昧母音 ə】英語でいちばん多い母音だが中国語に無く、綴りどおりに読んでしまう" +
+        "(about の a を「ア」と読む)。**強勢の無い母音はすべて ə に近づく**。" +
+        "【長さ】中国語の母音は長短で意味が変わらないので、iː と ɪ を長さだけで区別しようとして" +
+        "音色の違いが付かない。",
       tones:
-        "**声調言語なので声調の存在自体は理解しやすい(大きな有利)**が、母語の6声調に引きずられる。" +
-        "特に中国語の第3声を hỏi/ngã 調で置き換える。声門閉鎖を伴う調(nặng)の癖も出る。",
-      prosody: "末子音を内破させる(息を出し切らない)ため -n/-ng が弱く聞こえる。",
-      advantages: "声調言語であること、語順が SVO であること、量詞を持つことの3点が有利。",
+        "英語に声調は無い。代わりに**語の強勢(どの音節を強く読むか)**が同じ働きをする。" +
+        "強勢を間違えると通じない(PHOtograph / phoTOgrapher / photoGRAPHic は同じ語族で位置が動く)。" +
+        "中国語は1音節1声調で全部の音節が同じ重さだが、英語は**強い音節以外を弱く短く潰す**。" +
+        "全部の音節をはっきり読むと「中国語なまり」として最も目立つ。",
+      prosody:
+        "中国語は音節が等間隔に並ぶ(音節拍)。英語は**強勢が等間隔**で、その間の音節を" +
+        "詰めて読む(強勢拍)。だから英語は速く聞こえ、また自分で読むと間延びして聞こえる。" +
+        "機能語(a, of, to, and, for)は弱く短く読むのが既定で、はっきり読むとかえって不自然。" +
+        "【連結】語末の子音が次の語の母音につながる(pick it up → pi-ki-tup)。" +
+        "中国語には無い現象なので、聞き取りで語の切れ目を見失う原因になる。",
+      advantages:
+        "【有気/無気が既にある】ㄆㄊㄎ と ㄅㄉㄍ の区別を持っているので、" +
+        "英語の p/t/k の息(pen の p)は**最初から自然に出せる**。日本語話者が最も苦労する所。" +
+        "【ピッチを操れる】声調言語なので声の高さを意識的に動かすのが得意。" +
+        "英語のイントネーション(疑問文の上げ、強調の山)は掴みやすい。" +
+        "【語順が同じ】どちらも SVO。日本語話者のように語順を組み替える負担が無い。" +
+        "【ローマ字に慣れている】拼音を学んでいれば綴りと音の対応を考える習慣が既にある。",
     },
     grammar: {
       wordOrder:
-        "語順は SVO で中国語に近い(有利)。ただし**修飾語が名詞の後ろ**に来る(nhà đẹp)ため、" +
-        "中国語の「漂亮的房子」の前置修飾を逆にしがち。",
-      aspect: "アスペクト表現(đã/rồi)と中国語の「了」の対応がずれる。",
-      measureWords: "量詞を持つので概念は得意(有利)。対応語の違いだけ覚える。",
-      particles: "「的」の位置と省略。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "把構文・是…的が母語に無いので使えないまま終わりやすい。",
-      falseFriends: "漢越語(từ Hán Việt)は中国語と意味がずれることがある。",
+        "SVO は中国語と同じで**ここは有利**。ずれるのは修飾の向き: " +
+        "中国語は修飾語が必ず前に来る(**我昨天買的書**)が、英語は関係詞節・前置詞句が" +
+        "**後ろに来る**(the book **that I bought yesterday**)。" +
+        "前に置こうとして名詞の前が長くなりすぎる誤りが出る。" +
+        "また時と場所の順が逆(中国語=大きい単位から / 英語=小さい単位から: " +
+        "×in Taiwan, in Taipei → ○in Taipei, Taiwan)。",
+      aspect:
+        "**中国語に時制の屈折が無い。** 了/過/在/著 はアスペクト(動作の段階)であって" +
+        "時制ではないので、動詞の形を変える習慣そのものが無い。" +
+        "・過去形の脱落: ×Yesterday I go to school → ○went。時を表す語があると特に落ちやすい" +
+        "(中国語では「昨天」があれば動詞は変えないため、変える理由が実感できない)。" +
+        "・了 ≠ 過去形: 了は完了で、未来にも使う(明天我就走了)。過去形と1対1で対応させない。" +
+        "・現在完了と過去形の区別が無い(過 は経験、了 は完了)。" +
+        "・進行形の be 抜け: ×I eating now(中国語は「在」1語で済む)。",
+      measureWords:
+        "中国語は量詞で数えるので名詞そのものは形が変わらず、" +
+        "英語の可算/不可算の線引きが実感しにくい。" +
+        "・複数の -s の脱落: ×three book(中国語は「三本書」で書が変化しない)。" +
+        "・不可算名詞に a/複数を付ける: ×an information, ×advices, ×many furnitures。" +
+        "・冠詞: **中国語に無いので最大の誤り。** 初出は a/an、既出や場面で特定できるものは the、" +
+        "総称の複数と不可算は無冠詞。「一個」は a の訳ではない(数を強調するときだけ)。" +
+        "・the の付けすぎも同じくらい多い(×I like the music)。",
+      particles:
+        "中国語の介詞(在/從/對/給)と英語の前置詞は1対1に対応しない。" +
+        "・在 → in/on/at が場面で分かれる(in Taipei / on the desk / at 7)。" +
+        "・對 → to/for/about/with に散る(×explain to me the reason の語順も含めて崩れやすい)。" +
+        "・句動詞(look after, put off, give up)が中国語に無い形。動詞+前置詞で意味が変わる。" +
+        "・的 を of で直訳して不自然になる(×the book of me → ○my book)。",
+      negation:
+        "中国語は 不/沒 を動詞の前に置くだけ。英語は**助動詞が要る**。" +
+        "・×I not like it → ○I don't like it。" +
+        "・時制と人称が助動詞側に乗る(doesn't / didn't)ので、後ろの動詞は原形に戻る" +
+        "(×He doesn't likes)。" +
+        "・不 と 沒 の使い分け(習慣の否定 / 完了の否定)が don't と haven't に対応するが、" +
+        "沒 を過去形の否定に引きずられて ×I didn't went とする誤りが出る。" +
+        "・二重否定・付加疑問の答え方(Yes/No の向き)が中国語と逆になる場面がある。",
+      patterns:
+        "【there is/are】中国語の存現文(桌子上有一本書)を有=have で訳して " +
+        "×The desk has a book。" +
+        "【be動詞の脱落】形容詞が述語になれる中国語(我很累)から ×I very tired。" +
+        "また「很」を very と訳して付けすぎる(×I'm very tired が既定の言い方になる)。" +
+        "【主語の省略】中国語は文脈で主語を落とせるが英語は落とせない(×Is raining)。" +
+        "形式主語の it/there も落ちやすい。" +
+        "【比較】中国語の「A比B+形容詞」から ×A is more tall than B、" +
+        "×A比B更好 の癖で more と -er の重複(×more taller)。" +
+        "【使役・受動】被 を be+過去分詞に機械的に置き換えて、能動で言うべき所まで受動にする。" +
+        "【because/although】中国語は「因為…所以…」「雖然…但是…」と両方書くので、" +
+        "×Because it rained, so I stayed home。英語はどちらか一方だけ。",
+      falseFriends:
+        "【台湾で通じるが英語圏で通じない語】" +
+        "3C(家電)、宅配、PO文、LINE(動詞として)、加油(→ Come on / Fill it up)。" +
+        "【和製英語経由の借用】OL、SOHO、cost down(→ cut costs)、" +
+        "PK(→ penalty shootout)、CP值(→ value for money)。" +
+        "【意味がずれる語】" +
+        "・「student」は学生一般だが、中国語の「同學」は呼びかけにも使う(英語では呼びかけない)。" +
+        "・「teacher」は職名で呼びかけには使わない(×Teacher! → ○Ms. Chen)。老師の直訳。" +
+        "・「open/close」を電気に使う(×open the light → ○turn on)。開/關 の直訳。" +
+        "・「eat medicine」(吃藥 → ○take medicine)。" +
+        "・「play」は遊ぶ全般ではない(×play with my friends は子ども向け → ○hang out)。" +
+        "【綴りと音】拼音の癖で ea/ee/ie の読み分け、silent letter(knife の k)に迷う。",
     },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  th: {
-    code: "th",
-    labelJa: "タイ語",
-    labelEn: "Thai",
-    speakerJa: "タイ語話者",
-    speakerEn: "Thai speakers",
-    priority: ["タイ語の5声調に引きずられる", "そり舌 ㄓㄔㄕㄖ が母語に無い", "末子音の解放が弱い"],
-    phonology: {
-      consonants:
-        "そり舌 ㄓㄔㄕㄖ が無い。ㄖ をタイ語の r/l で代用する。" +
-        "有気/無気の区別は母語にあるので得意(有利)。",
-      finals: "ㄩ(ü)が無い。母音の長短の対立を中国語に持ち込みがち。",
-      tones: "声調言語なので概念は得意(有利)だが、タイ語の5声調に引きずられる。",
-      prosody: "末子音を内破させるため -n/-ng の解放が弱い。",
-      advantages: "声調・有気/無気・量詞の3つが母語にあり、土台が非常に強い。",
-    },
-    grammar: {
-      wordOrder: "語順は SVO で近い(有利)。修飾語が名詞の後置なので前置修飾「〜的」を逆にしがち。",
-      aspect: "時制を時間副詞に頼るのは母語と共通(有利)。「了/過」の使い分けが要点。",
-      measureWords: "量詞は豊富で得意(有利)。",
-      particles: "「的」の位置。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "把構文・是…的。",
-      falseFriends: "中国語からの借用語で意味がずれるものに注意。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  id: {
-    code: "id",
-    labelJa: "インドネシア語・マレー語",
-    labelEn: "Indonesian / Malay",
-    speakerJa: "インドネシア語話者",
-    speakerEn: "Indonesian speakers",
-    priority: [
-      "声調が母語に無く強勢アクセントで代用する",
-      "そり舌 ㄓㄔㄕㄖ が母語に無い",
-      "有気/無気の区別が弱く ㄅㄉㄍ を有声音にする",
-    ],
-    phonology: {
-      consonants: "そり舌 ㄓㄔㄕㄖ が無い。有気/無気の区別が弱く ㄅㄉㄍ を有声音で発音しがち。",
-      finals: "ㄩ(ü)が無い。母音が少ないため ㄜ(e)が難しい。",
-      tones: "声調が無く、強勢アクセントで代用する。",
-      prosody: "音節構造が単純なため、中国語の複雑な韻母に母音を足しがち。",
-      advantages: "**-n/-ng の区別が母語にあるので有利**。語順も SVO で近い。",
-    },
-    grammar: {
-      wordOrder: "語順は SVO で近い。修飾語は名詞の後置なので前置修飾「〜的」を逆にしがち。",
-      aspect: "sudah/sedang と「了/在」の対応がずれる。",
-      measureWords: "量詞の概念はあるが対応する語が違う。",
-      particles: "「的」の位置。",
-      negation: "tidak/bukan の区別があるので「不/沒」の発想は理解しやすい(有利)。",
-      patterns: "複数を重複(buku-buku)で表すため、中国語の「們」や数量表現の使い方に注意。",
-      falseFriends: "閩南語由来の借用語(bakso など)は中国語標準形と異なる。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  es: {
-    code: "es",
-    labelJa: "スペイン語",
-    labelEn: "Spanish",
-    speakerJa: "スペイン語話者",
-    speakerEn: "Spanish speakers",
-    priority: [
-      "声調が母語に無く、文全体の抑揚で代用する",
-      "有気/無気の区別が無く ㄅㄉㄍ を有声音 b/d/g にする",
-      "母音が5つしかないため ㄩ(ü)・ㄜ(e)が難しい",
-    ],
-    phonology: {
-      consonants:
-        "有気/無気の区別が無く ㄅㄉㄍ を有声音 b/d/g にする。" +
-        "そり舌 ㄓㄔㄕㄖ が無い。ㄏ(h)をスペイン語の j に寄せる。",
-      finals: "母音が5つしかないため ㄩ(ü)・ㄜ(e)が難しい。-ng の韻尾が母語に無い。",
-      tones: "声調が無く、文全体の抑揚で代用する。第2声と第3声の混同。",
-      prosody: "音節のリズムが等時的なのは中国語と近い(有利)。",
-      advantages: "syllable-timed のリズム。主語の省略が母語と共通なので自然に使える。",
-    },
-    grammar: {
-      wordOrder: "形容詞を名詞の後ろに置く癖(casa bonita)→中国語は「漂亮的房子」で前置。",
-      aspect: "動詞の活用で時制を表そうとする(中国語は「了/過/在」)。",
-      measureWords: "量詞が母語に無いので落としやすい。",
-      particles: "「的」の位置。冠詞に相当する語を探して余計な語を入れる。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "性・数の一致を持ち込もうとする(中国語には無い)。",
-      falseFriends: "音訳語を母語読みしてしまう。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  fr: {
-    code: "fr",
-    labelJa: "フランス語",
-    labelEn: "French",
-    speakerJa: "フランス語話者",
-    speakerEn: "French speakers",
-    priority: [
-      "声調が母語に無い",
-      "鼻母音があるため -n/-ng を鼻母音化して母音ごと変えてしまう",
-      "ㄏ(h)が母語で無音のため落としがち",
-    ],
-    phonology: {
-      consonants:
-        "ㄏ(h)が母語で無音のため落としがち。そり舌 ㄓㄔㄕ が無い。" +
-        "ㄖ をフランス語の r(口蓋垂音)で発音してしまう。",
-      finals: "**ㄩ(ü)はフランス語の u があるので得意(有利)**。鼻母音の干渉に注意。",
-      tones: "声調が無い。フランス語は語末に強勢が来るため、最後の音節の声調が崩れやすい。",
-      prosody: "語末子音を落とす癖。連音(liaison)の癖で音節境界を溶かす。",
-      advantages: "**ㄩ(ü)が母語にある**のは大きな有利。syllable-timed のリズムも近い。",
-    },
-    grammar: {
-      wordOrder: "形容詞を名詞の後置にする癖。",
-      aspect: "動詞活用で時制を表そうとする(中国語は「了/過/在」)。",
-      measureWords: "量詞が母語に無いので落としやすい。",
-      particles: "冠詞に相当する語を入れたがる。「的」の過剰使用。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "性・数の一致を持ち込む。",
-      falseFriends: "音訳語を母語読みしてしまう。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  de: {
-    code: "de",
-    labelJa: "ドイツ語",
-    labelEn: "German",
-    speakerJa: "ドイツ語話者",
-    speakerEn: "German speakers",
-    priority: [
-      "声調が母語に無い",
-      "そり舌 ㄓㄔㄕㄖ が母語に無い",
-      "動詞第二位・枠構造を持ち込んで語順が崩れる",
-    ],
-    phonology: {
-      consonants:
-        "**有気音があるため ㄆㄊㄎ は得意(有利)**。そり舌 ㄓㄔㄕㄖ が無い。" +
-        "ㄖ をドイツ語の r(口蓋垂音)で発音してしまう。",
-      finals: "**ü があるため ㄩ も得意(有利)**。",
-      tones: "声調が無い。",
-      prosody: "語末の無声化(Auslautverhärtung)を持ち込む。強勢リズムで弱音節を潰す。",
-      advantages: "**有気音と ü の両方が母語にある**ので、子音・韻母の負担が小さい。",
-    },
-    grammar: {
-      wordOrder:
-        "動詞第二位・枠構造を持ち込んで語順が崩れる(中国語は S+時間+場所+V+O)。" +
-        "関係節を後置しようとする(中国語は前置)。",
-      aspect: "動詞活用で時制を表そうとする。",
-      measureWords: "量詞が母語に無いので落としやすい。",
-      particles: "冠詞に相当する語を入れたがる。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "格変化に相当するものを探す(中国語は語順と介詞で示す)。",
-      falseFriends: "音訳語を母語読みしてしまう。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  ru: {
-    code: "ru",
-    labelJa: "ロシア語",
-    labelEn: "Russian",
-    speakerJa: "ロシア語話者",
-    speakerEn: "Russian speakers",
-    priority: [
-      "声調が母語に無い",
-      "有気/無気を有声/無声で置き換えてしまう(ㄅ→б)",
-      "母音の弱化(アーカニエ)で無強勢音節の声調が消える",
-    ],
-    phonology: {
-      consonants:
-        "**ш/ж があるため ㄕ/ㄖ は比較的得意(有利)**。" +
-        "有気/無気を有声/無声で置き換えてしまう(ㄅ→б)。" +
-        "子音の硬/軟の対立を持ち込み、ㄐㄑㄒ が過度に軟音化する。",
-      finals: "ы があるため ㄗㄘㄙ の後の i(空韻)に応用できる(有利)。ㄩ(ü)は要練習。",
-      tones: "声調が無い。",
-      prosody: "母音を弱化(アーカニエ)させて無強勢音節の声調を潰す。",
-      advantages: "ш/ж/ы が母語にあるのでそり舌と空韻の土台がある。冠詞が無いのも共通。",
-    },
-    grammar: {
-      wordOrder: "語順が自由な母語のため、中国語の固定語順を崩しがち。",
-      aspect: "**動詞の完了体/不完了体があるため「了/過/在」のアスペクトは理解しやすい(有利)**。",
-      measureWords: "量詞が母語に無いので落としやすい。",
-      particles: "「的」の位置。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "格変化で関係を示そうとする(中国語は語順と介詞)。",
-      falseFriends: "音訳語を母語読みしてしまう。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  pt: {
-    code: "pt",
-    labelJa: "ポルトガル語",
-    labelEn: "Portuguese",
-    speakerJa: "ポルトガル語話者",
-    speakerEn: "Portuguese speakers",
-    priority: [
-      "声調が母語に無い",
-      "鼻母音があるため -n/-ng を鼻母音化する",
-      "有気/無気の区別が無く ㄅㄉㄍ を有声音にする",
-    ],
-    phonology: {
-      consonants:
-        "有気/無気の区別が無く ㄅㄉㄍ を有声音にする。" +
-        "**ブラジルポルトガル語の r はそり舌に近い場合があり ㄖ に応用できる(有利)**。",
-      finals: "ㄩ(ü)が無い。鼻母音があるため -n/-ng を鼻母音化する。",
-      tones: "声調が無い。",
-      prosody: "無強勢母音の弱化を持ち込む。",
-      advantages: "r 音の一部がそり舌に近い。母音体系が比較的豊か。",
-    },
-    grammar: {
-      wordOrder: "形容詞の後置。",
-      aspect: "動詞活用で時制を表そうとする(中国語は「了/過/在」)。",
-      measureWords: "量詞が母語に無いので落としやすい。",
-      particles: "冠詞に相当する語を入れたがる。",
-      negation: "「不」と「沒」の使い分け。",
-      patterns: "性・数の一致を持ち込む。",
-      falseFriends: "音訳語を母語読みしてしまう。",
-    },
-    taiwan: TAIWAN_COMMON,
-  },
-
-  tl: {
-    code: "tl",
-    labelJa: "フィリピン語(タガログ語)",
-    labelEn: "Filipino (Tagalog)",
-    speakerJa: "フィリピン語話者",
-    speakerEn: "Filipino speakers",
-    priority: ["声調が母語に無い", "ㄈ(f)が p と混同されやすい", "そり舌 ㄓㄔㄕㄖ が母語に無い"],
-    phonology: {
-      consonants:
-        "ㄈ(f)が母語で p と混同されやすい。そり舌 ㄓㄔㄕㄖ が無い。有気/無気の区別が弱い。",
-      finals: "ㄩ(ü)が無い。母音が少ないため ㄜ(e)が難しい。",
-      tones: "声調が無い。",
-      prosody: "強勢の位置で意味が変わる母語なので、高さより強さで区別しようとする。",
-      advantages: "**-ng は母語にあるので有利**。閩南語由来の借用語で語彙に馴染みがある。",
-    },
-    grammar: {
-      wordOrder: "述語が文頭に来る語順(VSO寄り)を持ち込むと中国語の SVO と衝突する。",
-      aspect: "動詞の相(aspect)体系が発達しているので「了/過/在」の発想は掴みやすい(有利)。",
-      measureWords: "量詞は要練習。",
-      particles: "「的」の前置修飾は要練習。",
-      negation: "hindi/wala の区別があるので「不/沒」の発想は理解しやすい(有利)。",
-      patterns: "**焦点(ang)体系を持つため、中国語の主題化(這個我知道)は理解しやすい(有利)**。",
-      falseFriends: "閩南語由来の借用語は中国語標準形と発音が異なる。",
-    },
-    taiwan: TAIWAN_COMMON,
+    taiwan:
+      "英語は特定の国の言葉ではないので、**どの英語を目標にするか**を決めておく。" +
+      "このアプリの既定はアメリカ英語(台湾の学習者の多数派で、TOEFL もアメリカ英語)。" +
+      "台湾でよく使う語のうち、アメリカ英語と違うものは併記する: " +
+      "lift/elevator、biscuit/cookie、football/soccer、autumn/fall、" +
+      "flat/apartment、queue/line、rubbish/trash、petrol/gas。" +
+      "台湾の英語教育はイギリス式の綴り(colour, centre)を教える教材も混在するので、" +
+      "**綴りが2通りあることを先に知らせる**ほうが混乱が少ない。" +
+      "また台湾では日常に英語が混ざる(OK啦、check一下、po文)ため、" +
+      "**既に知っている語**が多い。そこを足がかりにできる。",
   },
 };
 
 /** 設定画面に並べる順(学習者数の多い順を意識)。 */
-export const L1_ORDER: L1Code[] = [
-  "ja",
-  "en",
-  "ko",
-  "vi",
-  "th",
-  "id",
-  "es",
-  "fr",
-  "de",
-  "ru",
-  "pt",
-  "tl",
-];
+/**
+ * 設定画面に並べる順。
+ *
+ * オーナー決定 2026-08-25「**日本語、英語、台湾華語に絞って**」。
+ * 使わなくなった10言語は `docs/l1-archive.md` に退避してある（消していない）。
+ * 減らした理由は速さ — 解説の共有キャッシュは
+ * `(語 × 解説の言語 × 母語)` で引くので、母語が減るほど当たりやすくなる。
+ */
+export const L1_ORDER: L1Code[] = ["ja", "en", CHINESE_EXPLANATION_LANGUAGE];
 
 /** 未知・null は日本語にフォールバックする(既定の学習者像)。 */
 export function l1Info(code: string | null | undefined): L1Info {
   const c = (code ?? "").trim() as L1Code;
   return L1_TABLE[c] ?? L1_TABLE.ja;
+}
+
+/**
+ * その学習言語のときに選べる母語。
+ *
+ * **学習している言語を母語として選ばせない。** 台湾華語を学ぶ人に
+ * 「母語=台湾華語」を出すのは意味が無いし、選ばれると解説を作る側が
+ * 「母語と学習言語が同じ」という起きないはずの状態を扱うことになる。
+ */
+export function l1ChoicesFor(targetLanguage: string | null | undefined): L1Code[] {
+  const target = (targetLanguage ?? "").trim();
+  const rest = L1_ORDER.filter((c) => c !== target);
+  // **空にしない。** 知らない学習言語で一覧が消えると、母語を選べなくなる。
+  return rest.length > 0 ? rest : [...L1_ORDER];
+}
+
+/**
+ * 保存されている母語を、いま選べる値に均す。
+ *
+ * 12言語から3つに絞ったので(オーナー決定 2026-08-25)、`ko` を選んでいた人の
+ * 値は一覧に無い。そのまま `<select>` に渡すと**どれも選ばれていない見た目**に
+ * なり、保存もできない。`l1Info` は既に日本語へ落とすので解説は壊れないが、
+ * 画面のほうも落としておく。
+ */
+export function pickL1(
+  saved: string | null | undefined,
+  targetLanguage: string | null | undefined,
+): L1Code {
+  const choices = l1ChoicesFor(targetLanguage);
+  const code = (saved ?? "").trim() as L1Code;
+  if (choices.includes(code)) return code;
+  return choices[0];
 }
 
 /** 保存前の検証に使う。L1_ORDER 外の値を弾く。 */
@@ -702,12 +541,107 @@ export type L1RuleKind =
   | "both";
 
 /**
+ * プロンプトに書く見出し。**学習言語で変わる。**
+ *
+ * 台湾華語には【量詞】が要り、英語には無い。英語には【冠詞・可算】が
+ * 要り、台湾華語には無い。見出しを `formatL1Rule` の中に直に書くと、
+ * 英語の欄を足すときにその関数を分岐で埋めることになる — この app が
+ * 声・写真・演出で繰り返した形。**並びを表に出して、回すだけにする。**
+ */
+type RuleLabels = {
+  /** 音韻の節(出す順)。 */
+  phonology: readonly (readonly [keyof L1Phonology, string])[];
+  /** 文法の節(出す順)。 */
+  grammar: readonly (readonly [keyof L1Grammar, string])[];
+  /** 語順に絞ったときに出す節(`grammar` の部分集合)。 */
+  wordorder: readonly (keyof L1Grammar)[];
+  /** その学習言語そのものの事情の見出し。 */
+  target: string;
+};
+
+const ZH_TW_LABELS: RuleLabels = {
+  phonology: [
+    ["consonants", "子音"],
+    ["finals", "韻母"],
+    ["tones", "声調"],
+    ["prosody", "リズム"],
+    ["advantages", "この母語だから有利な点"],
+  ],
+  grammar: [
+    ["wordOrder", "語順"],
+    ["aspect", "時制・アスペクト"],
+    ["measureWords", "量詞"],
+    ["particles", "助詞・的/得/地"],
+    ["negation", "否定"],
+    ["patterns", "崩れやすい構文"],
+    ["falseFriends", "語彙の罠"],
+  ],
+  wordorder: ["wordOrder", "particles", "patterns"],
+  target: "台湾華語の事情",
+};
+
+/**
+ * 学習言語 → 見出しの表。
+ *
+ * **知らない言語は台湾華語の見出しに落とす。** 見出しが空のまま
+ * プロンプトへ流れると、モデルは節の区切りを見失う。
+ */
+/**
+ * 英語を学ぶときの見出し。
+ *
+ * 台湾華語には【量詞】が要り、英語には無い。英語には【冠詞・可算】が要り、
+ * 台湾華語には無い。`target-profile.ts` の `sections` が
+ * `measure_words` / `countability` で言い分けているのと同じ話。
+ */
+const EN_LABELS: RuleLabels = {
+  phonology: [
+    ["consonants", "子音"],
+    ["finals", "母音"],
+    // 英語に声調は無い。同じ働きをするのは語の強勢。
+    ["tones", "強勢"],
+    ["prosody", "リズム"],
+    ["advantages", "この母語だから有利な点"],
+  ],
+  grammar: [
+    ["wordOrder", "語順"],
+    ["aspect", "時制・動詞の形"],
+    ["measureWords", "冠詞・可算"],
+    ["particles", "前置詞"],
+    ["negation", "否定"],
+    ["patterns", "崩れやすい構文"],
+    ["falseFriends", "語彙の罠"],
+  ],
+  wordorder: ["wordOrder", "particles", "patterns"],
+  target: "英語の事情",
+};
+
+/**
+ * 学習言語 → 見出しの表。
+ *
+ * **書かれたとおりの値で先に引く。** `normalizeTargetLanguage` は
+ * 知らない言語を既定に落とすので、`TARGET_LANGUAGES` にまだ `"en"` が
+ * 無いいま、正規化してから引くと英語が台湾華語の見出しになる
+ * (【量詞】の欄に冠詞の説明が入る)。第4段で `"en"` を足したあとも
+ * この順で正しく引ける。
+ */
+const RULE_LABELS: Record<string, RuleLabels> = {
+  [DEFAULT_TARGET_LANGUAGE]: ZH_TW_LABELS,
+  en: EN_LABELS,
+};
+
+/**
  * L1Info を、指定した観点の**プロンプト断片**へ整形する。
  *
  * ここで文字列を組み立てておくのは、呼び出し側(ai.functions / reviews /
  * journal)がそれぞれ違う整形をして表記が揺れるのを防ぐため。
+ *
+ * `targetLang` は学習言語。省略すると既定の学習言語で整形する
+ * (いまはそれしか無いので、**呼ぶ側の動きは1つも変わらない**)。
  */
-export function formatL1Rule(info: L1Info, kind: L1RuleKind): string {
+export function formatL1Rule(info: L1Info, kind: L1RuleKind, targetLang?: string | null): string {
+  const raw = (targetLang ?? "").trim();
+  const labels =
+    RULE_LABELS[raw] ?? RULE_LABELS[normalizeTargetLanguage(targetLang)] ?? ZH_TW_LABELS;
   const wantPhon = kind === "pronunciation" || kind === "both";
   const wantGram = kind === "grammar" || kind === "both";
   const wantOrder = kind === "wordorder";
@@ -720,36 +654,24 @@ export function formatL1Rule(info: L1Info, kind: L1RuleKind): string {
   );
 
   if (wantPhon) {
-    const p = info.phonology;
-    parts.push(
-      `【子音】${p.consonants}`,
-      `【韻母】${p.finals}`,
-      `【声調】${p.tones}`,
-      `【リズム】${p.prosody}`,
-      `【この母語だから有利な点】${p.advantages}`,
-    );
+    for (const [key, label] of labels.phonology) {
+      parts.push(`【${label}】${info.phonology[key]}`);
+    }
   }
 
-  const g = info.grammar;
   if (wantGram) {
-    parts.push(
-      `【語順】${g.wordOrder}`,
-      `【時制・アスペクト】${g.aspect}`,
-      `【量詞】${g.measureWords}`,
-      `【助詞・的/得/地】${g.particles}`,
-      `【否定】${g.negation}`,
-      `【崩れやすい構文】${g.patterns}`,
-      `【語彙の罠】${g.falseFriends}`,
-    );
+    for (const [key, label] of labels.grammar) {
+      parts.push(`【${label}】${info.grammar[key]}`);
+    }
   } else if (wantOrder) {
-    parts.push(
-      `【語順】${g.wordOrder}`,
-      `【助詞・的/得/地】${g.particles}`,
-      `【崩れやすい構文】${g.patterns}`,
-    );
+    // 見出しは文法の表から引く。**別に書き写さない** — 写すと片方だけ直る。
+    const byKey = new Map(labels.grammar);
+    for (const key of labels.wordorder) {
+      parts.push(`【${byKey.get(key) ?? key}】${info.grammar[key]}`);
+    }
   }
 
-  parts.push(`【台湾華語の事情】${info.taiwan}`);
+  parts.push(`【${labels.target}】${info.taiwan}`);
 
   parts.push(
     "上の項目は網羅リストであって、全部書けという意味ではない。" +

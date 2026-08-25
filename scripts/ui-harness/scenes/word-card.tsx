@@ -7,6 +7,7 @@
  */
 import { WordCard } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";
+import { CEFR_SCALE, TOCFL_SCALE } from "@/lib/level-scale";
 import {
   BackToDexLink,
   StickerDetailBody,
@@ -270,18 +271,29 @@ export function StickerHeroScene() {
  * そのものが情報だから。1枚だけ撮ると「立っている段が正しいか」しか
  * 分からず、順番が壊れていても気づけない。
  */
-export function TocflLadderScene() {
-  const levels = ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"];
+export function TocflLadderScene({ q }: { q: URLSearchParams }) {
+  /**
+   * 体系を切り替えて撮る(2026-08-24 の二言語化)。
+   *
+   * TOCFL も CEFR も「6段 + 3帯」で形が同じなので、**同じ部品**で描ける。
+   * ただし「同じ形のはず」は思い込みかもしれないので、**両方撮って
+   * 並べて確かめる**。CEFR 側には TOEFL / IELTS の目盛りが添う。
+   */
+  const cefr = q.get("scale") === "cefr";
+  const scale = cefr ? CEFR_SCALE : TOCFL_SCALE;
+  const levels = cefr
+    ? ["A1", "A2", "B1", "B2", "C1", "C2", "Z9"]
+    : ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"];
   return (
     <div className="space-y-3">
       {levels.map((l) => (
         <div key={l} className="rounded-2xl border border-border bg-card p-3">
-          <TocflLadder level={l} />
+          <TocflLadder level={l} scale={scale} />
         </div>
       ))}
       {/* 分からない語は**何も描かない**のが正しい(空の枠だけが残る)。 */}
       <div className="rounded-2xl border border-border bg-card p-3">
-        <TocflLadder level={null} />
+        <TocflLadder level={null} scale={scale} />
       </div>
     </div>
   );

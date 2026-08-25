@@ -60,8 +60,11 @@ describe("stepHeight", () => {
 
 describe("stepColorVar / stepLabelKey", () => {
   it("色は CSS のトークンで返す(素の16進を書かない)", () => {
-    for (const l of TOCFL_LEVELS) expect(stepColorVar(l)).toBe(`var(--tocfl-${l})`);
-    expect(stepColorVar(TOCFL_OUT)).toBe("var(--tocfl-out)");
+    // 2026-08-24: トークン名を `--tocfl-*` から `--level-*` に変えた。
+    // **体系で色を分けない** — TOCFL の3級と CEFR の B1 はどちらも
+    // 「6段の3段目」なので、同じ濃さで出るのが正しい。
+    for (const l of TOCFL_LEVELS) expect(stepColorVar(l)).toBe(`var(--level-${l})`);
+    expect(stepColorVar(TOCFL_OUT)).toBe("var(--level-out)");
   });
 
   it("級外だけ別の文面を指す", () => {

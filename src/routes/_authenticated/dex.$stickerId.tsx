@@ -16,7 +16,7 @@ import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
 
 function StickerDetailPage() {
   const t = useT();
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   const { stickerId } = Route.useParams();
   const fetchSticker = useServerFn(getSticker);
   const fetchMemory = useServerFn(getStickerMemoryHistory);

@@ -25,7 +25,7 @@ import {
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -504,7 +504,7 @@ export function PastDays({
   journals?: Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>;
 }) {
   const t = useT();
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   return (
     <section className="mt-12 space-y-10">
       <div className="flex items-center gap-3">
@@ -608,8 +608,7 @@ export function DayHeader({
   label?: string;
   compact?: boolean;
 }) {
-  const isEn = useUiLang() === "en";
-  const locale = isEn ? "en-US" : "ja-JP";
+  const locale = localeOf(useUiLang());
   const dateLabel = date.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",

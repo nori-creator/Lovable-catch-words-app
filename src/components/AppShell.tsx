@@ -7,7 +7,7 @@ import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { getMyStats, type UserStats } from "@/lib/stats.functions";
 import { formatCount } from "@/lib/count";
-import { useT, useUiLang } from "@/lib/i18n";
+import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
@@ -85,7 +85,7 @@ export function UserPanel({
   onClose: () => void;
 }) {
   const t = useT();
-  const uiLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const uiLocale = localeOf(useUiLang());
   /**
    * まだ届いていない欄。
    *

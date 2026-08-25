@@ -63,10 +63,13 @@ describe("決め打ちが増えていない", () => {
   const ROOTS = ["src/components", "src/lib", "src/routes"];
   /**
    * 残してよい場所。
-   * - `target-lang.ts` … 決め打ちを持つ当人
+   * - `target-lang.ts` … **学習言語**の決め打ちを持つ当人
+   * - `i18n.tsx`       … **表示言語**の決め打ちを持つ当人（2026-08-25）。
+   *   `UI_LANGS` と 1,021件の辞書の鍵がここに在る。学習言語とは別の話で、
+   *   英語版では「学習言語=en / 表示言語=zh-TW」のように食い違う。
    * - `*.test.ts`      … 試験は値そのものを書く
    */
-  const ALLOWED = /(target-lang\.ts|\.test\.tsx?)$/;
+  const ALLOWED = /(target-lang\.ts|i18n\.tsx|\.test\.tsx?)$/;
 
   function walk(dir: string): string[] {
     const out: string[] = [];

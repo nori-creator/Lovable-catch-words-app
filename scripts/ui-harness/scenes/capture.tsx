@@ -167,10 +167,6 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
 export function CaptureSavingScene({ q }: { q: URLSearchParams }) {
   const landing = q.get("landing") === "1";
   return (
-    <CaptureSavingPanel
-      image={shot(600, 600, "#b07a4a")}
-      headword="珍珠奶茶"
-      landing={landing}
-    />
+    <CaptureSavingPanel image={shot(600, 600, "#b07a4a")} headword="珍珠奶茶" landing={landing} />
   );
 }
