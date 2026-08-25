@@ -217,15 +217,27 @@ export const listMyStickers = createServerFn({ method: "GET" })
         .order("id", { ascending: false })
         .range(from, from + STICKER_PAGE_SIZE - 1);
 
+    const pageWithJwtClockSkewRetry = async (cols: string, from: number, withCount: boolean) => {
+      let res = await page(cols, from, withCount);
+      for (const delayMs of [400, 900, 1600]) {
+        if (!res.error || !/JWT issued at future/i.test(res.error.message)) break;
+        // Auth tokens can be accepted by Auth before the database edge accepts
+        // their `iat`. A short server-side retry prevents a transient blank app.
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        res = await page(cols, from, withCount);
+      }
+      return res;
+    };
+
     let cols = fullCols;
-    let first = await page(cols, 0, true);
+    let first = await pageWithJwtClockSkewRetry(cols, 0, true);
     if (first.error && /hero_role/.test(first.error.message)) {
       cols = noHeroCols;
-      first = await page(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, 0, true);
     }
     if (first.error && /capture_type|placeholder/.test(first.error.message)) {
       cols = legacyCols;
-      first = await page(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, 0, true);
     }
     // **最初のページの失敗だけが致命的。** ここで読めなければ何も出せない。
     if (first.error) throw new Error(first.error.message);
@@ -250,7 +262,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
     if (typeof count === "number") {
       const want = Math.min(count, STICKER_TOTAL_CAP);
       while (acc.length < want) {
-        const next = await page(cols, acc.length, false);
+        const next = await pageWithJwtClockSkewRetry(cols, acc.length, false);
         if (next.error) {
           stoppedEarly = true;
           break;
