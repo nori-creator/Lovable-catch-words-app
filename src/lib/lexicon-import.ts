@@ -737,6 +737,17 @@ export function parseCmudictLine(line: string): { word: string; ipa: string } | 
 // 行を作る
 // ---------------------------------------------------------------------------
 
+/**
+ * 級の出所の印。**短くする** — 語ごとに繰り返されるので、
+ * 1文字が 25,595 倍になる。
+ */
+export const LEVEL_SOURCE = {
+  /** CEFR-J Wordlist に載っていた語（公式の級）。 */
+  official: "cefrj",
+  /** 頻度と検定タグからの見積もり（CEFR-J に無い C1/C2 など）。 */
+  estimated: "est",
+} as const;
+
 /** `dictionary_entries` に入れる形（言語中立の列を使う）。 */
 export type LexiconRow = {
   headword: string;
@@ -827,15 +838,23 @@ export function toLexiconRow(
     forms: Object.keys(forms).length > 0 ? forms : null,
     entry_type: word.includes(" ") ? "phrase" : "word",
     source: "dict",
-    // **出所を書く。** 級は見積もりなので、後から公式の対応表で
-    // 上書きするときに、どれが見積もりだったのか分からないと直せない。
-    // 出所は語ごとに変わる。CEFR-J に載っていた語は**公式の級**、
-    // 載っていない語（C1/C2 など）は見積もり。後から直すときに
-    // どちらだったのか分からないと直せない。
-    notes:
-      opts.officialLevel != null
-        ? "ECDICT (MIT) + CMUdict (BSD); CEFR は CEFR-J Wordlist（東京外大 投野研）"
-        : "ECDICT (MIT) + CMUdict (BSD); CEFR は頻度と検定タグからの見積もり",
+    /**
+     * **級の出所だけを、短く書く。**
+     *
+     * 後から公式の対応表で上書きするとき、どれが見積もりだったのか
+     * 分からないと直せない。だから語ごとに要る。
+     *
+     * ## 長い文にしない
+     * ここには出典の文（"ECDICT (MIT) + CMUdict (BSD); …"）を書いていたが、
+     * **2種類しかない文を25,595回繰り返す**ことになっていて、取り込みの
+     * 送信量の23%（1回あたり457KB）を占めていた。しかも `notes` は
+     * どこからも読まれていない。
+     *
+     * 出典はデータ全体に掛かる話で、行ごとの話ではない。
+     * `data-sources.ts` が持ち、設定の「出典」の頁に出ている。
+     * ライセンス（MIT / BSD / CEFR-J の出典明記）はそちらで満たしている。
+     */
+    notes: opts.officialLevel != null ? LEVEL_SOURCE.official : LEVEL_SOURCE.estimated,
   };
 }
 
