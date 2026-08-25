@@ -18,6 +18,12 @@ export default tseslint.config(
       // @lovable.dev/mcp-js が生成するルート。整形しても Vite プラグインが
       // 再生成して元に戻るので、指摘だけが残り続ける。
       "src/routes/mcp.ts",
+      // Lovable が生成する Supabase の一式。先頭に
+      // 「Do not edit it directly.」と書いてある物なので、直しても
+      // 次の生成で戻る。**指摘だけが残り続けて、本物の指摘が埋もれる。**
+      "src/integrations/supabase/types.ts",
+      "src/integrations/supabase/client.ts",
+      "src/integrations/supabase/previewAuthStorage.ts",
       "src/routes/[[].mcp[]]/**",
       "src/routes/[[].well-known[]]/**",
       // Supabase が DB のスキーマから生成する型定義。整形しても

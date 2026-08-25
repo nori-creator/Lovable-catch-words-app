@@ -6,3 +6,15 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# Lovable が生成する Supabase の一式。**先頭に「Do not edit it directly.」と
+# 書いてある。** 整形すると次の生成で戻るので、整形の対象から外す。
+#
+# 外さないと2つ起きる:
+#   ・生成のたびに `npm run check` が整形の指摘で落ちる（実際に落ちた）
+#   ・`prettier --write` を広く掛けたときに types.ts が 1,021 行書き換わり、
+#     気づかずコミットしそうになる（この回に2度やった）
+src/integrations/supabase/types.ts
+src/integrations/supabase/client.ts
+src/integrations/supabase/previewAuthStorage.ts
+
