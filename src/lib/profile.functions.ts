@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { L1_ORDER } from "@/lib/l1";
+import type { Database } from "@/integrations/supabase/types";
+
+type MyProfile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -12,7 +15,7 @@ export const getMyProfile = createServerFn({ method: "GET" })
     const { data, error } = await (
       context.supabase as unknown as {
         rpc: (fn: "get_my_profile") => Promise<{
-          data: { [key: string]: unknown } | null;
+          data: MyProfile | null;
           error: { message: string } | null;
         }>;
       }
