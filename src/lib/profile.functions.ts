@@ -6,16 +6,17 @@ import { L1_ORDER } from "@/lib/l1";
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { userId } = context;
-    // Own-row read needs all columns; column-level SELECT grants restrict the
-    // authenticated role to public columns only, so read via admin scoped by
-    // the authenticated userId (safe: userId comes from verified JWT).
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
+    // Own-row full read is exposed through a database helper scoped to
+    // auth.uid(). This keeps private profile columns hidden from other users
+    // without requiring the service-role key for normal profile loading.
+    const { data, error } = await (
+      context.supabase as unknown as {
+        rpc: (fn: "get_my_profile") => Promise<{
+          data: { [key: string]: unknown } | null;
+          error: { message: string } | null;
+        }>;
+      }
+    ).rpc("get_my_profile");
     if (error) throw new Error(error.message);
     return data;
   });
