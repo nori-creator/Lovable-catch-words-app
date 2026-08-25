@@ -29,6 +29,7 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  explanationLanguageName,
   getLearnerL1,
   l1Rule,
   isProUser,
@@ -702,7 +703,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     const { data: word, error } = await supabaseAdmin
       .from("words")
       .select(
-        "id, headword, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
+        "id, headword, language, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
       )
       .eq("id", data.word_id)
       .maybeSingle();
@@ -728,14 +729,21 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     const langRule = await langFn(userId);
     // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
     const regenLang = await getExplanationLanguage(userId);
-    const NL = regenLang === "en" ? "英語" : "日本語";
+    // 表示言語は3つある(2026-08-25)。`=== "en" ? … : "日本語"` と書くと、
+    // 台湾の人の解説だけが黙って日本語で作られる。呼び名の表は1つ。
+    const NL = explanationLanguageName(regenLang);
     const l1Pron = await l1Rule(userId, "pronunciation");
     // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
     // 一括生成(generateCard)と同じ観点になるようにする。
     const l1Gram = await l1Rule(userId, "wordorder");
     const learnerL1 = (await getLearnerL1(userId)).speakerJa;
     const head = word.headword as string;
-    const base = `台湾華語(繁体字)の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
+    // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
+    // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
+    // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
+    const { targetProfile } = await import("./target-profile");
+    const targetName = targetProfile(word.language as string | null).promptName;
+    const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
     const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
@@ -836,6 +844,49 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       taiwan_note: {
         prompt: `${base}\n{"taiwan_note":"台湾ならではの一言雑学(文化・習慣・歴史・流行)1〜2文+誤用しやすい語法があれば1文"}`,
         schema: z.object({ taiwan_note: z.string().min(1) }),
+      },
+      // --- 英語のカードの節 ---------------------------------------------
+      // **`forms`(活用)はここに無い。** 語形は ECDICT から来る辞書の事実で、
+      // AI に作らせる物ではない(作らせると "child" の複数形が "childs" に
+      // なり得る)。取り込みの時点で埋まっているので、作り直す口も要らない。
+      countability: {
+        prompt: `${base}\n「${head}」が可算名詞か不可算名詞かと、付く冠詞。\n**${learnerL1}にとってここが最大のつまずき**(母語に冠詞が無い/薄い)ので、note には「なぜ間違えやすいか」ではなく「**どう言えば正しいか**」を書く。\nkind は countable / uncountable / both のどれか。両方あるなら、どちらの意味でどちらになるかを note に書く。\narticle は実際に付く形("a" / "an" / "the" / 付かないなら "—")。\n**note は必ず${NL}で書く。**\n{"countability":{"kind":"uncountable","article":"—","note":"数えるときは a piece of ~ を使う"}}`,
+        schema: z.object({
+          countability: z.object({
+            kind: z.enum(["countable", "uncountable", "both"]).catch("countable"),
+            article: z.string().catch(""),
+            note: z.string().catch(""),
+          }),
+        }),
+      },
+      stress: {
+        prompt: `${base}\n「${head}」を音節に切って、どこを強く読むか。\nsyllables は綴りを音節ごとに切った配列(例: "photograph" → ["pho","to","graph"])。**綴りの文字を1つも足さない・落とさない** — つないだら元の語に戻ること。\nprimary は第一強勢の音節の添字(0始まり)、secondary は第二強勢があればその添字、無ければ null。\n**${learnerL1}は声調の言語なので強勢が意識に上りにくい。** note には、この語で特に気をつける点を1文だけ(${NL}で)。\n{"stress":{"syllables":["pho","to","graph"],"primary":0,"secondary":2,"note":"最初を強く、あとは軽く"}}`,
+        schema: z.object({
+          stress: z.object({
+            syllables: z.array(z.string()).min(1),
+            primary: z.number().int().min(0).nullable().catch(null),
+            secondary: z.number().int().min(0).nullable().catch(null),
+            note: z.string().catch(""),
+          }),
+        }),
+      },
+      phrasal_verbs: {
+        prompt: `${base}\n「${head}」を使う句動詞を2〜4個。**語そのものからは意味が読めない物を優先する**(give up / give in のような物。give me は句動詞ではない)。\n「${head}」が句動詞を作らない語なら、その語を**含む**よく使う連語を挙げる。\nmeaning は${NL}で、example は英語の短い一文。\n{"phrasal_verbs":[{"phrase":"give up","meaning":"あきらめる","example":"Do not give up now."}]}`,
+        schema: z.object({
+          phrasal_verbs: z
+            .array(
+              z.object({
+                phrase: z.string(),
+                meaning: z.string().catch(""),
+                example: z.string().catch(""),
+              }),
+            )
+            .min(1),
+        }),
+      },
+      culture_note: {
+        prompt: `${base}\n「${head}」にまつわる英語圏の一言(1〜2文、${NL}で)。\nアメリカ英語とイギリス英語で語が違うならそれを最初に書く(elevator / lift など)。\n違いが無い語なら、習慣・場面・言い回しの注意を1つ。**当てはまらないことを無理に書かない。**\n{"culture_note":""}`,
+        schema: z.object({ culture_note: z.string().min(1) }),
       },
     };
 

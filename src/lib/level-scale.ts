@@ -232,3 +232,30 @@ export function levelOptions(scale: LevelScale): { value: string; label: string 
     label: scale.optionLabel(stepLabel(scale, n)),
   }));
 }
+
+/**
+ * 保存されている級を、**その目盛りの表記に載せ替える**。
+ *
+ * ## なぜ要るか
+ * 学習言語を切り替えられるようにした日(2026-08-25、第4段)から、
+ * 同じ人の `level_goal` に `"TOCFL-2"` と `"A2"` の両方があり得る。
+ * 台湾華語で2級だった人が英語に切り替えると、`"TOCFL-2"` は CEFR の
+ * 一覧に**無い値**になり、設定の選択が空に見えて保存もできない。
+ *
+ * 段の数(1〜6)は目盛りをまたいで同じ意味なので、**段だけ引き継いで
+ * 表記を載せ替える**。2級だった人は英語でも2段目(A2)から始まる。
+ *
+ * ## 段が読めないとき
+ * `null`(分からない)も `"out"`(6段の外)も、その目盛りの中の段では
+ * ないので `fallback` に落とす。**0 や 7 を段として扱わない** —
+ * `toStored(7)` は一覧に無い値を作るので、同じ穴に落ちる。
+ */
+export function restoreLevel(
+  scale: LevelScale,
+  saved: string | number | null | undefined,
+  fallback: LevelIndex,
+): string {
+  const step = parseLevelStep(saved);
+  const index = typeof step === "number" ? (step as LevelIndex) : fallback;
+  return scale.toStored(index);
+}

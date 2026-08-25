@@ -64,6 +64,7 @@ import {
   StickerHeroScene,
   WordCardEmptyScene,
   WordCardScene,
+  WordCardEnScene,
   TocflLadderScene,
 } from "./scenes/word-card";
 import {
@@ -120,6 +121,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
   "word-card": WordCardScene,
+  "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,

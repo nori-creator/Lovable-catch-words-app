@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, Fragment, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { CorpusLinks } from "@/components/CorpusLinks";
 import { TocflLadder } from "@/components/TocflLadder";
@@ -23,10 +23,12 @@ import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { refineUsageChunks } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { realUsageLinks } from "@/lib/real-usage-links";
+import { targetProfile } from "@/lib/target-profile";
 import { EncounterPanel } from "@/components/EncounterPanel";
 import type { EncounterEstimate } from "@/lib/encounter.functions";
 import {
@@ -41,9 +43,11 @@ import {
   isRegenSection,
   missingSections,
   sectionHasContent,
+  sectionsFor,
   type RegenSection,
   type SectionId,
 } from "@/lib/card-sections";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
@@ -53,6 +57,18 @@ export type WordExtras = Partial<WordExtrasDTO>;
 
 export type WordCardData = {
   headword: string;
+  /** 第一の読み（台湾華語=注音 / 英語=米式IPA）。無ければ古い列に落ちる。 */
+  reading_primary?: string | null;
+  /** 第二の読み（台湾華語=拼音 / 英語=英式IPA）。 */
+  reading_alt?: string | null;
+  /**
+   * その語を**何語として覚えているか**。
+   *
+   * カードに出る節・読みの種類・級の目盛りが全部ここから決まる。
+   * 空なら既定の学習言語(`targetProfile` が落とす) — 英語を選べる
+   * ようにする前に入った149語はこの列を持っていない。
+   */
+  language?: string | null;
   reading_zhuyin?: string | null;
   pinyin?: string | null;
   meaning_ja: string;
@@ -73,25 +89,41 @@ export type WordCardData = {
  *   雑学+語法ノート              → taiwan_note(台湾メモ)
  */
 
-/** ラベルは i18n(card.<id>)から引く — 一覧は順序と存在の定義だけを持つ。 */
-const ALL_SECTIONS: { id: SectionId }[] = [
-  { id: "meaning" },
-  { id: "web_images" },
-  { id: "usage_context" },
-  // 頻度の話の真下に置く。「どのくらい使う言葉か」と
-  // 「自分が今週それに出会うか」は続けて読みたい。
-  { id: "encounter" },
-  { id: "example" },
-  { id: "examples_extra" },
-  { id: "usage_chunks" },
-  { id: "measure_words" },
-  { id: "related_words" },
-  { id: "pronunciation_tips" },
-  { id: "etymology" },
-  { id: "mnemonic" },
-  { id: "taiwan_note" },
-  { id: "real_usage" },
-];
+/**
+ * 並べ替えの一覧が拠り所にする、**節の全部**。
+ *
+ * ## なぜ手書きの写しをやめたか
+ * ここには節の並びが**3つ目の写し**として手で書かれていた
+ * (`target-profile.ts` の `sections`、`card-sections.ts` の `SECTION_IDS`、
+ * そしてここ)。英語のカードの項目を足したとき、ここだけ足し忘れると
+ * **設定の並べ替えに出てこない節**ができる — 型でもビルドでも落ちない。
+ *
+ * 並びは言語ごとに違うので、**両方の言語の並びを畳んで**作る。
+ * `sectionsFor()` が出所で、ここは順序を混ぜているだけ。
+ *
+ * ## 畳み方
+ * 台湾華語の並びを土台にして、英語にしか無い節を「**英語の並びで直前に
+ * 来る共通の節のうしろ**」へ差し込む。こうすると、どちらの言語の人から
+ * 見ても自分の節が自然な位置に並ぶ。
+ */
+const ALL_SECTIONS: { id: SectionId }[] = (() => {
+  const base = [...sectionsFor(DEFAULT_TARGET_LANGUAGE)];
+  for (const other of TARGET_LANGUAGES) {
+    const list = sectionsFor(other);
+    let at = -1;
+    for (const id of list) {
+      const found = base.indexOf(id);
+      if (found >= 0) {
+        at = found;
+        continue;
+      }
+      // 共通の節がまだ1つも出ていなければ先頭へ。
+      at = at < 0 ? 0 : at + 1;
+      base.splice(at, 0, id);
+    }
+  }
+  return base.map((id) => ({ id }));
+})();
 
 const PREF_KEY = "wordcard-prefs-v4";
 const PREF_EVENT = "wordcard-prefs-changed";
@@ -247,6 +279,12 @@ const SECTION_ICON: Record<SectionId, string> = {
   mnemonic: "\u{1F4A1}",
   taiwan_note: "\u{1F1F9}\u{1F1FC}",
   real_usage: "\u{1F3AC}",
+  // --- 英語のカードだけの節 ------------------------------------------------
+  forms: "\u{1F504}",
+  countability: "\u{1F9FA}",
+  stress: "\u{1F941}",
+  phrasal_verbs: "\u{1F517}",
+  culture_note: "\u{1F30D}",
 };
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
@@ -325,8 +363,23 @@ export const WordCard = forwardRef<
   // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
   // 並びは**画面の並びそのまま**。`missingSections` はその順を崩さない
   // (裏で作る順もこれ = オーナーの「項目の上から順に」)。
-  const missing = missingSections(prefs.order.filter(isVisible), contentInput);
-  const shown = prefs.order.filter(
+  /**
+   * **この語の言語に在る節だけを並べる。**
+   *
+   * 並べ替えの設定(`prefs.order`)は言語をまたいだ全部の節を持っている
+   * — 台湾華語の語と英語の語を両方持っている人が、1つの一覧で並びを
+   * 決められるようにするため。そのまま描くと、英語のカードに**量詞と
+   * 台湾メモ**が出て、台湾華語のカードに**冠詞と強勢**が出る。
+   *
+   * さらに大事なのは `missing` の側で、ここを絞らないと**英語の語の
+   * 量詞を AI に作らせ続ける**ことになる。「英語に量詞は無い」ので
+   * 何を作っても `sectionHasContent` は満たされず、上限に当たるまで
+   * 呼び続けて、待ち時間もお金も払う。
+   */
+  const inThisLanguage = new Set<SectionId>(sectionsFor(word.language));
+  const order = prefs.order.filter((id) => inThisLanguage.has(id));
+  const missing = missingSections(order.filter(isVisible), contentInput);
+  const shown = order.filter(
     (id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id),
   );
 
@@ -493,9 +546,11 @@ function AutoFillSections({
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const t = useT();
   const autoplayedRef = useRef(false);
-  const pronounce = usePronounce();
+  // **その語の言語で読む。** 渡さないと台湾華語として合成されるので、
+  // 英語の語が中国語の声で読まれ、しかもその音は保存される。
+  const pronounce = usePronounce(word.language ?? undefined);
 
-  // Accurate native Taiwan voice (server cmn-TW) with a device-voice fallback.
+  // その言語の声(サーバ合成)で読む。端末の声は控え。
   function play() {
     void pronounce(word.headword);
   }
@@ -531,7 +586,16 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
             </button>
           </div>
           <div className="mt-1 text-body text-muted-foreground">
-            <Reading zhuyin={word.reading_zhuyin} pinyin={word.pinyin} />
+            {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
+                プロフィールで考えるので、英語の語に注音/拼音を探しに行き、
+                IPA を持っていても読みが空になる。 */}
+            <Reading
+              lang={word.language ?? undefined}
+              zhuyin={word.reading_zhuyin}
+              pinyin={word.pinyin}
+              ipaUs={word.reading_primary}
+              ipaUk={word.reading_alt}
+            />
           </div>
           {(word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -545,7 +609,15 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
           )}
           {/* 級は札1つではなく**段々**で見せる(オーナー指摘)。
               `TOCFL-2` とだけ書かれても、2が6段のどこなのか分からない。 */}
-          <TocflLadder level={word.level} className="mt-2" />
+          {/* **目盛りを渡す。** 渡さないと既定の TOCFL で描くので、
+              英語の語(CEFR A2)の上に「TOCFL 1 2 3 4 5 6 / 2級(Band A)」が
+              出る — 絵で見つけた。段々の形は同じなので、変わるのは
+              名前だけ(`level-scale.ts`)。 */}
+          <TocflLadder
+            level={word.level}
+            scale={targetProfile(word.language).levels}
+            className="mt-2"
+          />
         </div>
       </div>
     </div>
@@ -921,7 +993,7 @@ function Body({
           {/* 頻度と級は、外のコーパスで裏が取れる。**取り込みはしない**
               (許可を取っていない) ので、見に行く先だけを置く
               — `src/lib/corpus-links.ts`。 */}
-          <CorpusLinks section="usage_context" headword={word.headword} />
+          <CorpusLinks section="usage_context" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -971,7 +1043,7 @@ function Body({
                 同じ丸が何度も並ぶ。 */}
             <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
             {/* 一緒に使う語の一覧は、コーパスのほうが桁違いに詳しい。 */}
-            <CorpusLinks section="usage_chunks" headword={word.headword} />
+            <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
           </div>
         );
       }
@@ -991,7 +1063,7 @@ function Body({
             </div>
           )}
           {ex.word_order && <Prose text={ex.word_order} />}
-          <CorpusLinks section="usage_chunks" headword={word.headword} />
+          <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1058,7 +1130,7 @@ function Body({
           )}
           {/* 類義語の違いは、いまは AI の当て推量だけ。研究の定義で
               確かめられる場所へ渡す。 */}
-          <CorpusLinks section="related_words" headword={word.headword} />
+          <CorpusLinks section="related_words" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1104,6 +1176,128 @@ function Body({
         </div>
       );
 
+    // --- 英語のカードだけの節 ------------------------------------------
+    case "forms": {
+      // **AI を1回も呼ばずに埋まる唯一の節。** 中身は ECDICT の `exchange`
+      // 欄から取り込みのときに入る。だから「作る」のボタンも出ない
+      // (`REGEN_SECTIONS` に入れていない)。
+      const f = ex.forms;
+      if (!f) return null;
+      const rows: Array<[string, string]> = [
+        [t("card.formPlural"), f.plural],
+        [t("card.formPast"), f.past],
+        [t("card.formPastParticiple"), f.pastParticiple],
+        [t("card.formIng"), f.ing],
+        [t("card.formThird"), f.third],
+        [t("card.formComparative"), f.comparative],
+        [t("card.formSuperlative"), f.superlative],
+      ].filter(([, v]) => !!v) as Array<[string, string]>;
+      if (rows.length === 0) return null;
+      return (
+        // 語形は**表で読む物**。左に名前、右に形。行が短いので
+        // 2列に折り返して、縦に伸びるのを抑える。
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-body sm:grid-cols-[auto_1fr_auto_1fr]">
+          {rows.map(([label, value]) => (
+            <Fragment key={label}>
+              <dt className="text-caption text-muted-foreground">{label}</dt>
+              <dd className="font-medium">{value}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      );
+    }
+
+    case "countability": {
+      const c = ex.countability;
+      if (!c) return null;
+      const KIND_KEY: Record<"countable" | "uncountable" | "both", string> = {
+        countable: "card.countable",
+        uncountable: "card.uncountable",
+        both: "card.countBoth",
+      };
+      return (
+        <div className="space-y-2 text-body">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="inline-block rounded-full bg-secondary px-2.5 py-0.5 text-footnote font-medium shadow-sm ring-1 ring-border">
+              {t(KIND_KEY[c.kind])}
+            </span>
+            {c.article && (
+              <span className="text-caption text-muted-foreground">
+                {/* 冠詞は**その語に実際に付く形**を出す。「a/an のどちらか」
+                    ではなく "an" と書いてあることに意味がある。 */}
+                <span className="mr-1.5">{t("card.article")}</span>
+                <span className="font-medium text-foreground">{c.article}</span>
+              </span>
+            )}
+          </div>
+          {c.note && <Prose text={c.note} />}
+        </div>
+      );
+    }
+
+    case "stress": {
+      const st = ex.stress;
+      const syl = st?.syllables ?? [];
+      if (syl.length === 0) return null;
+      return (
+        <div className="space-y-2">
+          {/* 強勢は**大きさで見せる**。記号(ˈ)を打っても、声調の言語の
+              話者には「印が付いている」以上のことが伝わらない。
+              強い音節を大きく濃く、弱い音節を小さく薄くして、
+              **見た目がそのまま読み方**になるようにする。 */}
+          <p className="flex flex-wrap items-baseline gap-x-0.5">
+            {syl.map((sy, i) => {
+              const primary = st?.primary === i;
+              const secondary = st?.secondary === i;
+              return (
+                <span key={i} className="flex items-baseline">
+                  {i > 0 && <span className="mx-0.5 text-muted-foreground">·</span>}
+                  <span
+                    className={
+                      primary
+                        ? "text-title font-semibold text-foreground"
+                        : secondary
+                          ? "text-body font-medium text-foreground"
+                          : "text-body text-muted-foreground"
+                    }
+                  >
+                    {sy}
+                  </span>
+                </span>
+              );
+            })}
+          </p>
+          {st?.note && <Prose text={st.note} />}
+        </div>
+      );
+    }
+
+    case "phrasal_verbs":
+      return (
+        <ul className="space-y-1.5">
+          {(ex.phrasal_verbs ?? []).map((pv, i) => (
+            <li key={i} className="rounded-xl bg-secondary px-3 py-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-body font-semibold">{pv.phrase}</span>
+                {pv.meaning && (
+                  <span className="text-footnote text-muted-foreground">{pv.meaning}</span>
+                )}
+              </div>
+              {pv.example && (
+                <p className="mt-1 text-footnote leading-relaxed text-muted-foreground">
+                  {pv.example}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      );
+
+    case "culture_note":
+      // 台湾華語のカードの `taiwan_note` にあたる欄。組みは合わせる —
+      // 同じ位置の同じ役割の節が、言語で違う見た目になる理由が無い。
+      return <Prose text={ex.culture_note ?? ""} />;
+
     case "web_images":
       return (
         <WebImagesBody
@@ -1115,8 +1309,8 @@ function Body({
     case "real_usage":
       return (
         <>
-          <RealUsageBody headword={word.headword} />
-          <CorpusLinks section="real_usage" headword={word.headword} />
+          <RealUsageBody headword={word.headword} language={word.language} />
+          <CorpusLinks section="real_usage" headword={word.headword} language={word.language} />
         </>
       );
   }
@@ -1292,68 +1486,21 @@ function WebImagesBody({
 /**
  * 実際の使われ方(A10): 動画・SNS・辞書・ニュースの中で本当に使われている
  * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
+ *
+ * **行き先の一覧はここに書かない**(`real-usage-links.ts`)。以前は
+ * 台湾向けの URL 7本がこの中に直に書いてあり、英語を学習言語に足した日に
+ * **英語の語を調べるボタンが台湾のサイトへ飛ぶ**状態になった
+ * (絵で見つけた: 「台湾の若者のSNS」「台湾教育部の公式辞書」が
+ * 英語のカードに7本並んでいた)。
  */
-function RealUsageBody({ headword }: { headword: string }) {
+function RealUsageBody({ headword, language }: { headword: string; language?: string | null }) {
   const t = useT();
-  const q = encodeURIComponent(headword);
-  const links: { label: string; hint: string; href: string; emoji: string }[] = [
-    {
-      emoji: "🎬",
-      // **台湾の動画に絞る**(オーナー指摘 2026-08-20)。
-      // `youglish` は仕組み上1本ずつしか見せないので、「複数見たい」に
-      // 応えるのはこちら側。地域と言語を指定して、台湾で撮られた動画に寄せる。
-      label: t("card.ytLabel"),
-      hint: t("card.ytHint"),
-      href: `https://www.youtube.com/results?search_query=${q}&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW`,
-    },
-    {
-      emoji: "🗣️",
-      label: t("card.yglLabel"),
-      hint: t("card.yglHint"),
-      href: `https://youglish.com/pronounce/${q}/chinese/tw`,
-    },
-    {
-      emoji: "💬",
-      label: t("card.dcardLabel"),
-      hint: t("card.dcardHint"),
-      href: `https://www.dcard.tw/search?query=${q}`,
-    },
-    {
-      emoji: "🧵",
-      // Threads(オーナー指摘)。いま台湾でいちばん短文が流れている所で、
-      // 「その語が実際にどう使われているか」がそのまま並ぶ。
-      label: t("card.threadsLabel"),
-      hint: t("card.threadsHint"),
-      href: `https://www.threads.com/search?q=${q}`,
-    },
-    {
-      emoji: "📰",
-      // **Google 検索にして台湾の記事だけに限定**(オーナー指摘)。
-      // `news.google.com` は見出しの一覧で、本文の中でどう使われているかが
-      // 読めない。`cr=countryTW` と `lr=lang_zh-TW` で台湾の中国語の頁に絞る。
-      label: t("card.newsLabel"),
-      hint: t("card.newsHint"),
-      href: `https://www.google.com/search?q=${q}&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW`,
-    },
-    {
-      emoji: "🔤",
-      // 実例の対訳。**その語がどんな文の中に出るか**を並べて見せる所で、
-      // 「どの語と一緒に使うか」「どんな場面か」はここから読める。
-      label: t("card.contextLabel"),
-      hint: t("card.contextHint"),
-      href: `https://context.reverso.net/translation/chinese-japanese/${q}`,
-    },
-    {
-      emoji: "📖",
-      label: t("card.moeLabel"),
-      hint: t("card.moeHint"),
-      href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}`,
-    },
-  ];
+  const uiLang = useUiLang();
+  const links = realUsageLinks(headword, language, uiLang);
   return (
     <ul className="grid grid-cols-1 gap-1.5">
       {links.map((l) => (
-        <li key={l.label}>
+        <li key={l.id}>
           <a
             href={l.href}
             target="_blank"
@@ -1362,8 +1509,10 @@ function RealUsageBody({ headword }: { headword: string }) {
           >
             <span className="text-body">{l.emoji}</span>
             <span className="min-w-0 flex-1">
-              <span className="block font-medium">{l.label}</span>
-              <span className="block truncate text-caption text-muted-foreground">{l.hint}</span>
+              <span className="block font-medium">{t(l.labelKey)}</span>
+              <span className="block truncate text-caption text-muted-foreground">
+                {t(l.hintKey)}
+              </span>
             </span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>

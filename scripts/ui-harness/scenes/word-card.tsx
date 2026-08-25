@@ -103,6 +103,117 @@ export function WordCardScene() {
 }
 
 /**
+ * **英語のカード**(第4段 / 指摘⑬「英語を学ぶ台湾人向けの版」)。
+ *
+ * 台湾華語のカードには無い5つの節がここに出る:
+ * 活用・数え方と冠詞・強く読む所・句動詞・文化の一言。
+ * 逆に量詞と台湾メモは出ない(`target-profile.ts` の `sections` が決める)。
+ *
+ * **この場面を作らないと、新しい5節は一度も機械の目に映らない。**
+ * 節を足したのに絵を撮らないのは、この app が何度もやった形
+ * (「合格したが実物は見ていない」)。
+ */
+export const FULL_EN = {
+  headword: "umbrella",
+  // 英語の読みは IPA。**拼音の欄に入れない** — 名前と中身が食い違うと、
+  // 拼音として読む所が静かに壊れる(20260825140000 で列を足した)。
+  reading_primary: "ʌmˈbrɛlə",
+  reading_alt: "ʌmˈbrelə",
+  pinyin: null,
+  reading_zhuyin: null,
+  language: "en",
+  meaning_ja: "傘",
+  part_of_speech: "名詞",
+  level: "A2",
+  example_sentence: "Take an umbrella — it looks like rain.",
+  example_translation: "傘を持っていって。雨が降りそう。",
+  extras: {
+    ...emptyExtras(),
+    usage_context: "日常でも天気予報でもよく出る。口語でも書面でも同じ形。",
+    frequency_level: 4,
+    register_tag: "口語・書面",
+    register_scale: 0,
+    example_chunks: [
+      { text: "Take", pos: "V" },
+      { text: "an umbrella", pos: "O" },
+      { text: "it looks like rain", pos: "S" },
+    ],
+    usage_chunks: [
+      {
+        parts: [
+          { text: "take", pos: "V" },
+          { text: "an umbrella", pos: "O" },
+        ],
+        ja: "傘を持っていく",
+      },
+      {
+        parts: [
+          { text: "under", pos: "Prep" },
+          { text: "the umbrella", pos: "O" },
+        ],
+        ja: "傘の下で",
+      },
+    ],
+    examples_extra: [
+      {
+        zh: "She left her umbrella on the train.",
+        ja: "彼女は電車に傘を忘れた。",
+        scene: "落とし物の話をするとき",
+        chunks: [
+          { text: "left", pos: "V" },
+          { text: "on the train", pos: "Prep" },
+        ],
+      },
+    ],
+    // **辞書から入る節。** AI を1回も呼ばない(ECDICT の exchange 欄)。
+    forms: {
+      plural: "umbrellas",
+      past: "",
+      pastParticiple: "",
+      ing: "",
+      third: "",
+      comparative: "",
+      superlative: "",
+      lemma: "umbrella",
+    },
+    countability: {
+      kind: "countable" as const,
+      article: "an",
+      // 母音の前は a ではなく an。中国語に冠詞が無いので、ここは
+      // 「なぜ間違えるか」ではなく「どう言えば正しいか」を書く。
+      note: "母音で始まるので a ではなく an。数えられるので複数形は umbrellas。",
+    },
+    stress: {
+      syllables: ["um", "brel", "la"],
+      primary: 1,
+      secondary: null,
+      note: "真ん中を強く。最初と最後は軽く落とす。",
+    },
+    phrasal_verbs: [
+      { phrase: "put up an umbrella", meaning: "傘をさす", example: "She put up her umbrella." },
+      {
+        phrase: "under the umbrella of",
+        meaning: "〜の傘下で",
+        example: "Under the umbrella of the UN.",
+      },
+    ],
+    culture_note:
+      "アメリカでは umbrella、イギリスでは brolly と呼ぶこともあります。" +
+      "「傘下」という比喩の使い方も英語にあり、an umbrella organization は「統括団体」の意味です。",
+    pronunciation_tips:
+      "最初の um は弱く曖昧に(ə に近い音)、真ん中の brel を強くはっきり出します。" +
+      "語末の la は軽く落として構いません。強い所を1つ決めるのが、通じるかどうかを一番左右します。",
+    etymology: "ラテン語 umbra(影)+ -ella(小さい)。もとは日除けの道具。",
+    mnemonic: "umbra(影)を作る道具、と覚える。",
+  },
+};
+
+/** 英語のカード。**5つの新しい節が並ぶ所。** */
+export function WordCardEnScene() {
+  return <WordCard word={FULL_EN} autoplay={false} />;
+}
+
+/**
  * まだ生成されていない節がある状態。
  * 空の節も枠は出す作りなので、**枠だけが13個並ぶ**面になる。
  */

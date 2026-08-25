@@ -1,5 +1,6 @@
 import { refineUsageChunks, type WordExtrasDTO } from "./extras";
 import { registerScaleOf } from "./register-scale";
+import { targetProfile, type ProfileSection } from "./target-profile";
 
 /**
  * 語のカードの節。**画面と生成側で1つの出所を共有する。**
@@ -14,8 +15,21 @@ import { registerScaleOf } from "./register-scale";
  * たまたま合うものは、いつか合わなくなる。
  */
 
-/** カードに並ぶ節。**順序はここでは決めない**(既定の並びは画面側)。 */
+/**
+ * カードに並ぶ節の**全部**(どの学習言語のカードにも出うる物の集合)。
+ *
+ * ## 順序はここでは決めない
+ * 既定の並びは `target-profile.ts` の `sections` が言語ごとに持っている。
+ * ここは**存在の定義**だけ — 「この名前の節がある」という一覧。
+ *
+ * ## 言語ごとに出る物が違う
+ *   台湾華語だけ … `measure_words`(量詞) / `taiwan_note`
+ *   英語だけ     … `forms` / `countability` / `stress` /
+ *                  `phrasal_verbs` / `culture_note`
+ * どちらに出るかを `if (lang === …)` で書かない。`sectionsFor()` を通す。
+ */
 export const SECTION_IDS = [
+  // --- どの言語のカードにも出る -------------------------------------------
   "meaning",
   "web_images",
   "usage_context",
@@ -23,16 +37,50 @@ export const SECTION_IDS = [
   "example",
   "examples_extra",
   "usage_chunks",
-  "measure_words",
   "related_words",
   "pronunciation_tips",
   "etymology",
   "mnemonic",
-  "taiwan_note",
   "real_usage",
+  // --- 台湾華語のカードだけ -----------------------------------------------
+  "measure_words",
+  "taiwan_note",
+  // --- 英語のカードだけ ---------------------------------------------------
+  "forms",
+  "countability",
+  "stress",
+  "phrasal_verbs",
+  "culture_note",
 ] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
+
+/**
+ * その学習言語のカードに出る節を、**その言語の並び順で**返す。
+ *
+ * 出所は `target-profile.ts` の `sections` ただ1つ。画面の既定の並びも、
+ * 裏で順に作る仕組みも、設定の並べ替えの一覧も、全部ここを通る。
+ *
+ * **`ProfileSection` と `SectionId` は同じ物を指す2つの名前**で、
+ * 片方に足して片方に足し忘れると型が合わなくなる — それを狙っている
+ * (`card-sections.test.ts` が両者の集合が一致することも数えている)。
+ */
+export function sectionsFor(lang: string | null | undefined): readonly SectionId[] {
+  return targetProfile(lang).sections;
+}
+
+/**
+ * **`SectionId` と `ProfileSection` が1文字も違わないことを、型で確かめる。**
+ *
+ * 同じ物の名前が2つある(片方は値の並び、片方は言語ごとの一覧の型)。
+ * 循環 import になるので1つにまとめられないが、**片方だけに足す**のは
+ * この app が何度もやった形なので、足りない側で `tsc` が落ちるようにする。
+ * どちらの向きも見る — `sectionsFor` の戻り型だけでは片側しか守れない。
+ */
+type Assert<T extends true> = T;
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _SectionNamesMatch = Assert<Same<SectionId, ProfileSection>>;
 
 /**
  * AI で作り直せる節。外部リンク系(`web_images` / `real_usage`)は
@@ -50,6 +98,14 @@ export const REGEN_SECTIONS = [
   "etymology",
   "mnemonic",
   "taiwan_note",
+  // --- 英語のカードの節 ---------------------------------------------------
+  // **`forms` はここに入らない。** 語形は ECDICT から入る辞書の事実で、
+  // AI に作らせる物ではない。作らせると "child" の複数形が "childs" に
+  // なり得るし、待ち時間とお金を、既に手元にある答えのために払うことになる。
+  "countability",
+  "stress",
+  "phrasal_verbs",
+  "culture_note",
 ] as const;
 
 export type RegenSection = (typeof REGEN_SECTIONS)[number];
@@ -133,6 +189,32 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
       return !!ex.mnemonic;
     case "taiwan_note":
       return !!(ex.taiwan_note || ex.trivia || ex.usage_note);
+    // --- 英語のカードの節 ---------------------------------------------------
+    case "forms":
+      // `forms` が在るだけでは足りない。**活用の無い語**(不変化名詞など)は
+      // 全欄が空のオブジェクトになるので、見出しだけの空の節になる。
+      // `lemma` は原形で、活用そのものではないので数えない。
+      return !!(
+        ex.forms &&
+        [
+          ex.forms.plural,
+          ex.forms.past,
+          ex.forms.pastParticiple,
+          ex.forms.ing,
+          ex.forms.third,
+          ex.forms.comparative,
+          ex.forms.superlative,
+        ].some(Boolean)
+      );
+    case "countability":
+      return !!ex.countability;
+    case "stress":
+      // 音節に切れていなければ描く物が無い。`note` だけでは節にしない。
+      return (ex.stress?.syllables?.length ?? 0) > 0;
+    case "phrasal_verbs":
+      return (ex.phrasal_verbs?.length ?? 0) > 0;
+    case "culture_note":
+      return !!ex.culture_note;
     // 外の情報を見に行くだけの節は、いつでも描ける。
     case "web_images":
     case "real_usage":

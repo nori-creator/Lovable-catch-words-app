@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { claimAudio } from "@/lib/audio";
-import { speakZhTW } from "@/lib/speak";
+import { speak } from "@/lib/speak";
 import { usePronounce } from "@/lib/use-pronounce";
 import { getMyStats } from "@/lib/stats.functions";
 import {
@@ -87,21 +87,26 @@ function playAudio(card: DueReviewCard) {
     if (!sharedAudio) sharedAudio = new Audio();
     claimAudio(sharedAudio);
     sharedAudio.src = card.audio_url;
-    sharedAudio.play().catch(() => speakZhTW(card.headword));
+    sharedAudio.play().catch(() => speak(card.headword, card.language ?? undefined));
   } else {
-    speakZhTW(card.headword);
+    speak(card.headword, card.language ?? undefined);
   }
 }
 
-/** A3: 任意のテキスト/音声URLを排他再生(4択の選択肢🔊用)。 */
-function playText(text: string, audioUrl?: string | null) {
+/**
+ * A3: 任意のテキスト/音声URLを排他再生(4択の選択肢🔊用)。
+ *
+ * **言語を受ける。** 4択の選択肢はその回の語と同じ言語なので、
+ * 呼ぶ側が持っている。渡さないと英語の選択肢が中国語の声で読まれる。
+ */
+function playText(text: string, audioUrl?: string | null, language?: string) {
   if (audioUrl) {
     if (!sharedAudio) sharedAudio = new Audio();
     claimAudio(sharedAudio);
     sharedAudio.src = audioUrl;
-    sharedAudio.play().catch(() => speakZhTW(text));
+    sharedAudio.play().catch(() => speak(text, language));
   } else {
-    speakZhTW(text);
+    speak(text, language);
   }
 }
 
@@ -1170,7 +1175,7 @@ export function SpeakingCard({
             <div className="mt-0.5 flex items-start gap-2">
               <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
               <button
-                onClick={() => playText(scaffold.question_zh)}
+                onClick={() => playText(scaffold.question_zh, null, card.language ?? undefined)}
                 className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
                 aria-label={t("rv.readQuestion")}
               >
@@ -1195,7 +1200,7 @@ export function SpeakingCard({
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
-                      onClick={() => playText(p.zh)}
+                      onClick={() => playText(p.zh, null, card.language ?? undefined)}
                       className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
                       aria-label={t("review.playHint")}
                     >
@@ -1878,7 +1883,9 @@ export function LightModeCard({
                   {showRed && <X className="h-4 w-4 shrink-0 text-bad" />}
                 </button>
                 <button
-                  onClick={() => playText(c, isAnswer ? card.audio_url : null)}
+                  onClick={() =>
+                    playText(c, isAnswer ? card.audio_url : null, card.language ?? undefined)
+                  }
                   className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
                   aria-label={t("rv.pronOf", { c })}
                 >

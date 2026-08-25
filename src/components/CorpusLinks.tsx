@@ -4,7 +4,7 @@ import { useT } from "@/lib/i18n";
 import { corpusLinksFor, corpusHref, copiesWord, type CorpusSection } from "@/lib/corpus-links";
 
 /**
- * その節の下に置く「もっと詳しく」— 台湾華語のコーパスへのリンク。
+ * その節の下に置く「もっと詳しく」— **その語の言語**のコーパスへのリンク。
  *
  * ## 「外部」の印を必ず付ける
  * このアプリは最初に「**検証済みと AI 生成を区別する**」と決めた。
@@ -16,9 +16,18 @@ import { corpusLinksFor, corpusHref, copiesWord, type CorpusSection } from "@/li
  * (`src/lib/corpus-links.ts` の注釈)、**開く前に語を写す**。
  * 写せなかったときも黙って開く — 開けること自体は失われない。
  */
-export function CorpusLinks({ section, headword }: { section: CorpusSection; headword: string }) {
+export function CorpusLinks({
+  section,
+  headword,
+  language,
+}: {
+  section: CorpusSection;
+  headword: string;
+  /** その語の学習言語。渡さないと台湾華語のコーパスが出る。 */
+  language?: string | null;
+}) {
   const t = useT();
-  const sources = corpusLinksFor(section);
+  const sources = corpusLinksFor(section, language);
   if (sources.length === 0) return null;
 
   return (

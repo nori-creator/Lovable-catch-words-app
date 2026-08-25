@@ -422,6 +422,13 @@ const MODES = [
   ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
+  // **英語のカード**(第4段 / 指摘⑬)。台湾華語のカードには無い5つの節
+  // (活用・数え方と冠詞・強く読む所・句動詞・文化の一言)がここに出る。
+  // 撮らないと、足した節が一度も機械の目に映らない。
+  ...crossThemes("word-card-en", { scene: "word-card-en" }),
+  // 英語のカードを**繁體中文の画面で**見る。英語を学ぶ台湾の人の
+  // いちばん普通の組み合わせで、節の名前が訳し忘れならここで出る。
+  ["word-card-en-zh", "", false, { scene: "word-card-en", lang: "zh-TW" }],
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
   // 最初に見る面なのに、ここまで一度も撮っていなかった。
   ...crossThemes("dex-empty", { scene: "dex-empty" }),

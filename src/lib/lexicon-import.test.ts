@@ -572,6 +572,37 @@ describe("CEFR-J — 公式の級", () => {
     expect(idx.get("a.m.")).toBe(1);
   });
 
+  /**
+   * CEFR-J は米式と英式の綴りを1行にまとめている（本物のファイルに179行）。
+   * 分けないと `center` にも `centre` にも当たらず、**どちらも公式の級を
+   * 失って見積もりに落ちる**。しかもここに並ぶのは `center` `behavior`
+   * `apologize` のようなよく使う語なので、いちばん効く所を落とすことになる。
+   */
+  it("**`/` で並んだ綴りは1語ずつに分ける**(米式・英式の両方に級が付く)", () => {
+    const idx = buildCefrjIndex([
+      { headword: "center/centre", pos: "noun", cefr: "A2" },
+      { headword: "analyze/analyse", pos: "verb", cefr: "B1" },
+      { headword: "a.m./A.M./am/AM", pos: "adverb", cefr: "A1" },
+    ]);
+    expect(idx.get("center")).toBe(2);
+    expect(idx.get("centre")).toBe(2);
+    expect(idx.get("analyze")).toBe(3);
+    expect(idx.get("analyse")).toBe(3);
+    // 4つ並んでいても全部に配る。小文字に揃えるので `AM` は `am` に落ちる。
+    expect(idx.get("a.m.")).toBe(1);
+    expect(idx.get("am")).toBe(1);
+  });
+
+  it("分けたあとも**やさしいほうを採る**(別の行と重なったとき)", () => {
+    const idx = buildCefrjIndex([
+      { headword: "center/centre", pos: "noun", cefr: "B2" },
+      { headword: "center", pos: "verb", cefr: "A2" },
+    ]);
+    expect(idx.get("center")).toBe(2);
+    // 併記側しか出てこない綴りは、その行の級のまま。
+    expect(idx.get("centre")).toBe(4);
+  });
+
   it("読めない行は飛ばす(表が壊れない)", () => {
     const idx = buildCefrjIndex([
       { headword: "", pos: "noun", cefr: "A1" },

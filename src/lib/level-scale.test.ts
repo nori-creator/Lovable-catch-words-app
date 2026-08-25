@@ -10,6 +10,7 @@ import {
   bandOf,
   examLabels,
   levelOptions,
+  restoreLevel,
   parseLevelStep,
   stepColorVar,
   stepHeight,
@@ -245,6 +246,59 @@ describe("levelOptions — 設定に並べる6つ", () => {
   it("**保存する形は読み返せる**(設定した級が次に開いたとき消えない)", () => {
     for (const sc of [TOCFL_SCALE, CEFR_SCALE]) {
       for (const o of levelOptions(sc)) expect(parseLevelStep(o.value)).not.toBeNull();
+    }
+  });
+});
+
+describe("restoreLevel — 学習言語を切り替えたときの級", () => {
+  /**
+   * 学習言語を選べるようにした日(2026-08-25、第4段)から、同じ人の
+   * `level_goal` に `"TOCFL-2"` と `"A2"` の両方があり得る。
+   * 載せ替えないと、設定の一覧に**無い値**が選ばれた状態になり、
+   * 選択が空に見えて保存もできない。
+   */
+  it("段を引き継いで表記だけ載せ替える", () => {
+    expect(restoreLevel(CEFR_SCALE, "TOCFL-2", 1)).toBe("A2");
+    expect(restoreLevel(TOCFL_SCALE, "B1", 1)).toBe("TOCFL-3");
+  });
+
+  it("同じ目盛りならそのまま(触らない)", () => {
+    for (const i of LEVEL_INDEXES) {
+      const v = CEFR_SCALE.toStored(i);
+      expect(restoreLevel(CEFR_SCALE, v, 1)).toBe(v);
+      const t = TOCFL_SCALE.toStored(i);
+      expect(restoreLevel(TOCFL_SCALE, t, 1)).toBe(t);
+    }
+  });
+
+  it("**6段を往復しても壊れない**(切り替えを繰り返しても段が動かない)", () => {
+    for (const i of LEVEL_INDEXES) {
+      const start = TOCFL_SCALE.toStored(i);
+      const there = restoreLevel(CEFR_SCALE, start, 1);
+      const back = restoreLevel(TOCFL_SCALE, there, 1);
+      expect(back, `段${i}`).toBe(start);
+    }
+  });
+
+  it("読めない値は fallback(空の選択を作らない)", () => {
+    for (const bad of [null, undefined, "", "  ", "級外", "unknown"]) {
+      expect(restoreLevel(CEFR_SCALE, bad, 2), String(bad)).toBe("A2");
+    }
+  });
+
+  it("**6段の外は fallback**(`toStored(7)` は一覧に無い値を作る)", () => {
+    for (const out of ["TOCFL-7", "TOCFL-0", "9"]) {
+      expect(restoreLevel(CEFR_SCALE, out, 1), out).toBe("A1");
+    }
+  });
+
+  it("**返す値は必ず一覧の中に在る**(選択が空にならない)", () => {
+    const inputs = [null, "", "TOCFL-2", "B1", "C2", "TOCFL-7", "級外", "unknown", 3];
+    for (const scale of [TOCFL_SCALE, CEFR_SCALE]) {
+      const values = levelOptions(scale).map((o) => o.value);
+      for (const raw of inputs) {
+        expect(values, `${scale.id}: ${raw}`).toContain(restoreLevel(scale, raw, 1));
+      }
     }
   });
 });

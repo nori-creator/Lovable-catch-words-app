@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
+import { UI_LANG_PROMPT_NAMES } from "./i18n";
 
 /**
  * Single switch point for every AI call in the app.
@@ -517,13 +518,15 @@ export async function isProUser(userId: string): Promise<boolean> {
 }
 
 /**
- * 学習者の現在レベルと目標レベル(TOCFL)。生成物の語彙・文法は
+ * 学習者の現在レベルと目標レベル。生成物の語彙・文法は
  * 「現在レベル〜目標レベル」の帯に収めるのが最も伸びる(i+1)。
  * current_level が未設定なら目標の1つ下を現在とみなす。
+ *
+ * **形は保存されているまま返す**(`"TOCFL-2"` / `"B1"`)。読み替えは
+ * `level-instruction.ts` がやる — 目盛りを知っているのはあちら。
  */
 export async function getUserLevels(userId: string): Promise<{ current: string; goal: string }> {
   const goal = await getUserLevelGoal(userId);
-  const goalNum = Number(goal.match(/(\d)/)?.[1] ?? 2);
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -536,14 +539,43 @@ export async function getUserLevels(userId: string): Promise<{ current: string; 
   } catch {
     /* 列が無い環境ではフォールバック */
   }
-  return { current: `TOCFL-${Math.max(1, goalNum - 1)}`, goal };
+  // 現在の級が空なら**目標の1つ下**。級の表記はその人の目盛りで作る
+  // (`TOCFL-${n}` と直に書くと、英語の学習者に華語の表記が渡る)。
+  const { parseLevelStep } = await import("./level-scale");
+  const { targetProfile } = await import("./target-profile");
+  const scale = targetProfile(await getUserTargetLanguage(userId)).levels;
+  const step = parseLevelStep(goal);
+  const n = typeof step === "number" ? step : 2;
+  return { current: scale.toStored(Math.max(1, n - 1) as 1 | 2 | 3 | 4 | 5 | 6), goal };
+}
+
+/**
+ * その人が**何語を学んでいるか**。
+ *
+ * 級の目盛り・カードの項目・読み上げの言語が全部ここから決まる。
+ * 読めなければ既定(`normalizeTargetLanguage` が落とす)。
+ */
+export async function getUserTargetLanguage(userId: string): Promise<string> {
+  const { normalizeTargetLanguage } = await import("./target-lang");
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("target_language")
+      .eq("id", userId)
+      .maybeSingle();
+    return normalizeTargetLanguage((data as { target_language?: string } | null)?.target_language);
+  } catch {
+    return normalizeTargetLanguage(null);
+  }
 }
 
 /**
  * 解説文をどの言語で書くか。設定の「表示言語」(profiles.ui_language)に従う。
  * 学習対象の台湾華語はそのまま、**説明・訳だけ**をこの言語で書かせる。
  */
-export async function getExplanationLanguage(userId: string): Promise<"ja" | "en"> {
+export async function getExplanationLanguage(userId: string): Promise<import("./i18n").UiLang> {
+  const { normalizeUiLang } = await import("./i18n");
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -551,10 +583,27 @@ export async function getExplanationLanguage(userId: string): Promise<"ja" | "en
       .select("ui_language")
       .eq("id", userId)
       .maybeSingle();
-    return (data as { ui_language?: string } | null)?.ui_language === "en" ? "en" : "ja";
+    // **`=== "en" ? "en" : "ja"` と書かない。** 表示言語が3つになった日
+    // (2026-08-25)に、この形が残っていると台湾の人の解説だけが黙って
+    // 日本語で作られる — 画面は繁體中文なのに中身が日本語、という
+    // いちばん気づきにくい壊れ方になる。一覧は `i18n.tsx` が持っている。
+    return normalizeUiLang((data as { ui_language?: string } | null)?.ui_language);
   } catch {
-    return "ja";
+    return normalizeUiLang(null);
   }
+}
+
+/**
+ * プロンプトの中でその言語を何と呼ぶか。**日本語で書く**(指示文が日本語)。
+ *
+ * 表そのものは `i18n.tsx` が持つ — 表示言語の一覧を持っているのがあちらで、
+ * ここに写しを置くと、4つ目の言語を足した日に片方だけ増える。
+ */
+export function explanationLanguageName(lang: import("./i18n").UiLang): string {
+  // 同期で読みたい(プロンプトを組む所で await を増やさない)ので、
+  // 表だけを静的に取り込む。`i18n.tsx` は React も持つが、この表は
+  // 素のオブジェクトなので server から読んで問題ない。
+  return UI_LANG_PROMPT_NAMES[lang];
 }
 
 /**
@@ -597,38 +646,66 @@ export async function getLearnerL1Code(userId: string): Promise<string> {
   return (await getLearnerL1(userId)).code;
 }
 
-/** プロンプトに差し込む「解説の言語」指示。 */
-export async function explanationLanguageRule(userId: string): Promise<string> {
-  const lang = await getExplanationLanguage(userId);
-  return lang === "en"
-    ? `**Write every explanation, meaning, translation and note in English.** ` +
-        `Only the Taiwanese Mandarin (zh-TW) words, example sentences and readings stay in Chinese. ` +
-        `Do not write any Japanese.`
-    : `解説・意味・訳・注記はすべて日本語で書く(台湾華語の見出し語・例文・読みはそのまま)。`;
+/**
+ * プロンプトに差し込む「解説の言語」指示。
+ *
+ * ## 学習言語も渡す
+ * 前の版はここに「台湾華語の見出し語・例文・読みはそのまま」と**直に
+ * 書いてあった**。英語のカードにそのまま流すと、AI に
+ * 「英語の語だが、中国語の部分はそのまま残せ」と言うことになる。
+ * 何を「そのまま」にするかは学習言語で決まるので、呼び名は
+ * `target-profile.ts` の表から取る。
+ */
+export async function explanationLanguageRule(
+  userId: string,
+  targetLanguage?: string | null,
+): Promise<string> {
+  const [lang, { targetProfile }] = await Promise.all([
+    getExplanationLanguage(userId),
+    import("./target-profile"),
+  ]);
+  const target = targetProfile(targetLanguage).promptName;
+  if (lang === "en") {
+    return (
+      `**Write every explanation, meaning, translation and note in English.** ` +
+      `Only the ${target} headwords, example sentences and readings stay in that language. ` +
+      `Do not write any Japanese.`
+    );
+  }
+  const name = explanationLanguageName(lang);
+  return `解説・意味・訳・注記はすべて${name}で書く(${target}の見出し語・例文・読みはそのまま)。`;
 }
 
-/** プロンプトに差し込むレベル指示の共通文(現在→目標の帯に収める)。 */
+/**
+ * プロンプトに差し込むレベル指示の共通文(現在→目標の帯に収める)。
+ *
+ * **帯の説明をここに書かない。** 以前はここに TOCFL の6行が直に
+ * 書いてあり、英語を選べるようにした日から**英語の学習者に華語の級の
+ * 話が渡る**状態になっていた。画面には出ないので、出来上がった中身を
+ * 読むまで気づけない種類の壊れ方。文は `level-instruction.ts` が組む。
+ */
 export async function levelInstruction(userId: string): Promise<string> {
-  const { current, goal } = await getUserLevels(userId);
-  const n = Number(goal.match(/(\d)/)?.[1] ?? 2);
-  // TOCFL(華語文能力測驗)の各級がどの範囲かを具体的に書く。
-  // 「レベルに合わせて」だけではモデルが解釈を揺らすので、
-  // 語彙量・文法・話題まで明示して再現性を持たせる。
-  const BANDS: Record<number, string> = {
-    1: "入門級(準備級1級・語彙約500語)。基本文型 是/有/在、SVO、簡単な疑問詞。",
-    2: "基礎級(準備級2級・語彙約1000語)。了/過/在〜、比較句、能願動詞(會/能/可以)。",
-    3: "進階級(第1級・語彙約2500語)。把構文、被構文、複文(因為…所以)、程度補語。",
-    4: "高階級(第2級・語彙約5000語)。方向補語・可能補語、書面語彙、接続詞の使い分け。",
-    5: "流利級(第3級・語彙約8000語)。成語・慣用句、抽象的な議論、書面体。",
-    6: "精通級(第4級・語彙約8000語超)。専門的・文学的表現、含意の強い言い回し。",
+  const [{ current, goal }, target] = await Promise.all([
+    getUserLevels(userId),
+    getUserTargetLanguage(userId),
+  ]);
+  const [{ targetProfile }, { levelRuleText }] = await Promise.all([
+    import("./target-profile"),
+    import("./level-instruction"),
+  ]);
+  const profile = targetProfile(target);
+  // 「その語彙表に無い難語を使うな」と言うとき、**どの語彙表かを言う**。
+  // 華語の学習者に CEFR-J を、英語の学習者に台湾教育部の表を挙げても
+  // モデルには効かない。
+  const AUTHORITY: Record<string, string> = {
+    TOCFL: "台湾教育部の語彙表・TOCFL公式語彙表",
+    CEFR: "CEFR-J Wordlist(投野由紀夫研究室)",
   };
-  return (
-    `学習者の現在レベル: ${current}、目標レベル: ${goal}(TOCFL 華語文能力測驗)。` +
-    `目標レベルの目安 — ${BANDS[n] ?? BANDS[2]} ` +
-    `**語彙・文法・話題は必ずこの範囲に収める**。台湾教育部の語彙表・` +
-    `TOCFL公式語彙表に無いような難語や、目標級より上の文法(補語の複雑な用法、` +
-    `成語など)は使わない。どうしても必要なときだけ短い注釈を添える。` +
-    `例文は現在レベル(${current})でも読めることを優先する。`
+  return levelRuleText(
+    profile.levels,
+    current,
+    goal,
+    AUTHORITY[profile.levels.id] ?? AUTHORITY.TOCFL,
   );
 }
 

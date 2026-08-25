@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { TargetLanguage } from "./target-lang";
 
 /**
  * 軽量i18n(2026-07-25): アプリの主要な操作面(ナビ・見出し・設定)を
@@ -44,6 +45,39 @@ export const UI_LANG_LABEL_KEYS: Record<UiLang, string> = {
   ja: "settings.langJa",
   en: "settings.langEn",
   "zh-TW": "settings.langZhTw",
+};
+
+/**
+ * **プロンプトの中でその言語を何と呼ぶか。**
+ *
+ * `UI_LANG_LABEL_KEYS` は画面に出す名前(その言語自身で書く)、
+ * こちらは AI への指示文の中で使う名前で、**指示文が日本語なので
+ * 日本語で書く**。用途が違うので同じ表にはしない。
+ *
+ * server 側(`ai-provider.server.ts`)に置きたくなるが、そちらに置くと
+ * `"zh-TW"` の直書きが1つ増えて `target-lang.test.ts` の門に当たる。
+ * 表示言語の一覧を持っているのはここなので、名前もここが持つのが正しい。
+ */
+export const UI_LANG_PROMPT_NAMES: Record<UiLang, string> = {
+  ja: "日本語",
+  en: "英語",
+  "zh-TW": "繁體中文(台湾)",
+};
+
+/**
+ * **学んでいる言語**の名前の翻訳キー。
+ *
+ * `UI_LANG_LABEL_KEYS`(表示言語)とは別物。いまは両方に `ja` があるが、
+ * 意味が違う — あちらは「画面を日本語にする」、こちらは「日本語を学ぶ」。
+ * 同じ表にすると、日本語を学ぶ版を足した日に片方の意味が壊れる。
+ *
+ * 鍵の一覧そのものは `target-lang.ts` の `TARGET_LANGUAGES` が持つ。
+ * ここは名前だけ。設定の一覧はここを回すので、言語を足して
+ * ここを直し忘れると**型で落ちる**(選べない言語ができない)。
+ */
+export const TARGET_LANG_LABEL_KEYS: Record<TargetLanguage, string> = {
+  "zh-TW": "settings.langZhTw",
+  en: "settings.langEn",
 };
 
 /**
@@ -474,6 +508,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Real sentences beside their English — the place to see the word in context.",
     "zh-TW": "真實句子和英譯並排。想看這個字出現在什麼樣的句子裡，就看這裡。",
   },
+  // --- 英語のコーパス(第4段) -----------------------------------------------
+  "corpus.coca": { ja: "COCA（現代アメリカ英語）", en: "COCA", "zh-TW": "COCA（當代美國英語）" },
+  "corpus.cocaHint": {
+    ja: "10億語のアメリカ英語。頻度と一緒に使う語が読めます（無料の登録が要ります）。",
+    en: "A billion words of American English — frequency and collocates (free account needed).",
+    "zh-TW": "十億詞的美國英語，可以看頻率和搭配詞（需要免費註冊）。",
+  },
+  "corpus.bnc": { ja: "BNC（イギリス英語）", en: "BNC", "zh-TW": "BNC（英國英語）" },
+  "corpus.bncHint": {
+    ja: "イギリス英語の基準になる資料。米英の差を見たいときに（無料の登録が要ります）。",
+    en: "The reference corpus for British English — good for US/UK differences (free account needed).",
+    "zh-TW": "英國英語的基準語料庫，想看美英差異時很好用（需要免費註冊）。",
+  },
+  "corpus.mwThesaurus": {
+    ja: "Merriam-Webster 類語",
+    en: "Merriam-Webster Thesaurus",
+    "zh-TW": "Merriam-Webster 同義詞",
+  },
+  "corpus.mwThesaurusHint": {
+    ja: "似た語がどう違うかを、例文つきで並べて見られます。",
+    en: "How near-synonyms differ, laid out side by side with examples.",
+    "zh-TW": "意思相近的詞差在哪裡，附例句並排著看。",
+  },
   "corpus.sketch": { ja: "Sketch Engine", en: "Sketch Engine", "zh-TW": "Sketch Engine" },
   "corpus.sketchHint": {
     ja: "一緒に使う語の一覧が最も詳しい系統。ただしログインが要ります。",
@@ -679,6 +736,52 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "台湾教育部の公式辞書（定義・注音）",
     en: "Taiwan's official MOE dictionary (definitions, Zhuyin)",
     "zh-TW": "台灣教育部的官方辭典（釋義・注音）",
+  },
+  // --- 英語のカードの「実際の使われ方」(第4段) -----------------------------
+  // **札の名前は使い回す**(YouTube / Threads / ニュース / 文の中)。
+  // 一言だけ言語ごとに変える — 中身が変わるのはそこだけ。
+  "card.ytHintEn": {
+    ja: "英語圏の動画をまとめて（複数見られます）",
+    en: "Videos from the English-speaking world — a whole list of them",
+    "zh-TW": "彙整英語圈的影片（可以看好幾支）",
+  },
+  "card.yglHintEn": {
+    ja: "アメリカ英語の話者で1本ずつ。矢印で次へ",
+    en: "One American-English speaker at a time — arrows move to the next",
+    "zh-TW": "一次一位美式英語的說話者，用箭頭換下一位",
+  },
+  "card.redditLabel": { ja: "Redditで見る", en: "See it on Reddit", "zh-TW": "在 Reddit 上看" },
+  "card.redditHint": {
+    ja: "普通の人が書いた文での使われ方",
+    en: "How ordinary people actually write it",
+    "zh-TW": "一般人實際上怎麼寫",
+  },
+  "card.threadsHintEn": {
+    ja: "英語圏の人がいま書いている短い文",
+    en: "Short posts English speakers are writing now",
+    "zh-TW": "英語圈的人現在正在寫的短句",
+  },
+  // **札の名前も替える。** 一言だけ替えて名前を使い回したら、英語の
+  // カードに「在台灣的網站搜尋（台湾のサイトで検索）」と出た(絵で見つけた)。
+  "card.newsLabelEn": {
+    ja: "英語のサイトで検索",
+    en: "Search English-language sites",
+    "zh-TW": "在英語網站搜尋",
+  },
+  "card.newsHintEn": {
+    ja: "英語のサイトだけに絞った検索結果",
+    en: "Results limited to English-language pages",
+    "zh-TW": "只限英語網站的搜尋結果",
+  },
+  "card.mwLabel": {
+    ja: "Merriam-Webster",
+    en: "Merriam-Webster",
+    "zh-TW": "Merriam-Webster",
+  },
+  "card.mwHint": {
+    ja: "アメリカ英語の標準的な辞書（定義・発音）",
+    en: "The standard American English dictionary (definitions, pronunciation)",
+    "zh-TW": "美式英語的標準辭典（釋義・發音）",
   },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": {
@@ -1785,6 +1888,28 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.mnemonic": { ja: "覚え方", en: "Memory hook", "zh-TW": "記憶方法" },
   "card.taiwan_note": { ja: "台湾メモ", en: "Taiwan note", "zh-TW": "台灣筆記" },
   "card.real_usage": { ja: "実際の使われ方", en: "Seen in the wild", "zh-TW": "實際上怎麼用" },
+  // --- 英語のカードだけの節 ------------------------------------------------
+  // 台湾華語のカードには出ない。**それでも3言語ぶん訳す** — 英語を学ぶ
+  // 台湾の人はアプリを繁體中文で使うので、節の名前が日本語で出たら
+  // その人の画面が壊れている。
+  "card.forms": { ja: "活用", en: "Word forms", "zh-TW": "詞形變化" },
+  "card.countability": { ja: "数え方と冠詞", en: "Countability", "zh-TW": "可數與冠詞" },
+  "card.stress": { ja: "強く読む所", en: "Stress", "zh-TW": "重音" },
+  "card.phrasal_verbs": { ja: "句動詞", en: "Phrasal verbs", "zh-TW": "片語動詞" },
+  "card.culture_note": { ja: "文化の一言", en: "Culture note", "zh-TW": "文化筆記" },
+  // 活用の名前。**表の左の列**に出る短い名前で、文にしない。
+  "card.formPlural": { ja: "複数形", en: "Plural", "zh-TW": "複數" },
+  "card.formPast": { ja: "過去形", en: "Past", "zh-TW": "過去式" },
+  "card.formPastParticiple": { ja: "過去分詞", en: "Past participle", "zh-TW": "過去分詞" },
+  "card.formIng": { ja: "-ing 形", en: "-ing form", "zh-TW": "-ing 形" },
+  "card.formThird": { ja: "三単現", en: "3rd person", "zh-TW": "第三人稱單數" },
+  "card.formComparative": { ja: "比較級", en: "Comparative", "zh-TW": "比較級" },
+  "card.formSuperlative": { ja: "最上級", en: "Superlative", "zh-TW": "最高級" },
+  // 数え方。
+  "card.countable": { ja: "数えられる", en: "Countable", "zh-TW": "可數" },
+  "card.uncountable": { ja: "数えられない", en: "Uncountable", "zh-TW": "不可數" },
+  "card.countBoth": { ja: "どちらもある", en: "Both", "zh-TW": "兩者皆可" },
+  "card.article": { ja: "冠詞", en: "Article", "zh-TW": "冠詞" },
   "card.sections": {
     ja: "表示する項目と順番",
     en: "Sections & order",

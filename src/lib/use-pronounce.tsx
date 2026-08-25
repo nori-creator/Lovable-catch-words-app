@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { synthesizeSpeech } from "@/lib/tts.functions";
-import { speakZhTW } from "@/lib/speak";
+import { speak } from "@/lib/speak";
 import { claimAudio, primeAudio } from "@/lib/audio";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 
 /**
  * Accuracy-first pronunciation.
@@ -23,7 +24,13 @@ export type Pronounce = ((text: string) => Promise<void>) & {
   prefetch: (text: string) => void;
 };
 
-export function usePronounce(): Pronounce {
+/**
+ * @param language 読む語の学習言語。**渡さないと台湾華語として読む。**
+ *   英語の語をそのまま渡すと、サーバは台湾華語の声で合成し、
+ *   端末の控えも台湾華語の声を探す。しかも合成した音は保存されるので、
+ *   **誰かが聞くまで間違いに気づけない**。
+ */
+export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronounce {
   const ttsFn = useServerFn(synthesizeSpeech);
   const elRef = useRef<HTMLAudioElement | null>(null);
   const cache = useRef<Map<string, string>>(new Map());
@@ -35,12 +42,15 @@ export function usePronounce(): Pronounce {
     if (!elRef.current) elRef.current = new Audio();
     primeAudio(elRef.current);
     try {
-      let url = cache.current.get(word);
+      // **鍵に言語を混ぜる。** 同じ綴りが両方の言語に在り得る
+      // ("a" / "in")。混ぜないと、先に鳴らしたほうの声が残る。
+      const key = `${language}:${word}`;
+      let url = cache.current.get(key);
       if (!url) {
-        const r = await ttsFn({ data: { text: word } });
+        const r = await ttsFn({ data: { text: word, language } });
         if (r.audio_url) {
           url = r.audio_url;
-          cache.current.set(word, url);
+          cache.current.set(key, url);
         }
       }
       if (url) {
@@ -54,15 +64,15 @@ export function usePronounce(): Pronounce {
     } catch {
       /* server TTS unavailable — use the device voice below */
     }
-    speakZhTW(word);
+    speak(word, language);
   } as Pronounce;
 
   pronounce.prefetch = (text: string) => {
     const word = text.trim();
-    if (!word || cache.current.has(word)) return;
-    void ttsFn({ data: { text: word } })
+    if (!word || cache.current.has(`${language}:${word}`)) return;
+    void ttsFn({ data: { text: word, language } })
       .then((r) => {
-        if (r.audio_url) cache.current.set(word, r.audio_url);
+        if (r.audio_url) cache.current.set(`${language}:${word}`, r.audio_url);
       })
       .catch(() => {
         /* 先読みは best-effort。失敗しても本番の再生で取り直す */

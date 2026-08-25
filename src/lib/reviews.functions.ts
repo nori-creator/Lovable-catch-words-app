@@ -67,6 +67,11 @@ export type DueReviewCard = {
   sticker_id: string;
   word_id: string;
   headword: string;
+  /**
+   * その語を**何語として覚えているか**。
+   * 読み上げの声・言語がこれで決まる。空なら既定の学習言語。
+   */
+  language: string | null;
   reading_zhuyin: string | null;
   pinyin: string | null;
   meaning_ja: string;
@@ -261,7 +266,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const fetchLimit = Math.min(10, remaining);
 
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
     // 記憶段階の優先度(設定):
     //   weak = 忘れかけ(ease が低い=何度も間違えた語)から先に
     //   new  = 覚えたて(復習回数が少ない語)から先に
@@ -310,6 +315,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         words: {
           id: string;
           headword: string;
+          language: string | null;
           reading_zhuyin: string | null;
           pinyin: string | null;
           meaning_ja: string;
@@ -539,6 +545,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         sticker_id: row.sticker_id,
         word_id: w.id,
         headword: w.headword,
+        language: w.language ?? null,
         reading_zhuyin: w.reading_zhuyin,
         pinyin: w.pinyin,
         meaning_ja: w.meaning_ja,
