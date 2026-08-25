@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
+import { setTargetLang } from "@/lib/target-lang-pref";
 import {
   getStoredReviewMode,
   setStoredReviewMode,
@@ -266,6 +267,9 @@ function SettingsPage() {
   const pickTargetLanguage = (next: string) => {
     const scale = targetProfile(next).levels;
     setTargetLanguage(next);
+    // **選んだ瞬間に効かせる。** 保存を押す前に撮りに行く人が居るので、
+    // 保存のときだけ写すと「設定では英語なのに撮ると台湾華語」になる。
+    setTargetLang(next);
     setCurrentLevel((prev) => restoreLevel(scale, prev, 1));
     setLevelGoal((prev) => restoreLevel(scale, prev, 2));
   };
@@ -295,6 +299,10 @@ function SettingsPage() {
     setUiLang(nextUi);
     // **級より先に学習言語を読む。** 級の表記はその言語の目盛りで決まる。
     setTargetLanguage(profile.target_language);
+    // **端末にも写す。** 撮る道（スキャン・文字入力・保存）はプロフィールの
+    // 到着を待たずに動くので、localStorage の写しから読む
+    // (`target-lang-pref.ts`。表示言語と同じ形)。
+    setTargetLang(profile.target_language);
     // 保存されている級を**その言語の表記に載せ替える**。台湾華語で
     // 2級だった人が英語に切り替えていれば `"TOCFL-2"` が残っているので、
     // そのまま渡すと CEFR の一覧に無い値になり、選択が空に見える。
@@ -347,6 +355,9 @@ function SettingsPage() {
       // **ここで "ja" に落とさない。** 繁體中文を選んだ人が保存するたびに
       // 日本語へ戻ってしまう（型でもビルドでも落ちない）。
       setUiLang(normalizeUiLang(uiLanguage));
+      // 学習言語も端末に憶えさせる。ここを忘れると、設定では英語なのに
+      // 撮る道だけ台湾華語のまま、という食い違いが残る。
+      setTargetLang(targetLanguage);
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.saved"));
     } catch (e) {

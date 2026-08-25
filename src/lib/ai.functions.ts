@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { targetProfile } from "./target-profile";
+import { LEVEL_INDEXES } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -94,20 +96,20 @@ export const suggestWords = createServerFn({ method: "POST" })
     //
     // 候補にとってレベルは**上限ではなく下限**で、「どこまで細かい名前で
     // 呼ぶか」を決める物。だから級の縛りは外し、細かさの指示に置き換える。
-    const specificity =
-      levelNum <= 2
-        ? `学習者は入門〜基礎級。**日常でその物を指すときの普通の名前**で呼ぶ` +
-          `(例: 「短袖」より「T恤」、「三杯雞」はそのまま「三杯雞」)。`
-        : levelNum <= 4
-          ? `学習者は進階〜高階級。**店や献立で実際に使われる名前**まで細かく` +
-            `(例: 服なら「短袖」「洋裝」、料理なら「三杯雞」「滷肉飯」)。`
-          : `学習者は流利級以上。**その道の人が使う正確な名前**まで細かく` +
-            `(例: 「純棉短袖」「客家小炒」)。一般名詞は既に知っている。`;
+    // **例は言語ごとに違う。** 「短袖」「三杯雞」は台湾華語の例で、
+    // 英語の学習者に渡しても手掛かりにならない。表は
+    // `target-profile.ts` の `capture.specificity` が持つ。
+    const profile = targetProfile(data.targetLanguage);
+    const band = levelNum <= 2 ? 0 : levelNum <= 4 ? 1 : 2;
+    const bandName = ["入門〜基礎", "中位", "上位"][band];
+    const specificity = `学習者は${bandName}の級。${profile.capture.specificity[band]}`;
 
-    const prompt =
-      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
-        ? `この画像から、台湾華語の学習対象として有用な名詞を5つ選んでください。
-- 台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）
+    // **分岐しない。** 前は「台湾華語なら40行、それ以外は1行」だった。
+    // カテゴリの規則も「上位の分類語に逃げない」も**写真の話であって
+    // 言語の話ではない**ので、どの言語にも要る。言語で変わる所だけを
+    // プロフィールから受け取る。
+    const prompt = `この画像から、${profile.promptName}の学習対象として有用な名詞を5つ選んでください。
+- ${profile.capture.scriptRule}
 ${specificity}
 ${langRule}
 - 画像に明確に写っているものだけ
@@ -135,17 +137,15 @@ ${langRule}
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
 
 **distinction(使い分けの一言)は、区別が要るときだけ書く:**
-書くのは「母語では1語なのに台湾華語では**別の語に分かれる**」場合だけ。
+書くのは「母語では1語なのに${profile.promptName}では**別の語に分かれる**」場合だけ。
 そのときだけ、見た人が**なぜこの語であって隣の語ではないのか**を選べる。
-- 書く例: 衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」
-- 書く例: 湯→「スープ(お湯ではない)」のように、母語からの連想を外す必要があるとき
+- 書く例: ${profile.capture.distinctionExamples}
 - **書かない**: 母語と一対一で、迷いようがない語。
-  「雞肉」に「鶏の肉全般を指す表現」と書くのは意味の言い換えでしかなく、
+  ある語に「その物全般を指す表現」と書くのは意味の言い換えでしかなく、
   読む人に何も足さない(オーナー指摘 2026-08-20)。そういう語は
   distinction を**空文字**にする。
 - 迷ったら空にする。**選ぶ手がかりにならない一言は、無いより悪い** —
-  全部の行に何か書いてあると、本当に区別が要る行が埋もれる。`
-        : `画像から${data.targetLanguage}の学習対象として有用な名詞を5つ選び、headword(${data.targetLanguage})、日本語の意味、カテゴリを返してください。`;
+  全部の行に何か書いてあると、本当に区別が要る行が埋もれる。`;
 
     let content: string;
     try {
@@ -250,7 +250,9 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
       ? `その場の様子: 「${data.scene.trim()}」。**この様子に合うものを優先**する。`
       : "その場の様子は聞けていない。よくある使い分けを並べる。";
 
-    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す台湾華語の候補を挙げてください。
+    // 学習言語の名前も分け方の例も、言語の表から取る(決め打たない)。
+    const candProfile = targetProfile(data.targetLanguage);
+    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す${candProfile.promptName}の候補を挙げてください。
 
 ${sceneLine}
 ${levelRule}
@@ -264,12 +266,11 @@ ${langRule}
   返らないと母語のまま次へ渡り、最後に「学んでいる言語の単語ではありません」
   とだけ出る — 打った人には**機能が壊れているようにしか見えない**
   (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
-- **細かく分ける。** 母語の1語が台湾華語では複数の別語になることが多い。
-  例:「ティッシュ」→ 衛生紙(トイレに置く)/ 面紙(持ち歩く箱・ポケット)/ 濕紙巾(ウェット)
-  例:「お茶」→ 茶(飲み物一般)/ 茶葉(葉)/ 手搖飲(店で買う飲料)
+- **細かく分ける。** 母語の1語が${candProfile.promptName}では複数の別語になることが多い。
+  例: ${candProfile.capture.distinctionExamples}
 - それぞれの distinction に、**他とどう違うか**を短く書く(15文字程度)。
   違いが書けない候補は挙げない — 同じ物の言い換えを並べても選べない。
-- 台湾で実際に使う語だけ。大陸語彙は禁止。繁体字。
+- 実際に使われている語だけ。${candProfile.capture.scriptRule}。
 - 2〜5個。**確かなものだけ**。1つしか無いならそれだけ返す。`;
 
     const raw = await generateStructured({
@@ -316,25 +317,28 @@ export const generateCard = createServerFn({ method: "POST" })
     const l1Info = await getLearnerL1(context.userId);
     const learnerL1 = l1Info.speakerJa;
 
-    const prompt =
-      data.targetLanguage === DEFAULT_TARGET_LANGUAGE
-        ? `「${data.headword}」について、台湾華語(繁体字)の語彙カードを生成してください。
+    // **ここも分岐しない**(上の候補と同じ理由)。前は台湾華語以外が
+    // 「発音、意味、品詞、レベル、カテゴリ、例文とその訳を生成してください」
+    // の1行に落ちていて、カテゴリの規則も棚の提案も届かなかった。
+    const cardProfile = targetProfile(data.targetLanguage);
+    // **保存する形をそのまま並べる**(`TOCFL-1` / `A1`)。名前(`1` / `A1`)を
+    // 並べると、AI が `1` と答えて `parseLevelStep` の外に落ちる。
+    const levelNames = LEVEL_INDEXES.map((n) => cardProfile.levels.toStored(n)).join(" / ");
+    const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
 ${levelRule}
 
 入力語の扱い:
-- 入力が台湾華語なら headword_zh にそのまま繁体字で入れる。
-- 入力が日本語(または英語)なら、**最も日常的に使われる台湾華語の対応語**に変換し headword_zh に入れる(例:「マンゴー」→「芒果」)。大陸語彙は禁止。
+- 入力が${cardProfile.promptName}なら headword_zh にそのまま入れる。
+- 入力が母語(日本語・繁體中文など)なら、**最も日常的に使われる${cardProfile.promptName}の対応語**に変換し headword_zh に入れる(例:「マンゴー」→「芒果」/「傘」→「umbrella」)。
 
 必須項目:
-- headword_zh: 上記ルールで決めた台湾華語の見出し語(繁体字)
-- reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。
-- pinyin: 拼音
+- headword_zh: 上記ルールで決めた${cardProfile.promptName}の見出し語
+${cardProfile.capture.readingRule}
 - meaning_ja: 意味（簡潔に。**解説の言語**で書く — 英語設定なら英語で）
-- part_of_speech: 台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。
-  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。
-- level: TOCFLレベル（TOCFL-1〜6 のいずれか）
+- part_of_speech: ${cardProfile.capture.posRule}
+- level: ${cardProfile.levels.id} のレベル（${levelNames} のいずれか）
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
   **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
@@ -384,14 +388,13 @@ ${l1Gram}
 - region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
-- pronunciation_tips: **${learnerL1}が台湾華語でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  この語の声調の型と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
+- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
 - etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
 - radicals: 部首と意味の説明（1文、${NL}）
 - mnemonic: 記憶に残るひとことフレーズ・覚え方（${NL}）
 
-${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`
-        : `「${data.headword}」(${data.targetLanguage})について、発音、意味(${NL})、品詞、レベル、カテゴリ、例文とその訳(${NL})を生成してください。`;
+${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
     const pro = await isProUser(context.userId);
     const preferredModel = pro ? ai.modelRichPremium : ai.modelRich;
@@ -741,7 +744,6 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
     // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
     // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
-    const { targetProfile } = await import("./target-profile");
     const targetName = targetProfile(word.language as string | null).promptName;
     const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 

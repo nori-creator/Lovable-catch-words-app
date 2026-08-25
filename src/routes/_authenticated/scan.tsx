@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DEFAULT_TARGET_LANGUAGE, speechLangOf } from "@/lib/target-lang";
+import { speechLangOf } from "@/lib/target-lang";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -136,6 +137,13 @@ function ScanPage() {
     [rawScanCtx],
   );
 
+  /**
+   * かざして見つけた語を**何語として扱うか**（設定の学習言語）。
+   * ここが決め打ちだったので、英語を選んでも台湾華語のカードを取りに
+   * 行っていた。
+   */
+  const targetLanguage = useTargetLang();
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // ズーム(1 = 等倍)。端末が対応していれば光学/デジタルズーム、
   // 非対応なら CSS の scale で代用する。
@@ -170,7 +178,7 @@ function ScanPage() {
       const hit = cache.get(headword);
       if (hit) return hit;
       const t0 = performance.now();
-      const p = cardFn({ data: { headword, targetLanguage: DEFAULT_TARGET_LANGUAGE } });
+      const p = cardFn({ data: { headword, targetLanguage: targetLanguage } });
       cache.set(headword, p);
       p.then(() => {
         prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));

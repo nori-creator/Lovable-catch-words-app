@@ -236,3 +236,82 @@ describe("headwordOk — 文字の判定は1箇所しかない", () => {
     expect(EN_PROFILE.headwordOk("well-known")).toBe(true);
   });
 });
+
+describe("撮る道のプロンプトが言語で分岐しない（2026-08-25）", () => {
+  /**
+   * `ai.functions.ts` は
+   * `targetLanguage === DEFAULT_TARGET_LANGUAGE ? 40行の指示 : 1行`
+   * という形だった。台湾華語にはカテゴリの規則も「上位の分類語に逃げない」も
+   * 在るのに、それ以外は
+   *
+   *   「画像から en の学習対象として有用な名詞を5つ選び、
+   *     headword(en)、日本語の意味、カテゴリを返してください。」
+   *
+   * に落ちる。**撮る道を学習言語に繋いだ日から、英語の学習者が実際に
+   * ここに当たる。** カテゴリは other だらけになり、`en` というコードが
+   * そのままプロンプトに出る。
+   *
+   * 画面には出ない文なので、出来上がったカードを読むまで気づけない。
+   */
+  const src = fs.readFileSync("src/lib/ai.functions.ts", "utf8");
+
+  it("**学習言語で分岐していない**", () => {
+    expect(src.includes("data.targetLanguage === DEFAULT_TARGET_LANGUAGE")).toBe(false);
+  });
+
+  it("**言語のコードをそのままプロンプトに書いていない**(`en` と出る)", () => {
+    // `${data.targetLanguage}` を文中に埋めると、読める名前ではなく
+    // `en` `zh-TW` というコードが AI に渡る。呼び名は `promptName`。
+    expect(src.includes("${data.targetLanguage}")).toBe(false);
+  });
+
+  it("どちらの言語も、撮る道の指示が全部そろっている", () => {
+    for (const p of [ZH_TW_PROFILE, EN_PROFILE]) {
+      expect(p.capture.scriptRule.trim(), p.code).not.toBe("");
+      expect(p.capture.specificity.length, p.code).toBe(3);
+      for (const sp of p.capture.specificity) expect(sp.trim(), p.code).not.toBe("");
+      expect(p.capture.distinctionExamples.trim(), p.code).not.toBe("");
+      expect(p.capture.posRule.trim(), p.code).not.toBe("");
+      expect(p.capture.readingRule.trim(), p.code).not.toBe("");
+      expect(p.capture.pronunciationFocus.trim(), p.code).not.toBe("");
+    }
+  });
+
+  it("**言語ごとに中身が違う**(使い回すと片方が的外れになる)", () => {
+    const a = ZH_TW_PROFILE.capture;
+    const b = EN_PROFILE.capture;
+    expect(a.scriptRule).not.toBe(b.scriptRule);
+    expect(a.posRule).not.toBe(b.posRule);
+    expect(a.readingRule).not.toBe(b.readingRule);
+    expect(a.pronunciationFocus).not.toBe(b.pronunciationFocus);
+    expect(a.distinctionExamples).not.toBe(b.distinctionExamples);
+    for (let i = 0; i < 3; i++) expect(a.specificity[i]).not.toBe(b.specificity[i]);
+  });
+
+  it("**英語の指示に華語だけの話が混ざっていない**", () => {
+    const c = EN_PROFILE.capture;
+    const text = [
+      c.scriptRule,
+      ...c.specificity,
+      c.distinctionExamples,
+      c.posRule,
+      c.readingRule,
+      c.pronunciationFocus,
+    ].join(" ");
+    // 注音・拼音・繁体字・簡体字・声調・量詞は華語の話。
+    for (const word of ["注音", "拼音", "繁体字", "簡体字", "声調", "量詞"]) {
+      // `readingRule` は「注音は空」と**書かないと**モデルが埋めようとするので、
+      // 「空文字」と一緒に出てくる分だけは許す。
+      const bad = text.includes(word) && !c.readingRule.includes(word);
+      expect(bad, `英語の指示に「${word}」`).toBe(false);
+    }
+  });
+
+  it("**華語の指示に英語だけの話が混ざっていない**", () => {
+    const c = ZH_TW_PROFILE.capture;
+    const text = [c.scriptRule, ...c.specificity, c.posRule, c.pronunciationFocus].join(" ");
+    for (const word of ["IPA", "強勢", "アメリカ英語"]) {
+      expect(text.includes(word), `華語の指示に「${word}」`).toBe(false);
+    }
+  });
+});

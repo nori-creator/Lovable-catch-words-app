@@ -14,10 +14,19 @@ import { toImageDataUrl } from "@/lib/sticker-upload";
 
 type Props = {
   query: string;
+  /**
+   * 探す言葉の言語。**呼ぶ側から受け取る**（`query` と同じ扱い）。
+   * 決め打つと、英語の語を探すのに台湾華語として検索することになる。
+   *
+   * この部品はいまどこからも描かれていない（`StickerSheet` 側に
+   * 同じ働きの実装が在る）。消すかどうかは別の判断なので、
+   * ここでは形だけ揃えておく。
+   */
+  language?: string;
   onPicked: (dataUrl: string) => void;
 };
 
-export function ImagePicker({ query, onPicked }: Props) {
+export function ImagePicker({ query, language = DEFAULT_TARGET_LANGUAGE, onPicked }: Props) {
   const t = useT();
   const searchFn = useServerFn(searchImageCandidates);
   const fetchFn = useServerFn(fetchImageAsDataUrl);
@@ -30,7 +39,7 @@ export function ImagePicker({ query, onPicked }: Props) {
     setLoading(true);
     setSearched(true);
     try {
-      const { candidates } = await searchFn({ data: { query, language: DEFAULT_TARGET_LANGUAGE } });
+      const { candidates } = await searchFn({ data: { query, language } });
       setCandidates(candidates);
     } catch (e) {
       console.error(e);

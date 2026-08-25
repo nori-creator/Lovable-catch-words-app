@@ -6,6 +6,7 @@
  * 足し、ここからそのまま描く。HTMLをこちらに書き写すことはしない —
  * それをやると「直しても画像が変わらない検査」に戻る。
  */
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   BackgroundPicker,
   DayHeader,
@@ -70,6 +71,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
     placeholder_url: f.net ?? null,
     placeholder_credit: null,
     word: {
+      language: DEFAULT_TARGET_LANGUAGE,
       headword: f.head,
       reading_zhuyin: null,
       pinyin: null,
