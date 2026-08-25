@@ -395,16 +395,34 @@ export function cefrLabelToStep(label: string): LevelIndex | null {
  *
  * 見出しは小文字に揃える。CEFR-J には `A.M.` のような大文字の見出しがあり、
  * ECDICT 側は小文字なので、揃えないとほとんど当たらない。
+ *
+ * ## `/` は綴りの違いなので**1語ずつに分ける**
+ * CEFR-J は米式と英式の綴りを1行にまとめている（**179行**ある）:
+ *
+ *   center/centre        A2
+ *   behavior/behaviour   A2
+ *   analyze/analyse      B1
+ *   airplane/aeroplane   A1
+ *   a.m./A.M./am/AM      A1
+ *
+ * まるごと鍵にすると `center` にも `centre` にも当たらず、**どちらも
+ * 公式の級を失って見積もりに落ちる**。しかもここに並ぶのは
+ * `center` `behavior` `apologize` のような**よく使う語**なので、
+ * 落とすと効き目がいちばん大きい所を落とすことになる。
+ *
+ * 綴りが違うだけで同じ語・同じ級なので、全部に同じ級を配る。
  */
 export function buildCefrjIndex(rows: readonly CefrjRow[]): Map<string, LevelIndex> {
   const out = new Map<string, LevelIndex>();
   for (const r of rows) {
     const step = cefrLabelToStep(r.cefr);
     if (step == null) continue;
-    const key = (r.headword ?? "").trim().toLowerCase();
-    if (!key) continue;
-    const prev = out.get(key);
-    if (prev == null || step < prev) out.set(key, step);
+    for (const variant of (r.headword ?? "").split("/")) {
+      const key = variant.trim().toLowerCase();
+      if (!key) continue;
+      const prev = out.get(key);
+      if (prev == null || step < prev) out.set(key, step);
+    }
   }
   return out;
 }
