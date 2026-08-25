@@ -1810,7 +1810,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "這一輪先到這裡",
   },
   "review.moreHint": {
-    ja: "期限が来ている語があと {n} 語あります。続けられます。",
+    ja: "あと {n} 語、期限が来ています。続けられます。",
     en: "{n} more are due. You can keep going.",
     "zh-TW": "還有 {n} 個字到複習時間了，可以繼續。",
   },

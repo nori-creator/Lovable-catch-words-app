@@ -43,7 +43,7 @@ import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 import { useReviewMode, setStoredReviewMode } from "@/lib/review-mode-pref";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
-import { batchEndKind } from "@/lib/review-batch";
+import { batchEndKind, type ReviewBatchState } from "@/lib/review-batch";
 import {
   Eye,
   Sparkles,
@@ -178,6 +178,20 @@ function ReviewPage() {
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
     staleTime: 60_000,
+  });
+  /**
+   * 束を出し切ったときに「まだ出せるのか / 上限で止まったのか /
+   * 本当に終わりか」を決める数。**`DoneState` ではなくここで聞く** —
+   * あちらで問い合わせると検査の雛形が描けず、3つの分岐のうち
+   * 1つしか絵に残らない(実際そうなっていた)。
+   *
+   * `staleTime: 0` — たった今10枚採点した直後で、60秒前の数は必ず古い。
+   */
+  const capFn = useServerFn(getReviewCapState);
+  const { data: cap } = useQuery({
+    queryKey: ["review-cap"],
+    queryFn: () => capFn(),
+    staleTime: 0,
   });
 
   const [idx, setIdx] = useState(0);
@@ -341,6 +355,7 @@ function ReviewPage() {
         <DoneState
           answered={tally.answered}
           correct={tally.correct}
+          batch={cap}
           onAgain={() => {
             setIdx(0);
             setTally({ answered: 0, correct: 0 });
@@ -2240,32 +2255,30 @@ export function DoneState({
   onAgain,
   answered = 0,
   correct = 0,
+  batch,
 }: {
   onAgain: () => void;
   /** この回に答えた数。0 なら成績は出さない(数えていない回)。 */
   answered?: number;
   correct?: number;
-}) {
-  const t = useT();
   /**
-   * **「終わり」と言っていいのかを確かめてから言う。**
+   * **「終わり」と言っていいのかを決める数。**
    *
    * `getDueReviews` は1回に最大10枚しか返さないので、ここに来た理由は
    * 「今日の分が尽きた」とは限らない — **10枚の束を出し切っただけ**の
-   * ことが多い。それを区別せずに「今日の復習、終わりました」と出していた
-   * ので、上限を無制限にした人にも10枚ごとに同じ文面が出て、
-   * 「枚数の設定が効いていない」ように見えていた(オーナー報告)。
+   * ことが多い。それを区別せずに「今日の復習、終わりました」と出して
+   * いたので、上限を無制限にした人にも10枚ごとに同じ文面が出て、
+   * 「枚数の設定が効いていない」ようにしか見えなかった(オーナー報告)。
    *
-   * 残りの数はサーバにしか分からないのでここで聞く。`staleTime: 0` —
-   * たった今10枚採点した直後で、60秒前の数は必ず古い。
+   * **数を props で受ける**のは、ここで問い合わせると検査の雛形が
+   * この部品を描けず、3つの分岐のうち1つしか写らないから。実際に
+   * 最初はここで `useQuery` していて、**絵の検査は合格したのに
+   * 新しい2つの面が1枚も撮られていなかった**。
    */
-  const capFn = useServerFn(getReviewCapState);
-  const { data: cap } = useQuery({
-    queryKey: ["review-cap"],
-    queryFn: () => capFn(),
-    staleTime: 0,
-  });
-  const kind = cap ? batchEndKind(cap) : "done";
+  batch?: ReviewBatchState;
+}) {
+  const t = useT();
+  const kind = batch ? batchEndKind(batch) : "done";
   const score =
     answered > 0 ? (
       <p className="mt-2 text-title font-semibold">
@@ -2289,7 +2302,7 @@ export function DoneState({
         <p className="text-body font-semibold">{t("review.moreTitle")}</p>
         {score}
         <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.moreHint", { n: formatCount(cap?.dueRemaining ?? 0) })}
+          {t("review.moreHint", { n: formatCount(batch?.dueRemaining ?? 0) })}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -2312,7 +2325,7 @@ export function DoneState({
         <p className="text-body font-semibold">{t("review.cappedTitle")}</p>
         {score}
         <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.cappedHint", { n: formatCount(cap?.limit ?? 0) })}
+          {t("review.cappedHint", { n: formatCount(batch?.limit ?? 0) })}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Link

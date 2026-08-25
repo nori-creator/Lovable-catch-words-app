@@ -98,7 +98,14 @@ export function LoadFailedScene({ q }: { q: URLSearchParams }) {
  * 起こらない面を撮って合格していたので、始めたばかりの人が実際に見る
  * 面は機械の目に映っていなかった。
  */
-export function DexEmptyScene() {
+export function DexEmptyScene({ q }: { q: URLSearchParams }) {
+  // **学習言語を切り替えた人の面**を別に撮る。ここは「まだ何も
+  // キャッチしていません」ではなく「英語の図鑑はまだ空です /
+  // ほかの学習言語に 150 枚あります」と出なければならない。
+  // 文面も導線も違うので、同じ絵で済ませない。
+  if (q.get("variant") === "other-lang") {
+    return <DexEmptyState otherLanguages={150} targetLanguage="en" />;
+  }
   return <DexEmptyState />;
 }
 

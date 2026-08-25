@@ -148,10 +148,41 @@ export function ReviewEndScene({ q }: { q: URLSearchParams }) {
   // 完了の面は**成績つき**で撮る。数えていない回(0問)は成績を出さない
   // 分岐なので、そちらも別の場面で見る。
   if (q.get("variant") === "done") {
-    return <DoneState onAgain={() => {}} answered={12} correct={10} />;
+    return (
+      <DoneState
+        onAgain={() => {}}
+        answered={12}
+        correct={10}
+        batch={{ limit: 0, doneToday: 12, dueRemaining: 0 }}
+      />
+    );
   }
   if (q.get("variant") === "done-nocount") {
-    return <DoneState onAgain={() => {}} />;
+    return <DoneState onAgain={() => {}} batch={{ limit: 0, doneToday: 0, dueRemaining: 0 }} />;
+  }
+  // **束を出し切っただけ**の面。ここが一番よく出る(10枚ごと)のに、
+  // 前は絵が1枚も無かった — `DoneState` が自分で数を聞いていたので
+  // 雛形が描けず、検査は合格したまま新しい面が写っていなかった。
+  if (q.get("variant") === "more") {
+    return (
+      <DoneState
+        onAgain={() => {}}
+        answered={10}
+        correct={8}
+        batch={{ limit: 0, doneToday: 10, dueRemaining: 187 }}
+      />
+    );
+  }
+  // 自分で決めた上限で止まった面。上限を上げる導線が要る。
+  if (q.get("variant") === "capped") {
+    return (
+      <DoneState
+        onAgain={() => {}}
+        answered={20}
+        correct={17}
+        batch={{ limit: 20, doneToday: 20, dueRemaining: 43 }}
+      />
+    );
   }
   return <EmptyState />;
 }

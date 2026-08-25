@@ -18,7 +18,19 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const SRC = "src";
+/**
+ * 見る場所。
+ *
+ * **`src` だけでは足りない。** 母語の行を消したとき、翻訳キーも一緒に
+ * 消したのに、絵の検査の雛形(`scripts/ui-harness/scenes/settings.tsx`)には
+ * 行の写しが残っていた。結果、撮った絵には `settings.nativeLang` という
+ * **生の鍵がそのまま**写り、それでも `ui:audit` は合格していた
+ * (生の鍵は「ただの文字列」なのでコントラストもタップ領域も通る)。
+ *
+ * 絵を見て気づいたが、**目で見つけるべき物ではない。** 雛形も画面を
+ * 描いているのだから、同じ規則で数える。
+ */
+const SRC_DIRS = ["src", path.join("scripts", "ui-harness")];
 const DICT_FILE = "src/lib/i18n.tsx";
 /**
  * 埋まっていることを求める言語。
@@ -166,7 +178,8 @@ problems.push(...halfWidthPunctuation());
 /** 動的に組み立てるキー(`t(\`cat.${x}\`)`)は前置きだけ見て、接頭辞の存在を確かめる。 */
 const prefixes = new Set([...defined].map((k) => k.split(".")[0]));
 
-for (const file of walk(SRC)) {
+const files = SRC_DIRS.flatMap((d) => (fs.existsSync(d) ? walk(d) : []));
+for (const file of files) {
   if (file === DICT_FILE) continue;
   const src = fs.readFileSync(file, "utf8");
 
