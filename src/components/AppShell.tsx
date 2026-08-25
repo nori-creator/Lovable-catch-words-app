@@ -8,6 +8,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { getMyStats, type UserStats } from "@/lib/stats.functions";
 import { formatCount } from "@/lib/count";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
+import { useLanguagePrefsSync } from "@/lib/use-language-prefs";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
@@ -204,6 +205,15 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
   const scrolled = useScrolled();
+
+  /**
+   * **プロフィールの言語設定を端末に写す。**
+   *
+   * ここでやるのは、`AppShell` が全画面の親だから。設定画面だけの責任に
+   * すると、**設定を一度も開かない人には学習言語が伝わらない** —
+   * それで「英語を選んだのに台湾華語しか出ない」が起きていた。
+   */
+  useLanguagePrefsSync();
 
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {

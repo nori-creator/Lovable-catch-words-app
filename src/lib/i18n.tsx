@@ -1803,6 +1803,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
       "你設定成一天 {n} 張。還有想複習的字，但明天會再出。想多做一點的話，可以在設定裡調高張數。",
   },
   "review.cappedCta": { ja: "設定で枚数を変える", en: "Change the limit", "zh-TW": "到設定改張數" },
+  // 10枚の束を出し切っただけのとき。**「今日は終わり」と言ってはいけない** —
+  // 上限を無制限にした人にも10枚ごとに出て、設定が効いていないように見えていた。
+  "review.moreTitle": {
+    ja: "ここまでの分、終わりました",
+    en: "That's this batch",
+    "zh-TW": "這一輪先到這裡",
+  },
+  "review.moreHint": {
+    ja: "期限が来ている語があと {n} 語あります。続けられます。",
+    en: "{n} more are due. You can keep going.",
+    "zh-TW": "還有 {n} 個字到複習時間了，可以繼續。",
+  },
+  "review.moreCta": { ja: "続ける", en: "Keep going", "zh-TW": "繼續" },
   "review.empty": {
     ja: "今日復習する単語はありません。",
     en: "Nothing to review today.",

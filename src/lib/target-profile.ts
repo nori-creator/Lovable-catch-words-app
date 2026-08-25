@@ -130,6 +130,34 @@ export type TargetProfile = {
     distinctionExamples: string;
     /** 品詞の書き方。 */
     posRule: string;
+    /**
+     * AI を待たずに札を置くときの**仮の品詞**。
+     *
+     * ここを `"名詞"` で決め打ちしていたので、英語を学ぶ人の札にも
+     * 日本語の「名詞」が入って保存されていた(オーナー報告
+     * 「項目に英語日本語台湾華語が混ざる」)。`posRule` が AI に出させる
+     * 記号と**同じ体系**の値を置く — 後から本物のカードが上書きしても
+     * 記号がちぐはぐにならない。
+     */
+    defaultPos: string;
+    /** 一句(フレーズ)として保存するときの品詞。 */
+    phrasePos: string;
+    /**
+     * JSON の見本に書く**見出し語の値の見本**。
+     *
+     * 指示の本文を言語ごとに直しても、**最後に貼る JSON の見本が
+     * `"headword":"繁体字"` のまま**だと、AI はそちらに従う —
+     * 見本は指示より強い。英語を選んでいるのに台湾華語の語しか
+     * 出てこなかった原因の1つ(オーナー報告①)。
+     */
+    jsonHeadwordHint: string;
+    /** JSON の見本に書く読みの欄の値の見本。英語には注音も拼音も無い。 */
+    jsonReadingHint: string;
+    /**
+     * 「写っている物そのものの名前を出す」の**具体例**。
+     * 料理名・服の形の名前を、その言語の実際の語で並べる。
+     */
+    namingExamples: string;
     /** 読みの欄の指示（注音・拼音 / 米式・英式の IPA）。 */
     readingRule: string;
     /**
@@ -214,6 +242,15 @@ export const ZH_TW_PROFILE: TargetProfile = {
     distinctionExamples:
       "衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」、" +
       "湯→「スープ(お湯ではない)」のように、母語からの連想を外す必要があるとき",
+    defaultPos: "N",
+    phrasePos: "片語",
+    jsonHeadwordHint: "繁体字",
+    jsonReadingHint: '"reading_zhuyin":"注音","pinyin":"拼音"',
+    namingExamples:
+      "料理なら料理名（三杯雞・滷肉飯・珍珠奶茶）であって、材料名（雞肉・米）ではない。\n" +
+      "  服なら形の名前（短袖・洋裝・外套）であって、上位の分類（衣服・服裝）ではない。\n" +
+      "- **上位の分類語に逃げない。** 「衣服」「食物」「飲料」「動物」は、\n" +
+      "  それ以上細かく呼べない写真のときだけ。",
     posRule:
       "台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。\n" +
       "  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。",
@@ -286,6 +323,18 @@ export const EN_PROFILE: TargetProfile = {
     distinctionExamples:
       "shrimp→「小ぶり・アメリカでの普通の言い方」/ prawn→「大ぶり・英豪でよく使う」、" +
       "napkin→「食事のときの紙・布」/ tissue→「鼻をかむ方」のように、母語からの連想を外す必要があるとき",
+    defaultPos: "noun",
+    phrasePos: "phrase",
+    jsonHeadwordHint: "English word",
+    // 英語に注音・拼音は無い。**空文字を見本に置く** — ここに
+    // `"注音"` と書いてあると、AI は何かを埋めようとして
+    // ローマ字や IPA を注音の欄に入れてくる。
+    jsonReadingHint: '"reading_zhuyin":"","pinyin":""',
+    namingExamples:
+      "料理なら料理名（beef noodle soup・bubble tea・eggs benedict）であって、材料名（beef・rice）ではない。\n" +
+      "  服なら形の名前（hoodie・blazer・cardigan）であって、上位の分類（clothes・clothing）ではない。\n" +
+      "- **上位の分類語に逃げない。** 「clothes」「food」「drink」「animal」は、\n" +
+      "  それ以上細かく呼べない写真のときだけ。",
     posRule:
       "英語の品詞で: noun/verb/adjective/adverb/preposition/conjunction/pronoun/determiner/interjection のどれか。\n" +
       "  句動詞は verb、複合名詞は noun。",

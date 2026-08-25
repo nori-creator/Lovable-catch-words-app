@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { batchEndKind } from "@/lib/review-batch";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -716,25 +717,29 @@ export const getReviewCapState = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { limit: dailyLimit } = await getReviewPrefs(supabase, userId);
-    if (dailyLimit <= 0) return { capped: false, limit: 0, doneToday: 0 };
-    const { count } = await supabase
-      .from("review_history")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", startOfLocalDayIso());
-    const doneToday = count ?? 0;
-    if (doneToday < dailyLimit) return { capped: false, limit: dailyLimit, doneToday };
-
-    // **枚数を使い切っただけでは「まだ残っている」と言えない。**
-    // ちょうど期限切れのぶんを全部やり終えた人に「まだ待っている語が
-    // あります。上限を上げましょう」と言うと、上げたのに1枚も出てこない。
-    // 本当に出せる語があるかを確かめてから言う。
-    const { count: dueCount } = await supabase
-      .from("reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .lte("due_at", new Date().toISOString());
-    return { capped: (dueCount ?? 0) > 0, limit: dailyLimit, doneToday };
+    // **上限が無制限でも数える。** 前はここで早く返していたが、
+    // 「あと何枚出せるか」は上限とは別の話で、束(10枚)を終えた画面が
+    // それを知らないと「今日の復習、終わりました」と言い切ってしまう
+    // (`src/lib/review-batch.ts` の注釈)。
+    const [doneRes, dueRes] = await Promise.all([
+      supabase
+        .from("review_history")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", startOfLocalDayIso()),
+      // 採点した札は `due_at` が先へ動くので、ここには残らない。
+      supabase
+        .from("reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .lte("due_at", new Date().toISOString()),
+    ]);
+    const doneToday = doneRes.count ?? 0;
+    const dueRemaining = dueRes.count ?? 0;
+    const limit = Math.max(0, dailyLimit);
+    // 言い方の判断は**純粋な関数1つ**に寄せる。画面も同じものを読む。
+    const kind = batchEndKind({ limit, doneToday, dueRemaining });
+    return { capped: kind === "capped", limit, doneToday, dueRemaining };
   });
 
 export const gradeReview = createServerFn({ method: "POST" })

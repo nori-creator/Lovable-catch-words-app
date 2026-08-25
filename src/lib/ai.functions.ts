@@ -115,11 +115,8 @@ ${langRule}
 - 画像に明確に写っているものだけ
 
 **写っている物そのものの名前を出す（いちばん大事）:**
-- 台湾人がその写真を見て**最初に口にする名前**を出す。
-  料理なら料理名（三杯雞・滷肉飯・珍珠奶茶）であって、材料名（雞肉・米）ではない。
-  服なら形の名前（短袖・洋裝・外套）であって、上位の分類（衣服・服裝）ではない。
-- **上位の分類語に逃げない。** 「衣服」「食物」「飲料」「動物」は、
-  それ以上細かく呼べない写真のときだけ。
+- その言語を話す人がその写真を見て**最初に口にする名前**を出す。
+  ${profile.capture.namingExamples}
 - **確からしい順に並べる。** 1つ目が「これは何か」への答え。
   自信の無いものを上に置かない。
 
@@ -157,7 +154,7 @@ ${langRule}
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。形式: {"suggestions":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"pinyin","meaning_ja":"日本語","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
@@ -307,7 +304,12 @@ export const generateCard = createServerFn({ method: "POST" })
     // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
     // 説明文の言語名をここで差し替えて矛盾を無くす。
     const explainLang = await getExplanationLanguage(context.userId);
-    const NL = explainLang === "en" ? "英語" : "日本語";
+    // **3つある表示言語を2つに潰さない。** ここは
+    // `explainLang === "en" ? "英語" : "日本語"` だった — 繁體中文を
+    // 選んだ人が「日本語」に落ち、AI が日本語で解説を書いていた
+    // (オーナー報告「項目に日本語が混ざる」)。正は
+    // `explanationLanguageName()` 1つ。
+    const NL = explanationLanguageName(explainLang);
     // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
     // 設定の母語から具体的な干渉項目を流し込む。
     const l1 = await l1Rule(context.userId, "pronunciation");
@@ -580,7 +582,12 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     const langRule = await explanationLanguageRule(context.userId);
     // 説明文の言語名。以前ここが「日本語」固定で、英語設定と矛盾していた。
     const explainLang = await getExplanationLanguage(context.userId);
-    const NL = explainLang === "en" ? "英語" : "日本語";
+    // **3つある表示言語を2つに潰さない。** ここは
+    // `explainLang === "en" ? "英語" : "日本語"` だった — 繁體中文を
+    // 選んだ人が「日本語」に落ち、AI が日本語で解説を書いていた
+    // (オーナー報告「項目に日本語が混ざる」)。正は
+    // `explanationLanguageName()` 1つ。
+    const NL = explanationLanguageName(explainLang);
     // フレーズの返し方も母語で崩れ方が違う(語順・助詞・丁寧さの出し方)。
     const l1Gram = await l1Rule(context.userId, "wordorder");
     const result = await generateText({

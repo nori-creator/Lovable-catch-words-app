@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { UI_LANG_PROMPT_NAMES } from "./i18n";
@@ -481,14 +482,25 @@ export async function getUserLevelGoal(userId: string): Promise<string> {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("profiles")
-      .select("level_goal")
+      .select("level_goal, target_language")
       .eq("id", userId)
       .maybeSingle();
-    const goal = (data as { level_goal?: string } | null)?.level_goal;
-    return goal && goal.trim() ? goal : "TOCFL-2";
+    const row = data as { level_goal?: string; target_language?: string | null } | null;
+    const goal = row?.level_goal;
+    if (goal && goal.trim()) return goal;
+    // **既定値も学習言語から作る。** ここを `"TOCFL-2"` で決め打ちして
+    // いたので、英語を学ぶ人の目標がまだ空のときにプロンプトへ
+    // 「TOCFL 2級に合わせて」と書かれ、CEFR しか使わない側に
+    // 台湾華語の級が紛れ込んでいた(オーナー報告④)。
+    return defaultLevelGoal(row?.target_language);
   } catch {
-    return "TOCFL-2";
+    return defaultLevelGoal(null);
   }
+}
+
+/** 目標がまだ空のときの既定。学習言語の目盛りの2段目(初級の真ん中)。 */
+function defaultLevelGoal(targetLanguage: string | null | undefined): string {
+  return targetProfile(targetLanguage ?? undefined).levels.toStored(2);
 }
 
 /**
