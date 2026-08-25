@@ -38,7 +38,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { L1_TABLE, l1ChoicesFor } from "@/lib/l1";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, getUiLang, tStatic as t } from "@/lib/i18n";
 import { LogOut } from "lucide-react";
 import { useState } from "react";
@@ -158,7 +157,6 @@ export function SettingsSelectsScene() {
   const [target, setTarget] = useState("zh-TW");
   const [cur, setCur] = useState("TOCFL-2");
   const [goal, setGoal] = useState("TOCFL-4");
-  const [native, setNative] = useState("ja");
   const [ui, setUi] = useState<string>(() => getUiLang());
   return (
     <SettingsCard title={t("settings.language")}>
@@ -189,20 +187,9 @@ export function SettingsSelectsScene() {
           options={LEVEL_OPTIONS}
         />
         <PhoneticRow />
-        <SelectRow
-          id="lang-native"
-          label={t("settings.nativeLang")}
-          hint={t("settings.nativeLangHint")}
-          value={native}
-          onChange={setNative}
-          options={l1ChoicesFor(target).map((code) => ({
-            value: code,
-            // **本物と同じ選び方にする。** ここだけ `labelJa` に決め打つと、
-            // 繁體中文の画面を撮っても日本語の言語名が写り、実物と違う絵を
-            // 検査することになる（この app が繰り返してきた形）。
-            label: ui === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
-          }))}
-        />
+        {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
+            設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
+            (実際そうなって、検査はそれでも合格していた)。 */}
         <SelectRow
           id="lang-ui"
           label={t("settings.uiLang")}

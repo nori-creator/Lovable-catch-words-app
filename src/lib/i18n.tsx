@@ -1704,7 +1704,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Explanations, examples and review vocabulary are generated within your current-to-target level range.",
     "zh-TW": "單字的解說、例句和複習的詞彙，都會配合「目前等級〜目標等級」來製作。",
   },
-  "settings.nativeLang": { ja: "母語", en: "Native language", "zh-TW": "母語" },
   "settings.uiLang": { ja: "表示言語", en: "App language", "zh-TW": "顯示語言" },
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation", "zh-TW": "發音標記" },
   "settings.study": { ja: "学習設定", en: "Study settings", "zh-TW": "學習設定" },
@@ -1803,6 +1802,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
       "你設定成一天 {n} 張。還有想複習的字，但明天會再出。想多做一點的話，可以在設定裡調高張數。",
   },
   "review.cappedCta": { ja: "設定で枚数を変える", en: "Change the limit", "zh-TW": "到設定改張數" },
+  // 10枚の束を出し切っただけのとき。**「今日は終わり」と言ってはいけない** —
+  // 上限を無制限にした人にも10枚ごとに出て、設定が効いていないように見えていた。
+  "review.moreTitle": {
+    ja: "ここまでの分、終わりました",
+    en: "That's this batch",
+    "zh-TW": "這一輪先到這裡",
+  },
+  "review.moreHint": {
+    ja: "あと {n} 語、期限が来ています。続けられます。",
+    en: "{n} more are due. You can keep going.",
+    "zh-TW": "還有 {n} 個字到複習時間了，可以繼續。",
+  },
+  "review.moreCta": { ja: "続ける", en: "Keep going", "zh-TW": "繼續" },
   "review.empty": {
     ja: "今日復習する単語はありません。",
     en: "Nothing to review today.",
@@ -2405,6 +2417,24 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把相機對準在街上看到的字，圖鑑就會在這裡長大。",
   },
   "dex.emptyCta": { ja: "最初の一枚を撮る", en: "Take your first photo", "zh-TW": "拍下第一張" },
+  // 学習言語を変えて図鑑が空になったとき。**「まだ何もキャッチして
+  // いません」は嘘**で、その人は別の言語で何十枚も持っている。
+  // 集めた物が消えたように見える画面はこのアプリで一番やってはいけない。
+  "dex.emptyOtherLangTitle": {
+    ja: "{lang}の図鑑はまだ空です。",
+    en: "Your {lang} dex is still empty.",
+    "zh-TW": "{lang}的圖鑑還是空的。",
+  },
+  "dex.emptyOtherLangHint": {
+    ja: "ほかの学習言語に {n} 枚あります。設定で学習言語を戻すと、そちらが見えます。",
+    en: "You have {n} in another target language. Switch back in Settings to see them.",
+    "zh-TW": "另一個學習語言裡有 {n} 張。到設定切回去就看得到。",
+  },
+  "dex.emptyOtherLangCta": {
+    ja: "学習言語を変える",
+    en: "Change target language",
+    "zh-TW": "更改學習語言",
+  },
   "dex.placesTitle": { ja: "キャッチした場所", en: "Where you caught them", "zh-TW": "捕捉的地點" },
   "dex.placesHint": {
     ja: "写真をタップで地図がその場所へズーム。地図上の丸い写真をタップで単語の詳細へ。",
@@ -2480,12 +2510,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "AIモデルを切り替えました（次のリクエストから有効）",
     en: "AI models switched (effective from the next request)",
     "zh-TW": "已切換 AI 模型（下一個請求開始生效）",
-  },
-  "settings.nativeLangHint": {
-    ja: "台湾華語のつまずき方は母語で変わります。発音のコツ・復習の添削・日記の添削が、この母語に合わせて最適化されます。",
-    en: "Where Mandarin trips you up depends on your first language. Pronunciation tips, review feedback and journal corrections all adapt to it.",
-    "zh-TW":
-      "台灣華語會卡在哪裡，會因母語而不同。發音訣竅、複習的修改、日記的修改，都會配合這個母語做最佳化。",
   },
   "settings.aiKeys": {
     ja: "APIキーの検出状況",

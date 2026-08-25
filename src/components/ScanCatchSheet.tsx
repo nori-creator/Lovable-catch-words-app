@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
+import { targetProfile } from "@/lib/target-profile";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -78,6 +79,9 @@ export function ScanCatchSheet({
   const t = useT();
   /** いま撮った物を何語として保存するか（設定の学習言語）。 */
   const targetLanguage = useTargetLang();
+  // 仮置きの級・品詞も**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
+  const profile = targetProfile(targetLanguage);
+  const fallbackLevel = profile.levels.toStored(2);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
@@ -302,8 +306,8 @@ export function ScanCatchSheet({
               reading_zhuyin: dict?.zhuyin || item.zhuyin || "",
               pinyin: dict?.pinyin || item.pinyin || "",
               meaning_ja: meaning,
-              part_of_speech: dict?.pos || "名詞",
-              level: "TOCFL-2",
+              part_of_speech: dict?.pos || profile.capture.defaultPos,
+              level: fallbackLevel,
               category_key: "other",
               example_sentence: "",
               example_translation: "",

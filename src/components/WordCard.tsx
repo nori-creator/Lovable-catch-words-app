@@ -346,19 +346,24 @@ export const WordCard = forwardRef<
     hasEncounter: !!encounter,
   };
   /**
-   * **撮った直後は「意味と発音」だけ**(オーナー指摘 2026-08-21)。
+   * **撮った直後は「訳と発音」だけ。**
    *
-   * > 「単語の候補をタップしたときは、意味と発音の項目だけ表示して。
-   * >  その分生成を速くしたい。その他の項目は裏で項目の上から順に生成して。」
+   * オーナー指示 2026-08-25:
+   * > 「単語の候補をユーザーが選択したあとは**絶対に**母語での訳と発音、
+   * >  感想の入力以外の単語の詳細の項目は表示しないで。裏で同時に項目の
+   * >  生成をするだけにして。」
    *
-   * 外を見に行くだけの節(ネットの画像・実際の使われ方)と、数えた答えが要る
-   * 「出会う見込み」は、**その語について何も生成できていなくても描けてしまう**。
-   * だから撮った直後の面にだけ並んでいた。ここではその3つを伏せて、
-   * 生成が届いた項目から順に現れるようにする。
+   * 前の版はここが甘かった。伏せていたのは「何も生成できていなくても
+   * 描けてしまう3つ」(ネットの画像・実際の使われ方・出会う見込み)だけで、
+   * **中身が届いた節は片端から現れていた** — 級の段々も、例文も、
+   * チャンクも。撮った直後に見たいのは「これは何という語で、どう読んで、
+   * 自分は何を感じたか」だけなので、そこに他の物を並べない。
+   *
+   * 生成は止めない。下の `missing` は `minimal` を見ていないので、
+   * **裏では全部の節を作り続ける**(「裏で同時に生成するだけ」)。
    */
-  const ALWAYS_DRAWABLE: readonly SectionId[] = ["web_images", "real_usage", "encounter"];
-  const hasContent = (id: SectionId): boolean =>
-    minimal && ALWAYS_DRAWABLE.includes(id) ? false : sectionHasContent(id, contentInput);
+  const MINIMAL_SECTIONS: readonly SectionId[] = ["meaning"];
+  const hasContent = (id: SectionId): boolean => sectionHasContent(id, contentInput);
 
   // まだ作られていない節。**隠したうえで、数だけ上でまとめて言う。**
   // 並びは**画面の並びそのまま**。`missingSections` はその順を崩さない
@@ -378,14 +383,15 @@ export const WordCard = forwardRef<
    */
   const inThisLanguage = new Set<SectionId>(sectionsFor(word.language));
   const order = prefs.order.filter((id) => inThisLanguage.has(id));
+  // **`missing` は `minimal` を見ない。** 見えていない節も裏では作る。
   const missing = missingSections(order.filter(isVisible), contentInput);
-  const shown = order.filter(
-    (id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id),
-  );
+  const shown = minimal
+    ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id))
+    : order.filter((id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id));
 
   return (
     <div className="space-y-3">
-      <HeaderRow word={word} autoplay={autoplay} />
+      <HeaderRow word={word} autoplay={autoplay} minimal={minimal} />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
       <div className="grid gap-3">
         {shown.map((id) => (
@@ -543,7 +549,21 @@ function AutoFillSections({
   return null;
 }
 
-function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
+function HeaderRow({
+  word,
+  autoplay,
+  minimal = false,
+}: {
+  word: WordCardData;
+  autoplay: boolean;
+  /**
+   * 撮った直後。**級の段々も品詞も出さない** — オーナー指示
+   * 「母語での訳と発音、感想の入力以外の項目は表示しないで」。
+   * 級は「訳」でも「発音」でもないし、撮った直後にいちばん邪魔になる
+   * (絵の3枚目で TOCFL の段々が画面の1/4を占めていた)。
+   */
+  minimal?: boolean;
+}) {
   const t = useT();
   const autoplayedRef = useRef(false);
   // **その語の言語で読む。** 渡さないと台湾華語として合成されるので、
@@ -597,7 +617,7 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
               ipaUk={word.reading_alt}
             />
           </div>
-          {(word.part_of_speech || word.level) && (
+          {!minimal && (word.part_of_speech || word.level) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {word.part_of_speech && (
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
@@ -613,11 +633,13 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
               英語の語(CEFR A2)の上に「TOCFL 1 2 3 4 5 6 / 2級(Band A)」が
               出る — 絵で見つけた。段々の形は同じなので、変わるのは
               名前だけ(`level-scale.ts`)。 */}
-          <TocflLadder
-            level={word.level}
-            scale={targetProfile(word.language).levels}
-            className="mt-2"
-          />
+          {!minimal && (
+            <TocflLadder
+              level={word.level}
+              scale={targetProfile(word.language).levels}
+              className="mt-2"
+            />
+          )}
         </div>
       </div>
     </div>

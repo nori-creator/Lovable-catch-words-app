@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { sttLangOf } from "@/lib/target-lang";
 import { useTargetLang } from "@/lib/target-lang-pref";
+import { targetProfile } from "@/lib/target-profile";
 import { emptyExtras } from "@/lib/extras";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
@@ -156,6 +157,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    * 英語を選んでも台湾華語として辞書を引き、台湾華語として保存していた。
    */
   const targetLanguage = useTargetLang();
+  /**
+   * **学習言語の側から級と品詞を決める。**
+   *
+   * ここは `"TOCFL-2"` と `"名詞"` を直接書いていた。英語を学ぶ人が
+   * 撮った語にも台湾華語の級と日本語の品詞が保存され、カードの
+   * 段々(`TocflLadder`)が TOCFL のまま出ていた(オーナー報告④)。
+   * 仮置きの値でも**言語ごとに正しい体系**から作る。
+   */
+  const profile = targetProfile(targetLanguage);
+  /** 仮の級。本物のカードが来たら上書きされる。2段目 = 初級の真ん中。 */
+  const fallbackLevel = profile.levels.toStored(2);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
   const canSpeak = srAvailable();
@@ -308,8 +320,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             reading_zhuyin: seed.reading_zhuyin,
             pinyin: seed.pinyin,
             meaning_ja: seed.meaning_ja,
-            part_of_speech: "名詞",
-            level: "TOCFL-2",
+            part_of_speech: profile.capture.defaultPos,
+            level: fallbackLevel,
             // 棚は詳しいカードが決める。それまでは仮置き
             // (`CardSchema` も決められないときは `other` に落とす)。
             category_key: "other",
@@ -483,8 +495,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             reading_zhuyin: phraseCard?.reading_zhuyin ?? "",
             pinyin: phraseCard?.pinyin ?? "",
             meaning_ja: phraseCard?.meaning_ja ?? headword,
-            part_of_speech: "フレーズ",
-            level: "TOCFL-2",
+            part_of_speech: profile.capture.phrasePos,
+            level: fallbackLevel,
             category_key: "other",
             example_sentence: phraseCard?.replies[0]?.zh ?? "",
             example_translation: phraseCard?.replies[0]?.ja ?? "",
@@ -510,8 +522,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             reading_zhuyin: dict?.zhuyin || saved?.reading_zhuyin || "",
             pinyin: dict?.pinyin || saved?.pinyin || "",
             meaning_ja: dict?.meaning_ja || saved?.meaning_ja || headword,
-            part_of_speech: dict?.pos || saved?.part_of_speech || "名詞",
-            level: saved?.level ?? "TOCFL-2",
+            part_of_speech: dict?.pos || saved?.part_of_speech || profile.capture.defaultPos,
+            level: saved?.level ?? fallbackLevel,
             category_key: saved?.category_key ?? "other",
             example_sentence: saved?.example_sentence ?? "",
             example_translation: saved?.example_translation ?? "",

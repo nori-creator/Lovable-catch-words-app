@@ -1,4 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import { wordLanguageFilter } from "@/lib/language-filter";
+import { getUserTargetLanguage } from "@/lib/ai-provider.server";
+import { batchEndKind } from "@/lib/review-batch";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -265,24 +268,45 @@ export const getDueReviews = createServerFn({ method: "GET" })
     // 1回のフェッチは最大10枚のまま(体感の軽さ)。残り枚数がそれ未満なら絞る。
     const fetchLimit = Math.min(10, remaining);
 
+    /**
+     * **復習も学習言語で分ける。** 英語に切り替えた人に台湾華語の札が
+     * 出るなら、アルバムと図鑑だけ分けても意味が無い
+     * (オーナー指示「混ぜないで」)。
+     *
+     * 絞りは埋め込んだ2段先に掛ける — `reviews → stickers → words`。
+     * PostgREST の形は `stickers.words.or=(…)` で、**通らない prefix は
+     * 400 を返す**ので、下で拾って絞りを外す(空の復習を出さない)。
+     */
+    const targetLanguage = await getUserTargetLanguage(userId);
+    const langFilter = wordLanguageFilter(targetLanguage);
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers!inner(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words!inner(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
     // 記憶段階の優先度(設定):
     //   weak = 忘れかけ(ease が低い=何度も間違えた語)から先に
     //   new  = 覚えたて(復習回数が少ない語)から先に
     //   all  = 期限順(既定)
-    const basQuery = supabase
-      .from("reviews")
-      .select(dueSelect(true))
-      .eq("user_id", userId)
-      .lte("due_at", nowIso);
-    const focused =
-      stageFocus === "weak"
-        ? basQuery.order("ease", { ascending: true })
-        : stageFocus === "new"
-          ? basQuery.order("repetitions", { ascending: true })
-          : basQuery;
-    let { data, error } = await focused.order("due_at", { ascending: true }).limit(fetchLimit);
+    const runDue = async (withLang: boolean) => {
+      const base = supabase
+        .from("reviews")
+        .select(dueSelect(true))
+        .eq("user_id", userId)
+        .lte("due_at", nowIso);
+      const scoped = withLang ? base.or(langFilter, { referencedTable: "stickers.words" }) : base;
+      const focused =
+        stageFocus === "weak"
+          ? scoped.order("ease", { ascending: true })
+          : stageFocus === "new"
+            ? scoped.order("repetitions", { ascending: true })
+            : scoped;
+      return await focused.order("due_at", { ascending: true }).limit(fetchLimit);
+    };
+    let { data, error } = await runDue(true);
+    // 絞りが通らない環境(列がまだ無い / 埋め込みの形が違う)では絞りを外す。
+    // **復習が空になるより混ざるほうがまし。**
+    if (error && /language|embedded resource/i.test(error.message)) {
+      console.warn("[reviews] 学習言語で絞れないので絞りを外す:", error.message);
+      ({ data, error } = await runDue(false));
+    }
     if (error && /placeholder_image_url|entry_type|branch_plan/.test(error.message)) {
       ({ data, error } = (await supabase
         .from("reviews")
@@ -711,30 +735,62 @@ const GradeInput = z.object({
  *
  * 一覧が空だったときにだけ聞けばいいので、別の関数にしてある。
  */
+/**
+ * いま出せる復習の枚数を数える。学習言語で絞った数。
+ *
+ * 絞りが通らない環境では**絞らずに数え直す** — 0 と答えると画面が
+ * 「今日は終わり」と言い切ってしまい、元の不具合に戻る。
+ */
+async function countDue(
+  supabase: { from: (t: string) => never } | ReturnType<typeof Object>,
+  userId: string,
+  langFilter: string,
+): Promise<{ count: number | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const base = () =>
+    db
+      .from("reviews")
+      .select("id, stickers!inner(words!inner(language))", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .lte("due_at", new Date().toISOString());
+  const res = await base().or(langFilter, { referencedTable: "stickers.words" });
+  if (!res.error) return { count: res.count ?? 0 };
+  const plain = await db
+    .from("reviews")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .lte("due_at", new Date().toISOString());
+  return { count: plain.error ? null : (plain.count ?? 0) };
+}
+
 export const getReviewCapState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { limit: dailyLimit } = await getReviewPrefs(supabase, userId);
-    if (dailyLimit <= 0) return { capped: false, limit: 0, doneToday: 0 };
-    const { count } = await supabase
-      .from("review_history")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("reviewed_at", startOfLocalDayIso());
-    const doneToday = count ?? 0;
-    if (doneToday < dailyLimit) return { capped: false, limit: dailyLimit, doneToday };
-
-    // **枚数を使い切っただけでは「まだ残っている」と言えない。**
-    // ちょうど期限切れのぶんを全部やり終えた人に「まだ待っている語が
-    // あります。上限を上げましょう」と言うと、上げたのに1枚も出てこない。
-    // 本当に出せる語があるかを確かめてから言う。
-    const { count: dueCount } = await supabase
-      .from("reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .lte("due_at", new Date().toISOString());
-    return { capped: (dueCount ?? 0) > 0, limit: dailyLimit, doneToday };
+    const dueLangFilter = wordLanguageFilter(await getUserTargetLanguage(userId));
+    // **上限が無制限でも数える。** 前はここで早く返していたが、
+    // 「あと何枚出せるか」は上限とは別の話で、束(10枚)を終えた画面が
+    // それを知らないと「今日の復習、終わりました」と言い切ってしまう
+    // (`src/lib/review-batch.ts` の注釈)。
+    const [doneRes, dueRes] = await Promise.all([
+      supabase
+        .from("review_history")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("reviewed_at", startOfLocalDayIso()),
+      // 採点した札は `due_at` が先へ動くので、ここには残らない。
+      // **絞りは `getDueReviews` と同じにする。** ここだけ絞らないと
+      // 「あと190枚あります」と言ったのに「続ける」で1枚も出てこない。
+      countDue(supabase, userId, dueLangFilter),
+    ]);
+    const doneToday = doneRes.count ?? 0;
+    const dueRemaining = dueRes.count ?? 0;
+    const limit = Math.max(0, dailyLimit);
+    // 言い方の判断は**純粋な関数1つ**に寄せる。画面も同じものを読む。
+    const kind = batchEndKind({ limit, doneToday, dueRemaining });
+    return { capped: kind === "capped", limit, doneToday, dueRemaining };
   });
 
 export const gradeReview = createServerFn({ method: "POST" })

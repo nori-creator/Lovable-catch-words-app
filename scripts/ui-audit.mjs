@@ -258,6 +258,10 @@ const MODES = [
   ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
+  // 束を出し切っただけの面(10枚ごとに出る)と、上限で止まった面。
+  // **文面が違う**ので別々に見る — 前はどちらも「今日は終わり」だった。
+  ...crossThemes("review-more", { scene: "review-end", variant: "more" }),
+  ...crossThemes("review-capped", { scene: "review-end", variant: "capped" }),
   // 数えていない回(完了だけ)。「0問中0問正解」を出さないことの見張り。
   ["review-done-nocount", "", false, { scene: "review-end", variant: "done-nocount" }],
   // ホーム — **起動して最初に見る面**。これも直書きだったので未検査だった。
@@ -421,6 +425,8 @@ const MODES = [
   ["scan-camera", "", false, { scene: "scan-camera" }],
   ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
+  // 候補を選んだ直後。**訳と発音だけ**が出ているか目で確かめる。
+  ...crossThemes("word-card-minimal", { scene: "word-card", variant: "minimal" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **英語のカード**(第4段 / 指摘⑬)。台湾華語のカードには無い5つの節
   // (活用・数え方と冠詞・強く読む所・句動詞・文化の一言)がここに出る。
@@ -432,6 +438,8 @@ const MODES = [
   // **本物の「図鑑が空」**と、検索が空振りした面。始めたばかりの人が
   // 最初に見る面なのに、ここまで一度も撮っていなかった。
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
+  // 学習言語を変えて空になったとき。**集めた物が消えたように見えない**か。
+  ...crossThemes("dex-empty-other-lang", { scene: "dex-empty", variant: "other-lang" }),
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。

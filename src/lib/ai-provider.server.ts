@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { UI_LANG_PROMPT_NAMES } from "./i18n";
@@ -481,14 +482,25 @@ export async function getUserLevelGoal(userId: string): Promise<string> {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("profiles")
-      .select("level_goal")
+      .select("level_goal, target_language")
       .eq("id", userId)
       .maybeSingle();
-    const goal = (data as { level_goal?: string } | null)?.level_goal;
-    return goal && goal.trim() ? goal : "TOCFL-2";
+    const row = data as { level_goal?: string; target_language?: string | null } | null;
+    const goal = row?.level_goal;
+    if (goal && goal.trim()) return goal;
+    // **既定値も学習言語から作る。** ここを `"TOCFL-2"` で決め打ちして
+    // いたので、英語を学ぶ人の目標がまだ空のときにプロンプトへ
+    // 「TOCFL 2級に合わせて」と書かれ、CEFR しか使わない側に
+    // 台湾華語の級が紛れ込んでいた(オーナー報告④)。
+    return defaultLevelGoal(row?.target_language);
   } catch {
-    return "TOCFL-2";
+    return defaultLevelGoal(null);
   }
+}
+
+/** 目標がまだ空のときの既定。学習言語の目盛りの2段目(初級の真ん中)。 */
+function defaultLevelGoal(targetLanguage: string | null | undefined): string {
+  return targetProfile(targetLanguage ?? undefined).levels.toStored(2);
 }
 
 /**
@@ -607,19 +619,37 @@ export function explanationLanguageName(lang: import("./i18n").UiLang): string {
 }
 
 /**
- * 学習者の母語(L1)を読む。台湾華語のどこで転ぶかは母語で全く違うので、
+ * 学習者の母語(L1)を読む。学習言語のどこで転ぶかは母語で全く違うので、
  * 発音のコツ・添削の解説をここで切り替える。
+ *
+ * **母語は表示言語に統合した**(オーナー指示「母語と表示言語を統合して、
+ * 日本語、英語、台湾華語にして」)。設定の行は1つになったので、ここは
+ * `ui_language` を正として読む。ただし「表示言語=学習言語」だけは
+ * 母語にできないので、そこだけ `native_language` を手掛かりに使う —
+ * 判断は `reader-language.ts` の1箇所に置いてある。
  */
 export async function getLearnerL1(userId: string): Promise<import("./l1").L1Info> {
   const { l1Info } = await import("./l1");
+  const { readerL1 } = await import("./reader-language");
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("profiles")
-      .select("native_language")
+      .select("ui_language, native_language, target_language")
       .eq("id", userId)
       .maybeSingle();
-    return l1Info((data as { native_language?: string } | null)?.native_language);
+    const row = data as {
+      ui_language?: string | null;
+      native_language?: string | null;
+      target_language?: string | null;
+    } | null;
+    return l1Info(
+      readerL1({
+        uiLanguage: row?.ui_language,
+        nativeLanguage: row?.native_language,
+        targetLanguage: row?.target_language,
+      }),
+    );
   } catch {
     return l1Info("ja");
   }
