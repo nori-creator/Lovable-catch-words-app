@@ -425,6 +425,8 @@ const MODES = [
   ["scan-camera", "", false, { scene: "scan-camera" }],
   ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
+  // 候補を選んだ直後。**訳と発音だけ**が出ているか目で確かめる。
+  ...crossThemes("word-card-minimal", { scene: "word-card", variant: "minimal" }),
   ...crossThemes("word-card-empty", { scene: "word-card-empty" }),
   // **英語のカード**(第4段 / 指摘⑬)。台湾華語のカードには無い5つの節
   // (活用・数え方と冠詞・強く読む所・句動詞・文化の一言)がここに出る。

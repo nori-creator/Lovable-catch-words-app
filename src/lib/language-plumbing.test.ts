@@ -260,3 +260,49 @@ describe("第1段: 母語と表示言語を1つにする", () => {
     expect(dict).not.toContain('"settings.nativeLangHint"');
   });
 });
+
+describe("候補を選んだ直後は「訳と発音」だけ", () => {
+  it("`minimal` は節を**伏せる**(空箱にするのではない)", () => {
+    // 前はここが `empty={!hasContent(id)}` に効くだけだったので、
+    // ネットの画像・実際の使われ方・出会う見込みが
+    // 「まだ作られていません」の空箱として**並んだまま**だった
+    // (オーナーの絵の3枚目)。伏せるのは `shown` の側でやる。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("MINIMAL_SECTIONS");
+    expect(src).toMatch(/shown\s*=\s*minimal/);
+    // 級の段々と品詞の札も出さない。「訳」でも「発音」でもない。
+    expect(src).toMatch(/\{!minimal && \(?\s*<?TocflLadder/s);
+    expect(src).toContain("<HeaderRow word={word} autoplay={autoplay} minimal={minimal} />");
+  });
+
+  it("裏の生成は止めない", () => {
+    // 「裏で同時に項目の生成をするだけにして」。`missing` が `minimal` を
+    // 見てしまうと、見えない = 作らない になり、保存後に空のカードが残る。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    const line = src.split("\n").find((l) => l.includes("const missing = missingSections("));
+    expect(line).toBeTruthy();
+    expect(line).not.toContain("minimal");
+  });
+
+  it("撮る道のカードは全部 `minimal` を渡している", () => {
+    // `ScanDetailSheet` だけ渡していなかった。1箇所抜けると、
+    // その画面だけ昔のままになる(この作業場で繰り返している形)。
+    for (const file of ["routes/_authenticated/capture.tsx", "components/ScanDetailSheet.tsx"]) {
+      const src = codeOnly(read(file));
+      const idx = src.indexOf("<WordCard");
+      expect(idx, file).toBeGreaterThan(-1);
+      // その要素の閉じまでの間に `minimal` が在ること。
+      const tag = src.slice(idx, src.indexOf("/>", idx));
+      expect(tag, file).toContain("minimal");
+    }
+  });
+
+  it("保存した語の詳細では**全部**出す(minimal を撒かない)", () => {
+    // 図鑑から開く単語の詳細は本来の全項目。ここまで minimal にすると
+    // 「作ったのに一生見られない項目」ができる。
+    const src = codeOnly(read("components/StickerSheet.tsx"));
+    const idx = src.indexOf("<WordCard");
+    const tag = src.slice(idx, src.indexOf("/>", idx));
+    expect(tag).not.toContain("minimal");
+  });
+});

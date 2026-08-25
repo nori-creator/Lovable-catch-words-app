@@ -98,6 +98,14 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
               example_translation: card.example_translation,
               extras: card.extras,
             }}
+            // **候補を選んだ直後は「訳と発音」だけ**(オーナー指示 2026-08-25
+            // 「絶対に母語での訳と発音、感想の入力以外の項目は表示しないで。
+            //  裏で同時に項目の生成をするだけにして」)。
+            //
+            // ここに `minimal` が付いていなかったので、この面だけ級の段々も
+            // 「ネットの画像(まだ作られていません)」も「出会う見込み
+            // (まだ作られていません)」も並んでいた — オーナーの絵の3枚目。
+            minimal
           />
         )}
         {/* 出所は**中身の直下**に置く。以前はスピナーの 180px 下に

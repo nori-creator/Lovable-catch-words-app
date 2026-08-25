@@ -98,7 +98,18 @@ export const FULL = {
 };
 
 /** 全部の節が埋まったカード。**節ごとの色が13種類並ぶ所。** */
-export function WordCardScene() {
+export function WordCardScene({ q }: { q: URLSearchParams }) {
+  /**
+   * **候補を選んだ直後の面**(オーナー指示 2026-08-25
+   * 「絶対に母語での訳と発音、感想の入力以外の項目は表示しないで」)。
+   *
+   * ここに場面が無かったので、`minimal` が実際に何を伏せているかを
+   * 誰も見ていなかった。実物では**級の段々も「まだ作られていません」の
+   * 空箱も並んだまま**で、それでも検査は合格していた。
+   */
+  if (q.get("variant") === "minimal") {
+    return <WordCard word={FULL} autoplay={false} minimal />;
+  }
   return <WordCard word={FULL} autoplay={false} />;
 }
 
