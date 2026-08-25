@@ -2,22 +2,57 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { L1_ORDER } from "@/lib/l1";
+import type { Database } from "@/integrations/supabase/types";
+
+type MyProfile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { userId } = context;
-    // Own-row read needs all columns; column-level SELECT grants restrict the
-    // authenticated role to public columns only, so read via admin scoped by
-    // the authenticated userId (safe: userId comes from verified JWT).
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+  .handler(async ({ context }): Promise<MyProfile | null> => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id, display_name, avatar_url, native_language, ui_language, target_language, level_goal, pronunciation_strictness, onboarded, created_at, updated_at, album_bg, plan, review_mode, current_level, review_daily_limit, review_stage_focus",
+      )
       .eq("id", userId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data;
+
+    if (!error) return data as MyProfile | null;
+    if (!/permission denied|not allowed|does not have|column .* does not exist|schema cache/i.test(error.message)) {
+      throw new Error(error.message);
+    }
+
+    // Some environments intentionally grant only public profile columns to the
+    // browser-facing role. Do not fall back to the service-role key here: home,
+    // onboarding, and settings must not white-screen if that secret is absent.
+    const { data: publicData, error: publicError } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, created_at, onboarded")
+      .eq("id", userId)
+      .maybeSingle();
+    if (publicError) throw new Error(publicError.message);
+    if (!publicData) return null;
+
+    return {
+      id: publicData.id,
+      display_name: publicData.display_name,
+      avatar_url: publicData.avatar_url,
+      created_at: publicData.created_at,
+      updated_at: publicData.created_at,
+      native_language: "ja",
+      ui_language: "ja",
+      target_language: "zh-TW",
+      level_goal: "TOCFL-2",
+      pronunciation_strictness: "normal",
+      onboarded: publicData.onboarded,
+      album_bg: "paper",
+      plan: "free",
+      review_mode: "speaking",
+      current_level: null,
+      review_daily_limit: 20,
+      review_stage_focus: "all",
+    };
   });
 
 const UpdateInput = z.object({
