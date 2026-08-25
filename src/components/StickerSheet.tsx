@@ -1043,7 +1043,12 @@ export function StickerSheetBody({
               className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
             >
               <MapPin className="h-3.5 w-3.5" />
-              {s.location_name ?? t("card.openMap")}
+              {/* **「地図を開く」を地名の代わりに置かない**(オーナー指摘
+                  「位置情報は『地図を開く』でなく具体的な地名を表示して」)。
+                  地名が取れなかったのは、その場所に名前が無いからではなく
+                  逆引きが返さなかったから。ボタンの名前を場所の名前として
+                  出すと、**そこが「地図を開く」という場所に見える。** */}
+              {s.location_name ?? t("common.shotHere")}
             </a>
           )}
         </div>

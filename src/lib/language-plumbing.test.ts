@@ -358,7 +358,22 @@ describe("第2段: 消したものが戻ってこない", () => {
 
   it("上の「撮った所」の行は残っている(地名と導線)", () => {
     // 地図を消したのであって、場所を消したのではない。
-    expect(read("components/StickerSheet.tsx")).toContain("card.openMap");
+    // **札の文言ではなく行そのものを見る** — 最初は `card.openMap` が
+    // 在ることを数えていたが、その札は「地名が無いときの代わり」に
+    // 使うのをやめた文言で、消したら門が落ちた(門が実物より古かった)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      const src = codeOnly(read(f));
+      expect(src, f).toContain("google.com/maps?q=");
+      expect(src, f).toContain("s.location_name ??");
+    }
+  });
+
+  it("地名が無いときにボタンの名前を場所の名前として出さない", () => {
+    // 「地図を開く」を地名の代わりに置くと、**そこが「地図を開く」という
+    // 場所に見える**(オーナー指摘)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(f)), f).not.toContain('s.location_name ?? t("card.openMap")');
+    }
   });
 });
 
@@ -385,5 +400,42 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     expect(src).toMatch(/if \(p\.partial\) return;/);
     // 印を見るのが `setTargetLang` **より前**であること。
     expect(src.indexOf("p.partial")).toBeLessThan(src.indexOf("setTargetLang(p."));
+  });
+});
+
+describe("第2段: 語源と地名を言語ごとに正しく", () => {
+  it("語源のプロンプトが漢字の話で決め打ちされていない", () => {
+    // 英語のカードにも「漢字の語源」「部首と意味」を作らせていた
+    // (オーナー指示「英単語の由来 — 接頭語・接尾語 — を解説して」)。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("漢字の語源・成り立ち");
+    expect(src).not.toContain("部首と意味");
+    expect(src).toContain("capture.etymologyRule");
+    expect(src).toContain("capture.radicalsRule");
+  });
+
+  it("英語の語源は接頭辞・接尾辞に触れ、部首には触れない", () => {
+    const en = targetProfile("en").capture;
+    expect(en.etymologyRule).toContain("接頭辞");
+    expect(en.etymologyRule).toContain("接尾辞");
+    expect(en.etymologyRule).not.toContain("部首");
+    expect(en.hasRadicals).toBe(false);
+    const zh = targetProfile("zh-TW").capture;
+    expect(zh.etymologyRule).toContain("漢字");
+    expect(zh.hasRadicals).toBe(true);
+  });
+
+  it("部首の行は華語のカードだけに出る", () => {
+    // 指示で空にさせても、古いデータには入っている。
+    // 「作らせない」と「描かない」は別の話。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("targetProfile(word.language).capture.hasRadicals");
+  });
+
+  it("地名を受け取る言葉が決め打ちされていない", () => {
+    // `zh-TW` 固定だったので、日本語の画面の人にも中文の地名が返っていた。
+    const src = codeOnly(read("lib/geocode.functions.ts"));
+    expect(src).toContain("readerMapLanguage(");
+    expect(src).not.toMatch(/language: z\.string\(\)\.default\(/);
   });
 });

@@ -367,7 +367,8 @@ export function StickerDetailHero({
               className="lift relative inline-flex min-h-11 items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-footnote font-medium text-primary-ink"
             >
               <MapPin className="h-3.5 w-3.5" />
-              {s.location_name ?? t("card.openMap")}
+              {/* ボタンの名前を場所の名前として出さない(`StickerSheet` と同じ)。 */}
+              {s.location_name ?? t("common.shotHere")}
             </a>
           )}
         </div>

@@ -392,8 +392,8 @@ ${l1Gram}
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
-- etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
-- radicals: 部首と意味の説明（1文、${NL}）
+- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
+- radicals: ${cardProfile.capture.radicalsRule}
 - mnemonic: 記憶に残るひとことフレーズ・覚え方（${NL}）
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
@@ -751,7 +751,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
     // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
     // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
-    const targetName = targetProfile(word.language as string | null).promptName;
+    const regenProfile = targetProfile(word.language as string | null);
+    const targetName = regenProfile.promptName;
     const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
@@ -843,7 +844,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ pronunciation_tips: z.string().min(1) }),
       },
       etymology: {
-        prompt: `${base}\n{"etymology":"漢字の語源・成り立ち(1〜2文)","radicals":"部首と意味(1文)"}`,
+        prompt: `${base}\n{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","radicals":"${regenProfile.capture.radicalsRule}"}`,
         schema: z.object({ etymology: z.string().min(1), radicals: z.string().catch("") }),
       },
       mnemonic: {

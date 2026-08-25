@@ -160,6 +160,27 @@ export type TargetProfile = {
     /** 読みの欄の指示（注音・拼音 / 米式・英式の IPA）。 */
     readingRule: string;
     /**
+     * 語源の書き方。**言語ごとに見る物が違う。**
+     *
+     * ここを分けていなかったので、英語のカードにも
+     * 「漢字の語源・成り立ち」「部首と意味」を作らせていた
+     * (オーナー指示「英単語の由来 — 古代・他言語からの派生、
+     * **接頭語・接尾語** — を解説して」)。
+     */
+    etymologyRule: string;
+    /**
+     * 語源に添える2行目(華語は部首)。**英語には無い**ので空にさせる。
+     * 欄そのものは残す — 古い台湾華語の語が既に持っている。
+     */
+    radicalsRule: string;
+    /**
+     * 部首の行を**画面に出してよい言語か**。
+     *
+     * 指示で空にさせても、古いデータや AI の勇み足で中身が入ることは在る。
+     * 「指示」と「描いてよいか」は別の話なので、真偽値で別に持つ。
+     */
+    hasRadicals: boolean;
+    /**
      * 発音のコツで**その言語のどこを見るか**。
      * 華語は声調、英語は強勢。**混ぜると意味が無い** —
      * 英語に「声調の型」と言っても書けることが無い。
@@ -253,6 +274,9 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。\n" +
       "  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。",
     readingRule: "- reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。\n- pinyin: 拼音",
+    etymologyRule: "漢字の語源・成り立ち(1〜2文)",
+    radicalsRule: "部首と意味(1文)",
+    hasRadicals: true,
     pronunciationFocus: "この語の声調の型",
   },
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
@@ -340,6 +364,15 @@ export const EN_PROFILE: TargetProfile = {
       "- pinyin: **空文字**（英語に拼音は無い）\n" +
       "- ipa_us: アメリカ英語の IPA（強勢記号 ˈ ˌ を必ず付ける。例: ʌmˈbrɛlə）\n" +
       "- ipa_uk: イギリス英語の IPA（違いが無ければアメリカ式と同じで良い）",
+    etymologyRule:
+      "語の由来(1〜2文)。ラテン語・ギリシャ語・古英語などの**出どころ**を書く。\n" +
+      "  そのうえで**接頭辞・接尾辞・語根に分解**し、その部品が持つ意味を書く。\n" +
+      "  例: re-(再び) + ject(投げる) → reject / bio-(生命) + -logy(学問) → biology。\n" +
+      "  分解できない語(get, dog など)は無理に分けず、出どころだけを書く。",
+    // 英語に部首は無い。**空にさせる** — 何か書けと言うと、AI は
+    // 綴りの一部を「部首」と呼び始める。
+    radicalsRule: "**空文字**(英語に部首は無い)",
+    hasRadicals: false,
     pronunciationFocus: "この語のどの音節を強く読むか",
   },
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)

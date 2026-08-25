@@ -1143,7 +1143,10 @@ function Body({
       return (
         <div className="space-y-1 text-body leading-relaxed">
           {ex.etymology && <Prose text={ex.etymology} />}
-          {ex.radicals && (
+          {/* **部首は華語の話。** 英語の語に部首の行が出るのは、
+              古いデータか AI の勇み足のどちらか。どちらでも出さない
+              (指示は `target-profile.ts` の `radicalsRule` で空にさせている)。 */}
+          {ex.radicals && targetProfile(word.language).capture.hasRadicals && (
             <p className="text-footnote text-muted-foreground">
               {/* **約物で繋がない。** 「部首: 珍(王+参)」と半角コロンで
                   繋いでいたが、和文の中の半角約物は字面が浮く。
