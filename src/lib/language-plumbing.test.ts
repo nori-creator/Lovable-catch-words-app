@@ -177,3 +177,55 @@ describe("復習の「終わり」を数から決める", () => {
     expect(src).toContain("review.moreTitle");
   });
 });
+
+describe("第1段: 学習言語で「見えるもの」を分ける", () => {
+  it("図鑑・アルバムの一覧が学習言語で絞られる", () => {
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    // **`!inner` が要る。** 普通の埋め込みだと条件に合わない札が
+    // `words: null` で残り、「絵はあるのに文字が無い札」が並ぶ。
+    expect(src).toContain("words!inner(");
+    expect(src).toContain("wordLanguageFilter(");
+    expect(src).toMatch(/\.or\(langFilter, \{ referencedTable: "words" \}\)/);
+  });
+
+  it("一覧は端末ではなくプロフィールの学習言語を正とする", () => {
+    // 端末の値で絞ると、別の端末で開いたときに違う物が見える。
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    expect(src).toContain("getUserTargetLanguage(userId)");
+    expect(src).not.toContain("useTargetLang");
+  });
+
+  it("絞れなかったときは空にせず、同じ規則で JS 側が絞る", () => {
+    // 空の図鑑を出すのが一番悪い。**混ざるより消えるほうが悪い。**
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    expect(src).toContain("filterInDb");
+    expect(src).toContain("matchesTargetLanguage(");
+  });
+
+  it("復習の列も同じ学習言語で絞る", () => {
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    expect(src).toContain("stickers!inner(");
+    expect(src).toContain("words!inner(");
+    // 2段先に掛けるので prefix は `stickers.words`。
+    expect(src).toMatch(/referencedTable: "stickers\.words"/);
+  });
+
+  it("「あと何枚」の数も同じ絞りで数える", () => {
+    // ここだけ絞らないと「あと190枚あります」と言ったのに
+    // 「続ける」で1枚も出てこない。
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    expect(src).toContain("countDue(");
+    const countDue = src.slice(src.indexOf("async function countDue"));
+    expect(countDue.slice(0, 1200)).toMatch(/referencedTable: "stickers\.words"/);
+  });
+
+  it("図鑑が空のとき「まだ何もキャッチしていません」と嘘をつかない", () => {
+    // 学習言語を変えた人は150枚持っている。集めた物が消えたように
+    // 見える画面は、このアプリで一番やってはいけない壊し方。
+    const server = codeOnly(read("lib/stickers.functions.ts"));
+    expect(server).toContain("otherLanguages");
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    expect(dex).toContain("otherLanguages");
+    expect(dex).toContain("dex.emptyOtherLangTitle");
+  });
+});

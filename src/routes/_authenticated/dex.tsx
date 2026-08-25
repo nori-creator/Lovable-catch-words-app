@@ -22,8 +22,9 @@ import {
   MapPin,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useT } from "@/lib/i18n";
+import { useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
+import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
@@ -345,7 +346,10 @@ function DexPage() {
       ) : view === "calendar" ? (
         <DexCalendar stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
-        <DexEmptyState />
+        <DexEmptyState
+          otherLanguages={stickers?.otherLanguages ?? 0}
+          targetLanguage={stickers?.targetLanguage}
+        />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
       ) : view === "shelf" ? (
@@ -573,8 +577,38 @@ function DexPage() {
  * ホームの空の面と同じ型(理由・次の一手・その場の導線)。ルートに
  * 直書きのままだと `ui-audit` から描けず、機械の目に一度も映らない。
  */
-export function DexEmptyState() {
+export function DexEmptyState({
+  otherLanguages = 0,
+  targetLanguage,
+}: {
+  /**
+   * **ほかの学習言語に何枚あるか。** 0 より大きいなら、この人は
+   * 「まだ何もキャッチしていない」のではなく**学習言語を切り替えた**。
+   * そこに「まだ何もキャッチしていません」と出すのは嘘で、
+   * 集めた物が消えたようにしか見えない。
+   */
+  otherLanguages?: number;
+  targetLanguage?: string;
+} = {}) {
   const t = useT();
+  if (otherLanguages > 0) {
+    const lang = t(TARGET_LANG_LABEL_KEYS[normalizeTargetLanguage(targetLanguage)]);
+    return (
+      <EmptyState
+        icon={Library}
+        title={t("dex.emptyOtherLangTitle", { lang })}
+        hint={t("dex.emptyOtherLangHint", { n: formatCount(otherLanguages) })}
+        action={
+          <Link
+            to="/settings"
+            className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+          >
+            {t("dex.emptyOtherLangCta")}
+          </Link>
+        }
+      />
+    );
+  }
   return (
     <EmptyState
       icon={Library}

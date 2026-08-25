@@ -2418,6 +2418,24 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把相機對準在街上看到的字，圖鑑就會在這裡長大。",
   },
   "dex.emptyCta": { ja: "最初の一枚を撮る", en: "Take your first photo", "zh-TW": "拍下第一張" },
+  // 学習言語を変えて図鑑が空になったとき。**「まだ何もキャッチして
+  // いません」は嘘**で、その人は別の言語で何十枚も持っている。
+  // 集めた物が消えたように見える画面はこのアプリで一番やってはいけない。
+  "dex.emptyOtherLangTitle": {
+    ja: "{lang}の図鑑はまだ空です。",
+    en: "Your {lang} dex is still empty.",
+    "zh-TW": "{lang}的圖鑑還是空的。",
+  },
+  "dex.emptyOtherLangHint": {
+    ja: "ほかの学習言語に {n} 枚あります。設定で学習言語を戻すと、そちらが見えます。",
+    en: "You have {n} in another target language. Switch back in Settings to see them.",
+    "zh-TW": "另一個學習語言裡有 {n} 張。到設定切回去就看得到。",
+  },
+  "dex.emptyOtherLangCta": {
+    ja: "学習言語を変える",
+    en: "Change target language",
+    "zh-TW": "更改學習語言",
+  },
   "dex.placesTitle": { ja: "キャッチした場所", en: "Where you caught them", "zh-TW": "捕捉的地點" },
   "dex.placesHint": {
     ja: "写真をタップで地図がその場所へズーム。地図上の丸い写真をタップで単語の詳細へ。",

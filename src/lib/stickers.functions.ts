@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { wordLanguageFilter, matchesTargetLanguage } from "./language-filter";
+import { getUserTargetLanguage } from "./ai-provider.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
@@ -185,8 +187,21 @@ export const listMyStickers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    /**
+     * **学習言語で絞る。** オーナー指示「学習言語によってアルバムや図鑑に
+     * 表示されるものをすべて区別して。混ぜないで」。
+     *
+     * 正はプロフィール（端末の localStorage ではない）。端末の値は
+     * 撮る道が使うが、**見えるものを決めるのに端末を信じてはいけない** —
+     * 別の端末で開いたときに違う物が見える。
+     */
+    const targetLanguage = await getUserTargetLanguage(userId);
+    const langFilter = wordLanguageFilter(targetLanguage);
+    // `!inner` にすると、条件に合わない語の札は**親ごと落ちる**。
+    // ここを普通の埋め込みにすると `words: null` の札が残り、
+    // 「絵はあるのに文字が無い札」が並ぶ。
     const wordCols =
-      "words(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
+      "words!inner(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
     const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
     // `hero_role` だけが無い環境のための段。**ゴーストの列と一緒くたにしない**
     // — 一緒にすると、この移行だけ当たっていない環境でネット画像まで落ちる。
@@ -208,17 +223,36 @@ export const listMyStickers = createServerFn({ method: "GET" })
      * `count` は最初のページでだけ数える。毎ページ数えると、3000件の人が
      * COUNT(*) を3回走らせることになる(2回目以降は誰も見ない)。
      */
-    const page = async (cols: string, from: number, withCount: boolean) =>
-      await supabase
+    /**
+     * 言語で絞るかどうか。**`words.language` がまだ無い環境では絞れない。**
+     * その場合に空の図鑑を出すのが一番悪いので、絞りを外して全部出す
+     * (混ざるが、消えない)。下の JS 側でもう一度同じ規則を掛ける。
+     */
+    let filterInDb = true;
+    const page = async (cols: string, from: number, withCount: boolean) => {
+      const q = supabase
         .from("stickers")
         .select(cols, withCount ? { count: "exact" } : undefined)
-        .eq("user_id", userId)
+        .eq("user_id", userId);
+      const filtered = filterInDb ? q.or(langFilter, { referencedTable: "words" }) : q;
+      return await filtered
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .range(from, from + STICKER_PAGE_SIZE - 1);
+    };
 
     let cols = fullCols;
     let first = await page(cols, 0, true);
+    // 列がまだ無い / 埋め込みの絞りが通らない環境では、絞りだけ諦める。
+    if (first.error && /language/.test(first.error.message)) {
+      console.warn("[stickers] words.language で絞れないので絞りを外す:", first.error.message);
+      filterInDb = false;
+      first = await page(cols, 0, true);
+    }
+    if (first.error && /words!inner|words/.test(first.error.message) && filterInDb) {
+      filterInDb = false;
+      first = await page(cols, 0, true);
+    }
     if (first.error && /hero_role/.test(first.error.message)) {
       cols = noHeroCols;
       first = await page(cols, 0, true);
@@ -290,7 +324,13 @@ export const listMyStickers = createServerFn({ method: "GET" })
       shelf_key?: string | null;
       words: (Omit<StickerWithWord["word"], "extras"> & { extras?: unknown }) | null;
     };
-    const rows = (data ?? []) as unknown as RowShape[];
+    let rows = (data ?? []) as unknown as RowShape[];
+    // **絞りを DB で掛けられなかったときの受け皿。** 同じ規則を
+    // `language-filter.ts` の1箇所から読むので、DB と画面で判断が
+    // 食い違うことがない。DB で絞れているときは何も落ちない。
+    if (!filterInDb) {
+      rows = rows.filter((r) => matchesTargetLanguage(r.words?.language, targetLanguage));
+    }
     // 総数は最初のページが返した `count`。
     //
     // **`count` が取れなかったときの上限は「1ページ分」。** ここを天井
@@ -358,7 +398,28 @@ export const listMyStickers = createServerFn({ method: "GET" })
         word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
       });
     }
-    return { items: result, truncated, total };
+    /**
+     * **他の学習言語に何枚あるか。**
+     *
+     * 学習言語を英語に変えた人の図鑑は空になる（指示どおり）。でも
+     * そこに「まだ何もキャッチしていません」と出すのは**嘘**で、
+     * その人は150枚持っている。集めた物が消えたように見える画面は
+     * この作業場で一番やってはいけない壊し方なので、
+     * **他の言語に何枚あるかを数えて画面に渡す。**
+     *
+     * 数えられなくても画面は出す（飾りなので `null` に倒す）。
+     */
+    let otherLanguages: number | null = null;
+    if (filterInDb) {
+      const all = await supabase
+        .from("stickers")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      if (!all.error && typeof all.count === "number" && typeof total === "number") {
+        otherLanguages = Math.max(0, all.count - total);
+      }
+    }
+    return { items: result, truncated, total, targetLanguage, otherLanguages };
   });
 
 export const getSticker = createServerFn({ method: "GET" })
