@@ -227,3 +227,45 @@ describe("生成した CSV が、実際の取り込みを通る", () => {
     expect(partitionByLanguage(rows, "en").ok.length).toBe(1);
   });
 });
+
+describe("名前に言語が入っている列を、他の言語で使わない", () => {
+  /**
+   * **自分で書いた方針に、自分で違反していた。**
+   * `words` の移行にはこう書いてある:
+   *
+   * > 2箇所に同じ物が入ると、片方だけ直す事故が起きる。
+   * > 古い言語は古い列を使い続け、新しい言語だけが新しい列を使う。
+   *
+   * ところが取り込みは、古い列にも新しい列にも同じ値を書いていた。
+   * つまり**英語の IPA が `zhuyin` という名前の列に入る**。
+   * `scan.functions.ts` はその列を読むので、IPA が注音として画面に出る。
+   *
+   * `words.pinyin` に IPA を入れる逃げ道を断ったのと同じ話を、
+   * 隣のファイルでやっていた。
+   */
+  const src = fs.readFileSync("src/lib/admin.functions.ts", "utf8");
+
+  it("**古い列は既定の言語のときだけ書く**", () => {
+    // `legacy()` を通していること。素の値を直に入れていないこと。
+    for (const col of ["zhuyin", "pinyin", "tocfl_level", "taiwan_usage"]) {
+      expect(src, `${col} が legacy() を通っていない`).toMatch(
+        new RegExp(`\\b${col}: legacy\\(`),
+      );
+    }
+  });
+
+  it("**新しい列はどの言語でも書く**(legacy を通さない)", () => {
+    for (const col of ["reading_primary", "reading_alt", "level_step"]) {
+      expect(src, `${col} が legacy() を通ってしまっている`).not.toMatch(
+        new RegExp(`\\b${col}: legacy\\(`),
+      );
+    }
+    // 書いてはいる。
+    expect(src).toMatch(/\breading_primary: /);
+    expect(src).toMatch(/\blevel_step: /);
+  });
+
+  it("`legacy()` が既定の言語かどうかで決まっている", () => {
+    expect(src).toContain("language === DEFAULT_TARGET_LANGUAGE");
+  });
+});

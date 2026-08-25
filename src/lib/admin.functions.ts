@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { normalizeTargetLanguage } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { partitionByLanguage, type DictionaryImportRow as ImportRow } from "./dictionary-import";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -58,26 +58,38 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
     const num = (v: unknown): number | null =>
       v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v);
 
+    // **古い列は既定の言語のときだけ書く。**
+    //
+    // `zhuyin` `pinyin` `tocfl_level` は名前に言語が入っている列。
+    // ここに英語の IPA や CEFR の段を入れると、**名前と中身が食い違う**:
+    //
+    //   zhuyin      に IPA が入る → `scan.functions.ts` がそれを注音として出す
+    //   tocfl_level に CEFR が入る → 「TOCFL 3級」と読まれる
+    //
+    // `words.pinyin` に IPA を入れる逃げ道を断ったのと同じ話。
+    // 新しい列(`reading_primary`/`reading_alt`/`level_step`)はどの言語でも
+    // 正しいので、そちらは必ず書く。
+    const isLegacyLanguage = language === DEFAULT_TARGET_LANGUAGE;
+    const legacy = <T,>(v: T): T | null => (isLegacyLanguage ? v : null);
+
     const payload = ok.map((r) => ({
       headword: r.headword,
-      // 古い欄（注音・拼音）は台湾華語の取り込みが使い続ける。
-      // 新しい欄（reading_primary/alt）はどちらの言語でも使える。
-      zhuyin: r.reading_primary?.trim() || null,
-      pinyin: r.reading_alt?.trim() || null,
+      zhuyin: legacy(r.reading_primary?.trim() || null),
+      pinyin: legacy(r.reading_alt?.trim() || null),
       reading_primary: r.reading_primary?.trim() || null,
       reading_alt: r.reading_alt?.trim() || null,
       meaning_ja: r.meaning_ja?.trim() || null,
       meanings: r.meanings && Object.keys(r.meanings).length > 0 ? r.meanings : {},
       pos: r.pos?.trim() || null,
-      // 級は新旧どちらの欄でも受ける。**両方に同じ値を入れる** —
-      // 読む側が古い列を見ていても新しい列を見ていても同じ答えになる。
       level_step: num(r.level_step ?? r.tocfl_level),
-      tocfl_level: num(r.tocfl_level ?? r.level_step),
+      tocfl_level: legacy(num(r.tocfl_level ?? r.level_step)),
       freq_rank: num(r.freq_rank),
       exam_tags: r.exam_tags && r.exam_tags.length > 0 ? r.exam_tags : null,
       forms: r.forms && Object.keys(r.forms).length > 0 ? r.forms : null,
       usage_register: r.usage_register?.trim() || null,
-      taiwan_usage: r.taiwan_usage?.trim() || null,
+      // `taiwan_usage` も名前に言語が入っている。英語には書かない
+      // （言語に依らない名前は `usage_register`）。
+      taiwan_usage: legacy(r.taiwan_usage?.trim() || null),
       source: r.source?.trim() || "verified",
       entry_type: r.entry_type?.trim() || "word",
       scene_tags: r.scene_tags && r.scene_tags.length > 0 ? r.scene_tags : null,
