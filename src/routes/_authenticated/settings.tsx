@@ -27,6 +27,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions } from "@/lib/level-scale";
+import { UI_LANGS, UI_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
 import { DATA_SOURCES } from "@/lib/data-sources";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
@@ -254,8 +255,10 @@ function SettingsPage() {
     // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
     setNativeLanguage(pickL1(profile.native_language, profile.target_language));
-    setUiLanguage(profile.ui_language);
-    setUiLang(profile.ui_language === "en" ? "en" : "ja");
+    // **知らない値をそのまま渡さない。** 一覧に無い値だと選択が空に見える。
+    const nextUi = normalizeUiLang(profile.ui_language);
+    setUiLanguage(nextUi);
+    setUiLang(nextUi);
     setTargetLanguage(profile.target_language);
     setLevelGoal(profile.level_goal);
     setCurrentLevel(
@@ -302,7 +305,9 @@ function SettingsPage() {
       await updateProfile({ data: { review_mode: reviewMode } }).catch(() =>
         toast(t("review.modeLocalOnly")),
       );
-      setUiLang(uiLanguage === "en" ? "en" : "ja");
+      // **ここで "ja" に落とさない。** 繁體中文を選んだ人が保存するたびに
+      // 日本語へ戻ってしまう（型でもビルドでも落ちない）。
+      setUiLang(normalizeUiLang(uiLanguage));
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.saved"));
     } catch (e) {
@@ -395,7 +400,9 @@ function SettingsPage() {
               onChange={setNativeLanguage}
               options={l1ChoicesFor(targetLanguage).map((code) => ({
                 value: code,
-                label: uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa,
+                // 繁體中文の画面に日本語の言語名を出さない。母語の名前は
+                // 訳を持っていないので、日本語以外は英語名に寄せる。
+                label: uiLanguage === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
               }))}
             />
             <SelectRow
@@ -403,10 +410,12 @@ function SettingsPage() {
               label={t("settings.uiLang")}
               value={uiLanguage}
               onChange={setUiLanguage}
-              options={[
-                { value: "ja", label: t("settings.langJa") },
-                { value: "en", label: t("settings.langEn") },
-              ]}
+              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
+              // ここを直し忘れると、訳したのに選べない状態になる。
+              options={UI_LANGS.map((code) => ({
+                value: code,
+                label: t(UI_LANG_LABEL_KEYS[code]),
+              }))}
             />
           </div>
         </SettingsCard>

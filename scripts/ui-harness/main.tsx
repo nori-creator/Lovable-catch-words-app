@@ -217,6 +217,23 @@ const BARE = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-cam
 
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";
+
+/**
+ * 表示言語を切り替えて撮る(`?lang=zh-TW`)。
+ *
+ * `useUiLang` は localStorage を読むので、**React が起動する前に**書く。
+ * あとから書くと初回の描画が日本語のままになり、撮った絵が実物と違う。
+ */
+{
+  const lang = q.get("lang");
+  if (lang) {
+    try {
+      localStorage.setItem("ui-lang-v1", lang);
+    } catch {
+      /* 使えない環境では既定のまま */
+    }
+  }
+}
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い

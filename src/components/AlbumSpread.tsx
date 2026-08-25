@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useT, useUiLang } from "@/lib/i18n";
+import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { CachedImg } from "@/lib/image-cache";
 import { AlbumSpanTabs } from "@/components/AlbumSpanTabs";
@@ -77,7 +77,7 @@ export function AlbumSpread({
   onOpenSticker?: (id: string) => void;
 }) {
   const t = useT();
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   /** 何束目を開いているか。 */
   const [groupIdx, setGroupIdx] = useState(0);
   /** その束の何組目の見開きか(月は1組に入りきらない)。 */

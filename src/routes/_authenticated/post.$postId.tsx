@@ -7,7 +7,7 @@ import { getPost, getComments, addComment, toggleLike } from "@/lib/social.funct
 import { useState } from "react";
 import { ArrowLeft, Heart, Send, MapPin } from "lucide-react";
 import { Zh } from "@/components/Zh";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -64,7 +64,7 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
 
 function PostPage() {
   const t = useT();
-  const dateLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dateLocale = localeOf(useUiLang());
   const { postId } = Route.useParams();
   const qc = useQueryClient();
   const fetchPost = useServerFn(getPost);

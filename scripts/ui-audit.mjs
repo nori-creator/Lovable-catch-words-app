@@ -314,6 +314,12 @@ const MODES = [
   ...crossThemes("settings-choices", { scene: "settings-choices" }),
   ...crossThemes("settings-selects", { scene: "settings-selects" }),
   ...crossThemes("settings-sources", { scene: "settings-sources" }),
+  // 繁體中文（2026-08-25）。**訳しただけでは足りない** — 字が入りきるか、
+  // 行が折り返して崩れないかは絵でしか分からない。台湾の人が最初に触る
+  // 3面（設定・図鑑・復習）を撮る。
+  ...crossThemes("zh-settings", { scene: "settings-selects", lang: "zh-TW" }),
+  ...crossThemes("zh-home", { scene: "home", lang: "zh-TW" }),
+  ...crossThemes("zh-review", { scene: "review-choice", lang: "zh-TW" }),
   ...crossThemes("settings-toggles", { scene: "settings-toggles" }),
   ...crossThemes("settings-danger", { scene: "settings-danger" }),
   // 単語カード — 節ごとの淡い色が13種類。**明るい面の前提で固定**されている

@@ -18,7 +18,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import { getUiLang, tStatic } from "@/lib/i18n";
+import { getUiLang, localeOf, tStatic } from "@/lib/i18n";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -50,7 +50,7 @@ export function takenDateLabel(takenAt: string | null | undefined): string {
   if (!takenAt) return "";
   const d = new Date(takenAt);
   if (Number.isNaN(d.getTime())) return "";
-  const locale = getUiLang() === "en" ? "en-US" : "ja-JP";
+  const locale = localeOf(getUiLang());
   try {
     return d.toLocaleDateString(locale, { month: "long", day: "numeric" });
   } catch {

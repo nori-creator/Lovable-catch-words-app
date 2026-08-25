@@ -51,7 +51,7 @@ import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
-import { useT, useUiLang } from "@/lib/i18n";
+import { localeOf, type UiLang, useT, useUiLang } from "@/lib/i18n";
 import { LoadFailed } from "@/components/LoadFailed";
 
 type Props = {
@@ -797,7 +797,7 @@ export function StickerSheetBody({
   encounter,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
-  uiLang: string;
+  uiLang: UiLang;
   /**
    * その人向けの解説(`word_explanations` の共有キャッシュ)。
    * **無ければ古い `words` の列に落ちる** — 移行が当たる前でも、
@@ -1038,7 +1038,7 @@ export function StickerSheetBody({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
-            {new Date(s.created_at).toLocaleString(uiLang === "en" ? "en-US" : "ja-JP", {
+            {new Date(s.created_at).toLocaleString(localeOf(uiLang), {
               year: "numeric",
               month: "short",
               day: "numeric",
@@ -1071,7 +1071,7 @@ export function StickerSheetBody({
           2回目3回目に撮った写真は保存されていたのに、
           図鑑からは永久に辿り着けなかった(オーナー指摘 2026-08-18)。
           再会が無ければ何も描かない。 */}
-      <StickerPhotoHistory photos={photos} dateLocale={uiLang === "en" ? "en-US" : "ja-JP"} />
+      <StickerPhotoHistory photos={photos} dateLocale={localeOf(uiLang)} />
 
       {/* 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
           **キャッチの保存経路には入れない** — あそこは「一瞬でも早く」の

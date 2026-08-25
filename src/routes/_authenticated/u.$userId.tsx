@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getPublicProfile } from "@/lib/userprofile.functions";
 import { toggleFollow } from "@/lib/social.functions";
 import { toast } from "sonner";
-import { useT } from "@/lib/i18n";
+import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 
@@ -124,9 +124,7 @@ function UserProfilePage() {
               </h2>
               <p className="text-footnote text-muted-foreground">
                 {t("user.since", {
-                  date: new Date(data.created_at).toLocaleDateString(
-                    lang === "en" ? "en-US" : "ja-JP",
-                  ),
+                  date: new Date(data.created_at).toLocaleDateString(localeOf(lang)),
                 })}
               </p>
             </div>

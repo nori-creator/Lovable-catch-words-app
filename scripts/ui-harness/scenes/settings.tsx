@@ -39,7 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { L1_TABLE, l1ChoicesFor } from "@/lib/l1";
-import { tStatic as t } from "@/lib/i18n";
+import { UI_LANGS, UI_LANG_LABEL_KEYS, getUiLang, tStatic as t } from "@/lib/i18n";
 import { LogOut } from "lucide-react";
 import { useState } from "react";
 
@@ -159,7 +159,7 @@ export function SettingsSelectsScene() {
   const [cur, setCur] = useState("TOCFL-2");
   const [goal, setGoal] = useState("TOCFL-4");
   const [native, setNative] = useState("ja");
-  const [ui, setUi] = useState("ja");
+  const [ui, setUi] = useState<string>(() => getUiLang());
   return (
     <SettingsCard title={t("settings.language")}>
       <div className="space-y-3">
@@ -197,7 +197,10 @@ export function SettingsSelectsScene() {
           onChange={setNative}
           options={l1ChoicesFor(target).map((code) => ({
             value: code,
-            label: L1_TABLE[code].labelJa,
+            // **本物と同じ選び方にする。** ここだけ `labelJa` に決め打つと、
+            // 繁體中文の画面を撮っても日本語の言語名が写り、実物と違う絵を
+            // 検査することになる（この app が繰り返してきた形）。
+            label: ui === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
           }))}
         />
         <SelectRow
@@ -205,10 +208,7 @@ export function SettingsSelectsScene() {
           label={t("settings.uiLang")}
           value={ui}
           onChange={setUi}
-          options={[
-            { value: "ja", label: t("settings.langJa") },
-            { value: "en", label: t("settings.langEn") },
-          ]}
+          options={UI_LANGS.map((code) => ({ value: code, label: t(UI_LANG_LABEL_KEYS[code]) }))}
         />
       </div>
     </SettingsCard>

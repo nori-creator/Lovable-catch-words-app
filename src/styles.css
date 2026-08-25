@@ -1233,7 +1233,14 @@
   text-transform: uppercase;
   letter-spacing: 0.18em;
 }
-:lang(ja) .label-caps {
+/* 大文字化と広い字間は**ラテン文字のための飾り**。CJK に当てると、
+   1文字ずつ離れて読みにくくなる（検査の「和文の字間が広い」がこれを見る）。
+
+   2026-08-25: ここは `:lang(ja)` だけだったので、繁體中文を足したとたん
+   台湾の人の画面で「星期二」が 0.18em で組まれた（検査が捕まえた）。
+   `:lang()` は前方一致なので、`zh-Hant-TW` は `:lang(zh)` で拾える。 */
+:lang(ja) .label-caps,
+:lang(zh) .label-caps {
   text-transform: none;
   letter-spacing: normal;
 }

@@ -35,7 +35,7 @@ import {
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
-import { useT, useUiLang } from "@/lib/i18n";
+import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -645,7 +645,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     return { series: out, reviewDays: revDays, forgetDay: forget, bestDay: targetDay };
   }, [data, word]);
 
-  const dueLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const dueLocale = localeOf(useUiLang());
   const dueAt = word.due_at ?? data?.current?.due_at ?? null;
   const dueLabel = dueAt
     ? new Date(dueAt).toLocaleDateString(dueLocale, { month: "short", day: "numeric" })
@@ -852,7 +852,7 @@ export function SpeakingCard({
   // ここは `cutout ?? placeholder` だけを見ていたので、切り抜きの無い札
   // (かざして撮った札)は写真なしで出題されていた。
   const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
-  const takenLocale = useUiLang() === "en" ? "en-US" : "ja-JP";
+  const takenLocale = localeOf(useUiLang());
   const takenLabel = card.taken_at
     ? new Date(card.taken_at).toLocaleDateString(takenLocale, { month: "short", day: "numeric" })
     : null;
