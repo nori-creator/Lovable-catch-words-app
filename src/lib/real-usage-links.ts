@@ -113,7 +113,9 @@ export function realUsageLinks(
       {
         id: "news",
         emoji: "\u{1F4F0}",
-        labelKey: "card.newsLabel",
+        // **名前も英語版にする。** 一言だけ替えて名前を使い回すと、
+        // 英語のカードに「台湾のサイトで検索」と出る。
+        labelKey: "card.newsLabelEn",
         hintKey: "card.newsHintEn",
         href: `https://www.google.com/search?q=${q}&hl=en&gl=US&cr=countryUS&lr=lang_en`,
       },

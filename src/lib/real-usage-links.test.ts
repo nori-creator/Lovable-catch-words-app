@@ -106,6 +106,48 @@ describe("realUsageLinks", () => {
     }
   });
 
+  /**
+   * **絵で見つけた形。** 一言(`hintKey`)だけ英語版に替えて名前
+   * (`labelKey`)を使い回したので、英語のカードに
+   * 「在台灣的網站搜尋（台湾のサイトで検索）」と出ていた。
+   * 一言が正しいので、文章を読むと合っているように見えるのが厄介だった。
+   *
+   * 言語ごとに中身が変わる札は、**名前と一言の両方**を替えること。
+   */
+  /**
+   * **これが実際に捕まえた門。** `card.newsLabel`(「台湾のサイトで検索」)を
+   * 英語の札に使い回していたので、英語のカードに
+   * 「在台灣的網站搜尋」と出ていた — 一言のほうは
+   * 「只限英語網站的搜尋結果」と正しかったので、**読むと合っているように
+   * 見える**のが厄介だった。
+   *
+   * 「行き先が国で違うなら鍵も違うはず」という門も書いてみたが、**嘘の
+   * 警告を出す**ので捨てた — YouTube の札(「YouTubeで聞く」)も対訳の札
+   * (「文の中での使われ方」)も、名前に国が入っていないので使い回して
+   * 正しい。嘘の警告を出す門は、そのうち誰も見なくなる。
+   *
+   * 見るのは**国の名前そのもの**。合わない国の名前が札に出ていたら、
+   * それは必ず間違い。
+   */
+  const COUNTRY_WORDS: Record<string, string[]> = {
+    en: ["台湾", "台灣", "Taiwan"],
+    "zh-TW": ["英語圏", "英語圈", "English-speaking", "American English", "アメリカ英語"],
+  };
+
+  it("**札の名前に、その言語と合わない国の名前が入っていない**", () => {
+    for (const target of TARGET_LANGUAGES) {
+      const bad = COUNTRY_WORDS[target] ?? [];
+      for (const l of realUsageLinks("x", target)) {
+        const label = DICT[l.labelKey];
+        for (const ui of UI_LANGS) {
+          for (const word of bad) {
+            expect(label[ui].includes(word), `${target}/${l.id}.${ui}: ${label[ui]}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
   it("知らない言語は既定に落とす(空の欄を作らない)", () => {
     expect(realUsageLinks("x", "kl-GL")).toEqual(realUsageLinks("x", DEFAULT_TARGET_LANGUAGE));
     expect(realUsageLinks("x", null)).toEqual(realUsageLinks("x", DEFAULT_TARGET_LANGUAGE));

@@ -761,6 +761,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Short posts English speakers are writing now",
     "zh-TW": "英語圈的人現在正在寫的短句",
   },
+  // **札の名前も替える。** 一言だけ替えて名前を使い回したら、英語の
+  // カードに「在台灣的網站搜尋（台湾のサイトで検索）」と出た(絵で見つけた)。
+  "card.newsLabelEn": {
+    ja: "英語のサイトで検索",
+    en: "Search English-language sites",
+    "zh-TW": "在英語網站搜尋",
+  },
   "card.newsHintEn": {
     ja: "英語のサイトだけに絞った検索結果",
     en: "Results limited to English-language pages",
