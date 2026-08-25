@@ -1243,34 +1243,6 @@ export type Database = {
           xp: number
         }[]
       }
-      get_my_profile: {
-        Args: never
-        Returns: {
-          album_bg: string
-          avatar_url: string | null
-          created_at: string
-          current_level: string | null
-          display_name: string | null
-          id: string
-          level_goal: string
-          native_language: string
-          onboarded: boolean
-          plan: string
-          pronunciation_strictness: string
-          review_daily_limit: number
-          review_mode: string
-          review_stage_focus: string
-          target_language: string
-          ui_language: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "profiles"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
