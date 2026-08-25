@@ -71,6 +71,23 @@ export function speechLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
 }
 
 /**
+ * **聞き取り**(SpeechRecognition)に渡す言語のタグ。
+ *
+ * 読み上げのタグと**別物**。台湾華語の聞き取りは `cmn-Hant-TW` で、
+ * `zh-TW` を渡すと端末によっては簡体字で結果を返す。
+ * これも `"cmn-Hant-TW"` として2つの画面に直に書かれていた
+ * (`PronunciationPanel` と `InputCatchSheet`)。英語を足した日から、
+ * **英語を喋っているのに中国語として聞き取られる**状態になる。
+ */
+export function sttLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
+  const STT: Record<TargetLanguage, string> = {
+    "zh-TW": "cmn-Hant-TW",
+    en: "en-US",
+  };
+  return STT[normalizeTargetLanguage(target)];
+}
+
+/**
  * 地図に地名を返してもらう言語。
  *
  * **学習言語ではない。** 台湾で撮った地名は、日本語の学習者にも

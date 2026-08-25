@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { DEFAULT_TARGET_LANGUAGE, sttLangOf } from "@/lib/target-lang";
 import { emptyExtras } from "@/lib/extras";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
@@ -194,7 +194,13 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
     const rec = new Ctor() as SR;
-    rec.lang = "cmn-Hant-TW";
+    // 聞き取りの言語は `target-lang.ts` の表から引く("cmn-Hant-TW" を
+    // 直に書かない)。**この画面はまだ学習言語に追従していない** —
+    // 下の7箇所と同じく `DEFAULT_TARGET_LANGUAGE` を渡している。
+    // 撮る道を学習言語に繋ぐのは次の段。ここだけ先に追従させると、
+    // 「英語として聞き取ったのに台湾華語として辞書を引く」という
+    // **半分だけ直った状態**になり、そちらのほうが分かりにくい。
+    rec.lang = sttLangOf(DEFAULT_TARGET_LANGUAGE);
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     rec.continuous = false;

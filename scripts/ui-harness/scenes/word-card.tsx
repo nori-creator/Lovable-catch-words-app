@@ -191,7 +191,11 @@ export const FULL_EN = {
     },
     phrasal_verbs: [
       { phrase: "put up an umbrella", meaning: "傘をさす", example: "She put up her umbrella." },
-      { phrase: "under the umbrella of", meaning: "〜の傘下で", example: "Under the umbrella of the UN." },
+      {
+        phrase: "under the umbrella of",
+        meaning: "〜の傘下で",
+        example: "Under the umbrella of the UN.",
+      },
     ],
     culture_note:
       "アメリカでは umbrella、イギリスでは brolly と呼ぶこともあります。" +

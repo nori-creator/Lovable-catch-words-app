@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { speechLangOf } from "@/lib/target-lang";
+import { DEFAULT_TARGET_LANGUAGE, speechLangOf, sttLangOf } from "@/lib/target-lang";
 import { Volume2, Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { stopOtherAudio } from "@/lib/audio";
-import { pickZhTWVoice } from "@/lib/speak";
+import { pickVoice } from "@/lib/speak";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
 
@@ -10,6 +10,11 @@ type Props = {
   headword: string;
   pinyin?: string | null;
   zhuyin?: string | null;
+  /**
+   * その語の学習言語。読み上げの声も聞き取りの言語もこれで決まる。
+   * 渡さないと台湾華語として扱う。
+   */
+  targetLanguage?: string;
   /** Slow rate for learners (true) vs natural (false) */
 };
 
@@ -21,7 +26,12 @@ type Props = {
  * Upgrade path (commented intentionally): swap `speak()` for a server fn that
  * calls Google Cloud TTS (cmn-TW Wavenet) when a GOOGLE_TTS_API_KEY secret is added.
  */
-export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
+export function PronunciationPanel({
+  headword,
+  pinyin,
+  zhuyin,
+  targetLanguage = DEFAULT_TARGET_LANGUAGE,
+}: Props) {
   const t = useT();
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
@@ -66,9 +76,9 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
     }
     stopOtherAudio();
     const u = new SpeechSynthesisUtterance(headword);
-    const v = pickZhTWVoice(voices);
+    const v = pickVoice(voices, targetLanguage);
     if (v) u.voice = v;
-    u.lang = v?.lang ?? speechLangOf();
+    u.lang = v?.lang ?? speechLangOf(targetLanguage);
     u.rate = slow ? 0.7 : 0.95;
     u.pitch = 1;
     u.onstart = () => setSpeaking(true);
@@ -100,7 +110,7 @@ export function PronunciationPanel({ headword, pinyin, zhuyin }: Props) {
       start: () => void;
       stop: () => void;
     };
-    rec.lang = "cmn-Hant-TW";
+    rec.lang = sttLangOf(targetLanguage);
     rec.interimResults = false;
     rec.maxAlternatives = 3;
     rec.continuous = false;

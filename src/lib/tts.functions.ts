@@ -4,12 +4,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { ttsVoiceFor, withVoiceOverride } from "./tts-voice";
 
 const DEFAULT_SPEED = 0.95;
 const SIGNED_URL_TTL = 60 * 60 * 6;
-// One voice for the whole app (§4.3) — must match scripts/tts-batch too.
-const TTS_INSTRUCTIONS =
-  "Speak naturally in Taiwan Mandarin (zh-TW) with a warm, friendly tone. Use authentic Taiwanese pronunciation, not mainland Mandarin.";
 
 const Input = z.object({
   text: z.string().min(1).max(400),
@@ -24,17 +22,16 @@ const Input = z.object({
  * URL afterwards. If the bucket doesn't exist yet (migration not applied) we
  * fall back to returning a base64 data URL so playback still works.
  */
-// Native Taiwan-Mandarin neural voice (Google Cloud TTS). One consistent,
-// accurate accent for every device — the same MP3 is served to iPhone and
-// Android alike, so pronunciation never depends on which voices a phone ships.
-const GOOGLE_TTS_VOICE = process.env.GOOGLE_TTS_VOICE ?? "cmn-TW-Wavenet-A";
-
 /**
- * Synthesize `text` to MP3 bytes in native Taiwan Mandarin.
- * - Preferred: Google Cloud Text-to-Speech (cmn-TW neural) when
- *   GOOGLE_TTS_API_KEY is set — the most accurate Taiwan accent, all devices.
+ * Synthesize `text` to MP3 bytes **in the learner's target language**.
+ * - Preferred: Google Cloud Text-to-Speech (neural) when GOOGLE_TTS_API_KEY
+ *   is set — one consistent accent for every device, so pronunciation never
+ *   depends on which voices a phone ships.
  * - Fallback: any OpenAI-compatible /audio/speech server (getTts()).
  * Throws when no server TTS is configured; callers keep a device-voice fallback.
+ *
+ * **声の表はここに書かない**(`tts-voice.ts`)。以前ここに台湾華語の声が
+ * 3箇所バラバラに直書きされていて、英語を足した日に全部が食い違った。
  */
 /** レート制限(429)・一時的な5xxは待って再試行する。 */
 async function fetchWithBackoff(url: string, init: RequestInit, attempts = 4): Promise<Response> {
@@ -55,7 +52,8 @@ async function fetchWithBackoff(url: string, init: RequestInit, attempts = 4): P
   throw new Error(`TTS ${lastStatus} ${lastBody.slice(0, 160)}`);
 }
 
-async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
+async function synthesizeMp3(text: string, speed: number, language: string): Promise<Uint8Array> {
+  const voice = withVoiceOverride(ttsVoiceFor(language), language, process.env.GOOGLE_TTS_VOICE);
   const gKey = process.env.GOOGLE_TTS_API_KEY;
   if (gKey) {
     const res = await fetchWithBackoff(
@@ -65,7 +63,7 @@ async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: { text },
-          voice: { languageCode: "cmn-TW", name: GOOGLE_TTS_VOICE },
+          voice: { languageCode: voice.googleLanguageCode, name: voice.googleVoice },
           audioConfig: { audioEncoding: "MP3", speakingRate: speed },
         }),
       },
@@ -87,7 +85,7 @@ async function synthesizeMp3(text: string, speed: number): Promise<Uint8Array> {
       voice: TTS_VOICE_DEFAULT,
       response_format: "mp3",
       speed,
-      instructions: TTS_INSTRUCTIONS,
+      instructions: voice.instructions,
     }),
   });
   return new Uint8Array(await res.arrayBuffer());
@@ -108,7 +106,7 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
 
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
     await assertWithinDailyCap(userId, "tts");
-    const buf = await synthesizeMp3(data.text, data.speed);
+    const buf = await synthesizeMp3(data.text, data.speed, data.language);
     await logUsage(supabase, userId, "tts");
 
     // Cache writes go through the service role: the shared tts cache must not
@@ -142,6 +140,16 @@ const PregenInput = z.object({
   level_max: z.number().int().min(1).max(7).default(7),
   batch: z.number().int().min(1).max(50).default(25),
   dry_run: z.boolean().default(false),
+  /**
+   * どの学習言語の辞書を音声化するか。
+   *
+   * **引く行と合成する声が同じ値を見る**ようにするための引数。
+   * 前は問い合わせが `DEFAULT_TARGET_LANGUAGE` で絞り、合成の側は
+   * 台湾華語の声を直に持っていたので、片方だけ直すと**中国語の行に
+   * 英語の声**(またはその逆)が付き、しかも音は保存済みなので
+   * 誰かが聞くまで気づけない。
+   */
+  language: z.string().optional().default(DEFAULT_TARGET_LANGUAGE),
 });
 
 export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
@@ -158,13 +166,17 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // **引く行と合成する声で同じ値を使う。** 別々に書くと食い違う。
+    const { normalizeTargetLanguage } = await import("./target-lang");
+    const language = normalizeTargetLanguage(data.language);
+
     // tocfl_level が null の語(スキャンやAI合成で自動蓄積された新語)も対象に
     // 含める — 「すべての語に音声」が目標。
     const pending = () =>
       supabaseAdmin
         .from("dictionary_entries")
         .select("id, headword", { count: "exact" })
-        .eq("language", DEFAULT_TARGET_LANGUAGE)
+        .eq("language", language)
         .is("audio_path", null)
         .or(`tocfl_level.lte.${data.level_max},tocfl_level.is.null`);
 
@@ -190,17 +202,13 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       // 429が3連続したらこのバッチは中断 — 叩き続けても失敗が増えるだけ。
       if (consecutiveRateLimited >= 3) break;
       try {
-        const path = await ttsObjectPath(
-          DEFAULT_TARGET_LANGUAGE,
-          TTS_VOICE_DEFAULT,
-          entry.headword,
-        );
+        const path = await ttsObjectPath(language, TTS_VOICE_DEFAULT, entry.headword);
         // Reuse audio already cached by on-demand taps.
         const { data: existing } = await supabaseAdmin.storage
           .from("tts")
           .createSignedUrl(path, 60);
         if (!existing?.signedUrl) {
-          const buf = await synthesizeMp3(entry.headword, DEFAULT_SPEED);
+          const buf = await synthesizeMp3(entry.headword, DEFAULT_SPEED, language);
           const { error: upErr } = await supabaseAdmin.storage
             .from("tts")
             .upload(path, buf, { contentType: "audio/mpeg", upsert: true });

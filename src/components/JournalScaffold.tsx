@@ -1,6 +1,7 @@
 import { Volume2, Sparkles } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { speakZhTW } from "@/lib/speak";
+import { speak } from "@/lib/speak";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import type { JournalScaffold as JournalScaffoldData } from "@/lib/journal.functions";
 
 /**
@@ -26,10 +27,16 @@ import type { JournalScaffold as JournalScaffoldData } from "@/lib/journal.funct
 export function JournalScaffold({
   data,
   onUsePattern,
+  targetLanguage = DEFAULT_TARGET_LANGUAGE,
 }: {
   data: JournalScaffoldData;
   /** 型を押したとき。下書きの末尾に足す。 */
   onUsePattern: (zh: string) => void;
+  /**
+   * 足場の文が**何語で書かれているか**(読み上げの声を決める)。
+   * 渡さないと台湾華語として読む — 英語の足場が中国語の声で読まれる。
+   */
+  targetLanguage?: string;
 }) {
   const t = useT();
   const headById = new Map(data.captures.map((c) => [c.id, c.headword]));
@@ -54,7 +61,7 @@ export function JournalScaffold({
                 {/* 読み上げは `lib/speak.ts` の1箇所を使う。**自前の写しを
                     作らない** — 写しを持った画面が大陸の声で読んでいた。 */}
                 <button
-                  onClick={() => speakZhTW(p.question_zh)}
+                  onClick={() => speak(p.question_zh, targetLanguage)}
                   aria-label={t("card.playPron")}
                   className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
                 >

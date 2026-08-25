@@ -508,6 +508,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Real sentences beside their English — the place to see the word in context.",
     "zh-TW": "真實句子和英譯並排。想看這個字出現在什麼樣的句子裡，就看這裡。",
   },
+  // --- 英語のコーパス(第4段) -----------------------------------------------
+  "corpus.coca": { ja: "COCA（現代アメリカ英語）", en: "COCA", "zh-TW": "COCA（當代美國英語）" },
+  "corpus.cocaHint": {
+    ja: "10億語のアメリカ英語。頻度と一緒に使う語が読めます（無料の登録が要ります）。",
+    en: "A billion words of American English — frequency and collocates (free account needed).",
+    "zh-TW": "十億詞的美國英語，可以看頻率和搭配詞（需要免費註冊）。",
+  },
+  "corpus.bnc": { ja: "BNC（イギリス英語）", en: "BNC", "zh-TW": "BNC（英國英語）" },
+  "corpus.bncHint": {
+    ja: "イギリス英語の基準になる資料。米英の差を見たいときに（無料の登録が要ります）。",
+    en: "The reference corpus for British English — good for US/UK differences (free account needed).",
+    "zh-TW": "英國英語的基準語料庫，想看美英差異時很好用（需要免費註冊）。",
+  },
+  "corpus.mwThesaurus": {
+    ja: "Merriam-Webster 類語",
+    en: "Merriam-Webster Thesaurus",
+    "zh-TW": "Merriam-Webster 同義詞",
+  },
+  "corpus.mwThesaurusHint": {
+    ja: "似た語がどう違うかを、例文つきで並べて見られます。",
+    en: "How near-synonyms differ, laid out side by side with examples.",
+    "zh-TW": "意思相近的詞差在哪裡，附例句並排著看。",
+  },
   "corpus.sketch": { ja: "Sketch Engine", en: "Sketch Engine", "zh-TW": "Sketch Engine" },
   "corpus.sketchHint": {
     ja: "一緒に使う語の一覧が最も詳しい系統。ただしログインが要ります。",
@@ -713,6 +736,45 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "台湾教育部の公式辞書（定義・注音）",
     en: "Taiwan's official MOE dictionary (definitions, Zhuyin)",
     "zh-TW": "台灣教育部的官方辭典（釋義・注音）",
+  },
+  // --- 英語のカードの「実際の使われ方」(第4段) -----------------------------
+  // **札の名前は使い回す**(YouTube / Threads / ニュース / 文の中)。
+  // 一言だけ言語ごとに変える — 中身が変わるのはそこだけ。
+  "card.ytHintEn": {
+    ja: "英語圏の動画をまとめて（複数見られます）",
+    en: "Videos from the English-speaking world — a whole list of them",
+    "zh-TW": "彙整英語圈的影片（可以看好幾支）",
+  },
+  "card.yglHintEn": {
+    ja: "アメリカ英語の話者で1本ずつ。矢印で次へ",
+    en: "One American-English speaker at a time — arrows move to the next",
+    "zh-TW": "一次一位美式英語的說話者，用箭頭換下一位",
+  },
+  "card.redditLabel": { ja: "Redditで見る", en: "See it on Reddit", "zh-TW": "在 Reddit 上看" },
+  "card.redditHint": {
+    ja: "普通の人が書いた文での使われ方",
+    en: "How ordinary people actually write it",
+    "zh-TW": "一般人實際上怎麼寫",
+  },
+  "card.threadsHintEn": {
+    ja: "英語圏の人がいま書いている短い文",
+    en: "Short posts English speakers are writing now",
+    "zh-TW": "英語圈的人現在正在寫的短句",
+  },
+  "card.newsHintEn": {
+    ja: "英語のサイトだけに絞った検索結果",
+    en: "Results limited to English-language pages",
+    "zh-TW": "只限英語網站的搜尋結果",
+  },
+  "card.mwLabel": {
+    ja: "Merriam-Webster",
+    en: "Merriam-Webster",
+    "zh-TW": "Merriam-Webster",
+  },
+  "card.mwHint": {
+    ja: "アメリカ英語の標準的な辞書（定義・発音）",
+    en: "The standard American English dictionary (definitions, pronunciation)",
+    "zh-TW": "美式英語的標準辭典（釋義・發音）",
   },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": {

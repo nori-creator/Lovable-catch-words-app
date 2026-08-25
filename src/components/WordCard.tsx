@@ -23,10 +23,12 @@ import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading } from "@/lib/phonetic";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { refineUsageChunks } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { realUsageLinks } from "@/lib/real-usage-links";
+import { targetProfile } from "@/lib/target-profile";
 import { EncounterPanel } from "@/components/EncounterPanel";
 import type { EncounterEstimate } from "@/lib/encounter.functions";
 import {
@@ -544,9 +546,11 @@ function AutoFillSections({
 function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }) {
   const t = useT();
   const autoplayedRef = useRef(false);
-  const pronounce = usePronounce();
+  // **その語の言語で読む。** 渡さないと台湾華語として合成されるので、
+  // 英語の語が中国語の声で読まれ、しかもその音は保存される。
+  const pronounce = usePronounce(word.language ?? undefined);
 
-  // Accurate native Taiwan voice (server cmn-TW) with a device-voice fallback.
+  // その言語の声(サーバ合成)で読む。端末の声は控え。
   function play() {
     void pronounce(word.headword);
   }
@@ -605,7 +609,15 @@ function HeaderRow({ word, autoplay }: { word: WordCardData; autoplay: boolean }
           )}
           {/* 級は札1つではなく**段々**で見せる(オーナー指摘)。
               `TOCFL-2` とだけ書かれても、2が6段のどこなのか分からない。 */}
-          <TocflLadder level={word.level} className="mt-2" />
+          {/* **目盛りを渡す。** 渡さないと既定の TOCFL で描くので、
+              英語の語(CEFR A2)の上に「TOCFL 1 2 3 4 5 6 / 2級(Band A)」が
+              出る — 絵で見つけた。段々の形は同じなので、変わるのは
+              名前だけ(`level-scale.ts`)。 */}
+          <TocflLadder
+            level={word.level}
+            scale={targetProfile(word.language).levels}
+            className="mt-2"
+          />
         </div>
       </div>
     </div>
@@ -981,7 +993,7 @@ function Body({
           {/* 頻度と級は、外のコーパスで裏が取れる。**取り込みはしない**
               (許可を取っていない) ので、見に行く先だけを置く
               — `src/lib/corpus-links.ts`。 */}
-          <CorpusLinks section="usage_context" headword={word.headword} />
+          <CorpusLinks section="usage_context" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1031,7 +1043,7 @@ function Body({
                 同じ丸が何度も並ぶ。 */}
             <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
             {/* 一緒に使う語の一覧は、コーパスのほうが桁違いに詳しい。 */}
-            <CorpusLinks section="usage_chunks" headword={word.headword} />
+            <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
           </div>
         );
       }
@@ -1051,7 +1063,7 @@ function Body({
             </div>
           )}
           {ex.word_order && <Prose text={ex.word_order} />}
-          <CorpusLinks section="usage_chunks" headword={word.headword} />
+          <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1118,7 +1130,7 @@ function Body({
           )}
           {/* 類義語の違いは、いまは AI の当て推量だけ。研究の定義で
               確かめられる場所へ渡す。 */}
-          <CorpusLinks section="related_words" headword={word.headword} />
+          <CorpusLinks section="related_words" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1297,8 +1309,8 @@ function Body({
     case "real_usage":
       return (
         <>
-          <RealUsageBody headword={word.headword} />
-          <CorpusLinks section="real_usage" headword={word.headword} />
+          <RealUsageBody headword={word.headword} language={word.language} />
+          <CorpusLinks section="real_usage" headword={word.headword} language={word.language} />
         </>
       );
   }
@@ -1474,68 +1486,21 @@ function WebImagesBody({
 /**
  * 実際の使われ方(A10): 動画・SNS・辞書・ニュースの中で本当に使われている
  * 「生きた用例」へ直接ジャンプ。全部外部リンクなのでコストゼロ。
+ *
+ * **行き先の一覧はここに書かない**(`real-usage-links.ts`)。以前は
+ * 台湾向けの URL 7本がこの中に直に書いてあり、英語を学習言語に足した日に
+ * **英語の語を調べるボタンが台湾のサイトへ飛ぶ**状態になった
+ * (絵で見つけた: 「台湾の若者のSNS」「台湾教育部の公式辞書」が
+ * 英語のカードに7本並んでいた)。
  */
-function RealUsageBody({ headword }: { headword: string }) {
+function RealUsageBody({ headword, language }: { headword: string; language?: string | null }) {
   const t = useT();
-  const q = encodeURIComponent(headword);
-  const links: { label: string; hint: string; href: string; emoji: string }[] = [
-    {
-      emoji: "🎬",
-      // **台湾の動画に絞る**(オーナー指摘 2026-08-20)。
-      // `youglish` は仕組み上1本ずつしか見せないので、「複数見たい」に
-      // 応えるのはこちら側。地域と言語を指定して、台湾で撮られた動画に寄せる。
-      label: t("card.ytLabel"),
-      hint: t("card.ytHint"),
-      href: `https://www.youtube.com/results?search_query=${q}&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW`,
-    },
-    {
-      emoji: "🗣️",
-      label: t("card.yglLabel"),
-      hint: t("card.yglHint"),
-      href: `https://youglish.com/pronounce/${q}/chinese/tw`,
-    },
-    {
-      emoji: "💬",
-      label: t("card.dcardLabel"),
-      hint: t("card.dcardHint"),
-      href: `https://www.dcard.tw/search?query=${q}`,
-    },
-    {
-      emoji: "🧵",
-      // Threads(オーナー指摘)。いま台湾でいちばん短文が流れている所で、
-      // 「その語が実際にどう使われているか」がそのまま並ぶ。
-      label: t("card.threadsLabel"),
-      hint: t("card.threadsHint"),
-      href: `https://www.threads.com/search?q=${q}`,
-    },
-    {
-      emoji: "📰",
-      // **Google 検索にして台湾の記事だけに限定**(オーナー指摘)。
-      // `news.google.com` は見出しの一覧で、本文の中でどう使われているかが
-      // 読めない。`cr=countryTW` と `lr=lang_zh-TW` で台湾の中国語の頁に絞る。
-      label: t("card.newsLabel"),
-      hint: t("card.newsHint"),
-      href: `https://www.google.com/search?q=${q}&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW`,
-    },
-    {
-      emoji: "🔤",
-      // 実例の対訳。**その語がどんな文の中に出るか**を並べて見せる所で、
-      // 「どの語と一緒に使うか」「どんな場面か」はここから読める。
-      label: t("card.contextLabel"),
-      hint: t("card.contextHint"),
-      href: `https://context.reverso.net/translation/chinese-japanese/${q}`,
-    },
-    {
-      emoji: "📖",
-      label: t("card.moeLabel"),
-      hint: t("card.moeHint"),
-      href: `https://dict.concised.moe.edu.tw/search.jsp?word=${q}`,
-    },
-  ];
+  const uiLang = useUiLang();
+  const links = realUsageLinks(headword, language, uiLang);
   return (
     <ul className="grid grid-cols-1 gap-1.5">
       {links.map((l) => (
-        <li key={l.label}>
+        <li key={l.id}>
           <a
             href={l.href}
             target="_blank"
@@ -1544,8 +1509,10 @@ function RealUsageBody({ headword }: { headword: string }) {
           >
             <span className="text-body">{l.emoji}</span>
             <span className="min-w-0 flex-1">
-              <span className="block font-medium">{l.label}</span>
-              <span className="block truncate text-caption text-muted-foreground">{l.hint}</span>
+              <span className="block font-medium">{t(l.labelKey)}</span>
+              <span className="block truncate text-caption text-muted-foreground">
+                {t(l.hintKey)}
+              </span>
             </span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>

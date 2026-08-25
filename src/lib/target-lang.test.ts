@@ -81,7 +81,34 @@ describe("決め打ちが増えていない", () => {
     return out;
   }
 
-  it('`"zh-TW"` を直に書いたファイルが増えていない', () => {
+  /**
+   * **言語ごとの表の「鍵」は許す**(2026-08-25、第4段)。
+   *
+   *     const VOICES: Record<string, TtsVoice> = {
+   *       "zh-TW": { … },   ← これは決め打ちではない
+   *       en: { … },
+   *     };
+   *
+   * この形は、まさにこの門が**増やしたい**形。言語ごとに中身を分けて
+   * 持っているので、言語を足したときに足す場所が1つに決まる。
+   *
+   * 落としたいのは**値としての決め打ち**のほう:
+   *
+   *     u.lang = "zh-TW";                    ← 落とす
+   *     if (word.language === "zh-TW") …     ← 落とす
+   *     .eq("language", "zh-TW")             ← 落とす
+   *
+   * 鍵として書ける形は「行の頭が `"zh-TW":`」だけ。値も比較も添字も
+   * その形にはならないので、緩めても穴は開かない。
+   */
+  const KEY_POSITION = /^\s*"zh-TW":/;
+
+  /** その行は決め打ちか(鍵の位置なら許す)。 */
+  function isHardcoded(line: string): boolean {
+    return line.includes('"zh-TW"') && !KEY_POSITION.test(line);
+  }
+
+  it('`"zh-TW"` を**値として**直に書いたファイルが増えていない', () => {
     const offenders: string[] = [];
     for (const root of ROOTS) {
       for (const file of walk(root)) {
@@ -92,10 +119,30 @@ describe("決め打ちが増えていない", () => {
         } catch {
           continue; // 読めない物(生成物など)は見ない
         }
-        if (text.includes('"zh-TW"')) offenders.push(file);
+        if (text.split("\n").some(isHardcoded)) offenders.push(file);
       }
     }
     // 見つかったら、その file を `target-lang.ts` の定数に寄せること。
     expect(offenders).toEqual([]);
+  });
+
+  it("**この門が値の決め打ちを捕まえる**(緩めた分、確かめてから信じる)", () => {
+    for (const line of [
+      '  u.lang = "zh-TW";',
+      '  if (word.language === "zh-TW") return;',
+      '  .eq("language", "zh-TW")',
+      '  const DEFAULT = "zh-TW";',
+      '  targetProfile("zh-TW")',
+      '  meanings["zh-TW"]',
+      '  { code: "zh-TW" }',
+    ]) {
+      expect(isHardcoded(line), line).toBe(true);
+    }
+  });
+
+  it("**鍵の位置は捕まえない**(言語ごとの表を書けなくしない)", () => {
+    for (const line of ['  "zh-TW": "cmn-Hant-TW",', '    "zh-TW": {', '"zh-TW": ["a"],']) {
+      expect(isHardcoded(line), line).toBe(false);
+    }
   });
 });

@@ -7,6 +7,7 @@
  * 似たHTMLをこちらに書き写すことはしない — それをやると
  * 「直しても画像が変わらない検査」に戻る。
  */
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   AnswerExplain,
   DoneState,
@@ -25,6 +26,7 @@ const CARD: DueReviewCard = {
   review_id: "r1",
   sticker_id: "s1",
   word_id: "w1",
+  language: DEFAULT_TARGET_LANGUAGE,
   headword: "珍珠奶茶",
   reading_zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
   pinyin: "zhēn zhū nǎi chá",
