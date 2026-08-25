@@ -189,54 +189,78 @@ export type Database = {
           audio_path: string | null
           created_at: string
           entry_type: string
+          exam_tags: string[] | null
+          forms: Json | null
+          freq_rank: number | null
           headword: string
           id: string
           language: string
-          meaning_ja: string
+          level_step: number | null
+          meaning_ja: string | null
+          meanings: Json
           notes: string | null
           pinyin: string | null
           pos: string | null
+          reading_alt: string | null
+          reading_primary: string | null
           scene_tags: string[] | null
           source: string
           taiwan_usage: string | null
           tocfl_level: number | null
           updated_at: string
+          usage_register: string | null
           zhuyin: string | null
         }
         Insert: {
           audio_path?: string | null
           created_at?: string
           entry_type?: string
+          exam_tags?: string[] | null
+          forms?: Json | null
+          freq_rank?: number | null
           headword: string
           id?: string
           language?: string
-          meaning_ja: string
+          level_step?: number | null
+          meaning_ja?: string | null
+          meanings?: Json
           notes?: string | null
           pinyin?: string | null
           pos?: string | null
+          reading_alt?: string | null
+          reading_primary?: string | null
           scene_tags?: string[] | null
           source?: string
           taiwan_usage?: string | null
           tocfl_level?: number | null
           updated_at?: string
+          usage_register?: string | null
           zhuyin?: string | null
         }
         Update: {
           audio_path?: string | null
           created_at?: string
           entry_type?: string
+          exam_tags?: string[] | null
+          forms?: Json | null
+          freq_rank?: number | null
           headword?: string
           id?: string
           language?: string
-          meaning_ja?: string
+          level_step?: number | null
+          meaning_ja?: string | null
+          meanings?: Json
           notes?: string | null
           pinyin?: string | null
           pos?: string | null
+          reading_alt?: string | null
+          reading_primary?: string | null
           scene_tags?: string[] | null
           source?: string
           taiwan_usage?: string | null
           tocfl_level?: number | null
           updated_at?: string
+          usage_register?: string | null
           zhuyin?: string | null
         }
         Relationships: []
@@ -844,6 +868,7 @@ export type Database = {
           created_at: string
           cutout_image_url: string | null
           encounter_count: number
+          hero_role: string | null
           id: string
           language: string
           lat: number | null
@@ -854,9 +879,11 @@ export type Database = {
           placeholder_image_url: string | null
           selfie_image_url: string | null
           shelf_key: string | null
+          speaking_scaffold: Json | null
           taken_at: string
           user_id: string
           visibility: string
+          voice_video_url: string | null
           word_id: string
         }
         Insert: {
@@ -866,6 +893,7 @@ export type Database = {
           created_at?: string
           cutout_image_url?: string | null
           encounter_count?: number
+          hero_role?: string | null
           id?: string
           language?: string
           lat?: number | null
@@ -876,9 +904,11 @@ export type Database = {
           placeholder_image_url?: string | null
           selfie_image_url?: string | null
           shelf_key?: string | null
+          speaking_scaffold?: Json | null
           taken_at?: string
           user_id: string
           visibility?: string
+          voice_video_url?: string | null
           word_id: string
         }
         Update: {
@@ -888,6 +918,7 @@ export type Database = {
           created_at?: string
           cutout_image_url?: string | null
           encounter_count?: number
+          hero_role?: string | null
           id?: string
           language?: string
           lat?: number | null
@@ -898,9 +929,11 @@ export type Database = {
           placeholder_image_url?: string | null
           selfie_image_url?: string | null
           shelf_key?: string | null
+          speaking_scaffold?: Json | null
           taken_at?: string
           user_id?: string
           visibility?: string
+          voice_video_url?: string | null
           word_id?: string
         }
         Relationships: [
@@ -987,6 +1020,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      word_explanations: {
+        Row: {
+          created_at: string
+          example_translation: string | null
+          explain_lang: string
+          extras: Json
+          id: string
+          l1: string
+          meaning: string
+          source: string
+          updated_at: string
+          word_id: string
+        }
+        Insert: {
+          created_at?: string
+          example_translation?: string | null
+          explain_lang: string
+          extras?: Json
+          id?: string
+          l1: string
+          meaning?: string
+          source?: string
+          updated_at?: string
+          word_id: string
+        }
+        Update: {
+          created_at?: string
+          example_translation?: string | null
+          explain_lang?: string
+          extras?: Json
+          id?: string
+          l1?: string
+          meaning?: string
+          source?: string
+          updated_at?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "word_explanations_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: false
+            referencedRelation: "words"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wordbook_entries: {
         Row: {
