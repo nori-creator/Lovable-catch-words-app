@@ -3,6 +3,7 @@ import {
   DEFAULT_POLICY,
   arpabetToIpa,
   buildCefrjIndex,
+  LEVEL_SOURCE,
   cefrLabelToStep,
   cefrStep,
   cleanGloss,
@@ -505,10 +506,9 @@ describe("toLexiconRow — 入れる1行", () => {
     expect(row.entry_type).toBe("phrase");
   });
 
-  it("**出所を書く**(級は見積もりなので後から直せるようにしておく)", () => {
+  it("**級の出所を書く**(見積もりなので後から直せるようにしておく)", () => {
     const row = toLexiconRow(BICYCLE, { ipaUs: null, glossTranslate: zhTw });
-    expect(row.notes).toContain("ECDICT");
-    expect(row.notes).toContain("見積もり");
+    expect(row.notes).toBe(LEVEL_SOURCE.estimated);
   });
 
   it("活用が無ければ null(空の入れ物を入れない)", () => {
@@ -631,13 +631,12 @@ describe("公式の級が見積もりに勝つ", () => {
     expect(cefrStep({ frq: "202" }, 9 as never)).toBe(1);
   });
 
-  it("**出所を語ごとに書き分ける**(どれが見積もりか分からないと直せない)", () => {
+  it("**級の出所を語ごとに書き分ける**(どれが見積もりか分からないと直せない)", () => {
     const zh = (s: string) => s;
     const official = toLexiconRow(BICYCLE, { glossTranslate: zh, officialLevel: 2 });
     const guessed = toLexiconRow(BICYCLE, { glossTranslate: zh });
-    expect(official.notes).toContain("CEFR-J");
-    expect(guessed.notes).toContain("見積もり");
-    expect(guessed.notes).not.toContain("CEFR-J");
+    expect(official.notes).toBe(LEVEL_SOURCE.official);
+    expect(guessed.notes).toBe(LEVEL_SOURCE.estimated);
   });
 });
 
@@ -667,5 +666,43 @@ describe("公式の級が付いた語は必ず入れる", () => {
     expect(shouldImport(raw({ word: "hood", translation: "[网络] 胡德" }), DEFAULT_POLICY, 1)).toBe(
       false,
     );
+  });
+});
+
+describe("級の出所の印は短い", () => {
+  /**
+   * ここには出典の文（"ECDICT (MIT) + CMUdict (BSD); …"）が入っていた。
+   * **2種類しかない文を 25,595回繰り返す**ことになり、取り込みの送信量の
+   * 23%（1回あたり457KB）を占めていた。しかも `notes` はどこからも
+   * 読まれていない。
+   *
+   * 出典はデータ全体に掛かる話で、行ごとの話ではない
+   * （`data-sources.ts` が持ち、設定の「出典」の頁に出る）。
+   */
+  it("印は10文字以内(25,595倍になるので)", () => {
+    for (const v of Object.values(LEVEL_SOURCE)) {
+      expect(v.length, v).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("**公式と見積もりが見分けられる**(後から級を直すのに要る)", () => {
+    expect(LEVEL_SOURCE.official).not.toBe(LEVEL_SOURCE.estimated);
+  });
+
+  it("行に入るのはその印だけ", () => {
+    const e = raw({ word: "umbrella", translation: "n. 傘", frq: "5664" });
+    const withOfficial = toLexiconRow(e, { glossTranslate: (x) => x, officialLevel: 1 });
+    const withEstimate = toLexiconRow(e, { glossTranslate: (x) => x });
+    expect(withOfficial.notes).toBe(LEVEL_SOURCE.official);
+    expect(withEstimate.notes).toBe(LEVEL_SOURCE.estimated);
+  });
+
+  it("**出典の文を行に入れない**(全体の話を行ごとに繰り返さない)", () => {
+    const row = toLexiconRow(raw({ word: "umbrella", translation: "n. 傘" }), {
+      glossTranslate: (x) => x,
+    });
+    for (const word of ["ECDICT", "CMUdict", "MIT", "BSD", "投野"]) {
+      expect(row.notes?.includes(word), `notes に「${word}」`).toBe(false);
+    }
   });
 });
