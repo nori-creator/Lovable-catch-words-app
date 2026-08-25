@@ -1,20 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { normalizeTargetLanguage } from "./target-lang";
+import { partitionByLanguage, type DictionaryImportRow as ImportRow } from "./dictionary-import";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export type DictionaryImportRow = {
-  headword: string;
-  zhuyin?: string | null;
-  pinyin?: string | null;
-  meaning_ja: string;
-  pos?: string | null;
-  tocfl_level?: number | null;
-  taiwan_usage?: string | null;
-  source?: string | null;
-  entry_type?: string | null;
-  scene_tags?: string[] | null;
-  notes?: string | null;
-};
+// 行の形と「混ざらない」判定は `dictionary-import.ts` が持つ（試験付き）。
+export type { DictionaryImportRow } from "./dictionary-import";
 
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -29,16 +19,19 @@ export const checkIsAdmin = createServerFn({ method: "GET" })
 
 export const importDictionaryEntries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { rows: DictionaryImportRow[] }) => {
+  .inputValidator((input: { rows: ImportRow[]; language?: string }) => {
     if (!input || !Array.isArray(input.rows)) throw new Error("rows must be an array");
     if (input.rows.length === 0) throw new Error("No rows provided");
     if (input.rows.length > 5000) throw new Error("Too many rows (max 5000 per import)");
-    for (const r of input.rows) {
-      if (!r.headword || !r.meaning_ja) {
-        throw new Error("Each row requires headword and meaning_ja");
-      }
-    }
-    return input;
+    // **1行ごとの検査はここでしない。** 1行落ちただけで取り込み全体を
+    // 投げると、25,000行を貼った人は「どこが悪いのか」を1件ずつ潰す
+    // ことになる。合う行は入れて、落ちた行は数と実例で返す。
+    return {
+      rows: input.rows,
+      // **言語は必ず受け取る。** 決め打つと、英語の CSV が台湾華語として
+      // 入る（オーナー指示「決して英語と台湾華語混ざらないように」）。
+      language: normalizeTargetLanguage(input.language),
+    };
   })
   .handler(async ({ data, context }) => {
     // Verify admin role
@@ -51,22 +44,45 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const payload = data.rows.map((r) => ({
-      headword: r.headword.trim(),
-      zhuyin: r.zhuyin?.trim() || null,
-      pinyin: r.pinyin?.trim() || null,
-      meaning_ja: r.meaning_ja.trim(),
+    // **ここが「混ざらない」の門。** 選んだ言語の見出し語でない行は
+    // 通さない。繁体字は英語の取り込みを通れないし、英語の語は
+    // 台湾華語の取り込みを通れない（`target-profile.ts` の `headwordOk`）。
+    const { language, ok, rejected } = partitionByLanguage(data.rows, data.language);
+    if (ok.length === 0) {
+      throw new Error(
+        `選んだ言語(${language})の見出し語が1行もありません。` +
+          `言語の選択と、貼った中身が合っているか確かめてください。`,
+      );
+    }
+
+    const num = (v: unknown): number | null =>
+      v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v);
+
+    const payload = ok.map((r) => ({
+      headword: r.headword,
+      // 古い欄（注音・拼音）は台湾華語の取り込みが使い続ける。
+      // 新しい欄（reading_primary/alt）はどちらの言語でも使える。
+      zhuyin: r.reading_primary?.trim() || null,
+      pinyin: r.reading_alt?.trim() || null,
+      reading_primary: r.reading_primary?.trim() || null,
+      reading_alt: r.reading_alt?.trim() || null,
+      meaning_ja: r.meaning_ja?.trim() || null,
+      meanings: r.meanings && Object.keys(r.meanings).length > 0 ? r.meanings : {},
       pos: r.pos?.trim() || null,
-      tocfl_level:
-        r.tocfl_level === null || r.tocfl_level === undefined || Number.isNaN(r.tocfl_level)
-          ? null
-          : Number(r.tocfl_level),
+      // 級は新旧どちらの欄でも受ける。**両方に同じ値を入れる** —
+      // 読む側が古い列を見ていても新しい列を見ていても同じ答えになる。
+      level_step: num(r.level_step ?? r.tocfl_level),
+      tocfl_level: num(r.tocfl_level ?? r.level_step),
+      freq_rank: num(r.freq_rank),
+      exam_tags: r.exam_tags && r.exam_tags.length > 0 ? r.exam_tags : null,
+      forms: r.forms && Object.keys(r.forms).length > 0 ? r.forms : null,
+      usage_register: r.usage_register?.trim() || null,
       taiwan_usage: r.taiwan_usage?.trim() || null,
       source: r.source?.trim() || "verified",
       entry_type: r.entry_type?.trim() || "word",
       scene_tags: r.scene_tags && r.scene_tags.length > 0 ? r.scene_tags : null,
       notes: r.notes?.trim() || null,
-      language: DEFAULT_TARGET_LANGUAGE,
+      language,
     }));
 
     // Chunked upsert on (language, headword, entry_type)
@@ -85,7 +101,16 @@ export const importDictionaryEntries = createServerFn({ method: "POST" })
       .from("dictionary_entries")
       .select("*", { count: "exact", head: true });
 
-    return { inserted, totalRows: count ?? null };
+    // **落ちた行を必ず返す。** 数だけ返すと「12,000件入りました」で
+    // 終わり、何が落ちたか分からないまま半分の辞書が残る。
+    // 実例は先頭20件まで（25,000行の全部を返すと画面が固まる）。
+    return {
+      inserted,
+      totalRows: count ?? null,
+      language,
+      rejectedCount: rejected.length,
+      rejectedSample: rejected.slice(0, 20),
+    };
   });
 
 export const searchDictionaryEntries = createServerFn({ method: "GET" })

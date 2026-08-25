@@ -279,6 +279,59 @@ function toSql(rows) {
   return out.join("\n");
 }
 
+/**
+ * 設定の「辞書管理」の欄に貼る CSV。
+ *
+ * ## なぜ SQL ではなく CSV なのか
+ * オーナーは Supabase に直接触れない（何度も言われている）。辞書は
+ * **アプリの中の取り込み欄**から入れる。だから欄が読める形で出す。
+ *
+ * ## 5,000行ずつに割る
+ * server の上限が1回 5,000行。25,595語なら6つに割れる。
+ * 1つのファイルを1回ぶんにして、貼る側が数えなくて済むようにする。
+ */
+function toCsv(rows) {
+  const cell = (v) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    // カンマ・引用符・改行を含む値は必ず括る。中文の語釈は改行を含む。
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = [
+    "headword",
+    "reading_primary",
+    "reading_alt",
+    "meanings",
+    "pos",
+    "level_step",
+    "freq_rank",
+    "exam_tags",
+    "forms",
+    "entry_type",
+    "source",
+    "notes",
+  ];
+  const body = rows.map((r) =>
+    [
+      r.headword,
+      r.reading_primary,
+      r.reading_alt,
+      // JSON の欄。空なら空文字（`{}` を書くと「意味がある」に見える）。
+      r.meanings && Object.keys(r.meanings).length > 0 ? JSON.stringify(r.meanings) : "",
+      r.pos,
+      r.level_step,
+      r.freq_rank,
+      r.exam_tags && r.exam_tags.length > 0 ? r.exam_tags.join("|") : "",
+      r.forms && Object.keys(r.forms).length > 0 ? JSON.stringify(r.forms) : "",
+      r.entry_type,
+      r.source,
+      r.notes,
+    ]
+      .map(cell)
+      .join(","),
+  );
+  return [header.join(","), ...body].join("\n") + "\n";
+}
+
 const cmd = process.argv[2];
 if (cmd === "fetch") {
   await fetchSources();
@@ -294,6 +347,21 @@ if (cmd === "fetch") {
   } else {
     process.stdout.write(sql);
   }
+} else if (cmd === "csv") {
+  const rows = await build();
+  const dest = arg("out") || path.join(CACHE, "lexicon");
+  // 1回に貼れるのは 5,000行まで（server の上限）。
+  const per = Number(arg("per", "5000"));
+  const parts = [];
+  for (let i = 0; i < rows.length; i += per) {
+    const chunk = rows.slice(i, i + per);
+    const file = `${dest}-${String(parts.length + 1).padStart(2, "0")}.csv`;
+    fs.writeFileSync(file, toCsv(chunk));
+    parts.push({ file, n: chunk.length });
+  }
+  console.error(`\n✓ ${parts.length} 個に分けて書いた（1つ ${per} 行まで）:`);
+  for (const p of parts) console.error(`   ${p.file}  ${p.n} 行`);
+  console.error(`\n  設定 → 辞書管理 → 言語に「英語」を選んでから、順に貼る。`);
 } else if (cmd === "json") {
   const rows = await build();
   const dest = arg("out") || path.join(CACHE, "lexicon.ndjson");
@@ -307,6 +375,7 @@ if (cmd === "fetch") {
       "  $V scripts/import-lexicon.mjs -- fetch                 材料を落とす",
       "  $V scripts/import-lexicon.mjs -- build [--cefrj x.json]  中身を見る",
       "  $V scripts/import-lexicon.mjs -- sql   [--out x.sql]     入れる SQL",
+      "  $V scripts/import-lexicon.mjs -- csv   [--out x]          取り込み欄に貼る CSV",
       "  $V scripts/import-lexicon.mjs -- json  [--out x.ndjson]  1行1件",
       "",
       "  --limit N      N 語で止める（試すとき）",
