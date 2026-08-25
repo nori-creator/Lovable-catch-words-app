@@ -93,7 +93,6 @@ import {
   UserPanelScene,
   PlaceMemoryScene,
   RegisterMeterScene,
-  EncounterScene,
 } from "./scenes/pieces";
 import "@/styles.css";
 
@@ -151,7 +150,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "user-panel": UserPanelScene,
   "place-memory": PlaceMemoryScene,
   "register-meter": RegisterMeterScene,
-  encounter: EncounterScene,
   chunks: ChunksScene,
   curve: CurveScene,
   pronunciation: PronunciationScene,

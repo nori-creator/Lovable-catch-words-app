@@ -1,6 +1,5 @@
 import { forwardRef, Fragment, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
-import { CorpusLinks } from "@/components/CorpusLinks";
 import { TocflLadder } from "@/components/TocflLadder";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -29,8 +28,6 @@ import { refineUsageChunks } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
 import { realUsageLinks } from "@/lib/real-usage-links";
 import { targetProfile } from "@/lib/target-profile";
-import { EncounterPanel } from "@/components/EncounterPanel";
-import type { EncounterEstimate } from "@/lib/encounter.functions";
 import {
   REGISTER_MAX,
   REGISTER_MIN,
@@ -268,7 +265,6 @@ const SECTION_ICON: Record<SectionId, string> = {
   meaning: "\u{1F4D6}",
   web_images: "\u{1F310}",
   usage_context: "\u{1F4CA}",
-  encounter: "\u{1F3AF}",
   example: "\u{1F4AC}",
   examples_extra: "\u{2795}",
   usage_chunks: "\u{1F9E9}",
@@ -302,7 +298,6 @@ export const WordCard = forwardRef<
      * 全利用者を数える問い合わせなので、カードの中から勝手に走らせない。
      * 届いていなければ節そのものを出さない。
      */
-    encounter?: EncounterEstimate | null;
     /** ネット画像を「この画像にする」で選んだとき(カードの写真に採用)。 */
     onPickImage?: (url: string) => void | Promise<void>;
     /**
@@ -312,7 +307,7 @@ export const WordCard = forwardRef<
     minimal?: boolean;
   }
 >(function WordCard(
-  { word, autoplay = true, wordId, isPro = false, onPickImage, encounter, minimal = false },
+  { word, autoplay = true, wordId, isPro = false, onPickImage, minimal = false },
   ref,
 ) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
@@ -343,7 +338,6 @@ export const WordCard = forwardRef<
     meaning_ja: word.meaning_ja,
     example_sentence: word.example_sentence,
     extras: (word.extras ?? null) as WordExtrasDTO | null,
-    hasEncounter: !!encounter,
   };
   /**
    * **撮った直後は「訳と発音」だけ。**
@@ -403,7 +397,6 @@ export const WordCard = forwardRef<
             isPro={isPro}
             empty={!hasContent(id)}
             onPickImage={onPickImage}
-            encounter={encounter}
           />
         ))}
       </div>
@@ -710,7 +703,6 @@ function SectionCard({
   isPro,
   empty,
   onPickImage,
-  encounter,
 }: {
   id: SectionId;
   word: WordCardData;
@@ -719,7 +711,6 @@ function SectionCard({
   /** 中身がまだ無い(AIが未生成)。枠は出し、生成ボタンを見せる。 */
   empty?: boolean;
   onPickImage?: (url: string) => void | Promise<void>;
-  encounter?: EncounterEstimate | null;
 }) {
   const icon = SECTION_ICON[id];
   const t = useT();
@@ -796,7 +787,7 @@ function SectionCard({
       {empty ? (
         <EmptySection t={t} />
       ) : (
-        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} encounter={encounter} />
+        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
       )}
     </section>
   );
@@ -968,14 +959,12 @@ function Body({
   ex,
   t,
   onPickImage,
-  encounter,
 }: {
   id: SectionId;
   word: WordCardData;
   ex: WordExtras;
   t: (k: string) => string;
   onPickImage?: (url: string) => void | Promise<void>;
-  encounter?: EncounterEstimate | null;
 }) {
   switch (id) {
     case "meaning":
@@ -1012,16 +1001,9 @@ function Body({
               「夜市」と「うれしい時」が同じ顔で並ぶと、何の一覧か分からない。 */}
           <EncounterLabels labels={ex.encounter_labels ?? []} />
           {text && <Prose text={text} />}
-          {/* 頻度と級は、外のコーパスで裏が取れる。**取り込みはしない**
-              (許可を取っていない) ので、見に行く先だけを置く
-              — `src/lib/corpus-links.ts`。 */}
-          <CorpusLinks section="usage_context" headword={word.headword} language={word.language} />
         </div>
       );
     }
-
-    case "encounter":
-      return encounter ? <EncounterPanel data={encounter} /> : null;
 
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
@@ -1065,7 +1047,6 @@ function Body({
                 同じ丸が何度も並ぶ。 */}
             <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
             {/* 一緒に使う語の一覧は、コーパスのほうが桁違いに詳しい。 */}
-            <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
           </div>
         );
       }
@@ -1085,7 +1066,6 @@ function Body({
             </div>
           )}
           {ex.word_order && <Prose text={ex.word_order} />}
-          <CorpusLinks section="usage_chunks" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1152,7 +1132,6 @@ function Body({
           )}
           {/* 類義語の違いは、いまは AI の当て推量だけ。研究の定義で
               確かめられる場所へ渡す。 */}
-          <CorpusLinks section="related_words" headword={word.headword} language={word.language} />
         </div>
       );
     }
@@ -1332,7 +1311,6 @@ function Body({
       return (
         <>
           <RealUsageBody headword={word.headword} language={word.language} />
-          <CorpusLinks section="real_usage" headword={word.headword} language={word.language} />
         </>
       );
   }

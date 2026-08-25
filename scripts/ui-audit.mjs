@@ -415,8 +415,6 @@ const MODES = [
   ["register-meter", "", false, { scene: "register-meter" }],
   ["register-meter-dark", 'class="dark"', false, { scene: "register-meter" }],
   // 出会う見込みとレア度。★1〜★5と出所3通りを1枚で見る。
-  ["encounter", "", false, { scene: "encounter" }],
-  ["encounter-dark", 'class="dark"', false, { scene: "encounter" }],
   // 保存中の暗転。**撮るたびに必ず通るのに一度も測っていなかった。**
   // 飛行が始まった後は空に見えるのが正しい姿(飛ぶ絵は別の層が描く)。
   ["capture-saving", "", false, { scene: "capture-saving" }],

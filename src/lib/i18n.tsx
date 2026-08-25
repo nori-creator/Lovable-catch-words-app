@@ -454,89 +454,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "{n}（Band {band}）",
   },
   "cefr.out": { ja: "CEFR の外の語", en: "Outside the CEFR bands", "zh-TW": "CEFR 之外的字" },
-  // --- コーパスへのリンク(src/lib/corpus-links.ts) ---
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
-  "corpus.more": {
-    ja: "もっと詳しく（外部のコーパス・押すと語をコピー）",
-    en: "Dig deeper (outside corpora — tapping copies the word)",
-    "zh-TW": "看更詳細（外部語料庫・點一下會複製這個字）",
-  },
-  "corpus.copied": {
-    ja: "「{w}」をコピーしました。向こうの検索欄に貼ってください。",
-    en: "Copied “{w}” — paste it into their search box.",
-    "zh-TW": "已複製「{w}」，貼到那邊的搜尋欄就可以。",
-  },
-  "corpus.coctLevel": { ja: "国教院・語の級", en: "COCT word levels", "zh-TW": "國教院・詞語分級" },
-  "corpus.coctLevelHint": {
-    ja: "国教院の詞語分級標準検索。この語が何級かを実データで確かめられます。",
-    en: "The Ministry-of-Education word grading system — check this word's official level.",
-    "zh-TW": "國教院的詞語分級標準檢索。可以用實際資料確認這個字是幾級。",
-  },
-  "corpus.coctCore": {
-    ja: "国教院・基礎語彙",
-    en: "COCT core vocabulary",
-    "zh-TW": "國教院・基礎詞彙",
-  },
-  "corpus.coctCoreHint": {
-    ja: "国教院の基礎詞彙検索。教える側が「基礎」と決めた語に入っているかが分かります。",
-    en: "The core-vocabulary index — whether teachers count this word as foundational.",
-    "zh-TW": "國教院的基礎詞彙檢索。可以知道教學端有沒有把這個字列為基礎。",
-  },
-  "corpus.sinica": {
-    ja: "中研院・平衡語料庫",
-    en: "Sinica Balanced Corpus",
-    "zh-TW": "中研院・平衡語料庫",
-  },
-  "corpus.sinicaHint": {
-    ja: "中央研究院の現代漢語平衡語料庫。品詞と頻度の裏取りに使えます。",
-    en: "Academia Sinica's balanced corpus — the reference for part of speech and frequency.",
-    "zh-TW": "中央研究院的現代漢語平衡語料庫，用來查證詞性與頻率。",
-  },
-  "corpus.cwn": { ja: "中文詞彙網路", en: "Chinese Wordnet", "zh-TW": "中文詞彙網路" },
-  "corpus.cwnHint": {
-    ja: "語義がいくつに分かれるか、どの語と近いかを、研究の定義で読めます。",
-    en: "How many senses a word splits into, and which words sit next to it.",
-    "zh-TW": "可以看到一個字分成幾個義項，以及跟哪些字相近，都有研究上的定義。",
-  },
-  "corpus.coctBilingual": {
-    ja: "国教院・華英索引典",
-    en: "COCT bilingual concordance",
-    "zh-TW": "國教院・華英索引典",
-  },
-  "corpus.coctBilingualHint": {
-    ja: "実際の文と英訳が並びます。どんな文の中に出るかを見るならここ。",
-    en: "Real sentences beside their English — the place to see the word in context.",
-    "zh-TW": "真實句子和英譯並排。想看這個字出現在什麼樣的句子裡，就看這裡。",
-  },
   // --- 英語のコーパス(第4段) -----------------------------------------------
-  "corpus.coca": { ja: "COCA（現代アメリカ英語）", en: "COCA", "zh-TW": "COCA（當代美國英語）" },
-  "corpus.cocaHint": {
-    ja: "10億語のアメリカ英語。頻度と一緒に使う語が読めます（無料の登録が要ります）。",
-    en: "A billion words of American English — frequency and collocates (free account needed).",
-    "zh-TW": "十億詞的美國英語，可以看頻率和搭配詞（需要免費註冊）。",
-  },
-  "corpus.bnc": { ja: "BNC（イギリス英語）", en: "BNC", "zh-TW": "BNC（英國英語）" },
-  "corpus.bncHint": {
-    ja: "イギリス英語の基準になる資料。米英の差を見たいときに（無料の登録が要ります）。",
-    en: "The reference corpus for British English — good for US/UK differences (free account needed).",
-    "zh-TW": "英國英語的基準語料庫，想看美英差異時很好用（需要免費註冊）。",
-  },
-  "corpus.mwThesaurus": {
-    ja: "Merriam-Webster 類語",
-    en: "Merriam-Webster Thesaurus",
-    "zh-TW": "Merriam-Webster 同義詞",
-  },
-  "corpus.mwThesaurusHint": {
-    ja: "似た語がどう違うかを、例文つきで並べて見られます。",
-    en: "How near-synonyms differ, laid out side by side with examples.",
-    "zh-TW": "意思相近的詞差在哪裡，附例句並排著看。",
-  },
-  "corpus.sketch": { ja: "Sketch Engine", en: "Sketch Engine", "zh-TW": "Sketch Engine" },
-  "corpus.sketchHint": {
-    ja: "一緒に使う語の一覧が最も詳しい系統。ただしログインが要ります。",
-    en: "The best collocation lists anywhere — but it needs an account.",
-    "zh-TW": "搭配詞的清單最詳細的一套，不過需要登入帳號。",
-  },
   // --- もう一度撮る提案(src/lib/retake.ts) ---
   "retake.title": {
     ja: "、もう一度撮ってみる？",
@@ -1944,46 +1863,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.regWrittenish": { ja: "やや書き言葉", en: "Leans written", "zh-TW": "偏書面語" },
   "card.regWritten": { ja: "書き言葉", en: "Written", "zh-TW": "書面語" },
   // 「今週出会う見込み」とレア度。**数字と出所は必ず同じ画面に居させる。**
-  "card.encounter": { ja: "出会う見込み", en: "Chance of meeting it", "zh-TW": "遇到的可能性" },
-  "enc.thisWeek": {
-    ja: "今週この言葉に出会う見込み",
-    en: "Chance you meet it this week",
-    "zh-TW": "這週遇到這個字的可能性",
-  },
-  "enc.where": { ja: "よく出会う所", en: "Where", "zh-TW": "常常遇到的地方" },
-  "enc.onlyIn": { ja: "{place}限定", en: "{place} only", "zh-TW": "只有 {place} 才有" },
-  "enc.season": { ja: "{months}ごろ", en: "Around {months}", "zh-TW": "{months} 前後" },
-  "enc.rarityAria": {
-    ja: "レア度 5段階中{n}",
-    en: "Rarity {n} of 5",
-    "zh-TW": "稀有度 5 級中的第 {n} 級",
-  },
-  "enc.rarity1": { ja: "どこにでもある", en: "Everywhere", "zh-TW": "到處都有" },
-  "enc.rarity2": { ja: "よく見かける", en: "Common", "zh-TW": "很常看到" },
-  "enc.rarity3": { ja: "ときどき", en: "Sometimes", "zh-TW": "偶爾" },
-  "enc.rarity4": { ja: "めずらしい", en: "Uncommon", "zh-TW": "少見" },
-  "enc.rarity5": { ja: "めったに会えない", en: "Rare", "zh-TW": "難得一見" },
   // 出所。**推定を実測の顔で出さない。**
-  "enc.srcEstimate": {
-    ja: "推定 — 級と言葉の頻度から見積もった数です",
-    en: "Estimate — from level and word frequency",
-    "zh-TW": "推估 — 由等級和字的頻率估算出來的數字",
-  },
-  "enc.srcBlended": {
-    ja: "推定と実測を混ぜた数です",
-    en: "Estimate blended with real observations",
-    "zh-TW": "推估和實測混合後的數字",
-  },
-  "enc.srcMeasured": {
-    ja: "実際に撮られた記録から出した数です",
-    en: "From real catches",
-    "zh-TW": "由實際拍攝紀錄算出來的數字",
-  },
-  "enc.srcMeasuredN": {
-    ja: "実測 — {n}人が実際に撮っています",
-    en: "Measured — {n} people have caught it",
-    "zh-TW": "實測 — 有 {n} 人實際拍過",
-  },
   "card.encounterLabels": {
     ja: "出会いやすい所",
     en: "Where you'll meet it",
@@ -2325,11 +2205,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
   // 見込みの幅(オーナー指摘 2026-08-21「適当すぎる」)。
   // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
-  "enc.range": {
-    ja: "だいたい {lo}〜{hi}%",
-    en: "roughly {lo}–{hi}%",
-    "zh-TW": "大約 {lo}〜{hi}%",
-  },
   "voice.title": { ja: "一言の動画", en: "Video note", "zh-TW": "一句話影片" },
   "voice.hint": {
     ja: "この語に出会ったときの気持ちを、15秒までの自撮りで残せます。",

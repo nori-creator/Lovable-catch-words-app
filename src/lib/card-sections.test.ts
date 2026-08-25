@@ -158,11 +158,6 @@ describe("sectionHasContent — 空のカード", () => {
     expect(sectionHasContent("web_images", input())).toBe(true);
     expect(sectionHasContent("real_usage", input())).toBe(true);
   });
-
-  it("『出会う見込み』は数えた答えが届いているときだけ", () => {
-    expect(sectionHasContent("encounter", input())).toBe(false);
-    expect(sectionHasContent("encounter", input({ hasEncounter: true }))).toBe(true);
-  });
 });
 
 describe("sectionHasContent — 埋まった節", () => {

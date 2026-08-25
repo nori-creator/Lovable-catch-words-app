@@ -33,7 +33,6 @@ export const SECTION_IDS = [
   "meaning",
   "web_images",
   "usage_context",
-  "encounter",
   "example",
   "examples_extra",
   "usage_chunks",
@@ -143,8 +142,6 @@ export type SectionContentInput = {
   example_sentence?: string | null;
   /** `normalizeExtras` を通した extras。 */
   extras: WordExtrasDTO | null;
-  /** 「出会う見込み」は数えた答えが届いているときだけ描ける。 */
-  hasEncounter?: boolean;
 };
 
 export function sectionHasContent(id: SectionId, input: SectionContentInput): boolean {
@@ -160,8 +157,6 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
         ex.frequency_level ||
         registerScaleOf(ex) !== null
       );
-    case "encounter":
-      return !!input.hasEncounter;
     case "example":
       return !!input.example_sentence;
     case "examples_extra":

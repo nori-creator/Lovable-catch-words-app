@@ -306,3 +306,58 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     expect(tag).not.toContain("minimal");
   });
 });
+
+describe("第2段: 消したものが戻ってこない", () => {
+  const gone = [
+    "components/CorpusLinks.tsx",
+    "lib/corpus-links.ts",
+    "components/EncounterPanel.tsx",
+    "lib/encounter.functions.ts",
+    "lib/rarity.ts",
+  ];
+
+  it.each(gone)("%s は消えている", (rel) => {
+    expect(fs.existsSync(path.join(root, rel)), rel).toBe(false);
+  });
+
+  it("カードにコーパスのリンクが1つも無い", () => {
+    // オーナー指示「コーパスのリンクを全部削除して」。
+    const src = read("components/WordCard.tsx");
+    expect(src).not.toContain("CorpusLinks");
+  });
+
+  it("「出会う確率」の節が節の一覧から消えている", () => {
+    // オーナー指示「出会う確率の項目も削除して。その他の確率や機能は
+    // すべて削除して」。**一覧に残っていると裏の生成が呼び続ける** —
+    // 何を作っても埋まらないので、上限に当たるまで金と時間を払う。
+    const sections = read("lib/card-sections.ts");
+    expect(sections).not.toContain('"encounter"');
+    const profile = read("lib/target-profile.ts");
+    expect(profile).not.toContain('"encounter"');
+  });
+
+  it("**場面の札は残っている**(消しすぎていない)", () => {
+    // 消すのは確率だけ。「どこで出会うか」の読める札は
+    // オーナーが「質の高いカテゴリーを作って」と言っている当のもの。
+    expect(fs.existsSync(path.join(root, "components/EncounterLabels.tsx"))).toBe(true);
+    expect(read("components/WordCard.tsx")).toContain("<EncounterLabels");
+  });
+
+  it("頻度の実測(`corpus_stats`)は残っている", () => {
+    // 外へのリンクを消しただけで、頻度そのものは場面カテゴリーの材料。
+    expect(read("lib/lexicon.server.ts")).toContain("corpus_stats");
+  });
+
+  it("単語の詳細の一番下の地図が**両方**から消えている", () => {
+    // 片方だけ消すと、図鑑から開いたときと札から開いたときで
+    // 見えるものが食い違う(この作業場が繰り返している形)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(read(f), f).not.toContain("openstreetmap.org/export/embed");
+    }
+  });
+
+  it("上の「撮った所」の行は残っている(地名と導線)", () => {
+    // 地図を消したのであって、場所を消したのではない。
+    expect(read("components/StickerSheet.tsx")).toContain("card.openMap");
+  });
+});

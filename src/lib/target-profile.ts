@@ -48,7 +48,6 @@ export type ProfileSection =
   | "meaning"
   | "web_images"
   | "usage_context"
-  | "encounter"
   | "example"
   | "examples_extra"
   | "usage_chunks"
@@ -218,7 +217,6 @@ export const ZH_TW_PROFILE: TargetProfile = {
     "meaning",
     "web_images",
     "usage_context",
-    "encounter",
     "example",
     "examples_extra",
     "usage_chunks",
@@ -295,7 +293,6 @@ export const EN_PROFILE: TargetProfile = {
     "meaning",
     "web_images",
     "usage_context",
-    "encounter",
     "example",
     "examples_extra",
     "usage_chunks",

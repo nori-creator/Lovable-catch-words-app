@@ -42,7 +42,6 @@ import {
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
-import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { VoiceVideoNote } from "@/components/VoiceVideoNote";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,16 +118,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
    * 写真の一覧は付け足しであって、この画面の本体ではない。
    * 鍵は `/dex/$stickerId` と同じなので、どちらから来ても読み直しは起きない。
    */
-  // 「今週出会う見込み」。**カードの中から勝手に走らせない** —
-  // 全利用者を数える問い合わせなので、呼ぶ側が1回だけ取って渡す。
-  // 読めなくてもカードは開く(節が1つ出ないだけ)。
-  const fetchEncounter = useServerFn(getEncounterEstimate);
-  const { data: encounter } = useQuery({
-    queryKey: ["encounter", s?.word_id ?? null],
-    queryFn: () => fetchEncounter({ data: { word_id: s!.word_id } }),
-    enabled: !!s?.word_id,
-    staleTime: 6 * 60 * 60 * 1000,
-  });
   const { data: photoData } = useQuery({
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId! } }),
@@ -717,7 +706,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
             photos={photoData?.photos ?? []}
-            encounter={encounter ?? null}
           />
         )}
       </div>
@@ -793,7 +781,6 @@ export function StickerSheetBody({
   swapWebImage,
   applyWebImage,
   photos,
-  encounter,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   uiLang: UiLang;
@@ -844,7 +831,6 @@ export function StickerSheetBody({
    */
   photos: StickerPhoto[];
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
-  encounter?: EncounterEstimate | null;
 }) {
   /**
    * 表に出す1枚。**役も見る** — ネット画像のときだけ出典を添えるため。
@@ -1104,7 +1090,6 @@ export function StickerSheetBody({
         wordId={s.word_id}
         isPro={isPro}
         onPickImage={applyWebImage}
-        encounter={encounter}
       />
 
       {enriching && (
@@ -1168,33 +1153,10 @@ export function StickerSheetBody({
         </button>
       </div>
 
-      {s.lat != null && s.lng != null && (
-        <a
-          href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-5 block overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
-        >
-          <iframe
-            title={t("common.mapTitle")}
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
-            // 押せない飾りなので**タブ順から外す**。既定では iframe に
-            // 焦点が入るが、中身は `pointer-events-none` で触れないうえ
-            // 焦点の輪も出ないので、鍵盤で辿ると「どこに居るか分からない
-            // 止まり木」が1つできていた(実測 1.00:1)。押す先は外側の `<a>`。
-            tabIndex={-1}
-            className="pointer-events-none h-48 w-full"
-            loading="lazy"
-          />
-          <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
-            </span>
-            <span className="text-primary-ink">{t("card.openMapsLabel")}</span>
-          </div>
-        </a>
-      )}
-
+      {/* **一番下の地図は消した**(オーナー指示 2026-08-25「単語の詳細の
+          一番下の地図は要らない。上に別にあるから」)。上の「撮った所」の
+          行に地名と地図への導線が既に在るので、同じ物が2つ並んでいた。
+          長さの割に何も足しておらず、外の iframe を1枚余分に読んでいた。 */}
       {/* カード管理: 写真の変更は写真上の📷アイコン/長押し。削除は2段階。 */}
       <div className="mt-5 flex items-center justify-end gap-2">
         <input

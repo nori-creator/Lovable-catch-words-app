@@ -9,7 +9,6 @@ import { WordCard } from "@/components/WordCard";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
-import { getEncounterEstimate, type EncounterEstimate } from "@/lib/encounter.functions";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
@@ -64,16 +63,6 @@ function StickerDetailPage() {
   });
   // 同じものを撮り直した記録。**読めなくても詳細は開く** — 写真の一覧は
   // 付け足しであって、この画面の本体ではない。
-  // 「今週出会う見込み」。**カードの中から勝手に走らせない** —
-  // 全利用者を数える問い合わせなので、呼ぶ側が1回だけ取って渡す。
-  // 読めなくてもカードは開く(節が1つ出ないだけ)。
-  const fetchEncounter = useServerFn(getEncounterEstimate);
-  const { data: encounter } = useQuery({
-    queryKey: ["encounter", s?.word_id ?? null],
-    queryFn: () => fetchEncounter({ data: { word_id: s!.word_id } }),
-    enabled: !!s?.word_id,
-    staleTime: 6 * 60 * 60 * 1000,
-  });
   const { data: photoData } = useQuery({
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId } }),
@@ -123,7 +112,6 @@ function StickerDetailPage() {
           memory={mem}
           photos={photoData?.photos}
           dateLocale={dateLocale}
-          encounter={encounter ?? null}
         />
       )}
     </AppShell>
@@ -166,14 +154,11 @@ export function StickerDetailBody({
   memory,
   photos,
   dateLocale,
-  encounter,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   memory?: Awaited<ReturnType<typeof getStickerMemoryHistory>>;
   photos?: Awaited<ReturnType<typeof listStickerPhotos>>["photos"];
   dateLocale: string;
-  /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
-  encounter?: EncounterEstimate | null;
 }) {
   const t = useT();
   const photoPref = usePhotoPref();
@@ -219,7 +204,6 @@ export function StickerDetailBody({
               example_translation: s.word.example_translation,
               extras: s.word.extras,
             }}
-            encounter={encounter ?? null}
           />
         </div>
       </details>
@@ -247,36 +231,10 @@ export function StickerDetailBody({
         />
       </section>
 
-      {s.lat != null && s.lng != null && (
-        <section className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-          <a
-            href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-            target="_blank"
-            rel="noreferrer"
-            className="block"
-          >
-            <iframe
-              title={t("common.mapTitle")}
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${s.lng - 0.005}%2C${s.lat - 0.003}%2C${s.lng + 0.005}%2C${s.lat + 0.003}&layer=mapnik&marker=${s.lat}%2C${s.lng}`}
-              // 押せない飾りなので**タブ順から外す**。既定では iframe に
-              // 焦点が入るが、中身は `pointer-events-none` で触れないうえ
-              // 焦点の輪も出ないので、鍵盤で辿ると「どこに居るか分からない
-              // 止まり木」が1つできていた。押す先は外側の `<a>`。
-              tabIndex={-1}
-              className="pointer-events-none h-48 w-full"
-              loading="lazy"
-            />
-            <div className="flex items-center justify-between p-3 text-footnote text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> {s.location_name ?? t("common.shotHere")}
-              </span>
-              {/* 地の上の主色の**文字**は `text-primary-ink`。塗りの色を
-                      そのまま文字にすると 3.69:1 まで落ちる(実測)。 */}
-              <span className="text-primary-ink">{t("card.openGoogleMaps")}</span>
-            </div>
-          </a>
-        </section>
-      )}
+      {/* **一番下の地図は消した**(オーナー指示)。上の「撮った所」に
+          地名と地図への導線が既に在り、同じ物が2つ並んでいた。
+          `StickerSheet` と**両方**消す — 片方だけ直すと、図鑑から開いた
+          ときと札から開いたときで見えるものが食い違う。 */}
     </>
   );
 }
