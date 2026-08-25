@@ -1704,7 +1704,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Explanations, examples and review vocabulary are generated within your current-to-target level range.",
     "zh-TW": "單字的解說、例句和複習的詞彙，都會配合「目前等級〜目標等級」來製作。",
   },
-  "settings.nativeLang": { ja: "母語", en: "Native language", "zh-TW": "母語" },
   "settings.uiLang": { ja: "表示言語", en: "App language", "zh-TW": "顯示語言" },
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation", "zh-TW": "發音標記" },
   "settings.study": { ja: "学習設定", en: "Study settings", "zh-TW": "學習設定" },
@@ -2511,12 +2510,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "AIモデルを切り替えました（次のリクエストから有効）",
     en: "AI models switched (effective from the next request)",
     "zh-TW": "已切換 AI 模型（下一個請求開始生效）",
-  },
-  "settings.nativeLangHint": {
-    ja: "台湾華語のつまずき方は母語で変わります。発音のコツ・復習の添削・日記の添削が、この母語に合わせて最適化されます。",
-    en: "Where Mandarin trips you up depends on your first language. Pronunciation tips, review feedback and journal corrections all adapt to it.",
-    "zh-TW":
-      "台灣華語會卡在哪裡，會因母語而不同。發音訣竅、複習的修改、日記的修改，都會配合這個母語做最佳化。",
   },
   "settings.aiKeys": {
     ja: "APIキーの検出状況",

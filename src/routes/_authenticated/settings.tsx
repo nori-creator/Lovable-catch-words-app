@@ -42,7 +42,8 @@ import {
   type CatchSpeed,
   type CatchTimingSummary,
 } from "@/lib/catch-speed";
-import { L1_TABLE, l1ChoicesFor, pickL1 } from "@/lib/l1";
+import { pickL1 } from "@/lib/l1";
+import { readerL1 } from "@/lib/reader-language";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
 import { EffectLabButton } from "@/components/EffectLab";
@@ -249,6 +250,12 @@ function SettingsPage() {
   } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState("");
+  /**
+   * 統合前に保存されていた母語。**画面には出さない**(行は消した)が、
+   * 「表示言語=学習言語」のときの手掛かりとして持ち回り、
+   * 保存のときにそのまま書き戻す。捨てると、その人の母語の情報が
+   * 一度の保存で消える。
+   */
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
   const [targetLanguage, setTargetLanguage] = useState<string>(DEFAULT_TARGET_LANGUAGE);
@@ -336,7 +343,13 @@ function SettingsPage() {
           // which would otherwise fail the whole save (theme/level/language too)
           // for anyone whose display name is blank.
           ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
-          native_language: nativeLanguage,
+          // **母語は表示言語から決まる。** 列は残すので、統合後も
+          // 食い違わないように同じ値の側から書く(`reader-language.ts`)。
+          native_language: readerL1({
+            uiLanguage,
+            nativeLanguage,
+            targetLanguage,
+          }),
           ui_language: uiLanguage,
           target_language: targetLanguage,
           level_goal: levelGoal,
@@ -443,21 +456,11 @@ function SettingsPage() {
               options={levelChoices}
             />
             <PhoneticRow />
-            {/* 母語は「表示言語」とは別物。台湾華語のどこで転ぶかは母語で
-                変わるので、発音のコツ・添削の解説をこれで最適化する。 */}
-            <SelectRow
-              id="lang-native"
-              label={t("settings.nativeLang")}
-              hint={t("settings.nativeLangHint")}
-              value={nativeLanguage}
-              onChange={setNativeLanguage}
-              options={l1ChoicesFor(targetLanguage).map((code) => ({
-                value: code,
-                // 繁體中文の画面に日本語の言語名を出さない。母語の名前は
-                // 訳を持っていないので、日本語以外は英語名に寄せる。
-                label: uiLanguage === "ja" ? L1_TABLE[code].labelJa : L1_TABLE[code].labelEn,
-              }))}
-            />
+            {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
+                日本語、英語、台湾華語にして」。ほとんどの人にとって
+                「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
+                発音のコツをどの母語向けに書くかは `reader-language.ts` が
+                表示言語から決める。DB の `native_language` の列は残す。 */}
             <SelectRow
               id="lang-ui"
               label={t("settings.uiLang")}

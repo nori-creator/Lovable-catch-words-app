@@ -229,3 +229,34 @@ describe("第1段: 学習言語で「見えるもの」を分ける", () => {
     expect(dex).toContain("dex.emptyOtherLangTitle");
   });
 });
+
+describe("第1段: 母語と表示言語を1つにする", () => {
+  it("設定から母語の行が消えている", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toContain('id="lang-native"');
+    expect(src).not.toContain("settings.nativeLang");
+    // 表示言語の行は残っている(片方だけ消す事故を潰す)。
+    expect(src).toContain('id="lang-ui"');
+  });
+
+  it("母語の情報を保存で捨てない", () => {
+    // 行は消えたが列は残す。持ち回らずに保存すると、その人の母語が
+    // 一度の保存で消える。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toContain("native_language: readerL1(");
+  });
+
+  it("サーバの母語は表示言語から決まる", () => {
+    const src = codeOnly(read("lib/ai-provider.server.ts"));
+    expect(src).toContain("readerL1(");
+    expect(src).toContain("ui_language, native_language, target_language");
+    // 母語の列だけを読む古い形が残っていないこと。
+    expect(src).not.toMatch(/\.select\("native_language"\)/);
+  });
+
+  it("消した翻訳キーが本当に消えている(死んだ文字列を残さない)", () => {
+    const dict = read("lib/i18n.tsx");
+    expect(dict).not.toContain('"settings.nativeLang"');
+    expect(dict).not.toContain('"settings.nativeLangHint"');
+  });
+});
