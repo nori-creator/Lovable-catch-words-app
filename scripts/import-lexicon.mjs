@@ -170,7 +170,7 @@ async function build() {
       stats.dropped.headword++;
       continue;
     }
-    if (lib.cleanGloss(e.translation).length === 0 && lib.cleanGloss(e.definition).length === 0) {
+    if (lib.cleanGloss(e.translation).length === 0) {
       stats.dropped.gloss++;
       continue;
     }

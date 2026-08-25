@@ -71,10 +71,21 @@ alter table public.dictionary_entries alter column meaning_ja drop not null;
 -- ---------------------------------------------------------------------------
 -- いま入っている 7,281 行を新しい列へ写す（1回だけ・上書きしない）
 -- ---------------------------------------------------------------------------
+-- **`tocfl_level = 7` は級ではなく「級外」。**
+-- 本番を数えたら 7 が 2,662行（全体の37%）あった。打ち間違いではなく、
+-- 辞書を貯める側が「6級より上」の意味で入れてきた決めごとで、
+-- `parseLevelStep` も 7 を `LEVEL_OUT` に読む。つじつまは合っている。
+--
+-- `level_step` は 1〜6 しか持たない（`LEVEL_INDEXES` と同じ）。7 をそのまま
+-- 入れると検査制約に弾かれるし、入れられるようにすると「級」と「級外」が
+-- 同じ列で混ざって、どちらの意味か分からなくなる。**級外は null にする。**
+-- 台湾華語の行は `tocfl_level` が残っているので、読む側は
+-- `coalesce(level_step, tocfl_level)` を `parseLevelStep` に通せば
+-- 級外も「分からない」も今までどおり区別できる。
 update public.dictionary_entries
    set reading_primary = coalesce(reading_primary, zhuyin),
        reading_alt     = coalesce(reading_alt, pinyin),
-       level_step      = coalesce(level_step, tocfl_level),
+       level_step      = coalesce(level_step, nullif(least(tocfl_level, 7), 7)),
        usage_register  = coalesce(usage_register, taiwan_usage)
  where reading_primary is null
     or reading_alt is null

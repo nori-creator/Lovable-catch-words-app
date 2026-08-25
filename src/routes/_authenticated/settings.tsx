@@ -39,7 +39,7 @@ import {
   type CatchSpeed,
   type CatchTimingSummary,
 } from "@/lib/catch-speed";
-import { L1_ORDER, L1_TABLE } from "@/lib/l1";
+import { L1_TABLE, l1ChoicesFor, pickL1 } from "@/lib/l1";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
 import { ThemeLabButton } from "@/components/ThemeLab";
 import { EffectLabButton } from "@/components/EffectLab";
@@ -249,7 +249,10 @@ function SettingsPage() {
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
-    setNativeLanguage(profile.native_language);
+    // **一覧に無い値をそのまま渡さない。** 母語を12から3に絞ったので
+    // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
+    // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
+    setNativeLanguage(pickL1(profile.native_language, profile.target_language));
     setUiLanguage(profile.ui_language);
     setUiLang(profile.ui_language === "en" ? "en" : "ja");
     setTargetLanguage(profile.target_language);
@@ -389,7 +392,7 @@ function SettingsPage() {
               hint={t("settings.nativeLangHint")}
               value={nativeLanguage}
               onChange={setNativeLanguage}
-              options={L1_ORDER.map((code) => ({
+              options={l1ChoicesFor(targetLanguage).map((code) => ({
                 value: code,
                 label: uiLanguage === "en" ? L1_TABLE[code].labelEn : L1_TABLE[code].labelJa,
               }))}

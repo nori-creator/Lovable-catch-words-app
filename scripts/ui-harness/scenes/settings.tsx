@@ -37,7 +37,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { L1_ORDER, L1_TABLE } from "@/lib/l1";
+import { L1_TABLE, l1ChoicesFor } from "@/lib/l1";
 import { tStatic as t } from "@/lib/i18n";
 import { LogOut } from "lucide-react";
 import { useState } from "react";
@@ -194,7 +194,10 @@ export function SettingsSelectsScene() {
           hint={t("settings.nativeLangHint")}
           value={native}
           onChange={setNative}
-          options={L1_ORDER.map((code) => ({ value: code, label: L1_TABLE[code].labelJa }))}
+          options={l1ChoicesFor(target).map((code) => ({
+            value: code,
+            label: L1_TABLE[code].labelJa,
+          }))}
         />
         <SelectRow
           id="lang-ui"

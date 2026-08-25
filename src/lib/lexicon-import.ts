@@ -455,10 +455,10 @@ export function shouldImport(
   official?: LevelIndex | null,
 ): boolean {
   if (!isImportableHeadword(e.word)) return false;
-  // 語釈が1行も残らない語は入れない（空の欄のカードを作らない）。
-  if (cleanGloss(e.translation).length === 0 && cleanGloss(e.definition).length === 0) {
-    return false;
-  }
+  // **中文の語釈が要る。** 入れるのは中文だけなので（上の `toLexiconRow` の
+  // 注を見よ）、英英しか無い語を通すと意味が空の行になる。ここで落として
+  // おかないと「入れるつもりが入らなかった語」が数に表れない。
+  if (cleanGloss(e.translation).length === 0) return false;
   // **公式の級が付いている語は必ず入れる。**
   // 頻度と検定タグだけで切ると、`alarm clock`(A2) `air conditioning`(B1)
   // `babysitter`(B1) が落ちた（数えたら 435 語）。どれも街で撮る物で、
@@ -757,6 +757,21 @@ export function posOf(e: EcdictRaw): string | null {
 /**
  * 取り込む1行を作る。
  *
+ * ## 英英の語釈は入れない
+ * ECDICT の `definition` は WordNet と 1913年版 Webster の混ざりで、
+ * **語義の並び順が当てにならない**。実際のデータを見て決めた:
+ *
+ *   phone → "an individual sound unit of speech"（音声学の「音」。電話ではない）
+ *   the   → "v. i. See Thee."（古い辞書の見出し）
+ *
+ * 街で電話を撮った人に「音声学の音」と出るのは、速さ以前に**間違い**。
+ * 古い言い回しが出る行も 3%（778行）あった。
+ *
+ * 中文の語釈（`translation`）のほうは学習者向けに整理されていて、
+ * 並び順も素直（phone → 電話, 受話器, 耳機）。**こちらだけを入れる。**
+ * 英英が要る級の学習者には、後から別の出所（語義の順位を持つ
+ * Open English WordNet など）で足すか、AI に書かせるほうが正確。
+ *
  * @param glossTranslate 簡体字 → 台湾正体字。**呼ぶ側が渡す** — 変換の表は
  *   外から来る物（OpenCC）なので、ここでは持たない。渡されなければ
  *   変換しない（**黙って簡体字を入れない**ように、道具の側が必ず渡す）。
@@ -773,12 +788,9 @@ export function toLexiconRow(
   },
 ): LexiconRow {
   const zh = cleanGloss(e.translation).map(opts.glossTranslate).join("\n");
-  const en = cleanGloss(e.definition).join("\n");
   const meanings: Record<string, string> = {};
   // 鍵は**解説を書いた言語**。学習言語(en)ではない。
   if (zh) meanings[CHINESE_EXPLANATION_LANGUAGE] = zh;
-  // 英語の語釈も持っておく。上の級の学習者には英英のほうが効く。
-  if (en) meanings["en"] = en;
 
   const forms = parseExchange(e.exchange);
   const rank = freqRank(e);

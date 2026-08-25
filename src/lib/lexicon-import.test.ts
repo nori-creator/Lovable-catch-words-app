@@ -340,6 +340,10 @@ describe("shouldImport — 検定・頻出だけ", () => {
     expect(shouldImport(raw({ word: "hood", translation: "[网络] 胡德", tag: "zk" }))).toBe(false);
   });
 
+  it("**英英しか無い語は入れない**(入れるのは中文の語釈だけなので空になる)", () => {
+    expect(shouldImport(raw({ word: "thingy", definition: "n. a thing", tag: "zk" }))).toBe(false);
+  });
+
   it("見出しに使えない形は、印があっても入れない", () => {
     expect(shouldImport(raw({ word: "-ability", translation: "suf. 表示", tag: "gre" }))).toBe(
       false,
@@ -468,9 +472,20 @@ describe("toLexiconRow — 入れる1行", () => {
     expect(row.meanings[CHINESE_EXPLANATION_LANGUAGE]).not.toContain("车");
   });
 
-  it("英英の語釈も持つ(上の級には英英のほうが効く)", () => {
+  it("**英英の語釈は入れない**(語義の順が当てにならない — 本物のデータで確認)", () => {
+    // phone が「音声学の音」、the が「v. i. See Thee.」になる。
+    // 街で電話を撮った人に音声学の説明が出るのは、速さ以前に間違い。
     const row = toLexiconRow(BICYCLE, { ipaUs: null, glossTranslate: zhTw });
-    expect(row.meanings["en"]).toContain("wheeled vehicle");
+    expect(row.meanings["en"]).toBeUndefined();
+    expect(Object.keys(row.meanings)).toEqual([CHINESE_EXPLANATION_LANGUAGE]);
+  });
+
+  it("英英しか無い語は入れる行にならない(意味が空になる)", () => {
+    const row = toLexiconRow(raw({ word: "x", definition: "n. a thing" }), {
+      ipaUs: null,
+      glossTranslate: zhTw,
+    });
+    expect(isValidRow(row)).toBe(false);
   });
 
   it("**読みが無ければ null**(空文字を入れると「読みが在る」ことになる)", () => {
