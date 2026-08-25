@@ -102,6 +102,43 @@ export type TargetProfile = {
    * ここに書いてあることで生成まで届く。
    */
   promptName: string;
+
+  /**
+   * **撮った写真から語を出すとき**の、その言語ならではの指示。
+   *
+   * ## なぜ表にするか
+   * `ai.functions.ts` のプロンプトは
+   * `data.targetLanguage === DEFAULT_TARGET_LANGUAGE ? 長い指示 : 1行`
+   * という**2分岐**になっていた。台湾華語には40行の細かい指示（カテゴリの
+   * 規則・「上位の分類語に逃げない」・使い分けを書く条件）が在るのに、
+   * それ以外は「有用な名詞を5つ選んでください」の1行に落ちる。
+   *
+   * 撮る道を学習言語に繋いだ日(2026-08-25)から、英語の学習者が**実際に
+   * その1行に当たる**。カテゴリは other だらけになり、`en` という
+   * コードがそのままプロンプトに出る。
+   *
+   * カテゴリの規則も「写っている物そのものの名前を出す」も、
+   * **写真の話であって言語の話ではない**ので両方に効く。
+   * 言語で変わるのはここに並ぶ物だけ。
+   */
+  capture: {
+    /** 字・綴りの決めごと。 */
+    scriptRule: string;
+    /** 級ごとの「どこまで細かい名前で呼ぶか」の例（易→難の3段）。 */
+    specificity: readonly [string, string, string];
+    /** 使い分けを書くべき語の例（母語では1語なのに分かれる物）。 */
+    distinctionExamples: string;
+    /** 品詞の書き方。 */
+    posRule: string;
+    /** 読みの欄の指示（注音・拼音 / 米式・英式の IPA）。 */
+    readingRule: string;
+    /**
+     * 発音のコツで**その言語のどこを見るか**。
+     * 華語は声調、英語は強勢。**混ぜると意味が無い** —
+     * 英語に「声調の型」と言っても書けることが無い。
+     */
+    pronunciationFocus: string;
+  };
   /** 級の目盛り。 */
   levels: LevelScale;
   /**
@@ -167,6 +204,22 @@ export const ZH_TW_PROFILE: TargetProfile = {
   ],
   levels: TOCFL_SCALE,
   promptName: "台湾華語(繁体字)",
+  capture: {
+    scriptRule: "台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）",
+    specificity: [
+      "**日常でその物を指すときの普通の名前**で呼ぶ(例: 「短袖」より「T恤」、「三杯雞」はそのまま「三杯雞」)。",
+      "**店や献立で実際に使われる名前**まで細かく(例: 服なら「短袖」「洋裝」、料理なら「三杯雞」「滷肉飯」)。",
+      "**その道の人が使う正確な名前**まで細かく(例: 「純棉短袖」「客家小炒」)。一般名詞は既に知っている。",
+    ],
+    distinctionExamples:
+      "衛生紙→「トイレに置く方」/ 面紙→「持ち歩く箱・ポケット」、" +
+      "湯→「スープ(お湯ではない)」のように、母語からの連想を外す必要があるとき",
+    posRule:
+      "台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。\n" +
+      "  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。",
+    readingRule: "- reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。\n- pinyin: 拼音",
+    pronunciationFocus: "この語の声調の型",
+  },
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
   chunkRoles: ["S", "V", "O", "M", "C", "Ptc"],
   headwordOk: (raw) => {
@@ -223,6 +276,26 @@ export const EN_PROFILE: TargetProfile = {
   levels: CEFR_SCALE,
   // オーナー決定 2026-08-24「アメリカ英語を既定」。生成にもそう言う。
   promptName: "英語(アメリカ英語)",
+  capture: {
+    scriptRule: "アメリカ英語の綴り（color / center。イギリス式の綴りは使わない）",
+    specificity: [
+      "**日常でその物を指すときの普通の名前**で呼ぶ(例: 「garment」より「T-shirt」、「beverage」より「coffee」)。",
+      "**店や献立で実際に使われる名前**まで細かく(例: 服なら「hoodie」「blazer」、料理なら「fried rice」「clam chowder」)。",
+      "**その道の人が使う正確な名前**まで細かく(例: 「raglan sleeve」「cold brew」)。一般名詞は既に知っている。",
+    ],
+    distinctionExamples:
+      "shrimp→「小ぶり・アメリカでの普通の言い方」/ prawn→「大ぶり・英豪でよく使う」、" +
+      "napkin→「食事のときの紙・布」/ tissue→「鼻をかむ方」のように、母語からの連想を外す必要があるとき",
+    posRule:
+      "英語の品詞で: noun/verb/adjective/adverb/preposition/conjunction/pronoun/determiner/interjection のどれか。\n" +
+      "  句動詞は verb、複合名詞は noun。",
+    readingRule:
+      "- reading_zhuyin: **空文字**（英語に注音は無い）\n" +
+      "- pinyin: **空文字**（英語に拼音は無い）\n" +
+      "- ipa_us: アメリカ英語の IPA（強勢記号 ˈ ˌ を必ず付ける。例: ʌmˈbrɛlə）\n" +
+      "- ipa_uk: イギリス英語の IPA（違いが無ければアメリカ式と同じで良い）",
+    pronunciationFocus: "この語のどの音節を強く読むか",
+  },
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)
   chunkRoles: ["S", "V", "O", "Adv", "Prep", "Det"],
   headwordOk: (raw) => {

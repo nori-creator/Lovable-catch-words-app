@@ -1,4 +1,5 @@
 /** 棚(図鑑)の場面。**本物の `DexShelf` を描く。** */
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { DexShelf } from "@/components/DexShelf";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { ROOM_CATEGORIES, ROOM_KEYS } from "@/lib/category";
@@ -53,6 +54,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number): StickerWithWord {
     placeholder_url: null,
     placeholder_credit: null,
     word: {
+      language: DEFAULT_TARGET_LANGUAGE,
       headword: f.head,
       reading_zhuyin: null,
       pinyin: null,

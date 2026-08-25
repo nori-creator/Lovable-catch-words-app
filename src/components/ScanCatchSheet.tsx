@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,6 +76,8 @@ export function ScanCatchSheet({
   onClose,
 }: Props) {
   const t = useT();
+  /** いま撮った物を何語として保存するか（設定の学習言語）。 */
+  const targetLanguage = useTargetLang();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
@@ -311,7 +313,7 @@ export function ScanCatchSheet({
             word,
             // 提案は**カードが在るときだけ**来る(辞書だけの経路には無い)。
             new_shelf: card?.new_shelf ?? null,
-            language: DEFAULT_TARGET_LANGUAGE,
+            language: targetLanguage,
             object_path,
             cutout_path,
             selfie_path,

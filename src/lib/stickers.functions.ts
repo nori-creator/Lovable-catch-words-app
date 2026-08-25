@@ -69,6 +69,13 @@ export type StickerWithWord = {
   review_count?: number;
   word: {
     headword: string;
+    /**
+     * その語を**何語として覚えているか**。
+     * 台湾華語の語と英語の語を両方持っている人が居るので、
+     * 作り直し・読み上げ・行き先は**その語の値**を見る
+     * （いま設定している学習言語ではない）。
+     */
+    language: string | null;
     reading_zhuyin: string | null;
     pinyin: string | null;
     meaning_ja: string;
@@ -179,7 +186,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const wordCols =
-      "words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
+      "words(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
     const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
     // `hero_role` だけが無い環境のための段。**ゴーストの列と一緒くたにしない**
     // — 一緒にすると、この移行だけ当たっていない環境でネット画像まで落ちる。
@@ -366,7 +373,7 @@ export const getSticker = createServerFn({ method: "GET" })
     // すると、動画の移行だけ当たっていない環境で主役やネット画像まで
     // 丸ごと落ちる。無い列だけを諦める。
     const cols = (withGhost: boolean, withHero: boolean, withVoice: boolean) =>
-      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withVoice ? ", voice_video_url" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
+      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withVoice ? ", voice_video_url" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
 
     // Try to read as owner first (RLS-scoped); retry without ghost columns
     // when the migration hasn't been applied.

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -159,6 +159,13 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 
 function CapturePage() {
   const t = useT();
+  /**
+   * いま撮った物を**何語として扱うか**（設定の学習言語）。
+   * 候補の提案・カードの生成・持っているかの判定・保存の全部が
+   * この1つの値を見る。バラバラに決め打つと、たとえば
+   * 「英語のカードを作ったのに台湾華語として保存する」が起きる。
+   */
+  const targetLanguage = useTargetLang();
   // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
   const dateLocale = localeOf(useUiLang());
   const pronounce = usePronounce();
@@ -362,7 +369,7 @@ function CapturePage() {
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
       const suggestRes = await suggestFn({
-        data: { imageBase64: aiImage, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+        data: { imageBase64: aiImage, targetLanguage: targetLanguage },
       });
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
@@ -443,7 +450,7 @@ function CapturePage() {
     // moment there is — not a duplicate sticker.
     try {
       const { owned } = await ownedFn({
-        data: { headword: head, language: DEFAULT_TARGET_LANGUAGE },
+        data: { headword: head, language: targetLanguage },
       });
       if (runTokenRef.current !== token) return;
       if (owned) {
@@ -475,7 +482,7 @@ function CapturePage() {
         cardFn({
           data: {
             headword: head,
-            targetLanguage: DEFAULT_TARGET_LANGUAGE,
+            targetLanguage: targetLanguage,
             hintCategory: hint.category_key,
           },
         })
@@ -485,7 +492,7 @@ function CapturePage() {
           .catch(() => {});
       } else {
         const c = await cardFn({
-          data: { headword: head, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+          data: { headword: head, targetLanguage: targetLanguage },
         });
         if (runTokenRef.current !== token) return;
         setCard(c);
@@ -586,7 +593,7 @@ function CapturePage() {
           // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
           // このアプリで何度もやっている「直したものが動く経路に無い」形。
           new_shelf: card.new_shelf ?? null,
-          language: DEFAULT_TARGET_LANGUAGE,
+          language: targetLanguage,
           object_path,
           cutout_path,
           selfie_path,

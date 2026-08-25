@@ -1,5 +1,4 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -279,7 +278,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     setRegenerating(true);
     try {
       const card = await enrichWord({
-        data: { headword: s.word.headword, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+        data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
       });
       await saveExtras({
         data: {
@@ -505,7 +504,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     (async () => {
       try {
         const card = await enrichWord({
-          data: { headword: s.word.headword, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+          data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
         });
         await saveExtras({
           data: {
@@ -576,7 +575,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     setReporting(true);
     try {
       const card = await enrichWord({
-        data: { headword: s.word.headword, targetLanguage: DEFAULT_TARGET_LANGUAGE },
+        data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
       });
       await saveExtras({
         data: {
