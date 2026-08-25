@@ -445,6 +445,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "tocfl.bandC": { ja: "C", en: "C", "zh-TW": "C" },
   "tocfl.out": { ja: "級外の語", en: "Not in the lists", "zh-TW": "級外的字" },
   "tocfl.outShort": { ja: "外", en: "—", "zh-TW": "外" },
+  // 段々は既定で畳む(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
+  // 表示して、タップでバーを出して」)。押せることが分かる言葉を添える。
+  "tocfl.showLadder": { ja: "段階を見る", en: "Show the scale", "zh-TW": "看等級表" },
+  "tocfl.hideLadder": { ja: "段階を閉じる", en: "Hide the scale", "zh-TW": "收起等級表" },
   // CEFR の言い方(2026-08-24 の二言語化)。
   // **「A1級」と書かない** — 級は TOCFL の数え方で、CEFR の段は
   // それ自体が名前(A1)。数え方の言葉を足すと別の体系に見える。

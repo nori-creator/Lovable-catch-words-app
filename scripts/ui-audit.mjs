@@ -249,7 +249,22 @@ const MODES = [
   ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
+  // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
+  // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
+  // 片方しか撮らないと、片方は一度も見ていないことになる。
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
+  [
+    "tocfl-ladder-open",
+    "",
+    false,
+    { scene: "tocfl-ladder", click: "button[aria-expanded='false']" },
+  ],
+  [
+    "cefr-ladder-open",
+    "",
+    false,
+    { scene: "tocfl-ladder", scale: "cefr", click: "button[aria-expanded='false']" },
+  ],
   // **CEFR も同じ部品で描けているか**を絵で確かめる(2026-08-24 の二言語化)。
   // 「6段 + 3帯で形が同じはず」は思い込みかもしれないので、両方撮って並べる。
   // CEFR 側には TOEFL / IELTS の目盛りが添う。
