@@ -114,12 +114,16 @@ export function TocflLadder({
            * 広げる(このアプリの §11 の型。カードの発音ボタンや図鑑の札と
            * 同じ書き方)。触るのは1つの札なので、見えない枠でも指は届く。
            *
+           * **`-inset-y-3`(12px)まで広げる。** 検査は直径 44px の円で
+           * 撃つので、札の 21px に 10px ずつ足した 41px では**上下の点が
+           * 円からはみ出して落ちる**(実際に落ちた)。12px なら 45px。
+           *
            * TOEFL / IELTS は**開いたときだけ**出す。畳んだ札に足すと
            * 横幅が品詞の3倍になり、揃えた意味が無くなる
            * (オーナーの前の指示「レベルとバンドだけ表示して、タップで
            * バーを出して」とも、こちらのほうが合う)。
            */
-          className="press-in relative inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-['']"
+          className="press-in relative inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-3 before:content-['']"
         >
           <span className="font-semibold label-caps text-muted-foreground">{scale.id}</span>
           <span className="font-bold">{label}</span>

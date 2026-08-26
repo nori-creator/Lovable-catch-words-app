@@ -1416,7 +1416,7 @@ describe("2026-08-26 の3度目の報告", () => {
     );
     // 見た目は品詞と同じ `px-2 py-0.5`、指の当たりは `::before` で広げる。
     expect(collapsed).toMatch(/px-2 py-0\.5/);
-    expect(collapsed).toMatch(/before:-inset-y-2\.5/);
+    expect(collapsed).toMatch(/before:-inset-y-3/);
     expect(collapsed).not.toMatch(/min-h-11/);
   });
 });
