@@ -86,6 +86,24 @@ export const ExtrasSchema = z.object({
   study_tips: z.string().catch(""),
   // --- 現行フィールド ------------------------------------------------------
   etymology: z.string().catch(""),
+  /**
+   * 同じ語根・接頭辞・接尾辞を持つ**仲間の語**（オーナー指示 2026-08-26
+   * 「同じ語源や接頭辞、接尾辞を持つ関連語、派生語があれば紹介して」）。
+   *
+   * **英語の語だけ。** 学習言語が英語のときにしか作らせない
+   * (オーナー追記「上の語源の項目については、学習言語英語のときだけ」)。
+   * 台湾華語の語は空のまま — 部首・声符の話は `radicals` が持つ。
+   *
+   * `{ word, note }`。`note` は「その部品が何を意味するか」を短く。
+   */
+  etymology_relatives: z
+    .array(
+      z.object({
+        word: z.string().catch(""),
+        note: z.string().catch(""),
+      }),
+    )
+    .catch([]),
   radicals: z.string().catch(""),
   mnemonic: z.string().catch(""),
   examples_extra: z.array(ExampleExtraSchema).catch([]),

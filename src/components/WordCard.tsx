@@ -41,6 +41,7 @@ import {
   missingSections,
   sectionHasContent,
   sectionsFor,
+  sectionTitleKey,
   type RegenSection,
   type SectionId,
 } from "@/lib/card-sections";
@@ -714,7 +715,8 @@ function SectionCard({
 }) {
   const icon = SECTION_ICON[id];
   const t = useT();
-  const label = t(`card.${id}`);
+  // 見出しは言語で変わることが在る(「語源・部首」は英語では嘘)。
+  const label = t(sectionTitleKey(id, word.language));
   const ex = word.extras ?? {};
   const regenFn = useServerFn(regenerateCardSection);
   const qc = useQueryClient();
@@ -1143,6 +1145,29 @@ function Body({
       return (
         <div className="space-y-1 text-body leading-relaxed">
           {ex.etymology && <Prose text={ex.etymology} />}
+          {/* **同じ部品を持つ仲間の語**(オーナー指示 2026-08-26)。
+              語根を1つ覚えると芋づるで増えるのが英語の語彙の性質なので、
+              語源の話はここまで書いて初めて役に立つ。
+              台湾華語では作らせていないので空のまま(`relativesRule`)。 */}
+          {(ex.etymology_relatives?.length ?? 0) > 0 && (
+            <div className="mt-2 space-y-1">
+              <span className="text-caption text-muted-foreground">
+                {t("card.etymologyRelatives")}
+              </span>
+              <div className="space-y-1">
+                {ex.etymology_relatives!.map((r, i) => (
+                  <div key={i} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="inline-block rounded-full bg-secondary px-2.5 py-0.5 text-footnote font-medium text-foreground shadow-sm ring-1 ring-border">
+                      {r.word}
+                    </span>
+                    {r.note && (
+                      <span className="text-footnote text-muted-foreground">{r.note}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* **部首は華語の話。** 英語の語に部首の行が出るのは、
               古いデータか AI の勇み足のどちらか。どちらでも出さない
               (指示は `target-profile.ts` の `radicalsRule` で空にさせている)。 */}

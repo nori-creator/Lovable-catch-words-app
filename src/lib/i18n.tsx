@@ -1820,6 +1820,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.fillRetry": { ja: "もう一度ためす", en: "Try again", "zh-TW": "再試一次" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips", "zh-TW": "發音訣竅" },
   "card.etymology": { ja: "語源・部首", en: "Origin & radicals", "zh-TW": "字源・部首" },
+  // 部首の無い言語(英語)の見出し。**「語源・部首」は英語では嘘。**
+  "card.etymologyOnly": { ja: "語源", en: "Word origin", "zh-TW": "字源" },
   "card.mnemonic": { ja: "覚え方", en: "Memory hook", "zh-TW": "記憶方法" },
   "card.taiwan_note": { ja: "台湾メモ", en: "Taiwan note", "zh-TW": "台灣筆記" },
   "card.real_usage": { ja: "実際の使われ方", en: "Seen in the wild", "zh-TW": "實際上怎麼用" },
@@ -1883,6 +1885,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.synonym": { ja: "類義", en: "Similar", "zh-TW": "近義" },
   "card.antonym": { ja: "反義", en: "Opposite", "zh-TW": "反義" },
   "card.relatedTag": { ja: "関連", en: "Related", "zh-TW": "相關" },
+  // 語根・接頭辞・接尾辞の仲間(学習言語が英語のときだけ出る)。
+  "card.etymologyRelatives": {
+    ja: "同じ部品を持つ語",
+    en: "Words sharing the parts",
+    "zh-TW": "有相同部件的字",
+  },
   "card.radicals": { ja: "部首", en: "Radicals", "zh-TW": "部首" },
   "card.noImages": {
     ja: "画像が見つかりませんでした。",

@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { targetProfile } from "./target-profile";
+import { sectionTitleKey } from "./card-sections";
 import { TARGET_LANGUAGES } from "./target-lang";
+import { DICT, UI_LANGS } from "./i18n";
 
 /**
  * **学習言語・表示言語が「途中で捨てられていないか」を数える門。**
@@ -437,5 +439,103 @@ describe("第2段: 語源と地名を言語ごとに正しく", () => {
     const src = codeOnly(read("lib/geocode.functions.ts"));
     expect(src).toContain("readerMapLanguage(");
     expect(src).not.toMatch(/language: z\.string\(\)\.default\(/);
+  });
+});
+
+describe("語源の仲間の語と、母語に引っ掛ける覚え方", () => {
+  it("仲間の語は**どの学習言語でも**作らせる", () => {
+    // オーナー指示 2026-08-26「やっぱり全ての学習言語で語源の項目の欄で、
+    // 同じ語源や由来がある関連単語は表示して」。
+    for (const lang of TARGET_LANGUAGES) {
+      expect(targetProfile(lang).capture.relativesRule.trim(), lang).not.toBe("");
+    }
+  });
+
+  it("**接頭辞・接尾辞の分解は英語だけ**", () => {
+    // オーナー指示「接頭語、接尾語の解説は学習言語英語の時だけで」。
+    // 華語に接頭辞・接尾辞の話を持ち込むと、部首の話と混ざって濁る。
+    const en = targetProfile("en").capture.etymologyRule;
+    expect(en).toContain("接頭辞");
+    expect(en).toContain("接尾辞");
+    const zh = targetProfile("zh-TW").capture.etymologyRule;
+    expect(zh).not.toContain("接頭辞");
+    expect(zh).not.toContain("接尾辞");
+  });
+
+  it("どの言語の仲間の語も「似ているだけ」を弾き、空を許す", () => {
+    // 無理に埋めさせると、**覚え違いの種**を配ることになる。
+    for (const lang of TARGET_LANGUAGES) {
+      const r = targetProfile(lang).capture.relativesRule;
+      expect(r, lang).toContain("空配列");
+      expect(r, lang).toMatch(/本当に同じ意味/);
+    }
+  });
+
+  it("プロンプトが `relativesRule` から出ている(決め打ちでない)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("capture.relativesRule");
+    // 空の言語では「空配列」と言い切る分岐が在ること。
+    expect(src).toContain("etymology_relatives");
+  });
+
+  it("画面が仲間の語を描く", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    // **部分一致で数えない。** 最初は `toContain("etymology_relatives")` と
+    // 書いていて、`etymology_relatives_DISABLED` に潰しても**通った**
+    // (この作業場で4度目の同じ罠)。実際に描く式の形を見る。
+    expect(src).toMatch(/ex\.etymology_relatives\?\.length/);
+    expect(src).toMatch(/ex\.etymology_relatives!\.map\(/);
+    expect(src).toMatch(/t\("card\.etymologyRelatives"\)/);
+  });
+
+  it("仲間の語だけが届いた段階でも節を「空」にしない", () => {
+    // 空扱いのままだと、裏の生成が同じ節を作り直し続ける。
+    const src = codeOnly(read("lib/card-sections.ts"));
+    expect(src).toContain("etymology_relatives");
+  });
+
+  it("覚え方は**すべての学習言語**で母語に引っ掛ける", () => {
+    // オーナー追記「覚え方のコツはすべての学習言語に適用して」。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("mnemonicRule(");
+    // 「記憶に残るひとことフレーズ・覚え方」の決め打ちが残っていないこと。
+    expect(src).not.toContain("記憶に残るひとことフレーズ・覚え方");
+  });
+
+  it("覚え方の指示は**母語も**受け取る(学習言語だけでは決まらない)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    // 一括生成と作り直しの両方で、母語の符号を渡していること。
+    expect(src).toContain("mnemonicRule(data.targetLanguage, l1Info.code");
+    expect(src).toContain("mnemonicRule(word.language as string | null, regenL1.code");
+  });
+});
+
+describe("節の見出しが言語で嘘をつかない", () => {
+  it("英語のカードの語源の見出しに「部首」が入らない", () => {
+    // **絵で見つけた。** 英語のカードの見出しが `語源・部首` のままだった。
+    // 中身(部首の行)は既に言語で伏せていたのに、見出しだけ残っていた。
+    const key = sectionTitleKey("etymology", "en");
+    expect(key).toBe("card.etymologyOnly");
+    for (const lang of UI_LANGS) {
+      expect(DICT[key][lang], lang).not.toContain("部首");
+      expect(DICT[key][lang].trim(), lang).not.toBe("");
+    }
+  });
+
+  it("華語のカードは今までどおり「語源・部首」", () => {
+    expect(sectionTitleKey("etymology", "zh-TW")).toBe("card.etymology");
+  });
+
+  it("ほかの節の見出しは機械的に引く(例外を増やさない)", () => {
+    for (const id of ["meaning", "example", "mnemonic"] as const) {
+      expect(sectionTitleKey(id, "en")).toBe(`card.${id}`);
+      expect(sectionTitleKey(id, "zh-TW")).toBe(`card.${id}`);
+    }
+  });
+
+  it("画面は見出しを**この関数から**引く", () => {
+    // ここを通さない呼び出しが増えると、同じ嘘が別の場所で戻る。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("t(sectionTitleKey(id, word.language))");
   });
 });

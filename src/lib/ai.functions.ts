@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { targetProfile } from "./target-profile";
 import { LEVEL_INDEXES } from "./level-scale";
@@ -393,8 +394,9 @@ ${l1Gram}
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
 - etymology: ${cardProfile.capture.etymologyRule}（${NL}）
+${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
 - radicals: ${cardProfile.capture.radicalsRule}
-- mnemonic: 記憶に残るひとことフレーズ・覚え方（${NL}）
+- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
@@ -746,7 +748,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
     // 一括生成(generateCard)と同じ観点になるようにする。
     const l1Gram = await l1Rule(userId, "wordorder");
-    const learnerL1 = (await getLearnerL1(userId)).speakerJa;
+    const regenL1 = await getLearnerL1(userId);
+    const learnerL1 = regenL1.speakerJa;
     const head = word.headword as string;
     // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
     // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
@@ -844,11 +847,17 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ pronunciation_tips: z.string().min(1) }),
       },
       etymology: {
-        prompt: `${base}\n{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","radicals":"${regenProfile.capture.radicalsRule}"}`,
-        schema: z.object({ etymology: z.string().min(1), radicals: z.string().catch("") }),
+        prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}"}`,
+        schema: z.object({
+          etymology: z.string().min(1),
+          etymology_relatives: z
+            .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
+            .catch([]),
+          radicals: z.string().catch(""),
+        }),
       },
       mnemonic: {
-        prompt: `${base}\n{"mnemonic":"記憶に残るひとことフレーズ・覚え方(${NL})"}`,
+        prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
         schema: z.object({ mnemonic: z.string().min(1) }),
       },
       taiwan_note: {
