@@ -5,6 +5,16 @@
  * 「暗いテーマに追従しないと分かっているが、直す前に場面を足す」と
  * 決めてあった箇所。まず見えるようにする。
  */
+import { readySpeech } from "../speech";
+
+/**
+ * 発音ボタンは**鳴らせるようになってから**出る(オーナー指示 2026-08-26)。
+ * 足場にはサーバが無いので、ここで支度が済んだことにしないと
+ * ボタンが1つも撮られない — 指の大きさも暗いテーマの見え方も
+ * 機械の目から丸ごと消える。
+ */
+readySpeech(["珍珠奶茶", "腳踏車", "一杯", "一張", "奶茶", "飲料"]);
+readySpeech(["umbrella", "bicycle"], "en");
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";
 import { CEFR_SCALE, TOCFL_SCALE } from "@/lib/level-scale";

@@ -640,16 +640,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Short posts people in Taiwan are writing now",
     "zh-TW": "台灣人現在正在寫的短句",
   },
-  "card.contextLabel": {
-    ja: "文の中での使われ方",
-    en: "How it sits in a sentence",
-    "zh-TW": "在句子裡怎麼用",
-  },
-  "card.contextHint": {
-    ja: "実際の文と対訳を並べて見る",
-    en: "Real sentences side by side with translations",
-    "zh-TW": "真實句子和對照翻譯並排著看",
-  },
   "card.moeLabel": {
     ja: "教育部國語辭典簡編本",
     en: "MOE Concised Mandarin Dictionary",
@@ -679,10 +669,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "How ordinary people actually write it",
     "zh-TW": "一般人實際上怎麼寫",
   },
-  "card.threadsHintEn": {
-    ja: "英語圏の人がいま書いている短い文",
-    en: "Short posts English speakers are writing now",
-    "zh-TW": "英語圈的人現在正在寫的短句",
+  // Instagram(オーナー指示 2026-08-26「Threads ではなく Instagram に」)。
+  "card.igLabel": {
+    ja: "Instagram で見る",
+    en: "See it on Instagram",
+    "zh-TW": "在 Instagram 上看",
+  },
+  "card.igHint": {
+    ja: "英語圏の人がその語に付けている投稿",
+    en: "Posts English speakers tag with it",
+    "zh-TW": "英語圈的人用這個字標記的貼文",
   },
   // **札の名前も替える。** 一言だけ替えて名前を使い回したら、英語の
   // カードに「在台灣的網站搜尋（台湾のサイトで検索）」と出た(絵で見つけた)。

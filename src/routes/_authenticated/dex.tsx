@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
-import { usePronounce } from "@/lib/use-pronounce";
+import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import {
@@ -526,7 +526,10 @@ function DexPage() {
                       </div>
                     </button>
                     {/* 発音ボタンは右側に (縦並びリスト) */}
-                    <PronounceButton text={s.word.headword} />
+                    <PronounceButton
+                      text={s.word.headword}
+                      language={s.word.language ?? undefined}
+                    />
                   </li>
                 ))}
               </ul>
@@ -646,25 +649,6 @@ export function DexNoMatch({ search, onClear }: { search: string; onClear: () =>
         {t("dex.clearSearch")}
       </button>
     </div>
-  );
-}
-
-/** Small pronunciation button — accurate server voice, device-voice fallback. */
-function PronounceButton({ text }: { text: string }) {
-  const t = useT();
-  const pronounce = usePronounce();
-  function play(e: ReactMouseEvent) {
-    e.stopPropagation();
-    void pronounce(text);
-  }
-  return (
-    <button
-      onClick={play}
-      aria-label={t("dex.playPron", { word: text })}
-      className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-    >
-      <Volume2 className="h-[18px] w-[18px]" />
-    </button>
   );
 }
 

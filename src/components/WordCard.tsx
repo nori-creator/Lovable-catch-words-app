@@ -1,6 +1,16 @@
-import { forwardRef, Fragment, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  Fragment,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { TocflLadder } from "@/components/TocflLadder";
+import { resolveWordLanguage } from "@/lib/word-language";
+import { PronounceButton } from "@/components/PronounceButton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -403,9 +413,31 @@ export const WordCard = forwardRef<
     minimal?: boolean;
   }
 >(function WordCard(
-  { word, autoplay = true, wordId, isPro = false, onPickImage, minimal = false },
+  { word: rawWord, autoplay = true, wordId, isPro = false, onPickImage, minimal = false },
   ref,
 ) {
+  /**
+   * **その語が本当は何語なのかを、見出し語の文字から正す。**
+   *
+   * オーナー報告 2026-08-26(絵つき):「英単語なのに TOCFL のレベルが
+   * 表示される」。`lamp` に TOCFL 1級・量詞・台灣筆記が並んでいた。
+   * どれも「この語は台湾華語だ」という前提から出てくるもので、原因は
+   * `words.language` に `zh-TW` が入って保存されていたこと
+   * (学習言語の写しが既定へ戻る隙間に撮ると、そうなる)。
+   *
+   * オーナーは Supabase に直接触れないので、**保存された行を書き直す
+   * 手立てが無い**。だから読む側でも正す。当て推量ではなく、
+   * 台湾華語の見出し語は漢字を含むという規則が否と言っている場合だけ
+   * 動く(`word-language.ts`)。
+   *
+   * ここで1度だけ正せば、級の目盛り・項目の並び・「実際の使われ方」の
+   * 行き先が**まとめて**正しくなる。下でそれぞれが `word.language` を
+   * 読んでいるので、入口を直すのが一番確か。
+   */
+  const word = useMemo(
+    () => ({ ...rawWord, language: resolveWordLanguage(rawWord.language, rawWord.headword) }),
+    [rawWord],
+  );
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
 
@@ -684,15 +716,18 @@ function HeaderRow({
             <h1 lang="zh-Hant" className="text-hero font-bold tracking-tight">
               {word.headword}
             </h1>
-            <button
-              onClick={play}
-              aria-label={t("card.playPron")}
-              // 40px だった。この画面でいちばん押されるボタンなので、
-              // 当たり判定を広げるのではなく**見た目ごと 44px** にする。
-              className="lift inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-            >
-              <Volume2 className="h-5 w-5" />
-            </button>
+            {/* 40px だった。この画面でいちばん押されるボタンなので、
+                当たり判定を広げるのではなく**見た目ごと 44px** にする。
+
+                **鳴らせるようになってから出る**(オーナー指摘 2026-08-26
+                「発音がでるようになってから発音ボタンを表示して」)。
+                支度中は同じ大きさの空きが立つので、出ても行がずれない。 */}
+            <PronounceButton
+              text={word.headword}
+              language={word.language ?? undefined}
+              tone="hero"
+              label={t("card.playPron")}
+            />
           </div>
           <div className="mt-1 text-body text-muted-foreground">
             {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
@@ -1464,13 +1499,11 @@ function MeasureWordRow({
         </span>
         {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
       </span>
-      <button
-        onClick={() => void pronounce(word)}
-        aria-label={t("card.pronOfWord", { word })}
-        className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-primary shadow-sm ring-1 ring-border before:absolute before:-inset-1.5 before:content-[''] active:scale-95"
-      >
-        <Volume2 className="h-3.5 w-3.5" />
-      </button>
+      {/* 関連語も**鳴らせるようになってから**出る。一覧に並ぶ物なので、
+          押しても鳴らないボタンが何個も並ぶといちばん壊れて見える。 */}
+      {/* 量詞は中国語にしか無い項目なので、既定の学習言語のままでよい
+          (`target-profile.ts` の `hasMeasureWords`)。 */}
+      <PronounceButton text={word} size="sm" tone="quiet" label={t("card.pronOfWord", { word })} />
     </>
   );
 }
@@ -1618,8 +1651,7 @@ function WebImagesBody({
  */
 function RealUsageBody({ headword, language }: { headword: string; language?: string | null }) {
   const t = useT();
-  const uiLang = useUiLang();
-  const links = realUsageLinks(headword, language, uiLang);
+  const links = realUsageLinks(headword, language);
   return (
     <ul className="grid grid-cols-1 gap-1.5">
       {links.map((l) => (

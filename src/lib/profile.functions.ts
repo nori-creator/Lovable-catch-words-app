@@ -128,22 +128,50 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     // 「1日の復習枚数が変えられない」どころか言語もテーマも保存できなく
     // なっていた(2026-08-02の指摘)。未知の列はその名前だけ落として
     // 保存し直し、残りは必ず通す。
-    for (let i = 0; i < 4 && error; i++) {
-      const missing = /column "?([a-z_]+)"? .*(does not exist|schema cache)/i.exec(error.message);
-      const key = missing?.[1] ?? unknownColumnFrom(error.message, Object.keys(payload));
+    const skipped: string[] = [];
+    for (let i = 0; i < 6 && error; i++) {
+      const key = offendingColumn(error.message, Object.keys(payload));
       if (!key || !(key in payload)) break;
       delete payload[key];
-      console.warn(`[profile] column "${key}" not in the database yet — saving without it`);
-      if (Object.keys(payload).length === 0) return { ok: true, skipped: [key] };
+      skipped.push(key);
+      console.warn(`[profile] column "${key}" rejected the value — saving without it`);
+      if (Object.keys(payload).length === 0) return { ok: true, skipped };
       ({ error } = await save(payload));
     }
     if (error) throw new Error(error.message);
-    return { ok: true };
+    // **何が落ちたかを返す。** 黙って一部だけ保存すると、
+    // 「保存しました」と言われた設定が次に開いたとき戻っている。
+    return skipped.length > 0 ? { ok: true, skipped } : { ok: true };
   });
 
-/** PostgREST の文言ゆらぎ対策: 送ったキー名がメッセージに出ていれば拾う。 */
-function unknownColumnFrom(message: string, keys: string[]): string | null {
-  if (!/does not exist|schema cache|unknown column/i.test(message)) return null;
+/**
+ * 落ちた原因の列を1つ見つける。
+ *
+ * ## 「まだ無い列」だけでは足りない(オーナー報告 2026-08-26)
+ * > 「学習言語を英語、表示言語を台湾華語にすると、設定のページを触ると
+ * >  勝手に学習言語が台湾華語、表示言語が日本語に戻る」
+ *
+ * ここは**列がまだ無いとき**しか拾っていなかった。ところが設定は1回の
+ * UPDATE でまとめて送るので、**検査制約(check constraint)に引っかかる列が
+ * 1つ混ざっているだけで、言語もレベルもまとめて保存されない**。
+ * 画面には「保存できませんでした」と出るが、選んだ値は画面に残るので
+ * 保存できたように見え、次に開いたとき既定へ戻る。
+ *
+ * だから「無い列」だけでなく**値を撥ねた列**も同じように外して通す。
+ * 外した列は呼ぶ側に返すので、黙って一部だけ保存したことにはならない。
+ */
+function offendingColumn(message: string, keys: string[]): string | null {
+  const m = /column "?([a-z_]+)"? .*(does not exist|schema cache)/i.exec(message);
+  if (m?.[1]) return m[1];
+  // 検査制約は `profiles_ui_language_check` のような名前で出る。
+  const c = /constraint "?([a-z_]+)"?/i.exec(message);
+  if (c?.[1]) {
+    const hit = keys.find((k) => c[1].includes(k));
+    if (hit) return hit;
+  }
+  if (!/does not exist|schema cache|unknown column|violates|invalid input value/i.test(message)) {
+    return null;
+  }
   return keys.find((k) => message.includes(k)) ?? null;
 }
 

@@ -11,8 +11,16 @@
  * 訳が長い / 使い分けが無い / 語が長い。
  */
 import { WordCandidateRow } from "@/components/WordCandidateRow";
+import { readySpeech } from "../speech";
+
+/**
+ * 発音ボタンは**鳴らせるようになってから**出る。足場にはサーバが無いので、
+ * ここで支度が済んだことにしないと**ボタンが1つも撮られない**。
+ */
+const WORDS = ["面紙", "雞肉", "遙控器", "珍珠奶茶"];
 
 export function WordCandidateScene() {
+  readySpeech(WORDS);
   return (
     <ul className="space-y-2">
       <li>
@@ -23,7 +31,6 @@ export function WordCandidateScene() {
           meaning="ティッシュ"
           distinction="持ち歩く箱・ポケット"
           onPick={() => {}}
-          onPronounce={() => {}}
         />
       </li>
       <li>
@@ -36,7 +43,6 @@ export function WordCandidateScene() {
           pinyin="jī ròu"
           meaning="鶏肉"
           onPick={() => {}}
-          onPronounce={() => {}}
         />
       </li>
       <li>
@@ -49,7 +55,6 @@ export function WordCandidateScene() {
           meaning="エアコンやテレビのリモコン(手に持つ操作器)"
           distinction="家電を離れて操作する方"
           onPick={() => {}}
-          onPronounce={() => {}}
         />
       </li>
       <li>
@@ -60,7 +65,6 @@ export function WordCandidateScene() {
           pinyin="zhēn zhū nǎi chá"
           meaning="タピオカミルクティー"
           onPick={() => {}}
-          onPronounce={() => {}}
         />
       </li>
     </ul>

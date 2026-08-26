@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { wordLanguageFilter } from "@/lib/language-filter";
+import { matchesTargetLanguage, wordLanguageFilter } from "@/lib/language-filter";
 import { getUserTargetLanguage } from "@/lib/ai-provider.server";
 import { batchEndKind } from "@/lib/review-batch";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
@@ -351,7 +351,22 @@ export const getDueReviews = createServerFn({ method: "GET" })
         } | null;
       } | null;
     };
-    const rows = ((data ?? []) as unknown as DueRow[]).filter((r) => r.stickers?.words);
+    /**
+     * **学習言語の語だけを残す**(オーナー報告 2026-08-26)。
+     * > 「復習の記憶の状態が他の学習言語と混ざってるから、ほかの言語の
+     * >  ものは表示しないで」
+     *
+     * 絞りは問い合わせの側でも掛けているが、列がまだ無い環境では
+     * **絞りごと外して**投げ直している(上の `runDue(false)`)。
+     * そこを通ると混ざったまま画面へ出ていた — 「空になるより混ざる
+     * ほうがまし」と書いてあったが、オーナーが見たのは**まさにその混ざり**。
+     *
+     * 手元に来た行なら言語で選り分けられるので、ここで最後にもう一度通す。
+     * 判定は `language-filter.ts` の1つだけを使う(問い合わせ側と同じ規則)。
+     */
+    const rows = ((data ?? []) as unknown as DueRow[])
+      .filter((r) => r.stickers?.words)
+      .filter((r) => matchesTargetLanguage(r.stickers?.words?.language, targetLanguage));
 
     // 名指しの1枚を先頭へ。
     // 既に今日の列に居るなら**動かすだけ**(二重に出さない)。
@@ -443,19 +458,47 @@ export const getDueReviews = createServerFn({ method: "GET" })
       const lvl = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const pivot = crypto.randomUUID();
-      const { data: dictRows } = await supabaseAdmin
+      /**
+       * **誤答は学習言語の語から作る**(オーナー報告 2026-08-26)。
+       * > 「4択の選択に英単語の4択なのに、学習言語、台湾華語のものが
+       * >  混ざってる。学習言語の単語だけを表示して」
+       *
+       * ここは `DEFAULT_TARGET_LANGUAGE` と `tocfl_level` に決め打たれて
+       * いた。英語を学んでいる人の4択に、**中国語の語が3つ並ぶ**。
+       *
+       * 級の列も言語で違う: `tocfl_level` は名前のとおり台湾華語の列で、
+       * 英語の行には入らない(`admin.functions.ts` の注)。言語中立の
+       * `level_step` を見て、**級が付いていない語(級外)も混ぜる** —
+       * 英語の辞書は級外のほうが多いので、外すと誤答が作れない。
+       */
+      const readingCols =
+        targetLanguage === DEFAULT_TARGET_LANGUAGE
+          ? "headword, zhuyin, pinyin"
+          : "headword, reading_primary, reading_alt";
+      const pool = supabaseAdmin
         .from("dictionary_entries")
-        .select("headword, zhuyin, pinyin")
-        .eq("language", DEFAULT_TARGET_LANGUAGE)
-        .lte("tocfl_level", lvl)
+        .select(readingCols)
+        .eq("language", targetLanguage)
         .gte("id", pivot)
         .limit(40);
-      const dicts = (dictRows ?? []) as Array<{
+      const { data: dictRows } =
+        targetLanguage === DEFAULT_TARGET_LANGUAGE
+          ? await pool.lte("tocfl_level", lvl)
+          : await pool.or(`level_step.lte.${lvl},level_step.is.null`);
+      const dicts = (dictRows ?? []) as unknown as Array<{
         headword: string;
-        zhuyin: string | null;
-        pinyin: string | null;
+        zhuyin?: string | null;
+        pinyin?: string | null;
+        reading_primary?: string | null;
+        reading_alt?: string | null;
       }>;
-      for (const d of dicts) readingByHead.set(d.headword, { zhuyin: d.zhuyin, pinyin: d.pinyin });
+      // 読みの列名も言語で違う。**新しい列を先に見る**(`dictionary-entry.ts`)。
+      for (const d of dicts) {
+        readingByHead.set(d.headword, {
+          zhuyin: d.reading_primary ?? d.zhuyin ?? null,
+          pinyin: d.reading_alt ?? d.pinyin ?? null,
+        });
+      }
       dictPool = shuffle(dicts.map((d) => d.headword));
     } catch {
       /* dictionary pool is optional */

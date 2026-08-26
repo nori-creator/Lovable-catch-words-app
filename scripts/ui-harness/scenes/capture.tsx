@@ -8,6 +8,11 @@
  * 映像の上に**載る操作**(前後の切替・倍率)は `scan.tsx` 側で部品にして、
  * 同じ寸法の暗い面を敷いて撮っている(`scan.tsx` の場面)。
  */
+import { readySpeech } from "../speech";
+
+/** 候補の発音ボタンを撮るために、支度が済んだことにする(上の注と同じ)。 */
+readySpeech(["衛生紙", "面紙", "濕紙巾", "捲筒紙", "珍珠奶茶"]);
+
 import { useRef, useState } from "react";
 import type { RecordedNote } from "@/components/VoiceCaptionButton";
 import {
@@ -68,6 +73,7 @@ export function CapturePickScene() {
   ];
   return (
     <PickWordPanel
+      targetLanguage="zh-TW"
       objectImg={shot(400, 400, "#8a7f6a")}
       suggestions={suggestions}
       manualWord={manual}

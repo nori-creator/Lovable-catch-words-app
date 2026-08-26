@@ -656,7 +656,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                       // 「速い」ではこれで先に画面を出す(要望 #19)。
                       void buildCard(c.headword, c);
                     }}
-                    onPronounce={() => void pronounce(c.headword)}
+                    language={targetLanguage}
                   />
                 </li>
               ))}
