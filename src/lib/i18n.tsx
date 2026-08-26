@@ -2050,6 +2050,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…", "zh-TW": "AI 去背中…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment", "zh-TW": "再等一下下喔" },
   "common.cancel": { ja: "キャンセル", en: "Cancel", "zh-TW": "取消" },
+  // 見出し語を直す(オーナー指示 2026-08-26「単語のカードの見出しの単語自体を
+  // 変更できるようにして」)。AI が別の語を当てたときに、その場で直せる。
+  "card.editHead": { ja: "単語を直す", en: "Edit the word", "zh-TW": "修改單字" },
+  "card.editHeadSave": { ja: "直す", en: "Save", "zh-TW": "儲存" },
+  "card.editHeadDone": { ja: "単語を直しました", en: "Word updated", "zh-TW": "已修改單字" },
+  "card.editHeadNotTarget": {
+    ja: "学習している言語の単語を入れてください",
+    en: "Enter a word in the language you are learning",
+    "zh-TW": "請輸入你正在學的語言的單字",
+  },
   "common.retry": { ja: "もう一度", en: "Retry", "zh-TW": "再一次" },
   // --- word card (extra) ---
   "card.generate": { ja: "作る", en: "Generate", "zh-TW": "產生" },

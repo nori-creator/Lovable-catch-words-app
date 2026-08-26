@@ -23,6 +23,7 @@ import {
   Flag,
   RefreshCw,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
@@ -475,13 +476,30 @@ export const WordCard = forwardRef<
     /** ネット画像を「この画像にする」で選んだとき(カードの写真に採用)。 */
     onPickImage?: (url: string) => void | Promise<void>;
     /**
+     * 見出し語を直す（オーナー指示 2026-08-26「単語のカードの見出しの
+     * 単語自体を変更できるようにして」）。
+     *
+     * **ここでは保存しない。** カードは描くだけの部品で、通信を持つと
+     * 検査の雛形から描けなくなる（`onPickImage` と同じ形）。
+     * 渡されない画面では鉛筆そのものを出さない。
+     */
+    onEditHeadword?: (next: string) => void | Promise<void>;
+    /**
      * 撮った直後の面。**意味と発音だけを出す**(オーナー指摘 2026-08-21)。
      * 図鑑の詳細では使わない — そちらは全部出るのが正しい。
      */
     minimal?: boolean;
   }
 >(function WordCard(
-  { word: rawWord, autoplay = true, wordId, isPro = false, onPickImage, minimal = false },
+  {
+    word: rawWord,
+    autoplay = true,
+    wordId,
+    isPro = false,
+    onPickImage,
+    onEditHeadword,
+    minimal = false,
+  },
   ref,
 ) {
   /**
@@ -604,7 +622,12 @@ export const WordCard = forwardRef<
 
   return (
     <div className="space-y-3">
-      <HeaderRow word={word} autoplay={autoplay} minimal={minimal} />
+      <HeaderRow
+        word={word}
+        autoplay={autoplay}
+        minimal={minimal}
+        onEditHeadword={onEditHeadword}
+      />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
       <div className="grid gap-3">
         {shown.map((id) => (
@@ -764,9 +787,11 @@ function HeaderRow({
   word,
   autoplay,
   minimal = false,
+  onEditHeadword,
 }: {
   word: WordCardData;
   autoplay: boolean;
+  onEditHeadword?: (next: string) => void | Promise<void>;
   /**
    * 撮った直後。**級の段々も品詞も出さない** — オーナー指示
    * 「母語での訳と発音、感想の入力以外の項目は表示しないで」。
@@ -780,6 +805,31 @@ function HeaderRow({
   // **その語の言語で読む。** 渡さないと台湾華語として合成されるので、
   // 英語の語が中国語の声で読まれ、しかもその音は保存される。
   const pronounce = usePronounce(word.language ?? undefined);
+  /**
+   * 見出し語を直している最中か（オーナー指示 2026-08-26）。
+   *
+   * **見出しの場所でそのまま直す。** 別の面を開くと、直す前と後を
+   * 見比べられない — 直したいのは「この字が違う」という一点なので、
+   * その字が見えている所で書き換えるのが素直。
+   */
+  const [editingHead, setEditingHead] = useState(false);
+  const [headDraft, setHeadDraft] = useState(word.headword);
+  const [savingHead, setSavingHead] = useState(false);
+  async function saveHead() {
+    const next = headDraft.trim();
+    // 空と「変わっていない」は**同じ扱い**。どちらも直す用事が無い。
+    if (!next || next === word.headword) {
+      setEditingHead(false);
+      return;
+    }
+    setSavingHead(true);
+    try {
+      await onEditHeadword?.(next);
+      setEditingHead(false);
+    } finally {
+      setSavingHead(false);
+    }
+  }
 
   // その言語の声(サーバ合成)で読む。端末の声は控え。
   function play() {
@@ -805,21 +855,62 @@ function HeaderRow({
           <div className="flex items-baseline gap-3">
             {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
                 決め打ちだと、英語の見出し語に中国語のフォントが当たる。 */}
-            <Term as="h1" lang={word.language} className="text-hero font-bold tracking-tight">
-              {word.headword}
-            </Term>
+            {editingHead ? (
+              <input
+                value={headDraft}
+                onChange={(e) => setHeadDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveHead();
+                  if (e.key === "Escape") setEditingHead(false);
+                }}
+                autoFocus
+                disabled={savingHead}
+                aria-label={t("card.editHead")}
+                lang={targetProfile(word.language).scriptLang}
+                className="min-w-0 flex-1 rounded-xl border border-primary bg-background px-2 py-1 text-hero font-bold tracking-tight outline-none"
+              />
+            ) : (
+              <Term as="h1" lang={word.language} className="text-hero font-bold tracking-tight">
+                {word.headword}
+              </Term>
+            )}
             {/* 40px だった。この画面でいちばん押されるボタンなので、
                 当たり判定を広げるのではなく**見た目ごと 44px** にする。
 
                 **鳴らせるようになってから出る**(オーナー指摘 2026-08-26
                 「発音がでるようになってから発音ボタンを表示して」)。
                 支度中は同じ大きさの空きが立つので、出ても行がずれない。 */}
-            <PronounceButton
-              text={word.headword}
-              language={word.language ?? undefined}
-              tone="hero"
-              label={t("card.playPron")}
-            />
+            {editingHead ? (
+              <button
+                onClick={() => void saveHead()}
+                disabled={savingHead}
+                className="lift-soft inline-flex h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {t("card.editHeadSave")}
+              </button>
+            ) : (
+              <PronounceButton
+                text={word.headword}
+                language={word.language ?? undefined}
+                tone="hero"
+                label={t("card.playPron")}
+              />
+            )}
+            {/* **鉛筆は渡された画面にだけ出す。** 直す口を持たない画面
+                （撮った直後の面など）で出しても、押して何も起きない。 */}
+            {!minimal && onEditHeadword && !editingHead && (
+              <button
+                onClick={() => {
+                  setHeadDraft(word.headword);
+                  setEditingHead(true);
+                }}
+                aria-label={t("card.editHead")}
+                title={t("card.editHead")}
+                className="lift-soft inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="mt-1 text-body text-muted-foreground">
             {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の

@@ -25,6 +25,7 @@ import {
   deleteSticker,
   replaceStickerPhoto,
   setStickerHeroRole,
+  setStickerHeadword,
   attachStickerCutout,
   attachStickerSelfie,
 } from "@/lib/stickers.functions";
@@ -79,6 +80,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const deleteFn = useServerFn(deleteSticker);
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const setHeroRoleFn = useServerFn(setStickerHeroRole);
+  const setHeadwordFn = useServerFn(setStickerHeadword);
   const attachCutoutFn = useServerFn(attachStickerCutout);
   const attachSelfieFn = useServerFn(attachStickerSelfie);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -180,6 +182,32 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
 
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
+  /**
+   * 見出し語を直す（オーナー指示 2026-08-26「単語のカードの見出しの
+   * 単語自体を変更できるようにして」）。
+   *
+   * **`words` の行は書き換えない。** あの行は `(language, headword)` で
+   * 全ユーザー共有なので、直すのは「この札がどの語を指すか」だけ
+   * （`setStickerHeadword` の注）。
+   */
+  async function editHeadword(next: string) {
+    if (!stickerId) return;
+    try {
+      await setHeadwordFn({ data: { sticker_id: stickerId, headword: next } });
+      // 札も図鑑もホームも、この語を持っているので全部読み直す。
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      void qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success(t("card.editHeadDone"));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      // 母語のまま入れられた回。**何を入れればいいかを言う。**
+      toast.error(
+        msg === "NOT_TARGET_LANGUAGE" ? t("card.editHeadNotTarget") : msg || t("card.photoFailed"),
+      );
+      throw e;
+    }
+  }
+
   async function applyWebImage(url: string) {
     if (!stickerId) return;
     // **必ず訊く。**
@@ -775,6 +803,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
             swapping={swapping}
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
+            editHeadword={editHeadword}
             photos={photoData?.photos ?? []}
           />
         )}
@@ -854,6 +883,7 @@ export function StickerSheetBody({
   swapping,
   swapWebImage,
   applyWebImage,
+  editHeadword,
   photos,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
@@ -903,6 +933,8 @@ export function StickerSheetBody({
    * この単語をこれまでに撮った写真。
    * 2枚未満なら `StickerPhotoHistory` 自身が何も描かないので、ここでは分岐しない。
    */
+  /** 見出し語を直す（渡されない画面では鉛筆が出ない）。 */
+  editHeadword?: (next: string) => Promise<void>;
   photos: StickerPhoto[];
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
 }) {
@@ -1187,6 +1219,7 @@ export function StickerSheetBody({
         wordId={s.word_id}
         isPro={isPro}
         onPickImage={applyWebImage}
+        onEditHeadword={editHeadword}
       />
 
       {enriching && (

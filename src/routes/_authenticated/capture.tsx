@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { suggestWords, generateCard } from "@/lib/ai.functions";
+import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
+import { isTargetHeadword } from "@/lib/target-language";
 import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
@@ -97,6 +98,15 @@ type Suggestion = {
 };
 
 type CardData = {
+  /**
+   * 生成側が決めた**学習言語の見出し語**。
+   *
+   * 打った語が母語でも、`generateCard` はここに学習言語の語を入れて返す
+   * （`ai.functions.ts` の `resolvedHead`）。画面はこれを**見ていなかった**
+   * ので、日本語で打つと見出しだけ日本語のまま残っていた
+   * （オーナー報告 2026-08-26、絵つき）。
+   */
+  headword_zh?: string;
   reading_zhuyin: string;
   pinyin: string;
   meaning_ja: string;
@@ -170,6 +180,8 @@ function CapturePage() {
    * 「英語のカードを作ったのに台湾華語として保存する」が起きる。
    */
   const targetLanguage = useTargetLang();
+  /** 打った語を学習言語の語へ直す口(`searchWord` の注)。 */
+  const candidatesFn = useServerFn(suggestWordCandidates);
   // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
   const dateLocale = localeOf(useUiLang());
   const pronounce = usePronounce();
@@ -436,6 +448,106 @@ function CapturePage() {
     }
   }
 
+  /**
+   * **打った語を、学習言語の語に直してから進む。**
+   *
+   * オーナー報告 2026-08-26（絵つき）:
+   * > 「文字入力、学習言語台湾華語なのに、日本語で入力したら、日本語の単語が
+   * >  出てくる。文字入力は日本語、英語、台湾華語すべての言語で入力を可能に
+   * >  して（学習言語でなんというか分からないときのために）。ただし単語の
+   * >  カードの見出しは必ずユーザーが設定してる学習言語だけを表示して。」
+   *
+   * 届いた絵では見出しが「駅の改札」のまま、読みが `ㄧㄢˋ ㄆㄧㄠˋ ㄓㄚˊ ㄇㄣˊ`
+   * （驗票閘門）だった。**読みと意味は正しく引けていて、見出しだけが
+   * 打った日本語のまま**残っていた。
+   *
+   * ## なぜそうなったか（私が壊した）
+   * 2026-08-26 に「輸入捕捉の頁を消して、この画面のまま検索する」直しを
+   * 入れたとき、打った語をそのまま `confirmWord` へ渡した。消した頁の側には
+   * **母語 → 学習言語の解決**（`suggestWordCandidates`）が入っていて、
+   * その一手だけが道連れになっていた。
+   *
+   * ## 打つ言語は選ばせない
+   * 学習言語で何と言うか分からないから打つので、**日本語でも英語でも
+   * 台湾華語でも受ける**。学習言語の語でそのまま打たれたときだけ、
+   * 解決を挟まずに進む（速い道はそのまま）。
+   */
+  async function searchWord(raw: string) {
+    const word = raw.trim();
+    if (!word) return;
+    setError(null);
+    // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
+    if (isTargetHeadword(word, targetLanguage)) {
+      void confirmWord(word, undefined, { skipImagePick: true });
+      return;
+    }
+    setWaitKind("analyze");
+    setStep("processing");
+    try {
+      const { candidates } = await candidatesFn({
+        data: { query: word, targetLanguage: targetLanguage },
+      });
+      const usable = candidates.filter((c) => isTargetHeadword(c.headword, targetLanguage));
+      if (usable.length === 0) {
+        // **打った語のままカードを作らない。** 見出しが母語のまま残る
+        // （それが報告の絵）。何が起きたかを言って、書き直してもらう。
+        setError(t("input.notTargetLang"));
+        setStep("object");
+        return;
+      }
+      if (usable.length === 1) {
+        const c = usable[0];
+        void confirmWord(
+          c.headword,
+          {
+            headword: c.headword,
+            reading_zhuyin: c.reading_zhuyin,
+            pinyin: c.pinyin,
+            meaning_ja: c.meaning_ja,
+            distinction: c.distinction,
+            category_key: "other",
+          },
+          { skipImagePick: true },
+        );
+        return;
+      }
+      // **複数あるなら選ばせる。** 母語の1語が学習言語では別々の語に割れる
+      // ことが多く、こちらで1つに決めると別の語を覚えることになる。
+      setSuggestions(
+        usable.map((c) => ({
+          headword: c.headword,
+          reading_zhuyin: c.reading_zhuyin,
+          pinyin: c.pinyin,
+          meaning_ja: c.meaning_ja,
+          distinction: c.distinction,
+          category_key: "other",
+        })),
+      );
+      setStep("select");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("input.notTargetLang"));
+      setStep("object");
+    }
+  }
+
+  /**
+   * **生成が返した学習言語の見出し語を採る。最後の砦。**
+   *
+   * `searchWord` が先に直しているので、ここへ来るのは
+   * 「解決を通らずに母語のまま入った」回だけ。それでも置く理由は、
+   * 見出しが母語のまま保存されると**その語が図鑑に母語で残る**から
+   * （オーナー報告の絵）。保存は `selectedHead` を見るので、
+   * ここで載せ替えれば行にも正しい語が入る。
+   *
+   * 学習言語の語として通らない値は採らない（AI が空や説明文を返した回に、
+   * それを見出しにしてしまわない）。
+   */
+  function adoptResolvedHead(c: CardData) {
+    const resolved = c.headword_zh?.trim();
+    if (!resolved || !isTargetHeadword(resolved, targetLanguage)) return;
+    setSelectedHead((prev) => (prev === resolved ? prev : resolved));
+  }
+
   async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
     const token = ++runTokenRef.current;
     setSelectedHead(head);
@@ -506,7 +618,9 @@ function CapturePage() {
           },
         })
           .then((c) => {
-            if (runTokenRef.current === token) setCard(c);
+            if (runTokenRef.current !== token) return;
+            setCard(c);
+            adoptResolvedHead(c);
           })
           .catch(() => {});
       } else {
@@ -515,6 +629,7 @@ function CapturePage() {
         });
         if (runTokenRef.current !== token) return;
         setCard(c);
+        adoptResolvedHead(c);
       }
       // **カードは待たずに出す。** 切り抜きが間に合えば、あとから絵が
       // 差し替わる(「ポン」と現れる返事はそのまま残る)。
@@ -814,7 +929,7 @@ function CapturePage() {
            * 通るので、候補も学習言語で出る(前は別の面が開いて、その面が
            * 台湾華語の決め打ちで引いていた)。
            */
-          onSearch={(w) => void confirmWord(w, undefined, { skipImagePick: true })}
+          onSearch={(w) => void searchWord(w)}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
@@ -888,7 +1003,9 @@ function CapturePage() {
           manualWord={manualWord}
           setManualWord={setManualWord}
           onPick={(s) => confirmWord(s.headword, s, { skipImagePick: true })}
-          onManual={() => confirmWord(manualWord.trim(), undefined, { skipImagePick: true })}
+          // **ここも学習言語へ直してから進む**(`searchWord` の注)。
+          // 写真の候補に無い語を手で打つ所なので、母語で書かれることが多い。
+          onManual={() => void searchWord(manualWord)}
         />
       )}
 

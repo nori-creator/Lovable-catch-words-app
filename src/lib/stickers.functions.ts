@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
+import { isTargetHeadword } from "./target-language";
 import { wordLanguageFilter, matchesTargetLanguage } from "./language-filter";
 import { getUserTargetLanguage } from "./ai-provider.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -1235,6 +1236,89 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
  *
  * `null` を渡すと外す(撮り直しの前に消したいとき)。
  */
+/**
+ * **その札の見出し語を直す**（オーナー指示 2026-08-26
+ * 「単語のカードの見出しの単語自体を変更できるようにして」）。
+ *
+ * ## `words` の行を書き換えない
+ * `words` は `(language, headword)` で**全ユーザー共有**の1行なので、
+ * そこを書き換えると、同じ語を持っている他の人のカードまで変わる。
+ * 直すのは**この札がどの語を指すか**（`stickers.word_id`）だけ。
+ * 新しい見出し語の行は、無ければ作る（`upsertWord` と同じ道）。
+ *
+ * ## 学習言語の語しか受けない
+ * ここで母語を通すと、直したはずの見出しがまた母語になる
+ * （報告の絵と同じ姿）。判定は `target-language.ts` ただ1つ。
+ *
+ * ## 中身は作り直さない
+ * 意味も例文も、新しい語のものが要る。**ここでは作らない** —
+ * 空の行として作って、裏の生成（`auto-fill.ts`）に任せる。
+ * 待たせずに直せることのほうが値打ちが大きい。
+ */
+export const setStickerHeadword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sticker_id: z.string().uuid(),
+        headword: z.string().min(1).max(60),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<{ word_id: string; headword: string }> => {
+    const { supabase, userId } = context;
+    const headword = data.headword.trim();
+
+    // その札と、いまの語（言語を知るために要る）。**自分の札だけ。**
+    const { data: row, error: readErr } = await supabase
+      .from("stickers")
+      .select("id, word_id, words(language, headword)")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!row) throw new Error("札が見つかりません");
+
+    const current = (row as { words?: { language?: string | null; headword?: string } | null })
+      .words;
+    const language = normalizeTargetLanguage(current?.language);
+    if (!isTargetHeadword(headword, language)) {
+      // **母語のまま通さない。** 通すと、直したはずの見出しがまた母語になる。
+      throw new Error("NOT_TARGET_LANGUAGE");
+    }
+    // 同じ語なら何もしない（押し間違いで行を増やさない）。
+    if (current?.headword === headword) {
+      return { word_id: row.word_id as string, headword };
+    }
+
+    const wordId = await upsertWord(
+      supabase,
+      userId,
+      {
+        headword,
+        reading_zhuyin: "",
+        pinyin: "",
+        // **空で作る。** 中身は裏の生成が埋める（上の注）。
+        meaning_ja: "",
+        part_of_speech: "",
+        level: "",
+        category_key: "other",
+        example_sentence: "",
+        example_translation: "",
+        extras: {},
+      } as WordUpsertInput,
+      language,
+    );
+
+    const { error } = await supabase
+      .from("stickers")
+      .update({ word_id: wordId } as never)
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { word_id: wordId, headword };
+  });
+
 export const setStickerVoiceVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
