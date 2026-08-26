@@ -223,7 +223,6 @@ const MODES = [
   ["failed-named", "", false, { scene: "load-failed", variant: "named" }],
   ...crossThemes("chunks", { scene: "chunks" }),
   ...crossThemes("curve", { scene: "curve" }),
-  ...crossThemes("pron", { scene: "pronunciation" }),
   ...crossThemes("detail-ai", { scene: "scan-detail" }),
   ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
   // **出来上がった側**。今まで骨組みしか撮っていなかったので、

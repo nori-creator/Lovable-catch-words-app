@@ -36,6 +36,7 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
 import { refineUsageChunks } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { Term } from "@/components/Term";
 import { realUsageLinks } from "@/lib/real-usage-links";
 import { targetProfile } from "@/lib/target-profile";
 import {
@@ -802,9 +803,11 @@ function HeaderRow({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
-            <h1 lang="zh-Hant" className="text-hero font-bold tracking-tight">
+            {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
+                決め打ちだと、英語の見出し語に中国語のフォントが当たる。 */}
+            <Term as="h1" lang={word.language} className="text-hero font-bold tracking-tight">
               {word.headword}
-            </h1>
+            </Term>
             {/* 40px だった。この画面でいちばん押されるボタンなので、
                 当たり判定を広げるのではなく**見た目ごと 44px** にする。
 
@@ -1128,16 +1131,19 @@ export function RegisterMeter({
 function MarkedSentence({
   text,
   term,
+  lang,
   className = "",
 }: {
   text: string | null | undefined;
   term: string;
+  /** その文の学習言語。**渡さないと台湾華語として組む**(既定)。 */
+  lang?: string | null;
   className?: string;
 }) {
   const spans = splitAroundTerm(text, term);
   if (spans.length === 0) return null;
   return (
-    <p lang="zh-Hant" className={className}>
+    <Term as="p" lang={lang} className={className}>
       {spans.map((s, i) =>
         s.hit ? (
           <span
@@ -1156,7 +1162,7 @@ function MarkedSentence({
           <span key={i}>{s.text}</span>
         ),
       )}
-    </p>
+    </Term>
   );
 }
 
@@ -1220,7 +1226,12 @@ function Body({
       if (!looksLikeTargetLanguage(word.example_sentence, word.language)) return null;
       return (
         <div className="space-y-1">
-          <MarkedSentence text={word.example_sentence} term={word.headword} className="text-body" />
+          <MarkedSentence
+            text={word.example_sentence}
+            term={word.headword}
+            lang={word.language}
+            className="text-body"
+          />
           <p className="text-footnote text-muted-foreground">{word.example_translation}</p>
         </div>
       );
@@ -1246,7 +1257,12 @@ function Body({
               {e.scene && (
                 <p className="mb-1 text-caption font-medium text-muted-foreground">🎬 {e.scene}</p>
               )}
-              <MarkedSentence text={e.zh} term={word.headword} className="text-body" />
+              <MarkedSentence
+                text={e.zh}
+                term={word.headword}
+                lang={word.language}
+                className="text-body"
+              />
               <p className="text-caption text-muted-foreground">{e.ja}</p>
             </li>
           ))}
@@ -1268,7 +1284,7 @@ function Body({
           <div className="space-y-2">
             {chunks.map((c, i) => (
               <div key={i} className="rounded-xl bg-secondary p-2.5">
-                <ChunkPills parts={c.parts} size="sm" />
+                <ChunkPills parts={c.parts} size="sm" lang={word.language} />
                 {c.ja && <p className="mt-1 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}

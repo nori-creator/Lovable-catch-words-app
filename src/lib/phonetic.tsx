@@ -223,6 +223,27 @@ export function pickReading(
 }
 
 /**
+ * **その学習言語で出してよい読みの文字列**を返す。
+ *
+ * オーナー報告 2026-08-26:
+ * > 「学習言語英語、母語台湾華語のとき、注音やピンインを決して表示しないで。
+ * >  単語の詳細や単語の候補、文字入力の候補などを含むアプリ全体で。」
+ *
+ * `Reading` は要素を描くが、**文字列だけ**が要る所もある（キャッチの演出の
+ * ように、字を絵として飛ばす層）。そこで `pickReading` を直に呼ぶと
+ * 台湾華語のプロフィールで決め打ちになる（それが報告の中身）。
+ * 文字列が要る所はここを通す。
+ */
+export function useReadingText(
+  lang: string | null | undefined,
+  readings: Partial<Record<ReadingKind, string | null | undefined>>,
+): string {
+  const profile = targetProfile(lang);
+  const pref = useReadingPref(profile);
+  return pickReadingOf(profile, pref, readings);
+}
+
+/**
  * 選択された表記だけを描画する読みテキスト。
  *
  * 注音(ㄅㄆㄇ)は繁体字フォントにしか入っていない。日本語フォントに落ちると

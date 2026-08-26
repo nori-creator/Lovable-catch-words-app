@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
+import { Reading, useReadingText } from "@/lib/phonetic";
+import { Term } from "@/components/Term";
 import { targetProfile } from "@/lib/target-profile";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -81,6 +83,15 @@ export function ScanCatchSheet({
   const t = useT();
   /** いま撮った物を何語として保存するか（設定の学習言語）。 */
   const targetLanguage = useTargetLang();
+  /**
+   * キャッチの演出に載せる読み。**字を絵として飛ばす層**なので文字列で要る。
+   * `zhuyin` を素で渡していたので、英語の語にも注音が飛んでいた
+   * (オーナー報告 2026-08-26)。学習言語に在る表記だけを返す。
+   */
+  const landingReading = useReadingText(targetLanguage, {
+    zhuyin: dict?.zhuyin || item.zhuyin,
+    pinyin: dict?.pinyin || item.pinyin,
+  });
   // 仮置きの品詞は**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
   const profile = targetProfile(targetLanguage);
   /**
@@ -439,9 +450,11 @@ export function ScanCatchSheet({
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
           <div className="flex items-baseline gap-2">
-            <h2 lang="zh-Hant" className="text-title font-bold tracking-tight">
+            {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
+                決め打ちだと、英語の見出し語に中国語のフォントが当たる。 */}
+            <Term as="h2" lang={targetLanguage} className="text-title font-bold tracking-tight">
               {headword}
-            </h2>
+            </Term>
             {/* **辞書に行があること = 確認済み、ではない。**
                 `lookupHeadwords` は AI が作った未検証の行も返すので、
                 直前のスキャン画面で「AI・未検証」と黄色く出ていた語が、
@@ -458,12 +471,16 @@ export function ScanCatchSheet({
               </span>
             )}
           </div>
-          <p lang="zh-Hant" className="mt-0.5 text-footnote text-muted-foreground">
-            {dict?.zhuyin || item.zhuyin}
-            {(dict?.pinyin || item.pinyin) && (
-              <span className="ml-2">{dict?.pinyin || item.pinyin}</span>
-            )}
-          </p>
+          {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26
+              「学習言語英語のとき、注音やピンインを決して表示しないで」)。
+              ここは注音と拼音を**両方とも直に**描いていたので、英語の語にも
+              中国語の読みが並んでいた。 */}
+          <Reading
+            lang={targetLanguage}
+            zhuyin={dict?.zhuyin || item.zhuyin}
+            pinyin={dict?.pinyin || item.pinyin}
+            className="mt-0.5 block text-footnote text-muted-foreground"
+          />
           <p className="mt-2 text-body font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">
@@ -558,7 +575,8 @@ export function ScanCatchSheet({
           ref={flyRef}
           image={cutoutUrl ?? objectDataUrl}
           headword={headword}
-          reading={dict?.zhuyin || item.zhuyin}
+          lang={targetLanguage}
+          reading={landingReading}
         />
       )}
 

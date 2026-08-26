@@ -35,6 +35,8 @@ import { putCachedImage } from "@/lib/image-cache";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
+import { Term } from "@/components/Term";
+import { Reading, useReadingText } from "@/lib/phonetic";
 import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
@@ -193,6 +195,15 @@ function CapturePage() {
   // カメラの画面に**直接**置く検索の欄(オーナー指示 2026-08-26)。
   const [typedWord, setTypedWord] = useState("");
   const [card, setCard] = useState<CardData | null>(null);
+  /**
+   * キャッチの演出に載せる読み。**注音を素で渡さない**(オーナー報告
+   * 2026-08-26「学習言語英語のとき、注音やピンインを決して表示しないで」)。
+   * 学習言語に在る表記だけを返す(`phonetic.tsx` の `useReadingText`)。
+   */
+  const landingReading = useReadingText(targetLanguage, {
+    zhuyin: card?.reading_zhuyin,
+    pinyin: card?.pinyin,
+  });
   const [caption, setCaption] = useState("");
   // 声で吹き込んだ一言。**保存の経路には入れない** — 札が出来てから
   // 裏で上げる(オーナー「一瞬でも早く」が最大のペイン)。
@@ -936,7 +947,8 @@ function CapturePage() {
           ref={flyRef}
           image={cutoutImg ?? objectImg}
           headword={selectedHead}
-          reading={card?.reading_zhuyin ?? null}
+          lang={targetLanguage}
+          reading={landingReading}
         />
       )}
     </AppShell>
@@ -964,6 +976,9 @@ export function CaptureSavingPanel({
   landing: boolean;
   heroBoxRef?: RefObject<HTMLDivElement | null>;
 }) {
+  // **その語の字で組むために要る**(`Term` の注)。撮っている最中の語なので、
+  // 出所は端末の学習言語(`target-lang-pref.ts`)。
+  const targetLanguage = useTargetLang();
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
       {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
@@ -981,9 +996,13 @@ export function CaptureSavingPanel({
         </div>
       )}
       {!landing && (
-        <p lang="zh-Hant" className="mt-6 text-headline font-bold tracking-tight text-white">
+        <Term
+          as="p"
+          lang={targetLanguage}
+          className="mt-6 text-headline font-bold tracking-tight text-white"
+        >
           {headword}
-        </p>
+        </Term>
       )}
       <style>{`
         @keyframes catchRise {
@@ -1023,6 +1042,7 @@ export function ReencounterPanel({
   onSeeInDex: () => void;
 }) {
   const t = useT();
+  const targetLanguage = useTargetLang();
   return (
     <div className="space-y-4">
       {/* **素の Tailwind の番号と `white` の直書きをやめる。**
@@ -1057,12 +1077,18 @@ export function ReencounterPanel({
             />
           </div>
         )}
-        <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
+        <Term lang={targetLanguage} as="div" className="text-hero font-bold tracking-tight">
           {reenc.headword}
-        </div>
-        <div lang="zh-Hant" className="mt-1 text-footnote text-muted-foreground">
-          {reenc.reading_zhuyin} {reenc.pinyin && `· ${reenc.pinyin}`}
-        </div>
+        </Term>
+        {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26
+            「学習言語英語のとき、注音やピンインを決して表示しないで」)。
+            ここは注音と拼音を素で並べていた。 */}
+        <Reading
+          lang={targetLanguage}
+          zhuyin={reenc.reading_zhuyin}
+          pinyin={reenc.pinyin}
+          className="mt-1 block text-footnote text-muted-foreground"
+        />
 
         {/* **意味は伏せない。** 撮った本人がその物の母語を知らないはずが
               ないので、「覚えてる?」と伏せる問いは成り立たない。

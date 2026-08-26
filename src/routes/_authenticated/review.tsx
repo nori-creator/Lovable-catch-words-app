@@ -22,7 +22,9 @@ import {
 import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
-import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
+import { Term } from "@/components/Term";
+import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import {
@@ -818,7 +820,6 @@ export function SpeakingCard({
   const feedbackFn = useServerFn(getSpeakingFeedback);
   const scaffoldFn = useServerFn(getSpeakingScaffold);
   const t = useT();
-  const phonetic = usePhoneticPref();
   // 鳴らす道は1本(`use-pronounce.tsx`)。作り置きの音は `urls` から
   // 端末へ流し込むので、サーバ関数を1回も呼ばずにそろう。
   const pronounce = usePronounce(card.language ?? undefined);
@@ -1222,14 +1223,15 @@ export function SpeakingCard({
                       <ChunkPills
                         parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))}
                         size="lg"
+                        lang={card.language}
                       />
                     ) : (
-                      <span
-                        lang="zh-Hant"
+                      <Term
+                        lang={card.language}
                         className="text-headline font-bold leading-snug tracking-wide"
                       >
                         {p.zh}
-                      </span>
+                      </Term>
                     )}
                   </div>
                   {p.ja && (
@@ -1370,7 +1372,6 @@ export function SayResult({
   onNext: () => void;
 }) {
   const t = useT();
-  const phonetic = usePhoneticPref();
   // 作り置きの音を端末へ流し込む(サーバ関数は呼ばない)。
   usePrefetchSpeech([card.headword], {
     language: card.language ?? undefined,
@@ -1387,15 +1388,19 @@ export function SayResult({
       </div>
 
       <div className="mb-1.5 flex items-center gap-2">
-        <span
-          lang="zh-Hant"
+        <Term
+          lang={card.language}
           className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
         >
           {card.headword}
-        </span>
-        <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
-          {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-        </span>
+        </Term>
+        {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26)。 */}
+        <Reading
+          lang={card.language ?? undefined}
+          zhuyin={card.reading_zhuyin}
+          pinyin={card.pinyin}
+          className="min-w-0 truncate text-footnote text-foreground/70"
+        />
         {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
         <PronounceButton
           text={card.headword}
@@ -1540,7 +1545,7 @@ function FeedbackView({
           )}
           <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
         </div>
-        <ChunkPills parts={feedback.chunk} />
+        <ChunkPills parts={feedback.chunk} lang={card.language} />
         <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
@@ -1656,7 +1661,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
           <div className="mt-1.5 space-y-1.5">
             {chunks.map((c, i) => (
               <div key={i}>
-                <ChunkPills parts={c.parts} size="md" />
+                <ChunkPills parts={c.parts} size="md" lang={card.language} />
                 {c.ja && <p className="mt-0.5 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
@@ -1852,7 +1857,13 @@ export function LightModeCard({
             const isPicked = picked === c;
             const showGreen = picked != null && isAnswer;
             const showRed = isPicked && !isAnswer;
-            const reading = pickReading(phonetic, info.zhuyin, info.pinyin);
+            // **学習言語に在る表記だけ**(オーナー報告 2026-08-26)。
+            // `pickReading` は台湾華語の決め打ちだったので、英語の4択にも
+            // 注音・拼音が出ていた。
+            const reading = pickReadingOf(targetProfile(card.language), phonetic, {
+              zhuyin: info.zhuyin,
+              pinyin: info.pinyin,
+            });
             // `scroll-mb-56` — 答え合わせの面は画面下端に貼り付くので、
             // 鍵盤で送ってきた焦点がその**裏に入る**。ブラウザは焦点を
             // 「画面の中」には入れるが、貼り付いた面をよけてはくれない。
@@ -1953,15 +1964,18 @@ export function LightModeCard({
                   **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
                   語を割るのはいちばんやってはいけない。 */}
               <div className="mb-1.5 flex items-center gap-2">
-                <span
-                  lang="zh-Hant"
+                <Term
+                  lang={card.language}
                   className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
                 >
                   {card.headword}
-                </span>
-                <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
-                  {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-                </span>
+                </Term>
+                <Reading
+                  lang={card.language ?? undefined}
+                  zhuyin={card.reading_zhuyin}
+                  pinyin={card.pinyin}
+                  className="min-w-0 truncate text-footnote text-foreground/70"
+                />
                 <PronounceButton
                   text={card.headword}
                   language={card.language ?? undefined}

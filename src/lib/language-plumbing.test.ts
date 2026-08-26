@@ -1420,3 +1420,135 @@ describe("2026-08-26 の3度目の報告", () => {
     expect(collapsed).not.toMatch(/min-h-11/);
   });
 });
+
+describe("2026-08-26: 注音・拼音を英語のカードに出さない", () => {
+  /**
+   * オーナー報告:
+   * > 「学習言語英語、母語台湾華語のとき、注音やピンインを決して表示しないで。
+   * >  単語の詳細や単語の候補、文字入力の候補などを含むアプリ全体で。」
+   *
+   * 読みを出す口が**5箇所**に散らばっていて、そのうち4箇所が
+   * `pickReading`(台湾華語のプロフィールで決め打ち)を直に呼ぶか、
+   * 注音と拼音を素で並べていた。
+   */
+  const READ_SITES = [
+    "components/WordCandidateRow.tsx",
+    "components/ScanCatchSheet.tsx",
+    "components/InputCatchSheet.tsx",
+    "routes/_authenticated/capture.tsx",
+    "routes/_authenticated/review.tsx",
+  ];
+
+  it("**読みを出す所は `Reading` か `useReadingText` を通る**", () => {
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).toMatch(/<Reading\b|useReadingText\(|pickReadingOf\(/);
+    }
+  });
+
+  it("**`pickReading(` を新しく呼ばない**(台湾華語の決め打ち)", () => {
+    // `pickReadingOf(profile, …)` は言語を受けるので別物。素の
+    // `pickReading(` だけを禁じる。
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).not.toMatch(/[^A-Za-z]pickReading\(/);
+    }
+  });
+
+  it("**注音と拼音を素で並べない**(片方ずつ書くと言語の判定を抜ける)", () => {
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      // `{…zhuyin}` と `{…pinyin}` が同じ行に並ぶ形が戻っていないこと。
+      expect(src, rel).not.toMatch(/\{[^}\n]*\bzhuyin\b[^}\n]*\}\s*\n?\s*\{[^}\n]*\bpinyin\b/);
+    }
+  });
+
+  it("`Reading` は**その言語に在る表記しか返さない**", () => {
+    const src = codeOnly(read("lib/phonetic.tsx"));
+    // 落ちる順は `profile.readings` から作る(言語ごとの一覧)。
+    expect(src).toMatch(/for \(const k of \[kind, \.\.\.profile\.readings\]\)/);
+  });
+});
+
+describe("2026-08-26: 学習言語の語を、その言語の字で組む", () => {
+  /**
+   * オーナー報告「カメラ撮った後の単語の候補の字体が変」。
+   * `Zh` は `lang="zh-Hant"` を決め打ちで付ける包みなので、英語の語に
+   * 中国語のフォントが当たっていた。
+   */
+  it("`Term` が `target-profile` の `scriptLang` から字を決める", () => {
+    expect(fs.existsSync(path.join(root, "components/Term.tsx"))).toBe(true);
+    const src = codeOnly(read("components/Term.tsx"));
+    expect(src).toMatch(/targetProfile\(lang\)\.scriptLang/);
+    // ここに言語の分岐を書かない(言語が増えた日にここだけ増えない)。
+    expect(src).not.toMatch(/=== "en"/);
+  });
+
+  it("**学習言語の語が入る所は `Term` を通る**", () => {
+    for (const rel of [
+      "components/WordCandidateRow.tsx",
+      "components/WordCard.tsx",
+      "components/ScanCatchSheet.tsx",
+      "components/CatchLanding.tsx",
+      "routes/_authenticated/capture.tsx",
+      "routes/_authenticated/review.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<Term\b/);
+    }
+  });
+
+  it("`Zh` は**必ず繁体字が入る所**にだけ残す", () => {
+    // 候補の行から `Zh` が消えていること(そこは学習言語の語)。
+    const row = codeOnly(read("components/WordCandidateRow.tsx"));
+    expect(row).not.toMatch(/<Zh\b/);
+  });
+});
+
+describe("2026-08-26: 名前を変える", () => {
+  it("学習言語の呼び名が**繁體字（台灣）/ Mandarin (Taiwan)**", () => {
+    expect(DICT["settings.langZhTw"].ja).toBe("繁體字（台灣）");
+    expect(DICT["settings.langZhTw"].en).toBe("Mandarin (Taiwan)");
+    expect(DICT["settings.langZhTw"]["zh-TW"]).toBe("繁體字（台灣）");
+  });
+
+  it("復習の自動は「AIが選ぶ」ではなく**自動**", () => {
+    for (const key of ["review.auto", "settings.modeHybrid"]) {
+      for (const lang of UI_LANGS) {
+        expect(DICT[key][lang], `${key}/${lang}`).not.toMatch(/AI/);
+      }
+    }
+  });
+
+  it("表示言語の欄は**母語**", () => {
+    expect(DICT["settings.uiLang"].ja).toBe("母語");
+    expect(DICT["settings.uiLang"]["zh-TW"]).toBe("母語");
+  });
+});
+
+describe("2026-08-26: 設定から消した項目", () => {
+  it("発音判定の厳しさと優先する記憶段階の**欄が無い**", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/label=\{t\("settings\.strictness"\)\}/);
+    expect(src).not.toMatch(/label=\{t\("settings\.reviewFocus"\)\}/);
+    // **列は残す** — 既に選んである人の値を保存のたびに消さないため。
+    expect(src).toMatch(/pronunciation_strictness: strictness/);
+    expect(src).toMatch(/review_stage_focus: reviewFocus/);
+  });
+
+  it("開発者用の2つの道具が**部品ごと消えている**", () => {
+    expect(fs.existsSync(path.join(root, "components/ThemeLab.tsx"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "components/EffectLab.tsx"))).toBe(false);
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/ThemeLabButton|EffectLabButton/);
+  });
+
+  it("UIテーマの一覧は**畳んである**", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    const picker = src.slice(src.indexOf("function UiThemePicker"));
+    const tag = picker.slice(
+      picker.indexOf("<details"),
+      picker.indexOf(">", picker.indexOf("<details")),
+    );
+    expect(tag).not.toMatch(/\bopen\b/);
+  });
+});

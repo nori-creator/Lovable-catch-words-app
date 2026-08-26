@@ -50,6 +50,7 @@ import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
+import { Term } from "@/components/Term";
 import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { localeOf, type UiLang, useT, useUiLang } from "@/lib/i18n";
@@ -667,9 +668,12 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     >
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span lang="zh-Hant" className="pl-1 text-footnote font-medium text-muted-foreground">
+        <Term
+          lang={s?.word.language}
+          className="pl-1 text-footnote font-medium text-muted-foreground"
+        >
           {s ? s.word.headword : "..."}
-        </span>
+        </Term>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing((v) => !v)}

@@ -1,4 +1,5 @@
 import { chunkStyle, chunkLegendFor } from "@/lib/pos";
+import { Term } from "@/components/Term";
 import type { ChunkPart } from "@/lib/extras";
 
 /**
@@ -12,9 +13,12 @@ import type { ChunkPart } from "@/lib/extras";
 export function ChunkPills({
   parts,
   size = "md",
+  lang,
 }: {
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
+  /** その型の学習言語。**渡さないと台湾華語として組む**(既定)。 */
+  lang?: string | null;
 }) {
   if (!parts.length) return null;
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
@@ -32,9 +36,11 @@ export function ChunkPills({
         const st = chunkStyle(c.pos);
         return (
           <span key={i} className={`rounded-xl font-medium ${pad} ${st.pill}`} title={st.label}>
-            {/* チャンク本体は台湾華語。品詞ラベル(名詞など)は解説語なので
-                こちらだけ言語を宣言し、字形を繁体字に固定する。 */}
-            <span lang="zh-Hant">{c.text}</span>
+            {/* チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は
+                解説語なので、こちらだけ言語を宣言して字形を固定する。
+                **`lang="zh-Hant"` の決め打ちにしない** — 英語の型に
+                中国語のフォントが当たる(`Term` の注)。 */}
+            <Term lang={lang}>{c.text}</Term>
             {/* 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
                 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。 */}
           </span>
