@@ -34,6 +34,10 @@ const STICKER = {
   placeholder_url: null,
   placeholder_credit: null,
   branch_plan: null,
+  // 一言の**録音**(オーナー指示 2026-08-26)。これが無いと、日付と場所の
+  // 間に立つ再生ボタンも、録り直しの面も**一度も撮られない** —
+  // 「場面が無い部品は測られない」でこの作業場は何度も落ちている。
+  voice_video_url: "data:audio/webm;base64,",
   review_count: 2,
   encounter_count: 2,
   word: FULL,

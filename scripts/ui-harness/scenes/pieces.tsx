@@ -19,7 +19,8 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
 import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceVideoNote } from "@/components/VoiceVideoNote";
+import { VoiceNote } from "@/components/VoiceNote";
+import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
 import type { RegisterScale } from "@/lib/register-scale";
@@ -432,19 +433,38 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
 }
 
 /**
- * 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+ * 一言の**録音**(オーナー指示 2026-08-26「音声だけにして」)。
  *
- * **撮る前と撮った後の2通りを撮る。** 撮っている最中はカメラが要るので
+ * **録る前と録った後の2通りを撮る。** 録っている最中はマイクが要るので
  * ここでは出せないが、その2つは日常的に見る面。
- * 動画そのものは足場では鳴らせないので、`src` は空のままにして
+ * 音そのものは足場では鳴らせないので、`src` は空のままにして
  * **枠と操作の並び**だけを見る。
+ *
+ * 録った後の面に**再生が無いこと**もここで見る — 聞く所は日付と場所の
+ * 行の真ん中(`voice-player` の場面)で、ここに並べると片方だけ直る。
  */
-export function VoiceVideoScene({ q }: { q: URLSearchParams }) {
+export function VoiceNoteScene({ q }: { q: URLSearchParams }) {
   const done = q.get("done") === "1";
   return (
-    <VoiceVideoNote
+    <VoiceNote
       stickerId="00000000-0000-0000-0000-000000000001"
-      videoUrl={done ? "data:video/webm;base64," : null}
+      audioUrl={done ? "data:audio/webm;base64," : null}
     />
+  );
+}
+
+/**
+ * 一言を**聞く**ボタン(オーナー指示 2026-08-26「再生ボタンは真ん中、
+ * 日付と場所の名前の隣に置いて」)。
+ *
+ * 本物の並びをここに写さない — 日付・再生・場所の行そのものは
+ * `StickerSheetBody` に在り、`sticker-sheet` の場面で撮っている。
+ * ここで見るのは**指が届く大きさ**と、円の中で三角が中央に見えるか。
+ */
+export function VoicePlayerScene() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 16 }}>
+      <VoiceNotePlayer url="data:audio/webm;base64," />
+    </div>
   );
 }

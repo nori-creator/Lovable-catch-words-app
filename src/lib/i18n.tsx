@@ -1650,6 +1650,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Hold up to look up (scan)",
     "zh-TW": "舉起來查（掃描）",
   },
+  // カメラの画面に直接置く検索の欄(オーナー指示 2026-08-26)。
+  "capture.searchPlaceholder": {
+    ja: "単語を打って調べる",
+    en: "Type a word to look up",
+    "zh-TW": "輸入單字查詢",
+  },
   "capture.or": { ja: "または", en: "or", "zh-TW": "或" },
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },
@@ -2196,37 +2202,56 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
   // 見込みの幅(オーナー指摘 2026-08-21「適当すぎる」)。
   // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
-  "voice.title": { ja: "一言の動画", en: "Video note", "zh-TW": "一句話影片" },
+  // 一言は**音声だけ**(オーナー指示 2026-08-26)。列の名前は
+  // `voice_video_url` のままだが、中身も文言も「録音」になった。
+  "voice.title": { ja: "一言の録音", en: "Voice note", "zh-TW": "一句話錄音" },
   "voice.hint": {
-    ja: "この語に出会ったときの気持ちを、15秒までの自撮りで残せます。",
+    ja: "この語に出会ったときの気持ちを、15秒までの声で残せます。",
     en: "Record up to 15 seconds about how it felt to meet this word.",
-    "zh-TW": "可以用最長 15 秒的自拍，留下遇到這個字時的心情。",
+    "zh-TW": "可以用最長 15 秒的聲音，留下遇到這個字時的心情。",
   },
-  "voice.record": { ja: "一言を撮る", en: "Record a note", "zh-TW": "錄一句話" },
-  "voice.retake": { ja: "撮り直す", en: "Record again", "zh-TW": "重錄" },
+  "voice.playHint": {
+    ja: "上の日付の隣の再生ボタンで聞けます。",
+    en: "Play it from the button next to the date above.",
+    "zh-TW": "可以用上面日期旁邊的播放鍵聽。",
+  },
+  "voice.record": { ja: "一言を録る", en: "Record a note", "zh-TW": "錄一句話" },
+  "voice.retake": { ja: "録り直す", en: "Record again", "zh-TW": "重錄" },
+  "voice.recording": { ja: "録音中", en: "Recording", "zh-TW": "錄音中" },
+  "voice.play": { ja: "一言を聞く", en: "Play the voice note", "zh-TW": "播放一句話" },
+  // キャッチの最中に声で吹き込む(オーナー指示 2026-08-26)。
+  "voice.speak": { ja: "声で一言を残す", en: "Say your note out loud", "zh-TW": "用聲音留一句話" },
+  "voice.recorded": { ja: "録れました", en: "Recorded", "zh-TW": "已錄好" },
+  "voice.discard": { ja: "録った一言を捨てる", en: "Discard the recording", "zh-TW": "捨棄錄音" },
+  "voice.attachFailed": {
+    ja: "声の一言だけ保存できませんでした",
+    en: "Only the voice note could not be saved",
+    "zh-TW": "只有語音的一句話沒能儲存",
+  },
+  "voice.pause": { ja: "一言を止める", en: "Pause the voice note", "zh-TW": "暫停一句話" },
   "voice.stop": { ja: "止める（あと{n}秒）", en: "Stop ({n}s left)", "zh-TW": "停止（剩 {n} 秒）" },
-  "voice.delete": { ja: "この動画を消す", en: "Delete this video", "zh-TW": "刪除這段影片" },
+  "voice.delete": { ja: "この録音を消す", en: "Delete this recording", "zh-TW": "刪除這段錄音" },
   "voice.confirmDelete": {
-    ja: "この一言の動画を消しますか？元に戻せません。",
-    en: "Delete this video note? This can't be undone.",
-    "zh-TW": "要刪除這段一句話影片嗎？無法復原。",
+    ja: "この一言の録音を消しますか？元に戻せません。",
+    en: "Delete this voice note? This can't be undone.",
+    "zh-TW": "要刪除這段一句話錄音嗎？無法復原。",
   },
-  "voice.saved": { ja: "一言を残しました", en: "Video note saved", "zh-TW": "已留下一句話" },
+  "voice.saved": { ja: "一言を残しました", en: "Voice note saved", "zh-TW": "已留下一句話" },
   "voice.saveFailed": { ja: "保存できませんでした", en: "Couldn't save that", "zh-TW": "無法儲存" },
   "voice.tooBig": {
-    ja: "動画が大きすぎます",
-    en: "That video is too large",
-    "zh-TW": "影片太大了",
+    ja: "録音が大きすぎます",
+    en: "That recording is too large",
+    "zh-TW": "錄音太大了",
   },
-  "voice.noCamera": {
-    ja: "カメラとマイクを使えませんでした",
-    en: "Couldn't use the camera and microphone",
-    "zh-TW": "無法使用相機和麥克風",
+  "voice.noMic": {
+    ja: "マイクを使えませんでした",
+    en: "Couldn't use the microphone",
+    "zh-TW": "無法使用麥克風",
   },
   "voice.unsupported": {
-    ja: "この端末では動画を撮れません",
-    en: "This device can't record video",
-    "zh-TW": "這個裝置無法錄影",
+    ja: "この端末では録音できません",
+    en: "This device can't record audio",
+    "zh-TW": "這個裝置無法錄音",
   },
   "voice.needsMigration": {
     ja: "まだ保存先の準備ができていません（移行待ち）",

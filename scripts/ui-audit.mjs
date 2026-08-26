@@ -377,9 +377,19 @@ const MODES = [
   ...crossThemes("cap-offline", { scene: "capture-offline" }),
   ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],
   // 生成が終わったカードの面。**撮るたびに必ず通る。** 表と裏の両方。
+  // 撮る前の画面。**このアプリで最初に見る面**なのに、長らく場面が
+  // 無かった。検索の欄をここに置いた(オーナー指示 2026-08-26)ので、
+  // 打った状態も撮る。
+  ...crossThemes("cap-object", { scene: "capture-object" }),
+  ["cap-object-typed", "", false, { scene: "capture-object", variant: "typed" }],
+  ["cap-object-typed-dark", 'class="dark"', false, { scene: "capture-object", variant: "typed" }],
+  ["cap-object-retake", "", false, { scene: "capture-object", variant: "retake" }],
   ...crossThemes("cap-card", { scene: "capture-card" }),
   ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
+  // 声で吹き込んだ一言が録れた後(オーナー指示 2026-08-26)。
+  // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
+  ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
   // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
   ...crossThemes("journal-result", { scene: "journal-result" }),
   // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
@@ -451,9 +461,11 @@ const MODES = [
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
-  ...crossThemes("voice-video", { scene: "voice-video" }),
-  ["voice-video-done", "", false, { scene: "voice-video", done: "1" }],
-  ["voice-video-done-dark", 'class="dark"', false, { scene: "voice-video", done: "1" }],
+  ...crossThemes("voice-note", { scene: "voice-note" }),
+  ["voice-note-done", "", false, { scene: "voice-note", done: "1" }],
+  ["voice-note-done-dark", 'class="dark"', false, { scene: "voice-note", done: "1" }],
+  // 聞くボタンそのもの(オーナー指示 2026-08-26)。指が届く大きさを見る。
+  ...crossThemes("voice-player", { scene: "voice-player" }),
   ["dex-filter", "", false, { scene: "dex-filter" }],
   ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
   ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],

@@ -1,54 +1,63 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Video, Square, Trash2, Loader2 } from "lucide-react";
+import { Loader2, Mic, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
-import { supabase } from "@/integrations/supabase/client";
 import { setStickerVoiceVideo } from "@/lib/stickers.functions";
 import {
-  MAX_VOICE_VIDEO_MS,
+  MAX_VOICE_NOTE_MS,
   isTooBig,
-  pickVideoMime,
+  pickAudioMime,
   remainingSeconds,
-  voiceVideoConstraints,
-  voiceVideoPath,
-} from "@/lib/voice-video";
+  voiceNoteConstraints,
+} from "@/lib/voice-note";
+import { uploadVoiceNote } from "@/lib/voice-note-upload";
 
 /**
- * その札に添える**一言の自撮り動画**。
+ * その札に添える**一言の録音**。
  *
- * オーナー(2026-08-21): 「動画は supabase に上げる **B案**」
+ * オーナー(2026-08-26): 「一言は**音声だけ**にして。動画の撮影はやめて。
+ *  すでに撮ってあるものは音として再生して。**再生ボタンは真ん中**、
+ *  日付と場所の名前の隣に置いて」
+ *
+ * ## 聞く所はここに無い
+ * 再生は `VoiceNotePlayer` が持ち、**日付と場所の行の真ん中**に立っている。
+ * ここに同じ再生を並べない — この作業場で何度も起きているのは、同じ物が
+ * 2箇所にあって片方だけ直る事故で、いちばん避けたい形がそれ。
+ * ここは**録る所**に徹する。
  *
  * ## キャッチの保存経路には入れない
  * オーナーが「最大のペイン」と書いたのは「一瞬でも早く」で、キャッチの
- * 保存はその本体。あそこに録画を挟むと、いちばん壊してはいけない所が
+ * 保存はその本体。あそこに録音を挟むと、いちばん壊してはいけない所が
  * 遅くなる。**保存が終わったカードから**開く。
+ * (キャッチの最中に声で残す道は別に在る — `VoiceCaptionButton`。
+ *  あちらは一言の欄の隣に立っていて、保存の前に何も待たせない。)
  *
- * ## 音を入れる
- * 復習の録画は `audio: false`。あれはマイクを掴むと `SpeechRecognition` が
- * 黙るからで、**こちらには音声認識が走っていない**。一言は声が本体。
+ * ## カメラを掴まない
+ * 音だけになったので、カメラの許可も内カメラのランプも無くなった。
+ * 道端で残す物なので、そこが軽いほうがいい。
  *
- * ## 上限は `voice-video.ts` が持つ
- * 「止める側」と「長すぎると断る側」が別々の数字を持つと、撮れたのに
+ * ## 上限は `voice-note.ts` が持つ
+ * 「止める側」と「長すぎると断る側」が別々の数字を持つと、録れたのに
  * 保存できない回ができる。
  *
  * ## 移行が当たっていなくても壊さない
  * 列がまだ無い環境では保存だけが失敗する。カードの閲覧まで巻き込まない
  * (`setStickerVoiceVideo` が `saved:false` を返す)。
+ * 列の名前が `voice_video_url` のままなのは `voice-note.ts` の注のとおり。
  */
-export function VoiceVideoNote({
+export function VoiceNote({
   stickerId,
-  videoUrl,
+  audioUrl,
 }: {
   stickerId: string;
-  /** すでに撮ってある一言(署名付きURL)。無ければ撮る前。 */
-  videoUrl?: string | null;
+  /** すでに残してある一言(署名付きURL)。無ければ録る前。 */
+  audioUrl?: string | null;
 }) {
   const t = useT();
   const qc = useQueryClient();
   const saveFn = useServerFn(setStickerVoiceVideo);
-  const previewRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -59,8 +68,8 @@ export function VoiceVideoNote({
   const [left, setLeft] = useState(remainingSeconds(0));
   const [busy, setBusy] = useState(false);
 
-  // **開いたままの機材を必ず返す。** 止め忘れるとカメラのランプが
-  // 点いたまま残り、次に開いたときに掴めなくなる端末がある。
+  // **開いたままの機材を必ず返す。** 止め忘れるとマイクを掴んだままになり、
+  // 端末によっては次に開いたときに掴めなくなる。
   useEffect(() => {
     return () => {
       if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
@@ -71,20 +80,14 @@ export function VoiceVideoNote({
 
   async function start() {
     if (recording || busy) return;
-    const mime = pickVideoMime((type) => MediaRecorder.isTypeSupported(type));
+    const mime = pickAudioMime((type) => MediaRecorder.isTypeSupported(type));
     if (!mime) {
       toast.error(t("voice.unsupported"));
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(voiceVideoConstraints());
+      const stream = await navigator.mediaDevices.getUserMedia(voiceNoteConstraints());
       streamRef.current = stream;
-      if (previewRef.current) {
-        previewRef.current.srcObject = stream;
-        // **自分の声を自分に返さない。** 撮っている最中に音が回る。
-        previewRef.current.muted = true;
-        void previewRef.current.play().catch(() => {});
-      }
       const rec = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
@@ -94,15 +97,15 @@ export function VoiceVideoNote({
       startedAtRef.current = Date.now();
       setRecording(true);
       setLeft(remainingSeconds(0));
-      // 残りを**撮りながら**言う。上限があることを撮る前に説明しない。
+      // 残りを**録りながら**言う。上限があることを録る前に説明しない。
       tickRef.current = setInterval(
         () => setLeft(remainingSeconds(Date.now() - startedAtRef.current)),
         250,
       );
-      // 上限で自動的に止める。指を離し忘れても費用が伸びない。
-      stopTimerRef.current = setTimeout(stop, MAX_VOICE_VIDEO_MS);
+      // 上限で自動的に止める。止め忘れても費用が伸びない。
+      stopTimerRef.current = setTimeout(stop, MAX_VOICE_NOTE_MS);
     } catch {
-      toast.error(t("voice.noCamera"));
+      toast.error(t("voice.noMic"));
       cleanup();
     }
   }
@@ -124,7 +127,6 @@ export function VoiceVideoNote({
     stop();
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
     streamRef.current = null;
-    if (previewRef.current) previewRef.current.srcObject = null;
   }
 
   async function upload(blob: Blob, mime: string) {
@@ -136,17 +138,9 @@ export function VoiceVideoNote({
     }
     setBusy(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("no user");
-      const path = voiceVideoPath(userId, stickerId, mime);
-      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-        contentType: mime,
-        // **撮り直しは上書き。** 札ごとに1本なので、古いものを残さない
-        // (残すと消せない物が増え続ける)。
-        upsert: true,
-      });
-      if (error) throw error;
+      // 置き場所の決め方は `voice-note-upload.ts` が唯一の正。
+      // キャッチの経路と同じ道を通る(片方だけ直る事故を作らない)。
+      const path = await uploadVoiceNote({ blob, mime, stickerId });
       const res = await saveFn({ data: { sticker_id: stickerId, voice_video_path: path } });
       if (!res.saved) {
         toast.error(t("voice.needsMigration"));
@@ -155,7 +149,7 @@ export function VoiceVideoNote({
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
       toast.success(t("voice.saved"));
     } catch (e) {
-      console.warn("voice video upload failed", e);
+      console.warn("voice note upload failed", e);
       toast.error(t("voice.saveFailed"));
     } finally {
       setBusy(false);
@@ -164,7 +158,7 @@ export function VoiceVideoNote({
 
   async function remove() {
     if (busy) return;
-    // **必ず訊く。** 撮り直せない一言なので、取り消しがない。
+    // **必ず訊く。** 録り直せない一言なので、取り消しがない。
     if (!window.confirm(t("voice.confirmDelete"))) return;
     setBusy(true);
     try {
@@ -185,7 +179,7 @@ export function VoiceVideoNote({
     <section className="mt-3 rounded-2xl border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-footnote font-semibold">{t("voice.title")}</h3>
-        {videoUrl && !recording && (
+        {audioUrl && !recording && (
           <button
             onClick={() => void remove()}
             disabled={busy}
@@ -199,15 +193,15 @@ export function VoiceVideoNote({
 
       {recording ? (
         <>
-          {/* 撮っている最中の自分。**鏡にする** — 自撮りは鏡像のほうが
-              自分の向きと合う(内カメラの見え方に合わせる)。 */}
-          <video
-            ref={previewRef}
-            playsInline
-            muted
-            className="mt-2 aspect-[3/4] w-full rounded-xl bg-black object-cover"
-            style={{ transform: "scaleX(-1)" }}
-          />
+          {/* 録っている最中。**画が無いぶん、録れていることを字で言う。**
+              赤い点が息をしていないと、押したのに動いていないように見える。 */}
+          <p
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-destructive/10 py-3 text-footnote font-semibold text-destructive-ink"
+            aria-live="polite"
+          >
+            <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-destructive" />
+            {t("voice.recording")}
+          </p>
           <button
             onClick={stop}
             className="press-in mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-destructive px-4 text-footnote font-semibold text-destructive-foreground"
@@ -216,43 +210,26 @@ export function VoiceVideoNote({
             {t("voice.stop", { n: String(left) })}
           </button>
         </>
-      ) : videoUrl ? (
-        <>
-          {/* 撮ったもの。**自動で再生しない** — 図鑑を開くたび声が鳴る。 */}
-          <video
-            src={videoUrl}
-            controls
-            playsInline
-            preload="metadata"
-            className="mt-2 aspect-[3/4] w-full rounded-xl bg-black object-cover"
-          />
-          <button
-            onClick={() => void start()}
-            disabled={busy}
-            className="press-in mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-border px-4 text-footnote font-medium"
-          >
-            {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <Video className="h-4 w-4" aria-hidden />
-            )}
-            {t("voice.retake")}
-          </button>
-        </>
       ) : (
         <>
-          <p className="mt-1 text-caption text-muted-foreground">{t("voice.hint")}</p>
+          {/* 既に在るときは説明を出さない。**聞く所は日付と場所の行に在る** —
+              ここに同じ再生を並べると、片方だけ直る事故の種になる。 */}
+          <p className="mt-1 text-caption text-muted-foreground">
+            {audioUrl ? t("voice.playHint") : t("voice.hint")}
+          </p>
           <button
             onClick={() => void start()}
             disabled={busy}
-            className="press-in mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground"
+            className={`press-in mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-footnote font-semibold ${
+              audioUrl ? "border border-border font-medium" : "bg-primary text-primary-foreground"
+            }`}
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <Video className="h-4 w-4" aria-hidden />
+              <Mic className="h-4 w-4" aria-hidden />
             )}
-            {t("voice.record")}
+            {audioUrl ? t("voice.retake") : t("voice.record")}
           </button>
         </>
       )}

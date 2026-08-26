@@ -8,9 +8,11 @@
  * 映像の上に**載る操作**(前後の切替・倍率)は `scan.tsx` 側で部品にして、
  * 同じ寸法の暗い面を敷いて撮っている(`scan.tsx` の場面)。
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { RecordedNote } from "@/components/VoiceCaptionButton";
 import {
   CaptureCardPanel,
+  CaptureObjectPanel,
   CaptureSavingPanel,
   OfflineSavedPanel,
   PickWordPanel,
@@ -121,6 +123,33 @@ export function CaptureOfflineScene({ q }: { q: URLSearchParams }) {
 }
 
 /**
+ * 撮る前の画面。**このアプリで最初に見る面**なのに、長らく雛形に
+ * 場面が無く、一度も機械の目に映っていなかった。
+ *
+ * 見るのは3通り:
+ * - 既定 … 撮る所・検索の欄・かざして調べる
+ * - `typed` … 打ち込んだ状態(調べるボタンが効く形になっているか)
+ * - `retake` … 復習の「もう一度撮ってみる?」から来たとき
+ */
+export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
+  const v = q.get("variant");
+  const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  return (
+    <CaptureObjectPanel
+      retakeWord={v === "retake" ? "珍珠奶茶" : null}
+      cameraInputRef={cameraInputRef}
+      onObjectFile={() => {}}
+      typedWord={typedWord}
+      setTypedWord={setTypedWord}
+      onSearch={() => {}}
+      onOpenScan={() => {}}
+      error={v === "error" ? "写真を読み込めませんでした" : null}
+    />
+  );
+}
+
+/**
  * 生成が終わったカードの面。**撮るたびに必ず通る。**
  * 表(切り抜き)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
  */
@@ -128,6 +157,11 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
   const [caption, setCaption] = useState(v === "back" ? "士林夜市で並んでいるときに" : "");
+  // 声で吹き込んだ一言の**録れた後**も撮る(オーナー指示 2026-08-26)。
+  // 録っている最中はマイクが要るので足場からは出せない。
+  const [voiceNote, setVoiceNote] = useState<RecordedNote | null>(
+    v === "voice" ? { blob: new Blob([]), mime: "audio/webm" } : null,
+  );
   return (
     <CaptureCardPanel
       card={
@@ -150,6 +184,8 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
       setFlipped={setFlipped}
       caption={caption}
       setCaption={setCaption}
+      voiceNote={voiceNote}
+      setVoiceNote={setVoiceNote}
       placeName="士林夜市"
       onRedo={() => {}}
       onSave={() => {}}

@@ -1225,7 +1225,9 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
  * その札の「一言の自撮り動画」を結び付ける(オーナー決定 2026-08-21 = B案)。
  *
  * 中身は先に `stickers` バケットへ上げてあり、ここは**場所を書き留めるだけ**。
- * 置き場所の決め方は `src/lib/voice-video.ts` の `voiceVideoPath` が唯一の正。
+ * 置き場所の決め方は `src/lib/voice-note.ts` の `voiceNotePath` が唯一の正。
+ * (列の名前が `voice_video_url` のままなのは、オーナーが Supabase に直接
+ *  触れないため。中身は 2026-08-26 から**音声だけ**。)
  *
  * **列がまだ無い環境では、静かに諦める。** 移行が当たっていないだけで
  * カードの閲覧まで壊すのは行き過ぎなので、保存できなかったことだけを返す

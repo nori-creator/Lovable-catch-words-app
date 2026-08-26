@@ -46,7 +46,8 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceVideoNote } from "@/components/VoiceVideoNote";
+import { VoiceNote } from "@/components/VoiceNote";
+import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
@@ -1097,6 +1098,10 @@ export function StickerSheetBody({
 
       {/* When & Where chip */}
       <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
+        {/* いつ・**一言**・どこで。オーナー指示 2026-08-26「再生ボタンは
+            真ん中、日付と場所の名前の隣に置いて」。一言は「いつ・どこで
+            出会って、そのとき何を思ったか」の3つ目なので、前の2つと
+            同じ行に並ぶのが素直。 */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
@@ -1108,6 +1113,7 @@ export function StickerSheetBody({
               minute: "2-digit",
             })}
           </div>
+          {s.voice_video_url && <VoiceNotePlayer url={s.voice_video_url} />}
           {(s.location_name || (s.lat != null && s.lng != null)) && (
             <a
               href={
@@ -1140,12 +1146,12 @@ export function StickerSheetBody({
           再会が無ければ何も描かない。 */}
       <StickerPhotoHistory photos={photos} dateLocale={localeOf(uiLang)} />
 
-      {/* 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+      {/* 一言の**録音**(オーナー指示 2026-08-26「音声だけにして」)。
           **キャッチの保存経路には入れない** — あそこは「一瞬でも早く」の
           本体で、いちばん壊してはいけない所。保存が終わったこのカードから
-          撮る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
-          記録」だから。 */}
-      <VoiceVideoNote stickerId={s.id} videoUrl={s.voice_video_url} />
+          録る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
+          記録」だから。**聞く所はここに無い** — 日付と場所の行の真ん中。 */}
+      <VoiceNote stickerId={s.id} audioUrl={s.voice_video_url} />
 
       <WordCard
         word={{

@@ -784,3 +784,117 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     expect(audit).toMatch(/variant: "album"/);
   });
 });
+
+describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", () => {
+  it("動画の名残が**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-26「一言は音声だけにして。動画の撮影はやめて」。
+    expect(fs.existsSync(path.join(root, "lib/voice-video.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "components/VoiceVideoNote.tsx"))).toBe(false);
+    const note = codeOnly(read("components/VoiceNote.tsx"));
+    // 撮る側に `<video>` が1つでも残っていたら、カメラがまた点く。
+    expect(note).not.toMatch(/<video/);
+    expect(note).not.toMatch(/previewRef/);
+  });
+
+  it("録るときに**カメラを掴まない**", () => {
+    const lib = codeOnly(read("lib/voice-note.ts"));
+    expect(lib).toMatch(/return \{ audio: true \};/);
+    expect(lib).not.toMatch(/facingMode/);
+  });
+
+  it("前に撮った動画と**同じ道**に落ちる(消せない物を残さない)", () => {
+    const lib = codeOnly(read("lib/voice-note.ts"));
+    // `voice.<拡張子>` の形が変わると、撮り直しても古い動画が置き場所に
+    // 残り続け、画面からは消せなくなる。
+    expect(lib).toMatch(/voice\.\$\{extensionForMime\(mime\)\}/);
+  });
+
+  it("聞くのは `<audio>`(前に撮った動画もそのまま鳴る)", () => {
+    const player = codeOnly(read("components/VoiceNotePlayer.tsx"));
+    expect(player).toMatch(/<audio/);
+    expect(player).not.toMatch(/<video/);
+    // **自動で再生しない。** 図鑑を開くたび声が鳴ると人前で開けない。
+    expect(player).not.toMatch(/autoPlay/);
+  });
+
+  it("再生は**日付と場所の行**に在り、録る所には無い", () => {
+    // オーナー指示「再生ボタンは真ん中、日付と場所の名前の隣に置いて」。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    const row = sheet.slice(sheet.indexOf("<Clock"), sheet.indexOf("{s.caption &&"));
+    expect(row).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
+    // 録る所に同じ再生を並べない(片方だけ直る事故の種になる)。
+    const note = codeOnly(read("components/VoiceNote.tsx"));
+    expect(note).not.toMatch(/VoiceNotePlayer/);
+  });
+
+  it("上げる道は**1つ**(3つの入口が同じ関数を通る)", () => {
+    expect(fs.existsSync(path.join(root, "lib/voice-note-upload.ts"))).toBe(true);
+    for (const rel of [
+      "components/VoiceNote.tsx",
+      "components/ScanCatchSheet.tsx",
+      "routes/_authenticated/capture.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/uploadVoiceNote\(/);
+    }
+    // 置き場所を自分で組み立てる所が残っていないこと。
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      expect(codeOnly(read(rel)), rel).not.toMatch(/voiceNotePath\(/);
+    }
+  });
+
+  it("キャッチの最中の一言は**文字の欄の隣**に在る", () => {
+    // オーナー指示「キャッチのときに一言を声で吹き込めるように。
+    // 文字入力の隣にボタンを置いて」。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const box = cap.slice(cap.indexOf('id="caption"'), cap.indexOf('id="caption"') + 900);
+    expect(box).toMatch(/<VoiceCaptionButton/);
+    const scan = codeOnly(read("components/ScanCatchSheet.tsx"));
+    const box2 = scan.slice(scan.indexOf('placeholder={t("sheet.notePlaceholder")}'));
+    expect(box2.slice(0, 500)).toMatch(/<VoiceCaptionButton/);
+  });
+
+  it("キャッチの保存を**待たせない**(録った物は札が出来てから裏で上げる)", () => {
+    // オーナーが「最大のペイン」と書いたのは「一瞬でも早く」。
+    // 保存の前に上げると、いちばん壊してはいけない所が遅くなる。
+    const btn = codeOnly(read("components/VoiceCaptionButton.tsx"));
+    expect(btn).not.toMatch(/uploadVoiceNote/);
+    expect(btn).not.toMatch(/useServerFn/);
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      const src = codeOnly(read(rel));
+      // `void (async () => {` で投げっぱなしにしていること(= 待たない)。
+      expect(src, rel).toMatch(/void \(async \(\) => \{[\s\S]{0,400}?uploadVoiceNote\(/);
+    }
+  });
+
+  it("上げ損ねたら**黙って捨てない**", () => {
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/voice\.attachFailed/);
+    }
+  });
+
+  it("検索の欄が**カメラの画面そのもの**に在る", () => {
+    // オーナー指示「検索欄をカメラの画面に直接置いて」。
+    // 前は「文字で打つ」のボタンで、押して面が開いてから打てた。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/capture\.searchPlaceholder/);
+    expect(cap).toMatch(/setInputSheet\(\{ text: w, auto: true \}\)/);
+    expect(cap).not.toMatch(/onClick=\{\(\) => setInputSheet\(\{\}\)\}/);
+  });
+
+  it("**撮る前の画面に場面がある**(検索の欄が機械の目に映る)", () => {
+    // このアプリで最初に見る面なのに、長らく雛形に場面が無かった。
+    // 「場面が無い部品は測られない」でこの作業場は何度も落ちている。
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/scene: "capture-object"/);
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/export function CaptureObjectPanel\(/);
+  });
+
+  it("検査の雛形が新しい面を撮っている", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/scene: "voice-note"/);
+    expect(audit).toMatch(/scene: "voice-player"/);
+    expect(audit).toMatch(/variant: "voice"/);
+    expect(audit).not.toMatch(/scene: "voice-video"/);
+  });
+});
