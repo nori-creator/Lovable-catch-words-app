@@ -815,11 +815,24 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
   });
 
   it("自撮りが無い札には**自撮りを撮るボタン**が出る", () => {
-    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
-    expect(picker).toMatch(/onSelfieFile &&/);
-    const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).toMatch(/onSelfieFile=\{s\.selfie_url \? undefined :/);
-    expect(sheet).toMatch(/attachSelfieFn\(/);
+    // **出す条件は `PhotoAddButtons` ただ1つ**(オーナー指示 2026-08-26)。
+    // 呼ぶ側それぞれに書いていたので、図鑑の詳細にはボタンそのものが
+    // 無かった。渡すのは絵の在りかだけ。
+    const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
+    expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
+    expect(btns).toMatch(/const canCutout = !!objectUrl && !cutoutUrl;/);
+    // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
+    for (const rel of [
+      "components/HeroPhotoPicker.tsx",
+      "routes/_authenticated/dex.$stickerId.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<PhotoAddButtons/);
+    }
+    // 足す道も1つ(`use-photo-attach.tsx`)。
+    expect(fs.existsSync(path.join(root, "lib/use-photo-attach.tsx"))).toBe(true);
+    for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/usePhotoAttach\(/);
+    }
   });
 
   it("自撮りは `<label>` で包む(押した指の操作としてカメラに届く)", () => {
@@ -828,9 +841,9 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // **注釈を読ませない。** 最初は `read` のまま書いていて、
     // `capture="user"` を消しても上の注釈の中の同じ文字列に当たって
     // 通ってしまった(この作業場で5度目の「文字列が別の場所に在る」事故)。
-    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
-    expect(picker).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
-    expect(picker).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
+    const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
+    expect(btns).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
+    expect(btns).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
   });
 
   it("自撮りを足しても**元の写真を差し替えない**", () => {

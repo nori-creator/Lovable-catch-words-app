@@ -1,4 +1,5 @@
-import { Camera, Check, ImageUp, Scissors, X } from "lucide-react";
+import { Check, ImageUp, X } from "lucide-react";
+import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
 import type { PhotoSurface } from "@/lib/photo-surface";
@@ -148,44 +149,18 @@ export function HeroPhotoPicker({
         })}
       </ul>
 
-      {/* 速さを選んだ人はキャッチの瞬間に切り抜いていない。
-          **ここから掛け直せる** — でないと「速さを選ぶ = 二度と切り抜けない」
-          になり、設定が片道になってしまう。 */}
-      {onCutoutNow && (
-        <button
-          onClick={onCutoutNow}
-          disabled={saving}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"
-        >
-          <Scissors className="h-4 w-4" />
-          {saving ? t("photo.cuttingOut") : t("photo.cutoutNow")}
-        </button>
-      )}
-
-      {/* 自撮りがまだ無い札。切り抜きと同じ理屈で、**ここから撮れる**。
-          `label` で `input` を包むのは上の注のとおり。 */}
-      {onSelfieFile && (
-        <label
-          className={`inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink ${
-            saving ? "pointer-events-none opacity-60" : ""
-          }`}
-        >
-          <Camera className="h-4 w-4" />
-          {t("photo.selfieNow")}
-          <input
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            disabled={saving}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onSelfieFile(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-      )}
+      {/* 無い絵は「作る」ボタンにする。**出す条件は `PhotoAddButtons` が持つ** —
+          画面ごとに書くと条件がずれる（図鑑の詳細にはボタンそのものが
+          無かった）。速さを選んだ人はキャッチの瞬間に切り抜いていないので、
+          ここから掛け直せないと「速さを選ぶ = 二度と切り抜けない」になる。 */}
+      <PhotoAddButtons
+        objectUrl={sources.object_url ?? sources.object_thumb_url}
+        cutoutUrl={sources.cutout_url ?? sources.cutout_thumb_url}
+        selfieUrl={sources.selfie_url}
+        busy={saving}
+        onCutout={() => onCutoutNow?.()}
+        onSelfie={(f) => onSelfieFile?.(f)}
+      />
 
       {/* 前からあった道。**消さない** — 「そもそも別の写真にしたい」は
           「どれを主役にするか」とは別の用事。 */}
