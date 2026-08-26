@@ -702,3 +702,85 @@ describe("第5段: ホームを下スクロールの形に戻す", () => {
     expect(audit).not.toContain('scene: "home-spread"');
   });
 });
+
+describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () => {
+  it("「設定に従う」は**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-25「アルバム/単語詳細の画像長押しの
+    // 『設定に従う』ボタンを削除」。文言(i18n)ごと消す — 鍵だけ残すと
+    // 次に誰かが同じボタンを生やす。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).not.toMatch(/photo\.followSetting/);
+    const i18n = read("lib/i18n.tsx");
+    expect(i18n).not.toMatch(/"photo\.followSetting"/);
+    expect(i18n).not.toMatch(/"photo\.followSettingHint"/);
+  });
+
+  it("選べるのは**役だけ**(null を渡す道が閉じている)", () => {
+    // 「設定に従う」が消えた以上、`onPick(null)` の呼び先も消えていないと
+    // 型は通るのにボタンだけ無い、という中途半端が残る。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/onPick:\s*\(role: PhotoRole\) => void;/);
+    expect(picker).not.toMatch(/onPick\(null\)/);
+  });
+
+  it("面は**どちらの画面のためか**を持ち、それを画面にも出す", () => {
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/surface: PhotoSurface;/);
+    expect(picker).toMatch(/photo\.forAlbum/);
+    expect(picker).toMatch(/photo\.forDetail/);
+  });
+
+  it("アルバムの選択は**端末に**、詳細の選択は**サーバに**入る", () => {
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/setSurfaceRole\("album", stickerId, role\)/);
+    // 詳細のほうは今までどおり `hero_role`。
+    expect(sheet).toMatch(/setHeroRoleFn\(/);
+  });
+
+  it("アルバムから長押しで開いた面は**アルバムの面**になる", () => {
+    // ここを取り違えると、アルバムで選んだのに詳細の見え方が変わる
+    // (= 別々にした意味が消える)。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/if \(openPhotoPicker && stickerId\) setPickerSurface\("album"\);/);
+    expect(sheet).toMatch(/setPickerSurface\("detail"\);/);
+  });
+
+  it("アルバムの絵が**アルバムの選択**を見ている", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/surfaceRoles\[surfaceKey\("album", s\.id\)\]/);
+    expect(home).toMatch(/useSurfaceRoleMap\(\)/);
+    // 札の枚数だけ hook を呼ばない(枚数が変わると React が落ちる)。
+    expect(home).not.toMatch(/useSurfaceRole\("album", s\.id\)/);
+  });
+
+  it("自撮りが無い札には**自撮りを撮るボタン**が出る", () => {
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/onSelfieFile &&/);
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/onSelfieFile=\{s\.selfie_url \? undefined :/);
+    expect(sheet).toMatch(/attachSelfieFn\(/);
+  });
+
+  it("自撮りは `<label>` で包む(押した指の操作としてカメラに届く)", () => {
+    // 2026-08-20 のオーナー指摘「自撮りするを押してもインカメラに
+    // ならない」の原因は `button` からの `.click()` だった。
+    // **注釈を読ませない。** 最初は `read` のまま書いていて、
+    // `capture="user"` を消しても上の注釈の中の同じ文字列に当たって
+    // 通ってしまった(この作業場で5度目の「文字列が別の場所に在る」事故)。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
+    expect(picker).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
+  });
+
+  it("自撮りを足しても**元の写真を差し替えない**", () => {
+    const fns = codeOnly(read("lib/stickers.functions.ts"));
+    expect(fns).toMatch(/selfie_image_url:/);
+    // 呼び先が自分の置き場所以外を指していないこと。
+    expect(fns).toMatch(/data\.selfie_path\.startsWith\(`\$\{userId\}\/`\)/);
+  });
+
+  it("検査の雛形にアルバムの面がある", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/variant: "album"/);
+  });
+});

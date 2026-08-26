@@ -6,6 +6,7 @@ import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -662,6 +663,9 @@ export function ScrapbookAlbum({
 
   // 設定で主役を選んでいれば、そちらが画面の意図(自撮り)に勝つ。
   const photoPref = usePhotoPref();
+  // **アルバムだけの選択**(長押しで選んだ物)。札の枚数だけ hook を呼ばない
+  // よう、束で読んで `surfaceKey` で引く。
+  const surfaceRoles = useSurfaceRoleMap();
 
   // 長押し(550ms)。**詳細の画面と同じ長さ**にする — 同じ動作が場所によって
   // 違う長さだと、どちらかが「効かない」と感じられる。
@@ -701,8 +705,15 @@ export function ScrapbookAlbum({
           // アルバムは自分が出会って撮った物の記録で、借りてきた絵を同じ紙に
           // 貼ると、撮った日の思い出と見分けが付かなくなる。ネットの絵は
           // **単語の詳細の見出し**という置き場所を別に持っている。
+          // **アルバムでの選択がいちばん強い**(オーナー指示 2026-08-25
+          // 「アルバムと単語詳細で別々に種類を選べる」)。この端末に憶えて
+          // ある物 → 札の共通の選択(`hero_role`) → 設定 → 画面の意図。
           const heroUrl = stickerPhotoUrl(s, {
-            prefer: s.hero_role ?? resolvePrefer(photoPref, "selfie"),
+            prefer: resolveSurfaceRole({
+              surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
+              heroRole: s.hero_role,
+              screenIntent: resolvePrefer(photoPref, "selfie"),
+            }),
             exclude: ["placeholder"],
           });
 

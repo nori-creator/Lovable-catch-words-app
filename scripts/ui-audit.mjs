@@ -397,6 +397,9 @@ const MODES = [
   ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
   ["hero-picker-picked", "", false, { scene: "hero-picker", variant: "picked" }],
   ...crossThemes("hero-picker-cutout", { scene: "hero-picker", variant: "cutout" }),
+  // **アルバムの見え方を触っている面**(オーナー指示 2026-08-25)。
+  // 「設定に従う」が消えて、どの画面に効くのかが見出しの下に出る。
+  ["hero-picker-album", "", false, { scene: "hero-picker", variant: "album" }],
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],

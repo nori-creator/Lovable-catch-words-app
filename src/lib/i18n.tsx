@@ -2486,11 +2486,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Main photo for this card",
     "zh-TW": "這張貼紙的主角照片",
   },
-  "photo.followSetting": { ja: "設定に従う", en: "Follow my setting", "zh-TW": "依照設定" },
-  "photo.followSettingHint": {
-    ja: "画面ごとに合う絵が出ます（いまの既定）",
-    en: "Each screen picks what suits it (current default)",
-    "zh-TW": "每個畫面會出現合適的圖（目前的預設）",
+  "photo.forAlbum": {
+    ja: "アルバムでの見え方",
+    en: "How it looks in the album",
+    "zh-TW": "在相簿裡的樣子",
+  },
+  "photo.forDetail": {
+    ja: "単語の詳細での見え方",
+    en: "How it looks on the word page",
+    "zh-TW": "在單字頁面的樣子",
+  },
+  "photo.selfieNow": { ja: "いま自撮りを撮る", en: "Take a selfie now", "zh-TW": "現在自拍" },
+  "photo.selfieFailed": {
+    ja: "自撮りを保存できませんでした",
+    en: "Could not save the selfie",
+    "zh-TW": "自拍儲存失敗",
   },
   "photo.roleObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "photo.roleCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },

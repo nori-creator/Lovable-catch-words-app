@@ -1,6 +1,7 @@
-import { Check, ImageUp, Scissors, X } from "lucide-react";
+import { Camera, Check, ImageUp, Scissors, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
+import type { PhotoSurface } from "@/lib/photo-surface";
 import type { PhotoRole, PhotoSources } from "@/lib/sticker-photo";
 
 /**
@@ -18,6 +19,19 @@ import type { PhotoRole, PhotoSources } from "@/lib/sticker-photo";
  * ## 在る絵だけを出す
  * 「自撮り」の札が無い所に「自撮り」を出しても、押しても何も起きない。
  * **押せない選択肢を並べない** — 選べる物だけを、その絵と一緒に見せる。
+ *
+ * ## 「設定に従う」をやめた(オーナー指示 2026-08-25)
+ * > 「アルバム/単語詳細の画像長押しの『設定に従う』ボタンを削除。
+ * >  アルバムと単語詳細で**別々に**種類を選べる。」
+ *
+ * この面は**その画面のための面**になった。どの画面の見え方をいま
+ * 触っているのかを見出しの下に書く — 書かないと、同じ見た目の面が
+ * 2つあって片方しか効かない、という一番わかりにくい形になる。
+ *
+ * ## 無い絵は「作る」ボタンにする
+ * 切り抜きが無ければ「いま切り抜く」、自撮りが無ければ「自撮りを撮る」。
+ * **押せない選択肢を並べない**という上の決めごとの続きで、
+ * 「無いから選べない」で行き止まりにせず、その場で作れるようにする。
  *
  * 通信も状態も持たない。検査の雛形から本物の見た目をそのまま撮れる。
  */
@@ -41,17 +55,21 @@ function urlOf(s: PhotoSources, role: PhotoRole): string | null {
 
 export function HeroPhotoPicker({
   sources,
+  surface,
   current,
   onPick,
   onReplaceFile,
   onCutoutNow,
+  onSelfieFile,
   onClose,
   saving,
 }: {
   sources: PhotoSources;
-  /** いま選ばれている役。null = 設定に従う。 */
+  /** どの画面の見え方をいま触っているか。見出しの下に出す。 */
+  surface: PhotoSurface;
+  /** いま選ばれている役。null = まだ選んでいない。 */
   current: string | null | undefined;
-  onPick: (role: PhotoRole | null) => void;
+  onPick: (role: PhotoRole) => void;
   /** 「別の写真に差し替える」。前からあった道はここに残す。 */
   onReplaceFile: () => void;
   /**
@@ -60,6 +78,16 @@ export function HeroPhotoPicker({
    * 押しても同じ絵が出来るだけで、待たせるぶん損をする。
    */
   onCutoutNow?: () => void;
+  /**
+   * 「いま自撮りを撮る」。**自撮りがまだ無い札のときだけ**渡される。
+   *
+   * 押す物そのものを `<label>` にして、その中の
+   * `<input capture="user">` を包む。`button` から `.click()` を投げると、
+   * 端末によっては**その場の指の操作**と見なされず、前後どちらのカメラかの
+   * 指定ごと落ちる(2026-08-20 のオーナー指摘「自撮りするを押しても
+   * インカメラにならない」の原因がこれだった)。
+   */
+  onSelfieFile?: (file: File) => void;
   onClose: () => void;
   saving: boolean;
 }) {
@@ -69,7 +97,15 @@ export function HeroPhotoPicker({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-headline font-semibold">{t("photo.pickTitle")}</p>
+        <span className="block">
+          <span className="block text-headline font-semibold">{t("photo.pickTitle")}</span>
+          {/* **どの画面に効くのかを書く。** アルバムと単語の詳細で
+              別々に選べるようになったので、書かないと同じ面が2つ在って
+              片方しか効かない、という形に見える。 */}
+          <span className="block text-caption text-muted-foreground">
+            {t(surface === "album" ? "photo.forAlbum" : "photo.forDetail")}
+          </span>
+        </span>
         <button
           onClick={onClose}
           aria-label={t("common.close")}
@@ -78,25 +114,6 @@ export function HeroPhotoPicker({
           <X className="h-4 w-4" />
         </button>
       </div>
-
-      {/* **「設定に従う」を先頭に置く。** 選び直した人が元へ戻れる道を、
-          設定画面まで行かずに残す。 */}
-      <button
-        onClick={() => onPick(null)}
-        disabled={saving}
-        aria-pressed={!current}
-        className={`flex min-h-11 w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left ${
-          !current ? "border-primary bg-primary/8" : "border-border bg-card"
-        }`}
-      >
-        <span>
-          <span className="block text-body font-semibold">{t("photo.followSetting")}</span>
-          <span className="block text-caption text-muted-foreground">
-            {t("photo.followSettingHint")}
-          </span>
-        </span>
-        {!current && <Check className="h-5 w-5 shrink-0 text-primary" />}
-      </button>
 
       <ul className="grid grid-cols-2 gap-2">
         {available.map((role) => {
@@ -143,6 +160,31 @@ export function HeroPhotoPicker({
           <Scissors className="h-4 w-4" />
           {saving ? t("photo.cuttingOut") : t("photo.cutoutNow")}
         </button>
+      )}
+
+      {/* 自撮りがまだ無い札。切り抜きと同じ理屈で、**ここから撮れる**。
+          `label` で `input` を包むのは上の注のとおり。 */}
+      {onSelfieFile && (
+        <label
+          className={`inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink ${
+            saving ? "pointer-events-none opacity-60" : ""
+          }`}
+        >
+          <Camera className="h-4 w-4" />
+          {t("photo.selfieNow")}
+          <input
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            disabled={saving}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onSelfieFile(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
       )}
 
       {/* 前からあった道。**消さない** — 「そもそも別の写真にしたい」は
