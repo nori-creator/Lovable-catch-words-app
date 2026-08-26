@@ -385,7 +385,7 @@ ${l1Gram}
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
-- taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
+- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）
 - etymology: ${cardProfile.capture.etymologyRule}（${NL}）
 ${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
 - radicals: ${cardProfile.capture.radicalsRule}
@@ -416,7 +416,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `scene_weights, season_months, region_scope, ` +
       `related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
-      `pronunciation_tips, taiwan_note, etymology, radicals, mnemonic }。` +
+      `pronunciation_tips, ${cardProfile.capture.noteField}, etymology, radicals, mnemonic }。` +
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
 
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
@@ -459,9 +459,17 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       const e = c.extras;
       if (!e) return true;
       const filled =
-        [e.usage_context, e.pronunciation_tips, e.taiwan_note, e.etymology, e.mnemonic].some(
-          (v) => !!v && v.trim().length > 0,
-        ) ||
+        [
+          e.usage_context,
+          e.pronunciation_tips,
+          // **その言語の一言メモを見る。** `taiwan_note` に決め打つと、
+          // 英語のカードは `culture_note` が埋まっていても「空」と判定され、
+          // 作り直しが毎回走る(費用も待ち時間も倍になる)。
+          e.taiwan_note,
+          e.culture_note,
+          e.etymology,
+          e.mnemonic,
+        ].some((v) => !!v && v.trim().length > 0) ||
         (e.usage_chunks?.length ?? 0) > 0 ||
         (e.related_words?.length ?? 0) > 0 ||
         (e.examples_extra?.length ?? 0) > 0;
@@ -492,7 +500,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       try {
         const retry = await genOnce(
           `\n\n前回 extras が空で不十分でした。今回は usage_chunks / usage_context / ` +
-            `related_words / pronunciation_tips / taiwan_note / examples_extra を含め、` +
+            `related_words / pronunciation_tips / ${cardProfile.capture.noteField} / examples_extra を含め、` +
             `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
         );
         if (!extrasLookEmpty(retry)) card = retry;
@@ -861,7 +869,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ mnemonic: z.string().min(1) }),
       },
       taiwan_note: {
-        prompt: `${base}\n{"taiwan_note":"台湾ならではの一言雑学(文化・習慣・歴史・流行)1〜2文+誤用しやすい語法があれば1文"}`,
+        prompt: `${base}\n{"taiwan_note":"${regenProfile.capture.noteRule}"}`,
         schema: z.object({ taiwan_note: z.string().min(1) }),
       },
       // --- 英語のカードの節 ---------------------------------------------
@@ -903,8 +911,19 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
             .min(1),
         }),
       },
+      /**
+       * 英語の一言メモ。オーナー指示 2026-08-26:
+       * > 「台湾人が学習言語英語で勉強する時、単語の項目の台湾ノートは
+       * >  要らない。そのかわりひと言単語に関する雑学や知識やを
+       * >  コメントをかいて」
+       *
+       * 前はここが「米/英の言い方の違い」だけだった。違いが無い語のほうが
+       * 多いので、**大半の語でこの節が薄くなる**。何を書くかは
+       * `target-profile.ts` の `noteRule` が唯一の正
+       * (カード全体を作るときの指示と同じ文を使う)。
+       */
       culture_note: {
-        prompt: `${base}\n「${head}」にまつわる英語圏の一言(1〜2文、${NL}で)。\nアメリカ英語とイギリス英語で語が違うならそれを最初に書く(elevator / lift など)。\n違いが無い語なら、習慣・場面・言い回しの注意を1つ。**当てはまらないことを無理に書かない。**\n{"culture_note":""}`,
+        prompt: `${base}\n${regenProfile.capture.noteRule}(${NL}で)\n{"culture_note":""}`,
         schema: z.object({ culture_note: z.string().min(1) }),
       },
     };

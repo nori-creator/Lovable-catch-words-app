@@ -289,6 +289,24 @@ function SettingsPage() {
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
+    /**
+     * **私用の列が読めなかった行で、言語と級を上書きしない。**
+     *
+     * オーナー報告 2026-08-26:
+     * > 「学習言語を英語、表示言語を台湾華語にすると、設定のページを
+     * >  触ると勝手に学習言語が台湾華語、表示言語が日本語に戻る」
+     *
+     * `getMyProfile` は私用の列が読めなかったとき `partial: true` を
+     * 付けて**置き場所の値**(既定の台湾華語 / 日本語)を返す。
+     * `use-language-prefs.ts` はそれを見て写しを止めているのに、
+     * **この画面だけ見ていなかった**。だから設定を開いた瞬間に
+     * 既定の表示言語と既定の学習言語が端末の写しへ書き戻され、
+     * 選んだ設定が消えていた。
+     *
+     * 名前・見た目の設定はそのまま読んでよい(置き場所の値ではない)。
+     * 戻すのは**言語と、言語で決まる級**だけ。
+     */
+    if ((profile as { partial?: boolean }).partial) return;
     // **一覧に無い値をそのまま渡さない。** 母語を12から3に絞ったので
     // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
@@ -330,12 +348,22 @@ function SettingsPage() {
   async function handleSave() {
     setSaving(true);
     try {
+      /**
+       * **言語だけを先に、単独で送る**(オーナー報告 2026-08-26
+       * 「設定のページを触ると勝手に学習言語が台湾華語、表示言語が
+       * 日本語に戻る」)。
+       *
+       * 設定はこれまで1回の UPDATE でまとめて送っていた。この形だと
+       * **どれか1列が値を撥ねられただけで、言語もまとめて保存されない**。
+       * 画面には選んだ値が残るので保存できたように見え、次に開いたとき
+       * 既定へ戻る — それが報告の姿。
+       *
+       * すぐ下の出題形式には既に同じ注が書いてある。言語は出題形式より
+       * 重い設定(撮る・解説・復習の全部がこれで決まる)なので、
+       * **こちらこそ単独で送るべきだった。**
+       */
       await updateProfile({
         data: {
-          // Only send a non-empty name: the server rejects "" (min length 1),
-          // which would otherwise fail the whole save (theme/level/language too)
-          // for anyone whose display name is blank.
-          ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
           // **母語は表示言語から決まる。** 列は残すので、統合後も
           // 食い違わないように同じ値の側から書く(`reader-language.ts`)。
           native_language: readerL1({
@@ -345,6 +373,14 @@ function SettingsPage() {
           }),
           ui_language: uiLanguage,
           target_language: targetLanguage,
+        },
+      });
+      await updateProfile({
+        data: {
+          // Only send a non-empty name: the server rejects "" (min length 1),
+          // which would otherwise fail the whole save (theme/level too)
+          // for anyone whose display name is blank.
+          ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
           level_goal: levelGoal,
           current_level: currentLevel,
           pronunciation_strictness: strictness,

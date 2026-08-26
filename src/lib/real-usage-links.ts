@@ -17,19 +17,16 @@
  * 使っている形と同じ形だけ**を英語に写す:
  *
  *   youglish.com/pronounce/{w}/chinese/tw → …/english/us
- *   context.reverso.net/translation/chinese-japanese → english-japanese
  *   google.com/search?…&gl=TW&lr=lang_zh-TW → …&gl=US&lr=lang_en
  *
  * 形が同じなら、当てているのは**言語の名前だけ**になる。
  *
- * ## 読む人の言語も要る
- * 対訳(Reverso)は「学習言語 → 読む人の言語」の対で決まる。
- * 台湾側の版は `chinese-japanese` と**日本語で決め打ち**されていて、
- * 繁體中文の画面の人も日本語の対訳へ飛んでいた。対で受ける。
+ * ## 対訳(Reverso)は外した
+ * オーナー指示 2026-08-26「reverso の項目は学習言語に関わらず削除して」。
+ * 例文の対訳はカードの中に既に在るので、外へ飛ばす値打ちが薄かった。
  */
 
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
-import { normalizeUiLang, type UiLang } from "./i18n";
 
 export type RealUsageLink = {
   id: string;
@@ -41,39 +38,18 @@ export type RealUsageLink = {
   href: string;
 };
 
-/** Reverso の対訳で使う言語の綴り。 */
-const REVERSO_TARGET: Record<string, string> = {
-  "zh-TW": "chinese",
-  en: "english",
-};
-const REVERSO_READER: Record<UiLang, string> = {
-  ja: "japanese",
-  en: "english",
-  "zh-TW": "chinese",
-};
-
 /**
  * その語の「実際の使われ方」の行き先。
  *
  * @param headword 見出し語(URL に入れる。呼ぶ側で encode しない)
  * @param targetLanguage 学習言語。知らない値は既定に落とす
- * @param uiLang 読む人の言語。対訳の相手側に使う
  */
 export function realUsageLinks(
   headword: string,
   targetLanguage: string | null | undefined = DEFAULT_TARGET_LANGUAGE,
-  uiLang: string | null | undefined = "ja",
 ): RealUsageLink[] {
   const q = encodeURIComponent(headword);
   const lang = normalizeTargetLanguage(targetLanguage);
-  const reader = normalizeUiLang(uiLang);
-  // 対訳は「学習言語 → 読む人の言語」。同じ言語同士の対は無いので、
-  // その場合だけ英語に寄せる(繁體中文の人が中国語を学ぶ組み合わせは
-  // 起きないが、英語を学ぶ人が英語で読む組み合わせは起きる)。
-  const from = REVERSO_TARGET[lang] ?? REVERSO_TARGET[DEFAULT_TARGET_LANGUAGE];
-  const toRaw = REVERSO_READER[reader];
-  const to = toRaw === from ? "japanese" : toRaw;
-  const reverso = `https://context.reverso.net/translation/${from}-${to}/${q}`;
 
   if (lang === "en") {
     return [
@@ -104,11 +80,14 @@ export function realUsageLinks(
         href: `https://www.reddit.com/search/?q=${q}`,
       },
       {
-        id: "threads",
-        emoji: "\u{1F9F5}",
-        labelKey: "card.threadsLabel",
-        hintKey: "card.threadsHintEn",
-        href: `https://www.threads.com/search?q=${q}`,
+        id: "instagram",
+        emoji: "\u{1F4F7}",
+        // オーナー指示 2026-08-26「Threads ではなく Instagram にして」。
+        // Threads は台湾で短文が流れている所という理由で選んだので、
+        // 英語圏では理由がそのまま当てはまらない。
+        labelKey: "card.igLabel",
+        hintKey: "card.igHint",
+        href: `https://www.instagram.com/explore/tags/${q}/`,
       },
       {
         id: "news",
@@ -118,13 +97,6 @@ export function realUsageLinks(
         labelKey: "card.newsLabelEn",
         hintKey: "card.newsHintEn",
         href: `https://www.google.com/search?q=${q}&hl=en&gl=US&cr=countryUS&lr=lang_en`,
-      },
-      {
-        id: "context",
-        emoji: "\u{1F524}",
-        labelKey: "card.contextLabel",
-        hintKey: "card.contextHint",
-        href: reverso,
       },
       {
         id: "mw",
@@ -181,15 +153,6 @@ export function realUsageLinks(
       labelKey: "card.newsLabel",
       hintKey: "card.newsHint",
       href: `https://www.google.com/search?q=${q}&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW`,
-    },
-    {
-      id: "context",
-      emoji: "\u{1F524}",
-      // 実例の対訳。**その語がどんな文の中に出るか**を並べて見せる所で、
-      // 「どの語と一緒に使うか」「どんな場面か」はここから読める。
-      labelKey: "card.contextLabel",
-      hintKey: "card.contextHint",
-      href: reverso,
     },
     {
       id: "moe",

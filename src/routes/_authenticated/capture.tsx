@@ -862,6 +862,7 @@ function CapturePage() {
 
       {step === "select" && (
         <PickWordPanel
+          targetLanguage={targetLanguage}
           objectImg={objectImg}
           suggestions={suggestions}
           manualWord={manualWord}
@@ -1114,6 +1115,7 @@ export function PickWordPanel({
   setManualWord,
   onPick,
   onManual,
+  targetLanguage,
 }: {
   objectImg: string | null;
   suggestions: Suggestion[];
@@ -1121,9 +1123,10 @@ export function PickWordPanel({
   setManualWord: (v: string) => void;
   onPick: (s: Suggestion) => void;
   onManual: () => void;
+  /** 候補の語の学習言語。**渡さないと台湾華語の声で読まれる。** */
+  targetLanguage: string;
 }) {
   const t = useT();
-  const pronounce = usePronounce();
   return (
     <div className="space-y-4">
       {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
@@ -1152,7 +1155,7 @@ export function PickWordPanel({
             meaning={s.meaning_ja}
             distinction={s.distinction}
             onPick={() => onPick(s)}
-            onPronounce={() => void pronounce(s.headword)}
+            language={targetLanguage}
           />
         ))}
       </div>

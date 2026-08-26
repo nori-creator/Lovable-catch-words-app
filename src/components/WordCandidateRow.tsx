@@ -1,4 +1,4 @@
-import { Volume2 } from "lucide-react";
+import { PronounceButton } from "@/components/PronounceButton";
 import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
 import { usePhoneticPref, pickReading } from "@/lib/phonetic";
@@ -38,7 +38,7 @@ export function WordCandidateRow({
   meaning,
   distinction,
   onPick,
-  onPronounce,
+  language,
 }: {
   headword: string;
   zhuyin?: string | null;
@@ -47,7 +47,12 @@ export function WordCandidateRow({
   /** 他の候補との使い分け。**無い語のほうが多い**ので、空なら描かない。 */
   distinction?: string | null;
   onPick: () => void;
-  onPronounce: () => void;
+  /**
+   * 読む語の学習言語。**渡さないと台湾華語として読む。**
+   * 候補は学習言語の語なので、ここを落とすと英語の候補が
+   * 中国語の声で読まれる(しかもその音は保存される)。
+   */
+  language?: string;
 }) {
   const t = useT();
   const phonetic = usePhoneticPref();
@@ -81,14 +86,12 @@ export function WordCandidateRow({
       </button>
 
       {/* 選ぶ前に音で確かめられる。**入れ子のボタンにしない** —
-          正しくない markup になり、押し分けも効かない。 */}
-      <button
-        onClick={onPronounce}
-        aria-label={t("common.playWord", { word: headword })}
-        className="mr-3 grid h-11 w-11 shrink-0 place-items-center self-center rounded-full bg-primary/12 text-primary-ink active:scale-95 motion-reduce:active:scale-100"
-      >
-        <Volume2 className="h-4 w-4" />
-      </button>
+          正しくない markup になり、押し分けも効かない。
+
+          **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
+          この札が画面に出た瞬間に音を取りに行くので、人が候補を読んで
+          いる数秒のあいだにそろう。押しても鳴らないボタンは出さない。 */}
+      <PronounceButton text={headword} language={language} className="mr-3 self-center" />
     </div>
   );
 }
