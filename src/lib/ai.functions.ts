@@ -345,23 +345,22 @@ ${cardProfile.capture.readingRule}
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
-- example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（繁体字）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
+- example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（${cardProfile.promptName}）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
   ${worldExampleRule(NL)}
 - example_translation: 例文の訳(${NL})
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
-チャンク分解の共通ルール: parts/chunks は {text: 繁体字パーツ, pos: 役割} の配列。
-pos は S(主語)/V(動詞、複数あればV1,V2)/O(目的語、O1,O2)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞) を使う。
+チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 役割} の配列。
+pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
 - usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
-  **短くする**: 型1つは繁体字で**8文字以内・パーツ4つ以内**。それを超えるものは型ではなく例文なので、例文の欄に任せる。
-  そのまま声に出せる形にする(例: 拿+衛生紙 → parts:[{text:"拿",pos:"V"},{text:"衛生紙",pos:"N"}])。「${data.headword}」自体を必ずどれかのパーツに含める。
-  **量詞の欄と重なる型を作らない** — 「量詞+「${data.headword}」だけ」の型は下の measure_words と丸ごと同じ物になる。量詞を使うなら必ず動詞や述語と一緒の形にする。
-  動詞と目的語だけに寄せず、状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も、**頻度が高ければ**入れる。頻度が低い型を品詞を埋めるために作らない。
-  **${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する**。該当する型があれば ja に「母語だとこう言いたくなるが中国語ではこの順」と一言添える。
+  **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
+  そのまま声に出せる形にする。「${data.headword}」自体を必ずどれかのパーツに含める。
+  ${cardProfile.chunkPrompt.styleRule}
+  **${learnerL1}が崩しやすい型を優先する**。該当する型があれば ja に「母語だとこう言いたくなるが${cardProfile.promptName}ではこの形」と一言添える。
 ${l1Gram}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
 - examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
@@ -382,7 +381,7 @@ ${l1Gram}
 - scene_weights: **その語にどこで出会うか**の分布。鍵は次の8つだけで、他を作らない: eat(食べ物・飲み物)/ town(街・店・看板・乗り物)/ house(家の中・家具・道具)/ wear(服・持ち物)/ play(遊び・趣味・道具)/ nature(自然・天気・動植物)/ people(人・体・仕事)/ marks(文字・記号・色・形・お金・書類)。合計が1になる小数で、当てはまらない部屋は入れない。例: 芒果 → {"eat":0.7,"town":0.2,"nature":0.1}
 - season_months: 旬の月を1〜12の整数の配列で(例: 芒果なら [5,6,7,8])。**通年なら空配列**
 - region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
-- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:繁体字, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
+- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）
@@ -664,7 +663,19 @@ const RegenInput = z.object({
  * 台湾の教材(國語教學中心系)の詞類表をそのまま使う。`POS_TABLE` と
  * 同じ記号なので、単語の品詞欄と帯の色が同じ体系で読める。
  */
-const CHUNK_RULE = `チャンクは {text: 繁体字パーツ, pos: 詞類} の配列。pos は台湾の詞類表の記号を使う: N(名詞)/V(及物動詞)/Vi(不及物)/V-sep(離合詞)/Vs(状態動詞=形容詞)/Vst(状態及物)/Vs-attr/Vs-pred/Vs-sep/Vaux(助動詞)/Vp(変化動詞)/Vpt/Vp-sep/Adv(副詞)/Conj(接続詞)/Prep(介詞)/M(量詞)/Ptc(助詞)/Det(限定詞)。**文を構成する全パーツに付ける**(助詞の「的」「了」「嗎」、副詞の「很」「已經」、限定詞の「這」も省かない)。役割記号(S/O/C/P)は使わない。`;
+/**
+ * **言語ごとの詞類表を引く**（オーナー報告 2026-08-26、3度目
+ * 「単語のチャンク型の項目が生成されてない」）。
+ *
+ * ここは台湾の詞類表を直に書いていたので、英語のカードにも
+ * `V-sep`(離合詞)や `Ptc`(助詞)を選ばせていた。英語に無い記号を
+ * 求められた生成は、当たり障りのない物を返すか、丸ごと外す。
+ * 記号の一覧は `target-profile.ts` が言語ごとに持つ。
+ */
+function chunkRule(language: string | null | undefined): string {
+  const p = targetProfile(language);
+  return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}`;
+}
 
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -737,6 +748,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
       data.only_if_empty &&
       sectionHasContent(data.section, {
         headword: word.headword as string,
+        // **学習言語を渡す。** 渡さないと英語のカードの例文を台湾華語の
+        // 目盛りで数え、英語の型を1つ残らず「無い」と判ずる — つまり
+        // 作っても作っても空のままになる(`card-sections.ts` の注)。
+        language: word.language as string | null,
         meaning_ja: word.meaning_ja as string | null,
         example_sentence: word.example_sentence as string | null,
         extras: normalizeExtras(word.extras),
@@ -797,7 +812,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       example: {
-        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"example_sentence":"繁体字例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
         schema: z.object({
           example_sentence: z.string().min(1),
           example_translation: z.string().catch(""),
@@ -807,7 +822,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       examples_extra: {
-        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${CHUNK_RULE}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
         schema: z.object({
           examples_extra: z
             .array(
@@ -824,7 +839,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n**短くする**: 型1つは繁体字で8文字以内・パーツ4つ以内。超えるものは型ではなく例文。\nそのまま声に出せる形にする。**「量詞+「${head}」だけ」の型は作らない**(量詞の欄と丸ごと同じになる)。量詞を使うなら動詞や述語と一緒の形にする。\n動詞+目的語だけに寄せず、状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も**頻度が高ければ**入れる(品詞を埋めるために低頻度の型を作らない)。\n${learnerL1}が語順・量詞・「的」の位置で崩しやすい型を優先する。\n${l1Gram}\n${CHUNK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z
             .array(
@@ -837,7 +852,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       related_words: {
-        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"繁体字","kind":"syn|ant|rel","note":"短い説明(${NL})"}]}`,
+        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})"}]}`,
         schema: z.object({
           related_words: z
             .array(

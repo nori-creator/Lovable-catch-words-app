@@ -100,23 +100,30 @@ export function TocflLadder({
           onClick={() => setOpen(true)}
           aria-expanded={false}
           aria-label={`${scale.id} ${label} — ${t("tocfl.showLadder")}`}
-          // 押せる物なので 44px を確保する。見た目は小さいままにしたいので
-          // 高さは当たり判定で持ち、文字は `text-caption` のまま。
-          className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-caption text-foreground ring-1 ring-border"
+          /**
+           * **品詞の札と同じ寸法にする**(オーナー報告 2026-08-26、3度目
+           * 「単語の欄の CEFR の欄が大きくて、品詞のカテゴリーとのバランスが
+           * 悪いから、大きさを揃えて、横に並べて」)。
+           *
+           * ここは `min-h-11 px-3 py-1` で、見た目そのものが 44px あった。
+           * 隣に並ぶ品詞の札は `px-2 py-0.5`(≒22px)なので、同じ行に置くと
+           * **倍の高さの札が2つ並ぶ**。だから今までは行を分けていて、
+           * 級だけが1行を丸ごと使っていた。
+           *
+           * 寸法は品詞と揃え、**指の当たり判定は `::before` で 44px** に
+           * 広げる(このアプリの §11 の型。カードの発音ボタンや図鑑の札と
+           * 同じ書き方)。触るのは1つの札なので、見えない枠でも指は届く。
+           *
+           * TOEFL / IELTS は**開いたときだけ**出す。畳んだ札に足すと
+           * 横幅が品詞の3倍になり、揃えた意味が無くなる
+           * (オーナーの前の指示「レベルとバンドだけ表示して、タップで
+           * バーを出して」とも、こちらのほうが合う)。
+           */
+          className="press-in relative inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-['']"
         >
           <span className="font-semibold label-caps text-muted-foreground">{scale.id}</span>
           <span className="font-bold">{label}</span>
-          {exams && (exams.toefl || exams.ielts) && (
-            <span className="text-muted-foreground">
-              {[
-                exams.toefl ? `TOEFL ${exams.toefl}` : null,
-                exams.ielts ? `IELTS ${exams.ielts}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden />
         </button>
       </div>
     );

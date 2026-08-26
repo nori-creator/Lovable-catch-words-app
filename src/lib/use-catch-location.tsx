@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { geocodeLocation } from "@/lib/geocode.functions";
+import { shouldGeocode } from "@/lib/geo-warm";
 
 /**
  * キャッチしたときの「どこで」を取る所。
@@ -36,28 +37,87 @@ export const EMPTY_LOCATION: CatchLocation = { lat: null, lng: null, name: null 
 const WARM_MAX_AGE_MS = 2 * 60_000;
 /** 保存の直前に待つ上限。**ここを長くしない** — キャッチが止まって見える。 */
 const WAIT_MS = 1_500;
+/**
+ * 地名がまだ温まっていないときに待つ上限。
+ *
+ * **座標より短くする。** 座標が無いと地図そのものが出せないが、
+ * 地名は「あれば読みやすい」だけ。温まっていれば 0ms で返るので、
+ * ここに来るのは「開いてすぐ撮った」回だけ。
+ */
+const NAME_WAIT_MS = 900;
 
 export function useCatchLocation() {
   const geocodeFn = useServerFn(geocodeLocation);
-  const warmRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
+  const warmRef = useRef<{
+    lat: number;
+    lng: number;
+    at: number;
+    /** その座標の地名。**ここも温める**（下の注）。 */
+    name: string | null;
+  } | null>(null);
   const [loc, setLoc] = useState<CatchLocation>(EMPTY_LOCATION);
+
+  /**
+   * 地名を引いて、温めた所へ書き込む。
+   *
+   * **同じ場所で二重に引かない。** `pending` は「いま引いている座標」で、
+   * 位置は数秒おきに届くので、これが無いと同じ場所を何度も叩く。
+   */
+  const pendingRef = useRef<string | null>(null);
+  const warmName = useCallback(
+    async (lat: number, lng: number): Promise<string | null> => {
+      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+      if (pendingRef.current === key) return warmRef.current?.name ?? null;
+      pendingRef.current = key;
+      try {
+        const { location_name } = await geocodeFn({ data: { lat, lng } });
+        const name = location_name || null;
+        const w = warmRef.current;
+        if (w && w.lat === lat && w.lng === lng) w.name = name;
+        if (name) setLoc((cur) => (cur.lat === lat && cur.lng === lng ? { ...cur, name } : cur));
+        return name;
+      } catch {
+        return null;
+      } finally {
+        if (pendingRef.current === key) pendingRef.current = null;
+      }
+    },
+    [geocodeFn],
+  );
 
   // 画面を開いた時から追従する。撮る瞬間の一発勝負にしない。
   useEffect(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
-        warmRef.current = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          at: Date.now(),
-        };
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const prev = warmRef.current;
+        /**
+         * **地名も座標と一緒に温める**(オーナー報告 2026-08-26、3度目
+         * 「撮った地図の地名が表示されてない」)。
+         *
+         * ## なぜ保存されていなかったか
+         * `resolve()` は地名を「待たない」ことにして、引くのを
+         * `void` で投げ、返ってきたら `setLoc` で**画面だけ**直していた。
+         * ところが保存に渡るのは `resolve()` の**戻り値**なので、
+         * そこには `name: null` しか入っていない。
+         * つまり地名は一度も行に書かれていなかった —
+         * 画面の写しだけが後から名前を持ち、次に開くと消えている。
+         *
+         * ## 待たずに間に合わせる
+         * 座標が届いた時点で引いておけば、撮る頃には名前が手元にある。
+         * 撮る道は1ミリ秒も遅くならず、行にも名前が入る。
+         */
+        const carry = prev && prev.lat === lat && prev.lng === lng ? prev.name : null;
+        warmRef.current = { lat, lng, at: Date.now(), name: carry };
+        if (shouldGeocode(prev, { lat, lng })) void warmName(lat, lng);
       },
       () => {},
       { enableHighAccuracy: false, maximumAge: 60_000 },
     );
     return () => navigator.geolocation.clearWatch(id);
-  }, []);
+  }, [warmName]);
 
   /**
    * いまの位置を返す。温まっていなければ**短く待つ**。
@@ -67,9 +127,11 @@ export function useCatchLocation() {
     const warm = warmRef.current;
     let lat: number | null = null;
     let lng: number | null = null;
+    let name: string | null = null;
     if (warm && Date.now() - warm.at < WARM_MAX_AGE_MS) {
       lat = warm.lat;
       lng = warm.lng;
+      name = warm.name;
     } else if (typeof navigator !== "undefined" && "geolocation" in navigator) {
       try {
         const pos = await new Promise<GeolocationPosition>((res, rej) => {
@@ -84,22 +146,31 @@ export function useCatchLocation() {
         /* 取れなくてもキャッチは続ける */
       }
     }
-    const next: CatchLocation = { lat, lng, name: null };
-    setLoc(next);
-    if (lat == null || lng == null) return next;
+    if (lat == null || lng == null) {
+      const empty: CatchLocation = { lat, lng, name: null };
+      setLoc(empty);
+      return empty;
+    }
 
-    // 地名(「士林」級)は**待たない**。座標さえ入っていれば地図は出せるし、
-    // 名前は後から画面に追いつけばいい。
-    void geocodeFn({ data: { lat, lng } })
-      .then(({ location_name }) => {
-        if (!location_name) return;
-        setLoc((cur) =>
-          cur.lat === lat && cur.lng === lng ? { ...cur, name: location_name } : cur,
-        );
-      })
-      .catch(() => {});
+    /**
+     * 温まっていれば 0ms。冷えていたときだけ**短く待つ**。
+     *
+     * 待たずに `null` を返していたのが報告の中身（上の注）。ただし
+     * 待つのは `NAME_WAIT_MS` まで — 名前は「あれば読みやすい」だけで、
+     * キャッチを止めてよい物ではない。間に合わなくても引くのは続き、
+     * 画面の側には後から追いつく。
+     */
+    if (!name) {
+      const asked = warmName(lat, lng);
+      name = await Promise.race([
+        asked,
+        new Promise<null>((res) => setTimeout(() => res(null), NAME_WAIT_MS)),
+      ]);
+    }
+    const next: CatchLocation = { lat, lng, name };
+    setLoc(next);
     return next;
-  }, [geocodeFn]);
+  }, [warmName]);
 
   /**
    * 保存に渡す形。**`resolve` を待ってから呼ぶこと** —

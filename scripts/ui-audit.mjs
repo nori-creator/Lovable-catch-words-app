@@ -461,9 +461,6 @@ const MODES = [
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
-  ...crossThemes("voice-note", { scene: "voice-note" }),
-  ["voice-note-done", "", false, { scene: "voice-note", done: "1" }],
-  ["voice-note-done-dark", 'class="dark"', false, { scene: "voice-note", done: "1" }],
   // 聞くボタンそのもの(オーナー指示 2026-08-26)。指が届く大きさを見る。
   ...crossThemes("voice-player", { scene: "voice-player" }),
   ["dex-filter", "", false, { scene: "dex-filter" }],

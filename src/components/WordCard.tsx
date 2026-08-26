@@ -18,8 +18,7 @@ import {
   Volume2,
   Eye,
   EyeOff,
-  ChevronUp,
-  ChevronDown,
+  GripVertical,
   ExternalLink,
   Flag,
   RefreshCw,
@@ -201,7 +200,41 @@ export function WordCardSectionsEditor() {
    */
   const [dragId, setDragId] = useState<SectionId | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
-  const holdRef = useRef<{ timer: number; x: number; y: number; id: SectionId } | null>(null);
+  const holdRef = useRef<{
+    timer: number;
+    x: number;
+    y: number;
+    id: SectionId;
+    pointerId: number;
+    el: HTMLElement;
+  } | null>(null);
+  /**
+   * **掴んでいる間、指で画面が動くのを本当に止める**（オーナー報告
+   * 2026-08-26、3度目「未だに長押ししてドロップしたら順序が変えられる
+   * ように変更されてないから実装して」）。
+   *
+   * ## 実装は在ったのに動かなかった理由
+   * React の `onPointerMove` の中で `e.preventDefault()` を呼んでいたが、
+   * React の合成イベントは**受動(passive)で登録された listener 越し**に
+   * 来るので、そこで止めても browser は既にスクロールを始めている。
+   * 始まってしまうと browser は `pointercancel` を投げ、`endDrag` が
+   * 走って掴んだ手が離れる — 長押しは効いていたのに、動かした瞬間に
+   * 毎回終わっていた。
+   *
+   * 素の `touchmove` を **`{ passive: false }`** で登録して、掴んでいる
+   * 間だけ止める。`touch-action: none` を常時かけると一覧そのものが
+   * スクロールできなくなるので、掴んでいる間だけにする。
+   */
+  const draggingRef = useRef(false);
+  useEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const stop = (e: TouchEvent) => {
+      if (draggingRef.current) e.preventDefault();
+    };
+    ul.addEventListener("touchmove", stop, { passive: false });
+    return () => ul.removeEventListener("touchmove", stop);
+  }, []);
 
   const clearHold = () => {
     if (holdRef.current) {
@@ -219,15 +252,29 @@ export function WordCardSectionsEditor() {
     });
   };
   const onPointerDown = (id: SectionId) => (e: React.PointerEvent) => {
-    // 押したのがボタンなら掴まない(▲▼と目のボタンはそのまま効かせる)。
-    if ((e.target as HTMLElement).closest("button")) return;
+    // 押したのが**掴む取っ手以外の**ボタンなら掴まない(目のボタンは
+    // そのまま効かせる)。取っ手は掴むためだけの物なので通す。
+    const hit = e.target as HTMLElement;
+    if (hit.closest("button") && !hit.closest("[data-drag-handle]")) return;
     clearHold();
-    const { clientX: x, clientY: y } = e;
+    const { clientX: x, clientY: y, pointerId } = e;
+    const el = e.currentTarget as HTMLElement;
     const timer = window.setTimeout(() => {
+      draggingRef.current = true;
       setDragId(id);
+      /**
+       * **指をこの行に縛る。** 掴んだ後に指が隣の行へ入ると、
+       * `pointermove` はそちらへ飛んでいく。捕まえておかないと、
+       * 一覧の外へ出た瞬間に `pointerleave` が走って落ちる。
+       */
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        /* 捕まえられない環境でも、指が一覧の中に在る限りは動く */
+      }
       holdRef.current = null;
     }, LONG_PRESS_MS);
-    holdRef.current = { timer, x, y, id };
+    holdRef.current = { timer, x, y, id, pointerId, el };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     // まだ掴んでいない間に指が動いたら、それはスクロール。
@@ -238,8 +285,7 @@ export function WordCardSectionsEditor() {
       return;
     }
     if (!dragId) return;
-    // 掴んでいる間は画面を動かさない。
-    e.preventDefault();
+    // 画面を動かさないのは素の `touchmove` の側でやる(上の注)。
     const from = prefs.order.indexOf(dragId);
     const to = dragTarget(rowBoxes(), from, e.clientY);
     if (to === from) return;
@@ -248,6 +294,7 @@ export function WordCardSectionsEditor() {
   const endDrag = () => {
     clearHold();
     if (!dragId) return;
+    draggingRef.current = false;
     setDragId(null);
     // **離したときに1回だけ書く。** 動かすたびに書くと、指1回で
     // 何十回も保存が走る。
@@ -283,12 +330,14 @@ export function WordCardSectionsEditor() {
       className="space-y-1"
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
+      // **`onPointerLeave` では終わらせない。** 指を捕まえてあるので
+      // 一覧の外へ出ても動かし続けられるし、`leave` で終わらせると
+      // 端の行を持ち上げた瞬間に落ちる。
       onPointerCancel={endDrag}
-      onPointerLeave={endDrag}
       // 掴んでいる間だけ、指で画面が動くのを止める。
       style={dragId ? { touchAction: "none" } : undefined}
     >
-      {prefs.order.map((id, idx) => {
+      {prefs.order.map((id) => {
         const meta = ALL_SECTIONS.find((s) => s.id === id);
         if (!meta) return null;
         const visible = isVisible(id);
@@ -298,38 +347,28 @@ export function WordCardSectionsEditor() {
             key={id}
             onPointerDown={onPointerDown(id)}
             aria-grabbed={dragging || undefined}
-            className={`flex touch-manipulation items-center justify-between rounded-lg px-2 py-1 text-footnote transition-shadow ${
+            /**
+             * **前の高さに戻す**(オーナー報告 2026-08-26、3度目
+             * 「単語の詳細の項目の表示の順番を決める欄、前よりも大きくなって
+             * 見づらいから前の大きさに戻して」)。
+             *
+             * 大きくなった正体は**44px のボタンが3つ**。行は 52px あり、
+             * 14項目で 730px — 一覧そのものが読めない高さになっていた。
+             * ▲▼ を1つの**取っ手**にまとめて2つにし、行を 44px に収める
+             * (どの携帯でも設定の一覧の行はこの寸法)。
+             */
+            className={`flex touch-manipulation items-center justify-between gap-2 rounded-lg pl-2 text-footnote transition-shadow ${
               dragging ? "bg-card shadow-lg ring-2 ring-primary" : "bg-secondary/60"
             }`}
           >
-            <span className={visible ? "" : "text-muted-foreground line-through"}>
+            <span className={`truncate ${visible ? "" : "text-muted-foreground line-through"}`}>
               {t(`card.${meta.id}`)}
             </span>
-            {/* **本当に 44px にする。**
-                絵の検査が 22x22 で落とした — この部品には場面が無かったので、
-                今まで一度も測られていなかった。
-                最初は `::before` を伸ばす §11 の型で通そうとしたが、
-                検査は**要素そのものの箱**を測るので通らない。そして
-                それが正しい — 指はこの部品の見た目を触るのであって、
-                見えない `::before` を狙って触れる人はいない。
-                設定の一覧の行が 44px なのは、どの携帯でも標準の寸法。 */}
-            <span className="flex gap-1">
-              <button
-                className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
-                onClick={() => move(id, -1)}
-                disabled={idx === 0}
-                aria-label={t("card.moveUp")}
-              >
-                <ChevronUp className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
-                onClick={() => move(id, 1)}
-                disabled={idx === prefs.order.length - 1}
-                aria-label={t("card.moveDown")}
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
+            {/* 触る物は**見た目ごと 44px**。この部品は絵の検査が 22x22 で
+                落としたことがあり、`::before` を伸ばす型では通らない
+                (検査は要素そのものの箱を測る。そしてそれが正しい —
+                指は見た目を触るのであって、見えない枠を狙う人はいない)。 */}
+            <span className="flex shrink-0">
               <button
                 className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
                 onClick={() => toggle(id)}
@@ -340,6 +379,33 @@ export function WordCardSectionsEditor() {
                 ) : (
                   <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                 )}
+              </button>
+              {/**
+               * 掴む取っ手。**▲▼ を1つにまとめた物**で、3つの役目を持つ:
+               *
+               * 1. 指 … 長押しで掴んで、上下に動かす
+               * 2. 鍵盤 … 焦点を当てて ↑↓ で1つずつ動かす
+               * 3. 読み上げ … `aria-label` が「並べ替え」だと分かる
+               *
+               * ▲▼ を消しても鍵盤の道が残るのはこの2番目のため。
+               * **消したら touch 以外の人が並べ替えられなくなる**ので、
+               * ボタンを減らすなら道は取っ手のほうへ移す。
+               */}
+              <button
+                data-drag-handle
+                className="lift-soft inline-flex h-11 w-11 cursor-grab items-center justify-center rounded-md active:cursor-grabbing"
+                aria-label={t("card.reorder")}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    move(id, -1);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    move(id, 1);
+                  }
+                }}
+              >
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
               </button>
             </span>
           </li>
@@ -464,6 +530,10 @@ export const WordCard = forwardRef<
    */
   const contentInput = {
     headword: word.headword,
+    // **学習言語を渡す。** 例文がその言語で書かれているかまで数えるのに要る
+    // (`card-sections.ts` の `language` の注)。渡し忘れると
+    // 「数える側は在ると言い、描く側は出さない」で見出しだけの節が残る。
+    language: word.language,
     meaning_ja: word.meaning_ja,
     example_sentence: word.example_sentence,
     extras: (word.extras ?? null) as WordExtrasDTO | null,
@@ -508,9 +578,28 @@ export const WordCard = forwardRef<
   const order = prefs.order.filter((id) => inThisLanguage.has(id));
   // **`missing` は `minimal` を見ない。** 見えていない節も裏では作る。
   const missing = missingSections(order.filter(isVisible), contentInput);
+  /**
+   * **中身が無い節は出さない。1つの例外も置かない。**
+   *
+   * オーナー報告 2026-08-26（3度目）:
+   * > 「例文や単語の変化が回答が生成されてないのに項目が表示されてる。
+   * >  回答が生成されるまで項目が表示しないで。」
+   *
+   * ここは `missing`（= **AI で作り直せて**まだ空の節）だけを外していた。
+   * だから `forms`（語形変化）のように**AI で作らない**節は、空でも
+   * 見出しごと並び、「還沒有做出來」の点線だけが残っていた —
+   * 届いた絵の `socks` の「詞形變化」がそれ。語形は ECDICT から入る
+   * 辞書の事実なので、辞書が入るまでは**何も無いのが正しい状態**で、
+   * 空だと告げる欄を置く理由が無い。
+   *
+   * 数える所は1つ（`sectionHasContent`）なので、ここを
+   * 「**中身が在る節だけ**」にすれば、作れる節も作れない節も同じ規則で
+   * 落ちる。`web_images` / `real_usage` は外を見に行くだけの節で
+   * いつでも描けるため、この条件でも残る。
+   */
   const shown = minimal
     ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id))
-    : order.filter((id) => isVisible(id) && !(missing as readonly SectionId[]).includes(id));
+    : order.filter((id) => isVisible(id) && hasContent(id));
 
   return (
     <div className="space-y-3">
@@ -524,7 +613,6 @@ export const WordCard = forwardRef<
             word={word}
             wordId={wordId}
             isPro={isPro}
-            empty={!hasContent(id)}
             onPickImage={onPickImage}
           />
         ))}
@@ -742,28 +830,31 @@ function HeaderRow({
               ipaUk={word.reading_alt}
             />
           </div>
+          {/**
+           * 品詞と級を**同じ行に、同じ大きさで**並べる(オーナー報告
+           * 2026-08-26、3度目「単語の欄の CEFR の欄が大きくて、品詞の
+           * カテゴリーとのバランスが悪いから、大きさを揃えて、横に並べて」)。
+           *
+           * 級は行を分けて置いていて、畳んだ札も 44px の高さがあったので、
+           * 22px の品詞の札と釣り合っていなかった。札の寸法は
+           * `TocflLadder` 側で品詞に揃えてある。
+           *
+           * **目盛りを渡す。** 渡さないと既定の TOCFL で描くので、
+           * 英語の語(CEFR A2)に「TOCFL 2級」が出る(`level-scale.ts`)。
+           *
+           * 級を開くと段々が縦に伸びるので、`items-start` で上端を揃える
+           * — `items-center` だと開いた瞬間に品詞の札が下へ落ちる。
+           */}
           {!minimal && (word.part_of_speech || word.level) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-start gap-1.5">
               {word.part_of_speech && (
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
                   {posDisplay(word.part_of_speech)}
                 </span>
               )}
+              <TocflLadder level={word.level} scale={targetProfile(word.language).levels} />
               <ReportButton headword={word.headword} />
             </div>
-          )}
-          {/* 級は札1つではなく**段々**で見せる(オーナー指摘)。
-              `TOCFL-2` とだけ書かれても、2が6段のどこなのか分からない。 */}
-          {/* **目盛りを渡す。** 渡さないと既定の TOCFL で描くので、
-              英語の語(CEFR A2)の上に「TOCFL 1 2 3 4 5 6 / 2級(Band A)」が
-              出る — 絵で見つけた。段々の形は同じなので、変わるのは
-              名前だけ(`level-scale.ts`)。 */}
-          {!minimal && (
-            <TocflLadder
-              level={word.level}
-              scale={targetProfile(word.language).levels}
-              className="mt-2"
-            />
           )}
         </div>
       </div>
@@ -833,15 +924,12 @@ function SectionCard({
   word,
   wordId,
   isPro,
-  empty,
   onPickImage,
 }: {
   id: SectionId;
   word: WordCardData;
   wordId?: string;
   isPro?: boolean;
-  /** 中身がまだ無い(AIが未生成)。枠は出し、生成ボタンを見せる。 */
-  empty?: boolean;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
   const icon = SECTION_ICON[id];
@@ -917,32 +1005,18 @@ function SectionCard({
           </button>
         )}
       </div>
-      {empty ? (
-        <EmptySection t={t} />
-      ) : (
-        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
-      )}
+      <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
     </section>
   );
 }
 
 /**
- * まだ中身が無い項目。
+ * **「まだ作られていません」の枠は消した**（オーナー報告 2026-08-26、3度目
+ * 「回答が生成されるまで項目が表示しないで」）。
  *
- * ## 「作る」ボタンはここに置かない
- * **AI で作れる節は、空なら並べない**(上の「カードを仕上げる」に畳む)。
- * つまりここへ来るのは `web_images` / `real_usage` のような
- * **生成物ではない節**だけで、`canGenerate` は構造上いつも false だった。
- * 押せないボタンの分岐を残しておくと、次に読む人が
- * 「ここから作れる」と誤解する。到達しない道は置かない。
+ * 空の節はもう並ばない（`shown` を「中身が在る節だけ」にした）ので、
+ * この枠が描かれる道はどこにも無い。到達しない道は置かない。
  */
-function EmptySection({ t }: { t: (k: string) => string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-secondary px-3 py-2.5">
-      <span className="text-caption text-muted-foreground">{t("card.notYet")}</span>
-    </div>
-  );
-}
 
 /** 頻度メーター(1〜5)。 */
 function FrequencyMeter({ level }: { level: number }) {
@@ -1183,7 +1257,12 @@ function Body({
     case "usage_chunks": {
       // ネイティブがこの単語をどう組み合わせるか — 型をパーツ色分けで。
       // 量詞は真下の「量詞」の欄で読むので、そこと重なるだけの型は落とす。
-      const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, word.headword);
+      const chunks = refineUsageChunks(
+        ex.usage_chunks,
+        ex.measure_words,
+        word.headword,
+        word.language,
+      );
       if (chunks.length > 0) {
         return (
           <div className="space-y-2">

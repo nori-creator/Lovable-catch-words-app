@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeTargetLanguage } from "./target-lang";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -369,19 +370,60 @@ export function mergeExtras(
  * 量詞の型を丸ごと禁じると、逆に「動詞と目的語しか無い」状態に戻ってしまう
  * (オーナー指摘 2026-08-19:「品詞をすべて網羅して」)。
  */
-/** 型1つの長さの上限(繁体字の文字数)。これを超えると「型」ではなく文になる。 */
+/**
+ * 型1つの長さの上限(繁体字の文字数)。これを超えると「型」ではなく文になる。
+ *
+ * **台湾華語の数え方**。英語には効かせない（すぐ下の注）。
+ */
 export const MAX_CHUNK_CHARS = 8;
+
+/**
+ * **英語の型の長さの上限（文字数）。**
+ *
+ * オーナー報告 2026-08-26（3度目）:
+ * > 「単語のチャンク型の項目が生成されてない。」
+ *
+ * ## 生成はされていた。**こちらが全部落としていた。**
+ * 上の 8 は「繁体字で8文字」。漢字1つが語1つぶんの中国語では
+ * ちょうどよい目盛りだが、同じ数を英語に当てると
+ * `put on socks`(12)も `a pair of socks`(15)も**1つ残らず落ちる**。
+ * だから `refineUsageChunks` はいつも空を返し、
+ * 「まだ空だ」→ 作り直す → また落とす、が延々と続いていた
+ * （待ち時間もお金も払いながら、画面には一度も出ない）。
+ *
+ * ## 語の数で数える
+ * 英語で「口に乗る型」を決めているのは文字数ではなく**語数**なので、
+ * 語数のほうを見る。`MAX_CHUNK_PARTS`(4)と揃えて4語まで。
+ * 文字数は「1語が異様に長い」を弾く保険として広めに置く。
+ */
+export const MAX_CHUNK_WORDS_EN = 4;
+export const MAX_CHUNK_CHARS_EN = 28;
 /** 型1つのパーツ数の上限。 */
 export const MAX_CHUNK_PARTS = 4;
 /** カードに並べる型の数の上限。 */
 export const MAX_CHUNKS = 5;
 
-/** その型の繁体字をつないだもの。 */
-function chunkText(c: UsageChunk): string {
+/**
+ * その型の文字列。
+ *
+ * **英語は空白で継ぐ。** 漢字は1字ずつが語なので継ぎ目が要らないが、
+ * 英語で `["put on","socks"]` を素で継ぐと `put onsocks` になり、
+ * 語数も重複の見分けも狂う。
+ */
+function chunkText(c: UsageChunk, sep = ""): string {
   return (c.parts ?? [])
     .map((p) => (p?.text ?? "").trim())
     .filter(Boolean)
-    .join("");
+    .join(sep);
+}
+
+/**
+ * 語の数。**空白でも `chunkText` の継ぎ目でも切る** —
+ * パーツが `["put on","socks"]` でも `["put","on","socks"]` でも
+ * 同じ3語と数えたい（生成側がどちらの形で返すか決まっていない）。
+ */
+function countWords(text: string): number {
+  return text.split(/[\s'’-]+/u).filter(Boolean).length;
 }
 
 /**
@@ -408,15 +450,28 @@ export function refineUsageChunks(
   chunks: ReadonlyArray<UsageChunk> | null | undefined,
   measureWords: ReadonlyArray<{ word?: string } | null | undefined> | null | undefined,
   headword: string,
+  /**
+   * その語の学習言語。**渡さないと台湾華語の目盛りで測る** —
+   * 英語の型が1つ残らず落ちる（`MAX_CHUNK_CHARS_EN` の注）。
+   */
+  language?: string | null,
 ): UsageChunk[] {
   const head = headword.trim();
   const seen = new Set<string>();
+  const isEnglish = normalizeTargetLanguage(language) === "en";
   return withoutMeasureWordEcho(chunks, measureWords, headword)
     .filter((c) => {
       const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
       if (parts.length === 0 || parts.length > MAX_CHUNK_PARTS) return false;
-      const text = chunkText(c);
-      if (text.length === 0 || text.length > MAX_CHUNK_CHARS) return false;
+      const text = chunkText(c, isEnglish ? " " : "");
+      if (text.length === 0) return false;
+      if (isEnglish) {
+        // 英語は**語の数**で測る（文字数だと `put on socks` すら落ちる）。
+        if (countWords(text) > MAX_CHUNK_WORDS_EN) return false;
+        if (text.length > MAX_CHUNK_CHARS_EN) return false;
+      } else if (text.length > MAX_CHUNK_CHARS) {
+        return false;
+      }
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。
       if (text === head) return false;
       if (seen.has(text)) return false;

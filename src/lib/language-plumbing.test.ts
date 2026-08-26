@@ -273,7 +273,11 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     expect(src).toContain("MINIMAL_SECTIONS");
     expect(src).toMatch(/shown\s*=\s*minimal/);
     // 級の段々と品詞の札も出さない。「訳」でも「発音」でもない。
-    expect(src).toMatch(/\{!minimal && \(?\s*<?TocflLadder/s);
+    // **同じ行に並べた**ので(オーナー報告 2026-08-26、3度目「CEFR の欄と
+    // 品詞の大きさを揃えて、横に並べて」)、伏せる条件も1つに畳んである。
+    expect(src).toMatch(/\{!minimal && \(word\.part_of_speech \|\| word\.level\) && \(/);
+    const row = src.slice(src.indexOf("{!minimal && (word.part_of_speech"));
+    expect(row.slice(0, row.indexOf("</div>"))).toMatch(/<TocflLadder/);
     expect(src).toContain("<HeaderRow word={word} autoplay={autoplay} minimal={minimal} />");
   });
 
@@ -423,9 +427,11 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
 
   it("設定の画面も同じ規則で突き合わせ、揃えるために書き戻す", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
-    expect(src).toMatch(/stored: storedTargetLang\(\)/);
-    expect(src).toMatch(/stored: storedUiLang\(\)/);
-    expect(src).toMatch(/uiPick\.pushToServer \|\| targetPick\.pushToServer/);
+    // 突き合わせは `settings-restore.ts` ただ1つ(3度目の報告で移した)。
+    expect(src).toMatch(/restoreSettings\(\{/);
+    expect(src).toMatch(/uiLanguage: storedUiLang\(\)/);
+    expect(src).toMatch(/targetLanguage: storedTarget/);
+    expect(src).toMatch(/if \(picked\.pushToServer\)/);
     // 読み込んだ生の値をそのまま画面へ入れないこと。
     expect(src).not.toMatch(/setTargetLanguage\(profile\.target_language\)/);
   });
@@ -607,12 +613,36 @@ describe("項目の並べ替え / 例文のレベル連動", () => {
     expect(src).toContain("onPointerDown={onPointerDown(id)}");
   });
 
-  it("**▲▼のボタンを消していない**(鍵盤と読み上げの唯一の口)", () => {
+  it("**鍵盤と読み上げの口を消していない**(取っ手に移した)", () => {
     // 掴む道を足すのであって、押す道を奪うのではない。
     // 消すと touch 以外の人が並べ替えられなくなる。
+    //
+    // オーナー報告 2026-08-26(3度目)「並び替えの欄が前よりも大きくなって
+    // 見づらい」で ▲▼ の2つを**1つの取っ手**にまとめた。押す道は
+    // 消していない — 取っ手に焦点を当てて ↑↓ で動かす。
     const src = codeOnly(read("components/WordCard.tsx"));
-    expect(src).toContain("card.moveUp");
-    expect(src).toContain("card.moveDown");
+    expect(src).toContain("card.reorder");
+    expect(src).toMatch(/data-drag-handle/);
+    expect(src).toMatch(/e\.key === "ArrowUp"/);
+    expect(src).toMatch(/e\.key === "ArrowDown"/);
+    // ↑↓ が計算へ繋がっていること(ラベルだけ在って動かない、を防ぐ)。
+    expect(src).toMatch(/move\(id, -1\)/);
+    expect(src).toMatch(/move\(id, 1\)/);
+  });
+
+  it("**掴んだ後に指で画面が動かない**(受動 listener では止まらない)", () => {
+    // オーナー報告 2026-08-26(3度目)「未だに長押ししてドロップしたら
+    // 順序が変えられるように変更されてないから実装して」。
+    //
+    // React の合成イベントは受動で登録されるので、そこの
+    // `preventDefault()` は効かない。効かないと browser がスクロールを
+    // 始め、`pointercancel` で掴んだ手が毎回離れる。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toMatch(/addEventListener\("touchmove", stop, \{ passive: false \}\)/);
+    // 指をその行に縛る(隣の行へ入った瞬間に落ちない)。
+    expect(src).toMatch(/setPointerCapture\(pointerId\)/);
+    // `pointerleave` で終わらせない(端の行を持ち上げた瞬間に落ちる)。
+    expect(src).not.toMatch(/onPointerLeave=\{endDrag\}/);
   });
 
   it("並べ替えの計算は純粋な関数に置く(指の扱いと混ぜない)", () => {
@@ -816,10 +846,14 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     // オーナー指示 2026-08-26「一言は音声だけにして。動画の撮影はやめて」。
     expect(fs.existsSync(path.join(root, "lib/voice-video.ts"))).toBe(false);
     expect(fs.existsSync(path.join(root, "components/VoiceVideoNote.tsx"))).toBe(false);
-    const note = codeOnly(read("components/VoiceNote.tsx"));
+    // **あとから録る欄そのものを消した**(オーナー指示 2026-08-26、3度目
+    // 「あとからひと言を録画とる項目は消して」)。一言は撮ったその瞬間に
+    // 録る物なので、録るのは撮る画面(`VoiceCaptionButton`)だけ。
+    expect(fs.existsSync(path.join(root, "components/VoiceNote.tsx"))).toBe(false);
     // 撮る側に `<video>` が1つでも残っていたら、カメラがまた点く。
-    expect(note).not.toMatch(/<video/);
-    expect(note).not.toMatch(/previewRef/);
+    const cap = codeOnly(read("components/VoiceCaptionButton.tsx"));
+    expect(cap).not.toMatch(/<video/);
+    expect(cap).not.toMatch(/previewRef/);
   });
 
   it("録るときに**カメラを掴まない**", () => {
@@ -848,18 +882,14 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     const sheet = codeOnly(read("components/StickerSheet.tsx"));
     const row = sheet.slice(sheet.indexOf("<Clock"), sheet.indexOf("{s.caption &&"));
     expect(row).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
-    // 録る所に同じ再生を並べない(片方だけ直る事故の種になる)。
-    const note = codeOnly(read("components/VoiceNote.tsx"));
-    expect(note).not.toMatch(/VoiceNotePlayer/);
+    // カードに**録る欄が無い**こと(オーナー指示 3度目)。
+    expect(sheet).not.toMatch(/<VoiceNote /);
+    expect(sheet).not.toMatch(/components\/VoiceNote"/);
   });
 
   it("上げる道は**1つ**(3つの入口が同じ関数を通る)", () => {
     expect(fs.existsSync(path.join(root, "lib/voice-note-upload.ts"))).toBe(true);
-    for (const rel of [
-      "components/VoiceNote.tsx",
-      "components/ScanCatchSheet.tsx",
-      "routes/_authenticated/capture.tsx",
-    ]) {
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
       expect(codeOnly(read(rel)), rel).toMatch(/uploadVoiceNote\(/);
     }
     // 置き場所を自分で組み立てる所が残っていないこと。
@@ -926,7 +956,8 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
 
   it("検査の雛形が新しい面を撮っている", () => {
     const audit = read("../scripts/ui-audit.mjs");
-    expect(audit).toMatch(/scene: "voice-note"/);
+    // `voice-note` の場面は部品ごと消えた(あとから録る欄をやめたため)。
+    expect(audit).not.toMatch(/scene: "voice-note"/);
     expect(audit).toMatch(/scene: "voice-player"/);
     expect(audit).toMatch(/variant: "voice"/);
     expect(audit).not.toMatch(/scene: "voice-video"/);
@@ -1082,11 +1113,16 @@ describe("2026-08-26 の報告: 言語が混ざる", () => {
   it("設定の画面が**置き場所の行で言語を上書きしない**", () => {
     // オーナー報告「学習言語を英語、表示言語を台湾華語にすると、設定の
     // ページを触ると勝手に既定へ戻る」。`getMyProfile` は私用の列が
-    // 読めないとき `partial: true` を付けて既定を返す。写しの側
-    // (`use-language-prefs.ts`)は見ているのに、設定の画面だけ
-    // 見ていなかった。
+    // 読めないとき `partial: true` を付けて既定を返す。
+    //
+    // **3度目の報告で `return` をやめた。** 戻ると画面が `useState` の
+    // 初期値のまま据え置かれ、端末の写しを一度も読まずに既定が見える
+    // (`settings-restore.ts` の注)。置き場所の行は「サーバ側が無い」
+    // として突き合わせに渡す。
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
-    expect(src).toMatch(/if \(\(profile as \{ partial\?: boolean \}\)\.partial\) return;/);
+    expect(src).toMatch(/const partial = !!\(profile as \{ partial\?: boolean \}\)\.partial;/);
+    expect(src).toMatch(/partial,/);
+    expect(src).not.toMatch(/\}\)\.partial\) return;/);
   });
 
   it("言語だけを**単独で保存する**(他の列に巻き込まれない)", () => {
@@ -1274,5 +1310,113 @@ describe("読む人の言語で書かれていない解説を出さない", () =
     expect(lib).toMatch(/const wrongLanguage = !!want && !!has && has !== want;/);
     // **意味と例文の訳は落とさない**(そこは別の列から来る)。
     expect(lib).toMatch(/extras: wrongLanguage \? \(null as E\) : extras,/);
+  });
+});
+
+describe("2026-08-26 の3度目の報告", () => {
+  it("**設定は端末の写しを先に載せる**(プロフィールを待たずに)", () => {
+    // 「一度保存しても、ほかのページ移ってから設定のページに行くと…戻る」。
+    // 戻った先の4つは `useState` の初期値そのものだった。開いた時点で
+    // 端末の写しを載せていれば、プロフィールが `partial` でも戻らない。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    const mount = src.slice(src.indexOf("setPhotoPrefState(getPhotoPref());"));
+    const body = mount.slice(0, mount.indexOf("}, []);"));
+    expect(body).toMatch(/storedTargetLang\(\)/);
+    expect(body).toMatch(/storedUiLang\(\)/);
+    expect(body).toMatch(/storedLevels\(/);
+  });
+
+  it("級も**端末に憶える**(言語と同じ形)", () => {
+    expect(fs.existsSync(path.join(root, "lib/level-pref.ts"))).toBe(true);
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    // 保存のときに書く。`current_level` の列が無い環境でも消えない。
+    const save = src.slice(src.indexOf("async function handleSave"));
+    expect(save).toMatch(/setStoredLevels\(targetLanguage, \{[\s\S]*?current: currentLevel/);
+  });
+
+  it("**中身の無い節は1つも並べない**(作れない節も含めて)", () => {
+    // 「例文や単語の変化が回答が生成されてないのに項目が表示されてる。
+    //  回答が生成されるまで項目が表示しないで。」
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toMatch(/order\.filter\(\(id\) => isVisible\(id\) && hasContent\(id\)\)/);
+    // 「まだ作られていません」の枠そのものが残っていないこと。
+    expect(src).not.toMatch(/EmptySection/);
+    expect(src).not.toMatch(/card\.notYet/);
+    expect(codeOnly(read("lib/i18n.tsx"))).not.toMatch(/"card\.notYet"/);
+  });
+
+  it("**数える側も例文の言語を見る**(描く側と食い違わせない)", () => {
+    // 数える側が「例文は在る」と言い、描く側が
+    // `looksLikeTargetLanguage` で落とすと、見出しだけの節が残る。
+    const src = codeOnly(read("lib/card-sections.ts"));
+    expect(src).toMatch(/looksLikeTargetLanguage\(input\.example_sentence, input\.language\)/);
+    expect(src).toMatch(/looksLikeTargetLanguage\(e\?\.zh, input\.language\)/);
+    // 渡す側が渡し忘れていないこと。
+    expect(codeOnly(read("components/WordCard.tsx"))).toMatch(/language: word\.language,/);
+    expect(codeOnly(read("lib/ai.functions.ts"))).toMatch(
+      /language: word\.language as string \| null,/,
+    );
+  });
+
+  it("**英語の型を8文字の物差しで落とさない**", () => {
+    // 「単語のチャンク型の項目が生成されてない」。生成はされていて、
+    // `MAX_CHUNK_CHARS`(繁体字8文字)が英語の型を全部落としていた。
+    const src = codeOnly(read("lib/extras.ts"));
+    expect(src).toMatch(/MAX_CHUNK_WORDS_EN/);
+    expect(src).toMatch(/normalizeTargetLanguage\(language\) === "en"/);
+    // 呼ぶ側が学習言語を渡していること(渡さないと同じ穴に落ちる)。
+    for (const rel of ["lib/card-sections.ts", "components/WordCard.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/refineUsageChunks\([\s\S]{0,200}?language/);
+    }
+    const rev = codeOnly(read("lib/reviews.functions.ts"));
+    expect(rev).toMatch(/topChunkOf\(w\.extras, w\.headword, w\.language\)/);
+    expect(rev).toMatch(/explainOf\(w\.extras, w\.headword, w\.language\)/);
+  });
+
+  it("型を作らせる言い方が**言語ごと**にある", () => {
+    const prof = codeOnly(read("lib/target-profile.ts"));
+    expect(prof).toMatch(/chunkPrompt/);
+    expect(targetProfile("en").chunkPrompt.lengthRule).not.toContain("繁体字");
+    expect(targetProfile("en").chunkPrompt.styleRule).not.toContain("量詞");
+    expect(targetProfile("en").chunkPrompt.posRule).not.toContain("詞類表");
+    expect(targetProfile("zh-TW").chunkPrompt.lengthRule).toContain("繁体字");
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    // 決め打ちが戻っていないこと。
+    expect(ai).not.toMatch(/型1つは繁体字で/);
+    expect(ai).toMatch(/chunkPrompt\.lengthRule/);
+    expect(ai).toMatch(/chunkPrompt\.styleRule/);
+  });
+
+  it("**地名が保存に届く**(画面の写しだけを直さない)", () => {
+    // 「撮った地図の地名が表示されてない」。`resolve()` は地名を
+    // `void` で投げっぱなしにしていたので、行に入るのはいつも null。
+    const src = codeOnly(read("lib/use-catch-location.tsx"));
+    expect(src).toMatch(/const next: CatchLocation = \{ lat, lng, name \};/);
+    // 座標と一緒に温める(撮る道を遅くしない)。
+    expect(src).toMatch(/shouldGeocode\(prev, \{ lat, lng \}\)/);
+    // 投げっぱなしの形が戻っていないこと。
+    expect(src).not.toMatch(
+      /const next: CatchLocation = \{ lat, lng, name: null \};\s*setLoc\(next\);\s*if \(lat == null/,
+    );
+  });
+
+  it("あとから一言を録る欄が**消えている**", () => {
+    expect(fs.existsSync(path.join(root, "components/VoiceNote.tsx"))).toBe(false);
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).not.toMatch(/<VoiceNote /);
+    // 聞く所は残っている(日付と場所の行)。
+    expect(sheet).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
+  });
+
+  it("級の札が**品詞の札と同じ寸法**(44px の塊にしない)", () => {
+    const src = codeOnly(read("components/TocflLadder.tsx"));
+    const collapsed = src.slice(
+      src.indexOf("if (!open) {"),
+      src.indexOf("return (\n    <div className={`inline-flex flex-col"),
+    );
+    // 見た目は品詞と同じ `px-2 py-0.5`、指の当たりは `::before` で広げる。
+    expect(collapsed).toMatch(/px-2 py-0\.5/);
+    expect(collapsed).toMatch(/before:-inset-y-2\.5/);
+    expect(collapsed).not.toMatch(/min-h-11/);
   });
 });
