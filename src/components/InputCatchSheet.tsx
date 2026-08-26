@@ -47,7 +47,7 @@ import {
   fetchImageAsDataUrl,
   type ImageCandidate,
 } from "@/lib/images.functions";
-import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { Reading } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { heroSearchQuery } from "@/lib/hero-image";
@@ -147,7 +147,6 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [picked, setPicked] = useState(0);
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
-  const phonetic = usePhoneticPref();
   const pronounce = usePronounce();
   const { resolve: resolveLocation } = useCatchLocation();
   const t = useT();
@@ -762,15 +761,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-footnote text-muted-foreground">
-                {isPhrase
-                  ? pickReading(phonetic, phraseCard?.reading_zhuyin, phraseCard?.pinyin)
-                  : pickReading(
-                      phonetic,
-                      dict?.zhuyin || card?.reading_zhuyin,
-                      dict?.pinyin || card?.pinyin,
-                    )}
-              </p>
+              {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26)。
+                  `pickReading` は台湾華語のプロフィールで決め打ちなので、
+                  英語の語にも注音・拼音が出ていた。 */}
+              <Reading
+                lang={targetLanguage}
+                zhuyin={
+                  isPhrase ? phraseCard?.reading_zhuyin : dict?.zhuyin || card?.reading_zhuyin
+                }
+                pinyin={isPhrase ? phraseCard?.pinyin : dict?.pinyin || card?.pinyin}
+                className="mt-0.5 block text-footnote text-muted-foreground"
+              />
               <p className="mt-2 text-body font-medium">
                 {isPhrase ? phraseCard?.meaning_ja : dict?.meaning_ja || card?.meaning_ja}
               </p>

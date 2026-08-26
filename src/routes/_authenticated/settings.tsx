@@ -47,8 +47,6 @@ import {
 import { pickL1 } from "@/lib/l1";
 import { readerL1 } from "@/lib/reader-language";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
-import { ThemeLabButton } from "@/components/ThemeLab";
-import { EffectLabButton } from "@/components/EffectLab";
 import {
   isPlaceReminderEnabled,
   setPlaceReminderEnabled,
@@ -634,8 +632,16 @@ function SettingsPage() {
             {/* 要望 #16「表示画像(切り抜き/元画像/自撮り)を設定から選べる」。
                 端末ごとの設定にしてある(理由は `lib/photo-pref.ts`)ので、
                 保存はここで即座に効く — サーバへは行かない。 */}
+            {/* **「画面ごと」の札は消した**(オーナー指示 2026-08-26)。
+                何が出るのかを画面に委ねる選択肢は、選んだ人から見ると
+                「選んでいない」のと区別が付かない。
+
+                **値そのものは残す**(`photo-pref.ts` の `auto`)。
+                既に `auto` のまま使っている人の見え方を、設定を開いた
+                だけで変えないため — その人にはどれも選ばれていない
+                状態で出て、押したときに初めて決まる。 */}
             <ChoiceRow
-              cols={4}
+              cols={3}
               label={t("settings.photoPref")}
               value={photoPref}
               onChange={(v) => {
@@ -643,7 +649,6 @@ function SettingsPage() {
                 setPhotoPref(v);
               }}
               options={[
-                { value: "auto", label: t("settings.photoAuto") },
                 { value: "object", label: t("settings.photoObject") },
                 { value: "cutout", label: t("settings.photoCutout") },
                 { value: "selfie", label: t("settings.photoSelfie") },
@@ -665,17 +670,9 @@ function SettingsPage() {
                 { value: "fast", label: t("settings.speedFast") },
               ]}
             />
-            <ChoiceRow
-              cols={3}
-              label={t("settings.strictness")}
-              value={strictness}
-              onChange={setStrictness}
-              options={[
-                { value: "easy", label: t("settings.easy") },
-                { value: "normal", label: t("settings.normal") },
-                { value: "strict", label: t("settings.strict") },
-              ]}
-            />
+            {/* **発音判定の厳しさの欄は消した**(オーナー指示 2026-08-26)。
+                列(`pronunciation_strictness`)は残す — 既に選んである人の
+                値を保存のたびに書き戻して、消さないため。 */}
             {/* 1日の復習量。既定を決めておかないと「開くたびに新しい単語が
                 無限に出てくる」状態になり、終わりが見えない(NORI指摘)。 */}
             <ChoiceRow
@@ -691,17 +688,7 @@ function SettingsPage() {
                 { value: 0, label: t("settings.reviewLimitNone") },
               ]}
             />
-            <ChoiceRow
-              cols={3}
-              label={t("settings.reviewFocus")}
-              value={reviewFocus}
-              onChange={setReviewFocus}
-              options={[
-                { value: "all", label: t("settings.focusAll") },
-                { value: "weak", label: t("settings.focusWeak") },
-                { value: "new", label: t("settings.focusNew") },
-              ]}
-            />
+            {/* **優先する記憶段階の欄も消した**(同上)。列は残す。 */}
           </div>
           <VideoRecordingToggle />
           <PlaceReminderToggle />
@@ -1309,15 +1296,22 @@ function AdminOnlySection() {
   return (
     <div className="space-y-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-3">
       <p className="text-caption font-semibold label-caps text-primary">{t("settings.devOnly")}</p>
-      <ThemeLabButton />
-      <EffectLabButton />
+      {/* **「見た目を比べる」と「エフェクトラボ」は消した**(オーナー指示
+          2026-08-26)。どちらも作っている最中の道具で、
+          設定に置いておく理由がもう無い。 */}
       <UiThemePicker />
       <AiModelPanel />
     </div>
   );
 }
 
-/** UIテーマの比較。現行(default)は削除・変更しない前提で先頭に固定。 */
+/**
+ * UIテーマの比較。現行(default)は削除・変更しない前提で先頭に固定。
+ *
+ * **既定は畳んでおく**(オーナー指示 2026-08-26「UIテーマをすべてを
+ * 表示しないで畳んで」)。色見本が開いたまま並ぶと、開発者用の箱が
+ * この画面でいちばん高い塊になる。
+ */
 function UiThemePicker() {
   const t = useT();
   const [theme, setTheme] = useState<UiThemeId>("default");
@@ -1329,7 +1323,7 @@ function UiThemePicker() {
     setUiTheme(id);
   }
   return (
-    <details className="rounded-2xl border border-border bg-card p-4" open>
+    <details className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.themeCompare")}{" "}
         <span className="ml-1 text-caption font-normal text-muted-foreground">

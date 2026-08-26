@@ -278,7 +278,12 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     expect(src).toMatch(/\{!minimal && \(word\.part_of_speech \|\| word\.level\) && \(/);
     const row = src.slice(src.indexOf("{!minimal && (word.part_of_speech"));
     expect(row.slice(0, row.indexOf("</div>"))).toMatch(/<TocflLadder/);
-    expect(src).toContain("<HeaderRow word={word} autoplay={autoplay} minimal={minimal} />");
+    // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
+    expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
+    // 見出しの行は `minimal` を受け取り続けること（引数が増えたので
+    // 1行の写しでは見ない）。
+    const header = src.slice(src.indexOf("<HeaderRow"));
+    expect(header.slice(0, header.indexOf("/>"))).toMatch(/minimal=\{minimal\}/);
   });
 
   it("裏の生成は止めない", () => {
@@ -810,11 +815,24 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
   });
 
   it("自撮りが無い札には**自撮りを撮るボタン**が出る", () => {
-    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
-    expect(picker).toMatch(/onSelfieFile &&/);
-    const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).toMatch(/onSelfieFile=\{s\.selfie_url \? undefined :/);
-    expect(sheet).toMatch(/attachSelfieFn\(/);
+    // **出す条件は `PhotoAddButtons` ただ1つ**(オーナー指示 2026-08-26)。
+    // 呼ぶ側それぞれに書いていたので、図鑑の詳細にはボタンそのものが
+    // 無かった。渡すのは絵の在りかだけ。
+    const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
+    expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
+    expect(btns).toMatch(/const canCutout = !!objectUrl && !cutoutUrl;/);
+    // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
+    for (const rel of [
+      "components/HeroPhotoPicker.tsx",
+      "routes/_authenticated/dex.$stickerId.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<PhotoAddButtons/);
+    }
+    // 足す道も1つ(`use-photo-attach.tsx`)。
+    expect(fs.existsSync(path.join(root, "lib/use-photo-attach.tsx"))).toBe(true);
+    for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/usePhotoAttach\(/);
+    }
   });
 
   it("自撮りは `<label>` で包む(押した指の操作としてカメラに届く)", () => {
@@ -823,9 +841,9 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // **注釈を読ませない。** 最初は `read` のまま書いていて、
     // `capture="user"` を消しても上の注釈の中の同じ文字列に当たって
     // 通ってしまった(この作業場で5度目の「文字列が別の場所に在る」事故)。
-    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
-    expect(picker).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
-    expect(picker).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
+    const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
+    expect(btns).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
+    expect(btns).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
   });
 
   it("自撮りを足しても**元の写真を差し替えない**", () => {
@@ -937,9 +955,11 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     // 表示されるページ消して、元のページのまま検索して」)。
     // 前は別の面(`InputCatchSheet`)を開いていて、その面が台湾華語の
     // 決め打ちで引いていたので、英語を学んでいる人にも中国語が出ていた。
-    expect(cap).toMatch(
-      /onSearch=\{\(w\) => void confirmWord\(w, undefined, \{ skipImagePick: true \}\)\}/,
-    );
+    // **打った語は学習言語へ直してから進む**(オーナー報告 2026-08-26、絵つき
+    // 「学習言語台湾華語なのに、日本語で入力したら、日本語の単語が出てくる」)。
+    // ここが `confirmWord` を直に呼んでいたので、消した面に入っていた
+    // 母語 → 学習言語の解決だけが道連れになっていた。
+    expect(cap).toMatch(/onSearch=\{\(w\) => void searchWord\(w\)\}/);
     expect(cap).not.toMatch(/setInputSheet/);
     expect(cap).not.toMatch(/<InputCatchSheet/);
     expect(cap).not.toMatch(/from "@\/components\/InputCatchSheet"/);
@@ -1418,5 +1438,208 @@ describe("2026-08-26 の3度目の報告", () => {
     expect(collapsed).toMatch(/px-2 py-0\.5/);
     expect(collapsed).toMatch(/before:-inset-y-3/);
     expect(collapsed).not.toMatch(/min-h-11/);
+  });
+});
+
+describe("2026-08-26: 注音・拼音を英語のカードに出さない", () => {
+  /**
+   * オーナー報告:
+   * > 「学習言語英語、母語台湾華語のとき、注音やピンインを決して表示しないで。
+   * >  単語の詳細や単語の候補、文字入力の候補などを含むアプリ全体で。」
+   *
+   * 読みを出す口が**5箇所**に散らばっていて、そのうち4箇所が
+   * `pickReading`(台湾華語のプロフィールで決め打ち)を直に呼ぶか、
+   * 注音と拼音を素で並べていた。
+   */
+  const READ_SITES = [
+    "components/WordCandidateRow.tsx",
+    "components/ScanCatchSheet.tsx",
+    "components/InputCatchSheet.tsx",
+    "routes/_authenticated/capture.tsx",
+    "routes/_authenticated/review.tsx",
+  ];
+
+  it("**読みを出す所は `Reading` か `useReadingText` を通る**", () => {
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).toMatch(/<Reading\b|useReadingText\(|pickReadingOf\(/);
+    }
+  });
+
+  it("**`pickReading(` を新しく呼ばない**(台湾華語の決め打ち)", () => {
+    // `pickReadingOf(profile, …)` は言語を受けるので別物。素の
+    // `pickReading(` だけを禁じる。
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).not.toMatch(/[^A-Za-z]pickReading\(/);
+    }
+  });
+
+  it("**注音と拼音を素で並べない**(片方ずつ書くと言語の判定を抜ける)", () => {
+    for (const rel of READ_SITES) {
+      const src = codeOnly(read(rel));
+      // `{…zhuyin}` と `{…pinyin}` が同じ行に並ぶ形が戻っていないこと。
+      expect(src, rel).not.toMatch(/\{[^}\n]*\bzhuyin\b[^}\n]*\}\s*\n?\s*\{[^}\n]*\bpinyin\b/);
+    }
+  });
+
+  it("`Reading` は**その言語に在る表記しか返さない**", () => {
+    const src = codeOnly(read("lib/phonetic.tsx"));
+    // 落ちる順は `profile.readings` から作る(言語ごとの一覧)。
+    expect(src).toMatch(/for \(const k of \[kind, \.\.\.profile\.readings\]\)/);
+  });
+});
+
+describe("2026-08-26: 学習言語の語を、その言語の字で組む", () => {
+  /**
+   * オーナー報告「カメラ撮った後の単語の候補の字体が変」。
+   * `Zh` は `lang="zh-Hant"` を決め打ちで付ける包みなので、英語の語に
+   * 中国語のフォントが当たっていた。
+   */
+  it("`Term` が `target-profile` の `scriptLang` から字を決める", () => {
+    expect(fs.existsSync(path.join(root, "components/Term.tsx"))).toBe(true);
+    const src = codeOnly(read("components/Term.tsx"));
+    expect(src).toMatch(/targetProfile\(lang\)\.scriptLang/);
+    // ここに言語の分岐を書かない(言語が増えた日にここだけ増えない)。
+    expect(src).not.toMatch(/=== "en"/);
+  });
+
+  it("**学習言語の語が入る所は `Term` を通る**", () => {
+    for (const rel of [
+      "components/WordCandidateRow.tsx",
+      "components/WordCard.tsx",
+      "components/ScanCatchSheet.tsx",
+      "components/CatchLanding.tsx",
+      "routes/_authenticated/capture.tsx",
+      "routes/_authenticated/review.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<Term\b/);
+    }
+  });
+
+  it("`Zh` は**必ず繁体字が入る所**にだけ残す", () => {
+    // 候補の行から `Zh` が消えていること(そこは学習言語の語)。
+    const row = codeOnly(read("components/WordCandidateRow.tsx"));
+    expect(row).not.toMatch(/<Zh\b/);
+  });
+});
+
+describe("2026-08-26: 名前を変える", () => {
+  it("学習言語の呼び名が**繁體字（台灣）/ Mandarin (Taiwan)**", () => {
+    expect(DICT["settings.langZhTw"].ja).toBe("繁體字（台灣）");
+    expect(DICT["settings.langZhTw"].en).toBe("Mandarin (Taiwan)");
+    expect(DICT["settings.langZhTw"]["zh-TW"]).toBe("繁體字（台灣）");
+  });
+
+  it("復習の自動は「AIが選ぶ」ではなく**自動**", () => {
+    for (const key of ["review.auto", "settings.modeHybrid"]) {
+      for (const lang of UI_LANGS) {
+        expect(DICT[key][lang], `${key}/${lang}`).not.toMatch(/AI/);
+      }
+    }
+  });
+
+  it("表示言語の欄は**母語**", () => {
+    expect(DICT["settings.uiLang"].ja).toBe("母語");
+    expect(DICT["settings.uiLang"]["zh-TW"]).toBe("母語");
+  });
+});
+
+describe("2026-08-26: 設定から消した項目", () => {
+  it("発音判定の厳しさと優先する記憶段階の**欄が無い**", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/label=\{t\("settings\.strictness"\)\}/);
+    expect(src).not.toMatch(/label=\{t\("settings\.reviewFocus"\)\}/);
+    // **列は残す** — 既に選んである人の値を保存のたびに消さないため。
+    expect(src).toMatch(/pronunciation_strictness: strictness/);
+    expect(src).toMatch(/review_stage_focus: reviewFocus/);
+  });
+
+  it("開発者用の2つの道具が**部品ごと消えている**", () => {
+    expect(fs.existsSync(path.join(root, "components/ThemeLab.tsx"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "components/EffectLab.tsx"))).toBe(false);
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/ThemeLabButton|EffectLabButton/);
+  });
+
+  it("UIテーマの一覧は**畳んである**", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    const picker = src.slice(src.indexOf("function UiThemePicker"));
+    const tag = picker.slice(
+      picker.indexOf("<details"),
+      picker.indexOf(">", picker.indexOf("<details")),
+    );
+    expect(tag).not.toMatch(/\bopen\b/);
+  });
+});
+
+describe("2026-08-26: 打つのは何語でもよいが、見出しは学習言語だけ", () => {
+  /**
+   * オーナー報告（絵つき）:
+   * > 「文字入力、学習言語台湾華語なのに、日本語で入力したら、日本語の単語が
+   * >  出てくる。文字入力は日本語、英語、台湾華語すべての言語で入力を可能に
+   * >  して。ただし単語のカードの見出しは必ずユーザーが設定してる学習言語
+   * >  だけを表示して。」
+   *
+   * 届いた絵は見出し「駅の改札」・読み `ㄧㄢˋ ㄆㄧㄠˋ ㄓㄚˊ ㄇㄣˊ`。
+   * **読みと意味は正しく引けていて、見出しだけが打った日本語のまま**だった。
+   */
+  it("打った語を**解決してから**カードを作る", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/async function searchWord\(/);
+    // 学習言語の語ならそのまま（速い道を残す）。
+    expect(cap).toMatch(/if \(isTargetHeadword\(word, targetLanguage\)\)/);
+    // そうでなければ候補に訊く（打つ言語は選ばせない）。
+    expect(cap).toMatch(/await candidatesFn\(\{/);
+    // 学習言語の語として通る候補だけを使う。
+    expect(cap).toMatch(/isTargetHeadword\(c\.headword, targetLanguage\)/);
+  });
+
+  it("**手で打つ所も同じ道を通る**（片方だけ直る事故を防ぐ）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/onManual=\{\(\) => void searchWord\(manualWord\)\}/);
+  });
+
+  it("生成が返した見出し語を**採る**（最後の砦）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/function adoptResolvedHead\(/);
+    // 学習言語として通らない値は採らない。
+    expect(cap).toMatch(/!isTargetHeadword\(resolved, targetLanguage\)\) return;/);
+    // 生成が返った所で必ず呼ぶ（2箇所とも）。
+    expect(cap.match(/adoptResolvedHead\(c\)/g) ?? []).toHaveLength(2);
+  });
+});
+
+describe("2026-08-26: 見出し語を直せる", () => {
+  it("**`words` の行を書き換えない**（共有の行なので他の人まで変わる）", () => {
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    const fn = src.slice(src.indexOf("export const setStickerHeadword"));
+    const body = fn.slice(0, fn.indexOf("\n  });"));
+    // 直すのは「この札がどの語を指すか」だけ。
+    expect(body).toMatch(/\.update\(\{ word_id: wordId \} as never\)/);
+    expect(body).toMatch(/from\("stickers"\)/);
+    // 語の行は**探すか作るか**（`upsertWord`）で、update はしない。
+    expect(body).toMatch(/upsertWord\(/);
+    expect(body).not.toMatch(/from\("words"\)[\s\S]{0,80}\.update\(/);
+  });
+
+  it("**母語のまま通さない**（直したのにまた母語になる）", () => {
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    const fn = src.slice(src.indexOf("export const setStickerHeadword"));
+    expect(fn.slice(0, 2000)).toMatch(/if \(!isTargetHeadword\(headword, language\)\)/);
+  });
+
+  it("**自分の札だけ**", () => {
+    const src = codeOnly(read("lib/stickers.functions.ts"));
+    const fn = src.slice(src.indexOf("export const setStickerHeadword"));
+    const body = fn.slice(0, fn.indexOf("\n  });"));
+    expect(body.match(/\.eq\("user_id", userId\)/g) ?? []).toHaveLength(2);
+  });
+
+  it("カードは**描くだけ**（通信を持たない）", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toMatch(/onEditHeadword\?: \(next: string\) => void \| Promise<void>;/);
+    // カードの中から server を呼んでいないこと。
+    expect(src).not.toMatch(/setStickerHeadword/);
   });
 });

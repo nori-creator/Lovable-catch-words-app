@@ -3,6 +3,7 @@ import { waitForRef } from "@/lib/wait-for-ref";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { getVariant } from "@/lib/effect-lab";
+import { Term } from "@/components/Term";
 import type { LandingRunner } from "@/components/effects/catch-landing/types";
 import { v1classic } from "@/components/effects/catch-landing/v1_classic";
 import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
@@ -83,6 +84,8 @@ type OverlayProps = {
   /** 飛ぶ絵(切り抜きがあれば切り抜き、なければ写真そのまま)。 */
   image: string | null;
   headword: string;
+  /** その語の学習言語。**渡さないと台湾華語として組む**(既定)。 */
+  lang?: string | null;
   /** 注音・ピンインなど、大きな単語の下に添える読み。 */
   reading?: string | null;
 };
@@ -92,7 +95,7 @@ type OverlayProps = {
  * 呼ぶ側は演出フェーズのときだけ描画すること。
  */
 export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
-  function CatchLandingOverlay({ image, headword, reading }, flyRef) {
+  function CatchLandingOverlay({ image, headword, reading, lang }, flyRef) {
     return (
       <>
         {image && (
@@ -139,19 +142,23 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
           className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
           style={{ top: "68%" }}
         >
-          <div
-            lang="zh-Hant"
+          {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
+              決め打ちだと、英語の語に中国語のフォントが当たる。 */}
+          <Term
+            as="div"
+            lang={lang}
             className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
           >
             {headword}
-          </div>
+          </Term>
           {reading && (
-            <div
-              lang="zh-Hant"
+            <Term
+              as="div"
+              lang={lang}
               className="mt-2 text-title font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
             >
               {reading}
-            </div>
+            </Term>
           )}
           <div className="mt-1 text-body font-medium text-white/85">GET!</div>
         </div>

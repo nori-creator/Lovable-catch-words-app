@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -22,7 +23,9 @@ import {
 import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
-import { usePhoneticPref, pickReading } from "@/lib/phonetic";
+import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
+import { Term } from "@/components/Term";
+import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import {
@@ -138,7 +141,24 @@ function ReviewPage() {
     // 入れないと、前に読んだ普通の列がそのまま出てくる。
     queryKey: ["reviews-due", wantedSticker ?? null],
     queryFn: () => fetchDue(wantedSticker ? { data: { sticker_id: wantedSticker } } : undefined),
-    staleTime: 0,
+    /**
+     * **一度出した束を、画面に戻るたび作り直さない**(オーナー報告
+     * 2026-08-26「あのページに移ると問題が消え、また一から問題を
+     * 表示するまでのラグが発生する」)。
+     *
+     * ここは `staleTime: 0` だった。React Query は古いと見なした
+     * 問い合わせを**画面に戻るたび投げ直す**ので、`getDueReviews` —
+     * 期限切れを全部読んで、写真の署名URLを作り、4択を組み、音を
+     * 用意する、この app でいちばん重い問い合わせ — が毎回走っていた。
+     *
+     * 束は「今日出す10枚」なので、数分のあいだ同じで構わない。
+     * 採点し終えて「もう一度」を押したときは `refetch()` が明示的に
+     * 読み直すので、古い束が残ることはない。
+     */
+    staleTime: 5 * 60_000,
+    // 画面に戻ってきただけで投げ直さない(上と同じ理由)。
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
   // 続いている日数。ヘッダーの記録の面と鍵を揃えてあるので、
   // どちらを先に開いても読み直しは起きない。
@@ -179,6 +199,12 @@ function ReviewPage() {
     staleTime: 0,
   });
 
+  /**
+   * 何枚目まで進んだか。**画面の状態だけにしない**(オーナー報告
+   * 2026-08-26)。画面が外れた瞬間に 0 へ戻るので、別の頁から帰ると
+   * 1枚目からやり直しになっていた。続きは `review-session.ts` が持つ。
+   */
+  const batch = batchKey(cards, wantedSticker ?? null);
   const [idx, setIdx] = useState(0);
   /**
    * この回の成績。**完了の面で見せるためだけ**に数える。
@@ -188,6 +214,25 @@ function ReviewPage() {
    * (独立監査: 直前まで数えていた情報が完了の瞬間に消えている)。
    */
   const [tally, setTally] = useState({ answered: 0, correct: 0 });
+  /**
+   * 束が届いた（または入れ替わった）ら、その束の続きを読み直す。
+   *
+   * **束の目印が変わったときだけ**動かす。毎回動かすと、いま進めた
+   * ぶんを憶えた値で上書きしてしまう。
+   */
+  const restoredFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!batch || restoredFor.current === batch) return;
+    restoredFor.current = batch;
+    const mark = readMark(batch);
+    setIdx(mark.idx);
+    setTally({ answered: mark.answered, correct: mark.correct });
+  }, [batch]);
+  // 進んだら憶える。**別の頁へ行っても消えない**(`sessionStorage`)。
+  useEffect(() => {
+    if (!batch || restoredFor.current !== batch) return;
+    writeMark(batch, { idx, answered: tally.answered, correct: tally.correct });
+  }, [batch, idx, tally]);
   /**
    * 記憶の集計を読み直す。
    *
@@ -342,9 +387,13 @@ function ReviewPage() {
           correct={tally.correct}
           batch={cap}
           onAgain={() => {
+            // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
+            // 残すと「3枚目から始まる」になる。
+            writeMark(null, EMPTY_MARK);
+            restoredFor.current = null;
             setIdx(0);
             setTally({ answered: 0, correct: 0 });
-            refetch();
+            void refetch();
           }}
         />
       ) : isFetching ? (
@@ -818,7 +867,6 @@ export function SpeakingCard({
   const feedbackFn = useServerFn(getSpeakingFeedback);
   const scaffoldFn = useServerFn(getSpeakingScaffold);
   const t = useT();
-  const phonetic = usePhoneticPref();
   // 鳴らす道は1本(`use-pronounce.tsx`)。作り置きの音は `urls` から
   // 端末へ流し込むので、サーバ関数を1回も呼ばずにそろう。
   const pronounce = usePronounce(card.language ?? undefined);
@@ -1222,14 +1270,15 @@ export function SpeakingCard({
                       <ChunkPills
                         parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))}
                         size="lg"
+                        lang={card.language}
                       />
                     ) : (
-                      <span
-                        lang="zh-Hant"
+                      <Term
+                        lang={card.language}
                         className="text-headline font-bold leading-snug tracking-wide"
                       >
                         {p.zh}
-                      </span>
+                      </Term>
                     )}
                   </div>
                   {p.ja && (
@@ -1370,7 +1419,6 @@ export function SayResult({
   onNext: () => void;
 }) {
   const t = useT();
-  const phonetic = usePhoneticPref();
   // 作り置きの音を端末へ流し込む(サーバ関数は呼ばない)。
   usePrefetchSpeech([card.headword], {
     language: card.language ?? undefined,
@@ -1387,15 +1435,19 @@ export function SayResult({
       </div>
 
       <div className="mb-1.5 flex items-center gap-2">
-        <span
-          lang="zh-Hant"
+        <Term
+          lang={card.language}
           className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
         >
           {card.headword}
-        </span>
-        <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
-          {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-        </span>
+        </Term>
+        {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26)。 */}
+        <Reading
+          lang={card.language ?? undefined}
+          zhuyin={card.reading_zhuyin}
+          pinyin={card.pinyin}
+          className="min-w-0 truncate text-footnote text-foreground/70"
+        />
         {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
         <PronounceButton
           text={card.headword}
@@ -1540,7 +1592,7 @@ function FeedbackView({
           )}
           <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
         </div>
-        <ChunkPills parts={feedback.chunk} />
+        <ChunkPills parts={feedback.chunk} lang={card.language} />
         <ChunkLegend parts={feedback.chunk} />
         {feedback.word_order_rule && (
           <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
@@ -1656,7 +1708,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
           <div className="mt-1.5 space-y-1.5">
             {chunks.map((c, i) => (
               <div key={i}>
-                <ChunkPills parts={c.parts} size="md" />
+                <ChunkPills parts={c.parts} size="md" lang={card.language} />
                 {c.ja && <p className="mt-0.5 text-caption text-muted-foreground">{c.ja}</p>}
               </div>
             ))}
@@ -1852,7 +1904,13 @@ export function LightModeCard({
             const isPicked = picked === c;
             const showGreen = picked != null && isAnswer;
             const showRed = isPicked && !isAnswer;
-            const reading = pickReading(phonetic, info.zhuyin, info.pinyin);
+            // **学習言語に在る表記だけ**(オーナー報告 2026-08-26)。
+            // `pickReading` は台湾華語の決め打ちだったので、英語の4択にも
+            // 注音・拼音が出ていた。
+            const reading = pickReadingOf(targetProfile(card.language), phonetic, {
+              zhuyin: info.zhuyin,
+              pinyin: info.pinyin,
+            });
             // `scroll-mb-56` — 答え合わせの面は画面下端に貼り付くので、
             // 鍵盤で送ってきた焦点がその**裏に入る**。ブラウザは焦点を
             // 「画面の中」には入れるが、貼り付いた面をよけてはくれない。
@@ -1953,15 +2011,18 @@ export function LightModeCard({
                   **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
                   語を割るのはいちばんやってはいけない。 */}
               <div className="mb-1.5 flex items-center gap-2">
-                <span
-                  lang="zh-Hant"
+                <Term
+                  lang={card.language}
                   className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
                 >
                   {card.headword}
-                </span>
-                <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
-                  {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
-                </span>
+                </Term>
+                <Reading
+                  lang={card.language ?? undefined}
+                  zhuyin={card.reading_zhuyin}
+                  pinyin={card.pinyin}
+                  className="min-w-0 truncate text-footnote text-foreground/70"
+                />
                 <PronounceButton
                   text={card.headword}
                   language={card.language ?? undefined}
@@ -2167,9 +2228,20 @@ export function ReviewHeader({
   reviewStreak?: number | null;
 }) {
   const t = useT();
+  /**
+   * **切替は畳んでおく**(オーナー指示 2026-08-26「復習の4択、話す、自動は
+   * 単語の項目の順番を選ぶのと同様に右上に表示してたたんで」)。
+   *
+   * 3つの札が横いっぱいに並んでいて、この画面でいちばん目を引く塊が
+   * 「どの形で出すか」になっていた。**開いた理由は復習であって、
+   * 形を選ぶことではない。** 単語の詳細の並べ替えと同じ形にする —
+   * 右上の小さなボタン、押したときだけ開く。
+   */
+  const [modeOpen, setModeOpen] = useState(false);
+  const current = MODE_TABS.find((m) => m.id === mode);
   return (
     <>
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
             {t("review.today")}
@@ -2182,11 +2254,30 @@ export function ReviewHeader({
             </p>
           )}
         </div>
-        {answered !== null && total !== null && (
-          <span className="shrink-0 text-footnote text-muted-foreground">
-            {formatCount(answered)} / {formatCount(total)}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-2 self-center">
+          {answered !== null && total !== null && (
+            <span className="text-footnote text-muted-foreground">
+              {formatCount(answered)} / {formatCount(total)}
+            </span>
+          )}
+          {/* いま選ばれている形を**名前で**出す。印だけにすると、
+              押すまで何が選ばれているのか分からない。
+              当たり判定は 44px（`::before` ではなく箱そのもの）。 */}
+          <button
+            onClick={() => setModeOpen((v) => !v)}
+            aria-expanded={modeOpen}
+            aria-label={t("rv.modeAria")}
+            className={`lift-soft inline-flex min-h-11 items-center gap-1 rounded-full border border-border px-3 text-caption font-semibold ${
+              modeOpen ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+            }`}
+          >
+            {current ? t(current.labelKey) : t("rv.modeAria")}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${modeOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+        </div>
       </div>
 
       {/* **切替は見出しと同じ行に置かない。**
@@ -2200,6 +2291,7 @@ export function ReviewHeader({
           一致させる。2つ用の `w-1/2` のまま3つ目を足すと、
           丸が最後の札の半分しか覆わない。 */}
       <div
+        hidden={!modeOpen}
         className="relative mt-2 flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
         role="tablist"
         aria-label={t("rv.modeAria")}
@@ -2220,7 +2312,11 @@ export function ReviewHeader({
             key={m.id}
             role="tab"
             aria-selected={mode === m.id}
-            onClick={() => onMode(m.id)}
+            onClick={() => {
+              onMode(m.id);
+              // 選んだら畳む。開いたままだと、押した結果が見えない。
+              setModeOpen(false);
+            }}
             title={m.titleKey ? t(m.titleKey) : undefined}
             className={`relative z-10 min-h-11 flex-1 rounded-full px-1 text-center leading-tight transition-colors ${mode === m.id ? "text-foreground" : "text-muted-foreground"}`}
           >

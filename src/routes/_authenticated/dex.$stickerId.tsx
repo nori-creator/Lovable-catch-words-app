@@ -6,6 +6,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import { WordCard } from "@/components/WordCard";
+import { PhotoAddButtons } from "@/components/PhotoAddButtons";
+import { toast } from "sonner";
+import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
@@ -260,6 +263,19 @@ export function StickerDetailHero({
 }) {
   const t = useT();
   const [flipped, setFlipped] = useState(false);
+  /**
+   * **切り抜き・自撮りをここからも足せる**（オーナー指示 2026-08-26
+   * 「切り抜きをしていない場合は切り抜くというボタンを、自撮りしてない
+   * 場合は自撮りをするボタンを表示して」）。
+   *
+   * 足す道は `StickerSheet` の中に直に書かれていて、**この画面には
+   * 無かった** — 図鑑から開いた人は、自撮りが無ければ裏を返して
+   * 「まだありません」と言われるだけで、そこから何もできなかった。
+   * 道は `use-photo-attach.tsx` ただ1つにして、両方から呼ぶ。
+   */
+  const photoAttach = usePhotoAttach(s.id, {
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
+  });
   return (
     <>
       {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
@@ -341,6 +357,18 @@ export function StickerDetailHero({
           </div>
         </div>
       </div>
+
+      {/* 無い絵は「作る」ボタンにする。**出す条件は部品が持つ**ので、
+          両方そろっている札では何も出ない。 */}
+      <PhotoAddButtons
+        objectUrl={s.object_url}
+        cutoutUrl={s.cutout_url}
+        selfieUrl={s.selfie_url}
+        busy={photoAttach.busy}
+        onCutout={() => void photoAttach.cutoutNow(s.object_url!)}
+        onSelfie={(f) => void photoAttach.selfieNow(f)}
+        className="mb-4"
+      />
 
       {/* When & Where — shown right under the photo, inside the word area */}
       <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">

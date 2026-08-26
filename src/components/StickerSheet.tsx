@@ -25,8 +25,7 @@ import {
   deleteSticker,
   replaceStickerPhoto,
   setStickerHeroRole,
-  attachStickerCutout,
-  attachStickerSelfie,
+  setStickerHeadword,
 } from "@/lib/stickers.functions";
 import { fetchImageAsDataUrl } from "@/lib/images.functions";
 import type { PhotoSurface } from "@/lib/photo-surface";
@@ -50,6 +49,8 @@ import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
+import { usePhotoAttach } from "@/lib/use-photo-attach";
+import { Term } from "@/components/Term";
 import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { localeOf, type UiLang, useT, useUiLang } from "@/lib/i18n";
@@ -78,8 +79,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const deleteFn = useServerFn(deleteSticker);
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const setHeroRoleFn = useServerFn(setStickerHeroRole);
-  const attachCutoutFn = useServerFn(attachStickerCutout);
-  const attachSelfieFn = useServerFn(attachStickerSelfie);
+  const setHeadwordFn = useServerFn(setStickerHeadword);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<null | "delete" | "image">(null);
   // 削除の誤操作防止: 1回目のタップで「本当に削除?」に変わり、4秒で元に戻る。
@@ -179,6 +179,32 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
 
   /** ネット画像の「この画像にする」— そのままカードの写真として採用する。 */
+  /**
+   * 見出し語を直す（オーナー指示 2026-08-26「単語のカードの見出しの
+   * 単語自体を変更できるようにして」）。
+   *
+   * **`words` の行は書き換えない。** あの行は `(language, headword)` で
+   * 全ユーザー共有なので、直すのは「この札がどの語を指すか」だけ
+   * （`setStickerHeadword` の注）。
+   */
+  async function editHeadword(next: string) {
+    if (!stickerId) return;
+    try {
+      await setHeadwordFn({ data: { sticker_id: stickerId, headword: next } });
+      // 札も図鑑もホームも、この語を持っているので全部読み直す。
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      void qc.invalidateQueries({ queryKey: ["stickers"] });
+      toast.success(t("card.editHeadDone"));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      // 母語のまま入れられた回。**何を入れればいいかを言う。**
+      toast.error(
+        msg === "NOT_TARGET_LANGUAGE" ? t("card.editHeadNotTarget") : msg || t("card.photoFailed"),
+      );
+      throw e;
+    }
+  }
+
   async function applyWebImage(url: string) {
     if (!stickerId) return;
     // **必ず訊く。**
@@ -351,84 +377,17 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
    * 「速さを選ぶ = 二度と切り抜けない」になるので、ここから掛け直せる。
    * 切り抜きは**この端末の上で**走る(サーバに画像を送らない)。
    */
-  async function cutoutNow() {
-    if (!stickerId || !s?.object_url || busy) return;
-    setBusy("image");
-    try {
-      const { removeBackgroundSmart } = await import("@/lib/cutout");
-      // 署名URLから読み直す。**元の写真を差し替えない** — 足すのは切り抜きだけ。
-      const srcBlob = await (await fetch(s.object_url)).blob();
-      const dataUrl = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result as string);
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(srcBlob);
-      });
-      const cut = await removeBackgroundSmart(dataUrl);
-      if (!cut) throw new Error("cutout failed");
-      const blob = await (await fetch(cut)).blob();
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) throw new Error("Not signed in");
-      const path = `${uid}/${Date.now()}-cutout.png`;
-      const { error } = await supabase.storage
-        .from("stickers")
-        .upload(path, blob, { contentType: blob.type, upsert: false });
-      if (error) throw error;
-      void putCachedImage(path, blob);
-      await attachCutoutFn({ data: { sticker_id: stickerId, cutout_path: path } });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      setPickerSurface(null);
-    } catch (e) {
-      // **黙って飲まない。** 待ったのに何も起きないのがいちばん困る。
-      console.warn("cutout failed", e);
-      toast.error(t("photo.cutoutFailed"));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   /**
-   * あとから自撮りを足す(オーナー指示 2026-08-25
-   * 「切り抜きが無ければ切り抜きボタン、自撮りが無ければ自撮りボタン」)。
+   * 切り抜き／自撮りを足す道は **`use-photo-attach.tsx` ただ1つ**。
    *
-   * **元の写真を差し替えない。** 足すのは `selfie_image_url` だけ
-   * (`attachStickerSelfie` がその1列しか触らない)。
+   * ここに直に書いていたので、図鑑から開く詳細（`/dex/$stickerId`）には
+   * 同じ道が無く、そちらから開いた人は足せないまま行き止まりだった
+   * （オーナー指示 2026-08-26）。写しを増やさず、両方から同じ道を呼ぶ。
    */
-  async function selfieNow(file: File) {
-    if (!stickerId || busy) return;
-    setBusy("image");
-    try {
-      const dataUrl = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result as string);
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(file);
-      });
-      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
-      const blob = await (await fetch(small)).blob();
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) throw new Error("Not signed in");
-      const path = `${uid}/${Date.now()}-selfie.jpg`;
-      const { error } = await supabase.storage
-        .from("stickers")
-        .upload(path, blob, { contentType: blob.type, upsert: false });
-      if (error) throw error;
-      void putCachedImage(path, blob);
-      await attachSelfieFn({ data: { sticker_id: stickerId, selfie_path: path } });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      setPickerSurface(null);
-    } catch (e) {
-      // 切り抜きと同じ。**黙って飲まない。**
-      console.warn("selfie failed", e);
-      toast.error(t("photo.selfieFailed"));
-    } finally {
-      setBusy(null);
-    }
-  }
+  const photoAttach = usePhotoAttach(stickerId ?? null, {
+    onDone: () => setPickerSurface(null),
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
+  });
 
   async function handleImageFile(file: File) {
     if (!stickerId || busy) return;
@@ -667,9 +626,12 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     >
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
-        <span lang="zh-Hant" className="pl-1 text-footnote font-medium text-muted-foreground">
+        <Term
+          lang={s?.word.language}
+          className="pl-1 text-footnote font-medium text-muted-foreground"
+        >
           {s ? s.word.headword : "..."}
-        </span>
+        </Term>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing((v) => !v)}
@@ -771,6 +733,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
             swapping={swapping}
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
+            editHeadword={editHeadword}
             photos={photoData?.photos ?? []}
           />
         )}
@@ -792,14 +755,14 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
             // アルバムの選択は端末に、詳細の選択はサーバに在る。
             // **今その画面で効いている物**に印を付ける。
             current={pickerSurface === "album" ? albumRole : (s.hero_role ?? null)}
-            saving={savingHero || busy === "image"}
+            saving={savingHero || busy === "image" || photoAttach.busy}
             onPick={(role) => void pickHeroRole(pickerSurface, role)}
             onReplaceFile={() => {
               setPickerSurface(null);
               fileInputRef.current?.click();
             }}
-            onCutoutNow={s.object_url && !s.cutout_url ? () => void cutoutNow() : undefined}
-            onSelfieFile={s.selfie_url ? undefined : (f) => void selfieNow(f)}
+            onCutoutNow={s.object_url ? () => void photoAttach.cutoutNow(s.object_url!) : undefined}
+            onSelfieFile={(f) => void photoAttach.selfieNow(f)}
             onClose={() => setPickerSurface(null)}
           />
         </div>
@@ -850,6 +813,7 @@ export function StickerSheetBody({
   swapping,
   swapWebImage,
   applyWebImage,
+  editHeadword,
   photos,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
@@ -899,6 +863,8 @@ export function StickerSheetBody({
    * この単語をこれまでに撮った写真。
    * 2枚未満なら `StickerPhotoHistory` 自身が何も描かないので、ここでは分岐しない。
    */
+  /** 見出し語を直す（渡されない画面では鉛筆が出ない）。 */
+  editHeadword?: (next: string) => Promise<void>;
   photos: StickerPhoto[];
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
 }) {
@@ -1183,6 +1149,7 @@ export function StickerSheetBody({
         wordId={s.word_id}
         isPro={isPro}
         onPickImage={applyWebImage}
+        onEditHeadword={editHeadword}
       />
 
       {enriching && (

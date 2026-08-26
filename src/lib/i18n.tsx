@@ -1467,9 +1467,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 台湾華語を出すと**開いた瞬間に答えが分かる**。
   "place.rememberBefore": { ja: "「", en: "Remember “", "zh-TW": "「" },
   "place.rememberAfter": {
-    ja: "」は台湾華語で？",
-    en: "” in Taiwanese Mandarin?",
-    "zh-TW": "」台灣華語怎麼說？",
+    ja: "」は中文で？",
+    en: "” in Mandarin?",
+    "zh-TW": "」中文怎麼說？",
   },
   // --- 場所の思い出し・共通 ---
   // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
@@ -1609,7 +1609,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "title.capture": { ja: "集める", en: "Catch", "zh-TW": "收集" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review", "zh-TW": "今天的複習" },
-  "review.auto": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks", "zh-TW": "🎯 AI 幫你選" },
+  // オーナー指示 2026-08-26「復習モードの AI が選ぶという名前、自動に変えて」。
+  "review.auto": { ja: "🎯 自動", en: "🎯 Auto", "zh-TW": "🎯 自動" },
   "review.speak": { ja: "🎤 話す", en: "🎤 Speak", "zh-TW": "🎤 開口說" },
   "review.choice": { ja: "👆 4択", en: "👆 Quiz", "zh-TW": "👆 四選一" },
   // --- dex ---
@@ -1630,7 +1631,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.targetLang": { ja: "学習言語", en: "Target language", "zh-TW": "學習語言" },
   "settings.levelGoal": { ja: "目標レベル", en: "Target level", "zh-TW": "目標等級" },
   "settings.currentLevel": { ja: "今のレベル", en: "Current level", "zh-TW": "目前等級" },
-  "settings.uiLang": { ja: "表示言語", en: "App language", "zh-TW": "顯示語言" },
+  /**
+   * オーナー指示 2026-08-26「設定の表示言語という項目を母語に名称を変更して」。
+   *
+   * 実体は変わらない（アプリの文字とカードの解説がこの言語で出る）。
+   * 呼び名を「母語」にする — その人が**いちばん楽に読める言語**を
+   * 選ぶ欄なので、そう言ったほうが選びやすい。
+   */
+  "settings.uiLang": { ja: "母語", en: "Your language", "zh-TW": "母語" },
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation", "zh-TW": "發音標記" },
   "settings.study": { ja: "学習設定", en: "Study settings", "zh-TW": "學習設定" },
   // 見え方は3つ。名前 + 一言で、何が変わるかを開く前に言う。
@@ -2035,13 +2043,23 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "讀取文字與物體",
   },
   "scan.fullMatching": {
-    ja: "台湾華語と照合",
-    en: "Matching Taiwanese Mandarin",
-    "zh-TW": "與台灣華語比對",
+    ja: "中文と照合",
+    en: "Matching Mandarin",
+    "zh-TW": "與中文比對",
   },
   "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…", "zh-TW": "AI 去背中…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment", "zh-TW": "再等一下下喔" },
   "common.cancel": { ja: "キャンセル", en: "Cancel", "zh-TW": "取消" },
+  // 見出し語を直す(オーナー指示 2026-08-26「単語のカードの見出しの単語自体を
+  // 変更できるようにして」)。AI が別の語を当てたときに、その場で直せる。
+  "card.editHead": { ja: "単語を直す", en: "Edit the word", "zh-TW": "修改單字" },
+  "card.editHeadSave": { ja: "直す", en: "Save", "zh-TW": "儲存" },
+  "card.editHeadDone": { ja: "単語を直しました", en: "Word updated", "zh-TW": "已修改單字" },
+  "card.editHeadNotTarget": {
+    ja: "学習している言語の単語を入れてください",
+    en: "Enter a word in the language you are learning",
+    "zh-TW": "請輸入你正在學的語言的單字",
+  },
   "common.retry": { ja: "もう一度", en: "Retry", "zh-TW": "再一次" },
   // --- word card (extra) ---
   "card.generate": { ja: "作る", en: "Generate", "zh-TW": "產生" },
@@ -2133,9 +2151,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "可以用麥克風跟著唸，或在下面的欄位修正辨識結果",
   },
   "input.textHint": {
-    ja: "台湾華語でも日本語でもOK（日本語は自動で台湾華語に変換されます）",
+    ja: "中文でも日本語でもOK（日本語は自動で中文に変換されます）",
     en: "Type in Mandarin or your own language — we'll convert it",
-    "zh-TW": "台灣華語或中文都可以（會自動轉成台灣華語）",
+    "zh-TW": "中文或你的母語都可以（會自動轉成中文）",
   },
   "input.scene": {
     ja: "シーン: どこで・誰が・何と言った？（任意）",
@@ -2163,15 +2181,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "是指哪一個呢？",
   },
   "input.chooseHint": {
-    ja: "「{q}」は台湾華語ではいくつかの語に分かれます。",
+    ja: "「{q}」は中文ではいくつかの語に分かれます。",
     en: "\u201c{q}\u201d maps to several different Mandarin words.",
-    "zh-TW": "「{q}」在台灣華語裡會分成好幾個字。",
+    "zh-TW": "「{q}」在中文裡會分成好幾個字。",
   },
   "input.chooseBack": { ja: "書き直す", en: "Edit what I typed", "zh-TW": "重寫" },
   "input.notTargetLang": {
-    ja: "台湾華語の単語が見つかりませんでした。別の言い方で調べてみてください。",
+    ja: "中文の単語が見つかりませんでした。別の言い方で調べてみてください。",
     en: "Couldn't find a Mandarin word for that. Try describing it differently.",
-    "zh-TW": "找不到台灣華語的單字。請換個說法查查看。",
+    "zh-TW": "找不到中文的單字。請換個說法查查看。",
   },
   "input.attach": {
     ja: "画像を添付（任意）",
@@ -2571,16 +2589,22 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "set.catchSpeedN": { ja: "{n}回", en: "{n}×", "zh-TW": "{n} 次" },
   "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log", "zh-TW": "清除紀錄" },
+  /**
+   * オーナー指示 2026-08-26「設定の札の主役の画像って項目名前変えて。
+   * また画面ごとのボタンも削除して」。
+   *
+   * 「主役」は作り手の言葉で、この欄が何を決めるのかを言っていない。
+   * 決まるのは **既定でどの写真から見せるか** なので、そう書く。
+   */
   "settings.photoPref": {
-    ja: "札の主役の写真",
-    en: "Main photo on a card",
-    "zh-TW": "貼紙的主角照片",
+    ja: "はじめに見せる写真",
+    en: "Photo shown first",
+    "zh-TW": "優先顯示的照片",
   },
-  "settings.photoAuto": { ja: "画面ごと", en: "Per screen", "zh-TW": "依畫面" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
-  "settings.modeHybrid": { ja: "🎯 AIが選ぶ", en: "🎯 AI picks", "zh-TW": "🎯 AI 幫你選" },
+  "settings.modeHybrid": { ja: "🎯 自動", en: "🎯 Auto", "zh-TW": "🎯 自動" },
   "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak", "zh-TW": "🎤 開口說" },
   "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz", "zh-TW": "👆 四選一" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin", "zh-TW": "ㄅㄆㄇ 注音" },
@@ -2625,7 +2649,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.langEn": { ja: "English", en: "English", "zh-TW": "English" },
   // 符号は見せない。この束の他の4行(日本語 / English / 母語 / 表示言語)は
   // どれも言語の名前だけを出すのに、ここだけ `(zh-TW)` を足していた。
-  "settings.langZhTw": { ja: "台湾華語", en: "Taiwanese Mandarin", "zh-TW": "台灣華語" },
+  /**
+   * 学習言語としての中国語の呼び名。
+   *
+   * オーナー指示 2026-08-26（言い直し）:
+   * > 「アプリ全体で台湾華語と表示されているのを**繁體字（台灣）**に変更して。
+   * >  英語は **Mandarin（Taiwan）** で。」
+   *
+   * 中身（辞書・発音・例文）は台湾の正体字と注音のままで、**呼び名だけ**を
+   * 変える。「台灣華語」は教える側の用語なので、その人が普段使う言い方に寄せる。
+   */
+  "settings.langZhTw": {
+    ja: "繁體字（台灣）",
+    en: "Mandarin (Taiwan)",
+    "zh-TW": "繁體字（台灣）",
+  },
   "settings.deleteWarn": {
     ja: "集めた単語カード・写真・復習の記録・日記など、すべてのデータが完全に削除されます。この操作は取り消せません。",
     en: "Every card, photo, review record and journal entry is permanently deleted. This cannot be undone.",

@@ -47,7 +47,7 @@ import { useState } from "react";
  */
 export function SettingsChoicesScene() {
   const [mode, setMode] = useState("hybrid");
-  const [photo, setPhoto] = useState("auto");
+  const [photo, setPhoto] = useState("object");
   const [speed, setSpeed] = useState("detail");
   const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
@@ -74,12 +74,11 @@ export function SettingsChoicesScene() {
         />
         {/* 要望 #16 の設定。**4つ並ぶ**ので、狭い画面で札が潰れないかを見る。 */}
         <ChoiceRow
-          cols={4}
+          cols={3}
           label={t("settings.photoPref")}
           value={photo}
           onChange={setPhoto}
           options={[
-            { value: "auto", label: t("settings.photoAuto") },
             { value: "object", label: t("settings.photoObject") },
             { value: "cutout", label: t("settings.photoCutout") },
             { value: "selfie", label: t("settings.photoSelfie") },

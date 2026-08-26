@@ -13,7 +13,6 @@ import { RegisterMeter } from "@/components/WordCard";
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
-import { PronunciationPanel } from "@/components/PronunciationPanel";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
@@ -341,17 +340,6 @@ export function CurveScene() {
       currentEase={2.3}
       currentIntervalDays={6}
       lastReviewedAt={new Date(now - 4 * day).toISOString()}
-    />
-  );
-}
-
-/** 発音を聴く・録る面。 */
-export function PronunciationScene() {
-  return (
-    <PronunciationPanel
-      headword="珍珠奶茶"
-      pinyin="zhēn zhū nǎi chá"
-      zhuyin="ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ"
     />
   );
 }
