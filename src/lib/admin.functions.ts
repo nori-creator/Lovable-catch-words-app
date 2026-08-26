@@ -180,19 +180,15 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
     if (!isAdmin) throw new Error("管理者のみ");
     const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi } =
       await import("./ai-provider.server");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as {
-      from: (t: string) => {
-        select: (c: string) => {
-          eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: unknown }> };
-        };
-      };
-    };
-    const { data } = await db
+    // app_config is admin-only by RLS, so normal authenticated access is enough.
+    // Do not use the service-role client here; the settings page should not blank
+    // out when the local dev environment temporarily loses that secret binding.
+    const { data, error } = await context.supabase
       .from("app_config")
       .select("value")
       .eq("key", "ai_models")
       .maybeSingle();
+    if (error) throw new Error(error.message);
     const config = ((data as { value?: AiModelConfig } | null)?.value ?? {}) as AiModelConfig;
     // 実際にいま使われている値(env のフォールバックを含む)も見せる。
     let effective: { provider: string; fast: string; rich: string; rich_premium: string } | null =
@@ -259,13 +255,7 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
       }
       if (Object.keys(features).length > 0) clean.features = features;
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as {
-      from: (t: string) => {
-        upsert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
-      };
-    };
-    const { error } = await db.from("app_config").upsert({
+    const { error } = await context.supabase.from("app_config").upsert({
       key: "ai_models",
       value: clean,
       updated_at: new Date().toISOString(),
