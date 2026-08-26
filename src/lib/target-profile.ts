@@ -187,6 +187,20 @@ export type TargetProfile = {
      * `culture_note` は一度も埋まらない**という形になっていた。
      */
     noteField: "taiwan_note" | "culture_note";
+    /**
+     * 4択の**受け皿の見出し語**。撮った語がまだ少ない人のための埋め草。
+     *
+     * オーナー報告 2026-08-26:
+     * > 「復習の4択が学習言語英語なのに台湾華語の単語が混ざってる」
+     *
+     * ここは `quiz-choices.ts` に台湾の語で直書きされていた。英語を
+     * 学んでいる人の4択に**中国語が3つ並ぶ**のはこれが最後の出どころ。
+     * 誤答があからさまに場違いだと消去法で当てられてしまうので、
+     * **その言語で日常的に見る語**を選ぶ。
+     */
+    quizFallbackHeadwords: readonly string[];
+    /** 受け皿の語の読み(4択に注音/IPA を出すため)。 */
+    quizFallbackReadings: Readonly<Record<string, { zhuyin: string; pinyin: string }>>;
     /** その一言メモに何を書くか。 */
     noteRule: string;
     /**
@@ -308,6 +322,13 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "  仲間が無ければ**空配列**。無理に埋めない。",
     radicalsRule: "部首と意味(1文)",
     noteField: "taiwan_note",
+    quizFallbackHeadwords: ["蘋果", "公車", "雨傘", "便當"],
+    quizFallbackReadings: {
+      蘋果: { zhuyin: "ㄆㄧㄥˊ ㄍㄨㄛˇ", pinyin: "píngguǒ" },
+      公車: { zhuyin: "ㄍㄨㄥ ㄔㄜ", pinyin: "gōngchē" },
+      雨傘: { zhuyin: "ㄩˇ ㄙㄢˇ", pinyin: "yǔsǎn" },
+      便當: { zhuyin: "ㄅㄧㄢˋ ㄉㄤ", pinyin: "biàndāng" },
+    },
     noteRule:
       "台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文。" +
       "誤用しやすい語法の注意があれば1文追加",
@@ -428,6 +449,14 @@ export const EN_PROFILE: TargetProfile = {
      * 台湾の話ではなく、**その語そのものの雑学**を書く場所にする。
      */
     noteField: "culture_note",
+    // 街で日常的に見る語。読みはアメリカ英語の IPA(既定の読み)。
+    quizFallbackHeadwords: ["apple", "bus", "umbrella", "lunch box"],
+    quizFallbackReadings: {
+      apple: { zhuyin: "ˈæpəl", pinyin: "ˈæpl" },
+      bus: { zhuyin: "bʌs", pinyin: "bʌs" },
+      umbrella: { zhuyin: "ʌmˈbrelə", pinyin: "ʌmˈbrelə" },
+      "lunch box": { zhuyin: "ˈlʌntʃ bɑks", pinyin: "ˈlʌntʃ bɒks" },
+    },
     noteRule:
       "その語にまつわる**一言雑学**を1〜2文。" +
       "語源の面白い由来・商標や作品での使われ方・その語から来た言い回し・" +

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Volume2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
+import { PronounceButton } from "@/components/PronounceButton";
 import { Reading } from "@/lib/phonetic";
 import type { WordbookCard } from "@/lib/wordbook.functions";
 
@@ -22,12 +22,19 @@ import type { WordbookCard } from "@/lib/wordbook.functions";
 export function WordbookReviewCard({
   card,
   onAnswer,
-  onSpeak,
+  language,
 }: {
   card: WordbookCard;
   /** 選んだ答えが正しかったか。次へ進むのも呼ぶ側の仕事。 */
   onAnswer: (correct: boolean) => void;
-  onSpeak?: (headword: string) => void;
+  /**
+   * 読み上げる言語。**渡さないと台湾華語として読む。**
+   *
+   * ここは `usePronounce()` を引数なしで呼んでいたので、英語を学んで
+   * いる人の単語帳も中国語の声で読まれていた。単語帳そのものには
+   * 言語の列が無いので、いまその人が学んでいる言語を呼ぶ側が渡す。
+   */
+  language?: string;
 }) {
   const t = useT();
   const [picked, setPicked] = useState<string | null>(null);
@@ -81,15 +88,13 @@ export function WordbookReviewCard({
               pinyin={card.pinyin ?? undefined}
               className="text-body text-muted-foreground"
             />
-            {onSpeak && (
-              <button
-                onClick={() => onSpeak(card.headword)}
-                aria-label={t("card.pronOfWord", { word: card.headword })}
-                className="grid h-11 w-11 place-items-center rounded-full bg-secondary text-primary shadow-sm ring-1 ring-border"
-              >
-                <Volume2 className="h-4 w-4" aria-hidden />
-              </button>
-            )}
+            {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
+            <PronounceButton
+              text={card.headword}
+              language={language}
+              tone="quiet"
+              label={t("card.pronOfWord", { word: card.headword })}
+            />
           </div>
           {/* **押す物の強さを結果で入れ替える。** 間違えた直後にいちばん
               目立つボタンが「次へ」だと、間違いを見ないまま先へ進む。 */}

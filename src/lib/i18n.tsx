@@ -26,6 +26,20 @@ export function normalizeUiLang(raw: string | null | undefined): UiLang {
   return (UI_LANGS as readonly string[]).includes(v) ? (v as UiLang) : "ja";
 }
 
+/**
+ * **選んだことがあるか。** `getUiLang` は選んでいない人にも既定を返す
+ * ので、「選んで日本語だった」と「一度も選んでいない」が区別できない
+ * (`language-sync.ts` の注)。
+ */
+export function storedUiLang(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function getUiLang(): UiLang {
   if (typeof window === "undefined") return "ja";
   try {

@@ -4,6 +4,11 @@
  * 単語帳は一度に何十語も入るので、崩れたときの被害が大きい割に、
  * 目で見る機会は「取り込んだ直後」しか無い。棚・問題・結果の3つを撮る。
  */
+import { readySpeech } from "../speech";
+
+/** 発音ボタンは鳴らせるようになってから出る。足場では支度が済んだことにする。 */
+readySpeech(["珍珠奶茶", "捷運", "腳踏車", "雨傘", "面紙"]);
+
 import { WordbookShelf } from "@/components/WordbookShelf";
 import { WordbookReviewCard } from "@/components/WordbookReviewCard";
 import type { WordbookSummary, WordbookCard } from "@/lib/wordbook.functions";
@@ -83,7 +88,7 @@ const CARD: WordbookCard = {
 };
 
 export function WordbookQuizScene() {
-  return <WordbookReviewCard card={CARD} onAnswer={() => {}} onSpeak={() => {}} />;
+  return <WordbookReviewCard card={CARD} onAnswer={() => {}} />;
 }
 
 /** 意味が読み取れなかった語。**空欄のまま出さない**ことを確かめる。 */
@@ -92,7 +97,6 @@ export function WordbookQuizNoMeaningScene() {
     <WordbookReviewCard
       card={{ ...CARD, meaning_ja: null }}
       onAnswer={() => {}}
-      onSpeak={() => {}}
     />
   );
 }

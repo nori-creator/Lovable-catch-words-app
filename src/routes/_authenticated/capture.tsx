@@ -36,7 +36,6 @@ import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
 import { uploadVoiceNote } from "@/lib/voice-note-upload";
-import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
@@ -176,8 +175,7 @@ function CapturePage() {
   const queryClient = useQueryClient();
   const { word: wordParam, pending: pendingParam, retake: retakeParam } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("photo");
-  // 文字入力キャッチはアプリ共通の InputCatchSheet に統一(重複UIの解消)。
-  const [inputSheet, setInputSheet] = useState<null | { text?: string; auto?: boolean }>(null);
+  // 文字で調べる道も**この画面のまま**通る(オーナー指示 2026-08-26)。
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
   const [cutoutImg, setCutoutImg] = useState<string | null>(null);
@@ -285,11 +283,12 @@ function CapturePage() {
     return () => clearTimeout(t);
   }, [step, wordParam, pendingParam]);
 
-  // Derived catch: /capture?word=◯◯ — 共通の入力キャッチシートで即調べる。
+  // Derived catch: /capture?word=◯◯ — **この画面のまま**すぐ調べる
+  // (オーナー指示 2026-08-26。別の面を開かない)。
   useEffect(() => {
     if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
     handledParamRef.current = `w:${wordParam}`;
-    setInputSheet({ text: wordParam, auto: true });
+    void confirmWord(wordParam, undefined, { skipImagePick: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
 
@@ -794,7 +793,17 @@ function CapturePage() {
           onObjectFile={handleObjectFile}
           typedWord={typedWord}
           setTypedWord={setTypedWord}
-          onSearch={(w) => setInputSheet({ text: w, auto: true })}
+          /**
+           * **この画面のまま調べる**(オーナー指示 2026-08-26
+           * 「文字入力は検索ボタン押すと別のページに移動するけど意味ない
+           * から、輸入捕捉って表示されるページ消して、元のページのまま
+           * 検索して」)。
+           *
+           * 打った語をそのまま候補の段へ渡す。写真を撮ったときと同じ道を
+           * 通るので、候補も学習言語で出る(前は別の面が開いて、その面が
+           * 台湾華語の決め打ちで引いていた)。
+           */
+          onSearch={(w) => void confirmWord(w, undefined, { skipImagePick: true })}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
@@ -918,14 +927,6 @@ function CapturePage() {
           onRetry={() => void runAi()}
           onHome={() => navigate({ to: "/home" })}
           onAgain={reset}
-        />
-      )}
-      {inputSheet && (
-        <InputCatchSheet
-          initialMode="text"
-          initialText={inputSheet.text}
-          autoLookup={inputSheet.auto}
-          onClose={() => setInputSheet(null)}
         />
       )}
       {/* キャッチ演出中だけ載る層: 飛ぶ絵・閃光・大きな単語
@@ -1143,7 +1144,7 @@ export function PickWordPanel({
       <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
       <div className="grid gap-2">
         {/* 札の中身は `WordCandidateRow` に1つだけ置いてある。
-            打ち込んだ語の候補(`InputCatchSheet`)と**同じ役目・同じ見た目**で、
+            打ち込んだ語の候補と**同じ役目・同じ見た目**で、
             以前はここに写しがあったせいで見出し語の大きさが違い、
             **表記の設定(注音/拼音)もこちら側だけ読んでいなかった**。 */}
         {suggestions.map((s) => (

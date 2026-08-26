@@ -30,8 +30,10 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/profile.functions";
-import { setTargetLang } from "@/lib/target-lang-pref";
-import { setUiLang, normalizeUiLang } from "@/lib/i18n";
+import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
+import { setUiLang, normalizeUiLang, storedUiLang } from "@/lib/i18n";
+import { reconcileLanguage } from "@/lib/language-sync";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 
 /**
  * プロフィールが届いたら、学習言語と表示言語を端末に写す。
@@ -63,9 +65,30 @@ export function useLanguagePrefsSync(): void {
      * 端末の写しは前のまま残すのが正しい。次に本物が届いたときに揃う。
      */
     if (p.partial) return;
+    /**
+     * **この端末で一度選んでいるなら、サーバの値で塗り替えない**
+     * (オーナー報告 2026-08-26、2度目「一度設定を保存したらその後
+     * キープして」)。
+     *
+     * ここは画面を開くたびに走る。サーバに保存が届いていなかった場合、
+     * 「開く → 古い値で上書き」が毎回起きて、設定画面を直しただけでは
+     * 塞ぎきれない。選んだ事実が残っているのは端末のほうなので、
+     * **選んでいない端末にだけ**サーバの値を配る
+     * (突き合わせの規則は `language-sync.ts` の1つだけ)。
+     */
+    const target = reconcileLanguage({
+      stored: storedTargetLang(),
+      server: p.target_language,
+      fallback: DEFAULT_TARGET_LANGUAGE,
+    });
+    const ui = reconcileLanguage({
+      stored: storedUiLang(),
+      server: p.ui_language,
+      fallback: "ja",
+    });
     // `setTargetLang` / `setUiLang` は同じ値なら何も知らせないので、
     // プロフィールが届くたびに描き直しが起きることはない。
-    setTargetLang(p.target_language);
-    setUiLang(normalizeUiLang(p.ui_language));
+    setTargetLang(target.value);
+    setUiLang(normalizeUiLang(ui.value));
   }, [data]);
 }

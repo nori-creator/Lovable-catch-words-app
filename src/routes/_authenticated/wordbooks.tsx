@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { WordbookShelf } from "@/components/WordbookShelf";
 import { WordbookReviewCard } from "@/components/WordbookReviewCard";
 import { Zh } from "@/components/Zh";
-import { usePronounce } from "@/lib/use-pronounce";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { formatCount } from "@/lib/count";
 import { useT, tStatic } from "@/lib/i18n";
 import { fileToDataUrl } from "@/lib/file-data-url";
@@ -313,7 +313,8 @@ function WordbookReview({ bookId, onClose }: { bookId: string; onClose: () => vo
   const qc = useQueryClient();
   const dueFn = useServerFn(getWordbookDue);
   const gradeFn = useServerFn(gradeWordbookEntry);
-  const pronounce = usePronounce();
+  // 単語帳には言語の列が無いので、**いまその人が学んでいる言語**で読む。
+  const targetLanguage = useTargetLang();
   const [idx, setIdx] = useState(0);
   const [tally, setTally] = useState({ answered: 0, correct: 0 });
 
@@ -389,7 +390,7 @@ function WordbookReview({ bookId, onClose }: { bookId: string; onClose: () => vo
             key={current.id}
             card={current}
             onAnswer={(correct) => void answer(correct)}
-            onSpeak={(w) => void pronounce(w)}
+            language={targetLanguage}
           />
         </>
       ) : null}

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { matchesTargetLanguage, wordLanguageFilter } from "@/lib/language-filter";
+import { targetProfile } from "@/lib/target-profile";
 import { getUserTargetLanguage } from "@/lib/ai-provider.server";
 import { batchEndKind } from "@/lib/review-batch";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
@@ -17,13 +18,7 @@ import {
 } from "@/lib/retention-series";
 export { nextSrs } from "@/lib/srs";
 // 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
-import {
-  FALLBACK_HEADWORDS,
-  FALLBACK_HEADWORD_READINGS,
-  FALLBACK_MEANINGS,
-  buildChoices,
-  shuffle,
-} from "@/lib/quiz-choices";
+import { FALLBACK_MEANINGS, buildChoices, shuffle } from "@/lib/quiz-choices";
 import {
   assertWithinDailyCap,
   generateStructured,
@@ -279,6 +274,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
      */
     const targetLanguage = await getUserTargetLanguage(userId);
     const langFilter = wordLanguageFilter(targetLanguage);
+    // 4択の受け皿は**その言語のもの**(`target-profile.ts` が持つ)。
+    const quizFallback = {
+      headwords: targetProfile(targetLanguage).capture.quizFallbackHeadwords,
+      readings: targetProfile(targetLanguage).capture.quizFallbackReadings,
+    };
     const dueSelect = (withGhost: boolean) =>
       `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers!inner(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words!inner(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
     // 記憶段階の優先度(設定):
@@ -573,7 +573,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
         sameCat.map((d) => d.headword),
         dictPool,
         otherCat.map((d) => d.headword),
-        FALLBACK_HEADWORDS,
+        // **受け皿もその言語のもの**(オーナー報告 2026-08-26
+        // 「4択が学習言語英語なのに台湾華語の単語が混ざってる」)。
+        // 撮った語が少ない人ほどここまで落ちるので、ここが混ざると
+        // 始めたばかりの人の4択が丸ごと別の言語になる。
+        quizFallback.headwords,
       ]);
 
       // デッキ語の読みも逆引き表へ(4択の注音表示用)。
@@ -586,7 +590,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         }
       }
       readingByHead.set(w.headword, { zhuyin: w.reading_zhuyin, pinyin: w.pinyin });
-      for (const [h, r] of Object.entries(FALLBACK_HEADWORD_READINGS)) {
+      for (const [h, r] of Object.entries<{ zhuyin: string; pinyin: string }>(
+        quizFallback.readings,
+      )) {
         if (!readingByHead.has(h)) readingByHead.set(h, r);
       }
       // 未復習カードは「出会った日(taken_at)」を記憶の起点にする。null のままだと
@@ -1044,10 +1050,20 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MemoryOverview> => {
     const { supabase, userId } = context;
+    /**
+     * **記憶の状態も学習言語で分ける**(オーナー報告 2026-08-26、2度目)。
+     * > 「復習の記憶の状態が学習言語を英語に切り替えたのに、台湾華語の
+     * >  単語が表示されてる。学習言語によって区別して混ざらないように。」
+     *
+     * ここには絞りが**1つも無かった**。出す列の一覧を作るときに
+     * `language` を持ってきていないので、絞りようも無かった。
+     * 今日の列(`getDueReviews`)だけ直しても、この画面は混ざったまま。
+     */
+    const targetLanguage = await getUserTargetLanguage(userId);
     const { data: rows } = await supabase
       .from("reviews")
       .select(
-        "sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword))",
+        "sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword, language))",
       )
       .eq("user_id", userId);
     const now = Date.now();
@@ -1058,10 +1074,15 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
       repetitions: number;
       last_reviewed_at: string | null;
       due_at: string | null;
-      stickers: { taken_at?: string | null; words: { headword: string } | null } | null;
+      stickers: {
+        taken_at?: string | null;
+        words: { headword: string; language?: string | null } | null;
+      } | null;
     };
     const words: MemoryWord[] = ((rows ?? []) as unknown as Row[])
       .filter((r) => r.stickers?.words)
+      // 判定は `language-filter.ts` の1つだけ(今日の列と同じ規則)。
+      .filter((r) => matchesTargetLanguage(r.stickers?.words?.language, targetLanguage))
       .map((r) => {
         // 未復習(last_reviewed_at が null)でも曲線を描く: 記憶の起点は
         // 「その単語に出会った瞬間」= sticker.taken_at。学習直後の記憶は

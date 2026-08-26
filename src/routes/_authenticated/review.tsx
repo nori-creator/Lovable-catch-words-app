@@ -3,9 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { claimAudio } from "@/lib/audio";
-import { speak } from "@/lib/speak";
-import { usePronounce } from "@/lib/use-pronounce";
+import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
+import { PronounceButton } from "@/components/PronounceButton";
 import { getMyStats } from "@/lib/stats.functions";
 import {
   getDueReviews,
@@ -82,34 +81,20 @@ function readBool(key: string, def = false) {
 // 台湾の声が無い端末では**大陸の普通話**を掴み、しかも毎回選び直すので
 // 回ごとに声が変わっていた(オーナー指摘「音声の声がたまに異なる。
 // 様々な別のソフトの声がする」)。声の選び方は `lib/speak.ts` の1箇所だけ。
-let sharedAudio: HTMLAudioElement | null = null;
-function playAudio(card: DueReviewCard) {
-  if (card.audio_url) {
-    if (!sharedAudio) sharedAudio = new Audio();
-    claimAudio(sharedAudio);
-    sharedAudio.src = card.audio_url;
-    sharedAudio.play().catch(() => speak(card.headword, card.language ?? undefined));
-  } else {
-    speak(card.headword, card.language ?? undefined);
-  }
-}
-
 /**
- * A3: 任意のテキスト/音声URLを排他再生(4択の選択肢🔊用)。
+ * **鳴らす道はここに書かない。**
  *
- * **言語を受ける。** 4択の選択肢はその回の語と同じ言語なので、
- * 呼ぶ側が持っている。渡さないと英語の選択肢が中国語の声で読まれる。
+ * この画面は自前の `playAudio` / `playText` を持っていた。作り置きの
+ * 署名付きURL(`card.audio_url`)があればそれを、無ければ**すぐ端末の声**に
+ * 落ちる形で、サーバの合成を1度も使わない。つまり作り置きの無い語は
+ * ずっと端末の声で、他の画面と発音が食い違っていた。しかも URL を
+ * 毎回ネットから取り直すので、押すたびに待ちが入る。
+ *
+ * いまは `PronounceButton` / `usePronounce` の1本に寄せてある
+ * (`tts-store.ts` が端末に音を貯める)。作り置きの URL は
+ * `usePrefetchSpeech` の `urls` から流し込むので、**サーバ関数を1回も
+ * 呼ばずに**端末へ落ちる。
  */
-function playText(text: string, audioUrl?: string | null, language?: string) {
-  if (audioUrl) {
-    if (!sharedAudio) sharedAudio = new Audio();
-    claimAudio(sharedAudio);
-    sharedAudio.src = audioUrl;
-    sharedAudio.play().catch(() => speak(text, language));
-  } else {
-    speak(text, language);
-  }
-}
 
 export const Route = createFileRoute("/_authenticated/review")({
   /**
@@ -834,6 +819,13 @@ export function SpeakingCard({
   const scaffoldFn = useServerFn(getSpeakingScaffold);
   const t = useT();
   const phonetic = usePhoneticPref();
+  // 鳴らす道は1本(`use-pronounce.tsx`)。作り置きの音は `urls` から
+  // 端末へ流し込むので、サーバ関数を1回も呼ばずにそろう。
+  const pronounce = usePronounce(card.language ?? undefined);
+  usePrefetchSpeech([card.headword], {
+    language: card.language ?? undefined,
+    urls: { [card.headword]: card.audio_url },
+  });
   // 設定で主役を選んでいれば、復習の意図(切り抜き)より優先する。
   const photoPref = usePhotoPref();
 
@@ -895,7 +887,7 @@ export function SpeakingCard({
   // Phrase roleplay (§5.2): the partner line IS the question — play it.
   useEffect(() => {
     if (!isPhrase) return;
-    const t = setTimeout(() => playAudio(card), 400);
+    const t = setTimeout(() => void pronounce(card.headword), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.review_id]);
@@ -1193,7 +1185,7 @@ export function SpeakingCard({
             <div className="mt-0.5 flex items-start gap-2">
               <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
               <button
-                onClick={() => playText(scaffold.question_zh, null, card.language ?? undefined)}
+                onClick={() => void pronounce(scaffold.question_zh)}
                 className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
                 aria-label={t("rv.readQuestion")}
               >
@@ -1218,7 +1210,7 @@ export function SpeakingCard({
                       {t(`review.partKind.${p.kind}`)}
                     </span>
                     <button
-                      onClick={() => playText(p.zh, null, card.language ?? undefined)}
+                      onClick={() => void pronounce(p.zh)}
                       className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
                       aria-label={t("review.playHint")}
                     >
@@ -1379,6 +1371,11 @@ export function SayResult({
 }) {
   const t = useT();
   const phonetic = usePhoneticPref();
+  // 作り置きの音を端末へ流し込む(サーバ関数は呼ばない)。
+  usePrefetchSpeech([card.headword], {
+    language: card.language ?? undefined,
+    urls: { [card.headword]: card.audio_url },
+  });
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       {/* 判定は**面で伝える**。色が読めない人にも文字で伝わるようにする
@@ -1399,13 +1396,13 @@ export function SayResult({
         <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
           {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
         </span>
-        <button
-          onClick={() => playAudio(card)}
-          className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-          aria-label={t("card.playPron")}
-        >
-          <Volume2 className="h-4 w-4" />
-        </button>
+        {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
+        <PronounceButton
+          text={card.headword}
+          language={card.language ?? undefined}
+          className="ml-auto"
+          label={t("card.playPron")}
+        />
       </div>
 
       {/* **通じなかったときだけ、聞こえた音を見せる。**
@@ -1462,10 +1459,14 @@ function FeedbackView({
   onNext: (correct?: boolean) => void;
 }) {
   const t = useT();
-  // 添削文・手本・言い換えも**カードの読み上げと同じ声**で聞かせる。
-  // ここだけ端末の音声を直に叩いていたので、同じ画面の中で声が変わっていた。
-  // `usePronounce` はサーバの合成を先に試し、駄目なときだけ端末に落ちる。
-  const pronounce = usePronounce();
+  /**
+   * 添削文・手本・言い換えも**カードの読み上げと同じ声**で聞かせる。
+   *
+   * **その語の学習言語を渡す。** 渡さないと既定(台湾華語)の声で合成
+   * されるので、英語を学んでいる人の添削文が中国語の声で読まれ、
+   * しかもその音は保存されるので誰かが聞くまで気づけない。
+   */
+  const pronounceLang = card.language ?? undefined;
   const goodTarget = feedback.used_target;
   const score = feedback.natural_score;
   return (
@@ -1512,13 +1513,13 @@ function FeedbackView({
         </div>
         <div lang="zh-Hant" className="flex items-start gap-2">
           <div className="flex-1 text-body font-medium">{feedback.corrected}</div>
-          <button
-            onClick={() => void pronounce(feedback.corrected)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-            aria-label={t("rv.hearCorrection")}
-          >
-            <Volume2 className="h-4 w-4" />
-          </button>
+          {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
+              40px は指の下限を割っていたので、そこも 44px に直る。 */}
+          <PronounceButton
+            text={feedback.corrected}
+            language={pronounceLang}
+            label={t("rv.hearCorrection")}
+          />
         </div>
         <p className="text-footnote text-muted-foreground">{feedback.correction_note}</p>
       </div>
@@ -1566,26 +1567,24 @@ function FeedbackView({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-body">{feedback.model_answer}</div>
-          <button
-            onClick={() => void pronounce(feedback.model_answer)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-            aria-label={t("rv.hearModel")}
-          >
-            <Volume2 className="h-4 w-4" />
-          </button>
+          <PronounceButton
+            text={feedback.model_answer}
+            language={pronounceLang}
+            tone="quiet"
+            label={t("rv.hearModel")}
+          />
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 text-body text-emerald-900/80 dark:text-emerald-200/80">
             {t("review.altWay")}
             {feedback.alt_answer}
           </div>
-          <button
-            onClick={() => void pronounce(feedback.alt_answer)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-            aria-label={t("rv.hearAlt")}
-          >
-            <Volume2 className="h-4 w-4" />
-          </button>
+          <PronounceButton
+            text={feedback.alt_answer}
+            language={pronounceLang}
+            tone="quiet"
+            label={t("rv.hearAlt")}
+          />
         </div>
       </div>
 
@@ -1754,6 +1753,7 @@ export function LightModeCard({
   const grade = useServerFn(gradeReview);
   const t = useT();
   const phonetic = usePhoneticPref();
+  const pronounce = usePronounce(card.language ?? undefined);
   const photoPref = usePhotoPref();
   /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
   const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
@@ -1797,7 +1797,7 @@ export function LightModeCard({
   function submit(pickedValue: string) {
     if (picked) return;
     setPicked(pickedValue);
-    playAudio(card);
+    void pronounce(card.headword);
     void grade({
       data: {
         review_id: card.review_id,
@@ -1900,15 +1900,15 @@ export function LightModeCard({
                   {showGreen && <Check className="h-4 w-4 shrink-0 text-ok" />}
                   {showRed && <X className="h-4 w-4 shrink-0 text-bad" />}
                 </button>
-                <button
-                  onClick={() =>
-                    playText(c, isAnswer ? card.audio_url : null, card.language ?? undefined)
-                  }
-                  className="inline-flex w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground active:scale-95"
-                  aria-label={t("rv.pronOf", { c })}
-                >
-                  <Volume2 className="h-4 w-4" />
-                </button>
+                {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
+                    4つ並ぶので、押しても鳴らないボタンが並ぶと
+                    いちばん壊れて見える。 */}
+                <PronounceButton
+                  text={c}
+                  language={card.language ?? undefined}
+                  className="self-stretch !h-auto !w-11 rounded-xl"
+                  label={t("rv.pronOf", { c })}
+                />
               </li>
             );
           })}
@@ -1962,13 +1962,12 @@ export function LightModeCard({
                 <span lang="zh-Hant" className="min-w-0 truncate text-footnote text-foreground/70">
                   {pickReading(phonetic, card.reading_zhuyin, card.pinyin)}
                 </span>
-                <button
-                  onClick={() => playAudio(card)}
-                  className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-                  aria-label={t("card.playPron")}
-                >
-                  <Volume2 className="h-4 w-4" />
-                </button>
+                <PronounceButton
+                  text={card.headword}
+                  language={card.language ?? undefined}
+                  className="ml-auto"
+                  label={t("card.playPron")}
+                />
               </div>
 
               <AnswerExplain card={card} />
