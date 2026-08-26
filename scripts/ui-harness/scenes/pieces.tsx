@@ -416,6 +416,7 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
               meaning_ja: "タピオカミルクティー",
               pos: "名詞",
               tocfl_level: 2,
+              level_step: 2,
               audio_path: null,
               audio_url: null,
               source: "verified",

@@ -45,7 +45,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { readableError } from "@/lib/errors";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { tStatic } from "@/lib/i18n";
 
@@ -143,6 +143,9 @@ function ScanPage() {
    * 行っていた。
    */
   const targetLanguage = useTargetLang();
+  // 辞書の意味は**解説を書いた言語**で入っている(`meanings` の鍵)。
+  // 表示言語で引かないと、合わない語釈が出るか、何も出ない。
+  const uiLang = useUiLang();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // ズーム(1 = 等倍)。端末が対応していれば光学/デジタルズーム、
@@ -509,7 +512,13 @@ function ScanPage() {
       if (items.length > 0) {
         setScanStage("matching");
         const tl = performance.now();
-        const { entries } = await lookupFn({ data: { headwords: items.map((i) => i.headword) } });
+        const { entries } = await lookupFn({
+          data: {
+            headwords: items.map((i) => i.headword),
+            language: targetLanguage,
+            explain_lang: uiLang,
+          },
+        });
         setLookupMs(Math.round(performance.now() - tl));
         setEntries(entries);
       }
@@ -570,7 +579,9 @@ function ScanPage() {
       // fetch dict entry for the newly-chosen headword if not cached
       if (!entries[headword]) {
         try {
-          const { entries: e } = await lookupFn({ data: { headwords: [headword] } });
+          const { entries: e } = await lookupFn({
+            data: { headwords: [headword], language: targetLanguage, explain_lang: uiLang },
+          });
           setEntries((prev) => ({ ...prev, ...e }));
         } catch {
           /* noop */
@@ -699,7 +710,11 @@ function ScanPage() {
         if (mapped.length > 0) {
           try {
             const { entries: e } = await lookupFn({
-              data: { headwords: mapped.map((m) => m.headword) },
+              data: {
+                headwords: mapped.map((m) => m.headword),
+                language: targetLanguage,
+                explain_lang: uiLang,
+              },
             });
             setEntries((prev) => ({ ...prev, ...e }));
           } catch {

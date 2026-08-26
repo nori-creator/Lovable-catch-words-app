@@ -898,3 +898,82 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     expect(audit).not.toMatch(/scene: "voice-video"/);
   });
 });
+
+describe("第6段: 級は CEFR-J だけが決める／辞書だけでカードを出す道", () => {
+  it("頻度からの見積もりが**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-26「頻度からの級の見積もりをやめて、
+    // CEFR-J に無い語は級外にして」。
+    const lib = codeOnly(read("lib/lexicon-import.ts"));
+    const fn = lib.slice(lib.indexOf("export function cefrStep("));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    // 見積もりの部品(順位の境目・検定の印での挟み)が戻っていないこと。
+    expect(body).not.toMatch(/freqRank/);
+    expect(body).not.toMatch(/parseExamTags/);
+    expect(body).not.toMatch(/Math\.min|Math\.max/);
+    expect(body).toMatch(/return null;/);
+  });
+
+  it("級外の行を**落とさない**(落とすと辞書が空になる)", () => {
+    const lib = codeOnly(read("lib/lexicon-import.ts"));
+    expect(lib).toMatch(/row\.level_step != null &&/);
+  });
+
+  it("CEFR-J を渡さずに**書き出せない**", () => {
+    // 渡さずに流すと全部級外になり、いま入っている公式の級を
+    // 級外で上書きしてしまう(`level_step = excluded.level_step`)。
+    const tool = read("../scripts/import-lexicon.mjs");
+    for (const cmd of ["sql", "csv", "json"]) {
+      expect(tool.includes(`requireCefrj("${cmd}")`), cmd).toBe(true);
+    }
+  });
+
+  it("級外を保存して**読み返せる**", () => {
+    const scale = codeOnly(read("lib/level-scale.ts"));
+    expect(scale).toMatch(/outStored: "TOCFL-0"/);
+    expect(scale).toMatch(/outStored: "CEFR-0"/);
+  });
+
+  it("キャッチが**当てずっぽうの級を書かない**", () => {
+    // 前は級が分からないとき `toStored(2)` =「A2」を書いていた。
+    for (const rel of ["components/ScanCatchSheet.tsx", "components/InputCatchSheet.tsx"]) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).not.toMatch(/levels\.toStored\(2\)/);
+      expect(src, rel).toMatch(/levels\.outStored/);
+      // 辞書が級を持っていれば、そちらを使う。
+      expect(src, rel).toMatch(/dict\??\.?level_step/);
+    }
+  });
+
+  it("辞書を引くとき**新しい列も見る**(英語が空で返らない)", () => {
+    // 英語の行は `reading_primary` / `meanings` / `level_step` にしか
+    // 入らない(`admin.functions.ts` の注)。古い列だけを見ていたので、
+    // 辞書だけでカードを出す道が英語で丸ごと死んでいた。
+    const de = codeOnly(read("lib/dictionary-entry.ts"));
+    for (const col of ["reading_primary", "reading_alt", "meanings", "level_step"]) {
+      expect(de, col).toMatch(new RegExp(col));
+    }
+    const scan = codeOnly(read("lib/scan.functions.ts"));
+    expect(scan).toMatch(/\.select\(DICTIONARY_SELECT\)/);
+    expect(scan).toMatch(/resolveDictionaryFields\(r, data\.explain_lang\)/);
+  });
+
+  it("辞書を**学習言語で**引く(英語を学ぶ人に台湾華語の行を出さない)", () => {
+    // 前はどの呼び出しも `language` を渡しておらず、既定の台湾華語を
+    // 引いていた。
+    for (const rel of ["routes/_authenticated/scan.tsx", "components/InputCatchSheet.tsx"]) {
+      const src = codeOnly(read(rel));
+      const calls = src.match(/lookupFn\(\{[\s\S]*?\}\)/g) ?? [];
+      expect(calls.length, rel).toBeGreaterThan(0);
+      for (const c of calls) {
+        expect(c, `${rel}: ${c}`).toMatch(/language: targetLanguage/);
+        expect(c, `${rel}: ${c}`).toMatch(/explain_lang: uiLang/);
+      }
+    }
+  });
+
+  it("**違う言語の語釈を出さない**", () => {
+    const de = codeOnly(read("lib/dictionary-entry.ts"));
+    // `meaning_ja` は名前のとおり日本語。読む人が日本語のときだけの受け皿。
+    expect(de).toMatch(/explainLang === "ja" \? clean\(row\.meaning_ja\) : null/);
+  });
+});

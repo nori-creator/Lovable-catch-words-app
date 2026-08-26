@@ -81,9 +81,18 @@ export function ScanCatchSheet({
   const t = useT();
   /** いま撮った物を何語として保存するか（設定の学習言語）。 */
   const targetLanguage = useTargetLang();
-  // 仮置きの級・品詞も**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
+  // 仮置きの品詞は**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
   const profile = targetProfile(targetLanguage);
-  const fallbackLevel = profile.levels.toStored(2);
+  /**
+   * 級が分からないときの値。**級外**にする(オーナー指示 2026-08-26)。
+   *
+   * 前はここが `toStored(2)` = 「A2」だった。**級が付いていない語に
+   * 公式の級と同じ顔をした文字を書いていた**ことになる。画面には
+   * 「A2」と1文字で出るので、学習者には見分けが付かない。
+   * 級は CEFR-J だけが決める、というのが `lexicon-import.ts` の
+   * 決めごとで、こちら側だけ当てずっぽうを続けると意味が無い。
+   */
+  const outLevel = profile.levels.outStored;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
@@ -312,7 +321,11 @@ export function ScanCatchSheet({
               pinyin: dict?.pinyin || item.pinyin || "",
               meaning_ja: meaning,
               part_of_speech: dict?.pos || profile.capture.defaultPos,
-              level: fallbackLevel,
+              // 辞書が級を持っていればそれ。無ければ**級外**。
+              level:
+                dict?.level_step != null
+                  ? profile.levels.toStored(dict.level_step as 1 | 2 | 3 | 4 | 5 | 6)
+                  : outLevel,
               category_key: "other",
               example_sentence: "",
               example_translation: "",

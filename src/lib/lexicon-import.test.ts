@@ -230,52 +230,31 @@ describe("parseExamTags", () => {
   });
 });
 
-describe("cefrStep — 級の見積もり", () => {
-  it("**とてもよく使う語は A1**", () => {
-    expect(cefrStep({ frq: "202", tag: "zk gk" })).toBe(1); // run
+describe("cefrStep — 公式の級だけを採る", () => {
+  /**
+   * オーナー指示 2026-08-26「頻度からの見積もりをやめて、CEFR-J に
+   * 無い語は級外にして」。
+   *
+   * ここで見るのは1つ: **見積もりが戻っていないこと**。
+   * 画面には「A2」と1文字で出るので、公式の級なのか当てずっぽうなのか
+   * 学習者には区別が付かない。出所の違う数字を同じ顔で並べるのが、
+   * 「正確性が重要」を土台にしたこのアプリではいちばん高く付く。
+   */
+  it("公式の級があればその段", () => {
+    for (const n of [1, 2, 3, 4, 5, 6] as const) expect(cefrStep(n)).toBe(n);
   });
 
-  it("bicycle は zk が付いているので A2 まで", () => {
-    // 順位だけなら B1 だが、中考の語だと分かっている。
-    expect(cefrStep(BICYCLE)).toBe(2);
+  it("**公式が無ければ級外**(頻度から当てない)", () => {
+    expect(cefrStep(null)).toBeNull();
+    expect(cefrStep()).toBeNull();
+    expect(cefrStep(undefined)).toBeNull();
   });
 
-  it("**GRE の語を入門に置かない**", () => {
-    expect(cefrStep({ frq: "30000", tag: "gre" })).toBeGreaterThanOrEqual(5);
-    // 順位が上でも GRE なら C1 から。
-    expect(cefrStep({ frq: "3000", tag: "gre" })).toBeGreaterThanOrEqual(5);
-  });
-
-  it("**順位が無い語を最易にしない**(見えていないだけの語が初心者に出る)", () => {
-    expect(cefrStep({ frq: "0", bnc: "0" })).toBeGreaterThan(3);
-  });
-
-  it("Oxford3000 は B2 まで(定義上そこまでの語)", () => {
-    expect(cefrStep({ frq: "0", bnc: "0", oxford: "1" })).toBeLessThanOrEqual(4);
-  });
-
-  it("**必ず1〜6に収まる**(段の外を画面に渡さない)", () => {
-    const cases = [
-      { frq: "1" },
-      { frq: "999999" },
-      { frq: "0", tag: "gre zk" }, // 上限と下限がぶつかる形
-      { frq: "-5" },
-      { frq: "abc" },
-      {},
-    ];
-    for (const c of cases) {
-      const s = cefrStep(c);
-      expect(s).toBeGreaterThanOrEqual(1);
-      expect(s).toBeLessThanOrEqual(6);
-      expect(Number.isInteger(s)).toBe(true);
-    }
-  });
-
-  it("順位が上がるほど段が下がらない(単調)", () => {
-    const steps = [500, 1500, 3000, 6000, 12000, 30000].map((frq) =>
-      cefrStep({ frq: String(frq) }),
-    );
-    for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeGreaterThanOrEqual(steps[i - 1]);
+  it("**壊れた値は級外に落ちる**(段の外を画面に渡さない)", () => {
+    expect(cefrStep(0 as never)).toBeNull();
+    expect(cefrStep(7 as never)).toBeNull();
+    expect(cefrStep(2.5 as never)).toBeNull();
+    expect(cefrStep("A2" as never)).toBeNull();
   });
 });
 
@@ -459,7 +438,8 @@ describe("toLexiconRow — 入れる1行", () => {
     expect(row.language).toBe("en");
     expect(row.reading_primary).toBe("ˈbaɪsɪkəl");
     expect(row.reading_alt).toBe("ˈbaisikl");
-    expect(row.level_step).toBe(2);
+    // CEFR-J を渡していないので**級外**。頻度は別の列に正直に残る。
+    expect(row.level_step).toBeNull();
     expect(row.freq_rank).toBe(4366);
     expect(row.exam_tags).toEqual(["zk", "gk", "cet4", "ky", "ielts"]);
     expect(row.forms?.plural).toBe("bicycles");
@@ -506,9 +486,10 @@ describe("toLexiconRow — 入れる1行", () => {
     expect(row.entry_type).toBe("phrase");
   });
 
-  it("**級の出所を書く**(見積もりなので後から直せるようにしておく)", () => {
+  it("**級の出所を書く**(級外なのか調べていないのかを後から見分ける)", () => {
     const row = toLexiconRow(BICYCLE, { ipaUs: null, glossTranslate: zhTw });
-    expect(row.notes).toBe(LEVEL_SOURCE.estimated);
+    expect(row.notes).toBe(LEVEL_SOURCE.none);
+    expect(row.level_step).toBeNull();
   });
 
   it("活用が無ければ null(空の入れ物を入れない)", () => {
@@ -534,8 +515,15 @@ describe("isValidRow — 入れる前の最後の関門", () => {
 
   it("**段が6つの外の行は通さない**", () => {
     const row = toLexiconRow(BICYCLE, { ipaUs: null, glossTranslate: zhTw });
-    expect(isValidRow({ ...row, level_step: 0 })).toBe(false);
-    expect(isValidRow({ ...row, level_step: 7 })).toBe(false);
+    expect(isValidRow({ ...row, level_step: 0 as never })).toBe(false);
+    expect(isValidRow({ ...row, level_step: 7 as never })).toBe(false);
+  });
+
+  it("**級外(null)の行は通す**", () => {
+    // CEFR-J に載っていない語のほうが街には多い。落とすと辞書が空になる。
+    const row = toLexiconRow(BICYCLE, { ipaUs: null, glossTranslate: zhTw });
+    expect(row.level_step).toBeNull();
+    expect(isValidRow(row)).toBe(true);
   });
 
   it("見出しが空の行は通さない", () => {
@@ -614,29 +602,31 @@ describe("CEFR-J — 公式の級", () => {
   });
 });
 
-describe("公式の級が見積もりに勝つ", () => {
-  it("**CEFR-J に載っていれば見積もりを使わない**", () => {
-    // 見積もりだけなら A1（とてもよく使う語）。
-    expect(cefrStep({ frq: "202" })).toBe(1);
-    // 公式が B1 と言うならそちら。
-    expect(cefrStep({ frq: "202" }, 3)).toBe(3);
+describe("級は CEFR-J だけが決める", () => {
+  it("**CEFR-J に載っていればその級**", () => {
+    expect(cefrStep(3)).toBe(3);
   });
 
-  it("公式が無ければ見積もり(C1/C2 は CEFR-J の対象外)", () => {
-    expect(cefrStep({ frq: "30000", tag: "gre" }, null)).toBeGreaterThanOrEqual(5);
+  it("**載っていなければ級外**(頻度が高くても A1 にしない)", () => {
+    // 以前はここが「とてもよく使う語なら A1」だった。よく使うことと
+    // やさしいことは同じではないし、何より公式の級ではない。
+    expect(cefrStep(null)).toBeNull();
   });
 
-  it("**壊れた公式の値は信じない**(段の外を通さない)", () => {
-    expect(cefrStep({ frq: "202" }, 0 as never)).toBe(1);
-    expect(cefrStep({ frq: "202" }, 9 as never)).toBe(1);
-  });
-
-  it("**級の出所を語ごとに書き分ける**(どれが見積もりか分からないと直せない)", () => {
+  it("**級の出所を語ごとに書き分ける**(級外か未調査かが分からないと直せない)", () => {
     const zh = (s: string) => s;
     const official = toLexiconRow(BICYCLE, { glossTranslate: zh, officialLevel: 2 });
-    const guessed = toLexiconRow(BICYCLE, { glossTranslate: zh });
+    const none = toLexiconRow(BICYCLE, { glossTranslate: zh });
     expect(official.notes).toBe(LEVEL_SOURCE.official);
-    expect(guessed.notes).toBe(LEVEL_SOURCE.estimated);
+    expect(official.level_step).toBe(2);
+    expect(none.notes).toBe(LEVEL_SOURCE.none);
+    expect(none.level_step).toBeNull();
+  });
+
+  it("**頻度は捨てていない**(級のふりをさせないだけ)", () => {
+    const zh = (s: string) => s;
+    const row = toLexiconRow(BICYCLE, { glossTranslate: zh });
+    expect(row.freq_rank).toBeGreaterThan(0);
   });
 });
 
@@ -685,16 +675,16 @@ describe("級の出所の印は短い", () => {
     }
   });
 
-  it("**公式と見積もりが見分けられる**(後から級を直すのに要る)", () => {
-    expect(LEVEL_SOURCE.official).not.toBe(LEVEL_SOURCE.estimated);
+  it("**公式と級外が見分けられる**(後から級を直すのに要る)", () => {
+    expect(LEVEL_SOURCE.official).not.toBe(LEVEL_SOURCE.none);
   });
 
   it("行に入るのはその印だけ", () => {
     const e = raw({ word: "umbrella", translation: "n. 傘", frq: "5664" });
     const withOfficial = toLexiconRow(e, { glossTranslate: (x) => x, officialLevel: 1 });
-    const withEstimate = toLexiconRow(e, { glossTranslate: (x) => x });
+    const withNone = toLexiconRow(e, { glossTranslate: (x) => x });
     expect(withOfficial.notes).toBe(LEVEL_SOURCE.official);
-    expect(withEstimate.notes).toBe(LEVEL_SOURCE.estimated);
+    expect(withNone.notes).toBe(LEVEL_SOURCE.none);
   });
 
   it("**出典の文を行に入れない**(全体の話を行ごとに繰り返さない)", () => {

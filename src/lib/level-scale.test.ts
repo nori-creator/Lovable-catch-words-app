@@ -302,3 +302,22 @@ describe("restoreLevel — 学習言語を切り替えたときの級", () => {
     }
   });
 });
+
+describe("outStored — 級外を保存する形", () => {
+  it("**保存して読み返すと級外になる**", () => {
+    // オーナー指示 2026-08-26「CEFR-J に無い語は級外にして」。
+    // ここが往復しないと、級外の語が「分からない」になって段々そのものが
+    // 消える(`TocflLadder` は null で何も描かない)。
+    for (const scale of [TOCFL_SCALE, CEFR_SCALE]) {
+      expect(parseLevelStep(scale.outStored), scale.id).toBe(LEVEL_OUT);
+    }
+  });
+
+  it("**級の形と混ざらない**", () => {
+    for (const scale of [TOCFL_SCALE, CEFR_SCALE]) {
+      for (const i of LEVEL_INDEXES) {
+        expect(scale.outStored, scale.id).not.toBe(scale.toStored(i));
+      }
+    }
+  });
+});
