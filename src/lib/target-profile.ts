@@ -224,6 +224,26 @@ export type TargetProfile = {
    * 中国語は量詞(M)と助詞(Ptc)が要るが、英語は冠詞(Det)と前置詞(Prep)が要る。
    */
   chunkRoles: readonly string[];
+  /**
+   * **型を作らせるときの言い方。**
+   *
+   * オーナー報告 2026-08-26（3度目）「単語のチャンク型の項目が
+   * 生成されてない」の片割れ。指示は丸ごと台湾華語向けに書かれていて、
+   *
+   *   ・「繁体字で8文字以内」… 英語には長さの目盛りとして意味が無い
+   *   ・「量詞の欄と重なる型は作るな」… 英語に量詞は無い
+   *   ・詞類表(V-sep / Ptc / Vs)… 英語に無い記号を選ばせている
+   *
+   * を英語のカードにもそのまま送っていた。**言語ごとに言い方を持つ。**
+   */
+  chunkPrompt: {
+    /** 長さの決まり(その言語の数え方で書く)。 */
+    lengthRule: string;
+    /** その言語で気を付ける型の作り方。 */
+    styleRule: string;
+    /** `pos` に何を書くか(記号の一覧そのもの)。 */
+    posRule: string;
+  };
   /** 見出し語として通してよいか。 */
   headwordOk: (raw: string) => boolean;
 };
@@ -337,6 +357,20 @@ export const ZH_TW_PROFILE: TargetProfile = {
   },
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
   chunkRoles: ["S", "V", "O", "M", "C", "Ptc"],
+  chunkPrompt: {
+    lengthRule: "型1つは繁体字で8文字以内・パーツ4つ以内。超えるものは型ではなく例文。",
+    styleRule:
+      "**「量詞+見出し語だけ」の型は作らない**(量詞の欄と丸ごと同じになる)。" +
+      "量詞を使うなら動詞や述語と一緒の形にする。\n" +
+      "動詞+目的語だけに寄せず、状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も" +
+      "**頻度が高ければ**入れる(品詞を埋めるために低頻度の型を作らない)。",
+    posRule:
+      "pos は台湾の詞類表の記号を使う: N(名詞)/V(及物動詞)/Vi(不及物)/V-sep(離合詞)/" +
+      "Vs(状態動詞=形容詞)/Vst(状態及物)/Vs-attr/Vs-pred/Vs-sep/Vaux(助動詞)/" +
+      "Vp(変化動詞)/Vpt/Vp-sep/Adv(副詞)/Conj(接続詞)/Prep(介詞)/M(量詞)/Ptc(助詞)/Det(限定詞)。" +
+      "**文を構成する全パーツに付ける**(助詞の「的」「了」「嗎」、副詞の「很」「已經」、" +
+      "限定詞の「這」も省かない)。役割記号(S/O/C/P)は使わない。",
+  },
   headwordOk: (raw) => {
     const s = core(raw);
     if (!s) return false;
@@ -468,6 +502,18 @@ export const EN_PROFILE: TargetProfile = {
   },
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)
   chunkRoles: ["S", "V", "O", "Adv", "Prep", "Det"],
+  chunkPrompt: {
+    // **語の数で言う。** 「8文字以内」と言うと `put on socks` すら作れない。
+    lengthRule: "型1つは4語以内・パーツ4つ以内。超えるものは型ではなく例文。",
+    styleRule:
+      "冠詞(a/the)・前置詞・複数形の -s まで**型の中に入れる** — " +
+      "中国語話者がいちばん落とすのがそこなので、型がそれを含んでいないと練習にならない。\n" +
+      "動詞+目的語だけに寄せず、形容詞+名詞・前置詞句・句動詞の型も**頻度が高ければ**入れる。",
+    posRule:
+      "pos は英語の品詞の記号を使う: n(名詞)/v(動詞)/adj(形容詞)/adv(副詞)/" +
+      "prep(前置詞)/det(冠詞・限定詞)/pron(代名詞)/conj(接続詞)/aux(助動詞)/part(不変化詞)。" +
+      "**全パーツに付ける**(a / the / on も省かない)。役割記号(S/O/C/P)は使わない。",
+  },
   headwordOk: (raw) => {
     const s = core(raw);
     if (!s) return false;

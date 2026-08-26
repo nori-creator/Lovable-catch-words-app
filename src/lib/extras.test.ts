@@ -197,4 +197,60 @@ describe("refineUsageChunks", () => {
     expect(refineUsageChunks([], [], "雨傘")).toEqual([]);
     expect(refineUsageChunks([chunk("")], [], "雨傘")).toEqual([]);
   });
+
+  /**
+   * オーナー報告 2026-08-26（3度目）:
+   * > 「単語のチャンク型の項目が生成されてない。」
+   *
+   * 生成はされていた。**8文字の物差しを英語に当てて、全部こちらが
+   * 落としていた。** 届いた絵の `socks` に「使い方」の欄が無いのがそれ。
+   */
+  describe("refineUsageChunks — 英語の型を落とさない", () => {
+    const en = (...words: string[]) => ({
+      parts: words.map((text) => ({ text, pos: "" })),
+      ja: "",
+    });
+
+    it("**`put on socks` が通る**（8文字の物差しなら落ちていた）", () => {
+      const c = en("put on", "socks");
+      expect(refineUsageChunks([c], [], "socks", "en")).toEqual([c]);
+    });
+
+    it("台湾華語の目盛りでは同じ型が落ちる（＝これが報告の中身）", () => {
+      expect(refineUsageChunks([en("put on", "socks")], [], "socks", "zh-TW")).toEqual([]);
+      // **学習言語を渡し忘れても同じ穴に落ちる。** 呼び出し側が渡すこと。
+      expect(refineUsageChunks([en("put on", "socks")], [], "socks")).toEqual([]);
+    });
+
+    it("`a pair of socks` のような冠詞つきの型も通る", () => {
+      const c = en("a", "pair of", "socks");
+      expect(refineUsageChunks([c], [], "socks", "en")).toEqual([c]);
+    });
+
+    it("**長すぎる英語の型は落とす**（型ではなく文になっている）", () => {
+      // 5語。`MAX_CHUNK_WORDS_EN` は 4。
+      expect(refineUsageChunks([en("I", "need", "to", "buy", "socks")], [], "socks", "en")).toEqual(
+        [],
+      );
+    });
+
+    it("見出し語だけの型は英語でも落とす", () => {
+      expect(refineUsageChunks([en("socks")], [], "socks", "en")).toEqual([]);
+    });
+
+    it("同じ型は英語でも1つに畳む（継ぎ目の違いで二重に数えない）", () => {
+      const a = en("wear", "socks");
+      const b = en("wear", "socks");
+      expect(refineUsageChunks([a, b], [], "socks", "en")).toEqual([a]);
+    });
+
+    it("台湾華語の型は今までどおり（**この直しで1つも変わらない**）", () => {
+      const short = {
+        parts: ["帶", "雨傘"].map((text) => ({ text, pos: "N" })),
+        ja: "",
+      };
+      expect(refineUsageChunks([short], [], "雨傘", "zh-TW")).toEqual([short]);
+      expect(refineUsageChunks([short], [], "雨傘")).toEqual([short]);
+    });
+  });
 });

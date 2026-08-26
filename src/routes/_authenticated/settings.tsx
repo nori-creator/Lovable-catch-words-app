@@ -31,6 +31,8 @@ import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
 import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
 import { reconcileLanguage } from "@/lib/language-sync";
+import { storedLevels, setStoredLevels } from "@/lib/level-pref";
+import { restoreSettings } from "@/lib/settings-restore";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
 import {
@@ -271,8 +273,11 @@ function SettingsPage() {
     // **選んだ瞬間に効かせる。** 保存を押す前に撮りに行く人が居るので、
     // 保存のときだけ写すと「設定では英語なのに撮ると台湾華語」になる。
     setTargetLang(next);
-    setCurrentLevel((prev) => restoreLevel(scale, prev, 1));
-    setLevelGoal((prev) => restoreLevel(scale, prev, 2));
+    // **その言語で前に選んだ級が在ればそれを出す。** 無ければ今の段を
+    // 載せ替える(台湾華語の2級 → 英語の A2)。
+    const saved = storedLevels(next);
+    setCurrentLevel((prev) => restoreLevel(scale, saved.current ?? prev, 1));
+    setLevelGoal((prev) => restoreLevel(scale, saved.goal ?? prev, 2));
   };
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
@@ -286,6 +291,37 @@ function SettingsPage() {
   useEffect(() => {
     setPhotoPrefState(getPhotoPref());
     setCatchSpeedState(getCatchSpeed());
+    /**
+     * **選んだ値を、プロフィールを待たずに画面へ戻す**(オーナー報告
+     * 2026-08-26、3度目「一度保存しても、ほかのページ移ってから設定の
+     * ページに行くと…すぐに学習言語台湾華語、表示言語日本語、今のレベル1、
+     * 目標はレベル2に戻る」)。
+     *
+     * ## これが3度目の報告の本体
+     * 前の直しは下の `profile` の effect に入っていて、そこには
+     * 「私用の列が読めなかった行で上書きしない」ための
+     * **`partial` なら丸ごと戻る**分岐がある。戻ると何が起きるかというと、
+     * 画面の状態は `useState` の初期値のまま残る —
+     * つまり `"ja"` / `DEFAULT_TARGET_LANGUAGE` / 級は1と2。
+     * **報告の4つの値と1つ残らず同じ。** 端末の写しを守っておきながら、
+     * 画面はその写しを一度も読んでいなかった。
+     *
+     * だから、プロフィールとは関係なく、**開いた時点で端末の写しを載せる**。
+     * サーバの値はこの後の effect が突き合わせに来る。
+     */
+    const lang = storedTargetLang();
+    const ui = storedUiLang();
+    if (ui) {
+      const nextUi = normalizeUiLang(ui);
+      setUiLanguage(nextUi);
+      setUiLang(nextUi);
+    }
+    const scaleLang = lang ?? DEFAULT_TARGET_LANGUAGE;
+    if (lang) setTargetLanguage(lang);
+    const scale = targetProfile(scaleLang).levels;
+    const saved = storedLevels(scaleLang);
+    if (saved.current) setCurrentLevel(restoreLevel(scale, saved.current, 1));
+    if (saved.goal) setLevelGoal(restoreLevel(scale, saved.goal, 2));
   }, []);
   useEffect(() => {
     if (!profile) return;
@@ -307,7 +343,17 @@ function SettingsPage() {
      * 名前・見た目の設定はそのまま読んでよい(置き場所の値ではない)。
      * 戻すのは**言語と、言語で決まる級**だけ。
      */
-    if ((profile as { partial?: boolean }).partial) return;
+    /**
+     * **私用の列が読めなかった行の値を「その人の設定」として扱わない。**
+     *
+     * `getMyProfile` はその場合 `partial: true` を付けて**置き場所の値**
+     * (既定の台湾華語 / 日本語 / 2級)を返す。以前はここで `return` して
+     * いたが、それだと画面が `useState` の初期値のまま据え置かれ、
+     * **守ったはずの端末の写しを一度も読まないまま既定が見える**
+     * (オーナー報告 3度目)。戻るのではなく、**サーバ側を「無い」として
+     * 突き合わせる** — 端末に選択が在ればそれが勝つ。
+     */
+    const partial = !!(profile as { partial?: boolean }).partial;
 
     /**
      * **一度選んだ言語を、開き直しただけで失わない**(オーナー報告
@@ -320,23 +366,38 @@ function SettingsPage() {
      * **端末に選択が在るならそちらが正**(`language-sync.ts`)。
      * 違っていればサーバへ書き戻して揃える。
      */
-    const uiPick = reconcileLanguage({
-      stored: storedUiLang(),
-      server: profile.ui_language,
-      fallback: "ja",
+    /**
+     * **突き合わせの規則は `settings-restore.ts` ただ1つ。**
+     * ここに書くと、直ったかどうかを絵でしか確かめられない
+     * （同じ報告が3度来た理由。あちらの注に書いた）。
+     */
+    const storedTarget = storedTargetLang();
+    const savedLevels = storedLevels(storedTarget ?? DEFAULT_TARGET_LANGUAGE);
+    const picked = restoreSettings({
+      device: {
+        uiLanguage: storedUiLang(),
+        targetLanguage: storedTarget,
+        currentLevel: savedLevels.current,
+        levelGoal: savedLevels.goal,
+      },
+      server: {
+        uiLanguage: profile.ui_language,
+        targetLanguage: profile.target_language,
+        currentLevel: (profile as { current_level?: string | null }).current_level ?? null,
+        levelGoal: profile.level_goal,
+        partial,
+      },
     });
-    const targetPick = reconcileLanguage({
-      stored: storedTargetLang(),
-      server: profile.target_language,
-      fallback: DEFAULT_TARGET_LANGUAGE,
-    });
-    if (uiPick.pushToServer || targetPick.pushToServer) {
+    const targetPick = { value: picked.targetLanguage };
+    // **読めなかった行へ書き戻さない。** 読めないのは権限の話なので、
+    // 書きに行っても通らないし、通ったとしても比べた相手が置き場所の値。
+    if (picked.pushToServer) {
       // **待たない。** 画面を描くのを止めてまで揃える話ではない。
       // 落ちてもこの端末の選択はそのまま効く。
       void updateProfile({
         data: {
-          ui_language: uiPick.value,
-          target_language: targetPick.value,
+          ui_language: picked.uiLanguage,
+          target_language: picked.targetLanguage,
         },
       }).catch(() => {
         /* 端末の選択が正なので、書き戻せなくても画面は壊れない */
@@ -347,7 +408,7 @@ function SettingsPage() {
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
     setNativeLanguage(pickL1(profile.native_language, targetPick.value));
     // **知らない値をそのまま渡さない。** 一覧に無い値だと選択が空に見える。
-    const nextUi = normalizeUiLang(uiPick.value);
+    const nextUi = normalizeUiLang(picked.uiLanguage);
     setUiLanguage(nextUi);
     setUiLang(nextUi);
     // **級より先に学習言語を読む。** 級の表記はその言語の目盛りで決まる。
@@ -359,11 +420,8 @@ function SettingsPage() {
     // 保存されている級を**その言語の表記に載せ替える**。台湾華語で
     // 2級だった人が英語に切り替えていれば `"TOCFL-2"` が残っているので、
     // そのまま渡すと CEFR の一覧に無い値になり、選択が空に見える。
-    const scale = targetProfile(targetPick.value).levels;
-    setLevelGoal(restoreLevel(scale, profile.level_goal, 2));
-    setCurrentLevel(
-      restoreLevel(scale, (profile as { current_level?: string | null }).current_level, 1),
-    );
+    setLevelGoal(picked.levelGoal);
+    setCurrentLevel(picked.currentLevel);
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
     // **この端末で選んだ値が勝つ**(`src/lib/review-mode-pref.ts`)。
     // DB の列に 'hybrid' を許す移行が当たっていないと保存が落ちるので、
@@ -410,6 +468,16 @@ function SettingsPage() {
           target_language: targetLanguage,
         },
       });
+      /**
+       * **級も端末に憶えさせる**(オーナー報告 2026-08-26、3度目)。
+       *
+       * すぐ上の言語と同じ理由。`current_level` の列がまだ無い環境では
+       * `updateMyProfile` がその名前を黙って落として保存し直すので、
+       * サーバだけを頼りにすると**選んだのに保存されない**。
+       * 送るのは送る(解説の難しさは server 側が読む)が、
+       * 画面に戻す値の出所は端末にする。
+       */
+      setStoredLevels(targetLanguage, { current: currentLevel, goal: levelGoal });
       await updateProfile({
         data: {
           // Only send a non-empty name: the server rejects "" (min length 1),

@@ -594,8 +594,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "rv.whichIsBefore": { ja: "「", en: "Which one means “", "zh-TW": "「" },
   "rv.whichIsAfter": { ja: "」はどれ？", en: "”?", "zh-TW": "」是哪一個？" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}", "zh-TW": "{c}的發音" },
-  "card.moveUp": { ja: "上へ", en: "Move up", "zh-TW": "往上" },
-  "card.moveDown": { ja: "下へ", en: "Move down", "zh-TW": "往下" },
+  /**
+   * 並べ替えの取っ手。**▲▼ を1つにまとめた**(オーナー報告 2026-08-26、
+   * 3度目「並び替えの欄が前よりも大きくなって見づらい」)。長押しで掴む道と、
+   * 焦点を当てて ↑↓ で動かす道の両方がこのボタンに乗っている。
+   */
+  "card.reorder": { ja: "並べ替え", en: "Reorder", "zh-TW": "調整順序" },
   "card.toggleShow": { ja: "表示切替", en: "Show / hide", "zh-TW": "切換顯示" },
   "card.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
   "card.pronZhuyin": { ja: "発音・注音", en: "Pronunciation & Zhuyin", "zh-TW": "發音・注音" },
@@ -2040,7 +2044,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "common.cancel": { ja: "キャンセル", en: "Cancel", "zh-TW": "取消" },
   "common.retry": { ja: "もう一度", en: "Retry", "zh-TW": "再一次" },
   // --- word card (extra) ---
-  "card.notYet": { ja: "まだ作られていません", en: "Not generated yet", "zh-TW": "還沒有做出來" },
   "card.generate": { ja: "作る", en: "Generate", "zh-TW": "產生" },
   "card.flipToSelfie": {
     ja: "タップで自撮りへ",

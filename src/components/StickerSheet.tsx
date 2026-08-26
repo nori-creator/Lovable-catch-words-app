@@ -46,7 +46,6 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceNote } from "@/components/VoiceNote";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
@@ -1151,13 +1150,14 @@ export function StickerSheetBody({
           再会が無ければ何も描かない。 */}
       <StickerPhotoHistory photos={photos} dateLocale={localeOf(uiLang)} />
 
-      {/* 一言の**録音**(オーナー指示 2026-08-26「音声だけにして」)。
-          **キャッチの保存経路には入れない** — あそこは「一瞬でも早く」の
-          本体で、いちばん壊してはいけない所。保存が終わったこのカードから
-          録る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
-          記録」だから。**聞く所はここに無い** — 日付と場所の行の真ん中。 */}
-      <VoiceNote stickerId={s.id} audioUrl={s.voice_video_url} />
+      {/* **あとから一言を録る欄は消した**(オーナー指示 2026-08-26、3度目
+          「単語の撮ったときの１言感想の再生ボタンは撮った時刻の横に
+          再生ボタンを作るだけでいい。**あとからひと言を録画とる項目は
+          消して**」)。
 
+          一言は「撮ったその瞬間に思ったこと」なので、撮る画面
+          (`VoiceCaptionButton`)で録る。カードは**その記録を聞く所**で
+          あって、録り直す所ではない。再生は日付と場所の行の真ん中に在る。 */}
       <WordCard
         word={{
           headword: s.word.headword,

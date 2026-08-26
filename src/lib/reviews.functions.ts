@@ -3,7 +3,7 @@ import { matchesTargetLanguage, wordLanguageFilter } from "@/lib/language-filter
 import { targetProfile } from "@/lib/target-profile";
 import { getUserTargetLanguage } from "@/lib/ai-provider.server";
 import { batchEndKind } from "@/lib/review-batch";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 // 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
@@ -124,13 +124,20 @@ export type DueReviewCard = {
  * 並べてあるので先頭が最頻。パーツを繋いで読める1行にする。
  * 旧データ(collocations だけ)にも耐えるようフォールバックを持つ。
  */
-function topChunkOf(rawExtras: unknown, headword: string): { zh: string; ja: string } | null {
+function topChunkOf(
+  rawExtras: unknown,
+  headword: string,
+  language?: string | null,
+): { zh: string; ja: string } | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
   // 量詞は答え合わせの「量詞」の行で読む。先頭の型がその写しだと、
   // 同じ「一張」が2行続けて出る(オーナー指摘 2026-08-18)。
-  const chunk = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword)[0];
-  const zh = chunk?.parts?.map((p) => p.text).join("") ?? "";
+  // **学習言語を渡す。** 渡さないと台湾華語の目盛り(8文字)で測るので、
+  // 英語の型が1つ残らず落ちる(`extras.ts` の `MAX_CHUNK_CHARS_EN` の注)。
+  const chunk = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword, language)[0];
+  const sep = normalizeTargetLanguage(language) === "en" ? " " : "";
+  const zh = chunk?.parts?.map((p) => p.text).join(sep) ?? "";
   if (zh.trim()) return { zh, ja: chunk?.ja ?? "" };
   const legacy = ex.collocations?.[0];
   if (legacy?.trim()) return { zh: legacy, ja: "" };
@@ -148,11 +155,15 @@ function topChunkOf(rawExtras: unknown, headword: string): { zh: string; ja: str
  *  - note     : 知っておくと得な一言
  * 量は絞る — 4択の答え合わせは一瞬で読めることが最優先。
  */
-function explainOf(rawExtras: unknown, headword: string): ReviewExplain | null {
+function explainOf(
+  rawExtras: unknown,
+  headword: string,
+  language?: string | null,
+): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
   // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
-  const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword)
+  const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword, language)
     .filter((c) => (c.parts?.length ?? 0) > 0)
     .slice(0, 3)
     .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
@@ -626,8 +637,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
         example_translation: w.example_translation,
         // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
         // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
-        top_chunk: topChunkOf(w.extras, w.headword),
-        explain: explainOf(w.extras, w.headword),
+        top_chunk: topChunkOf(w.extras, w.headword, w.language),
+        explain: explainOf(w.extras, w.headword, w.language),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,

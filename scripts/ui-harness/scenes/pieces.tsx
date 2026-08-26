@@ -19,7 +19,6 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
 import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceNote } from "@/components/VoiceNote";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
@@ -429,27 +428,6 @@ export function ScanDetailScene({ q }: { q: URLSearchParams }) {
       // いなかった。待っている骨組みだけを見て「合格」と言っていた。
       cardPromise={variant === "ready" ? READY : variant === "failed" ? FAILED : PENDING}
       onClose={() => {}}
-    />
-  );
-}
-
-/**
- * 一言の**録音**(オーナー指示 2026-08-26「音声だけにして」)。
- *
- * **録る前と録った後の2通りを撮る。** 録っている最中はマイクが要るので
- * ここでは出せないが、その2つは日常的に見る面。
- * 音そのものは足場では鳴らせないので、`src` は空のままにして
- * **枠と操作の並び**だけを見る。
- *
- * 録った後の面に**再生が無いこと**もここで見る — 聞く所は日付と場所の
- * 行の真ん中(`voice-player` の場面)で、ここに並べると片方だけ直る。
- */
-export function VoiceNoteScene({ q }: { q: URLSearchParams }) {
-  const done = q.get("done") === "1";
-  return (
-    <VoiceNote
-      stickerId="00000000-0000-0000-0000-000000000001"
-      audioUrl={done ? "data:audio/webm;base64," : null}
     />
   );
 }

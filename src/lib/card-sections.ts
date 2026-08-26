@@ -1,4 +1,5 @@
 import { refineUsageChunks, type WordExtrasDTO } from "./extras";
+import { looksLikeTargetLanguage } from "./text-language";
 import { registerScaleOf } from "./register-scale";
 import { targetProfile, type ProfileSection } from "./target-profile";
 
@@ -138,6 +139,23 @@ export function isRegenSection(id: SectionId): id is RegenSection {
  */
 export type SectionContentInput = {
   headword: string;
+  /**
+   * その語の学習言語。
+   *
+   * **例文が「その言語で書かれているか」まで見るのに要る**（オーナー報告
+   * 2026-08-26、3度目「例文や単語の変化が回答が生成されてないのに項目が
+   * 表示されてる」）。学習言語の写しが既定へ戻る隙間に作られたカードには
+   * 英語の語を中国語の文へ埋めた例文が入っていて、画面はそれを
+   * `looksLikeTargetLanguage` で落としていた。ところが**数える側は
+   * 落としていなかった**ので、
+   *
+   *   数える側 …「例文は在る」→ 作り直しに来ない
+   *   描く側   …「この文は出せない」→ 何も描かない
+   *
+   * となり、**見出しだけの空の節**が残った。これは上の注が
+   * 「過去に2回やった」と書いてある形そのもの（3度目）。
+   */
+  language?: string | null;
   meaning_ja?: string | null;
   example_sentence?: string | null;
   /** `normalizeExtras` を通した extras。 */
@@ -158,12 +176,18 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
         registerScaleOf(ex) !== null
       );
     case "example":
-      return !!input.example_sentence;
+      // **学習言語で書かれていない文は「無い」。** 描く側と同じ判定
+      // (`WordCard.tsx` の `case "example"`)。片方だけに入れると
+      // 見出しだけの空の節が残る。
+      return (
+        !!input.example_sentence && looksLikeTargetLanguage(input.example_sentence, input.language)
+      );
     case "examples_extra":
-      return (ex.examples_extra?.length ?? 0) > 0;
+      return (ex.examples_extra ?? []).some((e) => looksLikeTargetLanguage(e?.zh, input.language));
     case "usage_chunks":
       return (
-        refineUsageChunks(ex.usage_chunks, ex.measure_words, input.headword).length > 0 ||
+        refineUsageChunks(ex.usage_chunks, ex.measure_words, input.headword, input.language)
+          .length > 0 ||
         (ex.collocations?.length ?? 0) > 0 ||
         !!ex.word_order
       );

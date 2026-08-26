@@ -243,7 +243,10 @@ describe("missingSections", () => {
       example_sentence: "我帶了雨傘。",
       extras: ex({
         usage_context: "雨の日に",
-        examples_extra: [{ zh: "a", ja: "b" }],
+        // **本物の中国語の文にする。** ここが "a" だったので、例文が
+        // その言語で書かれているかまで数えるようにした日に落ちた
+        // (落ちたのが正しい — "a" は中国語の文ではない)。
+        examples_extra: [{ zh: "外面下雨了，帶把雨傘。", ja: "外は雨だ、傘を持って" }],
         usage_chunks: [
           {
             parts: [
