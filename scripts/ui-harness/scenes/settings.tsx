@@ -22,11 +22,11 @@
  * どこにも無かった(雛形では別の「手ざわり」の束をでっち上げていて、
  * `SoundAndHapticsPanel` が持つ同名の見出しと二重になっていた)。
  */
+import { DataSourcesList } from "@/components/DataSourcesList";
 import {
   AvatarRow,
   ChoiceRow,
   DangerZone,
-  DataSourcesCard,
   PhoneticRow,
   PlaceReminderToggle,
   SelectRow,
@@ -64,7 +64,6 @@ export function SettingsChoicesScene() {
         <ChoiceRow
           cols={3}
           label={t("settings.reviewMode")}
-          hint={t("settings.reviewModeHint")}
           value={mode}
           onChange={setMode}
           options={[
@@ -77,7 +76,6 @@ export function SettingsChoicesScene() {
         <ChoiceRow
           cols={4}
           label={t("settings.photoPref")}
-          hint={t("settings.photoPrefHint")}
           value={photo}
           onChange={setPhoto}
           options={[
@@ -91,7 +89,6 @@ export function SettingsChoicesScene() {
         <ChoiceRow
           cols={2}
           label={t("settings.catchSpeed")}
-          hint={t("settings.catchSpeedHint")}
           value={speed}
           onChange={setSpeed}
           options={[
@@ -115,7 +112,6 @@ export function SettingsChoicesScene() {
         <ChoiceRow
           cols={5}
           label={t("settings.reviewLimit")}
-          hint={t("settings.reviewLimitHint")}
           value={limit}
           onChange={setLimit}
           options={[
@@ -129,7 +125,6 @@ export function SettingsChoicesScene() {
         <ChoiceRow
           cols={3}
           label={t("settings.reviewFocus")}
-          hint={t("settings.reviewFocusHint")}
           value={focus}
           onChange={setFocus}
           options={[
@@ -181,12 +176,13 @@ export function SettingsSelectsScene() {
         <SelectRow
           id="lang-level"
           label={t("settings.levelGoal")}
-          hint={t("settings.levelHint")}
           value={goal}
           onChange={setGoal}
           options={LEVEL_OPTIONS}
         />
-        <PhoneticRow />
+        {/* **本物と同じく学習言語を渡す。** ここだけ渡さないと、
+            英語を選んだ絵にも注音・拼音が写る(実物と違う絵を検査する)。 */}
+        <PhoneticRow lang={target} />
         {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
             設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
             (実際そうなって、検査はそれでも合格していた)。 */}
@@ -214,7 +210,7 @@ export function SettingsSelectsScene() {
  * （CEFR-J は商用可だが出典明記が条件）。
  */
 export function SettingsSourcesScene() {
-  return <DataSourcesCard />;
+  return <DataSourcesList />;
 }
 
 export function SettingsTogglesScene() {

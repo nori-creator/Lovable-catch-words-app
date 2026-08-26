@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { tStatic, useUiLang, useT } from "@/lib/i18n";
+import { DataSourcesList } from "@/components/DataSourcesList";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -166,6 +167,10 @@ function TermsPage() {
           {t("auth.privacy")}
         </Link>
       </p>
+      {/* 出典は**ここに置く**(オーナー指示「約款の中など全く目立たない所に、
+          小さい字で」)。CEFR-J は出典明記が利用の条件なので**消せない**が、
+          学習者が毎日開く設定の主な流れに置く理由も無い。 */}
+      <DataSourcesList />
     </article>
   );
 }

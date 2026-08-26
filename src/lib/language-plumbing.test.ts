@@ -613,3 +613,48 @@ describe("項目の並べ替え / 例文のレベル連動", () => {
     expect(base).toContain("${levelRule}");
   });
 });
+
+describe("第5段: 設定の整理", () => {
+  it("ボタンの下の解説を**書けなくする**", () => {
+    // オーナー指示「設定のボタンの下の解説を全部消す」。
+    // 呼び出しだけ消すと、次に行を足す人がまた `hint` を付ける。
+    // **部品から口ごと外す**ので、型で止まる。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/hint\?: string;/);
+    expect(src).not.toMatch(/hint: string;/);
+    expect(src).not.toContain("hint={t(");
+  });
+
+  it("解説の翻訳キーも残さない", () => {
+    const dict = read("lib/i18n.tsx");
+    for (const k of ["settings.levelHint", "settings.photoPrefHint", "settings.phoneticHint"]) {
+      expect(dict, k).not.toContain(`"${k}"`);
+    }
+  });
+
+  it("読みの設定に**学習言語を渡す**", () => {
+    // 渡していなかったので既定(台湾華語)で考え、英語を学ぶ人にも
+    // 注音・拼音の選択が出ていた。英語では米式/英式の IPA になる。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toContain("<PhoneticRow lang={targetLanguage} />");
+    // 検査の雛形も同じにする(片方だけだと実物と違う絵を撮る)。
+    const harness = codeOnly(read("../scripts/ui-harness/scenes/settings.tsx"));
+    expect(harness).toContain("<PhoneticRow lang={target} />");
+  });
+
+  it("選ぶものが1つしか無いなら読みの行を出さない", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toContain("if (profile.readings.length < 2) return null;");
+  });
+
+  it("出典は設定から消えて、**約款の中に残る**", () => {
+    // CEFR-J は出典明記が利用の条件。目立たない所へ移すのであって、
+    // 消すのではない。
+    const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(settings).not.toContain("DataSourcesCard");
+    expect(settings).not.toContain("DATA_SOURCES");
+    const terms = codeOnly(read("routes/terms.tsx"));
+    expect(terms).toContain("<DataSourcesList />");
+    expect(fs.existsSync(path.join(root, "components/DataSourcesList.tsx"))).toBe(true);
+  });
+});

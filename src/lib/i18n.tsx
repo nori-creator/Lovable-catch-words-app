@@ -1098,12 +1098,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Checking permission…",
     "zh-TW": "正在確認權限…",
   },
-  "set.placeHint": {
-    ja: "前に単語を撮った場所の近くでアプリを開くと「ここで撮ったこれ覚えてる？」と知らせます。アプリを閉じている間は動きません。",
-    en: "When you open the app near a place you caught a word, it reminds you: “remember this one?” It does not run while the app is closed.",
-    "zh-TW":
-      "在以前拍過單字的地點附近打開 App 時，會提醒你「在這裡拍的那個還記得嗎？」。App 關著的時候不會運作。",
-  },
   "set.placeUnsupported": {
     ja: "このブラウザでは通知を使えません。iPhone の場合は Safari の共有ボタンから「ホーム画面に追加」して、そのアイコンから開くとオンにできます。",
     en: "This browser can't use notifications. On iPhone, add the app to your Home Screen from Safari's share menu and open it from that icon.",
@@ -1622,11 +1616,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.targetLang": { ja: "学習言語", en: "Target language", "zh-TW": "學習語言" },
   "settings.levelGoal": { ja: "目標レベル", en: "Target level", "zh-TW": "目標等級" },
   "settings.currentLevel": { ja: "今のレベル", en: "Current level", "zh-TW": "目前等級" },
-  "settings.levelHint": {
-    ja: "単語の解説・例文・復習の語彙は「今のレベル〜目標レベル」に合わせて作られます。",
-    en: "Explanations, examples and review vocabulary are generated within your current-to-target level range.",
-    "zh-TW": "單字的解說、例句和複習的詞彙，都會配合「目前等級〜目標等級」來製作。",
-  },
   "settings.uiLang": { ja: "表示言語", en: "App language", "zh-TW": "顯示語言" },
   "settings.phonetic": { ja: "発音表記", en: "Phonetic notation", "zh-TW": "發音標記" },
   "settings.study": { ja: "学習設定", en: "Study settings", "zh-TW": "學習設定" },
@@ -1637,16 +1626,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.soundSubtle": { ja: "控えめ", en: "Subtle", "zh-TW": "輕微" },
   "settings.soundFull": { ja: "しっかり", en: "Full", "zh-TW": "完整" },
   "settings.haptics": { ja: "振動", en: "Haptics", "zh-TW": "震動" },
-  "settings.hapticsHint": {
-    ja: "キャッチや着地に合わせて短く震えます。",
-    en: "A short buzz when a word lands in the dex.",
-    "zh-TW": "捕捉和降落時會短震一下。",
-  },
-  "settings.feelInstantHint": {
-    ja: "選ぶとすぐ保存されます（下の「保存」は不要）。",
-    en: "Saved the moment you pick — no need to press Save.",
-    "zh-TW": "選好就會立刻儲存（不需要按下面的「儲存」）。",
-  },
   "settings.appearance": { ja: "外観", en: "Appearance", "zh-TW": "外觀" },
   "settings.theme": { ja: "テーマ", en: "Theme", "zh-TW": "主題" },
   "settings.save": { ja: "保存", en: "Save", "zh-TW": "儲存" },
@@ -2350,11 +2329,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Compare UI themes",
     "zh-TW": "比較 UI 主題",
   },
-  "settings.themeHint": {
-    ja: "タップで即切り替わります。「現行」に戻せばいつでも元のデザインです。",
-    en: "Tap to switch instantly. Pick “Current” to go back to today's design.",
-    "zh-TW": "點一下就會馬上切換。回到「現行」隨時都能變回原本的設計。",
-  },
   "settings.themeKeep": { ja: "保持", en: "Kept", "zh-TW": "保留" },
   "settings.aiSwitch": {
     ja: "使うAIを切り替える",
@@ -2463,19 +2437,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Record video (front camera)",
     "zh-TW": "錄影（前鏡頭）",
   },
-  "settings.videoHint": {
-    ja: "スピーキング復習中、自分の姿を録画してあとで見返せます。この端末のみに保存。映像のみ（マイクは音声認識が使います）。",
-    en: "Record yourself during speaking review and watch it back. Stored on this device only. Video only — the mic is reserved for speech recognition.",
-    "zh-TW":
-      "口說複習時可以錄下自己的樣子，之後回看。只存在這台裝置上。只有影像（麥克風給語音辨識用）。",
-  },
   "settings.reviewMode": { ja: "復習モード", en: "Review mode", "zh-TW": "複習模式" },
-  "settings.reviewModeHint": {
-    ja: "「AIが選ぶ」は、その単語をどれだけ覚えているかを見て AI が出題の形を決めます（忘れかけ→4択、うろ覚え→発音、覚えた→作文）。「話す」は写真を見て話し、AIが添削します。「4択」は声を出せない場所向けです。",
-    en: "“AI picks” looks at how well you remember each word and chooses the task (shaky → quiz, half-there → say it, solid → compose). “Speak”: talk about the photo and AI corrects you. “Quiz”: for when you can't speak out loud.",
-    "zh-TW":
-      "「AI 幫你選」會看你對這個字記得多牢，再決定出題的形式（快忘了→四選一、記得模糊→發音、記住了→造句）。「開口說」是看照片說出來，由 AI 修改。「四選一」適合不方便出聲的場合。",
-  },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo", "zh-TW": "大頭貼" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo", "zh-TW": "選照片" },
   "settings.avatarChange": { ja: "変更", en: "Change", "zh-TW": "更換" },
@@ -2496,27 +2458,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "No profile photo yet",
     "zh-TW": "還沒有大頭貼",
   },
-  "settings.avatarHint": {
-    ja: "画面上のアイコンがこの写真になります。",
-    en: "This becomes the icon at the top of every screen.",
-    "zh-TW": "畫面上的頭像會變成這張照片。",
-  },
   "settings.reviewLimit": { ja: "1日の復習枚数", en: "Cards per day", "zh-TW": "每天複習的張數" },
   "settings.reviewLimitNone": { ja: "無制限", en: "All", "zh-TW": "無限制" },
-  "settings.reviewLimitHint": {
-    ja: "この枚数までで今日の復習は終わり。終わりが見えるほうが続きます。",
-    en: "Today's review ends after this many cards — a finish line keeps the habit going.",
-    "zh-TW": "到這個張數今天的複習就結束。看得到終點比較容易持續。",
-  },
   "settings.reviewFocus": { ja: "優先する記憶の段階", en: "Prioritise", "zh-TW": "優先的記憶階段" },
   "settings.focusAll": { ja: "期限順", en: "By due date", "zh-TW": "依到期順序" },
   "settings.focusWeak": { ja: "忘れかけ", en: "Weakest", "zh-TW": "快忘了" },
   "settings.focusNew": { ja: "覚えたて", en: "Newest", "zh-TW": "剛記住" },
-  "settings.reviewFocusHint": {
-    ja: "忘れかけは何度も間違えた語から、覚えたては復習回数が少ない語から出します。",
-    en: "Weakest: words you keep missing first. Newest: words with the fewest reviews first.",
-    "zh-TW": "「快忘了」會從錯很多次的字開始出，「剛記住」會從複習次數少的字開始出。",
-  },
   "settings.strictness": {
     ja: "発音判定の厳しさ",
     en: "Pronunciation strictness",
@@ -2567,12 +2514,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "這台裝置的資料庫還不支援新的設定（請聯絡管理者）。",
   },
   "settings.catchSpeed": { ja: "キャッチのしかた", en: "How a catch works", "zh-TW": "捕捉的方式" },
-  "settings.catchSpeedHint": {
-    ja: "カードはどちらでもすぐ出ます。違うのは図鑑に入れる前に切り抜くかどうかだけ。ファストは切り抜かずに入れて、あとから写真を長押しして切り抜けます。",
-    en: "The card appears right away either way. The only difference is whether the object is cut out before it goes into the dex. Fast skips it — long-press the photo later to cut it out.",
-    "zh-TW":
-      "兩種字卡都會馬上出現，差別只在收進圖鑑前要不要去背。「快速」是不去背就收進來，之後可以長按照片再去背。",
-  },
   "settings.speedDetail": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背" },
   "settings.speedFast": { ja: "ファスト", en: "Fast", "zh-TW": "快速" },
   "set.catchSpeedMetrics": {
@@ -2586,12 +2527,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "札の主役の写真",
     en: "Main photo on a card",
     "zh-TW": "貼紙的主角照片",
-  },
-  "settings.photoPrefHint": {
-    ja: "「画面ごと」は画面に合う絵を選びます（棚は切り抜き、アルバムは自撮り）。選ぶと全部の画面でそれを先に出します。その絵が無い札は、ある絵に落ちます。",
-    en: "“Per screen” lets each screen pick what suits it (cut-outs on the shelf, selfies in the album). Choose one and every screen shows it first; cards without it fall back to what they have.",
-    "zh-TW":
-      "「依畫面」會挑選適合該畫面的圖（書架用去背圖，相簿用自拍）。選定之後，所有畫面都會優先出現那一種。沒有那種圖的貼紙，會退回有的圖。",
   },
   "settings.photoAuto": { ja: "画面ごと", en: "Per screen", "zh-TW": "依畫面" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
@@ -2638,11 +2573,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.ipaUs": { ja: "IPA アメリカ", en: "IPA (US)", "zh-TW": "IPA 美式" },
   "settings.ipaUk": { ja: "IPA イギリス", en: "IPA (UK)", "zh-TW": "IPA 英式" },
-  "settings.phoneticHint": {
-    ja: "図鑑・復習・詳細カードなどアプリ全体で、選んだ表記だけを表示します。",
-    en: "Only the notation you pick is shown across the whole app.",
-    "zh-TW": "圖鑑、複習、詳細字卡等整個 App 裡，只會顯示你選的那一種標記。",
-  },
   "settings.langJa": { ja: "日本語", en: "Japanese", "zh-TW": "日本語" },
   "settings.langEn": { ja: "English", en: "English", "zh-TW": "English" },
   // 符号は見せない。この束の他の4行(日本語 / English / 母語 / 表示言語)は
