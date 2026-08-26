@@ -5,7 +5,7 @@
  * 「暗いテーマに追従しないと分かっているが、直す前に場面を足す」と
  * 決めてあった箇所。まず見えるようにする。
  */
-import { WordCard } from "@/components/WordCard";
+import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";
 import { CEFR_SCALE, TOCFL_SCALE } from "@/lib/level-scale";
 import {
@@ -418,9 +418,15 @@ export function TocflLadderScene({ q }: { q: URLSearchParams }) {
    */
   const cefr = q.get("scale") === "cefr";
   const scale = cefr ? CEFR_SCALE : TOCFL_SCALE;
-  const levels = cefr
-    ? ["A1", "A2", "B1", "B2", "C1", "C2", "Z9"]
-    : ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"];
+  // 最後の2つは**級外**。`Z9` / `TOCFL-9` は古い形、`scale.outStored` は
+  // いまキャッチが実際に書く形(オーナー指示 2026-08-26「CEFR-J に無い語は
+  // 級外にして」)。**実際に保存する形が級外として描かれること**を絵で
+  // 確かめる — ここが「分からない」に落ちると段々ごと消える。
+  const levels = (
+    cefr
+      ? ["A1", "A2", "B1", "B2", "C1", "C2", "Z9"]
+      : ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"]
+  ).concat(scale.outStored);
   return (
     <div className="space-y-3">
       {levels.map((l) => (
@@ -432,6 +438,24 @@ export function TocflLadderScene({ q }: { q: URLSearchParams }) {
       <div className="rounded-2xl border border-border bg-card p-3">
         <TocflLadder level={null} scale={scale} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * 単語の項目の並べ替え。
+ *
+ * **今まで一度も撮っていなかった。** 掴んで並べ替えられるようにしたのに、
+ * この部品には場面が無く、検査は合格したまま**1枚も絵が残らなかった**
+ * (この作業場で3度目の「雛形が実物を追えていない」形)。
+ *
+ * `?hold=` を使うと、検査が指を置いたまま撮る。掴んでいる見た目は
+ * **押し続けている間**にしか出ないので、`click` では永遠に写らない。
+ */
+export function SectionsEditorScene() {
+  return (
+    <div style={{ padding: 16 }}>
+      <WordCardSectionsEditor />
     </div>
   );
 }

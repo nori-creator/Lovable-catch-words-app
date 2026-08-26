@@ -51,7 +51,7 @@ import { usePhoneticPref, pickReading } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { heroSearchQuery } from "@/lib/hero-image";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { Zh } from "@/components/Zh";
@@ -157,6 +157,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    * 英語を選んでも台湾華語として辞書を引き、台湾華語として保存していた。
    */
   const targetLanguage = useTargetLang();
+  // 辞書の意味は**解説を書いた言語**で入っている(`meanings` の鍵)。
+  // 表示言語で引かないと、合わない語釈が出るか、何も出ない。
+  const uiLang = useUiLang();
   /**
    * **学習言語の側から級と品詞を決める。**
    *
@@ -166,8 +169,17 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    * 仮置きの値でも**言語ごとに正しい体系**から作る。
    */
   const profile = targetProfile(targetLanguage);
-  /** 仮の級。本物のカードが来たら上書きされる。2段目 = 初級の真ん中。 */
-  const fallbackLevel = profile.levels.toStored(2);
+  /**
+   * 級が分からないときの値。**級外**にする(オーナー指示 2026-08-26)。
+   *
+   * 前はここが `toStored(2)` =「A2」だった。級が付いていない語に
+   * 公式の級と同じ顔をした文字を書いていたことになる。
+   * 級は CEFR-J だけが決める(`lexicon-import.ts` の決めごと)。
+   */
+  const outLevel = profile.levels.outStored;
+  /** 辞書が級を持っていればそれ、無ければ級外。 */
+  const levelFromDict = (step: number | null | undefined) =>
+    step != null ? profile.levels.toStored(step as 1 | 2 | 3 | 4 | 5 | 6) : outLevel;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<SR | null>(null);
   const canSpeak = srAvailable();
@@ -321,7 +333,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             pinyin: seed.pinyin,
             meaning_ja: seed.meaning_ja,
             part_of_speech: profile.capture.defaultPos,
-            level: fallbackLevel,
+            level: levelFromDict(dict?.level_step),
             // 棚は詳しいカードが決める。それまでは仮置き
             // (`CardSchema` も決められないときは `other` に落とす)。
             category_key: "other",
@@ -372,7 +384,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // **辞書は待たない。** これは添え物で、無くても画面は成り立つ
         // (失敗しても空で通す作りに既になっている)。待っていたぶんだけ
         // 画面が遅れていた。
-        void lookupFn({ data: { headwords: [resolved] } })
+        void lookupFn({
+          data: { headwords: [resolved], language: targetLanguage, explain_lang: uiLang },
+        })
           .then((lk) => {
             if (runTokenRef.current !== token) return;
             setDict(lk.entries[resolved] ?? null);
@@ -496,7 +510,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             pinyin: phraseCard?.pinyin ?? "",
             meaning_ja: phraseCard?.meaning_ja ?? headword,
             part_of_speech: profile.capture.phrasePos,
-            level: fallbackLevel,
+            level: levelFromDict(dict?.level_step),
             category_key: "other",
             example_sentence: phraseCard?.replies[0]?.zh ?? "",
             example_translation: phraseCard?.replies[0]?.ja ?? "",
@@ -523,7 +537,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             pinyin: dict?.pinyin || saved?.pinyin || "",
             meaning_ja: dict?.meaning_ja || saved?.meaning_ja || headword,
             part_of_speech: dict?.pos || saved?.part_of_speech || profile.capture.defaultPos,
-            level: saved?.level ?? fallbackLevel,
+            level: saved?.level ?? levelFromDict(dict?.level_step),
             category_key: saved?.category_key ?? "other",
             example_sentence: saved?.example_sentence ?? "",
             example_translation: saved?.example_translation ?? "",

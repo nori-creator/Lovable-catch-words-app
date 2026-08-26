@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Camera, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { saveSticker } from "@/lib/stickers.functions";
+import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
@@ -17,6 +17,8 @@ import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
+import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
 
 type Props = {
@@ -79,12 +81,22 @@ export function ScanCatchSheet({
   const t = useT();
   /** いま撮った物を何語として保存するか（設定の学習言語）。 */
   const targetLanguage = useTargetLang();
-  // 仮置きの級・品詞も**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
+  // 仮置きの品詞は**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
   const profile = targetProfile(targetLanguage);
-  const fallbackLevel = profile.levels.toStored(2);
+  /**
+   * 級が分からないときの値。**級外**にする(オーナー指示 2026-08-26)。
+   *
+   * 前はここが `toStored(2)` = 「A2」だった。**級が付いていない語に
+   * 公式の級と同じ顔をした文字を書いていた**ことになる。画面には
+   * 「A2」と1文字で出るので、学習者には見分けが付かない。
+   * 級は CEFR-J だけが決める、というのが `lexicon-import.ts` の
+   * 決めごとで、こちら側だけ当てずっぽうを続けると意味が無い。
+   */
+  const outLevel = profile.levels.outStored;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const saveFn = useServerFn(saveSticker);
+  const attachVoiceFn = useServerFn(setStickerVoiceVideo);
   const caughtFn = useServerFn(markScanCaught);
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
@@ -94,6 +106,8 @@ export function ScanCatchSheet({
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
+  // 声で吹き込んだ一言。**保存の経路には入れない** — 札が出来てから裏で上げる。
+  const [voiceNote, setVoiceNote] = useState<RecordedNote | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
@@ -307,7 +321,11 @@ export function ScanCatchSheet({
               pinyin: dict?.pinyin || item.pinyin || "",
               meaning_ja: meaning,
               part_of_speech: dict?.pos || profile.capture.defaultPos,
-              level: fallbackLevel,
+              // 辞書が級を持っていればそれ。無ければ**級外**。
+              level:
+                dict?.level_step != null
+                  ? profile.levels.toStored(dict.level_step as 1 | 2 | 3 | 4 | 5 | 6)
+                  : outLevel,
               category_key: "other",
               example_sentence: "",
               example_translation: "",
@@ -329,6 +347,30 @@ export function ScanCatchSheet({
         });
         stickerId = res.id;
         firstCatch = res.first_catch ?? false;
+      }
+
+      // **声の一言は札が出来てから、裏で。**
+      // ここを待つと、いちばん壊してはいけない「一瞬でも早く」が削れる。
+      // 落ちたときは黙って捨てず、そこだけ伝える(写真も文字の一言も保存済み)。
+      if (voiceNote) {
+        const note = voiceNote;
+        const sid = stickerId;
+        void (async () => {
+          try {
+            const path = await uploadVoiceNote({
+              blob: note.blob,
+              mime: note.mime,
+              stickerId: sid,
+            });
+            const saved = await attachVoiceFn({
+              data: { sticker_id: sid, voice_video_path: path },
+            });
+            if (!saved.saved) toast.error(t("voice.needsMigration"));
+          } catch (e) {
+            console.warn("voice note attach failed", e);
+            toast.error(t("voice.attachFailed"));
+          }
+        })();
       }
 
       void caughtFn({ data: { headword } }).catch(() => {});
@@ -430,14 +472,20 @@ export function ScanCatchSheet({
                 {t("sheet.noteLabel")}{" "}
                 <span className="ml-1 text-caption">{t("sheet.optional")}</span>
               </label>
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder={t("sheet.notePlaceholder")}
-                rows={2}
-                maxLength={140}
-                className="mt-1 w-full resize-none rounded-xl border border-border bg-secondary/50 p-2 text-body outline-none focus:ring-2 focus:ring-primary/40"
-              />
+              {/* **声のボタンは文字の欄の隣**(オーナー指示 2026-08-26)。
+                  撮る経路(`capture.tsx`)と同じ形にしてある — 同じ用事が
+                  画面によって別の場所に在ると、片方だけ直る事故になる。 */}
+              <div className="mt-1 flex items-start gap-2">
+                <textarea
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  placeholder={t("sheet.notePlaceholder")}
+                  rows={2}
+                  maxLength={140}
+                  className="w-full flex-1 resize-none rounded-xl border border-border bg-secondary/50 p-2 text-body outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <VoiceCaptionButton value={voiceNote} onChange={setVoiceNote} />
+              </div>
             </div>
             <div>
               <label className="text-footnote font-medium text-muted-foreground">

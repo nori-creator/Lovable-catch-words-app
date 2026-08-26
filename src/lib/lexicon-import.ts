@@ -282,77 +282,30 @@ export function freqRank(e: Pick<EcdictRaw, "frq" | "bnc">): number | null {
 }
 
 /**
- * CEFR の段（1〜6 = A1〜C2）を**見積もる**。
+ * その語の CEFR の段（1〜6 = A1〜C2）。**公式の級だけを採る。**
  *
- * ## これは公式の CEFR ではない
- * ECDICT に CEFR は入っていない。ここが出すのは
- * 「頻度と検定の印から見て、だいたいこのあたり」という目安。
- * **公式の対応表が手に入ったら（CEFR-J など）そちらで上書きする。**
- * だから取り込む行には出所を書いて、後から見分けられるようにしてある。
+ * ## 見積もりをやめた（オーナー指示 2026-08-26）
+ * ここには以前、頻度の順位と検定の印から段を**見積もる**式があった。
+ * それをやめて、CEFR-J に無い語は `null`（= 級外）にする。
  *
- * ## 順位を主にする理由
- * 検定の印は**上限しか教えてくれない**。`toefl` が付いていても、
- * その語が B1 なのか C1 なのかは分からない。一方、頻度の順位は
- * 連続した目盛りで、語彙の習得順とよく合うことが知られている。
- * だから**順位で段を決め、印で上下に挟む**。
+ * やめた理由は、見積もりが**当たっているように見えてしまう**こと。
+ * 画面には「A2」と1文字で出るので、学習者にはそれが公式の級なのか
+ * 頻度からの当てずっぽうなのか**区別が付かない**。このアプリは
+ * 「正確性が重要だから信頼できる」ことを土台にしているので、
+ * 出所の違う数字を同じ顔で並べるのがいちばん高く付く。
  *
- * ## 挟み方
- *   - `zk`（中考）… やさしい語だと分かっている → A2 まで
- *   - `gk` / `cet4` … → B1 まで
- *   - Oxford3000 … 定義上 A1〜B2 の語 → B2 まで
- *   - `gre` … 難しい語だと分かっている → C1 から
- *   - `toefl` / `ielts` / `cet6` / `ky` … → A2 から（入門の語ではない）
+ * 級外は「無い」ではなく**一つの段**として扱う（`level-scale.ts` の注）。
+ * 6段の外側に置けば、学習者には「まだ級が付いていない語」と読める。
  *
- * **順位が無い語を最易に落とさない。** 順位が無いのは「珍しい」か
- * 「データに無い」のどちらかで、どちらにせよ A1 ではない。
+ * 頻度そのものは捨てていない。`freq_rank` として別の列に入っていて、
+ * 「どのくらいよく使うか」はそちらが正直に答える。**級のふりをさせない**
+ * だけ。
  */
-export function cefrStep(
-  e: {
-    frq?: string | number | null;
-    bnc?: string | number | null;
-    tag?: string;
-    oxford?: string | number | null;
-  },
-  /**
-   * CEFR-J が持っている**公式の級**。あれば見積もりより必ず優先する。
-   * A1〜B2 しか無いので、C1/C2 の語はここが null のまま見積もりになる。
-   */
-  official?: LevelIndex | null,
-): LevelIndex {
+export function cefrStep(official?: LevelIndex | null): LevelIndex | null {
   if (official != null && (LEVEL_INDEXES as readonly number[]).includes(official)) {
     return official;
   }
-  const rank = freqRank({ frq: String(e.frq ?? ""), bnc: String(e.bnc ?? "") });
-  const tags = new Set(parseExamTags(e.tag ?? ""));
-  const oxford = String(e.oxford ?? "") === "1";
-
-  // 順位から素の段を出す。境目は「よく使う語ほど早く要る」形で、
-  // 上に行くほど幅が広い（習得の伸びが対数に近いため）。
-  let step: number;
-  if (rank == null) {
-    // **分からないものを最易にしない。** 見えていないだけの語を A1 に
-    // 置くと、初心者の復習に固有名詞や専門語が混ざる。
-    step = 5;
-  } else if (rank <= 1000) step = 1;
-  else if (rank <= 2000) step = 2;
-  else if (rank <= 4000) step = 3;
-  else if (rank <= 8000) step = 4;
-  else if (rank <= 16000) step = 5;
-  else step = 6;
-
-  // 上限（これより難しくない、と分かっている印）
-  if (tags.has("zk")) step = Math.min(step, 2);
-  if (tags.has("gk") || tags.has("cet4")) step = Math.min(step, 3);
-  if (oxford) step = Math.min(step, 4);
-
-  // 下限（これよりやさしくない、と分かっている印）
-  if (tags.has("gre")) step = Math.max(step, 5);
-  if (tags.has("toefl") || tags.has("ielts") || tags.has("cet6") || tags.has("ky")) {
-    step = Math.max(step, 2);
-  }
-
-  const clamped = Math.min(6, Math.max(1, Math.round(step)));
-  return clamped as LevelIndex;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,7 +319,7 @@ export function cefrStep(
  * **商用可・出典明記が条件**。出典は設定の「出典」の頁に出す。
  *
  * A1〜B2 の 7,988 行（見出し 7,035 語）。C1/C2 は CEFR-J の対象外なので、
- * そこは `cefrStep` の見積もりのまま。
+ * **そこは級外**になる（見積もりで埋めない — `cefrStep` の注）。
  */
 export type CefrjRow = { headword: string; pos: string; cefr: string };
 
@@ -406,7 +359,7 @@ export function cefrLabelToStep(label: string): LevelIndex | null {
  *   a.m./A.M./am/AM      A1
  *
  * まるごと鍵にすると `center` にも `centre` にも当たらず、**どちらも
- * 公式の級を失って見積もりに落ちる**。しかもここに並ぶのは
+ * 公式の級を失って級外に落ちる**。しかもここに並ぶのは
  * `center` `behavior` `apologize` のような**よく使う語**なので、
  * 落とすと効き目がいちばん大きい所を落とすことになる。
  *
@@ -744,8 +697,14 @@ export function parseCmudictLine(line: string): { word: string; ipa: string } | 
 export const LEVEL_SOURCE = {
   /** CEFR-J Wordlist に載っていた語（公式の級）。 */
   official: "cefrj",
-  /** 頻度と検定タグからの見積もり（CEFR-J に無い C1/C2 など）。 */
-  estimated: "est",
+  /**
+   * CEFR-J に載っていない語（**級外**）。
+   *
+   * 以前はここが「頻度からの見積もり」だった（`est`）。見積もりをやめた
+   * 今も印は残す — 取り込んだ行が「調べたうえで級外」なのか
+   * 「まだ調べていない」のかを、後から見分けられるようにするため。
+   */
+  none: "none",
 } as const;
 
 /** `dictionary_entries` に入れる形（言語中立の列を使う）。 */
@@ -759,7 +718,8 @@ export type LexiconRow = {
   /** 読む人の言語ごとの意味（鍵は解説を書いた言語）。 */
   meanings: Record<string, string>;
   pos: string | null;
-  level_step: number;
+  /** CEFR の段。**`null` は級外**（CEFR-J に載っていない語）。 */
+  level_step: LevelIndex | null;
   freq_rank: number | null;
   exam_tags: string[];
   forms: WordForms | null;
@@ -812,7 +772,7 @@ export function toLexiconRow(
     ipaUs?: string | null;
     /** 簡体字を台湾正体字にする。 */
     glossTranslate: (s: string) => string;
-    /** CEFR-J の公式の級（あれば見積もりより優先）。 */
+    /** CEFR-J の公式の級。**無ければ級外**（頻度から当てない）。 */
     officialLevel?: LevelIndex | null;
   },
 ): LexiconRow {
@@ -832,7 +792,7 @@ export function toLexiconRow(
     reading_alt: normalizeIpa(e.phonetic) || null,
     meanings,
     pos: posOf(e),
-    level_step: cefrStep(e, opts.officialLevel ?? null),
+    level_step: cefrStep(opts.officialLevel ?? null),
     freq_rank: rank,
     exam_tags: parseExamTags(e.tag),
     forms: Object.keys(forms).length > 0 ? forms : null,
@@ -841,7 +801,7 @@ export function toLexiconRow(
     /**
      * **級の出所だけを、短く書く。**
      *
-     * 後から公式の対応表で上書きするとき、どれが見積もりだったのか
+     * 後から級を足すとき、どれが「調べたうえで級外」なのか
      * 分からないと直せない。だから語ごとに要る。
      *
      * ## 長い文にしない
@@ -854,14 +814,23 @@ export function toLexiconRow(
      * `data-sources.ts` が持ち、設定の「出典」の頁に出ている。
      * ライセンス（MIT / BSD / CEFR-J の出典明記）はそちらで満たしている。
      */
-    notes: opts.officialLevel != null ? LEVEL_SOURCE.official : LEVEL_SOURCE.estimated,
+    notes: opts.officialLevel != null ? LEVEL_SOURCE.official : LEVEL_SOURCE.none,
   };
 }
 
-/** 段が6つの範囲に収まっているか（入れる前の最後の関門）。 */
+/**
+ * 入れる前の最後の関門。
+ *
+ * **級外（`null`）は落とさない。** 級が付いていないことと、
+ * 語として使えないことは別の話で、CEFR-J に載っていない語のほうが
+ * 街には多い。落とすと辞書がほとんど空になる。
+ * 段が入っているなら 1〜6 の中にあること。
+ */
 export function isValidRow(row: LexiconRow): boolean {
   if (!row.headword) return false;
-  if (!(LEVEL_INDEXES as readonly number[]).includes(row.level_step)) return false;
+  if (row.level_step != null && !(LEVEL_INDEXES as readonly number[]).includes(row.level_step)) {
+    return false;
+  }
   if (Object.keys(row.meanings).length === 0) return false;
   return true;
 }

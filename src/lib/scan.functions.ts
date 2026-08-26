@@ -1,5 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import {
+  DICTIONARY_SELECT,
+  resolveDictionaryFields,
+  type RawDictionaryRow,
+} from "./dictionary-entry";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -40,11 +45,21 @@ export type DetectedItem = z.infer<typeof DetectItemSchema> & { id: string };
 
 export type DictionaryEntry = {
   headword: string;
+  /**
+   * 既定の読み。**名前は古いまま**だが、中身は学習言語の読み
+   * (台湾華語は注音、英語はアメリカ英語の IPA)。
+   * 引くときに `reading_primary` から読み直している
+   * (`dictionary-entry.ts` の注)。
+   */
   zhuyin: string | null;
+  /** 第二の読み(台湾華語は拼音、英語はイギリス英語寄りの IPA)。 */
   pinyin: string | null;
+  /** 読む人の言語での意味。**合う言語が無ければ空**。 */
   meaning_ja: string;
   pos: string | null;
   tocfl_level: number | null;
+  /** CEFR / TOCFL の段。**`null` は級外**(級が付いていない語)。 */
+  level_step: number | null;
   audio_path: string | null;
   /** Signed URL for the pre-generated audio (§4.3). Play directly — no TTS round trip. */
   audio_url: string | null;
@@ -309,6 +324,12 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
       .object({
         headwords: z.array(z.string()).max(20),
         language: z.string().default(DEFAULT_TARGET_LANGUAGE),
+        /**
+         * 解説を読む人の言語。`meanings` の鍵はこれ。
+         * **既定を日本語にしない道は無い** — 古い `meaning_ja` の
+         * 受け皿がその言語だけなので、既定はここに合わせる。
+         */
+        explain_lang: z.string().default("ja"),
       })
       .parse(input),
   )
@@ -316,13 +337,23 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
     const words = Array.from(new Set(data.headwords.map((s) => s.trim()).filter(Boolean)));
     const empty: Record<string, DictionaryEntry> = {};
     if (words.length === 0) return { entries: empty };
+    // 型の当てはめ。列の並びを定数にすると supabase の型が読めなくなるので、
+    // ここで**1度だけ**形を言う(読み直しは `dictionary-entry.ts`)。
+    type Row = RawDictionaryRow & {
+      headword: string;
+      pos: string | null;
+      audio_path: string | null;
+      source: string | null;
+      entry_type: string | null;
+    };
     const { data: rows, error } = await context.supabase
       .from("dictionary_entries")
-      .select(
-        "headword, zhuyin, pinyin, meaning_ja, pos, tocfl_level, audio_path, source, entry_type",
-      )
+      // 列の並びは `dictionary-entry.ts` が持つ。**1箇所に書く** —
+      // 並びと読み直しが別々の場所にあると、列を足したとき片方だけ直る。
+      .select(DICTIONARY_SELECT)
       .eq("language", data.language)
-      .in("headword", words);
+      .in("headword", words)
+      .overrideTypes<Row[]>();
     if (error) throw new Error(error.message);
 
     // §4.3: pre-generated audio is served straight from Storage. Sign all
@@ -340,9 +371,22 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
 
     const map: Record<string, DictionaryEntry> = {};
     for (const r of rows ?? []) {
+      // **読む人の言語で読み直す。** 英語の行は新しい列にしか入って
+      // いないので、ここを通さないと読みも意味も空で返る
+      // (辞書だけでカードを出す道が英語で丸ごと死んでいた)。
+      const f = resolveDictionaryFields(r, data.explain_lang);
       map[r.headword] = {
-        ...(r as Omit<DictionaryEntry, "audio_url">),
+        headword: r.headword,
+        zhuyin: f.reading,
+        pinyin: f.readingAlt,
+        meaning_ja: f.meaning,
+        pos: r.pos ?? null,
+        tocfl_level: r.tocfl_level ?? null,
+        level_step: f.levelStep,
+        audio_path: r.audio_path ?? null,
         audio_url: r.audio_path ? (urlByPath.get(r.audio_path) ?? null) : null,
+        source: r.source ?? null,
+        entry_type: r.entry_type ?? null,
       };
     }
     return { entries: map };

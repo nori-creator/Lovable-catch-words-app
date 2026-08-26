@@ -26,8 +26,11 @@ import {
   replaceStickerPhoto,
   setStickerHeroRole,
   attachStickerCutout,
+  attachStickerSelfie,
 } from "@/lib/stickers.functions";
 import { fetchImageAsDataUrl } from "@/lib/images.functions";
+import type { PhotoSurface } from "@/lib/photo-surface";
+import { resolveSurfaceRole, setSurfaceRole, useSurfaceRole } from "@/lib/photo-surface";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
@@ -43,7 +46,8 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceVideoNote } from "@/components/VoiceVideoNote";
+import { VoiceNote } from "@/components/VoiceNote";
+import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
@@ -76,6 +80,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   const replacePhotoFn = useServerFn(replaceStickerPhoto);
   const setHeroRoleFn = useServerFn(setStickerHeroRole);
   const attachCutoutFn = useServerFn(attachStickerCutout);
+  const attachSelfieFn = useServerFn(attachStickerSelfie);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<null | "delete" | "image">(null);
   // 削除の誤操作防止: 1回目のタップで「本当に削除?」に変わり、4秒で元に戻る。
@@ -212,19 +217,40 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   // 押さえれば変えられる。長押し成立後のクリックはフリップさせない。
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
-  const [heroPickerOpen, setHeroPickerOpen] = useState(false);
+  /**
+   * **どの画面のための選択か**(オーナー指示 2026-08-25
+   * 「アルバムと単語詳細で別々に種類を選べる」)。
+   *
+   * `null` = 面が閉じている。前は真偽値だったが、それだと同じ面が
+   * どちらの画面の見え方を触っているのか持てない。
+   */
+  const [pickerSurface, setPickerSurface] = useState<PhotoSurface | null>(null);
   // ホームのアルバムを長押しで来たときは、開いた瞬間に写真の面を出す。
+  // **そのときの選択はアルバムの選択**であって、詳細の見え方は変えない。
   useEffect(() => {
-    if (openPhotoPicker && stickerId) setHeroPickerOpen(true);
+    if (openPhotoPicker && stickerId) setPickerSurface("album");
   }, [openPhotoPicker, stickerId]);
+  const albumRole = useSurfaceRole("album", stickerId ?? null);
   const [savingHero, setSavingHero] = useState(false);
 
   /**
-   * この1枚の主役を決める(要望 #17)。
-   * **失敗を握り潰さない** — 移行がまだ当たっていない環境では
+   * この1枚の主役を決める(要望 #17 / オーナー指示 2026-08-25)。
+   *
+   * **画面ごとに別々に持つ。**
+   * - アルバム … この端末に憶える(`photo-surface.ts` の注のとおり、
+   *   `hero_role` は列が1つしか無く、2つの選択を入れられない)
+   * - 単語の詳細 … 今までどおりサーバの `hero_role`。端末をまたいで残る
+   *
+   * 詳細のほうは**失敗を握り潰さない** — 移行がまだ当たっていない環境では
    * 保存できないので、その理由をそのまま出す。
    */
-  async function pickHeroRole(role: PhotoRole | null) {
+  async function pickHeroRole(surface: PhotoSurface, role: PhotoRole) {
+    if (!stickerId) return;
+    if (surface === "album") {
+      setSurfaceRole("album", stickerId, role);
+      setPickerSurface(null);
+      return;
+    }
     if (savingHero) return;
     setSavingHero(true);
     try {
@@ -236,7 +262,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         return;
       }
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      setHeroPickerOpen(false);
+      setPickerSurface(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
     } finally {
@@ -252,7 +278,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
       // 以前はここが素のネイティブの窓で、押すとファイル選択へ**直行**して
       // いた。つまり「表示する絵を選ぶ」ができず、要望の半分しか無かった。
       // しかもあの窓はこのアプリの字体にも暗いテーマにも従わない。
-      setHeroPickerOpen(true);
+      setPickerSurface("detail");
     }, 550);
   }
   function heroPressEnd() {
@@ -354,11 +380,52 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
       await attachCutoutFn({ data: { sticker_id: stickerId, cutout_path: path } });
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
       await qc.invalidateQueries({ queryKey: ["stickers"] });
-      setHeroPickerOpen(false);
+      setPickerSurface(null);
     } catch (e) {
       // **黙って飲まない。** 待ったのに何も起きないのがいちばん困る。
       console.warn("cutout failed", e);
       toast.error(t("photo.cutoutFailed"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * あとから自撮りを足す(オーナー指示 2026-08-25
+   * 「切り抜きが無ければ切り抜きボタン、自撮りが無ければ自撮りボタン」)。
+   *
+   * **元の写真を差し替えない。** 足すのは `selfie_image_url` だけ
+   * (`attachStickerSelfie` がその1列しか触らない)。
+   */
+  async function selfieNow(file: File) {
+    if (!stickerId || busy) return;
+    setBusy("image");
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(file);
+      });
+      const small = await downscaleDataUrl(dataUrl, 1280, 0.82);
+      const blob = await (await fetch(small)).blob();
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) throw new Error("Not signed in");
+      const path = `${uid}/${Date.now()}-selfie.jpg`;
+      const { error } = await supabase.storage
+        .from("stickers")
+        .upload(path, blob, { contentType: blob.type, upsert: false });
+      if (error) throw error;
+      void putCachedImage(path, blob);
+      await attachSelfieFn({ data: { sticker_id: stickerId, selfie_path: path } });
+      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      setPickerSurface(null);
+    } catch (e) {
+      // 切り抜きと同じ。**黙って飲まない。**
+      console.warn("selfie failed", e);
+      toast.error(t("photo.selfieFailed"));
     } finally {
       setBusy(null);
     }
@@ -713,7 +780,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
       {/* 長押しで開く「主役の写真」の面(要望 #17)。
           **札の上に重ねる** — 別の画面へ飛ばすと、選んだ結果を
           その場で確かめられない。 */}
-      {heroPickerOpen && s && (
+      {pickerSurface && s && (
         <div
           className="absolute inset-0 z-20 overflow-y-auto bg-background/95 p-4 backdrop-blur-sm"
           role="dialog"
@@ -722,15 +789,19 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         >
           <HeroPhotoPicker
             sources={s}
-            current={s.hero_role ?? null}
+            surface={pickerSurface}
+            // アルバムの選択は端末に、詳細の選択はサーバに在る。
+            // **今その画面で効いている物**に印を付ける。
+            current={pickerSurface === "album" ? albumRole : (s.hero_role ?? null)}
             saving={savingHero || busy === "image"}
-            onPick={(role) => void pickHeroRole(role)}
+            onPick={(role) => void pickHeroRole(pickerSurface, role)}
             onReplaceFile={() => {
-              setHeroPickerOpen(false);
+              setPickerSurface(null);
               fileInputRef.current?.click();
             }}
             onCutoutNow={s.object_url && !s.cutout_url ? () => void cutoutNow() : undefined}
-            onClose={() => setHeroPickerOpen(false)}
+            onSelfieFile={s.selfie_url ? undefined : (f) => void selfieNow(f)}
+            onClose={() => setPickerSurface(null)}
           />
         </div>
       )}
@@ -839,7 +910,14 @@ export function StickerSheetBody({
    * 札の指定がいちばん細かい話なので、いちばん強い。
    */
   const photoPref = usePhotoPref();
-  const hero = pickStickerPhoto(s, { prefer: s.hero_role ?? resolvePrefer(photoPref, null) });
+  const hero = pickStickerPhoto(s, {
+    // 詳細の選択は `hero_role`(サーバ)に在る。**知らない値は無視する** —
+    // 古い行や、他所で書き込まれた値でこの画面を落とさない。
+    prefer: resolveSurfaceRole({
+      heroRole: s.hero_role,
+      screenIntent: resolvePrefer(photoPref, null),
+    }),
+  });
   /**
    * 画面に出す意味・例文訳・解説。共有キャッシュを先に見て、無ければ
    * 古い `words` の列に落ちる(落とし方は `word-explanation.ts`)。
@@ -1020,6 +1098,10 @@ export function StickerSheetBody({
 
       {/* When & Where chip */}
       <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
+        {/* いつ・**一言**・どこで。オーナー指示 2026-08-26「再生ボタンは
+            真ん中、日付と場所の名前の隣に置いて」。一言は「いつ・どこで
+            出会って、そのとき何を思ったか」の3つ目なので、前の2つと
+            同じ行に並ぶのが素直。 */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-footnote text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
@@ -1031,6 +1113,7 @@ export function StickerSheetBody({
               minute: "2-digit",
             })}
           </div>
+          {s.voice_video_url && <VoiceNotePlayer url={s.voice_video_url} />}
           {(s.location_name || (s.lat != null && s.lng != null)) && (
             <a
               href={
@@ -1063,12 +1146,12 @@ export function StickerSheetBody({
           再会が無ければ何も描かない。 */}
       <StickerPhotoHistory photos={photos} dateLocale={localeOf(uiLang)} />
 
-      {/* 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
+      {/* 一言の**録音**(オーナー指示 2026-08-26「音声だけにして」)。
           **キャッチの保存経路には入れない** — あそこは「一瞬でも早く」の
           本体で、いちばん壊してはいけない所。保存が終わったこのカードから
-          撮る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
-          記録」だから。 */}
-      <VoiceVideoNote stickerId={s.id} videoUrl={s.voice_video_url} />
+          録る。写真の履歴の隣に置くのは、どちらも「その語に出会ったときの
+          記録」だから。**聞く所はここに無い** — 日付と場所の行の真ん中。 */}
+      <VoiceNote stickerId={s.id} audioUrl={s.voice_video_url} />
 
       <WordCard
         word={{

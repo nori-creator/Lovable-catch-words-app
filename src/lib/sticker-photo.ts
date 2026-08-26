@@ -79,9 +79,11 @@ export type PickOptions = {
   exclude?: readonly PhotoRole[];
 };
 
-function isRole(v: unknown): v is PhotoRole {
+/** 役の名前として通るか。**判定は1箇所**(画面ごとの選択も同じ物を読む)。 */
+export function isPhotoRole(v: unknown): v is PhotoRole {
   return typeof v === "string" && (ROLES as readonly string[]).includes(v);
 }
+const isRole = isPhotoRole;
 
 /** その役の絵を1つ取り出す。縮小版が要るときは縮小版を先に見る。 */
 function urlFor(s: PhotoSources, role: PhotoRole, wantThumb: boolean): PickedPhoto | null {

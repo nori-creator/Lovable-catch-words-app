@@ -59,6 +59,15 @@ export type LevelScale = {
    */
   toStored: (index: LevelIndex) => string;
   /**
+   * **級外**を保存するときの文字列。
+   *
+   * オーナー指示 2026-08-26「CEFR-J に無い語は級外にして」。級が付いて
+   * いない語に「A2」と書くと、公式の級と見分けが付かなくなる。
+   * `parseLevelStep` がこれを `LEVEL_OUT` として読み返せること
+   * (= 6段の外の数字を持つこと)が条件。
+   */
+  outStored: string;
+  /**
    * 「その段の名前 + 帯」の言い方の翻訳キー。
    *
    * **体系ごとに違う。** TOCFL は「2級（Band A）」だが、CEFR で
@@ -83,6 +92,7 @@ export const TOCFL_SCALE: LevelScale = {
   id: "TOCFL",
   labels: ["1", "2", "3", "4", "5", "6"],
   toStored: (i) => `TOCFL-${i}`,
+  outStored: "TOCFL-0",
   levelInBandKey: "tocfl.levelInBand",
   outKey: "tocfl.out",
   optionLabel: (label) => `TOCFL Level ${label}`,
@@ -96,6 +106,8 @@ export const CEFR_SCALE: LevelScale = {
   id: "CEFR",
   labels: ["A1", "A2", "B1", "B2", "C1", "C2"],
   toStored: (i) => CEFR_SCALE.labels[i - 1],
+  // `A1`〜`C2` の綴りに当たらず、数字が 6段の外。**級外として読み返せる**。
+  outStored: "CEFR-0",
   levelInBandKey: "cefr.levelInBand",
   outKey: "cefr.out",
   // CEFR に `Level` は付けない。`CEFR B1` がその体系の書き方。

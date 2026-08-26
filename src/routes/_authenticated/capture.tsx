@@ -21,11 +21,12 @@ import {
   PartyPopper,
   WifiOff,
   ImagePlus,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard } from "@/lib/ai.functions";
-import { saveSticker } from "@/lib/stickers.functions";
+import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
@@ -33,6 +34,8 @@ import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-spe
 import { putCachedImage } from "@/lib/image-cache";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
+import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
+import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
@@ -189,8 +192,13 @@ function CapturePage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedHead, setSelectedHead] = useState<string>("");
   const [manualWord, setManualWord] = useState<string>("");
+  // カメラの画面に**直接**置く検索の欄(オーナー指示 2026-08-26)。
+  const [typedWord, setTypedWord] = useState("");
   const [card, setCard] = useState<CardData | null>(null);
   const [caption, setCaption] = useState("");
+  // 声で吹き込んだ一言。**保存の経路には入れない** — 札が出来てから
+  // 裏で上げる(オーナー「一瞬でも早く」が最大のペイン)。
+  const [voiceNote, setVoiceNote] = useState<RecordedNote | null>(null);
   /**
    * どこで撮ったか。**画面を開いた時から温めておき、保存の直前に短く待つ。**
    * 以前は解析の頭で `getCurrentPosition` を投げっぱなしにしていたので、
@@ -250,6 +258,7 @@ function CapturePage() {
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
   const saveFn = useServerFn(saveSticker);
+  const attachVoiceFn = useServerFn(setStickerVoiceVideo);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
 
@@ -616,6 +625,29 @@ function CapturePage() {
       // 保存は済んでいるので、以後は何が転んでも図鑑へ送る。
       savedRef.current = true;
 
+      // **声の一言は札が出来てから、裏で。**
+      // ここを待つと、いちばん壊してはいけない「一瞬でも早く」が削れる。
+      // 落ちたときは黙って捨てず、そこだけ伝える(写真の一言は保存済み)。
+      if (voiceNote) {
+        const note = voiceNote;
+        void (async () => {
+          try {
+            const path = await uploadVoiceNote({
+              blob: note.blob,
+              mime: note.mime,
+              stickerId: res.id,
+            });
+            const saved = await attachVoiceFn({
+              data: { sticker_id: res.id, voice_video_path: path },
+            });
+            if (!saved.saved) toast.error(t("voice.needsMigration"));
+          } catch (e) {
+            console.warn("voice note attach failed", e);
+            toast.error(t("voice.attachFailed"));
+          }
+        })();
+      }
+
       // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
       void queryClient.invalidateQueries({ queryKey: ["stickers"] });
       if (pendingId) void removePendingCapture(pendingId);
@@ -756,63 +788,16 @@ function CapturePage() {
   return (
     <AppShell title={t("title.capture")}>
       {step === "object" && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
-            <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
-          </div>
-          {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
-              思い出させる。ここに来るまでに数タップ挟まるので、
-              単語を持ってこないと目的が消える。 */}
-          {retakeParam && (
-            <p className="ja-phrase rounded-2xl bg-secondary px-3 py-2 text-footnote font-semibold">
-              {t("retake.hint", { w: retakeParam })}
-            </p>
-          )}
-          <label className="block">
-            <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
-              <div className="flex flex-col items-center gap-2">
-                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
-                  <Camera className="h-8 w-8" />
-                </span>
-                <span className="text-body font-medium">{t("capture.tapToShoot")}</span>
-              </div>
-            </div>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleObjectFile(e.target.files[0])}
-            />
-          </label>
-
-          <div className="flex items-center gap-3 pt-2">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-footnote text-muted-foreground">{t("capture.or")}</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <button
-            onClick={() => setInputSheet({})}
-            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
-          >
-            <Keyboard className="h-4 w-4" />
-            {t("capture.typeWord")}
-          </button>
-
-          {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
-          <button
-            onClick={() => navigate({ to: "/scan" })}
-            className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
-          >
-            <ScanLine className="h-4 w-4" />
-            {t("capture.openScan")}
-          </button>
-
-          {error && <p className="text-body text-destructive-ink">{error}</p>}
-        </div>
+        <CaptureObjectPanel
+          retakeWord={retakeParam ?? null}
+          cameraInputRef={cameraInputRef}
+          onObjectFile={handleObjectFile}
+          typedWord={typedWord}
+          setTypedWord={setTypedWord}
+          onSearch={(w) => setInputSheet({ text: w, auto: true })}
+          onOpenScan={() => navigate({ to: "/scan" })}
+          error={error}
+        />
       )}
 
       {step === "selfie" && (
@@ -897,6 +882,8 @@ function CapturePage() {
           setFlipped={setFlipped}
           caption={caption}
           setCaption={setCaption}
+          voiceNote={voiceNote}
+          setVoiceNote={setVoiceNote}
           placeName={loc?.name ?? null}
           onRedo={reset}
           onSave={handleSave}
@@ -1264,6 +1251,8 @@ export function CaptureCardPanel({
   setFlipped,
   caption,
   setCaption,
+  voiceNote,
+  setVoiceNote,
   placeName,
   onRedo,
   onSave,
@@ -1278,6 +1267,9 @@ export function CaptureCardPanel({
   setFlipped: (f: (v: boolean) => boolean) => void;
   caption: string;
   setCaption: (v: string) => void;
+  /** 声で吹き込んだ一言。**まだ上げていない**(札が出来てから裏で上げる)。 */
+  voiceNote: RecordedNote | null;
+  setVoiceNote: (n: RecordedNote | null) => void;
   placeName: string | null;
   onRedo: () => void;
   onSave: () => void;
@@ -1336,13 +1328,22 @@ export function CaptureCardPanel({
         <Label htmlFor="caption" className="text-footnote text-muted-foreground">
           {t("capture.note")}
         </Label>
-        <Textarea
-          id="caption"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          placeholder={t("capture.notePlaceholder")}
-          rows={2}
-        />
+        {/* **声のボタンは文字の欄の隣**(オーナー指示 2026-08-26)。
+            一言は「文字で書く」か「声で言う」かの同じ用事の2つの言い方で、
+            離すと別の機能に見える。歩きながら・荷物を持ったまま —
+            文字が打てない場面ほど一言は残したくなる。
+            録るだけで、上げも結び付けもしない(保存を1ミリ秒も遅くしない)。 */}
+        <div className="mt-1 flex items-start gap-2">
+          <Textarea
+            id="caption"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            placeholder={t("capture.notePlaceholder")}
+            rows={2}
+            className="flex-1"
+          />
+          <VoiceCaptionButton value={voiceNote} onChange={setVoiceNote} />
+        </div>
       </div>
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
@@ -1355,6 +1356,127 @@ export function CaptureCardPanel({
           <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 撮る前の画面。**このアプリで最初に見る面**。
+ *
+ * ## なぜ切り出したか
+ * ここは長らく検査の雛形に**場面が無かった**ので、一度も機械の目に
+ * 映っていなかった。この作業場では「場面が無い部品は測られない」で
+ * 何度も落ちている(項目の並べ替えの 22×22 の指はその典型)。
+ * ルートは10個の状態を持っていて雛形からは描けないので、**描く所だけ**
+ * をここへ出す(撮った後のカードや保存中の面と同じ扱い)。
+ *
+ * ## 検索の欄がここに在る
+ * オーナー指示 2026-08-26「検索欄をカメラの画面に直接置いて」。
+ * 前は「文字で打つ」のボタンで、押して面が開いてからようやく打てた。
+ */
+export function CaptureObjectPanel({
+  retakeWord,
+  cameraInputRef,
+  onObjectFile,
+  typedWord,
+  setTypedWord,
+  onSearch,
+  onOpenScan,
+  error,
+}: {
+  /** 復習の「もう一度撮ってみる?」から来たときの語。 */
+  retakeWord: string | null;
+  cameraInputRef: RefObject<HTMLInputElement | null>;
+  onObjectFile: (f: File) => void;
+  typedWord: string;
+  setTypedWord: (v: string) => void;
+  onSearch: (word: string) => void;
+  onOpenScan: () => void;
+  error: string | null;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
+        <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
+      </div>
+      {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
+              思い出させる。ここに来るまでに数タップ挟まるので、
+              単語を持ってこないと目的が消える。 */}
+      {retakeWord && (
+        <p className="ja-phrase rounded-2xl bg-secondary px-3 py-2 text-footnote font-semibold">
+          {t("retake.hint", { w: retakeWord })}
+        </p>
+      )}
+      <label className="block">
+        <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
+          <div className="flex flex-col items-center gap-2">
+            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
+              <Camera className="h-8 w-8" />
+            </span>
+            <span className="text-body font-medium">{t("capture.tapToShoot")}</span>
+          </div>
+        </div>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
+        />
+      </label>
+
+      <div className="flex items-center gap-3 pt-2">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-footnote text-muted-foreground">{t("capture.or")}</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* **検索の欄そのものをここに置く**(オーナー指示 2026-08-26
+              「検索欄をカメラの画面に直接置いて」)。
+              前は「文字で打つ」のボタンで、押して面が開いてから
+              ようやく打てた — 撮るのと同じ画面で調べたいのに、
+              **打ち始めるまでに1タップ**かかっていた。
+              打った語はそのまま候補の面へ渡す(`autoLookup`)ので、
+              打ってから調べ始まるまでの手数は 1回押すだけになる。 */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const w = typedWord.trim();
+          if (!w) return;
+          onSearch(w);
+          setTypedWord("");
+        }}
+        className="flex items-center gap-2"
+      >
+        <div className="relative flex-1">
+          <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={typedWord}
+            onChange={(e) => setTypedWord(e.target.value)}
+            placeholder={t("capture.searchPlaceholder")}
+            aria-label={t("capture.typeWord")}
+            enterKeyHint="search"
+            className="h-11 pl-9"
+          />
+        </div>
+        <Button type="submit" disabled={!typedWord.trim()} className="h-11 shrink-0 px-4">
+          <Search className="h-4 w-4" />
+        </Button>
+      </form>
+
+      {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
+      <button
+        onClick={onOpenScan}
+        className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
+      >
+        <ScanLine className="h-4 w-4" />
+        {t("capture.openScan")}
+      </button>
+
+      {error && <p className="text-body text-destructive-ink">{error}</p>}
     </div>
   );
 }

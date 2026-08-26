@@ -1225,7 +1225,9 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
  * その札の「一言の自撮り動画」を結び付ける(オーナー決定 2026-08-21 = B案)。
  *
  * 中身は先に `stickers` バケットへ上げてあり、ここは**場所を書き留めるだけ**。
- * 置き場所の決め方は `src/lib/voice-video.ts` の `voiceVideoPath` が唯一の正。
+ * 置き場所の決め方は `src/lib/voice-note.ts` の `voiceNotePath` が唯一の正。
+ * (列の名前が `voice_video_url` のままなのは、オーナーが Supabase に直接
+ *  触れないため。中身は 2026-08-26 から**音声だけ**。)
  *
  * **列がまだ無い環境では、静かに諦める。** 移行が当たっていないだけで
  * カードの閲覧まで壊すのは行き過ぎなので、保存できなかったことだけを返す
@@ -1264,6 +1266,41 @@ export const setStickerVoiceVideo = createServerFn({ method: "POST" })
       return { saved: false, reason: "migration" };
     }
     throw new Error(error.message);
+  });
+
+const AttachSelfieInput = z.object({
+  sticker_id: z.string().uuid(),
+  selfie_path: z.string().min(1),
+});
+
+/**
+ * **後から自撮りを足す**(オーナー指示 2026-08-25
+ * 「自撮り未実施なら自撮りボタンを表示」)。
+ *
+ * 自撮りはキャッチの流れの中でしか撮れなかった。撮り損ねた札は
+ * **二度と自撮りを持てない**ので、裏返しても永遠に「自撮りはまだありません」
+ * と出る。詳細の画面から足せるようにする。
+ *
+ * `attachStickerCutout` と同じ形にしてある — 元の写真には触らず、
+ * **1つの欄だけを足す**。`replaceStickerPhoto` を使い回すと、
+ * 自撮りを足すたびに元写真の差し替え扱いになって切り抜きが消える。
+ */
+export const attachStickerSelfie = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => AttachSelfieInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    // **他人の場所に書かせない。** 切り抜きの側と同じ門を通す。
+    if (!data.selfie_path.startsWith(`${userId}/`)) {
+      throw new Error("不正な画像パスです");
+    }
+    const { error } = await supabase
+      .from("stickers")
+      .update({ selfie_image_url: data.selfie_path })
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 const AttachCutoutInput = z.object({

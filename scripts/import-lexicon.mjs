@@ -107,7 +107,7 @@ function loadCefrj(lib) {
   const p = arg("cefrj");
   if (!p) {
     console.warn(
-      "! CEFR-J を渡していない。級は頻度と検定タグからの**見積もり**になる。\n" +
+      "! CEFR-J を渡していない。**全部の語が級外になる**。\n" +
         "  公式の級を使うなら --cefrj <json> を付ける。",
     );
     return new Map();
@@ -149,9 +149,11 @@ async function build() {
   let kept = 0;
   const rows = [];
   const stats = {
+    // `null`(級外)も鍵として数える。数えないと「級外がいくつ出たか」が
+    // 見えないまま流すことになる。
     byLevel: new Map(),
     official: 0,
-    guessed: 0,
+    none: 0,
     withIpaUs: 0,
     withForms: 0,
     phrases: 0,
@@ -195,7 +197,7 @@ async function build() {
     kept++;
     stats.byLevel.set(built.level_step, (stats.byLevel.get(built.level_step) ?? 0) + 1);
     if (official != null) stats.official++;
-    else stats.guessed++;
+    else stats.none++;
     if (built.reading_primary) stats.withIpaUs++;
     if (built.forms) stats.withForms++;
     if (built.entry_type === "phrase") stats.phrases++;
@@ -207,12 +209,12 @@ async function build() {
   console.log(
     "級の散らばり:",
     [...stats.byLevel]
-      .sort((a, b) => a[0] - b[0])
-      .map(([k, v]) => `${["A1", "A2", "B1", "B2", "C1", "C2"][k - 1]}=${v}`)
+      .sort((a, b) => (a[0] ?? 99) - (b[0] ?? 99))
+      .map(([k, v]) => `${k == null ? "級外" : ["A1", "A2", "B1", "B2", "C1", "C2"][k - 1]}=${v}`)
       .join(" "),
   );
   console.log(
-    `公式の級 ${stats.official} / 見積もり ${stats.guessed}` +
+    `公式の級 ${stats.official} / 級外 ${stats.none}` +
       ` · 米式発音あり ${stats.withIpaUs} · 活用あり ${stats.withForms} · 言い回し ${stats.phrases}`,
   );
   return rows;
@@ -332,12 +334,42 @@ function toCsv(rows) {
   return [header.join(","), ...body].join("\n") + "\n";
 }
 
+/**
+ * **級を書き出す道は CEFR-J が要る。**
+ *
+ * オーナー指示 2026-08-26 で頻度からの見積もりをやめたので、CEFR-J を
+ * 渡さずに流すと**全部の語が級外**になる。それを黙って書き出すと、
+ * 既に入っている公式の級を級外で上書きしてしまう
+ * (`toSql` の `level_step = excluded.level_step`)。
+ *
+ * 中身を見るだけの `build` は通す — 材料が揃っているかを確かめる道を
+ * 塞ぐと、何が足りないのかを調べる手立てが無くなる。
+ */
+function requireCefrj(cmd) {
+  if (arg("cefrj")) return;
+  die(
+    [
+      `${cmd} は --cefrj が要る。`,
+      "",
+      "  頻度からの級の見積もりはやめた(オーナー指示 2026-08-26)。",
+      "  CEFR-J を渡さないと全部の語が級外になり、いま入っている",
+      "  公式の級を級外で上書きしてしまう。",
+      "",
+      "  CEFR-J Wordlist から作った json を渡す:",
+      `    ${cmd} --cefrj /path/to/cefrj.json`,
+      "",
+      "  形: [{ headword, pos, cefr }] (cefr は A1〜B2)",
+    ].join("\n"),
+  );
+}
+
 const cmd = process.argv[2];
 if (cmd === "fetch") {
   await fetchSources();
 } else if (cmd === "build") {
   await build();
 } else if (cmd === "sql") {
+  requireCefrj("sql");
   const rows = await build();
   const dest = arg("out");
   const sql = toSql(rows);
@@ -348,6 +380,7 @@ if (cmd === "fetch") {
     process.stdout.write(sql);
   }
 } else if (cmd === "csv") {
+  requireCefrj("csv");
   const rows = await build();
   const dest = arg("out") || path.join(CACHE, "lexicon");
   // 1回に貼れるのは 5,000行まで（server の上限）。
@@ -363,6 +396,7 @@ if (cmd === "fetch") {
   for (const p of parts) console.error(`   ${p.file}  ${p.n} 行`);
   console.error(`\n  設定 → 辞書管理 → 言語に「英語」を選んでから、順に貼る。`);
 } else if (cmd === "json") {
+  requireCefrj("json");
   const rows = await build();
   const dest = arg("out") || path.join(CACHE, "lexicon.ndjson");
   fs.writeFileSync(dest, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -374,9 +408,13 @@ if (cmd === "fetch") {
       "  V=node_modules/.bin/vite-node",
       "  $V scripts/import-lexicon.mjs -- fetch                 材料を落とす",
       "  $V scripts/import-lexicon.mjs -- build [--cefrj x.json]  中身を見る",
-      "  $V scripts/import-lexicon.mjs -- sql   [--out x.sql]     入れる SQL",
-      "  $V scripts/import-lexicon.mjs -- csv   [--out x]          取り込み欄に貼る CSV",
-      "  $V scripts/import-lexicon.mjs -- json  [--out x.ndjson]  1行1件",
+      "  $V scripts/import-lexicon.mjs -- sql   --cefrj x.json [--out x.sql]  入れる SQL",
+      "  $V scripts/import-lexicon.mjs -- csv   --cefrj x.json [--out x]      取り込み欄に貼る CSV",
+      "  $V scripts/import-lexicon.mjs -- json  --cefrj x.json [--out x.ndjson]  1行1件",
+      "",
+      "  級は CEFR-J だけが決める(頻度からの見積もりはやめた)。",
+      "  書き出す3つは --cefrj が要る — 渡さないと全部級外になり、",
+      "  いま入っている公式の級を上書きしてしまう。",
       "",
       "  --limit N      N 語で止める（試すとき）",
       "  --freq-top N   頻度の境目（既定 20000）",

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { meaningRule, distinctionRule } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { targetProfile } from "./target-profile";
@@ -29,6 +30,7 @@ import {
   getAi,
   getAiFor,
   getUserLevelGoal,
+  getUserTargetLanguage,
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
@@ -134,16 +136,7 @@ ${langRule}
 
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
 
-**distinction(使い分けの一言)は、区別が要るときだけ書く:**
-書くのは「母語では1語なのに${profile.promptName}では**別の語に分かれる**」場合だけ。
-そのときだけ、見た人が**なぜこの語であって隣の語ではないのか**を選べる。
-- 書く例: ${profile.capture.distinctionExamples}
-- **書かない**: 母語と一対一で、迷いようがない語。
-  ある語に「その物全般を指す表現」と書くのは意味の言い換えでしかなく、
-  読む人に何も足さない(オーナー指摘 2026-08-20)。そういう語は
-  distinction を**空文字**にする。
-- 迷ったら空にする。**選ぶ手がかりにならない一言は、無いより悪い** —
-  全部の行に何か書いてあると、本当に区別が要る行が埋もれる。`;
+${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
 
     let content: string;
     try {
@@ -339,7 +332,7 @@ ${levelRule}
 必須項目:
 - headword_zh: 上記ルールで決めた${cardProfile.promptName}の見出し語
 ${cardProfile.capture.readingRule}
-- meaning_ja: 意味（簡潔に。**解説の言語**で書く — 英語設定なら英語で）
+- meaning_ja: ${meaningRule(cardProfile.promptName, NL)}
 - part_of_speech: ${cardProfile.capture.posRule}
 - level: ${cardProfile.levels.id} のレベル（${levelNames} のいずれか）
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
@@ -592,21 +585,28 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
     const NL = explanationLanguageName(explainLang);
     // フレーズの返し方も母語で崩れ方が違う(語順・助詞・丁寧さの出し方)。
     const l1Gram = await l1Rule(context.userId, "wordorder");
+    /**
+     * **学習言語を決め打たない。** ここは「台湾華語(繁體字)のフレーズカードを
+     * 作ります」から始まり、読みも返し方も繁體字で固定されていた。
+     * 英語を学ぶ人が一言をフレーズとして拾うと、**英語の画面に中文の
+     * フレーズカード**が返ってくる（オーナー報告の症状と同じ形）。
+     */
+    const phraseProfile = targetProfile(await getUserTargetLanguage(context.userId));
     const result = await generateText({
       model: ai.gateway(ai.modelRich),
       prompt:
-        `台湾華語(繁體字)のフレーズカードを作ります。\n${langRule}\n${levelRule}\n${l1Gram}\n` +
+        `${phraseProfile.promptName}のフレーズカードを作ります。\n${langRule}\n${levelRule}\n${l1Gram}\n` +
         `フレーズ: 「${data.phrase}」\n` +
         (data.scene ? `聞いた/使いたいシーン: ${data.scene}\n` : "") +
-        `学習者の目標レベル: ${levelGoal}(TOCFL)。repliesの語彙はこのレベル以下に抑える。\n` +
+        `学習者の目標レベル: ${levelGoal}(${phraseProfile.levels.id})。repliesの語彙はこのレベル以下に抑える。\n` +
         `\n次をJSONオブジェクトだけで出力(前置き・マークダウン不要):\n` +
-        `- reading_zhuyin: フレーズ全体の注音(台湾教育部準拠)\n` +
-        `- pinyin: 拼音\n` +
-        `- meaning_ja: 意味(簡潔に、${NL}で)\n` +
+        `${phraseProfile.capture.readingRule}\n` +
+        `- meaning_ja: ${meaningRule(phraseProfile.promptName, NL)}\n` +
         `- usage_note: いつ・誰が・どんなトーンで使うか(1〜2文、${NL})\n` +
         `- common_situation: 最もよくある場面(1文、${NL})\n` +
-        `- replies: このフレーズを言われた時の自然な返し方2〜3個 {zh: 繁體字, ja: ${NL}訳}。` +
-        `例:「請稍等」→「好、謝謝」\n` +
+        `- replies: このフレーズを言われた時の自然な返し方2〜3個 ` +
+        `{zh: ${phraseProfile.capture.jsonHeadwordHint}, ja: ${NL}訳}。` +
+        `**${phraseProfile.promptName}で書く。**\n` +
         `形式: {"reading_zhuyin":"","pinyin":"","meaning_ja":"","usage_note":"","common_situation":"","replies":[{"zh":"","ja":""}]}`,
     });
     const card = (() => {
@@ -761,7 +761,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
     const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
       meaning: {
-        prompt: `${base}\n{"meaning_ja": "意味(${NL}で簡潔に、複数の意味があれば「/」区切り)"}`,
+        prompt: `${base}\n${meaningRule(regenProfile.promptName, NL)}\n{"meaning_ja": ""}`,
         schema: z.object({ meaning_ja: z.string().min(1) }),
       },
       measure_words: {

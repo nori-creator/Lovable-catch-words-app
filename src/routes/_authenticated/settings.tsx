@@ -29,7 +29,6 @@ import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic"
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
-import { DATA_SOURCES } from "@/lib/data-sources";
 import { useT, setUiLang } from "@/lib/i18n";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
@@ -121,14 +120,12 @@ const CHOICE_COLS = {
  */
 export function ChoiceRow<T extends string | number>({
   label,
-  hint,
   options,
   value,
   onChange,
   cols,
 }: {
   label: string;
-  hint?: string;
   options: ReadonlyArray<{ value: T; label: string }>;
   value: T;
   onChange: (v: T) => void;
@@ -165,7 +162,6 @@ export function ChoiceRow<T extends string | number>({
           </button>
         ))}
       </div>
-      {hint && <p className="mt-1 text-caption text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -202,14 +198,12 @@ const LEVEL_SCALE_DEFAULT = {
 export function SelectRow({
   id,
   label,
-  hint,
   value,
   onChange,
   options,
 }: {
   id: string;
   label: string;
-  hint?: string;
   value: string;
   onChange: (v: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
@@ -229,7 +223,6 @@ export function SelectRow({
           </option>
         ))}
       </select>
-      {hint && <p className="mt-1 text-caption text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -450,12 +443,15 @@ function SettingsPage() {
             <SelectRow
               id="lang-level"
               label={t("settings.levelGoal")}
-              hint={t("settings.levelHint")}
               value={levelGoal}
               onChange={setLevelGoal}
               options={levelChoices}
             />
-            <PhoneticRow />
+            {/* **学習言語を渡す。** 渡していなかったので既定(台湾華語)で
+                考え、**英語を学ぶ人にも注音・拼音の選択が出ていた**
+                (オーナー指摘「学習言語が英語のときピンイン・注音の設定を
+                消して」)。英語では米式/英式の IPA の選択になる。 */}
+            <PhoneticRow lang={targetLanguage} />
             {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
                 日本語、英語、台湾華語にして」。ほとんどの人にとって
                 「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
@@ -483,7 +479,6 @@ function SettingsPage() {
             <ChoiceRow
               cols={3}
               label={t("settings.reviewMode")}
-              hint={t("settings.reviewModeHint")}
               value={reviewMode}
               onChange={(v) => {
                 const next = normalizeReviewMode(v);
@@ -503,7 +498,6 @@ function SettingsPage() {
             <ChoiceRow
               cols={4}
               label={t("settings.photoPref")}
-              hint={t("settings.photoPrefHint")}
               value={photoPref}
               onChange={(v) => {
                 setPhotoPrefState(v);
@@ -522,7 +516,6 @@ function SettingsPage() {
             <ChoiceRow
               cols={2}
               label={t("settings.catchSpeed")}
-              hint={t("settings.catchSpeedHint")}
               value={catchSpeed}
               onChange={(v) => {
                 setCatchSpeedState(v);
@@ -549,7 +542,6 @@ function SettingsPage() {
             <ChoiceRow
               cols={5}
               label={t("settings.reviewLimit")}
-              hint={t("settings.reviewLimitHint")}
               value={reviewLimit}
               onChange={setReviewLimit}
               options={[
@@ -563,7 +555,6 @@ function SettingsPage() {
             <ChoiceRow
               cols={3}
               label={t("settings.reviewFocus")}
-              hint={t("settings.reviewFocusHint")}
               value={reviewFocus}
               onChange={setReviewFocus}
               options={[
@@ -592,8 +583,6 @@ function SettingsPage() {
         </SettingsCard>
 
         <SoundAndHapticsPanel />
-
-        <DataSourcesCard />
 
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.save")}
@@ -639,35 +628,6 @@ function SettingsPage() {
  * リンクは新しいタブで開く。`noopener` を付けるのは、開いた先から
  * こちらの窓を触られないようにするため。
  */
-export function DataSourcesCard() {
-  const t = useT();
-  return (
-    <SettingsCard title={t("settings.sources")}>
-      <p className="mb-3 text-footnote text-muted-foreground">{t("settings.sourcesHint")}</p>
-      <ul className="space-y-3">
-        {DATA_SOURCES.map((s) => (
-          <li key={s.id}>
-            <a
-              href={s.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              // 指が届く高さを確保する（44px）。一覧の項目もタップ対象。
-              className="flex min-h-11 flex-col justify-center rounded-lg px-1 py-1"
-            >
-              <span className="text-body font-semibold text-foreground">{s.name}</span>
-              <span className="text-footnote text-muted-foreground">{t(s.noteKey)}</span>
-              <span className="text-caption text-muted-foreground">
-                {s.author} · {s.license}
-                {s.attributionRequired ? ` · ${t("sources.required")}` : ""}
-              </span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </SettingsCard>
-  );
-}
-
 /**
  * 読みの表記: その言語の書き方のうち**どれか一方だけ**を全画面で表示する。
  *
@@ -682,11 +642,13 @@ export function PhoneticRow({ lang }: { lang?: string } = {}) {
   // 列は 2〜5 しか用意がない。読みの数をそのまま渡すと、1つしか無い言語を
   // 足した日に**クラス名が undefined になって並びが崩れる**。挟んでおく。
   const cols = Math.min(5, Math.max(2, profile.readings.length)) as keyof typeof CHOICE_COLS;
+  // **選ぶものが無いなら行ごと出さない。** 読みが1つしか無い言語を足した日に
+  // 「選択肢が1つだけのボタンの列」が残るのは、設定として意味が無い。
+  if (profile.readings.length < 2) return null;
   return (
     <ChoiceRow
       cols={cols}
       label={t("settings.phonetic")}
-      hint={t("settings.phoneticHint")}
       value={pref}
       onChange={(k) => setReadingPref(profile, k)}
       options={profile.readings.map((k) => ({ value: k, label: t(readingLabelKey(k)) }))}
@@ -1004,7 +966,6 @@ export function AvatarRow() {
           onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])}
         />
       </div>
-      <p className="mt-1 text-caption text-muted-foreground">{t("settings.avatarHint")}</p>
     </div>
   );
 }
@@ -1021,12 +982,7 @@ export function VideoRecordingToggle() {
   }
   return (
     <div className="mt-4 border-t border-border pt-3">
-      <ToggleRow
-        label={t("settings.videoLabel")}
-        hint={t("settings.videoHint")}
-        value={video}
-        onChange={toggle}
-      />
+      <ToggleRow label={t("settings.videoLabel")} value={video} onChange={toggle} />
     </div>
   );
 }
@@ -1068,8 +1024,9 @@ export function PlaceReminderToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
-        label={t("set.placeLabel")}
-        hint={busy ? t("set.placeChecking") : t("set.placeHint")}
+        // **解説は消した**(オーナー指示「設定のボタンの下の解説を全部消す」)。
+        // 確認中は札そのものを変えて知らせる — 下に一行足すのではなく。
+        label={busy ? t("set.placeChecking") : t("set.placeLabel")}
         value={on}
         onChange={(v) => void toggle(v)}
       />
@@ -1143,27 +1100,18 @@ export function SoundAndHapticsPanel() {
       />
 
       <div className="mt-4">
-        <ToggleRow
-          label={t("settings.haptics")}
-          hint={t("settings.hapticsHint")}
-          value={haptics}
-          onChange={toggleHaptics}
-        />
+        <ToggleRow label={t("settings.haptics")} value={haptics} onChange={toggleHaptics} />
       </div>
-
-      <p className="mt-3 text-caption text-muted-foreground">{t("settings.feelInstantHint")}</p>
     </SettingsCard>
   );
 }
 
 export function ToggleRow({
   label,
-  hint,
   value,
   onChange,
 }: {
   label: string;
-  hint: string;
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
@@ -1171,7 +1119,6 @@ export function ToggleRow({
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="text-body font-medium">{label}</div>
-        <div className="text-caption text-muted-foreground">{hint}</div>
       </div>
       {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
       <button
@@ -1250,7 +1197,6 @@ function UiThemePicker() {
           ({UI_THEMES.length})
         </span>
       </summary>
-      <p className="mt-1 text-caption text-muted-foreground">{t("settings.themeHint")}</p>
       <ul className="mt-3 space-y-1.5">
         {UI_THEMES.map((themeMeta) => (
           <li key={themeMeta.id}>

@@ -539,3 +539,441 @@ describe("節の見出しが言語で嘘をつかない", () => {
     expect(src).toContain("t(sectionTitleKey(id, word.language))");
   });
 });
+
+describe("意味の説明は要るときだけ / フレーズカードも学習言語に従う", () => {
+  it("意味の指示が「簡潔に」だけで済まされていない", () => {
+    // オーナー指示「母語の意味の説明は1対1で明らかなら不要」。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("meaningRule(");
+    expect(src).not.toContain("意味（簡潔に。**解説の言語**で書く");
+  });
+
+  it("候補とカードが**同じ**規則を読む(散文を2箇所に書かない)", () => {
+    // 同じ原則を2箇所の散文に書くと、必ず片方だけ古くなる。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("distinctionRule(");
+    // 候補側に散文の写しが残っていないこと。
+    expect(src).not.toContain("**distinction(使い分けの一言)は、区別が要るときだけ書く:**");
+  });
+
+  it("フレーズカードが台湾華語で決め打たれていない", () => {
+    // 英語を学ぶ人が一言を拾うと、英語の画面に中文のフレーズカードが返っていた。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("台湾華語(繁體字)のフレーズカードを作ります");
+    expect(src).not.toContain("(TOCFL)。repliesの語彙");
+    expect(src).toContain("phraseProfile.promptName");
+    expect(src).toContain("phraseProfile.capture.readingRule");
+  });
+
+  it("フレーズの読みの欄も言語の表から出る", () => {
+    // 「注音(台湾教育部準拠)」「拼音」を英語のフレーズに求めない。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("フレーズ全体の注音(台湾教育部準拠)");
+  });
+});
+
+describe("項目の並べ替え / 例文のレベル連動", () => {
+  it("長押しで掴んで並べ替えられる", () => {
+    // オーナー指示「単語の項目の選択バーを長押ししたらドラッグ&ドロップで」。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("LONG_PRESS_MS");
+    expect(src).toContain("dragTarget(");
+    expect(src).toContain("onPointerDown={onPointerDown(id)}");
+  });
+
+  it("**▲▼のボタンを消していない**(鍵盤と読み上げの唯一の口)", () => {
+    // 掴む道を足すのであって、押す道を奪うのではない。
+    // 消すと touch 以外の人が並べ替えられなくなる。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("card.moveUp");
+    expect(src).toContain("card.moveDown");
+  });
+
+  it("並べ替えの計算は純粋な関数に置く(指の扱いと混ぜない)", () => {
+    // 順番がずれたときに「指か計算か」を切り分けられるようにする。
+    expect(fs.existsSync(path.join(root, "lib/reorder.ts"))).toBe(true);
+    const card = codeOnly(read("components/WordCard.tsx"));
+    // 画面側で並べ替えを手書きしていないこと。
+    expect(card).toContain("moveItem(p.order, from, to)");
+  });
+
+  it("保存は離したときに1回だけ", () => {
+    // 動かすたびに書くと、指1回で何十回も保存が走る。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    const endDrag = src.slice(src.indexOf("const endDrag"), src.indexOf("const endDrag") + 500);
+    expect(endDrag).toContain("savePrefs(p)");
+  });
+
+  it("項目ごとの作り直しにもレベルの縛りが掛かる", () => {
+    // **既に効いていた**(`base` が `levelRule` を持ち、各項目は
+    // `${base}` から始まる)。外れたら気づけるように数えておく。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    const base = src.split("\n").find((l) => l.includes("const base = `"));
+    expect(base).toBeTruthy();
+    expect(base).toContain("${levelRule}");
+  });
+});
+
+describe("第5段: 設定の整理", () => {
+  it("ボタンの下の解説を**書けなくする**", () => {
+    // オーナー指示「設定のボタンの下の解説を全部消す」。
+    // 呼び出しだけ消すと、次に行を足す人がまた `hint` を付ける。
+    // **部品から口ごと外す**ので、型で止まる。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).not.toMatch(/hint\?: string;/);
+    expect(src).not.toMatch(/hint: string;/);
+    expect(src).not.toContain("hint={t(");
+  });
+
+  it("解説の翻訳キーも残さない", () => {
+    const dict = read("lib/i18n.tsx");
+    for (const k of ["settings.levelHint", "settings.photoPrefHint", "settings.phoneticHint"]) {
+      expect(dict, k).not.toContain(`"${k}"`);
+    }
+  });
+
+  it("読みの設定に**学習言語を渡す**", () => {
+    // 渡していなかったので既定(台湾華語)で考え、英語を学ぶ人にも
+    // 注音・拼音の選択が出ていた。英語では米式/英式の IPA になる。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toContain("<PhoneticRow lang={targetLanguage} />");
+    // 検査の雛形も同じにする(片方だけだと実物と違う絵を撮る)。
+    const harness = codeOnly(read("../scripts/ui-harness/scenes/settings.tsx"));
+    expect(harness).toContain("<PhoneticRow lang={target} />");
+  });
+
+  it("選ぶものが1つしか無いなら読みの行を出さない", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toContain("if (profile.readings.length < 2) return null;");
+  });
+
+  it("出典は設定から消えて、**約款の中に残る**", () => {
+    // CEFR-J は出典明記が利用の条件。目立たない所へ移すのであって、
+    // 消すのではない。
+    const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(settings).not.toContain("DataSourcesCard");
+    expect(settings).not.toContain("DATA_SOURCES");
+    const terms = codeOnly(read("routes/terms.tsx"));
+    expect(terms).toContain("<DataSourcesList />");
+    expect(fs.existsSync(path.join(root, "components/DataSourcesList.tsx"))).toBe(true);
+  });
+});
+
+describe("第5段: ホームを下スクロールの形に戻す", () => {
+  const gone = [
+    "components/AlbumShelf.tsx",
+    "components/AlbumSpread.tsx",
+    "components/AlbumSpanTabs.tsx",
+    "lib/album-spread.ts",
+  ];
+
+  it.each(gone)("%s は消えている", (rel) => {
+    expect(fs.existsSync(path.join(root, rel)), rel).toBe(false);
+  });
+
+  it("ホームが**過去を縦に並べる**", () => {
+    // オーナー指示「ホームの本棚の機能を全削除して、前のように
+    // 下スクロールで過去が見える形に戻して」。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).toContain("<PastDays");
+    expect(src).not.toContain("AlbumShelf");
+    expect(src).not.toContain("AlbumSpread");
+  });
+
+  it("日/週/月の切替が**どこにも残っていない**", () => {
+    // オーナー指摘「ホームの画面の日、週、月のボタンを消して」。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).not.toContain("AlbumSpanTabs");
+    expect(src).not.toContain("setSpan");
+    expect(src).not.toContain('localStorage.getItem("album-span")');
+  });
+
+  it("打ち切りをちゃんと伝える(古い日が黙って消えない)", () => {
+    // ホームは日付ごとに遡る画面なので、上限で切れた日が黙って消えると
+    // **その日は何も撮らなかった**ように見える。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).toContain("truncated={truncated}");
+    expect(src).toContain("stickers?.truncated");
+  });
+
+  it("検査の雛形からも棚の場面が消えている", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).not.toContain('scene: "home-shelf"');
+    expect(audit).not.toContain('scene: "home-spread"');
+  });
+});
+
+describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () => {
+  it("「設定に従う」は**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-25「アルバム/単語詳細の画像長押しの
+    // 『設定に従う』ボタンを削除」。文言(i18n)ごと消す — 鍵だけ残すと
+    // 次に誰かが同じボタンを生やす。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).not.toMatch(/photo\.followSetting/);
+    const i18n = read("lib/i18n.tsx");
+    expect(i18n).not.toMatch(/"photo\.followSetting"/);
+    expect(i18n).not.toMatch(/"photo\.followSettingHint"/);
+  });
+
+  it("選べるのは**役だけ**(null を渡す道が閉じている)", () => {
+    // 「設定に従う」が消えた以上、`onPick(null)` の呼び先も消えていないと
+    // 型は通るのにボタンだけ無い、という中途半端が残る。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/onPick:\s*\(role: PhotoRole\) => void;/);
+    expect(picker).not.toMatch(/onPick\(null\)/);
+  });
+
+  it("面は**どちらの画面のためか**を持ち、それを画面にも出す", () => {
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/surface: PhotoSurface;/);
+    expect(picker).toMatch(/photo\.forAlbum/);
+    expect(picker).toMatch(/photo\.forDetail/);
+  });
+
+  it("アルバムの選択は**端末に**、詳細の選択は**サーバに**入る", () => {
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/setSurfaceRole\("album", stickerId, role\)/);
+    // 詳細のほうは今までどおり `hero_role`。
+    expect(sheet).toMatch(/setHeroRoleFn\(/);
+  });
+
+  it("アルバムから長押しで開いた面は**アルバムの面**になる", () => {
+    // ここを取り違えると、アルバムで選んだのに詳細の見え方が変わる
+    // (= 別々にした意味が消える)。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/if \(openPhotoPicker && stickerId\) setPickerSurface\("album"\);/);
+    expect(sheet).toMatch(/setPickerSurface\("detail"\);/);
+  });
+
+  it("アルバムの絵が**アルバムの選択**を見ている", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/surfaceRoles\[surfaceKey\("album", s\.id\)\]/);
+    expect(home).toMatch(/useSurfaceRoleMap\(\)/);
+    // 札の枚数だけ hook を呼ばない(枚数が変わると React が落ちる)。
+    expect(home).not.toMatch(/useSurfaceRole\("album", s\.id\)/);
+  });
+
+  it("自撮りが無い札には**自撮りを撮るボタン**が出る", () => {
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/onSelfieFile &&/);
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/onSelfieFile=\{s\.selfie_url \? undefined :/);
+    expect(sheet).toMatch(/attachSelfieFn\(/);
+  });
+
+  it("自撮りは `<label>` で包む(押した指の操作としてカメラに届く)", () => {
+    // 2026-08-20 のオーナー指摘「自撮りするを押してもインカメラに
+    // ならない」の原因は `button` からの `.click()` だった。
+    // **注釈を読ませない。** 最初は `read` のまま書いていて、
+    // `capture="user"` を消しても上の注釈の中の同じ文字列に当たって
+    // 通ってしまった(この作業場で5度目の「文字列が別の場所に在る」事故)。
+    const picker = codeOnly(read("components/HeroPhotoPicker.tsx"));
+    expect(picker).toMatch(/<label[\s\S]{0,900}?capture="user"[\s\S]{0,300}?<\/label>/);
+    expect(picker).not.toMatch(/selfieInputRef\.current\?\.click\(\)/);
+  });
+
+  it("自撮りを足しても**元の写真を差し替えない**", () => {
+    const fns = codeOnly(read("lib/stickers.functions.ts"));
+    expect(fns).toMatch(/selfie_image_url:/);
+    // 呼び先が自分の置き場所以外を指していないこと。
+    expect(fns).toMatch(/data\.selfie_path\.startsWith\(`\$\{userId\}\/`\)/);
+  });
+
+  it("検査の雛形にアルバムの面がある", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/variant: "album"/);
+  });
+});
+
+describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", () => {
+  it("動画の名残が**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-26「一言は音声だけにして。動画の撮影はやめて」。
+    expect(fs.existsSync(path.join(root, "lib/voice-video.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "components/VoiceVideoNote.tsx"))).toBe(false);
+    const note = codeOnly(read("components/VoiceNote.tsx"));
+    // 撮る側に `<video>` が1つでも残っていたら、カメラがまた点く。
+    expect(note).not.toMatch(/<video/);
+    expect(note).not.toMatch(/previewRef/);
+  });
+
+  it("録るときに**カメラを掴まない**", () => {
+    const lib = codeOnly(read("lib/voice-note.ts"));
+    expect(lib).toMatch(/return \{ audio: true \};/);
+    expect(lib).not.toMatch(/facingMode/);
+  });
+
+  it("前に撮った動画と**同じ道**に落ちる(消せない物を残さない)", () => {
+    const lib = codeOnly(read("lib/voice-note.ts"));
+    // `voice.<拡張子>` の形が変わると、撮り直しても古い動画が置き場所に
+    // 残り続け、画面からは消せなくなる。
+    expect(lib).toMatch(/voice\.\$\{extensionForMime\(mime\)\}/);
+  });
+
+  it("聞くのは `<audio>`(前に撮った動画もそのまま鳴る)", () => {
+    const player = codeOnly(read("components/VoiceNotePlayer.tsx"));
+    expect(player).toMatch(/<audio/);
+    expect(player).not.toMatch(/<video/);
+    // **自動で再生しない。** 図鑑を開くたび声が鳴ると人前で開けない。
+    expect(player).not.toMatch(/autoPlay/);
+  });
+
+  it("再生は**日付と場所の行**に在り、録る所には無い", () => {
+    // オーナー指示「再生ボタンは真ん中、日付と場所の名前の隣に置いて」。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    const row = sheet.slice(sheet.indexOf("<Clock"), sheet.indexOf("{s.caption &&"));
+    expect(row).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
+    // 録る所に同じ再生を並べない(片方だけ直る事故の種になる)。
+    const note = codeOnly(read("components/VoiceNote.tsx"));
+    expect(note).not.toMatch(/VoiceNotePlayer/);
+  });
+
+  it("上げる道は**1つ**(3つの入口が同じ関数を通る)", () => {
+    expect(fs.existsSync(path.join(root, "lib/voice-note-upload.ts"))).toBe(true);
+    for (const rel of [
+      "components/VoiceNote.tsx",
+      "components/ScanCatchSheet.tsx",
+      "routes/_authenticated/capture.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/uploadVoiceNote\(/);
+    }
+    // 置き場所を自分で組み立てる所が残っていないこと。
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      expect(codeOnly(read(rel)), rel).not.toMatch(/voiceNotePath\(/);
+    }
+  });
+
+  it("キャッチの最中の一言は**文字の欄の隣**に在る", () => {
+    // オーナー指示「キャッチのときに一言を声で吹き込めるように。
+    // 文字入力の隣にボタンを置いて」。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const box = cap.slice(cap.indexOf('id="caption"'), cap.indexOf('id="caption"') + 900);
+    expect(box).toMatch(/<VoiceCaptionButton/);
+    const scan = codeOnly(read("components/ScanCatchSheet.tsx"));
+    const box2 = scan.slice(scan.indexOf('placeholder={t("sheet.notePlaceholder")}'));
+    expect(box2.slice(0, 500)).toMatch(/<VoiceCaptionButton/);
+  });
+
+  it("キャッチの保存を**待たせない**(録った物は札が出来てから裏で上げる)", () => {
+    // オーナーが「最大のペイン」と書いたのは「一瞬でも早く」。
+    // 保存の前に上げると、いちばん壊してはいけない所が遅くなる。
+    const btn = codeOnly(read("components/VoiceCaptionButton.tsx"));
+    expect(btn).not.toMatch(/uploadVoiceNote/);
+    expect(btn).not.toMatch(/useServerFn/);
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      const src = codeOnly(read(rel));
+      // `void (async () => {` で投げっぱなしにしていること(= 待たない)。
+      expect(src, rel).toMatch(/void \(async \(\) => \{[\s\S]{0,400}?uploadVoiceNote\(/);
+    }
+  });
+
+  it("上げ損ねたら**黙って捨てない**", () => {
+    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/voice\.attachFailed/);
+    }
+  });
+
+  it("検索の欄が**カメラの画面そのもの**に在る", () => {
+    // オーナー指示「検索欄をカメラの画面に直接置いて」。
+    // 前は「文字で打つ」のボタンで、押して面が開いてから打てた。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/capture\.searchPlaceholder/);
+    expect(cap).toMatch(/setInputSheet\(\{ text: w, auto: true \}\)/);
+    expect(cap).not.toMatch(/onClick=\{\(\) => setInputSheet\(\{\}\)\}/);
+  });
+
+  it("**撮る前の画面に場面がある**(検索の欄が機械の目に映る)", () => {
+    // このアプリで最初に見る面なのに、長らく雛形に場面が無かった。
+    // 「場面が無い部品は測られない」でこの作業場は何度も落ちている。
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/scene: "capture-object"/);
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/export function CaptureObjectPanel\(/);
+  });
+
+  it("検査の雛形が新しい面を撮っている", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/scene: "voice-note"/);
+    expect(audit).toMatch(/scene: "voice-player"/);
+    expect(audit).toMatch(/variant: "voice"/);
+    expect(audit).not.toMatch(/scene: "voice-video"/);
+  });
+});
+
+describe("第6段: 級は CEFR-J だけが決める／辞書だけでカードを出す道", () => {
+  it("頻度からの見積もりが**どこにも残っていない**", () => {
+    // オーナー指示 2026-08-26「頻度からの級の見積もりをやめて、
+    // CEFR-J に無い語は級外にして」。
+    const lib = codeOnly(read("lib/lexicon-import.ts"));
+    const fn = lib.slice(lib.indexOf("export function cefrStep("));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    // 見積もりの部品(順位の境目・検定の印での挟み)が戻っていないこと。
+    expect(body).not.toMatch(/freqRank/);
+    expect(body).not.toMatch(/parseExamTags/);
+    expect(body).not.toMatch(/Math\.min|Math\.max/);
+    expect(body).toMatch(/return null;/);
+  });
+
+  it("級外の行を**落とさない**(落とすと辞書が空になる)", () => {
+    const lib = codeOnly(read("lib/lexicon-import.ts"));
+    expect(lib).toMatch(/row\.level_step != null &&/);
+  });
+
+  it("CEFR-J を渡さずに**書き出せない**", () => {
+    // 渡さずに流すと全部級外になり、いま入っている公式の級を
+    // 級外で上書きしてしまう(`level_step = excluded.level_step`)。
+    const tool = read("../scripts/import-lexicon.mjs");
+    for (const cmd of ["sql", "csv", "json"]) {
+      expect(tool.includes(`requireCefrj("${cmd}")`), cmd).toBe(true);
+    }
+  });
+
+  it("級外を保存して**読み返せる**", () => {
+    const scale = codeOnly(read("lib/level-scale.ts"));
+    expect(scale).toMatch(/outStored: "TOCFL-0"/);
+    expect(scale).toMatch(/outStored: "CEFR-0"/);
+  });
+
+  it("キャッチが**当てずっぽうの級を書かない**", () => {
+    // 前は級が分からないとき `toStored(2)` =「A2」を書いていた。
+    for (const rel of ["components/ScanCatchSheet.tsx", "components/InputCatchSheet.tsx"]) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).not.toMatch(/levels\.toStored\(2\)/);
+      expect(src, rel).toMatch(/levels\.outStored/);
+      // 辞書が級を持っていれば、そちらを使う。
+      expect(src, rel).toMatch(/dict\??\.?level_step/);
+    }
+  });
+
+  it("辞書を引くとき**新しい列も見る**(英語が空で返らない)", () => {
+    // 英語の行は `reading_primary` / `meanings` / `level_step` にしか
+    // 入らない(`admin.functions.ts` の注)。古い列だけを見ていたので、
+    // 辞書だけでカードを出す道が英語で丸ごと死んでいた。
+    const de = codeOnly(read("lib/dictionary-entry.ts"));
+    for (const col of ["reading_primary", "reading_alt", "meanings", "level_step"]) {
+      expect(de, col).toMatch(new RegExp(col));
+    }
+    const scan = codeOnly(read("lib/scan.functions.ts"));
+    expect(scan).toMatch(/\.select\(DICTIONARY_SELECT\)/);
+    expect(scan).toMatch(/resolveDictionaryFields\(r, data\.explain_lang\)/);
+  });
+
+  it("辞書を**学習言語で**引く(英語を学ぶ人に台湾華語の行を出さない)", () => {
+    // 前はどの呼び出しも `language` を渡しておらず、既定の台湾華語を
+    // 引いていた。
+    for (const rel of ["routes/_authenticated/scan.tsx", "components/InputCatchSheet.tsx"]) {
+      const src = codeOnly(read(rel));
+      const calls = src.match(/lookupFn\(\{[\s\S]*?\}\)/g) ?? [];
+      expect(calls.length, rel).toBeGreaterThan(0);
+      for (const c of calls) {
+        expect(c, `${rel}: ${c}`).toMatch(/language: targetLanguage/);
+        expect(c, `${rel}: ${c}`).toMatch(/explain_lang: uiLang/);
+      }
+    }
+  });
+
+  it("**違う言語の語釈を出さない**", () => {
+    const de = codeOnly(read("lib/dictionary-entry.ts"));
+    // `meaning_ja` は名前のとおり日本語。読む人が日本語のときだけの受け皿。
+    expect(de).toMatch(/explainLang === "ja" \? clean\(row\.meaning_ja\) : null/);
+  });
+});

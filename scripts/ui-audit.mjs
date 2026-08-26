@@ -147,10 +147,10 @@ const BASE = `http://127.0.0.1:${server.address().port}/index.html`;
 /**
  * ハーネスの場面をURLの検索文字列で表す。
  *
- * `click` だけは URL に載せない — 開いたあとに押す指示なので、
+ * `click` と `hold` だけは URL に載せない — 開いたあとに押す指示なので、
  * ハーネスではなく検査の側の都合。
  */
-const sceneUrl = (base, { scene = "shelf", click: _click, ...rest } = {}) => {
+const sceneUrl = (base, { scene = "shelf", click: _click, hold: _hold, ...rest } = {}) => {
   const q = new URLSearchParams({ scene, ...rest });
   return `${base}?${q}`;
 };
@@ -252,6 +252,9 @@ const MODES = [
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
   // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
   // 片方しか撮らないと、片方は一度も見ていないことになる。
+  // 項目の並べ替え。**掴んでいる絵**は長押ししたままでないと写らない。
+  ...crossThemes("sections-editor", { scene: "sections-editor" }),
+  ["sections-editor-dragging", "", false, { scene: "sections-editor", hold: "ul li:nth-child(2)" }],
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
   [
     "tocfl-ladder-open",
@@ -290,19 +293,7 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
-  ["home-past-week", "", false, { scene: "home-past", span: "week" }],
-  ["home-past-month", "", false, { scene: "home-past", span: "month" }],
   ...crossThemes("home-writing", { scene: "home-writing" }),
-  // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
-  // **束ね方を3通りとも撮る** — 週と月は「小さく・多く」が注文なので、
-  // 実際にそうなっているかは絵でしか分からない。
-  ...crossThemes("home-shelf", { scene: "home-shelf" }),
-  ["home-spread", "", false, { scene: "home-spread" }],
-  ["home-spread-dark", 'class="dark"', false, { scene: "home-spread" }],
-  ["home-spread-week", "", false, { scene: "home-spread", span: "week" }],
-  ["home-spread-month", "", false, { scene: "home-spread", span: "month" }],
-  // 1枚選んだ形(左に絵・右に日記)。
-  ["home-spread-picked", "", false, { scene: "home-spread", click: ".album-tile" }],
   ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
   // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
   ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],
@@ -386,9 +377,19 @@ const MODES = [
   ...crossThemes("cap-offline", { scene: "capture-offline" }),
   ["cap-offline-reason", "", false, { scene: "capture-offline", variant: "reason" }],
   // 生成が終わったカードの面。**撮るたびに必ず通る。** 表と裏の両方。
+  // 撮る前の画面。**このアプリで最初に見る面**なのに、長らく場面が
+  // 無かった。検索の欄をここに置いた(オーナー指示 2026-08-26)ので、
+  // 打った状態も撮る。
+  ...crossThemes("cap-object", { scene: "capture-object" }),
+  ["cap-object-typed", "", false, { scene: "capture-object", variant: "typed" }],
+  ["cap-object-typed-dark", 'class="dark"', false, { scene: "capture-object", variant: "typed" }],
+  ["cap-object-retake", "", false, { scene: "capture-object", variant: "retake" }],
   ...crossThemes("cap-card", { scene: "capture-card" }),
   ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
+  // 声で吹き込んだ一言が録れた後(オーナー指示 2026-08-26)。
+  // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
+  ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
   // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
   ...crossThemes("journal-result", { scene: "journal-result" }),
   // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
@@ -406,6 +407,9 @@ const MODES = [
   ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
   ["hero-picker-picked", "", false, { scene: "hero-picker", variant: "picked" }],
   ...crossThemes("hero-picker-cutout", { scene: "hero-picker", variant: "cutout" }),
+  // **アルバムの見え方を触っている面**(オーナー指示 2026-08-25)。
+  // 「設定に従う」が消えて、どの画面に効くのかが見出しの下に出る。
+  ["hero-picker-album", "", false, { scene: "hero-picker", variant: "album" }],
   ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
@@ -457,9 +461,11 @@ const MODES = [
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
   // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
-  ...crossThemes("voice-video", { scene: "voice-video" }),
-  ["voice-video-done", "", false, { scene: "voice-video", done: "1" }],
-  ["voice-video-done-dark", 'class="dark"', false, { scene: "voice-video", done: "1" }],
+  ...crossThemes("voice-note", { scene: "voice-note" }),
+  ["voice-note-done", "", false, { scene: "voice-note", done: "1" }],
+  ["voice-note-done-dark", 'class="dark"', false, { scene: "voice-note", done: "1" }],
+  // 聞くボタンそのもの(オーナー指示 2026-08-26)。指が届く大きさを見る。
+  ...crossThemes("voice-player", { scene: "voice-player" }),
   ["dex-filter", "", false, { scene: "dex-filter" }],
   ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
   ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],
@@ -571,6 +577,31 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       await target.click({ timeout: 2000 }).catch(() => {});
     } else {
       issues.push(`[${name}] 押す対象が見つからない: ${scene.click}`);
+    }
+  }
+  /**
+   * **長押ししたまま撮る。**
+   *
+   * 掴んで並べ替える面は、押した瞬間でも離したあとでもなく
+   * 「**押し続けている間**」にしか出ない。`click` では一度も描かれず、
+   * 実際そうなっていた(項目の並べ替えを掴めるようにしたのに、
+   * 掴んでいる絵が1枚も無いまま検査が合格した)。
+   *
+   * 指を置いて `LONG_PRESS_MS` より長く待ち、**離さずに**次へ進む。
+   * 後片付けは頁ごと閉じるので要らない。
+   */
+  if (scene.hold) {
+    const target = page.locator(scene.hold).first();
+    if (await target.count()) {
+      const box = await target.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        // 長押しの敷居(400ms)より確実に長く待つ。
+        await page.waitForTimeout(700);
+      }
+    } else {
+      issues.push(`[${name}] 長押しする対象が見つからない: ${scene.hold}`);
     }
   }
   await page.waitForTimeout(400);

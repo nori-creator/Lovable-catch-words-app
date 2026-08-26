@@ -11,6 +11,10 @@
  * - `picked` … すでに選んである札(どれが選ばれているか一目で分かるか)
  * - `cutout` … **切り抜きがまだ無い札**(「いま切り抜く」が出る。
  *   速さを選んだ人がここから掛け直せないと、設定が片道になる)
+ * - `album`  … **アルバムの見え方**を触っている面(見出しの下の断り書き)
+ *
+ * `few` / `cutout` は自撮りも無い札なので「いま自撮りを撮る」も出る
+ * (オーナー指示 2026-08-25「自撮りが無ければ自撮りボタンを出す」)。
  */
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 
@@ -36,11 +40,13 @@ export function HeroPickerScene({ q }: { q: URLSearchParams }) {
               placeholder_url: SQ(120),
             }
       }
+      surface={variant === "album" ? "album" : "detail"}
       current={variant === "picked" ? "cutout" : null}
       saving={false}
       onPick={() => {}}
       onReplaceFile={() => {}}
       onCutoutNow={variant === "cutout" ? () => {} : undefined}
+      onSelfieFile={few ? () => {} : undefined}
       onClose={() => {}}
     />
   );
