@@ -18,8 +18,6 @@ import {
   ScrapbookAlbum,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
-import { AlbumSpread } from "@/components/AlbumSpread";
-import { AlbumShelf } from "@/components/AlbumShelf";
 import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -140,8 +138,9 @@ export function HomeLoadingScene() {
 export function HomePastScene({ q }: { q: URLSearchParams }) {
   // 束ね方(オーナー指摘⑪)。日以外では**日記の紙を出さない**ので、
   // その3通りを1つの場面で撮り分ける。
-  const raw = q.get("span") ?? "day";
-  const span: AlbumSpan = raw === "week" || raw === "month" ? raw : "day";
+  // 束ね方は消した(オーナー指示「ホームの画面の日、週、月のボタンを消して」)。
+  // 過去は**日ごとに並べて、下へスクロールする**だけ。
+  const span: AlbumSpan = "day";
   // **本物と同じ束ね方で作る。** ここで日ごとの塊を手で並べて見出しだけ
   // 週にすると、重なった範囲(「8/19–8/25」と「8/18–8/24」)が並ぶ、
   // 実際には起こらない絵になる。束ねるのはルートと同じ `groupBySpan`。
@@ -172,8 +171,6 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
       shown={1000}
       total={1342}
       journals={journals}
-      span={span}
-      onSpan={() => {}}
     />
   );
 }
@@ -224,46 +221,3 @@ export function HomeWritingScene() {
  * 実際に小さくなって多く並んでいるかは絵でしか分からない。
  * 1枚選んだ形(左に絵・右に日記)も別に撮る。
  */
-export function HomeSpreadScene({ q }: { q: URLSearchParams }) {
-  const raw = q.get("span") ?? "day";
-  const span: AlbumSpan = raw === "week" || raw === "month" ? raw : "day";
-  // 日をまたいで散らす。月ごとにすると1つの束に何十枚も入る。
-  const shots = [1, 2, 3, 9, 10, 11, 40, 41].flatMap((d) =>
-    FIXTURES.map((f, i) => makeSticker(f, i, d)),
-  );
-  const groups = groupBySpan(shots, (s) => new Date(s.created_at), span).map(([key, items]) => ({
-    key,
-    items,
-  }));
-  const journals = new Map([
-    [
-      localDayKey(new Date(Date.now() - 24 * 60 * 60 * 1000)),
-      {
-        body: "今天在夜市喝了珍珠奶茶。老闆說我的中文變好了，很開心。",
-        note: "「變好了」がうまく使えています。",
-        used_sticker_ids: ["s1-0"],
-      },
-    ],
-  ]);
-  return (
-    <>
-      <AlbumShelf onOpen={() => {}} current={span} />
-      <div className="mt-3">
-        <AlbumSpread
-          span={span}
-          onSpan={() => {}}
-          groups={groups}
-          journals={journals}
-          bgClass="album-bg-paper"
-          onClose={() => {}}
-          onOpenSticker={() => {}}
-        />
-      </div>
-    </>
-  );
-}
-
-/** 棚だけ。閉じているときにホームの上で何を占めるかを見る。 */
-export function HomeShelfScene() {
-  return <AlbumShelf onOpen={() => {}} current={null} />;
-}

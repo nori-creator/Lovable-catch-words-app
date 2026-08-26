@@ -658,3 +658,47 @@ describe("第5段: 設定の整理", () => {
     expect(fs.existsSync(path.join(root, "components/DataSourcesList.tsx"))).toBe(true);
   });
 });
+
+describe("第5段: ホームを下スクロールの形に戻す", () => {
+  const gone = [
+    "components/AlbumShelf.tsx",
+    "components/AlbumSpread.tsx",
+    "components/AlbumSpanTabs.tsx",
+    "lib/album-spread.ts",
+  ];
+
+  it.each(gone)("%s は消えている", (rel) => {
+    expect(fs.existsSync(path.join(root, rel)), rel).toBe(false);
+  });
+
+  it("ホームが**過去を縦に並べる**", () => {
+    // オーナー指示「ホームの本棚の機能を全削除して、前のように
+    // 下スクロールで過去が見える形に戻して」。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).toContain("<PastDays");
+    expect(src).not.toContain("AlbumShelf");
+    expect(src).not.toContain("AlbumSpread");
+  });
+
+  it("日/週/月の切替が**どこにも残っていない**", () => {
+    // オーナー指摘「ホームの画面の日、週、月のボタンを消して」。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).not.toContain("AlbumSpanTabs");
+    expect(src).not.toContain("setSpan");
+    expect(src).not.toContain('localStorage.getItem("album-span")');
+  });
+
+  it("打ち切りをちゃんと伝える(古い日が黙って消えない)", () => {
+    // ホームは日付ごとに遡る画面なので、上限で切れた日が黙って消えると
+    // **その日は何も撮らなかった**ように見える。
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(src).toContain("truncated={truncated}");
+    expect(src).toContain("stickers?.truncated");
+  });
+
+  it("検査の雛形からも棚の場面が消えている", () => {
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).not.toContain('scene: "home-shelf"');
+    expect(audit).not.toContain('scene: "home-spread"');
+  });
+});

@@ -1,10 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
-import { AlbumSpanTabs } from "@/components/AlbumSpanTabs";
-import { AlbumSpread } from "@/components/AlbumSpread";
-import { AlbumShelf } from "@/components/AlbumShelf";
-import { ALBUM_SPANS, groupBySpan, spanHeading, keyToDate, type AlbumSpan } from "@/lib/album-span";
+import { groupBySpan, keyToDate } from "@/lib/album-span";
 import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -253,31 +250,30 @@ function HomePage() {
   );
   const todayStickers = byDay.find(([k]) => k === todayKey)?.[1] ?? [];
 
-  /** これまでのページの束ね方(オーナー指摘⑪)。端末に覚えさせる。 */
-  const [span, setSpan] = useState<AlbumSpan>("day");
-  useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("album-span") : null;
-    if (saved && (ALBUM_SPANS as readonly string[]).includes(saved)) setSpan(saved as AlbumSpan);
-  }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("album-span", span);
-  }, [span]);
+  /**
+   * 図鑑と同じ上限に当たっているか。**当たっているならそう言う**(§8)。
+   *
+   * ホームは日付ごとに遡る画面なので、古い日が黙って消えると
+   * **その日は何も撮らなかった**ように見える。
+   */
+  const total = stickers?.total ?? stickers?.items.length ?? 0;
+  const shown = stickers?.items.length ?? 0;
+  const truncated = stickers?.truncated ?? false;
 
   /**
-   * これまでの束。**見開きに渡す** — 縦に何十個も並べるのをやめた
-   * (オーナー指摘 2026-08-21「ホームの日、週、月のボタンを消して…
-   *  本棚にして…タップするとページがめくれて」)。
+   * 今日より前の日。**日ごとに、新しい順に並べて下へ続ける**
+   * (オーナー指示 2026-08-25「ホームの本棚の機能を全削除して、
+   * 前のように下スクロールで過去が見える形に戻して」)。
+   *
+   * 束ね方(日/週/月)の切替も、端末に覚えさせる仕掛けも消した。
    */
   const pastGroups = useMemo(() => {
     const past = (stickers?.items ?? []).filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
-    return groupBySpan(past, (s) => new Date(s.created_at), span).map(([key, items]) => ({
+    return groupBySpan(past, (s) => new Date(s.created_at), "day").map(([key, items]) => ({
       key,
       items,
     }));
-  }, [stickers, todayKey, span]);
-
-  /** 本棚から開いた束ね方。`null` なら棚が閉じたまま。 */
-  const [openedSpan, setOpenedSpan] = useState<AlbumSpan | null>(null);
+  }, [stickers, todayKey]);
 
   /**
    * 日付ごとの日記(要望 #22)。
@@ -317,39 +313,6 @@ function HomePage() {
 
       <PendingCapturesBanner />
 
-      {/* **台紙を選ぶ列があった所を本棚にした**(オーナー指摘 2026-08-21
-          「今、アルバムの壁紙を変更するところを、本物の本の背表紙の本棚に
-          して、背表紙に日週、月ごとの本」)。台紙の選択は見開きの中へ
-          移した — 紙が実際に見えている所で選ぶほうが確かめやすい。
-          棚は**前のページが在るときだけ**出す。1冊も無いのに棚だけ
-          置くと、押しても白紙が開く。 */}
-      {pastGroups.length > 0 && (
-        <div className="mb-3">
-          <AlbumShelf
-            onOpen={(s) => {
-              setSpan(s);
-              setOpenedSpan(s);
-            }}
-            current={openedSpan}
-          />
-        </div>
-      )}
-
-      {openedSpan && (
-        <div className="mb-4">
-          <AlbumSpread
-            span={span}
-            onSpan={setSpan}
-            groups={pastGroups}
-            journals={journalsByDay}
-            bgClass={bgClass}
-            onClose={() => setOpenedSpan(null)}
-            onOpenSticker={setOpenId}
-          />
-          <BackgroundPicker current={bg} onChange={setBg} />
-        </div>
-      )}
-
       {isLoading ? (
         <HomeLoading />
       ) : isError ? (
@@ -385,11 +348,30 @@ function HomePage() {
         </>
       )}
 
-      {/* 「これまでのページ」を縦に並べるのは**やめた**(オーナー指摘
-          2026-08-21「ホームの日記について。これまでの日記を消して」
-          「ホームの画面の日、週、月のボタンを消して」)。過去は上の本棚から
-          見開きで開く。`PastDays` は残してあるが、ここからは呼ばない
-          — 検査の雛形がまだ本物として撮っているため。 */}
+      {/* **下へスクロールすると過去が続く形に戻した**(オーナー指示
+          2026-08-25「ホームの本棚の機能を全削除して、前のように
+          下スクロールで過去が見える形に戻して」)。
+
+          本棚と見開きは削除した。押して開く一手間が要るうえ、
+          「いつ何を撮ったか」を遡るのに背表紙は向いていない。
+
+          日/週/月の切替も出さない(オーナー指摘「ホームの画面の
+          日、週、月のボタンを消して」)。日ごとに素直に並べる。 */}
+      {pastGroups.length > 0 && (
+        <PastDays
+          days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
+          bgClass={bgClass}
+          onOpen={setOpenId}
+          onLongPress={(id) => {
+            setOpenId(id);
+            setOpenPhotoPicker(true);
+          }}
+          truncated={truncated}
+          shown={shown}
+          total={total}
+          journals={journalsByDay}
+        />
+      )}
       <StickerSheet
         stickerId={openId}
         openPhotoPicker={openPhotoPicker}
@@ -481,8 +463,6 @@ export function PastDays({
   total,
   journals,
   onLongPress,
-  span = "day",
-  onSpan,
 }: {
   days: Array<[string, StickerWithWord[]]>;
   bgClass: string;
@@ -490,10 +470,6 @@ export function PastDays({
   truncated: boolean;
   shown: number;
   total: number;
-  /** 束ね方(オーナー指摘⑪)。既定は今までどおり日ごと。 */
-  span?: AlbumSpan;
-  /** 渡さなければ切替の帯を出さない。 */
-  onSpan?: (s: AlbumSpan) => void;
   /** 写真の長押し。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
   /**
@@ -516,8 +492,6 @@ export function PastDays({
         <span className="label-caps text-caption text-muted-foreground">{t("home.pastPages")}</span>
         <span className="h-px flex-1 bg-border" />
       </div>
-      {/* 日 / 週 / 月(オーナー指摘⑪)。3ヶ月遡ると日では90ページになる。 */}
-      {onSpan && <AlbumSpanTabs value={span} onChange={onSpan} />}
       {/* 図鑑と同じ上限にかかっている。ホームは日付ごとに遡る画面なので、
           古い日が黙って消えると**その日は何も撮らなかった**ように見える。
           出せていないなら、そう言う(§8)。 */}
@@ -531,14 +505,9 @@ export function PastDays({
           {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
               for users west of UTC). */}
-          {/* 日は今までどおり日付の見出し。週と月は**束の名前**を出す —
-              週番号は読めないので、始まりと終わりの日で言う
-              (`spanHeading`)。 */}
-          {span === "day" ? (
-            <DayHeader date={keyToDate(k)} compact />
-          ) : (
-            <SpanHeader label={spanHeading(k, span, dateLocale)} count={items.length} />
-          )}
+          {/* **日付の見出しだけ。** 週・月の束ね方は消した(オーナー指示
+              「ホームの画面の日、週、月のボタンを消して」)。 */}
+          <DayHeader date={keyToDate(k)} compact />
           <ScrapbookAlbum
             stickers={items}
             bgClass={bgClass}
@@ -553,7 +522,7 @@ export function PastDays({
             // **日記の紙は日ごとのページにだけ挟む。** 週や月の束には
             // 何日ぶんもの日記が入り得るので、どれを見開きに置くのか
             // 決められない(適当に1日ぶんだけ出すと、書いた日が消える)。
-            const j = span === "day" ? journals?.get(k) : undefined;
+            const j = journals?.get(k);
             if (!j) return null;
             const used = new Set(j.used_sticker_ids);
             return (
@@ -639,26 +608,6 @@ export function DayHeader({
           あったので CSS 側にまとめた。 */}
       <p className={`${compact ? "" : "mt-0.5"} label-caps text-footnote text-muted-foreground`}>
         {weekday}
-      </p>
-      <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
-    </section>
-  );
-}
-
-/**
- * 週・月の束の見出し(オーナー指摘⑪)。
- *
- * `DayHeader` と**同じ形**にする — 同じ位置に別の顔の見出しが出ると、
- * 束ね方を変えた瞬間に「別の画面に来た」と感じる。日付が「範囲」に
- * 変わり、曜日の代わりに枚数が出るだけ。
- */
-function SpanHeader({ label, count }: { label: string; count: number }) {
-  const t = useT();
-  return (
-    <section className="mb-3 text-center">
-      <h2 className="font-display mt-1 text-title leading-[1.15]">{label}</h2>
-      <p className="label-caps text-footnote text-muted-foreground">
-        {t("home.spanCount", { n: formatCount(count) })}
       </p>
       <div className="mx-auto mt-3 h-px w-16 bg-foreground/30" />
     </section>
