@@ -539,3 +539,35 @@ describe("節の見出しが言語で嘘をつかない", () => {
     expect(src).toContain("t(sectionTitleKey(id, word.language))");
   });
 });
+
+describe("意味の説明は要るときだけ / フレーズカードも学習言語に従う", () => {
+  it("意味の指示が「簡潔に」だけで済まされていない", () => {
+    // オーナー指示「母語の意味の説明は1対1で明らかなら不要」。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("meaningRule(");
+    expect(src).not.toContain("意味（簡潔に。**解説の言語**で書く");
+  });
+
+  it("候補とカードが**同じ**規則を読む(散文を2箇所に書かない)", () => {
+    // 同じ原則を2箇所の散文に書くと、必ず片方だけ古くなる。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("distinctionRule(");
+    // 候補側に散文の写しが残っていないこと。
+    expect(src).not.toContain("**distinction(使い分けの一言)は、区別が要るときだけ書く:**");
+  });
+
+  it("フレーズカードが台湾華語で決め打たれていない", () => {
+    // 英語を学ぶ人が一言を拾うと、英語の画面に中文のフレーズカードが返っていた。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("台湾華語(繁體字)のフレーズカードを作ります");
+    expect(src).not.toContain("(TOCFL)。repliesの語彙");
+    expect(src).toContain("phraseProfile.promptName");
+    expect(src).toContain("phraseProfile.capture.readingRule");
+  });
+
+  it("フレーズの読みの欄も言語の表から出る", () => {
+    // 「注音(台湾教育部準拠)」「拼音」を英語のフレーズに求めない。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("フレーズ全体の注音(台湾教育部準拠)");
+  });
+});
