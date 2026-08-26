@@ -921,6 +921,10 @@ export function StickerSheetBody({
   /**
    * 画面に出す意味・例文訳・解説。共有キャッシュを先に見て、無ければ
    * 古い `words` の列に落ちる(落とし方は `word-explanation.ts`)。
+   *
+   * **読む人の言語を渡す。** 渡さないと、その人向けの解説がまだ出来て
+   * いない間、日本語で書かれた古い解説がそのまま出る
+   * (オーナー報告 2026-08-26「表示言語台灣華語なのに言語が混ざってる」)。
    */
   const display = resolveDisplayWord(
     {
@@ -929,6 +933,7 @@ export function StickerSheetBody({
       extras: s.word.extras,
     },
     explanation,
+    uiLang,
   );
   const t = useT();
   return (

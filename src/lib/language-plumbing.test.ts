@@ -1259,3 +1259,20 @@ describe("2026-08-26 の2度目の報告", () => {
     expect(cap).toMatch(/confirmWord\(wordParam, undefined, \{ skipImagePick: true \}\)/);
   });
 });
+
+describe("読む人の言語で書かれていない解説を出さない", () => {
+  it("札の面が**読む人の言語を渡している**", () => {
+    // オーナー報告 2026-08-26(絵つき)「表示言語台灣華語なのに
+    // 言語が混ざってる」。届いた絵では例文の訳は繁体字なのに
+    // 追加例文の訳だけ日本語だった。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,220}?\n\s*uiLang,\n\s*\);/);
+  });
+
+  it("目印の言語が違えば解説を落とす", () => {
+    const lib = codeOnly(read("lib/word-explanation.ts"));
+    expect(lib).toMatch(/const wrongLanguage = !!want && !!has && has !== want;/);
+    // **意味と例文の訳は落とさない**(そこは別の列から来る)。
+    expect(lib).toMatch(/extras: wrongLanguage \? \(null as E\) : extras,/);
+  });
+});
