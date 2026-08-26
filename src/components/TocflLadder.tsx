@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import {
   LEVEL_BANDS,
@@ -59,6 +61,18 @@ export function TocflLadder({
   className?: string;
 }) {
   const t = useT();
+  /**
+   * **既定は畳んでおく。**
+   *
+   * オーナー指摘 2026-08-25:
+   * > 「TOCFL、TOEFL、IELTS のバーが大きすぎる。**レベルとバンドだけ表示**して、
+   * >  タップでバーを出して。」
+   *
+   * 段々は「6段のどこか」を一目で伝える良い絵だが、**毎回見たい物ではない**。
+   * 撮った直後の面では画面の1/4を占めていた。ふだんは「A2（Band A）」の
+   * 1行だけ出して、知りたい人がタップしたときに開く。
+   */
+  const [open, setOpen] = useState(false);
   const step = parseLevelStep(level);
   // 段の幅は**名前の長さから決める**。16px に決め打ちすると CEFR の
   // `A1 A2` がくっついて読めない(絵で見つけた)。TOCFL は1文字なので
@@ -76,6 +90,37 @@ export function TocflLadder({
   const label = isOut
     ? t(scale.outKey)
     : t(scale.levelInBandKey, { n: stepLabel(scale, lv), band: t(bandLabelKey(bandOf(lv))) });
+
+  // 畳んでいるとき。**級と帯だけ**を1行で。
+  if (!open) {
+    return (
+      <div className={`inline-flex ${className}`}>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-expanded={false}
+          aria-label={`${scale.id} ${label} — ${t("tocfl.showLadder")}`}
+          // 押せる物なので 44px を確保する。見た目は小さいままにしたいので
+          // 高さは当たり判定で持ち、文字は `text-caption` のまま。
+          className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-caption text-foreground ring-1 ring-border"
+        >
+          <span className="font-semibold label-caps text-muted-foreground">{scale.id}</span>
+          <span className="font-bold">{label}</span>
+          {exams && (exams.toefl || exams.ielts) && (
+            <span className="text-muted-foreground">
+              {[
+                exams.toefl ? `TOEFL ${exams.toefl}` : null,
+                exams.ielts ? `IELTS ${exams.ielts}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={`inline-flex flex-col gap-1 ${className}`}>
@@ -125,7 +170,16 @@ export function TocflLadder({
           <span className="text-caption leading-none text-transparent">–</span>
         </span>
       </div>
-      <p className="text-caption text-muted-foreground">{label}</p>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        aria-expanded
+        className="press-in inline-flex min-h-11 items-center gap-1 self-start text-caption text-muted-foreground"
+      >
+        <span>{label}</span>
+        <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+        <span className="sr-only">{t("tocfl.hideLadder")}</span>
+      </button>
       {/* TOEFL / IELTS は**この段に添える派生の目盛り**(オーナー承認済み
           「CEFR 換算でいい」)。TOCFL のときは何も返らないので出ない。
           **幅で出す** — 換算は1点に決まる物ではないので、1つの数字にすると

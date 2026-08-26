@@ -48,7 +48,6 @@ export type ProfileSection =
   | "meaning"
   | "web_images"
   | "usage_context"
-  | "encounter"
   | "example"
   | "examples_extra"
   | "usage_chunks"
@@ -161,6 +160,32 @@ export type TargetProfile = {
     /** 読みの欄の指示（注音・拼音 / 米式・英式の IPA）。 */
     readingRule: string;
     /**
+     * 語源の書き方。**言語ごとに見る物が違う。**
+     *
+     * ここを分けていなかったので、英語のカードにも
+     * 「漢字の語源・成り立ち」「部首と意味」を作らせていた
+     * (オーナー指示「英単語の由来 — 古代・他言語からの派生、
+     * **接頭語・接尾語** — を解説して」)。
+     */
+    etymologyRule: string;
+    /**
+     * 同じ語根・接頭辞・接尾辞を持つ仲間の語をどう出すか。
+     * **空文字なら作らせない**(学習言語が英語のときだけ、というオーナー指示)。
+     */
+    relativesRule: string;
+    /**
+     * 語源に添える2行目(華語は部首)。**英語には無い**ので空にさせる。
+     * 欄そのものは残す — 古い台湾華語の語が既に持っている。
+     */
+    radicalsRule: string;
+    /**
+     * 部首の行を**画面に出してよい言語か**。
+     *
+     * 指示で空にさせても、古いデータや AI の勇み足で中身が入ることは在る。
+     * 「指示」と「描いてよいか」は別の話なので、真偽値で別に持つ。
+     */
+    hasRadicals: boolean;
+    /**
      * 発音のコツで**その言語のどこを見るか**。
      * 華語は声調、英語は強勢。**混ぜると意味が無い** —
      * 英語に「声調の型」と言っても書けることが無い。
@@ -218,7 +243,6 @@ export const ZH_TW_PROFILE: TargetProfile = {
     "meaning",
     "web_images",
     "usage_context",
-    "encounter",
     "example",
     "examples_extra",
     "usage_chunks",
@@ -255,6 +279,24 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。\n" +
       "  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。",
     readingRule: "- reading_zhuyin: 注音（ㄅㄆㄇ）。台湾教育部準拠。\n- pinyin: 拼音",
+    etymologyRule: "漢字の語源・成り立ち(1〜2文)",
+    /**
+     * **仲間の語はどの学習言語でも出す**(オーナー指示 2026-08-26
+     * 「やっぱり全ての学習言語で語源の項目の欄で、同じ語源や由来がある
+     * 関連単語は表示して」)。英語だけなのは**接頭辞・接尾辞の分解**のほう。
+     *
+     * 華語で「同じ由来」がいちばん役に立つのは**同じ字(語素)を共有する語**。
+     * 「電」を覚えれば電腦・電視・停電がまとめて読めるようになる。
+     */
+    relativesRule:
+      "同じ字(語素)を共有する**仲間の語を2〜4語**。\n" +
+      "  各 {word, note}。note はその字がその語で持つ意味を**5〜12字**で。\n" +
+      "  例: 電話 なら 電腦(電で動く機械) / 電視(電で見る) / 停電(電が止まる)。\n" +
+      "  **その字が本当に同じ意味で働いているときだけ**並べる。\n" +
+      "  たまたま同じ字が入っているだけの語は入れない — 覚え違いの種になる。\n" +
+      "  仲間が無ければ**空配列**。無理に埋めない。",
+    radicalsRule: "部首と意味(1文)",
+    hasRadicals: true,
     pronunciationFocus: "この語の声調の型",
   },
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
@@ -295,7 +337,6 @@ export const EN_PROFILE: TargetProfile = {
     "meaning",
     "web_images",
     "usage_context",
-    "encounter",
     "example",
     "examples_extra",
     "usage_chunks",
@@ -343,6 +384,27 @@ export const EN_PROFILE: TargetProfile = {
       "- pinyin: **空文字**（英語に拼音は無い）\n" +
       "- ipa_us: アメリカ英語の IPA（強勢記号 ˈ ˌ を必ず付ける。例: ʌmˈbrɛlə）\n" +
       "- ipa_uk: イギリス英語の IPA（違いが無ければアメリカ式と同じで良い）",
+    etymologyRule:
+      "語の由来(1〜2文)。ラテン語・ギリシャ語・古英語などの**出どころ**を書く。\n" +
+      "  そのうえで**接頭辞・接尾辞・語根に分解**し、その部品が持つ意味を書く。\n" +
+      "  例: re-(再び) + ject(投げる) → reject / bio-(生命) + -logy(学問) → biology。\n" +
+      "  分解できない語(get, dog など)は無理に分けず、出どころだけを書く。",
+    /**
+     * **仲間の語**(オーナー指示「同じ語源や接頭辞、接尾辞を持つ関連語、
+     * 派生語があれば紹介して」)。語根を1つ覚えると芋づるで増えるのが
+     * 英語の語彙の性質なので、ここがいちばん効く。
+     */
+    relativesRule:
+      "同じ語根・接頭辞・接尾辞を持つ**仲間の語を2〜4語**。\n" +
+      "  各 {word, note}。note はその部品が何を意味するかを**5〜12字**で。\n" +
+      "  例: reject なら inject(中へ投げる) / eject(外へ投げる) / project(前へ投げる)。\n" +
+      "  **共通の部品が本当に同じ意味のときだけ**並べる。綴りが似ているだけの語\n" +
+      "  (understand と stand など)は入れない — 覚え違いの種になる。\n" +
+      "  仲間が無ければ**空配列**。無理に埋めない。",
+    // 英語に部首は無い。**空にさせる** — 何か書けと言うと、AI は
+    // 綴りの一部を「部首」と呼び始める。
+    radicalsRule: "**空文字**(英語に部首は無い)",
+    hasRadicals: false,
     pronunciationFocus: "この語のどの音節を強く読むか",
   },
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)

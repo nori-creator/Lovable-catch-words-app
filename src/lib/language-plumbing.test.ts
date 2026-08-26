@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { targetProfile } from "./target-profile";
+import { sectionTitleKey } from "./card-sections";
 import { TARGET_LANGUAGES } from "./target-lang";
+import { DICT, UI_LANGS } from "./i18n";
 
 /**
  * **学習言語・表示言語が「途中で捨てられていないか」を数える門。**
@@ -304,5 +306,236 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     const idx = src.indexOf("<WordCard");
     const tag = src.slice(idx, src.indexOf("/>", idx));
     expect(tag).not.toContain("minimal");
+  });
+});
+
+describe("第2段: 消したものが戻ってこない", () => {
+  const gone = [
+    "components/CorpusLinks.tsx",
+    "lib/corpus-links.ts",
+    "components/EncounterPanel.tsx",
+    "lib/encounter.functions.ts",
+    "lib/rarity.ts",
+  ];
+
+  it.each(gone)("%s は消えている", (rel) => {
+    expect(fs.existsSync(path.join(root, rel)), rel).toBe(false);
+  });
+
+  it("カードにコーパスのリンクが1つも無い", () => {
+    // オーナー指示「コーパスのリンクを全部削除して」。
+    const src = read("components/WordCard.tsx");
+    expect(src).not.toContain("CorpusLinks");
+  });
+
+  it("「出会う確率」の節が節の一覧から消えている", () => {
+    // オーナー指示「出会う確率の項目も削除して。その他の確率や機能は
+    // すべて削除して」。**一覧に残っていると裏の生成が呼び続ける** —
+    // 何を作っても埋まらないので、上限に当たるまで金と時間を払う。
+    const sections = read("lib/card-sections.ts");
+    expect(sections).not.toContain('"encounter"');
+    const profile = read("lib/target-profile.ts");
+    expect(profile).not.toContain('"encounter"');
+  });
+
+  it("**場面の札は残っている**(消しすぎていない)", () => {
+    // 消すのは確率だけ。「どこで出会うか」の読める札は
+    // オーナーが「質の高いカテゴリーを作って」と言っている当のもの。
+    expect(fs.existsSync(path.join(root, "components/EncounterLabels.tsx"))).toBe(true);
+    expect(read("components/WordCard.tsx")).toContain("<EncounterLabels");
+  });
+
+  it("頻度の実測(`corpus_stats`)は残っている", () => {
+    // 外へのリンクを消しただけで、頻度そのものは場面カテゴリーの材料。
+    expect(read("lib/lexicon.server.ts")).toContain("corpus_stats");
+  });
+
+  it("単語の詳細の一番下の地図が**両方**から消えている", () => {
+    // 片方だけ消すと、図鑑から開いたときと札から開いたときで
+    // 見えるものが食い違う(この作業場が繰り返している形)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(read(f), f).not.toContain("openstreetmap.org/export/embed");
+    }
+  });
+
+  it("上の「撮った所」の行は残っている(地名と導線)", () => {
+    // 地図を消したのであって、場所を消したのではない。
+    // **札の文言ではなく行そのものを見る** — 最初は `card.openMap` が
+    // 在ることを数えていたが、その札は「地名が無いときの代わり」に
+    // 使うのをやめた文言で、消したら門が落ちた(門が実物より古かった)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      const src = codeOnly(read(f));
+      expect(src, f).toContain("google.com/maps?q=");
+      expect(src, f).toContain("s.location_name ??");
+    }
+  });
+
+  it("地名が無いときにボタンの名前を場所の名前として出さない", () => {
+    // 「地図を開く」を地名の代わりに置くと、**そこが「地図を開く」という
+    // 場所に見える**(オーナー指摘)。
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(f)), f).not.toContain('s.location_name ?? t("card.openMap")');
+    }
+  });
+});
+
+describe("中身の無いプロフィールで端末の言語を上書きしない", () => {
+  it("`getMyProfile` の逃げ道は決め打ちの言語を書かない", () => {
+    // main(Lovable)が私用の列を読めないときの逃げ道を足したとき、
+    // `target_language: "zh-TW"` / `ui_language: "ja"` / `level_goal: "TOCFL-2"`
+    // を直に書いていた。**直したばかりの根っこがそのまま再発する形。**
+    const src = codeOnly(read("lib/profile.functions.ts"));
+    expect(src).not.toContain('target_language: "zh-TW"');
+    expect(src).not.toContain('level_goal: "TOCFL-2"');
+    expect(src).toContain("DEFAULT_TARGET_LANGUAGE");
+    expect(src).toContain("levels.toStored(");
+  });
+
+  it("逃げ道は「これは設定ではない」と印を付ける", () => {
+    const src = codeOnly(read("lib/profile.functions.ts"));
+    expect(src).toContain("partial: true");
+  });
+
+  it("写す側はその印を見て、端末を上書きしない", () => {
+    // 印だけ付けて読む側が見ていなければ、何も守られていない。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/if \(p\.partial\) return;/);
+    // 印を見るのが `setTargetLang` **より前**であること。
+    expect(src.indexOf("p.partial")).toBeLessThan(src.indexOf("setTargetLang(p."));
+  });
+});
+
+describe("第2段: 語源と地名を言語ごとに正しく", () => {
+  it("語源のプロンプトが漢字の話で決め打ちされていない", () => {
+    // 英語のカードにも「漢字の語源」「部首と意味」を作らせていた
+    // (オーナー指示「英単語の由来 — 接頭語・接尾語 — を解説して」)。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).not.toContain("漢字の語源・成り立ち");
+    expect(src).not.toContain("部首と意味");
+    expect(src).toContain("capture.etymologyRule");
+    expect(src).toContain("capture.radicalsRule");
+  });
+
+  it("英語の語源は接頭辞・接尾辞に触れ、部首には触れない", () => {
+    const en = targetProfile("en").capture;
+    expect(en.etymologyRule).toContain("接頭辞");
+    expect(en.etymologyRule).toContain("接尾辞");
+    expect(en.etymologyRule).not.toContain("部首");
+    expect(en.hasRadicals).toBe(false);
+    const zh = targetProfile("zh-TW").capture;
+    expect(zh.etymologyRule).toContain("漢字");
+    expect(zh.hasRadicals).toBe(true);
+  });
+
+  it("部首の行は華語のカードだけに出る", () => {
+    // 指示で空にさせても、古いデータには入っている。
+    // 「作らせない」と「描かない」は別の話。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("targetProfile(word.language).capture.hasRadicals");
+  });
+
+  it("地名を受け取る言葉が決め打ちされていない", () => {
+    // `zh-TW` 固定だったので、日本語の画面の人にも中文の地名が返っていた。
+    const src = codeOnly(read("lib/geocode.functions.ts"));
+    expect(src).toContain("readerMapLanguage(");
+    expect(src).not.toMatch(/language: z\.string\(\)\.default\(/);
+  });
+});
+
+describe("語源の仲間の語と、母語に引っ掛ける覚え方", () => {
+  it("仲間の語は**どの学習言語でも**作らせる", () => {
+    // オーナー指示 2026-08-26「やっぱり全ての学習言語で語源の項目の欄で、
+    // 同じ語源や由来がある関連単語は表示して」。
+    for (const lang of TARGET_LANGUAGES) {
+      expect(targetProfile(lang).capture.relativesRule.trim(), lang).not.toBe("");
+    }
+  });
+
+  it("**接頭辞・接尾辞の分解は英語だけ**", () => {
+    // オーナー指示「接頭語、接尾語の解説は学習言語英語の時だけで」。
+    // 華語に接頭辞・接尾辞の話を持ち込むと、部首の話と混ざって濁る。
+    const en = targetProfile("en").capture.etymologyRule;
+    expect(en).toContain("接頭辞");
+    expect(en).toContain("接尾辞");
+    const zh = targetProfile("zh-TW").capture.etymologyRule;
+    expect(zh).not.toContain("接頭辞");
+    expect(zh).not.toContain("接尾辞");
+  });
+
+  it("どの言語の仲間の語も「似ているだけ」を弾き、空を許す", () => {
+    // 無理に埋めさせると、**覚え違いの種**を配ることになる。
+    for (const lang of TARGET_LANGUAGES) {
+      const r = targetProfile(lang).capture.relativesRule;
+      expect(r, lang).toContain("空配列");
+      expect(r, lang).toMatch(/本当に同じ意味/);
+    }
+  });
+
+  it("プロンプトが `relativesRule` から出ている(決め打ちでない)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("capture.relativesRule");
+    // 空の言語では「空配列」と言い切る分岐が在ること。
+    expect(src).toContain("etymology_relatives");
+  });
+
+  it("画面が仲間の語を描く", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    // **部分一致で数えない。** 最初は `toContain("etymology_relatives")` と
+    // 書いていて、`etymology_relatives_DISABLED` に潰しても**通った**
+    // (この作業場で4度目の同じ罠)。実際に描く式の形を見る。
+    expect(src).toMatch(/ex\.etymology_relatives\?\.length/);
+    expect(src).toMatch(/ex\.etymology_relatives!\.map\(/);
+    expect(src).toMatch(/t\("card\.etymologyRelatives"\)/);
+  });
+
+  it("仲間の語だけが届いた段階でも節を「空」にしない", () => {
+    // 空扱いのままだと、裏の生成が同じ節を作り直し続ける。
+    const src = codeOnly(read("lib/card-sections.ts"));
+    expect(src).toContain("etymology_relatives");
+  });
+
+  it("覚え方は**すべての学習言語**で母語に引っ掛ける", () => {
+    // オーナー追記「覚え方のコツはすべての学習言語に適用して」。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toContain("mnemonicRule(");
+    // 「記憶に残るひとことフレーズ・覚え方」の決め打ちが残っていないこと。
+    expect(src).not.toContain("記憶に残るひとことフレーズ・覚え方");
+  });
+
+  it("覚え方の指示は**母語も**受け取る(学習言語だけでは決まらない)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    // 一括生成と作り直しの両方で、母語の符号を渡していること。
+    expect(src).toContain("mnemonicRule(data.targetLanguage, l1Info.code");
+    expect(src).toContain("mnemonicRule(word.language as string | null, regenL1.code");
+  });
+});
+
+describe("節の見出しが言語で嘘をつかない", () => {
+  it("英語のカードの語源の見出しに「部首」が入らない", () => {
+    // **絵で見つけた。** 英語のカードの見出しが `語源・部首` のままだった。
+    // 中身(部首の行)は既に言語で伏せていたのに、見出しだけ残っていた。
+    const key = sectionTitleKey("etymology", "en");
+    expect(key).toBe("card.etymologyOnly");
+    for (const lang of UI_LANGS) {
+      expect(DICT[key][lang], lang).not.toContain("部首");
+      expect(DICT[key][lang].trim(), lang).not.toBe("");
+    }
+  });
+
+  it("華語のカードは今までどおり「語源・部首」", () => {
+    expect(sectionTitleKey("etymology", "zh-TW")).toBe("card.etymology");
+  });
+
+  it("ほかの節の見出しは機械的に引く(例外を増やさない)", () => {
+    for (const id of ["meaning", "example", "mnemonic"] as const) {
+      expect(sectionTitleKey(id, "en")).toBe(`card.${id}`);
+      expect(sectionTitleKey(id, "zh-TW")).toBe(`card.${id}`);
+    }
+  });
+
+  it("画面は見出しを**この関数から**引く", () => {
+    // ここを通さない呼び出しが増えると、同じ嘘が別の場所で戻る。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("t(sectionTitleKey(id, word.language))");
   });
 });

@@ -33,7 +33,6 @@ export const SECTION_IDS = [
   "meaning",
   "web_images",
   "usage_context",
-  "encounter",
   "example",
   "examples_extra",
   "usage_chunks",
@@ -143,8 +142,6 @@ export type SectionContentInput = {
   example_sentence?: string | null;
   /** `normalizeExtras` を通した extras。 */
   extras: WordExtrasDTO | null;
-  /** 「出会う見込み」は数えた答えが届いているときだけ描ける。 */
-  hasEncounter?: boolean;
 };
 
 export function sectionHasContent(id: SectionId, input: SectionContentInput): boolean {
@@ -160,8 +157,6 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
         ex.frequency_level ||
         registerScaleOf(ex) !== null
       );
-    case "encounter":
-      return !!input.hasEncounter;
     case "example":
       return !!input.example_sentence;
     case "examples_extra":
@@ -184,7 +179,8 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
     case "pronunciation_tips":
       return !!(ex.pronunciation_tips || ex.study_tips);
     case "etymology":
-      return !!ex.etymology || !!ex.radicals;
+      // 仲間の語だけが届いている段階でも「空」にしない。
+      return !!ex.etymology || !!ex.radicals || (ex.etymology_relatives?.length ?? 0) > 0;
     case "mnemonic":
       return !!ex.mnemonic;
     case "taiwan_note":
@@ -234,4 +230,20 @@ export function missingSections(
   return order.filter(
     (id): id is RegenSection => isRegenSection(id) && !sectionHasContent(id, input),
   );
+}
+
+/**
+ * 節の見出しの翻訳キー。**言語で変わる節が在る。**
+ *
+ * 「語源・部首」は英語のカードでは嘘になる（英語に部首は無い）。
+ * 絵で見つけた — 英語のカードの見出しが `語源・部首` のままだった。
+ *
+ * 見出しは `t(`card.${id}`)` で機械的に引いていたので、
+ * **例外を1箇所に置く**。ここを通さない呼び出しが増えると同じ嘘が戻る。
+ */
+export function sectionTitleKey(id: SectionId, language: string | null | undefined): string {
+  if (id === "etymology" && !targetProfile(language).capture.hasRadicals) {
+    return "card.etymologyOnly";
+  }
+  return `card.${id}`;
 }

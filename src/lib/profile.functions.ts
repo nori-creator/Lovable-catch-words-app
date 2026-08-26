@@ -2,13 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { L1_ORDER } from "@/lib/l1";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { targetProfile } from "@/lib/target-profile";
 import type { Database } from "@/integrations/supabase/types";
 
 type MyProfile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const getMyProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<MyProfile | null> => {
+  /**
+   * `partial: true` は「私用の列が読めなかったので、言語や級は**置き場所**
+   * を返している」という印。読む側はこれを見て、端末の写しを上書きしない。
+   */
+  .handler(async ({ context }): Promise<(MyProfile & { partial?: boolean }) | null> => {
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("profiles")
@@ -19,7 +25,11 @@ export const getMyProfile = createServerFn({ method: "GET" })
       .maybeSingle();
 
     if (!error) return data as MyProfile | null;
-    if (!/permission denied|not allowed|does not have|column .* does not exist|schema cache/i.test(error.message)) {
+    if (
+      !/permission denied|not allowed|does not have|column .* does not exist|schema cache/i.test(
+        error.message,
+      )
+    ) {
       throw new Error(error.message);
     }
 
@@ -34,16 +44,26 @@ export const getMyProfile = createServerFn({ method: "GET" })
     if (publicError) throw new Error(publicError.message);
     if (!publicData) return null;
 
+    // **ここで返す言語は「その人の設定」ではなく、ただの置き場所。**
+    //
+    // 私用の列が読めなかっただけで、設定そのものは DB に在る。ところが
+    // この行を `useLanguagePrefsSync` がそのまま端末へ写すと、
+    // **英語を学んでいる人の端末が黙って台湾華語に戻る** — 直したばかりの
+    // 根っこ(学習言語がアプリに届かない)がそのまま再発する。
+    //
+    // だから `partial: true` を付けて、**言語の写しには使わせない**。
+    // 値そのものも決め打ちを書かず、既定の1箇所から取る。
     return {
       id: publicData.id,
       display_name: publicData.display_name,
       avatar_url: publicData.avatar_url,
       created_at: publicData.created_at,
       updated_at: publicData.created_at,
-      native_language: "ja",
-      ui_language: "ja",
-      target_language: "zh-TW",
-      level_goal: "TOCFL-2",
+      partial: true,
+      native_language: L1_ORDER[0],
+      ui_language: L1_ORDER[0],
+      target_language: DEFAULT_TARGET_LANGUAGE,
+      level_goal: targetProfile(DEFAULT_TARGET_LANGUAGE).levels.toStored(2),
       pronunciation_strictness: "normal",
       onboarded: publicData.onboarded,
       album_bg: "paper",

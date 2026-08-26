@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { targetProfile } from "./target-profile";
 import { LEVEL_INDEXES } from "./level-scale";
@@ -392,9 +393,10 @@ ${l1Gram}
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - taiwan_note: 台湾ならではの一言雑学（文化・習慣・歴史・流行）を1〜2文(${NL})。誤用しやすい語法の注意があれば1文追加
-- etymology: 漢字の語源・成り立ち（1〜2文、${NL}）
-- radicals: 部首と意味の説明（1文、${NL}）
-- mnemonic: 記憶に残るひとことフレーズ・覚え方（${NL}）
+- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
+${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
+- radicals: ${cardProfile.capture.radicalsRule}
+- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
@@ -746,12 +748,14 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
     // 一括生成(generateCard)と同じ観点になるようにする。
     const l1Gram = await l1Rule(userId, "wordorder");
-    const learnerL1 = (await getLearnerL1(userId)).speakerJa;
+    const regenL1 = await getLearnerL1(userId);
+    const learnerL1 = regenL1.speakerJa;
     const head = word.headword as string;
     // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
     // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
     // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
-    const targetName = targetProfile(word.language as string | null).promptName;
+    const regenProfile = targetProfile(word.language as string | null);
+    const targetName = regenProfile.promptName;
     const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
@@ -843,11 +847,17 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         schema: z.object({ pronunciation_tips: z.string().min(1) }),
       },
       etymology: {
-        prompt: `${base}\n{"etymology":"漢字の語源・成り立ち(1〜2文)","radicals":"部首と意味(1文)"}`,
-        schema: z.object({ etymology: z.string().min(1), radicals: z.string().catch("") }),
+        prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}"}`,
+        schema: z.object({
+          etymology: z.string().min(1),
+          etymology_relatives: z
+            .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
+            .catch([]),
+          radicals: z.string().catch(""),
+        }),
       },
       mnemonic: {
-        prompt: `${base}\n{"mnemonic":"記憶に残るひとことフレーズ・覚え方(${NL})"}`,
+        prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
         schema: z.object({ mnemonic: z.string().min(1) }),
       },
       taiwan_note: {
