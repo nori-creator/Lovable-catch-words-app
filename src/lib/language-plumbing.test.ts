@@ -398,10 +398,36 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
 
   it("写す側はその印を見て、端末を上書きしない", () => {
     // 印だけ付けて読む側が見ていなければ、何も守られていない。
-    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    // **import の行を落として見る** — 落とさないと、`setTargetLang` が
+    // 冒頭の import に当たり、順番の判定が意味を失う
+    // (この作業場で6度目の「文字列が別の場所に在る」事故)。
+    const src = codeOnly(read("lib/use-language-prefs.ts"))
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("import "))
+      .join("\n");
     expect(src).toMatch(/if \(p\.partial\) return;/);
-    // 印を見るのが `setTargetLang` **より前**であること。
-    expect(src.indexOf("p.partial")).toBeLessThan(src.indexOf("setTargetLang(p."));
+    // 印を見るのが**書き込みより前**であること。
+    expect(src.indexOf("p.partial")).toBeLessThan(src.indexOf("setTargetLang("));
+  });
+
+  it("**この端末で選んでいるなら、サーバの値で塗り替えない**", () => {
+    // オーナー報告 2026-08-26(2度目)「一度設定を保存したらその後キープして」。
+    // ここは画面を開くたびに走るので、設定画面だけ直しても塞げない。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/reconcileLanguage\(\{[\s\S]{0,120}?stored: storedTargetLang\(\)/);
+    expect(src).toMatch(/reconcileLanguage\(\{[\s\S]{0,120}?stored: storedUiLang\(\)/);
+    // 生のサーバの値をそのまま書かないこと。
+    expect(src).not.toMatch(/setTargetLang\(p\.target_language\)/);
+    expect(src).not.toMatch(/setUiLang\(normalizeUiLang\(p\.ui_language\)\)/);
+  });
+
+  it("設定の画面も同じ規則で突き合わせ、揃えるために書き戻す", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toMatch(/stored: storedTargetLang\(\)/);
+    expect(src).toMatch(/stored: storedUiLang\(\)/);
+    expect(src).toMatch(/uiPick\.pushToServer \|\| targetPick\.pushToServer/);
+    // 読み込んだ生の値をそのまま画面へ入れないこと。
+    expect(src).not.toMatch(/setTargetLanguage\(profile\.target_language\)/);
   });
 });
 
@@ -877,8 +903,16 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     // 前は「文字で打つ」のボタンで、押して面が開いてから打てた。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).toMatch(/capture\.searchPlaceholder/);
-    expect(cap).toMatch(/setInputSheet\(\{ text: w, auto: true \}\)/);
-    expect(cap).not.toMatch(/onClick=\{\(\) => setInputSheet\(\{\}\)\}/);
+    // **この画面のまま調べる**(オーナー指示 2026-08-26「輸入捕捉って
+    // 表示されるページ消して、元のページのまま検索して」)。
+    // 前は別の面(`InputCatchSheet`)を開いていて、その面が台湾華語の
+    // 決め打ちで引いていたので、英語を学んでいる人にも中国語が出ていた。
+    expect(cap).toMatch(
+      /onSearch=\{\(w\) => void confirmWord\(w, undefined, \{ skipImagePick: true \}\)\}/,
+    );
+    expect(cap).not.toMatch(/setInputSheet/);
+    expect(cap).not.toMatch(/<InputCatchSheet/);
+    expect(cap).not.toMatch(/from "@\/components\/InputCatchSheet"/);
   });
 
   it("**撮る前の画面に場面がある**(検索の欄が機械の目に映る)", () => {
@@ -1120,5 +1154,125 @@ describe("2026-08-26 の報告: 言語が混ざる", () => {
     expect(src).toMatch(/\.eq\("language", targetLanguage\)/);
     // **既定の言語で引く所が残っていないこと。** ここが本体。
     expect(src).not.toMatch(/\.eq\("language", DEFAULT_TARGET_LANGUAGE\)/);
+  });
+});
+
+describe("鳴らす道は1本だけ", () => {
+  it("復習が**自前の再生**を持っていない", () => {
+    // この画面は `playAudio` / `playText` と自前の `sharedAudio` を持って
+    // いた。作り置きが無い語はすぐ端末の声に落ちるので、**サーバの合成を
+    // 1度も使わない** — 同じ語が画面によって別の声で読まれていた。
+    const src = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(src).not.toMatch(/function playAudio\(/);
+    expect(src).not.toMatch(/function playText\(/);
+    expect(src).not.toMatch(/let sharedAudio/);
+  });
+
+  it("作り置きの音は**サーバ関数を呼ばずに**端末へ落ちる", () => {
+    const src = codeOnly(read("routes/_authenticated/review.tsx"));
+    // **話す面と4択の面の両方**。片方だけだと、もう片方は毎回
+    // サーバ関数を呼び直す(直したつもりで半分残る形)。
+    const seeds = src.match(/urls: \{ \[card\.headword\]: card\.audio_url \}/g) ?? [];
+    expect(seeds.length).toBe(2);
+  });
+
+  it("復習の発音ボタンも**鳴らせるようになってから**出る", () => {
+    const src = codeOnly(read("routes/_authenticated/review.tsx"));
+    // 4択の行・見出し語・添削文の3種類とも共通の部品に寄せる。
+    const uses = src.match(/<PronounceButton/g) ?? [];
+    expect(uses.length).toBeGreaterThanOrEqual(4);
+    expect(src).not.toMatch(/aria-label=\{t\("rv\.pronOf"/);
+  });
+
+  it("添削文も**その語の言語**で読む", () => {
+    // `usePronounce()` を引数なしで呼んでいたので、英語の添削文が
+    // 中国語の声で読まれ、しかもその音は保存されていた。
+    const src = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(src).toMatch(/const pronounceLang = card\.language \?\? undefined;/);
+    expect(src).not.toMatch(/usePronounce\(\)/);
+  });
+
+  it("単語帳も同じ部品・同じ言語", () => {
+    const card = codeOnly(read("components/WordbookReviewCard.tsx"));
+    expect(card).toMatch(/<PronounceButton/);
+    expect(card).not.toMatch(/onSpeak/);
+    const page = codeOnly(read("routes/_authenticated/wordbooks.tsx"));
+    expect(page).toMatch(/language=\{targetLanguage\}/);
+    expect(page).not.toMatch(/usePronounce\(\)/);
+  });
+});
+
+describe("2026-08-26 の2度目の報告", () => {
+  it("**一度出した発音ボタンは引っ込めない**", () => {
+    // オーナー報告「単語の候補の音声ボタン押したら消える」。
+    // 押すと状態が一瞬 `loading` に戻ることがあり、素直に描くと
+    // 押した指の下でボタンが消える。
+    const btn = codeOnly(read("components/PronounceButton.tsx"));
+    expect(btn).toMatch(/if \(!shown\.current && \(state === "none" \|\| state === "loading"\)\)/);
+    // 語が差し替わったら**描くより先に**忘れる(効果だと1回ぶん遅れる)。
+    expect(btn).toMatch(/if \(shownFor\.current !== text\) \{/);
+    expect(btn).not.toMatch(/useEffect\(/);
+  });
+
+  it("**駄目だと分かっている語で待たせない**", () => {
+    // オーナー報告「発音のラグがまだある」。合成が使えないとき、
+    // `fetchWithBackoff` が4回まで待ってから端末の声に落ちていた。
+    const hook = codeOnly(read("lib/use-pronounce.tsx"));
+    expect(hook).toMatch(
+      /if \(speechState\(key\) === "failed"\) \{[\s\S]{0,200}?speak\(word, language\);/,
+    );
+  });
+
+  it("記憶の状態も**学習言語で分ける**", () => {
+    // オーナー報告「記憶の状態が学習言語を英語に切り替えたのに台湾華語」。
+    // ここには絞りが1つも無く、列に `language` すら持ってきていなかった。
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    const fn = src.slice(src.indexOf("export const getMemoryOverview"));
+    expect(fn).toMatch(/words\(headword, language\)/);
+    expect(fn).toMatch(/matchesTargetLanguage\(r\.stickers\?\.words\?\.language, targetLanguage\)/);
+  });
+
+  it("4択の**受け皿**もその言語のもの", () => {
+    // オーナー報告「4択が学習言語英語なのに台湾華語の単語が混ざってる」。
+    // 撮った語が少ない人ほどここまで落ちるので、始めたばかりの人ほど
+    // 丸ごと別の言語の4択になっていた。
+    const prof = codeOnly(read("lib/target-profile.ts"));
+    expect(prof).toMatch(/quizFallbackHeadwords: \["蘋果"/);
+    expect(prof).toMatch(/quizFallbackHeadwords: \["apple"/);
+    const rev = codeOnly(read("lib/reviews.functions.ts"));
+    expect(rev).toMatch(/quizFallback\.headwords/);
+    expect(rev).not.toMatch(/FALLBACK_HEADWORDS/);
+  });
+
+  it("**学習言語で書かれていない例文は出さない**", () => {
+    // オーナー報告(絵つき)「学習言語英語なのに例文が台湾華語で表示される」。
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/looksLikeTargetLanguage\(word\.example_sentence, word\.language\)/);
+    expect(card).toMatch(/looksLikeTargetLanguage\(e\.zh, word\.language\)/);
+    expect(fs.existsSync(path.join(root, "lib/text-language.ts"))).toBe(true);
+  });
+
+  it("文字の検索は**画面を変えずに**調べる", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).not.toMatch(/<InputCatchSheet/);
+    expect(cap).not.toMatch(/from "@\/components\/InputCatchSheet"/);
+    expect(cap).toMatch(/confirmWord\(wordParam, undefined, \{ skipImagePick: true \}\)/);
+  });
+});
+
+describe("読む人の言語で書かれていない解説を出さない", () => {
+  it("札の面が**読む人の言語を渡している**", () => {
+    // オーナー報告 2026-08-26(絵つき)「表示言語台灣華語なのに
+    // 言語が混ざってる」。届いた絵では例文の訳は繁体字なのに
+    // 追加例文の訳だけ日本語だった。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,220}?\n\s*uiLang,\n\s*\);/);
+  });
+
+  it("目印の言語が違えば解説を落とす", () => {
+    const lib = codeOnly(read("lib/word-explanation.ts"));
+    expect(lib).toMatch(/const wrongLanguage = !!want && !!has && has !== want;/);
+    // **意味と例文の訳は落とさない**(そこは別の列から来る)。
+    expect(lib).toMatch(/extras: wrongLanguage \? \(null as E\) : extras,/);
   });
 });

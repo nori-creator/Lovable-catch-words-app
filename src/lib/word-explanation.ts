@@ -164,22 +164,46 @@ export function shouldWriteSharedColumns(shared: {
  *
  * 意味と解説で落とし方が違うのは、意味は「空なら意味を成さない」が、
  * 解説は「空のまま正しい」ことがあるから(裏で1項目ずつ埋めている途中)。
+ *
+ * ## 読む人の言語で書かれていない解説は出さない
+ * オーナー報告 2026-08-26(絵つき):
+ * > 「学習言語英語、表示言語台灣華語なのに、言語が混ざってる」
+ *
+ * 届いた絵では、例文の訳は繁体字なのに**追加例文の訳だけ日本語**だった。
+ * その人向けの解説がまだ出来ていない間、古い行(日本語で書かれたもの)を
+ * そのまま出していたため。
+ *
+ * 古い行には `explain_lang` の目印が押してある。**読む人の言語と違うなら
+ * 出さない** — 裏の生成が届けば正しい言語で埋まる。
+ * 「間違った言語で読ませる」より「まだ無い」と描くほうが正しい
+ * (`readerLanguage` を渡さなければ、この選り分けはしない)。
  */
-export function resolveDisplayWord<E>(
+export function resolveDisplayWord<E extends { explain_lang?: string } | null | undefined>(
   shared: { meaning?: string | null; exampleTranslation?: string | null; extras: E },
   explanation: {
     meaning?: string | null;
     example_translation?: string | null;
     extras: E;
   } | null,
+  /**
+   * 読む人の言語。渡すと、**その言語で書かれていない古い解説を出さない**。
+   * 渡さなければ今までどおり(呼ぶ側が言語を持っていない場面のため)。
+   */
+  readerLanguage?: string | null,
 ): { meaning: string; exampleTranslation: string | null; extras: E } {
   const cachedMeaning = (explanation?.meaning ?? "").trim();
   const cachedTranslation = (explanation?.example_translation ?? "").trim();
+  // **行が在れば中身が空でもそちら。** 裏で埋めている途中の解説を、
+  // 古い言語の解説で置き換えてしまわない。
+  const extras = explanation ? explanation.extras : shared.extras;
+  const want = (readerLanguage ?? "").trim();
+  const has = (extras?.explain_lang ?? "").trim();
+  // 目印が無い解説は古すぎて言語が分からない。**分からないものは出す** —
+  // 落とすには根拠が要る(この app の他の判定と同じ)。
+  const wrongLanguage = !!want && !!has && has !== want;
   return {
     meaning: cachedMeaning || (shared.meaning ?? ""),
     exampleTranslation: cachedTranslation || (shared.exampleTranslation ?? null),
-    // **行が在れば中身が空でもそちら。** 裏で埋めている途中の解説を、
-    // 古い言語の解説で置き換えてしまわない。
-    extras: explanation ? explanation.extras : shared.extras,
+    extras: wrongLanguage ? (null as E) : extras,
   };
 }

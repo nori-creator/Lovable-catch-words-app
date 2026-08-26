@@ -47,6 +47,21 @@ const EVENT = "target-lang-changed";
  * **知らない値は既定に落とす。** 一覧から外した言語を選んでいた人が
  * 居ても、未知の言語のまま辞書を引きに行かない。
  */
+/**
+ * **選んだことがあるか。** `getTargetLang` は選んでいない人にも既定を
+ * 返すので、「選んで既定だった」と「一度も選んでいない」が区別できない。
+ * サーバの値と突き合わせるときに、その違いが要る
+ * (`language-sync.ts` の注)。
+ */
+export function storedTargetLang(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function getTargetLang(): TargetLanguage {
   if (typeof window === "undefined") return DEFAULT_TARGET_LANGUAGE;
   try {

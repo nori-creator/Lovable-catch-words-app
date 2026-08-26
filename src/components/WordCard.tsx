@@ -10,6 +10,7 @@ import {
 import { EncounterLabels } from "@/components/EncounterLabels";
 import { TocflLadder } from "@/components/TocflLadder";
 import { resolveWordLanguage } from "@/lib/word-language";
+import { looksLikeTargetLanguage } from "@/lib/text-language";
 import { PronounceButton } from "@/components/PronounceButton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -1140,6 +1141,9 @@ function Body({
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
       // 代わりに**その語がどこに出ているか**だけを印で示す。
+      //
+      // **学習言語で書かれていない例文は出さない**(上の注と同じ理由)。
+      if (!looksLikeTargetLanguage(word.example_sentence, word.language)) return null;
       return (
         <div className="space-y-1">
           <MarkedSentence text={word.example_sentence} term={word.headword} className="text-body" />
@@ -1147,10 +1151,23 @@ function Body({
         </div>
       );
 
-    case "examples_extra":
+    case "examples_extra": {
+      /**
+       * **学習言語で書かれていない例文は出さない**(オーナー報告
+       * 2026-08-26「学習言語英語なのに例文が台湾華語で表示される。
+       * 学習言語しか表示しないようにして」)。
+       *
+       * 学習言語の写しが既定へ戻る隙間に作られたカードには、英語の語を
+       * 中国語の文に埋めた例文が入っている。こちらで訳し直すことは
+       * できないので、**出さない**。空いた節は裏の生成が作り直しに来る。
+       */
+      const rows = (ex.examples_extra ?? []).filter((e) =>
+        looksLikeTargetLanguage(e.zh, word.language),
+      );
+      if (rows.length === 0) return null;
       return (
         <ul className="space-y-2">
-          {(ex.examples_extra ?? []).map((e, i) => (
+          {rows.map((e, i) => (
             <li key={i} className="rounded-xl bg-secondary p-2">
               {e.scene && (
                 <p className="mb-1 text-caption font-medium text-muted-foreground">🎬 {e.scene}</p>
@@ -1161,6 +1178,7 @@ function Body({
           ))}
         </ul>
       );
+    }
 
     case "usage_chunks": {
       // ネイティブがこの単語をどう組み合わせるか — 型をパーツ色分けで。

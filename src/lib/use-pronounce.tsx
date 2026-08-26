@@ -135,6 +135,23 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     // **鍵に言語を混ぜる。** 同じ綴りが両方の言語に在り得る("a" / "in")。
     // 混ぜないと、先に鳴らしたほうの声が残る。
     const key = audioCacheKey(language, word);
+    /**
+     * **一度駄目だった語で、押すたびに待たせない**(オーナー指摘 2026-08-26
+     * 「発音のラグがまだある」)。
+     *
+     * サーバの合成が使えないとき(鍵が無い・圏外・上限)、ここは押すたびに
+     * `ensureAudio` を待っていた。その中の `fetchWithBackoff` は 429/5xx を
+     * **4回まで待って再試行**するので、最悪6秒近く黙ってから端末の声が
+     * 鳴る。押した人には「反応しないアプリ」に見える。
+     *
+     * 駄目だと分かっている語は**その場で端末の声**にして、
+     * 取り直しは裏で1回だけ試す(次に押すときは鳴るかもしれない)。
+     */
+    if (speechState(key) === "failed") {
+      void ensureAudio(key, word, fetcher);
+      speak(word, language);
+      return;
+    }
     try {
       // 端末に在るならここで終わり — ネットに一度も出ない。
       const url = speechUrl(key) ?? (await ensureAudio(key, word, fetcher));

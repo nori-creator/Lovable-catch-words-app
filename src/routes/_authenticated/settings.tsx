@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
-import { setTargetLang } from "@/lib/target-lang-pref";
+import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
 import {
   getStoredReviewMode,
   setStoredReviewMode,
@@ -29,7 +29,8 @@ import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic"
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
-import { useT, setUiLang } from "@/lib/i18n";
+import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
+import { reconcileLanguage } from "@/lib/language-sync";
 import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
 import {
@@ -307,24 +308,58 @@ function SettingsPage() {
      * 戻すのは**言語と、言語で決まる級**だけ。
      */
     if ((profile as { partial?: boolean }).partial) return;
+
+    /**
+     * **一度選んだ言語を、開き直しただけで失わない**(オーナー報告
+     * 2026-08-26、2度目)。
+     *
+     * 前の直しは「サーバに正しい値が入っている」ことを前提にしていた。
+     * 実際にはこちらから見えない理由で保存が届かないことがあり、
+     * そのときは開くたびにサーバの古い値で端末が塗り替えられる。
+     *
+     * **端末に選択が在るならそちらが正**(`language-sync.ts`)。
+     * 違っていればサーバへ書き戻して揃える。
+     */
+    const uiPick = reconcileLanguage({
+      stored: storedUiLang(),
+      server: profile.ui_language,
+      fallback: "ja",
+    });
+    const targetPick = reconcileLanguage({
+      stored: storedTargetLang(),
+      server: profile.target_language,
+      fallback: DEFAULT_TARGET_LANGUAGE,
+    });
+    if (uiPick.pushToServer || targetPick.pushToServer) {
+      // **待たない。** 画面を描くのを止めてまで揃える話ではない。
+      // 落ちてもこの端末の選択はそのまま効く。
+      void updateProfile({
+        data: {
+          ui_language: uiPick.value,
+          target_language: targetPick.value,
+        },
+      }).catch(() => {
+        /* 端末の選択が正なので、書き戻せなくても画面は壊れない */
+      });
+    }
     // **一覧に無い値をそのまま渡さない。** 母語を12から3に絞ったので
     // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
-    setNativeLanguage(pickL1(profile.native_language, profile.target_language));
+    setNativeLanguage(pickL1(profile.native_language, targetPick.value));
     // **知らない値をそのまま渡さない。** 一覧に無い値だと選択が空に見える。
-    const nextUi = normalizeUiLang(profile.ui_language);
+    const nextUi = normalizeUiLang(uiPick.value);
     setUiLanguage(nextUi);
     setUiLang(nextUi);
     // **級より先に学習言語を読む。** 級の表記はその言語の目盛りで決まる。
-    setTargetLanguage(profile.target_language);
+    setTargetLanguage(targetPick.value);
     // **端末にも写す。** 撮る道（スキャン・文字入力・保存）はプロフィールの
     // 到着を待たずに動くので、localStorage の写しから読む
     // (`target-lang-pref.ts`。表示言語と同じ形)。
-    setTargetLang(profile.target_language);
+    setTargetLang(targetPick.value);
     // 保存されている級を**その言語の表記に載せ替える**。台湾華語で
     // 2級だった人が英語に切り替えていれば `"TOCFL-2"` が残っているので、
     // そのまま渡すと CEFR の一覧に無い値になり、選択が空に見える。
-    const scale = targetProfile(profile.target_language).levels;
+    const scale = targetProfile(targetPick.value).levels;
     setLevelGoal(restoreLevel(scale, profile.level_goal, 2));
     setCurrentLevel(
       restoreLevel(scale, (profile as { current_level?: string | null }).current_level, 1),

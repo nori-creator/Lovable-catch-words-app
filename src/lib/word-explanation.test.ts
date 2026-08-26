@@ -141,18 +141,24 @@ describe("shouldWriteSharedColumns", () => {
 });
 
 describe("resolveDisplayWord", () => {
-  const shared = { meaning: "共有の意味", exampleTranslation: "共有の訳", extras: "共有" };
+  // `extras` は目印(`explain_lang`)を持つ物になった。中身は問わないので、
+  // 見分けが付く印だけ入れておく。
+  const shared = {
+    meaning: "共有の意味",
+    exampleTranslation: "共有の訳",
+    extras: { tag: "共有" } as { tag: string; explain_lang?: string },
+  };
 
   it("**共有キャッシュがあればそちらを出す**", () => {
     const got = resolveDisplayWord(shared, {
       meaning: "キャッシュの意味",
       example_translation: "キャッシュの訳",
-      extras: "キャッシュ",
+      extras: { tag: "キャッシュ" },
     });
     expect(got).toEqual({
       meaning: "キャッシュの意味",
       exampleTranslation: "キャッシュの訳",
-      extras: "キャッシュ",
+      extras: { tag: "キャッシュ" },
     });
   });
 
@@ -160,7 +166,7 @@ describe("resolveDisplayWord", () => {
     expect(resolveDisplayWord(shared, null)).toEqual({
       meaning: "共有の意味",
       exampleTranslation: "共有の訳",
-      extras: "共有",
+      extras: { tag: "共有" },
     });
   });
 
@@ -168,7 +174,7 @@ describe("resolveDisplayWord", () => {
     const got = resolveDisplayWord(shared, {
       meaning: "",
       example_translation: null,
-      extras: "キャッシュ",
+      extras: { tag: "キャッシュ" },
     });
     expect(got.meaning).toBe("共有の意味");
     expect(got.exampleTranslation).toBe("共有の訳");
@@ -178,16 +184,16 @@ describe("resolveDisplayWord", () => {
     const got = resolveDisplayWord(shared, {
       meaning: "キャッシュの意味",
       example_translation: null,
-      extras: "",
+      extras: { tag: "" },
     });
-    expect(got.extras).toBe("");
+    expect(got.extras).toEqual({ tag: "" });
   });
 
   it("空白だけの意味は「在る」と数えない", () => {
     const got = resolveDisplayWord(shared, {
       meaning: "   ",
       example_translation: "  ",
-      extras: "キャッシュ",
+      extras: { tag: "キャッシュ" },
     });
     expect(got.meaning).toBe("共有の意味");
     expect(got.exampleTranslation).toBe("共有の訳");
@@ -196,5 +202,50 @@ describe("resolveDisplayWord", () => {
   it("共有の側も空なら空で返す(落ちない)", () => {
     const got = resolveDisplayWord({ extras: null }, null);
     expect(got).toEqual({ meaning: "", exampleTranslation: null, extras: null });
+  });
+});
+
+describe("読む人の言語で書かれていない解説は出さない", () => {
+  /**
+   * オーナー報告 2026-08-26(絵つき)
+   * 「学習言語英語、表示言語台灣華語なのに、言語が混ざってる」。
+   *
+   * 届いた絵では、例文の訳は繁体字なのに**追加例文の訳だけ日本語**。
+   * その人向けの解説がまだ出来ていない間、日本語で書かれた古い行を
+   * そのまま出していた。
+   */
+  const shared = {
+    meaning: "共有の意味",
+    exampleTranslation: "共有の訳",
+    extras: { tag: "古い", explain_lang: "ja" } as { tag: string; explain_lang?: string },
+  };
+
+  it("**言語が違えば解説を出さない**(「まだ無い」と描く)", () => {
+    expect(resolveDisplayWord(shared, null, "zh-TW").extras).toBeNull();
+  });
+
+  it("言語が合っていれば出す", () => {
+    expect(resolveDisplayWord(shared, null, "ja").extras).toEqual(shared.extras);
+  });
+
+  it("**目印が無い解説は出す**(落とすには根拠が要る)", () => {
+    const noTag = {
+      ...shared,
+      extras: { tag: "印なし" } as { tag: string; explain_lang?: string },
+    };
+    expect(resolveDisplayWord(noTag, null, "zh-TW").extras).toEqual(noTag.extras);
+  });
+
+  it("読む人の言語を渡さなければ今までどおり", () => {
+    expect(resolveDisplayWord(shared, null).extras).toEqual(shared.extras);
+    expect(resolveDisplayWord(shared, null, "").extras).toEqual(shared.extras);
+  });
+
+  it("**意味と例文の訳は落とさない**(そこは別の列から来る)", () => {
+    // 解説だけが古い言語で、意味は共有キャッシュの正しい言語、という
+    // 組み合わせが実際に起きている(届いた絵がその形)。
+    const got = resolveDisplayWord(shared, null, "zh-TW");
+    expect(got.meaning).toBe("共有の意味");
+    expect(got.exampleTranslation).toBe("共有の訳");
   });
 });
