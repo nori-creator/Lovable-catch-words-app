@@ -66,6 +66,7 @@ import {
   WordCardScene,
   WordCardEnScene,
   TocflLadderScene,
+  SectionsEditorScene,
 } from "./scenes/word-card";
 import {
   ReviewChoiceScene,
@@ -141,6 +142,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "hero-picker": HeroPickerScene,
   "word-card-empty": WordCardEmptyScene,
   "tocfl-ladder": TocflLadderScene,
+  "sections-editor": SectionsEditorScene,
   "load-failed": LoadFailedScene,
   "dex-empty": DexEmptyScene,
   "dex-no-match": DexNoMatchScene,

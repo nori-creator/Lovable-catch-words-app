@@ -46,6 +46,13 @@ import {
   type SectionId,
 } from "@/lib/card-sections";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
+import {
+  LONG_PRESS_MS,
+  LONG_PRESS_SLOP_PX,
+  dragTarget,
+  moveItem,
+  type RowBox,
+} from "@/lib/reorder";
 import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
@@ -172,6 +179,72 @@ export function WordCardSectionsEditor() {
   const t = useT();
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   usePrefsSync(setPrefs);
+  /**
+   * **長押しして掴む**(オーナー指示 2026-08-25「単語の項目の選択バーを
+   * 長押ししたらドラッグ&ドロップで並べ替え」)。
+   *
+   * ▲▼ のボタンは**残す**。あれが鍵盤と読み上げからの唯一の並べ替え口で、
+   * 消すと touch 以外の人が並べ替えられなくなる。掴む道を足すだけにする。
+   *
+   * 計算は `lib/reorder.ts`(試験16件)。ここは指の扱いだけを持つ。
+   */
+  const [dragId, setDragId] = useState<SectionId | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const holdRef = useRef<{ timer: number; x: number; y: number; id: SectionId } | null>(null);
+
+  const clearHold = () => {
+    if (holdRef.current) {
+      window.clearTimeout(holdRef.current.timer);
+      holdRef.current = null;
+    }
+  };
+  /** いま並んでいる行の縦の位置。掴んでいる間に毎回測り直す。 */
+  const rowBoxes = (): RowBox[] => {
+    const ul = listRef.current;
+    if (!ul) return [];
+    return Array.from(ul.querySelectorAll("li")).map((li) => {
+      const r = li.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom };
+    });
+  };
+  const onPointerDown = (id: SectionId) => (e: React.PointerEvent) => {
+    // 押したのがボタンなら掴まない(▲▼と目のボタンはそのまま効かせる)。
+    if ((e.target as HTMLElement).closest("button")) return;
+    clearHold();
+    const { clientX: x, clientY: y } = e;
+    const timer = window.setTimeout(() => {
+      setDragId(id);
+      holdRef.current = null;
+    }, LONG_PRESS_MS);
+    holdRef.current = { timer, x, y, id };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    // まだ掴んでいない間に指が動いたら、それはスクロール。
+    const hold = holdRef.current;
+    if (hold) {
+      const moved = Math.hypot(e.clientX - hold.x, e.clientY - hold.y);
+      if (moved > LONG_PRESS_SLOP_PX) clearHold();
+      return;
+    }
+    if (!dragId) return;
+    // 掴んでいる間は画面を動かさない。
+    e.preventDefault();
+    const from = prefs.order.indexOf(dragId);
+    const to = dragTarget(rowBoxes(), from, e.clientY);
+    if (to === from) return;
+    setPrefs((p) => ({ ...p, order: moveItem(p.order, from, to) }));
+  };
+  const endDrag = () => {
+    clearHold();
+    if (!dragId) return;
+    setDragId(null);
+    // **離したときに1回だけ書く。** 動かすたびに書くと、指1回で
+    // 何十回も保存が走る。
+    setPrefs((p) => {
+      savePrefs(p);
+      return p;
+    });
+  };
   const isVisible = (id: SectionId) => !prefs.hidden.includes(id);
   const toggle = (id: SectionId) => {
     const next = {
@@ -194,22 +267,44 @@ export function WordCardSectionsEditor() {
     savePrefs(next);
   };
   return (
-    <ul className="space-y-1">
+    <ul
+      ref={listRef}
+      className="space-y-1"
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onPointerLeave={endDrag}
+      // 掴んでいる間だけ、指で画面が動くのを止める。
+      style={dragId ? { touchAction: "none" } : undefined}
+    >
       {prefs.order.map((id, idx) => {
         const meta = ALL_SECTIONS.find((s) => s.id === id);
         if (!meta) return null;
         const visible = isVisible(id);
+        const dragging = dragId === id;
         return (
           <li
             key={id}
-            className="flex items-center justify-between rounded-lg bg-secondary/60 px-2 py-1 text-footnote"
+            onPointerDown={onPointerDown(id)}
+            aria-grabbed={dragging || undefined}
+            className={`flex touch-manipulation items-center justify-between rounded-lg px-2 py-1 text-footnote transition-shadow ${
+              dragging ? "bg-card shadow-lg ring-2 ring-primary" : "bg-secondary/60"
+            }`}
           >
             <span className={visible ? "" : "text-muted-foreground line-through"}>
               {t(`card.${meta.id}`)}
             </span>
+            {/* **本当に 44px にする。**
+                絵の検査が 22x22 で落とした — この部品には場面が無かったので、
+                今まで一度も測られていなかった。
+                最初は `::before` を伸ばす §11 の型で通そうとしたが、
+                検査は**要素そのものの箱**を測るので通らない。そして
+                それが正しい — 指はこの部品の見た目を触るのであって、
+                見えない `::before` を狙って触れる人はいない。
+                設定の一覧の行が 44px なのは、どの携帯でも標準の寸法。 */}
             <span className="flex gap-1">
               <button
-                className="lift-soft rounded-md p-1"
+                className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
                 onClick={() => move(id, -1)}
                 disabled={idx === 0}
                 aria-label={t("card.moveUp")}
@@ -217,7 +312,7 @@ export function WordCardSectionsEditor() {
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
               <button
-                className="lift-soft rounded-md p-1"
+                className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
                 onClick={() => move(id, 1)}
                 disabled={idx === prefs.order.length - 1}
                 aria-label={t("card.moveDown")}
@@ -225,7 +320,7 @@ export function WordCardSectionsEditor() {
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
               <button
-                className="lift-soft rounded-md p-1"
+                className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
                 onClick={() => toggle(id)}
                 aria-label={t("card.toggleShow")}
               >

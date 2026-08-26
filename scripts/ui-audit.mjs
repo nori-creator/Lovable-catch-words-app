@@ -147,10 +147,10 @@ const BASE = `http://127.0.0.1:${server.address().port}/index.html`;
 /**
  * ハーネスの場面をURLの検索文字列で表す。
  *
- * `click` だけは URL に載せない — 開いたあとに押す指示なので、
+ * `click` と `hold` だけは URL に載せない — 開いたあとに押す指示なので、
  * ハーネスではなく検査の側の都合。
  */
-const sceneUrl = (base, { scene = "shelf", click: _click, ...rest } = {}) => {
+const sceneUrl = (base, { scene = "shelf", click: _click, hold: _hold, ...rest } = {}) => {
   const q = new URLSearchParams({ scene, ...rest });
   return `${base}?${q}`;
 };
@@ -252,6 +252,9 @@ const MODES = [
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
   // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
   // 片方しか撮らないと、片方は一度も見ていないことになる。
+  // 項目の並べ替え。**掴んでいる絵**は長押ししたままでないと写らない。
+  ...crossThemes("sections-editor", { scene: "sections-editor" }),
+  ["sections-editor-dragging", "", false, { scene: "sections-editor", hold: "ul li:nth-child(2)" }],
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
   [
     "tocfl-ladder-open",
@@ -571,6 +574,31 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       await target.click({ timeout: 2000 }).catch(() => {});
     } else {
       issues.push(`[${name}] 押す対象が見つからない: ${scene.click}`);
+    }
+  }
+  /**
+   * **長押ししたまま撮る。**
+   *
+   * 掴んで並べ替える面は、押した瞬間でも離したあとでもなく
+   * 「**押し続けている間**」にしか出ない。`click` では一度も描かれず、
+   * 実際そうなっていた(項目の並べ替えを掴めるようにしたのに、
+   * 掴んでいる絵が1枚も無いまま検査が合格した)。
+   *
+   * 指を置いて `LONG_PRESS_MS` より長く待ち、**離さずに**次へ進む。
+   * 後片付けは頁ごと閉じるので要らない。
+   */
+  if (scene.hold) {
+    const target = page.locator(scene.hold).first();
+    if (await target.count()) {
+      const box = await target.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        // 長押しの敷居(400ms)より確実に長く待つ。
+        await page.waitForTimeout(700);
+      }
+    } else {
+      issues.push(`[${name}] 長押しする対象が見つからない: ${scene.hold}`);
     }
   }
   await page.waitForTimeout(400);

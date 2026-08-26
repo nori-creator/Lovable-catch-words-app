@@ -5,7 +5,7 @@
  * 「暗いテーマに追従しないと分かっているが、直す前に場面を足す」と
  * 決めてあった箇所。まず見えるようにする。
  */
-import { WordCard } from "@/components/WordCard";
+import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";
 import { CEFR_SCALE, TOCFL_SCALE } from "@/lib/level-scale";
 import {
@@ -432,6 +432,24 @@ export function TocflLadderScene({ q }: { q: URLSearchParams }) {
       <div className="rounded-2xl border border-border bg-card p-3">
         <TocflLadder level={null} scale={scale} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * 単語の項目の並べ替え。
+ *
+ * **今まで一度も撮っていなかった。** 掴んで並べ替えられるようにしたのに、
+ * この部品には場面が無く、検査は合格したまま**1枚も絵が残らなかった**
+ * (この作業場で3度目の「雛形が実物を追えていない」形)。
+ *
+ * `?hold=` を使うと、検査が指を置いたまま撮る。掴んでいる見た目は
+ * **押し続けている間**にしか出ないので、`click` では永遠に写らない。
+ */
+export function SectionsEditorScene() {
+  return (
+    <div style={{ padding: 16 }}>
+      <WordCardSectionsEditor />
     </div>
   );
 }

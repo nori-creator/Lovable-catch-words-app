@@ -571,3 +571,45 @@ describe("意味の説明は要るときだけ / フレーズカードも学習�
     expect(src).not.toContain("フレーズ全体の注音(台湾教育部準拠)");
   });
 });
+
+describe("項目の並べ替え / 例文のレベル連動", () => {
+  it("長押しで掴んで並べ替えられる", () => {
+    // オーナー指示「単語の項目の選択バーを長押ししたらドラッグ&ドロップで」。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("LONG_PRESS_MS");
+    expect(src).toContain("dragTarget(");
+    expect(src).toContain("onPointerDown={onPointerDown(id)}");
+  });
+
+  it("**▲▼のボタンを消していない**(鍵盤と読み上げの唯一の口)", () => {
+    // 掴む道を足すのであって、押す道を奪うのではない。
+    // 消すと touch 以外の人が並べ替えられなくなる。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect(src).toContain("card.moveUp");
+    expect(src).toContain("card.moveDown");
+  });
+
+  it("並べ替えの計算は純粋な関数に置く(指の扱いと混ぜない)", () => {
+    // 順番がずれたときに「指か計算か」を切り分けられるようにする。
+    expect(fs.existsSync(path.join(root, "lib/reorder.ts"))).toBe(true);
+    const card = codeOnly(read("components/WordCard.tsx"));
+    // 画面側で並べ替えを手書きしていないこと。
+    expect(card).toContain("moveItem(p.order, from, to)");
+  });
+
+  it("保存は離したときに1回だけ", () => {
+    // 動かすたびに書くと、指1回で何十回も保存が走る。
+    const src = codeOnly(read("components/WordCard.tsx"));
+    const endDrag = src.slice(src.indexOf("const endDrag"), src.indexOf("const endDrag") + 500);
+    expect(endDrag).toContain("savePrefs(p)");
+  });
+
+  it("項目ごとの作り直しにもレベルの縛りが掛かる", () => {
+    // **既に効いていた**(`base` が `levelRule` を持ち、各項目は
+    // `${base}` から始まる)。外れたら気づけるように数えておく。
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    const base = src.split("\n").find((l) => l.includes("const base = `"));
+    expect(base).toBeTruthy();
+    expect(base).toContain("${levelRule}");
+  });
+});
