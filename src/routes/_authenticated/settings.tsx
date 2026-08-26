@@ -632,8 +632,16 @@ function SettingsPage() {
             {/* 要望 #16「表示画像(切り抜き/元画像/自撮り)を設定から選べる」。
                 端末ごとの設定にしてある(理由は `lib/photo-pref.ts`)ので、
                 保存はここで即座に効く — サーバへは行かない。 */}
+            {/* **「画面ごと」の札は消した**(オーナー指示 2026-08-26)。
+                何が出るのかを画面に委ねる選択肢は、選んだ人から見ると
+                「選んでいない」のと区別が付かない。
+
+                **値そのものは残す**(`photo-pref.ts` の `auto`)。
+                既に `auto` のまま使っている人の見え方を、設定を開いた
+                だけで変えないため — その人にはどれも選ばれていない
+                状態で出て、押したときに初めて決まる。 */}
             <ChoiceRow
-              cols={4}
+              cols={3}
               label={t("settings.photoPref")}
               value={photoPref}
               onChange={(v) => {
@@ -641,7 +649,6 @@ function SettingsPage() {
                 setPhotoPref(v);
               }}
               options={[
-                { value: "auto", label: t("settings.photoAuto") },
                 { value: "object", label: t("settings.photoObject") },
                 { value: "cutout", label: t("settings.photoCutout") },
                 { value: "selfie", label: t("settings.photoSelfie") },

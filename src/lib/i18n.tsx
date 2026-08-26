@@ -2579,12 +2579,18 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "set.catchSpeedN": { ja: "{n}回", en: "{n}×", "zh-TW": "{n} 次" },
   "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log", "zh-TW": "清除紀錄" },
+  /**
+   * オーナー指示 2026-08-26「設定の札の主役の画像って項目名前変えて。
+   * また画面ごとのボタンも削除して」。
+   *
+   * 「主役」は作り手の言葉で、この欄が何を決めるのかを言っていない。
+   * 決まるのは **既定でどの写真から見せるか** なので、そう書く。
+   */
   "settings.photoPref": {
-    ja: "札の主役の写真",
-    en: "Main photo on a card",
-    "zh-TW": "貼紙的主角照片",
+    ja: "はじめに見せる写真",
+    en: "Photo shown first",
+    "zh-TW": "優先顯示的照片",
   },
-  "settings.photoAuto": { ja: "画面ごと", en: "Per screen", "zh-TW": "依畫面" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
