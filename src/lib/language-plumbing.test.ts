@@ -4,6 +4,7 @@ import path from "node:path";
 import { targetProfile } from "./target-profile";
 import { sectionTitleKey } from "./card-sections";
 import { TARGET_LANGUAGES } from "./target-lang";
+import { LEVEL_OUT, parseLevelStep } from "./level-scale";
 import { DICT, UI_LANGS } from "./i18n";
 
 /**
@@ -350,8 +351,9 @@ describe("第2段: 消したものが戻ってこない", () => {
   it("**場面の札は残っている**(消しすぎていない)", () => {
     // 消すのは確率だけ。「どこで出会うか」の読める札は
     // オーナーが「質の高いカテゴリーを作って」と言っている当のもの。
-    expect(fs.existsSync(path.join(root, "components/EncounterLabels.tsx"))).toBe(true);
-    expect(read("components/WordCard.tsx")).toContain("<EncounterLabels");
+    // 2026-08-27 ⑤ で浮いて跳ねる札になった(`SceneBubbles`)。
+    expect(fs.existsSync(path.join(root, "components/SceneBubbles.tsx"))).toBe(true);
+    expect(read("components/WordCard.tsx")).toContain("<SceneBubbles");
   });
 
   it("頻度の実測(`corpus_stats`)は残っている", () => {
@@ -1312,7 +1314,9 @@ describe("2026-08-26 の2度目の報告", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).not.toMatch(/<InputCatchSheet/);
     expect(cap).not.toMatch(/from "@\/components\/InputCatchSheet"/);
-    expect(cap).toMatch(/confirmWord\(wordParam, undefined, \{ skipImagePick: true \}\)/);
+    // 検索している間も検索の画面のまま。全画面の「分析中」へ飛ばさない。
+    expect(cap).toMatch(/setSearching\(true\)/);
+    expect(cap).toMatch(/disabled=\{searching \|\| !typedWord\.trim\(\)\}/);
   });
 });
 
@@ -1358,7 +1362,11 @@ describe("2026-08-26 の3度目の報告", () => {
     // 「例文や単語の変化が回答が生成されてないのに項目が表示されてる。
     //  回答が生成されるまで項目が表示しないで。」
     const src = codeOnly(read("components/WordCard.tsx"));
-    expect(src).toMatch(/order\.filter\(\(id\) => isVisible\(id\) && hasContent\(id\)\)/);
+    // 2026-08-27 ④ で「ネットの画像は届いてから」が加わったので、
+    // 条件は `canShow` に名前が付いた。中身は同じ — 行に中身が在るか、
+    // ネットの画像なら1枚でも届いたか。
+    expect(src).toMatch(/order\.filter\(\(id\) => isVisible\(id\) && canShow\(id\)\)/);
+    expect(src).toMatch(/: hasContent\(id\)/);
     // 「まだ作られていません」の枠そのものが残っていないこと。
     expect(src).not.toMatch(/EmptySection/);
     expect(src).not.toMatch(/card\.notYet/);
@@ -1768,5 +1776,308 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
       expect(src, rel).toMatch(/usePlaceName\(s\.lat, s\.lng, s\.location_name\)/);
       expect(src, rel).toMatch(/location_name \?\? resolvedPlace \?\? t\("common\.shotHere"\)/);
     }
+  });
+});
+
+/**
+ * 読み上げの言語（オーナー報告 2026-08-27 ①⑯）。
+ *
+ * > 「Mapの発音おかしい。pが発音されてない。」
+ * > 「音声の声がたまに異なる。様々な別のソフトの声がする。声質を統一したい。」
+ *
+ * 原因は1つ。**何語として読むかを渡していない呼び出しが4つ**あった。
+ * `usePronounce()` の既定は台湾華語なので、そこから鳴る英語は
+ * 中国語の声で合成される — 中国語に語末の /p/ は無いので "map" は
+ * 「マー」になる。しかも `scan.tsx` は道そのものの写しを持っていて、
+ * 控えの側で `new SpeechSynthesisUtterance` を直に作り、**声を1つも
+ * 選んでいなかった**。端末がその場で選ぶので、鳴らすたびに声が変わる。
+ */
+describe("読み上げは必ず「何語か」を連れて歩く", () => {
+  const CALLERS = [
+    "components/ScanCatchSheet.tsx",
+    "components/InputCatchSheet.tsx",
+    "components/WordCard.tsx",
+    "routes/_authenticated/capture.tsx",
+    "routes/_authenticated/scan.tsx",
+    "routes/_authenticated/review.tsx",
+  ];
+
+  it("`usePronounce()` を引数なしで呼ぶ所が1つも無い", () => {
+    for (const rel of CALLERS) {
+      expect(codeOnly(read(rel)), rel).not.toMatch(/usePronounce\(\s*\)/);
+    }
+  });
+
+  it("画面が `SpeechSynthesisUtterance` を自分で作らない", () => {
+    for (const rel of CALLERS) {
+      expect(codeOnly(read(rel)), rel).not.toMatch(/new SpeechSynthesisUtterance/);
+    }
+  });
+
+  it("かざす画面は合成のサーバ関数を直に呼ばない", () => {
+    const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+    expect(scan).not.toMatch(/synthesizeSpeech/);
+    expect(scan).toMatch(/usePronounce\(targetLanguage\)/);
+  });
+
+  it("辞書の音声の作り置きは学習言語を選べる", () => {
+    const admin = codeOnly(read("routes/_authenticated/admin.metrics.tsx"));
+    expect(admin).toMatch(/pregenFn\(\{ data: \{ batch: 25, language \} \}\)/);
+    expect(admin).toMatch(/dry_run: true, language/);
+  });
+});
+
+/** アルバムは「自分が出会って撮った物」の紙（オーナー指摘 2026-08-27 ②）。 */
+describe("アルバムに借り物を貼らない", () => {
+  const home = () => codeOnly(read("routes/_authenticated/home.tsx"));
+
+  it("ネットの絵はアルバムの選択肢から外れている", () => {
+    expect(home()).toMatch(/exclude: \["placeholder"\]/);
+  });
+
+  it("写真が無い札には印画紙も三角コーナーも付かない", () => {
+    const src = home();
+    expect(src).toMatch(/heroUrl \? "photo-print" : "album-note"/);
+    expect(src).toMatch(/\{heroUrl && \(\s*<>\s*<span aria-hidden className="photo-corner tl"/);
+  });
+
+  it("アルバムの見出し語の字形は学習言語から決める", () => {
+    const src = home();
+    // **属性そのものを見る。** 注釈の中で `lang="zh-Hant"` と説明している
+    // 行があり、`codeOnly` は `{/*` 始まりの行を落とさない。
+    expect(src).not.toMatch(/^\s*lang="zh-Hant"$/m);
+    expect(src).toMatch(/<Term\s+lang=\{s\.word\.language\}/);
+  });
+});
+
+/** 型の節は**かたまりしか出さない**(オーナー指摘 2026-08-27 ②⑫⑮)。 */
+describe("型の節はかたまりしか出さない", () => {
+  const card = () => codeOnly(read("components/WordCard.tsx"));
+
+  it("語順の解説文を型の節に流さない", () => {
+    expect(card()).not.toMatch(/ex\.word_order/);
+  });
+
+  it("数える側からも `word_order` が消えている(描く側と揃える)", () => {
+    expect(codeOnly(read("lib/card-sections.ts"))).not.toMatch(/ex\.word_order/);
+  });
+
+  it("古いカードのコロケーションも同じ物差しを通る", () => {
+    expect(card()).toMatch(/usableCollocations\(ex\.collocations, word\.language\)/);
+    expect(codeOnly(read("lib/card-sections.ts"))).toMatch(
+      /usableCollocations\(ex\.collocations, input\.language\)/,
+    );
+  });
+
+  it("量詞に触れる型は1つも通さない", () => {
+    const lib = codeOnly(read("lib/extras.ts"));
+    expect(lib).toMatch(/export function withoutMeasureWords\(/);
+    expect(lib).not.toMatch(/parts\.some\(\(t\) => !cores\.has/);
+  });
+
+  it("生成側にも「量詞を使わない」と書いてある", () => {
+    expect(targetProfile("zh-TW").chunkPrompt.styleRule).toContain("量詞を1つも使わない");
+    for (const code of TARGET_LANGUAGES) {
+      expect(targetProfile(code).chunkPrompt.lengthRule, code).toMatch(/感嘆符|疑問符/);
+    }
+  });
+});
+
+/** 関連語の欄(オーナー指示 2026-08-27 ⑧)。 */
+describe("関連語は読めて・鳴らせて・読みやすい", () => {
+  it("読みの欄が語の持ち物として在る", () => {
+    const lib = codeOnly(read("lib/extras.ts"));
+    expect(lib).toMatch(/reading: z\.string\(\)\.catch\(""\)/);
+    expect(lib).toMatch(/reading_alt: z\.string\(\)\.catch\(""\)/);
+  });
+
+  it("読みは表記の名前を持たない(注音か IPA かは言語が決める)", () => {
+    expect(codeOnly(read("lib/target-profile.ts"))).toMatch(/export function readingPromptNames\(/);
+    const ph = codeOnly(read("lib/phonetic.tsx"));
+    expect(ph).toMatch(/export function neutralReadings\(/);
+    expect(ph).toMatch(/export function ReadingOf\(/);
+  });
+
+  it("画面は `ReadingOf` を通す(英語の語に注音を出さない唯一の道)", () => {
+    expect(codeOnly(read("components/WordCard.tsx"))).toMatch(/<ReadingOf/);
+  });
+
+  it("語そのものは注釈より大きい", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    const row = src.slice(src.indexOf("function RelatedWordRow"));
+    expect(row.slice(0, 2000)).toMatch(/text-body font-medium/);
+  });
+
+  it("見出しは「類義語 / 反義語 / 関連語」", () => {
+    expect(DICT["card.synonym"].ja).toBe("類義語");
+    expect(DICT["card.antonym"].ja).toBe("反義語");
+    expect(DICT["card.relatedTag"].ja).toBe("関連語");
+  });
+
+  it("例文・型・関連語のどれからも鳴らせる", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    expect((src.match(/<PronounceButton/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    expect(src).toMatch(/onSpeak=\{\(text\) => void pronounce\(text\)\}/);
+  });
+});
+
+/** ネットの画像（オーナー報告 2026-08-27 ④）。 */
+describe("ネットの画像は、届いてから並べる", () => {
+  it("鍵の要らない出所がある", () => {
+    expect(fs.existsSync(path.join(root, "lib/commons-images.ts"))).toBe(true);
+    const fn = codeOnly(read("lib/images.functions.ts"));
+    expect(fn).toMatch(/commonsSearchUrl\(data\.query\)/);
+    expect(fn).toMatch(/source: "commons"/);
+    expect(fn.indexOf("commonsSearchUrl")).toBeLessThan(
+      fn.indexOf("generateOneAiImage(data.query)"),
+    );
+  });
+
+  it("並べる側と描く側が**同じ問い合わせ**を読む", () => {
+    expect(fs.existsSync(path.join(root, "lib/use-web-images.ts"))).toBe(true);
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).not.toMatch(/queryKey: \["web-images"/);
+    expect(card).not.toMatch(/searchImageCandidates/);
+    expect((card.match(/useWebImages\(/g) ?? []).length).toBe(2);
+  });
+
+  it("1枚も無い語では節ごと出さない", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(
+      /id === "web_images" \? webImages\.candidates\.length > 0 : hasContent\(id\)/,
+    );
+    expect((card.match(/canShow\(id\)/g) ?? []).length).toBe(2);
+  });
+});
+
+/** 話すモードの採点（オーナー指示 2026-08-27 ⑦）。 */
+describe("言い直して当てた語を「覚えていた」に数えない", () => {
+  const rv = () => codeOnly(read("routes/_authenticated/review.tsx"));
+
+  it("判断は純粋な物1つに在る", () => {
+    expect(fs.existsSync(path.join(root, "lib/speaking-grade.ts"))).toBe(true);
+    expect(rv()).toMatch(/speakingResult\(\{ kind, objectiveOk, failedAttempts \}\)/);
+    expect(rv()).not.toMatch(/kind === "skip" \? "skip" : objectiveOk \? "success" : "skip"/);
+  });
+
+  it("外した回数を数えている(最後の1回ではなく)", () => {
+    const src = rv();
+    expect(src).toMatch(/const \[failedAttempts, setFailedAttempts\] = useState\(0\)/);
+    expect((src.match(/setFailedAttempts\(\(n\) => n \+ 1\)/g) ?? []).length).toBe(2);
+  });
+
+  it("グラフが読む `correct` も同じ所から出す", () => {
+    const src = rv();
+    expect(src).toMatch(/correct: countsAsRemembered\(result\)/);
+    expect(src).not.toMatch(/correct: result === "success"/);
+  });
+
+  it("明日また出る理由をその場で言う", () => {
+    expect(rv()).toMatch(/retried=\{failedAttempts > 0\}/);
+    expect(DICT["review.retriedCountsAsLapse"]).toBeDefined();
+  });
+});
+
+/** 級（オーナー指摘 2026-08-27 ⑭）。 */
+describe("級は辞書が正、分からないものは級外", () => {
+  const ai = () => codeOnly(read("lib/ai.functions.ts"));
+
+  it("決め方は純粋な物1つに在る", () => {
+    expect(fs.existsSync(path.join(root, "lib/level-source.ts"))).toBe(true);
+    expect(ai()).toMatch(
+      /resolveLevel\(\{ scale: cardProfile\.levels, dictStep, aiLevel: card\.level \}\)/,
+    );
+    expect(ai()).toMatch(/level: level\.stored/);
+  });
+
+  it("カードを作るときに辞書を引く", () => {
+    const src = ai();
+    expect(src).toMatch(/from\("dictionary_entries"\)/);
+    expect(src).toMatch(/\.select\("level_step, exam_tags"\)/);
+    expect(src).toMatch(/const cardLanguage = cardProfile\.code/);
+    expect(src).toMatch(/\.eq\("language", cardLanguage\)/);
+  });
+
+  it("**指示文に級外の口がある**(6つのどれかを強いない)", () => {
+    expect(ai()).toMatch(/級外/);
+    for (const code of TARGET_LANGUAGES) {
+      expect(parseLevelStep(targetProfile(code).levels.outStored), code).toBe(LEVEL_OUT);
+    }
+  });
+
+  it("級外の語には、級の代わりに検定の印を出す", () => {
+    expect(fs.existsSync(path.join(root, "lib/exam-tags.ts"))).toBe(true);
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/parseLevelStep\(word\.level\) === LEVEL_OUT/);
+    expect(card).toMatch(/examTagLabels\(word\.extras\?\.exam_tags\)/);
+    expect(ai()).toMatch(/exam_tags: examTags/);
+  });
+});
+
+/** 地の文の読みやすさ（オーナー指摘 2026-08-27 ⑥）。 */
+describe("地の文は読める組みで出す", () => {
+  const css = () => read("styles.css");
+
+  it("和文の行送りに直してある(欧文の 1.6 のままにしない)", () => {
+    expect(css()).toMatch(/\.prose-body \{[\s\S]*?line-height: 1\.85;/);
+  });
+
+  it("行長を切る(横向き・タブレットで1行60字にしない)", () => {
+    expect(css()).toMatch(/\.prose-body \{[\s\S]*?max-width: 34em;/);
+  });
+
+  it("**`balance` ではなく `pretty`**(あれは見出しのための物)", () => {
+    expect(css()).toMatch(/\.prose-body \{[\s\S]*?text-wrap: pretty;/);
+    expect(codeOnly(read("components/Prose.tsx"))).not.toMatch(/text-balance/);
+  });
+
+  it("地の文だけの節は沈めた面に載る", () => {
+    expect(css()).toMatch(/\.prose-panel \{/);
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect((card.match(/<Prose panel /g) ?? []).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("例文も追加例文と同じ面に載る(1つめだけ素の白地にしない)", () => {
+    expect(codeOnly(read("components/WordCard.tsx"))).toMatch(
+      /className="prose-body min-w-0 flex-1 text-body"/,
+    );
+  });
+
+  it("印を付けた語の字形は学習言語から決める", () => {
+    const prose = codeOnly(read("components/Prose.tsx"));
+    expect(prose).not.toMatch(/lang="zh-Hant"/);
+    expect(prose).toMatch(/<Term\s+key=\{j\}\s+lang=\{lang\}/);
+  });
+});
+
+/** 使う場面の札（オーナー指示 2026-08-27 ⑤）。 */
+describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
+  it("動きの計算は純粋な物に切り出してある", () => {
+    expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(true);
+    const view = codeOnly(read("components/SceneBubbles.tsx"));
+    expect(view).toMatch(/stepBubbles\(cur, world, dt\)/);
+    expect(view).not.toMatch(/vx \*=|vy \+=/);
+  });
+
+  it("どの札を出すかも純粋な物に切り出してある", () => {
+    expect(fs.existsSync(path.join(root, "lib/scene-bubbles.ts"))).toBe(true);
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/sceneBubbles\(\{/);
+  });
+
+  it("**限定の札を作る**(extras に在るのに画面に出ていなかった2つ)", () => {
+    const lib = codeOnly(read("lib/scene-bubbles.ts"));
+    expect(lib).toMatch(/ex\.region_scope/);
+    expect(lib).toMatch(/seasonOf\(ex\.season_months\)/);
+    expect(DICT["card.limitedTo"].ja).toBe("{place}限定");
+  });
+
+  it("**札で言えるときは文章を出さない**(欄が2倍の高さにならない)", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/bubbleCount === 0 && text && <Prose/);
+    expect(card).toMatch(/const bubbleCount = sceneBubbles\(\{/);
+  });
+
+  it("動きを止めたい人には止めて出す", () => {
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/prefers-reduced-motion: reduce/);
   });
 });

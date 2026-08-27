@@ -185,8 +185,14 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       return { done: 0, failed: 0, remaining: remainingBefore ?? 0, errors: [] as string[] };
     }
 
+    // **やさしい語・よく出る語から先に音を付ける。**
+    // `tocfl_level` は台湾華語の欄で、英語の行は全部 null。それだけで
+    // 並べると英語は事実上アルファベット順になり、25,595 語のうち
+    // 最初に音が付くのが "aardvark" になる。級(`level_step`)→
+    // 頻度(`freq_rank`)→綴り、の順で見る。どちらの言語でも意味を持つ。
     const { data: entries, error } = await pending()
-      .order("tocfl_level", { ascending: true, nullsFirst: false })
+      .order("level_step", { ascending: true, nullsFirst: false })
+      .order("freq_rank", { ascending: true, nullsFirst: false })
       .order("headword", { ascending: true })
       .limit(data.batch);
     if (error) throw new Error(error.message);

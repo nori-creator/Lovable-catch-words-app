@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { meaningRule, distinctionRule } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import { targetProfile } from "./target-profile";
+import { readingPromptNames, targetProfile } from "./target-profile";
+import { resolveLevel } from "./level-source";
 import { LEVEL_INDEXES } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
@@ -317,6 +318,11 @@ export const generateCard = createServerFn({ method: "POST" })
     // 「発音、意味、品詞、レベル、カテゴリ、例文とその訳を生成してください」
     // の1行に落ちていて、カテゴリの規則も棚の提案も届かなかった。
     const cardProfile = targetProfile(data.targetLanguage);
+    // **辞書を引く言語と、級の目盛りを同じ値から出す。** 別々に書くと、
+    // 英語のカードを台湾華語の辞書で引く回ができる。
+    const cardLanguage = cardProfile.code;
+    // 読みの呼び名は言語ごと(注音/拼音 と IPA 米/英)。`readings` から引く。
+    const cardReadingNames = readingPromptNames(cardProfile);
     // **保存する形をそのまま並べる**(`TOCFL-1` / `A1`)。名前(`1` / `A1`)を
     // 並べると、AI が `1` と答えて `parseLevelStep` の外に落ちる。
     const levelNames = LEVEL_INDEXES.map((n) => cardProfile.levels.toStored(n)).join(" / ");
@@ -334,7 +340,10 @@ ${levelRule}
 ${cardProfile.capture.readingRule}
 - meaning_ja: ${meaningRule(cardProfile.promptName, NL)}
 - part_of_speech: ${cardProfile.capture.posRule}
-- level: ${cardProfile.levels.id} のレベル（${levelNames} のいずれか）
+- level: ${cardProfile.levels.id} のレベル（${levelNames} のいずれか）。
+  **公式の語彙表に載っていると確信できないときは "${cardProfile.levels.outStored}"（級外）と答える。**
+  検定の語彙表に無い語に級を付けると、公式の級と見分けが付かなくなる
+  （オーナー指摘 2026-08-27 ⑭）。当てずっぽうで級を付けるより、級外のほうが正しい。
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
   **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
@@ -381,7 +390,7 @@ ${l1Gram}
 - scene_weights: **その語にどこで出会うか**の分布。鍵は次の8つだけで、他を作らない: eat(食べ物・飲み物)/ town(街・店・看板・乗り物)/ house(家の中・家具・道具)/ wear(服・持ち物)/ play(遊び・趣味・道具)/ nature(自然・天気・動植物)/ people(人・体・仕事)/ marks(文字・記号・色・形・お金・書類)。合計が1になる小数で、当てはまらない部屋は入れない。例: 芒果 → {"eat":0.7,"town":0.2,"nature":0.1}
 - season_months: 旬の月を1〜12の整数の配列で(例: 芒果なら [5,6,7,8])。**通年なら空配列**
 - region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
-- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL})}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く
+- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
 - ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）
@@ -509,6 +518,38 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     }
     await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
+
+    /**
+     * **級は辞書が正**（オーナー指摘 2026-08-27 ⑭）。
+     *
+     * ここは辞書を一度も見ずに AI の答えをそのまま採っていた。本番の
+     * 辞書には級の分かっている語が英語 7,009 / 台湾華語 4,496 も入って
+     * いるので、**答えが手元にあるのに当て推量を買っていた**ことになる。
+     * 決め方は `level-source.ts` に1つだけ置いてある。
+     *
+     * 引けなかったとき（列が無い環境・通信の失敗）は `undefined` のまま
+     * 通す — 「辞書に無い語」として AI の答えを読む道に落ちる。
+     * ここで `null` にすると、**全部の語が級外**になる。
+     */
+    let dictStep: number | null | undefined;
+    let examTags: string[] = [];
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: entry, error: dictErr } = await supabaseAdmin
+        .from("dictionary_entries")
+        .select("level_step, exam_tags")
+        .eq("language", cardLanguage)
+        .eq("headword", resolvedHead)
+        .maybeSingle();
+      if (!dictErr && entry) {
+        dictStep = entry.level_step ?? null;
+        // 級が空の語に**級の代わりに**出す事実(`exam-tags.ts` の注)。
+        examTags = (entry.exam_tags as string[] | null) ?? [];
+      }
+    } catch (e) {
+      console.warn("generateCard: 辞書の級を引けなかった", e);
+    }
+    const level = resolveLevel({ scale: cardProfile.levels, dictStep, aiLevel: card.level });
     // 入力キャッチ・派生キャッチで生まれた語も共有辞書に蓄積(SNS/日常語彙)。
     void import("./lexicon.server").then(({ learnLexiconEntries }) =>
       learnLexiconEntries([
@@ -533,6 +574,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     return {
       ...card,
       headword_zh: resolvedHead,
+      level: level.stored,
       category_key: normalizeCategory(resolvedHead, card.category_key),
       // どの言語で書いた解説かを刻む。表示言語を切り替えたときに
       // 古い言語のカードだけを作り直せる(#65)。
@@ -543,6 +585,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
         ...scrubForeignNotes(card.extras ?? {}, explainLang),
+        // **辞書の事実で上書きする。** AI が書いた物より後に置く。
+        exam_tags: examTags,
         explain_lang: explainLang,
         explain_l1: l1Info.code,
       },
@@ -779,6 +823,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
     const regenProfile = targetProfile(word.language as string | null);
     const targetName = regenProfile.promptName;
+    const regenReadingNames = readingPromptNames(regenProfile);
     const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
 
     // 各項目のプロンプトと出力形。extras へのマージで反映する。
@@ -852,7 +897,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       related_words: {
-        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})"}]}`,
+        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
         schema: z.object({
           related_words: z
             .array(
@@ -860,6 +905,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
                 word: z.string(),
                 kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
                 note: z.string().catch(""),
+                reading: z.string().catch(""),
+                reading_alt: z.string().catch(""),
               }),
             )
             .min(1),

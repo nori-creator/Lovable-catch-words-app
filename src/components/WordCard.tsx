@@ -7,12 +7,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { EncounterLabels } from "@/components/EncounterLabels";
+import { SceneBubbles } from "@/components/SceneBubbles";
+import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
+import { examTagLabels } from "@/lib/exam-tags";
+import { LEVEL_OUT, parseLevelStep } from "@/lib/level-scale";
 import { resolveWordLanguage } from "@/lib/word-language";
 import { looksLikeTargetLanguage } from "@/lib/text-language";
 import { PronounceButton } from "@/components/PronounceButton";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Volume2,
@@ -26,16 +29,20 @@ import {
   Pencil,
 } from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
-import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
-import { heroSearchQuery } from "@/lib/hero-image";
 import { reportEntry } from "@/lib/reports.functions";
 import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
-import { Reading } from "@/lib/phonetic";
+import { Reading, ReadingOf } from "@/lib/phonetic";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Prose } from "@/components/Prose";
-import { refineUsageChunks } from "@/lib/extras";
+import { useWebImages } from "@/lib/use-web-images";
+import {
+  chunkSpeechText,
+  refineUsageChunks,
+  usableCollocations,
+  type UsageChunk,
+} from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
 import { Term } from "@/components/Term";
 import { realUsageLinks } from "@/lib/real-usage-links";
@@ -616,9 +623,23 @@ export const WordCard = forwardRef<
    * 落ちる。`web_images` / `real_usage` は外を見に行くだけの節で
    * いつでも描けるため、この条件でも残る。
    */
+  /**
+   * **ネットの画像の節は、絵が1枚届いてから並べる**(オーナー指示
+   * 2026-08-27 ④「画像が表示されない時はまずその項目を表示しないで。
+   * 生成されて始めて項目を表示して」)。
+   *
+   * 他の節は行の中身で決められるが、ここだけは取りに行ってみないと
+   * 分からないので、`sectionHasContent` は「いつでも描ける」と答えて
+   * いた。1枚も見つからない語では、見出しと「画像がありません」だけの
+   * 欄が残る。並べる側と中身を描く側が**同じ問い合わせ**を読む
+   * (`use-web-images.ts`)。
+   */
+  const webImages = useWebImages(word.headword, word.meaning_ja ?? "");
+  const canShow = (id: SectionId) =>
+    id === "web_images" ? webImages.candidates.length > 0 : hasContent(id);
   const shown = minimal
-    ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id))
-    : order.filter((id) => isVisible(id) && hasContent(id));
+    ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id) && canShow(id))
+    : order.filter((id) => isVisible(id) && canShow(id));
 
   return (
     <div className="space-y-3">
@@ -947,6 +968,25 @@ function HeaderRow({
                 </span>
               )}
               <TocflLadder level={word.level} scale={targetProfile(word.language).levels} />
+              {/* **級外の語には、級の代わりに分かっていることを出す**
+                  (オーナー指摘 2026-08-27 ⑭「TOCFL の外の単語の場合
+                   どのように分類表示するか考えて」)。
+
+                  英語の辞書 25,595 語のうち級が入っているのは 7,009 語
+                  だけで、出所の CEFR-J が A1〜B2 までなので C1・C2 の語は
+                  最初から級が付きようがない。`ephemeral`(TOEFL・GRE)が
+                  「級外」としか出ないのは、嘘ではないが役に立たない。
+                  どの試験に出るかは辞書の行に入っている**事実**なので、
+                  そちらを出す。 */}
+              {parseLevelStep(word.level) === LEVEL_OUT &&
+                examTagLabels(word.extras?.exam_tags).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground ring-1 ring-border"
+                  >
+                    {tag}
+                  </span>
+                ))}
               <ReportButton headword={word.headword} />
             </div>
           )}
@@ -1267,7 +1307,10 @@ function Body({
   id: SectionId;
   word: WordCardData;
   ex: WordExtras;
-  t: (k: string) => string;
+  // **差し込みのある文も引ける形で受ける**（`card.limitedTo` は
+  // 「{place}限定」）。`(k: string) => string` に絞っていたので、
+  // 変数を渡す文をこの中から引けなかった。
+  t: (k: string, vars?: Record<string, string | number>) => string;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
   switch (id) {
@@ -1284,6 +1327,14 @@ function Body({
       // 統合表示: 頻度メーター + 口語⇄書面のメーター + どこで見て使うかの説明。
       const text =
         ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
+      // 札が1つでも作れたかどうかで、文章を出すかを決める。
+      // **数える所と描く所を同じ関数にする** — 別々に書くと、札も文章も
+      // 出ない/両方出る、がどちらも起きる。
+      const bubbleCount = sceneBubbles({
+        extras: ex,
+        limitedTo: (place) => t("card.limitedTo", { place }),
+        seasonName: (key) => t(`card.season.${key}`),
+      }).length;
       const registerScale = registerScaleOf(ex);
       const hasFreq = ex.frequency_level != null && ex.frequency_level > 0;
       return (
@@ -1301,10 +1352,16 @@ function Body({
               {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
             </div>
           )}
-          {/* 出会いやすい所を具体的な札で。**種類ごとに色を分ける** —
-              「夜市」と「うれしい時」が同じ顔で並ぶと、何の一覧か分からない。 */}
-          <EncounterLabels labels={ex.encounter_labels ?? []} />
-          {text && <Prose text={text} />}
+          {/* **どこで出会うかを、浮いて跳ねる札で出す**(オーナー指示
+              2026-08-27 ⑤)。「この項目は基本この単語の特徴どこで出会うか？
+              などのカテゴリーの説明にする」。
+              限定(台南限定・春限定)の組み立ては `scene-bubbles.ts`、
+              動きは `bubble-physics.ts`。 */}
+          <SceneBubbles extras={ex} />
+          {/* **札で言えないときだけ文章。**「それでもバブルそのカテゴリー
+              として説明できない時だけ文章で書いて」。札が出ているのに
+              同じことを文章でもう一度書くと、欄が2倍の高さになる。 */}
+          {bubbleCount === 0 && text && <Prose lang={word.language} text={text} />}
         </div>
       );
     }
@@ -1316,14 +1373,31 @@ function Body({
       // **学習言語で書かれていない例文は出さない**(上の注と同じ理由)。
       if (!looksLikeTargetLanguage(word.example_sentence, word.language)) return null;
       return (
-        <div className="space-y-1">
-          <MarkedSentence
-            text={word.example_sentence}
-            term={word.headword}
-            lang={word.language}
-            className="text-body"
-          />
-          <p className="text-footnote text-muted-foreground">{word.example_translation}</p>
+        // **追加例文と同じ面に載せる**(オーナー指摘 2026-08-27 ⑥
+        // 「例文の文…が見づらい」)。1つめの例文だけが素の白地に置かれて
+        // いたので、下に続く追加例文と別の物に見えていた。行間も
+        // 地の文と揃える(`.prose-body` の注に何がなぜ効くかを書いてある)。
+        <div className="rounded-xl bg-secondary p-2.5">
+          {/* **例文にも発音を付ける**(オーナー指示 2026-08-27 ⑧)。
+              読める文と言える文は別物で、間を繋ぐのは音しかない。 */}
+          <div className="flex items-start gap-2">
+            <MarkedSentence
+              text={word.example_sentence}
+              term={word.headword}
+              lang={word.language}
+              className="prose-body min-w-0 flex-1 text-body"
+            />
+            <PronounceButton
+              text={word.example_sentence!}
+              language={word.language ?? undefined}
+              size="sm"
+              tone="quiet"
+              stopPropagation
+            />
+          </div>
+          <p className="prose-body mt-1 text-footnote text-muted-foreground">
+            {word.example_translation}
+          </p>
         </div>
       );
 
@@ -1344,17 +1418,26 @@ function Body({
       return (
         <ul className="space-y-2">
           {rows.map((e, i) => (
-            <li key={i} className="rounded-xl bg-secondary p-2">
+            <li key={i} className="rounded-xl bg-secondary p-2.5">
               {e.scene && (
                 <p className="mb-1 text-caption font-medium text-muted-foreground">🎬 {e.scene}</p>
               )}
-              <MarkedSentence
-                text={e.zh}
-                term={word.headword}
-                lang={word.language}
-                className="text-body"
-              />
-              <p className="text-caption text-muted-foreground">{e.ja}</p>
+              <div className="flex items-start gap-2">
+                <MarkedSentence
+                  text={e.zh}
+                  term={word.headword}
+                  lang={word.language}
+                  className="prose-body min-w-0 flex-1 text-body"
+                />
+                <PronounceButton
+                  text={e.zh}
+                  language={word.language ?? undefined}
+                  size="sm"
+                  tone="quiet"
+                  stopPropagation
+                />
+              </div>
+              <p className="prose-body mt-1 text-caption text-muted-foreground">{e.ja}</p>
             </li>
           ))}
         </ul>
@@ -1362,8 +1445,24 @@ function Body({
     }
 
     case "usage_chunks": {
-      // ネイティブがこの単語をどう組み合わせるか — 型をパーツ色分けで。
-      // 量詞は真下の「量詞」の欄で読むので、そこと重なるだけの型は落とす。
+      /**
+       * ネイティブがこの語をどう組み合わせるか — **かたまりだけ**を並べる。
+       *
+       * オーナー指摘 2026-08-27 ②:
+       * > 「チャンク、型の項目が文章のようになってる。文章を表示したいのでは
+       * >  なく、ネイティブがその単語を使う時に最も相性のいい、よく使う
+       * >  単語の塊、フレーズを表示したい。」
+       *
+       * ## 文はここから来ていた
+       * 型が1つも残らなかったとき、ここは `ex.word_order`(語順の解説文)を
+       * `<Prose>` で流す控えを持っていた。**節の名前は「使い方の型」なのに、
+       * 中身が解説の段落**になる。しかも型が全部落ちるのは珍しくない
+       * (長すぎる・量詞と重なる)ので、実際によく出ていた。
+       *
+       * かたまりの節はかたまりしか出さない。語順の解説はこの語の
+       * 「型」ではないので、置き場所ごと畳む — 残す価値のある控えは
+       * `collocations`(語のかたまりの一覧)だけで、あれは形が同じ。
+       */
       const chunks = refineUsageChunks(
         ex.usage_chunks,
         ex.measure_words,
@@ -1374,10 +1473,7 @@ function Body({
         return (
           <div className="space-y-2">
             {chunks.map((c, i) => (
-              <div key={i} className="rounded-xl bg-secondary p-2.5">
-                <ChunkPills parts={c.parts} size="sm" lang={word.language} />
-                {c.ja && <p className="mt-1 text-caption text-muted-foreground">{c.ja}</p>}
-              </div>
+              <ChunkRow key={i} chunk={c} language={word.language} />
             ))}
             {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
                 同じ丸が何度も並ぶ。 */}
@@ -1386,22 +1482,14 @@ function Body({
           </div>
         );
       }
-      // 旧データ: コロケーション+語順テキストのフォールバック。
+      // 旧データ: コロケーション(語のかたまり)だけ。**文は出さない。**
+      const collocations = usableCollocations(ex.collocations, word.language);
+      if (collocations.length === 0) return null;
       return (
-        <div className="space-y-2">
-          {(ex.collocations?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {ex.collocations!.map((c, i) => (
-                <span
-                  key={i}
-                  className="rounded-full bg-secondary px-2.5 py-1 text-footnote font-medium shadow-sm ring-1 ring-border"
-                >
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
-          {ex.word_order && <Prose text={ex.word_order} />}
+        <div className="flex flex-wrap gap-2">
+          {collocations.map((c, i) => (
+            <PhraseBubble key={i} text={c} language={word.language} />
+          ))}
         </div>
       );
     }
@@ -1444,18 +1532,17 @@ function Body({
             return (
               <div key={kind}>
                 <span className="mr-2 text-caption text-muted-foreground">{label}</span>
-                <div className="mt-1 space-y-1">
+                <div className="mt-1 space-y-1.5">
                   {items.map((r, i) => (
-                    <div key={i} className="flex flex-wrap items-baseline gap-x-2">
-                      <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-footnote font-medium shadow-sm ring-1 ring-border ${tone}`}
-                      >
-                        {r.word}
-                      </span>
-                      {r.note && (
-                        <span className="text-caption text-muted-foreground">{r.note}</span>
-                      )}
-                    </div>
+                    <RelatedWordRow
+                      key={i}
+                      word={r.word}
+                      note={r.note}
+                      reading={"reading" in r ? r.reading : ""}
+                      readingAlt={"reading_alt" in r ? r.reading_alt : ""}
+                      tone={tone}
+                      language={word.language}
+                    />
                   ))}
                 </div>
               </div>
@@ -1473,12 +1560,14 @@ function Body({
     }
 
     case "pronunciation_tips":
-      return <Prose text={ex.pronunciation_tips || ex.study_tips || ""} />;
+      return (
+        <Prose panel lang={word.language} text={ex.pronunciation_tips || ex.study_tips || ""} />
+      );
 
     case "etymology":
       return (
         <div className="space-y-1 text-body leading-relaxed">
-          {ex.etymology && <Prose text={ex.etymology} />}
+          {ex.etymology && <Prose panel lang={word.language} text={ex.etymology} />}
           {/* **同じ部品を持つ仲間の語**(オーナー指示 2026-08-26)。
               語根を1つ覚えると芋づるで増えるのが英語の語彙の性質なので、
               語源の話はここまで書いて初めて役に立つ。
@@ -1521,16 +1610,16 @@ function Body({
       // 斜体は当てない。**和文に斜体の字面は無い**ので、ブラウザが字を
       // 傾けて偽造する(日付のセリフ斜体で直したのと同じ話の兄弟)。
       // 覚え方は本文と同じ組みで読ませる。
-      return <Prose text={ex.mnemonic ?? ""} />;
+      return <Prose panel lang={word.language} text={ex.mnemonic ?? ""} />;
 
     case "taiwan_note":
       return (
         <div className="space-y-1.5 text-body leading-relaxed">
           {ex.taiwan_note ? (
-            <Prose text={ex.taiwan_note} />
+            <Prose panel lang={word.language} text={ex.taiwan_note} />
           ) : (
             <>
-              {ex.trivia && <Prose text={ex.trivia} />}
+              {ex.trivia && <Prose panel lang={word.language} text={ex.trivia} />}
               {ex.usage_note && (
                 <p className="text-footnote text-muted-foreground">⚠️ {ex.usage_note}</p>
               )}
@@ -1593,7 +1682,7 @@ function Body({
               </span>
             )}
           </div>
-          {c.note && <Prose text={c.note} />}
+          {c.note && <Prose lang={word.language} text={c.note} />}
         </div>
       );
     }
@@ -1630,7 +1719,7 @@ function Body({
               );
             })}
           </p>
-          {st?.note && <Prose text={st.note} />}
+          {st?.note && <Prose lang={word.language} text={st.note} />}
         </div>
       );
     }
@@ -1659,7 +1748,7 @@ function Body({
     case "culture_note":
       // 台湾華語のカードの `taiwan_note` にあたる欄。組みは合わせる —
       // 同じ位置の同じ役割の節が、言語で違う見た目になる理由が無い。
-      return <Prose text={ex.culture_note ?? ""} />;
+      return <Prose panel lang={word.language} text={ex.culture_note ?? ""} />;
 
     case "web_images":
       return (
@@ -1679,6 +1768,132 @@ function Body({
 }
 
 /** 量詞1件: 「一張」+読み+発音ボタン+使い分けノート。 */
+/**
+ * 類義語・反義語・関連語の1行。
+ *
+ * オーナー指示 2026-08-27 ⑧:
+ * > 「発音ボタン付けるだけでなく…発音記号がないから書き足して。
+ * >  文字が小さくて見づらい。単語そのものが。解説の文字がより小さく、
+ * >  文字が薄いのはいいから維持して。」
+ *
+ * だから寸法をはっきり3段に分ける:
+ *   語   … `text-body`(この行の主役。前は `text-footnote` = 注釈と同寸だった)
+ *   読み … `text-caption` の淡色
+ *   説明 … `text-caption` の淡色(**薄いまま維持**。ここは指示どおり触らない)
+ *
+ * 読みは `ReadingOf` を通す — 英語の語に注音を出さないための唯一の道
+ * (オーナー指示 2026-08-26「注音やピンインを決して表示しないで」)。
+ */
+function RelatedWordRow({
+  word,
+  note,
+  reading,
+  readingAlt,
+  tone,
+  language,
+}: {
+  word: string;
+  note?: string;
+  reading?: string;
+  readingAlt?: string;
+  tone: string;
+  language?: string | null;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <Term
+            lang={language}
+            className={`inline-block rounded-full px-2.5 py-0.5 text-body font-medium shadow-sm ring-1 ring-border ${tone}`}
+          >
+            {word}
+          </Term>
+          <ReadingOf
+            lang={language}
+            primary={reading}
+            alt={readingAlt}
+            className="text-caption text-muted-foreground"
+          />
+        </span>
+        {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
+      </div>
+      {/* 一覧に並ぶ物なので、鳴らせるようになってから出る
+          (`PronounceButton` の注)。押しても鳴らないボタンが何個も
+          並ぶのがいちばん壊れて見える。 */}
+      <PronounceButton
+        text={word}
+        language={language ?? undefined}
+        size="sm"
+        tone="quiet"
+        stopPropagation
+      />
+    </div>
+  );
+}
+
+/**
+ * 型1つの行。**かたまり全体と、その中の札1つずつを、別々に鳴らせる。**
+ *
+ * オーナー指示 2026-08-27 ⑧:
+ * > 「チャンクと型の項目は右端に発音ボタンを付けるだけでなく、
+ * >  それぞれのバブルをタップしたら独立して発音されるようにする。」
+ *
+ * 右端の1つは「この型をひと息で言うとこう」、札ごとは「この語だけ
+ * もう一度」。口に乗せる練習では両方要る — 続けて言えないのは
+ * たいてい繋ぎ目で、繋ぎ目は札ごとに聞き直さないと直せない。
+ *
+ * 英語は札を空白で継ぐ。継がずに読ませると `put onsocks` になる
+ * (`chunkText` と同じ理由)。
+ */
+function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
+  const pronounce = usePronounce(language ?? undefined);
+  const whole = chunkSpeechText(chunk, language);
+  return (
+    <div className="rounded-xl bg-secondary p-2.5">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <ChunkPills
+            parts={chunk.parts}
+            size="sm"
+            lang={language}
+            onSpeak={(text) => void pronounce(text)}
+          />
+        </div>
+        {/* 鳴らせるようになってから出る(`PronounceButton` の注)。 */}
+        <PronounceButton
+          text={whole}
+          language={language ?? undefined}
+          size="sm"
+          tone="quiet"
+          stopPropagation
+          label={whole}
+        />
+      </div>
+      {chunk.ja && <p className="mt-1 text-caption text-muted-foreground">{chunk.ja}</p>}
+    </div>
+  );
+}
+
+/**
+ * 古いカードの「一緒に使う語」。札1つ = 1かたまりなので、押せば鳴る。
+ */
+function PhraseBubble({ text, language }: { text: string; language?: string | null }) {
+  const pronounce = usePronounce(language ?? undefined);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void pronounce(text);
+      }}
+      className="chunk-pill press-in rounded-full bg-secondary px-2.5 py-1 text-footnote font-medium shadow-sm ring-1 ring-border active:scale-95 motion-reduce:active:scale-100"
+    >
+      <Term lang={language}>{text}</Term>
+    </button>
+  );
+}
+
 function MeasureWordRow({
   word,
   zhuyin,
@@ -1691,7 +1906,12 @@ function MeasureWordRow({
   note?: string;
 }) {
   const t = useT();
-  const pronounce = usePronounce();
+  // **量詞は中国語にしか無い項目**(`target-profile.ts` の `hasMeasureWords`)
+  // なので、ここだけは既定の学習言語で正しい。**それでも明示する** —
+  // 省いた呼び出しが4箇所あって、うち3つは英語の語を中国語の声で
+  // 読んでいた(オーナー報告①)。省略が正しい場所と間違っている場所を
+  // 見た目で区別できないのが、その3つが何週間も残った理由。
+  const pronounce = usePronounce(DEFAULT_TARGET_LANGUAGE);
   return (
     <>
       <span className="min-w-0 flex-1">
@@ -1727,29 +1947,13 @@ function WebImagesBody({
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
   const t = useT();
-  const searchFn = useServerFn(searchImageCandidates);
   // 「別の画像」を押すたびに検索し直す(seed をキーに入れてキャッシュを外す)。
   const [seed, setSeed] = useState(0);
   const [picking, setPicking] = useState<string | null>(null);
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["web-images", headword, seed],
-    queryFn: async () =>
-      (
-        await searchFn({
-          data: {
-            // **探す言葉の作り方は1箇所**(`hero-image.ts`)。詳細が自動で
-            // あてがう絵と、ここで選び直せる絵が別の検索から来ていると、
-            // 「変えたのに似た絵しか出ない」の理由が読めなくなる。
-            query:
-              seed === 0
-                ? heroSearchQuery({ headword, meaning: meaningJa })
-                : `${heroSearchQuery({ headword, meaning: meaningJa })} ${headword}`,
-          },
-        })
-      ).candidates,
-    staleTime: 24 * 60 * 60 * 1000,
-  });
-  const all: ImageCandidate[] = data ?? [];
+  // **節を並べる側と同じ問い合わせを読む**(`use-web-images.ts` の注)。
+  // ここで自前に検索すると、「節は出ているのに中身が空」「中身は在るのに
+  // 節が出ない」がどちらも起きうる。
+  const { candidates: all, isLoading, isFetching } = useWebImages(headword, meaningJa, seed);
   // 再検索のたびに違う3枚を見せる(候補は最大6件返る)。
   const offset = seed % Math.max(1, Math.ceil(all.length / 3));
   const candidates = all.slice(offset * 3, offset * 3 + 3);

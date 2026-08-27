@@ -83,8 +83,20 @@ export const FULL = {
     ],
     measure_words: [{ word: "杯", zhuyin: "ㄅㄟ", pinyin: "bēi", note: "飲み物を数えるとき" }],
     related_words: [
-      { word: "奶茶", kind: "rel" as const, note: "タピオカ無しのミルクティー" },
-      { word: "手搖飲", kind: "rel" as const, note: "その場で作る飲み物の総称" },
+      {
+        word: "奶茶",
+        kind: "rel" as const,
+        note: "タピオカ無しのミルクティー",
+        reading: "ㄋㄞˇ ㄔㄚˊ",
+        reading_alt: "nǎi chá",
+      },
+      {
+        word: "手搖飲",
+        kind: "rel" as const,
+        note: "その場で作る飲み物の総称",
+        reading: "ㄕㄡˇ ㄧㄠˊ ㄧㄣˇ",
+        reading_alt: "shǒu yáo yǐn",
+      },
     ],
     // 一目で分かる要点の表。**片側だけの行と長すぎる行も混ぜる** —
     // 生成物は必ずそれを出すので、落ちていることを絵で確かめる。

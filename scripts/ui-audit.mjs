@@ -364,7 +364,6 @@ const MODES = [
   ["chip-owned-dark", 'class="dark"', false, { scene: "scan-chip", variant: "owned" }],
   ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
-  ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
   // 見つかった語の一覧。**3通りの出会い方を1つずつ**入れてある。
   // ガラスのシートなので、下に写真を敷いて撮る(白地だと実際より読みやすく写る)。
   ...crossThemes("scan-found", { scene: "scan-found" }),
