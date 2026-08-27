@@ -1807,10 +1807,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.examples_extra": { ja: "追加の例文", en: "More examples", "zh-TW": "更多例句" },
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks", "zh-TW": "用法組塊" },
   "card.measure_words": { ja: "量詞", en: "Measure words", "zh-TW": "量詞" },
+  // オーナー指示 2026-08-27 ⑧「項目のタイトルを類義語・反義語・関連語に変更する」。
+  // 中の札(類義語/反義語/関連語)と同じ言い方に揃える — 見出しだけ
+  // 「にてる言葉」と柔らかいと、**同じ物を2つの名前で呼んでいる**ことになる。
   "card.related_words": {
-    ja: "にてる言葉・関連語",
-    en: "Similar & related words",
-    "zh-TW": "相似的字・相關詞",
+    ja: "類義語・反義語・関連語",
+    en: "Synonyms, antonyms & related",
+    "zh-TW": "近義詞・反義詞・相關詞",
   },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card", "zh-TW": "把字卡補完" },
   "card.filling": { ja: "作っています…", en: "Writing it…", "zh-TW": "製作中…" },
