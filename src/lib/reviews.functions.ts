@@ -436,15 +436,27 @@ export const getDueReviews = createServerFn({ method: "GET" })
       }
     }
 
-    // The user's own deck is the distractor pool — zero AI calls at review time.
+    /**
+     * その人が撮った語が誤答の池 — 復習のときに AI を1回も呼ばずに済む。
+     *
+     * **学習言語で絞る**（オーナー報告 2026-08-26、2度目
+     * 「復習の4択の選択肢が言語が混ざってる。英語なら英語だけの選択肢を
+     * 作って」）。
+     *
+     * 前の周で辞書の池と受け皿は言語で絞ったのに、**この池だけ素通し**
+     * だった。しかもここは4つの池のうち**いちばん先に使われる**ので、
+     * 両方の言語で撮っている人の4択は、ほぼ必ず混ざる。
+     * 直す所を数えたときに、いちばん大きい1つを数え落としていた。
+     */
     const { data: deckRows } = await supabase
       .from("stickers")
-      .select("words(id, headword, meaning_ja, category_key, reading_zhuyin, pinyin)")
+      .select("words(id, headword, language, meaning_ja, category_key, reading_zhuyin, pinyin)")
       .eq("user_id", userId)
       .limit(500);
     type DeckWord = {
       id: string;
       headword: string;
+      language?: string | null;
       meaning_ja: string;
       category_key: string | null;
       reading_zhuyin?: string | null;
@@ -453,10 +465,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const deck: DeckWord[] = [];
     const seen = new Set<string>();
     for (const r of (deckRows ?? []) as unknown as Array<{ words: DeckWord | null }>) {
-      if (r.words && !seen.has(r.words.id)) {
-        seen.add(r.words.id);
-        deck.push(r.words);
-      }
+      if (!r.words || seen.has(r.words.id)) continue;
+      // 判定は1箇所(`language-filter.ts`)。列が空の古い行も同じ規則で見る。
+      if (!matchesTargetLanguage(r.words.language, targetLanguage)) continue;
+      seen.add(r.words.id);
+      deck.push(r.words);
     }
 
     // A3 レベル連動: 目標レベル以下の辞書語をヘッドワード・ディストラクタの
@@ -991,13 +1004,24 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<OverallMemoryStats> => {
     const { supabase, userId } = context;
+    /**
+     * **全体の記憶率も学習言語で分ける**（オーナー指示 2026-08-26
+     * 「記憶の状態の全体の記憶率も学習言語によって区別して」）。
+     *
+     * 隣の一覧（`getMemoryOverview`）は前の周で絞ったのに、**この数だけ
+     * 素通し**だった。だから同じ画面の中で、上のバーは両方の言語を混ぜた
+     * 平均、下の一覧は英語だけ、という食い違いが起きていた。
+     */
+    const targetLanguage = await getUserTargetLanguage(userId);
     // 過去側は**記録**から作る。ここを現在の状態から作っていたせいで、
     // 復習した瞬間に過去14日が全部 100% に塗り替わっていた
     // (`src/lib/retention-series.ts` の冒頭に経緯)。
     const [{ data: rows }, { data: hist }] = await Promise.all([
       supabase
         .from("reviews")
-        .select("sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at)")
+        .select(
+          "sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at, words(language))",
+        )
         .eq("user_id", userId),
       supabase
         .from("review_history")
@@ -1012,9 +1036,18 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
       interval_days: number;
       last_reviewed_at: string | null;
       due_at: string | null;
-      stickers?: { taken_at?: string | null } | null;
+      stickers?: { taken_at?: string | null; words?: { language?: string | null } | null } | null;
     };
-    const raw = (rows ?? []) as unknown as StatRow[];
+    // 判定は `language-filter.ts` の1つだけ(一覧・今日の列と同じ規則)。
+    const raw = ((rows ?? []) as unknown as StatRow[]).filter((r) =>
+      matchesTargetLanguage(r.stickers?.words?.language, targetLanguage),
+    );
+    /**
+     * **記録も同じ札のものだけ。** 絞った札の記録に、別の言語の札の
+     * 記録が混ざったままだと、過去側の線がその言語を始める前から
+     * 描かれてしまう（始めた日から描く直しが効かない）。
+     */
+    const keep = new Set(raw.map((r) => r.sticker_id));
     const cards: RetentionCard[] = raw.map((r) => ({
       sticker_id: r.sticker_id,
       taken_at: r.stickers?.taken_at ?? null,
@@ -1022,7 +1055,9 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
       interval_days: r.interval_days,
       last_reviewed_at: r.last_reviewed_at,
     }));
-    const events = (hist ?? []) as unknown as RetentionEvent[];
+    const events = ((hist ?? []) as unknown as RetentionEvent[]).filter((e) =>
+      keep.has(e.sticker_id),
+    );
     const now = Date.now();
     const dueNow = raw.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
 

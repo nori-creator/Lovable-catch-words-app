@@ -8,7 +8,7 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { getMyStats, type UserStats } from "@/lib/stats.functions";
 import { formatCount } from "@/lib/count";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
-import { useLanguagePrefsSync } from "@/lib/use-language-prefs";
+import { useLanguagePrefsSync, useRefreshOnTargetLanguage } from "@/lib/use-language-prefs";
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
@@ -214,6 +214,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
    * それで「英語を選んだのに台湾華語しか出ない」が起きていた。
    */
   useLanguagePrefsSync();
+  // 学習言語を切り替えたら、その言語で絞っている一覧を全部読み直す
+  // (アルバム・図鑑・復習・記憶・単語帳)。判断は1箇所。
+  useRefreshOnTargetLanguage();
 
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {

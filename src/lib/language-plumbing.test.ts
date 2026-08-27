@@ -1643,3 +1643,130 @@ describe("2026-08-26: 見出し語を直せる", () => {
     expect(src).not.toMatch(/setStickerHeadword/);
   });
 });
+
+describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶の状態", () => {
+  it("**見つからなかった知らせに学習言語の名前を入れる**", () => {
+    // 「学習言語英語…検索に台湾華語を入力してもエラーが起きて、英単語が
+    //  表示されない」。ここは「中文の単語が…」の決め打ちで、英語を
+    //  学んでいる人にも中文の話をしていた。
+    for (const lang of UI_LANGS) {
+      expect(DICT["input.notTargetLang"][lang], lang).toMatch(/\{lang\}/);
+    }
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/input\.notTargetLang", \{ lang: t\(TARGET_LANG_LABEL_KEYS/);
+  });
+
+  it("**調べている間も検索の画面のまま**(打った語を消さない)", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    // 撮ったときの全画面へ飛ばさない。
+    const fn = cap.slice(cap.indexOf("async function searchWord"));
+    const body = fn.slice(0, fn.indexOf("\n  }"));
+    expect(body).not.toMatch(/setStep\("processing"\)/);
+    expect(body).toMatch(/setSearching\(true\)/);
+    // 打った語は**次へ進むと決まってから**消す。
+    const form = cap.slice(cap.indexOf("onSubmit={(e) => {"));
+    expect(form.slice(0, form.indexOf("}}"))).not.toMatch(/setTypedWord\(""\)/);
+  });
+
+  it("**候補が1つなら選ばせない**(意味と発音へ直行)", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/if \(usable\.length === 1\)/);
+    const one = cap.slice(cap.indexOf("if (usable.length === 1)"));
+    expect(one.slice(0, one.indexOf("setSuggestions"))).toMatch(/confirmWord\(/);
+  });
+
+  it("**母語も選んだ瞬間に効く**(学習言語と同じ形)", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toMatch(/const pickUiLanguage = \(next: string\) => \{/);
+    const fn = src.slice(src.indexOf("const pickUiLanguage"));
+    expect(fn.slice(0, fn.indexOf("};"))).toMatch(/setUiLang\(normalized\)/);
+    // 欄が新しい口を使っていること（作っただけで繋がっていない、を防ぐ）。
+    expect(src).toMatch(/onChange=\{pickUiLanguage\}/);
+  });
+
+  it("**学習言語を切り替えたら一覧を読み直す**", () => {
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/export function useRefreshOnTargetLanguage\(\)/);
+    // 図鑑・アルバム・復習・記憶・単語帳が入っていること。
+    for (const key of ["stickers", "reviews-due", "memory-overview", "wordbooks"]) {
+      expect(src, key).toContain(`"${key}"`);
+    }
+    // 呼ばれていること（作っただけ、を防ぐ）。
+    expect(codeOnly(read("components/AppShell.tsx"))).toMatch(/useRefreshOnTargetLanguage\(\)/);
+  });
+
+  it("**4択の誤答は、その人の撮った語も学習言語で絞る**", () => {
+    // 前の周で辞書の池と受け皿は絞ったのに、いちばん先に使われる
+    // 「その人のデッキ」だけ素通しだった。
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    const deck = src.slice(src.indexOf("const { data: deckRows }"));
+    const body = deck.slice(0, deck.indexOf("// A3"));
+    expect(body).toMatch(/words\(id, headword, language,/);
+    expect(body).toMatch(/matchesTargetLanguage\(r\.words\.language, targetLanguage\)/);
+  });
+
+  it("**全体の記憶率も学習言語で分ける**", () => {
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    const fn = src.slice(src.indexOf("export const getOverallMemoryStats"));
+    const body = fn.slice(0, fn.indexOf("\n  });"));
+    expect(body).toMatch(/getUserTargetLanguage\(userId\)/);
+    expect(body).toMatch(
+      /matchesTargetLanguage\(r\.stickers\?\.words\?\.language, targetLanguage\)/,
+    );
+    // 記録も同じ札のものだけ（過去側の線がその言語を始める前から伸びない）。
+    expect(body).toMatch(/keep\.has\(e\.sticker_id\)/);
+  });
+
+  it("**グラフは始めた日から**(空っぽの左側を描かない)", () => {
+    const src = codeOnly(read("lib/retention-series.ts"));
+    expect(src).toMatch(/export function trimBeforeStart\(/);
+    expect(src).toMatch(/trimBeforeStart\(series\)/);
+  });
+
+  it("**記憶の一覧は1語も切らない**(長期記憶が抜け落ちない)", () => {
+    // 並びは危険な語が上なので、切ると必ず「いちばん覚えている語」が消える。
+    const src = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(src).not.toMatch(/overview\.words\.slice\(/);
+    expect(src).toMatch(/overview\.words\.map\(\(w\) =>/);
+  });
+
+  it("**自撮りの入力を `display:none` にしない**(capture が効かない端末がある)", () => {
+    for (const rel of [
+      "components/PhotoAddButtons.tsx",
+      "components/ScanCatchSheet.tsx",
+      "routes/_authenticated/capture.tsx",
+    ]) {
+      const src = read(rel);
+      for (const m of src.matchAll(
+        /<input[\s\S]{0,400}?capture="(?:user|environment)"[\s\S]{0,300}?\/>/g,
+      )) {
+        expect(m[0], rel).not.toMatch(/className="hidden"/);
+        expect(m[0], rel).toMatch(/className="sr-only"/);
+      }
+    }
+  });
+
+  it("**長押しの面が両方の詳細に在る**(入口で選べたり選べなかったりしない)", () => {
+    // オーナー指示「画像長押ししたら元の画像・自撮り・切り抜きの3種類が
+    // 表示されるようにして表示する画像を選択できるように」。
+    // この面は `StickerSheet` にだけ在って、図鑑の詳細には無かった。
+    for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<HeroPhotoPicker/);
+    }
+    // **図鑑の詳細が決めるのは詳細の見え方だけ**(アルバムは別)。
+    const dex = codeOnly(read("routes/_authenticated/dex.$stickerId.tsx"));
+    expect(dex).toMatch(/surface="detail"/);
+    expect(dex).not.toMatch(/surface="album"/);
+    // 長押しで開く(押しただけでは裏返るだけ)。
+    expect(dex).toMatch(/onPointerDown=\{startPress\}/);
+  });
+
+  it("**座標しか無い札にも地名を出す**(両方の詳細から同じ道)", () => {
+    expect(fs.existsSync(path.join(root, "lib/use-place-name.ts"))).toBe(true);
+    for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      const src = codeOnly(read(rel));
+      expect(src, rel).toMatch(/usePlaceName\(s\.lat, s\.lng, s\.location_name\)/);
+      expect(src, rel).toMatch(/location_name \?\? resolvedPlace \?\? t\("common\.shotHere"\)/);
+    }
+  });
+});

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -9,13 +9,16 @@ import { WordCard } from "@/components/WordCard";
 import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { toast } from "sonner";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
+import { usePlaceName } from "@/lib/use-place-name";
+import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
+import type { PhotoRole } from "@/lib/sticker-photo";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
-import { getSticker } from "@/lib/stickers.functions";
+import { getSticker, setStickerHeroRole } from "@/lib/stickers.functions";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { localeOf, useT } from "@/lib/i18n";
@@ -273,9 +276,65 @@ export function StickerDetailHero({
    * 「まだありません」と言われるだけで、そこから何もできなかった。
    * 道は `use-photo-attach.tsx` ただ1つにして、両方から呼ぶ。
    */
+  /**
+   * どこで撮ったか。**座標しか無い札にも名前を出す**（オーナー報告
+   * 2026-08-26「地図で開くとしか表示されない」）。判断は
+   * `use-place-name.ts` の1つで、札の詳細の2つの画面が同じ物を呼ぶ。
+   */
+  const resolvedPlace = usePlaceName(s.lat, s.lng, s.location_name);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const qc = useQueryClient();
+  const setHeroRoleFn = useServerFn(setStickerHeroRole);
+  const [savingHero, setSavingHero] = useState(false);
   const photoAttach = usePhotoAttach(s.id, {
+    onDone: () => setPickerOpen(false),
     onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
   });
+  /**
+   * **長押しで「どの絵で見せるか」を選ぶ**（オーナー指示 2026-08-26
+   * 「画像長押ししたら元の画像・自撮り・切り抜きの3種類が表示されるように
+   * して表示する画像を選択できるようにしたい」）。
+   *
+   * この面は `StickerSheet` にだけ在って、**図鑑から開いた詳細には
+   * 無かった** — 同じ「単語の詳細」なのに、入口によって選べたり
+   * 選べなかったりしていた。
+   *
+   * **ここで決めるのは詳細の見え方だけ。** アルバムの見え方は
+   * アルバムの長押しが決める（`photo-surface.ts` の注。
+   * オーナー指示「アルバムで変更したらアルバムで表示される画像だけ、
+   * 単語の詳細で変更したら詳細の画像だけ」）。
+   */
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressFired = useRef(false);
+  const startPress = () => {
+    pressFired.current = false;
+    longPress.current = setTimeout(() => {
+      pressFired.current = true;
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+      setPickerOpen(true);
+    }, 550);
+  };
+  const endPress = () => {
+    if (longPress.current) clearTimeout(longPress.current);
+    longPress.current = null;
+  };
+  async function pickHeroRole(role: PhotoRole) {
+    if (savingHero) return;
+    setSavingHero(true);
+    try {
+      const res = await setHeroRoleFn({ data: { sticker_id: s.id, hero_role: role } });
+      if (!res.saved) {
+        toast.error(t("photo.saveFailedMigration"));
+        return;
+      }
+      await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
+      setPickerOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
+    } finally {
+      setSavingHero(false);
+    }
+  }
   return (
     <>
       {/* Hero image: expands with a soft pop-in. Tap to flip to selfie. */}
@@ -284,7 +343,18 @@ export function StickerDetailHero({
         role="button"
         tabIndex={0}
         aria-label={flipped ? t("card.flipBack") : t("card.flipSelfie")}
-        onClick={() => setFlipped((f) => !f)}
+        onPointerDown={startPress}
+        onPointerUp={endPress}
+        onPointerCancel={endPress}
+        onPointerLeave={endPress}
+        onClick={() => {
+          // 長押しで面を開いたときは、裏返さない。
+          if (pressFired.current) {
+            pressFired.current = false;
+            return;
+          }
+          setFlipped((f) => !f);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -358,6 +428,23 @@ export function StickerDetailHero({
         </div>
       </div>
 
+      {/* 長押しで開く「どの絵で見せるか」の面。**この画面の見え方だけ**を
+          決める(`surface="detail"`)。 */}
+      {pickerOpen && (
+        <div className="mb-4 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <HeroPhotoPicker
+            sources={s}
+            surface="detail"
+            current={s.hero_role ?? null}
+            saving={savingHero || photoAttach.busy}
+            onPick={(role) => void pickHeroRole(role)}
+            onCutoutNow={s.object_url ? () => void photoAttach.cutoutNow(s.object_url!) : undefined}
+            onSelfieFile={(f) => void photoAttach.selfieNow(f)}
+            onClose={() => setPickerOpen(false)}
+          />
+        </div>
+      )}
+
       {/* 無い絵は「作る」ボタンにする。**出す条件は部品が持つ**ので、
           両方そろっている札では何も出ない。 */}
       <PhotoAddButtons
@@ -396,7 +483,7 @@ export function StickerDetailHero({
             >
               <MapPin className="h-3.5 w-3.5" />
               {/* ボタンの名前を場所の名前として出さない(`StickerSheet` と同じ)。 */}
-              {s.location_name ?? t("common.shotHere")}
+              {s.location_name ?? resolvedPlace ?? t("common.shotHere")}
             </a>
           )}
         </div>

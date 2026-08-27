@@ -26,11 +26,11 @@
  * （`use-language-prefs.test.ts`）。
  */
 
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/profile.functions";
-import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
+import { setTargetLang, storedTargetLang, useTargetLang } from "@/lib/target-lang-pref";
 import { setUiLang, normalizeUiLang, storedUiLang } from "@/lib/i18n";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
@@ -91,4 +91,57 @@ export function useLanguagePrefsSync(): void {
     setTargetLang(target.value);
     setUiLang(normalizeUiLang(ui.value));
   }, [data]);
+}
+
+/**
+ * **学習言語を切り替えたら、その言語で絞っている画面を全部読み直す。**
+ *
+ * オーナー指示 2026-08-26:
+ * > 「学習言語を変更したら、アルバムと図鑑に表示されるカードがすべて
+ * >  すぐ切り替わるようにして。」
+ *
+ * ## なぜ切り替わらなかったか
+ * `setTargetLang` は端末の写しを書いて知らせを出すので、`useTargetLang` を
+ * 読んでいる部品はすぐ描き直る。ところが**一覧そのものは問い合わせの
+ * 結果**で、その結果は前の言語で絞ったまま React Query に残っている。
+ * 鍵に言語が入っていないので、React Query から見れば「同じ問い合わせ」で、
+ * 読み直す理由が無い。
+ *
+ * ## 鍵を全部書き換えない
+ * 言語で絞る問い合わせは図鑑・アルバム・復習・記憶・単語帳に散っていて、
+ * 鍵に言語を足して回ると**足し忘れた1つだけが古いまま**残る
+ * （この app が何度も踏んでいる形）。切り替わった瞬間に**まとめて古くする**
+ * ほうが、抜けようがない。切り替えは滅多に起きないので、費用も問題ない。
+ */
+const LANGUAGE_SCOPED_QUERIES = [
+  "stickers",
+  "sticker",
+  "sticker-photos",
+  "reviews-due",
+  "review-cap",
+  "memory-stats",
+  "memory-overview",
+  "my-stats",
+  "wordbooks",
+  "wordbook-due",
+  "user-shelves",
+  "search-words",
+] as const;
+
+export function useRefreshOnTargetLanguage(): void {
+  const qc = useQueryClient();
+  const target = useTargetLang();
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    // 最初の1回は「切り替わった」ではないので読み直さない。
+    if (seen.current === null) {
+      seen.current = target;
+      return;
+    }
+    if (seen.current === target) return;
+    seen.current = target;
+    for (const key of LANGUAGE_SCOPED_QUERIES) {
+      void qc.invalidateQueries({ queryKey: [key] });
+    }
+  }, [target, qc]);
 }

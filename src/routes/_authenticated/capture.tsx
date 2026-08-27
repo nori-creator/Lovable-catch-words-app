@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
 import { isTargetHeadword } from "@/lib/target-language";
+import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
@@ -230,6 +231,11 @@ function CapturePage() {
   const { loc, resolve: resolveLocation, setLoc } = useCatchLocation();
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 文字で調べている最中か。**画面は変えず、検索ボタンだけを回す**
+   * (オーナー指示 2026-08-26)。
+   */
+  const [searching, setSearching] = useState(false);
   const [reenc, setReenc] = useState<OwnedWord | null>(null);
   const [reencResult, setReencResult] = useState<{
     recalled: boolean | null;
@@ -478,25 +484,46 @@ function CapturePage() {
     setError(null);
     // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
     if (isTargetHeadword(word, targetLanguage)) {
+      setTypedWord("");
       void confirmWord(word, undefined, { skipImagePick: true });
       return;
     }
-    setWaitKind("analyze");
-    setStep("processing");
+    /**
+     * **調べている間も検索の画面のまま**（オーナー指示 2026-08-26
+     * 「検索したら AI が分析中と画像を撮ったときと同じ画面が表示されて
+     * いるが、検索した画面で検索ボタンがロード中だとわかるくるくる
+     * まわるやつになって」）。
+     *
+     * ここは撮ったときと同じ全画面の「分析中」に飛ばしていた。
+     * 撮る方はカメラが閉じて他に見る物が無いのでそれでよいが、
+     * 打つ方は**打った語がまだ画面に在る**。飛ばすと、
+     * 打った物も、書き直す口も、いっぺんに消える。
+     *
+     * 打った語も消さない。**失敗したときに書き直せない**のが
+     * 「機能してない」と見える一番の理由だった。
+     */
+    setSearching(true);
     try {
       const { candidates } = await candidatesFn({
         data: { query: word, targetLanguage: targetLanguage },
       });
       const usable = candidates.filter((c) => isTargetHeadword(c.headword, targetLanguage));
       if (usable.length === 0) {
-        // **打った語のままカードを作らない。** 見出しが母語のまま残る
-        // （それが報告の絵）。何が起きたかを言って、書き直してもらう。
-        setError(t("input.notTargetLang"));
-        setStep("object");
+        // **打った語のままカードを作らない。** 見出しが母語のまま残る。
+        // 何が起きたかを**その人が学んでいる言語の名前で**言う。
+        setError(t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) }));
         return;
       }
       if (usable.length === 1) {
+        /**
+         * **候補が1つなら選ばせない**（オーナー指示 2026-08-26
+         * 「学習言語と母語が一対一の関係で…単語の候補の画面をスキップして、
+         * 単語の意味と発音の画面に直接移って」）。
+         *
+         * 選択肢が1つの画面は、押す以外にできることが無い。
+         */
         const c = usable[0];
+        setTypedWord("");
         void confirmWord(
           c.headword,
           {
@@ -523,10 +550,18 @@ function CapturePage() {
           category_key: "other",
         })),
       );
+      setTypedWord("");
       setStep("select");
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("input.notTargetLang"));
-      setStep("object");
+      // **本当の理由をそのまま出す。** 上限に達した・鍵が無いなど、
+      // 打ち直しても直らない話をここで握り潰すと「機能してない」になる。
+      setError(
+        e instanceof Error && e.message
+          ? e.message
+          : t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) }),
+      );
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -930,6 +965,7 @@ function CapturePage() {
            * 台湾華語の決め打ちで引いていた)。
            */
           onSearch={(w) => void searchWord(w)}
+          searching={searching}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
@@ -960,7 +996,7 @@ function CapturePage() {
               type="file"
               accept="image/*"
               capture="user"
-              className="hidden"
+              className="sr-only"
               onChange={(e) => handleSelfieFile(e.target.files?.[0] ?? null)}
             />
           </label>
@@ -1528,6 +1564,7 @@ export function CaptureObjectPanel({
   typedWord,
   setTypedWord,
   onSearch,
+  searching = false,
   onOpenScan,
   error,
 }: {
@@ -1538,6 +1575,8 @@ export function CaptureObjectPanel({
   typedWord: string;
   setTypedWord: (v: string) => void;
   onSearch: (word: string) => void;
+  /** 調べている最中か。**画面は変えず、このボタンだけを回す**。 */
+  searching?: boolean;
   onOpenScan: () => void;
   error: string | null;
 }) {
@@ -1570,7 +1609,7 @@ export function CaptureObjectPanel({
           type="file"
           accept="image/*"
           capture="environment"
-          className="hidden"
+          className="sr-only"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
         />
       </label>
@@ -1593,8 +1632,10 @@ export function CaptureObjectPanel({
           e.preventDefault();
           const w = typedWord.trim();
           if (!w) return;
+          // **ここで消さない。** 見つからなかったときに書き直せなくなる
+          // (オーナー報告「文字検索が機能してない」)。消すのは
+          // 次の面へ進むと決まってから(`searchWord`)。
           onSearch(w);
-          setTypedWord("");
         }}
         className="flex items-center gap-2"
       >
@@ -1606,11 +1647,21 @@ export function CaptureObjectPanel({
             placeholder={t("capture.searchPlaceholder")}
             aria-label={t("capture.typeWord")}
             enterKeyHint="search"
+            disabled={searching}
             className="h-11 pl-9"
           />
         </div>
-        <Button type="submit" disabled={!typedWord.trim()} className="h-11 shrink-0 px-4">
-          <Search className="h-4 w-4" />
+        <Button
+          type="submit"
+          disabled={searching || !typedWord.trim()}
+          aria-busy={searching}
+          className="h-11 shrink-0 px-4"
+        >
+          {searching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
         </Button>
       </form>
 

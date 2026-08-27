@@ -205,24 +205,40 @@ describe("buildRetentionSeries — 存在しなかった日", () => {
     expect(series.find((p) => p.day_offset === 0)!.counted).toBe(2);
   });
 
-  it("数えられる語が1枚も無い日は null — 0% ではない", () => {
+  it("**始めた日より前は返さない**(オーナー指示 2026-08-26)", () => {
+    // 「私は英語は昨日から始めたから、グラフは昨日より前は表示しないで。
+    //  始めた日から表示させるようにして。」
     const { series } = buildRetentionSeries({
       cards: [card({ taken_at: iso(NOW) })],
       events: [],
       nowMs: NOW,
     });
-    expect(series.find((p) => p.day_offset === -14)!.avg_retention).toBeNull();
-    expect(series.find((p) => p.day_offset === -14)!.counted).toBe(0);
+    // 今日から始めた人の線は今日から。**14日ぶんの空っぽの左側を描かない。**
+    expect(series[0].day_offset).toBe(0);
+    expect(series.some((p) => p.day_offset < 0)).toBe(false);
+    // 頭を落としただけで、残った日の数え方は変えていない。
+    expect(series[0].counted).toBe(1);
   });
 
-  it("カードが1枚も無ければ全部 null", () => {
+  it("**途中で 0 になる日は残す**(そこは本当に何も無かった日)", () => {
+    // 落とすのは頭の連なりだけ。中を抜くと、線が繋がっているように見える。
+    const { series } = buildRetentionSeries({
+      cards: [card({ sticker_id: "a", taken_at: iso(NOW - 3 * DAY) })],
+      events: [],
+      nowMs: NOW,
+    });
+    expect(series[0].day_offset).toBe(-3);
+    expect(series.every((p) => p.counted > 0)).toBe(true);
+  });
+
+  it("カードが1枚も無ければ**空**(線の切れ端も出さない)", () => {
     const { series, avg_retention } = buildRetentionSeries({
       cards: [],
       events: [],
       nowMs: NOW,
     });
     expect(avg_retention).toBeNull();
-    expect(series.every((p) => p.avg_retention === null)).toBe(true);
+    expect(series).toEqual([]);
   });
 
   it("前後2週間ぶん、29点を返す", () => {

@@ -265,6 +265,21 @@ function SettingsPage() {
    * 一覧は CEFR(A1〜C2)になるのに、選ばれている値は `"TOCFL-2"` の
    * ままで一覧に無い。段(1〜6)だけ引き継いで表記を作り直す。
    */
+  /**
+   * **母語を選んだ瞬間に画面を切り替える**（オーナー指示 2026-08-26
+   * 「母語の選択をしたら設定の保存を押さなくても、すぐにアプリ内の
+   * 表示言語を変更して」）。
+   *
+   * 学習言語（すぐ下の `pickTargetLanguage`）は前からそうなっていた。
+   * 母語だけ「保存を押すまで効かない」ままで、**同じ束に並ぶ2つの選択が
+   * 別の効き方をしていた** — 押した人には片方が壊れて見える。
+   */
+  const pickUiLanguage = (next: string) => {
+    const normalized = normalizeUiLang(next);
+    setUiLanguage(normalized);
+    setUiLang(normalized);
+  };
+
   const pickTargetLanguage = (next: string) => {
     const scale = targetProfile(next).levels;
     setTargetLanguage(next);
@@ -598,7 +613,7 @@ function SettingsPage() {
               id="lang-ui"
               label={t("settings.uiLang")}
               value={uiLanguage}
-              onChange={setUiLanguage}
+              onChange={pickUiLanguage}
               // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
               // ここを直し忘れると、訳したのに選べない状態になる。
               options={UI_LANGS.map((code) => ({

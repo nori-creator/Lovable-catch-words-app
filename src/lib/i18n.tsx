@@ -2186,10 +2186,20 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "「{q}」在中文裡會分成好幾個字。",
   },
   "input.chooseBack": { ja: "書き直す", en: "Edit what I typed", "zh-TW": "重寫" },
+  /**
+   * **学習言語の名前を差し込む**（オーナー報告 2026-08-26
+   * 「学習言語英語…検索に台湾華語を入力してもエラーが起きて、英単語が
+   * 表示されない」）。
+   *
+   * ここは「中文の単語が見つかりませんでした」と決め打ちだったので、
+   * **英語を学んでいる人にも中文の話をしていた**。探しに行った先も
+   * 出す名前も英語なのに、返る言葉だけが中国語 —
+   * 打った人には壊れているようにしか見えない。
+   */
   "input.notTargetLang": {
-    ja: "中文の単語が見つかりませんでした。別の言い方で調べてみてください。",
-    en: "Couldn't find a Mandarin word for that. Try describing it differently.",
-    "zh-TW": "找不到中文的單字。請換個說法查查看。",
+    ja: "{lang}の単語が見つかりませんでした。別の言い方で調べてみてください。",
+    en: "Couldn't find a {lang} word for that. Try describing it differently.",
+    "zh-TW": "找不到{lang}的單字。請換個說法查查看。",
   },
   "input.attach": {
     ja: "画像を添付（任意）",

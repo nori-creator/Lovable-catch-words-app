@@ -538,7 +538,7 @@ export function ScanCatchSheet({
                     type="file"
                     accept="image/*"
                     capture="user"
-                    className="hidden"
+                    className="sr-only"
                     onChange={(e) => e.target.files?.[0] && handleSelfie(e.target.files[0])}
                   />
                 </label>

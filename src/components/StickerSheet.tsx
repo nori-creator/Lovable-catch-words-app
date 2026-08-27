@@ -50,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
+import { usePlaceName } from "@/lib/use-place-name";
 import { Term } from "@/components/Term";
 import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -869,6 +870,12 @@ export function StickerSheetBody({
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
 }) {
   /**
+   * どこで撮ったか。**座標しか無い札にも名前を出す**（オーナー報告
+   * 2026-08-26「地図で開くとしか表示されない」）。名前が既に在れば
+   * 引きに行かない（`use-place-name.ts` の注）。
+   */
+  const resolvedPlace = usePlaceName(s.lat, s.lng, s.location_name);
+  /**
    * 表に出す1枚。**役も見る** — ネット画像のときだけ出典を添えるため。
    *
    * 優先順は「この札の指定(長押しで決めた物) → 設定 → 画面の意図」。
@@ -1101,7 +1108,7 @@ export function StickerSheetBody({
                   地名が取れなかったのは、その場所に名前が無いからではなく
                   逆引きが返さなかったから。ボタンの名前を場所の名前として
                   出すと、**そこが「地図を開く」という場所に見える。** */}
-              {s.location_name ?? t("common.shotHere")}
+              {s.location_name ?? resolvedPlace ?? t("common.shotHere")}
             </a>
           )}
         </div>
