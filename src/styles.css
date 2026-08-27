@@ -796,6 +796,109 @@
     ),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
 }
+/* ===========================================================================
+   解説の地の文（オーナー指摘 2026-08-27 ⑥）
+   > 「例文の文、発音のコツ、覚え方などの文が見づらい。背景の色を変更する
+   >  などデザイン上で文を読みやすくして。ただ背景の色を変える以上に
+   >  視覚的に文を読みやすいデザインの検索研究分析して、適応して。」
+
+   和文の可読性で効く順に4つ。地色は**4つめ**で、単独ではほとんど効かない。
+
+   ① 行間 — 和文は欧文より詰まって見える（漢字の字面率が高く、空きが
+      少ない）。W3C の日本語組版処理の要件でも、本文の行送りは
+      文字サイズの 1.75〜2 倍が目安。この app の本文は 1.6 で、
+      欧文の値のまま和文に当てていた。1.85 に上げる。
+   ② 行長 — 目が行頭へ戻れる長さに切る。和文は 30〜40 字が読みやすいと
+      され、15px なら 34em ≒ 510px。スマホでは効かないが、横向きや
+      タブレットで1行 60 字を超えるのを止める。
+   ③ 行末の始末 — `text-wrap: balance` を当てていたが、あれは見出し
+      （数行）のための物で、本文に当てると行ごとの字数を揃えようとして
+      かえって間延びする。**`pretty`** は「最後の行に1〜2文字だけ残さない」
+      だけをやる。目的はもともとそちらだった。
+   ④ 地色 — 白地から**わずかに沈めた面**に載せ、左に色の罫を1本置く。
+      罫は「ここからここまでが1つの説明」を目に教える。色は節ごとに
+      変えられるよう変数にしておく（既定は主色）。
+
+   段落の間は 1 行ぶん（0.9em）空ける。8px では、行間 1.85 のほうが
+   広くなって段落の切れ目が消える。
+   =========================================================================== */
+.prose-body {
+  line-height: 1.85;
+  max-width: 34em;
+  text-wrap: pretty;
+}
+.prose-body > p + p {
+  margin-top: 0.9em;
+}
+/* 解説の中で印を付けた語。**地を面に依らせない。**
+
+   `.prose-panel` を足した日に、この印のコントラストが 4.50 → 4.47 に
+   落ちて検査が落ちた。原因は透かし（`bg-primary/10`）で、下に敷いた面が
+   少し暗くなったぶん、印の地も一緒に暗くなったから。印は「札の地の上の
+   ハイライト」であって「その時々の下地の上のハイライト」ではないので、
+   **下地に関わらず同じ色**になるよう、混ぜる相手を札の地に固定する。 */
+.prose-term {
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+}
+
+/* 使う場面の札（`SceneBubbles`）の地。**下に敷いた面に依らせない。**
+
+   透かし（`bg-primary/12`）で塗ると、浮かべる面の色がそのまま混ざって
+   地が暗くなり、青い字とのコントラストが 4.50 を割った（検査が
+   「4.47 < 4.5」で落ちた）。札は札として同じ色で在るべきなので、
+   混ぜる相手を札の地に固定する。 */
+.scene-chip-place {
+  background: color-mix(in oklab, var(--primary) 9%, var(--card));
+}
+.scene-chip-emotion {
+  background: color-mix(in oklab, var(--warn) 14%, var(--card));
+}
+.scene-chip-season {
+  background: color-mix(in oklab, var(--ok) 11%, var(--card));
+}
+
+.prose-panel {
+  --prose-rule: var(--primary);
+  padding: 0.625rem 0.75rem 0.625rem 0.875rem;
+  border-radius: var(--radius-lg);
+  /* 白地から沈める。**紙の色を変えるのではなく、明るさだけ下げる** —
+     色を付けると、その節だけ別の意味を持っているように読まれる。 */
+  background: color-mix(in oklab, var(--foreground) 4%, var(--card));
+  box-shadow: inset 0.1875rem 0 0 0 color-mix(in oklab, var(--prose-rule) 55%, transparent);
+}
+
+/* 文字だけの札 — **印画紙を貼らない**(オーナー指摘 2026-08-27 ②
+   「文字検索したら、アルバムでは文字だけを表示して。画像のように
+    アルバムに貼らないで。」)。
+
+   文字入力・文字検索で拾った語には写真が無い。これまでは中身が文字でも
+   印画紙(白フチ+三角コーナー+ツヤ)をそのまま被せていたので、**白い紙を
+   1枚貼って、その上に語を書いた**絵になっていた。貼っていないのに
+   貼ったように見えるのが、この指摘のとおり。
+
+   ここは台紙に**直に書いた**ものとして出す。フチもコーナーもツヤも無く、
+   下に一本だけ罫を引く — アルバムの余白に手で書き足したメモの見え方。
+   傾きと持ち上がりは写真と共通のままなので、同じ紙の上の物として並ぶ。 */
+.album-note {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 6px 8px 10px;
+  border-radius: 2px;
+  /* 台紙のわずかな窪み。板から浮かせない(貼っていないので影を落とさない)。 */
+  background: rgba(255, 253, 246, 0.34);
+  box-shadow: inset 0 0 0 0.5px rgba(120, 95, 55, 0.16);
+  transition: transform 220ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.album-note::after {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  bottom: 6px;
+  height: 1px;
+  background: rgba(90, 65, 30, 0.28);
+}
+
 /* 三角コーナー(アルバムの写真留め)を4隅に */
 .photo-corner {
   position: absolute;

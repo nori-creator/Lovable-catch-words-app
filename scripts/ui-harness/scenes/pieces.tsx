@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
 import { RegisterMeter } from "@/components/WordCard";
-import { EncounterLabels } from "@/components/EncounterLabels";
+import { SceneBubbles } from "@/components/SceneBubbles";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
 import { ScanDetailSheet } from "@/components/ScanDetailSheet";
@@ -189,20 +189,29 @@ export function RegisterMeterScene() {
           <RegisterMeter key={`c${v}`} scale={v} compact />
         ))}
       </div>
-      <EncounterLabels
-        labels={[
-          { kind: "place", label: "夜市" },
-          { kind: "place", label: "スーパー" },
-          { kind: "media", label: "メニュー" },
-          { kind: "media", label: "看板" },
-          { kind: "situation", label: "注文するとき" },
-          { kind: "emotion", label: "うれしい時" },
-          { kind: "time", label: "夜" },
-          { kind: "season", label: "夏" },
-        ]}
+      {/* **浮いて跳ねる札**(オーナー指示 2026-08-27 ⑤)。
+          限定の札(`region_scope` / `season_months` から組む)も一緒に撮る —
+          いちばん目立たせる物なので、他の札に埋もれていないかを絵で見る。 */}
+      <SceneBubbles
+        extras={
+          {
+            region_scope: "台南",
+            season_months: [6, 7, 8],
+            encounter_labels: [
+              { kind: "place", label: "夜市" },
+              { kind: "place", label: "スーパー" },
+              { kind: "media", label: "メニュー" },
+              { kind: "media", label: "看板" },
+              { kind: "situation", label: "注文するとき" },
+              { kind: "emotion", label: "うれしい時" },
+              { kind: "time", label: "夜" },
+              { kind: "season", label: "夏" },
+            ],
+          } as never
+        }
       />
       {/* 札が1つも無い語では**区画ごと出ない**のが正しい姿。 */}
-      <EncounterLabels labels={[]} />
+      <SceneBubbles extras={{}} />
     </div>
   );
 }

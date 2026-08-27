@@ -762,12 +762,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Get closer to some Chinese text (a sign or label) and scan again.",
     "zh-TW": "請靠近招牌或包裝上的中文，再拍一次看看。",
   },
-  "scan.detailFailed": {
-    ja: "詳細検出に失敗しました",
-    en: "Detailed detection failed",
-    "zh-TW": "細部偵測失敗",
-  },
-  "scan.partOf": { ja: "{word}（部品）", en: "{word} (part)", "zh-TW": "{word}（零件）" },
   "scan.detectMs": { ja: "検出 {ms}ms", en: "detect {ms}ms", "zh-TW": "偵測 {ms}ms" },
   "scan.audioMs": { ja: "音声 {ms}ms", en: "audio {ms}ms", "zh-TW": "語音 {ms}ms" },
   "scan.whichOne": { ja: "どちらですか？", en: "Which one?", "zh-TW": "是哪一個呢？" },
@@ -789,13 +783,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "AI 生成・未驗證",
   },
   "scan.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
-  "scan.partsTitle": {
-    ja: "この物体を構成する部品を追加検出",
-    en: "Also detect the parts that make up this object",
-    "zh-TW": "追加偵測組成這個物體的零件",
-  },
-  "scan.analyzingParts": { ja: "解析中…", en: "Analyzing…", "zh-TW": "分析中…" },
-  "scan.finer": { ja: "細かく", en: "Finer", "zh-TW": "更細" },
   "card.title": { ja: "カード", en: "Card", "zh-TW": "字卡" },
   "card.backToDex": { ja: "図鑑へ戻る", en: "Back to dex", "zh-TW": "回到圖鑑" },
   "card.notFound": {
@@ -1777,6 +1764,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice", "zh-TW": "四選一測驗" },
   "review.whichIs": { ja: "はどれ？", en: "— which one?", "zh-TW": "是哪一個？" },
   "review.correct": { ja: "正解！", en: "Correct!", "zh-TW": "答對了！" },
+  // 言い直して当てた回。**言えたのは事実なので「正解」と出す**が、
+  // 記録は失念（オーナー指示 2026-08-27 ⑦）。明日また出る理由を
+  // その場で言わないと「正解したのになぜ？」になる。
+  "review.retriedCountsAsLapse": {
+    ja: "言い直したので、明日また出します",
+    en: "You needed another go — this one comes back tomorrow",
+    "zh-TW": "重說了一次，明天會再出現",
+  },
   "review.tryAgain": { ja: "もう一度覚えよう", en: "Let's learn it again", "zh-TW": "再記一次吧" },
   "review.next": { ja: "次へ", en: "Next", "zh-TW": "下一題" },
   "review.speakTag": { ja: "はなす", en: "Speak", "zh-TW": "開口說" },
@@ -1812,10 +1807,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.examples_extra": { ja: "追加の例文", en: "More examples", "zh-TW": "更多例句" },
   "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks", "zh-TW": "用法組塊" },
   "card.measure_words": { ja: "量詞", en: "Measure words", "zh-TW": "量詞" },
+  // オーナー指示 2026-08-27 ⑧「項目のタイトルを類義語・反義語・関連語に変更する」。
+  // 中の札(類義語/反義語/関連語)と同じ言い方に揃える — 見出しだけ
+  // 「にてる言葉」と柔らかいと、**同じ物を2つの名前で呼んでいる**ことになる。
   "card.related_words": {
-    ja: "にてる言葉・関連語",
-    en: "Similar & related words",
-    "zh-TW": "相似的字・相關詞",
+    ja: "類義語・反義語・関連語",
+    en: "Synonyms, antonyms & related",
+    "zh-TW": "近義詞・反義詞・相關詞",
   },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card", "zh-TW": "把字卡補完" },
   "card.filling": { ja: "作っています…", en: "Writing it…", "zh-TW": "製作中…" },
@@ -1877,6 +1875,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.regWritten": { ja: "書き言葉", en: "Written", "zh-TW": "書面語" },
   // 「今週出会う見込み」とレア度。**数字と出所は必ず同じ画面に居させる。**
   // 出所。**推定を実測の顔で出さない。**
+  // 〇〇限定（オーナー指示 2026-08-27 ⑤「台南限定、台湾限定、ポケモンの
+  // 〇〇地方のポケモンみたいな」）。その語を持っていること自体が珍しい、
+  // という話なので、場面の札とは別格に出す。
+  "card.limitedTo": { ja: "{place}限定", en: "{place} only", "zh-TW": "{place}限定" },
+  "card.season.spring": { ja: "春", en: "spring", "zh-TW": "春天" },
+  "card.season.summer": { ja: "夏", en: "summer", "zh-TW": "夏天" },
+  "card.season.autumn": { ja: "秋", en: "autumn", "zh-TW": "秋天" },
+  "card.season.winter": { ja: "冬", en: "winter", "zh-TW": "冬天" },
+  "card.encKind.limited": { ja: "限定", en: "Only here", "zh-TW": "限定" },
   "card.encounterLabels": {
     ja: "出会いやすい所",
     en: "Where you'll meet it",
@@ -1889,9 +1896,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.encKind.time": { ja: "時刻", en: "Time", "zh-TW": "時間" },
   "card.encKind.season": { ja: "季節", en: "Season", "zh-TW": "季節" },
   "card.frequency": { ja: "頻度", en: "Frequency", "zh-TW": "頻率" },
-  "card.synonym": { ja: "類義", en: "Similar", "zh-TW": "近義" },
-  "card.antonym": { ja: "反義", en: "Opposite", "zh-TW": "反義" },
-  "card.relatedTag": { ja: "関連", en: "Related", "zh-TW": "相關" },
+  // オーナー指示 2026-08-27 ⑧「項目のタイトルを類義語・反義語・関連語に
+  // 変更する」。「類義」だけでは何の一覧なのかが読み取れない。
+  "card.synonym": { ja: "類義語", en: "Synonyms", "zh-TW": "近義詞" },
+  "card.antonym": { ja: "反義語", en: "Antonyms", "zh-TW": "反義詞" },
+  "card.relatedTag": { ja: "関連語", en: "Related words", "zh-TW": "相關詞" },
   // 語根・接頭辞・接尾辞の仲間(学習言語が英語のときだけ出る)。
   "card.etymologyRelatives": {
     ja: "同じ部品を持つ語",

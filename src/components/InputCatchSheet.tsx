@@ -147,7 +147,6 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [picked, setPicked] = useState(0);
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
-  const pronounce = usePronounce();
   const { resolve: resolveLocation } = useCatchLocation();
   const t = useT();
   /**
@@ -156,6 +155,10 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    * 英語を選んでも台湾華語として辞書を引き、台湾華語として保存していた。
    */
   const targetLanguage = useTargetLang();
+  // **何語として読むかを必ず渡す。** 省くと台湾華語の声に落ちるので、
+  // 英語の語が中国語として合成される(オーナー報告①「Map の p が
+  // 発音されてない」— 中国語に語末の /p/ は無い)。
+  const pronounce = usePronounce(targetLanguage);
   // 辞書の意味は**解説を書いた言語**で入っている(`meanings` の鍵)。
   // 表示言語で引かないと、合わない語釈が出るか、何も出ない。
   const uiLang = useUiLang();

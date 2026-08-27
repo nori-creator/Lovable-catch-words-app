@@ -1,4 +1,4 @@
-import { refineUsageChunks, type WordExtrasDTO } from "./extras";
+import { refineUsageChunks, usableCollocations, type WordExtrasDTO } from "./extras";
 import { looksLikeTargetLanguage } from "./text-language";
 import { registerScaleOf } from "./register-scale";
 import { targetProfile, type ProfileSection } from "./target-profile";
@@ -185,11 +185,19 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
     case "examples_extra":
       return (ex.examples_extra ?? []).some((e) => looksLikeTargetLanguage(e?.zh, input.language));
     case "usage_chunks":
+      /**
+       * **描く側と1文字も違わせない**(オーナー指摘 2026-08-27 ②)。
+       *
+       * ここは `ex.word_order`(語順の解説文)が在れば「中身が在る」と
+       * 数えていた。描く側もそれを `<Prose>` で流していたので、
+       * **かたまりの節に解説の段落が出る**。「文章を表示したいのでは
+       * ない」との指摘そのもの。描く側から段落を外したので、
+       * 数える側からも外す — 片方だけ直すと、今度は見出しだけの
+       * 空の節が残る(この app が3度やった形)。
+       */
       return (
         refineUsageChunks(ex.usage_chunks, ex.measure_words, input.headword, input.language)
-          .length > 0 ||
-        (ex.collocations?.length ?? 0) > 0 ||
-        !!ex.word_order
+          .length > 0 || usableCollocations(ex.collocations, input.language).length > 0
       );
     case "measure_words":
       return (ex.measure_words?.length ?? 0) > 0;
@@ -235,7 +243,12 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
       return (ex.phrasal_verbs?.length ?? 0) > 0;
     case "culture_note":
       return !!ex.culture_note;
-    // 外の情報を見に行くだけの節は、いつでも描ける。
+    // 外の情報を見に行くだけの節。**行の中身では決められない。**
+    //
+    // `real_usage` は決まった数のリンクなので、いつでも描ける。
+    // `web_images` は**取りに行ってみないと分からない**ので、ここでは
+    // 判断できない — 1枚も見つからない語で見出しだけが残るのを止める
+    // 条件は画面の側に在る(`use-web-images.ts` / `WordCard` の `canShow`)。
     case "web_images":
     case "real_usage":
       return true;

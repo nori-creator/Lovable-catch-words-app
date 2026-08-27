@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
+import { Term } from "@/components/Term";
 import { getMyProfile } from "@/lib/profile.functions";
 import {
   listPendingCaptures,
@@ -740,11 +741,23 @@ export function ScrapbookAlbum({
               className={`photo-lift group relative block text-left ${size}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
-              <div className="photo-print h-full w-full">
-                <span aria-hidden className="photo-corner tl" />
-                <span aria-hidden className="photo-corner tr" />
-                <span aria-hidden className="photo-corner bl" />
-                <span aria-hidden className="photo-corner br" />
+              {/* **写真が在るときだけ印画紙を貼る**(オーナー指摘 2026-08-27 ②
+                  「文字検索したら、アルバムでは文字だけを表示して。画像の
+                   ようにアルバムに貼らないで。」)。
+
+                  写真の無い札にも印画紙(白フチ+三角コーナー+ツヤ)を被せて
+                  いたので、**白い紙を貼ってその上に語を書いた**絵になって
+                  いた。中身は文字なのに、留め具まで付いた「貼った物」に
+                  見える。文字の札は台紙に直に書く(`.album-note`)。 */}
+              <div className={`h-full w-full ${heroUrl ? "photo-print" : "album-note"}`}>
+                {heroUrl && (
+                  <>
+                    <span aria-hidden className="photo-corner tl" />
+                    <span aria-hidden className="photo-corner tr" />
+                    <span aria-hidden className="photo-corner bl" />
+                    <span aria-hidden className="photo-corner br" />
+                  </>
+                )}
                 {heroUrl ? (
                   <div className="h-full w-full overflow-hidden">
                     <CachedImg
@@ -775,14 +788,17 @@ export function ScrapbookAlbum({
                   // 大きさが変わる。どれも同じ字にすると、大きい札だけが
                   // 白い板の真ん中に小さな字が浮いた絵になる(絵で見つけた)。
                   <div className="grid h-full w-full place-items-center px-1">
-                    <span
-                      lang="zh-Hant"
+                    {/* **字形は学習言語で決める。** `lang="zh-Hant"` の
+                        決め打ちだったので、英語の語に中国語の字形が当たって
+                        いた(`Term` の注)。 */}
+                    <Term
+                      lang={s.word.language}
                       className={`line-clamp-2 text-center font-semibold leading-tight tracking-[0.02em] text-album-ink ${
                         size.includes("col-span-2") ? "text-title" : "text-headline"
                       }`}
                     >
                       {s.word.headword}
-                    </span>
+                    </Term>
                   </div>
                 )}
                 {/* 白フチの帯(26px)の中に収める — 写真とは絶対に被らない */}
@@ -792,12 +808,12 @@ export function ScrapbookAlbum({
                     なく「やや大きく・semibold・不透明」で読ませる。繁体字は画数が
                     多く小さいと潰れるため、字間も少し開ける。 */}
                 {heroUrl && (
-                  <span
-                    lang="zh-Hant"
+                  <Term
+                    lang={s.word.language}
                     className="absolute inset-x-1 bottom-0.5 truncate text-center text-body font-semibold leading-[22px] tracking-[0.02em] text-album-ink"
                   >
                     {s.word.headword}
-                  </span>
+                  </Term>
                 )}
               </div>
             </button>

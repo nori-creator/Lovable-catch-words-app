@@ -215,11 +215,16 @@ export function ReviewSayScene() {
  * (「出会う」の節で一度やった失敗)。判定の面だけを直に描く。
  */
 export function ReviewSayResultScene({ q }: { q: URLSearchParams }) {
-  const ok = q.get("variant") !== "ng";
+  const v = q.get("variant");
+  const ok = v !== "ng";
   return (
     <SayResult
       card={CARD}
       ok={ok}
+      // **言い直して当てた回も撮る**(オーナー指示 2026-08-27 ⑦)。
+      // 画面は「正解！」と出すが記録は失念なので、その断りが本当に
+      // 出ているか・「正解！」に埋もれていないかは絵でしか分からない。
+      retried={v === "retried"}
       heard={ok ? "珍珠奶茶" : "真豬奶茶"}
       onRetry={() => {}}
       onNext={() => {}}

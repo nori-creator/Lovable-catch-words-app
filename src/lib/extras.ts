@@ -28,6 +28,17 @@ export const RelatedWordSchema = z.object({
   word: z.string(),
   kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
   note: z.string().catch(""),
+  /**
+   * 読み(オーナー指示 2026-08-27 ⑧「発音記号がないから書き足して」)。
+   *
+   * **表記の名前を持たない**(注音か IPA かを書かない)。どちらに割り当てる
+   * かは `target-profile.ts` の `readings` が言語ごとに知っているので、
+   * ここは「1つめの読み・2つめの読み」だけを持つ
+   * (`dictionary_entries.reading_primary` / `reading_alt` と同じ形)。
+   * 古いカードは持っていないので**空が普通**。
+   */
+  reading: z.string().catch(""),
+  reading_alt: z.string().catch(""),
 });
 export type RelatedWord = z.infer<typeof RelatedWordSchema>;
 
@@ -138,6 +149,14 @@ export const ExtrasSchema = z.object({
   season_months: z.array(z.number().int().min(1).max(12)).catch([]),
   /** 「台南」「台湾」など、そこでしか見ないもの。限定が無ければ空。 */
   region_scope: z.string().catch(""),
+  /**
+   * その語が出る検定の印（`dictionary_entries.exam_tags` の写し）。
+   *
+   * **AI に作らせない。** 辞書の行に入っている事実で、当て推量で
+   * 「TOEFL の語」と書かれると、級を当て推量させていたのと同じ問題に戻る
+   * （オーナー指摘 2026-08-27 ⑭）。級が空の語に**級の代わりに**出す。
+   */
+  exam_tags: z.array(z.string()).catch([]),
   /**
    * **その語に出会いやすい所を、具体的な札で並べる**(オーナー指摘 2026-08-20)。
    *
@@ -436,12 +455,13 @@ function countWords(text: string): number {
  * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
  * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
  *
- * 落とすのは4つ:
- * 1. 量詞の欄と丸ごと重なる型(下の `withoutMeasureWordEcho`)
+ * 落とすのは5つ:
+ * 1. **量詞に触れる型**(下の `withoutMeasureWords`) — 量詞の欄が別に在る
  * 2. **長すぎる型** — 8文字を超えると口に乗る「型」ではなく例文になる。
  *    例文の欄が別に在るので、ここが文になると欄の意味が重なる
- * 3. 見出し語しか無い型(情報が0)
- * 4. 同じ文字列の重複
+ * 3. **文になっている型**(句点・感嘆符・疑問符が入っている)
+ * 4. 見出し語しか無い型(情報が0)
+ * 5. 同じ文字列の重複
  *
  * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
  * 切るのは後ろから。
@@ -459,12 +479,15 @@ export function refineUsageChunks(
   const head = headword.trim();
   const seen = new Set<string>();
   const isEnglish = normalizeTargetLanguage(language) === "en";
-  return withoutMeasureWordEcho(chunks, measureWords, headword)
+  return withoutMeasureWords(chunks, measureWords, headword)
     .filter((c) => {
       const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
       if (parts.length === 0 || parts.length > MAX_CHUNK_PARTS) return false;
       const text = chunkText(c, isEnglish ? " " : "");
       if (text.length === 0) return false;
+      // 句点の付いた物は文。**長さの前に見る** — 短い文(`我去了。`)は
+      // 長さの網に掛からない。
+      if (SENTENCE_END.test(text)) return false;
       if (isEnglish) {
         // 英語は**語の数**で測る（文字数だと `put on socks` すら落ちる）。
         if (countWords(text) > MAX_CHUNK_WORDS_EN) return false;
@@ -481,25 +504,101 @@ export function refineUsageChunks(
     .slice(0, MAX_CHUNKS);
 }
 
-export function withoutMeasureWordEcho(
+/**
+ * **量詞に触れる型を1つも通さない**(オーナー指示 2026-08-27 ⑫⑮)。
+ *
+ * > 「使い方のチャンク、量詞の項目があるから、チャンクでは同じような
+ * >  ものを表示させないで。」
+ * > 「名詞の場合は量詞の欄があるから、チャンクの欄で同じものを
+ * >  表示しないで。**決して被らせないで**。」
+ *
+ * ## 前は「丸ごと同じ型」だけを落としていた
+ * 古い条件は「量詞と見出し語**以外**のパーツが1つでもあれば通す」で、
+ * つまり `一張地圖` は落ちるが `買一張地圖` は通っていた。量詞の欄を
+ * 別に持っている以上、**量詞が出てくる時点で重なっている** —
+ * 読む人から見れば「さっき下で読んだ字がまた出てきた」でしかない。
+ *
+ * 量詞は `pos: "M"` でも見分けられるが、**それだけに頼らない** —
+ * 品詞は AI が付ける物なので、付け忘れた回に素通しになる。
+ * その札の量詞の一覧と、量詞の記号と、**両方**で見る。
+ */
+export function withoutMeasureWords(
   chunks: ReadonlyArray<UsageChunk> | null | undefined,
   measureWords: ReadonlyArray<{ word?: string } | null | undefined> | null | undefined,
   headword: string,
 ): UsageChunk[] {
   const list = (chunks ?? []).filter(Boolean) as UsageChunk[];
-  // 量詞が1つも無ければ重なりようがない。素通しする。
   const cores = new Set(
     (measureWords ?? []).map((m) => measureWordCore(m?.word ?? "")).filter((w) => w.length > 0),
   );
-  if (cores.size === 0) return list;
-
   const head = headword.trim();
   return list.filter((c) => {
-    const parts = (c.parts ?? []).map((p) => (p?.text ?? "").trim()).filter((t) => t.length > 0);
+    const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
     if (parts.length === 0) return false;
-    // 量詞と見出し語以外のパーツが1つでもあれば、その型は情報を足している。
-    return parts.some((t) => !cores.has(measureWordCore(t)) && t !== head);
+    // 見出し語そのものは量詞と一致しない(量詞は数える器のほう)。
+    // 見出し語が偶然その札の量詞と同じ字のときに、型を全部落とさない。
+    return !parts.some((p) => {
+      const text = (p.text ?? "").trim();
+      if (text === head) return false;
+      if (p.pos === "M") return true;
+      return cores.has(measureWordCore(text));
+    });
   });
+}
+
+/**
+ * 文末の約物。**これが入っていたら型ではなく文**(オーナー指摘 2026-08-27 ②)。
+ *
+ * > 「チャンク、型の項目が文章のようになってる。文章を表示したいのでは
+ * >  なく、ネイティブがその単語を使う時に最も相性のいい、よく使う単語の
+ * >  塊、フレーズを表示したい。」
+ *
+ * 長さの上限は前から在るが、長さだけでは短い文(`我去了。`)が通る。
+ * 「そのまま口に乗せる塊」に句点は要らない。
+ */
+const SENTENCE_END = /[。．.!！?？…]/u;
+
+/**
+ * 古いカードの `collocations`(語のかたまりの文字列)を、型の節に出せる物
+ * だけに絞る。
+ *
+ * 型が1つも残らなかったときの控えだが、**控えでも規則は同じ**
+ * (オーナー指摘 2026-08-27 ②「文章を表示したいのではない」)。
+ * 文になっている物と、長すぎる物を落とす。
+ */
+export function usableCollocations(
+  collocations: ReadonlyArray<string | null | undefined> | null | undefined,
+  language?: string | null,
+): string[] {
+  const isEnglish = normalizeTargetLanguage(language) === "en";
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of collocations ?? []) {
+    const text = (raw ?? "").trim();
+    if (!text || seen.has(text)) continue;
+    if (SENTENCE_END.test(text)) continue;
+    if (isEnglish) {
+      if (countWords(text) > MAX_CHUNK_WORDS_EN || text.length > MAX_CHUNK_CHARS_EN) continue;
+    } else if (text.length > MAX_CHUNK_CHARS) {
+      continue;
+    }
+    seen.add(text);
+    out.push(text);
+    if (out.length >= MAX_CHUNKS) break;
+  }
+  return out;
+}
+
+/**
+ * その型を**ひと息で読み上げるときの文字列**。
+ *
+ * 継ぎ目は言語で決まる（英語は空白、漢字は無し）。この判断は
+ * `chunkText` が既に持っているので、外へはこの薄い包みだけを出す —
+ * 読み上げ側が `parts.join("")` を自前で書くと、英語の型が
+ * `put onsocks` として合成される。
+ */
+export function chunkSpeechText(chunk: UsageChunk, language?: string | null): string {
+  return chunkText(chunk, normalizeTargetLanguage(language) === "en" ? " " : "");
 }
 
 /**

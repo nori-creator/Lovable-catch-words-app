@@ -126,7 +126,10 @@ export function ScanCatchSheet({
   const flyRef = useRef<HTMLImageElement | null>(null);
   // 演出中に単語の発音を鳴らすため、フックの結果を ref に保持しておく
   // (runLandingAnimation は非フック関数なので直接は呼べない)。
-  const pronounce = usePronounce();
+  // **何語として読むかを必ず渡す。** 省くと台湾華語の声で読む既定に落ちる
+  // ので、英語の語が中国語として合成される。中国語には語末の /p/ が無いので
+  // "map" は「マー」に聞こえる — オーナー報告①「pが発音されてない」。
+  const pronounce = usePronounce(targetLanguage);
   const pronounceRef = useRef(pronounce);
   pronounceRef.current = pronounce;
 

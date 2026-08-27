@@ -358,10 +358,14 @@ export const ZH_TW_PROFILE: TargetProfile = {
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
   chunkRoles: ["S", "V", "O", "M", "C", "Ptc"],
   chunkPrompt: {
-    lengthRule: "型1つは繁体字で8文字以内・パーツ4つ以内。超えるものは型ではなく例文。",
+    lengthRule:
+      "型1つは繁体字で8文字以内・パーツ4つ以内。超えるものは型ではなく例文。" +
+      "**句点・感嘆符・疑問符を入れない** — 文ではなく、そのまま口に乗せる塊。",
     styleRule:
-      "**「量詞+見出し語だけ」の型は作らない**(量詞の欄と丸ごと同じになる)。" +
-      "量詞を使うなら動詞や述語と一緒の形にする。\n" +
+      // オーナー指示 2026-08-27 ⑫⑮「量詞の項目があるから、チャンクでは
+      // 同じようなものを表示させないで」「決して被らせないで」。
+      "**量詞を1つも使わない。** 量詞は別の欄で読むので、ここに出てきた時点で" +
+      "重なっている(動詞が付いていても同じ)。pos に M を付ける札を作らない。\n" +
       "動詞+目的語だけに寄せず、状態動詞(Vs)・助動詞(Vaux)・副詞(Adv)・介詞(Prep)の型も" +
       "**頻度が高ければ**入れる(品詞を埋めるために低頻度の型を作らない)。",
     posRule:
@@ -504,7 +508,9 @@ export const EN_PROFILE: TargetProfile = {
   chunkRoles: ["S", "V", "O", "Adv", "Prep", "Det"],
   chunkPrompt: {
     // **語の数で言う。** 「8文字以内」と言うと `put on socks` すら作れない。
-    lengthRule: "型1つは4語以内・パーツ4つ以内。超えるものは型ではなく例文。",
+    lengthRule:
+      "型1つは4語以内・パーツ4つ以内。超えるものは型ではなく例文。" +
+      "**ピリオド・感嘆符・疑問符を入れない** — 文ではなく、そのまま口に乗せる塊。",
     styleRule:
       "冠詞(a/the)・前置詞・複数形の -s まで**型の中に入れる** — " +
       "中国語話者がいちばん落とすのがそこなので、型がそれを含んでいないと練習にならない。\n" +
@@ -556,4 +562,32 @@ export function hasSection(profile: TargetProfile, section: ProfileSection): boo
 /** その言語で使う読みの既定(設定がまだ無いとき)。 */
 export function defaultReading(profile: TargetProfile): ReadingKind {
   return profile.readings[0];
+}
+
+/**
+ * **AI への指示文の中で、その表記を何と呼ぶか。**
+ *
+ * 画面の名前(`readingLabelKey`)は読む人の言語で書くが、指示文は日本語で
+ * 書いているので別に持つ(`UI_LANG_LABEL_KEYS` と `UI_LANG_PROMPT_NAMES`
+ * が別なのと同じ理由)。
+ */
+const READING_PROMPT_NAMES: Record<ReadingKind, string> = {
+  zhuyin: "注音",
+  pinyin: "拼音",
+  "ipa-us": "IPA(アメリカ英語)",
+  "ipa-uk": "IPA(イギリス英語)",
+};
+
+/**
+ * その言語の「1つめの読み・2つめの読み」の呼び名。
+ *
+ * 呼ぶ側が `lang === "en" ? "IPA" : "注音"` と書き始めると、学習言語が
+ * 増えた日にその分岐だけ増えない。並びの正は `readings` ただ1つ。
+ */
+export function readingPromptNames(profile: TargetProfile): { primary: string; alt: string } {
+  const [first, second] = profile.readings;
+  return {
+    primary: READING_PROMPT_NAMES[first],
+    alt: second ? READING_PROMPT_NAMES[second] : "",
+  };
 }

@@ -244,6 +244,54 @@ export function useReadingText(
 }
 
 /**
+ * **言語に依らない「読み1・読み2」を、その言語の表記に割り当てる。**
+ *
+ * 辞書の行(`reading_primary` / `reading_alt`)や、AI が返す関連語の読みは
+ * 「注音か IPA か」を知らない。知っているのは `target-profile.ts` の
+ * `readings` だけなので、割り当てはここ1箇所で行う。
+ *
+ * 呼ぶ側が `lang === "en" ? { ipaUs } : { zhuyin }` と書き始めると、
+ * 学習言語が増えた日にその分岐だけ増えない — この app が何度も踏んだ形。
+ */
+export function neutralReadings(
+  lang: string | null | undefined,
+  primary?: string | null,
+  alt?: string | null,
+): Partial<Record<ReadingKind, string | null | undefined>> {
+  const [first, second] = targetProfile(lang).readings;
+  const out: Partial<Record<ReadingKind, string | null | undefined>> = {};
+  if (first) out[first] = primary;
+  if (second) out[second] = alt;
+  return out;
+}
+
+/**
+ * 「読み1・読み2」しか手元に無いときの読み。中身は `Reading` と同じ規則
+ * (選ばれている表記だけを出す・空なら何も出さない)。
+ */
+export function ReadingOf({
+  lang,
+  primary,
+  alt,
+  className,
+}: {
+  lang?: string | null;
+  primary?: string | null;
+  alt?: string | null;
+  className?: string;
+}) {
+  const profile = targetProfile(lang);
+  const pref = useReadingPref(profile);
+  const text = pickReadingOf(profile, pref, neutralReadings(lang, primary, alt));
+  if (!text) return null;
+  return (
+    <span lang={profile.scriptLang} className={className}>
+      {text}
+    </span>
+  );
+}
+
+/**
  * 選択された表記だけを描画する読みテキスト。
  *
  * 注音(ㄅㄆㄇ)は繁体字フォントにしか入っていない。日本語フォントに落ちると

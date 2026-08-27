@@ -185,7 +185,9 @@ function CapturePage() {
   const candidatesFn = useServerFn(suggestWordCandidates);
   // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
   const dateLocale = localeOf(useUiLang());
-  const pronounce = usePronounce();
+  // **何語として読むかを必ず渡す。** 省くと台湾華語の声に落ちるので、
+  // 文字で調べた英語の語が中国語として合成される(オーナー報告①)。
+  const pronounce = usePronounce(targetLanguage);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { word: wordParam, pending: pendingParam, retake: retakeParam } = Route.useSearch();
@@ -317,7 +319,7 @@ function CapturePage() {
   useEffect(() => {
     if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
     handledParamRef.current = `w:${wordParam}`;
-    void confirmWord(wordParam, undefined, { skipImagePick: true });
+    void confirmWord(wordParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
 
@@ -485,7 +487,7 @@ function CapturePage() {
     // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
     if (isTargetHeadword(word, targetLanguage)) {
       setTypedWord("");
-      void confirmWord(word, undefined, { skipImagePick: true });
+      void confirmWord(word);
       return;
     }
     /**
@@ -524,18 +526,14 @@ function CapturePage() {
          */
         const c = usable[0];
         setTypedWord("");
-        void confirmWord(
-          c.headword,
-          {
-            headword: c.headword,
-            reading_zhuyin: c.reading_zhuyin,
-            pinyin: c.pinyin,
-            meaning_ja: c.meaning_ja,
-            distinction: c.distinction,
-            category_key: "other",
-          },
-          { skipImagePick: true },
-        );
+        void confirmWord(c.headword, {
+          headword: c.headword,
+          reading_zhuyin: c.reading_zhuyin,
+          pinyin: c.pinyin,
+          meaning_ja: c.meaning_ja,
+          distinction: c.distinction,
+          category_key: "other",
+        });
         return;
       }
       // **複数あるなら選ばせる。** 母語の1語が学習言語では別々の語に割れる
@@ -583,7 +581,7 @@ function CapturePage() {
     setSelectedHead((prev) => (prev === resolved ? prev : resolved));
   }
 
-  async function confirmWord(head: string, hint?: Suggestion, opts?: { skipImagePick?: boolean }) {
+  async function confirmWord(head: string, hint?: Suggestion) {
     const token = ++runTokenRef.current;
     setSelectedHead(head);
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
@@ -1038,7 +1036,7 @@ function CapturePage() {
           suggestions={suggestions}
           manualWord={manualWord}
           setManualWord={setManualWord}
-          onPick={(s) => confirmWord(s.headword, s, { skipImagePick: true })}
+          onPick={(s) => confirmWord(s.headword, s)}
           // **ここも学習言語へ直してから進む**(`searchWord` の注)。
           // 写真の候補に無い語を手で打つ所なので、母語で書かれることが多い。
           onManual={() => void searchWord(manualWord)}

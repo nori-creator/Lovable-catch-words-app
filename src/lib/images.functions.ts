@@ -2,11 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { commonsCandidates, commonsSearchUrl, type CommonsResponse } from "./commons-images";
 
 export type ImageCandidate = {
   url: string;
   thumb: string;
-  source: "unsplash" | "ai";
+  source: "unsplash" | "commons" | "ai";
   credit?: { name: string; link: string };
 };
 
@@ -54,6 +55,34 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
         }
       } catch (e) {
         console.warn("unsplash search failed", e);
+      }
+    }
+
+    /**
+     * **鍵の要らない出所を1つ持つ**(オーナー報告 2026-08-27 ④
+     * 「単語の詳細のネットの画像がよく表示されない」)。
+     *
+     * ここまでの出所は Unsplash（鍵が要る）だけで、控えは AI の生成
+     * （鍵と残高が要る）だけだった。どちらかが切れると候補は 0 件になり、
+     * 画面には「画像がありません」しか残らない。**切れ方が見えない**ので、
+     * 使う人には「よく出ない機能」としか映らない。
+     *
+     * コモンズは鍵が要らず、素性のはっきりした自由利用の画像がある。
+     * 街で見かける具体的な物には特に強い。読み替えは `commons-images.ts`。
+     */
+    if (candidates.length === 0) {
+      try {
+        const res = await fetch(commonsSearchUrl(data.query), {
+          // コモンズは名乗らない相手を弾くことがある。
+          headers: { "User-Agent": "Catchwords/1.0 (language learning app)" },
+        });
+        if (res.ok) {
+          for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {
+            candidates.push({ ...c, source: "commons" });
+          }
+        }
+      } catch (e) {
+        console.warn("commons search failed", e);
       }
     }
 

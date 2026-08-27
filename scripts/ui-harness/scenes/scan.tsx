@@ -21,11 +21,8 @@ const BASE = {
   pos: "N",
   verified: true,
   candidates: [] as string[],
-  expanding: false,
-  canExpand: true,
   onPickCandidate: () => {},
   onPlay: () => {},
-  onExpand: () => {},
   onCatch: () => {},
   onClose: () => {},
 };
@@ -47,9 +44,6 @@ export function ScanChipScene({ q }: { q: URLSearchParams }) {
   }
   if (v === "reunion") {
     return <ScanChip {...BASE} state="reunion" foundAt="2026-05-02T09:00:00Z" />;
-  }
-  if (v === "expanding") {
-    return <ScanChip {...BASE} state="new" foundAt={null} expanding />;
   }
   // まだ持っていない語。**AI生成のときは但し書きが変わる。**
   return <ScanChip {...BASE} verified={false} state="new" foundAt={null} />;
@@ -174,7 +168,6 @@ export function ScanDotsScene() {
     mk("d4", "冰塊", [760, 620], 0.5), // 確信が低い
     mk("d5", "半糖", [180, 700], 0.9, "text"), // 文字の印
   ] as never[];
-  const subItems = [{ ...mk("s1", "珍珠", [330, 300], 0.9), parentId: "d1", sub: true }] as never[];
   const ctx = {
     owned: { 杯子: { has_photo: true }, 吸管: { has_photo: false } },
     tappedSet: new Set<string>(),
@@ -192,7 +185,6 @@ export function ScanDotsScene() {
     >
       <ScanDots
         items={items}
-        subItems={subItems}
         scanCtx={ctx}
         // 実物は枠の大きさから計算する。ここでは枠を固定してあるので
         // 同じ式(1000分率)をそのまま使う。

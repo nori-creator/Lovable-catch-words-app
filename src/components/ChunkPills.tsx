@@ -14,11 +14,20 @@ export function ChunkPills({
   parts,
   size = "md",
   lang,
+  onSpeak,
 }: {
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
   /** その型の学習言語。**渡さないと台湾華語として組む**(既定)。 */
   lang?: string | null;
+  /**
+   * 札そのものを押したときに鳴らす(オーナー指示 2026-08-27 ⑧
+   * 「それぞれのバブルをタップしたら独立して発音されるようにする」)。
+   *
+   * 渡さなければ**押せない札のまま**。復習の添削のように、押しても
+   * 意味の無い場所で押せる見た目にしない。
+   */
+  onSpeak?: (text: string) => void;
 }) {
   if (!parts.length) return null;
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
@@ -34,16 +43,50 @@ export function ChunkPills({
     <div className="flex flex-wrap gap-2">
       {parts.map((c, i) => {
         const st = chunkStyle(c.pos);
+        // チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は解説語なので、
+        // こちらだけ言語を宣言して字形を固定する。
+        // **`lang="zh-Hant"` の決め打ちにしない** — 英語の型に中国語の
+        // フォントが当たる(`Term` の注)。
+        // 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
+        // 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。
+        const body = <Term lang={lang}>{c.text}</Term>;
+        const skin = `rounded-xl font-medium ${pad} ${st.pill}`;
+        if (!onSpeak) {
+          return (
+            <span key={i} className={skin} title={st.label}>
+              {body}
+            </span>
+          );
+        }
         return (
-          <span key={i} className={`rounded-xl font-medium ${pad} ${st.pill}`} title={st.label}>
-            {/* チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は
-                解説語なので、こちらだけ言語を宣言して字形を固定する。
-                **`lang="zh-Hant"` の決め打ちにしない** — 英語の型に
-                中国語のフォントが当たる(`Term` の注)。 */}
-            <Term lang={lang}>{c.text}</Term>
-            {/* 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
-                置いていたので「我 s」が誤字に見えた。色と凡例で足りる。 */}
-          </span>
+          <button
+            key={i}
+            type="button"
+            onClick={(e) => {
+              // 札は押せる物の中に入っていることがある(図鑑の一覧)。
+              // ここで止めないと、鳴らすつもりが画面ごと切り替わる。
+              e.stopPropagation();
+              onSpeak(c.text);
+            }}
+            /**
+             * **押せる札は指の大きさにする**(44px)。
+             *
+             * 見えない枠(`::before`)で広げる手もあるが、札は `gap-2`(8px)で
+             * 隣り合うので、左右に 8px ずつ出すと**隣の枠と重なる**。
+             * 重なった所は後から描いた札が取るので、左の札は自分の右端を
+             * 押しても反応しない — 検査の「タップ領域 31x31 < 44」は
+             * それを見ている。
+             *
+             * 押せる物になった以上、実際に押せる大きさで在るのが正しい。
+             * 一文字の札も 44px 幅で揃うので、型の並びがきれいに揃う。
+             * **押せない札(`onSpeak` なし)は小さいまま** — 復習の添削の
+             * ように、触れない物を指の大きさにする理由は無い。
+             */
+            className={`chunk-pill press-in inline-flex min-h-11 min-w-11 items-center justify-center ${skin} active:scale-95 motion-reduce:active:scale-100`}
+            title={st.label}
+          >
+            {body}
+          </button>
         );
       })}
     </div>

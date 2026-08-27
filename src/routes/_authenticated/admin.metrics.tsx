@@ -6,6 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { getAdminDashboard } from "@/lib/metrics.functions";
 import { pregenerateDictionaryTts } from "@/lib/tts.functions";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES, type TargetLanguage } from "@/lib/target-lang";
+import { TARGET_LANG_LABEL_KEYS, tStatic } from "@/lib/i18n";
 import { getSelfImprovementStatus, runSelfImprovementNow } from "@/lib/selfimprove.functions";
 import {
   listEntryReports,
@@ -367,6 +369,16 @@ function EntryReportsPanel() {
  */
 function TtsPregenPanel() {
   const pregenFn = useServerFn(pregenerateDictionaryTts);
+  /**
+   * **どの学習言語の辞書に音を付けるか。**
+   *
+   * `pregenerateDictionaryTts` は最初から `language` を受け取るのに、
+   * この画面は**一度も渡していなかった**ので、いつも既定(台湾華語)の
+   * 行だけを見ていた。英語の辞書を 25,595 語入れても、この画面からは
+   * 音を1語も付けられない — 実際、本番の `tts` 置き場に `en/` の音は
+   * 1つも無い。渡していない引数は、無い引数と同じ。
+   */
+  const [language, setLanguage] = useState<TargetLanguage>(DEFAULT_TARGET_LANGUAGE);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{
     done: number;
@@ -381,8 +393,8 @@ function TtsPregenPanel() {
   const cancelRef = useRef(false);
 
   const { data: status } = useQuery({
-    queryKey: ["tts-pregen-status"],
-    queryFn: () => pregenFn({ data: { dry_run: true } }),
+    queryKey: ["tts-pregen-status", language],
+    queryFn: () => pregenFn({ data: { dry_run: true, language } }),
     staleTime: 60_000,
   });
   const remaining = progress.remaining ?? status?.remaining ?? null;
@@ -398,7 +410,7 @@ function TtsPregenPanel() {
     let totalFailed = 0;
     try {
       for (;;) {
-        const r = await pregenFn({ data: { batch: 25 } });
+        const r = await pregenFn({ data: { batch: 25, language } });
         totalDone += r.done;
         totalFailed += r.failed;
         setProgress({ done: totalDone, failed: totalFailed, remaining: r.remaining });
@@ -421,6 +433,26 @@ function TtsPregenPanel() {
         <h2 className="flex items-center gap-1.5 text-body font-semibold">
           <Volume2 className="h-4 w-4 text-primary" /> 辞書音声の事前生成(全語)
         </h2>
+        <div className="flex items-center gap-2">
+          {TARGET_LANGUAGES.map((code) => (
+            <button
+              key={code}
+              onClick={() => {
+                setLanguage(code);
+                setProgress({ done: 0, failed: 0, remaining: null });
+                setErrors([]);
+              }}
+              disabled={running}
+              className={`rounded-full px-3 py-1 text-caption font-semibold ring-1 disabled:opacity-50 ${
+                language === code
+                  ? "bg-primary text-primary-foreground ring-transparent"
+                  : "bg-secondary text-foreground ring-border"
+              }`}
+            >
+              {tStatic(TARGET_LANG_LABEL_KEYS[code])}
+            </button>
+          ))}
+        </div>
         <button
           onClick={run}
           className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-footnote font-semibold active:scale-95 ${

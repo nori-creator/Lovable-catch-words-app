@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { speechLangOf } from "@/lib/target-lang";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,7 +15,6 @@ import {
   RotateCcw,
   BookOpen,
   Sparkles,
-  Plus,
   Bug,
   ChevronDown,
   ChevronRight,
@@ -26,7 +24,6 @@ import {
 import { AppShell } from "@/components/AppShell";
 import {
   detectScan,
-  detectParts,
   getScanContext,
   lookupHeadwords,
   markScanTap,
@@ -34,9 +31,8 @@ import {
   type DictionaryEntry,
   type ScanContext,
 } from "@/lib/scan.functions";
-import { synthesizeSpeech } from "@/lib/tts.functions";
+import { usePronounce, usePrefetchSpeech } from "@/lib/use-pronounce";
 import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
-import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { geocodeLocation } from "@/lib/geocode.functions";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
@@ -63,7 +59,6 @@ export const Route = createFileRoute("/_authenticated/scan")({
 // without prop-drilling. Only meaningful when dev overlay is on.
 type Metrics = {
   detect_ms: number | null;
-  parts_ms: number | null;
   lookup_ms: number | null;
   tap_to_audio_ms: number | null;
   prefetch_ms: number | null;
@@ -106,20 +101,13 @@ function posDotColor(pos: string | null | undefined): string {
   return "bg-white/50";
 }
 
-// A sub-item is a §3.5 part detection whose normalized coords have already
-// been remapped into the parent frame (0..1000). We keep the parent id and
-// tag it so the renderer can draw it as a smaller "child" dot.
-type SubItem = DetectedItem & { parentId: string; sub: true };
-
 function ScanPage() {
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
   const detectFn = useServerFn(detectScan);
-  const partsFn = useServerFn(detectParts);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
-  const ttsFn = useServerFn(synthesizeSpeech);
   const cardFn = useServerFn(generateCard);
   const scanCtxFn = useServerFn(getScanContext);
   const logEvent = useServerFn(logAppEvent);
@@ -143,6 +131,8 @@ function ScanPage() {
    * 行っていた。
    */
   const targetLanguage = useTargetLang();
+  // **何語として読むかを必ず渡す**(`playAudio` の注)。
+  const pronounce = usePronounce(targetLanguage);
   // 辞書の意味は**解説を書いた言語**で入っている(`meanings` の鍵)。
   // 表示言語で引かないと、合わない語釈が出るか、何も出ない。
   const uiLang = useUiLang();
@@ -168,7 +158,6 @@ function ScanPage() {
   const voiceRecogRef = useRef<{ stop: () => void } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // §3.3 プリフェッチ: タップされた語だけ generateCard をバックグラウンド起動し、
   // セッション内(スキャン画面が開いている間)は再利用する。タップされていない
@@ -198,13 +187,25 @@ function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
-  const [subItems, setSubItems] = useState<SubItem[]>([]);
-  const [expandingId, setExpandingId] = useState<string | null>(null); // parent id currently loading parts
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
+  /**
+   * 見つかった語の音を**並んだ瞬間に**端末へ落としておく。
+   *
+   * 辞書に作り置きが在る語は `audio_url` を添えるので、サーバ関数を
+   * 1回も呼ばずに貯めへ入る。ここが `playAudio` の中に在った
+   * 「署名URLが手元にあるので往復ゼロ」の置き換え — タップの中でやると
+   * 落とし終わるまで待つが、先に落としておけば押した瞬間に鳴る。
+   */
+  const spokenWords = useMemo(() => Object.keys(entries), [entries]);
+  const spokenUrls = useMemo(() => {
+    const out: Record<string, string | null> = {};
+    for (const [w, e] of Object.entries(entries)) out[w] = e.audio_url ?? null;
+    return out;
+  }, [entries]);
+  usePrefetchSpeech(spokenWords, { language: targetLanguage, urls: spokenUrls });
   const [detectMs, setDetectMs] = useState<number | null>(null);
-  const [partsMs, setPartsMs] = useState<number | null>(null);
   const [lookupMs, setLookupMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
@@ -438,10 +439,8 @@ function ScanPage() {
     setError(null);
     setChip(null);
     setItems(null);
-    setSubItems([]);
     setEntries({});
     setDetectMs(null);
-    setPartsMs(null);
     setLookupMs(null);
     setTapToAudioMs(null);
     const frame = grabFrame();
@@ -596,140 +595,51 @@ function ScanPage() {
     [entries, lookupFn, startPrefetch],
   );
 
+  /**
+   * かざして見つけた語を読む。
+   *
+   * ## ここには**発音の道の写しが丸ごと**在った(オーナー報告①⑯)
+   * `ttsFn({ data: { text: headword } })` — **何語かを渡していない**ので
+   * サーバは既定の台湾華語の声で合成する。中国語に語末の /p/ は無いので、
+   * "map" は「マー」になる。控えの側はもっと悪く、
+   * `new SpeechSynthesisUtterance` を自分で作って `u.lang = speechLangOf()`
+   * (これも引数なし=台湾華語)を当て、**声を1つも選んでいなかった** —
+   * 端末がその場の気分で選ぶので、鳴らすたびに違う声になる。
+   * オーナーの言う「様々な別のソフトの声がする」はこれ。
+   *
+   * `usePronounce` はこの全部を持っている(端末の貯め・言語ごとの鍵・
+   * 声の決めきり・被り止め)。**写しを消して、そちらを呼ぶ。**
+   * 事前生成の署名URLは `usePrefetchSpeech` から同じ貯めに入るので、
+   * 「サーバー往復ゼロ」も失わない。
+   */
   const playAudio = useCallback(
     async (headword: string, item: DetectedItem) => {
-      // Must run synchronously inside the tap gesture, before any await —
-      // otherwise iOS rejects the later .play() and the button stays silent.
-      if (!audioRef.current) audioRef.current = new Audio();
-      primeAudio(audioRef.current);
+      // iOS: 再生解禁はタップの中で同期的に済ませる必要がある(`usePronounce`
+      // の中でも最初にやっている)。
       const t0 = performance.now();
-      // タップ記録は音声再生開始後に1回だけ送る(tap_to_audio_msを同梱、§7)。
       const reportTap = (ms: number) => {
         setTapToAudioMs(ms);
         void tapFn({ data: { headword, tap_to_audio_ms: ms } }).catch(() => {});
       };
-      try {
-        const dict = entries[headword];
-        let url: string;
-        if (dict?.audio_url) {
-          // §4.3 事前生成音声: 署名URLが手元にあるのでサーバー往復ゼロで即再生。
-          url = dict.audio_url;
-        } else {
-          const r = await ttsFn({ data: { text: headword } });
-          url = r.audio_url;
-        }
-        if (!audioRef.current) audioRef.current = new Audio();
-        claimAudio(audioRef.current);
-        audioRef.current.src = url;
-        await audioRef.current.play();
-        reportTap(Math.round(performance.now() - t0));
-      } catch {
-        // fall back to browser TTS
-        if ("speechSynthesis" in window) {
-          stopOtherAudio();
-          const u = new SpeechSynthesisUtterance(headword);
-          u.lang = speechLangOf();
-          speechSynthesis.speak(u);
-          reportTap(Math.round(performance.now() - t0));
-        } else {
-          void tapFn({ data: { headword } }).catch(() => {});
-        }
-      }
+      await pronounce(headword);
+      reportTap(Math.round(performance.now() - t0));
       void item;
     },
-    [entries, ttsFn, tapFn],
+    [pronounce, tapFn],
   );
 
   const reset = useCallback(() => {
     setItems(null);
-    setSubItems([]);
     setSnapshot(null);
     setChip(null);
     setEntries({});
     setDetectMs(null);
-    setPartsMs(null);
     setLookupMs(null);
     setTapToAudioMs(null);
     setCatchOpen(null);
-    setExpandingId(null);
     prefetchRef.current.clear();
     prefetchTimingRef.current.clear();
   }, []);
-
-  // ---- §3.5 「+細かく」: crop a region around the parent tap point and run a
-  // second (parts-only) detection. Coords come back in the cropped 0..1000
-  // frame; we remap into the parent frame before storing so the same dot
-  // renderer can draw them.
-  const expandParts = useCallback(
-    async (parent: DetectedItem) => {
-      if (!snapshot || expandingId) return;
-      // Skip if we already have children for this parent
-      if (subItems.some((s) => s.parentId === parent.id)) return;
-      setExpandingId(parent.id);
-      const t0 = performance.now();
-      try {
-        // Crop a square around the tap point ~40% of the shortest side.
-        const img = new Image();
-        await new Promise<void>((res, rej) => {
-          img.onload = () => res();
-          img.onerror = () => rej(new Error("img"));
-          img.src = snapshot;
-        });
-        const cx = (parent.point[0] / 1000) * img.width;
-        const cy = (parent.point[1] / 1000) * img.height;
-        const side = Math.min(img.width, img.height) * 0.42;
-        const x = Math.max(0, Math.min(img.width - side, cx - side / 2));
-        const y = Math.max(0, Math.min(img.height - side, cy - side / 2));
-        const c = document.createElement("canvas");
-        c.width = c.height = Math.round(side);
-        const ctx = c.getContext("2d");
-        if (!ctx) throw new Error("canvas");
-        ctx.drawImage(img, x, y, side, side, 0, 0, c.width, c.height);
-        const cropDataUrl = c.toDataURL("image/jpeg", 0.85);
-
-        const { items: parts } = await partsFn({
-          data: { imageBase64: cropDataUrl, parentHeadword: parent.headword },
-        });
-        setPartsMs(Math.round(performance.now() - t0));
-
-        // Remap normalized crop coords → parent-frame normalized coords.
-        // Crop region in parent-frame normalized units:
-        const rx0 = (x / img.width) * 1000;
-        const ry0 = (y / img.height) * 1000;
-        const rw = (side / img.width) * 1000;
-        const rh = (side / img.height) * 1000;
-        const mapped: SubItem[] = parts.map((p) => ({
-          ...p,
-          parentId: parent.id,
-          sub: true,
-          point: [rx0 + (p.point[0] / 1000) * rw, ry0 + (p.point[1] / 1000) * rh],
-        }));
-        setSubItems((prev) => [...prev, ...mapped]);
-
-        // Lookup verified dict entries for the sub-parts so chips can badge them
-        if (mapped.length > 0) {
-          try {
-            const { entries: e } = await lookupFn({
-              data: {
-                headwords: mapped.map((m) => m.headword),
-                language: targetLanguage,
-                explain_lang: uiLang,
-              },
-            });
-            setEntries((prev) => ({ ...prev, ...e }));
-          } catch {
-            /* noop */
-          }
-        }
-      } catch (e) {
-        console.error(e);
-        setError(readableError(e, t("scan.detailFailed")));
-      } finally {
-        setExpandingId(null);
-      }
-    },
-    [snapshot, expandingId, subItems, partsFn, lookupFn, t],
-  );
 
   // ---- overlay coord conversion (normalized 0..1000 → pixels within box) ----
   const boxSize = useBoxSize(boxRef);
@@ -812,22 +722,7 @@ function ScanPage() {
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
           {scanning && scanStage !== "idle" && <ScanEffect stage={scanStage} />}
 
-          <ScanDots
-            items={visibleItems}
-            subItems={subItems}
-            scanCtx={scanCtx}
-            dotStyle={dotStyle}
-            onOpen={openChip}
-          />
-          {/* parts loader (§3.5) — subtle pulse over the parent region */}
-          {expandingId && items?.find((i) => i.id === expandingId) && (
-            <div
-              style={dotStyle(items.find((i) => i.id === expandingId)!)}
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
-            >
-              <span className="block h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-300/80 animate-[partsPulse_1.2s_ease-in-out_infinite]" />
-            </div>
-          )}
+          <ScanDots items={visibleItems} scanCtx={scanCtx} dotStyle={dotStyle} onOpen={openChip} />
 
           <ScanCameraControls
             hidden={!!snapshot}
@@ -876,11 +771,8 @@ function ScanPage() {
               candidates={
                 chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []
               }
-              expanding={expandingId === chip.item.id}
-              canExpand={chip.item.kind === "object" && !("sub" in chip.item)}
               onPickCandidate={(h) => pickCandidate(h, chip.item)}
               onPlay={() => playAudio(displayHeadword, chip.item)}
-              onExpand={() => expandParts(chip.item)}
               onCatch={() => {
                 if (!chip.chosenHeadword || !snapshot) return;
                 startPrefetch(chip.chosenHeadword);
@@ -994,7 +886,6 @@ function ScanPage() {
           <DevMetrics
             values={{
               detect_ms: detectMs,
-              parts_ms: partsMs,
               lookup_ms: lookupMs,
               tap_to_audio_ms: tapToAudioMs,
               prefetch_ms: chip
@@ -1072,11 +963,8 @@ export function ScanChip({
   state,
   foundAt,
   candidates,
-  expanding,
-  canExpand,
   onPickCandidate,
   onPlay,
-  onExpand,
   onCatch,
   onClose,
 }: {
@@ -1089,11 +977,8 @@ export function ScanChip({
   state: DotState;
   foundAt: string | null;
   candidates: string[];
-  expanding: boolean;
-  canExpand: boolean;
   onPickCandidate: (h: string) => void;
   onPlay: () => void;
-  onExpand: () => void;
   onCatch: () => void;
   onClose: () => void;
 }) {
@@ -1190,24 +1075,11 @@ export function ScanChip({
           <X className="h-4 w-4" />
         </button>
       </div>
+      {/* **「細かく」を消した**(オーナー指示 2026-08-27 ⑱
+          「スキャンの細かいボタン削除」)。押した所を切り出して2度目の
+          検出を掛ける道で、部品の印が親の印の上に重なって出ていた。
+          押す物はこの面に「キャッチ」1つでいい。 */}
       <div className="mt-3 flex flex-wrap gap-2">
-        {canExpand && (
-          <button
-            onClick={onExpand}
-            disabled={expanding}
-            // 押せない間は薄くしない。**塗りと文字が一緒に薄くなって
-            // 読めなくなる**(実測 3.18:1)。専用の面と文字色に切り替える。
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-amber-100 px-4 py-2 text-footnote font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:ring-border motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
-            title={t("scan.partsTitle")}
-          >
-            {expanding ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-            {expanding ? t("scan.analyzingParts") : t("scan.finer")}
-          </button>
-        )}
         <button
           onClick={onCatch}
           className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-body font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
@@ -1258,7 +1130,6 @@ function StageDot({ active, done }: { active: boolean; done: boolean }) {
 // §9 targets (MVP pass line). Values in ms.
 const SCAN_TARGETS = {
   detect_ms: 2500,
-  parts_ms: 2500,
   lookup_ms: 400,
   tap_to_audio_ms: 1000,
   prefetch_ms: 3000,
@@ -1275,7 +1146,6 @@ function DevMetrics({
   const [open, setOpen] = useState(true);
   const rows: { key: keyof Metrics; label: string }[] = [
     { key: "detect_ms", label: "検出 (§9 ≤2500ms)" },
-    { key: "parts_ms", label: "+細かく (§3.5)" },
     { key: "lookup_ms", label: "辞書照合" },
     { key: "tap_to_audio_ms", label: "タップ→音声 (§9 ≤1000ms)" },
     { key: "prefetch_ms", label: "詳細プリフェッチ (§9 ≤500ms表示)" },
@@ -1521,18 +1391,15 @@ export function ScanCameraControls({
  */
 export function ScanDots({
   items,
-  subItems,
   scanCtx,
   dotStyle,
   onOpen,
 }: {
   items: DetectedItem[];
-  subItems: SubItem[];
   scanCtx: ScanCtx | undefined;
   /** 印を置く位置。枠の大きさに依るので、計算はルート側に残す。 */
   dotStyle: (it: DetectedItem) => React.CSSProperties;
-  /** 印を押したとき。**部品の印も同じ所へ行く** — `SubItem` は
-      `DetectedItem` を広げた型なので、別の口を作ると使われない道が増える。 */
+  /** 印を押したとき。 */
   onOpen: (it: DetectedItem) => void;
 }) {
   const t = useT();
@@ -1540,11 +1407,10 @@ export function ScanDots({
   const openChip = onOpen;
   return (
     <>
-      {/* dots — §3.1b 4-state discovery radar + §3.5 expandable parts */}
+      {/* dots — §3.1b 4-state discovery radar */}
       {visibleItems.map((it) => {
         const low = it.confidence < 0.75;
         const isText = it.kind === "text";
-        const expanded = subItems.some((s) => s.parentId === it.id);
         const state = dotStateFor(it.headword, scanCtx);
         // apple-design: three soft glass "lights", one per state —
         //   new (未発見)                      → white
@@ -1573,7 +1439,6 @@ export function ScanDots({
                 "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
                 marker,
                 low ? "opacity-70" : "",
-                expanded ? "ring-2 ring-amber-200/80" : "",
               ].join(" ")}
             />
             {isText && state !== "owned" && (
@@ -1614,19 +1479,6 @@ export function ScanDots({
           </button>
         );
       })}
-      {/* sub-dots from §3.5 — smaller, dashed ring, amber accent */}
-      {subItems.map((s) => (
-        <button
-          key={s.id}
-          onClick={() => openChip(s)}
-          style={dotStyle(s)}
-          className="absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 animate-in fade-in zoom-in duration-300 motion-reduce:animate-none motion-reduce:transition-none motion-reduce:active:scale-100"
-          aria-label={t("scan.partOf", { word: s.headword })}
-        >
-          <span className="block h-4 w-4 rounded-full bg-amber-300 ring-2 ring-white/90 shadow-md" />
-          <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-amber-300/70" />
-        </button>
-      ))}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
+import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -913,6 +914,18 @@ export function SpeakingCard({
   const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
   /** `say` の段の判定。まだ答えていなければ null。 */
   const [saidOk, setSaidOk] = useState<boolean | null>(null);
+  /**
+   * **この問題で外した回数**(オーナー指示 2026-08-27 ⑦)。
+   *
+   * > 「言い直して合ってるのは覚えてない、忘れたとしてカウントし直して。」
+   *
+   * 画面は最後の1回しか見ていなかった（`setSaidOk` / `setFeedback` が
+   * 上書きする）ので、3回外して4回目に言えた語も、1回で言えた語と
+   * まったく同じ「正解」として記録されていた。判断は
+   * `speaking-grade.ts` に置いてあるが、**何回外したかを憶えるのは
+   * 画面の仕事**なので、ここで数える。
+   */
+  const [failedAttempts, setFailedAttempts] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoOn, setVideoOn] = useState(false);
@@ -1074,7 +1087,9 @@ export function SpeakingCard({
     // 1語言うだけの段は**その場で判定する**(理由は `saidTarget` の注釈)。
     if (isSay) {
       setError(null);
-      setSaidOk(saidTarget(transcript, card.headword));
+      const ok = saidTarget(transcript, card.headword);
+      if (!ok) setFailedAttempts((n) => n + 1);
+      setSaidOk(ok);
       return;
     }
     setLoading(true);
@@ -1083,6 +1098,9 @@ export function SpeakingCard({
       const fb = await feedbackFn({
         data: { sticker_id: card.sticker_id, transcript: transcript.trim(), hint_used: false },
       });
+      // **通らなかった回もここで数える。** 「もう一度」を押した回だけを
+      // 数えると、通らないまま次へ送った回が抜ける。
+      if (!fb.used_target || fb.natural_score < 3) setFailedAttempts((n) => n + 1);
       setFeedback(fb);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rv.feedbackFailed"));
@@ -1105,14 +1123,20 @@ export function SpeakingCard({
     const objectiveOk = isSay
       ? saidOk === true
       : !!feedback && feedback.used_target && feedback.natural_score >= 3;
-    // ヒント(答え表示)は廃止したので "hint" 判定は無くなった。
-    const result: "success" | "hint" | "skip" =
-      kind === "skip" ? "skip" : objectiveOk ? "success" : "skip";
+    /**
+     * **言い直して当てた語は「覚えていた」に数えない**（オーナー指示
+     * 2026-08-27 ⑦）。決め方は `speaking-grade.ts` に1つだけ置いてある —
+     * ここに書くと、記憶の状態のグラフが読む `correct` と食い違う。
+     */
+    const result = speakingResult({ kind, objectiveOk, failedAttempts });
     try {
       await grade({
         data: {
           review_id: card.review_id,
-          correct: result === "success",
+          // グラフが読む値も同じ所から出す。`result === "success"` と
+          // 別々に書くと、SRS は失念として扱うのにグラフだけが正解と
+          // 数える、が起きる。
+          correct: countsAsRemembered(result),
           blur_seen: false,
           response_ms: Date.now() - startedAt.current,
           result,
@@ -1123,7 +1147,7 @@ export function SpeakingCard({
       // an unrecorded review simply comes up again next time.
       toast.error(t("review.gradeFailed"));
     }
-    onNext(result === "success");
+    onNext(countsAsRemembered(result));
   }
 
   // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
@@ -1232,6 +1256,7 @@ export function SpeakingCard({
             card={card}
             ok={saidOk}
             heard={transcript}
+            retried={failedAttempts > 0}
             onRetry={() => {
               setSaidOk(null);
               setTranscript("");
@@ -1427,12 +1452,20 @@ export function SayResult({
   card,
   ok,
   heard,
+  retried = false,
   onRetry,
   onNext,
 }: {
   card: DueReviewCard;
   ok: boolean;
   heard: string;
+  /**
+   * この問題で一度でも外したか。**言えたことは言えたので「正解」と
+   * 出すが、記録は失念**（オーナー指示 2026-08-27 ⑦）なので、
+   * 明日また出る理由をその場で言う。黙って明日出すと、
+   * 「正解したのになぜ？」になる。
+   */
+  retried?: boolean;
   onRetry: () => void;
   onNext: () => void;
 }) {
@@ -1450,6 +1483,11 @@ export function SayResult({
         <span className={`text-body font-bold ${ok ? "text-ok-ink" : "text-bad-ink"}`}>
           {ok ? t("review.correct") : t("review.tryAgain")}
         </span>
+        {ok && retried && (
+          <span className="ml-2 text-caption text-muted-foreground">
+            {t("review.retriedCountsAsLapse")}
+          </span>
+        )}
       </div>
 
       <div className="mb-1.5 flex items-center gap-2">

@@ -4,7 +4,9 @@ import {
   normalizeExtras,
   hasExtrasContent,
   mergeExtras,
-  withoutMeasureWordEcho,
+  withoutMeasureWords,
+  usableCollocations,
+  chunkSpeechText,
   refineUsageChunks,
   MAX_CHUNKS,
 } from "./extras";
@@ -102,7 +104,7 @@ describe("mergeExtras", () => {
  * ただし量詞の型そのものを禁じると、使い方が動詞と目的語だけに戻る。
  * その線引きをここに置く。
  */
-describe("withoutMeasureWordEcho", () => {
+describe("withoutMeasureWords", () => {
   const mw = [{ word: "一張" }];
   const chunk = (...texts: string[]) => ({
     parts: texts.map((text) => ({ text, pos: "" })),
@@ -110,52 +112,110 @@ describe("withoutMeasureWordEcho", () => {
   });
 
   it("量詞と見出し語しか無い型は落とす", () => {
-    const out = withoutMeasureWordEcho([chunk("一張", "衛生紙")], mw, "衛生紙");
-    expect(out).toEqual([]);
+    expect(withoutMeasureWords([chunk("一張", "衛生紙")], mw, "衛生紙")).toEqual([]);
   });
 
   it("数を落とした素の量詞でも同じ物と見なす", () => {
-    const out = withoutMeasureWordEcho([chunk("張", "衛生紙")], mw, "衛生紙");
-    expect(out).toEqual([]);
+    expect(withoutMeasureWords([chunk("張", "衛生紙")], mw, "衛生紙")).toEqual([]);
   });
 
-  it("動詞が付いた型は残す", () => {
-    const out = withoutMeasureWordEcho([chunk("拿", "一張", "衛生紙")], mw, "衛生紙");
-    expect(out).toHaveLength(1);
+  it("**動詞が付いていても落とす**(量詞が出た時点で重なっている)", () => {
+    expect(withoutMeasureWords([chunk("拿", "一張", "衛生紙")], mw, "衛生紙")).toEqual([]);
+  });
+
+  it("量詞の一覧に無くても、品詞が M なら落とす", () => {
+    const list = [
+      {
+        parts: [
+          { text: "杯", pos: "M" },
+          { text: "咖啡", pos: "N" },
+        ],
+        ja: "",
+      },
+    ];
+    expect(withoutMeasureWords(list, [], "咖啡")).toEqual([]);
   });
 
   it("量詞と関係ない型はそのまま残る", () => {
     const list = [chunk("用", "衛生紙", "擦")];
-    expect(withoutMeasureWordEcho(list, mw, "衛生紙")).toEqual(list);
+    expect(withoutMeasureWords(list, mw, "衛生紙")).toEqual(list);
+  });
+
+  it("見出し語がその札の量詞と同じ字でも、型を全部落とさない", () => {
+    const list = [chunk("一", "張", "紙")];
+    expect(withoutMeasureWords(list, [{ word: "張" }], "張")).toEqual(list);
   });
 
   it("量詞が無いカードは素通し", () => {
-    const list = [chunk("一張", "衛生紙")];
-    expect(withoutMeasureWordEcho(list, [], "衛生紙")).toEqual(list);
-    expect(withoutMeasureWordEcho(list, null, "衛生紙")).toEqual(list);
+    const list = [chunk("拿", "衛生紙")];
+    expect(withoutMeasureWords(list, [], "衛生紙")).toEqual(list);
+    expect(withoutMeasureWords(list, null, "衛生紙")).toEqual(list);
   });
 
   it("空のパーツしか無い型は落とす(描いても何も出ない)", () => {
-    expect(withoutMeasureWordEcho([chunk("", " ")], mw, "衛生紙")).toEqual([]);
+    expect(withoutMeasureWords([chunk("", " ")], mw, "衛生紙")).toEqual([]);
   });
 
   it("null / undefined でも落ちない", () => {
-    expect(withoutMeasureWordEcho(null, mw, "衛生紙")).toEqual([]);
-    expect(withoutMeasureWordEcho(undefined, undefined, "")).toEqual([]);
+    expect(withoutMeasureWords(null, mw, "衛生紙")).toEqual([]);
+    expect(withoutMeasureWords(undefined, undefined, "")).toEqual([]);
   });
 });
 
-/**
- * 型の厳選(オーナー指摘 2026-08-21「チャンク、型の精度が低い、適当に
- * なってる…型やチャンクは長すぎないで」)。
- *
- * プロンプトで頼むだけでは足りないので、**返ってきた物のほうを落とす**。
- * ここで守るのは「短く・重ならず・情報がある型だけが残る」こと。
- */
+describe("usableCollocations", () => {
+  it("文になっている物と長すぎる物を落とす", () => {
+    expect(usableCollocations(["喝珍奶", "我今天喝了一杯珍珠奶茶。"], "zh-TW")).toEqual(["喝珍奶"]);
+    expect(usableCollocations(["put on socks", "Is it big?"], "en")).toEqual(["put on socks"]);
+  });
+
+  it("重複と空白だけを落とし、上限で切る", () => {
+    const many = ["a b", "a b", "c d", "e f", "g h", "i j", "k l", "  "];
+    expect(usableCollocations(many, "en")).toEqual(["a b", "c d", "e f", "g h", "i j"]);
+  });
+
+  it("空でも落ちない", () => {
+    expect(usableCollocations(null, "en")).toEqual([]);
+    expect(usableCollocations(undefined, "zh-TW")).toEqual([]);
+  });
+});
+
+describe("chunkSpeechText", () => {
+  it("英語は空白で継ぐ(`put onsocks` にしない)", () => {
+    const c = {
+      parts: [
+        { text: "put on", pos: "v" },
+        { text: "socks", pos: "n" },
+      ],
+      ja: "",
+    };
+    expect(chunkSpeechText(c, "en")).toBe("put on socks");
+  });
+
+  it("漢字は継ぎ目を入れない", () => {
+    const c = {
+      parts: [
+        { text: "喝", pos: "V" },
+        { text: "珍奶", pos: "N" },
+      ],
+      ja: "",
+    };
+    expect(chunkSpeechText(c, "zh-TW")).toBe("喝珍奶");
+  });
+});
+
 describe("refineUsageChunks", () => {
   const chunk = (...texts: string[]) => ({
     parts: texts.map((text) => ({ text, pos: "N" })),
     ja: "",
+  });
+
+  it("**句点の付いた物は文**(オーナー指摘 2026-08-27 ②「文章のようになってる」)", () => {
+    expect(refineUsageChunks([chunk("我", "去", "了", "。")], [], "去", "zh-TW")).toEqual([]);
+    expect(refineUsageChunks([chunk("Is", "it", "big?")], [], "big", "en")).toEqual([]);
+  });
+
+  it("句点が無ければ同じ語数でも残る(文かどうかだけで分けている)", () => {
+    expect(refineUsageChunks([chunk("我", "去", "了")], [], "去", "zh-TW")).toHaveLength(1);
   });
 
   it("長すぎる型を落とす(例文になってしまう)", () => {

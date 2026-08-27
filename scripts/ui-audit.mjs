@@ -246,6 +246,9 @@ const MODES = [
   ...crossThemes("review-say", { scene: "review-say" }),
   ...crossThemes("review-say-ok", { scene: "review-say-result" }),
   ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
+  // 言い直して当てた回(オーナー指示 2026-08-27 ⑦)。画面は「正解！」と
+  // 出すが記録は失念なので、**その断りが「正解！」に埋もれていないか**を絵で見る。
+  ["review-say-retried", "", false, { scene: "review-say-result", variant: "retried" }],
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
@@ -364,7 +367,6 @@ const MODES = [
   ["chip-owned-dark", 'class="dark"', false, { scene: "scan-chip", variant: "owned" }],
   ["chip-candidates", "", false, { scene: "scan-chip", variant: "candidates" }],
   ["chip-candidates-dark", 'class="dark"', false, { scene: "scan-chip", variant: "candidates" }],
-  ["chip-expanding", "", false, { scene: "scan-chip", variant: "expanding" }],
   // 見つかった語の一覧。**3通りの出会い方を1つずつ**入れてある。
   // ガラスのシートなので、下に写真を敷いて撮る(白地だと実際より読みやすく写る)。
   ...crossThemes("scan-found", { scene: "scan-found" }),
@@ -1616,7 +1618,12 @@ const MOTION_STOP = ["pulse", "ping"];
 const MOTION_KEEP = ["spin"];
 // 脈打つ物が実際に居る場面だけを見る。**居ない場面で緑にしても何の
 // 保証にもならない**ので、下の「1つも見つからなかった」で担保する。
-const MOTION_SCENES = ["scan-detail", "word-card", "home-loading", "review-loading"];
+// **`word-card` は外した**(2026-08-27 ④)。ネットの画像の節が
+// 「絵が1枚届いてから並べる」に変わって、あの場面で唯一脈打っていた
+// 読み込み中の骨組みが出なくなった。骨組みが無いのは意図した姿なので、
+// ここに残すと「場面が違う疑い」で永久に落ちる。脈打つ物が実際に居る
+// 3つの場面で、規則そのものは変わらず見ている。
+const MOTION_SCENES = ["scan-detail", "home-loading", "review-loading"];
 let motionSeen = 0;
 for (const scene of MOTION_SCENES) {
   const page = await browser.newPage({

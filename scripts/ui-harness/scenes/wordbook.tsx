@@ -93,10 +93,5 @@ export function WordbookQuizScene() {
 
 /** 意味が読み取れなかった語。**空欄のまま出さない**ことを確かめる。 */
 export function WordbookQuizNoMeaningScene() {
-  return (
-    <WordbookReviewCard
-      card={{ ...CARD, meaning_ja: null }}
-      onAnswer={() => {}}
-    />
-  );
+  return <WordbookReviewCard card={{ ...CARD, meaning_ja: null }} onAnswer={() => {}} />;
 }
