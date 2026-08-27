@@ -830,6 +830,33 @@
 .prose-body > p + p {
   margin-top: 0.9em;
 }
+/* 解説の中で印を付けた語。**地を面に依らせない。**
+
+   `.prose-panel` を足した日に、この印のコントラストが 4.50 → 4.47 に
+   落ちて検査が落ちた。原因は透かし（`bg-primary/10`）で、下に敷いた面が
+   少し暗くなったぶん、印の地も一緒に暗くなったから。印は「札の地の上の
+   ハイライト」であって「その時々の下地の上のハイライト」ではないので、
+   **下地に関わらず同じ色**になるよう、混ぜる相手を札の地に固定する。 */
+.prose-term {
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+}
+
+/* 使う場面の札（`SceneBubbles`）の地。**下に敷いた面に依らせない。**
+
+   透かし（`bg-primary/12`）で塗ると、浮かべる面の色がそのまま混ざって
+   地が暗くなり、青い字とのコントラストが 4.50 を割った（検査が
+   「4.47 < 4.5」で落ちた）。札は札として同じ色で在るべきなので、
+   混ぜる相手を札の地に固定する。 */
+.scene-chip-place {
+  background: color-mix(in oklab, var(--primary) 9%, var(--card));
+}
+.scene-chip-emotion {
+  background: color-mix(in oklab, var(--warn) 14%, var(--card));
+}
+.scene-chip-season {
+  background: color-mix(in oklab, var(--ok) 11%, var(--card));
+}
+
 .prose-panel {
   --prose-rule: var(--primary);
   padding: 0.625rem 0.75rem 0.625rem 0.875rem;

@@ -35,12 +35,12 @@ import type { WordExtrasDTO } from "@/lib/extras";
 const SKIN: Record<BubbleKind, { chip: string; mark: string }> = {
   // 限定は別格。ここだけ塗りを濃くして、いちばん目に入るようにする。
   limited: { chip: "bg-warn text-warn-foreground ring-warn/40", mark: "✨" },
-  place: { chip: "bg-primary/12 text-primary-ink ring-primary/25", mark: "📍" },
+  place: { chip: "scene-chip-place text-primary-ink ring-primary/25", mark: "📍" },
   media: { chip: "bg-secondary text-foreground ring-border", mark: "📰" },
   situation: { chip: "bg-secondary text-foreground ring-border", mark: "🗣" },
-  emotion: { chip: "bg-warn/15 text-warn-ink ring-warn/25", mark: "💭" },
+  emotion: { chip: "scene-chip-emotion text-warn-ink ring-warn/25", mark: "💭" },
   time: { chip: "bg-secondary text-foreground ring-border", mark: "🕒" },
-  season: { chip: "bg-ok/12 text-ok-ink ring-ok/25", mark: "🌱" },
+  season: { chip: "scene-chip-season text-ok-ink ring-ok/25", mark: "🌱" },
 };
 
 /** 浮かべる面の高さ。札の数で少しだけ伸ばす（8つを1段には置けない）。 */

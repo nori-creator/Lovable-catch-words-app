@@ -68,7 +68,21 @@ export function ChunkPills({
               e.stopPropagation();
               onSpeak(c.text);
             }}
-            className={`chunk-pill press-in ${skin} active:scale-95 motion-reduce:active:scale-100`}
+            /**
+             * **押せる札は指の大きさにする**(44px)。
+             *
+             * 見えない枠(`::before`)で広げる手もあるが、札は `gap-2`(8px)で
+             * 隣り合うので、左右に 8px ずつ出すと**隣の枠と重なる**。
+             * 重なった所は後から描いた札が取るので、左の札は自分の右端を
+             * 押しても反応しない — 検査の「タップ領域 31x31 < 44」は
+             * それを見ている。
+             *
+             * 押せる物になった以上、実際に押せる大きさで在るのが正しい。
+             * 一文字の札も 44px 幅で揃うので、型の並びがきれいに揃う。
+             * **押せない札(`onSpeak` なし)は小さいまま** — 復習の添削の
+             * ように、触れない物を指の大きさにする理由は無い。
+             */
+            className={`chunk-pill press-in inline-flex min-h-11 min-w-11 items-center justify-center ${skin} active:scale-95 motion-reduce:active:scale-100`}
             title={st.label}
           >
             {body}

@@ -1615,7 +1615,12 @@ const MOTION_STOP = ["pulse", "ping"];
 const MOTION_KEEP = ["spin"];
 // 脈打つ物が実際に居る場面だけを見る。**居ない場面で緑にしても何の
 // 保証にもならない**ので、下の「1つも見つからなかった」で担保する。
-const MOTION_SCENES = ["scan-detail", "word-card", "home-loading", "review-loading"];
+// **`word-card` は外した**(2026-08-27 ④)。ネットの画像の節が
+// 「絵が1枚届いてから並べる」に変わって、あの場面で唯一脈打っていた
+// 読み込み中の骨組みが出なくなった。骨組みが無いのは意図した姿なので、
+// ここに残すと「場面が違う疑い」で永久に落ちる。脈打つ物が実際に居る
+// 3つの場面で、規則そのものは変わらず見ている。
+const MOTION_SCENES = ["scan-detail", "home-loading", "review-loading"];
 let motionSeen = 0;
 for (const scene of MOTION_SCENES) {
   const page = await browser.newPage({

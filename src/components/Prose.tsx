@@ -60,7 +60,7 @@ export function Prose({
                 <Term
                   key={j}
                   lang={lang}
-                  className="inline-block whitespace-nowrap rounded bg-primary/10 px-1 font-semibold text-primary-ink"
+                  className="prose-term inline-block whitespace-nowrap rounded px-1 font-semibold text-primary-ink"
                 >
                   {s.text}
                 </Term>
