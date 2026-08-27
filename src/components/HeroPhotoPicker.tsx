@@ -71,8 +71,13 @@ export function HeroPhotoPicker({
   /** いま選ばれている役。null = まだ選んでいない。 */
   current: string | null | undefined;
   onPick: (role: PhotoRole) => void;
-  /** 「別の写真に差し替える」。前からあった道はここに残す。 */
-  onReplaceFile: () => void;
+  /**
+   * 「別の写真に差し替える」。前からあった道はここに残す。
+   *
+   * **渡されない画面では出さない。** 押しても何も起きないボタンを
+   * 置かない（この面の最初の決めごと「押せない選択肢を並べない」）。
+   */
+  onReplaceFile?: () => void;
   /**
    * 「いま切り抜く」(要望 #18 の後半)。
    * **切り抜きがまだ無い札のときだけ**渡される。既に在る札に出しても、
@@ -163,15 +168,18 @@ export function HeroPhotoPicker({
       />
 
       {/* 前からあった道。**消さない** — 「そもそも別の写真にしたい」は
-          「どれを主役にするか」とは別の用事。 */}
-      <button
-        onClick={onReplaceFile}
-        disabled={saving}
-        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card text-body font-medium"
-      >
-        <ImageUp className="h-4 w-4" />
-        {t("photo.replaceFile")}
-      </button>
+          「どれを主役にするか」とは別の用事。差し替える口を持たない画面
+          では出さない。 */}
+      {onReplaceFile && (
+        <button
+          onClick={onReplaceFile}
+          disabled={saving}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card text-body font-medium"
+        >
+          <ImageUp className="h-4 w-4" />
+          {t("photo.replaceFile")}
+        </button>
+      )}
     </div>
   );
 }

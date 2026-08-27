@@ -1746,6 +1746,21 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
     }
   });
 
+  it("**長押しの面が両方の詳細に在る**(入口で選べたり選べなかったりしない)", () => {
+    // オーナー指示「画像長押ししたら元の画像・自撮り・切り抜きの3種類が
+    // 表示されるようにして表示する画像を選択できるように」。
+    // この面は `StickerSheet` にだけ在って、図鑑の詳細には無かった。
+    for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      expect(codeOnly(read(rel)), rel).toMatch(/<HeroPhotoPicker/);
+    }
+    // **図鑑の詳細が決めるのは詳細の見え方だけ**(アルバムは別)。
+    const dex = codeOnly(read("routes/_authenticated/dex.$stickerId.tsx"));
+    expect(dex).toMatch(/surface="detail"/);
+    expect(dex).not.toMatch(/surface="album"/);
+    // 長押しで開く(押しただけでは裏返るだけ)。
+    expect(dex).toMatch(/onPointerDown=\{startPress\}/);
+  });
+
   it("**座標しか無い札にも地名を出す**(両方の詳細から同じ道)", () => {
     expect(fs.existsSync(path.join(root, "lib/use-place-name.ts"))).toBe(true);
     for (const rel of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
