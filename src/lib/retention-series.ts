@@ -192,5 +192,28 @@ export function buildRetentionSeries(input: {
     const { avg, counted } = averageAt(nowMs + d * DAY_MS);
     series.push({ day_offset: d, avg_retention: avg, counted });
   }
-  return { series, avg_retention: averageAt(nowMs).avg };
+  return { series: trimBeforeStart(series), avg_retention: averageAt(nowMs).avg };
+}
+
+/**
+ * **始めた日より前を描かない。**
+ *
+ * オーナー指示 2026-08-26:
+ * > 「私は英語は昨日から始めたから、グラフは昨日より前は表示しないで。
+ * >  始めた日から表示させるようにして。」
+ *
+ * まだ1枚も撮っていない日は `counted === 0`（`cardStateAt` がその日の
+ * 状態を返さない）。そこを線の一部として渡すと、画面は**14日ぶんの
+ * 空っぽの左側**を描く — 始めたばかりの人には、覚えていない期間が
+ * 長く続いたように見える。
+ *
+ * **落とすのは頭の連なりだけ。** 途中で 0 になる日（全部の札を消した等）は
+ * 残す — そこは「本当に何も無かった日」で、線が切れているのが事実。
+ */
+export function trimBeforeStart(series: RetentionPoint[]): RetentionPoint[] {
+  let i = 0;
+  while (i < series.length && series[i].counted === 0) i++;
+  // 全部空なら**丸ごと空**で返す。1点だけ残すと、始めてもいない人に
+  // 線の切れ端が出る。
+  return series.slice(i);
 }

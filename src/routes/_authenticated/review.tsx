@@ -25,6 +25,7 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -581,12 +582,26 @@ function MemoryOverviewPanel({
   onOpenWord: (w: MemoryWord) => void;
 }) {
   const t = useT();
+  // 一覧に並ぶのは学習言語の語だけ(server 側で絞ってある)。字もその言語で。
+  const targetLanguage = useTargetLang();
   if (overview.words.length === 0) return null;
   return (
     <div className="mt-3">
-      {/* 危険な語から順に(タップで忘却曲線) */}
-      <ul className="mt-1 max-h-64 space-y-1.5 overflow-y-auto">
-        {overview.words.slice(0, 60).map((w) => {
+      {/**
+       * 危険な語から順に(タップで忘却曲線)。
+       *
+       * **1語も切らない**（オーナー報告 2026-08-26「記憶の状態のバーには
+       * 長期記憶があるが、下にスクロールすると『覚えた』までの単語しか
+       * なく、長期記憶の単語がない。記憶の状態で表示されてるものを
+       * すべて表示して」）。
+       *
+       * ここは `slice(0, 60)` で切っていた。並びは**危険な語が上**なので、
+       * 切られるのは必ず**いちばん覚えている語**の側 — つまり上のバーが
+       * 数えている「長期記憶」だけが、一覧から抜け落ちる並びだった。
+       * バーと一覧は同じ `words` を見るのだから、数が食い違ってはいけない。
+       */}
+      <ul className="mt-1 max-h-80 space-y-1.5 overflow-y-auto">
+        {overview.words.map((w) => {
           const lv = memoryLevel(w.retention, w.interval_days, w.repetitions);
           return (
             <li key={w.sticker_id}>
@@ -594,9 +609,12 @@ function MemoryOverviewPanel({
                 onClick={() => onOpenWord(w)}
                 className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
-                <span lang="zh-Hant" className="w-14 shrink-0 truncate text-body font-medium">
+                <Term
+                  lang={targetLanguage}
+                  className="w-14 shrink-0 truncate text-body font-medium"
+                >
                   {w.headword}
-                </span>
+                </Term>
                 <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                   <span
                     className={`absolute inset-y-0 left-0 ${lv.bar}`}

@@ -19,6 +19,13 @@ import { useT } from "@/lib/i18n";
  * （2026-08-20 のオーナー指摘「自撮りするを押してもインカメラにならない」の
  * 原因がこれだった）。
  *
+ * ## そして `display:none` にしない
+ * 同じ指摘が 2026-08-26 にまた来た。`<label>` で包んでも
+ * **`className="hidden"`（= `display:none`）だと `capture` が効かない端末が
+ * ある** — 表示の木から外れた入力は「その場で開くカメラ」と結び付けられない。
+ * `sr-only` は木に残したまま見えなくする書き方なので、`capture` が生きる。
+ * 押す物は `<label>` のままなので、見た目も指の当たりも変わらない。
+ *
  * 通信も状態も持たない。検査の雛形から本物の見た目をそのまま撮れる。
  */
 export function PhotoAddButtons({
@@ -68,7 +75,7 @@ export function PhotoAddButtons({
             type="file"
             accept="image/*"
             capture="user"
-            className="hidden"
+            className="sr-only"
             disabled={busy}
             onChange={(e) => {
               const f = e.target.files?.[0];

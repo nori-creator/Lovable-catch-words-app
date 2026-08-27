@@ -9,6 +9,7 @@ import { WordCard } from "@/components/WordCard";
 import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { toast } from "sonner";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
+import { usePlaceName } from "@/lib/use-place-name";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker } from "@/lib/stickers.functions";
@@ -273,6 +274,12 @@ export function StickerDetailHero({
    * 「まだありません」と言われるだけで、そこから何もできなかった。
    * 道は `use-photo-attach.tsx` ただ1つにして、両方から呼ぶ。
    */
+  /**
+   * どこで撮ったか。**座標しか無い札にも名前を出す**（オーナー報告
+   * 2026-08-26「地図で開くとしか表示されない」）。判断は
+   * `use-place-name.ts` の1つで、札の詳細の2つの画面が同じ物を呼ぶ。
+   */
+  const resolvedPlace = usePlaceName(s.lat, s.lng, s.location_name);
   const photoAttach = usePhotoAttach(s.id, {
     onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
   });
@@ -396,7 +403,7 @@ export function StickerDetailHero({
             >
               <MapPin className="h-3.5 w-3.5" />
               {/* ボタンの名前を場所の名前として出さない(`StickerSheet` と同じ)。 */}
-              {s.location_name ?? t("common.shotHere")}
+              {s.location_name ?? resolvedPlace ?? t("common.shotHere")}
             </a>
           )}
         </div>
