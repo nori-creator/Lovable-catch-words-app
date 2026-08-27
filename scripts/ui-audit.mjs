@@ -246,6 +246,9 @@ const MODES = [
   ...crossThemes("review-say", { scene: "review-say" }),
   ...crossThemes("review-say-ok", { scene: "review-say-result" }),
   ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
+  // 言い直して当てた回(オーナー指示 2026-08-27 ⑦)。画面は「正解！」と
+  // 出すが記録は失念なので、**その断りが「正解！」に埋もれていないか**を絵で見る。
+  ["review-say-retried", "", false, { scene: "review-say-result", variant: "retried" }],
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
   ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
