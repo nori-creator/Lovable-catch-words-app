@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
 import { PronounceButton } from "@/components/PronounceButton";
+import { BadgeIcon } from "@/components/SectionIcon";
+import { BADGE_ICON_NAME } from "@/lib/section-icon";
 import { getMyStats } from "@/lib/stats.functions";
 import {
   getDueReviews,
@@ -1926,7 +1928,12 @@ export function LightModeCard({
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-caption font-semibold text-foreground">
+          {/* **単語の詳細と同じ青い丸**(オーナー指示 2026-08-28 ⑧
+              「復習の4択も含めて、すべて単語の詳細の項目の鮮やかな青い
+               丸のアイコンに統一して」)。同じ語について語る面が2つあり、
+              片方だけ別の目印の付け方をしていた。 */}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary py-1 pl-1 pr-3 text-caption font-semibold text-foreground">
+            <BadgeIcon name={BADGE_ICON_NAME.quiz} size="sm" />
             {t("review.quizTag")}
           </span>
           <CardMemoryBadge card={card} onOpen={onOpenMemory} />

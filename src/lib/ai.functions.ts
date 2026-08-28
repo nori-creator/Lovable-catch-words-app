@@ -366,6 +366,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 - usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
+  ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
   そのまま声に出せる形にする。「${data.headword}」自体を必ずどれかのパーツに含める。
   ${cardProfile.chunkPrompt.styleRule}
@@ -378,10 +379,13 @@ ${l1Gram}
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
   各 {kind, label}。kind は place(場所) / situation(状況) / emotion(気持ち) /
-  time(時刻・時期) / media(媒体) / season(季節) のどれか。
+  time(時刻・時期) / media(媒体) / season(季節) / trait(その物じたいの性質) のどれか。
   label は**2〜5文字の具体名**(${NL})。例:
-  「スーパー」「夜市」「駅」「メニュー」「看板」「ニュース」「道」
-  「誕生日」「夜」「春」「うれしい時」。
+  place「スーパー」「夜市」「駅」/ media「メニュー」「看板」「ニュース」/
+  time「朝」「夜」/ season「春」/ situation「注文するとき」/
+  emotion「うれしい時」/ trait「熱い」「持ち歩ける」「使い捨て」。
+  trait は**その物の手ざわり・大きさ・熱さ・扱い方**など、出会う場所では
+  なく物そのものの性質。物でない語(動詞・形容詞)には付けない。
   **抽象語を書かない** —「日常」「いろいろ」「一般的」は札にならない。
   その語に**特に**出会いやすい所だけを挙げる。どこでも出会う語なら
   無理に埋めず少なく返す。
@@ -389,7 +393,17 @@ ${l1Gram}
 - register_scale: 話し言葉⇄書き言葉の度合いを **-2〜+2 の整数**で。-2=完全に口語(友達との会話・SNSだけ)/ -1=やや口語 / 0=中立(どちらでも普通に使う)/ +1=やや書面 / +2=完全に書面(新聞・論文・公文書だけ)。**判断できない語でも必ず出す** — 中立なら 0
 - scene_weights: **その語にどこで出会うか**の分布。鍵は次の8つだけで、他を作らない: eat(食べ物・飲み物)/ town(街・店・看板・乗り物)/ house(家の中・家具・道具)/ wear(服・持ち物)/ play(遊び・趣味・道具)/ nature(自然・天気・動植物)/ people(人・体・仕事)/ marks(文字・記号・色・形・お金・書類)。合計が1になる小数で、当てはまらない部屋は入れない。例: 芒果 → {"eat":0.7,"town":0.2,"nature":0.1}
 - season_months: 旬の月を1〜12の整数の配列で(例: 芒果なら [5,6,7,8])。**通年なら空配列**
-- region_scope: その地域でしか見ないものなら地名(例:「台南」「台湾」)。どこでも見るなら空文字
+- region_scope / region_scope_kind: **「そこにしか無い」と言い切れる時だけ**。
+  region_scope に地名(例:「台南」「台湾」)、region_scope_kind に理由を
+  specialty(その土地の産物・名物) / institution(その土地にしか無い仕組み・店・制度) /
+  regional_word(語そのものがその土地でしか使われない言い方) のどれかで返す。
+  **どれとも言えないなら region_scope は空文字、region_scope_kind は null。**
+  訊いているのは「この語をどこで見かけたか」ではなく「**そこ以外には無いか**」。
+  ✗ 立扇(扇風機)・冷氣(エアコン)・泡芙(シュークリーム)・葡式蛋塔(エッグタルト)・
+    棒(すごい) … どれも台湾で見かけるが、台湾にしか無い物ではない → 空文字
+  ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
+    その土地だけの言い方(→ regional_word)
+  **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
 - related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない
 - measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
 - pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
@@ -421,11 +435,20 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
       `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
       `frequency_level, register_tag, register_scale, encounter_labels[{kind,label}], ` +
-      `scene_weights, season_months, region_scope, ` +
+      `scene_weights, season_months, region_scope, region_scope_kind, ` +
       `related_words[{word,kind,note}], ` +
       `measure_words[{word,zhuyin,pinyin,note}], ` +
       `pronunciation_tips, ${cardProfile.capture.noteField}, etymology, radicals, mnemonic }。` +
-      `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。`;
+      `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。` +
+      // **「必ず埋めろ」が限定の誤りを作っていた**(オーナー指摘 2026-08-28 ②
+      // 「立扇という単語の時に台湾限定と出た」)。本番で `region_scope` の
+      // 入った9語のうち6語が誤りだったのは、当てはまらない語でも埋めろと
+      // 迫っていたから。**空が正しい欄**をここで名指しで外す。
+      `\n\nただし次の欄は**当てはまらなければ空にする**（無理に埋めない）: ` +
+      `region_scope（そこにしか無い物でなければ空文字）/ ` +
+      `region_scope_kind（同上、null）/ ` +
+      `season_months（通年なら空配列）/ ` +
+      `measure_words（名詞でなければ空配列）。`;
 
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
       // モデルIDが無効なら安全なモデルへ自動フォールバック(404で機能を殺さない)
@@ -721,6 +744,34 @@ function chunkRule(language: string | null | undefined): string {
   return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}`;
 }
 
+/**
+ * **どの語にも付く組み合わせを書かせない**(オーナー指示 2026-08-28 ③)。
+ *
+ * > 「「買う（買）」や好きのような、どの名詞にも使える汎用的な組み合わせでは、
+ * >  実践的なスピーキング力は養えません。」
+ *
+ * ## ここに1つだけ置く理由
+ * 型の指示文は**2箇所**にある（カードを作るときと、その節だけ作り直すとき）。
+ * 片方だけ直すと、作り直したカードにだけ汎用の型が戻ってくる — 使う人には
+ * 「たまに悪くなる」としか見えない。この app が何度も踏んだ形。
+ *
+ * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
+ * **両方**を置くのは、指示文が守られない回が実際に在るから。
+ */
+function specificChunkRule(headword: string, levelGoal: string): string {
+  return (
+    `**どの語にも付く組み合わせを書かない。**\n` +
+    `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
+    `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
+    `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
+    `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
+    `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
+    `語彙のネットワーク（一緒に立つ語）と構文の型（公式）の2種類を混ぜて返す。\n` +
+    `**学習者の目標レベル ${levelGoal} に合わせる** — このレベルで実際に口に出せる` +
+    `語彙・文型に収める。難しい型を並べても言えるようにはならない。`
+  );
+}
+
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
@@ -805,6 +856,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     }
 
     const levelRule = await lvl(userId);
+    // 型はレベルで変える(オーナー指示 2026-08-28 ③「ユーザーの語学の
+    // レベルによって表示するものを変えるのは守って」)。作り直すときも
+    // 同じレベルに合わせないと、その節だけ別のレベルの型になる。
+    const regenLevelGoal = await getUserLevelGoal(userId);
     const langRule = await langFn(userId);
     // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
     const regenLang = await getExplanationLanguage(userId);
@@ -884,7 +939,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z
             .array(

@@ -15,6 +15,7 @@ import { LEVEL_OUT, parseLevelStep } from "@/lib/level-scale";
 import { resolveWordLanguage } from "@/lib/word-language";
 import { looksLikeTargetLanguage } from "@/lib/text-language";
 import { PronounceButton } from "@/components/PronounceButton";
+import { SectionIcon } from "@/components/SectionIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -370,8 +371,18 @@ export function WordCardSectionsEditor() {
               dragging ? "bg-card shadow-lg ring-2 ring-primary" : "bg-secondary/60"
             }`}
           >
-            <span className={`truncate ${visible ? "" : "text-muted-foreground line-through"}`}>
-              {t(`card.${meta.id}`)}
+            {/* **一覧でも同じ丸**(オーナー指示 2026-08-28 ⑧「すべて統一」)。
+                並べ替えの行と節の見出しで別の目印が出ていると、どの行が
+                どの節なのかを名前でしか追えない。 */}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <SectionIcon
+                id={meta.id}
+                size="sm"
+                className={visible ? "" : "opacity-40 grayscale"}
+              />
+              <span className={`truncate ${visible ? "" : "text-muted-foreground line-through"}`}>
+                {t(`card.${meta.id}`)}
+              </span>
             </span>
             {/* 触る物は**見た目ごと 44px**。この部品は絵の検査が 22x22 で
                 落としたことがあり、`::before` を伸ばす型では通らない
@@ -428,7 +439,7 @@ export function WordCardSectionsEditor() {
  * 節の見分け方は**絵だけ**にする。
  *
  * ここには節ごとに淡い背景・縁・丸印の色が13色ぶん直書きされていた
- * (`bg-sky-50` `ring-cyan-200` … 39個)。2つの理由でやめる。
+ * (`bg-sky-50` `ring-cyan-200` … 39個)。2つの理由でやめた。
  *
  * ① **明るい面の前提で固定されている。** 暗いテーマでは、ほぼ白い面の上に
  *    テーマ追従の明るい文字が載る。実測で見出し語 1.07:1、意味 1.02:1、
@@ -437,33 +448,16 @@ export function WordCardSectionsEditor() {
  *
  * ② **13色は覚えられない。** 色分けは「色を見ただけで種類が分かる」ときだけ
  *    働く。3〜4種なら覚えられるが、13種になると誰も「水色=意味」を
- *    覚えないので、残るのは賑やかさだけになる。区別はすでに**絵**が
- *    やっている(📖 💬 🧩 …)ので、色は同じ仕事を二重にしているだけだった。
+ *    覚えないので、残るのは賑やかさだけになる。
  *
- * だから面はカードと同じ1種類にして、節の区別は絵と見出しに任せる。
- * これは色を付け替えたのではなく、**色分けをやめる**という判断。
+ * ## 絵文字もやめた(オーナー指示 2026-08-28 ⑧)
+ * 区別は絵がしていたが、その絵は**絵文字**だった。端末ごとに形も色も
+ * 違い、字として組まれるので大きさも揃わない。「統一したい」と言われて
+ * いる物が、見る人ごとに別物になっていた。
+ *
+ * いまは節ごとに**同じ寸法の青い丸 + 白い線の絵**(`SectionIcon`)。
+ * どの節にどの絵かは `lib/section-icon.ts` が持ち、試験で縛ってある。
  */
-const SECTION_ICON: Record<SectionId, string> = {
-  meaning: "\u{1F4D6}",
-  web_images: "\u{1F310}",
-  usage_context: "\u{1F4CA}",
-  example: "\u{1F4AC}",
-  examples_extra: "\u{2795}",
-  usage_chunks: "\u{1F9E9}",
-  measure_words: "\u{1F522}",
-  related_words: "\u{1FA9E}",
-  pronunciation_tips: "\u{1F5E3}\u{FE0F}",
-  etymology: "\u{1F3DB}\u{FE0F}",
-  mnemonic: "\u{1F4A1}",
-  taiwan_note: "\u{1F1F9}\u{1F1FC}",
-  real_usage: "\u{1F3AC}",
-  // --- 英語のカードだけの節 ------------------------------------------------
-  forms: "\u{1F504}",
-  countability: "\u{1F9FA}",
-  stress: "\u{1F941}",
-  phrasal_verbs: "\u{1F517}",
-  culture_note: "\u{1F30D}",
-};
 
 export type WordCardHandle = { toggleEditing: () => void; isEditing: () => boolean };
 
@@ -1066,7 +1060,6 @@ function SectionCard({
   isPro?: boolean;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
-  const icon = SECTION_ICON[id];
   const t = useT();
   // 見出しは言語で変わることが在る(「語源・部首」は英語では嘘)。
   const label = t(sectionTitleKey(id, word.language));
@@ -1111,11 +1104,11 @@ function SectionCard({
         .join(" ")}
     >
       <div className="mb-2 flex items-center gap-2">
-        {/* 絵は節の目印。色の付いた丸は外した — 色で区別していないので、
-            丸そのものが何も言わなくなる。絵だけを地の上に置く。 */}
-        <span aria-hidden className="text-body leading-none">
-          {icon}
-        </span>
+        {/* **鮮やかな青い丸に線の絵**(オーナー指示 2026-08-28 ⑧)。
+            絵文字は端末ごとに形も色も違い、字として組まれるので大きさも
+            揃わなかった。同じ寸法の丸にすると、節が縦に並んだときに
+            左端が1本の線として通る。絵の選び方は `lib/section-icon.ts`。 */}
+        <SectionIcon id={id} />
         {/* 大文字化と広い字間はラテン文字の作法。見出しは日本語なので素で組む
             (ホームの「Past Pages」と同じ穴)。 */}
         <h3 className="text-footnote font-semibold text-foreground">{label}</h3>
@@ -1352,11 +1345,11 @@ function Body({
               {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
             </div>
           )}
-          {/* **どこで出会うかを、浮いて跳ねる札で出す**(オーナー指示
-              2026-08-27 ⑤)。「この項目は基本この単語の特徴どこで出会うか？
-              などのカテゴリーの説明にする」。
-              限定(台南限定・春限定)の組み立ては `scene-bubbles.ts`、
-              動きは `bubble-physics.ts`。 */}
+          {/* **どこで・いつ出会うかを、軸ごとに束ねた札で出す**
+              (オーナー指示 2026-08-27 ⑤ / 2026-08-28 ①②)。
+              札は**整列**させ、浮遊感は影・奥行き・押した時の弾みで出す。
+              束の作り方と限定の判定は `scene-bubbles.ts`、
+              揺れの値は `bubble-float.ts`。 */}
           <SceneBubbles extras={ex} />
           {/* **札で言えないときだけ文章。**「それでもバブルそのカテゴリー
               として説明できない時だけ文章で書いて」。札が出ているのに

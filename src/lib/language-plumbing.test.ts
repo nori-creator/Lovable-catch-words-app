@@ -2051,17 +2051,112 @@ describe("地の文は読める組みで出す", () => {
 });
 
 /** 使う場面の札（オーナー指示 2026-08-27 ⑤）。 */
-describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
-  it("動きの計算は純粋な物に切り出してある", () => {
-    expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(true);
+describe("2026-08-28 の指摘（並べ替え・絵文字・アルバム・アイコン）", () => {
+  it("**並べ替えは右上に収まり、中で巻く**(⑤ 下の項目が画面外に出ていた)", () => {
+    const panel = codeOnly(read("components/SectionsPanel.tsx"));
+    // 画面の端から端まで伸ばさない。
+    expect(panel).not.toMatch(/fixed left-0 right-0 top-\[52px\]/);
+    expect(panel).toMatch(/fixed right-3 top-\[52px\][^"`]*w-72/);
+    // 高さを切って中で巻く（18項目でも一番下に届く）。
+    expect(panel).toMatch(/max-h-\[min\(60vh,26rem\)\] overflow-y-auto/);
+    // **写しを作らない。** シート側は部品を呼ぶだけ。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/<SectionsPanel open=\{editing\}/);
+    expect(sheet).not.toMatch(/max-h-\[min\(60vh,26rem\)\]/);
+    // 絵にも映るようにしてある（この形は一度も撮られていなかった）。
+    expect(fs.readFileSync(path.join(root, "..", "scripts/ui-audit.mjs"), "utf8")).toMatch(
+      /"sections-panel"/,
+    );
+  });
+
+  it("**復習モードに絵文字を付けない**(⑥)", () => {
+    for (const k of ["settings.modeHybrid", "settings.modeSpeaking", "settings.modeChoice"]) {
+      for (const l of ["ja", "en", "zh-TW"] as const) {
+        expect([k, l, /\p{Extended_Pictographic}/u.test(DICT[k][l])]).toEqual([k, l, false]);
+      }
+    }
+  });
+
+  it("**アルバムの文字の札に紙を敷かない**(⑦ 2度目の指摘)", () => {
+    const css = read("styles.css");
+    const block = css.slice(css.indexOf(".album-note {"), css.indexOf(".photo-corner {"));
+    expect(block).not.toMatch(/background:/);
+    expect(block).not.toMatch(/box-shadow:/);
+    // 下罫も引かない。
+    expect(block).not.toMatch(/\.album-note::after/);
+  });
+
+  it("**節の目印は青い丸の部品に統一**(⑧ 絵文字を残さない)", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/<SectionIcon id=\{id\} \/>/);
+    expect(card).not.toMatch(/SECTION_ICON/);
+    // 復習の4択も同じ丸。
+    expect(codeOnly(read("routes/_authenticated/review.tsx"))).toMatch(
+      /<BadgeIcon name=\{BADGE_ICON_NAME\.quiz\}/,
+    );
+  });
+});
+
+describe("型は「その語ならでは」だけにする（オーナー指示 2026-08-28 ③）", () => {
+  /**
+   * > 「「買う（買）」や好きのような、どの名詞にも使える汎用的な組み合わせでは、
+   * >  実践的なスピーキング力は養えません。」
+   *
+   * 指示文と門の**両方**が要る。指示文だけだと守られない回が在り、
+   * 門だけだと作り直すたびに落とす物を作り続けることになる。
+   */
+  it("返ってきた物を落とす門が在り、型の絞り込みが通っている", () => {
+    expect(fs.existsSync(path.join(root, "lib/generic-chunks.ts"))).toBe(true);
+    expect(codeOnly(read("lib/extras.ts"))).toMatch(/withoutGenericChunks\(/);
+  });
+
+  it("**生成と再生成が同じ指示文を使う**(片方だけ直すと作り直しで戻る)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    const uses = src.match(/specificChunkRule\(/g) ?? [];
+    // 定義1つ + 使う所2つ。
+    expect(uses.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("**型はレベルで変える**(両方の道でレベルを渡している)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toMatch(/specificChunkRule\(data\.headword, levelGoal\)/);
+    expect(src).toMatch(/specificChunkRule\(head, regenLevelGoal\)/);
+  });
+
+  it("量詞はチャンクに出さない(2度目の指摘。門が残っている)", () => {
+    expect(codeOnly(read("lib/extras.ts"))).toMatch(/withoutMeasureWords\(/);
+  });
+});
+
+describe("どこで出会うかは、整列した札で出す", () => {
+  /**
+   * オーナー指示 2026-08-28 ①。前は物理の輪で札の**位置そのもの**を
+   * 飛ばしていたので、開くたびに並びが変わった。位置は整列に戻し、
+   * 浮遊感は影・奥行き・揺れ・押した時の弾みで出す。
+   */
+  it("**位置を計算で飛ばさない**(並びが毎回変わらない)", () => {
     const view = codeOnly(read("components/SceneBubbles.tsx"));
-    expect(view).toMatch(/stepBubbles\(cur, world, dt\)/);
-    expect(view).not.toMatch(/vx \*=|vy \+=/);
+    expect(view).not.toMatch(/stepBubbles|layoutBubbles|requestAnimationFrame/);
+    expect(view).not.toMatch(/position:\s*absolute|className="absolute/);
+    expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(false);
+  });
+
+  it("揺れ方は純粋な物に切り出してある(描き直しでちらつかない)", () => {
+    expect(fs.existsSync(path.join(root, "lib/bubble-float.ts"))).toBe(true);
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/floatStyle\(b\.id, i\)/);
   });
 
   it("どの札を出すかも純粋な物に切り出してある", () => {
     expect(fs.existsSync(path.join(root, "lib/scene-bubbles.ts"))).toBe(true);
-    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/sceneBubbles\(\{/);
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/sceneGroups\(\{/);
+  });
+
+  it("**軸ごとに束ねて見出しを付ける**(同じ形で1列に並べない)", () => {
+    const view = codeOnly(read("components/SceneBubbles.tsx"));
+    expect(view).toMatch(/AXIS_KEY\[g\.axis\]/);
+    for (const axis of ["limited", "where", "when", "scene", "trait", "feeling"]) {
+      expect([axis, !!DICT[`card.axis.${axis}`]]).toEqual([axis, true]);
+    }
   });
 
   it("**限定の札を作る**(extras に在るのに画面に出ていなかった2つ)", () => {
@@ -2071,6 +2166,13 @@ describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
     expect(DICT["card.limitedTo"].ja).toBe("{place}限定");
   });
 
+  it("**理由の無い限定を通さない**(立扇に台湾限定が出た)", () => {
+    const lib = codeOnly(read("lib/scene-bubbles.ts"));
+    expect(lib).toMatch(/limitedRegion\(ex\.region_scope, ex\.region_scope_kind\)/);
+    // 生成側も理由を訊いていること。片方だけ直すと、欄が永久に空になる。
+    expect(read("lib/ai.functions.ts")).toMatch(/region_scope_kind/);
+  });
+
   it("**札で言えるときは文章を出さない**(欄が2倍の高さにならない)", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
     expect(card).toMatch(/bubbleCount === 0 && text && <Prose/);
@@ -2078,6 +2180,8 @@ describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
   });
 
   it("動きを止めたい人には止めて出す", () => {
-    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/prefers-reduced-motion: reduce/);
+    // 揺れは CSS の animation なので、止めるのも CSS 側。
+    expect(read("styles.css")).toMatch(/prefers-reduced-motion: reduce/);
+    expect(read("styles.css")).toMatch(/\.scene-chip \{\s*\n\s*animation: none;/);
   });
 });

@@ -1895,6 +1895,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.encKind.emotion": { ja: "気持ち", en: "Feeling", "zh-TW": "心情" },
   "card.encKind.time": { ja: "時刻", en: "Time", "zh-TW": "時間" },
   "card.encKind.season": { ja: "季節", en: "Season", "zh-TW": "季節" },
+  "card.encKind.trait": { ja: "性質", en: "What it's like", "zh-TW": "性質" },
+  // 束の見出し(オーナー指示 2026-08-28 ②「それぞれのカテゴライズを
+  // 同じように表示すると混乱するから…表示を工夫して」)。
+  // **問いの形で置く。** 「場所」より「どこで」のほうが、その札が何に
+  // 答えている物なのかが分かる。
+  "card.axis.limited": { ja: "ここだけ", en: "Only here", "zh-TW": "只有這裡" },
+  "card.axis.where": { ja: "どこで", en: "Where", "zh-TW": "在哪裡" },
+  "card.axis.when": { ja: "いつ", en: "When", "zh-TW": "什麼時候" },
+  "card.axis.scene": { ja: "どんな場面で", en: "In what situation", "zh-TW": "什麼場合" },
+  "card.axis.trait": { ja: "どんな物か", en: "What it's like", "zh-TW": "是什麼樣的東西" },
+  "card.axis.feeling": { ja: "どんな気持ちで", en: "With what feeling", "zh-TW": "什麼心情" },
   "card.frequency": { ja: "頻度", en: "Frequency", "zh-TW": "頻率" },
   // オーナー指示 2026-08-27 ⑧「項目のタイトルを類義語・反義語・関連語に
   // 変更する」。「類義」だけでは何の一覧なのかが読み取れない。
@@ -2623,9 +2634,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
-  "settings.modeHybrid": { ja: "🎯 自動", en: "🎯 Auto", "zh-TW": "🎯 自動" },
-  "settings.modeSpeaking": { ja: "🎤 話す", en: "🎤 Speak", "zh-TW": "🎤 開口說" },
-  "settings.modeChoice": { ja: "👆 4択", en: "👆 Quiz", "zh-TW": "👆 四選一" },
+  // **絵文字は付けない**(オーナー指示 2026-08-28 ⑥)。3つ並ぶ札で、
+  // 選ばれているかどうかは地の色が言っている。絵は同じ仕事を二重に
+  // していただけで、しかも端末ごとに違う絵が出る。
+  "settings.modeHybrid": { ja: "自動", en: "Auto", "zh-TW": "自動" },
+  "settings.modeSpeaking": { ja: "話す", en: "Speak", "zh-TW": "開口說" },
+  "settings.modeChoice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin", "zh-TW": "ㄅㄆㄇ 注音" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin", "zh-TW": "abc 拼音" },
   // 英語版の読みの表記。既定はアメリカ英語(オーナー決定 2026-08-24)。

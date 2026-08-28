@@ -6,6 +6,7 @@
  * 決めてあった箇所。まず見えるようにする。
  */
 import { readySpeech } from "../speech";
+import { SectionsPanel } from "@/components/SectionsPanel";
 
 /**
  * 発音ボタンは**鳴らせるようになってから**出る(オーナー指示 2026-08-26)。
@@ -485,6 +486,25 @@ export function SectionsEditorScene() {
   return (
     <div style={{ padding: 16 }}>
       <WordCardSectionsEditor />
+    </div>
+  );
+}
+
+/**
+ * **開いた状態の並べ替えパネルそのもの**(オーナー指示 2026-08-28 ⑤)。
+ *
+ * 一覧だけを撮っていたので、「右上に収まっているか」「いちばん下の
+ * 項目まで届くか」は**一度も絵に映っていなかった**。だから
+ * 「1番下の項目が表示されてない」を見つけられたのはオーナーだけだった。
+ *
+ * 枠ごと `SectionsPanel` を撮る。写しではなく実物を呼ぶので、
+ * 実物を直せばこの絵も直る。
+ */
+export function SectionsPanelScene() {
+  return (
+    // 歯車の並ぶ帯の高さぶんだけ空けて、実物と同じ位置に置く。
+    <div style={{ height: 700, position: "relative" }}>
+      <SectionsPanel open onClose={() => {}} />
     </div>
   );
 }

@@ -256,6 +256,10 @@ const MODES = [
   // 片方しか撮らないと、片方は一度も見ていないことになる。
   // 項目の並べ替え。**掴んでいる絵**は長押ししたままでないと写らない。
   ...crossThemes("sections-editor", { scene: "sections-editor" }),
+  // **開いた並べ替えパネルそのもの**(オーナー指示 2026-08-28 ⑤)。
+  // 一覧だけを撮っていたので、右上に収まっているか・いちばん下の項目まで
+  // 届くかは一度も絵に映っていなかった。
+  ...crossThemes("sections-panel", { scene: "sections-panel" }),
   ["sections-editor-dragging", "", false, { scene: "sections-editor", hold: "ul li:nth-child(2)" }],
   ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
   [

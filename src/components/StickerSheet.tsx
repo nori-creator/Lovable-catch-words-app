@@ -9,7 +9,6 @@ import {
   Clock,
   Loader2,
   Settings2,
-  ChevronUp,
   Sparkles,
   Lock,
   Flag,
@@ -17,7 +16,8 @@ import {
   Camera,
 } from "lucide-react";
 import { toast } from "sonner";
-import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
+import { WordCard } from "@/components/WordCard";
+import { SectionsPanel } from "@/components/SectionsPanel";
 import {
   getSticker,
   updateWordExtras,
@@ -651,28 +651,10 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         </div>
       </div>
 
-      {/* Settings panel — slides down from top */}
-      <div
-        className={`fixed left-0 right-0 top-[52px] z-20 transition-all duration-300 [transition-timing-function:var(--ease-ios)] ${
-          editing ? "translate-y-0 opacity-100" : "-translate-y-4 pointer-events-none opacity-0"
-        }`}
-      >
-        <div className="mx-3 mt-2 rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-footnote font-semibold text-muted-foreground">
-              {t("card.sections")}
-            </p>
-            <button
-              onClick={() => setEditing(false)}
-              className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
-              aria-label={t("common.closeEdit")}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
-          </div>
-          {s && <WordCardSectionsEditor />}
-        </div>
-      </div>
+      {/* 項目の並べ替え(オーナー指示 2026-08-28 ⑤)。**中身も枠も
+          `SectionsPanel` が1つだけ持つ** — ここに写しを書くと、絵の検査で
+          見ている物と実物が別々に育つ。 */}
+      {s && <SectionsPanel open={editing} onClose={() => setEditing(false)} />}
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
         {isLoading ? (
