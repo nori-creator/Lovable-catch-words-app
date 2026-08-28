@@ -82,8 +82,13 @@ export function SceneBubbles({
         {groups.map((g) => (
           <div key={g.axis}>
             {/* 束の見出し。**札と同じ形にしない** — 見出しまで札にすると、
-                どれが中身なのか分からなくなる。素の小さな字で置く。 */}
-            <p className="mb-1 text-caption font-medium text-muted-foreground/80">
+                どれが中身なのか分からなくなる。素の小さな字で置く。
+
+                **薄めを掛けない。** 一度 `/80` を足したら、11px の字で
+                コントラストが 4.50 → 3.74 に落ちて絵の検査が7件で落ちた。
+                この見出しは「何の一覧か」を言う唯一の言葉なので、
+                いちばん読めなくてはいけない所だった。 */}
+            <p className="mb-1 text-caption font-medium text-muted-foreground">
               {t(AXIS_KEY[g.axis])}
             </p>
             <ul className="flex flex-wrap items-center gap-1.5">
