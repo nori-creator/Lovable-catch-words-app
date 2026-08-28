@@ -2051,17 +2051,35 @@ describe("地の文は読める組みで出す", () => {
 });
 
 /** 使う場面の札（オーナー指示 2026-08-27 ⑤）。 */
-describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
-  it("動きの計算は純粋な物に切り出してある", () => {
-    expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(true);
+describe("どこで出会うかは、整列した札で出す", () => {
+  /**
+   * オーナー指示 2026-08-28 ①。前は物理の輪で札の**位置そのもの**を
+   * 飛ばしていたので、開くたびに並びが変わった。位置は整列に戻し、
+   * 浮遊感は影・奥行き・揺れ・押した時の弾みで出す。
+   */
+  it("**位置を計算で飛ばさない**(並びが毎回変わらない)", () => {
     const view = codeOnly(read("components/SceneBubbles.tsx"));
-    expect(view).toMatch(/stepBubbles\(cur, world, dt\)/);
-    expect(view).not.toMatch(/vx \*=|vy \+=/);
+    expect(view).not.toMatch(/stepBubbles|layoutBubbles|requestAnimationFrame/);
+    expect(view).not.toMatch(/position:\s*absolute|className="absolute/);
+    expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(false);
+  });
+
+  it("揺れ方は純粋な物に切り出してある(描き直しでちらつかない)", () => {
+    expect(fs.existsSync(path.join(root, "lib/bubble-float.ts"))).toBe(true);
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/floatStyle\(b\.id, i\)/);
   });
 
   it("どの札を出すかも純粋な物に切り出してある", () => {
     expect(fs.existsSync(path.join(root, "lib/scene-bubbles.ts"))).toBe(true);
-    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/sceneBubbles\(\{/);
+    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/sceneGroups\(\{/);
+  });
+
+  it("**軸ごとに束ねて見出しを付ける**(同じ形で1列に並べない)", () => {
+    const view = codeOnly(read("components/SceneBubbles.tsx"));
+    expect(view).toMatch(/AXIS_KEY\[g\.axis\]/);
+    for (const axis of ["limited", "where", "when", "scene", "trait", "feeling"]) {
+      expect([axis, !!DICT[`card.axis.${axis}`]]).toEqual([axis, true]);
+    }
   });
 
   it("**限定の札を作る**(extras に在るのに画面に出ていなかった2つ)", () => {
@@ -2071,6 +2089,13 @@ describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
     expect(DICT["card.limitedTo"].ja).toBe("{place}限定");
   });
 
+  it("**理由の無い限定を通さない**(立扇に台湾限定が出た)", () => {
+    const lib = codeOnly(read("lib/scene-bubbles.ts"));
+    expect(lib).toMatch(/limitedRegion\(ex\.region_scope, ex\.region_scope_kind\)/);
+    // 生成側も理由を訊いていること。片方だけ直すと、欄が永久に空になる。
+    expect(read("lib/ai.functions.ts")).toMatch(/region_scope_kind/);
+  });
+
   it("**札で言えるときは文章を出さない**(欄が2倍の高さにならない)", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
     expect(card).toMatch(/bubbleCount === 0 && text && <Prose/);
@@ -2078,6 +2103,8 @@ describe("どこで出会うかは、浮いて跳ねる札で出す", () => {
   });
 
   it("動きを止めたい人には止めて出す", () => {
-    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/prefers-reduced-motion: reduce/);
+    // 揺れは CSS の animation なので、止めるのも CSS 側。
+    expect(read("styles.css")).toMatch(/prefers-reduced-motion: reduce/);
+    expect(read("styles.css")).toMatch(/\.scene-chip \{\s*\n\s*animation: none;/);
   });
 });

@@ -150,6 +150,19 @@ export const ExtrasSchema = z.object({
   /** 「台南」「台湾」など、そこでしか見ないもの。限定が無ければ空。 */
   region_scope: z.string().catch(""),
   /**
+   * **なぜそこ限定なのか。**(オーナー指摘 2026-08-28 ②
+   * 「立扇という単語の時に台湾限定と出た」)
+   *
+   * 地域名だけを訊くと、この app が台湾の語を扱う以上、模型は何にでも
+   * 「台湾」と答える。本番では `region_scope` の入った9語のうち6語が
+   * 誤りだった(扇風機・エアコン・シュークリーム…)。
+   *
+   * だから理由を要る物にした。`scene-bubbles.ts` の `limitedRegion` は
+   * **ここが空なら限定を名乗らせない**。理由の言えない物は、そこにしか
+   * 無い物ではない。
+   */
+  region_scope_kind: z.enum(["specialty", "institution", "regional_word"]).nullable().catch(null),
+  /**
    * その語が出る検定の印（`dictionary_entries.exam_tags` の写し）。
    *
    * **AI に作らせない。** 辞書の行に入っている事実で、当て推量で
@@ -173,7 +186,12 @@ export const ExtrasSchema = z.object({
   encounter_labels: z
     .array(
       z.object({
-        kind: z.enum(["place", "situation", "emotion", "time", "media", "season"]).catch("place"),
+        // `trait` は**その物じたいの性質**(熱い/持ち歩ける/使い捨て)。
+        // オーナー指示 2026-08-28 ②「そのものの物理的な性質など」。
+        // 出会う場所とは別の軸なので、画面でも別の束に入る。
+        kind: z
+          .enum(["place", "situation", "emotion", "time", "media", "season", "trait"])
+          .catch("place"),
         label: z.string(),
       }),
     )

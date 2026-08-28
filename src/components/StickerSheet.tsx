@@ -651,26 +651,50 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         </div>
       </div>
 
-      {/* Settings panel — slides down from top */}
+      {/**
+       * 項目の並べ替え。**押した歯車の下に、その場で開く**
+       * (オーナー指示 2026-08-28 ⑤「上のボタン押すと、項目が全画面で
+       *  表示させるけど、前のように右上端に収まるようにサイズを戻して。
+       *  またすべての項目が見えるようにして。今1番下の項目が
+       *  表示されてない。」)。
+       *
+       * ## 2つの不具合が重なっていた
+       * ① `left-0 right-0` で画面の端から端まで伸びていた。押したのは
+       *    右上の小さな歯車なのに、開くのは画面の幅いっぱいの板 —
+       *    どこから出てきた物なのか分からない。
+       * ② 行は 44px で、節は最大18ある(英語のカード)。**畳の高さを
+       *    決めていなかった**ので、下の数項目は画面の外へ出ていた。
+       *    出ている物は掴めないので、並べ替えも出来なかった。
+       *
+       * 幅を歯車の側に寄せて畳み、**中で巻く**。掴んで動かす間は
+       * `touch-action: none` が効くので、巻きと喧嘩しない。
+       */}
       <div
-        className={`fixed left-0 right-0 top-[52px] z-20 transition-all duration-300 [transition-timing-function:var(--ease-ios)] ${
+        className={`fixed right-3 top-[52px] z-20 w-72 max-w-[calc(100vw-1.5rem)] transition-all duration-300 [transition-timing-function:var(--ease-ios)] ${
           editing ? "translate-y-0 opacity-100" : "-translate-y-4 pointer-events-none opacity-0"
         }`}
       >
-        <div className="mx-3 mt-2 rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-footnote font-semibold text-muted-foreground">
+        <div className="mt-2 rounded-2xl border border-border bg-card/95 p-2 shadow-xl backdrop-blur">
+          <div className="mb-1.5 flex items-center justify-between gap-1 pl-1.5">
+            <p className="min-w-0 truncate text-footnote font-semibold text-muted-foreground">
               {t("card.sections")}
             </p>
             <button
               onClick={() => setEditing(false)}
-              className="lift-soft inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
+              className="lift-soft inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary"
               aria-label={t("common.closeEdit")}
             >
               <ChevronUp className="h-4 w-4" />
             </button>
           </div>
-          {s && <WordCardSectionsEditor />}
+          {/* **いちばん下の項目まで届く。** 高さを画面に合わせて切り、
+              足りない分は中で巻く。切らずに置くと、画面の外へ出た行は
+              触れない = 並べ替えられない。 */}
+          {s && (
+            <div className="max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain pr-0.5">
+              <WordCardSectionsEditor />
+            </div>
+          )}
         </div>
       </div>
 
