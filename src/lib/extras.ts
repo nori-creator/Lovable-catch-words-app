@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 
 /**
@@ -473,7 +474,10 @@ function countWords(text: string): number {
  * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
  * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
  *
- * 落とすのは5つ:
+ * 落とすのは6つ:
+ * 0. **どの名詞にも付く汎用の組み合わせ**(`generic-chunks.ts`) —
+ *    「買{語}」「喜歡{語}」はその語について何も教えていない
+ *    (オーナー指示 2026-08-28 ③)
  * 1. **量詞に触れる型**(下の `withoutMeasureWords`) — 量詞の欄が別に在る
  * 2. **長すぎる型** — 8文字を超えると口に乗る「型」ではなく例文になる。
  *    例文の欄が別に在るので、ここが文になると欄の意味が重なる
@@ -497,7 +501,11 @@ export function refineUsageChunks(
   const head = headword.trim();
   const seen = new Set<string>();
   const isEnglish = normalizeTargetLanguage(language) === "en";
-  return withoutMeasureWords(chunks, measureWords, headword)
+  return withoutGenericChunks(
+    withoutMeasureWords(chunks, measureWords, headword),
+    headword,
+    language,
+  )
     .filter((c) => {
       const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
       if (parts.length === 0 || parts.length > MAX_CHUNK_PARTS) return false;

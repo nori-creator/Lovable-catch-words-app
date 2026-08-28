@@ -189,23 +189,39 @@ export function RegisterMeterScene() {
           <RegisterMeter key={`c${v}`} scale={v} compact />
         ))}
       </div>
-      {/* **浮いて跳ねる札**(オーナー指示 2026-08-27 ⑤)。
+      {/* **軸ごとに束ねた札**(オーナー指示 2026-08-27 ⑤ / 2026-08-28 ①②)。
           限定の札(`region_scope` / `season_months` から組む)も一緒に撮る —
-          いちばん目立たせる物なので、他の札に埋もれていないかを絵で見る。 */}
+          いちばん目立たせる物なので、他の札に埋もれていないかを絵で見る。
+          並びが整列しているか・束の見出しが読めるかも、絵でしか分からない。 */}
       <SceneBubbles
         extras={
           {
             region_scope: "台南",
+            // **理由が無いと限定は出ない**(2026-08-28 ②)。理由の付いた姿を撮る。
+            region_scope_kind: "specialty",
             season_months: [6, 7, 8],
             encounter_labels: [
               { kind: "place", label: "夜市" },
               { kind: "place", label: "スーパー" },
               { kind: "media", label: "メニュー" },
-              { kind: "media", label: "看板" },
               { kind: "situation", label: "注文するとき" },
+              { kind: "trait", label: "熱い" },
               { kind: "emotion", label: "うれしい時" },
               { kind: "time", label: "夜" },
-              { kind: "season", label: "夏" },
+            ],
+          } as never
+        }
+      />
+      {/* **理由の無い地域名では限定が出ない**姿も撮る(立扇の形)。
+          「台湾限定」が出ていないことを絵で確かめられるようにする。 */}
+      <SceneBubbles
+        extras={
+          {
+            region_scope: "台湾",
+            season_months: [5, 6, 7, 8, 9],
+            encounter_labels: [
+              { kind: "place", label: "家" },
+              { kind: "trait", label: "風が出る" },
             ],
           } as never
         }

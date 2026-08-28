@@ -2051,6 +2051,83 @@ describe("地の文は読める組みで出す", () => {
 });
 
 /** 使う場面の札（オーナー指示 2026-08-27 ⑤）。 */
+describe("2026-08-28 の指摘（並べ替え・絵文字・アルバム・アイコン）", () => {
+  it("**並べ替えは右上に収まり、中で巻く**(⑤ 下の項目が画面外に出ていた)", () => {
+    const panel = codeOnly(read("components/SectionsPanel.tsx"));
+    // 画面の端から端まで伸ばさない。
+    expect(panel).not.toMatch(/fixed left-0 right-0 top-\[52px\]/);
+    expect(panel).toMatch(/fixed right-3 top-\[52px\][^"`]*w-72/);
+    // 高さを切って中で巻く（18項目でも一番下に届く）。
+    expect(panel).toMatch(/max-h-\[min\(60vh,26rem\)\] overflow-y-auto/);
+    // **写しを作らない。** シート側は部品を呼ぶだけ。
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/<SectionsPanel open=\{editing\}/);
+    expect(sheet).not.toMatch(/max-h-\[min\(60vh,26rem\)\]/);
+    // 絵にも映るようにしてある（この形は一度も撮られていなかった）。
+    expect(fs.readFileSync(path.join(root, "..", "scripts/ui-audit.mjs"), "utf8")).toMatch(
+      /"sections-panel"/,
+    );
+  });
+
+  it("**復習モードに絵文字を付けない**(⑥)", () => {
+    for (const k of ["settings.modeHybrid", "settings.modeSpeaking", "settings.modeChoice"]) {
+      for (const l of ["ja", "en", "zh-TW"] as const) {
+        expect([k, l, /\p{Extended_Pictographic}/u.test(DICT[k][l])]).toEqual([k, l, false]);
+      }
+    }
+  });
+
+  it("**アルバムの文字の札に紙を敷かない**(⑦ 2度目の指摘)", () => {
+    const css = read("styles.css");
+    const block = css.slice(css.indexOf(".album-note {"), css.indexOf(".photo-corner {"));
+    expect(block).not.toMatch(/background:/);
+    expect(block).not.toMatch(/box-shadow:/);
+    // 下罫も引かない。
+    expect(block).not.toMatch(/\.album-note::after/);
+  });
+
+  it("**節の目印は青い丸の部品に統一**(⑧ 絵文字を残さない)", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/<SectionIcon id=\{id\} \/>/);
+    expect(card).not.toMatch(/SECTION_ICON/);
+    // 復習の4択も同じ丸。
+    expect(codeOnly(read("routes/_authenticated/review.tsx"))).toMatch(
+      /<BadgeIcon name=\{BADGE_ICON_NAME\.quiz\}/,
+    );
+  });
+});
+
+describe("型は「その語ならでは」だけにする（オーナー指示 2026-08-28 ③）", () => {
+  /**
+   * > 「「買う（買）」や好きのような、どの名詞にも使える汎用的な組み合わせでは、
+   * >  実践的なスピーキング力は養えません。」
+   *
+   * 指示文と門の**両方**が要る。指示文だけだと守られない回が在り、
+   * 門だけだと作り直すたびに落とす物を作り続けることになる。
+   */
+  it("返ってきた物を落とす門が在り、型の絞り込みが通っている", () => {
+    expect(fs.existsSync(path.join(root, "lib/generic-chunks.ts"))).toBe(true);
+    expect(codeOnly(read("lib/extras.ts"))).toMatch(/withoutGenericChunks\(/);
+  });
+
+  it("**生成と再生成が同じ指示文を使う**(片方だけ直すと作り直しで戻る)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    const uses = src.match(/specificChunkRule\(/g) ?? [];
+    // 定義1つ + 使う所2つ。
+    expect(uses.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("**型はレベルで変える**(両方の道でレベルを渡している)", () => {
+    const src = codeOnly(read("lib/ai.functions.ts"));
+    expect(src).toMatch(/specificChunkRule\(data\.headword, levelGoal\)/);
+    expect(src).toMatch(/specificChunkRule\(head, regenLevelGoal\)/);
+  });
+
+  it("量詞はチャンクに出さない(2度目の指摘。門が残っている)", () => {
+    expect(codeOnly(read("lib/extras.ts"))).toMatch(/withoutMeasureWords\(/);
+  });
+});
+
 describe("どこで出会うかは、整列した札で出す", () => {
   /**
    * オーナー指示 2026-08-28 ①。前は物理の輪で札の**位置そのもの**を

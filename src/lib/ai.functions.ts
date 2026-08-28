@@ -366,6 +366,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 - usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
+  ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
   そのまま声に出せる形にする。「${data.headword}」自体を必ずどれかのパーツに含める。
   ${cardProfile.chunkPrompt.styleRule}
@@ -743,6 +744,34 @@ function chunkRule(language: string | null | undefined): string {
   return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}`;
 }
 
+/**
+ * **どの語にも付く組み合わせを書かせない**(オーナー指示 2026-08-28 ③)。
+ *
+ * > 「「買う（買）」や好きのような、どの名詞にも使える汎用的な組み合わせでは、
+ * >  実践的なスピーキング力は養えません。」
+ *
+ * ## ここに1つだけ置く理由
+ * 型の指示文は**2箇所**にある（カードを作るときと、その節だけ作り直すとき）。
+ * 片方だけ直すと、作り直したカードにだけ汎用の型が戻ってくる — 使う人には
+ * 「たまに悪くなる」としか見えない。この app が何度も踏んだ形。
+ *
+ * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
+ * **両方**を置くのは、指示文が守られない回が実際に在るから。
+ */
+function specificChunkRule(headword: string, levelGoal: string): string {
+  return (
+    `**どの語にも付く組み合わせを書かない。**\n` +
+    `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
+    `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
+    `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
+    `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
+    `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
+    `語彙のネットワーク（一緒に立つ語）と構文の型（公式）の2種類を混ぜて返す。\n` +
+    `**学習者の目標レベル ${levelGoal} に合わせる** — このレベルで実際に口に出せる` +
+    `語彙・文型に収める。難しい型を並べても言えるようにはならない。`
+  );
+}
+
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
@@ -827,6 +856,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
     }
 
     const levelRule = await lvl(userId);
+    // 型はレベルで変える(オーナー指示 2026-08-28 ③「ユーザーの語学の
+    // レベルによって表示するものを変えるのは守って」)。作り直すときも
+    // 同じレベルに合わせないと、その節だけ別のレベルの型になる。
+    const regenLevelGoal = await getUserLevelGoal(userId);
     const langRule = await langFn(userId);
     // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
     const regenLang = await getExplanationLanguage(userId);
@@ -906,7 +939,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
         }),
       },
       usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
         schema: z.object({
           usage_chunks: z
             .array(
