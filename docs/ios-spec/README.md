@@ -51,10 +51,7 @@ Swift 側で同じ判断を書き直すと:
 | `05-review.md` | 復習（SRS・4択・スピーキング） |
 | `06-home.md` | ホーム（本棚・アルバム） |
 | `07-dex.md` | 図鑑 |
-| `08-journal.md` | 日記 |
-| `09-wordbook.md` | 単語帳 |
-| `10-settings.md` | 設定 |
-| `11-social.md` | ソーシャル（**いまは無効**） |
+| `08-other-screens.md` | 日記・単語帳・設定・ソーシャル（**無効**） |
 | `20-data-model.md` | テーブル・RLS・ストレージ |
 | `21-i18n.md` | 3言語の文言 1,031項目 |
 | `22-native-gaps.md` | iOS でネイティブに置き換える所 |
