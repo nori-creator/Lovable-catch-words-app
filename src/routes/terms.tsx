@@ -1,3 +1,4 @@
+import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { tStatic, useUiLang, useT } from "@/lib/i18n";
 import { DataSourcesList } from "@/components/DataSourcesList";
@@ -18,9 +19,9 @@ export const Route = createFileRoute("/terms")({
           "Catchwordsの利用規約。アカウント、投稿コンテンツ、禁止事項、知的財産、免責などサービス利用に関する条件を定めています。",
       },
       { property: "og:type", content: "article" },
-      { property: "og:url", content: "https://word-snap-journey.lovable.app/terms" },
+      { property: "og:url", content: siteUrlFor("/terms") },
     ],
-    links: [{ rel: "canonical", href: "https://word-snap-journey.lovable.app/terms" }],
+    links: [{ rel: "canonical", href: siteUrlFor("/terms") }],
   }),
   component: TermsPage,
 });

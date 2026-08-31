@@ -1,3 +1,4 @@
+import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,9 +31,9 @@ export const Route = createFileRoute("/auth")({
           "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://word-snap-journey.lovable.app/auth" },
+      { property: "og:url", content: siteUrlFor("/auth") },
     ],
-    links: [{ rel: "canonical", href: "https://word-snap-journey.lovable.app/auth" }],
+    links: [{ rel: "canonical", href: siteUrlFor("/auth") }],
   }),
   component: AuthPage,
 });

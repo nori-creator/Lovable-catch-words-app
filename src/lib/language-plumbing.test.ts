@@ -2185,3 +2185,45 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(read("styles.css")).toMatch(/\.scene-chip \{\s*\n\s*animation: none;/);
   });
 });
+
+/**
+ * Lovable からの独立（オーナー指示 2026-08-31）。
+ *
+ * > 「ドメインも独自で取得したい。」
+ *
+ * 独自ドメインに移る日に、**1箇所でも lovable.app が残ると気づけない**。
+ * canonical と og:url は画面に何も出さないので、目視では絶対に見つからない。
+ * 検索エンジンだけが古い住所を見続ける。だから門で止める。
+ */
+describe("独自ドメインへ移れる形になっているか", () => {
+  const ROUTES = [
+    "routes/__root.tsx",
+    "routes/auth.tsx",
+    "routes/terms.tsx",
+    "routes/privacy.tsx",
+    "routes/sitemap[.]xml.ts",
+    "routes/_authenticated/u.$userId.tsx",
+    "routes/_authenticated/post.$postId.tsx",
+  ];
+
+  it("**画面のコードにドメインを直接書かない**（移った日に取り残しが出る）", () => {
+    // **落ちた時にどのファイルか分かる形にする。** 一度
+    // `expect([file, source]).not.toContain(...)` と書いたが、配列に対する
+    // toContain は「要素そのもの」を探すので中の文字列を1文字も見ておらず、
+    // わざと直書きに戻しても素通しした。門は落ちることを確かめてから信じる。
+    const offenders = ROUTES.filter((file) => codeOnly(read(file)).includes("lovable.app"));
+    expect(offenders).toEqual([]);
+  });
+
+  it("住所を出す所は必ず site-url を通している", () => {
+    for (const file of ROUTES) {
+      expect([file, read(file).includes('from "@/lib/site-url"')]).toEqual([file, true]);
+    }
+  });
+
+  it("**未設定のときは今の住所を返す**（設定するまで出力は1文字も変わらない）", () => {
+    expect(codeOnly(read("lib/site-url.ts"))).toContain(
+      'FALLBACK_SITE_URL = "https://word-snap-journey.lovable.app"',
+    );
+  });
+});

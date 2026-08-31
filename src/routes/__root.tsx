@@ -1,3 +1,4 @@
+import { siteUrl, siteUrlFor } from "@/lib/site-url";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -140,13 +141,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             {
               "@type": "Organization",
               name: "Catchwords",
-              url: "https://word-snap-journey.lovable.app",
-              logo: "https://word-snap-journey.lovable.app/icon-512.png",
+              url: siteUrl(),
+              logo: siteUrlFor("/icon-512.png"),
             },
             {
               "@type": "WebSite",
               name: "Catchwords",
-              url: "https://word-snap-journey.lovable.app",
+              url: siteUrl(),
               inLanguage: "ja-JP",
               description: "街で出会った言葉をステッカーに変えて学ぶ、台湾華語の学習アプリ。",
             },

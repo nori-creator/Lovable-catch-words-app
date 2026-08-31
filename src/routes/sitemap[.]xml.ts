@@ -1,7 +1,8 @@
+import { siteUrl } from "@/lib/site-url";
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
-const BASE_URL = "https://word-snap-journey.lovable.app";
+const BASE_URL = siteUrl();
 
 interface SitemapEntry {
   path: string;
