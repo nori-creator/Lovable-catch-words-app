@@ -190,7 +190,7 @@ function PostPage() {
                 onChange={(e) => setBody(e.target.value)}
                 maxLength={500}
                 placeholder={t("post.writeComment")}
-                className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-body outline-none focus:border-primary"
+                className="flex-1 rounded-full border border-input bg-background px-4 py-2 text-field outline-none focus:border-primary"
               />
               <button
                 type="submit"

@@ -959,9 +959,17 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
       const offScale = [];
       // 階調は CSS の変数から読む。**検査の側に数字を書き写さない** —
       // 書き写した瞬間に、片方だけ直されて静かにずれる。
+      //
+      // **ただし名前は書き写している。** 段を1つ足したとき、`styles.css` に
+      // 足しただけでは検査に見えず、新しい段の字が全部「階調に無い」で
+      // 落ちる(`field` を足した時に実際そうなった)。数字を守っても
+      // 名前で同じ穴が開く。段を足したら、ここにも名前を足すこと。
+      //
+      // `field` は入力欄専用の 16px。見た目の段ではなく iOS の焦点ズーム
+      // 除けなので、人が選ぶ段としては数えない(`--text-field` を見る)。
       const rootCs = getComputedStyle(document.documentElement);
       const SCALE = new Set(
-        ["caption", "footnote", "body", "headline", "title", "hero"]
+        ["caption", "footnote", "body", "field", "headline", "title", "hero"]
           .map((n) => parseFloat(rootCs.getPropertyValue(`--text-${n}`)) * 16)
           .filter((v) => v > 0)
           .map((v) => Math.round(v * 100) / 100),

@@ -254,7 +254,7 @@ function ImportConfirm({
           value={draft.title}
           onChange={(e) => onChange({ ...draft, title: e.target.value })}
           placeholder={t("wb.bookTitlePlaceholder")}
-          className="mt-1 min-h-11 w-full rounded-xl border border-border bg-card px-3 text-body"
+          className="mt-1 min-h-11 w-full rounded-xl border border-border bg-card px-3 text-field"
         />
       </label>
 

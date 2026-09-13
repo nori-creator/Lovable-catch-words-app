@@ -57,7 +57,7 @@ function DiscoverPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("discover.search")}
-            className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-body outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-field outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
       </section>

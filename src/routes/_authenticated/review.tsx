@@ -1404,7 +1404,7 @@ export function SpeakingCard({
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
               placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
-              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-body"
+              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-field"
               dir="auto"
             />
             {error && <p className="text-footnote text-bad-ink">{error}</p>}
