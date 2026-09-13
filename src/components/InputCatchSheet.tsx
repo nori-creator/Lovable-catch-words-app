@@ -57,6 +57,8 @@ import { toImageDataUrl } from "@/lib/sticker-upload";
 import { Zh } from "@/components/Zh";
 import { isTargetHeadword } from "@/lib/target-language";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 /**
  * Input catch (§5.2): the entrance for words you can't photograph — heard in
@@ -445,6 +447,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       setErr(t("input.notTargetLang"));
       return;
     }
+    Sound.rewardGrip();
+    haptic("selection");
     setStep("saving");
     setErr(null);
     try {

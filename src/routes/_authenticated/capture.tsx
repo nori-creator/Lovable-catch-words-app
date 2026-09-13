@@ -49,6 +49,8 @@ import { formatCount } from "@/lib/count";
 import { Zh } from "@/components/Zh";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
@@ -690,6 +692,8 @@ function CapturePage() {
   async function handleSave() {
     if (!card || !selectedHead) return;
     setStep("saving");
+    Sound.rewardGrip();
+    haptic("selection");
     try {
       // 温めてある位置を**ここで確定させる**。状態を直に読むと、
       // 候補を早く選んだ回はまだ届いていない。

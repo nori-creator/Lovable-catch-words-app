@@ -22,6 +22,8 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
 import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 type Props = {
   snapshotDataUrl: string;
