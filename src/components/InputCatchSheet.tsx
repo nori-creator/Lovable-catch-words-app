@@ -746,7 +746,11 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               disabled={step === "saving"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
             >
-              {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+              {step === "saving" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Sparkles className="h-5 w-5" />
+              )}
               {t("input.save")}
             </button>
             <p className="text-center text-caption text-muted-foreground">

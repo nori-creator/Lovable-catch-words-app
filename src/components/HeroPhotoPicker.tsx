@@ -117,7 +117,10 @@ export function HeroPhotoPicker({
       return;
     }
     setValidCutout(null);
-    void Promise.all([fetch(object).then((r) => r.arrayBuffer()), fetch(candidateCutout).then((r) => r.arrayBuffer())])
+    void Promise.all([
+      fetch(object).then((r) => r.arrayBuffer()),
+      fetch(candidateCutout).then((r) => r.arrayBuffer()),
+    ])
       .then(([a, b]) => {
         if (cancelled) return;
         if (a.byteLength !== b.byteLength) {
@@ -137,7 +140,7 @@ export function HeroPhotoPicker({
       cancelled = true;
     };
   }, [candidateCutout, sources.object_url, sources.object_thumb_url]);
-  const available = ORDER.filter((r) => r !== "cutout" ? !!urlOf(sources, r) : !!validCutout);
+  const available = ORDER.filter((r) => (r !== "cutout" ? !!urlOf(sources, r) : !!validCutout));
 
   return (
     <div className="space-y-3">

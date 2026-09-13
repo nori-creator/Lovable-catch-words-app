@@ -65,10 +65,7 @@ import {
   type Level as SoundLevel,
 } from "@/lib/sound-engine";
 import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
-import {
-  isPhotoLibrarySyncEnabled,
-  setPhotoLibrarySyncEnabled,
-} from "@/lib/photo-library-sync";
+import { isPhotoLibrarySyncEnabled, setPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),

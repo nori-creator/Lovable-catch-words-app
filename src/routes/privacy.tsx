@@ -1,3 +1,4 @@
+import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { tStatic, useUiLang, useT } from "@/lib/i18n";
 
@@ -28,9 +29,9 @@ export const Route = createFileRoute("/privacy")({
           "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
       },
       { property: "og:type", content: "article" },
-      { property: "og:url", content: "https://word-snap-journey.lovable.app/privacy" },
+      { property: "og:url", content: siteUrlFor("/privacy") },
     ],
-    links: [{ rel: "canonical", href: "https://word-snap-journey.lovable.app/privacy" }],
+    links: [{ rel: "canonical", href: siteUrlFor("/privacy") }],
   }),
   component: PrivacyPage,
 });

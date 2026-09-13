@@ -223,12 +223,7 @@ function DexPage() {
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (
-      saved === "list" ||
-      saved === "gallery" ||
-      saved === "map" ||
-      saved === "calendar"
-    )
+    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
       setView(saved);
     else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
@@ -918,7 +913,9 @@ function DexCalendar({
                   </div>
                   <span className="min-w-0 flex-1">
                     <span className="block font-mono text-footnote text-primary-ink">{time}</span>
-                    <Zh className="mt-1 block truncate text-body font-semibold">{s.word.headword}</Zh>
+                    <Zh className="mt-1 block truncate text-body font-semibold">
+                      {s.word.headword}
+                    </Zh>
                     <span className="block truncate text-footnote text-muted-foreground">
                       {s.word.meaning_ja}
                     </span>
@@ -1340,15 +1337,13 @@ export function DexHeader({
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
       <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pb-1 pr-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
-          {(
-            [
-              ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
-              ["gallery", LayoutGrid, t("dex.gallery")] as const,
-              ["list", List, t("dex.list")] as const,
-              ["map", MapIcon, t("dex.map")] as const,
-              ["calendar", CalendarDays, t("dex.calendar")] as const,
-            ]
-          ).map(([v, Icon, label]) => (
+          {[
+            ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+            ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            ["list", List, t("dex.list")] as const,
+            ["map", MapIcon, t("dex.map")] as const,
+            ["calendar", CalendarDays, t("dex.calendar")] as const,
+          ].map(([v, Icon, label]) => (
             <button
               key={v}
               onClick={() => onView(v)}

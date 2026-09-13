@@ -579,7 +579,6 @@ export function ScanCatchSheet({
               {err}
             </p>
           )}
-
         </div>
       </div>
 
@@ -593,7 +592,6 @@ export function ScanCatchSheet({
           reading={landingReading}
         />
       )}
-
     </div>
   );
 }

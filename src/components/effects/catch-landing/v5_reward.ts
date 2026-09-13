@@ -14,7 +14,9 @@ async function waitForDestination(id: string): Promise<HTMLElement | null> {
     const target = document.getElementById(`dex-cell-${id}`);
     if (target) {
       target.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
       return document.getElementById(`dex-cell-${id}`);
     }
     await wait(32);
@@ -71,8 +73,13 @@ export const v5reward: LandingRunner = async ({
   await fly.animate(
     [
       { transform: "translate3d(0,-2px,0) scale(1.018) rotateX(0deg)" },
-      { offset: 0.2, transform: `translate3d(${heroX * 0.2}px,${heroY * 0.35}px,0) scale(${1 + (heroScale - 1) * 0.08}) rotateZ(-1.4deg)` },
-      { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)` },
+      {
+        offset: 0.2,
+        transform: `translate3d(${heroX * 0.2}px,${heroY * 0.35}px,0) scale(${1 + (heroScale - 1) * 0.08}) rotateZ(-1.4deg)`,
+      },
+      {
+        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)`,
+      },
     ],
     { duration: 440, easing: "cubic-bezier(.14,.72,.18,1)", fill: "forwards" },
   ).finished;
@@ -81,9 +88,16 @@ export const v5reward: LandingRunner = async ({
   Sound.rewardCharge();
   await fly.animate(
     [
-      { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)` },
-      { offset: 0.72, transform: `translate3d(${heroX}px,${heroY - 3}px,0) scale(${heroScale}) rotateZ(0deg)` },
-      { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972}) rotateZ(0deg)` },
+      {
+        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)`,
+      },
+      {
+        offset: 0.72,
+        transform: `translate3d(${heroX}px,${heroY - 3}px,0) scale(${heroScale}) rotateZ(0deg)`,
+      },
+      {
+        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972}) rotateZ(0deg)`,
+      },
     ],
     { duration: 560, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" },
   ).finished;
@@ -96,7 +110,10 @@ export const v5reward: LandingRunner = async ({
   await fly.animate(
     [
       { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972})` },
-      { offset: 0.58, transform: `translate3d(${heroX}px,${heroY - 7}px,0) scale(${heroScale * 1.065})` },
+      {
+        offset: 0.58,
+        transform: `translate3d(${heroX}px,${heroY - 7}px,0) scale(${heroScale * 1.065})`,
+      },
       { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale})` },
     ],
     { duration: 340, easing: "cubic-bezier(.16,1.3,.3,1)", fill: "forwards" },
@@ -127,7 +144,8 @@ export const v5reward: LandingRunner = async ({
   await openDex?.();
   const target = destinationId ? await waitForDestination(destinationId) : null;
   if (!target) {
-    await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" }).finished;
+    await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" })
+      .finished;
     handoff.remove();
     delete document.documentElement.dataset.rewardFlight;
     return;
@@ -178,8 +196,14 @@ export const v5reward: LandingRunner = async ({
     await handoffImage.animate(
       [
         { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
-        { transform: `translate3d(${dx}px,${dy + targetRect.height * 0.035}px,0) scale(${sx * 1.07},${sy * 0.9})`, offset: 0.28 },
-        { transform: `translate3d(${dx}px,${dy - targetRect.height * 0.045}px,0) scale(${sx * 0.98},${sy * 1.04})`, offset: 0.58 },
+        {
+          transform: `translate3d(${dx}px,${dy + targetRect.height * 0.035}px,0) scale(${sx * 1.07},${sy * 0.9})`,
+          offset: 0.28,
+        },
+        {
+          transform: `translate3d(${dx}px,${dy - targetRect.height * 0.045}px,0) scale(${sx * 0.98},${sy * 1.04})`,
+          offset: 0.58,
+        },
         { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
       ],
       { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },

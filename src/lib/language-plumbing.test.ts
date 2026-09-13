@@ -2185,3 +2185,124 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(read("styles.css")).toMatch(/\.scene-chip:active \{\s*\n\s*transform: none;/);
   });
 });
+
+/**
+ * Lovable からの独立（オーナー指示 2026-08-31）。
+ *
+ * > 「ドメインも独自で取得したい。」
+ *
+ * 独自ドメインに移る日に、**1箇所でも lovable.app が残ると気づけない**。
+ * canonical と og:url は画面に何も出さないので、目視では絶対に見つからない。
+ * 検索エンジンだけが古い住所を見続ける。だから門で止める。
+ */
+describe("独自ドメインへ移れる形になっているか", () => {
+  const ROUTES = [
+    "routes/__root.tsx",
+    "routes/auth.tsx",
+    "routes/terms.tsx",
+    "routes/privacy.tsx",
+    "routes/sitemap[.]xml.ts",
+    "routes/_authenticated/u.$userId.tsx",
+    "routes/_authenticated/post.$postId.tsx",
+  ];
+
+  it("**画面のコードにドメインを直接書かない**（移った日に取り残しが出る）", () => {
+    // **落ちた時にどのファイルか分かる形にする。** 一度
+    // `expect([file, source]).not.toContain(...)` と書いたが、配列に対する
+    // toContain は「要素そのもの」を探すので中の文字列を1文字も見ておらず、
+    // わざと直書きに戻しても素通しした。門は落ちることを確かめてから信じる。
+    const offenders = ROUTES.filter((file) => codeOnly(read(file)).includes("lovable.app"));
+    expect(offenders).toEqual([]);
+  });
+
+  it("住所を出す所は必ず site-url を通している", () => {
+    for (const file of ROUTES) {
+      expect([file, read(file).includes('from "@/lib/site-url"')]).toEqual([file, true]);
+    }
+  });
+
+  it("**未設定のときは今の住所を返す**（設定するまで出力は1文字も変わらない）", () => {
+    expect(codeOnly(read("lib/site-url.ts"))).toContain(
+      'FALLBACK_SITE_URL = "https://word-snap-journey.lovable.app"',
+    );
+  });
+});
+
+/**
+ * キャッチの報酬演出（オーナー指示 2026-09-13）。
+ *
+ * > 「今画像が動くような軌跡がまったくない。動的に変更して。」
+ * > 「図鑑に追加するボタンは画像のすぐ下に変更して。」
+ *
+ * ここで止めるのは、**絵を見ても原因が分からない**類の壊れ方だけ。
+ */
+describe("キャッチの報酬演出", () => {
+  // 以下3つは `v5_physics.ts` への門。**この版はいま動く経路に繋がっていない**
+  // (2026-09-13 の合流で Lovable の `v5_reward` を採った)。それでも門は残す —
+  // 繋ぎ直す日に、この性質が崩れていないことを確かめられる。
+  it("**演出はばねで動かす**（CSS transition では速度が幕ごとに0に戻る）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/createSpring/);
+    // **飛行の部分だけを見る。** 最初はファイル全体を見ていて、隣のセルを
+    // 90ms 小突く transition に当たって落ちた。あれは飛行ではないので、
+    // 落とすべきではなかった（門が広すぎると、正しいコードを直させる）。
+    const flight = v5.slice(0, v5.indexOf("export function rippleNeighbors"));
+    expect(flight).not.toMatch(/style\.transition\s*=\s*["`]transform/);
+  });
+
+  /**
+   * **まだ直っていない2つ**（2026-09-13 の合流で分かったこと）。
+   *
+   * 同じ日に Lovable 側でも演出が作られ、動く経路はそちらを採った。
+   * 振り付けと図鑑への受け渡しは向こうが優れているが、私が見つけた
+   * **構造的な原因2つはそのまま残っている**:
+   *
+   *   ① `setStep("saving")` で画面が丸ごと黒い覆いに差し替わり、
+   *      そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛ぶ。
+   *      → オーナー指示「該当の画面のなかの画像だけが動き出し」が未達。
+   *   ② 保存の通信を `await` してから演出を始める。
+   *      → 押してから絵が動くまで、回線しだいで1〜3秒の無音がある。
+   *
+   * 門にすると**いま落ちる**ので、門ではなく記録として置く。
+   * 直し方は `docs/motion/catch-reward.md` の第6部。
+   */
+  it("いま直っていない事は、直っていないと分かる形で残す", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    // ここが false に変わったら①が直った合図。そのとき門に昇格させる。
+    const stillSwapsScreen = /setStep\("saving"\)/.test(cap);
+    const stillAwaitsBeforeFlight = !/gate:\s*savePromise/.test(cap);
+    expect({ stillSwapsScreen, stillAwaitsBeforeFlight }).toEqual({
+      stillSwapsScreen: true,
+      stillAwaitsBeforeFlight: true,
+    });
+  });
+
+  it("**飛び立つ寸法は枠ではなく絵そのもの**（枠で測ると離陸の瞬間に跳ねる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/startEl\.querySelector\("img"\) \?\? startEl/);
+  });
+
+  it("**音と単語は拡大率のフレーム判定で出す**（時間で待つと回ごとにずれる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/shouldSpeak\(s, target\.scale\)/);
+  });
+
+  it("図鑑に追加のボタンが**画像のすぐ下**に在る（解説カードより前）", () => {
+    // オーナー指示①(2026-09-13)。前は解説カードと一言の欄の下、画面の底に
+    // あったので、いちばんやる操作のために毎回スクロールさせていた。
+    const cap = read("routes/_authenticated/capture.tsx");
+    const panel = cap.slice(cap.indexOf("export function CaptureCardPanel"));
+    const cta = panel.indexOf('t("capture.addToDex")');
+    const wordCard = panel.indexOf("<WordCard");
+    expect(cta).toBeGreaterThan(0);
+    expect(wordCard).toBeGreaterThan(0);
+    expect(cta).toBeLessThan(wordCard); // 解説カードより前 = 画像側に在る
+  });
+
+  it("動きを減らす人にも**単語と読みは出す**（移動を省くのは動きだけ）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    const branch = v5.slice(v5.indexOf("reducedMotion ||"), v5.indexOf("const vw ="));
+    expect(branch).toMatch(/speakLine/);
+    expect(branch).toMatch(/opacity = "1"/);
+  });
+});

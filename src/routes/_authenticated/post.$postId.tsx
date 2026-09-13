@@ -1,3 +1,4 @@
+import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,11 +42,11 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
         { property: "og:type", content: "article" },
         {
           property: "og:url",
-          content: `https://word-snap-journey.lovable.app/post/${id}`,
+          content: siteUrlFor(`/post/${id}`),
         },
         { name: "robots", content: "noindex" },
       ],
-      links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/post/${id}` }],
+      links: [{ rel: "canonical", href: siteUrlFor(`/post/${id}`) }],
       scripts: [
         {
           type: "application/ld+json",
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
             "@context": "https://schema.org",
             "@type": "Article",
             headline: `Catchwords post ${id.slice(0, 8)}`,
-            url: `https://word-snap-journey.lovable.app/post/${id}`,
+            url: siteUrlFor(`/post/${id}`),
           }),
         },
       ],

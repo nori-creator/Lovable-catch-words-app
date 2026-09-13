@@ -78,10 +78,14 @@ export function SceneBubbles({
         {groups.map((g) => (
           <div key={g.axis} className="usage-scenes__group">
             {/* 束の見出し。**札と同じ形にしない** — 見出しまで札にすると、
-                どれが中身なのか分からなくなる。素の小さな字で置く。 */}
-            <p className="usage-scenes__axis">
-              {t(AXIS_KEY[g.axis])}
-            </p>
+                どれが中身なのか分からなくなる。素の小さな字で置く。
+
+                **薄めを掛けないこと。** 一度 `/80` を足したら、11px の字で
+                コントラストが 4.50 → 3.74 に落ちて絵の検査が7件で落ちた。
+                この見出しは「何の一覧か」を言う唯一の言葉なので、
+                いちばん読めなくてはいけない所。`.usage-scenes__axis` は
+                `--muted-foreground` をそのまま使っている（薄めていない）。 */}
+            <p className="usage-scenes__axis">{t(AXIS_KEY[g.axis])}</p>
             <ul className="usage-scenes__items">
               {g.items.map((b, i) => (
                 <li key={b.id}>

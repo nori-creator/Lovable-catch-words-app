@@ -284,9 +284,11 @@ function CapturePage() {
 
   async function openNativeCamera() {
     try {
-      const { Camera: NativeCamera, CameraResultType, CameraSource } = await import(
-        "@capacitor/camera"
-      );
+      const {
+        Camera: NativeCamera,
+        CameraResultType,
+        CameraSource,
+      } = await import("@capacitor/camera");
       const photo = await NativeCamera.getPhoto({
         source: CameraSource.Camera,
         resultType: CameraResultType.Uri,
@@ -1598,7 +1600,6 @@ export function CaptureCardPanel({
       </div>
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
-
     </div>
   );
 }
@@ -1657,11 +1658,14 @@ export function CaptureObjectPanel({
           {t("retake.hint", { w: retakeWord })}
         </p>
       )}
-      <label className="block" onClick={(e) => {
-        if (!onNativeCapture) return;
-        e.preventDefault();
-        onNativeCapture();
-      }}>
+      <label
+        className="block"
+        onClick={(e) => {
+          if (!onNativeCapture) return;
+          e.preventDefault();
+          onNativeCapture();
+        }}
+      >
         <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
           <div className="flex flex-col items-center gap-2">
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">

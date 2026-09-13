@@ -88,11 +88,11 @@ export function FilterMenu({
     const b = btnRef.current?.getBoundingClientRect();
     if (!b) return;
     const nextSide = pickMenuSide({
-        left: b.left,
-        right: b.right,
-        width: MENU_WIDTH,
-        viewport: window.innerWidth,
-      });
+      left: b.left,
+      right: b.right,
+      width: MENU_WIDTH,
+      viewport: window.innerWidth,
+    });
     setSide(nextSide);
     setMenuPosition({
       top: b.bottom + 4,
@@ -131,44 +131,46 @@ export function FilterMenu({
         <ChevronDown aria-hidden className={`h-3.5 w-3.5 ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          id={listId}
-          role="listbox"
-          aria-label={name}
-          // 揃える側は測って決める(上の `side`)。幅は画面より広くしない。
-          className="fixed z-[70] max-h-72 overflow-y-auto rounded-2xl border border-border bg-card p-1 shadow-xl"
-          style={{
-            top: menuPosition.top,
-            left: menuPosition.left,
-            width: MENU_WIDTH,
-            maxWidth: `calc(100vw - ${MENU_EDGE_MARGIN * 2}px)`,
-          }}
-        >
-          <Row
-            label={allLabel}
-            selected={value === null}
-            onClick={() => {
-              onChange(null);
-              setOpen(false);
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            id={listId}
+            role="listbox"
+            aria-label={name}
+            // 揃える側は測って決める(上の `side`)。幅は画面より広くしない。
+            className="fixed z-[70] max-h-72 overflow-y-auto rounded-2xl border border-border bg-card p-1 shadow-xl"
+            style={{
+              top: menuPosition.top,
+              left: menuPosition.left,
+              width: MENU_WIDTH,
+              maxWidth: `calc(100vw - ${MENU_EDGE_MARGIN * 2}px)`,
             }}
-          />
-          {options.map((o) => (
+          >
             <Row
-              key={o.key}
-              label={labelOf(o.key)}
-              count={o.count}
-              selected={value === o.key}
+              label={allLabel}
+              selected={value === null}
               onClick={() => {
-                onChange(o.key);
+                onChange(null);
                 setOpen(false);
               }}
             />
-          ))}
-        </div>,
-        document.body,
-      )}
+            {options.map((o) => (
+              <Row
+                key={o.key}
+                label={labelOf(o.key)}
+                count={o.count}
+                selected={value === o.key}
+                onClick={() => {
+                  onChange(o.key);
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

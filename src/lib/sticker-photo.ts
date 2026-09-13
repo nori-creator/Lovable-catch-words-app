@@ -80,7 +80,10 @@ export type PickOptions = {
 };
 
 /** 署名URLの期限部分を除き、同じ保存物を指しているか判定する。 */
-export function samePhotoAsset(a: string | null | undefined, b: string | null | undefined): boolean {
+export function samePhotoAsset(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
   try {

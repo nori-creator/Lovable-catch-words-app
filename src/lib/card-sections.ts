@@ -79,7 +79,7 @@ export function sectionsFor(lang: string | null | undefined): readonly SectionId
  */
 type Assert<T extends true> = T;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 type _SectionNamesMatch = Assert<Same<SectionId, ProfileSection>>;
 
 /**

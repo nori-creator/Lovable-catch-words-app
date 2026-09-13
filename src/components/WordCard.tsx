@@ -1149,10 +1149,7 @@ function SectionCard({
 function FrequencyMeter({ level }: { level: number }) {
   const t = useT();
   return (
-    <span
-      className="usage-meter__track"
-      aria-label={t("card.freqAria", { n: level })}
-    >
+    <span className="usage-meter__track" aria-label={t("card.freqAria", { n: level })}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}

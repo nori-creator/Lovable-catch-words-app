@@ -109,11 +109,7 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
           className={`reward-catch__image ${image ? "" : "reward-catch__image--empty"}`}
         />
         <div className="reward-catch__copy">
-          <Term
-            as="div"
-            lang={lang}
-            className="reward-catch__word"
-          >
+          <Term as="div" lang={lang} className="reward-catch__word">
             {headword}
           </Term>
           {reading && (

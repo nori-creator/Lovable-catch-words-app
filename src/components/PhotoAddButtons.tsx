@@ -69,11 +69,7 @@ export function PhotoAddButtons({
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-          {busy
-            ? t("photo.cuttingOut")
-            : cutoutUrl
-              ? t("photo.cutoutRedo")
-              : t("photo.cutoutNow")}
+          {busy ? t("photo.cuttingOut") : cutoutUrl ? t("photo.cutoutRedo") : t("photo.cutoutNow")}
         </button>
       )}
       {canSelfie && (

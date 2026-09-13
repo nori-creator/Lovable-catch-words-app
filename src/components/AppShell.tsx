@@ -244,7 +244,6 @@ export function AppShell({
   // 指の位置(小数)。バーの印と色はこれ1つから決まる。
   const cursor = tabIndex < 0 ? -1 : tabIndex + progress;
 
-
   /**
    * **プロフィールの言語設定を端末に写す。**
    *

@@ -1,3 +1,4 @@
+import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,10 +39,10 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
             "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
         },
         { property: "og:type", content: "profile" },
-        { property: "og:url", content: `https://word-snap-journey.lovable.app/u/${id}` },
+        { property: "og:url", content: siteUrlFor(`/u/${id}`) },
         { name: "robots", content: "noindex" },
       ],
-      links: [{ rel: "canonical", href: `https://word-snap-journey.lovable.app/u/${id}` }],
+      links: [{ rel: "canonical", href: siteUrlFor(`/u/${id}`) }],
     };
   },
   component: UserProfilePage,

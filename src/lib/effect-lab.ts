@@ -107,15 +107,20 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
     },
     {
       id: "v4hold",
-      label: "空中で止めて発音(現在の既定)",
+      label: "空中で止めて発音",
       date: "08-03",
       note: "ふわっと上昇→画面いっぱい＋キラッ→空中で0.7秒止まって発音→図鑑に上から着地",
     },
+    // **`v5physics` はここに出さない。**
+    // 同じ日に2つの版が別々に作られ、動く経路は `v5reward` を採った。
+    // `CatchLanding.tsx` は版を選ばず `v5reward` を直接呼ぶので、ここに
+    // 並べても**選べない**。選べると書いて選べないのは、壊れているのと
+    // 同じ。繋ぎ直したら戻す(コードと試験は残してある)。
     {
       id: "v5reward",
-      label: "報酬シーケンス",
+      label: "報酬シーケンス(現在の既定)",
       date: "09-13",
-      note: "グリップ→浮上→蓄積→寸止め→解放→発音→棚へ定着",
+      note: "グリップ→浮上→蓄積→寸止め→解放→発音→棚へ定着。図鑑のセルまで一続きで飛ぶ",
     },
   ],
 };
@@ -131,6 +136,9 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
  */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   scanAnalyzing: "v0cutout",
+  // **既定は main の選択(v5reward)をそのまま残す。**
+  // 同じ日に2つの版が別々に作られた。マージは合流であって選び直しではないので、
+  // ここで黙って裏返さない。見比べは演出ラボから(両方とも残してある)。
   catchLanding: "v5reward",
 };
 
