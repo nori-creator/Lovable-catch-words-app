@@ -1,4 +1,4 @@
-import { forwardRef, type RefObject } from "react";
+import { forwardRef, type CSSProperties, type RefObject } from "react";
 import { waitForRef } from "@/lib/wait-for-ref";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
@@ -91,7 +91,7 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
         <div className="reward-catch__charge" />
         <div className="reward-catch__particles" aria-hidden>
           {accents.map((index) => (
-            <i key={index} style={{ "--reward-i": index } as React.CSSProperties} />
+            <i key={index} style={{ "--reward-i": index } as CSSProperties} />
           ))}
         </div>
         {image && (

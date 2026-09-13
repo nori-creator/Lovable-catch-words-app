@@ -399,7 +399,7 @@ export function ScanCatchSheet({
         toast.success(upgrade ? t("sheet.reunion") : t("sheet.addedOne"));
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
-      setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
+      navigate({ to: "/dex", search: { justCaught: stickerId } });
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
@@ -583,44 +583,6 @@ export function ScanCatchSheet({
         />
       )}
 
-      {/* Impact ring at the dex icon on landing */}
-      <div
-        id="catch-impact-ring"
-        className="pointer-events-none fixed z-[70] hidden -translate-x-1/2 -translate-y-1/2"
-        style={{ left: 0, top: 0 }}
-      >
-        <span className="block h-6 w-6 rounded-full bg-amber-300/0 ring-2 ring-amber-300" />
-      </div>
-
-      {/* Ready-state sparkle burst around the cutout — "this is now yours" */}
-      {phase === "ready" && cutoutUrl && (
-        <div className="pointer-events-none absolute left-1/2 top-[8.5rem] -translate-x-1/2">
-          {[0, 60, 120, 180, 240, 300].map((deg) => (
-            <span
-              key={deg}
-              className="absolute h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,224,71,0.9)]"
-              style={{
-                transform: `rotate(${deg}deg) translateY(-120px)`,
-                animation: `readyBurst 900ms ease-out forwards`,
-                animationDelay: `${deg * 1.5}ms`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      <style>{`
-        @keyframes impactRing {
-          0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
-          100% { transform: translate(-50%, -50%) scale(6);   opacity: 0; }
-        }
-        #catch-impact-ring.impact-play span { animation: impactRing 780ms cubic-bezier(0.15, 0.6, 0.3, 1) forwards; }
-        @keyframes readyBurst {
-          0%   { opacity: 0; }
-          20%  { opacity: 1; }
-          100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-160px) scale(0.6); }
-        }
-      `}</style>
     </div>
   );
 }

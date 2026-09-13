@@ -1131,7 +1131,7 @@ export function CaptureSavingPanel({
   // 出所は端末の学習言語(`target-lang-pref.ts`)。
   const targetLanguage = useTargetLang();
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
       {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
           飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
       {image && (
@@ -1142,7 +1142,7 @@ export function CaptureSavingPanel({
           <img
             src={image}
             alt=""
-            className="catch-rise max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
+            className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
           />
         </div>
       )}
@@ -1150,20 +1150,11 @@ export function CaptureSavingPanel({
         <Term
           as="p"
           lang={targetLanguage}
-          className="mt-6 text-headline font-bold tracking-tight text-white"
+          className="mt-6 text-headline font-bold tracking-tight text-foreground"
         >
           {headword}
         </Term>
       )}
-      <style>{`
-        @keyframes catchRise {
-          0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
-          45%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
-          100% { transform: translateY(-14px) scale(1.02); opacity: 1; }
-        }
-        .catch-rise { animation: catchRise 620ms var(--ease-out-soft) both; }
-        @media (prefers-reduced-motion: reduce) { .catch-rise { animation: none; } }
-      `}</style>
     </div>
   );
 }
