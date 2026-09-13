@@ -988,7 +988,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: clamp(0.625rem, 2.6vw, var(--text-caption));
+  font-size: 0.625rem;
 }
 
 /* 使う場面の札。常時動かさず、接地影と押下だけで奥行きを伝える。 */
