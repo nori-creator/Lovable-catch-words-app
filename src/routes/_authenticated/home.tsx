@@ -13,7 +13,7 @@ import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
-import { listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
 import { getMyProfile } from "@/lib/profile.functions";
@@ -23,7 +23,7 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookText, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
+import { BookText, Check, Grip, Image as ImageIcon, Maximize2, Trash2, WifiOff } from "lucide-react";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
@@ -125,12 +125,12 @@ export function PendingCapturesCard({
   return (
     // 全体を <Link> にすると**捨てる手段が置けない**。預かった写真は
     // 端末に残り続けるので、要らないものを消す道が要る(§16)。
-    <div className="mb-4 rounded-2xl border border-warn/35 bg-warn/10 p-3 shadow-sm">
+    <div className="mb-4 flex min-h-14 items-center gap-2 rounded-2xl border border-warn/35 bg-warn/10 p-2 shadow-sm">
       <Link
         to="/capture"
         search={{ pending: first.id }}
         // 帯ぜんぶが「預かった写真を開く」ボタン。40px しか無かった。
-        className="press-in flex min-h-11 items-center gap-3"
+        className="press-in flex min-w-0 flex-1 items-center gap-2"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-card ring-1 ring-warn/30">
           {first.object_img ? (
@@ -167,18 +167,18 @@ export function PendingCapturesCard({
             1枚だけ**なので、そこを取り違えられない文言にする
           ・**取り消せない操作の色にする。** 同じ灰色のままだと、
             周りの文字と見分けがつかない */}
-      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-1">
         {confirming && (
           <button
             onClick={onCancelDiscard}
-            className="inline-flex min-h-11 items-center rounded-full px-3 text-footnote font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex min-h-11 items-center rounded-full px-2 text-caption font-medium text-muted-foreground hover:text-foreground"
           >
             {t("home.pendingDiscardCancel")}
           </button>
         )}
         <button
           onClick={onDiscard}
-          className={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-footnote font-medium ${
+          className={`inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-caption font-medium ${
             confirming
               ? "bg-destructive/12 text-destructive-ink"
               : "text-muted-foreground hover:bg-warn/12 hover:text-foreground"
@@ -627,6 +627,27 @@ const ALBUM_SIZES = [
   "col-span-1 row-span-2",
   "col-span-1 row-span-1",
 ];
+type AlbumSize = "small" | "portrait" | "landscape" | "large";
+const ALBUM_SIZE_CLASS: Record<AlbumSize, string> = {
+  small: "col-span-1 row-span-1",
+  portrait: "col-span-1 row-span-2",
+  landscape: "col-span-2 row-span-1",
+  large: "col-span-2 row-span-2",
+};
+const ALBUM_SIZE_LABEL: Record<AlbumSize, string> = {
+  small: "S",
+  portrait: "縦",
+  landscape: "横",
+  large: "L",
+};
+const AUTO_ALBUM_SIZE: readonly AlbumSize[] = [
+  "large",
+  "portrait",
+  "small",
+  "landscape",
+  "portrait",
+  "small",
+];
 
 export function ScrapbookAlbum({
   stickers,
@@ -653,16 +674,91 @@ export function ScrapbookAlbum({
 }) {
   const t = useT();
   const isEn = useUiLang() === "en";
+  const persistLayout = useServerFn(saveAlbumLayout);
+  const [editing, setEditing] = useState(false);
+  const [ordered, setOrdered] = useState(stickers);
+  const dragId = useRef<string | null>(null);
+  const dragged = useRef(false);
+  const changed = useRef(false);
+  useEffect(() => {
+    if (editing) return;
+    setOrdered(
+      [...stickers].sort(
+        (a, b) => (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
+      ),
+    );
+  }, [stickers, editing]);
   const items = useMemo(
     () =>
-      stickers.map((s, i) => ({
+      ordered.map((s, i) => ({
         sticker: s,
-        rot: ALBUM_ROTATIONS[i % ALBUM_ROTATIONS.length],
-        size: ALBUM_SIZES[i % ALBUM_SIZES.length],
+        rot: editing ? 0 : ALBUM_ROTATIONS[i % ALBUM_ROTATIONS.length],
+        size: s.album_size ? ALBUM_SIZE_CLASS[s.album_size] : ALBUM_SIZES[i % ALBUM_SIZES.length],
         z: 10 + (i % 5),
       })),
-    [stickers],
+    [ordered, editing],
   );
+
+  function layoutPayload(next = ordered) {
+    return next.map((s, order) => ({
+      sticker_id: s.id,
+      order,
+      size: s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length],
+    }));
+  }
+  function finishEditing() {
+    setEditing(false);
+    if (!changed.current) return;
+    changed.current = false;
+    void persistLayout({ data: { items: layoutPayload() } });
+  }
+  function setSize(id: string, size: AlbumSize) {
+    changed.current = true;
+    setOrdered((xs) => xs.map((s) => (s.id === id ? { ...s, album_size: size } : s)));
+  }
+  function beginResize(e: React.PointerEvent, id: string, current: AlbumSize) {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const onMove = (move: PointerEvent) => {
+      const dx = move.clientX - startX;
+      const dy = move.clientY - startY;
+      if (Math.hypot(dx, dy) < 18) return;
+      const next: AlbumSize =
+        dx > 24 && dy > 24
+          ? "large"
+          : Math.abs(dx) > Math.abs(dy)
+            ? dx > 0
+              ? "landscape"
+              : "small"
+            : dy > 0
+              ? "portrait"
+              : "small";
+      if (next !== current) setSize(id, next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp, { once: true });
+  }
+  function moveOver(targetId: string) {
+    const sourceId = dragId.current;
+    if (!sourceId || sourceId === targetId) return;
+    setOrdered((xs) => {
+      const from = xs.findIndex((s) => s.id === sourceId);
+      const to = xs.findIndex((s) => s.id === targetId);
+      if (from < 0 || to < 0) return xs;
+      const next = [...xs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      changed.current = true;
+      dragged.current = true;
+      return next;
+    });
+  }
 
   // 設定で主役を選んでいれば、そちらが画面の意図(自撮り)に勝つ。
   const photoPref = usePhotoPref();
@@ -679,7 +775,7 @@ export function ScrapbookAlbum({
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-      onLongPress?.(id);
+      setEditing(true);
     }, 550);
   }
   function endPress() {
@@ -694,6 +790,16 @@ export function ScrapbookAlbum({
     <div
       className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass} ${opening ? "album-open" : ""}`}
     >
+      {editing && (
+        <button
+          type="button"
+          onClick={finishEditing}
+          className="absolute right-3 top-3 z-30 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground shadow-lg"
+        >
+          <Check className="h-4 w-4" />
+          完了
+        </button>
+      )}
       <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
         {items.map(({ sticker: s, rot, size, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
@@ -729,18 +835,46 @@ export function ScrapbookAlbum({
                   longPressFired.current = false;
                   return;
                 }
+                if (editing) {
+                  if (dragged.current) {
+                    dragged.current = false;
+                    return;
+                  }
+                  onLongPress?.(s.id);
+                  return;
+                }
                 onOpen(s.id);
               }}
               // **アルバムの写真も長押しで主役を選べる**(オーナー指摘 2026-08-20)。
               // 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
               // 切り抜きできるようにして」。詳細の画面には既に在るので、
               // 同じ入口をここにも開ける — 押さえた写真そのものを直せる。
-              onPointerDown={() => startPress(s.id)}
-              onPointerUp={endPress}
+              onPointerDown={(e) => {
+                if (editing) {
+                  dragId.current = s.id;
+                  dragged.current = false;
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                } else startPress(s.id);
+              }}
+              onPointerMove={(e) => {
+                if (!editing || !dragId.current) return;
+                const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(
+                  "[data-album-sticker]",
+                );
+                if (target?.dataset.albumSticker) moveOver(target.dataset.albumSticker);
+              }}
+              onPointerUp={(e) => {
+                endPress();
+                if (editing) {
+                  dragId.current = null;
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }
+              }}
               onPointerLeave={endPress}
               onContextMenu={(e) => e.preventDefault()}
               // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
-              className={`photo-lift group relative block text-left ${size}`}
+              data-album-sticker={s.id}
+              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab" : ""}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
               {/* **写真が在るときだけ印画紙を貼る**(オーナー指摘 2026-08-27 ②
@@ -818,6 +952,41 @@ export function ScrapbookAlbum({
                   </Term>
                 )}
               </div>
+              {editing && (
+                <>
+                  <span className="absolute inset-x-1 -bottom-7 z-30 flex h-7 items-center justify-center gap-0.5 rounded-full bg-card/95 px-1 shadow-md ring-1 ring-border">
+                    <Grip className="mr-0.5 h-3 w-3 text-muted-foreground" />
+                    {(["small", "portrait", "landscape", "large"] as const).map((choice) => (
+                      <span
+                        key={choice}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={ALBUM_SIZE_LABEL[choice]}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSize(s.id, choice);
+                        }}
+                        className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[10px] font-bold ${
+                          (s.album_size ?? "small") === choice
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {choice === "large" ? <Maximize2 className="h-3 w-3" /> : ALBUM_SIZE_LABEL[choice]}
+                      </span>
+                    ))}
+                  </span>
+                  <span
+                    role="slider"
+                    aria-label="写真の大きさ"
+                    className="absolute -bottom-2 -right-2 z-40 grid h-9 w-9 touch-none place-items-center rounded-full bg-primary text-primary-foreground shadow-lg"
+                    onPointerDown={(e) => beginResize(e, s.id, s.album_size ?? "small")}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </span>
+                </>
+              )}
             </button>
           );
         })}

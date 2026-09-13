@@ -796,6 +796,17 @@
     ),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
 }
+@keyframes album-jiggle {
+  0%, 100% { transform: rotate(-0.7deg); }
+  50% { transform: rotate(0.7deg); }
+}
+.album-editing {
+  animation: album-jiggle 170ms ease-in-out infinite;
+}
+.album-editing:nth-child(2n) { animation-delay: -85ms; }
+@media (prefers-reduced-motion: reduce) {
+  .album-editing { animation: none; }
+}
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）
    > 「例文の文、発音のコツ、覚え方などの文が見づらい。背景の色を変更する
