@@ -2144,6 +2144,7 @@ describe("どこで出会うかは、整列した札で出す", () => {
   it("読む間に札を動かし続けない", () => {
     const view = codeOnly(read("components/SceneBubbles.tsx"));
     expect(view).not.toMatch(/floatStyle|--float-duration|--float-lift/);
+    expect(codeOnly(read("styles.css"))).not.toMatch(/\.scene-chip\s*\{[^}]*animation:/s);
   });
 
   it("どの札を出すかも純粋な物に切り出してある", () => {
