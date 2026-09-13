@@ -2132,7 +2132,7 @@ describe("どこで出会うかは、整列した札で出す", () => {
   /**
    * オーナー指示 2026-08-28 ①。前は物理の輪で札の**位置そのもの**を
    * 飛ばしていたので、開くたびに並びが変わった。位置は整列に戻し、
-   * 浮遊感は影・奥行き・揺れ・押した時の弾みで出す。
+   * 奥行きは影と押した時の弾みで出し、読む間の常時アニメーションは使わない。
    */
   it("**位置を計算で飛ばさない**(並びが毎回変わらない)", () => {
     const view = codeOnly(read("components/SceneBubbles.tsx"));
@@ -2141,9 +2141,10 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(fs.existsSync(path.join(root, "lib/bubble-physics.ts"))).toBe(false);
   });
 
-  it("揺れ方は純粋な物に切り出してある(描き直しでちらつかない)", () => {
-    expect(fs.existsSync(path.join(root, "lib/bubble-float.ts"))).toBe(true);
-    expect(codeOnly(read("components/SceneBubbles.tsx"))).toMatch(/floatStyle\(b\.id, i\)/);
+  it("読む間に札を動かし続けない", () => {
+    const view = codeOnly(read("components/SceneBubbles.tsx"));
+    expect(view).not.toMatch(/floatStyle|--float-duration|--float-lift/);
+    expect(codeOnly(read("styles.css"))).not.toMatch(/\.scene-chip\s*\{[^}]*animation:/s);
   });
 
   it("どの札を出すかも純粋な物に切り出してある", () => {
@@ -2179,9 +2180,8 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(card).toMatch(/const bubbleCount = sceneBubbles\(\{/);
   });
 
-  it("動きを止めたい人には止めて出す", () => {
-    // 揺れは CSS の animation なので、止めるのも CSS 側。
+  it("動きを止めたい人には押下の変形も止めて出す", () => {
     expect(read("styles.css")).toMatch(/prefers-reduced-motion: reduce/);
-    expect(read("styles.css")).toMatch(/\.scene-chip \{\s*\n\s*animation: none;/);
+    expect(read("styles.css")).toMatch(/\.scene-chip:active \{\s*\n\s*transform: none;/);
   });
 });

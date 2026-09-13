@@ -296,6 +296,30 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * 4択で見える可能性がある音を、束が届いた時点で端末へ入れる。
+   * 各ボタンも自分の音を確認するが、ここでまとめて始めれば問題を読む間に
+   * IndexedDB まで届く。同じ語は `ensureAudio` の inflight と cache が束ねる。
+   */
+  const choiceAudio = useMemo(() => {
+    const words = new Set<string>();
+    const urls: Record<string, string | null> = {};
+    for (const reviewCard of cards ?? []) {
+      words.add(reviewCard.headword);
+      urls[reviewCard.headword] = reviewCard.audio_url;
+      const choices = reviewCard.headword_choice_infos?.length
+        ? reviewCard.headword_choice_infos.map((choice) => choice.headword)
+        : reviewCard.headword_choices;
+      for (const choice of choices) words.add(choice);
+    }
+    return { words: [...words], urls };
+  }, [cards]);
+  usePrefetchSpeech(choiceAudio.words, {
+    language: cards?.[0]?.language ?? undefined,
+    enabled: choiceAudio.words.length > 0,
+    urls: choiceAudio.urls,
+  });
+
+  /**
    * **この1枚をどの形で出すか。** 「AIが選ぶ」のときだけ札ごとに変わる。
    * 根拠は記憶レベル — すぐ隣に出ているバッジと同じ関数から決まるので、
    * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
@@ -327,7 +351,7 @@ function ReviewPage() {
       title={t("title.review")}
       fixedViewport={format === "choice" && !memListOpen && !done && !isLoading && !isError}
     >
-      <section className={format === "choice" && !memListOpen ? "mb-2" : "mb-4"}>
+      <section className={`${format === "choice" && !memListOpen ? "mb-2" : "mb-4"} shrink-0`}>
         <ReviewHeader
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
@@ -1917,8 +1941,8 @@ export function LightModeCard({
     : card.headword_choices.map((h) => ({ headword: h, zhuyin: null, pinyin: null }));
 
   return (
-    <SwipeCard enabled={!!picked} onSwipe={onNext} className="h-full min-h-0">
-      <article className="flex max-h-full min-h-0 flex-col rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
+    <SwipeCard enabled={!!picked} onSwipe={onNext} className="min-h-0 flex-1">
+      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
@@ -1954,7 +1978,7 @@ export function LightModeCard({
             {t("rv.whichIsAfter")}
           </div>
         </div>
-        <ul className="grid min-h-0 shrink-0 grid-rows-4 gap-1">
+        <ul className="grid min-h-0 flex-1 grid-rows-4 gap-1">
           {infos.map((info) => {
             const c = info.headword;
             const isAnswer = c === card.headword;
@@ -1975,7 +1999,7 @@ export function LightModeCard({
             // (検査では、押したあとの発音ボタンが 1.00:1 = 変化なし として
             // 出ていた — 見えていないのだから当然だった)。
             return (
-              <li key={c} className="flex scroll-mb-56 items-stretch gap-2">
+              <li key={c} className="flex min-h-0 scroll-mb-56 items-stretch gap-2">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
@@ -2031,7 +2055,7 @@ export function LightModeCard({
         {/* 答え合わせの面が下から覆う分の逃げ場。**これが無いと、覆われた
             選択肢はスクロールしても出てこない** — 見比べて覚える場面で
             外れの選択肢が読めなくなる(薄くするのをやめたのと同じ理由)。 */}
-        {picked && <div aria-hidden style={{ height: panelH }} />}
+        {picked && <div aria-hidden style={{ height: panelH, flexShrink: 0 }} />}
         {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
             毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には

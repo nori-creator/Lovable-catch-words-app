@@ -7,6 +7,7 @@
  * 似たHTMLをこちらに書き写すことはしない — それをやると
  * 「直しても画像が変わらない検査」に戻る。
  */
+import { useEffect } from "react";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   AnswerExplain,
@@ -125,12 +126,21 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
 
 /** 4択のカード。**アプリでいちばん多く押される画面。** */
 export function ReviewChoiceScene() {
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const root = document.getElementById("root");
+      const main = root?.querySelector("main") ?? root;
+      root?.classList.add("h-dvh", "overflow-hidden");
+      main?.classList.add("flex", "h-dvh", "min-h-0", "flex-col", "overflow-hidden", "py-2");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   // **見出しも一緒に描く。** 札だけを描いていたせいで、独立監査が
   // 「クイズに進捗(3/12)が無い」と指摘した — 実物には最初からある。
   // 部品だけを切り出した絵は、その画面の絵ではない。
   return (
     <>
-      <section className="mb-4">
+      <section className="mb-2 shrink-0">
         <ReviewHeader answered={3} total={12} progress={25} mode="choice" onMode={() => {}} />
       </section>
       <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />

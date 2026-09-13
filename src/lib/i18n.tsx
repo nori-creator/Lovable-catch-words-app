@@ -1597,9 +1597,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review", "zh-TW": "今天的複習" },
   // オーナー指示 2026-08-26「復習モードの AI が選ぶという名前、自動に変えて」。
-  "review.auto": { ja: "🎯 自動", en: "🎯 Auto", "zh-TW": "🎯 自動" },
-  "review.speak": { ja: "🎤 話す", en: "🎤 Speak", "zh-TW": "🎤 開口說" },
-  "review.choice": { ja: "👆 4択", en: "👆 Quiz", "zh-TW": "👆 四選一" },
+  "review.auto": { ja: "自動", en: "Auto", "zh-TW": "自動" },
+  "review.speak": { ja: "話す", en: "Speak", "zh-TW": "開口說" },
+  "review.choice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   // --- dex ---
   "dex.yours": { ja: "あなたの図鑑", en: "Your dex", "zh-TW": "你的圖鑑" },
   "dex.found": { ja: "見つけた", en: "Found", "zh-TW": "找到了" },
