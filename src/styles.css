@@ -2378,6 +2378,17 @@
   pointer-events: none;
   perspective: 900px;
 }
+
+#reward-catch-handoff {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+html[data-reward-flight] .slam-in {
+  animation: none !important;
+}
 .reward-catch__veil,
 .reward-catch__field,
 .reward-catch__shockwave,
@@ -2425,6 +2436,11 @@
   border: 1px solid color-mix(in oklab, var(--primary) 70%, transparent);
   opacity: 0;
   transform: translate(-50%,-50%) rotate(-8deg) scale(.76);
+}
+.reward-catch__charge,
+.reward-catch__shockwave,
+.reward-catch__particles {
+  display: none;
 }
 .reward-catch[data-stage="charge"] .reward-catch__charge,
 .reward-catch[data-stage="hold"] .reward-catch__charge {

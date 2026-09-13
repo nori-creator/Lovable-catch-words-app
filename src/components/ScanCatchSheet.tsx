@@ -126,6 +126,7 @@ export function ScanCatchSheet({
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const cutoutBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
+  const landingDestinationRef = useRef<string | null>(null);
   // 演出中に単語の発音を鳴らすため、フックの結果を ref に保持しておく
   // (runLandingAnimation は非フック関数なので直接は呼べない)。
   // **何語として読むかを必ず渡す。** 省くと台湾華語の声で読む既定に落ちる
@@ -216,6 +217,11 @@ export function ScanCatchSheet({
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
       speakLine: () => void pronounceRef.current?.(headword),
+      destinationId: landingDestinationRef.current ?? undefined,
+      openDex: () => {
+        const id = landingDestinationRef.current;
+        if (id) return navigate({ to: "/dex", search: { justCaught: id } });
+      },
     });
   }
 
@@ -394,6 +400,7 @@ export function ScanCatchSheet({
       void caughtFn({ data: { headword } }).catch(() => {});
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
+      landingDestinationRef.current = stickerId;
       await runLandingAnimation();
       setPhase("done");
       if (firstCatch) {
@@ -403,7 +410,9 @@ export function ScanCatchSheet({
         toast.success(upgrade ? t("sheet.reunion") : t("sheet.addedOne"));
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
-      navigate({ to: "/dex", search: { justCaught: stickerId } });
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: stickerId } });
+      }
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
@@ -453,6 +462,15 @@ export function ScanCatchSheet({
             </div>
           )}
         </div>
+
+        <button
+          onClick={doSave}
+          disabled={!objectDataUrl || saving}
+          className="mx-auto mt-3 inline-flex w-64 max-w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+          {phase === "done" ? t("sheet.landed") : t("sheet.file")}
+        </button>
 
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
@@ -559,20 +577,6 @@ export function ScanCatchSheet({
             </p>
           )}
 
-          <button
-            onClick={doSave}
-            disabled={!objectDataUrl || saving}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : phase === "done" ? (
-              <Check className="h-5 w-5" />
-            ) : (
-              <Sparkles className="h-5 w-5" />
-            )}
-            {phase === "done" ? t("sheet.landed") : t("sheet.file")}
-          </button>
         </div>
       </div>
 

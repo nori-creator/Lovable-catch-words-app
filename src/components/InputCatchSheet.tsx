@@ -589,12 +589,16 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           startEl: landingSourceRef.current,
           fly: flyRef,
           speakLine: () => void pronounce(headword),
+          destinationId: res.id,
+          openDex: () => navigate({ to: "/dex", search: { justCaught: res.id } }),
         });
       } catch (landingError) {
         console.warn("input catch landing failed", landingError);
       }
       onClose();
-      navigate({ to: "/dex", search: { justCaught: res.id } });
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("preview");
@@ -737,6 +741,14 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 </div>
               )}
             </button>
+            <button
+              onClick={save}
+              disabled={step === "saving"}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+            >
+              {step === "saving" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+              {t("input.save")}
+            </button>
             <p className="text-center text-caption text-muted-foreground">
               {attachedDataUrl
                 ? t("input.attachChange")
@@ -837,18 +849,6 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               </p>
             )}
 
-            <button
-              onClick={save}
-              disabled={step === "saving"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-            >
-              {step === "saving" ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Sparkles className="h-5 w-5" />
-              )}
-              {t("input.save")}
-            </button>
             <p className="text-center text-caption text-muted-foreground">{t("input.saveHint")}</p>
           </div>
         )}
