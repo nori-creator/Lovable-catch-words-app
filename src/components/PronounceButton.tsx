@@ -82,10 +82,22 @@ export function PronounceButton({
   }
   if (state === "ready" || state === "failed") shown.current = true;
   const box = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+  /**
+   * 当たり判定の広げ。**見た目の種類ではなく大きさに紐付ける。**
+   *
+   * 36px は指の下限(44px)を割るので、見た目はそのままで当たり判定だけ
+   * 外へ広げる(`-inset-1.5` = 上下左右に 6px → 48px 四方)。
+   *
+   * 前はこれが `tone === "quiet"` の中に書かれていた。理由は大きさなのに
+   * 見た目の種類に付いていたので、`tone="hero" size="sm"`(復習の発音)が
+   * **36px のまま**素通りしていた。絵の検査で
+   * `タップ領域 36x36 < 44 — "雨傘的發音"` として出た。
+   */
+  const reach =
+    size === "sm" ? "relative before:absolute before:-inset-1.5 before:content-['']" : "";
   const skin =
     tone === "quiet"
-      ? // 36px は指の下限を割るので、当たり判定だけ外へ広げる。
-        "bg-secondary text-primary shadow-sm ring-1 ring-border relative before:absolute before:-inset-1.5 before:content-['']"
+      ? "bg-secondary text-primary shadow-sm ring-1 ring-border"
       : tone === "hero"
         ? "lift bg-primary text-primary-foreground shadow-lg shadow-primary/30"
         : "bg-primary/12 text-primary-ink";
@@ -104,7 +116,7 @@ export function PronounceButton({
         void pronounce(text);
       }}
       aria-label={label ?? t("common.playWord", { word: text })}
-      className={`press-in grid ${box} ${skin} shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100 ${className}`}
+      className={`press-in grid ${box} ${skin} ${reach} shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100 ${className}`}
     >
       <Volume2 className={icon} />
     </button>

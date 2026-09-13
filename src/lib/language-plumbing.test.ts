@@ -2236,6 +2236,46 @@ describe("独自ドメインへ移れる形になっているか", () => {
  *
  * ここで止めるのは、**絵を見ても原因が分からない**類の壊れ方だけ。
  */
+/**
+ * 指が当たる範囲（apple-design §11: 44×44 が下限）。
+ *
+ * 絵の検査は `getBoundingClientRect()` ではなく `elementFromPoint` で
+ * **実際の当たり判定**を見るので、見た目を大きくせずに `::before` で
+ * 広げるのが正しいやり方（`scripts/ui-audit.mjs` の注）。
+ */
+describe("小さいボタンの当たり判定", () => {
+  it("**広げる理由は大きさ。見た目の種類に紐付けない**", () => {
+    const src = codeOnly(read("components/PronounceButton.tsx"));
+    // 前は `tone === "quiet"` の中に書かれていて、理由は大きさなのに
+    // 見た目の種類に付いていた。だから `tone="hero" size="sm"`(復習の発音)が
+    // 36px のまま素通りし、絵の検査で
+    // `タップ領域 36x36 < 44 — "雨傘的發音"` として出た。
+    // 整形で改行が入るので、行をまたいで見る。
+    expect(src).toMatch(/const reach =[\s\S]{0,40}size === "sm"/);
+    expect(src).toMatch(/\$\{reach\}/);
+    // 広げの指定が tone の分岐に戻っていないこと。
+    const skin = src.slice(src.indexOf("const skin ="), src.indexOf("const icon ="));
+    expect(skin).not.toMatch(/before:/);
+  });
+
+  it("図鑑の表示切替は、隙間が当たり判定と噛み合っている", () => {
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    // **`gap-` の手前から切る。** 一度 `rounded-full bg-secondary p-1` を
+    // 目印にしたら、その位置は `gap-2` より後ろなので、探している物が
+    // 窓の中に一度も入らず落ちた（門が広さではなく位置を間違えていた）。
+    // **終わりは開始位置から先を探す。** `indexOf("</button>")` を素で
+    // 呼んだら、ファイルのもっと手前に在る別のボタンに当たって、
+    // 開始より小さい位置が返り、窓が空になった（空文字は何にも一致しない
+    // ので、門は「壊れている」ではなく「落ちる」形で嘘をつく）。
+    const from = dex.indexOf("flex shrink-0 gap-");
+    const head = dex.slice(from, dex.indexOf("</button>", from));
+    // 36px の丸 + 8px の隙間 = 44px ちょうど。隙間が 4px に戻ると、
+    // 隣の当たり判定と 2px ずつ重なって端を押したとき隣が反応する。
+    expect(head).toMatch(/gap-2 rounded-full bg-secondary/);
+    expect(head).toMatch(/before:-inset-1 before:content-\[''\]/);
+  });
+});
+
 describe("キャッチの報酬演出", () => {
   // 以下3つは `v5_physics.ts` への門。**この版はいま動く経路に繋がっていない**
   // (2026-09-13 の合流で Lovable の `v5_reward` を採った)。それでも門は残す —
