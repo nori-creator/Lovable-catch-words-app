@@ -17,6 +17,7 @@ import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
+import { GalleryScene } from "./scenes/gallery";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
@@ -96,6 +97,13 @@ import {
   RegisterMeterScene,
 } from "./scenes/pieces";
 import "@/styles.css";
+// **見た目パックのCSSも読む。** 実物(`src/routes/__root.tsx`)は両方読んで
+// いるのに、雛形は `styles.css` だけだった。つまり16パック(約3000行)は
+// **一度も絵に映っていない**。`PackGallery` を描いても下地の規則しか
+// 当たらず、無スタイルの絵を「実物が壊れている」と読み違える。
+// 規則はほぼ全部 `[data-ui-pack]` の下にあるので、属性を付けない
+// 既定(origin)の場面には影響しない。
+import "@/pack-styles.css";
 
 // 値を `| undefined` にしておく。**`Record<string, T>` は「どの鍵でも在る」と
 // 言う型**なので、知らない名前を弾く下のガードが型の上では死んで見え、
@@ -103,6 +111,7 @@ import "@/styles.css";
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   shelf: ShelfScene,
+  gallery: GalleryScene,
   onboarding: OnboardingScene,
   home: HomeScene,
   "home-empty": HomeEmptyScene,
@@ -215,7 +224,13 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
-const BARE = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera", "reward-catch"]);
+const BARE = new Set([
+  "onboarding",
+  "sticker-sheet",
+  "capture-saving",
+  "scan-camera",
+  "reward-catch",
+]);
 
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";
