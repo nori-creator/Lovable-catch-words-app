@@ -822,7 +822,7 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // 無かった。渡すのは絵の在りかだけ。
     const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
     expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
-    expect(btns).toMatch(/const canCutout = !!objectUrl && !cutoutUrl;/);
+    expect(btns).toMatch(/const canCutout = !!objectUrl;/);
     // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
     for (const rel of [
       "components/HeroPhotoPicker.tsx",

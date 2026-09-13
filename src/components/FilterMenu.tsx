@@ -99,7 +99,7 @@ export function FilterMenu({
   const chosen = value != null;
 
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} className="relative shrink-0">
       <button
         type="button"
         ref={btnRef}

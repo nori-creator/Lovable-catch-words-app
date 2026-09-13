@@ -47,7 +47,16 @@ export function PhotoAddButtons({
   className?: string;
 }) {
   const t = useT();
-  const canCutout = !!objectUrl && !cutoutUrl;
+  /**
+   * **元の写真が在るなら、いつでも切り抜ける**(オーナー報告 2026-09-13
+   * 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
+   *
+   * これまでに保存された札には、切り抜きが間に合わなかったときの
+   * **元の写真がそのまま切り抜きとして入っている**ものがある(保存側は
+   * 直したが、すでに在る行は直らない)。「切り抜きが在る」と見なして
+   * ボタンを隠すと、その札は二度と切り抜けない。
+   */
+  const canCutout = !!objectUrl;
   const canSelfie = !selfieUrl;
   if (!canCutout && !canSelfie) return null;
 
@@ -60,7 +69,11 @@ export function PhotoAddButtons({
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-          {busy ? t("photo.cuttingOut") : t("photo.cutoutNow")}
+          {busy
+            ? t("photo.cuttingOut")
+            : cutoutUrl
+              ? t("photo.cutoutRedo")
+              : t("photo.cutoutNow")}
         </button>
       )}
       {canSelfie && (

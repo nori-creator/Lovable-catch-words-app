@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
@@ -13,6 +13,7 @@ import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
+import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -214,6 +215,35 @@ export function AppShell({
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
   const scrolled = useScrolled();
+  const navigate = useNavigate();
+  const router = useRouter();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  /**
+   * 横スワイプで隣の画面へ(オーナー指示 2026-09-13)。
+   *
+   * 下のバーの5つ**そのものが並び順**。ここで別の配列を書くと、
+   * バーの順とスワイプの順がずれる — このアプリで何度もやっている
+   * 「同じことを2箇所に書いて片方だけ直す」形になる。
+   *
+   * タブ以外の画面(単語の詳細など)は右へスワイプで**戻る**。
+   */
+  const tabIndex = items.findIndex((i) => pathname === i.to || pathname === `${i.to}/`);
+  const { progress, dragging } = useTabSwipe({
+    index: tabIndex,
+    count: items.length,
+    onCommit: (n) => {
+      const next = items[n];
+      if (!next) return;
+      Sound.pageSnap();
+      haptic("selection");
+      void navigate({ to: next.to });
+    },
+  });
+  useSwipeBack({ enabled: tabIndex < 0, onBack: () => router.history.back() });
+  // 指の位置(小数)。バーの印と色はこれ1つから決まる。
+  const cursor = tabIndex < 0 ? -1 : tabIndex + progress;
+
 
   /**
    * **プロフィールの言語設定を端末に写す。**
@@ -300,10 +330,27 @@ export function AppShell({
           明るい線と上向きの影だけを持つ不透明な面で、浮いていることは
           縁と影で伝える。 */}
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
-        <ul className="mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
-          {items.map(({ to, labelKey, icon: Icon }) => {
+        <ul className="relative mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
+          {/* 指と一緒に動く印。スワイプ中は遷移を待たずにここが先に動くので、
+              「いま何を掴んでいるか」が離す前に分かる(§1 先出し)。 */}
+          {cursor >= 0 && (
+            <li
+              aria-hidden
+              className="pointer-events-none absolute left-2 top-1 flex justify-center"
+              style={{
+                width: `calc((100% - 1rem) / ${items.length})`,
+                transform: `translate3d(calc(${cursor} * 100%), 0, 0)`,
+                transition: dragging ? "none" : "transform 220ms var(--spring-bounce)",
+              }}
+            >
+              <span className="block h-0.5 w-6 rounded-full bg-primary" />
+            </li>
+          )}
+          {items.map(({ to, labelKey, icon: Icon }, i) => {
             const label = t(labelKey);
             const isScan = to === "/capture";
+            // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
+            const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
             return (
               <li key={to} className="flex-1">
                 <Link
@@ -324,6 +371,13 @@ export function AppShell({
                   // §1 Response: react on press, not release.
                   className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground transition-colors"
                   activeProps={{ className: "text-primary" }}
+                  style={
+                    weight > 0 && !isScan
+                      ? {
+                          color: `color-mix(in oklab, var(--primary) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
+                        }
+                      : undefined
+                  }
                 >
                   {isScan ? (
                     // **主色そのもの(NORI指定)。** 以前は右下へ向かって

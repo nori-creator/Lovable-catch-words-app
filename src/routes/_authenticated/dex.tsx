@@ -1296,8 +1296,11 @@ export function DexHeader({
         </div>
       </div>
 
-      {/* 表示の切替と絞り込みは同じ行に置き、入らなければ折り返す。 */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+      {/* **1行に収める**(オーナー指示 2026-09-13「図鑑のカテゴリーと日付も
+          図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
+          入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
+          `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
+      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
           {(
             [
@@ -1313,7 +1316,7 @@ export function DexHeader({
               onClick={() => onView(v)}
               aria-label={label}
               aria-pressed={view === v}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >
@@ -1323,7 +1326,7 @@ export function DexHeader({
         </div>
 
         {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と
-            同じ行に並べ、入らなければ折り返す。 */}
+            同じ行に並べ、入りきらない分は横に流す。 */}
         {(categories.length > 0 || days.length > 0) && (
           <>
             <FilterMenu

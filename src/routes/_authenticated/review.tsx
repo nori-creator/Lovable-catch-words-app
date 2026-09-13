@@ -1998,8 +1998,12 @@ export function LightModeCard({
             // 下マージンを持たせると、その分だけ上に送ってよけてくれる
             // (検査では、押したあとの発音ボタンが 1.00:1 = 変化なし として
             // 出ていた — 見えていないのだから当然だった)。
+            // **箱を右端まで広げ、音声は箱の中**(オーナー指示 2026-09-13)。
+            // 以前は選択肢の外に音声ボタンが並んでいたので、選ぶ面が 44px
+            // ぶん狭く、しかも「押す物が2つ横に並ぶ」形だった。押す物の中に
+            // 押す物は入れられないので、箱は敷いたまま音声だけ上に重ねる。
             return (
-              <li key={c} className="flex min-h-0 scroll-mb-56 items-stretch gap-2">
+              <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
@@ -2008,7 +2012,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border px-3 py-1 text-left transition-colors
+                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2041,13 +2045,20 @@ export function LightModeCard({
                 </button>
                 {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
                     4つ並ぶので、押しても鳴らないボタンが並ぶと
-                    いちばん壊れて見える。 */}
-                <PronounceButton
-                  text={c}
-                  language={card.language ?? undefined}
-                  className="self-stretch !h-auto !w-11 rounded-xl"
-                  label={t("rv.pronOf", { c })}
-                />
+                    いちばん壊れて見える。
+                    見た目は単語の詳細と同じ**鮮やかな青い丸**に統一
+                    (オーナー指示 2026-09-13)。 */}
+                <span className="pointer-events-none absolute inset-y-0 right-2 grid place-items-center">
+                  <span className="pointer-events-auto">
+                    <PronounceButton
+                      text={c}
+                      language={card.language ?? undefined}
+                      tone="hero"
+                      size="sm"
+                      label={t("rv.pronOf", { c })}
+                    />
+                  </span>
+                </span>
               </li>
             );
           })}
