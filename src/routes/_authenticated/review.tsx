@@ -2045,13 +2045,20 @@ export function LightModeCard({
                 </button>
                 {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
                     4つ並ぶので、押しても鳴らないボタンが並ぶと
-                    いちばん壊れて見える。 */}
-                <PronounceButton
-                  text={c}
-                  language={card.language ?? undefined}
-                  className="self-stretch !h-auto !w-11 rounded-xl"
-                  label={t("rv.pronOf", { c })}
-                />
+                    いちばん壊れて見える。
+                    見た目は単語の詳細と同じ**鮮やかな青い丸**に統一
+                    (オーナー指示 2026-09-13)。 */}
+                <span className="pointer-events-none absolute inset-y-0 right-2 grid place-items-center">
+                  <span className="pointer-events-auto">
+                    <PronounceButton
+                      text={c}
+                      language={card.language ?? undefined}
+                      tone="hero"
+                      size="sm"
+                      label={t("rv.pronOf", { c })}
+                    />
+                  </span>
+                </span>
               </li>
             );
           })}
