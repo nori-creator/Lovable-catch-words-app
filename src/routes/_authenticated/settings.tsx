@@ -1303,7 +1303,7 @@ export function ToggleRow({
           }`}
         >
           <span
-            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full shadow transition-transform ${
+            className={`absolute inset-y-0 left-0.5 my-auto h-5 w-5 rounded-full shadow transition-transform ${
               value ? "translate-x-5 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"
             } motion-reduce:transition-none`}
           />

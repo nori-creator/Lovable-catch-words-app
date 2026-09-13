@@ -774,6 +774,7 @@ export function ScrapbookAlbum({
     longPressFired.current = false;
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
+      dragId.current = id;
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
       setEditing(true);
     }, 550);
@@ -874,7 +875,7 @@ export function ScrapbookAlbum({
               onContextMenu={(e) => e.preventDefault()}
               // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
               data-album-sticker={s.id}
-              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab" : ""}`}
+              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab active:cursor-grabbing" : ""}`}
               style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
             >
               {/* **写真が在るときだけ印画紙を貼る**(オーナー指摘 2026-08-27 ②
