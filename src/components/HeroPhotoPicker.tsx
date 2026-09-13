@@ -3,7 +3,7 @@ import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
 import type { PhotoSurface } from "@/lib/photo-surface";
-import type { PhotoRole, PhotoSources } from "@/lib/sticker-photo";
+import { samePhotoAsset, type PhotoRole, type PhotoSources } from "@/lib/sticker-photo";
 
 /**
  * 「この1枚は、どの絵で見せるか」を選ぶ面(要望 #17)。
@@ -49,7 +49,15 @@ const LABEL: Record<PhotoRole, string> = {
 /** その役の絵(原寸を優先。ここは選ぶための見本なので大きいほうがよい)。 */
 function urlOf(s: PhotoSources, role: PhotoRole): string | null {
   if (role === "object") return s.object_url ?? s.object_thumb_url ?? null;
-  if (role === "cutout") return s.cutout_url ?? s.cutout_thumb_url ?? null;
+  if (role === "cutout") {
+    if (
+      samePhotoAsset(s.cutout_url, s.object_url) ||
+      samePhotoAsset(s.cutout_thumb_url, s.object_thumb_url)
+    ) {
+      return null;
+    }
+    return s.cutout_url ?? s.cutout_thumb_url ?? null;
+  }
   if (role === "selfie") return s.selfie_url ?? null;
   return s.placeholder_url ?? null;
 }
@@ -99,6 +107,7 @@ export function HeroPhotoPicker({
 }) {
   const t = useT();
   const available = ORDER.filter((r) => !!urlOf(sources, r));
+  const validCutout = urlOf(sources, "cutout");
 
   return (
     <div className="space-y-3">
@@ -160,7 +169,7 @@ export function HeroPhotoPicker({
           ここから掛け直せないと「速さを選ぶ = 二度と切り抜けない」になる。 */}
       <PhotoAddButtons
         objectUrl={sources.object_url ?? sources.object_thumb_url}
-        cutoutUrl={sources.cutout_url ?? sources.cutout_thumb_url}
+        cutoutUrl={validCutout}
         selfieUrl={sources.selfie_url}
         busy={saving}
         onCutout={() => onCutoutNow?.()}

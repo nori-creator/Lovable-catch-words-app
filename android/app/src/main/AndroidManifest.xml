@@ -46,6 +46,8 @@
 
     <!-- スキャン(街の言葉を撮る)。このアプリの中心機能。 -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 9以前で、撮影画像を共有フォト領域へ追加するため。 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <!-- 復習の発話チェック(話した内容を文字にする)。 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

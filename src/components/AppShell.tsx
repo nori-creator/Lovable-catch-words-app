@@ -331,21 +331,6 @@ export function AppShell({
           縁と影で伝える。 */}
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
         <ul className="relative mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
-          {/* 指と一緒に動く印。スワイプ中は遷移を待たずにここが先に動くので、
-              「いま何を掴んでいるか」が離す前に分かる(§1 先出し)。 */}
-          {cursor >= 0 && (
-            <li
-              aria-hidden
-              className="pointer-events-none absolute left-2 top-1 flex justify-center"
-              style={{
-                width: `calc((100% - 1rem) / ${items.length})`,
-                transform: `translate3d(calc(${cursor} * 100%), 0, 0)`,
-                transition: dragging ? "none" : "transform 220ms var(--spring-bounce)",
-              }}
-            >
-              <span className="block h-0.5 w-6 rounded-full bg-primary" />
-            </li>
-          )}
           {items.map(({ to, labelKey, icon: Icon }, i) => {
             const label = t(labelKey);
             const isScan = to === "/capture";

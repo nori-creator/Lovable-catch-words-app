@@ -65,6 +65,10 @@ import {
   type Level as SoundLevel,
 } from "@/lib/sound-engine";
 import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
+import {
+  isPhotoLibrarySyncEnabled,
+  setPhotoLibrarySyncEnabled,
+} from "@/lib/photo-library-sync";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
@@ -706,6 +710,7 @@ function SettingsPage() {
             {/* **優先する記憶段階の欄も消した**(同上)。列は残す。 */}
           </div>
           <VideoRecordingToggle />
+          <PhotoLibrarySyncToggle />
           <PlaceReminderToggle />
         </SettingsCard>
 
@@ -1124,6 +1129,24 @@ export function VideoRecordingToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow label={t("settings.videoLabel")} value={video} onChange={toggle} />
+    </div>
+  );
+}
+
+export function PhotoLibrarySyncToggle() {
+  const t = useT();
+  const [on, setOn] = useState(true);
+  useEffect(() => setOn(isPhotoLibrarySyncEnabled()), []);
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <ToggleRow
+        label={t("settings.photoLibrarySync")}
+        value={on}
+        onChange={(next) => {
+          setOn(next);
+          setPhotoLibrarySyncEnabled(next);
+        }}
+      />
     </div>
   );
 }
