@@ -404,7 +404,6 @@ export function HomeEmptyState() {
     <EmptyState
       icon={BookText}
       title={t("home.emptyTitle")}
-      hint={t("home.emptyHint")}
       action={
         <Link
           to="/capture"
