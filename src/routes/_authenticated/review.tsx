@@ -2012,7 +2012,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border px-3 py-1 text-left transition-colors
+                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
