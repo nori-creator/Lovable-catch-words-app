@@ -527,7 +527,7 @@ export function ScanCatchSheet({
                   placeholder={t("sheet.notePlaceholder")}
                   rows={2}
                   maxLength={140}
-                  className="w-full flex-1 resize-none rounded-xl border border-border bg-secondary/50 p-2 text-body outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full flex-1 resize-none rounded-xl border border-border bg-secondary/50 p-2 text-field outline-none focus:ring-2 focus:ring-primary/40"
                 />
                 <VoiceCaptionButton value={voiceNote} onChange={setVoiceNote} />
               </div>

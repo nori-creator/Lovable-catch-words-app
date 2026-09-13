@@ -826,7 +826,7 @@ function ScanPage() {
                       placeholder={
                         voiceListening ? t("scan.listening") : t("scan.searchPlaceholder")
                       }
-                      className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-body shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
+                      className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-field shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                   <button

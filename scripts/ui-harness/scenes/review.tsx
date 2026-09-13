@@ -131,7 +131,27 @@ export function ReviewChoiceScene() {
       const root = document.getElementById("root");
       const main = root?.querySelector("main") ?? root;
       root?.classList.add("h-dvh", "overflow-hidden");
-      main?.classList.add("flex", "h-dvh", "min-h-0", "flex-col", "overflow-hidden", "py-2");
+      // **`h-dvh` ではない。** 実物(`AppShell` の `fixedViewport`)の `main` は
+      //   100dvh − ヘッダ − safe-top − 6rem(下タブの逃げ場) − safe-bottom
+      // で、`h-dvh` はそこから**ヘッダと 6rem を引き忘れた高さ**。
+      // しかも `main` はヘッダの下から始まるので、箱はヘッダ+96px ぶん
+      // 画面の下にはみ出す。
+      //
+      // その状態だと、答え合わせのパネル(画面下端から 4.5rem に貼り付く)が
+      // はみ出した中身を覆うのは**当たり前**で、検査は8場面で
+      // 「送り切っても下敷きのまま」と言い続けていた。**実物ではなく
+      // 雛形の欠陥**だったので、直す側を間違えると永久に直らない。
+      //
+      // 文字列は `AppShell.tsx` と1字も違えない。Tailwind は `@source "../src"`
+      // しか走査しないので、ここにしか無い綴りの任意値は**CSSが生えない**。
+      main?.classList.add(
+        "flex",
+        "h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))]",
+        "min-h-0",
+        "flex-col",
+        "overflow-hidden",
+        "py-2",
+      );
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);

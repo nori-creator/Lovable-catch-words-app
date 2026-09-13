@@ -29,8 +29,80 @@ function loadModule(): Promise<ImglyModule> {
   return modPromise;
 }
 
+/**
+ * サーバの切り抜き(remove.bg)が使えるか。**一度分かったら覚えておく。**
+ *
+ * 使えるなら、下の 23MB のローカル模型は**一度も走らない**
+ * (`removeBackgroundSmart` はサーバを先に試し、成功したらそこで返す)。
+ * それを知らずに先読みしていたので、鍵が設定されている環境では
+ * 23MB がまるごと無駄になっていた。
+ *
+ * 画面をまたいで覚えるので `sessionStorage`。端末に永久に残す物では
+ * ない — 鍵は運用側の都合でいつでも外れるので、アプリを開き直したら
+ * 聞き直す。
+ */
+const SERVER_CUTOUT_KEY = "cutout:server-available";
+let serverCutoutAvailable: boolean | null = null;
+
+function rememberServerCutout(available: boolean): void {
+  serverCutoutAvailable = available;
+  try {
+    sessionStorage.setItem(SERVER_CUTOUT_KEY, available ? "1" : "0");
+  } catch {
+    /* 端末が拒んでも、その回の変数だけで足りる */
+  }
+}
+
+function serverCutoutKnownAvailable(): boolean {
+  if (serverCutoutAvailable !== null) return serverCutoutAvailable;
+  try {
+    return sessionStorage.getItem(SERVER_CUTOUT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** 回線の様子。標準の型に無いので、読む所だけ自分で書く。 */
+type NetworkInformation = {
+  saveData?: boolean;
+  effectiveType?: string;
+};
+
+/**
+ * 先読みしてよいか。
+ *
+ * **先読みする物は 23MB**(実測: `.output/public/assets` の
+ * `ort-wasm-simd-threaded.jsep.wasm`。圧縮後でも 5.7MB)。カメラ画面を
+ * 開いただけで落とし始めるので、撮らずに戻った人にはまるごと無駄になり、
+ * ギガを気にしている人の通信量を断りなく使う。
+ *
+ * 3つの場合に見送る:
+ *   ① サーバの切り抜きが使えると分かっている — ローカル模型は一度も
+ *      走らないので、落とす意味が無い
+ *   ② 端末が「通信量を節約」を立てている (`saveData`)
+ *   ③ 回線が遅いと分かっている (`slow-2g` / `2g` / `3g`)
+ *
+ * ## 回線が**分からない**ときは先読みする
+ * iOS には回線を教える API が無いので、ここで見送ると
+ * **iPhone では常に見送る**ことになる。切り抜きに要る通信量はどのみち
+ * 同じで、違うのは**いつ払うか**だけ。撮ってから払うと、その人は
+ * 待たされる。構えている間に済ませるほうが良い。
+ * ②③が効くのは Android と、この API を持つブラウザ。
+ */
+export function shouldPreloadCutout(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (serverCutoutKnownAvailable()) return false;
+  const conn = (navigator as Navigator & { connection?: NetworkInformation }).connection;
+  if (!conn) return true;
+  if (conn.saveData === true) return false;
+  if (conn.effectiveType && /^(slow-2g|2g|3g)$/.test(conn.effectiveType)) return false;
+  return true;
+}
+
 /** Warm the wasm module and model weights ahead of the first real cutout. */
 export function preloadCutout(): void {
+  // 門はここに置く。呼ぶ側に置くと、次に呼ぶ人がまた素通りさせる。
+  if (!shouldPreloadCutout()) return;
   void loadModule()
     .then((mod) => mod.preload(CUTOUT_CONFIG))
     .catch(() => {});
@@ -106,6 +178,10 @@ export async function removeBackgroundSmart(dataUrl: string): Promise<string> {
     // heavy lifting server-side, so give it more pixels to work with.
     const input = await downscaleDataUrl(dataUrl, 1600, 0.9);
     const r = await removeBackgroundApi({ data: { imageBase64: input } });
+    // 返事が来たときだけ覚える。**例外では覚えない** — 圏外や一時的な
+    // 失敗を「サーバは使えない」と決めつけると、鍵が在るのに 23MB を
+    // 落とし続けることになる(その判断は次の返事に任せる)。
+    rememberServerCutout(r.available === true);
     if (r.available && r.image) return r.image;
   } catch {
     /* fall back to local */

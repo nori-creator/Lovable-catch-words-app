@@ -91,20 +91,25 @@ const USER_SHELVES = [
   },
 ];
 
-export function ShelfScene({ q }: { q: URLSearchParams }) {
-  const count = Number(q.get("count") ?? FIXTURES.length);
-  // 見た目の検査は 8 件で足りるが、**性能は件数が要る**。
-  //
-  // 足りない分は雛形を繰り返して埋める。このとき**分類も順に回す** —
-  // 雛形の 5 分類だけを使い回すと、300 件が 5 つの棚に積み上がり、
-  // 残り 49 棚は空のまま畳まれる。それは「54 棚に散らばった図鑑」という
-  // 測りたい状況と別物で、実際 `content-visibility` の付いた要素が
-  // 5 個しか出ていなかった(= A/B の差がほとんど出ない)。
-  const stickers = Array.from({ length: count }, (_, i) => {
+/**
+ * 件数ぶんの札を作る。**`gallery` 場面と共有する** — 同じ札を別の見え方で
+ * 描くだけなので、雛形を二重に持つと片方だけ直る事故になる。
+ *
+ * 見た目の検査は 8 件で足りるが、**性能は件数が要る**。足りない分は雛形を
+ * 繰り返して埋め、このとき**分類も順に回す** — 雛形の 5 分類だけを使い回すと
+ * 300 件が 5 つの棚に積み上がり、残り 49 棚は空のまま畳まれる。
+ */
+export function makeStickers(count: number): StickerWithWord[] {
+  return Array.from({ length: count }, (_, i) => {
     const s = makeSticker(FIXTURES[i % FIXTURES.length], i);
     if (count <= FIXTURES.length) return s;
     return { ...s, word: { ...s.word, category_key: ALL_CATEGORIES[i % ALL_CATEGORIES.length] } };
   });
+}
+
+export function ShelfScene({ q }: { q: URLSearchParams }) {
+  const count = Number(q.get("count") ?? FIXTURES.length);
+  const stickers = makeStickers(count);
   // `custom=1` で「AI が棚と部屋を作ったあと」の図鑑を描く。
   // 既定の棚しか無い状態と**両方**撮る — 新しい棚が既存の並びを
   // 押しのけていないことは、並べて見ないと分からない。
