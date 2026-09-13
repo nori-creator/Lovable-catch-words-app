@@ -2593,6 +2593,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "photo.roleSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image", "zh-TW": "網路圖片" },
   "photo.cutoutNow": { ja: "いま切り抜く", en: "Cut it out now", "zh-TW": "現在去背" },
+  "photo.cutoutRedo": { ja: "切り抜き直す", en: "Cut it out again", "zh-TW": "重新去背" },
   "photo.cuttingOut": { ja: "切り抜いています…", en: "Cutting out…", "zh-TW": "去背中…" },
   "photo.cutoutFailed": {
     ja: "切り抜けませんでした。もう一度お試しください。",
