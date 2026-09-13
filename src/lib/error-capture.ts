@@ -10,6 +10,30 @@ function record(error: unknown) {
   lastCapturedError = { error, at: Date.now() };
 }
 
+// Node itself raises `Error: aborted` (ECONNRESET, thrown from
+// node:_http_server abortIncoming) when a browser closes the connection
+// mid-request — navigation, reload, or a cancelled image range request.
+// That happens below the fetch handler, so server.ts never sees it and the
+// dev runtime reports it as a fatal blank-screen error. Absorb it here.
+const nodeProcess = (globalThis as { process?: NodeJS.Process }).process;
+if (nodeProcess && typeof nodeProcess.on === "function") {
+  const isConnectionReset = (error: unknown) =>
+    isRequestAbortError(error) ||
+    (error != null &&
+      typeof error === "object" &&
+      (error as { code?: unknown }).code === "ECONNRESET");
+
+  nodeProcess.on("uncaughtException", (error) => {
+    if (isConnectionReset(error)) return;
+    record(error);
+    throw error;
+  });
+  nodeProcess.on("unhandledRejection", (reason) => {
+    if (isConnectionReset(reason)) return;
+    record(reason);
+  });
+}
+
 if (typeof globalThis.addEventListener === "function") {
   globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
   globalThis.addEventListener("unhandledrejection", (event) =>
