@@ -25,13 +25,33 @@ if (nodeProcess && typeof nodeProcess.on === "function") {
       typeof error === "object" &&
       (error as { code?: unknown }).code === "ECONNRESET");
 
+  // Filtering with a plain listener is not enough: the dev runtime's own
+  // uncaughtException reporter still sees the event and paints a blank fatal
+  // screen. Intercept `process.emit` so aborted-connection events never reach
+  // any listener at all.
+  const patched = nodeProcess as unknown as {
+    emit: (event: string, ...args: unknown[]) => boolean;
+    __abortEmitPatched?: boolean;
+  };
+  if (!patched.__abortEmitPatched) {
+    patched.__abortEmitPatched = true;
+    const originalEmit = patched.emit.bind(nodeProcess);
+    patched.emit = (event: string, ...args: unknown[]) => {
+      if (
+        (event === "uncaughtException" || event === "unhandledRejection") &&
+        isConnectionReset(args[0])
+      ) {
+        return true; // swallow: the client simply went away
+      }
+      return originalEmit(event, ...args);
+    };
+  }
+
   nodeProcess.on("uncaughtException", (error) => {
-    if (isConnectionReset(error)) return;
     record(error);
     console.error(error);
   });
   nodeProcess.on("unhandledRejection", (reason) => {
-    if (isConnectionReset(reason)) return;
     record(reason);
   });
 }
