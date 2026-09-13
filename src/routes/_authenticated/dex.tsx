@@ -1316,7 +1316,7 @@ export function DexHeader({
               onClick={() => onView(v)}
               aria-label={label}
               aria-pressed={view === v}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >
@@ -1326,7 +1326,7 @@ export function DexHeader({
         </div>
 
         {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と
-            同じ行に並べ、入らなければ折り返す。 */}
+            同じ行に並べ、入りきらない分は横に流す。 */}
         {(categories.length > 0 || days.length > 0) && (
           <>
             <FilterMenu
