@@ -2381,6 +2381,41 @@ describe("キャッチの報酬演出", () => {
     expect(rv).toMatch(/document\.body,/);
   });
 
+  /**
+   * テーマは**最初の1枚**から正しい色で描く。
+   *
+   * `.dark` は `ThemeProvider` の `useEffect` でしか付いていなかった。
+   * 効くのは水和が終わってからなので、それまでの絵は明るい地のまま描かれる。
+   * 既定は dark なので、ほぼ全員が読み込みのたびに「白く光ってから暗くなる」
+   * を見ていた(実測: 開発サーバで最初の描画 55ms 〜 1531ms のあいだずっと
+   * 明るいまま)。本番は水和が速いぶん短くなるだけで、**効く時刻が水和に
+   * 結びついている限り、間に合わない絵は必ず出る**。
+   *
+   * `<head>` の描画前スクリプトで同期的に当てるのが昔から決まった直し方。
+   * 消されたら気づけるように門を置く。
+   */
+  it("テーマを**描画前**に当てている（`useEffect` だけだと最初の1枚が明るい）", () => {
+    const root = codeOnly(read("routes/__root.tsx"));
+    const scripts = root.indexOf("scripts: [");
+    expect(scripts).toBeGreaterThan(0);
+    // `<head>` の中で `classList.toggle("dark", …)` を同期的に呼んでいること。
+    expect(root.slice(scripts)).toMatch(/documentElement\.classList\.toggle\("dark"/);
+    // 鍵と既定は `theme-provider.tsx` から埋め込む。**手で書くとずれる** —
+    // ずれた瞬間、最初の1枚だけ色が違う画面に戻る。
+    expect(root).toMatch(/THEME_STORAGE_KEY/);
+    expect(root).toMatch(/DEFAULT_THEME/);
+  });
+
+  it("サーバ側の既定と、実際の既定が一致している", () => {
+    // `resolve()` の `typeof window === "undefined"` の枝が "light" 固定
+    // だった。既定が dark なのに、サーバが描く最初の絵は明るい —
+    // 食い違いを自分で作っていた。
+    const tp = codeOnly(read("components/theme-provider.tsx"));
+    expect(tp).toMatch(/export const DEFAULT_THEME/);
+    const serverBranch = tp.slice(tp.indexOf('typeof window === "undefined"'));
+    expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、
