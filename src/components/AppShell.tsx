@@ -201,7 +201,16 @@ function BrandMenu() {
   );
 }
 
-export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
+export function AppShell({
+  children,
+  title,
+  fixedViewport = false,
+}: {
+  children: ReactNode;
+  title?: string;
+  /** 復習など、1画面の中ですべてを見せる場面ではページ自体を動かさない。 */
+  fixedViewport?: boolean;
+}) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
   const scrolled = useScrolled();
@@ -233,7 +242,13 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   }, []);
 
   return (
-    <div className="min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div
+      className={
+        fixedViewport
+          ? "h-dvh overflow-hidden bg-background"
+          : "min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      }
+    >
       {/* Top chrome — a translucent material the content scrolls under (§12).
           区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
@@ -267,7 +282,15 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+      <main
+        className={
+          fixedViewport
+            ? "mx-auto h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-5rem-env(safe-area-inset-bottom))] max-w-3xl overflow-hidden px-4 py-2"
+            : "mx-auto max-w-3xl px-4 py-4"
+        }
+      >
+        {children}
+      </main>
 
       {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
           設定でONにした人だけ動く(既定はOFF)。 */}

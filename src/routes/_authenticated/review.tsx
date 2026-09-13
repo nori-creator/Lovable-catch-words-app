@@ -323,8 +323,11 @@ function ReviewPage() {
   }, [cards, idx]);
 
   return (
-    <AppShell title={t("title.review")}>
-      <section className="mb-4">
+    <AppShell
+      title={t("title.review")}
+      fixedViewport={format === "choice" && !memListOpen && !done && !isLoading && !isError}
+    >
+      <section className={format === "choice" && !memListOpen ? "mb-2" : "mb-4"}>
         <ReviewHeader
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
@@ -360,17 +363,6 @@ function ReviewPage() {
             )}
           </>
         )}
-        {/* 単語帳は**図鑑とは別の本棚**(オーナー指摘)。図鑑は「街で出会って
-            自分で撮った物」の記録なので混ぜない。入口は復習の側に置く。 */}
-        <div className="mt-3 text-center">
-          <Link
-            to="/wordbooks"
-            className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-footnote font-semibold shadow-sm"
-          >
-            <BookMarked className="h-4 w-4 text-primary" aria-hidden />
-            {t("wb.openShelf")}
-          </Link>
-        </div>
       </section>
 
       {isLoading ? (
@@ -539,16 +531,18 @@ export function MemoryLevelSummary({
           />
         )}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
-        {MEMORY_LEVELS.map((lv, i) =>
-          counts[i] > 0 ? (
-            <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
-              <span className={`inline-block h-2 w-2 rounded-full ${lv.bar}`} />
-              {t(lv.labelKey)} <b>{counts[i]}</b>
-            </span>
-          ) : null,
-        )}
-      </div>
+      {expanded && (
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
+          {MEMORY_LEVELS.map((lv, i) =>
+            counts[i] > 0 ? (
+              <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
+                <span className={`inline-block h-2 w-2 rounded-full ${lv.bar}`} />
+                {t(lv.labelKey)} <b>{counts[i]}</b>
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1924,7 +1918,7 @@ export function LightModeCard({
 
   return (
     <SwipeCard enabled={!!picked} onSwipe={onNext}>
-      <article className="rounded-3xl border border-border bg-card p-4 shadow-lg shadow-primary/10">
+      <article className="flex max-h-full min-h-0 flex-col rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
@@ -1945,22 +1939,22 @@ export function LightModeCard({
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
         {heroUrl && (
-          <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
+          <div className="mb-1.5 h-[clamp(5rem,18vh,10rem)] min-h-0 w-full shrink overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
               src={heroUrl}
               alt={t("rv.targetAlt")}
-              className="h-full max-h-[32vh] w-full object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
         )}
-        <div className="mb-2.5 text-center">
+        <div className="mb-1.5 shrink-0 text-center">
           <div className="text-body font-semibold leading-snug">
             {t("rv.whichIsBefore")}
             {card.meaning_ja}
             {t("rv.whichIsAfter")}
           </div>
         </div>
-        <ul className="space-y-1.5">
+        <ul className="grid min-h-0 shrink-0 grid-rows-4 gap-1">
           {infos.map((info) => {
             const c = info.headword;
             const isAnswer = c === card.headword;
@@ -1990,7 +1984,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-colors
+                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border px-3 py-1 text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2304,7 +2298,7 @@ export function ReviewHeader({
   const current = MODE_TABS.find((m) => m.id === mode);
   return (
     <>
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <div className="min-w-0">
           <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
             {t("review.today")}
@@ -2323,6 +2317,14 @@ export function ReviewHeader({
               {formatCount(answered)} / {formatCount(total)}
             </span>
           )}
+          <Link
+            to="/wordbooks"
+            aria-label={t("wb.openShelf")}
+            title={t("wb.openShelf")}
+            className="lift-soft grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-primary-ink"
+          >
+            <BookMarked className="h-5 w-5" aria-hidden />
+          </Link>
           {/* いま選ばれている形を**名前で**出す。印だけにすると、
               押すまで何が選ばれているのか分からない。
               当たり判定は 44px（`::before` ではなく箱そのもの）。 */}

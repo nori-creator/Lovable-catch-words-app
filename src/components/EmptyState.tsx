@@ -33,7 +33,7 @@ export function EmptyState({
   /** 何が入る場所かを静かに示す絵。**斜線の入った記号は使わない**(壊れて見える)。 */
   icon: LucideIcon;
   title: string;
-  hint: string;
+  hint?: string;
   /** その場で始められる導線。無い面もある(上限に達したときなど)。 */
   action?: ReactNode;
 }) {
@@ -43,7 +43,9 @@ export function EmptyState({
       <p className="text-headline font-semibold text-foreground">{title}</p>
       {/* 和文は行の長さを揃え(`text-balance`)、文節で切る(`ja-phrase`)。
           この2つが無いと、中央揃えの説明文は末尾が1〜2文字だけ孤立する。 */}
-      <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">{hint}</p>
+      {hint && (
+        <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">{hint}</p>
+      )}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
