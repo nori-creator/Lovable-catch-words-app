@@ -1999,7 +1999,12 @@ export function LightModeCard({
             // (検査では、押したあとの発音ボタンが 1.00:1 = 変化なし として
             // 出ていた — 見えていないのだから当然だった)。
             return (
-              <li key={c} className="flex min-h-0 scroll-mb-56 items-stretch gap-2">
+              {/* **箱を右端まで広げ、音声は箱の中**(オーナー指示 2026-09-13)。
+                  以前は選択肢の外に音声ボタンが並んでいたので、選ぶ面が
+                  44px 分だけ狭く、しかも「押す物が2つ横に並ぶ」形だった。
+                  押す物の中に押す物は入れられないので、箱は敷いたまま
+                  音声ボタンだけ上に重ねる。 */}
+              <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
