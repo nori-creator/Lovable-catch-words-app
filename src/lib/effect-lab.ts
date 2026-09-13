@@ -111,6 +111,12 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       date: "08-03",
       note: "ふわっと上昇→画面いっぱい＋キラッ→空中で0.7秒止まって発音→図鑑に上から着地",
     },
+    {
+      id: "v5reward",
+      label: "報酬シーケンス",
+      date: "09-13",
+      note: "グリップ→浮上→蓄積→寸止め→解放→発音→棚へ定着",
+    },
   ],
 };
 
@@ -125,7 +131,7 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
  */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   scanAnalyzing: "v0cutout",
-  catchLanding: "v4hold",
+  catchLanding: "v5reward",
 };
 
 /**

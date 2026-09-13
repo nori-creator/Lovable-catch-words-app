@@ -2,13 +2,8 @@ import { forwardRef, type RefObject } from "react";
 import { waitForRef } from "@/lib/wait-for-ref";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
-import { getVariant } from "@/lib/effect-lab";
 import { Term } from "@/components/Term";
-import type { LandingRunner } from "@/components/effects/catch-landing/types";
-import { v1classic } from "@/components/effects/catch-landing/v1_classic";
-import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
-import { v3voiceline } from "@/components/effects/catch-landing/v3_voiceline";
-import { v4hold } from "@/components/effects/catch-landing/v4_hold";
+import { v5reward } from "@/components/effects/catch-landing/v5_reward";
 
 /**
  * キャッチ→図鑑の着弾演出、まるごと一式。
@@ -21,13 +16,6 @@ import { v4hold } from "@/components/effects/catch-landing/v4_hold";
  * **どの版でも共通の前後処理**(チャイム・振動・reduced motion の判定)と、
  * 振り付けが掴む DOM(#catch-trail / #catch-hero-flash / #catch-hero-word)。
  */
-
-const CATCH_LANDING_VARIANTS: Record<string, LandingRunner> = {
-  v1classic,
-  v2fullwidth,
-  v3voiceline,
-  v4hold,
-};
 
 /**
  * 短い「キャッチ!」音。
@@ -60,19 +48,17 @@ export async function runCatchLanding(ctx: {
   // suspended に落とすから — 解錠は一度きりの手続きではない。
   // (最初の1回の解錠は、設定の試聴やタップ音など操作の中で走る側に任せる。)
   unlockAudio();
-  playCatchChime();
-  // 生の navigator.vibrate だと**振動オフの設定を無視する**。
-  // 触覚は「うるさい」と感じた人が切るためのもので、切れないなら意味がない。
-  haptic("success");
   const reducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (reducedMotion) {
+    Sound.rewardBreak();
+    haptic("success");
+    ctx.speakLine?.();
     await new Promise((r) => setTimeout(r, 500));
     return;
   }
-  const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v4hold;
-  await run({
+  await v5reward({
     startEl: ctx.startEl,
     fly: await waitForRef(ctx.fly),
     dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
@@ -96,73 +82,37 @@ type OverlayProps = {
  */
 export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
   function CatchLandingOverlay({ image, headword, reading, lang }, flyRef) {
+    const accents = Array.from({ length: 12 }, (_, index) => index);
     return (
-      <>
-        {image && (
-          <>
-            <div
-              id="catch-trail"
-              className="pointer-events-none fixed z-[59]"
-              style={{
-                willChange: "transform",
-                transition: "transform 820ms cubic-bezier(0.5, -0.2, 0.35, 1.25)",
-                width: 8,
-                height: 8,
-                left: 0,
-                top: 0,
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              <span className="absolute inset-0 -m-6 rounded-full bg-amber-300/60 blur-2xl animate-pulse" />
-              <span className="absolute inset-0 -m-3 rounded-full bg-white/80 blur-md" />
-            </div>
-            <img
-              ref={flyRef}
-              src={image}
-              alt=""
-              className="pointer-events-none fixed z-[60] object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
-              style={{ willChange: "transform, opacity", left: 0, top: 0 }}
-            />
-          </>
-        )}
-        <div
-          id="catch-hero-flash"
-          className="pointer-events-none fixed inset-0 z-[58] opacity-0"
-          style={{
-            background:
-              "radial-gradient(circle at 50% 42%, rgba(253,230,138,0.35), rgba(0,0,0,0) 60%)",
-          }}
-        />
-        {/* 広がりきった瞬間に一度だけ走る「キラッ」 */}
-        <div id="catch-glint" className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
-          <span className="catch-glint-bar" />
+      <div id="reward-catch" data-stage="idle" className="reward-catch" aria-live="polite">
+        <div className="reward-catch__veil" />
+        <div className="reward-catch__field" />
+        <div className="reward-catch__shockwave" />
+        <div className="reward-catch__charge" />
+        <div className="reward-catch__particles" aria-hidden>
+          {accents.map((index) => (
+            <i key={index} style={{ "--reward-i": index } as React.CSSProperties} />
+          ))}
         </div>
-        <div
-          id="catch-hero-word"
-          className="pointer-events-none fixed left-1/2 z-[61] -translate-x-1/2 text-center opacity-0"
-          style={{ top: "68%" }}
-        >
-          {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
-              決め打ちだと、英語の語に中国語のフォントが当たる。 */}
+        {image && (
+          <img ref={flyRef} src={image} alt="" className="reward-catch__image" />
+        )}
+        <div className="reward-catch__copy">
           <Term
             as="div"
             lang={lang}
-            className="text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]"
+            className="reward-catch__word"
           >
             {headword}
           </Term>
           {reading && (
-            <Term
-              as="div"
-              lang={lang}
-              className="mt-2 text-title font-semibold text-amber-200 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
-            >
+            <Term as="div" lang={lang} className="reward-catch__reading">
               {reading}
             </Term>
           )}
-          <div className="mt-1 text-body font-medium text-white/85">GET!</div>
+          <div className="reward-catch__stamp">図鑑に追加</div>
         </div>
-      </>
+      </div>
     );
   },
 );

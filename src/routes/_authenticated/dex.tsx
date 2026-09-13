@@ -53,7 +53,7 @@ import { haptic } from "@/lib/haptics";
  * 下の `slamIn` が `880ms linear 120ms both`、その 52% が接地(潰れ)。
  * ここを直すときは**両方**直すこと — ずれると音だけ先に鳴る。
  */
-const SLAM_IMPACT_MS = 120 + Math.round(880 * 0.52);
+const SLAM_IMPACT_MS = 520;
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -136,6 +136,9 @@ function DexPage() {
   useEffect(() => {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
+    setSearch("");
+    const caught = captured.find((item) => item.id === justCaught);
+    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
 
     // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
     // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
@@ -163,18 +166,30 @@ function DexPage() {
       clearTimeout(impact);
       clearTimeout(t);
     };
-  }, [justCaught, navigate]);
+  }, [justCaught, navigate, captured]);
 
   // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
   // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
   // 図鑑の再取得が後から届くこともあるので件数も見る。
   useEffect(() => {
     if (!justCaught) return;
-    const raf = requestAnimationFrame(() => {
+    let stopped = false;
+    let attempts = 0;
+    const locate = () => {
+      if (stopped) return;
       const el = document.getElementById(`dex-cell-${justCaught}`);
-      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-    });
-    return () => cancelAnimationFrame(raf);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) requestAnimationFrame(locate);
+    };
+    const raf = requestAnimationFrame(locate);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+    };
   }, [justCaught, captured.length]);
 
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
