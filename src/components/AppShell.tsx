@@ -371,6 +371,13 @@ export function AppShell({
                   // §1 Response: react on press, not release.
                   className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground transition-colors"
                   activeProps={{ className: "text-primary" }}
+                  style={
+                    weight > 0 && !isScan
+                      ? {
+                          color: `color-mix(in oklab, var(--primary) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
+                        }
+                      : undefined
+                  }
                 >
                   {isScan ? (
                     // **主色そのもの(NORI指定)。** 以前は右下へ向かって
