@@ -23,3 +23,15 @@
  * 画面のコードはそのまま残してあるので、切り替えは1行で足りる。
  */
 export const SOCIAL_ENABLED = false;
+
+/**
+ * 日記は実装と保存済みデータを残したまま、現在のアプリからは隠す。
+ * 再公開するときはホームと専用ページが同時に戻る。
+ */
+export const JOURNAL_ENABLED = false;
+
+/**
+ * 図鑑の本棚表示は実装を残したまま選択肢から外す。
+ * 写真・一覧・地図・カレンダーは引き続き使える。
+ */
+export const DEX_SHELF_ENABLED = false;

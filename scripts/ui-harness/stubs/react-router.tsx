@@ -50,3 +50,8 @@ export function useSearch() {
 export function useParams() {
   return {};
 }
+
+/** ルート前処理はハーネスでは実行されない。import を成立させる印だけ返す。 */
+export function redirect(options: unknown) {
+  return options;
+}

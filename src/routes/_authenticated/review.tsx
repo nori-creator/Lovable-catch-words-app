@@ -2064,7 +2064,7 @@ export function LightModeCard({
         {picked && (
           <div
             ref={panelRef}
-            className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+            className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40"
           >
             {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
@@ -2091,24 +2091,24 @@ export function LightModeCard({
                   外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
                   **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
                   語を割るのはいちばんやってはいけない。 */}
-              <div className="mb-1.5 flex items-center gap-2">
+              <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5">
                 <Term
                   lang={card.language}
-                  className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
+                  className="min-w-0 break-keep text-title font-bold tracking-tight"
                 >
                   {card.headword}
                 </Term>
+                <PronounceButton
+                  text={card.headword}
+                  language={card.language ?? undefined}
+                  className="row-span-2"
+                  label={t("card.playPron")}
+                />
                 <Reading
                   lang={card.language ?? undefined}
                   zhuyin={card.reading_zhuyin}
                   pinyin={card.pinyin}
-                  className="min-w-0 truncate text-footnote text-foreground/70"
-                />
-                <PronounceButton
-                  text={card.headword}
-                  language={card.language ?? undefined}
-                  className="ml-auto"
-                  label={t("card.playPron")}
+                  className="min-w-0 text-footnote leading-snug text-foreground/70"
                 />
               </div>
 

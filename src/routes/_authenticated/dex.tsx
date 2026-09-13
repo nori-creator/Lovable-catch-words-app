@@ -46,6 +46,7 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { DEX_SHELF_ENABLED } from "@/lib/features";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -125,7 +126,7 @@ function DexPage() {
   /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
   const totalCount = stickers?.total ?? null;
 
-  const [view, setView] = useState<ViewMode>("shelf");
+  const [view, setView] = useState<ViewMode>("gallery");
   const landingStartedRef = useRef<string | null>(null);
 
   // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
@@ -136,7 +137,7 @@ function DexPage() {
   // 押したのに戻される画面は、壊れているのと区別がつかない。
   useEffect(() => {
     if (!justCaught) return;
-    setView("shelf"); // 着弾は棚のスロットで見せる
+    setView(DEX_SHELF_ENABLED ? "shelf" : "gallery");
     setSearch("");
     if (!captured.some((item) => item.id === justCaught)) return;
     if (landingStartedRef.current === justCaught) return;
@@ -216,13 +217,13 @@ function DexPage() {
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (
-      saved === "shelf" ||
       saved === "list" ||
       saved === "gallery" ||
       saved === "map" ||
       saved === "calendar"
     )
       setView(saved);
+    else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     // **日付は覚えない。** 「その日だけ」は今この場の見方で、次に開いた
     // ときまで続くと「図鑑が減った」ようにしか見えない。
@@ -376,7 +377,7 @@ function DexPage() {
         />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
-      ) : view === "shelf" ? (
+      ) : DEX_SHELF_ENABLED && view === "shelf" ? (
         <DexShelf
           stickers={filtered}
           activeCategory={activeCategory}
@@ -1291,12 +1292,12 @@ export function DexHeader({
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
           {(
             [
-              ["shelf", Library, t("dex.shelf")],
-              ["gallery", LayoutGrid, t("dex.gallery")],
-              ["list", List, t("dex.list")],
-              ["map", MapIcon, t("dex.map")],
-              ["calendar", CalendarDays, t("dex.calendar")],
-            ] as const
+              ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+              ["gallery", LayoutGrid, t("dex.gallery")] as const,
+              ["list", List, t("dex.list")] as const,
+              ["map", MapIcon, t("dex.map")] as const,
+              ["calendar", CalendarDays, t("dex.calendar")] as const,
+            ]
           ).map(([v, Icon, label]) => (
             <button
               key={v}

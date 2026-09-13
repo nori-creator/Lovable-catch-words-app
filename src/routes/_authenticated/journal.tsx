@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
@@ -8,8 +8,12 @@ import { listJournal, type NativePhrase } from "@/lib/journal.functions";
 import { JournalComposer } from "@/components/JournalComposer";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { JOURNAL_ENABLED } from "@/lib/features";
 
 export const Route = createFileRoute("/_authenticated/journal")({
+  beforeLoad: () => {
+    if (!JOURNAL_ENABLED) throw redirect({ to: "/home", replace: true });
+  },
   head: () => ({
     meta: [
       { title: tStatic("page.journal") },
