@@ -1917,7 +1917,7 @@ export function LightModeCard({
     : card.headword_choices.map((h) => ({ headword: h, zhuyin: null, pinyin: null }));
 
   return (
-    <SwipeCard enabled={!!picked} onSwipe={onNext}>
+    <SwipeCard enabled={!!picked} onSwipe={onNext} className="h-full min-h-0">
       <article className="flex max-h-full min-h-0 flex-col rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
