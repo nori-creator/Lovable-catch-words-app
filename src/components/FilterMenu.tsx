@@ -50,6 +50,7 @@ export function FilterMenu({
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
   /**
    * 札をボタンのどちら側に揃えるか。
@@ -66,7 +67,8 @@ export function FilterMenu({
   useEffect(() => {
     if (!open) return;
     function onDown(e: PointerEvent) {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!boxRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -131,6 +133,7 @@ export function FilterMenu({
 
       {open && typeof document !== "undefined" && createPortal(
         <div
+          ref={menuRef}
           id={listId}
           role="listbox"
           aria-label={name}

@@ -280,6 +280,26 @@ function CapturePage() {
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
+
+  async function openNativeCamera() {
+    try {
+      const { Camera: NativeCamera, CameraResultType, CameraSource } = await import(
+        "@capacitor/camera"
+      );
+      const photo = await NativeCamera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        saveToGallery: isPhotoLibrarySyncEnabled(),
+        correctOrientation: true,
+      });
+      if (!photo.webPath) return;
+      const blob = await (await fetch(photo.webPath)).blob();
+      await handleObjectFile(new File([blob], `capture.${photo.format}`, { type: blob.type }));
+    } catch (e) {
+      console.warn("native capture failed", e);
+    }
+  }
   /**
    * 「いま有効な作業はどれか」を表す番号。
    *
@@ -996,29 +1016,7 @@ function CapturePage() {
           retakeWord={retakeParam ?? null}
           cameraInputRef={cameraInputRef}
           onObjectFile={handleObjectFile}
-          onNativeCapture={
-            Capacitor.isNativePlatform()
-              ? async () => {
-                  try {
-                    const { Camera: NativeCamera, CameraResultType, CameraSource } = await import(
-                      "@capacitor/camera"
-                    );
-                    const photo = await NativeCamera.getPhoto({
-                      source: CameraSource.Camera,
-                      resultType: CameraResultType.Uri,
-                      quality: 90,
-                      saveToGallery: isPhotoLibrarySyncEnabled(),
-                      correctOrientation: true,
-                    });
-                    if (!photo.webPath) return;
-                    const blob = await (await fetch(photo.webPath)).blob();
-                    await handleObjectFile(new File([blob], `capture.${photo.format}`, { type: blob.type }));
-                  } catch (e) {
-                    console.warn("native capture failed", e);
-                  }
-                }
-              : undefined
-          }
+          onNativeCapture={Capacitor.isNativePlatform() ? () => void openNativeCamera() : undefined}
           typedWord={typedWord}
           setTypedWord={setTypedWord}
           /**

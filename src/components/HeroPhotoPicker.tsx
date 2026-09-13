@@ -130,7 +130,8 @@ export function HeroPhotoPicker({
         setValidCutout(same ? null : candidateCutout);
       })
       .catch(() => {
-        if (!cancelled) setValidCutout(candidateCutout);
+        // 同一画像か確認できないときは、誤って「切り抜き」と見せない。
+        if (!cancelled) setValidCutout(null);
       });
     return () => {
       cancelled = true;
