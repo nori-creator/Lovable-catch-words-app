@@ -2378,6 +2378,21 @@
   pointer-events: none;
   perspective: 900px;
 }
+
+#reward-catch-handoff {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+html[data-reward-flight] [id^="dex-cell-"][id$=""] {
+  will-change: transform;
+}
+
+html[data-reward-flight] .slam-in {
+  animation: none !important;
+}
 .reward-catch__veil,
 .reward-catch__field,
 .reward-catch__shockwave,

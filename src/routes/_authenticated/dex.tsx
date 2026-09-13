@@ -142,6 +142,12 @@ function DexPage() {
     if (!captured.some((item) => item.id === justCaught)) return;
     if (landingStartedRef.current === justCaught) return;
     landingStartedRef.current = justCaught;
+    if (document.documentElement.dataset.rewardFlight) {
+      const t = setTimeout(() => {
+        void navigate({ to: "/dex", search: {}, replace: true });
+      }, 6000);
+      return () => clearTimeout(t);
+    }
 
     // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
     // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
@@ -412,7 +418,7 @@ function DexPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 {items.map((s) => {
                   const photo = s.object_thumb_url ?? s.object_url;
-                  const slam = s.id === justCaught;
+                  const slam = s.id === justCaught && !document.documentElement.dataset.rewardFlight;
                   return (
                     <button
                       key={s.id}

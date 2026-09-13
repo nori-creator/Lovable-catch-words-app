@@ -826,12 +826,16 @@ function CapturePage() {
           // 初めて描かれるので、ここで .current を読むと必ず null になる。
           fly: flyRef,
           speakLine: () => void pronounce(selectedHead),
+          destinationId: res.id,
+          openDex: () => navigate({ to: "/dex", search: { justCaught: res.id } }),
         });
       } catch (e) {
         // 演出が転んでも保存は済んでいる。見せ場を諦めて図鑑へ送る。
         console.warn("catch landing failed", e);
       }
-      navigate({ to: "/dex", search: { justCaught: res.id } });
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      }
     } catch (e) {
       console.error(e);
       setLanding(false);
@@ -1481,6 +1485,14 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onRedo} className="flex-1">
+          {t("capture.redo")}
+        </Button>
+        <Button onClick={onSave} className="lift flex-1">
+          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
+        </Button>
+      </div>
       <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
 
       <WordCard
@@ -1524,14 +1536,6 @@ export function CaptureCardPanel({
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
 
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={onRedo} className="flex-1">
-          {t("capture.redo")}
-        </Button>
-        <Button onClick={onSave} className="lift flex-1">
-          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
-        </Button>
-      </div>
     </div>
   );
 }

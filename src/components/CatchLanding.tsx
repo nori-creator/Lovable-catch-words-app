@@ -42,6 +42,8 @@ export async function runCatchLanding(ctx: {
    */
   fly: RefObject<HTMLImageElement | null>;
   speakLine?: () => void;
+  destinationId?: string;
+  openDex?: () => void | Promise<void>;
 }): Promise<void> {
   // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
   // それでも毎回呼ぶ理由は、iOS がアプリを背面に回すたびに AudioContext を
@@ -55,6 +57,7 @@ export async function runCatchLanding(ctx: {
     Sound.rewardBreak();
     haptic("success");
     ctx.speakLine?.();
+    await ctx.openDex?.();
     await new Promise((r) => setTimeout(r, 500));
     return;
   }
@@ -63,6 +66,8 @@ export async function runCatchLanding(ctx: {
     fly: await waitForRef(ctx.fly),
     dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
     speakLine: ctx.speakLine,
+    destinationId: ctx.destinationId,
+    openDex: ctx.openDex,
   });
 }
 
@@ -116,7 +121,6 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
               {reading}
             </Term>
           )}
-          <div className="reward-catch__stamp">図鑑に追加</div>
         </div>
       </div>
     );

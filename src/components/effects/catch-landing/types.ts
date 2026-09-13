@@ -14,6 +14,10 @@ export type LandingCtx = {
   dexEl: HTMLElement | null;
   /** 決め台詞を鳴らす(対応する版だけが呼ぶ)。 */
   speakLine?: () => void;
+  /** 保存済みの札。図鑑側の実セルを探すために使う。 */
+  destinationId?: string;
+  /** 最大表示のまま図鑑を背後に開く。 */
+  openDex?: () => void | Promise<void>;
 };
 
 export type LandingRunner = (ctx: LandingCtx) => Promise<void>;
