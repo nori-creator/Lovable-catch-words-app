@@ -215,6 +215,35 @@ export function AppShell({
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
   const scrolled = useScrolled();
+  const navigate = useNavigate();
+  const router = useRouter();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  /**
+   * 横スワイプで隣の画面へ(オーナー指示 2026-09-13)。
+   *
+   * 下のバーの5つ**そのものが並び順**。ここで別の配列を書くと、
+   * バーの順とスワイプの順がずれる — このアプリで何度もやっている
+   * 「同じことを2箇所に書いて片方だけ直す」形になる。
+   *
+   * タブ以外の画面(単語の詳細など)は右へスワイプで**戻る**。
+   */
+  const tabIndex = items.findIndex((i) => pathname === i.to || pathname === `${i.to}/`);
+  const { progress, dragging } = useTabSwipe({
+    index: tabIndex,
+    count: items.length,
+    onCommit: (n) => {
+      const next = items[n];
+      if (!next) return;
+      Sound.pageSnap();
+      haptic("selection");
+      void navigate({ to: next.to });
+    },
+  });
+  useSwipeBack({ enabled: tabIndex < 0, onBack: () => router.history.back() });
+  // 指の位置(小数)。バーの印と色はこれ1つから決まる。
+  const cursor = tabIndex < 0 ? -1 : tabIndex + progress;
+
 
   /**
    * **プロフィールの言語設定を端末に写す。**
