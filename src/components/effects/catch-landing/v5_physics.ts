@@ -82,7 +82,12 @@ export const v5physics: LandingRunner = async (ctx: LandingCtx) => {
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const from = startEl.getBoundingClientRect();
+  // **枠ではなく、絵そのものを測る。**
+  // 渡されるのはカードの箱で、中の写真は `p-6` ぶん内側に在り、縁と地の色も
+  // 付いている。箱の寸法で飛ばすと、離陸の瞬間に絵が一段大きくなって
+  // 「別の物に入れ替わった」ように見える。中に img が在ればそれを採る。
+  const measured = startEl.querySelector("img") ?? startEl;
+  const from = measured.getBoundingClientRect();
   const fromCx = from.left + from.width / 2;
   const fromCy = from.top + from.height / 2;
 
@@ -224,10 +229,15 @@ export const v5physics: LandingRunner = async (ctx: LandingCtx) => {
     // ── 幕2 展開: 画面いっぱい ───────────────────────────────────────
     // 離陸の上向きの速度が残っているところへ拡大の目標を重ねる。
     // 上がりながら開くので、開き始めに勢いがある。
-    target.scale = bloomScale(from.width, vw) * reward;
+    // **ここに reward を掛けない。** 掛けると珍しい語ほど写真が画面から
+    // はみ出して、切り取られる面積が増える — 報酬ではなく劣化になる。
+    // 「画面いっぱい」は幾何で決まる量なので、珍しさで動かさない。
+    // レア度は離陸の跳ね上がり(上)と暗転の深さで出す。
+    target.scale = bloomScale(from.width, vw);
     sScale.to(target.scale, SPRING.bloomScale);
     sY.to(bloomY(vh) - fromCy, SPRING.bloomY);
-    if (vignette) vignette.style.opacity = "0.82";
+    // 珍しい語ほど周りを深く落とす。写真の大きさは変えずに「格が上がる」。
+    if (vignette) vignette.style.opacity = String(Math.min(0.94, 0.78 + (reward - 1) * 0.6));
     // 音と単語はこの中の**フレーム判定**で出る（上の paint を見よ）。
     // ここで待つのは「開ききるまで」の目安。
     await sleep(460);

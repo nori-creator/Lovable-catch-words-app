@@ -2259,6 +2259,11 @@ describe("キャッチの報酬演出", () => {
     expect(cap).toMatch(/gate: savePromise\.then\(/);
   });
 
+  it("**飛び立つ寸法は枠ではなく絵そのもの**（枠で測ると離陸の瞬間に跳ねる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/startEl\.querySelector\("img"\) \?\? startEl/);
+  });
+
   it("**音と単語は拡大率のフレーム判定で出す**（時間で待つと回ごとにずれる）", () => {
     const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
     expect(v5).toMatch(/shouldSpeak\(s, target\.scale\)/);
