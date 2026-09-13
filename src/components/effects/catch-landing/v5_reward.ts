@@ -174,16 +174,19 @@ export const v5reward: LandingRunner = async ({
   handoff.dataset.stage = "impact";
   Sound.shelfLand();
   haptic("heavy");
-  await handoffImage.animate(
-    [
-      { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
-      { transform: `translate3d(${dx}px,${dy + targetRect.height * 0.035}px,0) scale(${sx * 1.07},${sy * 0.9})`, offset: 0.28 },
-      { transform: `translate3d(${dx}px,${dy - targetRect.height * 0.045}px,0) scale(${sx * 0.98},${sy * 1.04})`, offset: 0.58 },
-      { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
-    ],
-    { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
-  ).finished;
-  target.style.visibility = "";
-  handoff.remove();
-  delete document.documentElement.dataset.rewardFlight;
+  try {
+    await handoffImage.animate(
+      [
+        { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
+        { transform: `translate3d(${dx}px,${dy + targetRect.height * 0.035}px,0) scale(${sx * 1.07},${sy * 0.9})`, offset: 0.28 },
+        { transform: `translate3d(${dx}px,${dy - targetRect.height * 0.045}px,0) scale(${sx * 0.98},${sy * 1.04})`, offset: 0.58 },
+        { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
+      ],
+      { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
+    ).finished;
+  } finally {
+    target.style.visibility = "";
+    handoff.remove();
+    delete document.documentElement.dataset.rewardFlight;
+  }
 };

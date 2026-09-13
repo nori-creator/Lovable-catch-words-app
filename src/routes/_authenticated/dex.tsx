@@ -418,7 +418,10 @@ function DexPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 {items.map((s) => {
                   const photo = s.object_thumb_url ?? s.object_url;
-                  const slam = s.id === justCaught && !document.documentElement.dataset.rewardFlight;
+                  const sharedFlightActive =
+                    typeof document !== "undefined" &&
+                    Boolean(document.documentElement.dataset.rewardFlight);
+                  const slam = s.id === justCaught && !sharedFlightActive;
                   return (
                     <button
                       key={s.id}
