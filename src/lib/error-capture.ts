@@ -1,3 +1,5 @@
+import { isRequestAbortError } from "./abort-error";
+
 // Captures the original Error out-of-band so server.ts can recover the stack
 // when h3 has already swallowed the throw into a generic 500 Response.
 
@@ -26,7 +28,7 @@ if (nodeProcess && typeof nodeProcess.on === "function") {
   nodeProcess.on("uncaughtException", (error) => {
     if (isConnectionReset(error)) return;
     record(error);
-    throw error;
+    console.error(error);
   });
   nodeProcess.on("unhandledRejection", (reason) => {
     if (isConnectionReset(reason)) return;
