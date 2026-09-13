@@ -229,7 +229,7 @@ export function AppShell({
    * タブ以外の画面(単語の詳細など)は右へスワイプで**戻る**。
    */
   const tabIndex = items.findIndex((i) => pathname === i.to || pathname === `${i.to}/`);
-  const { progress, dragging } = useTabSwipe({
+  const { progress } = useTabSwipe({
     index: tabIndex,
     count: items.length,
     onCommit: (n) => {

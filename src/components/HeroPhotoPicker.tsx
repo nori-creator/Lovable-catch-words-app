@@ -1,4 +1,5 @@
 import { Check, ImageUp, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
@@ -106,8 +107,36 @@ export function HeroPhotoPicker({
   saving: boolean;
 }) {
   const t = useT();
-  const available = ORDER.filter((r) => !!urlOf(sources, r));
-  const validCutout = urlOf(sources, "cutout");
+  const candidateCutout = urlOf(sources, "cutout");
+  const [validCutout, setValidCutout] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const object = sources.object_url ?? sources.object_thumb_url ?? null;
+    if (!candidateCutout || !object) {
+      setValidCutout(candidateCutout);
+      return;
+    }
+    setValidCutout(null);
+    void Promise.all([fetch(object).then((r) => r.arrayBuffer()), fetch(candidateCutout).then((r) => r.arrayBuffer())])
+      .then(([a, b]) => {
+        if (cancelled) return;
+        if (a.byteLength !== b.byteLength) {
+          setValidCutout(candidateCutout);
+          return;
+        }
+        const left = new Uint8Array(a);
+        const right = new Uint8Array(b);
+        const same = left.every((value, index) => value === right[index]);
+        setValidCutout(same ? null : candidateCutout);
+      })
+      .catch(() => {
+        if (!cancelled) setValidCutout(candidateCutout);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateCutout, sources.object_url, sources.object_thumb_url]);
+  const available = ORDER.filter((r) => r !== "cutout" ? !!urlOf(sources, r) : !!validCutout);
 
   return (
     <div className="space-y-3">
@@ -132,7 +161,8 @@ export function HeroPhotoPicker({
 
       <ul className="grid grid-cols-2 gap-2">
         {available.map((role) => {
-          const url = urlOf(sources, role)!;
+          const url = role === "cutout" ? validCutout : urlOf(sources, role);
+          if (!url) return null;
           const on = current === role;
           return (
             <li key={role}>

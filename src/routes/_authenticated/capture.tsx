@@ -30,7 +30,12 @@ import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
-import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
+import {
+  enqueueCapture,
+  getPendingCapture,
+  removePendingCapture,
+  updatePendingCapture,
+} from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
@@ -51,6 +56,8 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { Capacitor } from "@capacitor/core";
+import { isPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
@@ -372,6 +379,17 @@ function CapturePage() {
       const url = await fileToDataUrl(file);
       const compressed = await compressImage(url, 1600);
       setObjectImg(compressed);
+      const queued = await enqueueCapture({
+        object_img: compressed,
+        selfie_img: null,
+        lat: null,
+        lng: null,
+        location_name: null,
+      });
+      if (queued) {
+        setPendingId(queued.id);
+        pendingIdRef.current = queued.id;
+      }
       setStep("selfie");
     } catch (e) {
       console.error(e);
@@ -384,7 +402,11 @@ function CapturePage() {
     if (file) {
       try {
         const url = await fileToDataUrl(file);
-        setSelfieImg(await compressImage(url, 1280));
+        const compressed = await compressImage(url, 1280);
+        setSelfieImg(compressed);
+        if (pendingIdRef.current) {
+          void updatePendingCapture(pendingIdRef.current, { selfie_img: compressed });
+        }
       } catch (e) {
         // 自撮りは任意。読めなくてもキャッチは止めない。
         console.warn("selfie read failed", e);
@@ -409,9 +431,12 @@ function CapturePage() {
       // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
-      const suggestRes = await suggestFn({
-        data: { imageBase64: aiImage, targetLanguage: targetLanguage },
-      });
+      const suggestRes = await Promise.race([
+        suggestFn({ data: { imageBase64: aiImage, targetLanguage: targetLanguage } }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(t("cap.networkTimeout"))), 20000),
+        ),
+      ]);
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
       setStep("select");
@@ -434,7 +459,12 @@ function CapturePage() {
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
       const here = await resolveLocation();
       const saved = pendingIdRef.current
-        ? pendingIdRef.current
+        ? await updatePendingCapture(pendingIdRef.current, {
+            selfie_img: selfieImg,
+            lat: here.lat,
+            lng: here.lng,
+            location_name: here.name,
+          })
         : await enqueueCapture({
             object_img: img,
             selfie_img: selfieImg,
@@ -820,7 +850,7 @@ function CapturePage() {
 
       // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
       void queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      if (pendingId) void removePendingCapture(pendingId);
+      if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
 
       // ここからキャッチ演出。切り抜きがふわっと浮いて画面いっぱいに広がり、
       // 上へ抜けたところで図鑑のページが開いて、新しいセルがドンと着弾する
@@ -966,6 +996,29 @@ function CapturePage() {
           retakeWord={retakeParam ?? null}
           cameraInputRef={cameraInputRef}
           onObjectFile={handleObjectFile}
+          onNativeCapture={
+            Capacitor.isNativePlatform()
+              ? async () => {
+                  try {
+                    const { Camera: NativeCamera, CameraResultType, CameraSource } = await import(
+                      "@capacitor/camera"
+                    );
+                    const photo = await NativeCamera.getPhoto({
+                      source: CameraSource.Camera,
+                      resultType: CameraResultType.Uri,
+                      quality: 90,
+                      saveToGallery: isPhotoLibrarySyncEnabled(),
+                      correctOrientation: true,
+                    });
+                    if (!photo.webPath) return;
+                    const blob = await (await fetch(photo.webPath)).blob();
+                    await handleObjectFile(new File([blob], `capture.${photo.format}`, { type: blob.type }));
+                  } catch (e) {
+                    console.warn("native capture failed", e);
+                  }
+                }
+              : undefined
+          }
           typedWord={typedWord}
           setTypedWord={setTypedWord}
           /**
@@ -1566,6 +1619,7 @@ export function CaptureObjectPanel({
   retakeWord,
   cameraInputRef,
   onObjectFile,
+  onNativeCapture,
   typedWord,
   setTypedWord,
   onSearch,
@@ -1577,6 +1631,7 @@ export function CaptureObjectPanel({
   retakeWord: string | null;
   cameraInputRef: RefObject<HTMLInputElement | null>;
   onObjectFile: (f: File) => void;
+  onNativeCapture?: () => void;
   typedWord: string;
   setTypedWord: (v: string) => void;
   onSearch: (word: string) => void;
@@ -1600,7 +1655,11 @@ export function CaptureObjectPanel({
           {t("retake.hint", { w: retakeWord })}
         </p>
       )}
-      <label className="block">
+      <label className="block" onClick={(e) => {
+        if (!onNativeCapture) return;
+        e.preventDefault();
+        onNativeCapture();
+      }}>
         <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
           <div className="flex flex-col items-center gap-2">
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">

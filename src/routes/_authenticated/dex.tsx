@@ -47,6 +47,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
+import { useSwipeBack } from "@/hooks/use-tab-swipe";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -563,6 +564,7 @@ function DexPage() {
                     <PronounceButton
                       text={s.word.headword}
                       language={s.word.language ?? undefined}
+                      tone="hero"
                     />
                   </li>
                 ))}
@@ -855,9 +857,80 @@ function DexCalendar({
   ];
 
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const dayItems = openDay ? (byDay.get(openDay) ?? []) : [];
+  const dayItems = useMemo(
+    () =>
+      openDay
+        ? [...(byDay.get(openDay) ?? [])].sort(
+            (a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime(),
+          )
+        : [],
+    [byDay, openDay],
+  );
+  useSwipeBack({ enabled: !!openDay, onBack: () => setOpenDay(null) });
+  useEffect(() => {
+    if (!openDay) return;
+    document.documentElement.dataset.swipeSubview = "calendar-day";
+    return () => {
+      if (document.documentElement.dataset.swipeSubview === "calendar-day") {
+        delete document.documentElement.dataset.swipeSubview;
+      }
+    };
+  }, [openDay]);
 
   const monthLabel = first.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+
+  if (openDay) {
+    return (
+      <section className="min-h-[60dvh]" aria-label={t("dex.timelineTitle")}>
+        <button
+          type="button"
+          onClick={() => setOpenDay(null)}
+          className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-body font-semibold text-primary-ink"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden />
+          {t("dex.timelineBack")}
+        </button>
+        <div className="mb-5">
+          <h2 className="text-title font-semibold">{openDay}</h2>
+          <p className="text-footnote text-muted-foreground">{t("dex.timelineTitle")}</p>
+        </div>
+        <ol className="relative ml-5 border-l border-border pl-6">
+          {dayItems.map((s) => {
+            const photo = stickerPhotoUrl(s, { thumb: true });
+            const taken = new Date(s.taken_at);
+            const time = Number.isNaN(taken.getTime())
+              ? ""
+              : taken.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+            return (
+              <li key={s.id} className="relative pb-5 last:pb-0">
+                <span className="absolute -left-[1.8rem] top-5 h-3 w-3 rounded-full border-2 border-background bg-primary" />
+                <button
+                  type="button"
+                  onClick={() => onOpen(s.id)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-card p-2 text-left shadow-sm ring-1 ring-border"
+                >
+                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                    {photo ? (
+                      <CachedImg src={photo} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Zh className="text-body font-semibold">{s.word.headword}</Zh>
+                    )}
+                  </div>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-mono text-footnote text-primary-ink">{time}</span>
+                    <Zh className="mt-1 block truncate text-body font-semibold">{s.word.headword}</Zh>
+                    <span className="block truncate text-footnote text-muted-foreground">
+                      {s.word.meaning_ja}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -928,41 +1001,6 @@ function DexCalendar({
           );
         })}
       </div>
-
-      {openDay && (
-        <div className="mt-4">
-          <p className="mb-2 text-body font-semibold">{openDay}</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {dayItems.map((s) => {
-              const photo = stickerPhotoUrl(s, { thumb: true });
-              return (
-                <button key={s.id} onClick={() => onOpen(s.id)} className="block text-left">
-                  <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary shadow-md ring-1 ring-black/5">
-                    {photo ? (
-                      <CachedImg
-                        src={photo}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-full place-items-center px-1 text-center">
-                        <Zh className="text-body font-semibold">{s.word.headword}</Zh>
-                      </div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                      <Zh className="block truncate text-footnote font-semibold text-white">
-                        {s.word.headword}
-                      </Zh>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {byDay.size === 0 && (
         <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
@@ -1300,7 +1338,7 @@ export function DexHeader({
           図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
-      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pb-1 pr-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
           {(
             [
