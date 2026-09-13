@@ -1645,33 +1645,39 @@ export function CaptureObjectPanel({
 }) {
   const t = useT();
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-col gap-3">
       <div>
-        <h2 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h2>
+        <h1 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h1>
         <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
       </div>
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
       {retakeWord && (
-        <p className="ja-phrase rounded-2xl bg-secondary px-3 py-2 text-footnote font-semibold">
+        <p className="ja-phrase rounded-xl bg-secondary px-3 py-2 text-footnote font-semibold">
           {t("retake.hint", { w: retakeWord })}
         </p>
       )}
       <label
-        className="block"
+        className="group block cursor-pointer"
         onClick={(e) => {
           if (!onNativeCapture) return;
           e.preventDefault();
           onNativeCapture();
         }}
       >
-        <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
-          <div className="flex flex-col items-center gap-2">
-            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
-              <Camera className="h-8 w-8" />
+        <div className="relative h-[min(48dvh,24rem)] min-h-72 rounded-3xl border border-border bg-card p-2 shadow-[inset_0_0_0_5px_color-mix(in_oklab,var(--secondary)_55%,transparent)] transition-colors group-hover:border-primary/55">
+          <div aria-hidden="true" className="absolute inset-x-[15%] inset-y-[18%] bottom-20">
+            <span className="absolute left-0 top-0 h-9 w-9 rounded-tl-xl border-l-2 border-t-2 border-primary" />
+            <span className="absolute right-0 top-0 h-9 w-9 rounded-tr-xl border-r-2 border-t-2 border-primary" />
+            <span className="absolute bottom-0 left-0 h-9 w-9 rounded-bl-xl border-b-2 border-l-2 border-primary" />
+            <span className="absolute bottom-0 right-0 h-9 w-9 rounded-br-xl border-b-2 border-r-2 border-primary" />
+          </div>
+          <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-1.5">
+            <span className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/10 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none">
+              <Camera className="h-7 w-7" strokeWidth={2} />
             </span>
-            <span className="text-body font-medium">{t("capture.tapToShoot")}</span>
+            <span className="text-footnote font-semibold text-foreground">{t("capture.tapToShoot")}</span>
           </div>
         </div>
         <input
@@ -1683,12 +1689,6 @@ export function CaptureObjectPanel({
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
         />
       </label>
-
-      <div className="flex items-center gap-3 pt-2">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-footnote text-muted-foreground">{t("capture.or")}</span>
-        <span className="h-px flex-1 bg-border" />
-      </div>
 
       {/* **検索の欄そのものをここに置く**(オーナー指示 2026-08-26
               「検索欄をカメラの画面に直接置いて」)。
@@ -1718,14 +1718,15 @@ export function CaptureObjectPanel({
             aria-label={t("capture.typeWord")}
             enterKeyHint="search"
             disabled={searching}
-            className="h-11 pl-9"
+            className="h-11 rounded-xl bg-card pl-9 shadow-sm"
           />
         </div>
         <Button
           type="submit"
           disabled={searching || !typedWord.trim()}
           aria-busy={searching}
-          className="h-11 shrink-0 px-4"
+          size="icon"
+          className="h-11 w-11 shrink-0 rounded-xl"
         >
           {searching ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1736,13 +1737,15 @@ export function CaptureObjectPanel({
       </form>
 
       {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
-      <button
+      <Button
+        type="button"
+        variant="outline"
         onClick={onOpenScan}
-        className="lift flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-body font-medium text-foreground"
+        className="lift h-11 w-full rounded-xl bg-card text-body font-semibold"
       >
         <ScanLine className="h-4 w-4" />
         {t("capture.openScan")}
-      </button>
+      </Button>
 
       {error && <p className="text-body text-destructive-ink">{error}</p>}
     </div>
