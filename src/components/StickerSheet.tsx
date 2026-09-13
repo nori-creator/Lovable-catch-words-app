@@ -256,6 +256,20 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   useEffect(() => {
     if (openPhotoPicker && stickerId) setPickerSurface("album");
   }, [openPhotoPicker, stickerId]);
+  /**
+   * **写真を選ぶためだけに開いた面は、選び終わったらホームへ帰る**
+   * (オーナー報告 2026-09-13「ホーム画面の画像を変更した時はホーム画面の
+   * まま」)。
+   *
+   * ホームの長押しは、この札の面を開いてからその上に写真の面を重ねていた。
+   * だから写真を選び終えると、**下から単語の詳細が現れる** — 長押しで
+   * 絵を選んだだけの人には「勝手にページが移動した」に見えていた。
+   */
+  const pickerOnly = !!openPhotoPicker;
+  function closePicker() {
+    setPickerSurface(null);
+    if (pickerOnly) onClose();
+  }
   const albumRole = useSurfaceRole("album", stickerId ?? null);
   const [savingHero, setSavingHero] = useState(false);
 
