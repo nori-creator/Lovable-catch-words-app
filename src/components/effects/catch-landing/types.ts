@@ -33,6 +33,18 @@ export type LandingCtx = {
   gate?: Promise<unknown>;
   /** 保存済みの札。図鑑側の実セルを探すために使う。 */
   destinationId?: string;
+  /**
+   * 保存済みの札を**後から**受け取る口。
+   *
+   * 演出は押した瞬間に始まるので、その時点ではまだ保存が終わっておらず
+   * `destinationId` は決まっていない。`gate` を待った後にこれを呼べば、
+   * そのとき決まっている札の id が返る。
+   *
+   * **`destinationId` を先に読んで持ち回らないこと** — 演出の冒頭で
+   * 分解すると、後から届いた id が永久に見えず、着地先を見失って
+   * 「消えて終わり」になる。
+   */
+  getDestinationId?: () => string | undefined;
   /** 最大表示のまま図鑑を背後に開く。 */
   openDex?: () => void | Promise<void>;
 };

@@ -43,7 +43,11 @@ export async function runCatchLanding(ctx: {
   fly: RefObject<HTMLImageElement | null>;
   speakLine?: () => void;
   destinationId?: string;
+  /** 保存済みの札を後から受け取る口(`types.ts` の注)。 */
+  getDestinationId?: () => string | undefined;
   openDex?: () => void | Promise<void>;
+  /** 保存の通信。見せ場の1秒がこれを待つ。 */
+  gate?: Promise<unknown>;
 }): Promise<void> {
   // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
   // それでも毎回呼ぶ理由は、iOS がアプリを背面に回すたびに AudioContext を
@@ -57,6 +61,11 @@ export async function runCatchLanding(ctx: {
     Sound.rewardBreak();
     haptic("success");
     ctx.speakLine?.();
+    // **図鑑へ移る前に保存を待つ。**
+    // 演出は押した瞬間に始まるので、ここではまだ札の id が決まっていない。
+    // 待たずに移ると `?justCaught=` が空のまま図鑑が開き、
+    // **動きを減らしている人だけ着弾が出ない**ことになる。
+    if (ctx.gate) await ctx.gate.catch(() => {});
     await ctx.openDex?.();
     await new Promise((r) => setTimeout(r, 500));
     return;
@@ -67,7 +76,9 @@ export async function runCatchLanding(ctx: {
     dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
     speakLine: ctx.speakLine,
     destinationId: ctx.destinationId,
+    getDestinationId: ctx.getDestinationId,
     openDex: ctx.openDex,
+    gate: ctx.gate,
   });
 }
 

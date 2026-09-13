@@ -2251,35 +2251,58 @@ describe("キャッチの報酬演出", () => {
   });
 
   /**
-   * **まだ直っていない2つ**（2026-09-13 の合流で分かったこと）。
+   * **押した画面をそのまま残す**（オーナー指示 2026-09-13 / 直した日 同日）。
    *
-   * 同じ日に Lovable 側でも演出が作られ、動く経路はそちらを採った。
-   * 振り付けと図鑑への受け渡しは向こうが優れているが、私が見つけた
-   * **構造的な原因2つはそのまま残っている**:
+   * > 「該当の画面のなかの**画像だけ**が動き出し」
    *
-   *   ① `setStep("saving")` で画面が丸ごと黒い覆いに差し替わり、
-   *      そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛ぶ。
-   *      → オーナー指示「該当の画面のなかの画像だけが動き出し」が未達。
-   *   ② 保存の通信を `await` してから演出を始める。
-   *      → 押してから絵が動くまで、回線しだいで1〜3秒の無音がある。
+   * 前は `setStep("saving")` でカードの画面が丸ごと黒い覆いに差し替わり、
+   * そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛んでいた。
+   * 画面が変わってから別の絵が動くので、同じ物が動いたようには見えない。
    *
-   * 門にすると**いま落ちる**ので、門ではなく記録として置く。
-   * 直し方は `docs/motion/catch-reward.md` の第6部。
+   * **文字で入れた語だけは例外。** 飛ぶ写真が無いので待つ面を出す。
+   * だから「`setStep("saving")` を使わない」ではなく
+   * 「**写真が無いときにしか使わない**」が守るべき形。
    */
-  it("いま直っていない事は、直っていないと分かる形で残す", () => {
+  it("写真が在るときは画面を差し替えない（その場の写真から飛ばす）", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    // ここが false に変わったら①が直った合図。そのとき門に昇格させる。
-    const stillSwapsScreen = /setStep\("saving"\)/.test(cap);
-    const stillAwaitsBeforeFlight = !/gate:\s*savePromise/.test(cap);
-    expect({ stillSwapsScreen, stillAwaitsBeforeFlight }).toEqual({
-      stillSwapsScreen: true,
-      stillAwaitsBeforeFlight: true,
-    });
+    const fn = cap.slice(cap.indexOf("async function handleSave()"));
+    const body = fn.slice(0, fn.indexOf("\n  }\n"));
+    // 飛ぶ枠は、いま画面に出ているカードの写真。
+    expect(cap).toMatch(/heroBoxRef=\{heroBoxRef\}/);
+    // 差し替えは**写真が無い経路の中だけ**。
+    expect(body).toMatch(/if \(!hero\) \{[\s\S]{0,200}?setStep\("saving"\)/);
+    expect(body.match(/setStep\("saving"\)/g) ?? []).toHaveLength(1);
+  });
+
+  /**
+   * **保存の通信と演出が並走する**（同上）。
+   *
+   * 前は保存を `await` してから演出を始めていたので、押してから絵が動き
+   * 出すまでに回線しだいで1〜3秒の無音があった。いまは押した瞬間に
+   * 演出が始まり、**見せ場の1秒が通信を待つ関所**を兼ねる。
+   */
+  it("保存を待たずに演出を始め、見せ場の1秒が通信を待つ", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/const savePromise = doSave\(/);
+    // **飲み込んで渡さない。** 転んだら演出側が受け渡しへ進まず畳む。
+    expect(cap).toMatch(/gate: savePromise,/);
+    const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    expect(reward).toMatch(/await gate;/);
   });
 
   it("**飛び立つ寸法は枠ではなく絵そのもの**（枠で測ると離陸の瞬間に跳ねる）", () => {
-    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
-    expect(v5).toMatch(/startEl\.querySelector\("img"\) \?\? startEl/);
+    // カードの箱には `p-6` の余白と縁が付いている。箱で測ると
+    // `object-contain` が写真を箱いっぱいに広げ、16% ほど大きくなる。
+    const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    expect(reward).toMatch(/startEl\.querySelector\("img"\) \?\? startEl/);
+  });
+
+  it("**札の id は後から読む**（飛び始めた時点ではまだ決まっていない）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/getDestinationId: \(\) => savedId/);
+    const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    // 冒頭で分解した値を持ち回ると、後から届いた id が永久に見えない。
+    expect(reward).toMatch(/getDestinationId\?\.\(\) \?\? destinationId/);
   });
 
   it("**音と単語は拡大率のフレーム判定で出す**（時間で待つと回ごとにずれる）", () => {
