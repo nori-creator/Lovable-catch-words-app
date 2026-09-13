@@ -2243,6 +2243,91 @@ describe("独自ドメインへ移れる形になっているか", () => {
  * **実際の当たり判定**を見るので、見た目を大きくせずに `::before` で
  * 広げるのが正しいやり方（`scripts/ui-audit.mjs` の注）。
  */
+/**
+ * ホームのアルバムを iPhone のホーム画面のように触る（オーナー指示 2026-09-13）。
+ *
+ * > 「ホームの画像長押ししたら、iPhone のアプリを長押しした時のように
+ * >  画像が揺れてドラックしたら場所を変更できて、角を引っ張ったら
+ * >  大きさを変更できるようにして。」
+ */
+describe("ホームのアルバムの長押し", () => {
+  it("**長押しした指でそのまま掴める**（一度離して押し直させない）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const fn = home.slice(home.indexOf("function startPress("));
+    const body = fn.slice(0, fn.indexOf("\n  }"));
+    // 長押しが成立した所で掴みを始めること。前は `onPointerDown` が
+    // `editing` のときだけ掴んでいたので、長押しで編集に入った瞬間には
+    // もう pointerdown が終わっており、押し直しが要った。
+    expect(body).toMatch(/dragId\.current = id/);
+    expect(body).toMatch(/setPointerCapture/);
+  });
+
+  it("**指の微動で長押しを取り消さない**（遊びを持たせる）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    // 1px で取り消す作りにすると、長押しがほとんど成立しない。
+    expect(home).toMatch(/PRESS_SLOP = \d+/);
+    expect(home).toMatch(/Math\.hypot\([^)]*\) > PRESS_SLOP/);
+  });
+
+  it("掴んだ札は指に付いてきて、**揺れは止まる**", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/album-lifted/);
+    expect(home).toMatch(/translate\(\$\{liftOffset\.x\}px/);
+    // 掴んだ物がぐらついていると、指に付いてきているのか揺れているのか
+    // 見分けが付かない。CSS 側で止める。
+    const css = read("styles.css");
+    expect(css).toMatch(/\.album-lifted \{[\s\S]{0,80}animation: none !important/);
+  });
+
+  it("**指が横取りされた回も必ず戻す**（通知や電話で固まらない）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/onPointerCancel=/);
+  });
+
+  it("揺れは札ごとに位相が違う（全部が同じ拍だと機械の表に見える）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/jiggleStyle\(s\.id\)/);
+    const css = read("styles.css");
+    // 前は `nth-child(2n)` の2種類だけだった。
+    expect(css).not.toMatch(/\.album-editing:nth-child\(2n\)/);
+    expect(css).toMatch(/var\(--jiggle-delay/);
+  });
+
+  it("**ブラウザ自前のドラッグを止める**（止めないと掴んだ瞬間に取り上げられる）", () => {
+    // 押して動かすと Chromium は中の img を掴んで native drag を始め、
+    // `pointercancel` を投げて**ポインタを取り上げる**。実測で、押して 4px
+    // 動かしただけで長押しも掴みも丸ごと死んでいた。
+    // `touch-action: none` では止まらない（あれはスクロールの話）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/draggable=\{false\}/);
+    expect(home).toMatch(/onDragStart=/);
+  });
+
+  it("**掴んだ札を飛ばして下の札を探す**（自分の上では並べ替わらない）", () => {
+    // 掴んだ札は指に付いてくるので `elementFromPoint` は必ず自分を返す。
+    // そのままだと一度も並べ替わらない（実測で確認）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/elementsFromPoint/);
+    expect(home).toMatch(/!== dragId\.current/);
+  });
+
+  it("**大きさの一覧は1本だけ**（2本あると描画と保存が静かに食い違う）", () => {
+    // 前は class の一覧と AlbumSize の一覧が同じ並びで2本あり、掴んだとき
+    // 「画面に出ている大きさ」ではなく "small" を渡していた。だから
+    // 引き返しても元に戻らなかった。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/const ALBUM_SIZES = \[/);
+    expect(home).toMatch(/beginResize\(e, s\.id, effSize\)/);
+  });
+
+  it("**角の引きは純粋な関数に任せる**（引き返せば戻る形）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/resizeFromDrag\(/);
+    // 掴んだ瞬間の大きさと比べる形に戻すと、元の大きさへ戻せなくなる。
+    expect(home).not.toMatch(/if \(next !== current\) setSize/);
+  });
+});
+
 describe("小さいボタンの当たり判定", () => {
   it("**広げる理由は大きさ。見た目の種類に紐付けない**", () => {
     const src = codeOnly(read("components/PronounceButton.tsx"));

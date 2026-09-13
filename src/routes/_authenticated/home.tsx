@@ -1,3 +1,12 @@
+import {
+  JIGGLE,
+  SIZE_CELLS,
+  jiggleStyle,
+  resizeFromDrag,
+  LIFTED,
+  type AlbumSize as LibAlbumSize,
+} from "@/lib/album-drag";
+import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
@@ -627,15 +636,13 @@ export function DayHeader({
 }
 
 const ALBUM_ROTATIONS = [-7, 5, -3, 8, -5, 2, -9, 6, -2, 4, -6, 3];
-const ALBUM_SIZES = [
-  "col-span-2 row-span-2",
-  "col-span-1 row-span-2",
-  "col-span-1 row-span-1",
-  "col-span-2 row-span-1",
-  "col-span-1 row-span-2",
-  "col-span-1 row-span-1",
-];
-type AlbumSize = "small" | "portrait" | "landscape" | "large";
+// **大きさの一覧は1本だけにする。**
+// 以前はここに class の文字列の一覧（`ALBUM_SIZES`）が在り、下の
+// `AUTO_ALBUM_SIZE` と**同じ並びを2つ**持っていた。描画は前者、
+// 保存と掴みは後者を見ていたので、片方を直した日に静かに食い違う。
+// 実際、角を掴んだとき「画面に出ている大きさ」ではなく `"small"` を
+// 渡していて、**引き返しても元に戻らなかった**。
+type AlbumSize = LibAlbumSize;
 const ALBUM_SIZE_CLASS: Record<AlbumSize, string> = {
   small: "col-span-1 row-span-1",
   portrait: "col-span-1 row-span-2",
@@ -699,12 +706,18 @@ export function ScrapbookAlbum({
   }, [stickers, editing]);
   const items = useMemo(
     () =>
-      ordered.map((s, i) => ({
-        sticker: s,
-        rot: editing ? 0 : ALBUM_ROTATIONS[i % ALBUM_ROTATIONS.length],
-        size: s.album_size ? ALBUM_SIZE_CLASS[s.album_size] : ALBUM_SIZES[i % ALBUM_SIZES.length],
-        z: 10 + (i % 5),
-      })),
+      ordered.map((s, i) => {
+        // **画面に出ている大きさ**。自分で選んでいなければ自動の割り当て。
+        // 掴んだときもこれを渡す（class から逆算しない）。
+        const effSize: AlbumSize = s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length];
+        return {
+          sticker: s,
+          rot: editing ? 0 : ALBUM_ROTATIONS[i % ALBUM_ROTATIONS.length],
+          effSize,
+          size: ALBUM_SIZE_CLASS[effSize],
+          z: 10 + (i % 5),
+        };
+      }),
     [ordered, editing],
   );
 
@@ -730,21 +743,21 @@ export function ScrapbookAlbum({
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
+    // **升目の実寸で測る。** 決め打ちの px だと、画面の幅で
+    // 「引いた感じ」と切り替わる量がずれる。
+    const cellBox = (e.currentTarget as HTMLElement)
+      .closest<HTMLElement>("[data-album-sticker]")
+      ?.getBoundingClientRect();
+    const cell: [number, number] = [
+      Math.max(40, (cellBox?.width ?? 96) / SIZE_CELLS[current][0]),
+      Math.max(40, (cellBox?.height ?? 96) / SIZE_CELLS[current][1]),
+    ];
     const onMove = (move: PointerEvent) => {
-      const dx = move.clientX - startX;
-      const dy = move.clientY - startY;
-      if (Math.hypot(dx, dy) < 18) return;
-      const next: AlbumSize =
-        dx > 24 && dy > 24
-          ? "large"
-          : Math.abs(dx) > Math.abs(dy)
-            ? dx > 0
-              ? "landscape"
-              : "small"
-            : dy > 0
-              ? "portrait"
-              : "small";
-      if (next !== current) setSize(id, next);
+      // **毎回いまの引き量から作り直す**ので、引き返せば必ず元に戻る
+      // (`lib/album-drag.ts` の注)。前は掴んだ瞬間の大きさと比べていたので、
+      // 一度変えたら元の大きさへ戻せなかった。
+      const next = resizeFromDrag(move.clientX - startX, move.clientY - startY, current, cell);
+      setSize(id, next);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -779,17 +792,90 @@ export function ScrapbookAlbum({
   // 違う長さだと、どちらかが「効かない」と感じられる。
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
-  function startPress(id: string) {
+  /**
+   * 押さえ始めた点。**長押しを取り消すかどうかの判断に要る。**
+   *
+   * 指は必ず数 px 揺れるので、1px でも動いたら取り消す作りにすると
+   * **長押しがほとんど成立しない**。10px の遊びを持たせる（iOS も同じ考え）。
+   */
+  const pressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const PRESS_SLOP = 10;
+  /**
+   * 掴んでいる札と、指に付いてくるためのずれ。
+   *
+   * **長押しした指でそのまま掴めること**が「iPhone のように」の中心
+   * (オーナー指示 2026-09-13)。前は `onPointerDown` が `editing` のときだけ
+   * `dragId` を立てていたので、長押しで編集に入った瞬間にはもう
+   * `pointerdown` が終わっており、**一度離して押し直さないと動かせなかった**。
+   */
+  const [lifted, setLifted] = useState<string | null>(null);
+  const liftFrom = useRef<{ x: number; y: number } | null>(null);
+  const [liftOffset, setLiftOffset] = useState({ x: 0, y: 0 });
+  const pendingPoint = useRef<{ x: number; y: number } | null>(null);
+  const moveRaf = useRef(0);
+
+  function startPress(
+    id: string,
+    at: { x: number; y: number },
+    el: HTMLElement,
+    pointerId: number,
+  ) {
     longPressFired.current = false;
+    pressOrigin.current = at;
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+      // 生の navigator.vibrate は**振動オフの設定を無視する**。
+      haptic("medium");
       setEditing(true);
+      // **そのまま掴む。** ここで掴まないと、指は乗っているのに
+      // 何も起きない時間ができて「効かなかった」と読まれる。
+      dragId.current = id;
+      dragged.current = false;
+      liftFrom.current = at;
+      setLiftOffset({ x: 0, y: 0 });
+      setLifted(id);
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        // 指が既に離れている回。掴めなくても編集には入れる。
+      }
     }, 550);
   }
   function endPress() {
     if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = null;
+    pressOrigin.current = null;
+  }
+  /**
+   * 掴みの後始末は**窓で受ける**。
+   *
+   * 札の上の `onPointerUp` だけに頼ると、並べ替えで DOM が動いた回に
+   * 取りこぼす。実測: 掴んだまま3枚目まで運んで離したとき、並べ替えは
+   * 成功しているのに**掴んだ印が残り続けた**（札が持ち上がったまま固まる）。
+   *
+   * 指を離した事実は札の位置と関係が無いので、窓で受けるのが正しい。
+   */
+  useEffect(() => {
+    if (!lifted) return;
+    const done = () => endLift();
+    window.addEventListener("pointerup", done);
+    window.addEventListener("pointercancel", done);
+    return () => {
+      window.removeEventListener("pointerup", done);
+      window.removeEventListener("pointercancel", done);
+    };
+    // `endLift` は毎描画で作り直されるが、中身は ref と setter だけなので
+    // 依存に入れる必要がない（入れると毎描画で張り直しになる）。
+  }, [lifted]);
+
+  function endLift() {
+    if (moveRaf.current) cancelAnimationFrame(moveRaf.current);
+    moveRaf.current = 0;
+    pendingPoint.current = null;
+    dragId.current = null;
+    liftFrom.current = null;
+    setLifted(null);
+    setLiftOffset({ x: 0, y: 0 });
   }
 
   return (
@@ -810,7 +896,7 @@ export function ScrapbookAlbum({
         </button>
       )}
       <div className="relative grid auto-rows-[7rem] grid-cols-3 gap-x-4 gap-y-8 sm:auto-rows-[8.5rem] sm:grid-cols-4">
-        {items.map(({ sticker: s, rot, size, z }) => {
+        {items.map(({ sticker: s, rot, size, effSize, z }) => {
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie.
           // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`
@@ -860,31 +946,111 @@ export function ScrapbookAlbum({
               // 同じ入口をここにも開ける — 押さえた写真そのものを直せる。
               onPointerDown={(e) => {
                 if (editing) {
+                  // すでに編集中なら、触れた瞬間から掴む。
                   dragId.current = s.id;
                   dragged.current = false;
+                  liftFrom.current = { x: e.clientX, y: e.clientY };
+                  setLiftOffset({ x: 0, y: 0 });
+                  setLifted(s.id);
                   e.currentTarget.setPointerCapture(e.pointerId);
-                } else startPress(s.id);
+                } else {
+                  // **長押しの時点で掴む**ので、押さえた指と要素を渡す。
+                  startPress(s.id, { x: e.clientX, y: e.clientY }, e.currentTarget, e.pointerId);
+                }
               }}
               onPointerMove={(e) => {
-                if (!editing || !dragId.current) return;
-                const target = document
-                  .elementFromPoint(e.clientX, e.clientY)
-                  ?.closest<HTMLElement>("[data-album-sticker]");
-                if (target?.dataset.albumSticker) moveOver(target.dataset.albumSticker);
+                // 長押しの最中に指が動いたら、それは「めくろうとした」なので
+                // 長押しを取り消す。**押さえたまま待つ**のが長押し。
+                if (!dragId.current) {
+                  // 押さえたまま待つのが長押し。**遊びを越えて動いたら**
+                  // めくろうとしたと見て取り消す（1px で取り消すと、指の
+                  // 微動だけで長押しがほとんど成立しなくなる）。
+                  const o = pressOrigin.current;
+                  if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endPress();
+                  return;
+                }
+                const from = liftFrom.current;
+                if (from) {
+                  // **1フレームに1回だけ描き直す。** pointermove は
+                  // 1フレームに何度も来るので、そのたびに state を変えると
+                  // 札の枚数ぶん描き直しが積み上がって、掴んだ物が遅れる。
+                  pendingPoint.current = { x: e.clientX - from.x, y: e.clientY - from.y };
+                  if (!moveRaf.current) {
+                    moveRaf.current = requestAnimationFrame(() => {
+                      moveRaf.current = 0;
+                      if (pendingPoint.current) setLiftOffset(pendingPoint.current);
+                    });
+                  }
+                }
+                // **掴んでいる札そのものを飛ばして、下に在る札を探す。**
+                //
+                // 掴んだ札は指に付いてくるので、`elementFromPoint` は必ず
+                // **自分自身**を返す。`moveOver` は「自分の上」では何もしない
+                // ので、そのままだと**一度も並べ替わらない**（実測で確認）。
+                // `elementsFromPoint`（複数形）で重なりを上から順に見て、
+                // 自分以外の最初の札を採る。
+                const under = document
+                  .elementsFromPoint(e.clientX, e.clientY)
+                  .map((n) => (n as HTMLElement).closest?.<HTMLElement>("[data-album-sticker]"))
+                  .find(
+                    (n) => n?.dataset.albumSticker && n.dataset.albumSticker !== dragId.current,
+                  );
+                if (under?.dataset.albumSticker) moveOver(under.dataset.albumSticker);
               }}
               onPointerUp={(e) => {
                 endPress();
-                if (editing) {
-                  dragId.current = null;
-                  e.currentTarget.releasePointerCapture(e.pointerId);
+                if (dragId.current) {
+                  endLift();
+                  try {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  } catch {
+                    // 既に解放済み。掴みの後始末は上で済んでいる。
+                  }
                 }
+              }}
+              onPointerCancel={() => {
+                // **指が横取りされた回も必ず戻す。** これが無いと、
+                // 通知や電話で中断したとき札が持ち上がったまま固まる。
+                endPress();
+                endLift();
               }}
               onPointerLeave={endPress}
               onContextMenu={(e) => e.preventDefault()}
+              // **ブラウザ自前のドラッグ＆ドロップを止める。**
+              //
+              // 押したまま動かすと、Chromium は中の `<img>` を掴んで
+              // ネイティブの drag を始め、その瞬間に `pointercancel` を投げて
+              // **ポインタを取り上げる**。こちらの長押しも並べ替えも、
+              // そこで丸ごと死ぬ。`touch-action: none` では止まらない
+              // （あれはスクロールやピンチの話で、drag は別の仕組み）。
+              //
+              // 実測: 押して 4px 動かしただけで `pointercancel` が1回飛び、
+              // 揺れも掴みも 0 になっていた（マウスでも指でも同じ）。
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
               // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
               data-album-sticker={s.id}
-              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab" : ""}`}
-              style={{ transform: `rotate(${rot}deg)`, zIndex: z }}
+              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab" : ""} ${lifted === s.id ? "album-lifted" : ""}`}
+              style={
+                {
+                  // 掴んだ札は**指に付いてくる**。揺れは CSS 側で止まる
+                  // (`.album-lifted`) ので、ここの transform と喧嘩しない。
+                  transform:
+                    lifted === s.id
+                      ? `translate(${liftOffset.x}px, ${liftOffset.y}px) scale(${LIFTED.scale})`
+                      : `rotate(${rot}deg)`,
+                  zIndex: lifted === s.id ? 60 : z,
+                  boxShadow:
+                    lifted === s.id
+                      ? `0 ${LIFTED.shadowBlurPx / 2}px ${LIFTED.shadowBlurPx}px rgba(0,0,0,${LIFTED.shadowAlpha})`
+                      : undefined,
+                  // 揺れの位相と周期は札ごと（`lib/album-drag.ts`）。
+                  "--jiggle-delay": `${jiggleStyle(s.id).delayMs}ms`,
+                  "--jiggle-dur": `${jiggleStyle(s.id).durationMs}ms`,
+                  "--jiggle-rot": `${JIGGLE.rotateDeg}deg`,
+                  "--jiggle-lift": `${JIGGLE.liftPx}px`,
+                } as React.CSSProperties
+              }
             >
               {/* **写真が在るときだけ印画紙を貼る**(オーナー指摘 2026-08-27 ②
                   「文字検索したら、アルバムでは文字だけを表示して。画像の
@@ -994,7 +1160,7 @@ export function ScrapbookAlbum({
                     role="slider"
                     aria-label="写真の大きさ"
                     className="absolute -bottom-2 -right-2 z-40 grid h-9 w-9 touch-none place-items-center rounded-full bg-primary text-primary-foreground shadow-lg"
-                    onPointerDown={(e) => beginResize(e, s.id, s.album_size ?? "small")}
+                    onPointerDown={(e) => beginResize(e, s.id, effSize)}
                   >
                     <Maximize2 className="h-4 w-4" />
                   </span>

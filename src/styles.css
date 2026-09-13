@@ -796,16 +796,52 @@
     ),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
 }
+/* iPhone のホーム画面の揺れ（オーナー指示 2026-09-13）。
+
+   前は `rotate` だけを 170ms（約6Hz）で振っていた。速すぎて「震えている」
+   ようにしか見えず、回転だけなので軸が止まって見えた。
+
+   直したのは3つ:
+     ① 周期を 240ms 前後（約4Hz）へ。iOS の体感に寄せる
+     ② **回転と上下、両方**を振る。混ぜると「留め具が緩んでぐらついて
+        いる」になる（回転だけ＝震え、平行移動だけ＝滑り）
+     ③ 位相と周期を**札ごとに**散らす。前は `nth-child(2n)` の2種類だけで、
+        半分が完全に同期していた（機械の表に見える）
+
+   位相と周期は `lib/album-drag.ts` の `jiggleStyle(id)` が id から作り、
+   CSS 変数で渡す。描き直しても位相が飛ばない。 */
 @keyframes album-jiggle {
-  0%, 100% { transform: rotate(-0.7deg); }
-  50% { transform: rotate(0.7deg); }
+  0%,
+  100% {
+    transform: rotate(calc(var(--jiggle-rot, 1.1deg) * -1))
+      translateY(calc(var(--jiggle-lift, 0.9px) * -1));
+  }
+  50% {
+    transform: rotate(var(--jiggle-rot, 1.1deg)) translateY(var(--jiggle-lift, 0.9px));
+  }
 }
 .album-editing {
-  animation: album-jiggle 170ms ease-in-out infinite;
+  animation: album-jiggle var(--jiggle-dur, 240ms) ease-in-out var(--jiggle-delay, 0ms) infinite;
 }
-.album-editing:nth-child(2n) { animation-delay: -85ms; }
+/* **掴んだ札は揺れを止める。** iOS も同じ — 持ち上げた物がぐらぐらして
+   いると、指に付いてきているのか揺れているのか見分けが付かない。 */
+/* アルバムの写真をブラウザに掴ませない。
+   `draggable={false}` は要素に付くが、中の `<img>` は別に持っているので
+   CSS でも塞ぐ（iOS Safari は `-webkit-user-drag` を見る）。 */
+.album-editing img,
+[data-album-sticker] img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.album-lifted {
+  animation: none !important;
+  z-index: 50;
+  cursor: grabbing;
+}
 @media (prefers-reduced-motion: reduce) {
-  .album-editing { animation: none; }
+  .album-editing {
+    animation: none;
+  }
 }
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）
