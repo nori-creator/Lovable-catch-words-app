@@ -2600,6 +2600,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't cut it out. Please try again.",
     "zh-TW": "無法去背，請再試一次。",
   },
+  "cap.networkTimeout": {
+    ja: "通信に時間がかかっています。写真は端末に保存しました。",
+    en: "The connection is taking too long. Your photo is saved on this device.",
+    "zh-TW": "連線時間過長，照片已儲存在此裝置。",
+  },
   "photo.replaceFile": {
     ja: "別の写真に差し替える",
     en: "Replace with another photo",
@@ -2632,6 +2637,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Photo shown first",
     "zh-TW": "優先顯示的照片",
   },
+  "settings.photoLibrarySync": {
+    ja: "スマホのフォトと同期する",
+    en: "Save captures to phone photos",
+    "zh-TW": "將拍攝照片同步到手機相簿",
+  },
+  "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
+  "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },

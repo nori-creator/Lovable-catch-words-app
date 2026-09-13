@@ -79,6 +79,19 @@ export type PickOptions = {
   exclude?: readonly PhotoRole[];
 };
 
+/** 署名URLの期限部分を除き、同じ保存物を指しているか判定する。 */
+export function samePhotoAsset(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  try {
+    const left = new URL(a, "https://local.invalid");
+    const right = new URL(b, "https://local.invalid");
+    return left.pathname === right.pathname;
+  } catch {
+    return false;
+  }
+}
+
 /** 役の名前として通るか。**判定は1箇所**(画面ごとの選択も同じ物を読む)。 */
 export function isPhotoRole(v: unknown): v is PhotoRole {
   return typeof v === "string" && (ROLES as readonly string[]).includes(v);
@@ -96,6 +109,12 @@ function urlFor(s: PhotoSources, role: PhotoRole, wantThumb: boolean): PickedPho
           ? [null, s.selfie_url]
           : [null, s.placeholder_url];
   const [thumb, full] = pair;
+  if (
+    role === "cutout" &&
+    (samePhotoAsset(full, s.object_url) || samePhotoAsset(thumb, s.object_thumb_url))
+  ) {
+    return null;
+  }
   if (wantThumb && thumb) return { url: thumb, role, thumb: true };
   if (full) return { url: full, role, thumb: false };
   // 縮小版しか無い回もある(原寸の掃除が済んだ札)。**取りこぼさない。**

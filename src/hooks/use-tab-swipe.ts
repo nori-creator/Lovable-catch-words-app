@@ -68,6 +68,7 @@ export function useTabSwipe({
 
     const down = (e: PointerEvent) => {
       if (e.pointerType === "mouse" || st.id !== -1) return;
+      if (document.documentElement.dataset.swipeSubview) return;
       const el = e.target as Element | null;
       if (el?.closest?.(IGNORE_SELECTOR)) return;
       st.id = e.pointerId;

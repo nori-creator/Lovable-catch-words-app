@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FilterOption } from "@/lib/dex-filter";
@@ -49,6 +50,7 @@ export function FilterMenu({
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
   /**
    * 札をボタンのどちら側に揃えるか。
@@ -59,12 +61,14 @@ export function FilterMenu({
    * 判断は `menu-align.ts` が持つ。
    */
   const [side, setSide] = useState<MenuSide>("left");
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: MENU_EDGE_MARGIN });
 
   // 外を押す / Escape で閉じる。**開いている間だけ**聞く。
   useEffect(() => {
     if (!open) return;
     function onDown(e: PointerEvent) {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!boxRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -83,14 +87,20 @@ export function FilterMenu({
     if (!open) return;
     const b = btnRef.current?.getBoundingClientRect();
     if (!b) return;
-    setSide(
-      pickMenuSide({
+    const nextSide = pickMenuSide({
         left: b.left,
         right: b.right,
         width: MENU_WIDTH,
         viewport: window.innerWidth,
-      }),
-    );
+      });
+    setSide(nextSide);
+    setMenuPosition({
+      top: b.bottom + 4,
+      left:
+        nextSide === "right"
+          ? Math.max(MENU_EDGE_MARGIN, b.right - MENU_WIDTH)
+          : Math.min(b.left, window.innerWidth - MENU_WIDTH - MENU_EDGE_MARGIN),
+    });
   }, [open]);
 
   // 選択肢が空(=絞る物が無い)ならボタンごと出さない。
@@ -121,16 +131,20 @@ export function FilterMenu({
         <ChevronDown aria-hidden className={`h-3.5 w-3.5 ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
+          ref={menuRef}
           id={listId}
           role="listbox"
           aria-label={name}
           // 揃える側は測って決める(上の `side`)。幅は画面より広くしない。
-          className={`absolute z-50 mt-1 max-h-72 overflow-y-auto rounded-2xl border border-border bg-card p-1 shadow-xl ${
-            side === "right" ? "right-0" : "left-0"
-          }`}
-          style={{ width: MENU_WIDTH, maxWidth: `calc(100vw - ${MENU_EDGE_MARGIN * 2}px)` }}
+          className="fixed z-[70] max-h-72 overflow-y-auto rounded-2xl border border-border bg-card p-1 shadow-xl"
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: MENU_WIDTH,
+            maxWidth: `calc(100vw - ${MENU_EDGE_MARGIN * 2}px)`,
+          }}
         >
           <Row
             label={allLabel}
@@ -152,7 +166,8 @@ export function FilterMenu({
               }}
             />
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

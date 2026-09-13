@@ -1,9 +1,10 @@
 import { Check, ImageUp, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
 import type { PhotoSurface } from "@/lib/photo-surface";
-import type { PhotoRole, PhotoSources } from "@/lib/sticker-photo";
+import { samePhotoAsset, type PhotoRole, type PhotoSources } from "@/lib/sticker-photo";
 
 /**
  * 「この1枚は、どの絵で見せるか」を選ぶ面(要望 #17)。
@@ -49,7 +50,15 @@ const LABEL: Record<PhotoRole, string> = {
 /** その役の絵(原寸を優先。ここは選ぶための見本なので大きいほうがよい)。 */
 function urlOf(s: PhotoSources, role: PhotoRole): string | null {
   if (role === "object") return s.object_url ?? s.object_thumb_url ?? null;
-  if (role === "cutout") return s.cutout_url ?? s.cutout_thumb_url ?? null;
+  if (role === "cutout") {
+    if (
+      samePhotoAsset(s.cutout_url, s.object_url) ||
+      samePhotoAsset(s.cutout_thumb_url, s.object_thumb_url)
+    ) {
+      return null;
+    }
+    return s.cutout_url ?? s.cutout_thumb_url ?? null;
+  }
   if (role === "selfie") return s.selfie_url ?? null;
   return s.placeholder_url ?? null;
 }
@@ -98,7 +107,37 @@ export function HeroPhotoPicker({
   saving: boolean;
 }) {
   const t = useT();
-  const available = ORDER.filter((r) => !!urlOf(sources, r));
+  const candidateCutout = urlOf(sources, "cutout");
+  const [validCutout, setValidCutout] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const object = sources.object_url ?? sources.object_thumb_url ?? null;
+    if (!candidateCutout || !object) {
+      setValidCutout(candidateCutout);
+      return;
+    }
+    setValidCutout(null);
+    void Promise.all([fetch(object).then((r) => r.arrayBuffer()), fetch(candidateCutout).then((r) => r.arrayBuffer())])
+      .then(([a, b]) => {
+        if (cancelled) return;
+        if (a.byteLength !== b.byteLength) {
+          setValidCutout(candidateCutout);
+          return;
+        }
+        const left = new Uint8Array(a);
+        const right = new Uint8Array(b);
+        const same = left.every((value, index) => value === right[index]);
+        setValidCutout(same ? null : candidateCutout);
+      })
+      .catch(() => {
+        // 同一画像か確認できないときは、誤って「切り抜き」と見せない。
+        if (!cancelled) setValidCutout(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateCutout, sources.object_url, sources.object_thumb_url]);
+  const available = ORDER.filter((r) => r !== "cutout" ? !!urlOf(sources, r) : !!validCutout);
 
   return (
     <div className="space-y-3">
@@ -123,7 +162,8 @@ export function HeroPhotoPicker({
 
       <ul className="grid grid-cols-2 gap-2">
         {available.map((role) => {
-          const url = urlOf(sources, role)!;
+          const url = role === "cutout" ? validCutout : urlOf(sources, role);
+          if (!url) return null;
           const on = current === role;
           return (
             <li key={role}>
@@ -160,7 +200,7 @@ export function HeroPhotoPicker({
           ここから掛け直せないと「速さを選ぶ = 二度と切り抜けない」になる。 */}
       <PhotoAddButtons
         objectUrl={sources.object_url ?? sources.object_thumb_url}
-        cutoutUrl={sources.cutout_url ?? sources.cutout_thumb_url}
+        cutoutUrl={validCutout}
         selfieUrl={sources.selfie_url}
         busy={saving}
         onCutout={() => onCutoutNow?.()}
