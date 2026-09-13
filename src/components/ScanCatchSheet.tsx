@@ -219,6 +219,8 @@ export function ScanCatchSheet({
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    Sound.rewardGrip();
+    haptic("selection");
     setSaving(true);
     setErr(null);
     try {

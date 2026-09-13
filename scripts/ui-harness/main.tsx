@@ -23,6 +23,7 @@ import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { InputCatchScene } from "./scenes/input-catch";
 import { HeroPickerScene } from "./scenes/hero-picker";
+import { RewardCatchScene } from "./scenes/reward-catch";
 import {
   CaptureCardScene,
   CaptureObjectScene,
@@ -138,6 +139,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-candidate": WordCandidateScene,
   "input-catch": InputCatchScene,
   "hero-picker": HeroPickerScene,
+  "reward-catch": RewardCatchScene,
   "word-card-empty": WordCardEmptyScene,
   "tocfl-ladder": TocflLadderScene,
   "sections-editor": SectionsEditorScene,
@@ -213,7 +215,7 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
-const BARE = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera"]);
+const BARE = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera", "reward-catch"]);
 
 const q = new URLSearchParams(location.search);
 const wanted = q.get("scene") ?? "shelf";
