@@ -9,6 +9,8 @@ import { v1classic } from "@/components/effects/catch-landing/v1_classic";
 import { v2fullwidth } from "@/components/effects/catch-landing/v2_fullwidth";
 import { v3voiceline } from "@/components/effects/catch-landing/v3_voiceline";
 import { v4hold } from "@/components/effects/catch-landing/v4_hold";
+import { v5physics } from "@/components/effects/catch-landing/v5_physics";
+import { TRAIL_SAMPLES } from "@/lib/catch-choreography";
 
 /**
  * キャッチ→図鑑の着弾演出、まるごと一式。
@@ -27,6 +29,7 @@ const CATCH_LANDING_VARIANTS: Record<string, LandingRunner> = {
   v2fullwidth,
   v3voiceline,
   v4hold,
+  v5physics,
 };
 
 /**
@@ -54,6 +57,10 @@ export async function runCatchLanding(ctx: {
    */
   fly: RefObject<HTMLImageElement | null>;
   speakLine?: () => void;
+  /** その語の段。**珍しい語ほど演出を大きくする**ため(確率は動かさない)。 */
+  level?: number | null;
+  /** 保存の通信。静止の1秒がこれを待つ(`types.ts` の注)。 */
+  gate?: Promise<unknown>;
 }): Promise<void> {
   // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
   // それでも毎回呼ぶ理由は、iOS がアプリを背面に回すたびに AudioContext を
@@ -64,19 +71,18 @@ export async function runCatchLanding(ctx: {
   // 生の navigator.vibrate だと**振動オフの設定を無視する**。
   // 触覚は「うるさい」と感じた人が切るためのもので、切れないなら意味がない。
   haptic("success");
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  if (reducedMotion) {
-    await new Promise((r) => setTimeout(r, 500));
-    return;
-  }
-  const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v4hold;
+  // **ここで早抜けしない。** 以前は reduced motion のとき 500ms 待って
+  // 帰っていたので、動きを減らしている人は**単語も読みを一度も見られなかった**。
+  // 動かしたくないのは移動であって、情報ではない。各版が自分で
+  // 「移動を省いて中身は出す」を実装する(v5 の冒頭)。
+  const run = CATCH_LANDING_VARIANTS[getVariant("catchLanding")] ?? v5physics;
   await run({
     startEl: ctx.startEl,
     fly: await waitForRef(ctx.fly),
     dexEl: document.querySelector('[data-nav="/dex"]') as HTMLElement | null,
     speakLine: ctx.speakLine,
+    level: ctx.level,
+    gate: ctx.gate,
   });
 }
 
@@ -98,8 +104,50 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
   function CatchLandingOverlay({ image, headword, reading, lang }, flyRef) {
     return (
       <>
+        {/* 暗転。**内容に譲る**ため(apple-design「Deference」)。
+            写真が主役になる瞬間だけ周りを落とす。 */}
+        <div
+          id="catch-vignette"
+          className="pointer-events-none fixed inset-0 z-[57] opacity-0"
+          style={{
+            transition: "opacity 260ms ease",
+            background:
+              "radial-gradient(circle at 50% 40%, rgba(2,6,23,0.35), rgba(2,6,23,0.92) 78%)",
+          }}
+        />
         {image && (
           <>
+            {/* 落ちる影。**本体より遅れて**動く(v5 の SHADOW_LAG)。
+                同じ速さで動く影は、床に貼った絵にしか見えない。
+                遅れと滲みだけが「浮いている高さ」を伝える。 */}
+            <div
+              id="catch-shadow"
+              className="pointer-events-none fixed z-[58] opacity-0"
+              style={{
+                willChange: "transform, opacity",
+                left: 0,
+                top: 0,
+                width: "42vw",
+                height: "6vw",
+                transform: "translate(0,0)",
+                background: "radial-gradient(ellipse, rgba(0,0,0,0.55), rgba(0,0,0,0) 70%)",
+                filter: "blur(6px)",
+              }}
+            />
+            {/* 残像。ブラウザに本物のモーションブラーが無いので、
+                薄くぼかした写しを過去の位置に置いて速さを読ませる。 */}
+            <div id="catch-echo" className="pointer-events-none fixed inset-0 z-[59]">
+              {Array.from({ length: TRAIL_SAMPLES }, (_, i) => (
+                <img
+                  key={i}
+                  src={image}
+                  alt=""
+                  aria-hidden
+                  className="pointer-events-none fixed object-contain opacity-0"
+                  style={{ willChange: "transform, opacity", left: 0, top: 0 }}
+                />
+              ))}
+            </div>
             <div
               id="catch-trail"
               className="pointer-events-none fixed z-[59]"

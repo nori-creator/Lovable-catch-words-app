@@ -2227,3 +2227,57 @@ describe("独自ドメインへ移れる形になっているか", () => {
     );
   });
 });
+
+/**
+ * キャッチの報酬演出（オーナー指示 2026-09-13）。
+ *
+ * > 「今画像が動くような軌跡がまったくない。動的に変更して。」
+ * > 「図鑑に追加するボタンは画像のすぐ下に変更して。」
+ *
+ * ここで止めるのは、**絵を見ても原因が分からない**類の壊れ方だけ。
+ */
+describe("キャッチの報酬演出", () => {
+  it("**演出はばねで動かす**（CSS transition では速度が幕ごとに0に戻る）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/createSpring/);
+    // **飛行の部分だけを見る。** 最初はファイル全体を見ていて、隣のセルを
+    // 90ms 小突く transition に当たって落ちた。あれは飛行ではないので、
+    // 落とすべきではなかった（門が広すぎると、正しいコードを直させる）。
+    const flight = v5.slice(0, v5.indexOf("export function rippleNeighbors"));
+    expect(flight).not.toMatch(/style\.transition\s*=\s*["`]transform/);
+  });
+
+  it("**押した画面をそのまま残す**（画面を差し替えると別の絵が動いて見える）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/heroBoxRef=\{heroBoxRef\}/);
+    expect(cap).toMatch(/const hero = cutoutImg \?\? objectImg/);
+  });
+
+  it("**保存の通信と演出が並走する**（待ってから飛ぶと押した後に無音が出る）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/const savePromise = doSave\(/);
+    expect(cap).toMatch(/gate: savePromise\.then\(/);
+  });
+
+  it("**音と単語は拡大率のフレーム判定で出す**（時間で待つと回ごとにずれる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    expect(v5).toMatch(/shouldSpeak\(s, target\.scale\)/);
+  });
+
+  it("図鑑に追加のボタンが**画像のすぐ下**に在る（解説カードより前）", () => {
+    const cap = read("routes/_authenticated/capture.tsx");
+    const cta = cap.indexOf('className="catch-cta');
+    const wordCard = cap.indexOf("<WordCard", cta > 0 ? cta : 0);
+    const flipHint = cap.indexOf('t("capture.flipHint")');
+    expect(cta).toBeGreaterThan(0);
+    expect(cta).toBeGreaterThan(flipHint); // 画像とその説明の直後
+    expect(cta).toBeLessThan(wordCard); // 解説カードより前
+  });
+
+  it("動きを減らす人にも**単語と読みは出す**（移動を省くのは動きだけ）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
+    const branch = v5.slice(v5.indexOf("reducedMotion ||"), v5.indexOf("const vw ="));
+    expect(branch).toMatch(/speakLine/);
+    expect(branch).toMatch(/opacity = "1"/);
+  });
+});

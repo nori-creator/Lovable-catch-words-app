@@ -46,6 +46,7 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { rippleNeighbors } from "@/components/effects/catch-landing/v5_physics";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -156,12 +157,26 @@ function DexPage() {
       reduced ? 0 : SLAM_IMPACT_MS,
     );
 
+    // **周りのセルも少し揺れる。** 落ちた物だけが跳ねると、背景に貼った絵の
+    // 上でスプライトが動いたようにしか見えない。物理法則を感じ取るのは、
+    // 物そのものよりも**周りの反応**から(`catch-choreography.ts` の注)。
+    // 動きを減らす設定のときは揺らさない（情報ではなく手触りなので、
+    // 省いても失う物がない — 音と振動は上で鳴っている）。
+    let undoRipple = () => {};
+    const rippleAt = reduced
+      ? undefined
+      : setTimeout(() => {
+          undoRipple = rippleNeighbors(justCaught);
+        }, SLAM_IMPACT_MS);
+
     const t = setTimeout(() => {
       void navigate({ to: "/dex", search: {}, replace: true });
     }, 1600);
     return () => {
       clearTimeout(impact);
+      if (rippleAt) clearTimeout(rippleAt);
       clearTimeout(t);
+      undoRipple();
     };
   }, [justCaught, navigate]);
 

@@ -107,9 +107,15 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
     },
     {
       id: "v4hold",
-      label: "空中で止めて発音(現在の既定)",
+      label: "空中で止めて発音",
       date: "08-03",
       note: "ふわっと上昇→画面いっぱい＋キラッ→空中で0.7秒止まって発音→図鑑に上から着地",
+    },
+    {
+      id: "v5physics",
+      label: "ばねで動かす(現在の既定)",
+      date: "09-13",
+      note: "沈み込んでから弧を描いて跳ね上がる。残像・傾き・遅れる影つき。画面いっぱいに開いたフレームで音と単語が同時に出て、1秒止まる",
     },
   ],
 };
@@ -125,7 +131,7 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
  */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
   scanAnalyzing: "v0cutout",
-  catchLanding: "v4hold",
+  catchLanding: "v5physics",
 };
 
 /**

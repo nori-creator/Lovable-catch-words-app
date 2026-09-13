@@ -1,3 +1,4 @@
+import { parseLevelStep } from "@/lib/level-scale";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
@@ -265,6 +266,11 @@ function CapturePage() {
   const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
   // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
   const [landing, setLanding] = useState(false);
+  /**
+   * 保存の通信中。**画面は切り替えない**(演出はカードの画面の上で走る)ので、
+   * 押し直しを止める見張りがここに要る。無いと二重登録になる。
+   */
+  const [saving, setSaving] = useState(false);
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -687,158 +693,212 @@ function CapturePage() {
     }
   }
 
-  async function handleSave() {
-    if (!card || !selectedHead) return;
-    setStep("saving");
-    try {
-      // 温めてある位置を**ここで確定させる**。状態を直に読むと、
-      // 候補を早く選んだ回はまだ届いていない。
-      const here = await resolveLocation();
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Not signed in");
+  /**
+   * 演出の大きさに使う段。
+   *
+   * `card.level` は `"TOCFL-2"` / `"B1"` のような綴り。**`Number()` で
+   * 済ませてはいけない** — `TOCFL-2` のハイフンを符号と読んで -2 になる
+   * (`parseLevelStep` の注)。6段の外(`"out"`)は珍しさの話ではないので
+   * 等倍に落とす。
+   */
+  function rewardLevelOf(raw: string | null | undefined): number | null {
+    const step = parseLevelStep(raw);
+    return typeof step === "number" ? step : null;
+  }
 
-      const ts = Date.now();
-      async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
-        if (!dataUrl) return null;
-        const blob = await dataUrlToBlob(dataUrl);
-        const ext = blob.type.includes("png") ? "png" : "jpg";
-        const path = `${userId}/${ts}-${kind}.${ext}`;
-        const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
-        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-          contentType: blob.type,
-          upsert: false,
-        });
-        if (error) throw error;
-        // Grid thumbnail alongside — best-effort, the grid falls back to the
-        // original when it's missing (old stickers, encode failure).
-        const thumb = await thumbPromise;
-        if (thumb) {
-          await supabase.storage
-            .from("stickers")
-            .upload(thumbPath(path), thumb, {
-              contentType: thumb.type || "image/webp",
-              upsert: true,
-            })
-            .catch(() => {});
-          void putCachedImage(thumbPath(path), thumb);
-        }
-        // Prime the device cache so the dex shows this image instantly,
-        // without ever downloading what we just uploaded.
-        void putCachedImage(path, blob);
-        return path;
-      }
+  /**
+   * 保存そのもの。**演出を1ミリ秒も待たせない**ように切り出してある。
+   *
+   * 以前は保存と演出が1つの関数に並んでいて、`await` で順番に走っていた。
+   * つまり**通信が終わるまで何も動かなかった** — 押してから絵が動き出すまでに、
+   * 回線しだいで1〜3秒の無音があった。いまは押した瞬間に演出が始まり、
+   * これはその裏で走る。
+   */
+  async function doSave(card: CardData, selectedHead: string) {
+    // 温めてある位置を**ここで確定させる**。状態を直に読むと、
+    // 候補を早く選んだ回はまだ届いていない。
+    const here = await resolveLocation();
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) throw new Error("Not signed in");
 
-      // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
-      // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
-      // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
-      const cutForSave = (await cutoutPromiseRef.current) ?? cutoutImg;
-
-      // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
-      // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
-      const [object_path, cutout_path, selfie_path] = await Promise.all([
-        upload(objectImg, "object"),
-        upload(cutForSave, "cutout").catch(() => null),
-        upload(selfieImg, "selfie").catch(() => null),
-      ]);
-
-      const res = await saveFn({
-        data: {
-          word: {
-            headword: selectedHead,
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            meaning_ja: card.meaning_ja,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            category_key: card.category_key,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            extras: card.extras,
-          },
-          // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
-          // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
-          // このアプリで何度もやっている「直したものが動く経路に無い」形。
-          new_shelf: card.new_shelf ?? null,
-          language: targetLanguage,
-          object_path,
-          cutout_path,
-          selfie_path,
-          caption: caption || null,
-          location_name: here.name,
-          lat: here.lat,
-          lng: here.lng,
-        },
+    const ts = Date.now();
+    async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
+      if (!dataUrl) return null;
+      const blob = await dataUrlToBlob(dataUrl);
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const path = `${userId}/${ts}-${kind}.${ext}`;
+      const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
       });
-
-      // **ここから先の失敗は「保存の失敗」ではない。**
-      //
-      // 以前は演出も遷移も同じ try の中にあり、`catch` は一律
-      // 「保存に失敗しました」を出してカード画面へ戻していた。
-      // ユーザーは失敗したと思ってもう一度「図鑑に追加」を押し、
-      // **同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階にしか
-      // 無く、保存時には無い)。嘘の失敗が、正しい対処を誤りに変えていた
-      // (独立監査の指摘)。
-      //
-      // 保存は済んでいるので、以後は何が転んでも図鑑へ送る。
-      savedRef.current = true;
-
-      // **声の一言は札が出来てから、裏で。**
-      // ここを待つと、いちばん壊してはいけない「一瞬でも早く」が削れる。
-      // 落ちたときは黙って捨てず、そこだけ伝える(写真の一言は保存済み)。
-      if (voiceNote) {
-        const note = voiceNote;
-        void (async () => {
-          try {
-            const path = await uploadVoiceNote({
-              blob: note.blob,
-              mime: note.mime,
-              stickerId: res.id,
-            });
-            const saved = await attachVoiceFn({
-              data: { sticker_id: res.id, voice_video_path: path },
-            });
-            if (!saved.saved) toast.error(t("voice.needsMigration"));
-          } catch (e) {
-            console.warn("voice note attach failed", e);
-            toast.error(t("voice.attachFailed"));
-          }
-        })();
+      if (error) throw error;
+      // Grid thumbnail alongside — best-effort, the grid falls back to the
+      // original when it's missing (old stickers, encode failure).
+      const thumb = await thumbPromise;
+      if (thumb) {
+        await supabase.storage
+          .from("stickers")
+          .upload(thumbPath(path), thumb, {
+            contentType: thumb.type || "image/webp",
+            upsert: true,
+          })
+          .catch(() => {});
+        void putCachedImage(thumbPath(path), thumb);
       }
+      // Prime the device cache so the dex shows this image instantly,
+      // without ever downloading what we just uploaded.
+      void putCachedImage(path, blob);
+      return path;
+    }
 
-      // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
-      void queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      if (pendingId) void removePendingCapture(pendingId);
+    // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
+    // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
+    // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
+    const cutForSave = (await cutoutPromiseRef.current) ?? cutoutImg;
 
-      // ここからキャッチ演出。切り抜きがふわっと浮いて画面いっぱいに広がり、
-      // 上へ抜けたところで図鑑のページが開いて、新しいセルがドンと着弾する
-      // (最後の一撃は /dex 側の slam-in が ?justCaught= を見て出す)。
-      // 以前このフローだけ演出がなく、保存したら図鑑に飛ぶだけだった。
-      setLanding(true);
+    // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
+    // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
+    const [object_path, cutout_path, selfie_path] = await Promise.all([
+      upload(objectImg, "object"),
+      upload(cutForSave, "cutout").catch(() => null),
+      upload(selfieImg, "selfie").catch(() => null),
+    ]);
+
+    const res = await saveFn({
+      data: {
+        word: {
+          headword: selectedHead,
+          reading_zhuyin: card.reading_zhuyin,
+          pinyin: card.pinyin,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech,
+          level: card.level,
+          category_key: card.category_key,
+          example_sentence: card.example_sentence,
+          example_translation: card.example_translation,
+          extras: card.extras,
+        },
+        // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
+        // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
+        // このアプリで何度もやっている「直したものが動く経路に無い」形。
+        new_shelf: card.new_shelf ?? null,
+        language: targetLanguage,
+        object_path,
+        cutout_path,
+        selfie_path,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+      },
+    });
+
+    if (voiceNote) {
+      const note = voiceNote;
+      void (async () => {
+        try {
+          const path = await uploadVoiceNote({
+            blob: note.blob,
+            mime: note.mime,
+            stickerId: res.id,
+          });
+          const saved = await attachVoiceFn({
+            data: { sticker_id: res.id, voice_video_path: path },
+          });
+          if (!saved.saved) toast.error(t("voice.needsMigration"));
+        } catch (e) {
+          console.warn("voice note attach failed", e);
+          toast.error(t("voice.attachFailed"));
+        }
+      })();
+    }
+
+    // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+    void queryClient.invalidateQueries({ queryKey: ["stickers"] });
+    if (pendingId) void removePendingCapture(pendingId);
+    return res;
+  }
+
+  /**
+   * 「図鑑に追加」を押したときの段取り。
+   *
+   * ## 何を直したか（オーナー指示 2026-09-13）
+   * > 「該当の画面のなかの画像だけが動き出し」
+   *
+   * 前はここで `setStep("saving")` を呼んでいた。するとカードの画面が
+   * **丸ごと外れて**黒い覆いに差し替わり、そこに置かれた別の大きさの
+   * 写真のコピーから飛んでいた。画面が変わってから別の絵が動くので、
+   * **同じ物が動いたようには見えない**。
+   *
+   * いまはカードの画面をそのまま残し、**いま出ているその写真**から飛ばす。
+   * 周りは覆いの暗転が落とす(apple-design「内容に譲る」)。
+   *
+   * ## 通信と演出を並走させる
+   * 演出は押した瞬間に始める。通信はその裏。静止の1秒が関所も兼ねていて、
+   * まだ届いていなければ息をしたまま待つ。
+   */
+  async function handleSave() {
+    if (!card || !selectedHead || saving) return;
+    const hero = cutoutImg ?? objectImg;
+    // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
+    // ここだけは従来どおり黒い面で待たせる(そこには単語しか出ない)。
+    if (!hero) {
+      setStep("saving");
       try {
-        await runCatchLanding({
-          startEl: heroBoxRef.current,
-          // ref のまま渡す。演出の層はこの直前の setLanding(true) で
-          // 初めて描かれるので、ここで .current を読むと必ず null になる。
-          fly: flyRef,
-          speakLine: () => void pronounce(selectedHead),
-        });
+        const res = await doSave(card, selectedHead);
+        savedRef.current = true;
+        navigate({ to: "/dex", search: { justCaught: res.id } });
       } catch (e) {
-        // 演出が転んでも保存は済んでいる。見せ場を諦めて図鑑へ送る。
-        console.warn("catch landing failed", e);
+        console.error(e);
+        toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
+        setStep("card");
       }
+      return;
+    }
+
+    setSaving(true);
+    setLanding(true);
+    const savePromise = doSave(card, selectedHead);
+    // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
+    void savePromise.catch(() => setLanding(false));
+    const landingDone = runCatchLanding({
+      startEl: heroBoxRef.current,
+      // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
+      // 初めて描かれるので、ここで .current を読むと必ず null になる。
+      fly: flyRef,
+      speakLine: () => void pronounce(selectedHead),
+      // 珍しい語ほど演出を大きくする（確率は動かさない）。
+      level: rewardLevelOf(card.level),
+      // 静止の1秒がこれを待つ。`catch` を付けて渡すのは、失敗で演出側の
+      // await が例外を投げると後片付けの順番が入れ替わるから。
+      gate: savePromise.then(
+        () => {},
+        () => {},
+      ),
+    });
+
+    try {
+      const res = await savePromise;
+      // **ここから先の失敗は「保存の失敗」ではない。**
+      // 以前は演出も遷移も同じ try の中にあり、catch が一律
+      // 「保存に失敗しました」を出してカード画面へ戻していた。ユーザーは
+      // 押し直し、**同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階に
+      // しか無い)。嘘の失敗が、正しい対処を誤りに変えていた。
+      savedRef.current = true;
+      await landingDone.catch((e) => console.warn("catch landing failed", e));
       navigate({ to: "/dex", search: { justCaught: res.id } });
     } catch (e) {
       console.error(e);
       setLanding(false);
+      setSaving(false);
       if (savedRef.current) {
-        // 保存は通っている。ここで「失敗」と言うと、押し直して二重登録になる。
         toast.error(t("cap.savedButLandingFailed"));
         navigate({ to: "/dex", search: {} });
         return;
       }
       toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
-      setStep("card");
     }
   }
 
@@ -1059,6 +1119,10 @@ function CapturePage() {
           placeName={loc?.name ?? null}
           onRedo={reset}
           onSave={handleSave}
+          // **飛び立つのはこの画面に出ているこの写真**。画面を差し替えない。
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          saving={saving}
         />
       )}
 
@@ -1437,6 +1501,9 @@ export function CaptureCardPanel({
   placeName,
   onRedo,
   onSave,
+  heroBoxRef,
+  landing = false,
+  saving = false,
 }: {
   card: CardData;
   selectedHead: string;
@@ -1454,13 +1521,27 @@ export function CaptureCardPanel({
   placeName: string | null;
   onRedo: () => void;
   onSave: () => void;
+  /**
+   * 飛び立つ枠。**いま画面に出ているこの写真そのもの**を指す。
+   *
+   * 以前は保存を押すと画面ごと黒い面に差し替わり、そこに置かれた
+   * **別の大きさの写真のコピー**から飛んでいた。オーナー指摘
+   * 「該当の画面のなかの画像だけが動き出し」が成立していなかったのはこれ —
+   * 画面が変わってから別の絵が動くので、同じ物が動いたようには見えない。
+   */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消して、上に載る層へ見た目を渡す。 */
+  landing?: boolean;
+  /** 保存の通信中。押し直して二重登録されないように止める。 */
+  saving?: boolean;
 }) {
   const t = useT();
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
         <div
-          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
+          ref={heroBoxRef}
+          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
         >
           <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
             <div className="grid h-full place-items-center p-6">
@@ -1487,6 +1568,23 @@ export function CaptureCardPanel({
         </div>
       </div>
       <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
+
+      {/* **図鑑に追加は画像のすぐ下**(オーナー指示 2026-09-13)。
+          前は解説カードと一言の欄の下、画面のいちばん底にあった。
+          撮った直後にやりたいのは「入れる」ことなので、
+          いちばんやる操作のために毎回スクロールさせていた。
+
+          apple-design §11「目立つボタンは1画面に1つ」。ここが唯一の
+          目立つボタンで、撮り直しは下の控えめな側に置く
+          (めったに押さないものを、押したいものの隣に並べない)。 */}
+      <Button
+        onClick={onSave}
+        disabled={saving}
+        size="lg"
+        className="catch-cta h-14 w-full text-title font-bold"
+      >
+        <Check className="mr-1.5 h-5 w-5" /> {t("capture.addToDex")}
+      </Button>
 
       <WordCard
         word={{
@@ -1529,14 +1627,10 @@ export function CaptureCardPanel({
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
 
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={onRedo} className="flex-1">
-          {t("capture.redo")}
-        </Button>
-        <Button onClick={onSave} className="lift flex-1">
-          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
-        </Button>
-      </div>
+      {/* 撮り直しは控えめに、いちばん下。**押したいものの隣に置かない。** */}
+      <Button variant="outline" onClick={onRedo} disabled={saving} className="w-full">
+        {t("capture.redo")}
+      </Button>
     </div>
   );
 }
