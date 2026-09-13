@@ -2437,6 +2437,11 @@ html[data-reward-flight] .slam-in {
   opacity: 0;
   transform: translate(-50%,-50%) rotate(-8deg) scale(.76);
 }
+.reward-catch__charge,
+.reward-catch__shockwave,
+.reward-catch__particles {
+  display: none;
+}
 .reward-catch[data-stage="charge"] .reward-catch__charge,
 .reward-catch[data-stage="hold"] .reward-catch__charge {
   opacity: .72;
