@@ -1329,7 +1329,8 @@ function Body({
         seasonName: (key) => t(`card.season.${key}`),
       }).length;
       const registerScale = registerScaleOf(ex);
-      const hasFreq = ex.frequency_level != null && ex.frequency_level > 0;
+      const frequencyLevel = ex.frequency_level ?? 0;
+      const hasFreq = frequencyLevel > 0;
       return (
         <div className="usage-context">
           {/* **頻度と口語⇄書面は同じ行に並べる**(オーナー指摘 2026-08-20)。
@@ -1340,7 +1341,7 @@ function Body({
               {hasFreq && (
                 <span className="usage-metric">
                   <span className="usage-metric__label">{t("card.frequency")}</span>
-                  <FrequencyMeter level={ex.frequency_level!} />
+                  <FrequencyMeter level={frequencyLevel} />
                 </span>
               )}
               {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
