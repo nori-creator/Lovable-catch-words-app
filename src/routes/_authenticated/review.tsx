@@ -4,6 +4,7 @@ import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session"
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
 import { PronounceButton } from "@/components/PronounceButton";
@@ -2072,71 +2073,90 @@ export function LightModeCard({
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
             意味がないので出さない。例文は長くて読まれないため、
             「ネイティブが最もよく一緒に使う形」1つに絞る。 */}
-        {picked && (
-          <div
-            ref={panelRef}
-            className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40"
-          >
-            {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
-                (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
-                影で浮いていることを示す。 */}
+        {/* **`document.body` へ出す。ここに置いたままでは画面に貼り付かない。**
+            この面は `SwipeCard` の中に在り、`SwipeCard` は指で運ぶために
+            `will-change: transform` を立てている。CSS では `transform` と
+            同じく `will-change: transform` も **`position: fixed` の基準を
+            ビューポートからその要素に変える**。つまりこの面は「画面の下端
+            から 4.5rem」ではなく「**カードの下端**から 4.5rem」に置かれ、
+            4つ目の選択肢のちょうど上に降りていた(実測: 画面 844px の所で
+            面の下端が 772 ではなく 660、4つ目は 436〜507 なので 59px 潜る)。
+
+            しかも `SwipeCard` の `enabled` は `!!picked` なので、
+            **答えた瞬間に基準が切り替わる**。押すまでは画面基準で正しく、
+            押した瞬間だけ狂うので、絵を並べても原因に辿り着けない
+            (roadmap で2回「直した」ことになっているのはこれ)。
+
+            逃げ場(`panelH`)の計算は最初から正しかった。**基準が違った**。 */}
+        {picked &&
+          createPortal(
             <div
-              className={`isolate mx-auto max-w-3xl overflow-hidden rounded-t-3xl border-t bg-card px-4 pb-3 shadow-xl ${
-                correct ? "border-ok" : "border-bad"
-              }`}
+              ref={panelRef}
+              className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40"
             >
-              {/* 正誤は**面で伝える**。以前は 13px の色付き文字だけで、
-                  この瞬間の唯一の重要情報がパネル内で**いちばん小さい字**
-                  だった(独立監査)。上辺に色の帯を敷き、判定そのものも
-                  本文と同じ大きさまで上げる。色が読めない人にも、
-                  帯の有無ではなく**文字**で伝わる。 */}
+              {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
+                  (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
+                  影で浮いていることを示す。 */}
               <div
-                className={`-mx-4 mb-2 px-4 py-1.5 ${correct ? "bg-ok/12" : "bg-bad/12"}`}
-                role="status"
+                className={`isolate mx-auto max-w-3xl overflow-hidden rounded-t-3xl border-t bg-card px-4 pb-3 shadow-xl ${
+                  correct ? "border-ok" : "border-bad"
+                }`}
               >
-                <span className={`text-body font-bold ${correct ? "text-ok-ink" : "text-bad-ink"}`}>
-                  {correct ? t("review.correct") : t("review.tryAgain")}
-                </span>
-              </div>
-              {/* 語は**行を分ける**。1行に判定+語+読み+音声を詰めていたので、
-                  外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
-                  **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
-                  語を割るのはいちばんやってはいけない。 */}
-              <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5">
-                <Term
-                  lang={card.language}
-                  className="min-w-0 break-keep text-title font-bold tracking-tight"
+                {/* 正誤は**面で伝える**。以前は 13px の色付き文字だけで、
+                    この瞬間の唯一の重要情報がパネル内で**いちばん小さい字**
+                    だった(独立監査)。上辺に色の帯を敷き、判定そのものも
+                    本文と同じ大きさまで上げる。色が読めない人にも、
+                    帯の有無ではなく**文字**で伝わる。 */}
+                <div
+                  className={`-mx-4 mb-2 px-4 py-1.5 ${correct ? "bg-ok/12" : "bg-bad/12"}`}
+                  role="status"
                 >
-                  {card.headword}
-                </Term>
-                <PronounceButton
-                  text={card.headword}
-                  language={card.language ?? undefined}
-                  className="row-span-2"
-                  label={t("card.playPron")}
-                />
-                <Reading
-                  lang={card.language ?? undefined}
-                  zhuyin={card.reading_zhuyin}
-                  pinyin={card.pinyin}
-                  className="min-w-0 text-footnote leading-snug text-foreground/70"
-                />
+                  <span
+                    className={`text-body font-bold ${correct ? "text-ok-ink" : "text-bad-ink"}`}
+                  >
+                    {correct ? t("review.correct") : t("review.tryAgain")}
+                  </span>
+                </div>
+                {/* 語は**行を分ける**。1行に判定+語+読み+音声を詰めていたので、
+                    外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
+                    **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
+                    語を割るのはいちばんやってはいけない。 */}
+                <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5">
+                  <Term
+                    lang={card.language}
+                    className="min-w-0 break-keep text-title font-bold tracking-tight"
+                  >
+                    {card.headword}
+                  </Term>
+                  <PronounceButton
+                    text={card.headword}
+                    language={card.language ?? undefined}
+                    className="row-span-2"
+                    label={t("card.playPron")}
+                  />
+                  <Reading
+                    lang={card.language ?? undefined}
+                    zhuyin={card.reading_zhuyin}
+                    pinyin={card.pinyin}
+                    className="min-w-0 text-footnote leading-snug text-foreground/70"
+                  />
+                </div>
+
+                <AnswerExplain card={card} />
+
+                <button
+                  // **`onClick={onNext}` と書かない。** クリックの event が
+                  // 第1引数に渡り、`correct` として truthy に見えるので、
+                  // 不正解も正解として数えられてしまう。
+                  onClick={() => onNext(correct)}
+                  className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                >
+                  {t("review.next")}
+                </button>
               </div>
-
-              <AnswerExplain card={card} />
-
-              <button
-                // **`onClick={onNext}` と書かない。** クリックの event が
-                // 第1引数に渡り、`correct` として truthy に見えるので、
-                // 不正解も正解として数えられてしまう。
-                onClick={() => onNext(correct)}
-                className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
-              >
-                {t("review.next")}
-              </button>
-            </div>
-          </div>
-        )}
+            </div>,
+            document.body,
+          )}
       </article>
     </SwipeCard>
   );

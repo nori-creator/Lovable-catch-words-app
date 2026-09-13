@@ -2346,6 +2346,49 @@ describe("キャッチの報酬演出", () => {
     }
   });
 
+  /**
+   * 復習4択の答え合わせの面が、**画面**に貼り付いていること。
+   *
+   * ## 何が起きていたか
+   * この面は `SwipeCard` の中に在り、`SwipeCard` は指で運ぶために
+   * `will-change: transform` を立てている。CSS では `transform` と同じく
+   * `will-change: transform` も **`position: fixed` の基準をビューポートから
+   * その要素へ移す**。だから「画面の下端から 4.5rem」のつもりの面が
+   * 「**カードの下端**から 4.5rem」に降り、4つ目の選択肢を覆っていた。
+   *
+   * 実測(画面 844px):
+   *   直す前 … 面の下端 660 / 4つ目 436〜507 → 59px 潜る
+   *   直した後 … 面の下端 772(画面基準) / 4つ目との間に 53px
+   *
+   * ## なぜ絵で見つからなかったか
+   * `SwipeCard` の `enabled` は `!!picked`。**答えた瞬間に基準が変わる**ので、
+   * 押す前の絵は正しく、押した後だけ狂う。roadmap で2回「直した」ことに
+   * なっているのに直っていなかったのはこれで、逃げ場(`panelH`)の計算は
+   * 最初から合っていた — 違ったのは基準。
+   *
+   * 絵の検査(`ui:audit`)も8場面で見つけたが、そちらは10分かかる。
+   * 秒で落ちる側にも置く。
+   */
+  it("答え合わせの面は**画面**に貼り付く（運ぶカードの中では fixed が効かない）", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const panel = rv.indexOf("bottom-[calc(4.5rem+env(safe-area-inset-bottom))]");
+    expect(panel).toBeGreaterThan(0);
+    // 面より前に `createPortal(` が在ること = 画面直下へ出している。
+    const portal = rv.lastIndexOf("createPortal(", panel);
+    expect(portal).toBeGreaterThan(0);
+    // あいだに `</` が無い = 同じ塊。間に別の要素が挟まると門が嘘になる。
+    expect(rv.slice(portal, panel)).not.toMatch(/<\//);
+    expect(rv).toMatch(/document\.body,/);
+  });
+
+  it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
+    // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
+    // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、
+    // 「なぜ portal なのか」を読み直してから決めること。
+    const sw = codeOnly(read("components/SwipeCard.tsx"));
+    expect(sw).toMatch(/willChange:\s*"transform"/);
+  });
+
   it("後始末を**散らさない**（同じ片付けを2箇所に書くと、片方だけ直る）", () => {
     const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
     // 以前は「着弾先が見つからない」枝と最後の finally の2箇所に同じ
