@@ -94,9 +94,15 @@ export const CatchLandingOverlay = forwardRef<HTMLImageElement, OverlayProps>(
             <i key={index} style={{ "--reward-i": index } as CSSProperties} />
           ))}
         </div>
-        {image && (
-          <img ref={flyRef} src={image} alt="" className="reward-catch__image" />
-        )}
+        <img
+          ref={flyRef}
+          src={
+            image ??
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E"
+          }
+          alt=""
+          className={`reward-catch__image ${image ? "" : "reward-catch__image--empty"}`}
+        />
         <div className="reward-catch__copy">
           <Term
             as="div"

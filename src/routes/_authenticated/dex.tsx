@@ -126,6 +126,7 @@ function DexPage() {
   const totalCount = stickers?.total ?? null;
 
   const [view, setView] = useState<ViewMode>("shelf");
+  const landingStartedRef = useRef<string | null>(null);
 
   // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
   //
@@ -137,8 +138,8 @@ function DexPage() {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
     setSearch("");
-    const caught = captured.find((item) => item.id === justCaught);
-    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
+    if (landingStartedRef.current === justCaught) return;
+    landingStartedRef.current = justCaught;
 
     // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
     // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
@@ -167,6 +168,13 @@ function DexPage() {
       clearTimeout(t);
     };
   }, [justCaught, navigate, captured]);
+
+  // 再取得された札から着地先の棚を確定する。この更新は効果音を再発火させない。
+  useEffect(() => {
+    if (!justCaught) return;
+    const caught = captured.find((item) => item.id === justCaught);
+    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
+  }, [justCaught, captured]);
 
   // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
   // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。

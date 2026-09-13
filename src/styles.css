@@ -2314,6 +2314,7 @@
   will-change: transform, opacity;
   filter: drop-shadow(0 22px 22px color-mix(in oklab, var(--foreground) 28%, transparent));
 }
+.reward-catch__image--empty { opacity: 0 !important; }
 .reward-catch__charge {
   inset: 50% auto auto 50%;
   width: min(82vw, 380px);
@@ -2367,12 +2368,14 @@
   --reward-angle: calc(var(--reward-i) * 30deg + 8deg);
   position: absolute;
   left: 50%; top: 38%;
-  width: 3px; height: calc(8px + mod(var(--reward-i), 3) * 5px);
+  width: 3px; height: 12px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--primary) 76%, var(--foreground) 24%);
   opacity: 0;
   transform: translate(-50%,-50%) rotate(var(--reward-angle)) translateY(-8vmin) scaleY(.4);
 }
+.reward-catch__particles i:nth-child(3n + 2) { height: 18px; }
+.reward-catch__particles i:nth-child(3n) { height: 8px; }
 .reward-catch[data-stage="break"] .reward-catch__particles,
 .reward-catch[data-stage="reveal"] .reward-catch__particles { opacity: 1; }
 .reward-catch[data-stage="break"] .reward-catch__particles i { animation: rewardParticle 760ms cubic-bezier(.16,.75,.2,1) both; animation-delay: calc(var(--reward-i) * 13ms); }
