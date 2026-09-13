@@ -1296,8 +1296,11 @@ export function DexHeader({
         </div>
       </div>
 
-      {/* 表示の切替と絞り込みは同じ行に置き、入らなければ折り返す。 */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+      {/* **1行に収める**(オーナー指示 2026-09-13「図鑑のカテゴリーと日付も
+          図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
+          入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
+          `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
+      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
           {(
             [
