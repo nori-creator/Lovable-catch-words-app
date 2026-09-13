@@ -138,6 +138,7 @@ function DexPage() {
     if (!justCaught) return;
     setView("shelf"); // 着弾は棚のスロットで見せる
     setSearch("");
+    if (!captured.some((item) => item.id === justCaught)) return;
     if (landingStartedRef.current === justCaught) return;
     landingStartedRef.current = justCaught;
 
