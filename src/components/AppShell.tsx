@@ -285,7 +285,7 @@ export function AppShell({
       <main
         className={
           fixedViewport
-            ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-5rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
+            ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
             : "mx-auto max-w-3xl px-4 py-4"
         }
       >
