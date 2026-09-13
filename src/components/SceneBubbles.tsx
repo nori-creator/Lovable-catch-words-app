@@ -1,6 +1,6 @@
 import { useT } from "@/lib/i18n";
 import { useMemo } from "react";
-import { sceneGroups, type BubbleKind, type SceneAxis, type SceneGroup } from "@/lib/scene-bubbles";
+import { sceneGroups, type BubbleKind, type SceneGroup } from "@/lib/scene-bubbles";
 import type { WordExtrasDTO } from "@/lib/extras";
 
 /**
@@ -39,16 +39,6 @@ const SKIN: Record<BubbleKind, string> = {
   time: "bg-secondary text-foreground ring-border",
   season: "scene-chip-season text-ok-ink ring-ok/25",
   trait: "scene-chip-trait text-ok-ink ring-ok/25",
-};
-
-/** 軸の見出しの鍵。 */
-const AXIS_KEY: Record<SceneAxis, string> = {
-  limited: "card.axis.limited",
-  where: "card.axis.where",
-  when: "card.axis.when",
-  scene: "card.axis.scene",
-  trait: "card.axis.trait",
-  feeling: "card.axis.feeling",
 };
 
 export function SceneBubbles({
