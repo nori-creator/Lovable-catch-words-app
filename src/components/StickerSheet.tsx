@@ -288,7 +288,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     if (!stickerId) return;
     if (surface === "album") {
       setSurfaceRole("album", stickerId, role);
-      setPickerSurface(null);
+      closePicker();
       return;
     }
     if (savingHero) return;
@@ -302,7 +302,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         return;
       }
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      setPickerSurface(null);
+      closePicker();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
     } finally {
@@ -400,7 +400,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
    * （オーナー指示 2026-08-26）。写しを増やさず、両方から同じ道を呼ぶ。
    */
   const photoAttach = usePhotoAttach(stickerId ?? null, {
-    onDone: () => setPickerSurface(null),
+    onDone: () => closePicker(),
     onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
   });
 
@@ -760,7 +760,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
             }}
             onCutoutNow={s.object_url ? () => void photoAttach.cutoutNow(s.object_url!) : undefined}
             onSelfieFile={(f) => void photoAttach.selfieNow(f)}
-            onClose={() => setPickerSurface(null)}
+            onClose={() => closePicker()}
           />
         </div>
       )}
