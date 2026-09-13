@@ -1644,9 +1644,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- capture ---
   "capture.photoTitle": { ja: "写真で集める", en: "Catch with a photo", "zh-TW": "用照片收集" },
   "capture.photoHint": {
-    ja: "街で見つけたモノにカメラを向けてみてください。",
-    en: "Point your camera at something you found.",
-    "zh-TW": "把相機對準在街上發現的東西看看。",
+    ja: "見つけたものを枠の中へ",
+    en: "Place what you found inside the frame",
+    "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
   "capture.typeWord": {
