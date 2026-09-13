@@ -1335,8 +1335,9 @@ export function DexHeader({
           図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
-      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pb-1 pr-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* 隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
+      {/* 外側の余白と安全領域は main 側（Lovable）の直しを採る。 */}
+      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* 中の隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
             4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
             隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
             36 + 8 = 44 でちょうど隣り合い、重ならない。 */}

@@ -1942,7 +1942,7 @@ export function LightModeCard({
 
   return (
     <SwipeCard enabled={!!picked} onSwipe={onNext} className="min-h-0 flex-1">
-      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
+      <article className="isolate flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
@@ -2081,7 +2081,7 @@ export function LightModeCard({
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
                 影で浮いていることを示す。 */}
             <div
-              className={`mx-auto max-w-3xl overflow-hidden rounded-t-3xl border-t bg-card px-4 pb-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.35)] ${
+              className={`isolate mx-auto max-w-3xl overflow-hidden rounded-t-3xl border-t bg-card px-4 pb-3 shadow-xl ${
                 correct ? "border-ok" : "border-bad"
               }`}
             >

@@ -1644,9 +1644,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- capture ---
   "capture.photoTitle": { ja: "写真で集める", en: "Catch with a photo", "zh-TW": "用照片收集" },
   "capture.photoHint": {
-    ja: "街で見つけたモノにカメラを向けてみてください。",
-    en: "Point your camera at something you found.",
-    "zh-TW": "把相機對準在街上發現的東西看看。",
+    ja: "見つけたものを枠の中へ",
+    en: "Place what you found inside the frame",
+    "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
   "capture.typeWord": {
@@ -1864,13 +1864,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 口語⇄書面のメーター。**色だけに頼らない**ので、5段それぞれに言葉を置く。
   "card.register": {
-    ja: "話し言葉か書き言葉か",
+    ja: "言葉の性質",
     en: "Spoken or written",
     "zh-TW": "是口語還是書面語",
   },
   "card.regSpoken": { ja: "話し言葉", en: "Spoken", "zh-TW": "口語" },
   "card.regSpokenish": { ja: "やや話し言葉", en: "Leans spoken", "zh-TW": "偏口語" },
-  "card.regNeutral": { ja: "どちらでも", en: "Either", "zh-TW": "都可以" },
+  "card.regNeutral": { ja: "中立", en: "Neutral", "zh-TW": "中性" },
   "card.regWrittenish": { ja: "やや書き言葉", en: "Leans written", "zh-TW": "偏書面語" },
   "card.regWritten": { ja: "書き言葉", en: "Written", "zh-TW": "書面語" },
   // 「今週出会う見込み」とレア度。**数字と出所は必ず同じ画面に居させる。**

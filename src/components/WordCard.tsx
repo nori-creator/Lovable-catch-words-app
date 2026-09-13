@@ -1149,12 +1149,15 @@ function SectionCard({
 function FrequencyMeter({ level }: { level: number }) {
   const t = useT();
   return (
-    <span className="usage-meter__track" aria-label={t("card.freqAria", { n: level })}>
+    <span className="usage-meter__instrument" aria-label={t("card.freqAria", { n: level })}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
-          className={`usage-meter__step ${i <= level ? "usage-meter__step--active" : ""}`}
-        />
+          className={`usage-meter__column ${i <= level ? "usage-meter__column--active" : ""}`}
+        >
+          <span className="usage-meter__bar" />
+          <span className="usage-meter__number">{i}</span>
+        </span>
       ))}
     </span>
   );
@@ -1201,16 +1204,24 @@ export function RegisterMeter({
         aria-label={`${t("card.register")}: ${label}`}
         title={`${t("card.regSpoken")} ⇄ ${t("card.regWritten")}`}
       >
-        {label}
-        <span className="usage-register__track">
-          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+        <span className="usage-register__heading">
+          <span>{t("card.register")}</span>
+          <span className="usage-register__value">{label}</span>
+        </span>
+        <span className="usage-register__dial">
+          <span className="usage-register__rail" />
+          <span className="usage-register__tick usage-register__tick--start" />
+          <span className="usage-register__tick usage-register__tick--middle" />
+          <span className="usage-register__tick usage-register__tick--end" />
           {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
-          <span className="pointer-events-none absolute inset-y-0 left-[6px] right-[6px] block">
-            <span
-              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
-              style={{ left: `${pct}%` }}
-            />
+          <span className="usage-register__needle-path">
+            <span className="usage-register__needle" style={{ left: `${100 - pct}%` }} />
           </span>
+        </span>
+        <span className="usage-register__labels" aria-hidden>
+          <span>{t("card.regWritten")}</span>
+          <span>{t("card.regNeutral")}</span>
+          <span>{t("card.regSpoken")}</span>
         </span>
       </span>
     );
@@ -1330,9 +1341,7 @@ function Body({
       const hasFreq = frequencyLevel > 0;
       return (
         <div className="usage-context">
-          {/* **頻度と口語⇄書面は同じ行に並べる**(オーナー指摘 2026-08-20)。
-              どちらも「この語がどういう語か」の目盛りで、別々の行に置くと
-              縦に伸びるだけで読みやすくならない。 */}
+          {/* 頻度と文体は同じ計器盤の中で、別々の目盛りとして読む。 */}
           {(hasFreq || registerScale !== null) && (
             <div className="usage-context__metrics">
               {hasFreq && (
@@ -1841,17 +1850,20 @@ function RelatedWordRow({
 function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
   const pronounce = usePronounce(language ?? undefined);
   const whole = chunkSpeechText(chunk, language);
+  const translation = chunk.ja?.split(/[。．\n]/, 1)[0]?.trim();
   return (
     <div className="usage-chunk-row">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
+      <div className="usage-chunk-row__main">
+        <div className="usage-chunk-row__words">
           <ChunkPills
             parts={chunk.parts}
             size="sm"
+            appearance="text"
             lang={language}
             onSpeak={(text) => void pronounce(text)}
           />
         </div>
+        {translation && <p className="usage-chunk-row__meaning">{translation}</p>}
         {/* 鳴らせるようになってから出る(`PronounceButton` の注)。 */}
         <PronounceButton
           text={whole}
@@ -1862,7 +1874,6 @@ function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | 
           label={whole}
         />
       </div>
-      {chunk.ja && <p className="usage-chunk-row__meaning">{chunk.ja}</p>}
     </div>
   );
 }

@@ -824,7 +824,11 @@ export function ScrapbookAlbum({
     pressOrigin.current = at;
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
-      // 生の navigator.vibrate は**振動オフの設定を無視する**。
+      // 生の navigator.vibrate は**振動オフの設定を無視する**。main 側は
+      // `navigator.vibrate(12)` を直に呼んでいたが、触覚は「うるさい」と
+      // 感じた人が切るためのものなので、切れないなら意味がない。
+      // （`dragId.current = id` は下で立てている。向こうも同じ直しを
+      //  入れていたので、そこは同じ結論だった。）
       haptic("medium");
       setEditing(true);
       // **そのまま掴む。** ここで掴まないと、指は乗っているのに
@@ -1030,7 +1034,7 @@ export function ScrapbookAlbum({
               onDragStart={(e) => e.preventDefault()}
               // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
               data-album-sticker={s.id}
-              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab" : ""} ${lifted === s.id ? "album-lifted" : ""}`}
+              className={`photo-lift group relative block touch-none text-left ${size} ${editing ? "album-editing cursor-grab active:cursor-grabbing" : ""} ${lifted === s.id ? "album-lifted" : ""}`}
               style={
                 {
                   // 掴んだ札は**指に付いてくる**。揺れは CSS 側で止まる
