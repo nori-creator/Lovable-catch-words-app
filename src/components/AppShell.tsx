@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
@@ -13,6 +13,7 @@ import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
+import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
