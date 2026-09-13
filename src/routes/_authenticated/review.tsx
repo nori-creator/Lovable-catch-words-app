@@ -296,6 +296,30 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * 4択で見える可能性がある音を、束が届いた時点で端末へ入れる。
+   * 各ボタンも自分の音を確認するが、ここでまとめて始めれば問題を読む間に
+   * IndexedDB まで届く。同じ語は `ensureAudio` の inflight と cache が束ねる。
+   */
+  const choiceAudio = useMemo(() => {
+    const words = new Set<string>();
+    const urls: Record<string, string | null> = {};
+    for (const reviewCard of cards ?? []) {
+      words.add(reviewCard.headword);
+      urls[reviewCard.headword] = reviewCard.audio_url;
+      const choices = reviewCard.headword_choice_infos?.length
+        ? reviewCard.headword_choice_infos.map((choice) => choice.headword)
+        : reviewCard.headword_choices;
+      for (const choice of choices) words.add(choice);
+    }
+    return { words: [...words], urls };
+  }, [cards]);
+  usePrefetchSpeech(choiceAudio.words, {
+    language: cards?.[0]?.language ?? undefined,
+    enabled: choiceAudio.words.length > 0,
+    urls: choiceAudio.urls,
+  });
+
+  /**
    * **この1枚をどの形で出すか。** 「AIが選ぶ」のときだけ札ごとに変わる。
    * 根拠は記憶レベル — すぐ隣に出ているバッジと同じ関数から決まるので、
    * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
@@ -323,8 +347,11 @@ function ReviewPage() {
   }, [cards, idx]);
 
   return (
-    <AppShell title={t("title.review")}>
-      <section className="mb-4">
+    <AppShell
+      title={t("title.review")}
+      fixedViewport={format === "choice" && !memListOpen && !done && !isLoading && !isError}
+    >
+      <section className={`${format === "choice" && !memListOpen ? "mb-2" : "mb-4"} shrink-0`}>
         <ReviewHeader
           answered={cards ? Math.min(idx, cards.length) : null}
           total={cards?.length ?? null}
@@ -360,17 +387,6 @@ function ReviewPage() {
             )}
           </>
         )}
-        {/* 単語帳は**図鑑とは別の本棚**(オーナー指摘)。図鑑は「街で出会って
-            自分で撮った物」の記録なので混ぜない。入口は復習の側に置く。 */}
-        <div className="mt-3 text-center">
-          <Link
-            to="/wordbooks"
-            className="press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-footnote font-semibold shadow-sm"
-          >
-            <BookMarked className="h-4 w-4 text-primary" aria-hidden />
-            {t("wb.openShelf")}
-          </Link>
-        </div>
       </section>
 
       {isLoading ? (
@@ -539,16 +555,18 @@ export function MemoryLevelSummary({
           />
         )}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
-        {MEMORY_LEVELS.map((lv, i) =>
-          counts[i] > 0 ? (
-            <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
-              <span className={`inline-block h-2 w-2 rounded-full ${lv.bar}`} />
-              {t(lv.labelKey)} <b>{counts[i]}</b>
-            </span>
-          ) : null,
-        )}
-      </div>
+      {expanded && (
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption">
+          {MEMORY_LEVELS.map((lv, i) =>
+            counts[i] > 0 ? (
+              <span key={lv.level} className={`inline-flex items-center gap-1 ${lv.text}`}>
+                <span className={`inline-block h-2 w-2 rounded-full ${lv.bar}`} />
+                {t(lv.labelKey)} <b>{counts[i]}</b>
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1923,8 +1941,8 @@ export function LightModeCard({
     : card.headword_choices.map((h) => ({ headword: h, zhuyin: null, pinyin: null }));
 
   return (
-    <SwipeCard enabled={!!picked} onSwipe={onNext}>
-      <article className="rounded-3xl border border-border bg-card p-4 shadow-lg shadow-primary/10">
+    <SwipeCard enabled={!!picked} onSwipe={onNext} className="min-h-0 flex-1">
+      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">
@@ -1945,22 +1963,22 @@ export function LightModeCard({
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
         {heroUrl && (
-          <div className="mb-2 max-h-[32vh] min-h-[8rem] w-full overflow-hidden rounded-2xl bg-secondary">
+          <div className="mb-1.5 h-[clamp(5rem,18vh,10rem)] min-h-0 w-full shrink overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
               src={heroUrl}
               alt={t("rv.targetAlt")}
-              className="h-full max-h-[32vh] w-full object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
         )}
-        <div className="mb-2.5 text-center">
+        <div className="mb-1.5 shrink-0 text-center">
           <div className="text-body font-semibold leading-snug">
             {t("rv.whichIsBefore")}
             {card.meaning_ja}
             {t("rv.whichIsAfter")}
           </div>
         </div>
-        <ul className="space-y-1.5">
+        <ul className="grid min-h-0 flex-1 grid-rows-4 gap-1">
           {infos.map((info) => {
             const c = info.headword;
             const isAnswer = c === card.headword;
@@ -1980,8 +1998,12 @@ export function LightModeCard({
             // 下マージンを持たせると、その分だけ上に送ってよけてくれる
             // (検査では、押したあとの発音ボタンが 1.00:1 = 変化なし として
             // 出ていた — 見えていないのだから当然だった)。
+            // **箱を右端まで広げ、音声は箱の中**(オーナー指示 2026-09-13)。
+            // 以前は選択肢の外に音声ボタンが並んでいたので、選ぶ面が 44px
+            // ぶん狭く、しかも「押す物が2つ横に並ぶ」形だった。押す物の中に
+            // 押す物は入れられないので、箱は敷いたまま音声だけ上に重ねる。
             return (
-              <li key={c} className="flex scroll-mb-56 items-stretch gap-2">
+              <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}
@@ -1990,7 +2012,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`flex min-w-0 flex-1 items-center justify-between rounded-xl border px-4 py-2 text-left transition-colors
+                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2023,13 +2045,20 @@ export function LightModeCard({
                 </button>
                 {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
                     4つ並ぶので、押しても鳴らないボタンが並ぶと
-                    いちばん壊れて見える。 */}
-                <PronounceButton
-                  text={c}
-                  language={card.language ?? undefined}
-                  className="self-stretch !h-auto !w-11 rounded-xl"
-                  label={t("rv.pronOf", { c })}
-                />
+                    いちばん壊れて見える。
+                    見た目は単語の詳細と同じ**鮮やかな青い丸**に統一
+                    (オーナー指示 2026-09-13)。 */}
+                <span className="pointer-events-none absolute inset-y-0 right-2 grid place-items-center">
+                  <span className="pointer-events-auto">
+                    <PronounceButton
+                      text={c}
+                      language={card.language ?? undefined}
+                      tone="hero"
+                      size="sm"
+                      label={t("rv.pronOf", { c })}
+                    />
+                  </span>
+                </span>
               </li>
             );
           })}
@@ -2037,7 +2066,7 @@ export function LightModeCard({
         {/* 答え合わせの面が下から覆う分の逃げ場。**これが無いと、覆われた
             選択肢はスクロールしても出てこない** — 見比べて覚える場面で
             外れの選択肢が読めなくなる(薄くするのをやめたのと同じ理由)。 */}
-        {picked && <div aria-hidden style={{ height: panelH }} />}
+        {picked && <div aria-hidden style={{ height: panelH, flexShrink: 0 }} />}
         {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
             毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
@@ -2046,7 +2075,7 @@ export function LightModeCard({
         {picked && (
           <div
             ref={panelRef}
-            className="fixed inset-x-0 bottom-0 z-40 pb-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+            className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40"
           >
             {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった
                 (NORI指定)。答え合わせは**不透明**な面にして、上辺の境界と
@@ -2073,24 +2102,24 @@ export function LightModeCard({
                   外したときのラベル(「もう一度覚えよう」)が長い分だけ幅を奪い、
                   **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
                   語を割るのはいちばんやってはいけない。 */}
-              <div className="mb-1.5 flex items-center gap-2">
+              <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5">
                 <Term
                   lang={card.language}
-                  className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
+                  className="min-w-0 break-keep text-title font-bold tracking-tight"
                 >
                   {card.headword}
                 </Term>
+                <PronounceButton
+                  text={card.headword}
+                  language={card.language ?? undefined}
+                  className="row-span-2"
+                  label={t("card.playPron")}
+                />
                 <Reading
                   lang={card.language ?? undefined}
                   zhuyin={card.reading_zhuyin}
                   pinyin={card.pinyin}
-                  className="min-w-0 truncate text-footnote text-foreground/70"
-                />
-                <PronounceButton
-                  text={card.headword}
-                  language={card.language ?? undefined}
-                  className="ml-auto"
-                  label={t("card.playPron")}
+                  className="min-w-0 text-footnote leading-snug text-foreground/70"
                 />
               </div>
 
@@ -2304,7 +2333,7 @@ export function ReviewHeader({
   const current = MODE_TABS.find((m) => m.id === mode);
   return (
     <>
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <div className="min-w-0">
           <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
             {t("review.today")}
@@ -2323,6 +2352,14 @@ export function ReviewHeader({
               {formatCount(answered)} / {formatCount(total)}
             </span>
           )}
+          <Link
+            to="/wordbooks"
+            aria-label={t("wb.openShelf")}
+            title={t("wb.openShelf")}
+            className="lift-soft grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-primary-ink"
+          >
+            <BookMarked className="h-5 w-5" aria-hidden />
+          </Link>
           {/* いま選ばれている形を**名前で**出す。印だけにすると、
               押すまで何が選ばれているのか分からない。
               当たり判定は 44px（`::before` ではなく箱そのもの）。 */}

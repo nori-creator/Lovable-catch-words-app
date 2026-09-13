@@ -31,6 +31,10 @@ export type LandingCtx = {
    * **見せ場の後に空白が来るのが、いちばん間の抜けた形。**
    */
   gate?: Promise<unknown>;
+  /** 保存済みの札。図鑑側の実セルを探すために使う。 */
+  destinationId?: string;
+  /** 最大表示のまま図鑑を背後に開く。 */
+  openDex?: () => void | Promise<void>;
 };
 
 export type LandingRunner = (ctx: LandingCtx) => Promise<void>;

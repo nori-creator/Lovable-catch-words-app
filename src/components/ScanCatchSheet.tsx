@@ -22,6 +22,8 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
 import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 type Props = {
   snapshotDataUrl: string;
@@ -124,6 +126,7 @@ export function ScanCatchSheet({
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const cutoutBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
+  const landingDestinationRef = useRef<string | null>(null);
   // 演出中に単語の発音を鳴らすため、フックの結果を ref に保持しておく
   // (runLandingAnimation は非フック関数なので直接は呼べない)。
   // **何語として読むかを必ず渡す。** 省くと台湾華語の声で読む既定に落ちる
@@ -214,11 +217,18 @@ export function ScanCatchSheet({
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
       speakLine: () => void pronounceRef.current?.(headword),
+      destinationId: landingDestinationRef.current ?? undefined,
+      openDex: () => {
+        const id = landingDestinationRef.current;
+        if (id) return navigate({ to: "/dex", search: { justCaught: id } });
+      },
     });
   }
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    Sound.rewardGrip();
+    haptic("selection");
     setSaving(true);
     setErr(null);
     try {
@@ -390,6 +400,7 @@ export function ScanCatchSheet({
       void caughtFn({ data: { headword } }).catch(() => {});
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
+      landingDestinationRef.current = stickerId;
       await runLandingAnimation();
       setPhase("done");
       if (firstCatch) {
@@ -399,7 +410,9 @@ export function ScanCatchSheet({
         toast.success(upgrade ? t("sheet.reunion") : t("sheet.addedOne"));
       }
       // 図鑑のページが開き、新しいセルがバンと追加される(dex側の slam-in)。
-      setTimeout(() => navigate({ to: "/dex", search: { justCaught: stickerId } }), 250);
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: stickerId } });
+      }
     } catch (e) {
       console.error(e);
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
@@ -449,6 +462,15 @@ export function ScanCatchSheet({
             </div>
           )}
         </div>
+
+        <button
+          onClick={doSave}
+          disabled={!objectDataUrl || saving}
+          className="mx-auto mt-3 inline-flex w-64 max-w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+          {phase === "done" ? t("sheet.landed") : t("sheet.file")}
+        </button>
 
         {/* Word summary + optional selfie/caption */}
         <div className="mt-5 rounded-3xl bg-card p-4 shadow-2xl">
@@ -554,21 +576,6 @@ export function ScanCatchSheet({
               {err}
             </p>
           )}
-
-          <button
-            onClick={doSave}
-            disabled={!objectDataUrl || saving}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : phase === "done" ? (
-              <Check className="h-5 w-5" />
-            ) : (
-              <Sparkles className="h-5 w-5" />
-            )}
-            {phase === "done" ? t("sheet.landed") : t("sheet.file")}
-          </button>
         </div>
       </div>
 
@@ -582,45 +589,6 @@ export function ScanCatchSheet({
           reading={landingReading}
         />
       )}
-
-      {/* Impact ring at the dex icon on landing */}
-      <div
-        id="catch-impact-ring"
-        className="pointer-events-none fixed z-[70] hidden -translate-x-1/2 -translate-y-1/2"
-        style={{ left: 0, top: 0 }}
-      >
-        <span className="block h-6 w-6 rounded-full bg-amber-300/0 ring-2 ring-amber-300" />
-      </div>
-
-      {/* Ready-state sparkle burst around the cutout — "this is now yours" */}
-      {phase === "ready" && cutoutUrl && (
-        <div className="pointer-events-none absolute left-1/2 top-[8.5rem] -translate-x-1/2">
-          {[0, 60, 120, 180, 240, 300].map((deg) => (
-            <span
-              key={deg}
-              className="absolute h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,224,71,0.9)]"
-              style={{
-                transform: `rotate(${deg}deg) translateY(-120px)`,
-                animation: `readyBurst 900ms ease-out forwards`,
-                animationDelay: `${deg * 1.5}ms`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      <style>{`
-        @keyframes impactRing {
-          0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
-          100% { transform: translate(-50%, -50%) scale(6);   opacity: 0; }
-        }
-        #catch-impact-ring.impact-play span { animation: impactRing 780ms cubic-bezier(0.15, 0.6, 0.3, 1) forwards; }
-        @keyframes readyBurst {
-          0%   { opacity: 0; }
-          20%  { opacity: 1; }
-          100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-160px) scale(0.6); }
-        }
-      `}</style>
     </div>
   );
 }

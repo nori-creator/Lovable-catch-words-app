@@ -56,6 +56,9 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { Zh } from "@/components/Zh";
 import { isTargetHeadword } from "@/lib/target-language";
+import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
 
 /**
  * Input catch (§5.2): the entrance for words you can't photograph — heard in
@@ -145,6 +148,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const [attachedDataUrl, setAttachedDataUrl] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<ImageCandidate[]>([]);
   const [picked, setPicked] = useState(0);
+  const [landing, setLanding] = useState(false);
+  const landingSourceRef = useRef<HTMLButtonElement | null>(null);
+  const flyRef = useRef<HTMLImageElement | null>(null);
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const { resolve: resolveLocation } = useCatchLocation();
@@ -441,6 +447,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       setErr(t("input.notTargetLang"));
       return;
     }
+    Sound.rewardGrip();
+    haptic("selection");
     setStep("saving");
     setErr(null);
     try {
@@ -574,8 +582,23 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       } else {
         toast.success(t("sheet.addedGhostFree"));
       }
+      setLanding(true);
+      pronounce.prefetch(headword);
+      try {
+        await runCatchLanding({
+          startEl: landingSourceRef.current,
+          fly: flyRef,
+          speakLine: () => void pronounce(headword),
+          destinationId: res.id,
+          openDex: () => navigate({ to: "/dex", search: { justCaught: res.id } }),
+        });
+      } catch (landingError) {
+        console.warn("input catch landing failed", landingError);
+      }
       onClose();
-      navigate({ to: "/dex/$stickerId", params: { stickerId: res.id } });
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       setStep("preview");
@@ -693,6 +716,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               }}
             />
             <button
+              ref={landingSourceRef}
               onClick={() => fileInputRef.current?.click()}
               className="relative mx-auto block aspect-square w-48"
             >
@@ -716,6 +740,18 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                   </div>
                 </div>
               )}
+            </button>
+            <button
+              onClick={save}
+              disabled={step === "saving"}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+            >
+              {step === "saving" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Sparkles className="h-5 w-5" />
+              )}
+              {t("input.save")}
             </button>
             <p className="text-center text-caption text-muted-foreground">
               {attachedDataUrl
@@ -817,22 +853,23 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               </p>
             )}
 
-            <button
-              onClick={save}
-              disabled={step === "saving"}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-            >
-              {step === "saving" ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Sparkles className="h-5 w-5" />
-              )}
-              {t("input.save")}
-            </button>
             <p className="text-center text-caption text-muted-foreground">{t("input.saveHint")}</p>
           </div>
         )}
       </div>
+      {landing && (
+        <CatchLandingOverlay
+          ref={flyRef}
+          image={attachedDataUrl ?? candidates[picked]?.thumb ?? null}
+          headword={text.trim()}
+          lang={targetLanguage}
+          reading={
+            isPhrase
+              ? phraseCard?.reading_zhuyin || phraseCard?.pinyin
+              : dict?.zhuyin || card?.reading_zhuyin || dict?.pinyin || card?.pinyin
+          }
+        />
+      )}
     </div>
   );
 }

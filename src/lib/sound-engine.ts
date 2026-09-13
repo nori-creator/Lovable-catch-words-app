@@ -128,6 +128,28 @@ function noise(dur: number, opts: { hp?: number; lp?: number; gain?: number } = 
 /* ─────────── Sound library ─────────── */
 
 export const Sound = {
+  /** Reward sequence: tactile contact, rising tension, release, and transfer. */
+  rewardGrip() {
+    tone(128, 0.045, { type: "triangle", from: 150, to: 110, gain: 0.12 });
+    noise(0.025, { hp: 1800, lp: 5200, gain: 0.025 });
+  },
+  rewardLift() {
+    tone(180, 0.42, { type: "sine", from: 180, to: 520, gain: 0.1 });
+    tone(360, 0.34, { type: "triangle", from: 360, to: 740, gain: 0.045, delay: 0.06 });
+  },
+  rewardCharge() {
+    tone(320, 0.55, { type: "sine", from: 320, to: 760, gain: 0.065 });
+    tone(640, 0.48, { type: "sine", from: 640, to: 1280, gain: 0.035, delay: 0.08 });
+  },
+  rewardBreak() {
+    tone(92, 0.3, { type: "sine", from: 120, to: 72, gain: 0.2 });
+    tone(880, 0.32, { type: "sine", from: 720, to: 1320, gain: 0.13, delay: 0.025 });
+    tone(2100, 0.46, { type: "sine", from: 2400, to: 1680, gain: 0.05, delay: 0.08 });
+    noise(0.075, { hp: 2400, lp: 9000, gain: 0.04 });
+  },
+  rewardTransfer() {
+    tone(520, 0.3, { type: "sine", from: 520, to: 980, gain: 0.055 });
+  },
   tap() {
     tone(900, 0.05, { type: "sine", gain: 0.22 });
   },
@@ -197,8 +219,8 @@ export const Sound = {
   },
   /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
   shelfLand() {
-    tone(160, 0.09, { type: "triangle", from: 220, to: 140, gain: 0.22 });
-    tone(80, 0.14, { type: "sine", from: 90, to: 60, gain: 0.14, delay: 0.02 });
-    noise(0.06, { hp: 800, lp: 3000, gain: 0.04 });
+    tone(118, 0.13, { type: "triangle", from: 176, to: 86, gain: 0.24 });
+    tone(58, 0.22, { type: "sine", from: 76, to: 44, gain: 0.18, delay: 0.018 });
+    noise(0.045, { hp: 620, lp: 2300, gain: 0.035 });
   },
 };

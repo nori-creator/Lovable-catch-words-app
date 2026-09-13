@@ -24,6 +24,20 @@ import type { LandingCtx, LandingRunner } from "./types";
 /**
  * キャッチの報酬演出 v5 — **ばねで動かす版**（オーナー指示 2026-09-13）。
  *
+ * ## ⚠ この版はいま動く経路に繋がっていない（2026-09-13 の合流）
+ * 同じ日に Lovable 側でも演出が作られ（`v5_reward.ts`）、そちらを採った。
+ * 向こうは振り付けが良く、**図鑑のマスまで一続きで飛び込む受け渡し**
+ * （`destinationId` / `openDex`）を持っている — ここには無いもの。
+ *
+ * 繋ぎ直すには2つ要る:
+ *   ① `CatchLanding.tsx` に版の切り替えを戻す（いまは v5reward 直呼び）
+ *   ② ここが掴む DOM を新しい覆い（`.reward-catch__*`）に合わせる
+ *      — 暗転は `.reward-catch__veil`、単語は `.reward-catch__copy`。
+ *      残像と影の層は無くなったので、足し直しが要る。
+ *
+ * **本当に欲しいのは合成**: 向こうの受け渡しと、こちらのばね。
+ * 詳しくは `docs/motion/catch-reward.md` 第6部。
+ *
  * ## 前の版と何が違うのか（1つだけ）
  * v1〜v4 は CSS transition を `setTimeout` で繋いでいた。transition は
  * **必ず速度ゼロから始まり速度ゼロで終わる**ので、幕が変わるたびに物が止まる。

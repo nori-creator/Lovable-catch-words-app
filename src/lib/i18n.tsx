@@ -1597,9 +1597,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review", "zh-TW": "今天的複習" },
   // オーナー指示 2026-08-26「復習モードの AI が選ぶという名前、自動に変えて」。
-  "review.auto": { ja: "🎯 自動", en: "🎯 Auto", "zh-TW": "🎯 自動" },
-  "review.speak": { ja: "🎤 話す", en: "🎤 Speak", "zh-TW": "🎤 開口說" },
-  "review.choice": { ja: "👆 4択", en: "👆 Quiz", "zh-TW": "👆 四選一" },
+  "review.auto": { ja: "自動", en: "Auto", "zh-TW": "自動" },
+  "review.speak": { ja: "話す", en: "Speak", "zh-TW": "開口說" },
+  "review.choice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   // --- dex ---
   "dex.yours": { ja: "あなたの図鑑", en: "Your dex", "zh-TW": "你的圖鑑" },
   "dex.found": { ja: "見つけた", en: "Found", "zh-TW": "找到了" },
@@ -2593,11 +2593,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "photo.roleSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image", "zh-TW": "網路圖片" },
   "photo.cutoutNow": { ja: "いま切り抜く", en: "Cut it out now", "zh-TW": "現在去背" },
+  "photo.cutoutRedo": { ja: "切り抜き直す", en: "Cut it out again", "zh-TW": "重新去背" },
   "photo.cuttingOut": { ja: "切り抜いています…", en: "Cutting out…", "zh-TW": "去背中…" },
   "photo.cutoutFailed": {
     ja: "切り抜けませんでした。もう一度お試しください。",
     en: "Couldn't cut it out. Please try again.",
     "zh-TW": "無法去背，請再試一次。",
+  },
+  "cap.networkTimeout": {
+    ja: "通信に時間がかかっています。写真は端末に保存しました。",
+    en: "The connection is taking too long. Your photo is saved on this device.",
+    "zh-TW": "連線時間過長，照片已儲存在此裝置。",
   },
   "photo.replaceFile": {
     ja: "別の写真に差し替える",
@@ -2631,6 +2637,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Photo shown first",
     "zh-TW": "優先顯示的照片",
   },
+  "settings.photoLibrarySync": {
+    ja: "スマホのフォトと同期する",
+    en: "Save captures to phone photos",
+    "zh-TW": "將拍攝照片同步到手機相簿",
+  },
+  "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
+  "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },

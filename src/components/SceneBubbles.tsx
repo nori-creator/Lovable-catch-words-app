@@ -1,6 +1,5 @@
 import { useT } from "@/lib/i18n";
 import { useMemo } from "react";
-import { floatStyle } from "@/lib/bubble-float";
 import { sceneGroups, type BubbleKind, type SceneAxis, type SceneGroup } from "@/lib/scene-bubbles";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -19,18 +18,15 @@ import type { WordExtrasDTO } from "@/lib/extras";
  * 物理の輪で札を面の中に泳がせていたので、開くたびに並びが変わり、
  * 読む順が無かった。求められていたのは「浮いて**見える**」ことだった。
  *
- * いまは:
- *   ・位置は**行に整列**（軸ごとに束ね、束の中は左から順）
- *   ・浮遊感は**影・わずかな高さの差・ゆっくりした上下・押した時の沈み**
+ * いまは位置を**行に整列**し、奥行きは影と押した時の沈みで伝える。
+ * 読んでいる間ずっと動かすと視線が散るため、常時の上下動は使わない。
  *
  * ## 散らばらせない
  * 軸（限定／どこで／いつ／どんな場面で／どんな物か／どんな気持ちで）ごとに
  * 見出しを付けて束ねる。どれがどの話なのかが、札を読む前に分かる。
  * 束の作り方は `lib/scene-bubbles.ts`（試験付き）。
  *
- * ## 動きを止めたい人には止めて出す
- * `prefers-reduced-motion` のときは上下の揺れを止める（CSS 側で止める）。
- * 札は全部そこに在るので、読める物は1つも減らない。
+ * `prefers-reduced-motion` のときは押下の変形も止める。札はすべて残る。
  */
 
 /** 種類ごとの地の色。**限定だけ別格** — その語を持っていること自体が珍しい。 */
@@ -76,41 +72,30 @@ export function SceneBubbles({
   if (groups.length === 0) return null;
 
   return (
-    <div>
-      <p className="mb-1.5 text-caption text-muted-foreground">{t("card.encounterLabels")}</p>
-      <div className="space-y-2">
+    <div className="usage-scenes">
+      <p className="usage-scenes__title">{t("card.encounterLabels")}</p>
+      <div className="usage-scenes__groups">
         {groups.map((g) => (
-          <div key={g.axis}>
+          <div key={g.axis} className="usage-scenes__group">
             {/* 束の見出し。**札と同じ形にしない** — 見出しまで札にすると、
                 どれが中身なのか分からなくなる。素の小さな字で置く。
 
-                **薄めを掛けない。** 一度 `/80` を足したら、11px の字で
+                **薄めを掛けないこと。** 一度 `/80` を足したら、11px の字で
                 コントラストが 4.50 → 3.74 に落ちて絵の検査が7件で落ちた。
                 この見出しは「何の一覧か」を言う唯一の言葉なので、
-                いちばん読めなくてはいけない所だった。 */}
-            <p className="mb-1 text-caption font-medium text-muted-foreground">
-              {t(AXIS_KEY[g.axis])}
-            </p>
-            <ul className="flex flex-wrap items-center gap-1.5">
-              {g.items.map((b, i) => {
-                const f = floatStyle(b.id, i);
-                return (
-                  <li key={b.id}>
-                    <span
-                      className={`scene-chip scene-depth-${f.depth} inline-flex select-none items-center whitespace-nowrap rounded-full px-3 py-1.5 text-caption font-semibold ring-1 ${SKIN[b.kind] ?? SKIN.place}`}
-                      style={
-                        {
-                          "--float-delay": `${f.delayMs}ms`,
-                          "--float-duration": `${f.durationMs}ms`,
-                          "--float-lift": `${f.liftPx}px`,
-                        } as React.CSSProperties
-                      }
-                    >
-                      {b.label}
-                    </span>
-                  </li>
-                );
-              })}
+                いちばん読めなくてはいけない所。`.usage-scenes__axis` は
+                `--muted-foreground` をそのまま使っている（薄めていない）。 */}
+            <p className="usage-scenes__axis">{t(AXIS_KEY[g.axis])}</p>
+            <ul className="usage-scenes__items">
+              {g.items.map((b, i) => (
+                <li key={b.id}>
+                  <span
+                    className={`scene-chip scene-depth-${(i % 3) as 0 | 1 | 2} inline-flex select-none items-center whitespace-nowrap rounded-lg px-3 py-2 text-caption font-semibold ring-1 ${SKIN[b.kind] ?? SKIN.place}`}
+                  >
+                    {b.label}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         ))}

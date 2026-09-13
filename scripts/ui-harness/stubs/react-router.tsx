@@ -43,10 +43,35 @@ export function useRouter() {
   return { navigate: () => {}, history: { back: () => {} } };
 }
 
+/**
+ * ルーターの状態を読む。**下のタブ帯がどこを光らせるかを決めている。**
+ *
+ * `AppShell` が `useRouterState({ select: (s) => s.location.pathname })` で
+ * いまの道を取るので、`select` をそのまま**本物と同じ形の状態**に当てる。
+ * ここで `""` を返すと、どのタブも選ばれていない絵になり、
+ * 「いまどこに居るか」の検査が素通しになる。
+ *
+ * **足し忘れると雛形が1枚も組めない。** 2026-09-13 の合流で、
+ * `AppShell` 側にこの import が足された一方ここに無く、絵の検査が
+ * 丸ごと死んでいた(`[MISSING_EXPORT] "useRouterState"`)。
+ * 検査は落ちるのではなく**組めない**ので、静かに何も測らなくなる。
+ */
+export function useRouterState<T = unknown>(opts?: {
+  select?: (state: { location: { pathname: string; search: object; hash: string } }) => T;
+}): T {
+  const state = { location: { pathname: "/home", search: {}, hash: "" } };
+  return (opts?.select ? opts.select(state) : state) as T;
+}
+
 export function useSearch() {
   return {};
 }
 
 export function useParams() {
   return {};
+}
+
+/** ルート前処理はハーネスでは実行されない。import を成立させる印だけ返す。 */
+export function redirect(options: unknown) {
+  return options;
 }

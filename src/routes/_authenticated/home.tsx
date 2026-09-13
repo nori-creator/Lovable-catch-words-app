@@ -28,6 +28,7 @@ import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { JOURNAL_ENABLED } from "@/lib/features";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -290,6 +291,7 @@ function HomePage() {
   const { data: journalEntries } = useQuery({
     queryKey: ["journal"],
     queryFn: () => fetchJournal(),
+    enabled: JOURNAL_ENABLED,
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -340,13 +342,14 @@ function HomePage() {
           {/* 「日記を書く」は別の画面に飛ばさない(オーナー指摘)。
               押すとこのページがめくれて、**左に今日の写真・右に書く紙**が
               向かい合う。読む側(`DayJournalPage`)と同じ紙・同じ綴じ目。 */}
-          {writing ? (
-            <JournalWritingPage onClose={() => setWriting(false)}>
-              <JournalComposer showHeading={false} />
-            </JournalWritingPage>
-          ) : (
-            <JournalLink onWrite={() => setWriting(true)} />
-          )}
+          {JOURNAL_ENABLED &&
+            (writing ? (
+              <JournalWritingPage onClose={() => setWriting(false)}>
+                <JournalComposer showHeading={false} />
+              </JournalWritingPage>
+            ) : (
+              <JournalLink onWrite={() => setWriting(true)} />
+            ))}
         </>
       )}
 
@@ -371,7 +374,7 @@ function HomePage() {
           truncated={truncated}
           shown={shown}
           total={total}
-          journals={journalsByDay}
+          journals={JOURNAL_ENABLED ? journalsByDay : undefined}
         />
       )}
       <StickerSheet
@@ -404,7 +407,6 @@ export function HomeEmptyState() {
     <EmptyState
       icon={BookText}
       title={t("home.emptyTitle")}
-      hint={t("home.emptyHint")}
       action={
         <Link
           to="/capture"

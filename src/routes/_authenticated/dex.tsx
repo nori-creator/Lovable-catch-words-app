@@ -46,7 +46,8 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
-import { rippleNeighbors } from "@/components/effects/catch-landing/v5_physics";
+import { DEX_SHELF_ENABLED } from "@/lib/features";
+import { useSwipeBack } from "@/hooks/use-tab-swipe";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -54,7 +55,7 @@ import { rippleNeighbors } from "@/components/effects/catch-landing/v5_physics";
  * 下の `slamIn` が `880ms linear 120ms both`、その 52% が接地(潰れ)。
  * ここを直すときは**両方**直すこと — ずれると音だけ先に鳴る。
  */
-const SLAM_IMPACT_MS = 120 + Math.round(880 * 0.52);
+const SLAM_IMPACT_MS = 520;
 
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
@@ -126,7 +127,8 @@ function DexPage() {
   /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
   const totalCount = stickers?.total ?? null;
 
-  const [view, setView] = useState<ViewMode>("shelf");
+  const [view, setView] = useState<ViewMode>("gallery");
+  const landingStartedRef = useRef<string | null>(null);
 
   // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
   //
@@ -136,7 +138,17 @@ function DexPage() {
   // 押したのに戻される画面は、壊れているのと区別がつかない。
   useEffect(() => {
     if (!justCaught) return;
-    setView("shelf"); // 着弾は棚のスロットで見せる
+    setView(DEX_SHELF_ENABLED ? "shelf" : "gallery");
+    setSearch("");
+    if (!captured.some((item) => item.id === justCaught)) return;
+    if (landingStartedRef.current === justCaught) return;
+    landingStartedRef.current = justCaught;
+    if (document.documentElement.dataset.rewardFlight) {
+      const t = setTimeout(() => {
+        void navigate({ to: "/dex", search: {}, replace: true });
+      }, 6000);
+      return () => clearTimeout(t);
+    }
 
     // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
     // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
@@ -157,39 +169,44 @@ function DexPage() {
       reduced ? 0 : SLAM_IMPACT_MS,
     );
 
-    // **周りのセルも少し揺れる。** 落ちた物だけが跳ねると、背景に貼った絵の
-    // 上でスプライトが動いたようにしか見えない。物理法則を感じ取るのは、
-    // 物そのものよりも**周りの反応**から(`catch-choreography.ts` の注)。
-    // 動きを減らす設定のときは揺らさない（情報ではなく手触りなので、
-    // 省いても失う物がない — 音と振動は上で鳴っている）。
-    let undoRipple = () => {};
-    const rippleAt = reduced
-      ? undefined
-      : setTimeout(() => {
-          undoRipple = rippleNeighbors(justCaught);
-        }, SLAM_IMPACT_MS);
-
     const t = setTimeout(() => {
       void navigate({ to: "/dex", search: {}, replace: true });
     }, 1600);
     return () => {
       clearTimeout(impact);
-      if (rippleAt) clearTimeout(rippleAt);
       clearTimeout(t);
-      undoRipple();
     };
-  }, [justCaught, navigate]);
+  }, [justCaught, navigate, captured]);
+
+  // 再取得された札から着地先の棚を確定する。この更新は効果音を再発火させない。
+  useEffect(() => {
+    if (!justCaught) return;
+    const caught = captured.find((item) => item.id === justCaught);
+    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
+  }, [justCaught, captured]);
 
   // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
   // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
   // 図鑑の再取得が後から届くこともあるので件数も見る。
   useEffect(() => {
     if (!justCaught) return;
-    const raf = requestAnimationFrame(() => {
+    let stopped = false;
+    let attempts = 0;
+    const locate = () => {
+      if (stopped) return;
       const el = document.getElementById(`dex-cell-${justCaught}`);
-      el?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-    });
-    return () => cancelAnimationFrame(raf);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) requestAnimationFrame(locate);
+    };
+    const raf = requestAnimationFrame(locate);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+    };
   }, [justCaught, captured.length]);
 
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
@@ -206,14 +223,9 @@ function DexPage() {
   const [search, setSearch] = useState("");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (
-      saved === "shelf" ||
-      saved === "list" ||
-      saved === "gallery" ||
-      saved === "map" ||
-      saved === "calendar"
-    )
+    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
       setView(saved);
+    else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     // **日付は覚えない。** 「その日だけ」は今この場の見方で、次に開いた
     // ときまで続くと「図鑑が減った」ようにしか見えない。
@@ -367,7 +379,7 @@ function DexPage() {
         />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
-      ) : view === "shelf" ? (
+      ) : DEX_SHELF_ENABLED && view === "shelf" ? (
         <DexShelf
           stickers={filtered}
           activeCategory={activeCategory}
@@ -402,7 +414,10 @@ function DexPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 {items.map((s) => {
                   const photo = s.object_thumb_url ?? s.object_url;
-                  const slam = s.id === justCaught;
+                  const sharedFlightActive =
+                    typeof document !== "undefined" &&
+                    Boolean(document.documentElement.dataset.rewardFlight);
+                  const slam = s.id === justCaught && !sharedFlightActive;
                   return (
                     <button
                       key={s.id}
@@ -544,6 +559,7 @@ function DexPage() {
                     <PronounceButton
                       text={s.word.headword}
                       language={s.word.language ?? undefined}
+                      tone="hero"
                     />
                   </li>
                 ))}
@@ -836,9 +852,82 @@ function DexCalendar({
   ];
 
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const dayItems = openDay ? (byDay.get(openDay) ?? []) : [];
+  const dayItems = useMemo(
+    () =>
+      openDay
+        ? [...(byDay.get(openDay) ?? [])].sort(
+            (a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime(),
+          )
+        : [],
+    [byDay, openDay],
+  );
+  useSwipeBack({ enabled: !!openDay, onBack: () => setOpenDay(null) });
+  useEffect(() => {
+    if (!openDay) return;
+    document.documentElement.dataset.swipeSubview = "calendar-day";
+    return () => {
+      if (document.documentElement.dataset.swipeSubview === "calendar-day") {
+        delete document.documentElement.dataset.swipeSubview;
+      }
+    };
+  }, [openDay]);
 
   const monthLabel = first.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+
+  if (openDay) {
+    return (
+      <section className="min-h-[60dvh]" aria-label={t("dex.timelineTitle")}>
+        <button
+          type="button"
+          onClick={() => setOpenDay(null)}
+          className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-body font-semibold text-primary-ink"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden />
+          {t("dex.timelineBack")}
+        </button>
+        <div className="mb-5">
+          <h2 className="text-title font-semibold">{openDay}</h2>
+          <p className="text-footnote text-muted-foreground">{t("dex.timelineTitle")}</p>
+        </div>
+        <ol className="relative ml-5 border-l border-border pl-6">
+          {dayItems.map((s) => {
+            const photo = stickerPhotoUrl(s, { thumb: true });
+            const taken = new Date(s.taken_at);
+            const time = Number.isNaN(taken.getTime())
+              ? ""
+              : taken.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+            return (
+              <li key={s.id} className="relative pb-5 last:pb-0">
+                <span className="absolute -left-[1.8rem] top-5 h-3 w-3 rounded-full border-2 border-background bg-primary" />
+                <button
+                  type="button"
+                  onClick={() => onOpen(s.id)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-card p-2 text-left shadow-sm ring-1 ring-border"
+                >
+                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                    {photo ? (
+                      <CachedImg src={photo} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Zh className="text-body font-semibold">{s.word.headword}</Zh>
+                    )}
+                  </div>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-mono text-footnote text-primary-ink">{time}</span>
+                    <Zh className="mt-1 block truncate text-body font-semibold">
+                      {s.word.headword}
+                    </Zh>
+                    <span className="block truncate text-footnote text-muted-foreground">
+                      {s.word.meaning_ja}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -909,41 +998,6 @@ function DexCalendar({
           );
         })}
       </div>
-
-      {openDay && (
-        <div className="mt-4">
-          <p className="mb-2 text-body font-semibold">{openDay}</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {dayItems.map((s) => {
-              const photo = stickerPhotoUrl(s, { thumb: true });
-              return (
-                <button key={s.id} onClick={() => onOpen(s.id)} className="block text-left">
-                  <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary shadow-md ring-1 ring-black/5">
-                    {photo ? (
-                      <CachedImg
-                        src={photo}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-full place-items-center px-1 text-center">
-                        <Zh className="text-body font-semibold">{s.word.headword}</Zh>
-                      </div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                      <Zh className="block truncate text-footnote font-semibold text-white">
-                        {s.word.headword}
-                      </Zh>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {byDay.size === 0 && (
         <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
@@ -1277,24 +1331,25 @@ export function DexHeader({
         </div>
       </div>
 
-      {/* 表示の切替と絞り込みは同じ行に置き、入らなければ折り返す。 */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+      {/* **1行に収める**(オーナー指示 2026-09-13「図鑑のカテゴリーと日付も
+          図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
+          入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
+          `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
+      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pb-1 pr-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
-          {(
-            [
-              ["shelf", Library, t("dex.shelf")],
-              ["gallery", LayoutGrid, t("dex.gallery")],
-              ["list", List, t("dex.list")],
-              ["map", MapIcon, t("dex.map")],
-              ["calendar", CalendarDays, t("dex.calendar")],
-            ] as const
-          ).map(([v, Icon, label]) => (
+          {[
+            ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+            ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            ["list", List, t("dex.list")] as const,
+            ["map", MapIcon, t("dex.map")] as const,
+            ["calendar", CalendarDays, t("dex.calendar")] as const,
+          ].map(([v, Icon, label]) => (
             <button
               key={v}
               onClick={() => onView(v)}
               aria-label={label}
               aria-pressed={view === v}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >
@@ -1304,7 +1359,7 @@ export function DexHeader({
         </div>
 
         {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と
-            同じ行に並べ、入らなければ折り返す。 */}
+            同じ行に並べ、入りきらない分は横に流す。 */}
         {(categories.length > 0 || days.length > 0) && (
           <>
             <FilterMenu

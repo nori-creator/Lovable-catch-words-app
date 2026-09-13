@@ -1149,14 +1149,11 @@ function SectionCard({
 function FrequencyMeter({ level }: { level: number }) {
   const t = useT();
   return (
-    <span
-      className="inline-flex items-center gap-0.5"
-      aria-label={t("card.freqAria", { n: level })}
-    >
+    <span className="usage-meter__track" aria-label={t("card.freqAria", { n: level })}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
-          className={`h-2 w-3.5 rounded-sm ${i <= level ? "bg-cyan-500" : "bg-cyan-200/60"}`}
+          className={`usage-meter__step ${i <= level ? "usage-meter__step--active" : ""}`}
         />
       ))}
     </span>
@@ -1199,13 +1196,13 @@ export function RegisterMeter({
   if (compact) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border"
+        className="usage-register"
         role="img"
         aria-label={`${t("card.register")}: ${label}`}
         title={`${t("card.regSpoken")} ⇄ ${t("card.regWritten")}`}
       >
         {label}
-        <span className="relative block h-2 w-14 rounded-full bg-gradient-to-r from-warn/45 via-background to-primary/45">
+        <span className="usage-register__track">
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
           {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
           <span className="pointer-events-none absolute inset-y-0 left-[6px] right-[6px] block">
@@ -1329,17 +1326,19 @@ function Body({
         seasonName: (key) => t(`card.season.${key}`),
       }).length;
       const registerScale = registerScaleOf(ex);
-      const hasFreq = ex.frequency_level != null && ex.frequency_level > 0;
+      const frequencyLevel = ex.frequency_level ?? 0;
+      const hasFreq = frequencyLevel > 0;
       return (
-        <div className="space-y-2">
+        <div className="usage-context">
           {/* **頻度と口語⇄書面は同じ行に並べる**(オーナー指摘 2026-08-20)。
               どちらも「この語がどういう語か」の目盛りで、別々の行に置くと
               縦に伸びるだけで読みやすくならない。 */}
           {(hasFreq || registerScale !== null) && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="usage-context__metrics">
               {hasFreq && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-1 text-caption font-medium text-foreground ring-1 ring-border">
-                  {t("card.frequency")} <FrequencyMeter level={ex.frequency_level!} />
+                <span className="usage-metric">
+                  <span className="usage-metric__label">{t("card.frequency")}</span>
+                  <FrequencyMeter level={frequencyLevel} />
                 </span>
               )}
               {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
@@ -1464,7 +1463,7 @@ function Body({
       );
       if (chunks.length > 0) {
         return (
-          <div className="space-y-2">
+          <div className="usage-chunks">
             {chunks.map((c, i) => (
               <ChunkRow key={i} chunk={c} language={word.language} />
             ))}
@@ -1843,7 +1842,7 @@ function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | 
   const pronounce = usePronounce(language ?? undefined);
   const whole = chunkSpeechText(chunk, language);
   return (
-    <div className="rounded-xl bg-secondary p-2.5">
+    <div className="usage-chunk-row">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <ChunkPills
@@ -1863,7 +1862,7 @@ function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | 
           label={whole}
         />
       </div>
-      {chunk.ja && <p className="mt-1 text-caption text-muted-foreground">{chunk.ja}</p>}
+      {chunk.ja && <p className="usage-chunk-row__meaning">{chunk.ja}</p>}
     </div>
   );
 }

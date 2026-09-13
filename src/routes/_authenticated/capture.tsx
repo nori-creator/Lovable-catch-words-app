@@ -1,4 +1,3 @@
-import { parseLevelStep } from "@/lib/level-scale";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
@@ -31,7 +30,12 @@ import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
-import { enqueueCapture, getPendingCapture, removePendingCapture } from "@/lib/offline-queue";
+import {
+  enqueueCapture,
+  getPendingCapture,
+  removePendingCapture,
+  updatePendingCapture,
+} from "@/lib/offline-queue";
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
@@ -50,6 +54,10 @@ import { formatCount } from "@/lib/count";
 import { Zh } from "@/components/Zh";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+import { Capacitor } from "@capacitor/core";
+import { isPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
@@ -266,17 +274,34 @@ function CapturePage() {
   const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
   // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
   const [landing, setLanding] = useState(false);
-  /**
-   * 保存の通信中。**画面は切り替えない**(演出はカードの画面の上で走る)ので、
-   * 押し直しを止める見張りがここに要る。無いと二重登録になる。
-   */
-  const [saving, setSaving] = useState(false);
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const autoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
+
+  async function openNativeCamera() {
+    try {
+      const {
+        Camera: NativeCamera,
+        CameraResultType,
+        CameraSource,
+      } = await import("@capacitor/camera");
+      const photo = await NativeCamera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        saveToGallery: isPhotoLibrarySyncEnabled(),
+        correctOrientation: true,
+      });
+      if (!photo.webPath) return;
+      const blob = await (await fetch(photo.webPath)).blob();
+      await handleObjectFile(new File([blob], `capture.${photo.format}`, { type: blob.type }));
+    } catch (e) {
+      console.warn("native capture failed", e);
+    }
+  }
   /**
    * 「いま有効な作業はどれか」を表す番号。
    *
@@ -376,6 +401,17 @@ function CapturePage() {
       const url = await fileToDataUrl(file);
       const compressed = await compressImage(url, 1600);
       setObjectImg(compressed);
+      const queued = await enqueueCapture({
+        object_img: compressed,
+        selfie_img: null,
+        lat: null,
+        lng: null,
+        location_name: null,
+      });
+      if (queued) {
+        setPendingId(queued.id);
+        pendingIdRef.current = queued.id;
+      }
       setStep("selfie");
     } catch (e) {
       console.error(e);
@@ -388,7 +424,11 @@ function CapturePage() {
     if (file) {
       try {
         const url = await fileToDataUrl(file);
-        setSelfieImg(await compressImage(url, 1280));
+        const compressed = await compressImage(url, 1280);
+        setSelfieImg(compressed);
+        if (pendingIdRef.current) {
+          void updatePendingCapture(pendingIdRef.current, { selfie_img: compressed });
+        }
       } catch (e) {
         // 自撮りは任意。読めなくてもキャッチは止めない。
         console.warn("selfie read failed", e);
@@ -413,9 +453,12 @@ function CapturePage() {
       // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
       // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
-      const suggestRes = await suggestFn({
-        data: { imageBase64: aiImage, targetLanguage: targetLanguage },
-      });
+      const suggestRes = await Promise.race([
+        suggestFn({ data: { imageBase64: aiImage, targetLanguage: targetLanguage } }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(t("cap.networkTimeout"))), 20000),
+        ),
+      ]);
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
       setStep("select");
@@ -438,7 +481,12 @@ function CapturePage() {
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
       const here = await resolveLocation();
       const saved = pendingIdRef.current
-        ? pendingIdRef.current
+        ? await updatePendingCapture(pendingIdRef.current, {
+            selfie_img: selfieImg,
+            lat: here.lat,
+            lng: here.lng,
+            location_name: here.name,
+          })
         : await enqueueCapture({
             object_img: img,
             selfie_img: selfieImg,
@@ -693,212 +741,172 @@ function CapturePage() {
     }
   }
 
-  /**
-   * 演出の大きさに使う段。
-   *
-   * `card.level` は `"TOCFL-2"` / `"B1"` のような綴り。**`Number()` で
-   * 済ませてはいけない** — `TOCFL-2` のハイフンを符号と読んで -2 になる
-   * (`parseLevelStep` の注)。6段の外(`"out"`)は珍しさの話ではないので
-   * 等倍に落とす。
-   */
-  function rewardLevelOf(raw: string | null | undefined): number | null {
-    const step = parseLevelStep(raw);
-    return typeof step === "number" ? step : null;
-  }
-
-  /**
-   * 保存そのもの。**演出を1ミリ秒も待たせない**ように切り出してある。
-   *
-   * 以前は保存と演出が1つの関数に並んでいて、`await` で順番に走っていた。
-   * つまり**通信が終わるまで何も動かなかった** — 押してから絵が動き出すまでに、
-   * 回線しだいで1〜3秒の無音があった。いまは押した瞬間に演出が始まり、
-   * これはその裏で走る。
-   */
-  async function doSave(card: CardData, selectedHead: string) {
-    // 温めてある位置を**ここで確定させる**。状態を直に読むと、
-    // 候補を早く選んだ回はまだ届いていない。
-    const here = await resolveLocation();
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
-    if (!userId) throw new Error("Not signed in");
-
-    const ts = Date.now();
-    async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
-      if (!dataUrl) return null;
-      const blob = await dataUrlToBlob(dataUrl);
-      const ext = blob.type.includes("png") ? "png" : "jpg";
-      const path = `${userId}/${ts}-${kind}.${ext}`;
-      const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
-      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-        contentType: blob.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      // Grid thumbnail alongside — best-effort, the grid falls back to the
-      // original when it's missing (old stickers, encode failure).
-      const thumb = await thumbPromise;
-      if (thumb) {
-        await supabase.storage
-          .from("stickers")
-          .upload(thumbPath(path), thumb, {
-            contentType: thumb.type || "image/webp",
-            upsert: true,
-          })
-          .catch(() => {});
-        void putCachedImage(thumbPath(path), thumb);
-      }
-      // Prime the device cache so the dex shows this image instantly,
-      // without ever downloading what we just uploaded.
-      void putCachedImage(path, blob);
-      return path;
-    }
-
-    // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
-    // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
-    // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
-    const cutForSave = (await cutoutPromiseRef.current) ?? cutoutImg;
-
-    // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
-    // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
-    const [object_path, cutout_path, selfie_path] = await Promise.all([
-      upload(objectImg, "object"),
-      upload(cutForSave, "cutout").catch(() => null),
-      upload(selfieImg, "selfie").catch(() => null),
-    ]);
-
-    const res = await saveFn({
-      data: {
-        word: {
-          headword: selectedHead,
-          reading_zhuyin: card.reading_zhuyin,
-          pinyin: card.pinyin,
-          meaning_ja: card.meaning_ja,
-          part_of_speech: card.part_of_speech,
-          level: card.level,
-          category_key: card.category_key,
-          example_sentence: card.example_sentence,
-          example_translation: card.example_translation,
-          extras: card.extras,
-        },
-        // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
-        // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
-        // このアプリで何度もやっている「直したものが動く経路に無い」形。
-        new_shelf: card.new_shelf ?? null,
-        language: targetLanguage,
-        object_path,
-        cutout_path,
-        selfie_path,
-        caption: caption || null,
-        location_name: here.name,
-        lat: here.lat,
-        lng: here.lng,
-      },
-    });
-
-    if (voiceNote) {
-      const note = voiceNote;
-      void (async () => {
-        try {
-          const path = await uploadVoiceNote({
-            blob: note.blob,
-            mime: note.mime,
-            stickerId: res.id,
-          });
-          const saved = await attachVoiceFn({
-            data: { sticker_id: res.id, voice_video_path: path },
-          });
-          if (!saved.saved) toast.error(t("voice.needsMigration"));
-        } catch (e) {
-          console.warn("voice note attach failed", e);
-          toast.error(t("voice.attachFailed"));
-        }
-      })();
-    }
-
-    // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
-    void queryClient.invalidateQueries({ queryKey: ["stickers"] });
-    if (pendingId) void removePendingCapture(pendingId);
-    return res;
-  }
-
-  /**
-   * 「図鑑に追加」を押したときの段取り。
-   *
-   * ## 何を直したか（オーナー指示 2026-09-13）
-   * > 「該当の画面のなかの画像だけが動き出し」
-   *
-   * 前はここで `setStep("saving")` を呼んでいた。するとカードの画面が
-   * **丸ごと外れて**黒い覆いに差し替わり、そこに置かれた別の大きさの
-   * 写真のコピーから飛んでいた。画面が変わってから別の絵が動くので、
-   * **同じ物が動いたようには見えない**。
-   *
-   * いまはカードの画面をそのまま残し、**いま出ているその写真**から飛ばす。
-   * 周りは覆いの暗転が落とす(apple-design「内容に譲る」)。
-   *
-   * ## 通信と演出を並走させる
-   * 演出は押した瞬間に始める。通信はその裏。静止の1秒が関所も兼ねていて、
-   * まだ届いていなければ息をしたまま待つ。
-   */
   async function handleSave() {
-    if (!card || !selectedHead || saving) return;
-    const hero = cutoutImg ?? objectImg;
-    // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
-    // ここだけは従来どおり黒い面で待たせる(そこには単語しか出ない)。
-    if (!hero) {
-      setStep("saving");
-      try {
-        const res = await doSave(card, selectedHead);
-        savedRef.current = true;
-        navigate({ to: "/dex", search: { justCaught: res.id } });
-      } catch (e) {
-        console.error(e);
-        toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
-        setStep("card");
-      }
-      return;
-    }
-
-    setSaving(true);
-    setLanding(true);
-    const savePromise = doSave(card, selectedHead);
-    // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
-    void savePromise.catch(() => setLanding(false));
-    const landingDone = runCatchLanding({
-      startEl: heroBoxRef.current,
-      // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
-      // 初めて描かれるので、ここで .current を読むと必ず null になる。
-      fly: flyRef,
-      speakLine: () => void pronounce(selectedHead),
-      // 珍しい語ほど演出を大きくする（確率は動かさない）。
-      level: rewardLevelOf(card.level),
-      // 静止の1秒がこれを待つ。`catch` を付けて渡すのは、失敗で演出側の
-      // await が例外を投げると後片付けの順番が入れ替わるから。
-      gate: savePromise.then(
-        () => {},
-        () => {},
-      ),
-    });
-
+    if (!card || !selectedHead) return;
+    setStep("saving");
+    Sound.rewardGrip();
+    haptic("selection");
     try {
-      const res = await savePromise;
+      // 温めてある位置を**ここで確定させる**。状態を直に読むと、
+      // 候補を早く選んだ回はまだ届いていない。
+      const here = await resolveLocation();
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Not signed in");
+
+      const ts = Date.now();
+      async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
+        if (!dataUrl) return null;
+        const blob = await dataUrlToBlob(dataUrl);
+        const ext = blob.type.includes("png") ? "png" : "jpg";
+        const path = `${userId}/${ts}-${kind}.${ext}`;
+        const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
+        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+          contentType: blob.type,
+          upsert: false,
+        });
+        if (error) throw error;
+        // Grid thumbnail alongside — best-effort, the grid falls back to the
+        // original when it's missing (old stickers, encode failure).
+        const thumb = await thumbPromise;
+        if (thumb) {
+          await supabase.storage
+            .from("stickers")
+            .upload(thumbPath(path), thumb, {
+              contentType: thumb.type || "image/webp",
+              upsert: true,
+            })
+            .catch(() => {});
+          void putCachedImage(thumbPath(path), thumb);
+        }
+        // Prime the device cache so the dex shows this image instantly,
+        // without ever downloading what we just uploaded.
+        void putCachedImage(path, blob);
+        return path;
+      }
+
+      // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
+      // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
+      // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
+      //
+      // **`?? cutoutImg` に落としてはいけない**(オーナー報告 2026-09-13
+      // 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
+      // `cutoutImg` は「絵が届くまでのあいだ元の写真を見せておく」ための
+      // 表示用の値で、切り抜きが出来なかったときもそのまま元の写真が入って
+      // いる。それを保存すると、切り抜いていない札に**切り抜きが在る**こと
+      // になり、長押しの一覧に元の写真が「切り抜き」として並び、
+      // 「切り抜く」ボタンも出なくなっていた。保存は本物だけ。
+      const cutForSave = await cutoutPromiseRef.current;
+
+      // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
+      // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
+      const [object_path, cutout_path, selfie_path] = await Promise.all([
+        upload(objectImg, "object"),
+        upload(cutForSave, "cutout").catch(() => null),
+        upload(selfieImg, "selfie").catch(() => null),
+      ]);
+
+      const res = await saveFn({
+        data: {
+          word: {
+            headword: selectedHead,
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            meaning_ja: card.meaning_ja,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            category_key: card.category_key,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+            extras: card.extras,
+          },
+          // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
+          // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
+          // このアプリで何度もやっている「直したものが動く経路に無い」形。
+          new_shelf: card.new_shelf ?? null,
+          language: targetLanguage,
+          object_path,
+          cutout_path,
+          selfie_path,
+          caption: caption || null,
+          location_name: here.name,
+          lat: here.lat,
+          lng: here.lng,
+        },
+      });
+
       // **ここから先の失敗は「保存の失敗」ではない。**
-      // 以前は演出も遷移も同じ try の中にあり、catch が一律
-      // 「保存に失敗しました」を出してカード画面へ戻していた。ユーザーは
-      // 押し直し、**同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階に
-      // しか無い)。嘘の失敗が、正しい対処を誤りに変えていた。
+      //
+      // 以前は演出も遷移も同じ try の中にあり、`catch` は一律
+      // 「保存に失敗しました」を出してカード画面へ戻していた。
+      // ユーザーは失敗したと思ってもう一度「図鑑に追加」を押し、
+      // **同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階にしか
+      // 無く、保存時には無い)。嘘の失敗が、正しい対処を誤りに変えていた
+      // (独立監査の指摘)。
+      //
+      // 保存は済んでいるので、以後は何が転んでも図鑑へ送る。
       savedRef.current = true;
-      await landingDone.catch((e) => console.warn("catch landing failed", e));
-      navigate({ to: "/dex", search: { justCaught: res.id } });
+
+      // **声の一言は札が出来てから、裏で。**
+      // ここを待つと、いちばん壊してはいけない「一瞬でも早く」が削れる。
+      // 落ちたときは黙って捨てず、そこだけ伝える(写真の一言は保存済み)。
+      if (voiceNote) {
+        const note = voiceNote;
+        void (async () => {
+          try {
+            const path = await uploadVoiceNote({
+              blob: note.blob,
+              mime: note.mime,
+              stickerId: res.id,
+            });
+            const saved = await attachVoiceFn({
+              data: { sticker_id: res.id, voice_video_path: path },
+            });
+            if (!saved.saved) toast.error(t("voice.needsMigration"));
+          } catch (e) {
+            console.warn("voice note attach failed", e);
+            toast.error(t("voice.attachFailed"));
+          }
+        })();
+      }
+
+      // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+      void queryClient.invalidateQueries({ queryKey: ["stickers"] });
+      if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
+
+      // ここからキャッチ演出。切り抜きがふわっと浮いて画面いっぱいに広がり、
+      // 上へ抜けたところで図鑑のページが開いて、新しいセルがドンと着弾する
+      // (最後の一撃は /dex 側の slam-in が ?justCaught= を見て出す)。
+      // 以前このフローだけ演出がなく、保存したら図鑑に飛ぶだけだった。
+      setLanding(true);
+      try {
+        await runCatchLanding({
+          startEl: heroBoxRef.current,
+          // ref のまま渡す。演出の層はこの直前の setLanding(true) で
+          // 初めて描かれるので、ここで .current を読むと必ず null になる。
+          fly: flyRef,
+          speakLine: () => void pronounce(selectedHead),
+          destinationId: res.id,
+          openDex: () => navigate({ to: "/dex", search: { justCaught: res.id } }),
+        });
+      } catch (e) {
+        // 演出が転んでも保存は済んでいる。見せ場を諦めて図鑑へ送る。
+        console.warn("catch landing failed", e);
+      }
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      }
     } catch (e) {
       console.error(e);
       setLanding(false);
-      setSaving(false);
       if (savedRef.current) {
+        // 保存は通っている。ここで「失敗」と言うと、押し直して二重登録になる。
         toast.error(t("cap.savedButLandingFailed"));
         navigate({ to: "/dex", search: {} });
         return;
       }
       toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
+      setStep("card");
     }
   }
 
@@ -1010,6 +1018,7 @@ function CapturePage() {
           retakeWord={retakeParam ?? null}
           cameraInputRef={cameraInputRef}
           onObjectFile={handleObjectFile}
+          onNativeCapture={Capacitor.isNativePlatform() ? () => void openNativeCamera() : undefined}
           typedWord={typedWord}
           setTypedWord={setTypedWord}
           /**
@@ -1119,10 +1128,6 @@ function CapturePage() {
           placeName={loc?.name ?? null}
           onRedo={reset}
           onSave={handleSave}
-          // **飛び立つのはこの画面に出ているこの写真**。画面を差し替えない。
-          heroBoxRef={heroBoxRef}
-          landing={landing}
-          saving={saving}
         />
       )}
 
@@ -1195,7 +1200,7 @@ export function CaptureSavingPanel({
   // 出所は端末の学習言語(`target-lang-pref.ts`)。
   const targetLanguage = useTargetLang();
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 backdrop-blur">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
       {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
           飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
       {image && (
@@ -1206,7 +1211,7 @@ export function CaptureSavingPanel({
           <img
             src={image}
             alt=""
-            className="catch-rise max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
+            className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
           />
         </div>
       )}
@@ -1214,20 +1219,11 @@ export function CaptureSavingPanel({
         <Term
           as="p"
           lang={targetLanguage}
-          className="mt-6 text-headline font-bold tracking-tight text-white"
+          className="mt-6 text-headline font-bold tracking-tight text-foreground"
         >
           {headword}
         </Term>
       )}
-      <style>{`
-        @keyframes catchRise {
-          0%   { transform: translateY(18px) scale(0.94); opacity: 0; }
-          45%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
-          100% { transform: translateY(-14px) scale(1.02); opacity: 1; }
-        }
-        .catch-rise { animation: catchRise 620ms var(--ease-out-soft) both; }
-        @media (prefers-reduced-motion: reduce) { .catch-rise { animation: none; } }
-      `}</style>
     </div>
   );
 }
@@ -1501,9 +1497,6 @@ export function CaptureCardPanel({
   placeName,
   onRedo,
   onSave,
-  heroBoxRef,
-  landing = false,
-  saving = false,
 }: {
   card: CardData;
   selectedHead: string;
@@ -1521,27 +1514,13 @@ export function CaptureCardPanel({
   placeName: string | null;
   onRedo: () => void;
   onSave: () => void;
-  /**
-   * 飛び立つ枠。**いま画面に出ているこの写真そのもの**を指す。
-   *
-   * 以前は保存を押すと画面ごと黒い面に差し替わり、そこに置かれた
-   * **別の大きさの写真のコピー**から飛んでいた。オーナー指摘
-   * 「該当の画面のなかの画像だけが動き出し」が成立していなかったのはこれ —
-   * 画面が変わってから別の絵が動くので、同じ物が動いたようには見えない。
-   */
-  heroBoxRef?: RefObject<HTMLDivElement | null>;
-  /** 飛行が始まったか。始まったら元の絵を消して、上に載る層へ見た目を渡す。 */
-  landing?: boolean;
-  /** 保存の通信中。押し直して二重登録されないように止める。 */
-  saving?: boolean;
 }) {
   const t = useT();
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
         <div
-          ref={heroBoxRef}
-          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
+          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
         >
           <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
             <div className="grid h-full place-items-center p-6">
@@ -1567,24 +1546,15 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onRedo} className="flex-1">
+          {t("capture.redo")}
+        </Button>
+        <Button onClick={onSave} className="lift flex-1">
+          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
+        </Button>
+      </div>
       <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
-
-      {/* **図鑑に追加は画像のすぐ下**(オーナー指示 2026-09-13)。
-          前は解説カードと一言の欄の下、画面のいちばん底にあった。
-          撮った直後にやりたいのは「入れる」ことなので、
-          いちばんやる操作のために毎回スクロールさせていた。
-
-          apple-design §11「目立つボタンは1画面に1つ」。ここが唯一の
-          目立つボタンで、撮り直しは下の控えめな側に置く
-          (めったに押さないものを、押したいものの隣に並べない)。 */}
-      <Button
-        onClick={onSave}
-        disabled={saving}
-        size="lg"
-        className="catch-cta h-14 w-full text-title font-bold"
-      >
-        <Check className="mr-1.5 h-5 w-5" /> {t("capture.addToDex")}
-      </Button>
 
       <WordCard
         word={{
@@ -1626,11 +1596,6 @@ export function CaptureCardPanel({
       </div>
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
-
-      {/* 撮り直しは控えめに、いちばん下。**押したいものの隣に置かない。** */}
-      <Button variant="outline" onClick={onRedo} disabled={saving} className="w-full">
-        {t("capture.redo")}
-      </Button>
     </div>
   );
 }
@@ -1653,6 +1618,7 @@ export function CaptureObjectPanel({
   retakeWord,
   cameraInputRef,
   onObjectFile,
+  onNativeCapture,
   typedWord,
   setTypedWord,
   onSearch,
@@ -1664,6 +1630,7 @@ export function CaptureObjectPanel({
   retakeWord: string | null;
   cameraInputRef: RefObject<HTMLInputElement | null>;
   onObjectFile: (f: File) => void;
+  onNativeCapture?: () => void;
   typedWord: string;
   setTypedWord: (v: string) => void;
   onSearch: (word: string) => void;
@@ -1687,7 +1654,14 @@ export function CaptureObjectPanel({
           {t("retake.hint", { w: retakeWord })}
         </p>
       )}
-      <label className="block">
+      <label
+        className="block"
+        onClick={(e) => {
+          if (!onNativeCapture) return;
+          e.preventDefault();
+          onNativeCapture();
+        }}
+      >
         <div className="grid aspect-square place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40">
           <div className="flex flex-col items-center gap-2">
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-rose-500 text-white shadow-lg shadow-primary/30">
