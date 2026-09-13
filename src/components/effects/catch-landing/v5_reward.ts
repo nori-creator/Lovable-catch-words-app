@@ -141,58 +141,80 @@ export const v5reward: LandingRunner = async ({
   document.body.appendChild(handoff);
   root.style.opacity = "0";
 
-  await openDex?.();
-  const target = destinationId ? await waitForDestination(destinationId) : null;
-  if (!target) {
-    await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" })
-      .finished;
-    handoff.remove();
-    delete document.documentElement.dataset.rewardFlight;
-    return;
-  }
-
-  const targetRect = target.getBoundingClientRect();
-  target.style.visibility = "hidden";
-  const dx = targetRect.left - heroRect.left;
-  const dy = targetRect.top - heroRect.top;
-  const sx = targetRect.width / Math.max(heroRect.width, 1);
-  const sy = targetRect.height / Math.max(heroRect.height, 1);
-  handoff.dataset.stage = "flight";
-  const veil = handoff.querySelector(".reward-catch__veil") as HTMLElement | null;
-  const copy = handoff.querySelector(".reward-catch__copy") as HTMLElement | null;
-  const backgroundMotion = [
-    veil?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, fill: "forwards" }).finished,
-    copy?.animate(
-      [
-        { opacity: 1, transform: "translateY(0)" },
-        { opacity: 0, transform: "translateY(14px)" },
-      ],
-      { duration: 260, fill: "forwards" },
-    ).finished,
-  ].filter(Boolean);
-  await Promise.all([
-    handoffImage.animate(
-      [
-        { transform: "translate3d(0,0,0) scale(1) rotateZ(0deg)", offset: 0 },
-        {
-          transform: `translate3d(${dx * 0.42}px,${dy * 0.25 - 28}px,0) scale(${1 - (1 - sx) * 0.2},${1 - (1 - sy) * 0.2}) rotateZ(-3deg)`,
-          offset: 0.32,
-        },
-        {
-          transform: `translate3d(${dx * 0.88}px,${dy * 0.78 - 18}px,0) scale(${sx * 1.08},${sy * 1.08}) rotateZ(1.2deg)`,
-          offset: 0.78,
-        },
-        { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy}) rotateZ(0deg)` },
-      ],
-      { duration: 720, easing: "cubic-bezier(.34,.05,.18,1)", fill: "forwards" },
-    ).finished,
-    ...backgroundMotion,
-  ]);
-
-  handoff.dataset.stage = "impact";
-  Sound.shelfLand();
-  haptic("heavy");
+  /**
+   * **ここから先の後始末は、必ず走らせる。**
+   *
+   * この関数はここで3つの物を「借りて」いる:
+   *   ・`handoff` — `document.body` に直接足した複製。React は知らないので、
+   *     消すのはこちらの責任。残ると図鑑の上に画像が貼り付いたままになる
+   *     (`#reward-catch-handoff` は `inset:0 / z-index:10000`)。
+   *   ・`<html data-reward-flight>` — 着地中だけ `.slam-in` を止める印。
+   *     残ると**以後の着地演出が全部出なくなる**。
+   *   ・図鑑のセルの `visibility:hidden` — 飛んでいる間だけ本物を隠す。
+   *     残ると**いま捕まえた語だけが図鑑で見えない**。どれも再読み込み
+   *     するまで直らない。
+   *
+   * 以前は後始末が最後の `try/finally` の中だけに在り、その手前の
+   *   ・`openDex()` の失敗
+   *   ・着弾先が見つからなかったときの淡色化
+   *   ・飛行(720ms)の中断 — 図鑑の再描画で対象の節点が消えると
+   *     `animate().finished` は AbortError で落ちる
+   * の3経路が**借りたまま抜けていた**。借りた直後から包む。
+   */
+  let hiddenCell: HTMLElement | null = null;
   try {
+    await openDex?.();
+    const target = destinationId ? await waitForDestination(destinationId) : null;
+    if (!target) {
+      await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" })
+        .finished;
+      return;
+    }
+
+    const targetRect = target.getBoundingClientRect();
+    target.style.visibility = "hidden";
+    hiddenCell = target;
+    const dx = targetRect.left - heroRect.left;
+    const dy = targetRect.top - heroRect.top;
+    const sx = targetRect.width / Math.max(heroRect.width, 1);
+    const sy = targetRect.height / Math.max(heroRect.height, 1);
+    handoff.dataset.stage = "flight";
+    const veil = handoff.querySelector(".reward-catch__veil") as HTMLElement | null;
+    const copy = handoff.querySelector(".reward-catch__copy") as HTMLElement | null;
+    const backgroundMotion = [
+      veil?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, fill: "forwards" }).finished,
+      copy?.animate(
+        [
+          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0, transform: "translateY(14px)" },
+        ],
+        { duration: 260, fill: "forwards" },
+      ).finished,
+    ].filter(Boolean);
+    await Promise.all([
+      handoffImage.animate(
+        [
+          { transform: "translate3d(0,0,0) scale(1) rotateZ(0deg)", offset: 0 },
+          {
+            transform: `translate3d(${dx * 0.42}px,${dy * 0.25 - 28}px,0) scale(${1 - (1 - sx) * 0.2},${1 - (1 - sy) * 0.2}) rotateZ(-3deg)`,
+            offset: 0.32,
+          },
+          {
+            transform: `translate3d(${dx * 0.88}px,${dy * 0.78 - 18}px,0) scale(${sx * 1.08},${sy * 1.08}) rotateZ(1.2deg)`,
+            offset: 0.78,
+          },
+          { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy}) rotateZ(0deg)` },
+        ],
+        { duration: 720, easing: "cubic-bezier(.34,.05,.18,1)", fill: "forwards" },
+      ).finished,
+      ...backgroundMotion,
+    ]);
+
+    handoff.dataset.stage = "impact";
+    Sound.shelfLand();
+    haptic("heavy");
+    // 着弾の跳ね。ここが中断されても外側の `finally` が借り物を返すので、
+    // 以前あった内側の `try/finally` は要らない(同じ後始末の二重書きだった)。
     await handoffImage.animate(
       [
         { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
@@ -209,8 +231,12 @@ export const v5reward: LandingRunner = async ({
       { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
     ).finished;
   } finally {
-    target.style.visibility = "";
+    // 借りた物を返す。どの経路で抜けても、ここだけは通る。
+    if (hiddenCell) hiddenCell.style.visibility = "";
     handoff.remove();
     delete document.documentElement.dataset.rewardFlight;
+    // 覆いの層は呼ぶ側が畳むので普通は残らないが、畳まれなかったときに
+    // 透明のまま次の演出に入らないよう、掴んだ見た目は返しておく。
+    root.style.opacity = "";
   }
 };

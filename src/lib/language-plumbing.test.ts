@@ -2305,4 +2305,56 @@ describe("キャッチの報酬演出", () => {
     expect(branch).toMatch(/speakLine/);
     expect(branch).toMatch(/opacity = "1"/);
   });
+
+  /**
+   * ここから下は**いま動いている** `v5_reward.ts` への門。
+   *
+   * 上の3つが見ている `v5_physics.ts` は経路に繋がっていないので、
+   * あちらが全部緑でも実機は守られない。動く側にも門を置く。
+   *
+   * ## 何を止めるか
+   * この演出は、図鑑へ渡すあいだだけ3つの物を**借りる**:
+   *   `handoff`(body に直接足した複製) / `<html data-reward-flight>` /
+   *   図鑑のセルの `visibility:hidden`。
+   * どれも React の管理外なので、返さずに抜けると**再読み込みまで
+   * 直らない**。いちばん重いのは3つ目 —
+   * **いま捕まえた語だけが図鑑で見えない**。
+   *
+   * 絵では絶対に分からない壊れ方なので、構造で止める。
+   */
+  it("**借りた物は、どの経路で抜けても返す**（借りた直後から try で包む）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+
+    const borrow = v5.indexOf("document.body.appendChild(handoff)");
+    expect(borrow).toBeGreaterThan(0);
+
+    // 借りた直後に try が来ること。あいだに `await` が挟まると、
+    // その `await` で落ちた回だけ借りたまま抜ける。
+    const tryAt = v5.indexOf("try {", borrow);
+    expect(tryAt).toBeGreaterThan(borrow);
+    expect(v5.slice(borrow, tryAt)).not.toMatch(/\bawait\b/);
+
+    // 後始末は最後の finally の中だけ。
+    const finallyAt = v5.lastIndexOf("} finally {");
+    expect(finallyAt).toBeGreaterThan(tryAt);
+    for (const line of [
+      'hiddenCell.style.visibility = ""',
+      "handoff.remove()",
+      "delete document.documentElement.dataset.rewardFlight",
+    ]) {
+      expect(v5.indexOf(line)).toBeGreaterThan(finallyAt);
+    }
+  });
+
+  it("後始末を**散らさない**（同じ片付けを2箇所に書くと、片方だけ直る）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    // 以前は「着弾先が見つからない」枝と最後の finally の2箇所に同じ
+    // 片付けが書いてあり、枝の側には `visibility` を戻す行が無かった。
+    for (const line of [
+      "handoff.remove()",
+      "delete document.documentElement.dataset.rewardFlight",
+    ]) {
+      expect(v5.split(line).length - 1).toBe(1);
+    }
+  });
 });
