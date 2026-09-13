@@ -217,7 +217,7 @@ export function ScanCatchSheet({
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
       speakLine: () => void pronounceRef.current?.(headword),
-      destinationId: landingDestinationRef.current,
+      destinationId: landingDestinationRef.current ?? undefined,
       openDex: () => {
         const id = landingDestinationRef.current;
         if (id) return navigate({ to: "/dex", search: { justCaught: id } });
