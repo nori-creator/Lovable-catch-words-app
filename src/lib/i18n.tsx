@@ -1864,7 +1864,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 口語⇄書面のメーター。**色だけに頼らない**ので、5段それぞれに言葉を置く。
   "card.register": {
-    ja: "話し言葉か書き言葉か",
+    ja: "言葉の性質",
     en: "Spoken or written",
     "zh-TW": "是口語還是書面語",
   },
