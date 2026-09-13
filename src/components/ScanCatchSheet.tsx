@@ -126,6 +126,7 @@ export function ScanCatchSheet({
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const cutoutBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
+  const landingDestinationRef = useRef<string | null>(null);
   // 演出中に単語の発音を鳴らすため、フックの結果を ref に保持しておく
   // (runLandingAnimation は非フック関数なので直接は呼べない)。
   // **何語として読むかを必ず渡す。** 省くと台湾華語の声で読む既定に落ちる

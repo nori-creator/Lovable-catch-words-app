@@ -111,7 +111,7 @@ export const v5reward: LandingRunner = async ({
   const heroRect = fly.getBoundingClientRect();
   const handoff = root.cloneNode(true) as HTMLElement;
   handoff.id = "reward-catch-handoff";
-  handoff.dataset.stage = "route-ready";
+  handoff.dataset.stage = "reveal";
   const handoffImage = handoff.querySelector(".reward-catch__image") as HTMLImageElement | null;
   if (!handoffImage) return;
   handoffImage.style.left = `${heroRect.left}px`;
@@ -134,6 +134,7 @@ export const v5reward: LandingRunner = async ({
   }
 
   const targetRect = target.getBoundingClientRect();
+  target.style.visibility = "hidden";
   const dx = targetRect.left - heroRect.left;
   const dy = targetRect.top - heroRect.top;
   const sx = targetRect.width / Math.max(heroRect.width, 1);
@@ -182,6 +183,7 @@ export const v5reward: LandingRunner = async ({
     ],
     { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
   ).finished;
+  target.style.visibility = "";
   handoff.remove();
   delete document.documentElement.dataset.rewardFlight;
 };

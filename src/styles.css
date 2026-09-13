@@ -2386,10 +2386,6 @@
   pointer-events: none;
 }
 
-html[data-reward-flight] [id^="dex-cell-"][id$=""] {
-  will-change: transform;
-}
-
 html[data-reward-flight] .slam-in {
   animation: none !important;
 }
