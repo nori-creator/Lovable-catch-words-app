@@ -80,6 +80,22 @@ export async function enqueueCapture(
   }
 }
 
+/** 撮影直後に預けた写真へ、あとから自撮りや場所を追記する。 */
+export async function updatePendingCapture(
+  id: string,
+  patch: Partial<Omit<PendingCapture, "id" | "created_at">>,
+): Promise<PendingCapture | null> {
+  const current = await getPendingCapture(id);
+  if (!current) return null;
+  const next = { ...current, ...patch };
+  try {
+    await tx("readwrite", (s) => s.put(next));
+    return next;
+  } catch {
+    return null;
+  }
+}
+
 export async function listPendingCaptures(): Promise<PendingCapture[]> {
   if (!hasIdb()) return [];
   try {
