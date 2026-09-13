@@ -314,7 +314,7 @@ function ReviewPage() {
     return { words: [...words], urls };
   }, [cards]);
   usePrefetchSpeech(choiceAudio.words, {
-    language: current?.language ?? undefined,
+    language: cards?.[0]?.language ?? undefined,
     enabled: choiceAudio.words.length > 0,
     urls: choiceAudio.urls,
   });
@@ -2055,7 +2055,7 @@ export function LightModeCard({
         {/* 答え合わせの面が下から覆う分の逃げ場。**これが無いと、覆われた
             選択肢はスクロールしても出てこない** — 見比べて覚える場面で
             外れの選択肢が読めなくなる(薄くするのをやめたのと同じ理由)。 */}
-        {picked && <div aria-hidden style={{ height: panelH }} />}
+        {picked && <div aria-hidden style={{ height: panelH, flexShrink: 0 }} />}
         {/* 答え合わせ。以前はここが選択肢の下に伸びていき、「次へ」を押すのに
             毎回スクロールが必要だった。画面下部に固定して親指の届く位置に置く
             (apple-design §1 thumb-first / §11)。採点(自然さ n/5)は4択には
