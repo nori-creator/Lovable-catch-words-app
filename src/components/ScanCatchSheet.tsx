@@ -24,6 +24,7 @@ import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 
 type Props = {
   snapshotDataUrl: string;
@@ -232,6 +233,8 @@ export function ScanCatchSheet({
     setSaving(true);
     setErr(null);
     try {
+      // スキャンは調べるだけでは保存しない。「図鑑に追加」を決めた写真だけを同期。
+      void saveCaptureToPhotoLibrary(objectDataUrl);
       // §3.3 acceptance: the prefetched card is reused — no additional AI call
       // here. A reunion upgrade doesn't need the card at all (word exists).
       // Don't hang on it: if the AI card is slow or failed, we file the word

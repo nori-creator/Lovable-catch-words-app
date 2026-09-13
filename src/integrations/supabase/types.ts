@@ -862,6 +862,8 @@ export type Database = {
       }
       stickers: {
         Row: {
+          album_order: number | null
+          album_size: string | null
           branch_plan: Json | null
           caption: string | null
           capture_type: string
@@ -887,6 +889,8 @@ export type Database = {
           word_id: string
         }
         Insert: {
+          album_order?: number | null
+          album_size?: string | null
           branch_plan?: Json | null
           caption?: string | null
           capture_type?: string
@@ -912,6 +916,8 @@ export type Database = {
           word_id: string
         }
         Update: {
+          album_order?: number | null
+          album_size?: string | null
           branch_plan?: Json | null
           caption?: string | null
           capture_type?: string

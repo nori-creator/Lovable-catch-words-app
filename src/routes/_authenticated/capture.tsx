@@ -58,6 +58,7 @@ import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Capacitor } from "@capacitor/core";
 import { isPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
+import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
@@ -399,6 +400,9 @@ function CapturePage() {
       const url = await fileToDataUrl(file);
       const compressed = await compressImage(url, 1600);
       setObjectImg(compressed);
+      // ブラウザのfile input経路は端末カメラ側で保存されない場合がある。
+      // ネイティブCamera経路はsaveToGallery済みなので二重保存しない。
+      if (!Capacitor.isNativePlatform()) void saveCaptureToPhotoLibrary(compressed);
       const queued = await enqueueCapture({
         object_img: compressed,
         selfie_img: null,

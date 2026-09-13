@@ -49,6 +49,9 @@ export type StickerWithWord = {
    * 知らない値を既定の順に落としてくれるので、ここで縛る必要が無い。
    */
   hero_role?: string | null;
+  /** 日ごとのアルバム配置。未設定は従来の自動配置。 */
+  album_order?: number | null;
+  album_size?: "small" | "portrait" | "landscape" | "large" | null;
   /**
    * その人だけの棚の上書き(AI が作った棚)。null なら語の分類を使う。
    * 列がまだ無い環境では undefined のまま来る。
@@ -203,7 +206,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
     // 「絵はあるのに文字が無い札」が並ぶ。
     const wordCols =
       "words!inner(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, album_order, album_size, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
     // `hero_role` だけが無い環境のための段。**ゴーストの列と一緒くたにしない**
     // — 一緒にすると、この移行だけ当たっていない環境でネット画像まで落ちる。
     const noHeroCols = fullCols.replace(", hero_role", "");
@@ -334,6 +337,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
       cutout_image_url: string | null;
       selfie_image_url: string | null;
       hero_role?: string | null;
+      album_order?: number | null;
+      album_size?: StickerWithWord["album_size"];
       capture_type?: string | null;
       placeholder_image_url?: string | null;
       placeholder_credit?: PlaceholderCredit | null;
@@ -390,6 +395,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
         /** 長押しで決めた主役。**一覧にも効かせる** —
             詳細でだけ効くと「変えたのに図鑑では変わらない」になる。 */
         hero_role: row.hero_role ?? null,
+        album_order: row.album_order ?? null,
+        album_size: row.album_size ?? null,
         caption: row.caption,
         location_name: row.location_name,
         lat: row.lat,
@@ -1220,6 +1227,37 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
       return { saved: false, reason: "migration" };
     }
     throw new Error(error.message);
+  });
+
+/** 同じ日のアルバム配置を一括保存する。RLSに加えuser_idでも本人の札に限定。 */
+export const saveAlbumLayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        items: z
+          .array(
+            z.object({
+              sticker_id: z.string().uuid(),
+              order: z.number().int().min(0),
+              size: z.enum(["small", "portrait", "landscape", "large"]),
+            }),
+          )
+          .max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    for (const item of data.items) {
+      const { error } = await supabase
+        .from("stickers")
+        .update({ album_order: item.order, album_size: item.size })
+        .eq("id", item.sticker_id)
+        .eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    }
+    return { saved: true };
   });
 
 /**
