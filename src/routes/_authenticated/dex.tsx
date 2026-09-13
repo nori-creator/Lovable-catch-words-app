@@ -1335,7 +1335,7 @@ export function DexHeader({
           図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
-      <div className="-mx-1 mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto border-t border-border px-1 pb-1 pr-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pb-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),

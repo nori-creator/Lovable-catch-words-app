@@ -1201,16 +1201,25 @@ export function RegisterMeter({
         aria-label={`${t("card.register")}: ${label}`}
         title={`${t("card.regSpoken")} ⇄ ${t("card.regWritten")}`}
       >
-        {label}
+        <span className="usage-register__heading">
+          <span>{t("card.register")}</span>
+          <span className="usage-register__value">{label}</span>
+        </span>
         <span className="usage-register__track">
-          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+          <span className="absolute inset-y-0 left-1/3 w-px bg-border" />
+          <span className="absolute inset-y-0 left-2/3 w-px bg-border" />
           {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
           <span className="pointer-events-none absolute inset-y-0 left-[6px] right-[6px] block">
             <span
               className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
-              style={{ left: `${pct}%` }}
+              style={{ left: `${100 - pct}%` }}
             />
           </span>
+        </span>
+        <span className="usage-register__labels" aria-hidden>
+          <span>{t("card.regWritten")}</span>
+          <span>{t("card.regNeutral")}</span>
+          <span>{t("card.regSpoken")}</span>
         </span>
       </span>
     );
@@ -1330,9 +1339,7 @@ function Body({
       const hasFreq = frequencyLevel > 0;
       return (
         <div className="usage-context">
-          {/* **頻度と口語⇄書面は同じ行に並べる**(オーナー指摘 2026-08-20)。
-              どちらも「この語がどういう語か」の目盛りで、別々の行に置くと
-              縦に伸びるだけで読みやすくならない。 */}
+          {/* 頻度と文体は同じ計器盤の中で、別々の目盛りとして読む。 */}
           {(hasFreq || registerScale !== null) && (
             <div className="usage-context__metrics">
               {hasFreq && (
