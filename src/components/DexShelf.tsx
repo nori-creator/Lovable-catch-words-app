@@ -186,7 +186,7 @@ export function DexShelf({
                 return (
                   <div
                     key={shelf.key}
-                    className={landing ? "shelf-tilt" : undefined}
+                    className={landing ? "reward-shelf" : undefined}
                     // 画面の外にある棚は**中身を描かない**。棚は54個を常に
                     // 全部出す作りなので、持ち物が増えるほど「見えていない棚」の
                     // レイアウトに時間を使う。
@@ -303,7 +303,7 @@ function ShelfItem({
     <button
       id={`dex-cell-${s.id}`}
       onClick={() => onOpen(s.id)}
-      className={`shelf-item ${landing ? "slam-in slot-ignite" : ""}`}
+      className={`shelf-item ${landing ? "reward-slot-in" : ""}`}
       // 読み上げの名前は繁体字として読ませる。lang を付けないと、日本語の
       // VoiceOver が同じ語を日本語の音で読み、すぐ下の表示名と食い違う。
       lang="zh-Hant"
