@@ -464,6 +464,10 @@ const MODES = [
   // 一覧なのに、**場面が無く一度も撮られていなかった** — 性能の道具
   // (`content-visibility` / `shelf:perf` / `shelf` の場面)も全部、
   // 出ていない棚の方に向いていた。
+  // 下のタブの印。**伸びは時間の中にしかない**ので、絵で見るのは
+  // 落ち着いた姿だけ(位置・丸み・色の重さ)。伸びる所は
+  // `TabIndicator` の門と、ブラウザでの実測で見る。
+  ...crossThemes("tabbar", { scene: "tabbar" }),
   ...crossThemes("gallery", { scene: "gallery" }),
   // 設定でパックを変えた人の見え方(`PackGallery`)。既定では出ない。
   // **`data-ui-pack` を `<html>` に付ける。** `pack-styles.css` のセレクタは

@@ -14,6 +14,7 @@ import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
+import { TabIndicator } from "@/components/TabIndicator";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -330,6 +331,9 @@ export function AppShell({
           縁と影で伝える。 */}
       <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
         <ul className="relative mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
+          {/* いま居る所の印。**タブより先に置く** — 後ろに敷くものなので、
+              重なりの順で言えばここが一番下。伸び方の理由は部品の側に書いた。 */}
+          <TabIndicator cursor={cursor} count={items.length} />
           {items.map(({ to, labelKey, icon: Icon }, i) => {
             const label = t(labelKey);
             const isScan = to === "/capture";
@@ -354,11 +358,16 @@ export function AppShell({
                   }}
                   // §1 Response: react on press, not release.
                   className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground transition-colors"
-                  activeProps={{ className: "text-primary" }}
+                  // **`text-primary` ではなく `text-primary-ink`。**
+                  // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
+                  // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
+                  // (絵の検査の実測)。`--primary-ink` は主色に前景色を
+                  // 混ぜた「字用の主色」で、この用途のために在る。
+                  activeProps={{ className: "text-primary-ink" }}
                   style={
                     weight > 0 && !isScan
                       ? {
-                          color: `color-mix(in oklab, var(--primary) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
+                          color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
                         }
                       : undefined
                   }

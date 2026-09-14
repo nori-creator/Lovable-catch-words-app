@@ -2585,6 +2585,51 @@ describe("キャッチの報酬演出", () => {
     expect(stray).toEqual([]);
   });
 
+  /**
+   * 下のタブの印は、**伸びて遅れて追いつく**。
+   *
+   * オーナーが参照として渡した動き(MovinDesign / @MiruDaws の
+   * "gooey liquid glass tab bar, the icons stretching and merging")を、
+   * 録画をコマ送りにして読み取ったもの:
+   *   ・選んだタブに明るいカプセルが乗る(バーの内側。浮いた別物ではない)
+   *   ・切り替えると伸びて両方を跨ぎ、**先端が先に着いて後端が遅れて追う**
+   *   ・大きく動くのは約 200ms
+   *
+   * ## 幅を時間で膨らませていないこと
+   * **伸びは左端と右端の2本のばねの速さの差から出す。** 時間で書いた
+   * 振り付けだと、途中で別のタブを押したときに飛ぶし、指でスワイプして
+   * いる間の 1:1 追従もできない。ここが崩れると「それっぽいが、掴めない」
+   * 動きに戻るので、本数と向きの入れ替えを門にする。
+   *
+   * ブラウザ実測では 174ms 時点で **1.59倍**まで伸び、正しい位置で 1.00倍に
+   * 収束する。
+   */
+  it("タブの印は**左右別々のばね**で動く（伸びを時間で書かない）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    // 端ごとに1本ずつ、2本。
+    expect((src.match(/createSpring\(/g) ?? []).length).toBe(2);
+    // 進む側と残る側で速さを変える。ここが同じだと伸びない。
+    expect(src).toMatch(/const lead = \{[^}]*response:/);
+    expect(src).toMatch(/const trail =/);
+    // 向きで入れ替える。入れ替えないと、片方向にしか伸びない。
+    expect(src).toMatch(/goingRight \? lead : trail/);
+    expect(src).toMatch(/goingRight \? trail : lead/);
+  });
+
+  it("タブの印は**跳ねない**（押した所と違う所に居る一瞬を作らない）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    // 先に着く側は damping 1（行き過ぎ無し）。伸びは2本の差でもう出ている。
+    const lead = src.slice(src.indexOf("const lead ="));
+    expect(lead.slice(0, 80)).toMatch(/damping: 1\b/);
+  });
+
+  it("動きを減らす設定では、伸びも移動も出さない", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const branch = src.slice(src.indexOf("if (reduced)"));
+    expect(branch.slice(0, 160)).toMatch(/L\.set\(/);
+    expect(branch.slice(0, 160)).toMatch(/R\.set\(/);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、
