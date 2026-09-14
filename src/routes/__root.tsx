@@ -17,7 +17,7 @@ import packCss from "../pack-styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider, DEFAULT_THEME, THEME_STORAGE_KEY } from "@/components/theme-provider";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
 import { useT } from "@/lib/i18n";
@@ -133,6 +133,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
     ],
     scripts: [
+      // **最初の1枚を正しい色で描くための、描画前スクリプト。**
+      //
+      // `.dark` は `ThemeProvider` の `useEffect` でしか付いていなかった。
+      // つまり効くのは**水和が終わってから**で、それまでの絵は明るい地の
+      // まま描かれる。既定は dark なので、ほぼ全員が読み込みのたびに
+      // 「白く光ってから暗くなる」を見ていた。
+      //
+      // 実測(開発サーバ / iPhone 14 相当):
+      //     55ms 最初の描画 … <html class="">   ← 明るい
+      //    630ms            … <html class="">   ← まだ明るい
+      //   1531ms            … <html class="dark">
+      // 本番は水和が速いので短くなるが、**1枚も間違えない保証にはならない**
+      // — 効く時刻が水和に結びついている限り、必ず間に合わない絵が出る。
+      //
+      // 直し方は昔から決まっていて、`<head>` の中で**同期的に**当てる。
+      // ここに置いたものは CSS より先、最初の描画より前に走る。
+      // `children` は文字列なので、`theme-provider.tsx` の値と**手で
+      // 揃える**ことになる。ずれると最初の1枚だけ色が違う画面に戻るので、
+      // 鍵と既定を定数から埋め込む。
+      {
+        children: `(function(){try{
+  var k=${JSON.stringify(THEME_STORAGE_KEY)},d=${JSON.stringify(DEFAULT_THEME)};
+  var v=null; try{v=localStorage.getItem(k)}catch(e){}
+  if(v!=="light"&&v!=="dark"&&v!=="system")v=d;
+  var dark = v==="dark" || (v==="system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark",dark);
+}catch(e){}})()`,
+      },
       {
         type: "application/ld+json",
         children: JSON.stringify({

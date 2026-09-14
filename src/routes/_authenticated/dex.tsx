@@ -411,85 +411,7 @@ function DexPage() {
             ) : view === "gallery" ? (
               // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
               // 表示される3列グリッド+下端のグラデーションに単語名。
-              <div className="grid grid-cols-3 gap-2.5">
-                {items.map((s) => {
-                  const photo = s.object_thumb_url ?? s.object_url;
-                  const sharedFlightActive =
-                    typeof document !== "undefined" &&
-                    Boolean(document.documentElement.dataset.rewardFlight);
-                  const slam = s.id === justCaught && !sharedFlightActive;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setOpenId(s.id)}
-                      className="group relative block text-left"
-                    >
-                      {/* 着地の衝撃。セルは overflow-hidden なので、輪はその外側に置く */}
-                      {slam && (
-                        <span className="slam-shock pointer-events-none absolute left-1/2 top-full z-0 block h-10 w-10 rounded-full ring-4 ring-amber-400/70" />
-                      )}
-                      <div
-                        id={`dex-cell-${s.id}`}
-                        className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
-                      >
-                        {photo ? (
-                          <CachedImg
-                            src={photo}
-                            alt={t("common.photoOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : s.cutout_url ? (
-                          <CachedImg
-                            src={s.cutout_thumb_url ?? s.cutout_url}
-                            alt={t("common.stickerOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-contain p-2"
-                          />
-                        ) : s.placeholder_url ? (
-                          // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
-                          <CachedImg
-                            src={s.placeholder_url}
-                            alt={t("common.imageOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          // 画像がまだ無いときは静かなプレースホルダ。
-                          // 詳細を開くとネット画像が自動で入る。
-                          <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
-                            <span
-                              lang="zh-Hant"
-                              className="text-body font-semibold text-muted-foreground"
-                            >
-                              {s.word.headword}
-                            </span>
-                          </div>
-                        )}
-                        {s.encounter_count > 0 && (
-                          <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
-                            ×{s.encounter_count}
-                          </span>
-                        )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-5">
-                          <div
-                            lang="zh-Hant"
-                            className="truncate text-footnote font-semibold text-white"
-                          >
-                            {s.word.headword}
-                          </div>
-                        </div>
-                        {slam && (
-                          <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <DexAlbumGrid items={items} justCaught={justCaught} onOpen={setOpenId} />
             ) : (
               <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                 {items.map((s, i) => (
@@ -749,7 +671,134 @@ async function photoPinIcon(url: string): Promise<string | null> {
  * 中身は実際に撮った写真のまま。見せ方(並べ方・枠・文字の置き方)だけを
  * pack-styles.css 側の .pk-* が塗り替える。
  */
-function PackGallery({
+/**
+ * 写真のアルバム(3列)。**図鑑を開いた人がまず見るのはこれ。**
+ *
+ * 既定のパックは `origin` で、その `layout` は `album`。上の分岐は
+ * `layout !== "album"` のときだけ `PackGallery` を使うので、**既定では
+ * こちらが描かれる**。`export` は雛形の検査(`scripts/ui-harness`)から
+ * 本物を描くため — ルートに直書きのままでは、この画面だけ一度も
+ * 絵に映らない(実際、性能の道具も絵の検査も、無効にした棚の方を
+ * 見ていた: `src/lib/features.ts` の `DEX_SHELF_ENABLED` は false)。
+ */
+export function DexAlbumGrid({
+  items,
+  justCaught,
+  onOpen,
+}: {
+  items: StickerWithWord[];
+  justCaught?: string;
+  onOpen: (id: string) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="grid grid-cols-3 gap-2.5">
+      {items.map((s) => {
+        const photo = s.object_thumb_url ?? s.object_url;
+        // 下端の帯を出すかの判定。絵が1枚も無いときだけ false。
+        const hasImage = Boolean(photo || s.cutout_url || s.placeholder_url);
+        const sharedFlightActive =
+          typeof document !== "undefined" && Boolean(document.documentElement.dataset.rewardFlight);
+        const slam = s.id === justCaught && !sharedFlightActive;
+        return (
+          <button
+            key={s.id}
+            onClick={() => onOpen(s.id)}
+            className="group relative block text-left"
+          >
+            {/* 着地の衝撃。セルは overflow-hidden なので、輪はその外側に置く */}
+            {slam && (
+              <span className="slam-shock pointer-events-none absolute left-1/2 top-full z-0 block h-10 w-10 rounded-full ring-4 ring-amber-400/70" />
+            )}
+            <div
+              id={`dex-cell-${s.id}`}
+              className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
+            >
+              {photo ? (
+                <CachedImg
+                  src={photo}
+                  alt={t("common.photoOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : s.cutout_url ? (
+                <CachedImg
+                  src={s.cutout_thumb_url ?? s.cutout_url}
+                  alt={t("common.stickerOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-contain p-2"
+                />
+              ) : s.placeholder_url ? (
+                // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
+                <CachedImg
+                  src={s.placeholder_url}
+                  alt={t("common.imageOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                // 画像がまだ無いときは静かなプレースホルダ。
+                // 詳細を開くとネット画像が自動で入る。
+                // **`text-muted-foreground` をやめた。** 暗いテーマで
+                // 字 #99a6b8 / 地 #4e5865 = 2.92:1 しか無く、この文字は
+                // 札の中で**唯一その語を名指しているもの**なので、薄いと
+                // 何の札か分からない。
+                <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
+                  <span lang="zh-Hant" className="text-body font-semibold text-foreground">
+                    {s.word.headword}
+                  </span>
+                </div>
+              )}
+              {s.encounter_count > 0 && (
+                <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
+                  ×{s.encounter_count}
+                </span>
+              )}
+              {/* 下端の帯。**絵がある札だけ。** 絵が無い札は上のプレース
+                  ホルダが既に語を大きく出しているので、ここにも出すと
+                  **同じ語が1枚の札に2回**並ぶ(実際そうなっていた)。
+
+                  ## 濃さを一定にした理由
+                  前は `from-black/65 to-transparent` の**裾**に文字を置いて
+                  いた。裾の濃さは文字の位置で決まるので、実測では白文字の
+                  地が #949494 まで薄まり 3.03:1 しか無かった(基準 4.5)。
+                  明るい写真ほど読めなくなる —
+                  **いい写真を撮った人ほど名前が読めない**。
+
+                  白文字で 4.5:1 を満たすには地が #767676 以下、黒なら
+                  不透明度 0.535 以上。0.6 なら白い写真の上で #666666 =
+                  5.7:1 で少し余裕が出る。ぼかしは文字の**上**にだけ置く。 */}
+              {hasImage && (
+                <div className="absolute inset-x-0 bottom-0">
+                  <div className="h-5 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="bg-black/60 px-2 pb-1.5">
+                    <div lang="zh-Hant" className="truncate text-footnote font-semibold text-white">
+                      {s.word.headword}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {slam && (
+                <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 写真の一覧(パック別の見え方)。**既定では描かれない** —
+ * 既定のパック `origin` は `layout: "album"` なので、上の分岐は
+ * `DexAlbumGrid` の方へ行く。ここが出るのは設定でパックを変えた人だけ。
+ * `export` は雛形の検査から本物を描くため。
+ */
+export function PackGallery({
   items,
   justCaught,
   onOpen,

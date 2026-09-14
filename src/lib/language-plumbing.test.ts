@@ -2475,4 +2475,134 @@ describe("キャッチの報酬演出", () => {
     expect(branch).toMatch(/speakLine/);
     expect(branch).toMatch(/opacity = "1"/);
   });
+
+  /**
+   * ここから下は**いま動いている** `v5_reward.ts` への門。
+   *
+   * 上の3つが見ている `v5_physics.ts` は経路に繋がっていないので、
+   * あちらが全部緑でも実機は守られない。動く側にも門を置く。
+   *
+   * ## 何を止めるか
+   * この演出は、図鑑へ渡すあいだだけ3つの物を**借りる**:
+   *   `handoff`(body に直接足した複製) / `<html data-reward-flight>` /
+   *   図鑑のセルの `visibility:hidden`。
+   * どれも React の管理外なので、返さずに抜けると**再読み込みまで
+   * 直らない**。いちばん重いのは3つ目 —
+   * **いま捕まえた語だけが図鑑で見えない**。
+   *
+   * 絵では絶対に分からない壊れ方なので、構造で止める。
+   */
+  it("**借りた物は、どの経路で抜けても返す**（借りた直後から try で包む）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+
+    const borrow = v5.indexOf("document.body.appendChild(handoff)");
+    expect(borrow).toBeGreaterThan(0);
+
+    // 借りた直後に try が来ること。あいだに `await` が挟まると、
+    // その `await` で落ちた回だけ借りたまま抜ける。
+    const tryAt = v5.indexOf("try {", borrow);
+    expect(tryAt).toBeGreaterThan(borrow);
+    expect(v5.slice(borrow, tryAt)).not.toMatch(/\bawait\b/);
+
+    // 後始末は最後の finally の中だけ。
+    const finallyAt = v5.lastIndexOf("} finally {");
+    expect(finallyAt).toBeGreaterThan(tryAt);
+    for (const line of [
+      'hiddenCell.style.visibility = ""',
+      "handoff.remove()",
+      "delete document.documentElement.dataset.rewardFlight",
+    ]) {
+      expect(v5.indexOf(line)).toBeGreaterThan(finallyAt);
+    }
+  });
+
+  /**
+   * 復習4択の答え合わせの面が、**画面**に貼り付いていること。
+   *
+   * ## 何が起きていたか
+   * この面は `SwipeCard` の中に在り、`SwipeCard` は指で運ぶために
+   * `will-change: transform` を立てている。CSS では `transform` と同じく
+   * `will-change: transform` も **`position: fixed` の基準をビューポートから
+   * その要素へ移す**。だから「画面の下端から 4.5rem」のつもりの面が
+   * 「**カードの下端**から 4.5rem」に降り、4つ目の選択肢を覆っていた。
+   *
+   * 実測(画面 844px):
+   *   直す前 … 面の下端 660 / 4つ目 436〜507 → 59px 潜る
+   *   直した後 … 面の下端 772(画面基準) / 4つ目との間に 53px
+   *
+   * ## なぜ絵で見つからなかったか
+   * `SwipeCard` の `enabled` は `!!picked`。**答えた瞬間に基準が変わる**ので、
+   * 押す前の絵は正しく、押した後だけ狂う。roadmap で2回「直した」ことに
+   * なっているのに直っていなかったのはこれで、逃げ場(`panelH`)の計算は
+   * 最初から合っていた — 違ったのは基準。
+   *
+   * 絵の検査(`ui:audit`)も8場面で見つけたが、そちらは10分かかる。
+   * 秒で落ちる側にも置く。
+   */
+  it("答え合わせの面は**画面**に貼り付く（運ぶカードの中では fixed が効かない）", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const panel = rv.indexOf("bottom-[calc(4.5rem+env(safe-area-inset-bottom))]");
+    expect(panel).toBeGreaterThan(0);
+    // 面より前に `createPortal(` が在ること = 画面直下へ出している。
+    const portal = rv.lastIndexOf("createPortal(", panel);
+    expect(portal).toBeGreaterThan(0);
+    // あいだに `</` が無い = 同じ塊。間に別の要素が挟まると門が嘘になる。
+    expect(rv.slice(portal, panel)).not.toMatch(/<\//);
+    expect(rv).toMatch(/document\.body,/);
+  });
+
+  /**
+   * テーマは**最初の1枚**から正しい色で描く。
+   *
+   * `.dark` は `ThemeProvider` の `useEffect` でしか付いていなかった。
+   * 効くのは水和が終わってからなので、それまでの絵は明るい地のまま描かれる。
+   * 既定は dark なので、ほぼ全員が読み込みのたびに「白く光ってから暗くなる」
+   * を見ていた(実測: 開発サーバで最初の描画 55ms 〜 1531ms のあいだずっと
+   * 明るいまま)。本番は水和が速いぶん短くなるだけで、**効く時刻が水和に
+   * 結びついている限り、間に合わない絵は必ず出る**。
+   *
+   * `<head>` の描画前スクリプトで同期的に当てるのが昔から決まった直し方。
+   * 消されたら気づけるように門を置く。
+   */
+  it("テーマを**描画前**に当てている（`useEffect` だけだと最初の1枚が明るい）", () => {
+    const root = codeOnly(read("routes/__root.tsx"));
+    const scripts = root.indexOf("scripts: [");
+    expect(scripts).toBeGreaterThan(0);
+    // `<head>` の中で `classList.toggle("dark", …)` を同期的に呼んでいること。
+    expect(root.slice(scripts)).toMatch(/documentElement\.classList\.toggle\("dark"/);
+    // 鍵と既定は `theme-provider.tsx` から埋め込む。**手で書くとずれる** —
+    // ずれた瞬間、最初の1枚だけ色が違う画面に戻る。
+    expect(root).toMatch(/THEME_STORAGE_KEY/);
+    expect(root).toMatch(/DEFAULT_THEME/);
+  });
+
+  it("サーバ側の既定と、実際の既定が一致している", () => {
+    // `resolve()` の `typeof window === "undefined"` の枝が "light" 固定
+    // だった。既定が dark なのに、サーバが描く最初の絵は明るい —
+    // 食い違いを自分で作っていた。
+    const tp = codeOnly(read("components/theme-provider.tsx"));
+    expect(tp).toMatch(/export const DEFAULT_THEME/);
+    const serverBranch = tp.slice(tp.indexOf('typeof window === "undefined"'));
+    expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
+  });
+
+  it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
+    // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
+    // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、
+    // 「なぜ portal なのか」を読み直してから決めること。
+    const sw = codeOnly(read("components/SwipeCard.tsx"));
+    expect(sw).toMatch(/willChange:\s*"transform"/);
+  });
+
+  it("後始末を**散らさない**（同じ片付けを2箇所に書くと、片方だけ直る）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    // 以前は「着弾先が見つからない」枝と最後の finally の2箇所に同じ
+    // 片付けが書いてあり、枝の側には `visibility` を戻す行が無かった。
+    for (const line of [
+      "handoff.remove()",
+      "delete document.documentElement.dataset.rewardFlight",
+    ]) {
+      expect(v5.split(line).length - 1).toBe(1);
+    }
+  });
 });

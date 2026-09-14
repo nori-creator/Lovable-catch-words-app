@@ -111,6 +111,25 @@
   --text-title--line-height: 1.3;
   --text-hero: 2rem; /* 32px — 主役の語 */
   --text-hero--line-height: 1.15;
+
+  /* ── 入力欄だけの段 ──────────────────────────────────────────────
+     **これは見た目の段ではない。iOS の仕様に対する段。**
+
+     iOS Safari は、文字が 16px 未満の `input` / `textarea` / `select` に
+     焦点が当たると**画面を勝手に拡大する**。そして戻さない。本文の 15px を
+     そのまま入力欄に使っていたので、ログインしようとメール欄を押した
+     瞬間に画面が拡大し、送信ボタンが画面の外へ出ていた
+     (実測: iPhone 14 / 390px でログイン画面の両方の欄が 15px)。
+
+     `user-scalable=no` で拡大を止める手もあるが、それは**拡大したい人の
+     拡大まで奪う**ので採らない。16px にするのが唯一の正しい直し方。
+
+     本文(15px)との差は 1px で、上の「どの隣り合う段も 2px 以上離す」に
+     反しているように見える。**わざと反している** — これは人が見て選ぶ段
+     ではなく、入力欄に機械的に当てる1つの値なので、選択肢を増やさない。
+     `text-field` を入力欄以外に使わないこと。 */
+  --text-field: 1rem; /* 16px — input / textarea / select 専用 */
+  --text-field--line-height: 1.5;
 }
 
 @theme inline {
@@ -466,6 +485,24 @@
   textarea {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS Safari の焦点ズーム除け。**これは安全網であって、直し方ではない。**
+     `@layer base` は utility に負けるので、`text-body` の付いた入力欄には
+     届かない — 届く必要も無い。ここが効くのは**大きさを一切書かずに
+     足された入力欄**で、そういう欄が 15px を継いで拡大を起こすのを
+     止める。大きさを書くときは `text-field` を使うこと
+     (理由は `--text-field` の所に書いた)。
+
+     `type` を絞るのは、checkbox / radio / range / color が font-size を
+     見ないため。ここに並べても無害だが、**この規則が何のために在るのか**
+     が読めなくなる。 */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+      [type="file"]
+    ),
+  select,
+  textarea {
+    font-size: max(var(--text-field), 1rem);
   }
 }
 
@@ -842,6 +879,127 @@
   .album-editing {
     animation: none;
   }
+}
+
+/* Catchwords camera — the nav lens lifts, becomes a finder, then fills the view. */
+.camera-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: hidden;
+}
+.camera-launch__lens {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--primary-foreground) 25%, transparent);
+  background: var(--foreground);
+  box-shadow:
+    0 0 0 5px var(--background),
+    0 12px 32px color-mix(in oklab, var(--primary) 42%, transparent);
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  animation: camera-lens-open 720ms cubic-bezier(.2,.82,.2,1) both;
+}
+.camera-launch__glint {
+  position: absolute;
+  left: 50%;
+  bottom: .5rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: inherit;
+  border: 2px solid color-mix(in oklab, var(--primary-foreground) 76%, transparent);
+  background: var(--primary);
+  box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--primary-foreground) 28%, transparent);
+  transform: translateX(-50%);
+  animation: camera-launch-control 720ms cubic-bezier(.2,.82,.2,1) both;
+}
+@keyframes camera-lens-open {
+  0% {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 999px;
+    transform: translateX(-50%) scale(.82);
+    opacity: .96;
+  }
+  24% {
+    width: 4.4rem;
+    height: 6.6rem;
+    border-radius: 1.35rem;
+    transform: translateX(-50%) translateY(-4.8rem) rotate(-7deg);
+  }
+  58% {
+    width: min(46vw, 12rem);
+    height: min(54dvh, 23rem);
+    border-radius: 1.7rem;
+    transform: translateX(-50%) translateY(-16vh) rotate(0deg);
+    box-shadow:
+      0 0 0 2px color-mix(in oklab, var(--primary) 70%, transparent),
+      0 20px 56px color-mix(in oklab, var(--foreground) 45%, transparent);
+  }
+  100% {
+    width: calc(100vw + 2px);
+    height: calc(100dvh + 2px);
+    bottom: -1px;
+    border-radius: 0;
+    transform: translateX(-50%) translateY(0) rotate(0deg);
+    box-shadow: none;
+    opacity: 1;
+  }
+}
+@keyframes camera-launch-control {
+  0% { opacity: 1; transform: translateX(-50%) scale(.72); }
+  24% { opacity: 1; transform: translateX(-50%) scale(.8); }
+  58% { opacity: 1; transform: translateX(-50%) scale(1); }
+  82%, 100% { opacity: 0; transform: translateX(-50%) scale(1.12); }
+}
+.capture-viewfinder { position: relative; isolation: isolate; }
+.capture-viewfinder__light {
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--primary) 24%, transparent), transparent 38%),
+    linear-gradient(155deg, color-mix(in oklab, var(--primary) 28%, var(--foreground)), var(--foreground) 58%);
+}
+.capture-viewfinder__light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .22;
+  background-image: radial-gradient(color-mix(in oklab, var(--background) 38%, transparent) .7px, transparent .7px);
+  background-size: 7px 7px;
+}
+.capture-focus {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: min(58vw, 15rem);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+.capture-focus span { position: absolute; width: 2.25rem; height: 2.25rem; border-color: color-mix(in oklab, var(--background) 75%, var(--primary)); }
+.capture-focus span:nth-child(1) { left: 0; top: 0; border-left-width: 1px; border-top-width: 1px; border-radius: .65rem 0 0 0; }
+.capture-focus span:nth-child(2) { right: 0; top: 0; border-right-width: 1px; border-top-width: 1px; border-radius: 0 .65rem 0 0; }
+.capture-focus span:nth-child(3) { left: 0; bottom: 0; border-left-width: 1px; border-bottom-width: 1px; border-radius: 0 0 0 .65rem; }
+.capture-focus span:nth-child(4) { right: 0; bottom: 0; border-right-width: 1px; border-bottom-width: 1px; border-radius: 0 0 .65rem 0; }
+.capture-focus i { position: absolute; inset: 50% auto auto 50%; width: .4rem; height: .4rem; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent); transform: translate(-50%,-50%); animation: capture-focus-breathe 2.8s ease-in-out infinite; }
+.capture-shutter { box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent); transition: transform 100ms ease; }
+.capture-shutter:active { transform: scale(.9); }
+.capture-search { animation: capture-search-in 220ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes capture-focus-breathe { 50% { transform: translate(-50%,-50%) scale(1.35); opacity: .72; } }
+@keyframes capture-search-in { from { opacity: 0; transform: translateY(10px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-launch__lens { animation: camera-lens-open-reduced 220ms ease both; }
+  .camera-launch__glint { animation: reduced-fade-in 120ms ease reverse both; }
+  .capture-focus i { animation: none; }
+  .capture-search { animation: reduced-fade-in 180ms ease both; }
+}
+@keyframes camera-lens-open-reduced {
+  from { opacity: 0; width: 100vw; height: 100dvh; bottom: 0; border-radius: 0; }
+  to { opacity: 1; width: 100vw; height: 100dvh; bottom: 0; border-radius: 0; }
 }
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）

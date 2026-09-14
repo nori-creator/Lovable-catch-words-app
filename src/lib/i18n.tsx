@@ -1650,14 +1650,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
   "capture.typeWord": {
-    ja: "単語を文字で入力",
-    en: "Type a word instead",
-    "zh-TW": "用文字輸入單字",
+    ja: "文字で調べる",
+    en: "Type to look up",
+    "zh-TW": "輸入文字查詢",
   },
   "capture.openScan": {
-    ja: "かざして調べる（スキャン）",
-    en: "Hold up to look up (scan)",
-    "zh-TW": "舉起來查（掃描）",
+    ja: "かざして調べる",
+    en: "Point to look up",
+    "zh-TW": "對準物品查詢",
   },
   // カメラの画面に直接置く検索の欄(オーナー指示 2026-08-26)。
   "capture.searchPlaceholder": {

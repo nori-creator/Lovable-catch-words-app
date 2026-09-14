@@ -215,7 +215,7 @@ export function SelectRow({
       <Label htmlFor={id}>{label}</Label>
       <select
         id={id}
-        className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-body"
+        className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2.5 text-field"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -1494,7 +1494,7 @@ function AiModelPanel() {
             aria-label={t("set.aiProviderAria")}
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-body"
+            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
           >
             <option value="">{t("settings.aiEnvDefault")}</option>
             {(data?.presets ?? []).map((p) => (
