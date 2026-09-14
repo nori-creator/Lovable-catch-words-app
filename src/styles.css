@@ -2652,7 +2652,12 @@ html[data-reward-flight] .slam-in {
   transition: opacity 280ms ease, filter 420ms ease, transform 420ms cubic-bezier(.16,1,.3,1);
 }
 .reward-catch[data-stage="transfer"] .reward-catch__copy { opacity: 0; filter: blur(5px); transform: scale(.98); transition: all 260ms ease; }
-.reward-catch__word { font-family: var(--font-word); font-size: clamp(2.75rem, 13vw, 5rem); font-weight: 800; line-height: 1; overflow-wrap: anywhere; }
+/* **`--font-word` は定義が存在しなかった。** アプリ全体を探しても
+   `--font-word` を定義している行が1つも無く、この画面でいちばん大きい字
+   ——捕まえた語そのもの——が無指定で継承フォントに落ちていた。
+   大きい字の書体は `--font-display`(= 本文と同じ書体。大きさと字間だけで
+   差を付ける、という `--font-display` の所に書いた方針)。 */
+.reward-catch__word { font-family: var(--font-display); font-size: clamp(2.75rem, 13vw, 5rem); font-weight: 800; line-height: 1; overflow-wrap: anywhere; }
 .reward-catch__reading { margin-top: .6rem; font-size: 1.05rem; font-weight: 650; color: var(--muted-foreground); }
 .reward-catch__stamp { margin-top: .8rem; font-size: .72rem; font-weight: 750; letter-spacing: .16em; color: var(--primary); }
 .reward-catch__particles { z-index: 83; opacity: 0; }

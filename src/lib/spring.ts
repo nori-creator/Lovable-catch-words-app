@@ -37,7 +37,43 @@ export type Spring = {
   dispose: () => void;
 };
 
-const DEFAULTS = { damping: 1, response: 0.4 };
+/**
+ * **Apple のばねの実数値。** 推測でも近似でもなく、Apple が公開している値。
+ *
+ * ## なぜそのまま移せるのか
+ * Apple のばねは `duration`(秒) と `bounce` の2値で表され、
+ *   `dampingRatio = 1 − bounce`   (bounce ≥ 0 のとき)
+ *   減衰係数 = (1 − bounce) × 4π ÷ duration
+ * で決まる(WWDC23「Animate with springs」/ SwiftUI `Spring(duration:bounce:)`)。
+ *
+ * 一方この実装は `omega = 2π/response` から
+ *   c = 2 × damping × omega = 4π × damping ÷ response
+ * を作っている。**`damping` を dampingRatio、`response` を duration と読むと
+ * 両者は同じ式**なので、換算も近似も要らずに値をそのまま置ける。
+ *
+ * ## 使い分け(WWDC18「Designing Fluid Interfaces」)
+ * **まず `smooth`(行き過ぎ無し)から始める。跳ねを足すのは、その操作が
+ * 勢いを持っていたときだけ** — 弾く・投げる・放り出す。勢いに報いないと
+ * 動きが「壊れた」ように感じる、というのが Apple の言い分。
+ * 逆に、勢いの無い所で跳ねさせると落ち着きが無いだけになる。
+ */
+export const APPLE_SPRING = {
+  /** `.smooth` — duration 0.5 / bounce 0。行き過ぎ無し。**迷ったらこれ**。 */
+  smooth: { response: 0.5, damping: 1.0 },
+  /** `.snappy` — duration 0.5 / bounce 0.15。わずかに行き過ぎる。機敏。 */
+  snappy: { response: 0.5, damping: 0.85 },
+  /** `.bouncy` — duration 0.5 / bounce 0.3。はっきり跳ねる。遊びの場面だけ。 */
+  bouncy: { response: 0.5, damping: 0.7 },
+} as const satisfies Record<string, Required<SpringOptions>>;
+
+/**
+ * 何も指定しなかったときのばね。**Apple の `.smooth` と同じ**。
+ *
+ * 以前は `response: 0.4` だった(0.1秒だけ速い独自値)。揃える意味は、
+ * この先「なんとなく速い方がいい」で各所がバラバラに詰めていくのを
+ * 止めること — **速くしたいなら、その場で理由を書いて `response` を渡す**。
+ */
+const DEFAULTS = APPLE_SPRING.smooth;
 
 /** 収束判定。ここより小さい誤差と速度は目に見えない。 */
 const EPS_X = 0.05; // px

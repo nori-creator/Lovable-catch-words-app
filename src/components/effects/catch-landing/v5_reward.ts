@@ -5,6 +5,21 @@ import type { LandingRunner } from "./types";
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
+ * 動きの曲線。**`styles.css` の `--ease-ios` と同じ値**。
+ *
+ * Web Animations API は easing に CSS 変数を取れないので、ここだけ実体で持つ。
+ * 二重に書いた値は必ずずれるので、同じ値であることを門で見張っている
+ * (`language-plumbing.test.ts`)。
+ *
+ * ## なぜ要るのか
+ * この演出の `.animate()` 9本のうち**3本が easing 未指定＝linear** だった。
+ * linear は等速で、止まる瞬間も同じ速さのまま消える — 物理的にありえない
+ * 動きなので、短くても「機械が動いた」ように見える。とくに
+ * 位置が動くもの(下へ 14px 逃げる一言)で linear は明確に誤り。
+ */
+const EASE_IOS = "cubic-bezier(0.32, 0.72, 0, 1)";
+
+/**
  * 保存後の新しい標準演出。過去版の振り付けは使わず、押し込まれた物体が
  * 浮き、張力を蓄え、解放され、図鑑へ渡る一続きの運動として組む。
  */
@@ -166,8 +181,11 @@ export const v5reward: LandingRunner = async ({
     await openDex?.();
     const target = destinationId ? await waitForDestination(destinationId) : null;
     if (!target) {
-      await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" })
-        .finished;
+      await handoff.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 220,
+        easing: EASE_IOS,
+        fill: "forwards",
+      }).finished;
       return;
     }
 
@@ -182,13 +200,17 @@ export const v5reward: LandingRunner = async ({
     const veil = handoff.querySelector(".reward-catch__veil") as HTMLElement | null;
     const copy = handoff.querySelector(".reward-catch__copy") as HTMLElement | null;
     const backgroundMotion = [
-      veil?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, fill: "forwards" }).finished,
+      veil?.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 420,
+        easing: EASE_IOS,
+        fill: "forwards",
+      }).finished,
       copy?.animate(
         [
           { opacity: 1, transform: "translateY(0)" },
           { opacity: 0, transform: "translateY(14px)" },
         ],
-        { duration: 260, fill: "forwards" },
+        { duration: 260, easing: EASE_IOS, fill: "forwards" },
       ).finished,
     ].filter(Boolean);
     await Promise.all([

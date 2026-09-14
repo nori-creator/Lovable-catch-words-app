@@ -2416,6 +2416,48 @@ describe("キャッチの報酬演出", () => {
     expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
   });
 
+  /**
+   * 動きの曲線と、その出所。
+   *
+   * ## なぜ門にするか
+   * Web Animations API は easing に CSS 変数を取れないので、`v5_reward.ts` は
+   * `--ease-ios` と**同じ値を二重に書いている**。二重に書いた値は必ずずれる。
+   * ずれても絵は出るので、気づくのは「同じ動きなのに場所によって曲線が違う」
+   * と誰かが感じたときになる — それは数の側でしか止められない。
+   */
+  it("`.animate()` に easing が必ず指定されている（linear は等速＝物理的にありえない）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    // `.animate(` の数だけ、options に easing が要る。以前は9本中3本が
+    // 未指定で、既定の linear で動いていた(下へ 14px 逃げる一言も含む)。
+    const calls = v5.match(/\.animate\(/g) ?? [];
+    const easings = v5.match(/easing:/g) ?? [];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(easings.length).toBeGreaterThanOrEqual(calls.length);
+  });
+
+  it("WAAPI 側の曲線が `--ease-ios` と同じ値（二重に書いた値はずれる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    const css = read("styles.css");
+    const inTs = v5.match(/const EASE_IOS = "([^"]+)"/);
+    expect(inTs).not.toBeNull();
+    const inCss = css.match(/--ease-ios:\s*([^;]+);/);
+    expect(inCss).not.toBeNull();
+    // 空白の入れ方だけ違うことがあるので、空白を潰して比べる。
+    const norm = (v: string) => v.replace(/\s+/g, "");
+    expect(norm(inTs![1])).toBe(norm(inCss![1]));
+  });
+
+  it("`--font-word` のような**未定義の変数を使っていない**", () => {
+    // `.reward-catch__word` が `var(--font-word)` を参照していたが、
+    // 定義はアプリ全体に0件だった。この画面でいちばん大きい字——捕まえた
+    // 語そのもの——が無指定の継承フォントに落ちていた。
+    const css = read("styles.css");
+    const used = new Set([...css.matchAll(/var\((--font-[a-z-]+)/g)].map((m) => m[1]));
+    for (const name of used) {
+      expect([name, new RegExp(`${name}:`).test(css)]).toEqual([name, true]);
+    }
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、

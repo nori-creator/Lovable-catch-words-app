@@ -19,6 +19,7 @@ import {
   trailSpacing,
   trailStyle,
 } from "./catch-choreography";
+import { APPLE_SPRING } from "./spring";
 
 /**
  * キャッチの報酬演出の数（オーナー指示 2026-09-13）。
@@ -216,5 +217,52 @@ describe("レア度で報酬の大きさを変える（確率は動かさない�
       const r = rewardScale(v as number);
       expect([v, r >= 1 && r <= 1.3]).toEqual([v, true]);
     }
+  });
+});
+
+/**
+ * Apple の実数値との対応（2026-09-14 に公式値を取り寄せて突き合わせた）。
+ *
+ * Apple のばねは `duration`(秒) と `bounce` の2値で、
+ *   dampingRatio = 1 − bounce      (bounce ≥ 0)
+ *   減衰係数     = (1 − bounce) × 4π ÷ duration
+ * （WWDC23「Animate with springs」/ SwiftUI `Spring(duration:bounce:)`）。
+ *
+ * `lib/spring.ts` は `omega = 2π/response` から `c = 4π × damping ÷ response`
+ * を作っているので、**`damping` を dampingRatio、`response` を duration と
+ * 読めば同じ式**。だから換算せずに値を比べられる。
+ *
+ * ここで止めたいのは「いつの間にか Apple から離れていく」こと。
+ * 離れること自体は構わない（この演出は Apple のUIではなく、この app の見せ場）。
+ * ただし**離れたなら、離れたと分かる形で離れる**べきなので、範囲で囲っておく。
+ */
+describe("Apple のばねとの対応", () => {
+  it("Apple のプリセットが公式の値どおりに置かれている", () => {
+    // duration 0.5 は3つ共通。bounce 0 / 0.15 / 0.3 → damping 1 − bounce。
+    expect(APPLE_SPRING.smooth).toEqual({ response: 0.5, damping: 1.0 });
+    expect(APPLE_SPRING.snappy).toEqual({ response: 0.5, damping: 0.85 });
+    expect(APPLE_SPRING.bouncy).toEqual({ response: 0.5, damping: 0.7 });
+  });
+
+  it("**跳ねは Apple の `.bouncy` より強くしない**（0.7 が下限）", () => {
+    // damping が小さいほど跳ねる。0.7 は Apple がいちばん跳ねる版に置いた値で、
+    // これより下は「Apple のアプリでは見ない跳ね方」になる。
+    for (const [name, s] of Object.entries(SPRING)) {
+      expect([name, s.damping >= APPLE_SPRING.bouncy.damping]).toEqual([name, true]);
+      expect([name, s.damping <= 1]).toEqual([name, true]);
+    }
+  });
+
+  it("**演出の各段は Apple の既定より速い**（見せ場なので待たせない）", () => {
+    // response が小さいほど機敏。0.5 は Apple の3プリセット共通の duration。
+    // ここが 0.5 を超え始めたら、演出が「もたつく」側へ寄った合図。
+    for (const [name, s] of Object.entries(SPRING)) {
+      expect([name, s.response <= APPLE_SPRING.smooth.response]).toEqual([name, true]);
+      expect([name, s.response > 0]).toEqual([name, true]);
+    }
+  });
+
+  it("退場だけは跳ねない（行き先が画面外なので跳ねても見えない）", () => {
+    expect(SPRING.exit.damping).toBe(1);
   });
 });
