@@ -844,6 +844,82 @@
 @media (prefers-reduced-motion: reduce) {
   .album-editing { animation: none; }
 }
+
+/* Catchwords camera — the nav lens rises and opens into the finder. */
+.camera-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: hidden;
+}
+.camera-launch__lens {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 5px var(--background), 0 12px 32px color-mix(in oklab, var(--primary) 45%, transparent);
+  transform: translateX(-50%);
+  animation: camera-lens-open 660ms cubic-bezier(.2,.82,.2,1) both;
+}
+.camera-launch__glint {
+  position: absolute;
+  inset: 22%;
+  border-radius: inherit;
+  border: 1px solid color-mix(in oklab, var(--primary-foreground) 65%, transparent);
+  background: color-mix(in oklab, var(--primary-foreground) 12%, transparent);
+}
+@keyframes camera-lens-open {
+  0% { transform: translateX(-50%) scale(.82); opacity: .95; }
+  32% { transform: translateX(-50%) translateY(-5rem) scale(1.18); }
+  100% { transform: translateX(-50%) translateY(-34vh) scale(24); opacity: 1; }
+}
+.capture-viewfinder { position: relative; isolation: isolate; }
+.capture-viewfinder__light {
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--primary) 24%, transparent), transparent 38%),
+    linear-gradient(155deg, color-mix(in oklab, var(--primary) 28%, var(--foreground)), var(--foreground) 58%);
+}
+.capture-viewfinder__light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .22;
+  background-image: radial-gradient(color-mix(in oklab, var(--background) 38%, transparent) .7px, transparent .7px);
+  background-size: 7px 7px;
+}
+.capture-focus {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: min(58vw, 15rem);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+.capture-focus span { position: absolute; width: 2.25rem; height: 2.25rem; border-color: color-mix(in oklab, var(--background) 75%, var(--primary)); }
+.capture-focus span:nth-child(1) { left: 0; top: 0; border-left-width: 1px; border-top-width: 1px; border-radius: .65rem 0 0 0; }
+.capture-focus span:nth-child(2) { right: 0; top: 0; border-right-width: 1px; border-top-width: 1px; border-radius: 0 .65rem 0 0; }
+.capture-focus span:nth-child(3) { left: 0; bottom: 0; border-left-width: 1px; border-bottom-width: 1px; border-radius: 0 0 0 .65rem; }
+.capture-focus span:nth-child(4) { right: 0; bottom: 0; border-right-width: 1px; border-bottom-width: 1px; border-radius: 0 0 .65rem 0; }
+.capture-focus i { position: absolute; inset: 50% auto auto 50%; width: .4rem; height: .4rem; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent); transform: translate(-50%,-50%); animation: capture-focus-breathe 2.8s ease-in-out infinite; }
+.capture-shutter { box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent); transition: transform 100ms ease; }
+.capture-shutter:active { transform: scale(.9); }
+.capture-search { animation: capture-search-in 220ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes capture-focus-breathe { 50% { transform: translate(-50%,-50%) scale(1.35); opacity: .72; } }
+@keyframes capture-search-in { from { opacity: 0; transform: translateY(10px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-launch__lens { animation: camera-lens-open-reduced 220ms ease both; }
+  .capture-focus i { animation: none; }
+  .capture-search { animation: reduced-fade-in 180ms ease both; }
+}
+@keyframes camera-lens-open-reduced {
+  from { opacity: 0; transform: translateX(-50%) scale(14); }
+  to { opacity: 1; transform: translateX(-50%) scale(24); }
+}
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）
    > 「例文の文、発音のコツ、覚え方などの文が見づらい。背景の色を変更する

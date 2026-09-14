@@ -1644,42 +1644,106 @@ export function CaptureObjectPanel({
   error: string | null;
 }) {
   const t = useT();
+  const [textOpen, setTextOpen] = useState(Boolean(typedWord));
+
+  const openCamera = () => {
+    if (onNativeCapture) {
+      onNativeCapture();
+      return;
+    }
+    cameraInputRef.current?.click();
+  };
+
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <div>
-        <h1 className="text-title font-semibold tracking-tight">{t("capture.photoTitle")}</h1>
-        <p className="mt-1 text-body text-muted-foreground">{t("capture.photoHint")}</p>
-      </div>
+    <div className="capture-viewfinder flex min-h-[calc(100dvh-var(--app-header-h)-10rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
       {retakeWord && (
-        <p className="ja-phrase rounded-xl bg-secondary px-3 py-2 text-footnote font-semibold">
+        <p className="ja-phrase absolute left-1/2 top-3 z-10 max-w-[80%] -translate-x-1/2 truncate rounded-full bg-background/80 px-3 py-2 text-footnote font-semibold text-foreground backdrop-blur-md">
           {t("retake.hint", { w: retakeWord })}
         </p>
       )}
-      <label
-        className="group block cursor-pointer"
-        onClick={(e) => {
-          if (!onNativeCapture) return;
-          e.preventDefault();
-          onNativeCapture();
-        }}
-      >
-        <div className="relative h-[min(48dvh,24rem)] min-h-72 rounded-3xl border border-border bg-card p-2 shadow-[inset_0_0_0_5px_color-mix(in_oklab,var(--secondary)_55%,transparent)] transition-colors group-hover:border-primary/55">
-          <div aria-hidden="true" className="absolute inset-x-[15%] inset-y-[18%] bottom-20">
-            <span className="absolute left-0 top-0 h-9 w-9 rounded-tl-xl border-l-2 border-t-2 border-primary" />
-            <span className="absolute right-0 top-0 h-9 w-9 rounded-tr-xl border-r-2 border-t-2 border-primary" />
-            <span className="absolute bottom-0 left-0 h-9 w-9 rounded-bl-xl border-b-2 border-l-2 border-primary" />
-            <span className="absolute bottom-0 right-0 h-9 w-9 rounded-br-xl border-b-2 border-r-2 border-primary" />
-          </div>
-          <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-1.5">
-            <span className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/10 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none">
-              <Camera className="h-7 w-7" strokeWidth={2} />
-            </span>
-            <span className="text-footnote font-semibold text-foreground">{t("capture.tapToShoot")}</span>
-          </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+        <div className="absolute inset-x-5 top-5 text-center">
+          <h1 className="text-headline font-semibold text-background">{t("capture.photoTitle")}</h1>
+          <p className="mt-1 text-footnote text-background/70">{t("capture.photoHint")}</p>
         </div>
+        <div className="capture-focus" aria-hidden="true">
+          <span /><span /><span /><span />
+          <i />
+        </div>
+        {error && (
+          <p className="absolute inset-x-5 bottom-4 rounded-xl bg-destructive/85 px-3 py-2 text-center text-footnote text-destructive-foreground backdrop-blur-md">
+            {error}
+          </p>
+        )}
+      </div>
+
+      <div className="relative bg-foreground px-5 pb-5 pt-3">
+        {textOpen && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const w = typedWord.trim();
+              if (w) onSearch(w);
+            }}
+            className="capture-search mb-4 flex items-center gap-2"
+          >
+            <div className="relative flex-1">
+              <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                autoFocus
+                value={typedWord}
+                onChange={(e) => setTypedWord(e.target.value)}
+                placeholder={t("capture.searchPlaceholder")}
+                aria-label={t("capture.typeWord")}
+                enterKeyHint="search"
+                disabled={searching}
+                className="h-11 rounded-xl border-background/15 bg-background pl-9 text-foreground"
+              />
+            </div>
+            <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
+              {searching ? <Loader2 className="animate-spin" /> : <Search />}
+            </Button>
+          </form>
+        )}
+
+        <div className="grid grid-cols-[1fr_5rem_1fr] items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setTextOpen((open) => !open)}
+            aria-expanded={textOpen}
+            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
+          >
+            <Keyboard className="h-5 w-5" />
+            <span className="whitespace-normal text-caption">{t("capture.typeWord")}</span>
+          </Button>
+
+          <Button
+            type="button"
+            onClick={openCamera}
+            aria-label={t("capture.tapToShoot")}
+            className="capture-shutter h-20 w-20 rounded-full bg-background p-0 text-foreground shadow-none hover:bg-background"
+          >
+            <span className="capture-shutter__core grid h-16 w-16 place-items-center rounded-full border border-foreground/15 bg-background">
+              <Camera className="h-6 w-6 text-primary-ink" />
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onOpenScan}
+            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
+          >
+            <ScanLine className="h-5 w-5" />
+            <span className="whitespace-normal text-caption">{t("capture.openScan")}</span>
+          </Button>
+        </div>
+
         <input
           ref={cameraInputRef}
           type="file"
@@ -1688,66 +1752,7 @@ export function CaptureObjectPanel({
           className="sr-only"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
         />
-      </label>
-
-      {/* **検索の欄そのものをここに置く**(オーナー指示 2026-08-26
-              「検索欄をカメラの画面に直接置いて」)。
-              前は「文字で打つ」のボタンで、押して面が開いてから
-              ようやく打てた — 撮るのと同じ画面で調べたいのに、
-              **打ち始めるまでに1タップ**かかっていた。
-              打った語はそのまま候補の面へ渡す(`autoLookup`)ので、
-              打ってから調べ始まるまでの手数は 1回押すだけになる。 */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const w = typedWord.trim();
-          if (!w) return;
-          // **ここで消さない。** 見つからなかったときに書き直せなくなる
-          // (オーナー報告「文字検索が機能してない」)。消すのは
-          // 次の面へ進むと決まってから(`searchWord`)。
-          onSearch(w);
-        }}
-        className="flex items-center gap-2"
-      >
-        <div className="relative flex-1">
-          <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={typedWord}
-            onChange={(e) => setTypedWord(e.target.value)}
-            placeholder={t("capture.searchPlaceholder")}
-            aria-label={t("capture.typeWord")}
-            enterKeyHint="search"
-            disabled={searching}
-            className="h-11 rounded-xl bg-card pl-9 shadow-sm"
-          />
-        </div>
-        <Button
-          type="submit"
-          disabled={searching || !typedWord.trim()}
-          aria-busy={searching}
-          size="icon"
-          className="h-11 w-11 shrink-0 rounded-xl"
-        >
-          {searching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
-        </Button>
-      </form>
-
-      {/* かざして調べるスキャンは、下タブから消えた代わりにここから開ける */}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onOpenScan}
-        className="lift h-11 w-full rounded-xl bg-card text-body font-semibold"
-      >
-        <ScanLine className="h-4 w-4" />
-        {t("capture.openScan")}
-      </Button>
-
-      {error && <p className="text-body text-destructive-ink">{error}</p>}
+      </div>
     </div>
   );
 }

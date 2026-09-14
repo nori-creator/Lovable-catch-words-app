@@ -218,6 +218,7 @@ export function AppShell({
   const navigate = useNavigate();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [cameraOpening, setCameraOpening] = useState(false);
 
   /**
    * 横スワイプで隣の画面へ(オーナー指示 2026-09-13)。
@@ -325,6 +326,17 @@ export function AppShell({
           設定でONにした人だけ動く(既定はOFF)。 */}
       <PlaceMemoryWatcher />
 
+      {/* 下のレンズが、そのまま撮影の世界へ広がる。端末のカメラ画面を
+          模倣するのではなく、Catchwords の「見つけたものを掬い上げる」
+          青い光として繋ぐ。遷移後の自動カメラ起動は capture 側が担う。 */}
+      {cameraOpening && (
+        <div className="camera-launch" aria-hidden="true">
+          <span className="camera-launch__lens">
+            <span className="camera-launch__glint" />
+          </span>
+        </div>
+      )}
+
       {/* 下のタブ帯。**後ろは透けない(NORI指定)。** `.app-sheet` は上端の
           明るい線と上向きの影だけを持つ不透明な面で、浮いていることは
           縁と影で伝える。 */}
@@ -340,10 +352,19 @@ export function AppShell({
                 <Link
                   to={to}
                   data-nav={to}
-                  onClick={() => {
+                  onClick={(event) => {
                     // §13 multimodal feedback on the causal event; the camera
                     // entrance also primes audio for the scan/catch chimes.
                     if (isScan) {
+                      if (pathname !== "/capture") {
+                        event.preventDefault();
+                        if (cameraOpening) return;
+                        setCameraOpening(true);
+                        window.setTimeout(() => {
+                          void navigate({ to: "/capture" });
+                          window.setTimeout(() => setCameraOpening(false), 360);
+                        }, 300);
+                      }
                       unlockAudio();
                       Sound.tap();
                       haptic("medium");
@@ -369,8 +390,10 @@ export function AppShell({
                     // 設定の青より暗く見えていた。同じ画面に同じ青が2種類
                     // 並ぶのをやめる。白のアイコンは主色の上の文字と同じ
                     // 組み合わせになるので、読みやすさは主色の側で保証される。
-                    <span className="-mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
-                      <Icon className="h-6 w-6" />
+                    <span className="camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
+                      <span className="grid h-8 w-8 place-items-center rounded-full border border-primary-foreground/55 bg-primary-foreground/12">
+                        <Icon className="h-5 w-5" />
+                      </span>
                     </span>
                   ) : (
                     <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
