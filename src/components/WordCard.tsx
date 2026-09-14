@@ -1215,10 +1215,7 @@ export function RegisterMeter({
           <span className="usage-register__tick usage-register__tick--end" />
           {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
           <span className="usage-register__needle-path">
-            <span
-              className="usage-register__needle"
-              style={{ left: `${100 - pct}%` }}
-            />
+            <span className="usage-register__needle" style={{ left: `${100 - pct}%` }} />
           </span>
         </span>
         <span className="usage-register__labels" aria-hidden>

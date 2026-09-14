@@ -19,7 +19,14 @@ export function RewardCatchScene() {
   }, []);
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--background)", display: "grid", placeItems: "center" }}>
+    <div
+      style={{
+        minHeight: "100dvh",
+        background: "var(--background)",
+        display: "grid",
+        placeItems: "center",
+      }}
+    >
       <div ref={sourceRef} style={{ width: 190, height: 190 }}>
         <img
           src={PREVIEW_IMAGE}

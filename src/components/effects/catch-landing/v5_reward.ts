@@ -29,7 +29,9 @@ export const v5reward: LandingRunner = async ({
   fly,
   speakLine,
   destinationId,
+  getDestinationId,
   openDex,
+  gate,
 }) => {
   const root = document.getElementById("reward-catch");
   if (!root || !startEl || !fly) {
@@ -38,7 +40,13 @@ export const v5reward: LandingRunner = async ({
     return;
   }
 
-  const source = startEl.getBoundingClientRect();
+  // **枠ではなく、絵そのものを測る。**
+  // 渡されるのはカードの箱で、中の写真は `p-6` ぶん内側に在り、縁と地の色も
+  // 付いている。箱の寸法で飛ばすと `object-contain` が写真を箱いっぱいまで
+  // 広げるので、離陸の瞬間に **16% ほど大きくなって**「別の物に入れ替わった」
+  // ように見える。中に img が在ればそれを測る(無ければ従来どおり枠)。
+  const measured = startEl.querySelector("img") ?? startEl;
+  const source = measured.getBoundingClientRect();
   const width = Math.max(source.width, 1);
   const height = Math.max(source.height, 1);
   const centerX = source.left + width / 2;
@@ -122,6 +130,20 @@ export const v5reward: LandingRunner = async ({
   root.dataset.stage = "reveal";
   speakLine?.();
   await wait(1000);
+  // **見せ場の1秒は、保存を待つ関所も兼ねる。**
+  // 演出は押した瞬間に始まっているので、ここでまだ保存が終わっていない
+  // ことがある。ここで待たないと、演出の後に無言の待ち時間が現れる
+  // (見せ場の後に空白が来るのが、いちばん間の抜けた形)。
+  // **転んだらここで畳む。** 受け渡し(図鑑へ飛び込む)まで進んでしまうと、
+  // 保存に失敗したのに祝ってから謝ることになる。覆いを外すのは呼ぶ側。
+  if (gate) {
+    try {
+      await gate;
+    } catch {
+      root.dataset.stage = "idle";
+      return;
+    }
+  }
 
   root.dataset.stage = "transfer";
   Sound.rewardTransfer();
@@ -137,7 +159,9 @@ export const v5reward: LandingRunner = async ({
   handoffImage.style.height = `${heroRect.height}px`;
   handoffImage.style.transform = "none";
   handoffImage.style.opacity = "1";
-  document.documentElement.dataset.rewardFlight = destinationId ?? "active";
+  // 着地先は**いま**読む。冒頭で分解した値は、押した時点ではまだ null。
+  const targetId = getDestinationId?.() ?? destinationId;
+  document.documentElement.dataset.rewardFlight = targetId ?? "active";
   document.body.appendChild(handoff);
   root.style.opacity = "0";
 
@@ -164,7 +188,12 @@ export const v5reward: LandingRunner = async ({
   let hiddenCell: HTMLElement | null = null;
   try {
     await openDex?.();
-    const target = destinationId ? await waitForDestination(destinationId) : null;
+    // **`targetId` を使う。`destinationId` ではない。** 冒頭で分解した
+    // `destinationId` は押した時点の値で、保存がまだ終わっていない回は
+    // `undefined`。`gate` を待った後に読み直した `targetId`(163行目)が
+    // 本当の着地先。ここを取り違えると、飛んだ絵が着く所を見失って
+    // 淡く消えて終わる — **捕まえたのに図鑑へ入らなかったように見える**。
+    const target = targetId ? await waitForDestination(targetId) : null;
     if (!target) {
       await handoff.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: "forwards" })
         .finished;
