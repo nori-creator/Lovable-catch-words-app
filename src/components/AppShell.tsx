@@ -362,8 +362,8 @@ export function AppShell({
                         setCameraOpening(true);
                         window.setTimeout(() => {
                           void navigate({ to: "/capture" });
-                          window.setTimeout(() => setCameraOpening(false), 360);
-                        }, 300);
+                          window.setTimeout(() => setCameraOpening(false), 300);
+                        }, 520);
                       }
                       unlockAudio();
                       Sound.tap();
