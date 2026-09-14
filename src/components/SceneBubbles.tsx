@@ -65,7 +65,9 @@ export function SceneBubbles({
   // スマホで何段にも膨らむため、異なる軸から重複を除いた先頭4件に絞る。
   const items = groups
     .flatMap((group) => group.items)
-    .filter((item, index, all) => all.findIndex((candidate) => candidate.label === item.label) === index)
+    .filter(
+      (item, index, all) => all.findIndex((candidate) => candidate.label === item.label) === index,
+    )
     .slice(0, 4);
 
   return (

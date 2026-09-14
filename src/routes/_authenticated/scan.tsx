@@ -826,7 +826,7 @@ function ScanPage() {
                       placeholder={
                         voiceListening ? t("scan.listening") : t("scan.searchPlaceholder")
                       }
-                      className="w-full rounded-full border border-border bg-background/90 py-2.5 pl-9 pr-4 text-field shadow-lg outline-none backdrop-blur focus:ring-2 focus:ring-primary/40"
+                      className="w-full rounded-full border border-border py-2.5 pl-9 pr-4 text-field shadow-lg outline-none material-thick focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                   <button
@@ -1225,7 +1225,7 @@ export function ScanFoundList({
   const openChip = onOpen;
   if (!visibleItems.length) return null;
   return (
-    <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-1.5 shadow-lg backdrop-blur-xl">
+    <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl p-1.5 shadow-lg material-thick">
       {
         <div className="space-y-1.5">
           <p className="px-1 text-caption font-medium label-caps text-muted-foreground">
@@ -1300,7 +1300,7 @@ export function ScanNothingFound() {
   // 何が後ろに来ても読めるところまで濃くする — 下のタブ帯で同じ話を
   // オーナーから受けている(「後ろ透けないようにして」)。
   return (
-    <div className="rounded-2xl bg-background/95 p-4 text-center shadow-lg backdrop-blur-xl">
+    <div className="rounded-2xl p-4 text-center shadow-lg material-thick">
       <p className="text-body font-medium">{t("scan.nothingFound")}</p>
       <p className="ja-phrase mt-1 text-balance text-footnote text-muted-foreground">
         {t("scan.nothingFoundHint")}

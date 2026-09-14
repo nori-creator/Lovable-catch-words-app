@@ -1204,7 +1204,7 @@ export function CaptureSavingPanel({
   // 出所は端末の学習言語(`target-lang-pref.ts`)。
   const targetLanguage = useTargetLang();
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 backdrop-blur">
+    <div className="fixed inset-0 z-50 grid place-items-center material-thick">
       {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
           飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
       {image && (
@@ -1677,7 +1677,9 @@ export function CaptureObjectPanel({
             <span className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/10 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none">
               <Camera className="h-7 w-7" strokeWidth={2} />
             </span>
-            <span className="text-footnote font-semibold text-foreground">{t("capture.tapToShoot")}</span>
+            <span className="text-footnote font-semibold text-foreground">
+              {t("capture.tapToShoot")}
+            </span>
           </div>
         </div>
         <input

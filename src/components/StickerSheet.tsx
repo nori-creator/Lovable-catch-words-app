@@ -645,7 +645,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   return (
     <div
       {...dragProps}
-      className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
+      className="material-in fixed inset-0 z-50 flex flex-col material-thick"
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
@@ -658,7 +658,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
         </div>
       )}
       {/* Close bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 px-3 py-2 material-thin">
         <Term
           lang={s?.word.language}
           className="pl-1 text-footnote font-medium text-muted-foreground"
@@ -759,7 +759,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
           その場で確かめられない。 */}
       {pickerSurface && s && (
         <div
-          className="absolute inset-0 z-20 overflow-y-auto bg-background/95 p-4 backdrop-blur-sm"
+          className="absolute inset-0 z-20 overflow-y-auto p-4 material-thin"
           role="dialog"
           aria-modal="true"
           aria-label={t("photo.pickTitle")}

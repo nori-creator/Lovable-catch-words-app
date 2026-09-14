@@ -23,7 +23,15 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookText, Check, Grip, Image as ImageIcon, Maximize2, Trash2, WifiOff } from "lucide-react";
+import {
+  BookText,
+  Check,
+  Grip,
+  Image as ImageIcon,
+  Maximize2,
+  Trash2,
+  WifiOff,
+} from "lucide-react";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
@@ -684,7 +692,8 @@ export function ScrapbookAlbum({
     if (editing) return;
     setOrdered(
       [...stickers].sort(
-        (a, b) => (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
+        (a, b) =>
+          (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
       ),
     );
   }, [stickers, editing]);
@@ -859,9 +868,9 @@ export function ScrapbookAlbum({
               }}
               onPointerMove={(e) => {
                 if (!editing || !dragId.current) return;
-                const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(
-                  "[data-album-sticker]",
-                );
+                const target = document
+                  .elementFromPoint(e.clientX, e.clientY)
+                  ?.closest<HTMLElement>("[data-album-sticker]");
                 if (target?.dataset.albumSticker) moveOver(target.dataset.albumSticker);
               }}
               onPointerUp={(e) => {
@@ -974,7 +983,11 @@ export function ScrapbookAlbum({
                             : "text-muted-foreground"
                         }`}
                       >
-                        {choice === "large" ? <Maximize2 className="h-3 w-3" /> : ALBUM_SIZE_LABEL[choice]}
+                        {choice === "large" ? (
+                          <Maximize2 className="h-3 w-3" />
+                        ) : (
+                          ALBUM_SIZE_LABEL[choice]
+                        )}
                       </span>
                     ))}
                   </span>

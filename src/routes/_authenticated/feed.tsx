@@ -155,7 +155,7 @@ function PostCard({ post }: { post: FeedPost }) {
             />
           )}
           {post.sticker?.word && (
-            <div className="absolute bottom-3 left-3 rounded-2xl bg-background/90 px-3 py-1.5 backdrop-blur">
+            <div className="absolute bottom-3 left-3 rounded-2xl px-3 py-1.5 material-regular">
               <div lang="zh-Hant" className="text-headline font-bold leading-none">
                 {post.sticker.word.headword}
               </div>

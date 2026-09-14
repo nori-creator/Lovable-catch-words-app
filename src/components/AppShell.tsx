@@ -283,7 +283,7 @@ export function AppShell({
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
       <header
         data-scrolled={scrolled ? "true" : undefined}
-        className="scroll-edge sticky top-0 z-30 bg-background/70 backdrop-blur-xl backdrop-saturate-150 pt-[env(safe-area-inset-top)]"
+        className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
       >
         {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
             止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}

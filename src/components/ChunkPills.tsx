@@ -39,9 +39,9 @@ export function ChunkPills({
       ? "px-0.5 py-0 text-body"
       : size === "sm"
         ? "px-2 py-1 text-footnote"
-      : size === "lg"
-        ? "px-3 py-2 text-headline leading-snug tracking-wide"
-        : "px-2.5 py-1.5 text-body";
+        : size === "lg"
+          ? "px-3 py-2 text-headline leading-snug tracking-wide"
+          : "px-2.5 py-1.5 text-body";
   return (
     // 影が落ちるぶん、札どうしの間合いを少し広げる。詰めると影が隣に重なって
     // 濁り、浮いているのではなく汚れているように見える。

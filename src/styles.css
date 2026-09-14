@@ -834,15 +834,24 @@
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 @keyframes album-jiggle {
-  0%, 100% { transform: rotate(-0.7deg); }
-  50% { transform: rotate(0.7deg); }
+  0%,
+  100% {
+    transform: rotate(-0.7deg);
+  }
+  50% {
+    transform: rotate(0.7deg);
+  }
 }
 .album-editing {
   animation: album-jiggle 170ms ease-in-out infinite;
 }
-.album-editing:nth-child(2n) { animation-delay: -85ms; }
+.album-editing:nth-child(2n) {
+  animation-delay: -85ms;
+}
 @media (prefers-reduced-motion: reduce) {
-  .album-editing { animation: none; }
+  .album-editing {
+    animation: none;
+  }
 }
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）
@@ -970,11 +979,21 @@
   transform-origin: bottom;
   animation: usage-meter-rise 0.32s var(--spring-bounce) both;
 }
-.usage-meter__column:nth-child(1) { --meter-step: 1; }
-.usage-meter__column:nth-child(2) { --meter-step: 2; }
-.usage-meter__column:nth-child(3) { --meter-step: 3; }
-.usage-meter__column:nth-child(4) { --meter-step: 4; }
-.usage-meter__column:nth-child(5) { --meter-step: 5; }
+.usage-meter__column:nth-child(1) {
+  --meter-step: 1;
+}
+.usage-meter__column:nth-child(2) {
+  --meter-step: 2;
+}
+.usage-meter__column:nth-child(3) {
+  --meter-step: 3;
+}
+.usage-meter__column:nth-child(4) {
+  --meter-step: 4;
+}
+.usage-meter__column:nth-child(5) {
+  --meter-step: 5;
+}
 .usage-meter__column--active .usage-meter__bar {
   background: var(--primary);
   box-shadow: 0 1px 3px color-mix(in oklab, var(--primary) 28%, transparent);
@@ -986,8 +1005,14 @@
   text-align: center;
 }
 @keyframes usage-meter-rise {
-  from { transform: scaleY(0.15); opacity: 0.4; }
-  to { transform: scaleY(1); opacity: 1; }
+  from {
+    transform: scaleY(0.15);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
 }
 .usage-register__dial {
   position: relative;
@@ -1015,9 +1040,15 @@
   background: var(--muted-foreground);
   transform: translate(-50%, -50%);
 }
-.usage-register__tick--start { left: 0.375rem; }
-.usage-register__tick--middle { left: 50%; }
-.usage-register__tick--end { left: calc(100% - 0.375rem); }
+.usage-register__tick--start {
+  left: 0.375rem;
+}
+.usage-register__tick--middle {
+  left: 50%;
+}
+.usage-register__tick--end {
+  left: calc(100% - 0.375rem);
+}
 .usage-register__needle-path {
   pointer-events: none;
   position: absolute;
@@ -1031,7 +1062,9 @@
   border: 0.2rem solid var(--card);
   border-radius: 999px;
   background: var(--primary);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent), 0 2px 7px color-mix(in oklab, var(--primary) 35%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+    0 2px 7px color-mix(in oklab, var(--primary) 35%, transparent);
   transform: translate(-50%, -50%);
   transition: left 0.32s var(--spring-bounce);
 }
@@ -1054,8 +1087,12 @@
   line-height: 1rem;
   gap: 0.25rem;
 }
-.usage-register__labels > :nth-child(2) { text-align: center; }
-.usage-register__labels > :last-child { text-align: right; }
+.usage-register__labels > :nth-child(2) {
+  text-align: center;
+}
+.usage-register__labels > :last-child {
+  text-align: right;
+}
 .usage-scenes {
   border-radius: var(--radius-xl);
   background: color-mix(in oklab, var(--secondary) 50%, var(--card));
@@ -1382,8 +1419,8 @@
 /* Segmented nav pill */
 .seg-pill {
   background: color-mix(in oklab, var(--card) 65%, transparent);
-  backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
@@ -1429,15 +1466,67 @@
   animation: material-in 0.34s var(--ease-ios) backwards;
 }
 
+/* ── すりガラスの段階 ────────────────────────────────────────────────
+   **blur と saturate は対で使う。**
+
+   Apple の material は後ろを暈すだけでなく**彩度を上げ直す**。暈すと色が
+   混ざって灰色に寄るので、上げ直さないと後ろの写真がくすんで見える。
+   実測すると、この app の `backdrop-blur` 33 箇所のうち `saturate` が
+   付いていたのは **1 箇所だけ**(ヘッダ)だった。
+
+   そして blur の強さが **10 種類**(1/2/3/4/7/8/12/20/22/24px)、地の
+   不透明度が **13 種類**に散っていた。同じ役割のシートでも 80% / 95% / 97%
+   が混ざっている。段にして、ここ以外に数を書かない。
+
+   ## 3段の意味(厚いほど後ろが遠い)
+   ・`thin`    … 内容のすぐ上に浮く小さな印。押せる物の下地
+   ・`regular` … 画面の上端に貼り付く帯。部屋の見出し
+   ・`thick`   … 内容を覆って別の作業に入る面。シート
+
+   ## 地は `--background` から作る
+   固定の白/黒で書くと、暗いテーマと11個の `data-ui-theme` に追従しない。
+
+   ## ガラスは**手前の層だけ**(apple-design §13)
+   内容の層そのものをガラスにしない。全部がガラスなら、何も浮かない。 */
+.material-thin {
+  background: color-mix(in oklab, var(--background) 70%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+.material-regular {
+  background: color-mix(in oklab, var(--background) 85%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+.material-thick {
+  background: color-mix(in oklab, var(--background) 95%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+}
+
 /* §14 Accessibility — reduced transparency & increased contrast collapse the
    glass to a solid, legible surface instead of a frosted one. */
 @media (prefers-reduced-transparency: reduce) {
+  /* 段にしたので、**3つ書けば全部の面が落ちる**。以前は面を1つ足すたびに
+     ここへ名前を書き足す必要があり、書き忘れても誰も気づけなかった。 */
+  .material-thin,
+  .material-regular,
+  .material-thick {
+    background: var(--background);
+  }
+  .material-thin,
+  .material-regular,
+  .material-thick,
   .seg-pill,
   .glass-bar,
   .lift-glass,
   .room-head {
-    backdrop-filter: none !important;
+    /* **接頭辞つきを先、標準を後。** 逆に書くと、ミニファイアが標準側を
+       落として `-webkit-` だけを残す(ビルド後のCSSで確認)。Chrome /
+       Android / Safari 18+ は標準側を読むので、**この逃げ道が一度も
+       効いていなかった** — 透明度を下げる設定にしてもガラスは残っていた。 */
     -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
   /* `.app-sheet` はここに書かなくてよくなった — 既定から不透明。 */
   .seg-pill,
@@ -1749,7 +1838,9 @@
   align-items: center;
   gap: 0.5rem;
 }
-.usage-chunk-row__words { min-width: 0; }
+.usage-chunk-row__words {
+  min-width: 0;
+}
 .usage-chunk-row__meaning {
   margin: 0;
   font-size: var(--text-caption);
@@ -1766,7 +1857,9 @@
   border: 0;
   background: transparent;
   box-shadow: none;
-  transition: transform 0.16s var(--spring-bounce), color 0.16s ease;
+  transition:
+    transform 0.16s var(--spring-bounce),
+    color 0.16s ease;
 }
 .chunk-word-button:active {
   transform: translateY(1px) scale(0.95);
@@ -1785,8 +1878,12 @@
   box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .usage-meter__bar { animation: none; }
-  .usage-register__needle { transition: none; }
+  .usage-meter__bar {
+    animation: none;
+  }
+  .usage-register__needle {
+    transition: none;
+  }
   .chunk-pill {
     transition: none;
   }
@@ -2461,22 +2558,49 @@
 /* 新しい報酬着地。画像は空気抵抗で減速してから最後だけ重力で落ちる。
    棚板は衝突より遅れて一度だけたわみ、周囲へ重量を渡す。 */
 @keyframes rewardShelfSettle {
-  0%, 42% { transform: translateY(0) scaleY(1); }
-  56% { transform: translateY(2px) scaleY(0.992); }
-  72% { transform: translateY(-0.5px) scaleY(1.002); }
-  100% { transform: translateY(0) scaleY(1); }
+  0%,
+  42% {
+    transform: translateY(0) scaleY(1);
+  }
+  56% {
+    transform: translateY(2px) scaleY(0.992);
+  }
+  72% {
+    transform: translateY(-0.5px) scaleY(1.002);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
 }
 .reward-shelf {
-  animation: rewardShelfSettle 920ms cubic-bezier(.2,.72,.22,1) both;
+  animation: rewardShelfSettle 920ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
   transform-origin: 50% 100%;
 }
 
 @keyframes rewardSlotIn {
-  0% { opacity: 0; transform: translate3d(0,-42vh,0) scale(.72,.76) rotateZ(-2.5deg); filter: blur(2px) brightness(1.15); }
-  47% { opacity: 1; transform: translate3d(0,-8px,0) scale(.98,1.025) rotateZ(.35deg); filter: blur(0) brightness(1.08); }
-  56% { transform: translate3d(0,2px,0) scale(1.035,.93) rotateZ(0); filter: brightness(1.12); }
-  72% { transform: translate3d(0,-2px,0) scale(.992,1.012); filter: brightness(1.04); }
-  100% { opacity: 1; transform: translate3d(0,0,0) scale(1); filter: brightness(1); }
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -42vh, 0) scale(0.72, 0.76) rotateZ(-2.5deg);
+    filter: blur(2px) brightness(1.15);
+  }
+  47% {
+    opacity: 1;
+    transform: translate3d(0, -8px, 0) scale(0.98, 1.025) rotateZ(0.35deg);
+    filter: blur(0) brightness(1.08);
+  }
+  56% {
+    transform: translate3d(0, 2px, 0) scale(1.035, 0.93) rotateZ(0);
+    filter: brightness(1.12);
+  }
+  72% {
+    transform: translate3d(0, -2px, 0) scale(0.992, 1.012);
+    filter: brightness(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: brightness(1);
+  }
 }
 .reward-slot-in {
   z-index: 2;
@@ -2489,14 +2613,28 @@
   inset: -20% -28%;
   z-index: -1;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in oklab, var(--primary) 32%, transparent), transparent 66%);
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--primary) 32%, transparent),
+    transparent 66%
+  );
   animation: rewardSlotGlow 1250ms ease-out both;
   pointer-events: none;
 }
 @keyframes rewardSlotGlow {
-  0%, 30% { opacity: 0; transform: scale(.55); }
-  52% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.35); }
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
 }
 
 /* 切り抜きが出来上がった瞬間の「ポン」。カメラのフローで候補をタップした
@@ -2587,24 +2725,47 @@ html[data-reward-flight] .slam-in {
   background: color-mix(in oklab, var(--background) 84%, transparent);
   backdrop-filter: blur(0) saturate(1);
   opacity: 0;
-  transition: opacity 260ms ease, backdrop-filter 440ms ease;
+  transition:
+    opacity 260ms ease,
+    backdrop-filter 440ms ease;
 }
 .reward-catch[data-stage="lift"] .reward-catch__veil,
 .reward-catch[data-stage="charge"] .reward-catch__veil,
-.reward-catch[data-stage="hold"] .reward-catch__veil { opacity: .93; backdrop-filter: blur(7px) saturate(.32); }
+.reward-catch[data-stage="hold"] .reward-catch__veil {
+  opacity: 0.93;
+  backdrop-filter: blur(7px) saturate(0.32);
+}
 .reward-catch[data-stage="break"] .reward-catch__veil,
 .reward-catch[data-stage="reveal"] .reward-catch__veil,
-.reward-catch[data-stage="transfer"] .reward-catch__veil { opacity: 1; background: var(--reward-surface); backdrop-filter: blur(12px) saturate(.18); }
+.reward-catch[data-stage="transfer"] .reward-catch__veil {
+  opacity: 1;
+  background: var(--reward-surface);
+  backdrop-filter: blur(12px) saturate(0.18);
+}
 .reward-catch__field {
   opacity: 0;
   background:
-    radial-gradient(circle at 50% 38%, color-mix(in oklab, var(--primary) 19%, transparent), transparent 32%),
-    linear-gradient(155deg, transparent 32%, color-mix(in oklab, var(--foreground) 5%, transparent) 50%, transparent 68%);
-  transform: scale(.82);
-  transition: opacity 300ms ease, transform 650ms cubic-bezier(.16,1,.3,1);
+    radial-gradient(
+      circle at 50% 38%,
+      color-mix(in oklab, var(--primary) 19%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(
+      155deg,
+      transparent 32%,
+      color-mix(in oklab, var(--foreground) 5%, transparent) 50%,
+      transparent 68%
+    );
+  transform: scale(0.82);
+  transition:
+    opacity 300ms ease,
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reward-catch[data-stage="break"] .reward-catch__field,
-.reward-catch[data-stage="reveal"] .reward-catch__field { opacity: 1; transform: scale(1); }
+.reward-catch[data-stage="reveal"] .reward-catch__field {
+  opacity: 1;
+  transform: scale(1);
+}
 .reward-catch__image {
   position: fixed;
   z-index: 84;
@@ -2612,7 +2773,9 @@ html[data-reward-flight] .slam-in {
   will-change: transform, opacity;
   filter: drop-shadow(0 22px 22px color-mix(in oklab, var(--foreground) 28%, transparent));
 }
-.reward-catch__image--empty { opacity: 0 !important; }
+.reward-catch__image--empty {
+  opacity: 0 !important;
+}
 .reward-catch__charge {
   inset: 50% auto auto 50%;
   width: min(82vw, 380px);
@@ -2620,7 +2783,7 @@ html[data-reward-flight] .slam-in {
   border-radius: 34%;
   border: 1px solid color-mix(in oklab, var(--primary) 70%, transparent);
   opacity: 0;
-  transform: translate(-50%,-50%) rotate(-8deg) scale(.76);
+  transform: translate(-50%, -50%) rotate(-8deg) scale(0.76);
 }
 .reward-catch__charge,
 .reward-catch__shockwave,
@@ -2629,9 +2792,11 @@ html[data-reward-flight] .slam-in {
 }
 .reward-catch[data-stage="charge"] .reward-catch__charge,
 .reward-catch[data-stage="hold"] .reward-catch__charge {
-  opacity: .72;
-  transform: translate(-50%,-50%) rotate(0) scale(1);
-  transition: opacity 180ms ease, transform 560ms cubic-bezier(.4,0,.6,1);
+  opacity: 0.72;
+  transform: translate(-50%, -50%) rotate(0) scale(1);
+  transition:
+    opacity 180ms ease,
+    transform 560ms cubic-bezier(0.4, 0, 0.6, 1);
 }
 .reward-catch__shockwave {
   inset: 38% auto auto 50%;
@@ -2640,12 +2805,20 @@ html[data-reward-flight] .slam-in {
   border: 2px solid color-mix(in oklab, var(--primary) 62%, var(--foreground) 12%);
   border-radius: 50%;
   opacity: 0;
-  transform: translate(-50%,-50%) scale(.2);
+  transform: translate(-50%, -50%) scale(0.2);
 }
 .reward-catch[data-stage="break"] .reward-catch__shockwave {
-  animation: rewardShock 460ms cubic-bezier(.12,.7,.18,1) both;
+  animation: rewardShock 460ms cubic-bezier(0.12, 0.7, 0.18, 1) both;
 }
-@keyframes rewardShock { 35% { opacity: .82; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(3.6); } }
+@keyframes rewardShock {
+  35% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(3.6);
+  }
+}
 .reward-catch__copy {
   inset: auto 1rem max(10vh, 4.5rem);
   z-index: 85;
@@ -2654,43 +2827,90 @@ html[data-reward-flight] .slam-in {
   color: var(--reward-ink);
   opacity: 0;
   filter: blur(12px);
-  transform: scale(.96);
+  transform: scale(0.96);
 }
 .reward-catch[data-stage="reveal"] .reward-catch__copy {
   opacity: 1;
   filter: blur(0);
   transform: scale(1);
-  transition: opacity 280ms ease, filter 420ms ease, transform 420ms cubic-bezier(.16,1,.3,1);
+  transition:
+    opacity 280ms ease,
+    filter 420ms ease,
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.reward-catch[data-stage="transfer"] .reward-catch__copy { opacity: 0; filter: blur(5px); transform: scale(.98); transition: all 260ms ease; }
+.reward-catch[data-stage="transfer"] .reward-catch__copy {
+  opacity: 0;
+  filter: blur(5px);
+  transform: scale(0.98);
+  transition: all 260ms ease;
+}
 /* **`--font-word` は定義が存在しなかった。** アプリ全体を探しても
    `--font-word` を定義している行が1つも無く、この画面でいちばん大きい字
    ——捕まえた語そのもの——が無指定で継承フォントに落ちていた。
    大きい字の書体は `--font-display`(= 本文と同じ書体。大きさと字間だけで
    差を付ける、という `--font-display` の所に書いた方針)。 */
-.reward-catch__word { font-family: var(--font-display); font-size: clamp(2.75rem, 13vw, 5rem); font-weight: 800; line-height: 1; overflow-wrap: anywhere; }
-.reward-catch__reading { margin-top: .6rem; font-size: 1.05rem; font-weight: 650; color: var(--muted-foreground); }
-.reward-catch__stamp { margin-top: .8rem; font-size: .72rem; font-weight: 750; letter-spacing: .16em; color: var(--primary); }
-.reward-catch__particles { z-index: 83; opacity: 0; }
+.reward-catch__word {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 13vw, 5rem);
+  font-weight: 800;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.reward-catch__reading {
+  margin-top: 0.6rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--muted-foreground);
+}
+.reward-catch__stamp {
+  margin-top: 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  color: var(--primary);
+}
+.reward-catch__particles {
+  z-index: 83;
+  opacity: 0;
+}
 .reward-catch__particles i {
   --reward-angle: calc(var(--reward-i) * 30deg + 8deg);
   position: absolute;
-  left: 50%; top: 38%;
-  width: 3px; height: 12px;
+  left: 50%;
+  top: 38%;
+  width: 3px;
+  height: 12px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--primary) 76%, var(--foreground) 24%);
   opacity: 0;
-  transform: translate(-50%,-50%) rotate(var(--reward-angle)) translateY(-8vmin) scaleY(.4);
+  transform: translate(-50%, -50%) rotate(var(--reward-angle)) translateY(-8vmin) scaleY(0.4);
 }
-.reward-catch__particles i:nth-child(3n + 2) { height: 18px; }
-.reward-catch__particles i:nth-child(3n) { height: 8px; }
+.reward-catch__particles i:nth-child(3n + 2) {
+  height: 18px;
+}
+.reward-catch__particles i:nth-child(3n) {
+  height: 8px;
+}
 .reward-catch[data-stage="break"] .reward-catch__particles,
-.reward-catch[data-stage="reveal"] .reward-catch__particles { opacity: 1; }
-.reward-catch[data-stage="break"] .reward-catch__particles i { animation: rewardParticle 760ms cubic-bezier(.16,.75,.2,1) both; animation-delay: calc(var(--reward-i) * 13ms); }
+.reward-catch[data-stage="reveal"] .reward-catch__particles {
+  opacity: 1;
+}
+.reward-catch[data-stage="break"] .reward-catch__particles i {
+  animation: rewardParticle 760ms cubic-bezier(0.16, 0.75, 0.2, 1) both;
+  animation-delay: calc(var(--reward-i) * 13ms);
+}
 @keyframes rewardParticle {
-  0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--reward-angle)) translateY(-8vmin) scaleY(.4); }
-  18% { opacity: .9; }
-  100% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--reward-angle)) translateY(-37vmin) scaleY(1); }
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--reward-angle)) translateY(-8vmin) scaleY(0.4);
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--reward-angle)) translateY(-37vmin) scaleY(1);
+  }
 }
 
 /* Reduce motion (apple-design Part VI) — reduced motion is not *no* feedback: we
@@ -2734,9 +2954,16 @@ html[data-reward-flight] .slam-in {
     animation: none !important;
   }
   .reward-catch__shockwave,
-  .reward-catch__particles i { animation: none !important; }
-  .reward-catch__charge { display: none; }
-  .reward-catch__image { transition: opacity 180ms ease !important; transform: none !important; }
+  .reward-catch__particles i {
+    animation: none !important;
+  }
+  .reward-catch__charge {
+    display: none;
+  }
+  .reward-catch__image {
+    transition: opacity 180ms ease !important;
+    transform: none !important;
+  }
 
   /* Entrance animations → a gentle non-vestibular cross-fade, no translate/scale. */
   .pop-in,

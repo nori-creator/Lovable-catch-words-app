@@ -35,7 +35,7 @@ export function SectionsPanel({ open, onClose }: { open: boolean; onClose: () =>
         open ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-4 opacity-0"
       }`}
     >
-      <div className="mt-2 rounded-2xl border border-border bg-card/95 p-2 shadow-xl backdrop-blur">
+      <div className="mt-2 rounded-2xl border border-border p-2 shadow-xl material-thick">
         <div className="mb-1.5 flex items-center justify-between gap-1 pl-1.5">
           <p className="min-w-0 truncate text-footnote font-semibold text-muted-foreground">
             {t("card.sections")}

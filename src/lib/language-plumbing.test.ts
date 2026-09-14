@@ -2520,6 +2520,71 @@ describe("キャッチの報酬演出", () => {
     expect(line!).not.toMatch(/\b(both|forwards)\b/);
   });
 
+  /**
+   * すりガラスの接頭辞は**つき が先、標準が後**。
+   *
+   * 逆に書くと、ミニファイア(Lightning CSS)が標準側を落として `-webkit-` だけを
+   * 残す。ビルド後のCSSを読んで初めて分かる類の壊れ方で、**ソースを見ている
+   * 限り正しく見える**。
+   *
+   * 実害があった: 透明度を下げる設定のときにガラスを消す規則が
+   * `-webkit-backdrop-filter` だけになっていて、標準側を読む Chrome /
+   * Android / Safari 18+ では**一度も効いていなかった**。
+   * (ブラウザで測ると、直す前は設定を入れてもガラス 2面が残り、
+   *  直した後は 0面になる。)
+   */
+  it("`backdrop-filter` は接頭辞つきを先に書く（逆だと標準側が消える）", () => {
+    for (const file of ["styles.css", "pack-styles.css"]) {
+      const css = read(file);
+      const lines = css.split("\n");
+      const wrong: string[] = [];
+      for (let i = 0; i < lines.length - 1; i++) {
+        // 標準 → 接頭辞つき の並びが出たら、その規則は畳まれる側。
+        if (
+          /^\s*backdrop-filter\s*:/.test(lines[i]) &&
+          /^\s*-webkit-backdrop-filter\s*:/.test(lines[i + 1])
+        ) {
+          wrong.push(`${file}:${i + 1}`);
+        }
+      }
+      expect([file, wrong]).toEqual([file, []]);
+    }
+  });
+
+  /**
+   * すりガラスは**段のクラスだけ**が持つ。
+   *
+   * 直す前は blur の強さが 10 種類・地の不透明度が 13 種類に散っていて、
+   * 同じ役割のシートでも 80% / 95% / 97% が混ざっていた。さらに
+   * `backdrop-saturate` が付いていたのは **33 箇所中 1 箇所だけ** —
+   * Apple の material は blur と saturate が対で、上げ直さないと後ろの色が
+   * 灰色に濁る。
+   *
+   * 地が `--background` / `--card` の面(= 手前の chrome)は段に寄せた。
+   * 写真の上の黒い暗幕(`bg-black/NN`)は別物なので、ここでは見ない。
+   */
+  it("地が背景色のガラスは、段のクラスで持つ（値を散らさない）", () => {
+    const files = [
+      "components/AppShell.tsx",
+      "components/ScanDetailSheet.tsx",
+      "components/InputCatchSheet.tsx",
+      "components/StickerSheet.tsx",
+      "components/DexShelf.tsx",
+      "components/SectionsPanel.tsx",
+      "routes/_authenticated/scan.tsx",
+      "routes/_authenticated/feed.tsx",
+      "routes/_authenticated/post.$postId.tsx",
+    ];
+    const stray: string[] = [];
+    for (const f of files) {
+      for (const line of codeOnly(read(f)).split("\n")) {
+        if (!/backdrop-blur/.test(line)) continue;
+        if (/bg-(background|card)\//.test(line)) stray.push(`${f}: ${line.trim().slice(0, 70)}`);
+      }
+    }
+    expect(stray).toEqual([]);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、

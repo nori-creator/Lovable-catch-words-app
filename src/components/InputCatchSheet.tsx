@@ -620,7 +620,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   return (
     <div
       {...dragProps}
-      className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md"
+      className="material-in fixed inset-0 z-50 flex flex-col material-thick"
       role="dialog"
       aria-modal="true"
       aria-label={t("input.title")}
