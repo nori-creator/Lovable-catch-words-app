@@ -55,6 +55,8 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { Zh } from "@/components/Zh";
+import { useDragDismiss } from "@/hooks/use-drag-dismiss";
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { isTargetHeadword } from "@/lib/target-language";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { Sound } from "@/lib/sound-engine";
@@ -607,13 +609,29 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
 
   const verified = !!dict && dict.source === "verified";
 
+  // 下へ引いて閉じる。動きを減らす設定の人には付けない
+  // (掴めるが動かない、より**掴めない**ほうが分かりやすい)。
+  const reducedMotionForDrag = usePrefersReducedMotion();
+  const { dragProps, grabber } = useDragDismiss({
+    onDismiss: onClose,
+    enabled: !reducedMotionForDrag,
+  });
+
   return (
     <div
+      {...dragProps}
       className="material-in fixed inset-0 z-50 flex flex-col bg-background/97 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label={t("input.title")}
     >
+      {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
+          機能があっても発見されなければ無いのと同じ。 */}
+      {grabber && (
+        <div className="shrink-0 pb-1 pt-2" aria-hidden>
+          <div className="mx-auto h-1 w-9 rounded-full bg-foreground/25" />
+        </div>
+      )}
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <span className="inline-flex items-center gap-1.5 pl-1 text-footnote font-medium text-muted-foreground">
           <Keyboard className="h-3.5 w-3.5" /> {t("input.title")}

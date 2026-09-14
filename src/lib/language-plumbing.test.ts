@@ -2458,6 +2458,68 @@ describe("キャッチの報酬演出", () => {
     }
   });
 
+  /**
+   * 覆っている面は、指で下へ払って閉じられる。
+   *
+   * ## なぜ門にするか
+   * この app の「シート」4本はどれも `fixed inset-0` の全画面の面で、
+   * **掴む余地が無かった** — ドラッグで閉じる・つまみ・引いたときの抵抗、
+   * どれも 0。iOS で覆いが出たとき人がまずやるのは「下へ払う」ことなので、
+   * そこに何も起きないと、その面は貼り付いているように感じる。
+   *
+   * 絵の検査ではここを見られない。`sheet` の場面は**シートの外枠を手で
+   * 複製している**ので(本物の `StickerSheet` を描いていない)、本物を直しても
+   * あの絵は変わらない。動きなので、そもそも静止画には映らない。
+   */
+  const SHEETS = [
+    "components/ScanDetailSheet.tsx",
+    "components/InputCatchSheet.tsx",
+    "components/StickerSheet.tsx",
+    "components/ScanCatchSheet.tsx",
+  ];
+
+  it("**4本すべてが**下へ引いて閉じられる（掴む余地がある）", () => {
+    for (const f of SHEETS) {
+      const src = codeOnly(read(f));
+      expect([f, /useDragDismiss\(/.test(src)]).toEqual([f, true]);
+      // 面そのものに付いていること。内側の箱に付けると、面は動かない。
+      expect([f, /\{\.\.\.dragProps\}/.test(src)]).toEqual([f, true]);
+      // つまみが出ること。機能があっても、見えなければ発見されない。
+      expect([f, /\{grabber &&/.test(src)]).toEqual([f, true]);
+    }
+  });
+
+  it("動きを減らす設定の人には**掴ませない**（掴めるが動かない、が一番分かりにくい）", () => {
+    for (const f of SHEETS) {
+      const src = codeOnly(read(f));
+      expect([f, /enabled: !reducedMotionForDrag/.test(src)]).toEqual([f, true]);
+    }
+  });
+
+  /**
+   * `material-in` は 100% の keyframe を持ち続けてはいけない。
+   *
+   * `both` は `forwards` を含むので、終わったあとも keyframe が `transform` を
+   * 握り続ける。CSS アニメーションはインライン style より強いので、
+   * **この class が付いた面は二度と transform を動かせなくなる** —
+   * 指で引いても値は書けているのに画面は動かない、という形で出る
+   * (実際そうなり、`getComputedStyle` が単位行列を返して初めて分かった)。
+   */
+  it("`material-in` が終わったあと transform を手放す（`forwards` にしない）", () => {
+    // **`animation:` の行だけを見る。** 規則の塊ごと見ると、この決定の
+    // 経緯を書いた注釈に出てくる "both" / "forwards" の字を拾って落ちる
+    // (実際落ちた)。`codeOnly` は行頭が `*` `//` `/*` の行しか落とさないので、
+    // 和文で字下げした継続行は残る — CSS 側の注釈には効かない。
+    const css = read("styles.css");
+    const rule = css.slice(css.indexOf(".material-in {"));
+    const decl = rule.slice(0, rule.indexOf("}"));
+    const line = decl.split("\n").find((l) => /^\s*animation:/.test(l));
+    expect(line).toBeDefined();
+    expect(line!).toMatch(/material-in/);
+    // `both` は `forwards` を含む。どちらも 100% の keyframe を持ち続ける。
+    expect(line!).not.toMatch(/\b(both|forwards)\b/);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、

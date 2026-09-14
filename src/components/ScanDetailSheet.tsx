@@ -4,6 +4,8 @@ import { WordCard } from "@/components/WordCard";
 import type { GeneratedCard } from "@/lib/ai.functions";
 import type { DetectedItem, DictionaryEntry } from "@/lib/scan.functions";
 import { Zh } from "@/components/Zh";
+import { useDragDismiss } from "@/hooks/use-drag-dismiss";
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { useT } from "@/lib/i18n";
 
 type Props = {
@@ -38,6 +40,14 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
     };
   }, [cardPromise, t]);
 
+  // 下へ引いて閉じる。動きを減らす設定の人には付けない
+  // (掴めるが動かない、より**掴めない**ほうが分かりやすい)。
+  const reducedMotionForDrag = usePrefersReducedMotion();
+  const { dragProps, grabber } = useDragDismiss({
+    onDismiss: onClose,
+    enabled: !reducedMotionForDrag,
+  });
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -48,9 +58,17 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
 
   return (
     <div
+      {...dragProps}
       className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
       role="dialog"
     >
+      {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
+          機能があっても発見されなければ無いのと同じ。 */}
+      {grabber && (
+        <div className="shrink-0 pt-2 pb-1" aria-hidden>
+          <div className="mx-auto h-1 w-9 rounded-full bg-foreground/25" />
+        </div>
+      )}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         {/* **主題のほうを重くする。** 見出しが 12px のグレーで、右の × が
             44px の枠付き白丸だったので、**退出口が主題より目立って**いた

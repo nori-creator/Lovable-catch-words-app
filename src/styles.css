@@ -1415,7 +1415,18 @@
   }
 }
 .material-in {
-  animation: material-in 0.34s var(--ease-ios) both;
+  /* **`both` ではなく `backwards`。**
+
+     `both` は `forwards` を含むので、アニメーションが終わったあとも 100% の
+     keyframe が `transform` を握り続ける。CSS アニメーションはインライン
+     style より強いので、**この class が付いた面は二度と transform を
+     動かせなくなる**(指で引いても値は書けているのに画面は動かない、という
+     形で出る。実際そうなった)。
+
+     100% は `translateY(0) scale(1)` = 何も付けない状態と同じなので、
+     `backwards` にしても見た目は変わらない。始まる前に 0% を当てる役目
+     (最初の1枚が素の状態で写るのを防ぐ)だけが残り、終わったら手を離す。 */
+  animation: material-in 0.34s var(--ease-ios) backwards;
 }
 
 /* §14 Accessibility — reduced transparency & increased contrast collapse the

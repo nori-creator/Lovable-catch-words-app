@@ -56,6 +56,8 @@ import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { localeOf, type UiLang, useT, useUiLang } from "@/lib/i18n";
 import { LoadFailed } from "@/components/LoadFailed";
+import { useDragDismiss } from "@/hooks/use-drag-dismiss";
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 type Props = {
   stickerId: string | null;
@@ -68,6 +70,14 @@ type Props = {
 };
 
 export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
+  // 下へ引いて閉じる。動きを減らす設定の人には付けない
+  // (掴めるが動かない、より**掴めない**ほうが分かりやすい)。
+  const reducedMotionForDrag = usePrefersReducedMotion();
+  const { dragProps, grabber } = useDragDismiss({
+    onDismiss: onClose,
+    enabled: !reducedMotionForDrag,
+  });
+
   const t = useT();
   const uiLang = useUiLang();
   const fetchSticker = useServerFn(getSticker);
@@ -634,11 +644,19 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
 
   return (
     <div
+      {...dragProps}
       className="material-in fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
     >
+      {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
+          機能があっても発見されなければ無いのと同じ。 */}
+      {grabber && (
+        <div className="shrink-0 pb-1 pt-2" aria-hidden>
+          <div className="mx-auto h-1 w-9 rounded-full bg-foreground/25" />
+        </div>
+      )}
       {/* Close bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur">
         <Term
