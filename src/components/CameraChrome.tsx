@@ -29,47 +29,13 @@ const MODE_KEY: Record<CameraMode, string> = {
 };
 
 /**
- * 撮り方を選ぶ帯。**iPhone のカメラと同じ並べ方。**（オーナー指示 2026-09-15
- * 「検索、写真を撮る、スキャンの3つのモードをカメラのアイコンを押した時に
- *  表示するようにして。どれかを選択した場合は、残りの2つが下に現れるように」）
+ * 撮り方の並べ方は **`components/CameraDial.tsx`** へ移した
+ * （オーナー指示 2026-09-16「シャッターボタンの丸の周りにダイヤルのように
+ *  ボタンとして囲い、スライドしたら切り替えられるように」）。
  *
- * ## なぜ「選んだ物が上、残りが下」なのか
- * 3つを対等に並べると、**いまどれで撮っているのかが読めない**。カメラは
- * 覗いたまま切り替える物なので、選ばれている1つを大きく・色付きで上に置き、
- * 残りの2つを小さく下に置く。押せば入れ替わる。
- *
- * Apple のカメラは選択中だけを黄色く塗り、他は白のまま小さく残す。ここも
- * 同じで、**色だけに頼らない**ように大きさと `aria-current` も変える
- * （HIG「色だけで意味を伝えない」）。
+ * ここに在った縦積みの帯は消した。**使われない物を残さない** — 同じ役目の
+ * 部品が2つあると、次に直す人がどちらを直せばいいか分からなくなる。
  */
-export function CameraModeStrip({
-  mode,
-  onChange,
-  className = "",
-}: {
-  mode: CameraMode;
-  onChange: (m: CameraMode) => void;
-  className?: string;
-}) {
-  const t = useT();
-  const rest = CAMERA_MODES.filter((m) => m !== mode);
-  return (
-    <div className={`camera-modes ${className}`} role="group" aria-label={t("camera.modeGroup")}>
-      {/* 選ばれている撮り方 — 大きく、上に。 */}
-      <span className="camera-modes__current" aria-current="true">
-        {t(MODE_KEY[mode])}
-      </span>
-      {/* 残りの2つ — 下に、小さく。押すと入れ替わる。 */}
-      <div className="camera-modes__rest">
-        {rest.map((m) => (
-          <button key={m} type="button" onClick={() => onChange(m)} className="camera-modes__other">
-            {t(MODE_KEY[m])}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /**
  * 倍率の刻み。**端末が本当に出せる範囲からだけ作る。**

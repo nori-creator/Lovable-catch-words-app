@@ -2585,9 +2585,20 @@ describe("ホームのアルバムの長押し", () => {
    */
   it("復習の選択肢は、高さで押し込まない（注音が潰れる）", () => {
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    // 等分に押し込む古い形が残っていないこと。
     expect(rv).not.toMatch(/grid-rows-4/);
+    /**
+     * **下限つきで余りを分ける。**（オーナー指摘 2026-09-16
+     * 「復讐の四択の下の余白気になる。下までバランスよく大きさを計算して」）
+     *
+     * 縦に積むだけだと余りが全部いちばん下に溜まる（実測 390×844 で
+     * 札の中に 292px の空き）。`minmax(3.5rem, 1fr)` にすると余りは
+     * 行数で等分され、**3.5rem より縮むことは絶対に無い** — 注音が
+     * 潰れないという上の約束は守ったまま、余白だけが消える（実測 13px）。
+     */
+    expect(rv).toMatch(/minmax\(3\.5rem, 1fr\)/);
     // 入らなければ送る（「必ずしも選択肢をすべて表示する必要はない」）。
-    expect(rv).toMatch(/flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto/);
+    expect(rv).toMatch(/grid min-h-0 flex-1 gap-1\.5 overflow-y-auto/);
   });
 
   it("解説が無い語でも、答え合わせを空にしない", () => {
@@ -3377,18 +3388,27 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 前は白の濃淡（70% → 100%）だけだった。同じ色の濃淡は「色が変わった」と
    * 読まれない。地と字を入れ替える。
    */
-  it("カメラのタブに居ると、丸の地と字が入れ替わる", () => {
+  /**
+   * **カメラの画面に居る間、下の丸は居ない。**（オーナー指示 2026-09-16
+   * 「下のカメラのアイコンがそのままシャッターボタンになるようにして。
+   *  つまり下のカメラのアイコンが上に移動し下にはカメラのアイコンなくなる」）
+   *
+   * 丸はシャッターへ移った、という筋を通す。両方に在ると「同じ物が2つ
+   * ある」ことになり、上へ動いた意味が消える。押す所そのものは升目が
+   * 持っているので、カメラから出られなくなることはない。
+   */
+  it("カメラの画面に居る間、下の帯の丸は消える", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
-    const lens = shell.slice(
-      shell.indexOf("isCurrent"),
-      shell.indexOf("</span>\n                  </span>"),
-    );
-    // 居るとき: 地が白、字が主色。
-    expect(lens).toMatch(/bg-primary-foreground text-primary/);
-    // 居ないとき: その逆。
-    expect(lens).toMatch(/bg-primary text-primary-foreground/);
-    // 濃淡だけで済ませていた昔の形が残っていないこと。
-    expect(lens).not.toMatch(/text-primary-foreground\/70/);
+    expect(shell).toMatch(/tabbar__lens tabbar__lens--gone/);
+    // 居ないときはこれまでどおり主色の丸。
+    expect(shell).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
+    // パッと消さない（壊れたように見える）。濃さと大きさで送る。
+    const css = read("styles.css");
+    const rule = css.slice(css.indexOf(".tabbar__lens--gone {"));
+    const body = rule.slice(0, rule.indexOf("\n}"));
+    expect(body).toMatch(/opacity: 0/);
+    expect(body).toMatch(/scale: 0\.4/);
+    expect(body).toMatch(/transition:/);
   });
 
   /**
@@ -3410,51 +3430,81 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **軌跡は px のばねで回す。0〜1 の進み具合では回さない。**
+   * **広がるのは本物の見出し。写しは作らない。**（オーナー報告 4回目
+   * 2026-09-16「いまだにアニメーションが変。一からやり直して」）
    *
-   * `spring.ts` の収束判定は「0.05px / 0.5px/s」で、画面の値を動かす前提の数。
-   * 0〜1 に使うと 1 の手前 5% で止まり、狙った跳ねが**実測 0.7%** になる。
+   * 前は写しを1枚飛ばし、`[data-sheet-hero]` を探して着地させていた。
+   * 雛形で実物の道を通して測ったら、こう出た:
+   *
+   * | 時刻 | 面の濃さ | 入場クラス | 飛んでいる写し |
+   * |---|---|---|---|
+   * | 0ms | 0.00 | – | 有り |
+   * | 99ms | **1.00** | – | **有り** ← 面と写しが同時＝二重 |
+   * | 297ms | **0.00** | **material-in** | 無し ← **演出が頭からやり直す** |
+   *
+   * 写しをやめると、この2つは**構造として**起きなくなる — 絵は1枚しか
+   * 無く、動かしている物が行き先そのものなので「見つからない」が無い。
    */
-  it("札から詳細へ飛ぶ絵は、道のりと大きさを別のばねで回す", () => {
-    const src = codeOnly(read("components/HeroFlight.tsx"));
-    // 中心(x,y)と大きさ(w,h)で4本。
-    expect((src.match(/createSpring\(/g) ?? []).length).toBe(4);
-    // 道のりは跳ねない、大きさだけ跳ねる。
-    expect(src).toMatch(/damping: 1, response: 0\.4 \}/);
-    expect(src).toMatch(/const POP = \{ damping: 0\.6/);
-    // px で回していること（`origin.w` から `to.width` へ直に）。
-    expect(src).toMatch(/createSpring\(origin\.w, \(\) => \{\}, POP\)/);
-    // 大きさは真ん中から膨らませる（左上基準だと右下へ逃げる）。
-    expect(src).toMatch(/cx\.value\(\) - ww \/ 2/);
+  it("札から詳細への動きは、写しを作らず本物の見出しを広げる", () => {
+    const src = codeOnly(read("components/use-hero-reveal.ts"));
+    // 動かすのは渡された箱そのもの。
+    expect(src).toMatch(/const ref = useRef<HTMLDivElement \| null>\(null\)/);
+    expect(src).toMatch(/el\.getBoundingClientRect\(\)/);
+    // 写しを作る道が無いこと。
+    expect(src).not.toMatch(/createElement\(/);
+    expect(src).not.toMatch(/createPortal/);
+    expect(src).not.toMatch(/querySelector/);
+    // 写しを飛ばす部品そのものが消えていること。
+    expect(() => read("components/HeroFlight.tsx")).toThrow();
+    expect(codeOnly(read("components/StickerSheet.tsx"))).not.toMatch(/HeroFlight/);
   });
 
   /**
-   * **溶けるのは、ばねではなく自分の輪が回す。**
+   * **ばねは px で回す。0〜1 の倍率では回さない。**
    *
-   * ばねに描かせると収束した瞬間に呼ばれなくなり、溶けている途中で止まる。
-   * 実測では写しが**透明度 0.287 のまま画面に残った**。
+   * `spring.ts` の収束判定は「0.05px / 0.5px/s」で、画面の値を動かす前提の数。
+   * 倍率(0.66→1.0)に使うと 1 の手前で打ち切られ、跳ねが丸ごと消える。
    */
-  it("飛んでいる絵は必ず消える（ばねの収束に溶け方を任せない）", () => {
-    const src = codeOnly(read("components/HeroFlight.tsx"));
-    // ばねは値を持つだけ。描くのは自前の輪。
-    expect(src).toMatch(/createSpring\(origin\.x \+ origin\.w \/ 2, \(\) => \{\}/);
-    expect(src).toMatch(/const tick = \(\) => \{/);
-    expect(src).toMatch(/requestAnimationFrame\(tick\)/);
-    // 行き先に届かないまま力尽きても畳むこと。
-    expect(src).toMatch(/performance\.now\(\) - t0 > 1500/);
-    /**
-     * **本物の見出しを出し忘れない。**
-     *
-     * 飛んでいる間、本物は伏せてある。出す合図(`arrive`)が抜けると
-     * **見出しが永久に消えたまま**になる — しかも写しは消えるので、
-     * 「写真だけ出ない詳細」という気づきにくい形で壊れる。
-     * 途中で終わる道が3つあるので、3つとも通ること。
-     */
-    expect(src).toMatch(/const arrive = \(\) => \{/);
-    // ①届いた ②畳んだ ③動きを減らす設定
-    expect((src.match(/\barrive\(\);/g) ?? []).length).toBeGreaterThanOrEqual(2);
-    const reduced = src.slice(src.indexOf("if (motionReducedNow())"));
-    expect(reduced.slice(0, 160)).toMatch(/onArrive\(\)/);
+  it("広がる動きは、幅と高さを px で回す（倍率では回さない）", () => {
+    const src = codeOnly(read("components/use-hero-reveal.ts"));
+    // 位置2本・大きさ2本・角の丸み1本。
+    expect((src.match(/createSpring\(/g) ?? []).length).toBe(5);
+    // 幅・高さは px の値から始めて px の値へ。
+    expect(src).toMatch(/const pw = createSpring\(w0, paint, POP\)/);
+    expect(src).toMatch(/pw\.to\(last\.width\)/);
+    // 倍率はそこから割り算で出す（ばねには入れない）。
+    expect(src).toMatch(/pw\.value\(\) \/ last\.width/);
+    // 大きさだけ跳ね、居場所は跳ねない。
+    expect(src).toMatch(/const POP = \{ damping: 0\.54/);
+    expect(src).toMatch(/const GLIDE = \{ damping: 1/);
+  });
+
+  /**
+   * **入場の仕方は開いた時に一度だけ決める。**
+   *
+   * 前は「いま飛んでいるか」で決めていたので、着いた瞬間に `material-in`
+   * が付いて、ふつうのフェードが頭からやり直していた（上の表の 297ms）。
+   */
+  it("札を開く面の入場クラスは、動きの途中で切り替わらない", () => {
+    const src = codeOnly(read("components/StickerSheet.tsx"));
+    expect(src).toMatch(/\$\{reveal \? "sheet-around-in" : "material-in"\}/);
+    // 開いた時の値をそのまま持ち回る（着地で変わる値を見ない）。
+    expect(src).toMatch(/const reveal = flightRef\.current\.origin;/);
+    expect(src).not.toMatch(/landed/);
+    // まわりだけ薄く乗せ、写真の箱には掛けない。
+    expect(read("styles.css")).toMatch(/\.sheet-around-in > \*:not\(\[data-sheet-hero\]\)/);
+  });
+
+  /**
+   * **閉じたら、走らせた印を捨てる。**
+   *
+   * 残したままだと「同じ札をもう一度開く」が素通りする（閉じても札の id は
+   * 同じなので）。雛形で 1回目 0.92→1.033倍、2回目**まったく動かない**と出た。
+   */
+  it("同じ札を開き直しても、毎回ちゃんと広がる", () => {
+    const src = codeOnly(read("components/use-hero-reveal.ts"));
+    const guard = src.slice(src.indexOf("if (!el || !origin || !key)"));
+    expect(guard.slice(0, 120)).toMatch(/ranFor\.current = null;/);
   });
 
   /**
@@ -3642,24 +3692,23 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **面が出るのを、絵が飛び終わる頃まで待たせる。**（オーナー報告 2026-09-15
+   * **面は最初から濃い。薄く重ねない。**（オーナー報告 2026-09-15
    * 「画像が同じものが二重になって表示されてる」）
    *
-   * 押した瞬間から面を濃くすると、その間**後ろのアルバムが透けて見える**。
-   * 面の中には大きな写真、後ろにはアルバムの写真 — 写真の上に写真が
-   * 半分ずつ重なるので二重写しになる。
+   * 写しをやめた今、面を伏せる理由がそもそも無い — 動いているのは面の中の
+   * 写真1枚だけで、その下にアルバムが透ける瞬間が存在しない。
+   * 伏せる仕掛け(`panelShown` / `sheet-hero-hidden`)を残すと、出す合図を
+   * 取りこぼしたときに**面が永久に消える**ので、道ごと消しておく。
    */
-  it("札の面は、飛んでいる絵が着いた**1コマで**出る（薄く重ねない）", () => {
+  it("札の面は伏せない（薄く重ねる仕掛けを残さない）", () => {
     const src = codeOnly(read("components/StickerSheet.tsx"));
-    // 飛ぶ回は面ごと伏せ、`onArrive` で面と見出しを同時に出す。
-    expect(src).toMatch(/const \[panelShown, setPanelShown\] = useState\(true\)/);
-    expect(src).toMatch(/style=\{panelShown \? undefined : \{ opacity: 0 \}\}/);
-    const arrive = src.slice(src.indexOf("onArrive={() => {"), src.indexOf("onDone={"));
-    expect(arrive).toMatch(/setPanelShown\(true\)/);
-    expect(arrive).toMatch(/setHeroHidden\(false\)/);
-    // 薄く重ねる古い形が残っていないこと。
+    expect(src).not.toMatch(/panelShown/);
+    expect(src).not.toMatch(/heroHidden/);
+    expect(src).not.toMatch(/sheet-hero-hidden/);
     expect(src).not.toMatch(/sheet-fade-in/);
-    expect(read("styles.css")).not.toMatch(/\.sheet-fade-in \{/);
+    const css = read("styles.css");
+    expect(css).not.toMatch(/\.sheet-hero-hidden /);
+    expect(css).not.toMatch(/\.sheet-fade-in \{/);
   });
 
   it("カメラの演出は画面の入れ替わりで消えない（状態に持たない）", () => {
@@ -3811,24 +3860,44 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **選んだ撮り方が上、残りの2つが下。**（オーナー指示 2026-09-15
-   * 「検索、写真を撮る、スキャンの3つのモードをカメラのアイコンを押した時に
-   *  表示するようにして。どれかを選択した場合は、残りの2つが下に現れるように」）
+   * **撮り方はシャッターを囲むダイヤル。**（オーナー指示 2026-09-16
+   * 「写真を撮る、検索、スキャンがシャッターボタンの丸の周りにダイヤルの
+   *  ようにボタンとして囲い、スライドしたら切り替えられるようにして。
+   *  また切り替えるとシャッターボタンのアイコンも変化するようにして」）
+   *
+   * 前は縦積みの帯だった。読めはするが、切り替えるには狙って押すしかない。
+   * カメラは覗いたまま片手で扱う物なので、親指を横に滑らせるだけで変わる
+   * 形にした。ブラウザで実測: 名前は半径 74px の円周に 0°/120°/240°、
+   * どれも高さ 44px 以上、左へ滑らせると「写真を撮る」→「スキャン」へ
+   * 変わり、真ん中の絵も `lucide-camera` → `lucide-scan-line` に変わる。
    */
-  it("撮り方の帯は、選んだ1つと残りの2つを分けて出す", () => {
-    const src = codeOnly(read("components/CameraChrome.tsx"));
-    expect(src).toMatch(
-      /export const CAMERA_MODES: CameraMode\[\] = \["search", "photo", "scan"\]/,
-    );
-    // 残りは「選ばれていない物」から作る（3つ書き並べると必ずずれる）。
-    expect(src).toMatch(/const rest = CAMERA_MODES\.filter\(\(m\) => m !== mode\)/);
-    const cur = src.indexOf("camera-modes__current");
-    const rest = src.indexOf("camera-modes__rest");
-    expect(cur).toBeGreaterThanOrEqual(0);
-    expect(rest).toBeGreaterThanOrEqual(0);
-    expect(cur).toBeLessThan(rest);
-    // 色だけで「選ばれている」を伝えない（HIG）。
-    expect(src).toMatch(/aria-current="true"/);
+  it("撮り方は輪の上に等間隔で並び、真ん中の絵が撮り方ごとに変わる", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    // 3つを 120° おきに置く（数を書き並べない）。
+    expect(src).toMatch(/const STEP = 360 \/ 3;/);
+    expect(src).toMatch(/const deg = i \* STEP;/);
+    // シャッターの絵は撮り方ごと。
+    expect(src).toMatch(/const SHUTTER_ICON: Record<CameraMode, typeof Camera>/);
+    for (const icon of ["photo: Camera", "search: Search", "scan: ScanLine"]) {
+      expect(src).toContain(icon);
+    }
+    // 字は輪と逆に回して水平を保つ（回る輪の上で字が傾かない）。
+    expect(src).toMatch(/el\.style\.rotate = `\$\{-deg\}deg`/);
+    // 縦積みの古い帯は消えていること（同じ役目の部品を2つ残さない）。
+    expect(codeOnly(read("components/CameraChrome.tsx"))).not.toMatch(/CameraModeStrip/);
+  });
+
+  /**
+   * **指で滑らせて回す。** 押して選ぶだけなら輪にする意味が無い。
+   * 離した所からいちばん近い刻みへ寄せる（apple-design §18）。
+   */
+  it("ダイヤルは指に 1:1 で追従し、離すと近い刻みへ寄る", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/setPointerCapture/);
+    // 動かしている間は状態ではなく、ばねの値を直に置き換える（§14）。
+    expect(src).toMatch(/sp\.set\(d\.from \+ \(e\.clientX - d\.x\) \* DEG_PER_PX\)/);
+    // 離したら刻みへ。
+    expect(src).toMatch(/Math\.round\(sp\.value\(\) \/ STEP\) \* STEP/);
   });
 
   /**
@@ -3839,36 +3908,51 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("撮る画面の「検索」は、画面を移らずに欄を開く", () => {
     const src = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(src).toMatch(/const textOpen = mode === "search"/);
-    // 撮り方の帯から出るのはスキャンのときだけ。
-    const strip = src.slice(src.indexOf("<CameraModeStrip"), src.indexOf("<CameraModeStrip") + 600);
-    expect(strip).toMatch(/if \(m === "scan"\)/);
-    expect(strip).toMatch(/onOpenScan\(\)/);
+    // 輪から出るのはスキャンのときだけ。
+    const dial = src.slice(src.indexOf("<CameraDial"), src.indexOf("<CameraDial") + 900);
+    expect(dial).toMatch(/if \(m === "scan"\)/);
+    expect(dial).toMatch(/onOpenScan\(\)/);
+    // 「検索」に居るときの真ん中は、撮るのではなく調べる。
+    expect(dial).toMatch(/if \(mode === "search"\)/);
   });
 
   /**
-   * **下のカメラの丸が、そのままシャッターになる。**（オーナー指示 2026-09-15
-   * 「下のカメラのアイコンがシャッターボタンに変化するアニメーション。
-   *  少し大きくなって上に移動してシャッターになる」）
+   * **カメラの形をした物が、下から上がって画面いっぱいに育つ。**
+   * （オーナー指示 2026-09-16、参考 `Camera transitions @SwatchThisApp`）
    *
-   * 着地点（5.5rem）は撮る画面のシャッターの位置と**同じ数**でなければ
-   * ならない。ずれると、演出が終わった所に釦が無い。ブラウザで測った値:
-   * 帯の丸の中心 下から 56.0px ＝ 演出 0% の 56.0px、シャッターの中心
-   * 128.0px ＝ 演出 100% の 128.0px。
+   * 直前は「丸が少し大きくなってシャッターの位置で止まる」だけで、
+   * **画面がいつ変わったのかが動きに現れなかった**。育ち切った所が新しい
+   * 画面になる形にして、押した物と着いた先を1つながりにする。
+   *
+   * ブラウザで実測して両端を合わせてある:
+   *
+   * | | 実測 |
+   * |---|---|
+   * | 0% の板 | 49×49・下から中心 56 ＝ 帯の丸（48px・56） |
+   * | 100% の板 | 390×844 ＝ 画面いっぱい |
+   * | 100% の中のシャッター | 80px・下から中心 **180** ＝ 本物（80px・**180**） |
    */
-  it("開く演出は、画面を覆わずシャッターの位置で止まる", () => {
+  it("開く演出は、カメラの形が育って本物のシャッターに重なる", () => {
     const css = read("styles.css");
     const kf = css.slice(css.indexOf("@keyframes camera-lens-open {"));
     const body = kf.slice(0, kf.indexOf("\n}"));
-    // 終わりはシャッターと同じ 80px・同じ 5.5rem。
-    expect(body).toMatch(/width: 80px/);
-    expect(body).toMatch(/bottom: calc\(5\.5rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    // 画面いっぱいに広げる古い形は残っていないこと。
-    expect(body).not.toMatch(/100vw/);
-    expect(body).not.toMatch(/100dvh/);
-    // 撮る画面の下の操作も同じ 5.5rem で帯を避けている。
-    expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
-      /pb-\[calc\(5\.5rem\+env\(safe-area-inset-bottom,0px\)\)\]/,
-    );
+    // 始まりは帯の丸と同じ 48px・同じ高さ。
+    expect(body).toMatch(/width: 48px/);
+    expect(body).toMatch(/bottom: calc\(2rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    // 傾いた所から起き上がる（参考動画の要）。
+    expect(body).toMatch(/rotate: -8deg/);
+    // 育ち切ったら画面いっぱい。
+    expect(body).toMatch(/width: 100vw/);
+    expect(body).toMatch(/height: 100dvh/);
+    // 中身はカメラの縮図（覗き窓とシャッター）。
+    const lib = codeOnly(read("lib/camera-launch.ts"));
+    expect(lib).toMatch(/camera-launch__eye/);
+    expect(lib).toMatch(/camera-launch__shutter/);
+    // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
+    const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
+    const shBody = sh.slice(0, sh.indexOf("\n}"));
+    expect(shBody).toMatch(/bottom: calc\(8\.75rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(shBody).toMatch(/width: 80px/);
   });
 
   /**
@@ -3930,5 +4014,57 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const b = pick(audit, "const BARE_SCENES = new Set([");
     expect(a.length).toBeGreaterThan(0);
     expect(a).toEqual(b);
+  });
+
+  /**
+   * **カメラの画面は上の帯も出さない。**（オーナー指示 2026-09-16
+   * 「カメラのとき、上の集めるの余白いらない。すべてカメラ画面でいい」）
+   *
+   * カメラは世界を覗く画面なので、上に半透明の帯が乗るとその高さぶん映像が
+   * 削られる。しかも帯に出る名前は、下の撮り方の輪がすでに言っている。
+   */
+  it("撮る画面とスキャン画面は、上の帯を出さない", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    expect(shell).toMatch(/bare\?: boolean;/);
+    expect(shell).toMatch(/\{!bare && \(/);
+    expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
+      /bare=\{step === "object"\}/,
+    );
+    expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
+      /<AppShell title=\{t\("nav\.camera"\)\} bare>/,
+    );
+  });
+
+  /**
+   * **スキャンのときは下の検索も調べる釦も出さない。**（オーナー指示
+   * 2026-09-16「スキャンボタン押したら下の検索や調べるボタンはすべて要らない」）
+   *
+   * 打って調べるのは撮り方の「検索」が持っている。同じ役目の入口を2つ置くと、
+   * どちらを使う場面なのかが画面から読めなくなる。
+   */
+  it("スキャンの画面に、打って調べる欄を置かない", () => {
+    const src = codeOnly(read("routes/_authenticated/scan.tsx"));
+    expect(src).not.toMatch(/manualQuery/);
+    expect(src).not.toMatch(/scan\.searchPlaceholder/);
+    expect(src).not.toMatch(/scan\.searchGo/);
+  });
+
+  /**
+   * **欄を畳んでも、声で調べる道は消さない。**
+   *
+   * 聞き取りはスキャンの検索欄の中に直に書かれていたので、その欄を畳むと
+   * **機能が1つ黙って無くなる**ところだった。部品にして撮り方の「検索」へ
+   * 移した。欄を消しただけで機能が減るのは、直したい形ではない。
+   */
+  it("声で調べる道は、部品として残り「検索」から使える", () => {
+    const hook = codeOnly(read("lib/use-voice-input.ts"));
+    expect(hook).toMatch(/export function useVoiceInput/);
+    // 使えない端末に、押しても何も起きない釦を置かないための問い合わせ。
+    expect(hook).toMatch(/export function voiceInputAvailable/);
+    // 画面を離れたら必ず止める（マイクが開いたままにならない）。
+    expect(hook).toMatch(/useEffect\(\(\) => \(\) => recRef\.current\?\.stop\(\), \[\]\)/);
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/useVoiceInput\(\{/);
+    expect(cap).toMatch(/voice\.available && \(/);
   });
 });

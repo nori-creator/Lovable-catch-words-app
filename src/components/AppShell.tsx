@@ -209,11 +209,21 @@ export function AppShell({
   children,
   title,
   fixedViewport = false,
+  bare = false,
 }: {
   children: ReactNode;
   title?: string;
   /** 復習など、1画面の中ですべてを見せる場面ではページ自体を動かさない。 */
   fixedViewport?: boolean;
+  /**
+   * 上の帯を出さない（オーナー指示 2026-09-16「カメラのとき、上の
+   * 集めるの余白いらない。すべてカメラ画面でいい」）。
+   *
+   * カメラは**世界を覗く**画面なので、上に半透明の帯が乗ると映像が
+   * その高さぶん削られる。しかも帯に出る名前は下の撮り方の帯が
+   * すでに言っている。下のタブ帯は残す — カメラから出る道が要る。
+   */
+  bare?: boolean;
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
@@ -313,41 +323,45 @@ export function AppShell({
       {/* Top chrome — a translucent material the content scrolls under (§12).
           区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
-      <header
-        data-scrolled={scrolled ? "true" : undefined}
-        className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
-      >
-        {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
+      {!bare && (
+        <header
+          data-scrolled={scrolled ? "true" : undefined}
+          className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+        >
+          {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
             止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
-        {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
-        <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
+          {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
+          <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
                 以前はアイコンごと `/home` の Link に入れていたが、
                 押せるものの中に押せるものを入れることになるうえ、
                 アイコンを押した人は必ずホームへ飛ばされていた。
                 行き先は名前のほうが持つ。 */}
-            <BrandMenu />
-            <Link to="/home" className="transition-transform duration-150 active:scale-95">
-              {/* §15: app title is a small headline — tight tracking, no wrapping.
+              <BrandMenu />
+              <Link to="/home" className="transition-transform duration-150 active:scale-95">
+                {/* §15: app title is a small headline — tight tracking, no wrapping.
                   **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
                   単語カードにはすでに h1 があるので、**全ページが h1 を2つ
                   持つ**ことになった — 直そうとした階層をむしろ壊していた。
                   これはどの画面にも出るアプリ名(道標)であって、その画面の
                   見出しではない。h1 は各画面が自分で持つ。 */}
-              <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
-                {title ?? "Catchwords"}
-              </span>
-            </Link>
+                <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
+                  {title ?? "Catchwords"}
+                </span>
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main
         className={
-          fixedViewport
-            ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
-            : "mx-auto max-w-3xl px-4 py-4"
+          bare
+            ? "h-dvh"
+            : fixedViewport
+              ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
+              : "mx-auto max-w-3xl px-4 py-4"
         }
       >
         {children}
@@ -437,12 +451,25 @@ export function AppShell({
                    * 入れ替えても同じ比のまま落ちない。
                    */
                   <span className="tabbar__lens-slot">
+                    {/*
+                      **カメラの画面に居る間、この丸は下に居ない。**
+                      （オーナー指示 2026-09-16「下のカメラのアイコンが
+                       そのままシャッターボタンになるようにして。つまり
+                       下のカメラのアイコンが上に移動し下にはカメラの
+                       アイコンなくなる」）
+
+                      丸はシャッターへ移った、という筋を通す。両方に在ると
+                      「同じ物が2つある」ことになり、上へ動いた意味が消える。
+                      押す所そのものは升目が持っているので、カメラから
+                      出られなくなることはない。
+                    */}
                     <span
                       className={
                         isCurrent
-                          ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
+                          ? "tabbar__lens tabbar__lens--gone"
                           : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
                       }
+                      aria-hidden={isCurrent || undefined}
                     >
                       <Icon className="h-6 w-6" />
                     </span>

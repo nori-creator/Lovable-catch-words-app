@@ -6,6 +6,10 @@
  * 足し、ここからそのまま描く。HTMLをこちらに書き写すことはしない —
  * それをやると「直しても画像が変わらない検査」に戻る。
  */
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { StickerSheet } from "@/components/StickerSheet";
+import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   BackgroundPicker,
@@ -221,3 +225,79 @@ export function HomeWritingScene() {
  * 実際に小さくなって多く並んでいるかは絵でしか分からない。
  * 1枚選んだ形(左に絵・右に日記)も別に撮る。
  */
+
+/**
+ * **押してから詳細が開くまでの道を、そのまま通す場面。**
+ *
+ * ## なぜ足したか（オーナー報告 4回目 2026-09-16
+ * 「いまだに、ホームの画像を押したあとに単語の詳細にいくアニメーションが変」）
+ *
+ * ここまで `HomeScene` は `onOpen={() => {}}` で、**押した先が繋がって
+ * いなかった**。飛ぶ絵の部品（`hero-flight` の場面）だけは測っていたので
+ * 「部品は動く・実物は動かない」がずっと見えなかった。
+ *
+ * この場面は本物の `ScrapbookAlbum` を描き、押したときに
+ * `flightFrom` が何を返したかを**画面に出す**。飛ぶ元が取れていなければ、
+ * その時点で `null` と出る — どこで切れているかが一目で分かる。
+ */
+export function HomeTapScene() {
+  const [got, setGot] = useState<string>("まだ押していない");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [openFrom, setOpenFrom] = useState<FlightOrigin | null>(null);
+  /**
+   * 面は本物の `StickerSheet`。サーバは無いので、一覧の種
+   * (`seedStickerFromList` が読む `["stickers"]`) を先に置いておく。
+   * 実物でもこの種から組み上がるので、道は同じ。
+   */
+  const qc = useQueryClient();
+  if (!qc.getQueryData(["stickers", "harness"])) {
+    qc.setQueryData(["stickers", "harness"], { items: today });
+  }
+  return (
+    <>
+      <p
+        data-flight-origin={got}
+        style={{
+          padding: "8px 12px",
+          borderRadius: 12,
+          background: got.startsWith("{") ? "#dcfce7" : "#fee2e2",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 12,
+          wordBreak: "break-all",
+        }}
+      >
+        飛ぶ元: {got}
+      </p>
+      <ScrapbookAlbum
+        stickers={today}
+        bgClass="album-bg-paper"
+        onOpen={(id, from) => {
+          setGot(
+            from
+              ? JSON.stringify({
+                  id,
+                  x: Math.round(from.x),
+                  y: Math.round(from.y),
+                  w: Math.round(from.w),
+                  h: Math.round(from.h),
+                  url: from.url.slice(0, 24),
+                })
+              : `null（${id}）`,
+          );
+          setOpenId(id);
+          setOpenFrom(from ?? null);
+        }}
+      />
+      {/* **押した先まで繋ぐ。** ここを `() => {}` にしていたせいで、
+          「部品は動くのに実物は動かない」がずっと見えていなかった。 */}
+      <StickerSheet
+        stickerId={openId}
+        from={openFrom}
+        onClose={() => {
+          setOpenId(null);
+          setOpenFrom(null);
+        }}
+      />
+    </>
+  );
+}

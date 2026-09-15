@@ -49,7 +49,7 @@ import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
-import { HeroFlight, type FlightOrigin } from "@/components/HeroFlight";
+import { useHeroReveal, type HeroOrigin } from "@/components/use-hero-reveal";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
@@ -68,7 +68,7 @@ type Props = {
    * 押した札の場所・大きさ・いま出している絵。渡されたときだけ、そこから
    * 見出しへ絵が飛ぶ（オーナー指示 2026-09-15「軌跡アニメーション」）。
    */
-  from?: FlightOrigin | null;
+  from?: HeroOrigin | null;
   /**
    * 開いた瞬間に「主役の写真」の面を出す。
    * ホームのアルバムを**長押し**して来たときに立つ(オーナー指摘 2026-08-20)。
@@ -129,12 +129,10 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 状態ではなく控え(`useRef`)に持つのは、描画の途中で書き換えるため。
    * 画面に出す必要がある変化(着いた)だけ `forceRender` で伝える。
    */
-  const flightRef = useRef<{ id: string | null; origin: FlightOrigin | null; landed: boolean }>({
+  const flightRef = useRef<{ id: string | null; origin: HeroOrigin | null }>({
     id: null,
     origin: null,
-    landed: false,
   });
-  const [, forceRender] = useReducer((n: number) => n + 1, 0);
   /**
    * 飛んでいる間、**本物の見出しは隠す**。隠さないと、育っていく写しの下に
    * 実物大の本物が見えて二重になる。着いた時に出し、写しはその上で溶ける。
@@ -144,7 +142,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 残っているので、条件がまだ真のまま）。出す・伏せるが交互に起きて、
    * 直そうとしたちらつきそのものが出る。
    */
-  const [heroHidden, setHeroHidden] = useState(false);
+
   /**
    * 面そのものを出すか。**飛んでいる間は面ごと伏せる。**
    *
@@ -161,14 +159,20 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 同じ大きさの写真が同じ場所を覆っているので、切り替わったことは
    * 見えない（変わるのは写真のまわりの余白と文字だけ）。
    */
-  const [panelShown, setPanelShown] = useState(true);
   if (flightRef.current.id !== stickerId) {
-    const origin = stickerId ? (from ?? null) : null;
-    flightRef.current = { id: stickerId, origin, landed: false };
-    setHeroHidden(origin != null);
-    setPanelShown(origin == null);
+    flightRef.current = { id: stickerId, origin: stickerId ? (from ?? null) : null };
   }
-  const flight = flightRef.current.landed ? null : flightRef.current.origin;
+  /**
+   * この開き方で写真を広げるか。**開いた時に一度だけ決めて、動いている
+   * 最中には変えない。**
+   *
+   * 前はここが「いま飛んでいるか」だった。写しが着くと偽に変わり、
+   * その瞬間に入場クラス(`material-in`)が付いて、**ふつうのフェードが
+   * 頭からやり直して**いた（雛形で実測: 0ms 写しあり → 99ms 面が濃さ1で
+   * 二重 → 297ms `material-in` が付いて濃さ0からやり直し）。
+   */
+  const reveal = flightRef.current.origin;
+  const heroRef = useHeroReveal(reveal, stickerId);
   const {
     data: s,
     isLoading,
@@ -717,39 +721,17 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
     <div
       {...dragProps}
       /**
-       * **絵が飛んでくる回は、面そのものを動かさない。**
+       * **入場の仕方は開いた時に一度だけ決める。**
        *
-       * `material-in` は面を 10px 持ち上げながら 0.985 倍から開く。写しの
-       * 行き先(`[data-sheet-hero]`)はこの面の中にあるので、面が動いている
-       * 最中に測ると**行き先が動く**＝写しが着地点を追いかけ続ける。
-       * 飛ばす回は面を薄く出すだけにして、動きは絵1枚が持つ。
+       * 押した札から広げる回は、面ごとの入場演出を掛けない — 面が動くと
+       * 写真の行き先も一緒に動いて、写真が着地点を追いかけ続ける。
+       * 動きは写真1枚が持ち、まわりの文字だけが薄く乗る(`sheet-around-in`)。
        */
-      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "" : "material-in"} ${heroHidden ? "sheet-hero-hidden" : ""}`}
-      /**
-       * 伏せるのは `opacity` で、`visibility` や `display` ではない。
-       * 場所は取ったままにしないと、飛んでいる絵が行き先(`[data-sheet-hero]`)
-       * を測れない。
-       */
-      style={panelShown ? undefined : { opacity: 0 }}
+      className={`fixed inset-0 z-50 flex flex-col material-thick ${reveal ? "sheet-around-in" : "material-in"}`}
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
     >
-      {flight && (
-        <HeroFlight
-          origin={flight}
-          onArrive={() => {
-            // 面と見出しを**同じ描画で**出す。順番が付くと、その一瞬に
-            // 片方だけが見える＝直したかったちらつきに戻る。
-            setPanelShown(true);
-            setHeroHidden(false);
-          }}
-          onDone={() => {
-            flightRef.current.landed = true;
-            forceRender();
-          }}
-        />
-      )}
       {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
           機能があっても発見されなければ無いのと同じ。 */}
       {grabber && (
@@ -849,6 +831,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
             swapWebImage={swapWebImage}
             applyWebImage={applyWebImage}
             editHeadword={editHeadword}
+            heroRef={heroRef}
             photos={photoData?.photos ?? []}
           />
         )}
@@ -930,6 +913,7 @@ export function StickerSheetBody({
   applyWebImage,
   editHeadword,
   photos,
+  heroRef,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   uiLang: UiLang;
@@ -981,6 +965,8 @@ export function StickerSheetBody({
   /** 見出し語を直す（渡されない画面では鉛筆が出ない）。 */
   editHeadword?: (next: string) => Promise<void>;
   photos: StickerPhoto[];
+  /** 押した札から広がる動きを掛ける箱（`use-hero-reveal`）。 */
+  heroRef?: React.Ref<HTMLDivElement>;
   /** 「今週出会う見込み」。届いていなければ節そのものが出ない。 */
 }) {
   /**
@@ -1026,8 +1012,11 @@ export function StickerSheetBody({
     <>
       {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
       <div
-        /** 押した札から飛んでくる絵の**行き先**（`components/HeroFlight.tsx`）。
-            座標を決め打ちにしないため、印だけ付けて実測させる。 */
+        /**
+         * 押した札が**そのままここになる**（`components/use-hero-reveal.ts`）。
+         * 動かすのはこの箱そのもので、写しは作らない。
+         */
+        ref={heroRef}
         data-sheet-hero
         className="perspective-1200 mb-4"
         // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
