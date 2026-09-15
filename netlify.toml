@@ -1,0 +1,11 @@
+[build]
+  command = "npx vite build --config scripts/ui-harness/vite.config.ts"
+  publish = ".ui-harness"
+
+[context.deploy-preview]
+  command = "npx vite build --config scripts/ui-harness/vite.config.ts"
+  publish = ".ui-harness"
+
+[context.branch-deploy]
+  command = "npx vite build --config scripts/ui-harness/vite.config.ts"
+  publish = ".ui-harness"
