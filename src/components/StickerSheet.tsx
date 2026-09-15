@@ -145,10 +145,28 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 直そうとしたちらつきそのものが出る。
    */
   const [heroHidden, setHeroHidden] = useState(false);
+  /**
+   * 面そのものを出すか。**飛んでいる間は面ごと伏せる。**
+   *
+   * ## 薄く重ねるのをやめた（オーナー報告 3回目 2026-09-15
+   * 「画像が同じものが二重になって表示されてる」）
+   *
+   * 前は面を 0.18 秒待ってから 0.16 秒かけて濃くしていた。写真どうしは
+   * 混ざらなくなったが、**濃くなっている 0.16 秒のあいだ、後ろのアルバムが
+   * 面ごしに透けている**。半透明の面の向こうで札が動くので、見る人には
+   * まだ「ちらつき」に映る。
+   *
+   * 混ぜる時間を短くするのではなく、**混ぜない**。飛んでいる絵が行き先の
+   * 大きさに届いた瞬間に、面と見出しを**1コマで**出す。その時すでに
+   * 同じ大きさの写真が同じ場所を覆っているので、切り替わったことは
+   * 見えない（変わるのは写真のまわりの余白と文字だけ）。
+   */
+  const [panelShown, setPanelShown] = useState(true);
   if (flightRef.current.id !== stickerId) {
     const origin = stickerId ? (from ?? null) : null;
     flightRef.current = { id: stickerId, origin, landed: false };
     setHeroHidden(origin != null);
+    setPanelShown(origin == null);
   }
   const flight = flightRef.current.landed ? null : flightRef.current.origin;
   const {
@@ -706,7 +724,13 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
        * 最中に測ると**行き先が動く**＝写しが着地点を追いかけ続ける。
        * 飛ばす回は面を薄く出すだけにして、動きは絵1枚が持つ。
        */
-      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "sheet-fade-in" : "material-in"} ${heroHidden ? "sheet-hero-hidden" : ""}`}
+      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "" : "material-in"} ${heroHidden ? "sheet-hero-hidden" : ""}`}
+      /**
+       * 伏せるのは `opacity` で、`visibility` や `display` ではない。
+       * 場所は取ったままにしないと、飛んでいる絵が行き先(`[data-sheet-hero]`)
+       * を測れない。
+       */
+      style={panelShown ? undefined : { opacity: 0 }}
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
@@ -714,7 +738,12 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
       {flight && (
         <HeroFlight
           origin={flight}
-          onArrive={() => setHeroHidden(false)}
+          onArrive={() => {
+            // 面と見出しを**同じ描画で**出す。順番が付くと、その一瞬に
+            // 片方だけが見える＝直したかったちらつきに戻る。
+            setPanelShown(true);
+            setHeroHidden(false);
+          }}
           onDone={() => {
             flightRef.current.landed = true;
             forceRender();

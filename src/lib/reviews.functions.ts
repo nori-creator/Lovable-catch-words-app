@@ -220,7 +220,22 @@ async function getReviewPrefs(
       .select("review_daily_limit, review_stage_focus")
       .eq("id", userId)
       .maybeSingle();
-    if (error || !data) return fallback;
+    /**
+     * **読めなかったときは、上限を掛けない。**（オーナー報告 2026-09-15
+     * 「設定で復習の枚数を無制限にしても復習ができない」）
+     *
+     * ここは何が起きても `20` に落ちていた。つまり**一度の読み取り失敗で、
+     * 無制限にした人が 20 枚で「今日の分は終わりです」と言われる**。
+     * しかも次に開けば直るので、再現しないまま残り続ける。
+     *
+     * 二つの「読めなかった」を分ける:
+     *   ・行が無い（`!data`）… まだ設定を触っていない人。**20 が正しい既定**
+     *   ・読めなかった（`error`）… 分からない。**知らないことを理由に
+     *     止めない** — 多く出してしまう害より、「まだあるのに終わりだ」と
+     *     言う害のほうが大きい
+     */
+    if (error) return { limit: 0, focus: "all" as ReviewStageFocus };
+    if (!data) return fallback;
     const limit = typeof data.review_daily_limit === "number" ? data.review_daily_limit : 20;
     const focus =
       data.review_stage_focus === "weak" || data.review_stage_focus === "new"

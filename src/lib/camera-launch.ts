@@ -29,8 +29,32 @@ const OPEN_MS_REDUCED = 220;
 /** いま出ている覆い。**二重に出さない**（連打しても1枚）。 */
 let live: { el: HTMLElement; timer: number } | null = null;
 
+/**
+ * 撮る画面がいま出ているか。**画面自身に名乗らせる。**
+ *
+ * ## なぜ道の名前で判断しないのか（オーナー報告 3回目 2026-09-15
+ * 「すでにカメラの画面が表示されてるのに、そこから上に上書きで
+ * アニメーションが表示される」）
+ *
+ * ここは `pathname` と行き先を比べていた。末尾の `/` を見ていない、
+ * 移動の途中で値が入れ替わる、道が増えたら比べ先も増える — **同じ事を
+ * 別の場所から推測している限り、条件を足すたびに抜け道が増える。**
+ *
+ * 出ているかどうかを知っているのは、出ている画面そのもの。
+ * 撮る画面が描かれている間だけ `true` にしてもらえば、道の名前が何であれ、
+ * 移動の途中だろうが、**上に重ねて出すことはあり得なくなる**。
+ */
+let cameraScreenOpen = false;
+
+/** 撮る画面が、描かれている間だけ呼ぶ（外れるときに必ず戻すこと）。 */
+export function setCameraScreenOpen(open: boolean): void {
+  cameraScreenOpen = open;
+}
+
 export function playCameraLaunch(): void {
   if (typeof document === "undefined") return;
+  // すでに撮る画面が出ている。開く演出に用は無い。
+  if (cameraScreenOpen) return;
   /**
    * **もう出ているなら、何もしない。**
    *

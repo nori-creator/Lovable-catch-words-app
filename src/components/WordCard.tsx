@@ -1863,16 +1863,19 @@ function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | 
             onSpeak={(text) => void pronounce(text)}
           />
         </div>
+        {/**
+         * **右に出すのは日本語訳だけ。**（オーナー指示 2026-09-15
+         * 「単語の詳細のチャンクの右側に表示するのは日本語訳だけでいい」）
+         *
+         * ここには型ぜんぶをひと息で鳴らすボタンも並んでいた
+         * （2026-08-27 ⑧ の指示で足したもの）。3列（語・訳・ボタン）は
+         * 幅 390px の画面では訳の取り分が 4.5rem まで痩せ、2行3行に折れる。
+         *
+         * **鳴らす道は消えていない。** 札そのものが押せば鳴る
+         * （`ChunkPills` の `onSpeak`）ので、聞きたい所だけを聞ける。
+         * 続けて言えない所はたいてい繋ぎ目なので、札ごとのほうが役に立つ。
+         */}
         {translation && <p className="usage-chunk-row__meaning">{translation}</p>}
-        {/* 鳴らせるようになってから出る(`PronounceButton` の注)。 */}
-        <PronounceButton
-          text={whole}
-          language={language ?? undefined}
-          size="sm"
-          tone="quiet"
-          stopPropagation
-          label={whole}
-        />
       </div>
     </div>
   );

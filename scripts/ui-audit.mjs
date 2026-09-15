@@ -554,7 +554,17 @@ const FOCUS_MIN_RATIO = 3;
  * こちらにも書くのは、バーが無いことを咎める段がここに在るため。
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
-const BARE_SCENES = new Set(["onboarding", "sticker-sheet", "capture-saving", "scan-camera"]);
+const BARE_SCENES = new Set([
+  "onboarding",
+  "sticker-sheet",
+  "capture-saving",
+  "scan-camera",
+  // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
+  // 実物でも上のバーは映像の下に隠れる。
+  "capture-object",
+  "reward-catch",
+  "hero-flight",
+]);
 
 /**
  * **字が1つも無いのが正しい面。**

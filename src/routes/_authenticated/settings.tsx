@@ -541,7 +541,7 @@ function SettingsPage() {
        * 画面に戻す値の出所は端末にする。
        */
       setStoredLevels(targetLanguage, { current: currentLevel, goal: levelGoal });
-      await updateProfile({
+      const res = await updateProfile({
         data: {
           // Only send a non-empty name: the server rejects "" (min length 1),
           // which would otherwise fail the whole save (theme/level too)
@@ -567,7 +567,30 @@ function SettingsPage() {
       // 撮る道だけ台湾華語のまま、という食い違いが残る。
       setTargetLang(targetLanguage);
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      toast.success(t("settings.saved"));
+      /**
+       * **保存できなかった項目を、黙って捨てない。**（オーナー報告 2026-09-15
+       * 「設定で復習の枚数を無制限にしても復習ができない」）
+       *
+       * サーバは、DB がまだ持っていない列や値を撥ねた列を**payload から
+       * 落として残りを保存**し、落とした名前を `skipped` で返す
+       * （`lib/profile.functions.ts`。1列のせいで言語もテーマも保存できない
+       * 事故を避けるための造り）。ところがここは**その返事を読まずに
+       * 「保存しました」と出していた**。
+       *
+       * つまり、枚数の列が production にまだ無ければ、
+       *   ・画面は「保存しました」と言う
+       *   ・値は保存されていない
+       *   ・次に開くと 20 に戻っている（＝無制限にしたのに 20 枚で止まる）
+       * という、**いちばん追いにくい形**で壊れる。名指しで出す。
+       */
+      const skipped = (res as { skipped?: string[] } | undefined)?.skipped ?? [];
+      if (skipped.length > 0) {
+        toast.warning(t("settings.savedPartly", { fields: skipped.join(", ") }), {
+          duration: 8000,
+        });
+      } else {
+        toast.success(t("settings.saved"));
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
     } finally {

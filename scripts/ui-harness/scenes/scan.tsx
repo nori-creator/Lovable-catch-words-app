@@ -204,6 +204,16 @@ export function ScanDotsScene() {
  */
 export function ScanCameraScene({ q }: { q: URLSearchParams }) {
   const noZoom = q.get("nozoom") === "1";
+  const v = q.get("variant");
+  /**
+   * 倍率の目盛りは3通りを撮る（2026-09-15 に縦スライダーから
+   * iPhone と同じ丸い粒へ変えた ─ `components/CameraChrome.tsx`）:
+   *  ・既定 … ちょうど 2倍。**粒が点いている姿**
+   *  ・`wide` … 広角を持つ端末。0.5 の粒が増える
+   *  ・`between` … ピンチで刻みの間にいる。**どの粒も点かない**のが正しい
+   */
+  const zoom = v === "between" ? 2.4 : v === "wide" ? 0.5 : 2;
+  const zoomMin = v === "wide" ? 0.5 : 1;
   return (
     // 足場はインラインの `style`。雛形にしか無いクラスは生成されない。
     <div style={{ position: "relative", inset: 0, height: "100vh", background: "#111318" }}>
@@ -213,8 +223,8 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
         onFlip={() => {}}
         // 前面カメラは倍率を持たないことが多い。**つまみが出ない姿**も撮る。
         showZoom={!noZoom}
-        zoom={2.4}
-        zoomMin={1}
+        zoom={zoom}
+        zoomMin={zoomMin}
         zoomMax={6}
         onZoom={() => {}}
       />

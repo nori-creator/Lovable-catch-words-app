@@ -124,7 +124,10 @@ export function WordCandidateRow({
           **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
           この札が画面に出た瞬間に音を取りに行くので、人が候補を読んで
           いる数秒のあいだにそろう。押しても鳴らないボタンは出さない。 */}
-      <PronounceButton text={headword} language={language} className="self-center" />
+      {/* **単語の詳細と同じ鮮やかな青**（オーナー指示 2026-09-15
+          「単語の候補の右側の音声ボタンは単語の詳細の鮮やかな青のボタンに
+          色に変更して」）。`tone="hero"` が詳細の見出しで使っている塗り。 */}
+      <PronounceButton text={headword} language={language} tone="hero" className="self-center" />
     </div>
   );
 }

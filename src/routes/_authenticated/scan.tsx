@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { setCameraScreenOpen } from "@/lib/camera-launch";
+import { CameraFlipButton, CameraModeStrip, CameraZoomMeter } from "@/components/CameraChrome";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,7 +11,6 @@ import {
   Keyboard,
   Loader2,
   Mic,
-  ScanLine,
   Volume2,
   X,
   RotateCcw,
@@ -19,7 +20,6 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
-  SwitchCamera,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -105,6 +105,15 @@ function ScanPage() {
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
+  /**
+   * かざす画面も「撮る画面」の仲間。開く演出をこの上に重ねない
+   * （`lib/camera-launch.ts`）。
+   */
+  useEffect(() => {
+    setCameraScreenOpen(true);
+    return () => setCameraScreenOpen(false);
+  }, []);
+  const navigate = useNavigate();
   const detectFn = useServerFn(detectScan);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
@@ -794,18 +803,40 @@ function ScanPage() {
           <div className="flex items-center justify-center gap-3">
             {!snapshot ? (
               <div className="w-full space-y-2">
+                {/*
+                  **撮る画面と同じ形にする。**（オーナー指示 2026-09-15
+                  「撮る画面とスキャン画面を1つにして。スキャンのデザインは
+                   無くして、撮る画面のデザインを使って」）
+
+                  前はここだけ青いカプセルのボタンだった。同じ「カメラを
+                  覗いて押す」操作なのに、撮る画面は白い丸のシャッター、
+                  こちらはカプセル — **同じ動作に2つの形**があった。
+                  撮る画面の側へ揃える。
+                */}
+                <CameraModeStrip
+                  mode="scan"
+                  // 選んだ撮り方をそのまま渡す。渡さないと、「検索」を選んだ
+                  // 人が「写真を撮る」の画面に着く。
+                  onChange={(m) =>
+                    void navigate({
+                      to: "/capture",
+                      search: { mode: m === "search" ? "search" : "photo" },
+                    })
+                  }
+                  className="mb-2"
+                />
                 <div className="flex justify-center">
                   <button
                     onClick={doScan}
                     disabled={!ready || scanning}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-body font-semibold text-primary-foreground shadow-xl shadow-primary/40 transition active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+                    aria-label={t("scan.button")}
+                    className="capture-shutter grid h-20 w-20 place-items-center rounded-full bg-background p-0 text-foreground transition active:scale-95 disabled:opacity-50"
                   >
                     {scanning ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <Loader2 className="h-7 w-7 animate-spin text-foreground" />
                     ) : (
-                      <ScanLine className="h-5 w-5" />
+                      <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
                     )}
-                    {t("scan.button")}
                   </button>
                 </div>
                 <form
@@ -1342,37 +1373,21 @@ export function ScanCameraControls({
   zoomMax: number;
   onZoom: (v: number) => void;
 }) {
-  const t = useT();
   if (hidden) return null;
   return (
     <>
-      <button
-        type="button"
-        onClick={onFlip}
-        aria-label={t("scan.flipCamera")}
-        aria-pressed={facing === "user"}
-        className="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-95"
-      >
-        <SwitchCamera className="h-5 w-5" />
-      </button>
+      <CameraFlipButton facing={facing} onFlip={onFlip} className="absolute left-3 top-4 z-10" />
 
-      {/* ズーム: ピンチでも動くが、片手でも変えられるよう縦スライダーを置く */}
+      {/*
+        倍率。**縦のスライダーをやめ、iPhone と同じ丸い粒にした**
+        (オーナー指示 2026-09-15「Apple風のズームメーターを付けて」)。
+        0.1 刻みのスライダーは片手では狙った値に止まらず、しかも
+        その端末に無い倍率まで動かせていた。粒は押せばそこへ飛ぶ。
+        置き場所も撮る画面と揃えて、映像の下端の中央にする。
+      */}
       {showZoom && (
-        <div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2">
-          <span className="rounded-full bg-black/45 px-1.5 py-0.5 text-caption font-semibold text-white backdrop-blur">
-            {zoom.toFixed(1)}×
-          </span>
-          <input
-            type="range"
-            aria-label={t("scan.zoom")}
-            min={zoomMin}
-            max={zoomMax}
-            step={0.1}
-            value={zoom}
-            onChange={(e) => onZoom(Number(e.target.value))}
-            className="h-40 w-11 cursor-pointer accent-white"
-            style={{ writingMode: "vertical-lr", direction: "rtl" }}
-          />
+        <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center">
+          <CameraZoomMeter zoom={zoom} min={zoomMin} max={zoomMax} onZoom={onZoom} />
         </div>
       )}
     </>

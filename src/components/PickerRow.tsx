@@ -46,34 +46,44 @@ export function PickerRow({
   const bodyId = useId();
   const current = options.find((o) => o.value === value)?.label ?? "";
   return (
-    <div className="picker-row">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => {
-          setOpen((v) => !v);
-          haptic("selection");
-        }}
-        className="picker-row__head"
-      >
-        <span id={labelId} className="picker-row__label">
-          {label}
-        </span>
-        {/* **いま選んでいる値は、畳んでいても読める。** これが無いと、
+    <div>
+      {/**
+       * **見出しは箱の外。**（オーナー指示 2026-09-15「設定のスクロールは
+       * 選択するものだけをスクロールのボックスに含めて。左側のタイトルは
+       * 前のバージョンに戻して」）
+       *
+       * 前の `SelectRow` と同じく、項目名は箱の上に素の見出しとして置く。
+       * 箱の中に入れると、**箱＝選ぶ所**という読みが崩れる。
+       */}
+      <span id={labelId} className="text-field font-medium text-foreground">
+        {label}
+      </span>
+      <div className="picker-row mt-1">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => {
+            setOpen((v) => !v);
+            haptic("selection");
+          }}
+          className="picker-row__head"
+        >
+          {/* **いま選んでいる値は、畳んでいても読める。** これが無いと、
             開かないと何を選んだか分からない行になる。 */}
-        <span className="picker-row__value">{current}</span>
-        <ChevronDown aria-hidden className="picker-row__chevron" data-open={open || undefined} />
-      </button>
-      <div id={bodyId} className="picker-row__body" data-open={open || undefined}>
-        <div className="picker-row__inner" inert={!open}>
-          <WheelPicker
-            id={id}
-            labelledBy={labelId}
-            value={value}
-            onChange={onChange}
-            options={options}
-          />
+          <span className="picker-row__value">{current}</span>
+          <ChevronDown aria-hidden className="picker-row__chevron" data-open={open || undefined} />
+        </button>
+        <div id={bodyId} className="picker-row__body" data-open={open || undefined}>
+          <div className="picker-row__inner" inert={!open}>
+            <WheelPicker
+              id={id}
+              labelledBy={labelId}
+              value={value}
+              onChange={onChange}
+              options={options}
+            />
+          </div>
         </div>
       </div>
     </div>

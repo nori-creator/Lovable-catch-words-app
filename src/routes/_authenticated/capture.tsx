@@ -17,7 +17,6 @@ import {
   Sparkles,
   Check,
   Keyboard,
-  ScanLine,
   PartyPopper,
   WifiOff,
   ImagePlus,
@@ -39,6 +38,13 @@ import {
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
+import { setCameraScreenOpen } from "@/lib/camera-launch";
+import {
+  CameraFlipButton,
+  CameraModeStrip,
+  CameraZoomMeter,
+  type CameraMode,
+} from "@/components/CameraChrome";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
@@ -65,8 +71,14 @@ import {
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { word?: string; pending?: string; retake?: string } => {
-    const out: { word?: string; pending?: string; retake?: string } = {};
+  ): { word?: string; pending?: string; retake?: string; mode?: "search" | "photo" } => {
+    const out: { word?: string; pending?: string; retake?: string; mode?: "search" | "photo" } = {};
+    /**
+     * どの撮り方で着くか。**スキャンから「検索」を選んで来たときに、
+     * 着いた先が「写真を撮る」だと、選んだ物と違う所に出る。**
+     * 「スキャン」はこの画面ではないので受け取らない。
+     */
+    if (search.mode === "search" || search.mode === "photo") out.mode = search.mode;
     // 派生キャッチ: /capture?word=咖啡 で文字入力フローを自動実行
     if (typeof search.word === "string" && search.word) out.word = search.word;
     // オフラインキューからの復元: /capture?pending=<id>
@@ -202,7 +214,12 @@ function CapturePage() {
   const pronounce = usePronounce(targetLanguage);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { word: wordParam, pending: pendingParam, retake: retakeParam } = Route.useSearch();
+  const {
+    word: wordParam,
+    pending: pendingParam,
+    retake: retakeParam,
+    mode: modeParam,
+  } = Route.useSearch();
   const [mode, setMode] = useState<Mode>("photo");
   // 文字で調べる道も**この画面のまま**通る(オーナー指示 2026-08-26)。
   const [step, setStep] = useState<Step>("object");
@@ -331,6 +348,18 @@ function CapturePage() {
   const attachVoiceFn = useServerFn(setStickerVoiceVideo);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
+
+  /**
+   * **撮る画面が出ていることを名乗る。**（`lib/camera-launch.ts`）
+   *
+   * 下のカメラを押したときの「開く演出」は、これが立っている間は出ない。
+   * 道の名前で判断していた頃は、末尾の `/` や移動の途中の値で抜けられて、
+   * **すでに撮っている画面の上に演出が重なって**いた（オーナー報告3回）。
+   */
+  useEffect(() => {
+    setCameraScreenOpen(true);
+    return () => setCameraScreenOpen(false);
+  }, []);
 
   /**
    * 切り抜きの模型を、構えている間に温めておく(roadmap B2)。
@@ -1140,6 +1169,7 @@ function CapturePage() {
            */
           onSearch={(w) => void searchWord(w)}
           searching={searching}
+          initialMode={modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
@@ -1489,7 +1519,9 @@ export function PickWordPanel({
         </div>
       )}
       <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
-      <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
+      {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
+          「ステップ3の単語を選ぶの小さな文細かいは消して」）。
+          候補が並んでいれば、選ぶ所であることは見れば分かる。 */}
       <div className="grid gap-2">
         {/* 札の中身は `WordCandidateRow` に1つだけ置いてある。
             打ち込んだ語の候補と**同じ役目・同じ見た目**で、
@@ -1508,21 +1540,39 @@ export function PickWordPanel({
           />
         ))}
       </div>
+      {/*
+        候補に無かったとき。**見出しは右端、決めるのは検索の釦**
+        （オーナー指示 2026-09-15「ステップ3の違う単語を入力するのは
+         一番右の。これにするは検索ボタンに変えて」）。
+
+        見出しを右に寄せるのは、上の候補の列と**同じ側で終わらせない**
+        ため。候補は左から読むので、そこに無かった人の行き先は逆の端に
+        置いたほうが見つかる。釦は撮る画面の検索と同じ虫眼鏡にして、
+        「ここに打って調べる」が一目で分かる形に揃えた。
+      */}
       <div className="rounded-2xl border border-dashed border-border bg-card p-3">
-        <Label htmlFor="manual" className="text-footnote text-muted-foreground">
+        <Label htmlFor="manual" className="block text-end text-footnote text-muted-foreground">
           {t("capture.otherWord")}
         </Label>
-        <div className="mt-1 flex gap-2">
+        <form
+          className="mt-1 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (manualWord.trim()) onManual();
+          }}
+        >
           <Input
             id="manual"
             value={manualWord}
             onChange={(e) => setManualWord(e.target.value)}
             placeholder={t("cap.wordPlaceholder")}
+            enterKeyHint="search"
           />
-          <Button disabled={!manualWord.trim()} onClick={onManual}>
+          <Button type="submit" disabled={!manualWord.trim()} className="gap-1.5">
+            <Search className="h-4 w-4" />
             {t("capture.useThis")}
           </Button>
-        </div>
+        </form>
       </div>
     </div>
   );
@@ -1752,6 +1802,7 @@ export function CaptureObjectPanel({
   setTypedWord,
   onSearch,
   searching = false,
+  initialMode = "photo",
   onOpenScan,
   error,
 }: {
@@ -1765,14 +1816,32 @@ export function CaptureObjectPanel({
   onSearch: (word: string) => void;
   /** 調べている最中か。**画面は変えず、このボタンだけを回す**。 */
   searching?: boolean;
+  /** どの撮り方で開くか（`/capture?mode=search` から来たとき）。 */
+  initialMode?: CameraMode;
   onOpenScan: () => void;
   error: string | null;
 }) {
   const t = useT();
-  const [textOpen, setTextOpen] = useState(Boolean(typedWord));
+  /**
+   * いまの撮り方。**「検索」はこの画面のまま欄が開く**だけで、画面は
+   * 移らない(オーナー指示 2026-09-15「そのアイコンを押した時に検索欄が
+   * 出てくる」)。「スキャン」だけは別の画面へ渡す。
+   */
+  const [mode, setMode] = useState<CameraMode>(initialMode);
+  const textOpen = mode === "search";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  /**
+   * 前後の切り替え(オーナー指示 2026-09-15「インカメラも付けて」)。
+   * スキャン画面には前からあったが、撮る画面には無かった — **同じ操作が
+   * 片方にしか無い**状態だったので、共通の部品にして両方へ載せた。
+   */
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
+  /** 倍率。端末が本当に出せる範囲は `zoomCaps` に入る(出せなければ null)。 */
+  const [zoom, setZoom] = useState(1);
+  const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number } | null>(null);
 
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
@@ -1780,7 +1849,7 @@ export function CaptureObjectPanel({
     void navigator.mediaDevices
       .getUserMedia({
         video: {
-          facingMode: { ideal: "environment" },
+          facingMode: { ideal: facing },
           width: { ideal: 1280 },
           height: { ideal: 1280 },
         },
@@ -1797,14 +1866,42 @@ export function CaptureObjectPanel({
         video.srcObject = stream;
         await video.play().catch(() => {});
         setCameraReady(true);
+        /**
+         * **倍率を持っているかは端末に聞く。**（持っていない端末に
+         * 動かないつまみを置かないため。標準外の項目なので `unknown`
+         * 経由で読む — 型が無いからといって `any` にはしない。）
+         */
+        const track = stream.getVideoTracks()[0];
+        const caps = (
+          track?.getCapabilities as undefined | (() => { zoom?: { min: number; max: number } })
+        )?.call(track);
+        const z = caps?.zoom;
+        const next = z && z.max > z.min ? { min: z.min, max: z.max } : null;
+        zoomCapsRef.current = next;
+        setZoomCaps(next);
+        setZoom(1);
       })
       .catch(() => setCameraReady(false));
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      zoomCapsRef.current = null;
     };
-  }, [onNativeCapture]);
+  }, [onNativeCapture, facing]);
+
+  /**
+   * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
+   * を拡大して代用する(スキャン画面と同じやり方)。
+   */
+  const applyZoom = (v: number) => {
+    setZoom(v);
+    const caps = zoomCapsRef.current;
+    if (!caps) return;
+    const track = streamRef.current?.getVideoTracks()[0];
+    // `zoom` は標準の型に無い(端末依存の拡張)。失敗しても CSS 側が追う。
+    void track?.applyConstraints?.({ advanced: [{ zoom: v }] } as never).catch(() => {});
+  };
 
   const openCamera = () => {
     if (onNativeCapture) {
@@ -1833,7 +1930,15 @@ export function CaptureObjectPanel({
   };
 
   return (
-    <div className="capture-viewfinder flex h-full min-h-0 flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
+    /**
+     * **カメラは画面いっぱい。**（オーナー指示 2026-09-15「カメラのアイコンを
+     * タップした時に、今のスキャンモードのように画面全体にカメラが写るように」）
+     *
+     * 前は角の丸いカードの中に映像を入れていた。スキャン画面は前から
+     * 画面いっぱいだったので、**同じ「カメラを覗いている」状態なのに
+     * 見た目が2種類**あった。広いほうへ揃える。
+     */
+    <div className="capture-viewfinder flex flex-col overflow-hidden">
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
@@ -1851,11 +1956,18 @@ export function CaptureObjectPanel({
             muted
             className="absolute inset-0 h-full w-full object-cover"
             aria-hidden="true"
+            // 倍率を持たない端末では、見た目だけを拡大して代用する
+            // (スキャン画面と同じ扱い)。
+            style={zoomCaps ? undefined : { scale: String(zoom) }}
           />
         )}
-        <div className="absolute inset-x-5 top-5 text-center">
-          <h1 className="text-headline font-semibold text-background">{t("capture.photoTitle")}</h1>
-        </div>
+        {/*
+          上の見出しは置かない。**下の帯が「写真を撮る」と言っている**ので
+          同じ語が画面に2つ出ることになるうえ、ここは映像の真上 —
+          地の色が決まらない所に、地を持たない字を置くことになる（検査で
+          白字 対 明るい映像が 1.17 と出た）。iPhone のカメラにも
+          この見出しは無い。
+        */}
         <div className="capture-focus" aria-hidden="true">
           <span />
           <span />
@@ -1863,14 +1975,33 @@ export function CaptureObjectPanel({
           <span />
           <i />
         </div>
+        {/* 倍率の目盛り。映像の上、下の操作のすぐ上に置く(iPhone と同じ位置)。 */}
+        {!onNativeCapture && cameraReady && (
+          <div className="absolute inset-x-0 bottom-4 flex justify-center">
+            <CameraZoomMeter
+              zoom={zoom}
+              min={zoomCaps?.min ?? 1}
+              // 倍率を持たない端末でも、**見た目の拡大**なら 3× まで出せる。
+              max={zoomCaps?.max ?? 3}
+              onZoom={applyZoom}
+            />
+          </div>
+        )}
+
         {error && (
-          <p className="absolute inset-x-5 bottom-4 rounded-xl bg-destructive/85 px-3 py-2 text-center text-footnote text-destructive-foreground backdrop-blur-md">
+          <p className="absolute inset-x-5 bottom-20 rounded-xl bg-destructive/85 px-3 py-2 text-center text-footnote text-destructive-foreground backdrop-blur-md">
             {error}
           </p>
         )}
       </div>
 
-      <div className="relative bg-foreground px-5 pb-5 pt-3">
+      {/*
+        下の操作。**下のタブ帯（63px）を避けた所に置く。**
+        画面いっぱいの映像の上にタブ帯が重なって出るので、ここを詰めると
+        シャッターが帯の下に隠れる。開く演出（`camera-lens-open`）の着地点も
+        この 5.5rem を前提に置いてあるので、変えるときは両方を一緒に動かす。
+      */}
+      <div className="capture-controls relative px-5 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
         {textOpen && (
           <form
             onSubmit={(e) => {
@@ -1899,36 +2030,56 @@ export function CaptureObjectPanel({
           </form>
         )}
 
+        {/*
+          撮り方の帯。**選んだ1つが上、残りの2つが下**(オーナー指示
+          2026-09-15)。3つを対等に並べると、いまどれで撮っているのかが
+          読めないので、選択中だけを大きく色付きで出す。
+        */}
+        <CameraModeStrip
+          mode={mode}
+          onChange={(m) => {
+            if (m === "scan") {
+              onOpenScan();
+              return;
+            }
+            setMode(m);
+          }}
+          className="mb-3"
+        />
+
         <div className="grid grid-cols-[1fr_5rem_1fr] items-center gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setTextOpen((open) => !open)}
-            aria-expanded={textOpen}
-            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
-          >
-            <Keyboard className="h-5 w-5" />
-            <span className="whitespace-normal text-caption">{t("capture.typeWord")}</span>
-          </Button>
+          {/* 左: 前後の切り替え。覗いている間はいつでも出す。 */}
+          <div className="flex justify-center">
+            {!onNativeCapture && (
+              <CameraFlipButton
+                facing={facing}
+                onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+              />
+            )}
+          </div>
 
           <Button
             type="button"
             onClick={openCamera}
             aria-label={t("capture.tapToShoot")}
-            className="capture-shutter h-20 w-20 rounded-full bg-background p-0 text-foreground shadow-none hover:bg-background"
+            className="capture-shutter h-20 w-20 rounded-full p-0 shadow-none"
           >
-            <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
+            <span className="capture-shutter__core block h-16 w-16 rounded-full" />
           </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onOpenScan}
-            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
-          >
-            <ScanLine className="h-5 w-5" />
-            <span className="whitespace-normal text-caption">{t("capture.openScan")}</span>
-          </Button>
+          {/* 右: 検索の欄をここからも開ける(帯と同じ働き)。 */}
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setMode((m) => (m === "search" ? "photo" : "search"))}
+              aria-expanded={textOpen}
+              aria-label={t("capture.typeWord")}
+              className="camera-ink h-11 w-11 rounded-full p-0 hover:bg-white/10"
+            >
+              <Keyboard className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <input

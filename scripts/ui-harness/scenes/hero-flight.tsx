@@ -20,6 +20,8 @@ export function HeroFlightScene() {
   const [origin, setOrigin] = useState<FlightOrigin | null>(null);
   const [open, setOpen] = useState(false);
   const [heroHidden, setHeroHidden] = useState(false);
+  // 実物と同じ: 飛んでいる間は面ごと伏せ、届いた1コマで出す。
+  const [panelShown, setPanelShown] = useState(false);
   return (
     <div className="min-h-screen bg-background p-4">
       {/* 押される札。実物のアルバムと同じで、測るのは中の <img>。 */}
@@ -31,6 +33,7 @@ export function HeroFlightScene() {
           const r = img.getBoundingClientRect();
           setOrigin({ x: r.left, y: r.top, w: r.width, h: r.height, url: PHOTO, radius: 2 });
           setHeroHidden(true);
+          setPanelShown(false);
           setOpen(true);
         }}
       >
@@ -42,11 +45,15 @@ export function HeroFlightScene() {
       {open && (
         <div
           className={`fixed inset-0 z-50 flex flex-col bg-background p-4 ${heroHidden ? "sheet-hero-hidden" : ""}`}
+          style={panelShown ? undefined : { opacity: 0 }}
         >
           {origin && (
             <HeroFlight
               origin={origin}
-              onArrive={() => setHeroHidden(false)}
+              onArrive={() => {
+                setPanelShown(true);
+                setHeroHidden(false);
+              }}
               onDone={() => setOrigin(null)}
             />
           )}
