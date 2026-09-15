@@ -22,6 +22,8 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
 import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
+import { useDragDismiss } from "@/hooks/use-drag-dismiss";
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
@@ -425,13 +427,31 @@ export function ScanCatchSheet({
     }
   }
 
+  // 下へ引いて閉じる。**閉じるボタンと同じ条件に揃える** —
+  // この面は保存中に閉じさせない作りなので(下の × も同じ条件で出る)、
+  // 引くほうだけ通ると、保存を途中で捨てられてしまう。
+  const reducedMotionForDrag = usePrefersReducedMotion();
+  const { dragProps, grabber } = useDragDismiss({
+    onDismiss: onClose,
+    enabled: !reducedMotionForDrag && phase === "ready" && !saving,
+  });
+
   return (
     <div
+      {...dragProps}
       className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-black/85 via-black/70 to-black/85 backdrop-blur-md animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-label={t("sheet.catch")}
     >
+      {/* 掴める所を目で示す横棒。この面は地が黒いので白で置く。
+          **出せるのは閉じられるときだけ** — 保存中に掴める見た目を出すと、
+          引いても閉じないことになって「壊れている」と読まれる。 */}
+      {grabber && (
+        <div className="shrink-0 pb-1 pt-2" aria-hidden>
+          <div className="mx-auto h-1 w-9 rounded-full bg-white/35" />
+        </div>
+      )}
       <div className="flex items-center justify-between px-3 py-2">
         <span className="pl-1 text-footnote font-medium text-white/80">{t("sheet.catch")}</span>
         {phase === "ready" && !saving && (

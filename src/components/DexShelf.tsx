@@ -169,7 +169,7 @@ export function DexShelf({
               // **親のほうを強くする。** 部屋(食べる)13px グレー中太に対し、
               // 棚(🍎 果物)は 13px 黒太字 + 絵文字で、**子のほうが重かった**
               // (独立監査「見出しの階層が逆転している」)。
-              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 bg-background/85 px-4 py-1.5 text-headline font-semibold tracking-tight text-foreground backdrop-blur-sm"
+              className="room-head sticky top-[calc(var(--app-header-h)+env(safe-area-inset-top))] z-10 -mx-4 mb-1.5 px-4 py-1.5 text-headline font-semibold tracking-tight text-foreground material-regular"
             >
               {room.label}
             </h3>

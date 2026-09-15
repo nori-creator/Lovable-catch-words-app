@@ -2586,6 +2586,283 @@ describe("キャッチの報酬演出", () => {
     expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
   });
 
+  /**
+   * 動きの曲線と、その出所。
+   *
+   * ## なぜ門にするか
+   * Web Animations API は easing に CSS 変数を取れないので、`v5_reward.ts` は
+   * `--ease-ios` と**同じ値を二重に書いている**。二重に書いた値は必ずずれる。
+   * ずれても絵は出るので、気づくのは「同じ動きなのに場所によって曲線が違う」
+   * と誰かが感じたときになる — それは数の側でしか止められない。
+   */
+  it("`.animate()` に easing が必ず指定されている（linear は等速＝物理的にありえない）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    // `.animate(` の数だけ、options に easing が要る。以前は9本中3本が
+    // 未指定で、既定の linear で動いていた(下へ 14px 逃げる一言も含む)。
+    const calls = v5.match(/\.animate\(/g) ?? [];
+    const easings = v5.match(/easing:/g) ?? [];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(easings.length).toBeGreaterThanOrEqual(calls.length);
+  });
+
+  it("WAAPI 側の曲線が `--ease-ios` と同じ値（二重に書いた値はずれる）", () => {
+    const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    const css = read("styles.css");
+    const inTs = v5.match(/const EASE_IOS = "([^"]+)"/);
+    expect(inTs).not.toBeNull();
+    const inCss = css.match(/--ease-ios:\s*([^;]+);/);
+    expect(inCss).not.toBeNull();
+    // 空白の入れ方だけ違うことがあるので、空白を潰して比べる。
+    const norm = (v: string) => v.replace(/\s+/g, "");
+    expect(norm(inTs![1])).toBe(norm(inCss![1]));
+  });
+
+  it("`--font-word` のような**未定義の変数を使っていない**", () => {
+    // `.reward-catch__word` が `var(--font-word)` を参照していたが、
+    // 定義はアプリ全体に0件だった。この画面でいちばん大きい字——捕まえた
+    // 語そのもの——が無指定の継承フォントに落ちていた。
+    const css = read("styles.css");
+    const used = new Set([...css.matchAll(/var\((--font-[a-z-]+)/g)].map((m) => m[1]));
+    for (const name of used) {
+      expect([name, new RegExp(`${name}:`).test(css)]).toEqual([name, true]);
+    }
+  });
+
+  /**
+   * 覆っている面は、指で下へ払って閉じられる。
+   *
+   * ## なぜ門にするか
+   * この app の「シート」4本はどれも `fixed inset-0` の全画面の面で、
+   * **掴む余地が無かった** — ドラッグで閉じる・つまみ・引いたときの抵抗、
+   * どれも 0。iOS で覆いが出たとき人がまずやるのは「下へ払う」ことなので、
+   * そこに何も起きないと、その面は貼り付いているように感じる。
+   *
+   * 絵の検査ではここを見られない。`sheet` の場面は**シートの外枠を手で
+   * 複製している**ので(本物の `StickerSheet` を描いていない)、本物を直しても
+   * あの絵は変わらない。動きなので、そもそも静止画には映らない。
+   */
+  const SHEETS = [
+    "components/ScanDetailSheet.tsx",
+    "components/InputCatchSheet.tsx",
+    "components/StickerSheet.tsx",
+    "components/ScanCatchSheet.tsx",
+  ];
+
+  it("**4本すべてが**下へ引いて閉じられる（掴む余地がある）", () => {
+    for (const f of SHEETS) {
+      const src = codeOnly(read(f));
+      expect([f, /useDragDismiss\(/.test(src)]).toEqual([f, true]);
+      // 面そのものに付いていること。内側の箱に付けると、面は動かない。
+      expect([f, /\{\.\.\.dragProps\}/.test(src)]).toEqual([f, true]);
+      // つまみが出ること。機能があっても、見えなければ発見されない。
+      expect([f, /\{grabber &&/.test(src)]).toEqual([f, true]);
+    }
+  });
+
+  it("動きを減らす設定の人には**掴ませない**（掴めるが動かない、が一番分かりにくい）", () => {
+    for (const f of SHEETS) {
+      const src = codeOnly(read(f));
+      expect([f, /enabled: !reducedMotionForDrag/.test(src)]).toEqual([f, true]);
+    }
+  });
+
+  /**
+   * `material-in` は 100% の keyframe を持ち続けてはいけない。
+   *
+   * `both` は `forwards` を含むので、終わったあとも keyframe が `transform` を
+   * 握り続ける。CSS アニメーションはインライン style より強いので、
+   * **この class が付いた面は二度と transform を動かせなくなる** —
+   * 指で引いても値は書けているのに画面は動かない、という形で出る
+   * (実際そうなり、`getComputedStyle` が単位行列を返して初めて分かった)。
+   */
+  it("`material-in` が終わったあと transform を手放す（`forwards` にしない）", () => {
+    // **`animation:` の行だけを見る。** 規則の塊ごと見ると、この決定の
+    // 経緯を書いた注釈に出てくる "both" / "forwards" の字を拾って落ちる
+    // (実際落ちた)。`codeOnly` は行頭が `*` `//` `/*` の行しか落とさないので、
+    // 和文で字下げした継続行は残る — CSS 側の注釈には効かない。
+    const css = read("styles.css");
+    const rule = css.slice(css.indexOf(".material-in {"));
+    const decl = rule.slice(0, rule.indexOf("}"));
+    const line = decl.split("\n").find((l) => /^\s*animation:/.test(l));
+    expect(line).toBeDefined();
+    expect(line!).toMatch(/material-in/);
+    // `both` は `forwards` を含む。どちらも 100% の keyframe を持ち続ける。
+    expect(line!).not.toMatch(/\b(both|forwards)\b/);
+  });
+
+  /**
+   * すりガラスの接頭辞は**つき が先、標準が後**。
+   *
+   * 逆に書くと、ミニファイア(Lightning CSS)が標準側を落として `-webkit-` だけを
+   * 残す。ビルド後のCSSを読んで初めて分かる類の壊れ方で、**ソースを見ている
+   * 限り正しく見える**。
+   *
+   * 実害があった: 透明度を下げる設定のときにガラスを消す規則が
+   * `-webkit-backdrop-filter` だけになっていて、標準側を読む Chrome /
+   * Android / Safari 18+ では**一度も効いていなかった**。
+   * (ブラウザで測ると、直す前は設定を入れてもガラス 2面が残り、
+   *  直した後は 0面になる。)
+   */
+  it("`backdrop-filter` は接頭辞つきを先に書く（逆だと標準側が消える）", () => {
+    for (const file of ["styles.css", "pack-styles.css"]) {
+      const css = read(file);
+      const lines = css.split("\n");
+      const wrong: string[] = [];
+      for (let i = 0; i < lines.length - 1; i++) {
+        // 標準 → 接頭辞つき の並びが出たら、その規則は畳まれる側。
+        if (
+          /^\s*backdrop-filter\s*:/.test(lines[i]) &&
+          /^\s*-webkit-backdrop-filter\s*:/.test(lines[i + 1])
+        ) {
+          wrong.push(`${file}:${i + 1}`);
+        }
+      }
+      expect([file, wrong]).toEqual([file, []]);
+    }
+  });
+
+  /**
+   * すりガラスは**段のクラスだけ**が持つ。
+   *
+   * 直す前は blur の強さが 10 種類・地の不透明度が 13 種類に散っていて、
+   * 同じ役割のシートでも 80% / 95% / 97% が混ざっていた。さらに
+   * `backdrop-saturate` が付いていたのは **33 箇所中 1 箇所だけ** —
+   * Apple の material は blur と saturate が対で、上げ直さないと後ろの色が
+   * 灰色に濁る。
+   *
+   * 地が `--background` / `--card` の面(= 手前の chrome)は段に寄せた。
+   * 写真の上の黒い暗幕(`bg-black/NN`)は別物なので、ここでは見ない。
+   */
+  it("地が背景色のガラスは、段のクラスで持つ（値を散らさない）", () => {
+    const files = [
+      "components/AppShell.tsx",
+      "components/ScanDetailSheet.tsx",
+      "components/InputCatchSheet.tsx",
+      "components/StickerSheet.tsx",
+      "components/DexShelf.tsx",
+      "components/SectionsPanel.tsx",
+      "routes/_authenticated/scan.tsx",
+      "routes/_authenticated/feed.tsx",
+      "routes/_authenticated/post.$postId.tsx",
+    ];
+    const stray: string[] = [];
+    for (const f of files) {
+      for (const line of codeOnly(read(f)).split("\n")) {
+        if (!/backdrop-blur/.test(line)) continue;
+        if (/bg-(background|card)\//.test(line)) stray.push(`${f}: ${line.trim().slice(0, 70)}`);
+      }
+    }
+    expect(stray).toEqual([]);
+  });
+
+  /**
+   * 下のタブの印は、**伸びて遅れて追いつく**。
+   *
+   * オーナーが参照として渡した動き(MovinDesign / @MiruDaws の
+   * "gooey liquid glass tab bar, the icons stretching and merging")を、
+   * 録画をコマ送りにして読み取ったもの:
+   *   ・選んだタブに明るいカプセルが乗る(バーの内側。浮いた別物ではない)
+   *   ・切り替えると伸びて両方を跨ぎ、**先端が先に着いて後端が遅れて追う**
+   *   ・大きく動くのは約 200ms
+   *
+   * ## 幅を時間で膨らませていないこと
+   * **伸びは左端と右端の2本のばねの速さの差から出す。** 時間で書いた
+   * 振り付けだと、途中で別のタブを押したときに飛ぶし、指でスワイプして
+   * いる間の 1:1 追従もできない。ここが崩れると「それっぽいが、掴めない」
+   * 動きに戻るので、本数と向きの入れ替えを門にする。
+   *
+   * ブラウザ実測では 174ms 時点で **1.59倍**まで伸び、正しい位置で 1.00倍に
+   * 収束する。
+   */
+  it("タブの印は**左右別々のばね**で動く（伸びを時間で書かない）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    // 端ごとに1本ずつ、2本。
+    expect((src.match(/createSpring\(/g) ?? []).length).toBe(2);
+    // 進む側と残る側で速さを変える。ここが同じだと伸びない。
+    expect(src).toMatch(/const lead = \{[^}]*response:/);
+    expect(src).toMatch(/const trail =/);
+    // 向きで入れ替える。入れ替えないと、片方向にしか伸びない。
+    expect(src).toMatch(/goingRight \? lead : trail/);
+    expect(src).toMatch(/goingRight \? trail : lead/);
+  });
+
+  it("タブの印は**跳ねない**（押した所と違う所に居る一瞬を作らない）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    // 先に着く側は damping 1（行き過ぎ無し）。伸びは2本の差でもう出ている。
+    const lead = src.slice(src.indexOf("const lead ="));
+    expect(lead.slice(0, 80)).toMatch(/damping: 1\b/);
+  });
+
+  it("動きを減らす設定では、伸びも移動も出さない", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const branch = src.slice(src.indexOf("if (reduced)"));
+    expect(branch.slice(0, 160)).toMatch(/L\.set\(/);
+    expect(branch.slice(0, 160)).toMatch(/R\.set\(/);
+  });
+
+  /**
+   * **画面の幅が変わったら、ばねの値を入れ直す。**（Codex 指摘 2026-09-14）
+   *
+   * ばねが持っているのは px の位置で、`cursor × 1タブぶんの幅`。横向きに
+   * すると1タブぶんの幅が変わるので、描き直すだけでは**古い幅で出した位置**
+   * を指したままになる。しかも `cursor` は変わらないので、下の effect も
+   * 走らない = **次にタブを押すまで直らない**。
+   */
+  it("横向きにしても、印が正しいタブを指す（幅が変わったら値を入れ直す）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const onResize = src.slice(
+      src.indexOf("const onResize"),
+      src.indexOf("window.addEventListener"),
+    );
+    // 描き直すだけでは足りない。値そのものを入れ直していること。
+    expect(onResize).toMatch(/leftRef\.current\?\.set\(/);
+    expect(onResize).toMatch(/rightRef\.current\?\.set\(/);
+    // 入れ直す値は、いまの `cursor` と**いまの**幅から出すこと。
+    expect(onResize).toMatch(/cursorRef\.current/);
+    expect(onResize).toMatch(/unit\(\)/);
+  });
+});
+
+/**
+ * 指の物理。**測って直した2件を、黙って戻らないように留める。**
+ */
+describe("指の手応え（外からの指摘で直した所）", () => {
+  /**
+   * **指を置いた所を履歴の1点目に置く。**（Codex 指摘 2026-09-14）
+   *
+   * 置かないと、速く短く払った回は `pointermove` が1回しか来ず、履歴が
+   * 1点だけになる。`velocityFrom` は2点無いと 0 を返すので、**この改良が
+   * いちばん効くはずの操作でだけ速度が 0 になる** — 直したつもりの物が
+   * 直っていない、いちばん質の悪い形。
+   */
+  it("スワイプは**指を置いた瞬間から**位置を控える（1点では速度が出ない）", () => {
+    const src = codeOnly(read("hooks/use-tab-swipe.ts"));
+    // 空で始めていないこと。`useTabSwipe` と `useSwipeBack` の2箇所。
+    expect(src).not.toMatch(/history\s*=\s*\[\]\s*;[\s\S]{0,80}?sx\s*=/);
+    const seeds =
+      src.match(/history\s*=\s*\[\{\s*t:\s*performance\.now\(\)\s*,\s*x:\s*0\s*\}\]/g) ?? [];
+    expect(seeds.length).toBe(2);
+    // 「1点では速度が 0」という前提そのものは `swipe-physics.test.ts` 側で見る。
+  });
+
+  /**
+   * **掴んで閉じる面は `touch-action: none`。**（Codex 指摘 2026-09-14）
+   *
+   * `pan-y` は「縦に引く操作はブラウザのスクロールに使う」という宣言で、
+   * この面が欲しいのはまさにその操作。Chromium で測ると `pan-y` では
+   * `pointermove` 2回で `pointercancel` が飛び、**つまみを掴んでも死ぬ**。
+   * `none` にしても中の縦スクロールは壊れない（スクロールする要素自身が
+   * 受け取るので、上に居るこの面の `none` は参照されない）。
+   *
+   * `SwipeCard` の `pan-y` は正しい — あちらは**横**に引く物で、縦を
+   * ブラウザに渡すのが目的。向きが逆なので、ここでは見張らない。
+   */
+  it("掴んで閉じる面は `touch-action: none`（`pan-y` だと指が取り上げられる）", () => {
+    const src = codeOnly(read("hooks/use-drag-dismiss.tsx"));
+    expect(src).toMatch(/touchAction:\s*"none"/);
+    expect(src).not.toMatch(/touchAction:\s*"pan-y"/);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、

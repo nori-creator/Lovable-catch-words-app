@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+// 端の抵抗・離した速度・弾いた先。**3つとも `lib/spring.ts` に在った** —
+// `rubberband` は呼び出し 0 の死んだコードで、他の2つも1箇所でしか
+// 使われていなかった。指の物理はここでも同じ物を使う。
+import { projectMomentum, rubberband, velocityFrom } from "@/lib/spring";
 
 /**
  * 画面の横スワイプ（オーナー指示 2026-09-13
@@ -53,7 +57,15 @@ export function useTabSwipe({
   const [dragging, setDragging] = useState(false);
   const commitRef = useRef(onCommit);
   commitRef.current = onCommit;
-  const stateRef = useRef({ id: -1, sx: 0, sy: 0, axis: "" as "" | "x" | "y" });
+  const stateRef = useRef({
+    id: -1,
+    sx: 0,
+    sy: 0,
+    axis: "" as "" | "x" | "y",
+    /** 直近の指の位置。離した瞬間の速度を出すのに要る(1点だけ見ると
+        指が止まった瞬間に 0 になる)。 */
+    history: [] as { t: number; x: number }[],
+  });
 
   useEffect(() => {
     if (!enabled || index < 0) return;
@@ -62,6 +74,7 @@ export function useTabSwipe({
     const reset = () => {
       st.id = -1;
       st.axis = "";
+      st.history = [];
       setDragging(false);
       setProgress(0);
     };
@@ -75,6 +88,19 @@ export function useTabSwipe({
       st.sx = e.clientX;
       st.sy = e.clientY;
       st.axis = "";
+      /**
+       * **指を置いた所を1点目として置く。**
+       *
+       * 置かないと、速く短く払った回は `pointermove` が1回しか来ず、
+       * 履歴が1点だけになる。`velocityFrom` は2点無いと 0 を返すので、
+       * **この改良がいちばん効くはずの操作（短く速い払い）でだけ
+       * 速度が 0 になり、距離の閾値で落ちる** — 直したつもりの物が
+       * 直っていない、いちばん質の悪い形になる。
+       *
+       * `x` は `sx` からの差なので、置いた瞬間は 0。
+       * `use-drag-dismiss` も同じ形で置いている。
+       */
+      st.history = [{ t: performance.now(), x: 0 }];
     };
 
     const move = (e: PointerEvent) => {
@@ -93,7 +119,15 @@ export function useTabSwipe({
       let p = -dx / w;
       const next = index + (p > 0 ? 1 : -1);
       // 端では引っぱるだけ（行き先が無いのに滑ると壊れて見える）。
-      if (next < 0 || next >= count) p *= 0.22;
+      //
+      // **`× 0.22` の一律の減衰をやめた。** 一定の割合で薄めるだけだと、
+      // 引いても引いても同じ重さで付いてくるので「ゴムで繋がっている」
+      // 感じが出ない。`rubberband` は引くほど付いてこなくなる漸近曲線で、
+      // 「反応はしている、でもこの先には何も無い」が指に伝わる(§19)。
+      // `lib/spring.ts` に在ったが**呼び出し 0 の死んだコード**だった。
+      if (next < 0 || next >= count) p = rubberband(p * w, w) / w;
+      st.history.push({ t: performance.now(), x: dx });
+      if (st.history.length > 6) st.history.shift();
       setProgress(Math.max(-1, Math.min(1, p)));
     };
 
@@ -101,8 +135,17 @@ export function useTabSwipe({
       if (e.pointerId !== st.id) return;
       const dx = e.clientX - st.sx;
       const w = window.innerWidth || 1;
-      const far = Math.abs(dx) > Math.max(60, w * 0.16);
-      const next = index + (dx < 0 ? 1 : -1);
+      /**
+       * **弾いた先を見る**(§18)。距離だけで決めていたので、**速く短く払う
+       * 操作が通らなかった** — iOS で人がいちばんよくやる送り方がこれ。
+       * いま居る所に、この速度で滑ったら進む分を足して判断する。
+       */
+      const v = velocityFrom(st.history);
+      const projected = dx + projectMomentum(v);
+      const far = Math.abs(projected) > Math.max(60, w * 0.16);
+      // 向きは**弾いた先**で決める。指が戻りかけていても、勢いが残って
+      // いる向きへ送る(離した瞬間の位置で決めると、戻し始めた指で逆へ飛ぶ)。
+      const next = index + (projected < 0 ? 1 : -1);
       if (st.axis === "x" && far && next >= 0 && next < count) commitRef.current(next);
       reset();
     };
@@ -141,6 +184,7 @@ export function useSwipeBack({
     let sx = 0;
     let sy = 0;
     let axis: "" | "x" | "y" = "";
+    let history: { t: number; x: number }[] = [];
     const down = (e: PointerEvent) => {
       if (e.pointerType === "mouse" || id !== -1) return;
       const el = e.target as Element | null;
@@ -149,20 +193,40 @@ export function useSwipeBack({
       sx = e.clientX;
       sy = e.clientY;
       axis = "";
+      // 指を置いた所を1点目に置く。理由は `useTabSwipe` の同じ所と同じ —
+      // 置かないと、速く短く払った回は履歴が1点だけになり、速度が 0 になる。
+      history = [{ t: performance.now(), x: 0 }];
     };
     const move = (e: PointerEvent) => {
-      if (e.pointerId !== id || axis !== "") return;
+      if (e.pointerId !== id) return;
       const dx = e.clientX - sx;
       const dy = e.clientY - sy;
+      // 向きが決まった後も位置を控え続ける。離した瞬間の速度に要る。
+      if (axis === "x") {
+        history.push({ t: performance.now(), x: dx });
+        if (history.length > 6) history.shift();
+        return;
+      }
+      if (axis !== "") return;
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
       axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? "x" : "y";
+      if (axis === "x") history.push({ t: performance.now(), x: dx });
     };
     const up = (e: PointerEvent) => {
       if (e.pointerId !== id) return;
       const dx = e.clientX - sx;
-      if (axis === "x" && dx > Math.max(70, (window.innerWidth || 1) * 0.18)) backRef.current();
+      /**
+       * **弾いた先で決める**(§18)。ここは距離だけを見ていたので、
+       * 速く短く払う操作が通らなかった — 戻るのは一番よく使う操作なのに、
+       * ゆっくり大きく引かないと戻れない状態だった。
+       */
+      const projected = dx + projectMomentum(velocityFrom(history));
+      if (axis === "x" && projected > Math.max(70, (window.innerWidth || 1) * 0.18)) {
+        backRef.current();
+      }
       id = -1;
       axis = "";
+      history = [];
     };
     window.addEventListener("pointerdown", down, { passive: true });
     window.addEventListener("pointermove", move, { passive: true });

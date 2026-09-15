@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShelfScene } from "./scenes/shelf";
 import { GalleryScene } from "./scenes/gallery";
+import { TabBarScene } from "./scenes/tabbar";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
@@ -112,6 +113,7 @@ import "@/pack-styles.css";
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   shelf: ShelfScene,
   gallery: GalleryScene,
+  tabbar: TabBarScene,
   onboarding: OnboardingScene,
   home: HomeScene,
   "home-empty": HomeEmptyScene,
