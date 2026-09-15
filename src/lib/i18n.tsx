@@ -1749,6 +1749,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Changed on this device. It won't carry to your other devices.",
     "zh-TW": "這台裝置上已經改好了，但不會同步到其他裝置。",
   },
+  // アルバムの編集を終えて保存する。**画面の下に固定**してある
+  // （台紙に貼ると、下の札をいじっている人の画面から外れて押せない）。
+  "album.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
   "review.cappedTitle": {
     ja: "今日の分は終わりです",
     en: "That's today's batch",

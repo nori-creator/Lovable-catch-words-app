@@ -29,12 +29,12 @@ import {
   DangerZone,
   PhoneticRow,
   PlaceReminderToggle,
-  SelectRow,
   SettingsCard,
   SoundAndHapticsPanel,
   LEVEL_OPTIONS,
   VideoRecordingToggle,
 } from "@/routes/_authenticated/settings";
+import { WheelPicker } from "@/components/WheelPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,7 +142,8 @@ export function SettingsChoicesScene() {
 }
 
 /**
- * 言語の束。**選択が5つ縦に積む**、この画面でいちばん密な所。
+ * 言語の束。**輪が4つ縦に積む**、この画面でいちばん密な所
+ * （2026-09-15 に `<select>` から `WheelPicker` へ替えた）。
  * 「今のレベル」と「目標レベル」は同じ一覧を使うので、見分けは
  * ラベルだけが頼りになる。2つしか撮っていなかった間は、その密度も
  * 見分けにくさも一度も測られていなかった。
@@ -155,7 +156,7 @@ export function SettingsSelectsScene() {
   return (
     <SettingsCard title={t("settings.language")}>
       <div className="space-y-3">
-        <SelectRow
+        <WheelPicker
           id="lang-target"
           label={t("settings.targetLang")}
           value={target}
@@ -165,14 +166,14 @@ export function SettingsSelectsScene() {
             { value: "en", label: t("settings.langEn") },
           ]}
         />
-        <SelectRow
+        <WheelPicker
           id="lang-cur"
           label={t("settings.currentLevel")}
           value={cur}
           onChange={setCur}
           options={LEVEL_OPTIONS}
         />
-        <SelectRow
+        <WheelPicker
           id="lang-level"
           label={t("settings.levelGoal")}
           value={goal}
@@ -185,7 +186,7 @@ export function SettingsSelectsScene() {
         {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
             設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
             (実際そうなって、検査はそれでも合格していた)。 */}
-        <SelectRow
+        <WheelPicker
           id="lang-ui"
           label={t("settings.uiLang")}
           value={ui}

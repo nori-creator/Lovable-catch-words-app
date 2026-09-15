@@ -1686,6 +1686,78 @@ html[data-motion="reduce"] {
    ## 透けさせないのは以前からの指定
    参照(App Store)はガラスだが、この帯は「後ろは透けない(NORI指定)」で
    不透明に決めてある。今回の指示は**形と配り**の話なので、そこは変えない。 */
+/* ── 指で転がして選ぶ輪（`components/WheelPicker.tsx`）─────────────────
+   転がすのはブラウザの巻き取りそのもの。ここが持つのは見た目だけ。 */
+.wheel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  /* **枠線は引かない。** 設定の札の中に置くので、枠を足すと箱の中の箱に
+     なる。浮いていることは、真ん中の帯と上下の溶けで伝わる。 */
+  background: color-mix(in oklab, var(--foreground) 4%, var(--background));
+  /* 円筒に見せるための遠近。行の `rotateX` はこれが無いと平らに潰れる。 */
+  perspective: 700px;
+}
+.wheel__scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform-style: preserve-3d;
+  /* 巻き取り棒は出さない。輪に棒が付いていると、指で回す物に見えない。 */
+  scrollbar-width: none;
+}
+.wheel__scroll::-webkit-scrollbar {
+  display: none;
+}
+.wheel__scroll:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.wheel__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  font-size: var(--text-field, 1rem);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  /* 行そのものは変形で動かすので、巻き取りの計算に影響させない。 */
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+/* 真ん中の帯。**動かない。** 動くのは行のほう。 */
+.wheel__band {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+/* 上下を地の色で溶かす。切り落とすと、円筒ではなく窓に見える。 */
+.wheel__fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--foreground) 4%, var(--background)) 0%,
+    color-mix(in oklab, var(--background) 30%, transparent) 26%,
+    transparent 42%,
+    transparent 58%,
+    color-mix(in oklab, var(--background) 30%, transparent) 74%,
+    color-mix(in oklab, var(--foreground) 4%, var(--background)) 100%
+  );
+}
+
 .tabbar-dock {
   position: fixed;
   inset-inline: 0;
@@ -1701,10 +1773,16 @@ html[data-motion="reduce"] {
 }
 .tabbar {
   pointer-events: auto;
-  /* 画面幅の 87.6%（実測）。広い画面では伸ばしきらない — 5つの升目が
-     間延びして、印が横長の棒に見えるため。 */
-  width: 87.6%;
-  max-width: 26rem;
+  /* 幅（オーナー指示 2026-09-15「下のバーをもう横に大きく広げてほしい。
+     サイドの余りをもう少し小さくして」）。
+
+     参照（App Store）の実測は画面幅の 87.6% だったが、こちらは5つ並ぶうえに
+     和文のラベル（「ホーム」「図鑑」）が入るので、同じ割合だと1升が窮屈。
+     **94%** にすると 390px の端末で帯 366px・左右の余り 12px ずつ、1升が
+     60.7 → 71.7px になる。左右の余りは丸い端の外なので、これ以上詰めると
+     端が画面の縁に触れて「浮いている」感じが消える。 */
+  width: 94%;
+  max-width: 30rem;
   margin-inline: auto;
   /* 印の丸い端が、帯の丸い端の**すぐ内側に入れ子**になる幅（実測）。 */
   padding: 4px;
@@ -1803,6 +1881,12 @@ html[data-motion="reduce"] .group:active .tabbar__lens {
 }
 .sheet-fade-in {
   animation: sheet-fade-in 0.22s var(--ease-ios) backwards;
+}
+/* 飛んでいる間だけ、本物の見出しを伏せる（`components/HeroFlight.tsx`）。
+   `visibility` にするのは、場所を取ったまま消したいから — `display: none`
+   だと下の文章がせり上がり、着いた瞬間に面ごと跳ねる。 */
+.sheet-hero-hidden [data-sheet-hero] {
+  visibility: hidden;
 }
 
 .material-in {

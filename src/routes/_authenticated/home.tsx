@@ -1108,13 +1108,24 @@ export function ScrapbookAlbum({
       className={`album-page relative rounded-2xl border border-amber-900/20 p-5 sm:p-7 ${bgClass} ${opening ? "album-open" : ""}`}
     >
       {editing && (
+        /**
+         * **画面に貼り付ける。台紙に貼らない。**（オーナー報告 2026-09-15
+         * 「完了ボタンが上にあるから、その日の下の方の画像を大きさを変えたり
+         * すると完了ボタンが押せずに保存ができない」）
+         *
+         * ここは `absolute right-3 top-3` で**台紙の左上隅**に置いてあった。
+         * 台紙は札の数だけ縦に伸びるので、下の方の札をいじっている人の画面から
+         * ボタンは完全に外れる。押せない = **保存できない**。
+         * 触っている所の近くに常に在るよう、画面の下に固定する
+         * （下のタブ帯のすぐ上。親指がいちばん届く所）。
+         */
         <button
           type="button"
           onClick={finishEditing}
-          className="absolute right-3 top-3 z-30 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground shadow-lg"
+          className="lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
         >
           <Check className="h-4 w-4" />
-          完了
+          {t("album.done")}
         </button>
       )}
       {/* **升目をやめて、1枚の紙にした**（オーナー指示 2026-09-15）。

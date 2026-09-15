@@ -72,7 +72,23 @@ const POP = { damping: 0.6, response: 0.42 } as const;
  */
 const FADE_MS = 200;
 
-export function HeroFlight({ origin, onDone }: { origin: FlightOrigin; onDone: () => void }) {
+export function HeroFlight({
+  origin,
+  onArrive,
+  onDone,
+}: {
+  origin: FlightOrigin;
+  /**
+   * 写しが**行き先の大きさに届いた**時。ここで本物の見出しを出す。
+   *
+   * 飛んでいる間、本物は隠してある。隠さないと、育っていく写しの下に
+   * **大きいままの本物**が見えて二重になる（オーナー指摘 2026-09-15
+   * 「画像がチカチカしてなんか二重に表示されてる」）。
+   * 届いた時に本物を出し、写しはその上で溶ける = 継ぎ目が見えない。
+   */
+  onArrive: () => void;
+  onDone: () => void;
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [gone, setGone] = useState(false);
 
@@ -82,18 +98,28 @@ export function HeroFlight({ origin, onDone }: { origin: FlightOrigin; onDone: (
     // 動きを減らす設定の人には飛ばさない。**一瞬だけ写しが出て消える**のも
     // 動きなので、何も出さずに終える。
     if (motionReducedNow()) {
+      // **本物を隠したままにしない。** 飛ばさないだけで、見出しは要る。
+      onArrive();
       onDone();
       return;
     }
 
     let raf = 0;
     let done = false;
+    /** 本物を出したか。**2度出しても害は無いが、1度で済ませる。** */
+    let arrived = false;
+    const arrive = () => {
+      if (arrived) return;
+      arrived = true;
+      onArrive();
+    };
     const springs: Array<ReturnType<typeof createSpring>> = [];
     const t0 = performance.now();
 
     const finish = () => {
       if (done) return;
       done = true;
+      arrive();
       setGone(true);
       onDone();
     };
@@ -143,7 +169,11 @@ export function HeroFlight({ origin, onDone }: { origin: FlightOrigin; onDone: (
         el.style.left = `${cx.value() - ww / 2}px`;
         el.style.top = `${cy.value() - hh / 2}px`;
         el.style.borderRadius = `${origin.radius + (toRadius - origin.radius) * progress}px`;
-        if (!peakedAt && ww >= to.width) peakedAt = performance.now();
+        if (!peakedAt && ww >= to.width) {
+          peakedAt = performance.now();
+          // 届いた。本物の見出しをここで出す（写しはこの上で溶ける）。
+          arrive();
+        }
         if (peakedAt) {
           const k = (performance.now() - peakedAt) / FADE_MS;
           el.style.opacity = String(Math.max(0, 1 - k));
@@ -174,6 +204,7 @@ export function HeroFlight({ origin, onDone }: { origin: FlightOrigin; onDone: (
         }
       }
       if (performance.now() - t0 > FIND_TIMEOUT_MS) {
+        // 行き先が見つからない。**本物を隠したままにしない。**
         finish();
         return;
       }

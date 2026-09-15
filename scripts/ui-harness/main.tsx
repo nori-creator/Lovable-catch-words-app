@@ -208,10 +208,15 @@ function Frame({ children }: { children: ReactNode }) {
           板を敷くと、実物では**見えている**下端の左右が絵の上では隠れ、
           そこにある物の読みやすさを一度も測らないことになる。
           高さは実物と同じ 63px（帯 55 + 下の余白 8）。
-          帯そのものの絵は `?scene=tabbar` が本物で撮る。 */}
+          帯そのものの絵は `?scene=tabbar` が本物で撮る。
+
+          **指も通す。** 実物の `.tabbar-dock` は `pointer-events: none` で、
+          押せるのはカプセルだけ。ここを素通しにしないと、`elementFromPoint`
+          で見る検査が「下端の押せる物が下敷きになっている」と言う
+          （実際そう出た）。場所だけを取って、当たり判定は持たない。 */}
       <div
         aria-hidden
-        className="fixed inset-x-0 bottom-0 z-40"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40"
         style={{ height: "calc(63px + env(safe-area-inset-bottom, 0px))" }}
       />
     </div>
@@ -245,6 +250,8 @@ const BARE = new Set([
   "capture-saving",
   "scan-camera",
   "reward-catch",
+  // 押した札から詳細へ飛ぶ絵。全画面の面なので枠は要らない。
+  "hero-flight",
 ]);
 
 const q = new URLSearchParams(location.search);

@@ -40,40 +40,48 @@ export function TabBarScene() {
   // 実物と同じ式。カメラに近いほど印を薄くする。
   const indicatorOpacity = Math.min(1, Math.abs(index - CAMERA) / 0.85);
   return (
-    <TabBar key={generation} cursor={index} indicatorOpacity={indicatorOpacity}>
-      {ITEMS.map(({ label, icon: Icon, lens }, i) => (
-        <li key={label} className="flex-1">
-          <button
-            data-tab={i}
-            data-remount={i}
-            onClick={() => {
-              setIndex(i);
-              // 実物と同じく、押すと帯ごと作り直される。
-              setGeneration((g) => g + 1);
-            }}
-            className={`tabbar__cell group w-full rounded-full text-caption ${
-              i === index ? "text-primary-ink" : "text-muted-foreground"
-            }`}
-          >
-            {lens ? (
-              <span className="tabbar__lens-slot">
-                <span
-                  className={
-                    i === index
-                      ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
-                      : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
-                  }
-                >
-                  <Icon className="h-6 w-6" />
+    <>
+      {/* **行き先を変えずに作り直すだけ**の引き金。実物では画面の入れ替わりが
+          読み込みの段ごとに何回も起きるので、滑っている最中の作り直しを
+          検査から起こせるようにしておく。 */}
+      <button data-remount-only onClick={() => setGeneration((g) => g + 1)} className="sr-only">
+        remount
+      </button>
+      <TabBar key={generation} cursor={index} indicatorOpacity={indicatorOpacity}>
+        {ITEMS.map(({ label, icon: Icon, lens }, i) => (
+          <li key={label} className="flex-1">
+            <button
+              data-tab={i}
+              data-remount={i}
+              onClick={() => {
+                setIndex(i);
+                // 実物と同じく、押すと帯ごと作り直される。
+                setGeneration((g) => g + 1);
+              }}
+              className={`tabbar__cell group w-full rounded-full text-caption ${
+                i === index ? "text-primary-ink" : "text-muted-foreground"
+              }`}
+            >
+              {lens ? (
+                <span className="tabbar__lens-slot">
+                  <span
+                    className={
+                      i === index
+                        ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
+                        : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
+                    }
+                  >
+                    <Icon className="h-6 w-6" />
+                  </span>
                 </span>
-              </span>
-            ) : (
-              <Icon className="h-5 w-5" />
-            )}
-            <span>{label}</span>
-          </button>
-        </li>
-      ))}
-    </TabBar>
+              ) : (
+                <Icon className="h-5 w-5" />
+              )}
+              <span>{label}</span>
+            </button>
+          </li>
+        ))}
+      </TabBar>
+    </>
   );
 }

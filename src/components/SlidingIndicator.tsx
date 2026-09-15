@@ -23,10 +23,32 @@ import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
  * ここでは**位置だけを持ち越す**: 生まれた時に前の場所から始めて、
  * いまの場所へばねで動かす。見た目は繋がったままになる。
  *
+ * ## 「行き先の番号」ではなく「いま画面に出ている px」を持ち越す
+ * （オーナー指摘 2026-09-15「青いバブルも途中でスライドのアニメーションが
+ * 消える」）
+ *
+ * はじめは直前の**番号**だけを控えていた。ところが画面の入れ替わりで
+ * `AppShell` が作り直されるのは**1回とは限らない**（読み込みの段ごとに
+ * 起きる）。1回目の作り直しで控えは行き先の番号に更新されるので、
+ * 2回目の作り直しでは「前＝行き先」となり、**動かす距離が無くなる** —
+ * 滑っている途中でぷつりと着地する。
+ *
+ * 最後に画面へ書いた px をそのまま控えれば、何回作り直されても
+ * **その時いた場所**から続く。並びの幅が変わっていたら割合で読み替える
+ * （横向きにした直後など）。
+ *
  * 鍵で分けるのは、下のタブと設定の選択肢が**同じ部品を別々に**使うため。
  * 鍵を渡さない使い方（1回きりの物）は何も憶えない。
  */
-const lastIndex = new Map<string, number>();
+type Carry = {
+  /** 直前に指していた位置（小数）。 */
+  index: number;
+  /** 最後に**画面へ書いた**左右端(px)と、そのときの並びの幅。 */
+  l: number;
+  r: number;
+  trackW: number;
+};
+const lastIndex = new Map<string, Carry>();
 
 /**
  * 「いまここ」を示す、**滑って伸びる印**。
@@ -176,6 +198,15 @@ export function SlidingIndicator({
       el.style.borderRadius = `${el.offsetHeight * radiusRatio}px`;
       el.style.opacity =
         indexRef.current < 0 ? "0" : String(Math.max(0, Math.min(1, opacityRef.current)));
+      // **書いた値をそのまま控える。** 作り直されたら、ここから続ける。
+      if (persistKey != null) {
+        lastIndex.set(persistKey, {
+          index: indexRef.current,
+          l,
+          r,
+          trackW: track.getBoundingClientRect().width || 1,
+        });
+      }
     };
 
     /**
@@ -183,11 +214,16 @@ export function SlidingIndicator({
      * 画面が入れ替わって作り直されたときだけ効く（初めてなら現在地）。
      */
     const now = Math.max(indexRef.current, 0);
-    const prev = persistKey != null ? lastIndex.get(persistKey) : undefined;
-    const from = prev != null && prev >= 0 ? prev : now;
-    const e0 = edgesAt(from);
-    leftRef.current = createSpring(e0.l, paint, { damping: 1, response: lead });
-    rightRef.current = createSpring(e0.r, paint, { damping: 1, response: lead });
+    const carry = persistKey != null ? lastIndex.get(persistKey) : undefined;
+    let start = edgesAt(now);
+    if (carry) {
+      // 幅が変わっていたら割合で読み替える（横向きにした直後など）。
+      const w = track.getBoundingClientRect().width || 1;
+      const k = carry.trackW > 0 ? w / carry.trackW : 1;
+      start = { l: carry.l * k, r: carry.r * k };
+    }
+    leftRef.current = createSpring(start.l, paint, { damping: 1, response: lead });
+    rightRef.current = createSpring(start.r, paint, { damping: 1, response: lead });
     paint();
 
     /**
@@ -246,7 +282,6 @@ export function SlidingIndicator({
     const L = leftRef.current;
     const R = rightRef.current;
     if (!track || !L || !R || index < 0) return;
-    if (persistKey != null) lastIndex.set(persistKey, index);
 
     const base = track.getBoundingClientRect().left;
     const cs = Array.from(track.children)

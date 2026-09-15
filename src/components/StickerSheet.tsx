@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -118,21 +118,39 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * いま飛んでいる絵。**開いた瞬間に1回だけ**受け取り、着いたら捨てる。
    * `from` をそのまま渡し続けると、中で何か再描画が起きるたびに
    * 飛び直してしまう。
+   *
+   * ## 効果(`useEffect`)で決めない（オーナー指摘 2026-09-15
+   * 「画像がチカチカして…スムーズじゃない」）
+   * 効果は**描かれた後**に走る。そこで写しを立てると、最初の1枚だけ
+   * 「写しが無くて、本物の見出しが実物大で写っている面」が描かれ、
+   * 次の1枚から写しが小さく出る = **開いた瞬間に大きい絵が一瞬光る**。
+   * 描いている途中で決めれば、1枚目から写しが乗る。
+   *
+   * 状態ではなく控え(`useRef`)に持つのは、描画の途中で書き換えるため。
+   * 画面に出す必要がある変化(着いた)だけ `forceRender` で伝える。
    */
-  const [flight, setFlight] = useState<FlightOrigin | null>(null);
-  const flownFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!stickerId) {
-      flownFor.current = null;
-      setFlight(null);
-      return;
-    }
-    if (flownFor.current === stickerId) return;
-    flownFor.current = stickerId;
-    setFlight(from ?? null);
-    // `from` は開く操作の瞬間の値。**札が変わった時だけ**読む。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stickerId]);
+  const flightRef = useRef<{ id: string | null; origin: FlightOrigin | null; landed: boolean }>({
+    id: null,
+    origin: null,
+    landed: false,
+  });
+  const [, forceRender] = useReducer((n: number) => n + 1, 0);
+  /**
+   * 飛んでいる間、**本物の見出しは隠す**。隠さないと、育っていく写しの下に
+   * 実物大の本物が見えて二重になる。着いた時に出し、写しはその上で溶ける。
+   *
+   * **伏せるのは札が変わった瞬間だけ。** 「飛行中はずっと伏せる」と書くと、
+   * 着いて出した直後の描き直しで**また伏せてしまう**（写しは溶け終わるまで
+   * 残っているので、条件がまだ真のまま）。出す・伏せるが交互に起きて、
+   * 直そうとしたちらつきそのものが出る。
+   */
+  const [heroHidden, setHeroHidden] = useState(false);
+  if (flightRef.current.id !== stickerId) {
+    const origin = stickerId ? (from ?? null) : null;
+    flightRef.current = { id: stickerId, origin, landed: false };
+    setHeroHidden(origin != null);
+  }
+  const flight = flightRef.current.landed ? null : flightRef.current.origin;
   const {
     data: s,
     isLoading,
@@ -688,12 +706,21 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
        * 最中に測ると**行き先が動く**＝写しが着地点を追いかけ続ける。
        * 飛ばす回は面を薄く出すだけにして、動きは絵1枚が持つ。
        */
-      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "sheet-fade-in" : "material-in"}`}
+      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "sheet-fade-in" : "material-in"} ${heroHidden ? "sheet-hero-hidden" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
     >
-      {flight && <HeroFlight origin={flight} onDone={() => setFlight(null)} />}
+      {flight && (
+        <HeroFlight
+          origin={flight}
+          onArrive={() => setHeroHidden(false)}
+          onDone={() => {
+            flightRef.current.landed = true;
+            forceRender();
+          }}
+        />
+      )}
       {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
           機能があっても発見されなければ無いのと同じ。 */}
       {grabber && (

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { SlidingIndicator } from "@/components/SlidingIndicator";
+import { WheelPicker } from "@/components/WheelPicker";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
@@ -237,6 +238,14 @@ const LEVEL_SCALE_DEFAULT = {
 };
 
 /** 選択肢の一覧から1つ選ぶ(選択肢が多いものは丸いボタンでは入らない)。 */
+/**
+ * 素の `<select>` の行。
+ *
+ * **言語とレベルは `WheelPicker` に移した**（オーナー指示 2026-09-15
+ * 「タップではなく Apple のスクロールして選択するような美しいものに」）。
+ * ここが残っているのは、選択肢が2〜3個しかない所や、輪にすると
+ * かえって遠くなる所のため。使う所が無くなったら消すこと。
+ */
 export function SelectRow({
   id,
   label,
@@ -610,7 +619,7 @@ function SettingsPage() {
 
         <SettingsCard title={t("settings.language")}>
           <div className="space-y-3">
-            <SelectRow
+            <WheelPicker
               id="lang-target"
               label={t("settings.targetLang")}
               value={targetLanguage}
@@ -623,7 +632,7 @@ function SettingsPage() {
                 label: t(TARGET_LANG_LABEL_KEYS[code]),
               }))}
             />
-            <SelectRow
+            <WheelPicker
               id="lang-cur"
               label={t("settings.currentLevel")}
               value={currentLevel}
@@ -633,7 +642,7 @@ function SettingsPage() {
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
                 書いてあるのに、以前は1つ目の下に置いていたので、まだ見て
                 いない言葉を指して説明していた。 */}
-            <SelectRow
+            <WheelPicker
               id="lang-level"
               label={t("settings.levelGoal")}
               value={levelGoal}
@@ -650,7 +659,7 @@ function SettingsPage() {
                 「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
                 発音のコツをどの母語向けに書くかは `reader-language.ts` が
                 表示言語から決める。DB の `native_language` の列は残す。 */}
-            <SelectRow
+            <WheelPicker
               id="lang-ui"
               label={t("settings.uiLang")}
               value={uiLanguage}
