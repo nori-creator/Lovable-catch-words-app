@@ -833,20 +833,47 @@
     ),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
 }
+/* iPhone のホーム画面の揺れ（オーナー指示 2026-09-13）。
+
+   前は `rotate` だけを 170ms（約6Hz）で振っていた。速すぎて「震えている」
+   ようにしか見えず、回転だけなので軸が止まって見えた。
+
+   直したのは3つ:
+     ① 周期を 240ms 前後（約4Hz）へ。iOS の体感に寄せる
+     ② **回転と上下、両方**を振る。混ぜると「留め具が緩んでぐらついて
+        いる」になる（回転だけ＝震え、平行移動だけ＝滑り）
+     ③ 位相と周期を**札ごとに**散らす。前は `nth-child(2n)` の2種類だけで、
+        半分が完全に同期していた（機械の表に見える）
+
+   位相と周期は `lib/album-drag.ts` の `jiggleStyle(id)` が id から作り、
+   CSS 変数で渡す。描き直しても位相が飛ばない。 */
 @keyframes album-jiggle {
   0%,
   100% {
-    transform: rotate(-0.7deg);
+    transform: rotate(calc(var(--jiggle-rot, 1.1deg) * -1))
+      translateY(calc(var(--jiggle-lift, 0.9px) * -1));
   }
   50% {
-    transform: rotate(0.7deg);
+    transform: rotate(var(--jiggle-rot, 1.1deg)) translateY(var(--jiggle-lift, 0.9px));
   }
 }
 .album-editing {
-  animation: album-jiggle 170ms ease-in-out infinite;
+  animation: album-jiggle var(--jiggle-dur, 240ms) ease-in-out var(--jiggle-delay, 0ms) infinite;
 }
-.album-editing:nth-child(2n) {
-  animation-delay: -85ms;
+/* **掴んだ札は揺れを止める。** iOS も同じ — 持ち上げた物がぐらぐらして
+   いると、指に付いてきているのか揺れているのか見分けが付かない。 */
+/* アルバムの写真をブラウザに掴ませない。
+   `draggable={false}` は要素に付くが、中の `<img>` は別に持っているので
+   CSS でも塞ぐ（iOS Safari は `-webkit-user-drag` を見る）。 */
+.album-editing img,
+[data-album-sticker] img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.album-lifted {
+  animation: none !important;
+  z-index: 50;
+  cursor: grabbing;
 }
 @media (prefers-reduced-motion: reduce) {
   .album-editing {
@@ -876,28 +903,15 @@
     0 12px 32px color-mix(in oklab, var(--primary) 42%, transparent);
   transform: translateX(-50%);
   transform-origin: 50% 100%;
-  animation: camera-lens-open 720ms cubic-bezier(.2,.82,.2,1) both;
-}
-.camera-launch__glint {
-  position: absolute;
-  left: 50%;
-  bottom: .5rem;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: inherit;
-  border: 2px solid color-mix(in oklab, var(--primary-foreground) 76%, transparent);
-  background: var(--primary);
-  box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--primary-foreground) 28%, transparent);
-  transform: translateX(-50%);
-  animation: camera-launch-control 720ms cubic-bezier(.2,.82,.2,1) both;
+  animation: camera-lens-open 720ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 @keyframes camera-lens-open {
   0% {
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 999px;
-    transform: translateX(-50%) scale(.82);
-    opacity: .96;
+    transform: translateX(-50%) scale(0.82);
+    opacity: 0.96;
   }
   24% {
     width: 4.4rem;
@@ -924,24 +938,32 @@
     opacity: 1;
   }
 }
-@keyframes camera-launch-control {
-  0% { opacity: 1; transform: translateX(-50%) scale(.72); }
-  24% { opacity: 1; transform: translateX(-50%) scale(.8); }
-  58% { opacity: 1; transform: translateX(-50%) scale(1); }
-  82%, 100% { opacity: 0; transform: translateX(-50%) scale(1.12); }
+.capture-viewfinder {
+  position: relative;
+  isolation: isolate;
 }
-.capture-viewfinder { position: relative; isolation: isolate; }
 .capture-viewfinder__light {
   background:
-    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--primary) 24%, transparent), transparent 38%),
-    linear-gradient(155deg, color-mix(in oklab, var(--primary) 28%, var(--foreground)), var(--foreground) 58%);
+    radial-gradient(
+      circle at 50% 42%,
+      color-mix(in oklab, var(--primary) 24%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in oklab, var(--primary) 28%, var(--foreground)),
+      var(--foreground) 58%
+    );
 }
 .capture-viewfinder__light::after {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: .22;
-  background-image: radial-gradient(color-mix(in oklab, var(--background) 38%, transparent) .7px, transparent .7px);
+  opacity: 0.22;
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--background) 38%, transparent) 0.7px,
+    transparent 0.7px
+  );
   background-size: 7px 7px;
 }
 .capture-focus {
@@ -952,27 +974,100 @@
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
 }
-.capture-focus span { position: absolute; width: 2.25rem; height: 2.25rem; border-color: color-mix(in oklab, var(--background) 75%, var(--primary)); }
-.capture-focus span:nth-child(1) { left: 0; top: 0; border-left-width: 1px; border-top-width: 1px; border-radius: .65rem 0 0 0; }
-.capture-focus span:nth-child(2) { right: 0; top: 0; border-right-width: 1px; border-top-width: 1px; border-radius: 0 .65rem 0 0; }
-.capture-focus span:nth-child(3) { left: 0; bottom: 0; border-left-width: 1px; border-bottom-width: 1px; border-radius: 0 0 0 .65rem; }
-.capture-focus span:nth-child(4) { right: 0; bottom: 0; border-right-width: 1px; border-bottom-width: 1px; border-radius: 0 0 .65rem 0; }
-.capture-focus i { position: absolute; inset: 50% auto auto 50%; width: .4rem; height: .4rem; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent); transform: translate(-50%,-50%); animation: capture-focus-breathe 2.8s ease-in-out infinite; }
-.capture-shutter { box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent); transition: transform 100ms ease; }
-.capture-shutter:active { transform: scale(.9); }
-.capture-search { animation: capture-search-in 220ms cubic-bezier(.2,.8,.2,1) both; }
-@keyframes capture-focus-breathe { 50% { transform: translate(-50%,-50%) scale(1.35); opacity: .72; } }
-@keyframes capture-search-in { from { opacity: 0; transform: translateY(10px); } }
+.capture-focus span {
+  position: absolute;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-color: color-mix(in oklab, var(--background) 75%, var(--primary));
+}
+.capture-focus span:nth-child(1) {
+  left: 0;
+  top: 0;
+  border-left-width: 1px;
+  border-top-width: 1px;
+  border-radius: 0.65rem 0 0 0;
+}
+.capture-focus span:nth-child(2) {
+  right: 0;
+  top: 0;
+  border-right-width: 1px;
+  border-top-width: 1px;
+  border-radius: 0 0.65rem 0 0;
+}
+.capture-focus span:nth-child(3) {
+  left: 0;
+  bottom: 0;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+  border-radius: 0 0 0 0.65rem;
+}
+.capture-focus span:nth-child(4) {
+  right: 0;
+  bottom: 0;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  border-radius: 0 0 0.65rem 0;
+}
+.capture-focus i {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent);
+  transform: translate(-50%, -50%);
+  animation: capture-focus-breathe 2.8s ease-in-out infinite;
+}
+.capture-shutter {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent);
+  transition: transform 100ms ease;
+}
+.capture-shutter:active {
+  transform: scale(0.9);
+}
+.capture-search {
+  animation: capture-search-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes capture-focus-breathe {
+  50% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0.72;
+  }
+}
+@keyframes capture-search-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .camera-launch__lens { animation: camera-lens-open-reduced 220ms ease both; }
-  .camera-launch__glint { animation: reduced-fade-in 120ms ease reverse both; }
-  .capture-focus i { animation: none; }
-  .capture-search { animation: reduced-fade-in 180ms ease both; }
+  .camera-launch__lens {
+    animation: camera-lens-open-reduced 220ms ease both;
+  }
+  .capture-focus i {
+    animation: none;
+  }
+  .capture-search {
+    animation: reduced-fade-in 180ms ease both;
+  }
 }
 @keyframes camera-lens-open-reduced {
-  from { opacity: 0; width: 100vw; height: 100dvh; bottom: 0; border-radius: 0; }
-  to { opacity: 1; width: 100vw; height: 100dvh; bottom: 0; border-radius: 0; }
+  from {
+    opacity: 0;
+    width: 100vw;
+    height: 100dvh;
+    bottom: 0;
+    border-radius: 0;
+  }
+  to {
+    opacity: 1;
+    width: 100vw;
+    height: 100dvh;
+    bottom: 0;
+    border-radius: 0;
+  }
 }
 /* ===========================================================================
    解説の地の文（オーナー指摘 2026-08-27 ⑥）

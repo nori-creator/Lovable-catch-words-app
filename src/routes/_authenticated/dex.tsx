@@ -1384,8 +1384,13 @@ export function DexHeader({
           図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
-      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pb-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex shrink-0 gap-1 rounded-full bg-secondary p-1">
+      {/* 外側の余白と安全領域は main 側（Lovable）の直しを採る。 */}
+      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* 中の隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
+            4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
+            隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
+            36 + 8 = 44 でちょうど隣り合い、重ならない。 */}
+        <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1">
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
             ["gallery", LayoutGrid, t("dex.gallery")] as const,
@@ -1398,7 +1403,12 @@ export function DexHeader({
               onClick={() => onView(v)}
               aria-label={label}
               aria-pressed={view === v}
-              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+              // 見た目は 36px のまま、**指が当たる範囲だけ 44px** に広げる
+              // (`-inset-1` = 上下左右 4px → 44px 四方)。絵の検査は
+              // `getBoundingClientRect()` ではなく `elementFromPoint` で
+              // 実際の当たり判定を見るので、これが正しいやり方
+              // (`scripts/ui-audit.mjs` の注)。
+              className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition before:absolute before:-inset-1 before:content-[''] ${
                 view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
               }`}
             >

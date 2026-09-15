@@ -275,6 +275,11 @@ function CapturePage() {
   const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
   // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
   const [landing, setLanding] = useState(false);
+  /**
+   * 保存の通信中。**画面は切り替えない**(演出はカードの画面の上で走る)ので、
+   * 押し直しを止める見張りがここに要る。無いと二重登録になる。
+   */
+  const [saving, setSaving] = useState(false);
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -342,8 +347,11 @@ function CapturePage() {
     if (step !== "object") return;
     if (wordParam || pendingParam) return;
     autoOpenedRef.current = true;
-    const t = setTimeout(() => cameraInputRef.current?.click(), 60);
-    return () => clearTimeout(t);
+    // Native builds do not have an inline browser camera surface. Open the
+    // platform camera as soon as the camera tab arrives; web builds render a
+    // live preview inside CaptureObjectPanel instead of opening a file picker.
+    if (Capacitor.isNativePlatform()) void openNativeCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, wordParam, pendingParam]);
 
   // Derived catch: /capture?word=◯◯ — **この画面のまま**すぐ調べる
@@ -745,172 +753,228 @@ function CapturePage() {
     }
   }
 
-  async function handleSave() {
-    if (!card || !selectedHead) return;
-    setStep("saving");
-    Sound.rewardGrip();
-    haptic("selection");
-    try {
-      // 温めてある位置を**ここで確定させる**。状態を直に読むと、
-      // 候補を早く選んだ回はまだ届いていない。
-      const here = await resolveLocation();
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Not signed in");
+  /**
+   * 保存そのもの。**演出を1ミリ秒も待たせない**ように切り出してある。
+   *
+   * 以前は保存と演出が1つの関数に並び、`await` で順番に走っていた。
+   * つまり**通信が終わるまで絵が1ミリも動かなかった** — 押してから
+   * 動き出すまでに、回線しだいで1〜3秒の無音があった。
+   * いまは押した瞬間に演出が始まり、これはその裏で走る。
+   */
+  async function doSave(card: CardData, selectedHead: string) {
+    // 温めてある位置を**ここで確定させる**。状態を直に読むと、
+    // 候補を早く選んだ回はまだ届いていない。
+    const here = await resolveLocation();
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) throw new Error("Not signed in");
 
-      const ts = Date.now();
-      async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
-        if (!dataUrl) return null;
-        const blob = await dataUrlToBlob(dataUrl);
-        const ext = blob.type.includes("png") ? "png" : "jpg";
-        const path = `${userId}/${ts}-${kind}.${ext}`;
-        const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
-        const { error } = await supabase.storage.from("stickers").upload(path, blob, {
-          contentType: blob.type,
-          upsert: false,
-        });
-        if (error) throw error;
-        // Grid thumbnail alongside — best-effort, the grid falls back to the
-        // original when it's missing (old stickers, encode failure).
-        const thumb = await thumbPromise;
-        if (thumb) {
-          await supabase.storage
-            .from("stickers")
-            .upload(thumbPath(path), thumb, {
-              contentType: thumb.type || "image/webp",
-              upsert: true,
-            })
-            .catch(() => {});
-          void putCachedImage(thumbPath(path), thumb);
-        }
-        // Prime the device cache so the dex shows this image instantly,
-        // without ever downloading what we just uploaded.
-        void putCachedImage(path, blob);
-        return path;
-      }
-
-      // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
-      // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
-      // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
-      //
-      // **`?? cutoutImg` に落としてはいけない**(オーナー報告 2026-09-13
-      // 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
-      // `cutoutImg` は「絵が届くまでのあいだ元の写真を見せておく」ための
-      // 表示用の値で、切り抜きが出来なかったときもそのまま元の写真が入って
-      // いる。それを保存すると、切り抜いていない札に**切り抜きが在る**こと
-      // になり、長押しの一覧に元の写真が「切り抜き」として並び、
-      // 「切り抜く」ボタンも出なくなっていた。保存は本物だけ。
-      const cutForSave = await cutoutPromiseRef.current;
-
-      // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
-      // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
-      const [object_path, cutout_path, selfie_path] = await Promise.all([
-        upload(objectImg, "object"),
-        upload(cutForSave, "cutout").catch(() => null),
-        upload(selfieImg, "selfie").catch(() => null),
-      ]);
-
-      const res = await saveFn({
-        data: {
-          word: {
-            headword: selectedHead,
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            meaning_ja: card.meaning_ja,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            category_key: card.category_key,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            extras: card.extras,
-          },
-          // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
-          // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
-          // このアプリで何度もやっている「直したものが動く経路に無い」形。
-          new_shelf: card.new_shelf ?? null,
-          language: targetLanguage,
-          object_path,
-          cutout_path,
-          selfie_path,
-          caption: caption || null,
-          location_name: here.name,
-          lat: here.lat,
-          lng: here.lng,
-        },
+    const ts = Date.now();
+    async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
+      if (!dataUrl) return null;
+      const blob = await dataUrlToBlob(dataUrl);
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const path = `${userId}/${ts}-${kind}.${ext}`;
+      const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
       });
-
-      // **ここから先の失敗は「保存の失敗」ではない。**
-      //
-      // 以前は演出も遷移も同じ try の中にあり、`catch` は一律
-      // 「保存に失敗しました」を出してカード画面へ戻していた。
-      // ユーザーは失敗したと思ってもう一度「図鑑に追加」を押し、
-      // **同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階にしか
-      // 無く、保存時には無い)。嘘の失敗が、正しい対処を誤りに変えていた
-      // (独立監査の指摘)。
-      //
-      // 保存は済んでいるので、以後は何が転んでも図鑑へ送る。
-      savedRef.current = true;
-
-      // **声の一言は札が出来てから、裏で。**
-      // ここを待つと、いちばん壊してはいけない「一瞬でも早く」が削れる。
-      // 落ちたときは黙って捨てず、そこだけ伝える(写真の一言は保存済み)。
-      if (voiceNote) {
-        const note = voiceNote;
-        void (async () => {
-          try {
-            const path = await uploadVoiceNote({
-              blob: note.blob,
-              mime: note.mime,
-              stickerId: res.id,
-            });
-            const saved = await attachVoiceFn({
-              data: { sticker_id: res.id, voice_video_path: path },
-            });
-            if (!saved.saved) toast.error(t("voice.needsMigration"));
-          } catch (e) {
-            console.warn("voice note attach failed", e);
-            toast.error(t("voice.attachFailed"));
-          }
-        })();
+      if (error) throw error;
+      // Grid thumbnail alongside — best-effort, the grid falls back to the
+      // original when it's missing (old stickers, encode failure).
+      const thumb = await thumbPromise;
+      if (thumb) {
+        await supabase.storage
+          .from("stickers")
+          .upload(thumbPath(path), thumb, {
+            contentType: thumb.type || "image/webp",
+            upsert: true,
+          })
+          .catch(() => {});
+        void putCachedImage(thumbPath(path), thumb);
       }
+      // Prime the device cache so the dex shows this image instantly,
+      // without ever downloading what we just uploaded.
+      void putCachedImage(path, blob);
+      return path;
+    }
 
-      // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
-      void queryClient.invalidateQueries({ queryKey: ["stickers"] });
-      if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
+    // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
+    // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
+    // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
+    //
+    // **`?? cutoutImg` に落としてはいけない**(オーナー報告 2026-09-13
+    // 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
+    // `cutoutImg` は「絵が届くまでのあいだ元の写真を見せておく」ための
+    // 表示用の値で、切り抜きが出来なかったときもそのまま元の写真が入って
+    // いる。それを保存すると、切り抜いていない札に**切り抜きが在る**こと
+    // になり、長押しの一覧に元の写真が「切り抜き」として並び、
+    // 「切り抜く」ボタンも出なくなっていた。保存は本物だけ。
+    const cutForSave = await cutoutPromiseRef.current;
 
-      // ここからキャッチ演出。切り抜きがふわっと浮いて画面いっぱいに広がり、
-      // 上へ抜けたところで図鑑のページが開いて、新しいセルがドンと着弾する
-      // (最後の一撃は /dex 側の slam-in が ?justCaught= を見て出す)。
-      // 以前このフローだけ演出がなく、保存したら図鑑に飛ぶだけだった。
-      setLanding(true);
+    // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
+    // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
+    const [object_path, cutout_path, selfie_path] = await Promise.all([
+      upload(objectImg, "object"),
+      upload(cutForSave, "cutout").catch(() => null),
+      upload(selfieImg, "selfie").catch(() => null),
+    ]);
+
+    const res = await saveFn({
+      data: {
+        word: {
+          headword: selectedHead,
+          reading_zhuyin: card.reading_zhuyin,
+          pinyin: card.pinyin,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech,
+          level: card.level,
+          category_key: card.category_key,
+          example_sentence: card.example_sentence,
+          example_translation: card.example_translation,
+          extras: card.extras,
+        },
+        // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
+        // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
+        // このアプリで何度もやっている「直したものが動く経路に無い」形。
+        new_shelf: card.new_shelf ?? null,
+        language: targetLanguage,
+        object_path,
+        cutout_path,
+        selfie_path,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+      },
+    });
+
+    if (voiceNote) {
+      const note = voiceNote;
+      void (async () => {
+        try {
+          const path = await uploadVoiceNote({
+            blob: note.blob,
+            mime: note.mime,
+            stickerId: res.id,
+          });
+          const saved = await attachVoiceFn({
+            data: { sticker_id: res.id, voice_video_path: path },
+          });
+          if (!saved.saved) toast.error(t("voice.needsMigration"));
+        } catch (e) {
+          console.warn("voice note attach failed", e);
+          toast.error(t("voice.attachFailed"));
+        }
+      })();
+    }
+
+    // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+    void queryClient.invalidateQueries({ queryKey: ["stickers"] });
+    if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
+    return res;
+  }
+
+  /**
+   * 「図鑑に追加」を押したときの段取り。
+   *
+   * ## オーナー指示 2026-09-13
+   * > 「該当の画面のなかの**画像だけ**が動き出し」
+   *
+   * 前はここで `setStep("saving")` を呼んでいた。するとカードの画面が
+   * **丸ごと外れて**黒い覆いに差し替わり、そこに置かれた別の大きさの
+   * 写真のコピー(`w-64`)から飛んでいた。画面が変わってから別の絵が動くので、
+   * **同じ物が動いたようには見えない**。
+   *
+   * いまはカードの画面をそのまま残し、**いま出ているその写真**から飛ばす。
+   *
+   * ## 通信と演出を並走させる
+   * 演出は押した瞬間に始める。通信はその裏。見せ場の1秒が関所も兼ねていて、
+   * まだ届いていなければそこで待つ(`v5_reward` の reveal → transfer)。
+   *
+   * ## 札の id は後から渡す
+   * 飛び始めた時点では保存が終わっていないので `destinationId` は決まって
+   * いない。`getDestinationId` で**その時点の値**を読ませる。
+   */
+  async function handleSave() {
+    if (!card || !selectedHead || saving) return;
+    const hero = cutoutImg ?? objectImg;
+    // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
+    // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
+    if (!hero) {
+      setStep("saving");
+      // 写真の経路では `v5_reward` の grip 段が鳴らすが、こちらは演出を
+      // 通らない。**押した返事まで消してはいけない**ので、ここで鳴らす。
+      Sound.rewardGrip();
+      haptic("selection");
       try {
-        await runCatchLanding({
-          startEl: heroBoxRef.current,
-          // ref のまま渡す。演出の層はこの直前の setLanding(true) で
-          // 初めて描かれるので、ここで .current を読むと必ず null になる。
-          fly: flyRef,
-          speakLine: () => void pronounce(selectedHead),
-          destinationId: res.id,
-          openDex: () => navigate({ to: "/dex", search: { justCaught: res.id } }),
-        });
+        const res = await doSave(card, selectedHead);
+        savedRef.current = true;
+        navigate({ to: "/dex", search: { justCaught: res.id } });
       } catch (e) {
-        // 演出が転んでも保存は済んでいる。見せ場を諦めて図鑑へ送る。
-        console.warn("catch landing failed", e);
+        console.error(e);
+        toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
+        setStep("card");
       }
+      return;
+    }
+
+    setSaving(true);
+    setLanding(true);
+    // **ここで音と振動を鳴らさない。** `v5_reward` の grip 段が同じものを
+    // 鳴らす。前は間に通信(1〜3秒)が挟まっていたので別の音に聞こえたが、
+    // 並走にすると**ほぼ同時に2回**鳴る。
+
+    // 保存は裏で走らせる。**id は決まり次第ここに入る。**
+    let savedId: string | undefined;
+    const savePromise = doSave(card, selectedHead).then((res) => {
+      savedId = res.id;
+      savedRef.current = true;
+      return res;
+    });
+    // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
+    void savePromise.catch(() => setLanding(false));
+
+    const landingDone = runCatchLanding({
+      startEl: heroBoxRef.current,
+      // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
+      // 初めて描かれるので、ここで .current を読むと必ず null になる。
+      fly: flyRef,
+      speakLine: () => void pronounce(selectedHead),
+      // **先に読ませない。** 押した時点ではまだ決まっていない。
+      getDestinationId: () => savedId,
+      openDex: () => {
+        if (!savedId) return;
+        return navigate({ to: "/dex", search: { justCaught: savedId } });
+      },
+      // 見せ場の1秒がこれを待つ関所。**失敗をそのまま渡す** —
+      // 演出側はこれが転んだら受け渡しへ進まず畳む。飲み込んで渡すと、
+      // 保存に失敗したのに図鑑まで飛んでから謝ることになる。
+      gate: savePromise,
+    });
+
+    try {
+      const res = await savePromise;
+      // **ここから先の失敗は「保存の失敗」ではない。**
+      // 以前は演出も遷移も同じ try の中にあり、catch が一律
+      // 「保存に失敗しました」を出してカード画面へ戻していた。ユーザーは
+      // 押し直し、**同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階に
+      // しか無い)。嘘の失敗が、正しい対処を誤りに変えていた。
+      await landingDone.catch((e) => console.warn("catch landing failed", e));
       if (window.location.pathname !== "/dex") {
         navigate({ to: "/dex", search: { justCaught: res.id } });
       }
     } catch (e) {
       console.error(e);
       setLanding(false);
+      setSaving(false);
       if (savedRef.current) {
-        // 保存は通っている。ここで「失敗」と言うと、押し直して二重登録になる。
         toast.error(t("cap.savedButLandingFailed"));
         navigate({ to: "/dex", search: {} });
         return;
       }
       toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
-      setStep("card");
     }
   }
 
@@ -1016,7 +1080,7 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title={t("title.capture")}>
+    <AppShell title={t("title.capture")} fixedViewport={step === "object"}>
       {step === "object" && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
@@ -1132,6 +1196,10 @@ function CapturePage() {
           placeName={loc?.name ?? null}
           onRedo={reset}
           onSave={handleSave}
+          // **飛び立つのはこの画面に出ているこの写真**。画面を差し替えない。
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          saving={saving}
         />
       )}
 
@@ -1501,6 +1569,9 @@ export function CaptureCardPanel({
   placeName,
   onRedo,
   onSave,
+  heroBoxRef,
+  landing = false,
+  saving = false,
 }: {
   card: CardData;
   selectedHead: string;
@@ -1518,13 +1589,28 @@ export function CaptureCardPanel({
   placeName: string | null;
   onRedo: () => void;
   onSave: () => void;
+  /**
+   * 飛び立つ枠。**いま画面に出ているこの写真そのもの**を指す。
+   *
+   * 以前は保存を押すと `setStep("saving")` で画面ごと黒い覆いに差し替わり、
+   * そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛んでいた。
+   * オーナー指摘「該当の画面のなかの画像だけが動き出し」が成立して
+   * いなかったのはこれ — 画面が変わってから別の絵が動くので、
+   * 同じ物が動いたようには見えない。
+   */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消して、上に載る層へ見た目を渡す。 */
+  landing?: boolean;
+  /** 保存の通信中。押し直して二重登録されないように止める。 */
+  saving?: boolean;
 }) {
   const t = useT();
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
         <div
-          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer ${flipped ? "flipped" : ""}`}
+          ref={heroBoxRef}
+          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
         >
           <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
             <div className="grid h-full place-items-center p-6">
@@ -1551,10 +1637,10 @@ export function CaptureCardPanel({
         </div>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={onRedo} className="flex-1">
+        <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
           {t("capture.redo")}
         </Button>
-        <Button onClick={onSave} className="lift flex-1">
+        <Button onClick={onSave} disabled={saving} className="lift flex-1">
           <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
         </Button>
       </div>
@@ -1645,17 +1731,66 @@ export function CaptureObjectPanel({
 }) {
   const t = useT();
   const [textOpen, setTextOpen] = useState(Boolean(typedWord));
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+
+  useEffect(() => {
+    if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
+    let cancelled = false;
+    void navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 1280 },
+        },
+        audio: false,
+      })
+      .then(async (stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        setCameraReady(true);
+      })
+      .catch(() => setCameraReady(false));
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [onNativeCapture]);
 
   const openCamera = () => {
     if (onNativeCapture) {
       onNativeCapture();
       return;
     }
+    const video = videoRef.current;
+    if (cameraReady && video?.videoWidth) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) onObjectFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
+        }, "image/jpeg", 0.9);
+        return;
+      }
+    }
     cameraInputRef.current?.click();
   };
 
   return (
-    <div className="capture-viewfinder flex min-h-[calc(100dvh-var(--app-header-h)-10rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
+    <div className="capture-viewfinder flex h-full min-h-0 flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
@@ -1666,9 +1801,17 @@ export function CaptureObjectPanel({
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+        {!onNativeCapture && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="absolute inset-0 h-full w-full object-cover"
+            aria-hidden="true"
+          />
+        )}
         <div className="absolute inset-x-5 top-5 text-center">
           <h1 className="text-headline font-semibold text-background">{t("capture.photoTitle")}</h1>
-          <p className="mt-1 text-footnote text-background/70">{t("capture.photoHint")}</p>
         </div>
         <div className="capture-focus" aria-hidden="true">
           <span />
@@ -1731,9 +1874,7 @@ export function CaptureObjectPanel({
             aria-label={t("capture.tapToShoot")}
             className="capture-shutter h-20 w-20 rounded-full bg-background p-0 text-foreground shadow-none hover:bg-background"
           >
-            <span className="capture-shutter__core grid h-16 w-16 place-items-center rounded-full border border-foreground/15 bg-background">
-              <Camera className="h-6 w-6 text-primary-ink" />
-            </span>
+            <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
           </Button>
 
           <Button

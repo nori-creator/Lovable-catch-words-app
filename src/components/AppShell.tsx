@@ -332,9 +332,7 @@ export function AppShell({
           青い光として繋ぐ。遷移後の自動カメラ起動は capture 側が担う。 */}
       {cameraOpening && (
         <div className="camera-launch" aria-hidden="true">
-          <span className="camera-launch__lens">
-            <span className="camera-launch__glint" />
-          </span>
+          <span className="camera-launch__lens" />
         </div>
       )}
 
@@ -399,10 +397,8 @@ export function AppShell({
                     // 設定の青より暗く見えていた。同じ画面に同じ青が2種類
                     // 並ぶのをやめる。白のアイコンは主色の上の文字と同じ
                     // 組み合わせになるので、読みやすさは主色の側で保証される。
-                    <span className="camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-4 ring-background transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
-                      <span className="grid h-8 w-8 place-items-center rounded-full border border-primary-foreground/55 bg-primary-foreground/12">
-                        <Icon className="h-5 w-5" />
-                      </span>
+                    <span className="camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
+                      <Icon className="h-6 w-6" />
                     </span>
                   ) : (
                     <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
