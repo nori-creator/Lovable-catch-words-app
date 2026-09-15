@@ -3649,11 +3649,17 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 面の中には大きな写真、後ろにはアルバムの写真 — 写真の上に写真が
    * 半分ずつ重なるので二重写しになる。
    */
-  it("札の面は、飛んでいる絵が着く頃から濃くなる", () => {
-    const css = read("styles.css");
-    const rule = css.slice(css.indexOf(".sheet-fade-in {"), css.indexOf(".sheet-hero-hidden"));
-    const m = rule.match(/animation: sheet-fade-in ([\d.]+)s [^;]*?\s([\d.]+)s backwards;/);
-    expect([!!m, m && Number(m[2]) >= 0.15]).toEqual([true, true]);
+  it("札の面は、飛んでいる絵が着いた**1コマで**出る（薄く重ねない）", () => {
+    const src = codeOnly(read("components/StickerSheet.tsx"));
+    // 飛ぶ回は面ごと伏せ、`onArrive` で面と見出しを同時に出す。
+    expect(src).toMatch(/const \[panelShown, setPanelShown\] = useState\(true\)/);
+    expect(src).toMatch(/style=\{panelShown \? undefined : \{ opacity: 0 \}\}/);
+    const arrive = src.slice(src.indexOf("onArrive={() => {"), src.indexOf("onDone={"));
+    expect(arrive).toMatch(/setPanelShown\(true\)/);
+    expect(arrive).toMatch(/setHeroHidden\(false\)/);
+    // 薄く重ねる古い形が残っていないこと。
+    expect(src).not.toMatch(/sheet-fade-in/);
+    expect(read("styles.css")).not.toMatch(/\.sheet-fade-in \{/);
   });
 
   it("カメラの演出は画面の入れ替わりで消えない（状態に持たない）", () => {
@@ -3682,5 +3688,104 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(codeOnly(scene)).toMatch(/import \{ TabBar \} from "@\/components\/TabBar"/);
     // 帯の枠を場面の側で書き直していないこと。
     expect(codeOnly(scene)).not.toMatch(/<nav/);
+  });
+
+  /**
+   * **出ているかどうかは、出ている画面が名乗る。**（オーナー報告 3回目
+   * 2026-09-15「すでにカメラの画面が表示されてるのに、そこから上に上書きで
+   * アニメーションが表示される」）
+   *
+   * 道の名前で当てにいくと、末尾の `/`・移動の途中の値・道が増えたとき、で
+   * 抜け道が毎回増える。カメラを出している画面 2つ（撮る・スキャン）に
+   * 名乗らせれば、道が何であれ上に重ねることはあり得なくなる。
+   */
+  it("撮る画面・スキャン画面が出ている間は、開く演出を出さない", () => {
+    const lib = codeOnly(read("lib/camera-launch.ts"));
+    expect(lib).toMatch(/export function setCameraScreenOpen\(open: boolean\): void/);
+    // 出ていたら何もせず返る。走っている最中の押下も捨てる。
+    const play = lib.slice(lib.indexOf("export function playCameraLaunch"));
+    expect(play).toMatch(/if \(cameraScreenOpen\) return;/);
+    expect(play).toMatch(/if \(live\) return;/);
+    // カメラを出す画面はどちらも名乗ること（片方だけだと、そこだけ重なる）。
+    for (const f of ["routes/_authenticated/capture.tsx", "routes/_authenticated/scan.tsx"]) {
+      const src = codeOnly(read(f));
+      expect(src).toMatch(/setCameraScreenOpen\(true\)/);
+      expect(src).toMatch(/return \(\) => setCameraScreenOpen\(false\)/);
+    }
+  });
+
+  /**
+   * **保存できなかった項目を、黙って「保存しました」で覆わない。**
+   * （オーナー報告 2026-09-15「復習の数を無制限にしたら復習ができない」）
+   *
+   * `updateProfile` は列が無い等で落ちた項目を `skipped` で返す。画面は
+   * それを見ずに必ず成功を出していたので、**上限が保存されていないのに
+   * 保存されたと見える**。設定と実際の食い違いは、ここでしか気づけない。
+   */
+  it("設定は、保存できなかった項目を名指しで言う", () => {
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(src).toMatch(/skipped/);
+    expect(src).toMatch(/toast\.warning\(t\("settings\.savedPartly"/);
+    const ok = src.indexOf('toast.success(t("settings.saved")');
+    const warn = src.indexOf('toast.warning(t("settings.savedPartly"');
+    expect(ok).toBeGreaterThanOrEqual(0);
+    expect(warn).toBeGreaterThanOrEqual(0);
+    // 成功は「落ちた項目が無いとき」だけ。
+    expect(src).toMatch(/skipped\.length > 0/);
+  });
+
+  /**
+   * **読めなかったことを、上限 20 と取り違えない。**
+   *
+   * `getReviewPrefs` は読み取りが落ちても既定の 20 を返していた。上限なし
+   * （0）にしている人は、通信が一瞬ころんだだけで 20 枚で打ち切られ、
+   * しかも画面は「今日の分は終わりです」と言う。**読めなかったなら、
+   * 上限を掛けない**方が実害が小さい。
+   */
+  it("復習の上限は、読み取りに失敗したら掛けない", () => {
+    const src = codeOnly(read("lib/reviews.functions.ts"));
+    const at = src.indexOf("async function getReviewPrefs");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const fn = src.slice(at, at + 3000);
+    expect(fn).toMatch(/if \(error\) return \{ limit: 0/);
+    // 行が無い（まだ設定していない）ときだけ既定に落ちる。
+    expect(fn).toMatch(/if \(!data\) return fallback;/);
+  });
+
+  /**
+   * **かたまりの右は、日本語の訳だけ。**（オーナー指示 2026-09-15）
+   * 音の釦と原文の繰り返しを並べると、読む所が3つになって訳が沈む。
+   */
+  it("単語の詳細のかたまり行は、右に訳だけを出す", () => {
+    const src = codeOnly(read("components/WordCard.tsx"));
+    const at = src.indexOf("function ChunkRow");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const row = src.slice(at, at + 2000);
+    expect(row).toMatch(/usage-chunk-row__meaning/);
+    expect(row).not.toMatch(/PronounceButton/);
+  });
+
+  /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
+  it("分析中の画面に、添え書きを置かない", () => {
+    for (const f of ["components/effects/scan-analyzing/v0_cutout.tsx", "components/effects/scan-analyzing/v6_minimal.tsx"]) {
+      expect(codeOnly(read(f))).not.toMatch(/scan\.justAMoment/);
+    }
+  });
+
+  /**
+   * **設定の見出しは、灰色の箱の外。**（オーナー指示 2026-09-15
+   * 「左側のタイトルは前のバージョンに戻して」）
+   *
+   * 見出しを箱の中に入れると、箱は「選ばれている値」を出す所なのに、
+   * 中に2つの文字列が並んで、どちらが値なのか分からなくなる。
+   */
+  it("設定の選び行は、見出しを箱の外に置く", () => {
+    const src = codeOnly(read("components/PickerRow.tsx"));
+    const label = src.indexOf("id={labelId}");
+    const box = src.indexOf('className="picker-row mt-1"');
+    expect(label).toBeGreaterThanOrEqual(0);
+    expect(box).toBeGreaterThanOrEqual(0);
+    // 見出しが先（＝箱の外）にあること。
+    expect(label).toBeLessThan(box);
   });
 });

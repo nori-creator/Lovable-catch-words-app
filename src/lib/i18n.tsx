@@ -1684,29 +1684,22 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.saved": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
   "settings.signout": { ja: "サインアウト", en: "Sign out", "zh-TW": "登出" },
   // --- capture ---
-  "capture.photoTitle": { ja: "写真で集める", en: "Catch with a photo", "zh-TW": "用照片收集" },
+  "capture.photoTitle": { ja: "写真を撮る", en: "Take a photo", "zh-TW": "拍照" },
   "capture.photoHint": {
     ja: "見つけたものを枠の中へ",
     en: "Place what you found inside the frame",
     "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
-  "capture.typeWord": {
-    ja: "文字で調べる",
-    en: "Type to look up",
-    "zh-TW": "輸入文字查詢",
-  },
+  // オーナー指示 2026-09-15「文字で調べれば検索と名前を変えて」。
+  "capture.typeWord": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.openScan": {
     ja: "かざして調べる",
     en: "Point to look up",
     "zh-TW": "對準物品查詢",
   },
   // カメラの画面に直接置く検索の欄(オーナー指示 2026-08-26)。
-  "capture.searchPlaceholder": {
-    ja: "単語を打って調べる",
-    en: "Type a word to look up",
-    "zh-TW": "輸入單字查詢",
-  },
+  "capture.searchPlaceholder": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.or": { ja: "または", en: "or", "zh-TW": "或" },
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },
@@ -1751,6 +1744,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // アルバムの編集を終えて保存する。**画面の下に固定**してある
   // （台紙に貼ると、下の札をいじっている人の画面から外れて押せない）。
+  /**
+   * 一部の設定が保存できなかったとき。**どれが落ちたかを名指しで言う。**
+   * 「保存しました」とだけ出すと、次に開いたときに戻っている理由が
+   * 誰にも分からない。
+   */
+  "settings.savedPartly": {
+    ja: "一部が保存できませんでした（{fields}）。表の準備がまだかもしれません。",
+    en: "Some settings couldn't be saved ({fields}). The table may not be ready yet.",
+    "zh-TW": "有一部分沒有存到（{fields}）。資料表可能還沒準備好。",
+  },
   "album.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
   "review.cappedTitle": {
     ja: "今日の分は終わりです",
@@ -2929,7 +2932,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Type a different word",
     "zh-TW": "輸入別的單字",
   },
-  "capture.useThis": { ja: "これにする", en: "Use this", "zh-TW": "就選這個" },
+  // オーナー指示 2026-09-15「これにするは検索ボタンに変えて」。
+  "capture.useThis": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
   "capture.flipHint": {
     ja: "画像をタップで自撮りにフリップ",

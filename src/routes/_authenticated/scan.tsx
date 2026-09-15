@@ -1,3 +1,4 @@
+import { setCameraScreenOpen } from "@/lib/camera-launch";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
@@ -105,6 +106,14 @@ function ScanPage() {
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
+  /**
+   * かざす画面も「撮る画面」の仲間。開く演出をこの上に重ねない
+   * （`lib/camera-launch.ts`）。
+   */
+  useEffect(() => {
+    setCameraScreenOpen(true);
+    return () => setCameraScreenOpen(false);
+  }, []);
   const detectFn = useServerFn(detectScan);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);

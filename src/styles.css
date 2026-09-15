@@ -1708,7 +1708,8 @@ html[data-motion="reduce"] {
 }
 /* いまの値。**控えめな色**で、項目名と役割を分ける(HIG: secondary label)。 */
 .picker-row__value {
-  margin-inline-start: auto;
+  /* 見出しが箱の外へ出たので、値が箱の**主役**になる。左から始める。 */
+  margin-inline-end: auto;
   font-size: var(--text-field, 1rem);
   color: var(--muted-foreground);
   overflow: hidden;
@@ -1933,33 +1934,9 @@ html[data-motion="reduce"] .group:active .tabbar__lens {
     transform: translateY(0) scale(1);
   }
 }
-/* 絵が飛んでくる回の面。**面自体は動かさない**（`StickerSheet` の注）。
-   薄く出すだけにして、動きは飛んでくる絵1枚に持たせる。 */
-@keyframes sheet-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.sheet-fade-in {
-  /**
-   * **面が出るのを、絵が飛び終わる頃まで待たせる。**（オーナー報告
-   * 2026-09-15「画像が同じものが二重になって表示されてる」）
-   *
-   * ここは押した瞬間から 0.22 秒かけて面を濃くしていた。面の地は
-   * `material-thick`(95%) なので、その間**後ろのアルバムが透けて見える**。
-   * 面の中には開いた札の大きな写真、後ろにはアルバムの写真 —
-   * 写真の上に写真が半分ずつ重なるので、二重写しにしか見えない。
-   *
-   * 飛んでいる絵は 0.3 秒ほどで行き先の大きさに届く（実測）。そこまでは
-   * **アルバムと、飛んでいる1枚だけ**が見えているのが正しい。
-   * 0.18 秒待ってから 0.16 秒で濃くすると、重なるのは面の地と文字だけで、
-   * 写真どうしが混ざる瞬間が無くなる。
-   */
-  animation: sheet-fade-in 0.16s var(--ease-ios) 0.18s backwards;
-}
+/* 飛んでくる絵がある回は、面を**薄く重ねない**（`StickerSheet` の注）。
+   面は飛んでいる間まるごと伏せ、絵が届いた1コマで出す。混ぜる時間が
+   無いので、後ろのアルバムが透ける瞬間そのものが無くなる。 */
 /* 飛んでいる間だけ、本物の見出しを伏せる（`components/HeroFlight.tsx`）。
    `visibility` にするのは、場所を取ったまま消したいから — `display: none`
    だと下の文章がせり上がり、着いた瞬間に面ごと跳ねる。 */
@@ -2350,7 +2327,9 @@ html[data-motion="reduce"] {
 }
 .usage-chunk-row__main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.75fr) auto;
+  /* 語と訳の2列。**右端のボタンを外した**（`WordCard` の `ChunkRow` の注）
+     ので、痩せていた訳の取り分が戻る。 */
+  grid-template-columns: minmax(0, 1fr) minmax(6.5rem, 0.8fr);
   align-items: center;
   gap: 0.5rem;
 }
@@ -2385,7 +2364,7 @@ html[data-motion="reduce"] {
     grid-template-columns: minmax(6.75rem, 0.78fr) minmax(9rem, 1.22fr);
   }
   .usage-chunk-row__main {
-    grid-template-columns: minmax(0, 1fr) minmax(4.5rem, 0.7fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.75fr);
     gap: 0.375rem;
   }
 }

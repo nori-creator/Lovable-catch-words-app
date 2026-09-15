@@ -32,7 +32,6 @@ export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
           <Sparkles className="h-5 w-5 animate-pulse" />
           <span className="font-semibold">{label}</span>
         </div>
-        <p className="text-body text-white/80">{t("scan.justAMoment")}</p>
       </div>
     </div>
   );

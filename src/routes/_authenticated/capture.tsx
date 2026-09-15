@@ -39,6 +39,7 @@ import {
 import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
+import { setCameraScreenOpen } from "@/lib/camera-launch";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
@@ -327,6 +328,18 @@ function CapturePage() {
   const attachVoiceFn = useServerFn(setStickerVoiceVideo);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
+
+  /**
+   * **撮る画面が出ていることを名乗る。**（`lib/camera-launch.ts`）
+   *
+   * 下のカメラを押したときの「開く演出」は、これが立っている間は出ない。
+   * 道の名前で判断していた頃は、末尾の `/` や移動の途中の値で抜けられて、
+   * **すでに撮っている画面の上に演出が重なって**いた（オーナー報告3回）。
+   */
+  useEffect(() => {
+    setCameraScreenOpen(true);
+    return () => setCameraScreenOpen(false);
+  }, []);
 
   /**
    * 切り抜きの模型を、構えている間に温めておく(roadmap B2)。
@@ -1474,7 +1487,9 @@ export function PickWordPanel({
         </div>
       )}
       <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
-      <p className="text-body text-muted-foreground">{t("capture.pickHint")}</p>
+      {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
+          「ステップ3の単語を選ぶの小さな文細かいは消して」）。
+          候補が並んでいれば、選ぶ所であることは見れば分かる。 */}
       <div className="grid gap-2">
         {/* 札の中身は `WordCandidateRow` に1つだけ置いてある。
             打ち込んだ語の候補と**同じ役目・同じ見た目**で、
