@@ -2478,12 +2478,12 @@ describe("ホームのアルバムの長押し", () => {
    * 伸びるのは真ん中の直線部分だけ。
    */
   it("**タブの印は `scaleX` で伸ばさない**（角の丸みが潰れる）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     expect(src).not.toMatch(/scaleX\(/);
     // 幅そのものを動かす。
-    expect(src).toMatch(/el\.style\.width = `\$\{w\}px`/);
+    expect(src).toMatch(/el\.style\.width = `\$\{Math\.max\(r - l, 1\)\}px`/);
     // 丸みは高さから決めるので、幅が変わっても変わらない。
-    expect(src).toMatch(/el\.style\.borderRadius = `\$\{el\.offsetHeight \* RADIUS_RATIO\}px`/);
+    expect(src).toMatch(/el\.style\.borderRadius = `\$\{el\.offsetHeight \* radiusRatio\}px`/);
     // `rounded-full` が戻ると、また楕円になる。
     expect(src).not.toMatch(/rounded-full/);
   });
@@ -2923,26 +2923,26 @@ describe("キャッチの報酬演出", () => {
    * 収束する。
    */
   it("タブの印は**左右別々のばね**で動く（伸びを時間で書かない）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     // 端ごとに1本ずつ、2本。
     expect((src.match(/createSpring\(/g) ?? []).length).toBe(2);
     // 進む側と残る側で速さを変える。ここが同じだと伸びない。
-    expect(src).toMatch(/const lead = \{[^}]*response:/);
-    expect(src).toMatch(/const trail =/);
+    expect(src).toMatch(/const fast = \{[^}]*response: lead/);
+    expect(src).toMatch(/const slow = \{[^}]*response: trail/);
     // 向きで入れ替える。入れ替えないと、片方向にしか伸びない。
-    expect(src).toMatch(/goingRight \? lead : trail/);
-    expect(src).toMatch(/goingRight \? trail : lead/);
+    expect(src).toMatch(/goingRight \? fast : slow/);
+    expect(src).toMatch(/goingRight \? slow : fast/);
   });
 
   it("タブの印は**跳ねない**（押した所と違う所に居る一瞬を作らない）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     // 先に着く側は damping 1（行き過ぎ無し）。伸びは2本の差でもう出ている。
-    const lead = src.slice(src.indexOf("const lead ="));
-    expect(lead.slice(0, 80)).toMatch(/damping: 1\b/);
+    const fast = src.slice(src.indexOf("const fast ="));
+    expect(fast.slice(0, 80)).toMatch(/damping: 1\b/);
   });
 
   it("動きを減らす設定では、伸びも移動も出さない", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     const branch = src.slice(src.indexOf("if (reduced)"));
     expect(branch.slice(0, 160)).toMatch(/L\.set\(/);
     expect(branch.slice(0, 160)).toMatch(/R\.set\(/);
@@ -2956,8 +2956,8 @@ describe("キャッチの報酬演出", () => {
    * を指したままになる。しかも `cursor` は変わらないので、下の effect も
    * 走らない = **次にタブを押すまで直らない**。
    */
-  it("横向きにしても、印が正しいタブを指す（幅が変わったら値を入れ直す）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+  it("横向きにしても、印が正しい所を指す（幅が変わったら値を入れ直す）", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     const onResize = src.slice(
       src.indexOf("const onResize"),
       src.indexOf("window.addEventListener"),
@@ -2965,9 +2965,38 @@ describe("キャッチの報酬演出", () => {
     // 描き直すだけでは足りない。値そのものを入れ直していること。
     expect(onResize).toMatch(/leftRef\.current\?\.set\(/);
     expect(onResize).toMatch(/rightRef\.current\?\.set\(/);
-    // 入れ直す値は、いまの `cursor` と**いまの**幅から出すこと。
-    expect(onResize).toMatch(/cursorRef\.current/);
-    expect(onResize).toMatch(/unit\(\)/);
+    // 入れ直す値は、いまの位置と**いまの**寸法から出すこと。
+    expect(onResize).toMatch(/indexRef\.current/);
+    expect(onResize).toMatch(/edgesAt\(/);
+  });
+
+  /**
+   * **位置は本物の兄弟を測って決める。**（オーナー指摘 2026-09-15
+   * 「アイコンが中心に来てない。バランスが悪い」）
+   *
+   * 親に内側の余白があると `clientWidth` はそれを含む一方、中の物は余白の
+   * 内側から始まる。割り算で出した位置は左にずれ、1つぶんの幅も広すぎる。
+   * 下のタブでは5番目で**約 21px のずれ**になっていた（実測 0px に）。
+   */
+  it("**印の位置は割り算で出さない**（アイコンの中心からずれる）", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
+    expect(src).toMatch(/getBoundingClientRect\(\)/);
+    expect(src).not.toMatch(/clientWidth \/ Math\.max\(count/);
+  });
+
+  /**
+   * **同じ印を、全部の切り替えに使う。**（オーナー指示 2026-09-15
+   * 「全ての切り替え機能の切り替えのボタンを押した時、必ず…残像感、
+   * 滑らか感を出して。例えば設定の変更のボタン」）
+   */
+  it("設定の丸い選択肢も、下のタブと**同じ印**で滑る", () => {
+    const st = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(st).toMatch(/<SlidingIndicator/);
+    // 丸いボタンなので真円のカプセル。
+    expect(st).toMatch(/radiusRatio=\{0\.5\}/);
+    // 印が滑ってくるので、選ばれたボタンが自分で地を塗ると滑って見えない。
+    const cls = st.slice(st.indexOf("value === o.value"), st.indexOf("value === o.value") + 200);
+    expect(cls).not.toMatch(/bg-primary\b/);
   });
 });
 

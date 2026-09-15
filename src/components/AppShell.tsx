@@ -347,6 +347,8 @@ export function AppShell({
           {items.map(({ to, labelKey, icon: Icon }, i) => {
             const label = t(labelKey);
             const isScan = to === "/capture";
+            /** いまこのタブに居るか。カメラの丸の中の白さを決めるのに使う。 */
+            const isCurrent = pathname === to;
             // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
             const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
             return (
@@ -358,14 +360,25 @@ export function AppShell({
                     // §13 multimodal feedback on the causal event; the camera
                     // entrance also primes audio for the scan/catch chimes.
                     if (isScan) {
-                      if (pathname !== "/capture") {
-                        event.preventDefault();
-                        if (cameraOpening) return;
+                      /**
+                       * **押した瞬間に画面を変える。**（オーナー指摘 2026-09-15
+                       * 「カメラの遅延も改善して」）
+                       *
+                       * 以前はここで `event.preventDefault()` して
+                       * `setTimeout(…, 520)` を待ってから移っていた。つまり
+                       * **押してから半秒、何も起きない**。しかも「動きを減らす」
+                       * 設定を見ていないので、その設定の人は演出だけ 220ms に
+                       * 縮んで、待ち時間 520ms だけが残っていた。
+                       *
+                       * Apple の指針（WWDC18 *Designing Fluid Interfaces*）は
+                       * 逆で、**応答は押した瞬間に始め、演出は移動と同時に走らせる**。
+                       * レンズが開く絵はそのまま出すが、遷移は止めない —
+                       * `camera-launch` は `position: fixed` の覆いなので、
+                       * 画面が変わっても上に残って開ききる。
+                       */
+                      if (pathname !== "/capture" && !cameraOpening) {
                         setCameraOpening(true);
-                        window.setTimeout(() => {
-                          void navigate({ to: "/capture" });
-                          window.setTimeout(() => setCameraOpening(false), 300);
-                        }, 520);
+                        window.setTimeout(() => setCameraOpening(false), 720);
                       }
                       unlockAudio();
                       Sound.tap();
@@ -392,13 +405,28 @@ export function AppShell({
                   }
                 >
                   {isScan ? (
-                    // **主色そのもの(NORI指定)。** 以前は右下へ向かって
-                    // 22% の黒を混ぜるグラデーションで、丸の下半分が沈んで
-                    // 設定の青より暗く見えていた。同じ画面に同じ青が2種類
-                    // 並ぶのをやめる。白のアイコンは主色の上の文字と同じ
-                    // 組み合わせになるので、読みやすさは主色の側で保証される。
-                    <span className="camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90">
-                      <Icon className="h-6 w-6" />
+                    /**
+                     * **主色そのもの(NORI指定)。** 以前は右下へ向かって 22% の黒を
+                     * 混ぜるグラデーションで、丸の下半分が沈んで設定の青より暗く
+                     * 見えていた。同じ画面に同じ青が2種類並ぶのをやめる。
+                     *
+                     * ## 選ばれている間は、中の白を変える（オーナー指示 2026-09-15）
+                     * 「カメラのアイコンに来た時はカメラの中の白色を変える」。
+                     * 丸は主色のままなので、**印が下に来ても選ばれたことが
+                     * 分からない**のがもとの姿だった。中の絵の白さで示す:
+                     *   ・選ばれていない … 白 70%（丸に馴染む）
+                     *   ・選ばれている   … 白 100% ＋ 内側の細い輪
+                     * 選ばれた側を**濃くする**向きにしてあるので、読みやすさは
+                     * 落ちない（薄くする向きだと、選んだ瞬間に見えにくくなる）。
+                     */
+                    <span
+                      className={`camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90 ${
+                        isCurrent
+                          ? "text-primary-foreground shadow-primary/55 ring-2 ring-inset ring-primary-foreground/40"
+                          : "text-primary-foreground/70"
+                      }`}
+                    >
+                      <Icon className="h-6 w-6 transition-colors duration-200" />
                     </span>
                   ) : (
                     <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />

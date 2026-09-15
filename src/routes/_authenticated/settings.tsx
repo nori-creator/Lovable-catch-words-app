@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { SlidingIndicator } from "@/components/SlidingIndicator";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
@@ -66,8 +67,6 @@ import {
 } from "@/lib/sound-engine";
 import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
 import { isPhotoLibrarySyncEnabled, setPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
-import { useMotion } from "@/components/motion-provider";
-import { type MotionChoice } from "@/lib/motion-pref";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
@@ -144,8 +143,24 @@ export function ChoiceRow<T extends string | number>({
       <div
         role="radiogroup"
         aria-labelledby={labelId}
-        className={`mt-1 grid gap-2 ${CHOICE_COLS[cols]}`}
+        className={`relative mt-1 grid gap-2 ${CHOICE_COLS[cols]}`}
       >
+        {/**
+         * 選んでいる所を示す、**滑って伸びる印**（オーナー指示 2026-09-15
+         * 「全ての切り替え機能の切り替えのボタンを押した時、必ず…残像感、
+         * 滑らか感を出して。例えば設定の変更のボタン」）。
+         *
+         * 下のタブとまったく同じ部品。丸いボタンなので、角の丸みだけ
+         * 真円のカプセル（高さの半分）にする。
+         *
+         * **この `<div>` の最初の子に置く。** 位置は自分以外の兄弟を実測して
+         * 決めるので、隙間が何 px でも、列がいくつでも合う。
+         */}
+        <SlidingIndicator
+          index={options.findIndex((o) => o.value === value)}
+          radiusRatio={0.5}
+          className="bottom-0 top-0 left-0 bg-primary"
+        />
         {options.map((o) => (
           <button
             key={String(o.value)}
@@ -156,9 +171,12 @@ export function ChoiceRow<T extends string | number>({
             // 折り返すと丸が縦長の楕円になり、隣の丸と形が揃わなくなる
             // (雛形の「上限なし」でそうなっていた)。訳語が伸びる言語も
             // あるので、収まらないときは折らずに字を詰める。
-            className={`min-h-11 truncate rounded-full border px-1 py-2.5 text-body ${
+            // **地の色は自分では塗らない。** 選ばれている印は上の
+            // `SlidingIndicator` が滑ってくるので、ここで塗ると印の下に
+            // もう1枚同じ色の面ができて、滑って見えなくなる。
+            className={`relative z-10 min-h-11 truncate rounded-full border px-1 py-2.5 text-body transition-colors duration-200 ${
               value === o.value
-                ? "border-primary bg-primary font-semibold text-primary-foreground"
+                ? "border-primary font-semibold text-primary-foreground"
                 : "border-border bg-background"
             }`}
           >
@@ -167,55 +185,6 @@ export function ChoiceRow<T extends string | number>({
         ))}
       </div>
     </div>
-  );
-}
-
-/**
- * 動きを見せるか。**「アニメーションが全部消えた」への答え。**
- *
- * ## なぜ設定として要るのか（オーナー報告 2026-09-15）
- * > 「パソコンで開くとアニメーションがあるんだけど、アンドロイドのスマホや
- * >  ダウンロードしたアプリだと、それらのアニメーションが**全て消える**」
- *
- * 不具合ではなく、**端末の設定**だった。Android の「アニメーションを削除」
- * （ユーザー補助）、**バッテリーセーバー**、開発者向けオプションの
- * アニメーション倍率 off — どれか1つでもブラウザに
- * `prefers-reduced-motion: reduce` を返させる。iOS の「視差効果を減らす」も同じ。
- * このアプリはその返事を正直に全部の動きへ効かせていたので、**同時に全部消える**。
- * パソコンにはこの設定が無いので、パソコンでだけ動いて見える。
- *
- * ## 既定は動かさない
- * この設定は健康のために在る（前庭障害のある人には、大きく動く絵が実害）。
- * だから既定は今までどおり端末に従い、**本人が自分の意思で選んだときだけ**
- * 上書きする。
- *
- * ## 何が返っているかを**見せる**
- * 選択肢を並べるだけでは、自分で入れた覚えのない人には何も伝わらない。
- * 端末がいま何を返しているかをそのまま出して、初めて原因に辿り着ける。
- */
-export function MotionChoiceRow() {
-  const t = useT();
-  const { choice, setChoice } = useMotion();
-  return (
-    <ChoiceRow
-      cols={3}
-      label={t("settings.motion")}
-      value={choice}
-      onChange={(v) => setChoice(v as MotionChoice)}
-      /**
-       * **札の文字は短く。**（オーナー指摘 2026-09-15「端末に合わせるという
-       * のが見切れてる」）。3列の丸は 390px の画面で1つ約 118px しかなく、
-       * そこに余白と丸みが入るので、入る字数は5〜6文字。「端末に合わせる」は
-       * 7文字あって切れていた。`ChoiceRow` は**折り返さず truncate する**
-       * 作りなので（丸が縦長の楕円になるのを避けるため）、長い札は必ず
-       * 見切れる — 直すのは札の側。
-       */
-      options={[
-        { value: "system", label: t("settings.motionSystem") },
-        { value: "full", label: t("settings.motionFull") },
-        { value: "reduce", label: t("settings.motionReduce") },
-      ]}
-    />
   );
 }
 
@@ -774,7 +743,6 @@ function SettingsPage() {
               { value: "system", label: t("settings.system") },
             ]}
           />
-          <MotionChoiceRow />
         </SettingsCard>
 
         <SoundAndHapticsPanel />
