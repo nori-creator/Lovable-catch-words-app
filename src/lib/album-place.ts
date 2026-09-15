@@ -25,11 +25,31 @@
  * ここには外の世界に触れるものを入れないこと。
  */
 
-/** 台紙の形（横:縦）。ここを変えると、既に置いた札の縦位置がずれる。 */
-export const ALBUM_ASPECT = 4 / 5;
+/**
+ * 昔の升目の寸法（オーナー指示 2026-09-15「デフォルトで表示するのは今までと
+ * 同じ大きさにして」）。
+ *
+ * 自由配置にしたとき、基準の幅を目分量で 0.26 に置いたせいで**札が一回り
+ * 小さくなった**。昔は `grid-cols-3 gap-x-4 auto-rows-[7rem] gap-y-8` の
+ * 升目で、幅 316px の台紙なら 1升 = (316 − 16×2) ÷ 3 = 94.7px、
+ * 1段 = 112px。ここはその実寸を**割合に直して置いたもの**なので、
+ * 見た目は昔とぴったり同じになる。
+ *
+ * すべて**台紙の幅に対する割合**。高さに対する割合ではない（下の注）。
+ */
+export const GAP_X = 16 / 316;
+export const GAP_Y = 32 / 316;
+/** 1升の幅 ＝ 札の基準の大きさ（`scale: 1` のときの幅）。 */
+export const BASE_WIDTH = (1 - 2 * GAP_X) / 3;
+/** 1段の高さ（`auto-rows-[7rem]`）。 */
+export const ROW_H = 112 / 316;
+/** 升目は3列。 */
+export const COLS = 3;
 
-/** 札の基準の大きさ。台紙の幅に対する割合（`scale: 1` のときの幅）。 */
-export const BASE_WIDTH = 0.26;
+/**
+ * 台紙の高さの下限（幅に対する割合）。札が少ない日でも紙らしい面積を残す。
+ */
+export const MIN_BOARD_H = 1.25;
 
 /** 大きさの下限と上限。 */
 export const MIN_SCALE = 0.45;
@@ -44,11 +64,50 @@ export const MAX_SCALE = 2.6;
  */
 export const ROT_SNAP_DEG = 4;
 
-/** 札の置き方。**升目ではなく、紙の上の座標。** */
+/** 昔の升目の4通り。**表にはまだこの列が在る**ので、初期の形はここから。 */
+export type AlbumSize = "small" | "portrait" | "landscape" | "large";
+
+/** 大きさ → 升目（横, 縦）。 */
+export const SIZE_CELLS: Record<AlbumSize, readonly [number, number]> = {
+  small: [1, 1],
+  portrait: [1, 2],
+  landscape: [2, 1],
+  large: [2, 2],
+};
+
+/** 升目いくつ分 → 幅（台紙の幅に対する割合）。間の隙間も足す。 */
+export function cellsWidth(cx: number): number {
+  return cx * BASE_WIDTH + (cx - 1) * GAP_X;
+}
+
+/** 升目いくつ分 → 高さ（台紙の**幅**に対する割合）。 */
+export function cellsHeight(cy: number): number {
+  return cy * ROW_H + (cy - 1) * GAP_Y;
+}
+
+/** その大きさの札の、縦横の比（高さ ÷ 幅）。 */
+export function ratioOf(size: AlbumSize): number {
+  const [cx, cy] = SIZE_CELLS[size];
+  return cellsHeight(cy) / cellsWidth(cx);
+}
+
+/** その大きさの札の、初期の倍率。 */
+export function scaleOf(size: AlbumSize): number {
+  return cellsWidth(SIZE_CELLS[size][0]) / BASE_WIDTH;
+}
+
+/**
+ * 札の置き方。**升目ではなく、紙の上の座標。**
+ *
+ * ## 縦も「台紙の**幅**」で測る
+ * 高さで測ると、札を1枚足して台紙が伸びた瞬間に**置いてある札が全部
+ * 上へ動く**（割合は同じでも、掛ける高さが変わるため）。幅で測れば、
+ * 台紙が縦に伸びても置いた物は動かない。
+ */
 export type Placement = {
   /** 中心の横位置。台紙の幅に対する割合（0=左端, 1=右端）。 */
   x: number;
-  /** 中心の縦位置。台紙の高さに対する割合。 */
+  /** 中心の縦位置。**台紙の幅**に対する割合（0=上端）。 */
   y: number;
   /** 基準の大きさに対する倍率。 */
   scale: number;
@@ -124,20 +183,19 @@ export function clamp(v: number, lo: number, hi: number): number {
  *
  * @param base 掴んだ瞬間の置き方（**毎回ここから作り直す**ので、引き返せば必ず戻る）
  * @param d 指の動き
- * @param box 台紙の実寸（px）
+ * @param boardW 台紙の幅（px）。縦もこれで測る（`Placement` の注）
+ * @param maxY 縦の下限（台紙の高さぶん）。ここを越えて下へは出せない
  */
-export function applyDelta(base: Placement, d: Delta, box: { w: number; h: number }): Placement {
-  const w = Math.max(box.w, 1);
-  const h = Math.max(box.h, 1);
-  const rot = normalizeDeg(base.rot + d.rot);
+export function applyDelta(base: Placement, d: Delta, boardW: number, maxY: number): Placement {
+  const w = Math.max(boardW, 1);
   return {
     // **台紙の外へ出しきらない。** 中心が紙の中に在れば、掴み直せる。
     // 完全に外へ出せてしまうと、二度と触れない札ができる。
     x: clamp(base.x + d.dx / w, 0, 1),
-    y: clamp(base.y + d.dy / h, 0, 1),
+    y: clamp(base.y + d.dy / w, 0, Math.max(maxY, 0)),
     scale: clamp(base.scale * d.scale, MIN_SCALE, MAX_SCALE),
     // 指を離すまでは吸い付かせない（動かしている最中に飛ぶと驚く）。
-    rot,
+    rot: normalizeDeg(base.rot + d.rot),
   };
 }
 
@@ -148,53 +206,113 @@ export function settle(p: Placement): Placement {
   return Math.abs(normalizeDeg(p.rot)) <= ROT_SNAP_DEG ? { ...p, rot: 0 } : p;
 }
 
-/** 札の実寸（px）。傾きは含まない（箱の大きさなので）。 */
-export function sizePx(p: Placement, box: { w: number; h: number }): { w: number; h: number } {
-  const w = box.w * BASE_WIDTH * p.scale;
-  // 札は縦長の印画紙。`photo-print` の見た目に合わせた比。
-  return { w, h: w * 1.22 };
+/**
+ * 札の実寸（px）。傾きは含まない（箱の大きさなので）。
+ *
+ * 縦横の比は**最初の大きさから決まる**（`ratioOf`）。指で広げても比は
+ * 変わらない — 変えてしまうと、横長に貼った写真がつまむたびに縦長に
+ * なってしまう。
+ */
+export function sizePx(p: Placement, boardW: number, ratio: number): { w: number; h: number } {
+  const w = boardW * BASE_WIDTH * p.scale;
+  return { w, h: w * ratio };
 }
 
 /**
- * まだ自分で置いていない札の、最初の場所。
+ * まだ自分で置いていない札を、**昔の升目とまったく同じ所に置く**。
  *
- * **昔の升目の並びに寄せる** — ある日いきなり全部が散らばると、
- * 「壊れた」と読まれる。3列の律動をそのまま座標に直し、札ごとに
- * ほんの少しだけ傾けて、紙に貼った風合いを残す。
+ * オーナー指示 2026-09-15「デフォルトで表示するのは今までと同じ大きさに
+ * して」。大きさだけ戻しても、並びが違えば「同じ」にはならないので、
+ * CSS グリッドの流し込み（`grid-auto-flow: row`、密詰めなし）をそのまま
+ * なぞる。carriage は**後戻りしない** — そこが密詰めとの違いで、
+ * 昔の絵と1枚でもずれると別の並びになる。
  *
- * `id` から作るので、**何度描いても同じ場所**に出る（乱数を使うと、
- * 描き直すたびに動く）。
+ * 返すのは升目の位置（列, 段）。座標に直すのは `placeFromCell`。
  */
-export function autoPlacement(index: number, id: string): Placement {
-  const col = index % 3;
-  const row = Math.floor(index / 3);
-  // 端に寄せすぎない。0.22 / 0.5 / 0.78 の3列。
-  const x = 0.22 + col * 0.28;
-  // 1行ぶんの高さ。台紙の中で6行ぶんまでは重ならずに並ぶ。
-  const y = 0.12 + row * 0.155;
+export function packAuto(sizes: readonly AlbumSize[]): Array<{ col: number; row: number }> {
+  /** 埋まっている升目。`"row,col"`。 */
+  const taken = new Set<string>();
+  const fits = (row: number, col: number, cx: number, cy: number) => {
+    if (col + cx > COLS) return false;
+    for (let r = row; r < row + cy; r++)
+      for (let c = col; c < col + cx; c++) if (taken.has(`${r},${c}`)) return false;
+    return true;
+  };
+  let row = 0;
+  let col = 0;
+  const out: Array<{ col: number; row: number }> = [];
+  for (const size of sizes) {
+    const [cx, cy] = SIZE_CELLS[size];
+    // 置ける所まで carriage を進める。**戻らない。**
+    while (!fits(row, col, cx, cy)) {
+      col += 1;
+      if (col + cx > COLS) {
+        col = 0;
+        row += 1;
+      }
+    }
+    for (let r = row; r < row + cy; r++)
+      for (let c = col; c < col + cx; c++) taken.add(`${r},${c}`);
+    out.push({ col, row });
+    col += cx;
+    if (col >= COLS) {
+      col = 0;
+      row += 1;
+    }
+  }
+  return out;
+}
+
+/** 升目の位置と大きさ → 置き方（中心の座標）。 */
+export function placeFromCell(
+  cell: { col: number; row: number },
+  size: AlbumSize,
+  id: string,
+): Placement {
+  const [cx, cy] = SIZE_CELLS[size];
+  const w = cellsWidth(cx);
+  const h = cellsHeight(cy);
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return {
-    x,
-    y: clamp(y, 0, 1),
-    scale: 1,
+    x: cell.col * (BASE_WIDTH + GAP_X) + w / 2,
+    y: cell.row * (ROW_H + GAP_Y) + h / 2,
+    scale: scaleOf(size),
     // −3.5〜3.5 度。**まっすぐ揃いすぎない**のが紙のアルバムらしさ。
+    // `id` から作るので、何度描いても同じ（乱数だと描き直すたびに動く）。
     rot: ((hash % 71) / 70) * 7 - 3.5,
   };
+}
+
+/**
+ * 台紙の高さ（幅に対する割合）。**中身から決める。**
+ *
+ * 決め打ちの形にすると、札が増えた日に下がはみ出すか、少ない日に紙が
+ * 余りすぎる。縦を幅で測っているので（`Placement` の注）、ここが伸びても
+ * 置いてある札は動かない。
+ */
+export function boardHeight(items: ReadonlyArray<{ place: Placement; ratio: number }>): number {
+  let bottom = 0;
+  for (const it of items) {
+    const h = BASE_WIDTH * it.place.scale * it.ratio;
+    bottom = Math.max(bottom, it.place.y + h / 2);
+  }
+  // 下に一息ぶんの余白。ぴったりで切ると、紙の縁と札が擦れて見える。
+  return Math.max(MIN_BOARD_H, bottom + GAP_Y);
 }
 
 /** 保存された値を置き方に直す。**どれか欠けていれば自動の置き方に倒す。** */
 export function placementFrom(
   saved: { x?: number | null; y?: number | null; scale?: number | null; rot?: number | null },
-  index: number,
-  id: string,
+  auto: Placement,
 ): Placement {
-  const auto = autoPlacement(index, id);
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
   return {
     x: clamp(num(saved.x, auto.x), 0, 1),
-    y: clamp(num(saved.y, auto.y), 0, 1),
+    // 縦の上限はここでは掛けない（台紙の高さは中身から決まるので、
+    // 読む時点ではまだ分からない）。負にだけならないようにする。
+    y: Math.max(num(saved.y, auto.y), 0),
     scale: clamp(num(saved.scale, auto.scale), MIN_SCALE, MAX_SCALE),
     rot: normalizeDeg(num(saved.rot, auto.rot)),
   };

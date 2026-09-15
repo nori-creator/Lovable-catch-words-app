@@ -67,7 +67,7 @@ import {
 import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
 import { isPhotoLibrarySyncEnabled, setPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
 import { useMotion } from "@/components/motion-provider";
-import { motionDiagnosisKey, type MotionChoice } from "@/lib/motion-pref";
+import { type MotionChoice } from "@/lib/motion-pref";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
@@ -195,24 +195,27 @@ export function ChoiceRow<T extends string | number>({
  */
 export function MotionChoiceRow() {
   const t = useT();
-  const { choice, osReduces, setChoice } = useMotion();
+  const { choice, setChoice } = useMotion();
   return (
-    <div>
-      <ChoiceRow
-        cols={3}
-        label={t("settings.motion")}
-        value={choice}
-        onChange={(v) => setChoice(v as MotionChoice)}
-        options={[
-          { value: "system", label: t("settings.motionSystem") },
-          { value: "full", label: t("settings.motionFull") },
-          { value: "reduce", label: t("settings.motionReduce") },
-        ]}
-      />
-      <p className="mt-1.5 text-footnote text-muted-foreground">
-        {t(motionDiagnosisKey(choice, osReduces))}
-      </p>
-    </div>
+    <ChoiceRow
+      cols={3}
+      label={t("settings.motion")}
+      value={choice}
+      onChange={(v) => setChoice(v as MotionChoice)}
+      /**
+       * **札の文字は短く。**（オーナー指摘 2026-09-15「端末に合わせるという
+       * のが見切れてる」）。3列の丸は 390px の画面で1つ約 118px しかなく、
+       * そこに余白と丸みが入るので、入る字数は5〜6文字。「端末に合わせる」は
+       * 7文字あって切れていた。`ChoiceRow` は**折り返さず truncate する**
+       * 作りなので（丸が縦長の楕円になるのを避けるため）、長い札は必ず
+       * 見切れる — 直すのは札の側。
+       */
+      options={[
+        { value: "system", label: t("settings.motionSystem") },
+        { value: "full", label: t("settings.motionFull") },
+        { value: "reduce", label: t("settings.motionReduce") },
+      ]}
+    />
   );
 }
 

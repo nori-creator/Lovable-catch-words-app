@@ -1,15 +1,20 @@
-import { JIGGLE, jiggleStyle, LIFTED, type AlbumSize as LibAlbumSize } from "@/lib/album-drag";
+import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
 import {
-  ALBUM_ASPECT,
   applyDelta,
+  boardHeight,
   gestureDelta,
+  packAuto,
+  placeFromCell,
   placementFrom,
+  ratioOf,
   settle,
   sizePx,
+  type AlbumSize,
   type Grip as FingerGrip,
   type Placement,
   type Pt,
 } from "@/lib/album-place";
+import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
@@ -20,7 +25,7 @@ import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -637,7 +642,6 @@ export function DayHeader({
 // 保存と掴みは後者を見ていたので、片方を直した日に静かに食い違う。
 // 実際、角を掴んだとき「画面に出ている大きさ」ではなく `"small"` を
 // 渡していて、**引き返しても元に戻らなかった**。
-type AlbumSize = LibAlbumSize;
 const AUTO_ALBUM_SIZE: readonly AlbumSize[] = [
   "large",
   "portrait",
@@ -673,11 +677,25 @@ export function ScrapbookAlbum({
   const t = useT();
   const isEn = useUiLang() === "en";
   const persistLayout = useServerFn(saveAlbumLayout);
+  const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [ordered, setOrdered] = useState(stickers);
   const dragId = useRef<string | null>(null);
   const dragged = useRef(false);
   const changed = useRef(false);
+  /**
+   * 表から届いた札を並べ直す。
+   *
+   * **`editing` を合図にしない**（オーナー報告 2026-09-15「画像を大きく
+   * したり、サイズを変えても結局元に戻る」）。前はここの合図に `editing`
+   * が入っていたので、「完了」を押して `editing` が false になった**その
+   * 瞬間**にこれが走り、まだ表に届いていない古い `stickers` で
+   * `ordered` を上書きしていた。つまり**指で直した置き方は、保存の往復が
+   * 終わる前に必ず捨てられていた** — 表の列が在っても無くても関係なく、
+   * 100% 元に戻る。
+   *
+   * 見るのは `stickers` だけ。表から新しい札が届いたときにだけ並べ直す。
+   */
   useEffect(() => {
     if (editing) return;
     setOrdered(
@@ -686,7 +704,10 @@ export function ScrapbookAlbum({
           (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
       ),
     );
-  }, [stickers, editing]);
+    // `editing` は**わざと外してある**（上の注）。入れると、編集を抜けた
+    // 瞬間に古い値で上書きされ、直した置き方が毎回消える。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stickers]);
   /**
    * 台紙の実寸。**割合で持っている座標を px に直すのに要る。**
    * 画面の幅が変わったら測り直す（横向きにした回に全部ずれないように）。
@@ -708,6 +729,17 @@ export function ScrapbookAlbum({
    * 描き直しが積み上がって、掴んだ物が指から遅れる。
    */
   const [live, setLive] = useState<{ id: string; place: Placement } | null>(null);
+  /**
+   * 札ごとの「大きさの種類」。**表にはまだこの列が在る**ので、
+   * 初期の寸法と縦横の比はここから決まる（オーナー指示 2026-09-15
+   * 「デフォルトで表示するのは今までと同じ大きさにして」）。
+   */
+  const sizes = useMemo(
+    () => ordered.map((s, i) => s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length]),
+    [ordered],
+  );
+  /** まだ自分で置いていない札を、**昔の升目とまったく同じ所**へ。 */
+  const autoCells = useMemo(() => packAuto(sizes), [sizes]);
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -715,36 +747,38 @@ export function ScrapbookAlbum({
         /**
          * 紙の上のどこに、どの大きさ、どの傾きで置くか。
          *
-         * **升目（S/縦/横/L）はもう見ない**（オーナー指示 2026-09-15
-         * 「今はカクカクして滑らかに画像を自分の好きな場所に好きな
-         *  大きさで設定できるようになってない」）。4通りに飛ぶ持ち方
-         * だったので、指をどれだけ滑らかに動かしても滑らかになりよう
-         * が無かった。まだ自分で置いていない札は、昔の並びに寄せた
-         * 場所へ自動で置く（`lib/album-place.ts`）。
+         * 指で動かした値が在ればそれを使い、無ければ昔の升目の位置。
+         * **升目に飛ぶのは最初の1回だけ**で、そこから先は連続値。
          */
         place: placementFrom(
           { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-          i,
-          s.id,
+          placeFromCell(autoCells[i], sizes[i], s.id),
         ),
+        /** 縦横の比。最初の大きさで決まり、指で広げても変わらない。 */
+        ratio: ratioOf(sizes[i]),
         z: 10 + (i % 5),
       })),
-    [ordered],
+    [ordered, autoCells, sizes],
   );
+  /**
+   * 台紙の高さ（幅に対する割合）。**中身から決める。**
+   * 縦を幅で測っているので、ここが伸びても置いてある札は動かない。
+   */
+  const boardH = useMemo(() => boardHeight(items), [items]);
 
   function layoutPayload(next = ordered) {
     return next.map((s, order) => {
+      const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
       const p = placementFrom(
         { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-        order,
-        s.id,
+        placeFromCell(autoCells[order] ?? { col: 0, row: 0 }, size, s.id),
       );
       return {
         sticker_id: s.id,
         order,
-        // 升目はもう画面では見ていないが、**列は残してある**ので一緒に送る。
-        // 消すと、移行がまだ当たっていない環境で置き方が丸ごと保存できない。
-        size: s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length],
+        // 升目はもう画面では見ていないが、**縦横の比の出どころ**なので
+        // 一緒に送る。消すと、次に開いたとき比が分からなくなる。
+        size,
         x: p.x,
         y: p.y,
         scale: p.scale,
@@ -756,7 +790,25 @@ export function ScrapbookAlbum({
     setEditing(false);
     if (!changed.current) return;
     changed.current = false;
-    void persistLayout({ data: { items: layoutPayload() } });
+    void persistLayout({ data: { items: layoutPayload() } }).then(
+      (res) => {
+        /**
+         * **表に列がまだ無いなら、黙って諦めない。**
+         *
+         * `saveAlbumLayout` は列が無いと並び順だけ書いて `placement: false`
+         * を返す。黙っていると「動かしたのに次に開くと戻っている」だけが
+         * 残り、原因が誰にも分からない。
+         */
+        if (res && res.placement === false) {
+          toast.error(t("home.placementNotSaved"));
+          return;
+        }
+        // 書けたので表から読み直す。読み直さないと、次にこの画面を
+        // 組み直したとき古い値で描かれる。
+        void qc.invalidateQueries({ queryKey: ["stickers"] });
+      },
+      () => toast.error(t("home.placementSaveFailed")),
+    );
   }
   /** 置き方を書き戻す。**指を離したときだけ**呼ぶ。 */
   function commitPlace(id: string, p: Placement) {
@@ -904,7 +956,7 @@ export function ScrapbookAlbum({
        * 来るので、そのたびに state を変えると札の枚数ぶん描き直しが
        * 積み上がって、掴んだ物が指から遅れる（「カクカク」のもう半分）。
        */
-      pendingPlace.current = applyDelta(g.startPlace, d, board);
+      pendingPlace.current = applyDelta(g.startPlace, d, board.w, boardH);
       if (!moveRafPlace.current) {
         moveRafPlace.current = requestAnimationFrame(() => {
           moveRafPlace.current = 0;
@@ -947,7 +999,7 @@ export function ScrapbookAlbum({
     // `reseat` は毎描画で作り直されるが、中身は ref だけなので依存に
     // 入れる必要がない（入れると指を動かすたびに張り直しになる）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, board]);
+  }, [live, board, boardH]);
 
   return (
     // リアル・アルバム: .album-page が紙の繊維と周辺減光を持つ台紙。
@@ -992,11 +1044,12 @@ export function ScrapbookAlbum({
           setLive({ id: g.id, place: pendingPlace.current ?? g.startPlace });
         }}
         className={`relative w-full ${editing ? "touch-none" : ""}`}
-        style={{ aspectRatio: `${ALBUM_ASPECT}` }}
+        // 高さは中身から。決め打ちの形にすると、札が増えた日に下がはみ出す。
+        style={{ height: board.w ? `${board.w * boardH}px` : undefined, minHeight: "20rem" }}
       >
-        {items.map(({ sticker: s, place: saved, z }) => {
+        {items.map(({ sticker: s, place: saved, ratio, z }) => {
           const place = currentPlace(s.id, saved);
-          const px = sizePx(place, board);
+          const px = sizePx(place, board.w, ratio);
           // Album is a memory book: prefer selfie (you + the thing).
           // Fallback to the plain object photo only when there's no selfie.
           // アルバムなので**自撮りを先に見る**。落ち方は `sticker-photo.ts`

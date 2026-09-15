@@ -23,11 +23,29 @@ import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
  *   ・指でスワイプしている間は 1:1 で付いてくる
  * 時間で書いた振り付けは、この2つができない。
  *
- * ## 丸みが崩れるのは、崩れてよい
- * `scaleX` で伸ばすので、両端の丸が横に潰れて楕円になる。普通なら欠陥だが、
- * **参照の動きでも伸びている最中の端は潰れている** — 液体が引かれる形その
- * ものなので、ここでは直さない。止まれば元の丸に戻る。
+ * ## 丸みは崩さない（2026-09-15 に直した）
+ * 最初は `scaleX` で伸ばしていた。そうすると**両端の丸が横に潰れて楕円**に
+ * なる。当時は「液体が引かれる形だから」と残したが、オーナー指摘
+ * 「青い形がバランス悪い」はまさにそこだった。
+ *
+ * 参照を App Store（iOS 26 のタブ）に取り直してコマ送りにすると、印は
+ * 伸びている最中も**角の丸みがまったく変わらない**角丸の長方形で、伸びるのは
+ * 真ん中の直線部分だけ。液体というより、ゴムの板が引かれる形。
+ * だから `scaleX` をやめ、**幅そのもの**を動かす（`paint` の注）。
+ *
+ * ## 参照（App Store）の寸法
+ *   ・タブは5つ。印の幅はタブ1つぶん
+ *   ・高さは帯の内側の8割ほど
+ *   ・角の丸みは高さの3割ほど（真円のカプセルではない）
+ *   ・選んでいるタブは、印だけでなく**字と絵も主色に染まる**
+ *     （`AppShell` の `activeProps` が担当）
  */
+/**
+ * 角の丸み ÷ 高さ。参照（App Store の iOS 26 のタブ）をコマ送りにして
+ * 読み取った比。真円のカプセル（0.5）ではなく、角丸の長方形。
+ */
+const RADIUS_RATIO = 0.3;
+
 export function TabIndicator({
   /** 指の位置(小数)。`tabIndex + progress`。タブの外に居るときは負。 */
   cursor,
@@ -55,9 +73,23 @@ export function TabIndicator({
       const l = leftRef.current?.value() ?? 0;
       const r = rightRef.current?.value() ?? 0;
       const w = Math.max(r - l, 1);
-      const u = unit();
-      // 基準の幅は1タブぶん。そこからの倍率で伸ばす。
-      el.style.transform = `translate3d(${l}px,0,0) scaleX(${w / Math.max(u, 1)})`;
+      /**
+       * **幅そのものを動かす。`scaleX` では伸ばさない。**
+       *
+       * `scaleX` で伸ばすと、両端の丸が横に潰れて**楕円**になる。
+       * オーナー指摘 2026-09-15「青い形がバランス悪い」はこれ。
+       * 参照（App Store の iOS 26 のタブ）を止めて見ると、印は伸びている
+       * 最中も**角の丸みがまったく変わらない**角丸の長方形で、伸びるのは
+       * 真ん中の直線部分だけ。液体というより、ゴムの板が引かれる形。
+       *
+       * 幅を直に書くと1要素ぶんの再レイアウトが起きるが、中身の無い
+       * `<span>` 1枚なので実質ただ。**形が正しいことのほうが大事**。
+       */
+      el.style.transform = `translate3d(${l}px,0,0)`;
+      el.style.width = `${w}px`;
+      // 角の丸みは**高さから決める**ので、幅が変わっても変わらない。
+      // 参照では高さの3割ほど（真円のカプセルではなく、角丸の長方形）。
+      el.style.borderRadius = `${el.offsetHeight * RADIUS_RATIO}px`;
       el.style.opacity = cursorRef.current < 0 ? "0" : "1";
     };
 
@@ -141,7 +173,14 @@ export function TabIndicator({
     <span
       ref={ref}
       aria-hidden
-      className="pointer-events-none absolute bottom-2 top-2 left-0 origin-left rounded-full bg-primary/12"
+      /**
+       * 参照（App Store）の寸法に寄せる:
+       *   ・幅  … タブ1つぶん（`paint` が px で書く）
+       *   ・高さ … 帯の内側の8割ほど（`inset-y-*` で決まる）
+       *   ・丸み … 高さの3割ほど（`paint` が px で書く。**潰れない**）
+       * `rounded-full` は付けない — 付けると伸びたときに楕円になる。
+       */
+      className="pointer-events-none absolute bottom-2.5 top-2.5 left-0 bg-primary/12"
       style={{ width: `${100 / Math.max(count, 1)}%` }}
     />
   );

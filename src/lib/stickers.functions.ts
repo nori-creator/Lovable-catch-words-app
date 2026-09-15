@@ -1276,7 +1276,10 @@ export const saveAlbumLayout = createServerFn({ method: "POST" })
                * 画面は通るのに保存で弾かれる（`0001_add_album_placement`）。
                */
               x: z.number().min(0).max(1).optional(),
-              y: z.number().min(0).max(1).optional(),
+              // **縦は台紙の幅で測る**ので 1 を越える（`album-place.ts` の注、
+              // 移行 0002）。範囲は表の制約と同じ値にすること — ここを緩めると、
+              // 画面は通るのに保存で弾かれる。
+              y: z.number().min(0).max(8).optional(),
               scale: z.number().min(0.45).max(2.6).optional(),
               rot: z.number().min(-180).max(180).optional(),
             }),
