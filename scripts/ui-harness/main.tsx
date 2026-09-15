@@ -255,7 +255,37 @@ const BARE = new Set([
 ]);
 
 const q = new URLSearchParams(location.search);
-const wanted = q.get("scene") ?? "shelf";
+
+/**
+ * **この作業で変わった画面**（`AGENTS.md`「UI / UX preview workflow」）。
+ *
+ * > Make the UI harness open the primary screen changed by the task by default
+ * > whenever practical. Do not require the user to discover or manually type a
+ * > `?scene=...` query parameter just to see the change.
+ *
+ * Netlify の Deploy Preview を開いた人が、**何も打たずに**最初の1つを見られる
+ * ようにする。2つ以上変わったときは上の帯から選べる。
+ *
+ * **作業ごとに書き換える。** 古いままにすると、直していない画面を
+ * 「これを見てください」と差し出すことになる。
+ */
+const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "settings-selects", label: "設定（押すと開く行）" },
+  { scene: "home", label: "ホーム（上から貼る）" },
+  { scene: "tabbar", label: "下のタブ帯" },
+  { scene: "hero-flight", label: "札を開く動き" },
+];
+
+const explicitScene = q.get("scene");
+/**
+ * 見比べの帯を出すか。
+ *
+ * **`?scene=` を名指しで渡された回は出さない。** 絵の検査(`ui-audit`)は
+ * 必ず名指しで開くので、帯が写り込んで**実物に無い物を測る**ことになる。
+ * 何も付けずに開いた回（＝人が Deploy Preview を見に来た回）だけ出す。
+ */
+const showReviewBar = !explicitScene || q.get("review") === "1";
+const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
 
 /**
  * 表示言語を切り替えて撮る(`?lang=zh-TW`)。
@@ -294,9 +324,55 @@ requestAnimationFrame(() =>
   }),
 );
 
+/**
+ * 見比べの帯。**検査の対象ではない**ので、素の `style` で書く
+ * （`styles.css` の `@source` は `src` しか見ないため、ここに Tailwind の
+ * クラスを書いても生成されない）。
+ */
+function ReviewBar() {
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+        padding: "8px 10px",
+        background: "#0b1020",
+        color: "#fff",
+        fontSize: 12,
+        lineHeight: 1.2,
+      }}
+    >
+      {REVIEW_SCENES.map((r) => {
+        const on = r.scene === wanted;
+        return (
+          <a
+            key={r.scene}
+            href={`?scene=${encodeURIComponent(r.scene)}&review=1`}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              background: on ? "#2563eb" : "rgba(255,255,255,0.12)",
+              color: "#fff",
+              textDecoration: "none",
+              fontWeight: on ? 700 : 400,
+            }}
+          >
+            {r.label}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   Scene ? (
     <QueryClientProvider client={qc}>
+      {showReviewBar && <ReviewBar />}
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (
