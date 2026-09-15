@@ -905,59 +905,110 @@ html[data-motion="reduce"] {
   z-index: 80;
   pointer-events: none;
   overflow: hidden;
+  /* 黒い撮影画面がいきなり差し替わらないよう、暗い地を挟んで渡す。
+     地は途中でいちばん濃くなり、最後には消える（下で撮影画面が
+     出揃っているので、そこへ溶かす）。 */
+  animation: camera-ground 720ms ease-out both;
 }
+@keyframes camera-ground {
+  0% {
+    background: transparent;
+  }
+  35% {
+    background: color-mix(in oklab, var(--foreground) 92%, transparent);
+  }
+  72% {
+    background: color-mix(in oklab, var(--foreground) 74%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/**
+ * **下のカメラの丸が、そのままシャッターになる。**（オーナー指示
+ * 2026-09-15「カメラのアイコンをタップした時に、下のカメラのアイコンが
+ * シャッターボタンに変化するアニメーション。少し大きくなって上に移動して
+ * シャッターになる」）
+ *
+ * ## 何を直したか
+ * 前はこの丸が**画面いっぱいに広がって消える**形だった（世界が開く演出）。
+ * 悪くはないが、広がり切った先に何も残らないので、**押した物と、次に
+ * 押す物（シャッター）が繋がっていない**。
+ *
+ * 位置は両端とも実寸から出している:
+ *  ・始まり = 下の帯のカメラの丸。48px、中心は画面下から 56px + 安全域
+ *    （帯の下 8 + 枠 1 + 余白 4 + 升の上 6 + 印の枠 20 の中心 … から
+ *      `.tabbar__lens` の 14px 持ち上げまで足した値）
+ *  ・終わり = 撮る画面のシャッター。80px、中心は下から 128px + 安全域
+ *    （帯を避ける 88px ＋ 半径 40px）
+ *
+ * 途中で 84px まで行って 80px に戻るのは、ばねの行き過ぎ（Apple の
+ * `bounce 0.2` 相当）。止まる瞬間に「置かれた」感じが出る。
+ */
 .camera-launch__lens {
   position: absolute;
   left: 50%;
-  bottom: calc(1rem + env(safe-area-inset-bottom));
-  width: 3.5rem;
-  height: 3.5rem;
+  bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  width: 48px;
+  height: 48px;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--primary-foreground) 25%, transparent);
-  background: var(--foreground);
-  box-shadow:
-    0 0 0 5px var(--background),
-    0 12px 32px color-mix(in oklab, var(--primary) 42%, transparent);
-  transform: translateX(-50%);
-  transform-origin: 50% 100%;
+  background: var(--primary);
+  box-shadow: 0 10px 28px color-mix(in oklab, var(--primary) 45%, transparent);
+  translate: -50% 0;
   animation: camera-lens-open 720ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 @keyframes camera-lens-open {
   0% {
-    width: 3.5rem;
-    height: 3.5rem;
-    border-radius: 999px;
-    transform: translateX(-50%) scale(0.82);
-    opacity: 0.96;
+    width: 48px;
+    height: 48px;
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    background: var(--primary);
+    scale: 0.92;
   }
-  24% {
-    width: 4.4rem;
-    height: 6.6rem;
-    border-radius: 1.35rem;
-    transform: translateX(-50%) translateY(-4.8rem) rotate(-7deg);
+  28% {
+    width: 58px;
+    height: 58px;
+    bottom: calc(3.4rem + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in oklab, var(--background) 55%, var(--primary));
+    scale: 1;
   }
-  58% {
-    width: min(46vw, 12rem);
-    height: min(54dvh, 23rem);
-    border-radius: 1.7rem;
-    transform: translateX(-50%) translateY(-16vh) rotate(0deg);
-    box-shadow:
-      0 0 0 2px color-mix(in oklab, var(--primary) 70%, transparent),
-      0 20px 56px color-mix(in oklab, var(--foreground) 45%, transparent);
+  70% {
+    width: 84px;
+    height: 84px;
+    bottom: calc(5.375rem + env(safe-area-inset-bottom, 0px));
+    background: var(--background);
+    box-shadow: 0 14px 34px color-mix(in oklab, var(--foreground) 45%, transparent);
   }
   100% {
-    width: calc(100vw + 2px);
-    height: calc(100dvh + 2px);
-    bottom: -1px;
-    border-radius: 0;
-    transform: translateX(-50%) translateY(0) rotate(0deg);
+    width: 80px;
+    height: 80px;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    background: var(--background);
     box-shadow: none;
     opacity: 1;
   }
 }
+/**
+ * **カメラは画面いっぱい。**（オーナー指示 2026-09-15「カメラのアイコンを
+ * タップした時に、今のスキャンモードのように画面全体にカメラが写るように」）
+ *
+ * ここで `position` まで決めるのは、**このファイルの規則が Tailwind の
+ * `fixed` に勝ってしまう**から。Tailwind v4 は utility を `@layer utilities`
+ * に入れるが、このファイルは層に入れていない — 層に入っていない規則は
+ * 層に入っている規則に必ず勝つ。以前ここは `position: relative` で、
+ * JSX 側に `fixed inset-0` と書いても**静かに効いていなかった**
+ * （実測: 幅 358px・高さ 256px、つまり普通の流れのまま）。
+ * 場所を決める側を1つにする。
+ */
 .capture-viewfinder {
-  position: relative;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
   isolation: isolate;
+  /* 地は黒で固定（上の `.capture-controls` と同じ理由）。 */
+  background: #000;
+  color: #fff;
 }
 .capture-viewfinder__light {
   background:
@@ -1036,9 +1087,33 @@ html[data-motion="reduce"] {
   transform: translate(-50%, -50%);
   animation: capture-focus-breathe 2.8s ease-in-out infinite;
 }
+/**
+ * **カメラの上の物は、テーマに従わせない。**（この回の検査で出た赤）
+ *
+ * 撮る画面の地と釦は `bg-foreground` / `bg-background` で書かれていた。
+ * 明るいテーマでは黒い帯に白いシャッターだが、**暗いテーマではそれが
+ * 反転して、白い帯に白いシャッター**になる。実測で白字が地との比
+ * 1.03〜1.30 — 読めない（シャッターに至っては同色で消える）。
+ *
+ * ここはカメラの映像の上に載る所で、映像は明るいとも暗いとも決まって
+ * いない。テーマの色ではなく**自前の固定色**を敷いてから字と釦を置く
+ * （`components/CameraChrome.tsx` の色と同じ考え方）。
+ */
+.capture-controls {
+  background: #000;
+  color: #fff;
+}
+.camera-ink {
+  color: #fff;
+}
 .capture-shutter {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent);
+  background: #fff;
+  color: #111;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.78);
   transition: transform 100ms ease;
+}
+.capture-shutter__core {
+  background: #fff;
 }
 .capture-shutter:active {
   transform: scale(0.9);
@@ -1060,6 +1135,10 @@ html[data-motion="reduce"] {
 }
 
 html[data-motion="reduce"] {
+  .camera-launch {
+    animation: none;
+    background: none;
+  }
   .camera-launch__lens {
     animation: camera-lens-open-reduced 220ms ease both;
   }
@@ -1070,20 +1149,21 @@ html[data-motion="reduce"] {
     animation: reduced-fade-in 180ms ease both;
   }
 }
+/* 動きを減らす設定のとき。**動かさず、シャッターの位置に薄く出すだけ。**
+   位置まで変えてしまうと「どこへ行ったのか」が分からなくなるので、
+   着く先（シャッター）に直接出して、そのまま消す。 */
 @keyframes camera-lens-open-reduced {
   from {
     opacity: 0;
-    width: 100vw;
-    height: 100dvh;
-    bottom: 0;
-    border-radius: 0;
+    width: 80px;
+    height: 80px;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
   to {
     opacity: 1;
-    width: 100vw;
-    height: 100dvh;
-    bottom: 0;
-    border-radius: 0;
+    width: 80px;
+    height: 80px;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 /* ===========================================================================
@@ -3808,4 +3888,140 @@ html[data-motion="reduce"] {
   .catch-cta:active {
     transform: none;
   }
+}
+
+/* ------------------------------------------------------------------
+ * カメラの上に載る操作（`components/CameraChrome.tsx`）
+ *
+ * 撮る画面とスキャン画面で**同じ寸法**にするため、ここに一度だけ書く。
+ * どちらも黒い映像の上に載るので、色はテーマに従わない — 映像は暗いとも
+ * 明るいとも決まっていないので、自前の地（半透明の黒 + すりガラス）を
+ * 必ず敷いてから字を置く。
+ * ------------------------------------------------------------------ */
+
+.camera-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 選ばれている撮り方。大きく、色付き。 */
+.camera-modes__current {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  color: #ffd60a; /* Apple のカメラの選択色。映像の上なのでトークンに従わない */
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
+}
+
+.camera-modes__rest {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 残りの2つ。小さく、白のまま。当たり判定は 44px を割らない。 */
+.camera-modes__other {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.92);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
+  background: none;
+  border: 0;
+  border-radius: 9999px;
+  transition: scale 120ms ease-out;
+}
+
+.camera-modes__other:active {
+  scale: 0.94;
+}
+
+/* 「動きを減らす」は **`html[data-motion]` ひとつ**で決める。端末の設定を
+   直に見ると、本人がアプリ側で選んだ答えと食い違う（`motion-provider`）。 */
+html[data-motion="reduce"] .camera-modes__other {
+  transition: none;
+}
+html[data-motion="reduce"] .camera-modes__other:active {
+  scale: 1;
+}
+
+/* 倍率の粒。横一列のカプセルに入れる。 */
+.camera-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(12px);
+}
+
+.camera-zoom__stop {
+  display: grid;
+  place-items: center;
+  /* 押せる箱は 44px を割らない（HIG §11）。見える丸は中の `__dot`。 */
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 9999px;
+}
+.camera-zoom__dot {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.92);
+  border-radius: 9999px;
+  font-variant-numeric: tabular-nums;
+  transition:
+    scale 140ms ease-out,
+    background-color 140ms ease-out;
+}
+
+.camera-zoom__stop[data-on] .camera-zoom__dot {
+  color: #ffd60a;
+  background: rgb(255 255 255 / 0.16);
+  scale: 1.12;
+}
+
+html[data-motion="reduce"] .camera-zoom__dot {
+  transition: none;
+}
+html[data-motion="reduce"] .camera-zoom__stop[data-on] .camera-zoom__dot {
+  scale: 1;
+}
+
+/* 前後の切り替え。 */
+.camera-flip {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  background: rgb(0 0 0 / 0.42);
+  border: 0;
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  transition: scale 120ms ease-out;
+}
+
+.camera-flip:active {
+  scale: 0.94;
+}
+
+html[data-motion="reduce"] .camera-flip {
+  transition: none;
+}
+html[data-motion="reduce"] .camera-flip:active {
+  scale: 1;
 }

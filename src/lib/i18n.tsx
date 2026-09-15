@@ -1701,6 +1701,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // カメラの画面に直接置く検索の欄(オーナー指示 2026-08-26)。
   "capture.searchPlaceholder": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.or": { ja: "または", en: "or", "zh-TW": "或" },
+  // --- カメラの上に載る操作(`components/CameraChrome.tsx`) ---
+  // オーナー指示 2026-09-15「検索・写真を撮る・スキャンの3つのモードを
+  // カメラのアイコンを押した時に表示する」。
+  "camera.modeGroup": { ja: "撮り方", en: "Camera mode", "zh-TW": "拍攝模式" },
+  "camera.zoomTo": { ja: "倍率 {x}倍", en: "Zoom to {x}×", "zh-TW": "縮放 {x} 倍" },
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },
   "scan.again": { ja: "もう一度", en: "Retake", "zh-TW": "再一次" },

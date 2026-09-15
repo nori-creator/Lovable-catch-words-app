@@ -3767,7 +3767,10 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
   it("分析中の画面に、添え書きを置かない", () => {
-    for (const f of ["components/effects/scan-analyzing/v0_cutout.tsx", "components/effects/scan-analyzing/v6_minimal.tsx"]) {
+    for (const f of [
+      "components/effects/scan-analyzing/v0_cutout.tsx",
+      "components/effects/scan-analyzing/v6_minimal.tsx",
+    ]) {
       expect(codeOnly(read(f))).not.toMatch(/scan\.justAMoment/);
     }
   });
@@ -3787,5 +3790,145 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(box).toBeGreaterThanOrEqual(0);
     // 見出しが先（＝箱の外）にあること。
     expect(label).toBeLessThan(box);
+  });
+
+  /**
+   * **カメラの上に載る操作は、1箇所にしか無い。**（オーナー指示 2026-09-15
+   * 「撮る画面とスキャン画面を1つにして。スキャンのデザインは無くして、
+   *  撮る画面のデザインを使って」）
+   *
+   * 倍率も前後の切替も、スキャン画面にだけ・別々に育っていた。同じ事を
+   * 2箇所で書いている限り**片方だけ直る**ので、部品にして両方から読む。
+   */
+  it("倍率と前後の切替は、共通の部品からしか来ない", () => {
+    for (const f of ["routes/_authenticated/capture.tsx", "routes/_authenticated/scan.tsx"]) {
+      const src = codeOnly(read(f));
+      expect(src).toMatch(/from "@\/components\/CameraChrome"/);
+      // 画面ごとの作り置きが残っていないこと。縦のスライダーは捨てた。
+      expect(src).not.toMatch(/type="range"/);
+      expect(src).not.toMatch(/writingMode: "vertical-lr"/);
+    }
+  });
+
+  /**
+   * **選んだ撮り方が上、残りの2つが下。**（オーナー指示 2026-09-15
+   * 「検索、写真を撮る、スキャンの3つのモードをカメラのアイコンを押した時に
+   *  表示するようにして。どれかを選択した場合は、残りの2つが下に現れるように」）
+   */
+  it("撮り方の帯は、選んだ1つと残りの2つを分けて出す", () => {
+    const src = codeOnly(read("components/CameraChrome.tsx"));
+    expect(src).toMatch(
+      /export const CAMERA_MODES: CameraMode\[\] = \["search", "photo", "scan"\]/,
+    );
+    // 残りは「選ばれていない物」から作る（3つ書き並べると必ずずれる）。
+    expect(src).toMatch(/const rest = CAMERA_MODES\.filter\(\(m\) => m !== mode\)/);
+    const cur = src.indexOf("camera-modes__current");
+    const rest = src.indexOf("camera-modes__rest");
+    expect(cur).toBeGreaterThanOrEqual(0);
+    expect(rest).toBeGreaterThanOrEqual(0);
+    expect(cur).toBeLessThan(rest);
+    // 色だけで「選ばれている」を伝えない（HIG）。
+    expect(src).toMatch(/aria-current="true"/);
+  });
+
+  /**
+   * **「検索」はこの画面のまま欄が開く。**（オーナー指示 2026-09-15
+   * 「そのアイコンを押した時に検索欄が出てくる」）
+   * 別の画面へ渡すのは「スキャン」だけ。
+   */
+  it("撮る画面の「検索」は、画面を移らずに欄を開く", () => {
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(src).toMatch(/const textOpen = mode === "search"/);
+    // 撮り方の帯から出るのはスキャンのときだけ。
+    const strip = src.slice(src.indexOf("<CameraModeStrip"), src.indexOf("<CameraModeStrip") + 600);
+    expect(strip).toMatch(/if \(m === "scan"\)/);
+    expect(strip).toMatch(/onOpenScan\(\)/);
+  });
+
+  /**
+   * **下のカメラの丸が、そのままシャッターになる。**（オーナー指示 2026-09-15
+   * 「下のカメラのアイコンがシャッターボタンに変化するアニメーション。
+   *  少し大きくなって上に移動してシャッターになる」）
+   *
+   * 着地点（5.5rem）は撮る画面のシャッターの位置と**同じ数**でなければ
+   * ならない。ずれると、演出が終わった所に釦が無い。ブラウザで測った値:
+   * 帯の丸の中心 下から 56.0px ＝ 演出 0% の 56.0px、シャッターの中心
+   * 128.0px ＝ 演出 100% の 128.0px。
+   */
+  it("開く演出は、画面を覆わずシャッターの位置で止まる", () => {
+    const css = read("styles.css");
+    const kf = css.slice(css.indexOf("@keyframes camera-lens-open {"));
+    const body = kf.slice(0, kf.indexOf("\n}"));
+    // 終わりはシャッターと同じ 80px・同じ 5.5rem。
+    expect(body).toMatch(/width: 80px/);
+    expect(body).toMatch(/bottom: calc\(5\.5rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    // 画面いっぱいに広げる古い形は残っていないこと。
+    expect(body).not.toMatch(/100vw/);
+    expect(body).not.toMatch(/100dvh/);
+    // 撮る画面の下の操作も同じ 5.5rem で帯を避けている。
+    expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
+      /pb-\[calc\(5\.5rem\+env\(safe-area-inset-bottom,0px\)\)\]/,
+    );
+  });
+
+  /**
+   * **場所を決める側は1つ。**（この回で実際に踏んだ罠）
+   *
+   * `.capture-viewfinder` は `position: relative` を持っていた。この
+   * ファイルは cascade layer に入れていないので、`@layer utilities` に
+   * 入る Tailwind の `fixed` に**必ず勝つ** — JSX に `fixed inset-0` と
+   * 書いても静かに効かず、実測で幅 358px・高さ 256px のまま普通の流れに
+   * 並んでいた。位置は CSS 側だけで決める。
+   */
+  it("撮る画面の枠は、CSS 側だけで画面いっぱいにする", () => {
+    const css = read("styles.css");
+    const rule = css.slice(css.indexOf(".capture-viewfinder {"));
+    const body = rule.slice(0, rule.indexOf("\n}"));
+    expect(body).toMatch(/position: fixed/);
+    expect(body).toMatch(/inset: 0/);
+    // JSX 側で位置を上書きしようとしていないこと（効かないので混乱の元）。
+    const jsx = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(jsx).not.toMatch(/capture-viewfinder fixed/);
+  });
+
+  /**
+   * **ステップ3の見出しは右端、決めるのは検索の釦。**（オーナー指示
+   * 2026-09-15「違う単語を入力するのは一番右の。これにするは検索ボタンに」）
+   */
+  it("語を選ぶ面の「違う単語」は、右寄せ・検索の釦で決める", () => {
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const at = src.indexOf('htmlFor="manual"');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const block = src.slice(at - 200, at + 900);
+    expect(block).toMatch(/text-end/);
+    expect(block).toMatch(/<Search className/);
+    // Enter でも出せる（釦を押しにいかせない）。
+    expect(block).toMatch(/enterKeyHint="search"/);
+  });
+
+  /**
+   * **枠を被せない場面の一覧は、2箇所で同じでなければならない。**
+   *
+   * 雛形（`scripts/ui-harness/main.tsx` の `BARE`）と検査
+   * （`scripts/ui-audit.mjs` の `BARE_SCENES`）が別々に持っている。
+   * 片方だけに足すと:
+   *  ・雛形だけ … 検査が「上のバーが無い(ハーネスが実物と違う)」と言う
+   *    （この回、撮る画面を画面いっぱいにしたときに 7件出た）
+   *  ・検査だけ … 実物に無いバーを被せたまま測り続ける
+   * どちらも静かに間違うので、ここで突き合わせる。
+   */
+  it("枠を被せない場面の一覧が、雛形と検査で揃っている", () => {
+    const pick = (src: string, name: string) => {
+      const at = src.indexOf(name);
+      expect(at).toBeGreaterThanOrEqual(0);
+      const body = src.slice(at, src.indexOf("]", at));
+      return [...body.matchAll(/"([a-z0-9-]+)"/g)].map((m) => m[1]).sort();
+    };
+    const harness = fs.readFileSync(path.join(root, "../scripts/ui-harness/main.tsx"), "utf8");
+    const audit = fs.readFileSync(path.join(root, "../scripts/ui-audit.mjs"), "utf8");
+    const a = pick(harness, "const BARE = new Set([");
+    const b = pick(audit, "const BARE_SCENES = new Set([");
+    expect(a.length).toBeGreaterThan(0);
+    expect(a).toEqual(b);
   });
 });

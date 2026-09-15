@@ -249,6 +249,11 @@ const BARE = new Set([
   "sticker-sheet",
   "capture-saving",
   "scan-camera",
+  // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
+  // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
+  // 読みやすさを測ることになる（実際、枠の「Catchwords」が
+  // 地＝黒い映像で 1.12 と出た）。
+  "capture-object",
   "reward-catch",
   // 押した札から詳細へ飛ぶ絵。全画面の面なので枠は要らない。
   "hero-flight",
@@ -270,12 +275,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "capture-object", label: "撮る画面（3つの撮り方・倍率・画面いっぱい）" },
+  { scene: "scan-camera", label: "スキャンの上の操作（同じ倍率の目盛り）" },
+  { scene: "capture-pick", label: "語を選ぶ（違う単語は右・検索の釦）" },
   { scene: "settings-selects", label: "設定（見出しは箱の外）" },
   { scene: "word-card", label: "単語の詳細（かたまりは訳だけ）" },
-  { scene: "word-candidate", label: "単語の候補（音の釦の色）" },
   { scene: "hero-flight", label: "札を開く動き（二重写しを消した）" },
-  { scene: "home", label: "ホーム（上から貼る）" },
-  { scene: "tabbar", label: "下のタブ帯" },
 ];
 
 const explicitScene = q.get("scene");
