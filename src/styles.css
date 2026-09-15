@@ -976,69 +976,112 @@ html[data-motion="reduce"] {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.22;
-  background-image: radial-gradient(
-    color-mix(in oklab, var(--background) 38%, transparent) 0.7px,
-    transparent 0.7px
-  );
-  background-size: 7px 7px;
+  opacity: 0;
 }
-.capture-focus {
+.camera-glass {
+  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(10 14 20 / 0.38);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.14);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+.camera-controls {
+  background: linear-gradient(to top, rgb(0 0 0 / 0.88) 0%, rgb(0 0 0 / 0.42) 62%, transparent);
+}
+.camera-zoom {
+  min-width: 2.75rem;
+  height: 2rem;
+  border-radius: 999px;
+  color: rgb(255 255 255 / 0.72);
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: 180ms ease;
+}
+.camera-zoom--active {
+  color: white;
+  background: rgb(255 255 255 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+.camera-guide-copy {
+  background: rgb(0 0 0 / 0.24);
+  backdrop-filter: blur(10px);
+}
+.capture-guide {
   position: absolute;
   left: 50%;
-  top: 48%;
-  width: min(58vw, 15rem);
+  top: 44%;
+  width: min(72vw, 21rem);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
 }
-.capture-focus span {
+.capture-guide span {
   position: absolute;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-color: color-mix(in oklab, var(--background) 75%, var(--primary));
+  width: 3.25rem;
+  height: 3.25rem;
+  border-color: rgb(255 255 255 / 0.82);
 }
-.capture-focus span:nth-child(1) {
+.capture-guide span:nth-child(1) {
   left: 0;
   top: 0;
   border-left-width: 1px;
   border-top-width: 1px;
   border-radius: 0.65rem 0 0 0;
 }
-.capture-focus span:nth-child(2) {
+.capture-guide span:nth-child(2) {
   right: 0;
   top: 0;
   border-right-width: 1px;
   border-top-width: 1px;
   border-radius: 0 0.65rem 0 0;
 }
-.capture-focus span:nth-child(3) {
+.capture-guide span:nth-child(3) {
   left: 0;
   bottom: 0;
   border-left-width: 1px;
   border-bottom-width: 1px;
   border-radius: 0 0 0 0.65rem;
 }
-.capture-focus span:nth-child(4) {
+.capture-guide span:nth-child(4) {
   right: 0;
   bottom: 0;
   border-right-width: 1px;
   border-bottom-width: 1px;
   border-radius: 0 0 0.65rem 0;
 }
-.capture-focus i {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 0.4rem;
-  height: 0.4rem;
+.capture-guide--halo {
+  border: 1px solid rgb(255 255 255 / 0.58);
+  border-radius: 42% 58% 51% 49% / 53% 46% 54% 47%;
+  box-shadow:
+    0 0 0 999px rgb(0 0 0 / 0.14),
+    inset 0 0 34px rgb(255 255 255 / 0.06);
+  animation: camera-halo 5s ease-in-out infinite alternate;
+}
+.capture-guide--halo span {
+  display: none;
+}
+.capture-guide--corners {
+  aspect-ratio: 4 / 3;
+}
+.capture-guide--portal {
+  width: min(68vw, 19rem);
+  border: 2px solid rgb(255 255 255 / 0.74);
   border-radius: 999px;
-  background: var(--primary);
-  box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent);
-  transform: translate(-50%, -50%);
-  animation: capture-focus-breathe 2.8s ease-in-out infinite;
+  box-shadow:
+    0 0 0 999px rgb(0 0 0 / 0.2),
+    0 0 40px rgb(255 255 255 / 0.12);
+}
+.capture-guide--portal span {
+  display: none;
+}
+@keyframes camera-halo {
+  to {
+    border-radius: 55% 45% 46% 54% / 46% 55% 45% 54%;
+    transform: translate(-50%, -50%) scale(1.025);
+  }
 }
 .capture-shutter {
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--background) 78%, transparent);
   transition: transform 100ms ease;
+  animation: shutter-from-nav 520ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 .capture-shutter:active {
   transform: scale(0.9);
@@ -1046,10 +1089,14 @@ html[data-motion="reduce"] {
 .capture-search {
   animation: capture-search-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-@keyframes capture-focus-breathe {
-  50% {
-    transform: translate(-50%, -50%) scale(1.35);
-    opacity: 0.72;
+@keyframes shutter-from-nav {
+  from {
+    transform: translateY(5.5rem) scale(0.62);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
   }
 }
 @keyframes capture-search-in {
@@ -1063,7 +1110,8 @@ html[data-motion="reduce"] {
   .camera-launch__lens {
     animation: camera-lens-open-reduced 220ms ease both;
   }
-  .capture-focus i {
+  .capture-guide--halo,
+  .capture-shutter {
     animation: none;
   }
   .capture-search {

@@ -22,6 +22,8 @@ import {
   WifiOff,
   ImagePlus,
   Search,
+  X,
+  Focus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -1080,7 +1082,11 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title={t("title.capture")} fixedViewport={step === "object"}>
+    <AppShell
+      title={t("title.capture")}
+      fixedViewport={step === "object"}
+      immersive={step === "object"}
+    >
       {step === "object" && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
@@ -1102,6 +1108,7 @@ function CapturePage() {
           onSearch={(w) => void searchWord(w)}
           searching={searching}
           onOpenScan={() => navigate({ to: "/scan" })}
+          onClose={() => navigate({ to: "/home" })}
           error={error}
         />
       )}
@@ -1714,7 +1721,9 @@ export function CaptureObjectPanel({
   onSearch,
   searching = false,
   onOpenScan,
+  onClose,
   error,
+  designVariant = "halo",
 }: {
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
   retakeWord: string | null;
@@ -1727,13 +1736,17 @@ export function CaptureObjectPanel({
   /** 調べている最中か。**画面は変えず、このボタンだけを回す**。 */
   searching?: boolean;
   onOpenScan: () => void;
+  onClose?: () => void;
   error: string | null;
+  /** UI比較用。製品では halo、視覚回帰では他案も同じ機能で撮れる。 */
+  designVariant?: "halo" | "corners" | "portal";
 }) {
   const t = useT();
   const [textOpen, setTextOpen] = useState(Boolean(typedWord));
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [zoom, setZoom] = useState<1 | 2>(1);
 
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
@@ -1767,6 +1780,17 @@ export function CaptureObjectPanel({
     };
   }, [onNativeCapture]);
 
+  useEffect(() => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const capabilities = track.getCapabilities?.() as MediaTrackCapabilities & {
+      zoom?: { min: number; max: number };
+    };
+    if (!capabilities.zoom) return;
+    const wanted = Math.min(capabilities.zoom.max, Math.max(capabilities.zoom.min, zoom));
+    void track.applyConstraints({ advanced: [{ zoom: wanted } as MediaTrackConstraintSet] });
+  }, [zoom, cameraReady]);
+
   const openCamera = () => {
     if (onNativeCapture) {
       onNativeCapture();
@@ -1794,7 +1818,10 @@ export function CaptureObjectPanel({
   };
 
   return (
-    <div className="capture-viewfinder flex h-full min-h-0 flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
+    <div
+      className="capture-viewfinder capture-viewfinder--immersive relative flex h-dvh min-h-0 flex-col overflow-hidden bg-black text-white"
+      data-design={designVariant}
+    >
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
@@ -1810,20 +1837,36 @@ export function CaptureObjectPanel({
             ref={videoRef}
             playsInline
             muted
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out"
+            style={{ transform: `scale(${zoom})` }}
             aria-hidden="true"
           />
         )}
-        <div className="absolute inset-x-5 top-5 text-center">
-          <h1 className="text-headline font-semibold text-background">{t("capture.photoTitle")}</h1>
+        <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("capture.cancel")}
+            className="camera-glass grid h-11 w-11 place-items-center rounded-full active:scale-95"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="camera-glass rounded-full px-4 py-2 text-caption font-semibold tracking-wide">
+            {t("capture.photoTitle")}
+          </div>
+          <span className="grid h-11 w-11 place-items-center" aria-hidden="true">
+            <Focus className="h-5 w-5 text-white/75" />
+          </span>
         </div>
-        <div className="capture-focus" aria-hidden="true">
+        <div className={`capture-guide capture-guide--${designVariant}`} aria-hidden="true">
           <span />
           <span />
           <span />
           <span />
-          <i />
         </div>
+        <p className="camera-guide-copy absolute left-1/2 top-[22%] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-2 text-caption font-medium text-white/90">
+          {t("capture.frameHint")}
+        </p>
         {error && (
           <p className="absolute inset-x-5 bottom-4 rounded-xl bg-destructive/85 px-3 py-2 text-center text-footnote text-destructive-foreground backdrop-blur-md">
             {error}
@@ -1831,7 +1874,20 @@ export function CaptureObjectPanel({
         )}
       </div>
 
-      <div className="relative bg-foreground px-5 pb-5 pt-3">
+      <div className="camera-controls absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-16">
+        <div className="mb-5 flex justify-center gap-1 rounded-full">
+          {([1, 2] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setZoom(value)}
+              aria-pressed={zoom === value}
+              className={zoom === value ? "camera-zoom camera-zoom--active" : "camera-zoom"}
+            >
+              {value}×
+            </button>
+          ))}
+        </div>
         {textOpen && (
           <form
             onSubmit={(e) => {
@@ -1839,7 +1895,7 @@ export function CaptureObjectPanel({
               const w = typedWord.trim();
               if (w) onSearch(w);
             }}
-            className="capture-search mb-4 flex items-center gap-2"
+            className="capture-search camera-glass mb-4 flex items-center gap-2 rounded-2xl p-2"
           >
             <div className="relative flex-1">
               <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1851,7 +1907,7 @@ export function CaptureObjectPanel({
                 aria-label={t("capture.typeWord")}
                 enterKeyHint="search"
                 disabled={searching}
-                className="h-11 rounded-xl border-background/15 bg-background pl-9 text-foreground"
+                className="h-11 rounded-xl border-white/10 bg-white/95 pl-9 text-foreground"
               />
             </div>
             <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
@@ -1860,13 +1916,13 @@ export function CaptureObjectPanel({
           </form>
         )}
 
-        <div className="grid grid-cols-[1fr_5rem_1fr] items-center gap-3">
+        <div className="grid grid-cols-[1fr_5.5rem_1fr] items-center gap-3">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setTextOpen((open) => !open)}
             aria-expanded={textOpen}
-            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
+            className="h-auto min-h-16 flex-col gap-1 text-white hover:bg-white/10 hover:text-white"
           >
             <Keyboard className="h-5 w-5" />
             <span className="whitespace-normal text-caption">{t("capture.typeWord")}</span>
@@ -1876,16 +1932,16 @@ export function CaptureObjectPanel({
             type="button"
             onClick={openCamera}
             aria-label={t("capture.tapToShoot")}
-            className="capture-shutter h-20 w-20 rounded-full bg-background p-0 text-foreground shadow-none hover:bg-background"
+            className="capture-shutter h-[5.5rem] w-[5.5rem] rounded-full bg-white/20 p-0 text-white shadow-none hover:bg-white/20"
           >
-            <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
+            <span className="capture-shutter__core block h-[4.25rem] w-[4.25rem] rounded-full bg-white" />
           </Button>
 
           <Button
             type="button"
             variant="ghost"
             onClick={onOpenScan}
-            className="h-auto min-h-16 flex-col gap-1 text-background hover:bg-background/10 hover:text-background"
+            className="h-auto min-h-16 flex-col gap-1 text-white hover:bg-white/10 hover:text-white"
           >
             <ScanLine className="h-5 w-5" />
             <span className="whitespace-normal text-caption">{t("capture.openScan")}</span>

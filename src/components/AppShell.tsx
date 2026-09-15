@@ -207,11 +207,14 @@ export function AppShell({
   children,
   title,
   fixedViewport = false,
+  immersive = false,
 }: {
   children: ReactNode;
   title?: string;
   /** 復習など、1画面の中ですべてを見せる場面ではページ自体を動かさない。 */
   fixedViewport?: boolean;
+  /** カメラなど、端末全体をコンテンツにする画面では共通の上下バーを隠す。 */
+  immersive?: boolean;
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
@@ -294,41 +297,45 @@ export function AppShell({
       {/* Top chrome — a translucent material the content scrolls under (§12).
           区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
-      <header
-        data-scrolled={scrolled ? "true" : undefined}
-        className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
-      >
-        {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
+      {!immersive && (
+        <header
+          data-scrolled={scrolled ? "true" : undefined}
+          className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+        >
+          {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
             止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
-        {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
-        <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
+          {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
+          <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
                 以前はアイコンごと `/home` の Link に入れていたが、
                 押せるものの中に押せるものを入れることになるうえ、
                 アイコンを押した人は必ずホームへ飛ばされていた。
                 行き先は名前のほうが持つ。 */}
-            <BrandMenu />
-            <Link to="/home" className="transition-transform duration-150 active:scale-95">
-              {/* §15: app title is a small headline — tight tracking, no wrapping.
+              <BrandMenu />
+              <Link to="/home" className="transition-transform duration-150 active:scale-95">
+                {/* §15: app title is a small headline — tight tracking, no wrapping.
                   **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
                   単語カードにはすでに h1 があるので、**全ページが h1 を2つ
                   持つ**ことになった — 直そうとした階層をむしろ壊していた。
                   これはどの画面にも出るアプリ名(道標)であって、その画面の
                   見出しではない。h1 は各画面が自分で持つ。 */}
-              <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
-                {title ?? "Catchwords"}
-              </span>
-            </Link>
+                <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
+                  {title ?? "Catchwords"}
+                </span>
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main
         className={
-          fixedViewport
-            ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
-            : "mx-auto max-w-3xl px-4 py-4"
+          immersive
+            ? "h-dvh w-full overflow-hidden"
+            : fixedViewport
+              ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
+              : "mx-auto max-w-3xl px-4 py-4"
         }
       >
         {children}
@@ -336,7 +343,7 @@ export function AppShell({
 
       {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
           設定でONにした人だけ動く(既定はOFF)。 */}
-      <PlaceMemoryWatcher />
+      {!immersive && <PlaceMemoryWatcher />}
 
       {/* 下のレンズが、そのまま撮影の世界へ広がる。端末のカメラ画面を
           模倣するのではなく、Catchwords の「見つけたものを掬い上げる」
@@ -347,102 +354,104 @@ export function AppShell({
         </div>
       )}
 
-      <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity}>
-        {items.map(({ to, labelKey, icon: Icon }, i) => {
-          const label = t(labelKey);
-          const isScan = to === "/capture";
-          /** いまこのタブに居るか。カメラの丸の**中の色**を決めるのに使う。 */
-          const isCurrent = pathname === to;
-          // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
-          const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
-          return (
-            <li key={to} className="flex-1">
-              <Link
-                to={to}
-                data-nav={to}
-                onClick={() => {
-                  // §13 multimodal feedback on the causal event; the camera
-                  // entrance also primes audio for the scan/catch chimes.
-                  if (isScan) {
-                    /**
-                     * **押した瞬間に画面を変える。**（オーナー指摘 2026-09-15
-                     * 「カメラの遅延も改善して」）
-                     *
-                     * 以前はここで `event.preventDefault()` して
-                     * `setTimeout(…, 520)` を待ってから移っていた。つまり
-                     * **押してから半秒、何も起きない**。しかも「動きを減らす」
-                     * 設定を見ていないので、その設定の人は演出だけ 220ms に
-                     * 縮んで、待ち時間 520ms だけが残っていた。
-                     *
-                     * Apple の指針（WWDC18 *Designing Fluid Interfaces*）は
-                     * 逆で、**応答は押した瞬間に始め、演出は移動と同時に走らせる**。
-                     * レンズが開く絵はそのまま出すが、遷移は止めない —
-                     * `camera-launch` は `position: fixed` の覆いなので、
-                     * 画面が変わっても上に残って開ききる。
-                     */
-                    if (pathname !== "/capture" && !cameraOpening) {
-                      setCameraOpening(true);
-                      window.setTimeout(() => setCameraOpening(false), 720);
+      {!immersive && (
+        <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity}>
+          {items.map(({ to, labelKey, icon: Icon }, i) => {
+            const label = t(labelKey);
+            const isScan = to === "/capture";
+            /** いまこのタブに居るか。カメラの丸の**中の色**を決めるのに使う。 */
+            const isCurrent = pathname === to;
+            // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
+            const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
+            return (
+              <li key={to} className="flex-1">
+                <Link
+                  to={to}
+                  data-nav={to}
+                  onClick={() => {
+                    // §13 multimodal feedback on the causal event; the camera
+                    // entrance also primes audio for the scan/catch chimes.
+                    if (isScan) {
+                      /**
+                       * **押した瞬間に画面を変える。**（オーナー指摘 2026-09-15
+                       * 「カメラの遅延も改善して」）
+                       *
+                       * 以前はここで `event.preventDefault()` して
+                       * `setTimeout(…, 520)` を待ってから移っていた。つまり
+                       * **押してから半秒、何も起きない**。しかも「動きを減らす」
+                       * 設定を見ていないので、その設定の人は演出だけ 220ms に
+                       * 縮んで、待ち時間 520ms だけが残っていた。
+                       *
+                       * Apple の指針（WWDC18 *Designing Fluid Interfaces*）は
+                       * 逆で、**応答は押した瞬間に始め、演出は移動と同時に走らせる**。
+                       * レンズが開く絵はそのまま出すが、遷移は止めない —
+                       * `camera-launch` は `position: fixed` の覆いなので、
+                       * 画面が変わっても上に残って開ききる。
+                       */
+                      if (pathname !== "/capture" && !cameraOpening) {
+                        setCameraOpening(true);
+                        window.setTimeout(() => setCameraOpening(false), 720);
+                      }
+                      unlockAudio();
+                      Sound.tap();
+                      haptic("medium");
+                    } else {
+                      Sound.pageSnap();
+                      haptic("selection");
                     }
-                    unlockAudio();
-                    Sound.tap();
-                    haptic("medium");
-                  } else {
-                    Sound.pageSnap();
-                    haptic("selection");
+                  }}
+                  // §1 Response: react on press, not release.
+                  className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground transition-colors"
+                  // **`text-primary` ではなく `text-primary-ink`。**
+                  // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
+                  // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
+                  // (絵の検査の実測)。`--primary-ink` は主色に前景色を
+                  // 混ぜた「字用の主色」で、この用途のために在る。
+                  activeProps={{ className: "text-primary-ink" }}
+                  style={
+                    weight > 0 && !isScan
+                      ? {
+                          color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
+                        }
+                      : undefined
                   }
-                }}
-                // §1 Response: react on press, not release.
-                className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground transition-colors"
-                // **`text-primary` ではなく `text-primary-ink`。**
-                // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
-                // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
-                // (絵の検査の実測)。`--primary-ink` は主色に前景色を
-                // 混ぜた「字用の主色」で、この用途のために在る。
-                activeProps={{ className: "text-primary-ink" }}
-                style={
-                  weight > 0 && !isScan
-                    ? {
-                        color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
-                      }
-                    : undefined
-                }
-              >
-                {isScan ? (
-                  /**
-                   * **カメラは印で囲わない。中の色が変わる。**
-                   * （オーナー指示 2026-09-15「カメラのアイコンの色を変化して
-                   * 欲しいんじゃなくて、…青いバブルで囲うのではなく、カメラの
-                   * アイコンの中の色を変えてほしい」）
-                   *
-                   * 前の版は丸の白さを 70% → 100% に上げるだけだった。
-                   * **同じ白の濃淡は「色が変わった」と読まれない** — 並べて
-                   * 撮ると差が分からない。丸の**中身を入れ替える**:
-                   *   ・居ないとき … 主色の丸 ＋ 白い絵
-                   *   ・居るとき   … 白い丸 ＋ 主色の絵（＋主色の輪）
-                   * 見分けは色そのもので付き、字とのコントラストは
-                   * 入れ替えても同じ比のまま落ちない。
-                   */
-                  <span className="tabbar__lens-slot">
-                    <span
-                      className={
-                        isCurrent
-                          ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
-                          : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
-                      }
-                    >
-                      <Icon className="h-6 w-6" />
+                >
+                  {isScan ? (
+                    /**
+                     * **カメラは印で囲わない。中の色が変わる。**
+                     * （オーナー指示 2026-09-15「カメラのアイコンの色を変化して
+                     * 欲しいんじゃなくて、…青いバブルで囲うのではなく、カメラの
+                     * アイコンの中の色を変えてほしい」）
+                     *
+                     * 前の版は丸の白さを 70% → 100% に上げるだけだった。
+                     * **同じ白の濃淡は「色が変わった」と読まれない** — 並べて
+                     * 撮ると差が分からない。丸の**中身を入れ替える**:
+                     *   ・居ないとき … 主色の丸 ＋ 白い絵
+                     *   ・居るとき   … 白い丸 ＋ 主色の絵（＋主色の輪）
+                     * 見分けは色そのもので付き、字とのコントラストは
+                     * 入れ替えても同じ比のまま落ちない。
+                     */
+                    <span className="tabbar__lens-slot">
+                      <span
+                        className={
+                          isCurrent
+                            ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
+                            : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
+                        }
+                      >
+                        <Icon className="h-6 w-6" />
+                      </span>
                     </span>
-                  </span>
-                ) : (
-                  <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
-                )}
-                <span>{label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </TabBar>
+                  ) : (
+                    <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
+                  )}
+                  <span>{label}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </TabBar>
+      )}
     </div>
   );
 }

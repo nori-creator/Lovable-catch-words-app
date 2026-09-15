@@ -1691,6 +1691,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
+  "capture.frameHint": {
+    ja: "見つけたものを、この中に",
+    en: "Place your find inside",
+    "zh-TW": "把找到的東西放進框內",
+  },
   "capture.typeWord": {
     ja: "文字で調べる",
     en: "Type to look up",

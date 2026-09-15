@@ -150,7 +150,9 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
       setTypedWord={setTypedWord}
       onSearch={() => {}}
       onOpenScan={() => {}}
+      onClose={() => {}}
       error={v === "error" ? "写真を読み込めませんでした" : null}
+      designVariant={v === "corners" ? "corners" : v === "portal" ? "portal" : "halo"}
     />
   );
 }
