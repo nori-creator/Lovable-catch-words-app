@@ -2153,33 +2153,71 @@ describe("どこで出会うかは、整列した札で出す", () => {
   });
 
   /**
-   * **軸ごとの見出しが main で外された**（2026-09-13 の合流で判明）。
+   * **見出しは付けない。束ねる計算は残す。**（オーナー決定 2026-09-15
+   * 「今のままで見出しなくていい」）
    *
-   * オーナー指示 2026-08-28 ②:
-   * > 「それぞれのカテゴライズを同じように表示すると混乱するから、
-   * >  学習者が混乱しないようにカテゴリーの表示を工夫して。」
+   * 2026-09-13 の合流で軸ごとの見出しが外れ、以来「戻すか1列のままか」を
+   * 保留していた。**1列のまま**で確定。理由は画面の長さ — 軸ごとに全候補を
+   * 並べるとスマホで何段にも膨らみ、その下にある意味と例文が遠くなる。
    *
-   * その答えとして、軸（ここだけ／どこで／いつ／どんな場面で／どんな物か／
-   * どんな気持ちで）ごとに束ねて見出しを付けていた。main 側の作り直しで
-   * **見出しが消え、全部の軸を混ぜた先頭4件を1列に並べる形**になった。
-   * つまり「同じように表示する」に戻っている。
-   *
-   * 向こうの理由も書かれていて、それ自体は正当:
-   * > 「軸ごとの全候補を並べると スマホで何段にも膨らむ」
-   *
-   * どちらを採るかはオーナーの判断なので、**門ではなく記録として置く**。
-   * 束ねる計算（`sceneGroups`）と訳語は残っているので、戻すのは表示だけ。
+   * ここで守るのは**束ねる計算のほう**。見出しを出していないからといって
+   * `sceneGroups` を外すと、出す4件の選び方が `AXIS_ORDER`（限定 → どこで →
+   * いつ → どんな場面で → どんな物か → どんな気持ちで）の優先順から
+   * **ただの登場順**に落ちる。見た目は同じなので、落ちても誰も気づけない。
    */
-  it("束ねる計算と訳語は残っている（表示だけが1列に戻った）", () => {
+  /**
+   * **振動は iPhone でも鳴る。**（オーナー 2026-09-15「lovable で実行した」）
+   *
+   * それまでは `navigator.vibrate` だけを見ていた。あれは **Android の
+   * ブラウザにしか無い** Web の機能で、iOS Safari には存在しない。つまり
+   * アプリ内の `haptic()` 43箇所が iPhone では**エラーも出さずに無反応**
+   * だった。`@capacitor/haptics` を入れて、殻の中では OS の触覚を直に叩く。
+   *
+   * ここで守るのは**落とし方**。
+   *   ・殻の中か外かで分ける（外では今までどおり `navigator.vibrate`）
+   *   ・触覚を**待たない**。鳴るのが遅れても画面を止めない
+   *   ・失敗を握り潰す。OS 側で触覚を切っている人が居る
+   * どれか1つでも外れると、「たまに画面が固まる」か「例外で落ちる」に化ける。
+   */
+  it("振動はネイティブでは Capacitor、ブラウザでは navigator.vibrate に落ちる", () => {
+    const src = codeOnly(read("lib/haptics.ts"));
+    expect(src).toMatch(/from "@capacitor\/haptics"/);
+    expect(src).toMatch(/Capacitor\.isNativePlatform\(\)/);
+    // 殻の中: 待たない・失敗は捨てる。
+    expect(src).toMatch(/void nativeHaptic\(kind\)\.catch\(\(\) => \{\}\)/);
+    // 殻の外: 昔の道が残っていること。
+    expect(src).toMatch(/nav\.vibrate\(PATTERNS\[kind\]\)/);
+    // 種類の取り違えが起きやすい所だけ名指しで確かめる。
+    expect(src).toMatch(/Haptics\.selectionChanged\(\)/);
+    expect(src).toMatch(/NotificationType\.Success/);
+    // 設定で切っている人には、殻の中でも鳴らさない。
+    //
+    // **`indexOf` の -1 で門を素通しにしない。** 最初はここを
+    // `indexOf(A) < indexOf(B)` とだけ書いていた。A の行を丸ごと消すと
+    // `-1 < 正の数` で**真になってしまい**、わざと壊しても落ちなかった
+    // （門の破壊確認でそう出た）。在ることを先に確かめる。
+    const body = src.slice(src.indexOf("export function haptic("));
+    const off = body.indexOf("if (!enabled) return;");
+    const native = body.indexOf("isNative()");
+    expect([off >= 0, native >= 0]).toEqual([true, true]);
+    expect(off).toBeLessThan(native);
+  });
+
+  it("場面の札は見出しを付けず、順は軸の優先順で決まる", () => {
     const view = codeOnly(read("components/SceneBubbles.tsx"));
-    // 計算は生きている。戻すならここから見出しを出すだけ。
+    // 束ねる計算は生きている。ここが順を決めている。
     expect(view).toMatch(/sceneGroups\(/);
+    expect(view).toMatch(/groups\s*\.flatMap\(\(group\) => group\.items\)/);
+    // 訳語は残す（戻すときに作り直さないで済む）。
     for (const axis of ["limited", "where", "when", "scene", "trait", "feeling"]) {
       expect([axis, !!DICT[`card.axis.${axis}`]]).toEqual([axis, true]);
     }
-    // いま見出しが出ていないこと自体を書き留める。出るようになったら
-    // ここが落ちるので、そのとき門へ戻す。
+    // 見出しは出さない。
     expect(view).not.toMatch(/AXIS_KEY\[g\.axis\]/);
+    // 優先順そのものが `lib` 側に在ること。
+    expect(codeOnly(read("lib/scene-bubbles.ts"))).toMatch(
+      /const AXIS_ORDER: readonly SceneAxis\[\] = \[\s*"limited",\s*"where",\s*"when",\s*"scene",\s*"trait",\s*"feeling",?\s*\]/,
+    );
   });
 
   it("**限定の札を作る**(extras に在るのに画面に出ていなかった2つ)", () => {
