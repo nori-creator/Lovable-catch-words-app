@@ -270,10 +270,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "settings-selects", label: "設定（押すと開く行）" },
-  { scene: "home", label: "ホーム（上から貼る）" },
-  { scene: "tabbar", label: "下のタブ帯" },
-  { scene: "hero-flight", label: "札を開く動き" },
+  { scene: "settings-choices", label: "設定（写真の保存）" },
 ];
 
 const explicitScene = q.get("scene");

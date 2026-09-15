@@ -28,6 +28,7 @@ import {
   ChoiceRow,
   DangerZone,
   PhoneticRow,
+  PhotoLibrarySyncToggle,
   PlaceReminderToggle,
   SettingsCard,
   SoundAndHapticsPanel,
@@ -136,6 +137,7 @@ export function SettingsChoicesScene() {
       {/* 束の**中**に入る。丸い列の下に区切り線で足されるので、
           外に出すと区切り線の位置も余白も別物になる。 */}
       <VideoRecordingToggle />
+      <PhotoLibrarySyncToggle />
       <PlaceReminderToggle />
     </SettingsCard>
   );

@@ -2683,9 +2683,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "優先顯示的照片",
   },
   "settings.photoLibrarySync": {
-    ja: "スマホのフォトと同期する",
-    en: "Save captures to phone photos",
-    "zh-TW": "將拍攝照片同步到手機相簿",
+    ja: "写真の同期",
+    en: "Photo sync",
+    "zh-TW": "照片同步",
+  },
+  "cap.photoLibrarySaveFailed": {
+    ja: "図鑑には追加しましたが、スマホへの写真保存ができませんでした。端末の許可を確認してください。",
+    en: "Added to your collection, but the photo could not be saved to this phone. Check device permissions.",
+    "zh-TW": "已加入圖鑑，但無法將照片儲存到手機。請檢查裝置權限。",
   },
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
