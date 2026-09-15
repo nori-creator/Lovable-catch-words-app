@@ -15,6 +15,7 @@ import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 import { TabBar } from "@/components/TabBar";
+import { playCameraLaunch } from "@/lib/camera-launch";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -219,7 +220,6 @@ export function AppShell({
   const navigate = useNavigate();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [cameraOpening, setCameraOpening] = useState(false);
 
   /**
    * 横スワイプで隣の画面へ(オーナー指示 2026-09-13)。
@@ -338,15 +338,6 @@ export function AppShell({
           設定でONにした人だけ動く(既定はOFF)。 */}
       <PlaceMemoryWatcher />
 
-      {/* 下のレンズが、そのまま撮影の世界へ広がる。端末のカメラ画面を
-          模倣するのではなく、Catchwords の「見つけたものを掬い上げる」
-          青い光として繋ぐ。遷移後の自動カメラ起動は capture 側が担う。 */}
-      {cameraOpening && (
-        <div className="camera-launch" aria-hidden="true">
-          <span className="camera-launch__lens" />
-        </div>
-      )}
-
       <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity}>
         {items.map(({ to, labelKey, icon: Icon }, i) => {
           const label = t(labelKey);
@@ -380,10 +371,13 @@ export function AppShell({
                      * `camera-launch` は `position: fixed` の覆いなので、
                      * 画面が変わっても上に残って開ききる。
                      */
-                    if (pathname !== "/capture" && !cameraOpening) {
-                      setCameraOpening(true);
-                      window.setTimeout(() => setCameraOpening(false), 720);
-                    }
+                    /**
+                     * **演出は React の外で出す**（`lib/camera-launch.ts`）。
+                     * ここで状態に持つと、画面が入れ替わった瞬間に
+                     * `AppShell` ごと消えて演出が道連れになる — オーナー指摘
+                     * 「最初だけで2回目とか押すと表示されなくなる」の正体。
+                     */
+                    if (pathname !== "/capture") playCameraLaunch();
                     unlockAudio();
                     Sound.tap();
                     haptic("medium");

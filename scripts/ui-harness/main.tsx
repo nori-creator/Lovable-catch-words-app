@@ -250,8 +250,6 @@ const BARE = new Set([
   "capture-saving",
   "scan-camera",
   "reward-catch",
-  // 帯そのものの場面。**本物の帯の上に張りぼての帯を被せない。**
-  "tabbar",
   // 押した札から詳細へ飛ぶ絵。全画面の面なので枠は要らない。
   "hero-flight",
 ]);

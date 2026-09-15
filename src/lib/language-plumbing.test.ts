@@ -1732,10 +1732,11 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
   });
 
   it("**記憶の一覧は1語も切らない**(長期記憶が抜け落ちない)", () => {
-    // 並びは危険な語が上なので、切ると必ず「いちばん覚えている語」が消える。
+    // 並びは弱い語が上なので、切ると必ず「いちばん覚えている語」が消える。
     const src = codeOnly(read("routes/_authenticated/review.tsx"));
     expect(src).not.toMatch(/overview\.words\.slice\(/);
-    expect(src).toMatch(/overview\.words\.map\(\(w\) =>/);
+    // 並べ替えは挟むが、**数は減らさない**（`sort` は写しを作ってから）。
+    expect(src).toMatch(/\[\.\.\.overview\.words\]\.sort\(compareByMemory\)\.map\(\(w\) =>/);
   });
 
   it("**自撮りの入力を `display:none` にしない**(capture が効かない端末がある)", () => {
@@ -3297,13 +3298,20 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("印は画面をまたいで位置を憶える（押して移っても尾が出る）", () => {
     const src = codeOnly(read("components/SlidingIndicator.tsx"));
     // 部品の外（＝作り直されない所）に控える。
-    expect(src).toMatch(/^const lastIndex = new Map<string, number>\(\);$/m);
+    expect(src).toMatch(/^const lastIndex = new Map<string, Carry>\(\);$/m);
     // 生まれるとき、前に居た所から始める。
     expect(src).toMatch(/lastIndex\.get\(persistKey\)/);
-    expect(src).toMatch(/const from = prev/);
-    expect(src).toMatch(/edgesAt\(from\)/);
-    // 動いたら控え直す。
-    expect(src).toMatch(/lastIndex\.set\(persistKey, index\)/);
+    expect(src).toMatch(/start = \{ l: carry\.l \* k, r: carry\.r \* k \}/);
+    /**
+     * **控えるのは「行き先の番号」ではなく「いま画面に出ている px」。**
+     * 番号だけだと、画面の入れ替わりで2回作り直されたとき
+     * 「前＝行き先」になって動く距離が消える = 滑りが途中で切れる
+     * （オーナー指摘「途中でスライドのアニメーションが消える」）。
+     */
+    const paint = src.slice(src.indexOf("const paint = ()"), src.indexOf("const now ="));
+    expect(paint).toMatch(/lastIndex\.set\(persistKey, \{/);
+    expect(paint).toMatch(/l,\s*r,/);
+    expect(paint).toMatch(/trackW:/);
     // 下のタブは鍵を渡している（渡さないと何も憶えない）。
     expect(codeOnly(read("components/TabBar.tsx"))).toMatch(/persistKey="tabbar"/);
   });
@@ -3331,8 +3339,16 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const css = read("styles.css");
     const bar = css.slice(css.indexOf(".tabbar {"), css.indexOf(".tabbar__row"));
     expect(bar).toMatch(/border-radius: 9999px;/);
-    // 画面幅に対する割合で持つ（実測 0.876）。
-    expect(bar).toMatch(/width: 87\.6%;/);
+    /**
+     * **画面幅に対する割合で持ち、いっぱいには広げない。**
+     *
+     * ここは一度 `87.6%`（App Store の実測）を直に書いていたが、幅は
+     * オーナーの好みで動く数（2026-09-15「もう横に大きく広げてほしい」で
+     * 94% にした）。**動く数を門にすると、指示どおり直すたびに落ちる**門に
+     * なる。守りたいのは数ではなく「浮いている＝画面いっぱいではない」こと。
+     */
+    const pct = bar.match(/width: (\d+(?:\.\d+)?)%;/);
+    expect([!!pct, pct && Number(pct[1]) < 100]).toEqual([true, true]);
     // 枠は素通し。帯の左右の余白ごしに後ろへ指が届くこと。
     const dock = css.slice(css.indexOf(".tabbar-dock {"), css.indexOf(".tabbar {"));
     expect(dock).toMatch(/pointer-events: none;/);
@@ -3426,6 +3442,96 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(src).toMatch(/requestAnimationFrame\(tick\)/);
     // 行き先に届かないまま力尽きても畳むこと。
     expect(src).toMatch(/performance\.now\(\) - t0 > 1500/);
+    /**
+     * **本物の見出しを出し忘れない。**
+     *
+     * 飛んでいる間、本物は伏せてある。出す合図(`arrive`)が抜けると
+     * **見出しが永久に消えたまま**になる — しかも写しは消えるので、
+     * 「写真だけ出ない詳細」という気づきにくい形で壊れる。
+     * 途中で終わる道が3つあるので、3つとも通ること。
+     */
+    expect(src).toMatch(/const arrive = \(\) => \{/);
+    // ①届いた ②畳んだ ③動きを減らす設定
+    expect((src.match(/\barrive\(\);/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    const reduced = src.slice(src.indexOf("if (motionReducedNow())"));
+    expect(reduced.slice(0, 160)).toMatch(/onArrive\(\)/);
+  });
+
+  /**
+   * **転がして選ぶ輪**（オーナー指示 2026-09-15「設定のレベルや言語を選ぶ、
+   * 縦に選択肢が並んでるもの。タップではなく Apple のスクロールして選択
+   * するような美しいものに変更して」）。
+   *
+   * 素の `<select>` は iOS でだけ OS の輪が開き、Android とブラウザでは
+   * ただの一覧が落ちてくる。同じアプリが端末で別物になっていた。
+   */
+  it("設定の言語とレベルは、素の `<select>` ではなく輪で選ぶ", () => {
+    const st = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect((st.match(/<WheelPicker/g) ?? []).length).toBe(4);
+    expect(st).not.toMatch(/<SelectRow/);
+  });
+
+  /**
+   * **慣性と端の返りは自分で書かない。**
+   *
+   * 指の速さ・惰性・端でのゴムの返りを自前で実装すると、必ずどこかが
+   * 本物と違う手触りになる。縦スクロールをそのまま使い、`scroll-snap` で
+   * 1行に吸わせれば、OS の物がそのまま出る。
+   */
+  it("輪はブラウザの巻き取りに任せる（慣性を自前で書かない）", () => {
+    const css = read("styles.css");
+    const w = css.slice(css.indexOf(".wheel__scroll {"), css.indexOf(".wheel__item {"));
+    expect(w).toMatch(/scroll-snap-type: y mandatory;/);
+    const src = codeOnly(read("components/WheelPicker.tsx"));
+    expect(src).toMatch(/scroll-snap-align: center|scrollTo\(/);
+    // ばねや慣性の式をここに書いていないこと。
+    expect(src).not.toMatch(/createSpring|projectMomentum|requestAnimationFrame\(function/);
+  });
+
+  /**
+   * **見た目は輪、中身は一覧。** 読み上げと鍵盤でたどれること。
+   * 見た目だけ作り替えて操作の道を塞ぐと、選べない人が出る。
+   */
+  it("輪は読み上げと鍵盤でも選べる", () => {
+    const src = codeOnly(read("components/WheelPicker.tsx"));
+    expect(src).toMatch(/role="listbox"/);
+    expect(src).toMatch(/role="option"/);
+    expect(src).toMatch(/aria-activedescendant=/);
+    expect(src).toMatch(/aria-selected=/);
+    for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) {
+      expect([key, src.includes(`"${key}"`)]).toEqual([key, true]);
+    }
+  });
+
+  /**
+   * **選択肢が2つの輪に、5行ぶんの窓を開けない。**
+   * 上下が空の箱になり、何も無い所を転がしているように見える。
+   */
+  it("輪の窓は選択肢の数に合わせる（必ず奇数）", () => {
+    const src = codeOnly(read("components/WheelPicker.tsx"));
+    expect(src).toMatch(/function visibleRows\(count: number\): number/);
+    expect(src).toMatch(/count % 2 === 1 \? count : count \+ 1/);
+    expect(src).toMatch(/Math\.max\(3, Math\.min\(MAX_VISIBLE, odd\)\)/);
+  });
+
+  /**
+   * **カメラの演出は React の外に出す。**（オーナー指摘 2026-09-15
+   * 「アニメーションが表示されるのが最初だけで2回目とか押すと表示されなく
+   * なる」）
+   *
+   * 画面ごとに `AppShell` を描いているので、押した瞬間に殻ごと作り直される。
+   * 覆いを状態で持つと、演出が始まる前に持ち主が消える。
+   */
+  it("カメラの演出は画面の入れ替わりで消えない（状態に持たない）", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    expect(shell).toMatch(/playCameraLaunch\(\)/);
+    // 状態も覆いの描画も殻から外れていること。
+    expect(shell).not.toMatch(/cameraOpening/);
+    expect(shell).not.toMatch(/className="camera-launch"/);
+    const lib = codeOnly(read("lib/camera-launch.ts"));
+    expect(lib).toMatch(/document\.body\.appendChild\(el\)/);
+    // 連打しても1枚。出しっぱなしにしない。
+    expect(lib).toMatch(/el\.remove\(\)/);
   });
 
   /**

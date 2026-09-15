@@ -27,7 +27,7 @@ import {
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
-import { memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
+import { compareByMemory, memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -716,7 +716,9 @@ function MemoryOverviewPanel({
        * バーと一覧は同じ `words` を見るのだから、数が食い違ってはいけない。
        */}
       <ul className="mt-1 max-h-80 space-y-1.5 overflow-y-auto">
-        {overview.words.map((w) => {
+        {/* **並べ替えはここで1回だけ**（`lib/memory.ts` の `compareByMemory`）。
+            取得の側は記憶率だけで並べていて、100% が続く所では段が混ざる。 */}
+        {[...overview.words].sort(compareByMemory).map((w) => {
           const lv = memoryLevel(w.retention, w.interval_days, w.repetitions);
           return (
             <li key={w.sticker_id}>
@@ -763,6 +765,22 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
   });
   const t = useT();
   const lv = memoryLevel(word.retention, word.interval_days, word.repetitions);
+
+  /**
+   * **履歴が要る語は、届くまで線を引かない。**（オーナー指摘 2026-09-15
+   * 「初めに1回も復習をしてないグラフが表示されてその後切り替わる」）
+   *
+   * 下の計算は、履歴が空なら「出会った日から一度も復習していない」形の
+   * 曲線を描く。ところが問い合わせが返るまで履歴は**必ず空**なので、
+   * 4回復習した語でも**まず未復習の坂が描かれ、あとから本物の鋸歯に
+   * 差し変わる**。録画のコマで確認した（-25d から単調に落ちる線 →
+   * -44d と -28d に立ち上がりのある線）。
+   *
+   * **一度も復習していない語は待つ必要が無い**（履歴が空なのが正しい姿）。
+   * 待つのは `repetitions > 0` の語だけ。ふつうは一瞬で届く。
+   */
+  const needsHistory = word.repetitions > 0;
+  const ready = !needsHistory || data != null;
 
   /**
    * 記憶保持率のモデル(Ebbinghaus × SM-2):
@@ -884,7 +902,15 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
           </span>
         </div>
 
-        {series.length > 0 ? (
+        {!ready ? (
+          // 待っている間。**間違った形の線を出すくらいなら、線を出さない。**
+          // 枠の高さは同じにして、届いた時に面が跳ねないようにする。
+          <div
+            className="h-44 w-full animate-pulse rounded-xl bg-secondary/60"
+            role="status"
+            aria-label={t("common.loading")}
+          />
+        ) : series.length > 0 ? (
           <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: -20 }}>
@@ -2393,7 +2419,11 @@ export function EmptyState() {
       <EmptyStateCard
         icon={CheckCircle2}
         title={t("review.cappedTitle")}
-        hint={t("review.cappedHint", { n: formatCount(cap.limit) })}
+        /**
+         * **下の細かい説明文は出さない**（オーナー指示 2026-09-15
+         * 「今日の分は終わりです。の下の小さな細かい説明文消して」）。
+         * やれることは下のボタンが持っているので、同じことを二度言わない。
+         */
         action={
           <Link
             to="/settings"
@@ -2676,9 +2706,8 @@ export function DoneState({
         <CheckCircle2 className="mb-2 h-6 w-6 text-ok" aria-hidden />
         <p className="text-body font-semibold">{t("review.cappedTitle")}</p>
         {score}
-        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.cappedHint", { n: formatCount(batch?.limit ?? 0) })}
-        </p>
+        {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15）。
+            枚数を変える導線は下のボタンが持っている。 */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Link
             to="/settings"

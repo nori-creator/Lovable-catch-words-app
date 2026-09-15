@@ -114,3 +114,68 @@ describe("modeFor", () => {
     expect(modeFor(999)).toBe("production");
   });
 });
+
+/**
+ * **原典の SM-2 と一致していなければならない所**（点検 2026-09-15）。
+ *
+ * 間隔の計算は狂っても画面には出ない。「なんとなく復習が多い/来ない」に
+ * しかならず、気づいたときにはその人の学習が何ヶ月ぶんか歪んでいる。
+ * だから**出典と一致する所は、一致したまま動かないように留めておく**。
+ */
+describe("SM-2 の原典との一致（動かしてはいけない所）", () => {
+  it("EF の更新式が原典どおり", () => {
+    // EF' = EF + (0.1 − (5−q)(0.08 + (5−q)0.02))
+    const ef = (prev: number, q: number) => prev + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+    for (const q of [3, 4, 5]) {
+      const got = nextSrs({ ease: 2.5, interval_days: 10, repetitions: 5 }, q).ease;
+      expect([q, Number(got.toFixed(10))]).toEqual([q, Number(ef(2.5, q).toFixed(10))]);
+    }
+    // 満点は +0.10、4 は ±0、3 は −0.14（原典の値）。
+    expect(Number(ef(2.5, 5).toFixed(2))).toBe(2.6);
+    expect(Number(ef(2.5, 4).toFixed(2))).toBe(2.5);
+    expect(Number(ef(2.5, 3).toFixed(2))).toBe(2.36);
+  });
+
+  it("EF の下限は 1.3", () => {
+    expect(MIN_EASE).toBe(1.3);
+  });
+
+  it("失敗したら 連続回数0・間隔1日・EF は据え置き", () => {
+    const before = { ease: 2.1, interval_days: 40, repetitions: 7 };
+    for (const q of [0, 1, 2]) {
+      const after = nextSrs(before, q);
+      expect([q, after.repetitions, after.interval_days, after.ease]).toEqual([q, 0, 1, 2.1]);
+    }
+  });
+
+  it("3回目以降は 前の間隔 × ease（四捨五入）", () => {
+    const s = { ease: 2.5, interval_days: 6, repetitions: 2 };
+    expect(nextSrs(s, 4).interval_days).toBe(Math.round(6 * 2.5));
+  });
+
+  /**
+   * **2回目だけ原典と違う（原典 6日、ここは 3日）。**
+   * 意図して短くしたもの。うっかり戻したり、うっかり別の数に変えたりを
+   * 見つけるために留めておく。変えるなら、ここも一緒に変えること。
+   */
+  it("2回目の間隔は 3日（原典の 6日を意図して短くしている）", () => {
+    const a = nextSrs({ ease: 2.5, interval_days: 0, repetitions: 0 }, 5);
+    const b = nextSrs(a, 5);
+    expect(b.interval_days).toBe(3);
+  });
+
+  /**
+   * **出題日の定着度は ease だけで決まる（間隔によらない）。**
+   *
+   * `S = 間隔 × ease` と置いている以上、`R(出題日) = exp(−1/ease)` になる。
+   * ease 2.5 なら 67%。狙いを 90% に変えるなら `stabilityOf` を直すしかない
+   * ので、いまの値をここに留めておく（変えたらここが落ちる）。
+   */
+  it("いまの式では、出題日の定着度が 67% になる（狙いの 90% ではない）", () => {
+    for (const interval of [1, 3, 7, 30, 90]) {
+      const s = stabilityOf(interval, 2.5);
+      const r = 100 * Math.exp(-interval / s);
+      expect([interval, Math.round(r)]).toEqual([interval, 67]);
+    }
+  });
+});
