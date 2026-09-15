@@ -1487,7 +1487,11 @@ html[data-motion="reduce"] {
     0 16px 28px -8px rgba(60, 42, 18, 0.36);
 }
 .photo-lift:active .photo-print {
-  transform: translateY(0) scale(0.985);
+  /* **「キュッと1度少ししぼむ」**（オーナー指示 2026-09-15）。
+     1.5% の縮みでは目に見えない — 触った手応えとしては無いに等しかった。
+     6% にすると、押した瞬間に紙が沈んで、離すと詳細の見出しへ広がる
+     （広がる側は `components/HeroFlight.tsx`）。 */
+  transform: translateY(0) scale(0.94);
 }
 html[data-motion="reduce"] {
   .photo-print {
@@ -1672,6 +1676,109 @@ html[data-motion="reduce"] {
   box-shadow: 0 -8px 40px -12px color-mix(in oklab, var(--foreground) 40%, transparent);
 }
 
+/* ── 下のタブ帯 — 画面の下に浮くカプセル ──────────────────────────────
+   オーナー指示 2026-09-15「下のアイコンのバー自体もの形も添付の app store
+   のように変更し…バーとのバランスを徹底的に再現して」。
+
+   寸法の出どころは `components/TabBar.tsx` の表（添付動画をコマに割って
+   実測した割合）。ここには**出てきた数だけ**を置く。
+
+   ## 透けさせないのは以前からの指定
+   参照(App Store)はガラスだが、この帯は「後ろは透けない(NORI指定)」で
+   不透明に決めてある。今回の指示は**形と配り**の話なので、そこは変えない。 */
+.tabbar-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  /* 帯そのものだけが押せる。**枠は素通し** — 帯の左右の余白ごしに
+     後ろの内容へ指が届かないと、浮いている意味が無い。 */
+  pointer-events: none;
+  /* **左右に余白を入れない。** 帯の幅は画面幅に対する割合（下）で決めて
+     いるので、ここでも詰めると二重に細くなる（実測 0.804 — 参照 0.876 に
+     対して 28px 細かった）。下だけ空ける。 */
+  padding: 0 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+.tabbar {
+  pointer-events: auto;
+  /* 画面幅の 87.6%（実測）。広い画面では伸ばしきらない — 5つの升目が
+     間延びして、印が横長の棒に見えるため。 */
+  width: 87.6%;
+  max-width: 26rem;
+  margin-inline: auto;
+  /* 印の丸い端が、帯の丸い端の**すぐ内側に入れ子**になる幅（実測）。 */
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, white 30%);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 10px 30px -10px color-mix(in oklab, var(--foreground) 45%, transparent);
+}
+.tabbar__row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+/* 升目1つ。**縦の配りはここだけが決める。**
+
+   帯の高さ 55px の内訳（ブラウザ実測）:
+     上 11 / アイコン 20 / 間 6 / 文字 11 / 下 7 ＝ 55
+   帯の内側の余白 4px と枠線 1px を上下から引いた 45px がこの箱。 */
+.tabbar__cell {
+  display: flex;
+  min-height: 45px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  /* 文字の箱をちょうど字の高さにする。行の高さが余ると、アイコンと文字の
+     間が指定より開いて**印の中で下に寄って**見える。 */
+  line-height: 1;
+}
+/* カメラの丸を置く所。**大きさはアイコン1つぶんのまま**にしておき、丸は
+   その上に絶対配置で重ねる。こうしないと丸の背丈がそのまま帯の高さに
+   足され、他の升目との縦の配りが崩れる。 */
+.tabbar__lens-slot {
+  position: relative;
+  display: block;
+  height: 20px;
+  width: 20px;
+}
+.tabbar__lens {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  height: 48px;
+  width: 48px;
+  place-items: center;
+  border-radius: 9999px;
+  /* **丸の下端と「撮る」の字の間を空ける**（オーナー指摘 2026-09-15
+     「撮るという文字とアイコン少し被ってる」）。
+
+     直前は 52px の丸を 10px 持ち上げていて、丸の下端と字の上端が
+     **ちょうど同じ位置**だった（実測 774.0 / 774.0）。数の上では重なって
+     いないが、選ばれている時の輪(2px)と影がその外に出るので、目には
+     被って見える。丸を 48px にして 14px 持ち上げ、輪の外側から字まで
+     **4px** 空ける。帯からのはみ出しは 17px（前は 15px）。 */
+  transform: translate(-50%, -50%) translateY(-14px);
+  transition:
+    transform 0.15s var(--spring-bounce),
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.group:active .tabbar__lens {
+  transform: translate(-50%, -50%) translateY(-14px) scale(0.9);
+}
+html[data-motion="reduce"] .tabbar__lens,
+html[data-motion="reduce"] .group:active .tabbar__lens {
+  transition: none;
+  transform: translate(-50%, -50%) translateY(-14px);
+}
+
 /* §12 Materialize — a glass surface should arrive as a real material (blur +
    scale rising together), not a flat opacity fade. */
 @keyframes material-in {
@@ -1684,6 +1791,20 @@ html[data-motion="reduce"] {
     transform: translateY(0) scale(1);
   }
 }
+/* 絵が飛んでくる回の面。**面自体は動かさない**（`StickerSheet` の注）。
+   薄く出すだけにして、動きは飛んでくる絵1枚に持たせる。 */
+@keyframes sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.sheet-fade-in {
+  animation: sheet-fade-in 0.22s var(--ease-ios) backwards;
+}
+
 .material-in {
   /* **`both` ではなく `backwards`。**
 

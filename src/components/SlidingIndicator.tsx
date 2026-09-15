@@ -3,6 +3,32 @@ import { createSpring, type Spring } from "@/lib/spring";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 /**
+ * 直前に居た所。**画面をまたいでも憶えておく**ための控え。
+ *
+ * ## なぜモジュールの外に置くのか（オーナー指摘 2026-09-15）
+ * > 「下のアイコンをタップして違うページに移った時の残像感滑らか感が
+ * >  実装されてない」
+ *
+ * 指で払ったときは尾が出るのに、**押したときだけ出ない**。原因は動きでは
+ * なく**組み立て方**だった。このアプリは画面ごとに `AppShell` を描いていて
+ * （16ファイルが各自 `<AppShell>` を持つ）、タブを押すと画面が入れ替わる =
+ * **殻ごと作り直される**。作り直されればこの部品も新しく生まれ、ばねは
+ * 移動先の位置で初期化される — 動く前から着いているので、動きようがない。
+ *
+ * 払っているときは同じ画面の中で `progress` が動くだけなので、部品は
+ * 生きたまま。だから尾が出ていた。**同じ部品の2つの入り方で挙動が違った。**
+ *
+ * 殻を画面の外へ出す（レイアウトルートにする）のが本筋だが、16画面が
+ * 各自の題と縦の扱いを `AppShell` に渡しているので、その付け替えは別の話。
+ * ここでは**位置だけを持ち越す**: 生まれた時に前の場所から始めて、
+ * いまの場所へばねで動かす。見た目は繋がったままになる。
+ *
+ * 鍵で分けるのは、下のタブと設定の選択肢が**同じ部品を別々に**使うため。
+ * 鍵を渡さない使い方（1回きりの物）は何も憶えない。
+ */
+const lastIndex = new Map<string, number>();
+
+/**
  * 「いまここ」を示す、**滑って伸びる印**。
  *
  * 下のタブでも、設定の丸い選択肢でも、同じ物を使う（オーナー指示 2026-09-15
@@ -11,9 +37,9 @@ import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
  *
  * ## 何を再現したものか
  * App Store（iOS 26）のタブ。コマ送りにして読み取った形:
- *   ・選んだ所に**明るい角丸の長方形**が乗る
+ *   ・選んだ所に**明るいカプセル**が乗る（角丸の長方形ではなく、端が半円）
  *   ・切り替えると**伸びて両方を跨ぎ**、先端が先に着いて後端が遅れて追う
- *   ・伸びている最中も**角の丸みは変わらない**（真円のカプセルではない）
+ *   ・伸びている最中も**角の丸みは変わらない**
  *
  * ## 伸びは「振り付け」ではなく、物理から出す
  * 幅を時間で膨らませて縮める、と書くこともできる。やらない。
@@ -37,20 +63,50 @@ export function SlidingIndicator({
   className,
   /**
    * 角の丸み ÷ 高さ。**幅が変わっても変わらない**ように px で当てる。
-   *   ・0.3  … 角丸の長方形（App Store のタブ）
-   *   ・0.5  … 真円のカプセル（丸い選択肢）
+   *   ・0.5  … 端が半円のカプセル（App Store のタブ・丸い選択肢）
+   *   ・0.3  … 角丸の長方形
    */
-  radiusRatio = 0.3,
+  radiusRatio = 0.5,
   /** 先に着く側の速さ（秒）。小さいほど機敏。 */
-  lead = 0.3,
-  /** 遅れて追う側の速さ（秒）。**尾の長さはここで決まる。** */
-  trail = 0.62,
+  lead = 0.28,
+  /**
+   * 遅れて追う側の速さ（秒）。**尾の長さはここで決まる。**
+   *
+   * 既定 0.42 は当てずっぽうではない。`spring.ts` と同じ式で測った
+   * （下のタブ 1升 76px、`damping` 1、1/60 秒刻み）:
+   *
+   * |  | 隣へ1つ | 端から端へ4つ | 落ち着くまで(隣) |
+   * |---|---|---|---|
+   * | 旧 0.30 / 0.62 | 1.36 倍 | 2.44 倍 | 767ms |
+   * | 新 0.28 / 0.42 | **1.21 倍** | **1.82 倍** | **533ms** |
+   *
+   * 参照（App Store）をコマ送りで見ると、印は移動中も**だいたい1升ぶんの
+   * まま**で、2倍以上に伸びる瞬間は無い。旧の 2.44 倍は尾ではなく
+   * 引きずった跡で、オーナー指摘「ちょっとしつこすぎる」はここ。
+   */
+  trail = 0.42,
+  /**
+   * 薄める度合い（0〜1）。**カメラのタブには印を乗せない**ための窓口
+   * （オーナー指示 2026-09-15「青いバブルで囲うのではなく、カメラの
+   * アイコンの中の色を変えてほしい」）。
+   *
+   * 消す・出すではなく濃さで渡すのは、指で払っている最中に
+   * **点いたり消えたりさせない**ため。近づくほど薄れて、通り過ぎると戻る。
+   */
+  opacity = 1,
+  /**
+   * 画面をまたいで位置を憶えるときの鍵。渡さなければ憶えない。
+   * 同じ鍵を使う印は**同じ並びの上に居ること**（位置を共有するため）。
+   */
+  persistKey,
 }: {
   index: number;
   className?: string;
   radiusRatio?: number;
   lead?: number;
   trail?: number;
+  opacity?: number;
+  persistKey?: string;
 }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   /** 左端と右端、別々のばね。**この2本の速さの差が「伸び」そのもの**。 */
@@ -60,6 +116,8 @@ export function SlidingIndicator({
   /** `paint` から読むので ref に控える（effect を張り直さないため）。 */
   const indexRef = useRef(index);
   indexRef.current = index;
+  const opacityRef = useRef(opacity);
+  opacityRef.current = opacity;
 
   useEffect(() => {
     const el = ref.current;
@@ -116,10 +174,18 @@ export function SlidingIndicator({
       el.style.transform = `translate3d(${l}px,0,0)`;
       el.style.width = `${Math.max(r - l, 1)}px`;
       el.style.borderRadius = `${el.offsetHeight * radiusRatio}px`;
-      el.style.opacity = indexRef.current < 0 ? "0" : "1";
+      el.style.opacity =
+        indexRef.current < 0 ? "0" : String(Math.max(0, Math.min(1, opacityRef.current)));
     };
 
-    const e0 = edgesAt(Math.max(indexRef.current, 0));
+    /**
+     * **生まれた場所。前に居た所から始める。**
+     * 画面が入れ替わって作り直されたときだけ効く（初めてなら現在地）。
+     */
+    const now = Math.max(indexRef.current, 0);
+    const prev = persistKey != null ? lastIndex.get(persistKey) : undefined;
+    const from = prev != null && prev >= 0 ? prev : now;
+    const e0 = edgesAt(from);
     leftRef.current = createSpring(e0.l, paint, { damping: 1, response: lead });
     rightRef.current = createSpring(e0.r, paint, { damping: 1, response: lead });
     paint();
@@ -132,7 +198,23 @@ export function SlidingIndicator({
      * **次に押すまで直らない**。動かして直すのではなく `set` で入れ直す
      * （画面が回っている最中に印がぬるっと滑ると、回転そのものと喧嘩する）。
      */
+    /**
+     * **本当に幅が変わった時だけ入れ直す。**
+     *
+     * `ResizeObserver` は `observe()` した直後に**必ず1回**呼ばれる（今の
+     * 大きさを知らせるため。仕様どおりの振る舞いで、異常ではない）。ここを
+     * 素通しにしていたので、生まれた直後のこの1回が「前に居た所から始める」
+     * 種を**移動先へ上書きして**いた — その結果、画面をまたいだときの尾が
+     * まったく出ず、印が1フレームで飛んでいた（ブラウザ実測 29.2px → 294.5px
+     * が1フレーム）。
+     *
+     * 幅を控えておいて、変わっていない回は何もしない。
+     */
+    let seenW = track.getBoundingClientRect().width;
     const onResize = () => {
+      const w = track.getBoundingClientRect().width;
+      if (w === seenW) return;
+      seenW = w;
       const e = edgesAt(Math.max(indexRef.current, 0));
       leftRef.current?.set(e.l);
       rightRef.current?.set(e.r);
@@ -149,7 +231,14 @@ export function SlidingIndicator({
       leftRef.current = null;
       rightRef.current = null;
     };
-  }, [radiusRatio, lead]);
+  }, [radiusRatio, lead, persistKey]);
+
+  /** 薄さだけが変わった回（指がカメラに近づいた等）も塗り直す。 */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.opacity = index < 0 ? "0" : String(Math.max(0, Math.min(1, opacity)));
+  }, [opacity, index]);
 
   useEffect(() => {
     const el = ref.current;
@@ -157,6 +246,7 @@ export function SlidingIndicator({
     const L = leftRef.current;
     const R = rightRef.current;
     if (!track || !L || !R || index < 0) return;
+    if (persistKey != null) lastIndex.set(persistKey, index);
 
     const base = track.getBoundingClientRect().left;
     const cs = Array.from(track.children)
@@ -202,7 +292,7 @@ export function SlidingIndicator({
     const slow = { damping: 1, response: trail };
     R.to(r, goingRight ? fast : slow);
     L.to(l, goingRight ? slow : fast);
-  }, [index, reduced, lead, trail]);
+  }, [index, reduced, lead, trail, persistKey]);
 
   return (
     <span ref={ref} aria-hidden className={`pointer-events-none absolute ${className ?? ""}`} />

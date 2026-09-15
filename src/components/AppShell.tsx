@@ -14,7 +14,7 @@ import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
-import { TabIndicator } from "@/components/TabIndicator";
+import { TabBar } from "@/components/TabBar";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -245,6 +245,17 @@ export function AppShell({
   useSwipeBack({ enabled: tabIndex < 0, onBack: () => router.history.back() });
   // 指の位置(小数)。バーの印と色はこれ1つから決まる。
   const cursor = tabIndex < 0 ? -1 : tabIndex + progress;
+  /**
+   * **カメラの升目には印を乗せない**（オーナー指示 2026-09-15
+   * 「青いバブルで囲うのではなく、カメラのアイコンの中の色を変えてほしい」）。
+   *
+   * 出す・消すの2値にしない。指で払っている最中はカメラの上を**通過する**
+   * ので、2値だと真ん中で印がぱっと消えてぱっと戻る。近づくほど薄れ、
+   * 離れるほど戻る濃さで渡せば、通り過ぎる動き自体は途切れない。
+   * 0.85 升ぶん手前から薄れ始める。
+   */
+  const cameraIndex = items.findIndex((i) => i.to === "/capture");
+  const indicatorOpacity = cursor < 0 ? 0 : Math.min(1, Math.abs(cursor - cameraIndex) / 0.85);
 
   /**
    * **プロフィールの言語設定を端末に写す。**
@@ -336,108 +347,102 @@ export function AppShell({
         </div>
       )}
 
-      {/* 下のタブ帯。**後ろは透けない(NORI指定)。** `.app-sheet` は上端の
-          明るい線と上向きの影だけを持つ不透明な面で、浮いていることは
-          縁と影で伝える。 */}
-      <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
-        <ul className="relative mx-auto flex max-w-3xl items-stretch justify-between px-2 py-2">
-          {/* いま居る所の印。**タブより先に置く** — 後ろに敷くものなので、
-              重なりの順で言えばここが一番下。伸び方の理由は部品の側に書いた。 */}
-          <TabIndicator cursor={cursor} count={items.length} />
-          {items.map(({ to, labelKey, icon: Icon }, i) => {
-            const label = t(labelKey);
-            const isScan = to === "/capture";
-            /** いまこのタブに居るか。カメラの丸の中の白さを決めるのに使う。 */
-            const isCurrent = pathname === to;
-            // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
-            const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
-            return (
-              <li key={to} className="flex-1">
-                <Link
-                  to={to}
-                  data-nav={to}
-                  onClick={(event) => {
-                    // §13 multimodal feedback on the causal event; the camera
-                    // entrance also primes audio for the scan/catch chimes.
-                    if (isScan) {
-                      /**
-                       * **押した瞬間に画面を変える。**（オーナー指摘 2026-09-15
-                       * 「カメラの遅延も改善して」）
-                       *
-                       * 以前はここで `event.preventDefault()` して
-                       * `setTimeout(…, 520)` を待ってから移っていた。つまり
-                       * **押してから半秒、何も起きない**。しかも「動きを減らす」
-                       * 設定を見ていないので、その設定の人は演出だけ 220ms に
-                       * 縮んで、待ち時間 520ms だけが残っていた。
-                       *
-                       * Apple の指針（WWDC18 *Designing Fluid Interfaces*）は
-                       * 逆で、**応答は押した瞬間に始め、演出は移動と同時に走らせる**。
-                       * レンズが開く絵はそのまま出すが、遷移は止めない —
-                       * `camera-launch` は `position: fixed` の覆いなので、
-                       * 画面が変わっても上に残って開ききる。
-                       */
-                      if (pathname !== "/capture" && !cameraOpening) {
-                        setCameraOpening(true);
-                        window.setTimeout(() => setCameraOpening(false), 720);
-                      }
-                      unlockAudio();
-                      Sound.tap();
-                      haptic("medium");
-                    } else {
-                      Sound.pageSnap();
-                      haptic("selection");
-                    }
-                  }}
-                  // §1 Response: react on press, not release.
-                  className="group flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground transition-colors"
-                  // **`text-primary` ではなく `text-primary-ink`。**
-                  // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
-                  // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
-                  // (絵の検査の実測)。`--primary-ink` は主色に前景色を
-                  // 混ぜた「字用の主色」で、この用途のために在る。
-                  activeProps={{ className: "text-primary-ink" }}
-                  style={
-                    weight > 0 && !isScan
-                      ? {
-                          color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
-                        }
-                      : undefined
-                  }
-                >
-                  {isScan ? (
+      <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity}>
+        {items.map(({ to, labelKey, icon: Icon }, i) => {
+          const label = t(labelKey);
+          const isScan = to === "/capture";
+          /** いまこのタブに居るか。カメラの丸の**中の色**を決めるのに使う。 */
+          const isCurrent = pathname === to;
+          // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
+          const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
+          return (
+            <li key={to} className="flex-1">
+              <Link
+                to={to}
+                data-nav={to}
+                onClick={() => {
+                  // §13 multimodal feedback on the causal event; the camera
+                  // entrance also primes audio for the scan/catch chimes.
+                  if (isScan) {
                     /**
-                     * **主色そのもの(NORI指定)。** 以前は右下へ向かって 22% の黒を
-                     * 混ぜるグラデーションで、丸の下半分が沈んで設定の青より暗く
-                     * 見えていた。同じ画面に同じ青が2種類並ぶのをやめる。
+                     * **押した瞬間に画面を変える。**（オーナー指摘 2026-09-15
+                     * 「カメラの遅延も改善して」）
                      *
-                     * ## 選ばれている間は、中の白を変える（オーナー指示 2026-09-15）
-                     * 「カメラのアイコンに来た時はカメラの中の白色を変える」。
-                     * 丸は主色のままなので、**印が下に来ても選ばれたことが
-                     * 分からない**のがもとの姿だった。中の絵の白さで示す:
-                     *   ・選ばれていない … 白 70%（丸に馴染む）
-                     *   ・選ばれている   … 白 100% ＋ 内側の細い輪
-                     * 選ばれた側を**濃くする**向きにしてあるので、読みやすさは
-                     * 落ちない（薄くする向きだと、選んだ瞬間に見えにくくなる）。
+                     * 以前はここで `event.preventDefault()` して
+                     * `setTimeout(…, 520)` を待ってから移っていた。つまり
+                     * **押してから半秒、何も起きない**。しかも「動きを減らす」
+                     * 設定を見ていないので、その設定の人は演出だけ 220ms に
+                     * 縮んで、待ち時間 520ms だけが残っていた。
+                     *
+                     * Apple の指針（WWDC18 *Designing Fluid Interfaces*）は
+                     * 逆で、**応答は押した瞬間に始め、演出は移動と同時に走らせる**。
+                     * レンズが開く絵はそのまま出すが、遷移は止めない —
+                     * `camera-launch` は `position: fixed` の覆いなので、
+                     * 画面が変わっても上に残って開ききる。
                      */
+                    if (pathname !== "/capture" && !cameraOpening) {
+                      setCameraOpening(true);
+                      window.setTimeout(() => setCameraOpening(false), 720);
+                    }
+                    unlockAudio();
+                    Sound.tap();
+                    haptic("medium");
+                  } else {
+                    Sound.pageSnap();
+                    haptic("selection");
+                  }
+                }}
+                // §1 Response: react on press, not release.
+                className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground transition-colors"
+                // **`text-primary` ではなく `text-primary-ink`。**
+                // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
+                // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
+                // (絵の検査の実測)。`--primary-ink` は主色に前景色を
+                // 混ぜた「字用の主色」で、この用途のために在る。
+                activeProps={{ className: "text-primary-ink" }}
+                style={
+                  weight > 0 && !isScan
+                    ? {
+                        color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
+                      }
+                    : undefined
+                }
+              >
+                {isScan ? (
+                  /**
+                   * **カメラは印で囲わない。中の色が変わる。**
+                   * （オーナー指示 2026-09-15「カメラのアイコンの色を変化して
+                   * 欲しいんじゃなくて、…青いバブルで囲うのではなく、カメラの
+                   * アイコンの中の色を変えてほしい」）
+                   *
+                   * 前の版は丸の白さを 70% → 100% に上げるだけだった。
+                   * **同じ白の濃淡は「色が変わった」と読まれない** — 並べて
+                   * 撮ると差が分からない。丸の**中身を入れ替える**:
+                   *   ・居ないとき … 主色の丸 ＋ 白い絵
+                   *   ・居るとき   … 白い丸 ＋ 主色の絵（＋主色の輪）
+                   * 見分けは色そのもので付き、字とのコントラストは
+                   * 入れ替えても同じ比のまま落ちない。
+                   */
+                  <span className="tabbar__lens-slot">
                     <span
-                      className={`camera-tab-lens -mt-7 grid h-14 w-14 place-items-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--spring-bounce)] group-active:scale-90 ${
+                      className={
                         isCurrent
-                          ? "text-primary-foreground shadow-primary/55 ring-2 ring-inset ring-primary-foreground/40"
-                          : "text-primary-foreground/70"
-                      }`}
+                          ? "tabbar__lens bg-primary-foreground text-primary shadow-lg shadow-primary/30 ring-2 ring-primary"
+                          : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
+                      }
                     >
-                      <Icon className="h-6 w-6 transition-colors duration-200" />
+                      <Icon className="h-6 w-6" />
                     </span>
-                  ) : (
-                    <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
-                  )}
-                  <span>{label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                  </span>
+                ) : (
+                  <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
+                )}
+                <span>{label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </TabBar>
     </div>
   );
 }

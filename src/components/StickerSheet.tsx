@@ -48,6 +48,8 @@ import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
+import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
+import { HeroFlight, type FlightOrigin } from "@/components/HeroFlight";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
@@ -63,13 +65,18 @@ type Props = {
   stickerId: string | null;
   onClose: () => void;
   /**
+   * 押した札の場所・大きさ・いま出している絵。渡されたときだけ、そこから
+   * 見出しへ絵が飛ぶ（オーナー指示 2026-09-15「軌跡アニメーション」）。
+   */
+  from?: FlightOrigin | null;
+  /**
    * 開いた瞬間に「主役の写真」の面を出す。
    * ホームのアルバムを**長押し**して来たときに立つ(オーナー指摘 2026-08-20)。
    */
   openPhotoPicker?: boolean;
 };
 
-export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
+export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Props) {
   // 下へ引いて閉じる。動きを減らす設定の人には付けない
   // (掴めるが動かない、より**掴めない**ほうが分かりやすい)。
   const reducedMotionForDrag = usePrefersReducedMotion();
@@ -101,6 +108,31 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     return () => clearTimeout(t);
   }, [deleteArmed]);
   const qc = useQueryClient();
+  /**
+   * **待たせない。** ホームも図鑑も、この札を丸ごと手元に持っている
+   * （オーナー指摘 2026-09-15「くるくるとロード中が回って…ロードが
+   * ストレス」）。詳しくは `lib/sticker-seed.ts`。
+   */
+  const seed = seedStickerFromList(qc, stickerId);
+  /**
+   * いま飛んでいる絵。**開いた瞬間に1回だけ**受け取り、着いたら捨てる。
+   * `from` をそのまま渡し続けると、中で何か再描画が起きるたびに
+   * 飛び直してしまう。
+   */
+  const [flight, setFlight] = useState<FlightOrigin | null>(null);
+  const flownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!stickerId) {
+      flownFor.current = null;
+      setFlight(null);
+      return;
+    }
+    if (flownFor.current === stickerId) return;
+    flownFor.current = stickerId;
+    setFlight(from ?? null);
+    // `from` は開く操作の瞬間の値。**札が変わった時だけ**読む。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stickerId]);
   const {
     data: s,
     isLoading,
@@ -112,6 +144,9 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
     enabled: !!stickerId,
     staleTime: 5 * 60 * 1000,
+    initialData: seed,
+    // 種は**古い物として置く**。出しながら裏で取り直す。
+    initialDataUpdatedAt: seed ? SEED_UPDATED_AT : undefined,
   });
   /**
    * 解説の**共有キャッシュ**(2026-08-24)。
@@ -645,11 +680,20 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker }: Props) {
   return (
     <div
       {...dragProps}
-      className="material-in fixed inset-0 z-50 flex flex-col material-thick"
+      /**
+       * **絵が飛んでくる回は、面そのものを動かさない。**
+       *
+       * `material-in` は面を 10px 持ち上げながら 0.985 倍から開く。写しの
+       * 行き先(`[data-sheet-hero]`)はこの面の中にあるので、面が動いている
+       * 最中に測ると**行き先が動く**＝写しが着地点を追いかけ続ける。
+       * 飛ばす回は面を薄く出すだけにして、動きは絵1枚が持つ。
+       */
+      className={`fixed inset-0 z-50 flex flex-col material-thick ${flight ? "sheet-fade-in" : "material-in"}`}
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}
     >
+      {flight && <HeroFlight origin={flight} onDone={() => setFlight(null)} />}
       {/* 掴める所を目で示す横棒。**無いと掴めることが誰にも分からない** —
           機能があっても発見されなければ無いのと同じ。 */}
       {grabber && (
@@ -926,6 +970,9 @@ export function StickerSheetBody({
     <>
       {/* Hero — expands with pop-in. Tap to flip selfie ↔ object */}
       <div
+        /** 押した札から飛んでくる絵の**行き先**（`components/HeroFlight.tsx`）。
+            座標を決め打ちにしないため、印だけ付けて実測させる。 */
+        data-sheet-hero
         className="perspective-1200 mb-4"
         // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
         // ボタンとして振る舞うのも自撮りがあるときだけにする。

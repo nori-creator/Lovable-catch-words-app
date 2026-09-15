@@ -26,6 +26,7 @@ import { WordCandidateScene } from "./scenes/word-candidate";
 import { InputCatchScene } from "./scenes/input-catch";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { RewardCatchScene } from "./scenes/reward-catch";
+import { HeroFlightScene } from "./scenes/hero-flight";
 import {
   CaptureCardScene,
   CaptureObjectScene,
@@ -114,6 +115,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   shelf: ShelfScene,
   gallery: GalleryScene,
   tabbar: TabBarScene,
+  "hero-flight": HeroFlightScene,
   onboarding: OnboardingScene,
   home: HomeScene,
   "home-empty": HomeEmptyScene,
@@ -197,10 +199,21 @@ function Frame({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
-      {/* 下のタブ帯も置く。**置かないと嘘になる。**
+      {/* 下のタブ帯の**占める高さ**も置く。**置かないと嘘になる。**
           答え合わせの面は画面下端に貼り付いて、この帯のぶんだけ上に浮く。
-          帯が無いページで撮ると浮く位置が変わり、何が覆われるかも変わる。 */}
-      <nav className="app-sheet fixed inset-x-0 bottom-0 z-40 h-[calc(4.5rem+env(safe-area-inset-bottom))]" />
+          帯が無いページで撮ると浮く位置が変わり、何が覆われるかも変わる。
+
+          **地は塗らない。** 帯は画面いっぱいの板ではなく、幅 87.6% の
+          浮くカプセルになった（`components/TabBar.tsx`）。ここに不透明な
+          板を敷くと、実物では**見えている**下端の左右が絵の上では隠れ、
+          そこにある物の読みやすさを一度も測らないことになる。
+          高さは実物と同じ 63px（帯 55 + 下の余白 8）。
+          帯そのものの絵は `?scene=tabbar` が本物で撮る。 */}
+      <div
+        aria-hidden
+        className="fixed inset-x-0 bottom-0 z-40"
+        style={{ height: "calc(63px + env(safe-area-inset-bottom, 0px))" }}
+      />
     </div>
   );
 }
