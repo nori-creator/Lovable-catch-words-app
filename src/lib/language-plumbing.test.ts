@@ -2835,6 +2835,50 @@ describe("キャッチの報酬演出", () => {
  * なる。同じ画面で効く動きと効かない動きが混ざるのが、いちばん説明の
  * 付かない見え方なので、直に見る所が残っていないことを門にする。
  */
+/**
+ * 復習の「準備中…」。**出さなくていい所で出さない。**（オーナー報告 2026-09-15）
+ *
+ * > 「他のページやアプリを一旦閉じたりすると毎回準備中と表示されストレスです」
+ *
+ * 原因は2つで、片方だけ直しても消えない:
+ *   ① 束がメモリの上にしか無く、アプリを閉じると消える
+ *   ② 裏で読み直している間も「準備中」に差し替えていた
+ */
+describe("復習の束は、アプリを閉じても残る", () => {
+  const view = () => codeOnly(read("routes/_authenticated/review.tsx"));
+
+  it("**書き留めた束を最初の描画から出す**（`initialData` に渡している）", () => {
+    const s = view();
+    expect(s).toMatch(/initialData:\s*\(\)\s*=>\s*cachedBatch\?\.cards/);
+    // 年齢も渡す。渡さないと React Query が「たった今取った」と見なし、
+    // 4時間前の束を新しい物として扱ってしまう。
+    expect(s).toMatch(/initialDataUpdatedAt:\s*cachedBatch\?\.at/);
+  });
+
+  it("届いた束を書き留めている（書かなければ次に開いたとき何も無い）", () => {
+    expect(view()).toMatch(/packBatch\(/);
+    expect(view()).toMatch(/localStorage\.setItem\(REVIEW_CACHE_KEY/);
+  });
+
+  it("**名指しの1枚で来た回は書き留めない**（その場限りの並びなので）", () => {
+    // `wantedSticker` があるときは早く帰る形になっていること。
+    expect(view()).toMatch(/if \(!cards\?\.length \|\| wantedSticker\) return;/);
+  });
+
+  it("**裏で読み直している間は「準備中」に戻さない**", () => {
+    // `isFetching` だけを見ていると、裏の読み直しのたびに画面が消える。
+    // 束を入れ替えるつもりのときだけ待たせる。
+    expect(view()).toMatch(/replacing\.current && isFetching \? \(/);
+    expect(view()).not.toMatch(/\) : isFetching \? \(/);
+  });
+
+  it("解いている最中には束を入れ替えない（1枚目へ戻されるのはラグより悪い）", () => {
+    const s = view();
+    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 420);
+    expect(guard).toMatch(/idx !== 0 \|\| tally\.answered !== 0/);
+  });
+});
+
 describe("動きを見せるかの答えは、`<html data-motion>` ひとつ", () => {
   /** ソースの中で、端末の設定を直に聞いてよい場所。 */
   const ALLOWED = [

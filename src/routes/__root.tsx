@@ -20,6 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider, DEFAULT_THEME, THEME_STORAGE_KEY } from "@/components/theme-provider";
 import { DEFAULT_MOTION, MOTION_ATTR, MOTION_STORAGE_KEY } from "@/lib/motion-pref";
 import { MotionProvider } from "@/components/motion-provider";
+import { REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
 import { useT } from "@/lib/i18n";
@@ -225,7 +226,23 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      /**
+       * **いま入っている人の id を写しておく。**
+       *
+       * 復習の束を端末に書き留めるようにしたので(`lib/review-cache.ts`)、
+       * 「これは誰の束か」を**最初の描画で**判じられないといけない。
+       * `supabase.auth.getUser()` は待つ形なので、そこでは間に合わない。
+       * 入った/出た/変わったの度にここへ写しておけば、次に開いたときに
+       * 同期で確かめられる。出たときは消す — **別の人の束を出さない**。
+       */
+      try {
+        const uid = session?.user?.id;
+        if (uid) localStorage.setItem(REVIEW_CACHE_USER_KEY, uid);
+        else localStorage.removeItem(REVIEW_CACHE_USER_KEY);
+      } catch {
+        // 内緒のタブなどで書けなくても、束が出ないだけ（今までと同じ）。
+      }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
