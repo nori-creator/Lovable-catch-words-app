@@ -2683,14 +2683,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "優先顯示的照片",
   },
   "settings.photoLibrarySync": {
-    ja: "撮った写真をスマホにも保存",
-    en: "Also save captured photos to this phone",
-    "zh-TW": "也將拍攝的照片儲存到手機",
-  },
-  "settings.photoLibrarySyncHint": {
-    ja: "図鑑に追加する元写真を保存します。ブラウザ版ではダウンロードに入ります。",
-    en: "Saves the original you add to your collection. The web version uses Downloads.",
-    "zh-TW": "儲存加入圖鑑的原始照片；網頁版會存到下載項目。",
+    ja: "写真の同期",
+    en: "Photo sync",
+    "zh-TW": "照片同步",
   },
   "cap.photoLibrarySaveFailed": {
     ja: "図鑑には追加しましたが、スマホへの写真保存ができませんでした。端末の許可を確認してください。",
