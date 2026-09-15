@@ -2652,6 +2652,69 @@ describe("キャッチの報酬演出", () => {
     expect(branch.slice(0, 160)).toMatch(/R\.set\(/);
   });
 
+  /**
+   * **画面の幅が変わったら、ばねの値を入れ直す。**（Codex 指摘 2026-09-14）
+   *
+   * ばねが持っているのは px の位置で、`cursor × 1タブぶんの幅`。横向きに
+   * すると1タブぶんの幅が変わるので、描き直すだけでは**古い幅で出した位置**
+   * を指したままになる。しかも `cursor` は変わらないので、下の effect も
+   * 走らない = **次にタブを押すまで直らない**。
+   */
+  it("横向きにしても、印が正しいタブを指す（幅が変わったら値を入れ直す）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const onResize = src.slice(
+      src.indexOf("const onResize"),
+      src.indexOf("window.addEventListener"),
+    );
+    // 描き直すだけでは足りない。値そのものを入れ直していること。
+    expect(onResize).toMatch(/leftRef\.current\?\.set\(/);
+    expect(onResize).toMatch(/rightRef\.current\?\.set\(/);
+    // 入れ直す値は、いまの `cursor` と**いまの**幅から出すこと。
+    expect(onResize).toMatch(/cursorRef\.current/);
+    expect(onResize).toMatch(/unit\(\)/);
+  });
+});
+
+/**
+ * 指の物理。**測って直した2件を、黙って戻らないように留める。**
+ */
+describe("指の手応え（外からの指摘で直した所）", () => {
+  /**
+   * **指を置いた所を履歴の1点目に置く。**（Codex 指摘 2026-09-14）
+   *
+   * 置かないと、速く短く払った回は `pointermove` が1回しか来ず、履歴が
+   * 1点だけになる。`velocityFrom` は2点無いと 0 を返すので、**この改良が
+   * いちばん効くはずの操作でだけ速度が 0 になる** — 直したつもりの物が
+   * 直っていない、いちばん質の悪い形。
+   */
+  it("スワイプは**指を置いた瞬間から**位置を控える（1点では速度が出ない）", () => {
+    const src = codeOnly(read("hooks/use-tab-swipe.ts"));
+    // 空で始めていないこと。`useTabSwipe` と `useSwipeBack` の2箇所。
+    expect(src).not.toMatch(/history\s*=\s*\[\]\s*;[\s\S]{0,80}?sx\s*=/);
+    const seeds =
+      src.match(/history\s*=\s*\[\{\s*t:\s*performance\.now\(\)\s*,\s*x:\s*0\s*\}\]/g) ?? [];
+    expect(seeds.length).toBe(2);
+    // 「1点では速度が 0」という前提そのものは `swipe-physics.test.ts` 側で見る。
+  });
+
+  /**
+   * **掴んで閉じる面は `touch-action: none`。**（Codex 指摘 2026-09-14）
+   *
+   * `pan-y` は「縦に引く操作はブラウザのスクロールに使う」という宣言で、
+   * この面が欲しいのはまさにその操作。Chromium で測ると `pan-y` では
+   * `pointermove` 2回で `pointercancel` が飛び、**つまみを掴んでも死ぬ**。
+   * `none` にしても中の縦スクロールは壊れない（スクロールする要素自身が
+   * 受け取るので、上に居るこの面の `none` は参照されない）。
+   *
+   * `SwipeCard` の `pan-y` は正しい — あちらは**横**に引く物で、縦を
+   * ブラウザに渡すのが目的。向きが逆なので、ここでは見張らない。
+   */
+  it("掴んで閉じる面は `touch-action: none`（`pan-y` だと指が取り上げられる）", () => {
+    const src = codeOnly(read("hooks/use-drag-dismiss.tsx"));
+    expect(src).toMatch(/touchAction:\s*"none"/);
+    expect(src).not.toMatch(/touchAction:\s*"pan-y"/);
+  });
+
   it("運ぶカードが `will-change` を立てている（上の門が要る理由そのもの）", () => {
     // ここが消えたら、上の `createPortal` は要らなくなるかもしれない。
     // **その時に気づけるように**、理由の側にも門を置く。消すのではなく、

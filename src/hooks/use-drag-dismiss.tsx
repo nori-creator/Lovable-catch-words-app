@@ -188,7 +188,29 @@ export function useDragDismiss({
           onPointerMove,
           onPointerUp,
           onPointerCancel: onPointerUp,
-          style: { touchAction: "pan-y" as const },
+          /**
+           * **`none`。`pan-y` にしてはいけない。**
+           *
+           * `pan-y` は「縦に引く操作はブラウザのスクロールに使う」という
+           * 宣言。この面が欲しいのは**まさにその縦の操作**なので、宣言した
+           * 瞬間に取り上げられる。Chromium で測ると、`pan-y` では
+           * **`pointermove` が2回来た所で `pointercancel`** が飛び、
+           * **つまみを掴んだ場合でも死ぬ**（下へ引けるという見た目だけが
+           * 残って、実際には引けない — いちばん質の悪い壊れ方）。
+           *
+           * `none` にしても**中の縦スクロールは壊れない**。スクロールする
+           * 要素自身がその操作を受け取るので、その上に居るこの面の `none` は
+           * 参照されない（`auto` のまま効く）。測った結果:
+           *
+           *   面 `pan-y`  / つまみを引く … move 2 → **CANCEL**
+           *   面 `pan-y`  / 中身を引く   … move 2 → **CANCEL**
+           *   面 `none`   / つまみを引く … move 8 → 完走
+           *   面 `none`   / 中身を引く   … ブラウザが正しくスクロール
+           *
+           * なお `SwipeCard` の `pan-y` は正しい。あちらは**横**に引く物で、
+           * 縦をブラウザに渡すのが目的だから。向きが逆。
+           */
+          style: { touchAction: "none" as const },
         }
       : {},
     /** 掴める所を目で示す横棒。無いと、掴めることが誰にも分からない。 */

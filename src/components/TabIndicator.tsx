@@ -67,7 +67,25 @@ export function TabIndicator({
     rightRef.current = createSpring(at * u + u, paint, APPLE_SPRING.smooth);
     paint();
 
-    const onResize = () => paint();
+    /**
+     * **画面の幅が変わったら、ばねの値を入れ直す。**
+     *
+     * ばねが持っているのは「px の位置」で、`cursor × 1タブぶんの幅` から
+     * 出した値。横向きにすると1タブぶんの幅が変わるので、**持っている px は
+     * 古い幅で出した位置のまま**になる。描き直すだけだと、たとえば5番目の
+     * タブに居たのに印が真ん中あたりを指したままになり、**次にタブを
+     * 押すまで直らない**（`cursor` が変わらないと下の effect が走らない）。
+     *
+     * 動かして直すのではなく `set` で入れ直す。画面が回っている最中に
+     * 印がぬるっと滑ると、回転そのものの動きと喧嘩する。
+     */
+    const onResize = () => {
+      const u2 = unit();
+      const at2 = Math.max(cursorRef.current, 0);
+      leftRef.current?.set(at2 * u2);
+      rightRef.current?.set(at2 * u2 + u2);
+      paint();
+    };
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);

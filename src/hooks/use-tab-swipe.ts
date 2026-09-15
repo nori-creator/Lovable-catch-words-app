@@ -88,6 +88,19 @@ export function useTabSwipe({
       st.sx = e.clientX;
       st.sy = e.clientY;
       st.axis = "";
+      /**
+       * **指を置いた所を1点目として置く。**
+       *
+       * 置かないと、速く短く払った回は `pointermove` が1回しか来ず、
+       * 履歴が1点だけになる。`velocityFrom` は2点無いと 0 を返すので、
+       * **この改良がいちばん効くはずの操作（短く速い払い）でだけ
+       * 速度が 0 になり、距離の閾値で落ちる** — 直したつもりの物が
+       * 直っていない、いちばん質の悪い形になる。
+       *
+       * `x` は `sx` からの差なので、置いた瞬間は 0。
+       * `use-drag-dismiss` も同じ形で置いている。
+       */
+      st.history = [{ t: performance.now(), x: 0 }];
     };
 
     const move = (e: PointerEvent) => {
@@ -180,7 +193,9 @@ export function useSwipeBack({
       sx = e.clientX;
       sy = e.clientY;
       axis = "";
-      history = [];
+      // 指を置いた所を1点目に置く。理由は `useTabSwipe` の同じ所と同じ —
+      // 置かないと、速く短く払った回は履歴が1点だけになり、速度が 0 になる。
+      history = [{ t: performance.now(), x: 0 }];
     };
     const move = (e: PointerEvent) => {
       if (e.pointerId !== id) return;
