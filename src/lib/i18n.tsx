@@ -1637,8 +1637,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.haptics": { ja: "振動", en: "Haptics", "zh-TW": "震動" },
   "settings.appearance": { ja: "外観", en: "Appearance", "zh-TW": "外觀" },
   "settings.theme": { ja: "テーマ", en: "Theme", "zh-TW": "主題" },
+  "home.placementNotSaved": {
+    ja: "配置は保存できませんでした（表の準備がまだです）。この画面を開いている間は動いたままです。",
+    en: "Layout could not be saved (the table isn't ready yet). It stays as you left it while this screen is open.",
+    "zh-TW": "版面尚無法儲存（資料表尚未準備好）。在此畫面開啟期間會維持你擺放的樣子。",
+  },
+  "home.placementSaveFailed": {
+    ja: "配置を保存できませんでした。通信を確かめて、もう一度お試しください。",
+    en: "Couldn't save the layout. Check your connection and try again.",
+    "zh-TW": "無法儲存版面。請檢查連線後再試一次。",
+  },
   "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
-  "settings.motionSystem": { ja: "端末に合わせる", en: "Match device", "zh-TW": "依裝置設定" },
+  // **短く。** 3列の丸は約118pxで、入るのは5〜6文字（`MotionChoiceRow` の注）。
+  "settings.motionSystem": { ja: "自動", en: "Auto", "zh-TW": "自動" },
   "settings.motionFull": { ja: "見せる", en: "Show", "zh-TW": "顯示" },
   "settings.motionReduce": { ja: "減らす", en: "Reduce", "zh-TW": "減少" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、

@@ -1780,9 +1780,13 @@ export function CaptureObjectPanel({
       const context = canvas.getContext("2d");
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (blob) onObjectFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-        }, "image/jpeg", 0.9);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) onObjectFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.9,
+        );
         return;
       }
     }

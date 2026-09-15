@@ -2353,7 +2353,7 @@ describe("ホームのアルバムの長押し", () => {
     // そもそも表現できない。
     expect(home).toMatch(/pointers: Map<number, Pt>/);
     expect(home).toMatch(/gestureDelta\(g\.startGrip, gripOf\(g\.pointers\)\)/);
-    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\)/);
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, boardH\)/);
   });
 
   it("**指の数が変わったら握りを取り直す**（2本目を置いた瞬間に札が飛ばない）", () => {
@@ -2431,10 +2431,69 @@ describe("ホームのアルバムの長押し", () => {
     expect(home).toMatch(/window\.addEventListener\("pointermove", move\)/);
   });
 
-  it("台紙の形が決まっている（札を足しても、置いた物が動かない）", () => {
-    // 中身で高さが伸びる箱だと、縦位置を割合で持てない。
+  /**
+   * **台紙の高さは中身から決める。**（オーナー報告 2026-09-15「デフォルトで
+   * 表示するのは今までと同じ大きさにして」を直す過程で入れ替えた）
+   *
+   * 形を決め打ちにすると、札が増えた日に下がはみ出すか、少ない日に紙が
+   * 余りすぎる。かといって高さを可変にすると、縦位置を「高さに対する割合」で
+   * 持っている限り、**紙が伸びるたびに置いた札が全部動く**。だから縦も
+   * 台紙の**幅**で測る。幅は変わらないので、紙が縦に伸びても札は動かない。
+   */
+  /**
+   * **直した置き方を、保存の往復より先に捨てない。**（オーナー報告 2026-09-15
+   * 「画像を大きくしたり、サイズを変えても結局元に戻る」）
+   *
+   * 表から届いた札を並べ直す effect の合図に `editing` が入っていた。
+   * 「完了」を押して `editing` が false になった**その瞬間**にこれが走り、
+   * まだ表に届いていない古い `stickers` で `ordered` を上書きしていた。
+   * つまり指で直した置き方は、**表の列が在っても無くても 100% 元に戻る**。
+   */
+  it("**「完了」で置き方を捨てない**（合図に `editing` を入れない）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/aspectRatio: `\$\{ALBUM_ASPECT\}`/);
+    const eff = home.slice(home.indexOf("    setOrdered(\n      [...stickers].sort("));
+    const deps = eff.slice(0, 600);
+    // 合図は `stickers` だけ。`[stickers, editing]` に戻すと元の不具合に戻る。
+    expect(deps).toMatch(/\}, \[stickers\]\);/);
+    expect(deps).not.toMatch(/\}, \[stickers, editing\]\);/);
+  });
+
+  it("保存できたら表から読み直す / 列がまだ無いならそう言う", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const fn = home.slice(home.indexOf("function finishEditing()"));
+    const body = fn.slice(0, 900);
+    // 読み直さないと、次に組み直したとき古い値で描かれる。
+    expect(body).toMatch(/invalidateQueries\(\{ queryKey: \["stickers"\] \}\)/);
+    // 黙って諦めない（原因が誰にも分からなくなる）。
+    expect(body).toMatch(/res\.placement === false/);
+    expect(body).toMatch(/home\.placementNotSaved/);
+  });
+
+  /**
+   * **伸びても角の丸みが変わらない。**（オーナー指摘 2026-09-15
+   * 「青い形がバランス悪い」／参照は App Store の iOS 26 のタブ）
+   *
+   * `scaleX` で伸ばすと両端の丸が横に潰れて楕円になる。参照を止めて見ると、
+   * 印は伸びている最中も角の丸みがまったく変わらない角丸の長方形で、
+   * 伸びるのは真ん中の直線部分だけ。
+   */
+  it("**タブの印は `scaleX` で伸ばさない**（角の丸みが潰れる）", () => {
+    const src = codeOnly(read("components/TabIndicator.tsx"));
+    expect(src).not.toMatch(/scaleX\(/);
+    // 幅そのものを動かす。
+    expect(src).toMatch(/el\.style\.width = `\$\{w\}px`/);
+    // 丸みは高さから決めるので、幅が変わっても変わらない。
+    expect(src).toMatch(/el\.style\.borderRadius = `\$\{el\.offsetHeight \* RADIUS_RATIO\}px`/);
+    // `rounded-full` が戻ると、また楕円になる。
+    expect(src).not.toMatch(/rounded-full/);
+  });
+
+  it("**台紙の高さは中身から決まる**（縦は幅で測るので、伸びても札は動かない）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/const boardH = useMemo\(\(\) => boardHeight\(items\)/);
+    expect(home).toMatch(/height: board\.w \? `\$\{board\.w \* boardH\}px`/);
+    // 決め打ちの形に戻っていないこと。
+    expect(home).not.toMatch(/aspectRatio:/);
     expect(home).toMatch(/ResizeObserver/);
   });
 });
