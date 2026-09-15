@@ -104,8 +104,8 @@ describe("htmlLangOf — 漢字の字形", () => {
 describe("辞書が3言語ぶんそろっている", () => {
   const keys = Object.keys(DICT);
 
-  it("1,050項目ある", () => {
-    expect(keys.length).toBe(1052);
+  it("1,053項目ある", () => {
+    expect(keys.length).toBe(1053);
   });
 
   /**

@@ -26,7 +26,10 @@ import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
-import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
+import {
+  photoLibrarySaveRequiresUserGesture,
+  saveCaptureToPhotoLibrary,
+} from "@/lib/device-photo-library";
 
 type Props = {
   snapshotDataUrl: string;
@@ -230,13 +233,13 @@ export function ScanCatchSheet({
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
+    if (photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
     Sound.rewardGrip();
     haptic("selection");
     setSaving(true);
     setErr(null);
     try {
-      // スキャンは調べるだけでは保存しない。「図鑑に追加」を決めた写真だけを同期。
-      void saveCaptureToPhotoLibrary(objectDataUrl);
       // §3.3 acceptance: the prefetched card is reused — no additional AI call
       // here. A reunion upgrade doesn't need the card at all (word exists).
       // Don't hang on it: if the AI card is slow or failed, we file the word
@@ -406,6 +409,8 @@ export function ScanCatchSheet({
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       landingDestinationRef.current = stickerId;
+      // ネイティブ版は札の保存が成功した時点でだけ共有フォトへ同期する。
+      if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
       await runLandingAnimation();
       setPhase("done");
       if (firstCatch) {
@@ -425,6 +430,12 @@ export function ScanCatchSheet({
       setSaving(false);
       setPhase("ready");
     }
+  }
+
+  function syncPhotoToDevice(dataUrl: string) {
+    void saveCaptureToPhotoLibrary(dataUrl).then((result) => {
+      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+    });
   }
 
   // 下へ引いて閉じる。**閉じるボタンと同じ条件に揃える** —

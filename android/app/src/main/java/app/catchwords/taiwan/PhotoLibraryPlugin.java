@@ -1,5 +1,6 @@
 package app.catchwords.taiwan;
 
+import android.Manifest;
 import android.content.ContentValues;
 import android.net.Uri;
 import android.os.Build;
@@ -11,13 +12,41 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.PermissionState;
 
 import java.io.OutputStream;
 
-@CapacitorPlugin(name = "PhotoLibrary")
+@CapacitorPlugin(
+    name = "PhotoLibrary",
+    permissions = {
+        @Permission(alias = "legacyStorage", strings = { Manifest.permission.WRITE_EXTERNAL_STORAGE })
+    }
+)
 public class PhotoLibraryPlugin extends Plugin {
     @PluginMethod
     public void saveDataUrl(PluginCall call) {
+        // Android 9以前だけは共有写真領域への書き込みが実行時許可を必要とする。
+        // 設定がONでも黙って失敗していたため、初回保存時に端末の許可を出す。
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+            && getPermissionState("legacyStorage") != PermissionState.GRANTED) {
+            requestPermissionForAlias("legacyStorage", call, "legacyStoragePermissionCallback");
+            return;
+        }
+        writeDataUrl(call);
+    }
+
+    @PermissionCallback
+    private void legacyStoragePermissionCallback(PluginCall call) {
+        if (getPermissionState("legacyStorage") == PermissionState.GRANTED) {
+            writeDataUrl(call);
+        } else {
+            call.reject("Photo library permission denied");
+        }
+    }
+
+    private void writeDataUrl(PluginCall call) {
         String dataUrl = call.getString("dataUrl");
         String filename = call.getString("filename", "Catchwords.jpg");
         if (dataUrl == null) {
