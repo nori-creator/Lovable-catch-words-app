@@ -863,7 +863,11 @@ export type Database = {
       stickers: {
         Row: {
           album_order: number | null
+          album_rot: number | null
+          album_scale: number | null
           album_size: string | null
+          album_x: number | null
+          album_y: number | null
           branch_plan: Json | null
           caption: string | null
           capture_type: string
@@ -890,7 +894,11 @@ export type Database = {
         }
         Insert: {
           album_order?: number | null
+          album_rot?: number | null
+          album_scale?: number | null
           album_size?: string | null
+          album_x?: number | null
+          album_y?: number | null
           branch_plan?: Json | null
           caption?: string | null
           capture_type?: string
@@ -917,7 +925,11 @@ export type Database = {
         }
         Update: {
           album_order?: number | null
+          album_rot?: number | null
+          album_scale?: number | null
           album_size?: string | null
+          album_x?: number | null
+          album_y?: number | null
           branch_plan?: Json | null
           caption?: string | null
           capture_type?: string
