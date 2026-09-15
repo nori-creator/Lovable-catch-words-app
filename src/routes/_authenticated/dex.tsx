@@ -48,6 +48,7 @@ import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
 import { useSwipeBack } from "@/hooks/use-tab-swipe";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -157,9 +158,7 @@ function DexPage() {
     // slamIn は `880ms linear 120ms` で、52% が接地(潰れ)。
     //   120 + 880 * 0.52 ≒ 578ms
     // 動きを減らす設定のときは落下自体が無いので、待たずに鳴らす。
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const reduced = motionReducedNow();
     const impact = setTimeout(
       () => {
         Sound.shelfLand(); // 木の棚に載る「コッ」
@@ -517,7 +516,7 @@ function DexPage() {
           100% { opacity: 0; }
         }
         .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 760ms ease-out 520ms both; }
-        @media (prefers-reduced-motion: reduce) {
+        html[data-motion="reduce"] {
           .slam-in { animation: none; }
           .slam-shock { animation: none; }
           .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */

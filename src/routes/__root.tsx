@@ -18,6 +18,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider, DEFAULT_THEME, THEME_STORAGE_KEY } from "@/components/theme-provider";
+import { DEFAULT_MOTION, MOTION_ATTR, MOTION_STORAGE_KEY } from "@/lib/motion-pref";
+import { MotionProvider } from "@/components/motion-provider";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
 import { useT } from "@/lib/i18n";
@@ -159,7 +161,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   if(v!=="light"&&v!=="dark"&&v!=="system")v=d;
   var dark = v==="dark" || (v==="system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark",dark);
-}catch(e){}})()`,
+}catch(e){}
+try{
+  var mk=${JSON.stringify(MOTION_STORAGE_KEY)},md=${JSON.stringify(DEFAULT_MOTION)};
+  var mv=null; try{mv=localStorage.getItem(mk)}catch(e){}
+  if(mv!=="full"&&mv!=="reduce"&&mv!=="system")mv=md;
+  var osr=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.documentElement.dataset.${MOTION_ATTR}=mv==="system"?(osr?"reduce":"full"):mv;
+}catch(e){document.documentElement.dataset.${MOTION_ATTR}="full"}})()`,
       },
       {
         type: "application/ld+json",
@@ -227,8 +236,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Outlet />
-        <Toaster position="top-center" richColors />
+        <MotionProvider>
+          <Outlet />
+          <Toaster position="top-center" richColors />
+        </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

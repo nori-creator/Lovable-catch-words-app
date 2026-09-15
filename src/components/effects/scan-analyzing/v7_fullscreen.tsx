@@ -159,7 +159,7 @@ export function ScanAnalyzing_v7fullscreen({ stage }: { stage: Stage }) {
           100% { transform: translateY(-30vh) scale(1.1); opacity: 0; }
         }
         .scan-mote { animation: scanMote 2.1s ease-out infinite; }
-        @media (prefers-reduced-motion: reduce) {
+        html[data-motion="reduce"] {
           .scan-blade, .scan-grid, .scan-mote { animation: none; }
           .scan-blade { opacity: 0.5; transform: translateY(28vh); }
           .scan-mote { opacity: 0.5; }

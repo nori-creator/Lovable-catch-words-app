@@ -1,4 +1,5 @@
 import type { LandingCtx, LandingRunner } from "./types";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
  * キャッチの本命(NORI指定 / 2026-08-03)。
@@ -20,9 +21,7 @@ export const v4hold: LandingRunner = async (ctx: LandingCtx) => {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([18, 40, 60]);
   // §14 reduced motion: 画面いっぱいの飛行はまさに避けたい前庭系の動き。
   // 音と振動は残し、移動だけを省く。
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = motionReducedNow();
   if (reducedMotion) {
     ctx.speakLine?.();
     await new Promise((r) => setTimeout(r, HOLD_MS));

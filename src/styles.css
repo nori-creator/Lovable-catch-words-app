@@ -3,6 +3,23 @@
 @import "tw-animate-css";
 
 /* ───────────────────────────────────────────────────────────────
+   `motion-reduce:` を**端末の設定ではなく、決まった答えの側へ繋ぎ直す**
+
+   Tailwind の `motion-reduce:` は既定で
+   `@media (prefers-reduced-motion: reduce)` に展開される。つまり
+   **端末の設定だけを見る**。このアプリは 2026-09-15 から
+   「端末に合わせる / 見せる / 減らす」を本人が選べるようにしたので、
+   そこだけ端末直結のままだと、本人が「見せる」を選んだのに
+   `motion-reduce:` の付いた26箇所だけが止まったままになる。
+   同じ画面の中で効く動きと効かない動きが混ざるのが、いちばん
+   説明の付かない見え方（`lib/motion-pref.ts` の注）。
+
+   答えは `<html data-motion>` ひとつ。端末の設定と本人の選択を混ぜた
+   結果がそこに入っているので、ここもそれを見る。
+   ─────────────────────────────────────────────────────────────── */
+@custom-variant motion-reduce (&:where(html[data-motion="reduce"], html[data-motion="reduce"] *));
+
+/* ───────────────────────────────────────────────────────────────
    フォントは自前で配る(2026-07-30)
    以前は Google Fonts から読んでいたが、ネイティブアプリでは困る:
    - オフラインだとフォントが来ず、デザインが崩れる
@@ -875,7 +892,7 @@
   z-index: 50;
   cursor: grabbing;
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .album-editing {
     animation: none;
   }
@@ -1042,7 +1059,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .camera-launch__lens {
     animation: camera-lens-open-reduced 220ms ease both;
   }
@@ -1379,7 +1396,7 @@
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.16);
 }
 /* 動きを止めたい人には押下の変形も止める。影と奥行きは残す。 */
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .scene-chip {
     transition: none;
   }
@@ -1472,7 +1489,7 @@
 .photo-lift:active .photo-print {
   transform: translateY(0) scale(0.985);
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .photo-print {
     transition: none;
   }
@@ -1912,7 +1929,7 @@
   --tw-ring-color: color-mix(in oklab, var(--tree) 34%, transparent);
   transition: transform 0.16s var(--spring-bounce);
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .tree-pill {
     transition: none;
   }
@@ -2093,7 +2110,7 @@
   transform: translateY(1px) scale(0.95);
   box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .usage-meter__bar {
     animation: none;
   }
@@ -2164,7 +2181,7 @@
   animation: album-open 620ms cubic-bezier(0.25, 0.8, 0.3, 1) both;
   backface-visibility: hidden;
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .album-open {
     animation: none;
   }
@@ -2192,7 +2209,7 @@
   animation: page-turn 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
   backface-visibility: hidden;
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .page-turn {
     animation: none;
   }
@@ -2602,7 +2619,7 @@
     opacity: 0.45;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .shelf-item span.shelf-stand {
     animation: none;
   }
@@ -2657,7 +2674,7 @@
   );
   pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .shelf-item .shelf-stand {
     -webkit-box-reflect: unset;
   }
@@ -3132,7 +3149,7 @@ html[data-reward-flight] .slam-in {
 /* Reduce motion (apple-design Part VI) — reduced motion is not *no* feedback: we
    drop vestibular slide/scale/parallax/overshoot but keep a short opacity fade so
    entrances still read. Every transform-driven entrance is neutralised here. */
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   /* Tailwind の `animate-pulse` / `animate-ping`。
      ここに在るのは**この規則が自作のクラス名だけを列挙していたから**。
      読み込み中の骨組みは全画面で `animate-pulse` を使っていて、
@@ -3490,7 +3507,7 @@ html[data-reward-flight] .slam-in {
   animation: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   .catch-cta::after {
     animation: none;
     opacity: 0;

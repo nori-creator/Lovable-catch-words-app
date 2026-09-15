@@ -1637,6 +1637,33 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.haptics": { ja: "振動", en: "Haptics", "zh-TW": "震動" },
   "settings.appearance": { ja: "外観", en: "Appearance", "zh-TW": "外觀" },
   "settings.theme": { ja: "テーマ", en: "Theme", "zh-TW": "主題" },
+  "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
+  "settings.motionSystem": { ja: "端末に合わせる", en: "Match device", "zh-TW": "依裝置設定" },
+  "settings.motionFull": { ja: "見せる", en: "Show", "zh-TW": "顯示" },
+  "settings.motionReduce": { ja: "減らす", en: "Reduce", "zh-TW": "減少" },
+  // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、
+  // 自分で入れた覚えが無いので「動きを減らす」とだけ書かれても辿り着けない。
+  "settings.motion.osReduces": {
+    ja: "この端末は「動きを減らす」設定です（省電力モード、または ユーザー補助 →「アニメーションを削除」）。そのためアプリの演出が出ません。ここで「見せる」を選ぶと、端末の設定にかかわらず出ます。",
+    en: "This device asks for reduced motion (battery saver, or Accessibility → Remove animations), so the app's animations are off. Choose “Show” to see them anyway.",
+    "zh-TW":
+      "此裝置要求減少動態效果（省電模式，或 協助工具 →「移除動畫」），因此動畫不會播放。選「顯示」即可不受裝置設定影響。",
+  },
+  "settings.motion.osAllows": {
+    ja: "この端末は動きを許可しています。演出はそのまま出ます。",
+    en: "This device allows motion. Animations play as normal.",
+    "zh-TW": "此裝置允許動態效果，動畫會正常播放。",
+  },
+  "settings.motion.forcedFull": {
+    ja: "端末の設定にかかわらず、演出を出しています。",
+    en: "Animations play regardless of the device setting.",
+    "zh-TW": "不受裝置設定影響，動畫會播放。",
+  },
+  "settings.motion.forcedReduce": {
+    ja: "端末の設定にかかわらず、演出を減らしています。",
+    en: "Animations are reduced regardless of the device setting.",
+    "zh-TW": "不受裝置設定影響，動畫已減少。",
+  },
   "settings.save": { ja: "保存", en: "Save", "zh-TW": "儲存" },
   "settings.saving": { ja: "保存中…", en: "Saving...", "zh-TW": "儲存中…" },
   "settings.saved": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },

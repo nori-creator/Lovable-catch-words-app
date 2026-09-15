@@ -2826,6 +2826,68 @@ describe("キャッチの報酬演出", () => {
 /**
  * 指の物理。**測って直した2件を、黙って戻らないように留める。**
  */
+/**
+ * **動きの答えは1つだけ。**（オーナー報告 2026-09-15）
+ *
+ * 「スマホだとアニメーションが全部消える」の原因は端末の
+ * `prefers-reduced-motion: reduce`。アプリ側で選べるようにした以上、
+ * **端末の設定を直に見る所が1つでも残っていると、そこだけ止まったまま**に
+ * なる。同じ画面で効く動きと効かない動きが混ざるのが、いちばん説明の
+ * 付かない見え方なので、直に見る所が残っていないことを門にする。
+ */
+describe("動きを見せるかの答えは、`<html data-motion>` ひとつ", () => {
+  /** ソースの中で、端末の設定を直に聞いてよい場所。 */
+  const ALLOWED = [
+    // 描画前スクリプト。**最初の1枚**のために、ここだけは自分で端末に聞く
+    // （水和を待つと、動きを減らしている人が一瞬だけ動く絵を見る）。
+    "routes/__root.tsx",
+    // 端末の返事を聞いて本人の選択と混ぜ、属性に書く。開いている間の担当。
+    "components/motion-provider.tsx",
+  ];
+
+  it("**端末の設定を直に見る所が、決めた2箇所しか無い**", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+        const rel = dir ? `${dir}/${e.name}` : e.name;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.tsx?$/.test(e.name) && !e.name.includes(".test.")) {
+          // 注のなかで**理由として言及している**だけの所は数えない。
+          if (codeOnly(read(rel)).includes("prefers-reduced-motion")) hits.push(rel);
+        }
+      }
+    };
+    walk("");
+    expect(hits.sort()).toEqual([...ALLOWED].sort());
+  });
+
+  it("CSS の「動きを減らす」も、端末直結の `@media` では書かない", () => {
+    for (const css of ["styles.css", "pack-styles.css"]) {
+      // 注のなかの引用は数えない（`@custom-variant` の説明で、Tailwind の
+      // 既定がどう展開されるかを書いてある）。規則として書かれた物だけ見る。
+      const s = read(css)
+        .split("\n")
+        .filter((l) => !/^\s*(\/\*|\*|\/\/)/.test(l))
+        .join("\n");
+      const blocks = s.match(/@media \(prefers-reduced-motion: reduce\)\s*\{/g) ?? [];
+      expect([css, blocks.length]).toEqual([css, 0]);
+      expect(s).toContain('html[data-motion="reduce"]');
+    }
+  });
+
+  it("Tailwind の `motion-reduce:` も同じ答えへ繋ぎ直してある", () => {
+    // 繋ぎ直さないと、この語が付いた箇所だけ端末の設定に従い続ける。
+    expect(read("styles.css")).toMatch(/@custom-variant motion-reduce \([^)]*data-motion="reduce"/);
+  });
+
+  it("描画前スクリプトが**最初の1枚から**属性を入れている", () => {
+    // 水和を待つと、動きを減らしている人が一瞬だけ動く絵を見る。
+    const root = codeOnly(read("routes/__root.tsx"));
+    expect(root).toMatch(/document\.documentElement\.dataset\.\$\{MOTION_ATTR\}/);
+    expect(root).toMatch(/prefers-reduced-motion: reduce/);
+  });
+});
+
 describe("指の手応え（外からの指摘で直した所）", () => {
   /**
    * **指を置いた所を履歴の1点目に置く。**（Codex 指摘 2026-09-14）

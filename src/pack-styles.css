@@ -1510,7 +1510,7 @@
    4. アクセシビリティ — 全パックで守る。
    --------------------------------------------------------------------------- */
 
-@media (prefers-reduced-motion: reduce) {
+html[data-motion="reduce"] {
   [data-ui-pack] .pk-tile::before,
   [data-ui-pack] .pk-tile-media {
     animation: none !important;
