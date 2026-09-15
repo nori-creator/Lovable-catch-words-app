@@ -20,6 +20,7 @@ import {
 import { createSpring } from "@/lib/spring";
 import { haptic } from "@/lib/haptics";
 import type { LandingCtx, LandingRunner } from "./types";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
  * キャッチの報酬演出 v5 — **ばねで動かす版**（オーナー指示 2026-09-13）。
@@ -78,9 +79,7 @@ export const v5physics: LandingRunner = async (ctx: LandingCtx) => {
 
   // §14 reduced motion: 画面いっぱいの飛行はまさに避けたい前庭系の動き。
   // 音と単語（＝情報）は残し、移動だけを省く。
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = motionReducedNow();
   if (reducedMotion || !startEl || !fly) {
     const word = document.getElementById("catch-hero-word");
     if (word) {

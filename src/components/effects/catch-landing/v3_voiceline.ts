@@ -1,13 +1,12 @@
 import type { LandingCtx, LandingRunner } from "./types";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /** 歴代のキャッチ演出(64aa723 時点)。 */
 export const v3voiceline: LandingRunner = async (ctx: LandingCtx) => {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([18, 40, 60]);
   // §14 reduced motion: the full-screen fly-to-cabinet flight is exactly the
   // vestibular motion to avoid — keep the chime/haptic, skip the travel.
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = motionReducedNow();
   if (reducedMotion) {
     await new Promise((r) => setTimeout(r, 500));
     return;

@@ -66,6 +66,8 @@ import {
 } from "@/lib/sound-engine";
 import { areHapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
 import { isPhotoLibrarySyncEnabled, setPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
+import { useMotion } from "@/components/motion-provider";
+import { motionDiagnosisKey, type MotionChoice } from "@/lib/motion-pref";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: tStatic("page.settings") }] }),
@@ -164,6 +166,52 @@ export function ChoiceRow<T extends string | number>({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 動きを見せるか。**「アニメーションが全部消えた」への答え。**
+ *
+ * ## なぜ設定として要るのか（オーナー報告 2026-09-15）
+ * > 「パソコンで開くとアニメーションがあるんだけど、アンドロイドのスマホや
+ * >  ダウンロードしたアプリだと、それらのアニメーションが**全て消える**」
+ *
+ * 不具合ではなく、**端末の設定**だった。Android の「アニメーションを削除」
+ * （ユーザー補助）、**バッテリーセーバー**、開発者向けオプションの
+ * アニメーション倍率 off — どれか1つでもブラウザに
+ * `prefers-reduced-motion: reduce` を返させる。iOS の「視差効果を減らす」も同じ。
+ * このアプリはその返事を正直に全部の動きへ効かせていたので、**同時に全部消える**。
+ * パソコンにはこの設定が無いので、パソコンでだけ動いて見える。
+ *
+ * ## 既定は動かさない
+ * この設定は健康のために在る（前庭障害のある人には、大きく動く絵が実害）。
+ * だから既定は今までどおり端末に従い、**本人が自分の意思で選んだときだけ**
+ * 上書きする。
+ *
+ * ## 何が返っているかを**見せる**
+ * 選択肢を並べるだけでは、自分で入れた覚えのない人には何も伝わらない。
+ * 端末がいま何を返しているかをそのまま出して、初めて原因に辿り着ける。
+ */
+export function MotionChoiceRow() {
+  const t = useT();
+  const { choice, osReduces, setChoice } = useMotion();
+  return (
+    <div>
+      <ChoiceRow
+        cols={3}
+        label={t("settings.motion")}
+        value={choice}
+        onChange={(v) => setChoice(v as MotionChoice)}
+        options={[
+          { value: "system", label: t("settings.motionSystem") },
+          { value: "full", label: t("settings.motionFull") },
+          { value: "reduce", label: t("settings.motionReduce") },
+        ]}
+      />
+      <p className="mt-1.5 text-footnote text-muted-foreground">
+        {t(motionDiagnosisKey(choice, osReduces))}
+      </p>
     </div>
   );
 }
@@ -723,6 +771,7 @@ function SettingsPage() {
               { value: "system", label: t("settings.system") },
             ]}
           />
+          <MotionChoiceRow />
         </SettingsCard>
 
         <SoundAndHapticsPanel />

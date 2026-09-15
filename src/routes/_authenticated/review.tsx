@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
+import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -135,6 +136,24 @@ function ReviewPage() {
   const qc = useQueryClient();
   // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
   const { sticker: wantedSticker } = Route.useSearch();
+  /**
+   * 端末に書き留めてある束。**最初の描画で読む**（後から読むと、一瞬
+   * 「準備中」が出てから差し替わる = いちばん落ち着かない見え方）。
+   * 誰の束か・古すぎないかの判断は `lib/review-cache.ts`。
+   */
+  const [cachedBatch] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return readBatch<DueReviewCard>(
+        localStorage.getItem(REVIEW_CACHE_KEY),
+        localStorage.getItem(REVIEW_CACHE_USER_KEY) ?? "",
+        wantedSticker ?? null,
+        Date.now(),
+      );
+    } catch {
+      return null;
+    }
+  });
   const {
     data: cards,
     isLoading,
@@ -164,6 +183,25 @@ function ReviewPage() {
     // 画面に戻ってきただけで投げ直さない(上と同じ理由)。
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    /**
+     * **前に出した束を、アプリを閉じても出せるようにする**(オーナー報告
+     * 2026-09-15「他のページやアプリを一旦閉じたりすると毎回準備中と
+     * 表示されストレスです」)。
+     *
+     * 上の `staleTime` は**メモリに束が在る間**しか効かない。React Query の
+     * 持ち物はメモリの上だけなので、アプリを閉じる・Android が背面の
+     * アプリを畳む・`gcTime`(既定5分)を過ぎる、のどれが起きても束は消え、
+     * 次に開いたときは何も無い所から `getDueReviews` をやり直す。
+     * あれはこの app でいちばん重い問い合わせ（期限切れを全部読み、
+     * 写真と音声の署名URLを作り、4択を組み、辞書から囮を引く）なので、
+     * 毎回そのぶんの「準備中…」が出ていた。
+     *
+     * 端末に書き留めた束をここで渡すと、**開いた瞬間に前の束が出る**。
+     * 新しいかどうかは React Query が `initialDataUpdatedAt` から判じ、
+     * 古ければ裏で読み直して差し替える（下の一度きりの読み直し）。
+     */
+    initialData: () => cachedBatch?.cards,
+    initialDataUpdatedAt: cachedBatch?.at,
   });
   // 続いている日数。ヘッダーの記録の面と鍵を揃えてあるので、
   // どちらを先に開いても読み直しは起きない。
@@ -233,6 +271,51 @@ function ReviewPage() {
     setIdx(mark.idx);
     setTally({ answered: mark.answered, correct: mark.correct });
   }, [batch]);
+  /**
+   * 届いた束を端末に書き留める。**次に開いたときの「準備中」を消すため。**
+   *
+   * 名指しの1枚（`?sticker=`）で来た回の束は**書き留めない** — あれは
+   * その場限りの並びなので、次に普通に開いたときに出てくると話が合わない。
+   * `readBatch` 側でも名指しが違えば弾くが、そもそも書かない。
+   */
+  useEffect(() => {
+    if (!cards?.length || wantedSticker) return;
+    try {
+      const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+      if (!uid) return;
+      const packed = packBatch(cards, uid, null, Date.now());
+      if (packed) localStorage.setItem(REVIEW_CACHE_KEY, JSON.stringify(packed));
+    } catch {
+      // 置き場所がいっぱい・内緒のタブ。書けなくても今までと同じ動き。
+    }
+  }, [cards, wantedSticker]);
+  /**
+   * 書き留めた束から始めた回だけ、**一度だけ**裏で読み直す。
+   *
+   * `refetchOnMount: false` のままなので、放っておくと最大4時間前の束を
+   * 出し続けることになる。かといって毎回読み直すと、上の直し
+   * （2026-08-26「別の頁へ行って戻ると一から」）が元に戻る。
+   *
+   * **まだ1枚も答えていないときだけ**にするのが肝。解いている最中に
+   * 束が入れ替わると、`batchKey` が変わって続きの位置が捨てられ、
+   * **やっている途中で1枚目へ戻される**。それはラグより悪い。
+   */
+  /**
+   * いま束を**入れ替えている**最中か（「もう一度」を押した後）。
+   * 裏での読み直しと区別するために持つ。詳しくは下の分岐の注。
+   */
+  const replacing = useRef(false);
+  useEffect(() => {
+    if (!isFetching) replacing.current = false;
+  }, [isFetching, cards]);
+  const revalidated = useRef(false);
+  useEffect(() => {
+    if (revalidated.current || !cachedBatch) return;
+    if (idx !== 0 || tally.answered !== 0) return;
+    if (Date.now() - cachedBatch.at <= 5 * 60_000) return;
+    revalidated.current = true;
+    void refetch();
+  }, [cachedBatch, idx, tally.answered, refetch]);
   // 進んだら憶える。**別の頁へ行っても消えない**(`sessionStorage`)。
   useEffect(() => {
     if (!batch || restoredFor.current !== batch) return;
@@ -414,14 +497,24 @@ function ReviewPage() {
             restoredFor.current = null;
             setIdx(0);
             setTally({ answered: 0, correct: 0 });
+            replacing.current = true;
             void refetch();
           }}
         />
-      ) : isFetching ? (
-        // A refetch is in flight (e.g. "もう一度" after finishing). React Query
-        // keeps the previous cards during refetch, so without this guard the
-        // already-graded card[0] would render and stay interactive — a second
-        // tap would grade it again and corrupt the SRS schedule/history.
+      ) : replacing.current && isFetching ? (
+        /**
+         * **束を「入れ替えている」間だけ待たせる。**
+         *
+         * ここは `isFetching` だけを見ていた。理由は正しくて、「もう一度」を
+         * 押した直後は採点済みの1枚目がまだ残っており、そのまま押せると
+         * **同じ札を二重に採点して記憶の予定を壊す**。
+         *
+         * ただし `isFetching` は**裏での読み直し**でも立つ。端末に書き留めた
+         * 束から始めた回は、古ければ裏で1回読み直すので、そのたびに
+         * 画面が「準備中…」へ戻っていた — オーナー報告
+         * 「他のページやアプリを一旦閉じたりすると毎回準備中と表示され」の
+         * もう半分がこれ。**入れ替えるつもりのときだけ**待たせる。
+         */
         <ReviewPreparing />
       ) : current ? (
         <>

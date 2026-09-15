@@ -53,6 +53,16 @@ export type StickerWithWord = {
   album_order?: number | null;
   album_size?: "small" | "portrait" | "landscape" | "large" | null;
   /**
+   * 紙の上の座標（オーナー指示 2026-09-15）。**升目ではなく連続値。**
+   * 単位は台紙の箱に対する割合で、別の端末で開いても同じ見た目になる。
+   * 列がまだ無い環境では undefined のまま来る（`?` を付けてある）ので、
+   * `placementFrom()` が昔の並びに寄せた場所へ自動で置く。
+   */
+  album_x?: number | null;
+  album_y?: number | null;
+  album_scale?: number | null;
+  album_rot?: number | null;
+  /**
    * その人だけの棚の上書き(AI が作った棚)。null なら語の分類を使う。
    * 列がまだ無い環境では undefined のまま来る。
    */
@@ -206,7 +216,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
     // 「絵はあるのに文字が無い札」が並ぶ。
     const wordCols =
       "words!inner(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)";
-    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, album_order, album_size, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
+    const fullCols = `id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url, hero_role, album_order, album_size, album_x, album_y, album_scale, album_rot, capture_type, placeholder_image_url, placeholder_credit, shelf_key, ${wordCols}`;
     // `hero_role` だけが無い環境のための段。**ゴーストの列と一緒くたにしない**
     // — 一緒にすると、この移行だけ当たっていない環境でネット画像まで落ちる。
     const noHeroCols = fullCols.replace(", hero_role", "");
@@ -272,8 +282,19 @@ export const listMyStickers = createServerFn({ method: "GET" })
       filterInDb = false;
       first = await pageWithJwtClockSkewRetry(cols, 0, true);
     }
+    /**
+     * 紙の上の座標の列がまだ無い環境（オーナー指示 2026-09-15 の移行が
+     * 当たる前）。**これだけを外す** — 一緒くたに `legacyCols` へ落とすと、
+     * この移行が遅れているだけの人からゴーストの絵まで消える。
+     * 外しても `placementFrom()` が昔の並びに寄せた場所へ自動で置くので、
+     * 見た目は今までどおりになる。
+     */
+    if (first.error && /album_(x|y|scale|rot)/.test(first.error.message)) {
+      cols = cols.replace(", album_x, album_y, album_scale, album_rot", "");
+      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+    }
     if (first.error && /hero_role/.test(first.error.message)) {
-      cols = noHeroCols;
+      cols = noHeroCols.replace(", album_x, album_y, album_scale, album_rot", "");
       first = await pageWithJwtClockSkewRetry(cols, 0, true);
     }
     if (first.error && /capture_type|placeholder/.test(first.error.message)) {
@@ -339,6 +360,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
       hero_role?: string | null;
       album_order?: number | null;
       album_size?: StickerWithWord["album_size"];
+      album_x?: number | null;
+      album_y?: number | null;
+      album_scale?: number | null;
+      album_rot?: number | null;
       capture_type?: string | null;
       placeholder_image_url?: string | null;
       placeholder_credit?: PlaceholderCredit | null;
@@ -397,6 +422,10 @@ export const listMyStickers = createServerFn({ method: "GET" })
         hero_role: row.hero_role ?? null,
         album_order: row.album_order ?? null,
         album_size: row.album_size ?? null,
+        album_x: row.album_x ?? null,
+        album_y: row.album_y ?? null,
+        album_scale: row.album_scale ?? null,
+        album_rot: row.album_rot ?? null,
         caption: row.caption,
         location_name: row.location_name,
         lat: row.lat,
@@ -1241,6 +1270,15 @@ export const saveAlbumLayout = createServerFn({ method: "POST" })
               sticker_id: z.string().uuid(),
               order: z.number().int().min(0),
               size: z.enum(["small", "portrait", "landscape", "large"]),
+              /**
+               * 紙の上の座標（オーナー指示 2026-09-15）。
+               * **範囲は表の制約と同じ値にする** — ここを緩めると、
+               * 画面は通るのに保存で弾かれる（`0001_add_album_placement`）。
+               */
+              x: z.number().min(0).max(1).optional(),
+              y: z.number().min(0).max(1).optional(),
+              scale: z.number().min(0.45).max(2.6).optional(),
+              rot: z.number().min(-180).max(180).optional(),
             }),
           )
           .max(500),
@@ -1249,15 +1287,40 @@ export const saveAlbumLayout = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
+    /**
+     * **列がまだ無い環境では、座標を諦めて並び順だけ保存する。**
+     *
+     * 移行が当たっていないだけで「配置を保存できませんでした」と言って
+     * 止めるのは行き過ぎ（`setStickerHeroRole` と同じ形）。一度でも
+     * 列が無いと分かったら、残りの札は最初から並び順だけで書く —
+     * 札の数だけ失敗を繰り返しても意味が無い。
+     */
+    let hasPlacement = true;
     for (const item of data.items) {
-      const { error } = await supabase
+      const base = { album_order: item.order, album_size: item.size };
+      const full = {
+        ...base,
+        album_x: item.x ?? null,
+        album_y: item.y ?? null,
+        album_scale: item.scale ?? null,
+        album_rot: item.rot ?? null,
+      };
+      let { error } = await supabase
         .from("stickers")
-        .update({ album_order: item.order, album_size: item.size })
+        .update(hasPlacement ? full : base)
         .eq("id", item.sticker_id)
         .eq("user_id", userId);
+      if (error && hasPlacement && /album_(x|y|scale|rot)/.test(error.message)) {
+        hasPlacement = false;
+        ({ error } = await supabase
+          .from("stickers")
+          .update(base)
+          .eq("id", item.sticker_id)
+          .eq("user_id", userId));
+      }
       if (error) throw new Error(error.message);
     }
-    return { saved: true };
+    return { saved: true, placement: hasPlacement };
   });
 
 /**

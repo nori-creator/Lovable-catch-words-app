@@ -4,6 +4,7 @@ import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Term } from "@/components/Term";
 import { v5reward } from "@/components/effects/catch-landing/v5_reward";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
  * キャッチ→図鑑の着弾演出、まるごと一式。
@@ -54,9 +55,7 @@ export async function runCatchLanding(ctx: {
   // suspended に落とすから — 解錠は一度きりの手続きではない。
   // (最初の1回の解錠は、設定の試聴やタップ音など操作の中で走る側に任せる。)
   unlockAudio();
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = motionReducedNow();
   if (reducedMotion) {
     Sound.rewardBreak();
     haptic("success");

@@ -2280,8 +2280,10 @@ describe("ホームのアルバムの長押し", () => {
     // 長押しが成立した所で掴みを始めること。前は `onPointerDown` が
     // `editing` のときだけ掴んでいたので、長押しで編集に入った瞬間には
     // もう pointerdown が終わっており、押し直しが要った。
-    expect(body).toMatch(/dragId\.current = id/);
-    expect(body).toMatch(/setPointerCapture/);
+    // 長押しが成立した時点で握りを組み立てること。組み立てないと、
+    // 編集に入った瞬間にはもう `pointerdown` が終わっており、押し直しが要る。
+    expect(body).toMatch(/grip\.current = \{/);
+    expect(body).toMatch(/pointers: new Map\(\[\[pointerId, at\]\]\)/);
   });
 
   it("**指の微動で長押しを取り消さない**（遊びを持たせる）", () => {
@@ -2294,7 +2296,8 @@ describe("ホームのアルバムの長押し", () => {
   it("掴んだ札は指に付いてきて、**揺れは止まる**", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).toMatch(/album-lifted/);
-    expect(home).toMatch(/translate\(\$\{liftOffset\.x\}px/);
+    // 掴んでいる間は `live` が立ち、その札だけ持ち上がって見える。
+    expect(home).toMatch(/live\?\.id === s\.id \? "album-lifted"/);
     // 掴んだ物がぐらついていると、指に付いてきているのか揺れているのか
     // 見分けが付かない。CSS 側で止める。
     const css = read("styles.css");
@@ -2325,28 +2328,114 @@ describe("ホームのアルバムの長押し", () => {
     expect(home).toMatch(/onDragStart=/);
   });
 
-  it("**掴んだ札を飛ばして下の札を探す**（自分の上では並べ替わらない）", () => {
-    // 掴んだ札は指に付いてくるので `elementFromPoint` は必ず自分を返す。
-    // そのままだと一度も並べ替わらない（実測で確認）。
+  /**
+   * **升目をやめた。**（オーナー指示 2026-09-15）
+   *
+   * > 「ホームの画像長押ししたら下に縦横とか出てくるんだけど、そうではなく
+   * >  直感的に写真を指で動かせて大きさをズームしたら大きくなるように。
+   * >  また傾きも指で決めれるできるようにして。今はカクカクして…」
+   *
+   * 「カクカク」の正体は升目そのもの（S/縦/横/L の4通り）で、指をどれだけ
+   * 滑らかに動かしても結果が4つに飛ぶ以上、滑らかになりようが無かった。
+   * 下に出ていた「縦 / 横」のボタンは、連続で決められないことの埋め合わせ。
+   */
+  it("**下に出ていた「縦 / 横」のボタンが無い**（連続で決められるので要らない）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/elementsFromPoint/);
-    expect(home).toMatch(/!== dragId\.current/);
+    expect(home).not.toMatch(/ALBUM_SIZE_LABEL/);
+    expect(home).not.toMatch(/\["small", "portrait", "landscape", "large"\] as const/);
+    // 角のつまみも無い（つまんで広げるほうが手に合う）。
+    expect(home).not.toMatch(/beginResize/);
   });
 
-  it("**大きさの一覧は1本だけ**（2本あると描画と保存が静かに食い違う）", () => {
-    // 前は class の一覧と AlbumSize の一覧が同じ並びで2本あり、掴んだとき
-    // 「画面に出ている大きさ」ではなく "small" を渡していた。だから
-    // 引き返しても元に戻らなかった。
+  it("**指2本で、大きさも傾きも連続で決まる**", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).not.toMatch(/const ALBUM_SIZES = \[/);
-    expect(home).toMatch(/beginResize\(e, s\.id, effSize\)/);
+    // 触れている指を持ち回ること。1本ぶんしか持たないと、つまむ操作が
+    // そもそも表現できない。
+    expect(home).toMatch(/pointers: Map<number, Pt>/);
+    expect(home).toMatch(/gestureDelta\(g\.startGrip, gripOf\(g\.pointers\)\)/);
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\)/);
   });
 
-  it("**角の引きは純粋な関数に任せる**（引き返せば戻る形）", () => {
+  it("**指の数が変わったら握りを取り直す**（2本目を置いた瞬間に札が飛ばない）", () => {
+    // 取り直さないと「真ん中」が急に変わるので、札がワープする。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/resizeFromDrag\(/);
-    // 掴んだ瞬間の大きさと比べる形に戻すと、元の大きさへ戻せなくなる。
-    expect(home).not.toMatch(/if \(next !== current\) setSize/);
+    expect(home).toMatch(/function reseat\(place: Placement\)/);
+    // 札の上で1本目を置いたとき / 台紙で2本目を足したとき / 1本離れたとき。
+    expect(home).toMatch(/reseat\(place\)/);
+    expect(home).toMatch(/reseat\(pendingPlace\.current \?\? g\.startPlace\)/);
+    expect(home).toMatch(/reseat\(now\)/);
+  });
+
+  it("**1フレームに1回だけ描き直す**（これが「カクカク」のもう半分）", () => {
+    // `pointermove` は1フレームに何度も来る。そのたびに state を変えると
+    // 札の枚数ぶん描き直しが積み上がって、掴んだ物が指から遅れる。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/moveRafPlace\.current = requestAnimationFrame\(/);
+  });
+
+  it("**書き戻すのは指を離したときだけ**（動かしている最中は `live` に置く）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    // 動かしている最中に配列ごと作り直すと、札の枚数ぶん描き直しになる。
+    expect(home).toMatch(/function commitPlace\(id: string, p: Placement\)/);
+    // まっすぐへの吸い付きも、書き戻しも、全部の指が離れたときだけ。
+    expect(home).toMatch(/if \(g\.moved\) commitPlace\(g\.id, settle\(now\)\)/);
+  });
+
+  it("**中心を軸に置く**（つまんで広げても掴んだ所が動かない）", () => {
+    // 左上を基準にすると、大きくするたびに右下へ逃げる。
+    // 中央合わせは `transform` ではなく `translate` で書く（すぐ下の門の理由）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/translate: "-50% -50%"/);
+  });
+
+  /**
+   * **CSS アニメーションの `transform` は、インラインの `transform` を
+   * 丸ごと置き換える。**（2026-09-15 に実測で判明）
+   *
+   * 札は `translate(-50%,-50%)` で中央を合わせていたが、編集中の札には
+   * 揺れ(`album-jiggle`)が掛かっていて、その `transform` が中央合わせを
+   * 消していた。結果、**編集に入った瞬間に全部の札が自分の半分ぶん
+   * 右下へずれる**（実測 41px, 51px ＝ちょうど幅と高さの半分）。
+   *
+   * しかも掴んだ札だけは `.album-lifted` で揺れが止まるので、触れた瞬間に
+   * 元の位置へ戻る。2本目の指はもう札の無い所に落ちることになり、
+   * **つまむ操作が一度も成立しなかった**（生のイベントを数えると
+   * `down#4@DIV` ＝札ではない要素に当たっていた）。
+   *
+   * `translate` / `rotate` / `scale` を個別に書けば、揺れの `transform` は
+   * その後ろに重なるので喧嘩しない。
+   */
+  it("**札の置き方を `transform` で書かない**（揺れに上書きされる）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const style = home.slice(home.indexOf("left: `${place.x * 100}%`"));
+    const block = style.slice(0, 900);
+    expect(block).toMatch(/translate: "-50% -50%"/);
+    expect(block).toMatch(/rotate: `\$\{place\.rot\}deg`/);
+    // ここに `transform:` が戻ると、また揺れに消される。
+    expect(block).not.toMatch(/transform:/);
+  });
+
+  it("**2本目の指は台紙のどこに置いても効く**（札の上を要求しない）", () => {
+    // 札は 88px ほどしかないうえ、動かすと別の札に重なる。札の上だけで
+    // 受けると、重なった回に上の札へ当たって弾かれる（実測で確認）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const board = home.slice(home.indexOf("ref={boardRef}"), home.indexOf("aspectRatio"));
+    expect(board).toMatch(/onPointerDown=/);
+    expect(board).toMatch(/g\.pointers\.set\(e\.pointerId/);
+  });
+
+  it("**掴み取り(`setPointerCapture`)は使わない**（2本目が handler に来なくなる）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/setPointerCapture/);
+    // 代わりに窓で受ける。指が札の外へ出ても続く。
+    expect(home).toMatch(/window\.addEventListener\("pointermove", move\)/);
+  });
+
+  it("台紙の形が決まっている（札を足しても、置いた物が動かない）", () => {
+    // 中身で高さが伸びる箱だと、縦位置を割合で持てない。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/aspectRatio: `\$\{ALBUM_ASPECT\}`/);
+    expect(home).toMatch(/ResizeObserver/);
   });
 });
 
@@ -2826,6 +2915,112 @@ describe("キャッチの報酬演出", () => {
 /**
  * 指の物理。**測って直した2件を、黙って戻らないように留める。**
  */
+/**
+ * **動きの答えは1つだけ。**（オーナー報告 2026-09-15）
+ *
+ * 「スマホだとアニメーションが全部消える」の原因は端末の
+ * `prefers-reduced-motion: reduce`。アプリ側で選べるようにした以上、
+ * **端末の設定を直に見る所が1つでも残っていると、そこだけ止まったまま**に
+ * なる。同じ画面で効く動きと効かない動きが混ざるのが、いちばん説明の
+ * 付かない見え方なので、直に見る所が残っていないことを門にする。
+ */
+/**
+ * 復習の「準備中…」。**出さなくていい所で出さない。**（オーナー報告 2026-09-15）
+ *
+ * > 「他のページやアプリを一旦閉じたりすると毎回準備中と表示されストレスです」
+ *
+ * 原因は2つで、片方だけ直しても消えない:
+ *   ① 束がメモリの上にしか無く、アプリを閉じると消える
+ *   ② 裏で読み直している間も「準備中」に差し替えていた
+ */
+describe("復習の束は、アプリを閉じても残る", () => {
+  const view = () => codeOnly(read("routes/_authenticated/review.tsx"));
+
+  it("**書き留めた束を最初の描画から出す**（`initialData` に渡している）", () => {
+    const s = view();
+    expect(s).toMatch(/initialData:\s*\(\)\s*=>\s*cachedBatch\?\.cards/);
+    // 年齢も渡す。渡さないと React Query が「たった今取った」と見なし、
+    // 4時間前の束を新しい物として扱ってしまう。
+    expect(s).toMatch(/initialDataUpdatedAt:\s*cachedBatch\?\.at/);
+  });
+
+  it("届いた束を書き留めている（書かなければ次に開いたとき何も無い）", () => {
+    expect(view()).toMatch(/packBatch\(/);
+    expect(view()).toMatch(/localStorage\.setItem\(REVIEW_CACHE_KEY/);
+  });
+
+  it("**名指しの1枚で来た回は書き留めない**（その場限りの並びなので）", () => {
+    // `wantedSticker` があるときは早く帰る形になっていること。
+    expect(view()).toMatch(/if \(!cards\?\.length \|\| wantedSticker\) return;/);
+  });
+
+  it("**裏で読み直している間は「準備中」に戻さない**", () => {
+    // `isFetching` だけを見ていると、裏の読み直しのたびに画面が消える。
+    // 束を入れ替えるつもりのときだけ待たせる。
+    expect(view()).toMatch(/replacing\.current && isFetching \? \(/);
+    expect(view()).not.toMatch(/\) : isFetching \? \(/);
+  });
+
+  it("解いている最中には束を入れ替えない（1枚目へ戻されるのはラグより悪い）", () => {
+    const s = view();
+    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 420);
+    expect(guard).toMatch(/idx !== 0 \|\| tally\.answered !== 0/);
+  });
+});
+
+describe("動きを見せるかの答えは、`<html data-motion>` ひとつ", () => {
+  /** ソースの中で、端末の設定を直に聞いてよい場所。 */
+  const ALLOWED = [
+    // 描画前スクリプト。**最初の1枚**のために、ここだけは自分で端末に聞く
+    // （水和を待つと、動きを減らしている人が一瞬だけ動く絵を見る）。
+    "routes/__root.tsx",
+    // 端末の返事を聞いて本人の選択と混ぜ、属性に書く。開いている間の担当。
+    "components/motion-provider.tsx",
+  ];
+
+  it("**端末の設定を直に見る所が、決めた2箇所しか無い**", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+        const rel = dir ? `${dir}/${e.name}` : e.name;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.tsx?$/.test(e.name) && !e.name.includes(".test.")) {
+          // 注のなかで**理由として言及している**だけの所は数えない。
+          if (codeOnly(read(rel)).includes("prefers-reduced-motion")) hits.push(rel);
+        }
+      }
+    };
+    walk("");
+    expect(hits.sort()).toEqual([...ALLOWED].sort());
+  });
+
+  it("CSS の「動きを減らす」も、端末直結の `@media` では書かない", () => {
+    for (const css of ["styles.css", "pack-styles.css"]) {
+      // 注のなかの引用は数えない（`@custom-variant` の説明で、Tailwind の
+      // 既定がどう展開されるかを書いてある）。規則として書かれた物だけ見る。
+      const s = read(css)
+        .split("\n")
+        .filter((l) => !/^\s*(\/\*|\*|\/\/)/.test(l))
+        .join("\n");
+      const blocks = s.match(/@media \(prefers-reduced-motion: reduce\)\s*\{/g) ?? [];
+      expect([css, blocks.length]).toEqual([css, 0]);
+      expect(s).toContain('html[data-motion="reduce"]');
+    }
+  });
+
+  it("Tailwind の `motion-reduce:` も同じ答えへ繋ぎ直してある", () => {
+    // 繋ぎ直さないと、この語が付いた箇所だけ端末の設定に従い続ける。
+    expect(read("styles.css")).toMatch(/@custom-variant motion-reduce \([^)]*data-motion="reduce"/);
+  });
+
+  it("描画前スクリプトが**最初の1枚から**属性を入れている", () => {
+    // 水和を待つと、動きを減らしている人が一瞬だけ動く絵を見る。
+    const root = codeOnly(read("routes/__root.tsx"));
+    expect(root).toMatch(/document\.documentElement\.dataset\.\$\{MOTION_ATTR\}/);
+    expect(root).toMatch(/prefers-reduced-motion: reduce/);
+  });
+});
+
 describe("指の手応え（外からの指摘で直した所）", () => {
   /**
    * **指を置いた所を履歴の1点目に置く。**（Codex 指摘 2026-09-14）
