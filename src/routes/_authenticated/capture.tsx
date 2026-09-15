@@ -347,8 +347,11 @@ function CapturePage() {
     if (step !== "object") return;
     if (wordParam || pendingParam) return;
     autoOpenedRef.current = true;
-    const t = setTimeout(() => cameraInputRef.current?.click(), 60);
-    return () => clearTimeout(t);
+    // Native builds do not have an inline browser camera surface. Open the
+    // platform camera as soon as the camera tab arrives; web builds render a
+    // live preview inside CaptureObjectPanel instead of opening a file picker.
+    if (Capacitor.isNativePlatform()) void openNativeCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, wordParam, pendingParam]);
 
   // Derived catch: /capture?word=◯◯ — **この画面のまま**すぐ調べる
@@ -1077,7 +1080,7 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title={t("title.capture")}>
+    <AppShell title={t("title.capture")} fixedViewport={step === "object"}>
       {step === "object" && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
@@ -1728,17 +1731,66 @@ export function CaptureObjectPanel({
 }) {
   const t = useT();
   const [textOpen, setTextOpen] = useState(Boolean(typedWord));
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+
+  useEffect(() => {
+    if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
+    let cancelled = false;
+    void navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 1280 },
+        },
+        audio: false,
+      })
+      .then(async (stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        setCameraReady(true);
+      })
+      .catch(() => setCameraReady(false));
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [onNativeCapture]);
 
   const openCamera = () => {
     if (onNativeCapture) {
       onNativeCapture();
       return;
     }
+    const video = videoRef.current;
+    if (cameraReady && video?.videoWidth) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) onObjectFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
+        }, "image/jpeg", 0.9);
+        return;
+      }
+    }
     cameraInputRef.current?.click();
   };
 
   return (
-    <div className="capture-viewfinder flex min-h-[calc(100dvh-var(--app-header-h)-10rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
+    <div className="capture-viewfinder flex h-full min-h-0 flex-col overflow-hidden rounded-3xl bg-foreground text-background shadow-xl">
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
               思い出させる。ここに来るまでに数タップ挟まるので、
               単語を持ってこないと目的が消える。 */}
@@ -1749,9 +1801,17 @@ export function CaptureObjectPanel({
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+        {!onNativeCapture && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="absolute inset-0 h-full w-full object-cover"
+            aria-hidden="true"
+          />
+        )}
         <div className="absolute inset-x-5 top-5 text-center">
           <h1 className="text-headline font-semibold text-background">{t("capture.photoTitle")}</h1>
-          <p className="mt-1 text-footnote text-background/70">{t("capture.photoHint")}</p>
         </div>
         <div className="capture-focus" aria-hidden="true">
           <span />
@@ -1814,9 +1874,7 @@ export function CaptureObjectPanel({
             aria-label={t("capture.tapToShoot")}
             className="capture-shutter h-20 w-20 rounded-full bg-background p-0 text-foreground shadow-none hover:bg-background"
           >
-            <span className="capture-shutter__core grid h-16 w-16 place-items-center rounded-full border border-foreground/15 bg-background">
-              <Camera className="h-6 w-6 text-primary-ink" />
-            </span>
+            <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
           </Button>
 
           <Button
