@@ -13,6 +13,7 @@ import {
   Camera,
   Volume2,
   Loader2,
+  Mic,
   RotateCcw,
   Sparkles,
   Check,
@@ -39,12 +40,9 @@ import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
-import {
-  CameraFlipButton,
-  CameraModeStrip,
-  CameraZoomMeter,
-  type CameraMode,
-} from "@/components/CameraChrome";
+import { useVoiceInput } from "@/lib/use-voice-input";
+import { CameraFlipButton, CameraZoomMeter, type CameraMode } from "@/components/CameraChrome";
+import { CameraDial } from "@/components/CameraDial";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
@@ -1148,7 +1146,12 @@ function CapturePage() {
   }
 
   return (
-    <AppShell title={t("title.capture")} fixedViewport={step === "object"}>
+    /**
+     * 撮っている段は**上の帯も出さない**（オーナー指示 2026-09-16
+     * 「カメラのとき、上の集めるの余白いらない。すべてカメラ画面でいい」）。
+     * 撮り終わってカードを見る段からは、ふつうの帯に戻す。
+     */
+    <AppShell title={t("title.capture")} fixedViewport={step === "object"} bare={step === "object"}>
       {step === "object" && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
@@ -1838,6 +1841,12 @@ export function CaptureObjectPanel({
    * 片方にしか無い**状態だったので、共通の部品にして両方へ載せた。
    */
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  /** 声で打ち込む（`lib/use-voice-input.ts`）。聞こえた語を欄へ流し込む。 */
+  const voice = useVoiceInput({
+    lang: "cmn-Hant-TW",
+    onText: setTypedWord,
+    onUnavailable: () => toast.error(t("scan.noVoice")),
+  });
   /** 倍率。端末が本当に出せる範囲は `zoomCaps` に入る(出せなければ null)。 */
   const [zoom, setZoom] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
@@ -2024,6 +2033,25 @@ export function CaptureObjectPanel({
                 className="h-11 rounded-xl border-background/15 bg-background pl-9 text-foreground"
               />
             </div>
+            {/*
+              **声で調べる道はここにある。**（2026-09-16 にスキャン画面の
+              検索欄を畳んだとき、そこにしか無かったので移した。欄を1つ
+              消しただけで機能が黙って無くなるのは、直したい形ではない。）
+              使えない端末には出さない — 押しても何も起きない釦を置かない。
+            */}
+            {voice.available && (
+              <Button
+                type="button"
+                size="icon"
+                variant={voice.listening ? "destructive" : "secondary"}
+                onClick={voice.toggle}
+                aria-label={t("scan.voiceLabel")}
+                aria-pressed={voice.listening}
+                className={voice.listening ? "animate-pulse" : undefined}
+              >
+                <Mic />
+              </Button>
+            )}
             <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
               {searching ? <Loader2 className="animate-spin" /> : <Search />}
             </Button>
@@ -2031,55 +2059,48 @@ export function CaptureObjectPanel({
         )}
 
         {/*
-          撮り方の帯。**選んだ1つが上、残りの2つが下**(オーナー指示
-          2026-09-15)。3つを対等に並べると、いまどれで撮っているのかが
-          読めないので、選択中だけを大きく色付きで出す。
-        */}
-        <CameraModeStrip
-          mode={mode}
-          onChange={(m) => {
-            if (m === "scan") {
-              onOpenScan();
-              return;
-            }
-            setMode(m);
-          }}
-          className="mb-3"
-        />
+          **撮り方はシャッターを囲むダイヤル**（オーナー指示 2026-09-16
+          「写真を撮る、検索、スキャンがシャッターボタンの丸の周りに
+           ダイヤルのようにボタンとして囲い、スライドしたら切り替えられる
+           ようにして。また切り替えるとシャッターボタンのアイコンも変化する
+           ようにして」）。
 
-        <div className="grid grid-cols-[1fr_5rem_1fr] items-center gap-3">
-          {/* 左: 前後の切り替え。覗いている間はいつでも出す。 */}
-          <div className="flex justify-center">
-            {!onNativeCapture && (
+          前は3つを縦に並べていた。読めはするが、切り替えるには狙って押す
+          しかない。カメラは覗いたまま片手で扱う物なので、親指を横に
+          滑らせるだけで変わる形にした。
+        */}
+        <div className="relative">
+          {/* 前後の切り替えはダイヤルの左に重ねる（輪の外側なので当たらない）。 */}
+          {!onNativeCapture && (
+            <div className="absolute bottom-6 left-0 z-10">
               <CameraFlipButton
                 facing={facing}
                 onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
               />
-            )}
-          </div>
-
-          <Button
-            type="button"
-            onClick={openCamera}
-            aria-label={t("capture.tapToShoot")}
-            className="capture-shutter h-20 w-20 rounded-full p-0 shadow-none"
-          >
-            <span className="capture-shutter__core block h-16 w-16 rounded-full" />
-          </Button>
-
-          {/* 右: 検索の欄をここからも開ける(帯と同じ働き)。 */}
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setMode((m) => (m === "search" ? "photo" : "search"))}
-              aria-expanded={textOpen}
-              aria-label={t("capture.typeWord")}
-              className="camera-ink h-11 w-11 rounded-full p-0 hover:bg-white/10"
-            >
-              <Keyboard className="h-5 w-5" />
-            </Button>
-          </div>
+            </div>
+          )}
+          <CameraDial
+            mode={mode}
+            onChange={(m) => {
+              if (m === "scan") {
+                onOpenScan();
+                return;
+              }
+              setMode(m);
+            }}
+            shutterLabel={t("capture.tapToShoot")}
+            onShutter={() => {
+              // 「検索」に居るときの真ん中は**撮るのではなく調べる**。
+              // 絵が虫眼鏡に変わっているので、押した先もそれに合わせる。
+              if (mode === "search") {
+                const w = typedWord.trim();
+                if (w) onSearch(w);
+                return;
+              }
+              openCamera();
+            }}
+            busy={searching}
+          />
         </div>
 
         <input

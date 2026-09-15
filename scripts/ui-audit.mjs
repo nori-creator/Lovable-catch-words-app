@@ -559,11 +559,12 @@ const BARE_SCENES = new Set([
   "sticker-sheet",
   "capture-saving",
   "scan-camera",
+  "camera-dial",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 実物でも上のバーは映像の下に隠れる。
   "capture-object",
   "reward-catch",
-  "hero-flight",
+  "home-tap",
 ]);
 
 /**

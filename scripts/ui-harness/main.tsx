@@ -25,8 +25,8 @@ import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { InputCatchScene } from "./scenes/input-catch";
 import { HeroPickerScene } from "./scenes/hero-picker";
+import { CameraDialScene } from "./scenes/camera-dial";
 import { RewardCatchScene } from "./scenes/reward-catch";
-import { HeroFlightScene } from "./scenes/hero-flight";
 import {
   CaptureCardScene,
   CaptureObjectScene,
@@ -53,6 +53,7 @@ import {
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  HomeTapScene,
   HomeWritingScene,
 } from "./scenes/home";
 import {
@@ -115,9 +116,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   shelf: ShelfScene,
   gallery: GalleryScene,
   tabbar: TabBarScene,
-  "hero-flight": HeroFlightScene,
   onboarding: OnboardingScene,
   home: HomeScene,
+  "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
@@ -147,6 +148,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-object": CaptureObjectScene,
   "capture-saving": CaptureSavingScene,
   "scan-camera": ScanCameraScene,
+  "camera-dial": CameraDialScene,
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
@@ -249,14 +251,15 @@ const BARE = new Set([
   "sticker-sheet",
   "capture-saving",
   "scan-camera",
+  "camera-dial",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
   // 読みやすさを測ることになる（実際、枠の「Catchwords」が
   // 地＝黒い映像で 1.12 と出た）。
   "capture-object",
   "reward-catch",
-  // 押した札から詳細へ飛ぶ絵。全画面の面なので枠は要らない。
-  "hero-flight",
+  // 押した札から詳細が広がる絵。全画面の面なので枠は要らない。
+  "home-tap",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -275,12 +278,11 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "capture-object", label: "撮る画面（3つの撮り方・倍率・画面いっぱい）" },
-  { scene: "scan-camera", label: "スキャンの上の操作（同じ倍率の目盛り）" },
-  { scene: "capture-pick", label: "語を選ぶ（違う単語は右・検索の釦）" },
-  { scene: "settings-selects", label: "設定（見出しは箱の外）" },
-  { scene: "word-card", label: "単語の詳細（かたまりは訳だけ）" },
-  { scene: "hero-flight", label: "札を開く動き（二重写しを消した）" },
+  { scene: "home-tap", label: "札を押して詳細が広がる動き（作り直し）" },
+  { scene: "camera-dial", label: "撮り方のダイヤル（滑らせて切り替え）" },
+  { scene: "capture-object", label: "撮る画面（上の帯なし・全画面）" },
+  { scene: "review-choice", label: "復習の4択（下の余白を詰めた）" },
+  { scene: "scan-camera", label: "スキャンの上の操作" },
 ];
 
 const explicitScene = q.get("scene");

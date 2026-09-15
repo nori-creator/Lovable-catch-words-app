@@ -1,5 +1,6 @@
 import { setCameraScreenOpen } from "@/lib/camera-launch";
-import { CameraFlipButton, CameraModeStrip, CameraZoomMeter } from "@/components/CameraChrome";
+import { CameraFlipButton, CameraZoomMeter } from "@/components/CameraChrome";
+import { CameraDial } from "@/components/CameraDial";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
@@ -10,7 +11,6 @@ import {
   Check,
   Keyboard,
   Loader2,
-  Mic,
   Volume2,
   X,
   RotateCcw,
@@ -163,8 +163,6 @@ function ScanPage() {
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
   // 音声入力はこの画面のまま行う(別シートに飛ばさない)。
   // 認識結果は検索欄に入り、そのまま「調べる」で確定できる。
-  const [voiceListening, setVoiceListening] = useState(false);
-  const voiceRecogRef = useRef<{ stop: () => void } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
@@ -220,7 +218,6 @@ function ScanPage() {
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
   const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
   const [inputCatchText, setInputCatchText] = useState("");
-  const [manualQuery, setManualQuery] = useState("");
   const [scanLoc, setScanLoc] = useState<{
     lat: number | null;
     lng: number | null;
@@ -379,50 +376,11 @@ function ScanPage() {
     pinchRef.current = null;
   }, []);
 
-  /** その場の音声入力: 認識結果を検索欄へ流し込む(画面遷移なし)。 */
-  const toggleVoice = useCallback(() => {
-    if (voiceListening) {
-      voiceRecogRef.current?.stop();
-      setVoiceListening(false);
-      return;
-    }
-    const w = window as unknown as {
-      SpeechRecognition?: new () => unknown;
-      webkitSpeechRecognition?: new () => unknown;
-    };
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!SR) {
-      setError(t("scan.noVoice"));
-      return;
-    }
-    const rec = new SR() as {
-      lang: string;
-      interimResults: boolean;
-      continuous: boolean;
-      maxAlternatives: number;
-      onresult: (e: {
-        results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
-      }) => void;
-      onend: () => void;
-      onerror: () => void;
-      start: () => void;
-      stop: () => void;
-    };
-    rec.lang = "cmn-Hant-TW";
-    rec.interimResults = true;
-    rec.continuous = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e) => {
-      let text = "";
-      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
-      setManualQuery(text.trim());
-    };
-    rec.onend = () => setVoiceListening(false);
-    rec.onerror = () => setVoiceListening(false);
-    voiceRecogRef.current = rec;
-    setVoiceListening(true);
-    rec.start();
-  }, [voiceListening, t]);
+  /**
+   * 声で調べる道は**撮り方の「検索」へ移した**（`lib/use-voice-input.ts`）。
+   * ここの検索欄を畳んだ時に道連れで消えるところだったので、部品にして
+   * 残してある。この画面には「かざして押す」だけを置く。
+   */
 
   // ---- capture + downscale to longest side 1024 ----
   const grabFrame = useCallback((): string | null => {
@@ -688,7 +646,8 @@ function ScanPage() {
   );
 
   return (
-    <AppShell title={t("nav.camera")}>
+    // スキャンも画面いっぱいのカメラ。上の帯は出さない（撮る画面と同じ）。
+    <AppShell title={t("nav.camera")} bare>
       <div className="space-y-3">
         {/*
           カメラは画面いっぱい(フルスクリーン)。世界をスキャンしている感覚は
@@ -813,7 +772,12 @@ function ScanPage() {
                   こちらはカプセル — **同じ動作に2つの形**があった。
                   撮る画面の側へ揃える。
                 */}
-                <CameraModeStrip
+                {/*
+                  撮り方のダイヤル。**撮る画面とまったく同じ物**を置く
+                  （オーナー指示「撮る画面とスキャン画面を1つにして」）。
+                  真ん中を押すとスキャンが走り、輪を回すと撮る画面へ渡る。
+                */}
+                <CameraDial
                   mode="scan"
                   // 選んだ撮り方をそのまま渡す。渡さないと、「検索」を選んだ
                   // 人が「写真を撮る」の画面に着く。
@@ -823,64 +787,20 @@ function ScanPage() {
                       search: { mode: m === "search" ? "search" : "photo" },
                     })
                   }
-                  className="mb-2"
+                  shutterLabel={t("scan.button")}
+                  onShutter={doScan}
+                  busy={!ready || scanning}
                 />
-                <div className="flex justify-center">
-                  <button
-                    onClick={doScan}
-                    disabled={!ready || scanning}
-                    aria-label={t("scan.button")}
-                    className="capture-shutter grid h-20 w-20 place-items-center rounded-full bg-background p-0 text-foreground transition active:scale-95 disabled:opacity-50"
-                  >
-                    {scanning ? (
-                      <Loader2 className="h-7 w-7 animate-spin text-foreground" />
-                    ) : (
-                      <span className="capture-shutter__core block h-16 w-16 rounded-full bg-background" />
-                    )}
-                  </button>
-                </div>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const q = manualQuery.trim();
-                    if (!q) return;
-                    setInputCatchText(q);
-                    setInputCatchOpen("text");
-                  }}
-                  className="flex gap-2"
-                >
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      value={manualQuery}
-                      onChange={(e) => setManualQuery(e.target.value)}
-                      placeholder={
-                        voiceListening ? t("scan.listening") : t("scan.searchPlaceholder")
-                      }
-                      className="w-full rounded-full border border-border py-2.5 pl-9 pr-4 text-field shadow-lg outline-none material-thick focus:ring-2 focus:ring-primary/40"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={toggleVoice}
-                    aria-label={t("scan.voiceLabel")}
-                    aria-pressed={voiceListening}
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border shadow-lg backdrop-blur transition active:scale-95 ${
-                      voiceListening
-                        ? "animate-pulse border-red-400 bg-bad text-white"
-                        : "border-border bg-background/90 text-muted-foreground"
-                    }`}
-                  >
-                    <Mic className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!manualQuery.trim()}
-                    className="press-in inline-flex min-h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-                  >
-                    {t("scan.searchGo")}
-                  </button>
-                </form>
+                {/*
+                  **スキャンのときは、下の検索の欄も調べる釦も出さない。**
+                  （オーナー指示 2026-09-16「スキャンボタン押したら下の
+                   検索や調べるボタンはすべて要らない」）
+
+                  ここは「かざして、見つかった語を押す」ための画面で、
+                  打って調べるのは**撮り方の「検索」**が持っている。
+                  同じ役目の入口を2つ置くと、どちらを使う場面なのかが
+                  画面から読めなくなる（HIG「一貫性」）。
+                */}
               </div>
             ) : (
               <>
@@ -954,7 +874,6 @@ function ScanPage() {
           onClose={() => {
             setInputCatchOpen(null);
             setInputCatchText("");
-            setManualQuery("");
           }}
         />
       )}

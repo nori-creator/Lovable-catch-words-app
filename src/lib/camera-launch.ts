@@ -67,8 +67,23 @@ export function playCameraLaunch(): void {
   const el = document.createElement("div");
   el.className = "camera-launch";
   el.setAttribute("aria-hidden", "true");
+  /**
+   * 飛ぶのは**カメラの形をした物**（オーナー指示 2026-09-16、参考動画
+   * `Camera transitions @SwatchThisApp`）。
+   *
+   * 下の丸が持ち上がりながら傾きを解き、画面いっぱいのカメラへ育つ。
+   * 中身は行き先の縮図 — 暗い覗き窓と、その下の白いシャッター。育ち切った
+   * ときに本物のシャッターとちょうど重なるので、**押す物が入れ替わった**
+   * ように見える（丸1つが大きくなるだけだと、何になったのか読めない）。
+   */
   const lens = document.createElement("span");
   lens.className = "camera-launch__lens";
+  const eye = document.createElement("i");
+  eye.className = "camera-launch__eye";
+  const shutter = document.createElement("i");
+  shutter.className = "camera-launch__shutter";
+  lens.appendChild(eye);
+  lens.appendChild(shutter);
   el.appendChild(lens);
   document.body.appendChild(el);
   const ms = motionReducedNow() ? OPEN_MS_REDUCED : OPEN_MS;
