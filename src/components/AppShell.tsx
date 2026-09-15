@@ -16,6 +16,7 @@ import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 import { TabBar } from "@/components/TabBar";
 import { playCameraLaunch } from "@/lib/camera-launch";
+import { useWarmCamera } from "@/hooks/use-warm-camera";
 
 type Item = {
   to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
@@ -230,7 +231,19 @@ export function AppShell({
    *
    * タブ以外の画面(単語の詳細など)は右へスワイプで**戻る**。
    */
-  const tabIndex = items.findIndex((i) => pathname === i.to || pathname === `${i.to}/`);
+  /**
+   * いまその行き先に居るか。**判定はここ1箇所**。
+   *
+   * 末尾の `/` が付くことがある（`/capture` と `/capture/` の両方が来る）。
+   * 並びの番号を出す所だけがそれを見ていて、**押した時の判定と、カメラの丸の
+   * 色の判定は素の `===` のまま**だった。だからカメラの画面に居るのに
+   * 「居ない」と判断され、押すたびに演出がもう一度走っていた
+   * （オーナー報告 2026-09-15「2回目カメラボタン押した時にすでに表示されて
+   * いるのにもう1回重ねてカメラのアニメーションが表示されてる」）。
+   * 同じことを3箇所に書けば、いつか2箇所だけ直る。
+   */
+  const atPath = (to: string) => pathname === to || pathname === `${to}/`;
+  const tabIndex = items.findIndex((i) => atPath(i.to));
   const { progress } = useTabSwipe({
     index: tabIndex,
     count: items.length,
@@ -264,6 +277,12 @@ export function AppShell({
    * すると、**設定を一度も開かない人には学習言語が伝わらない** —
    * それで「英語を選んだのに台湾華語しか出ない」が起きていた。
    */
+  /**
+   * **撮る画面を、暇なうちに取っておく**（`hooks/use-warm-camera.ts`）。
+   * 押してから取りに行くと、着くまで前の画面が出たままになる（実測5秒）。
+   */
+  useWarmCamera();
+
   useLanguagePrefsSync();
   // 学習言語を切り替えたら、その言語で絞っている一覧を全部読み直す
   // (アルバム・図鑑・復習・記憶・単語帳)。判断は1箇所。
@@ -343,7 +362,7 @@ export function AppShell({
           const label = t(labelKey);
           const isScan = to === "/capture";
           /** いまこのタブに居るか。カメラの丸の**中の色**を決めるのに使う。 */
-          const isCurrent = pathname === to;
+          const isCurrent = atPath(to);
           // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
           const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
           return (
@@ -377,7 +396,7 @@ export function AppShell({
                      * `AppShell` ごと消えて演出が道連れになる — オーナー指摘
                      * 「最初だけで2回目とか押すと表示されなくなる」の正体。
                      */
-                    if (pathname !== "/capture") playCameraLaunch();
+                    if (!isCurrent) playCameraLaunch();
                     unlockAudio();
                     Sound.tap();
                     haptic("medium");

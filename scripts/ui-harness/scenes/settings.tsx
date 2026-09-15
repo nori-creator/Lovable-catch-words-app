@@ -34,7 +34,7 @@ import {
   LEVEL_OPTIONS,
   VideoRecordingToggle,
 } from "@/routes/_authenticated/settings";
-import { WheelPicker } from "@/components/WheelPicker";
+import { PickerRow } from "@/components/PickerRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,7 +156,7 @@ export function SettingsSelectsScene() {
   return (
     <SettingsCard title={t("settings.language")}>
       <div className="space-y-3">
-        <WheelPicker
+        <PickerRow
           id="lang-target"
           label={t("settings.targetLang")}
           value={target}
@@ -166,14 +166,14 @@ export function SettingsSelectsScene() {
             { value: "en", label: t("settings.langEn") },
           ]}
         />
-        <WheelPicker
+        <PickerRow
           id="lang-cur"
           label={t("settings.currentLevel")}
           value={cur}
           onChange={setCur}
           options={LEVEL_OPTIONS}
         />
-        <WheelPicker
+        <PickerRow
           id="lang-level"
           label={t("settings.levelGoal")}
           value={goal}
@@ -186,7 +186,7 @@ export function SettingsSelectsScene() {
         {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
             設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
             (実際そうなって、検査はそれでも合格していた)。 */}
-        <WheelPicker
+        <PickerRow
           id="lang-ui"
           label={t("settings.uiLang")}
           value={ui}

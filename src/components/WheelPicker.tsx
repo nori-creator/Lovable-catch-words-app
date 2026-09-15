@@ -48,12 +48,16 @@ function visibleRows(count: number): number {
 export function WheelPicker({
   id,
   label,
+  labelledBy,
   value,
   onChange,
   options,
 }: {
   id: string;
-  label: string;
+  /** 自分で見出しを出すとき。行の中に入れるときは `labelledBy` を使う。 */
+  label?: string;
+  /** すでに外に見出しがあるときの、その見出しの id。**二度書かない。** */
+  labelledBy?: string;
   value: string;
   onChange: (v: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
@@ -155,17 +159,19 @@ export function WheelPicker({
 
   return (
     <div>
-      <span id={`${id}-label`} className="text-field font-medium text-foreground">
-        {label}
-      </span>
-      <div className="wheel mt-1" style={{ height: ITEM_H * visible }}>
+      {label != null && (
+        <span id={`${id}-label`} className="text-field font-medium text-foreground">
+          {label}
+        </span>
+      )}
+      <div className={label != null ? "wheel mt-1" : "wheel"} style={{ height: ITEM_H * visible }}>
         {/* 選択の帯。**動かない** — 動くのは行のほう。 */}
         <span className="wheel__band" aria-hidden style={{ height: ITEM_H }} />
         <div
           ref={scrollRef}
           id={listId}
           role="listbox"
-          aria-labelledby={`${id}-label`}
+          aria-labelledby={labelledBy ?? `${id}-label`}
           aria-activedescendant={`${listId}-${active}`}
           tabIndex={0}
           onScroll={onScroll}

@@ -328,10 +328,34 @@ function CapturePage() {
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
 
-  // Warm the cutout model while the user frames the shot, so the first
-  // catch doesn't pay the model download + init cost (roadmap B2).
+  /**
+   * 切り抜きの模型を、構えている間に温めておく(roadmap B2)。
+   *
+   * **ただし、画面が出るより先に走らせない。**（オーナー報告 2026-09-15
+   * 「カメラが開くまで5秒ぐらいラグがある」）
+   *
+   * ここは描かれた直後に無条件で走っていた。温めるのは
+   * `@imgly/background-removal` ＝ ONNX の実行時 **762KB**（測定: `ort.bundle`
+   * と `ort.webgpu.bundle` で 381KB ずつ）と、その先の模型の重み。
+   * 開いた瞬間のいちばん細い回線と、いちばん忙しい本線（カメラの映像を
+   * 出すこと）に、それを横から被せていた。
+   *
+   * 暇になってから始める。撮るまでには十分間に合う（構えて言葉を見つける
+   * までに数秒はかかる）し、間に合わなくても切り抜きが少し遅れるだけで、
+   * **カメラが出ないより害が小さい**。
+   */
   useEffect(() => {
-    preloadCutout();
+    const ric = (
+      window as Window & {
+        requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      }
+    ).requestIdleCallback;
+    if (typeof ric === "function") {
+      ric(() => preloadCutout(), { timeout: 4000 });
+      return;
+    }
+    const t = window.setTimeout(() => preloadCutout(), 1500);
+    return () => window.clearTimeout(t);
   }, []);
 
   // 着いたらすぐ**外**カメラを開く(派生キャッチとオフライン復元のときは除く)。
