@@ -159,7 +159,27 @@ export function ChoiceRow<T extends string | number>({
         <SlidingIndicator
           index={options.findIndex((o) => o.value === value)}
           radiusRatio={0.5}
-          className="bottom-0 top-0 left-0 bg-primary"
+          /**
+           * **尾を短くする**（オーナー指摘 2026-09-15「設定の切り替えをした
+           * 時の残像感は出てるけど、ちょっとしつこすぎる」）。
+           *
+           * 下のタブと同じ速さにしていたのが間違いだった。**移動距離が
+           * まるで違う**。下のタブは1升 76px を最大4つぶん跳ぶが、ここは
+           * 隣の丸へ 60px 動くだけ。同じ遅れ時間を掛けると、短い距離の
+           * 割に長く尾が残る = 動きが終わったのにまだ追いついていない。
+           *
+           * `spring.ts` と同じ式で測った（`damping` 1、1/60 秒刻み）:
+           *
+           * |  | 伸びの最大 | 落ち着くまで |
+           * |---|---|---|
+           * | 旧 0.30 / 0.62 | 1.36 倍 | 733ms |
+           * | 新 0.24 / 0.32 | **1.14 倍** | **400ms** |
+           *
+           * 伸びそのものは残したまま、待たされる時間だけをおよそ半分に。
+           */
+          lead={0.24}
+          trail={0.32}
+          className="bottom-0 left-0 top-0 bg-primary"
         />
         {options.map((o) => (
           <button

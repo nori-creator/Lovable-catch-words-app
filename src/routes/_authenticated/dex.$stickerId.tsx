@@ -15,6 +15,7 @@ import type { PhotoRole } from "@/lib/sticker-photo";
 import { WordTreeView } from "@/components/WordTreeView";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { getSticker, setStickerHeroRole } from "@/lib/stickers.functions";
+import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
@@ -53,6 +54,9 @@ function StickerDetailPage() {
   const fetchSticker = useServerFn(getSticker);
   const fetchMemory = useServerFn(getStickerMemoryHistory);
   const fetchPhotos = useServerFn(listStickerPhotos);
+  const qcSeed = useQueryClient();
+  /** 図鑑から開いた札も待たせない（`lib/sticker-seed.ts`）。 */
+  const seed = seedStickerFromList(qcSeed, stickerId);
   const {
     data: s,
     isLoading,
@@ -62,6 +66,8 @@ function StickerDetailPage() {
   } = useQuery({
     queryKey: ["sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId } }),
+    initialData: seed,
+    initialDataUpdatedAt: seed ? SEED_UPDATED_AT : undefined,
   });
   const { data: mem } = useQuery({
     queryKey: ["memory", stickerId],

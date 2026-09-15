@@ -31,6 +31,7 @@ import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
+import type { FlightOrigin } from "@/components/HeroFlight";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
@@ -240,6 +241,13 @@ function HomePage() {
     gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
+  /**
+   * 押した札の場所と絵。ここから詳細の見出しへ**絵が飛ぶ**
+   * （オーナー指示 2026-09-15「軌跡アニメーション」／`components/HeroFlight.tsx`）。
+   * 長押しで開いた時は空にする — 長押しは「この札の写真を選び直す」であって、
+   * 絵が育って開く動きではない。
+   */
+  const [openFrom, setOpenFrom] = useState<FlightOrigin | null>(null);
   /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
   const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
   /** 見開きの右ページ(今日の日記を書く紙)を開いているか。 */
@@ -351,9 +359,13 @@ function HomePage() {
             stickers={todayStickers}
             bgClass={bgClass}
             opening
-            onOpen={setOpenId}
+            onOpen={(id, from) => {
+              setOpenId(id);
+              setOpenFrom(from ?? null);
+            }}
             onLongPress={(id) => {
               setOpenId(id);
+              setOpenFrom(null);
               setOpenPhotoPicker(true);
             }}
           />
@@ -384,9 +396,13 @@ function HomePage() {
         <PastDays
           days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
           bgClass={bgClass}
-          onOpen={setOpenId}
+          onOpen={(id, from) => {
+            setOpenId(id);
+            setOpenFrom(from ?? null);
+          }}
           onLongPress={(id) => {
             setOpenId(id);
+            setOpenFrom(null);
             setOpenPhotoPicker(true);
           }}
           truncated={truncated}
@@ -398,8 +414,10 @@ function HomePage() {
       <StickerSheet
         stickerId={openId}
         openPhotoPicker={openPhotoPicker}
+        from={openFrom}
         onClose={() => {
           setOpenId(null);
+          setOpenFrom(null);
           setOpenPhotoPicker(false);
         }}
       />
@@ -488,7 +506,7 @@ export function PastDays({
 }: {
   days: Array<[string, StickerWithWord[]]>;
   bgClass: string;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
   truncated: boolean;
   shown: number;
   total: number;
@@ -651,6 +669,29 @@ const AUTO_ALBUM_SIZE: readonly AlbumSize[] = [
   "small",
 ];
 
+/**
+ * 押した札から、**飛ばす絵の出発点**を作る。
+ *
+ * 絵の無い札（文字だけの札）では `null` — 飛ばす絵が無いので、今までどおり
+ * 面がふわっと出る。写真そのものの箱を測るので、白フチや三角コーナーは
+ * 含めない（飛ぶのは写真であって、貼ってある紙ではない）。
+ *
+ * 札は傾いていることがあり、`getBoundingClientRect` は傾きを囲む箱を返す。
+ * 傾きは 4° 刻みの範囲なので差は数pxで、飛び始めの1フレームにしか効かない。
+ * **傾きを解くために行列を読むほどの値は無い。**
+ */
+function flightFrom(button: HTMLElement): FlightOrigin | null {
+  const img = button.querySelector("img");
+  if (!img) return null;
+  const r = img.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return null;
+  // いま実際に出ている絵。`CachedImg` が端末の控えから作った `blob:` なので、
+  // 飛ばす写しは**通信も復号もせずに**最初の1枚から出る。
+  const url = img.currentSrc || img.src;
+  if (!url) return null;
+  return { x: r.left, y: r.top, w: r.width, h: r.height, url, radius: 2 };
+}
+
 export function ScrapbookAlbum({
   stickers,
   bgClass,
@@ -660,7 +701,7 @@ export function ScrapbookAlbum({
 }: {
   stickers: StickerWithWord[];
   bgClass: string;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
   /**
    * 写真を長押ししたとき(オーナー指摘 2026-08-20)。
    * 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
@@ -1135,7 +1176,7 @@ export function ScrapbookAlbum({
           return (
             <button
               key={s.id}
-              onClick={() => {
+              onClick={(e) => {
                 // 長押しが成立した回の「離す」でカードを開かない。
                 if (longPressFired.current) {
                   longPressFired.current = false;
@@ -1149,7 +1190,7 @@ export function ScrapbookAlbum({
                   onLongPress?.(s.id);
                   return;
                 }
-                onOpen(s.id);
+                onOpen(s.id, flightFrom(e.currentTarget));
               }}
               // **アルバムの写真も長押しで主役を選べる**(オーナー指摘 2026-08-20)。
               // 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから

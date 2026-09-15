@@ -3239,3 +3239,170 @@ describe("指の手応え（外からの指摘で直した所）", () => {
     }
   });
 });
+
+/**
+ * **下のタブ帯と、札を開く動き**（オーナー指示 2026-09-15）。
+ *
+ * ここに置く門は全部、実際に測って原因が分かったものだけ。
+ * 「そう書いたから」ではなく「こう書かないとこう壊れた」を書き留める。
+ */
+describe("N. 下のタブ帯と、札を開く動き", () => {
+  /**
+   * **画面をまたいでも、印は前に居た所から動き出す。**
+   *
+   * このアプリは16画面が各自 `<AppShell>` を描いているので、タブを押すと
+   * 帯ごと作り直される。作り直されると印のばねも生まれ直し、移動先の位置で
+   * 初期化される — つまり**押したときだけ尾が出ない**
+   * （オーナー指摘「下のアイコンをタップして違うページに移った時の
+   * 残像感滑らか感が実装されてない」）。位置を持ち越して繋ぐ。
+   */
+  it("印は画面をまたいで位置を憶える（押して移っても尾が出る）", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
+    // 部品の外（＝作り直されない所）に控える。
+    expect(src).toMatch(/^const lastIndex = new Map<string, number>\(\);$/m);
+    // 生まれるとき、前に居た所から始める。
+    expect(src).toMatch(/lastIndex\.get\(persistKey\)/);
+    expect(src).toMatch(/const from = prev/);
+    expect(src).toMatch(/edgesAt\(from\)/);
+    // 動いたら控え直す。
+    expect(src).toMatch(/lastIndex\.set\(persistKey, index\)/);
+    // 下のタブは鍵を渡している（渡さないと何も憶えない）。
+    expect(codeOnly(read("components/TabBar.tsx"))).toMatch(/persistKey="tabbar"/);
+  });
+
+  /**
+   * **`ResizeObserver` の最初の1回で、種を上書きしない。**
+   *
+   * `observe()` した直後に必ず1回呼ばれる（仕様どおり）。素通しにすると、
+   * 生まれた直後のこの1回が「前に居た所から始める」種を移動先へ
+   * 書き換える。実測では印が 29.2px → 294.5px へ**1フレームで飛んで**いた。
+   */
+  it("幅が変わっていない `ResizeObserver` の呼び出しでは値を入れ直さない", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
+    const body = src.slice(src.indexOf("const onResize"), src.indexOf("window.addEventListener"));
+    expect(body).toMatch(/if \(w === seenW\) return;/);
+    // 入れ直す前に控えを更新していること（さもないと毎回素通しになる）。
+    expect(body.indexOf("seenW = w")).toBeLessThan(body.indexOf("leftRef.current?.set("));
+  });
+
+  /**
+   * **帯は画面いっぱいではなく、浮くカプセル。**
+   * 参照(App Store)を実測した割合は `components/TabBar.tsx` の表。
+   */
+  it("下のタブ帯は、角が完全に丸い浮いたカプセル", () => {
+    const css = read("styles.css");
+    const bar = css.slice(css.indexOf(".tabbar {"), css.indexOf(".tabbar__row"));
+    expect(bar).toMatch(/border-radius: 9999px;/);
+    // 画面幅に対する割合で持つ（実測 0.876）。
+    expect(bar).toMatch(/width: 87\.6%;/);
+    // 枠は素通し。帯の左右の余白ごしに後ろへ指が届くこと。
+    const dock = css.slice(css.indexOf(".tabbar-dock {"), css.indexOf(".tabbar {"));
+    expect(dock).toMatch(/pointer-events: none;/);
+    expect(css.slice(css.indexOf(".tabbar {"))).toMatch(/pointer-events: auto;/);
+  });
+
+  /**
+   * **カメラの升目には印を乗せない**（オーナー指示「青いバブルで囲うのでは
+   * なく、カメラのアイコンの中の色を変えてほしい」）。
+   *
+   * 出す/消すの2値にしない — 指で払っている最中はカメラの上を通過するので、
+   * 2値だと真ん中で印がぱっと消えてぱっと戻る。
+   */
+  it("カメラの升目に近づくと印が薄れる（2値で消さない）", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    expect(shell).toMatch(/const cameraIndex = items\.findIndex\(\(i\) => i\.to === "\/capture"\)/);
+    expect(shell).toMatch(/Math\.abs\(cursor - cameraIndex\)/);
+    expect(shell).toMatch(/indicatorOpacity=\{indicatorOpacity\}/);
+    // 印の側も濃さを受け取れること。
+    expect(codeOnly(read("components/SlidingIndicator.tsx"))).toMatch(/opacity = 1,/);
+  });
+
+  /**
+   * **カメラに居ることは、丸の「中の色」で示す。**
+   *
+   * 前は白の濃淡（70% → 100%）だけだった。同じ色の濃淡は「色が変わった」と
+   * 読まれない。地と字を入れ替える。
+   */
+  it("カメラのタブに居ると、丸の地と字が入れ替わる", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    const lens = shell.slice(
+      shell.indexOf("isCurrent"),
+      shell.indexOf("</span>\n                  </span>"),
+    );
+    // 居るとき: 地が白、字が主色。
+    expect(lens).toMatch(/bg-primary-foreground text-primary/);
+    // 居ないとき: その逆。
+    expect(lens).toMatch(/bg-primary text-primary-foreground/);
+    // 濃淡だけで済ませていた昔の形が残っていないこと。
+    expect(lens).not.toMatch(/text-primary-foreground\/70/);
+  });
+
+  /**
+   * **札を開いたら、もう手元にある物をすぐ出す。**
+   * （オーナー指摘「くるくるとロード中が回って…ロードがストレス」）
+   */
+  it("札の詳細は、一覧が持っている中身を種にして待たせない", () => {
+    for (const f of ["components/StickerSheet.tsx", "routes/_authenticated/dex.$stickerId.tsx"]) {
+      const src = codeOnly(read(f));
+      expect([f, /seedStickerFromList\(/.test(src)]).toEqual([f, true]);
+      expect([f, /initialData: seed/.test(src)]).toEqual([f, true]);
+      // **古い物として置く**こと。置きっぱなしにすると、詳細にしか無い
+      // 中身（一言の動画・語の枝・復習した回数）が永久に届かない。
+      expect([f, /initialDataUpdatedAt: seed \? SEED_UPDATED_AT : undefined/.test(src)]).toEqual([
+        f,
+        true,
+      ]);
+    }
+  });
+
+  /**
+   * **軌跡は px のばねで回す。0〜1 の進み具合では回さない。**
+   *
+   * `spring.ts` の収束判定は「0.05px / 0.5px/s」で、画面の値を動かす前提の数。
+   * 0〜1 に使うと 1 の手前 5% で止まり、狙った跳ねが**実測 0.7%** になる。
+   */
+  it("札から詳細へ飛ぶ絵は、道のりと大きさを別のばねで回す", () => {
+    const src = codeOnly(read("components/HeroFlight.tsx"));
+    // 中心(x,y)と大きさ(w,h)で4本。
+    expect((src.match(/createSpring\(/g) ?? []).length).toBe(4);
+    // 道のりは跳ねない、大きさだけ跳ねる。
+    expect(src).toMatch(/damping: 1, response: 0\.4 \}/);
+    expect(src).toMatch(/const POP = \{ damping: 0\.6/);
+    // px で回していること（`origin.w` から `to.width` へ直に）。
+    expect(src).toMatch(/createSpring\(origin\.w, \(\) => \{\}, POP\)/);
+    // 大きさは真ん中から膨らませる（左上基準だと右下へ逃げる）。
+    expect(src).toMatch(/cx\.value\(\) - ww \/ 2/);
+  });
+
+  /**
+   * **溶けるのは、ばねではなく自分の輪が回す。**
+   *
+   * ばねに描かせると収束した瞬間に呼ばれなくなり、溶けている途中で止まる。
+   * 実測では写しが**透明度 0.287 のまま画面に残った**。
+   */
+  it("飛んでいる絵は必ず消える（ばねの収束に溶け方を任せない）", () => {
+    const src = codeOnly(read("components/HeroFlight.tsx"));
+    // ばねは値を持つだけ。描くのは自前の輪。
+    expect(src).toMatch(/createSpring\(origin\.x \+ origin\.w \/ 2, \(\) => \{\}/);
+    expect(src).toMatch(/const tick = \(\) => \{/);
+    expect(src).toMatch(/requestAnimationFrame\(tick\)/);
+    // 行き先に届かないまま力尽きても畳むこと。
+    expect(src).toMatch(/performance\.now\(\) - t0 > 1500/);
+  });
+
+  /**
+   * **検査の帯は、本物の `TabBar` を描く。**
+   *
+   * 以前ここは `AppShell` の `<nav>` を手で写していた。写しは必ずずれる —
+   * 実際、帯を浮くカプセルに作り替えたとき、この場面だけ古い帯のままだった。
+   */
+  it("ハーネスのタブ帯は本物の部品を読み込む（写しを作らない）", () => {
+    const scene = fs.readFileSync(
+      path.join(root, "../scripts/ui-harness/scenes/tabbar.tsx"),
+      "utf8",
+    );
+    expect(codeOnly(scene)).toMatch(/import \{ TabBar \} from "@\/components\/TabBar"/);
+    // 帯の枠を場面の側で書き直していないこと。
+    expect(codeOnly(scene)).not.toMatch(/<nav/);
+  });
+});
