@@ -1854,17 +1854,48 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
   const measures = ex?.measures ?? [];
   const note = ex?.note ?? "";
 
-  // 解説がまだ生成されていない語は、せめて型1つ(top_chunk)だけでも見せる。
+  /**
+   * 解説がまだ生成されていない語。**それでも空にしない。**
+   *
+   * オーナー報告 2026-09-15「復習の時に解説がない」。仕組みは在って呼ばれても
+   * いたのに、`explain` も `top_chunk` も無い語では `null` を返していたので、
+   * 答え合わせの面が「語 ＋ 読み ＋ 次へ」だけになっていた。**その語について
+   * 既に持っている物**（意味・例文）を出せば、空にはならない。
+   */
   if (!ex) {
-    if (!card.top_chunk) return null;
+    const hasExample = Boolean(card.example_sentence);
+    if (!card.top_chunk && !card.meaning_ja && !hasExample) return null;
     return (
-      <div className="mb-1 rounded-xl bg-secondary/60 px-3 py-2">
-        <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
-        <span lang="zh-Hant" className="ml-2 text-body font-semibold">
-          {card.top_chunk.zh}
-        </span>
-        {card.top_chunk.ja && (
-          <span className="ml-2 text-footnote text-muted-foreground">{card.top_chunk.ja}</span>
+      <div className="mb-1 space-y-1.5">
+        {card.top_chunk && (
+          <div className="rounded-xl bg-secondary/60 px-3 py-2">
+            <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
+            <span lang="zh-Hant" className="ml-2 text-body font-semibold">
+              {card.top_chunk.zh}
+            </span>
+            {card.top_chunk.ja && (
+              <span className="ml-2 text-footnote text-muted-foreground">{card.top_chunk.ja}</span>
+            )}
+          </div>
+        )}
+        {card.meaning_ja && (
+          <div className="rounded-xl bg-secondary/60 px-3 py-2">
+            <ExplainLabel>{t("rv.meaning")}</ExplainLabel>
+            <span className="ml-2 text-body">{card.meaning_ja}</span>
+          </div>
+        )}
+        {hasExample && (
+          <div className="rounded-xl bg-secondary/60 px-3 py-2">
+            <ExplainLabel tone="indigo">{t("rv.example")}</ExplainLabel>
+            <Term lang={card.language} className="mt-1 block text-body font-medium">
+              {card.example_sentence}
+            </Term>
+            {card.example_translation && (
+              <span className="mt-0.5 block text-footnote text-muted-foreground">
+                {card.example_translation}
+              </span>
+            )}
+          </div>
         )}
       </div>
     );
@@ -2072,7 +2103,20 @@ export function LightModeCard({
             {t("rv.whichIsAfter")}
           </div>
         </div>
-        <ul className="grid min-h-0 flex-1 grid-rows-4 gap-1">
+        {/**
+         * **高さで押し込まない。**（オーナー報告 2026-09-15「単語復習すると
+         * 注音が潰れて見える」）
+         *
+         * ここは `grid-rows-4` で、残りの高さを**4等分に押し込んで**いた。
+         * 答え合わせの面が下から出ると札の高さが縮むので、1行ぶんの高さが
+         * 2行（語＋注音）より小さくなり、**注音が語に重なって潰れる**。
+         * 声調記号（ˇ ˊ）は台湾華語でいちばん間違えやすい所なので、
+         * ここが読めないのは実害。
+         *
+         * オーナー指示「必ずしも選択肢をすべて表示する必要はない」に従い、
+         * **1つぶんの高さは中身が決め、入らなければ送る**形にした。
+         */}
+        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
           {infos.map((info) => {
             const c = info.headword;
             const isAnswer = c === card.headword;
@@ -2097,7 +2141,7 @@ export function LightModeCard({
             // ぶん狭く、しかも「押す物が2つ横に並ぶ」形だった。押す物の中に
             // 押す物は入れられないので、箱は敷いたまま音声だけ上に重ねる。
             return (
-              <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
+              <li key={c} className="relative flex shrink-0 scroll-mb-56 items-stretch">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}

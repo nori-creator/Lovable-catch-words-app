@@ -555,6 +555,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "rv.nextArrow": { ja: "次へ", en: "Next", "zh-TW": "下一個" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern", "zh-TW": "最常用的形式" },
+  // 解説がまだ生成されていない語でも、答え合わせを空にしないための見出し
+  // （オーナー報告 2026-09-15「復習の時に解説がない」）。
+  "rv.meaning": { ja: "意味", en: "Meaning", "zh-TW": "意思" },
+  "rv.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
   "rv.relatedWords": { ja: "一緒に覚える語", en: "Words to learn with it", "zh-TW": "一起記的字" },
   "rv.measureWords": { ja: "量詞", en: "Measure words", "zh-TW": "量詞" },
   "rv.goodToKnow": { ja: "知っておくと得", en: "Good to know", "zh-TW": "知道了會加分" },

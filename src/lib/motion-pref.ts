@@ -35,8 +35,21 @@ export type MotionMode = "full" | "reduce";
 /** `localStorage` の鍵。描画前スクリプトと設定画面で同じ物を使う。 */
 export const MOTION_STORAGE_KEY = "motion";
 
-/** 既定。**端末に従う** — 健康のための設定なので、勝手に上書きしない。 */
-export const DEFAULT_MOTION: MotionChoice = "system";
+/**
+ * 既定。**いまは常に「見せる」**（オーナー指示 2026-09-15
+ * 「アニメーションの設定の欄は削除して、全てのユーザーをアニメーションありにして」）。
+ *
+ * もともとは `system`（端末に従う）だった。端末の「動きを減らす」設定で
+ * アプリの演出が全部消えるのを、本人が上書きできるようにするための3択も
+ * 設定画面に置いていたが、**欄ごと消す**という判断。
+ *
+ * **これは端末の `prefers-reduced-motion` を尊重しない、ということ。**
+ * あの設定は前庭障害のある人のために在り、大きく動く絵は実害になりうる。
+ * オーナーには2度お伝えしたうえでの決定なので、そのとおりにしてある。
+ * 戻すときはここを `"system"` に戻し、`MotionChoiceRow` を設定画面へ
+ * 置き直すだけでよい（仕組みは丸ごと残してある）。
+ */
+export const DEFAULT_MOTION: MotionChoice = "full";
 
 /** `<html>` に載せる属性の名前（`dataset` 側の綴り）。 */
 export const MOTION_ATTR = "motion";

@@ -18,8 +18,19 @@ import {
 } from "./motion-pref";
 
 describe("端末の設定と、本人の選択の混ぜ方", () => {
-  it("**既定は端末に従う**（健康のための設定を勝手に上書きしない）", () => {
-    expect(DEFAULT_MOTION).toBe("system");
+  /**
+   * **既定は「常に見せる」**（オーナー指示 2026-09-15「アニメーションの
+   * 設定の欄は削除して、全てのユーザーをアニメーションありにして」）。
+   *
+   * もとは `system`（端末に従う）だった。**これは端末の
+   * `prefers-reduced-motion` を尊重しない、ということ。** あの設定は
+   * 前庭障害のある人のために在り、大きく動く絵は実害になりうる。
+   * 2度お伝えしたうえでの決定なので、そのとおりにしてある。
+   * 戻すのはここを `"system"` に戻すだけ（仕組みは丸ごと残してある）。
+   */
+  it("**既定は常に見せる**（端末の設定を見ない、というオーナー決定）", () => {
+    expect(DEFAULT_MOTION).toBe("full");
+    // 混ぜ方そのものは残してある。戻すときはここがそのまま効く。
     expect(resolveMotion("system", true)).toBe("reduce");
     expect(resolveMotion("system", false)).toBe("full");
   });
@@ -38,7 +49,7 @@ describe("端末の設定と、本人の選択の混ぜ方", () => {
 describe("保存された値の読み方", () => {
   it("知らない値・空・壊れた値はすべて既定へ倒す（`localStorage` は人が触れる）", () => {
     for (const bad of [null, undefined, "", "yes", 1, {}, "FULL"]) {
-      expect(parseMotionChoice(bad)).toBe("system");
+      expect(parseMotionChoice(bad)).toBe(DEFAULT_MOTION);
     }
   });
 

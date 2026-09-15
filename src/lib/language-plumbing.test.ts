@@ -2478,14 +2478,87 @@ describe("ホームのアルバムの長押し", () => {
    * 伸びるのは真ん中の直線部分だけ。
    */
   it("**タブの印は `scaleX` で伸ばさない**（角の丸みが潰れる）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     expect(src).not.toMatch(/scaleX\(/);
     // 幅そのものを動かす。
-    expect(src).toMatch(/el\.style\.width = `\$\{w\}px`/);
+    expect(src).toMatch(/el\.style\.width = `\$\{Math\.max\(r - l, 1\)\}px`/);
     // 丸みは高さから決めるので、幅が変わっても変わらない。
-    expect(src).toMatch(/el\.style\.borderRadius = `\$\{el\.offsetHeight \* RADIUS_RATIO\}px`/);
+    expect(src).toMatch(/el\.style\.borderRadius = `\$\{el\.offsetHeight \* radiusRatio\}px`/);
     // `rounded-full` が戻ると、また楕円になる。
     expect(src).not.toMatch(/rounded-full/);
+  });
+
+  /**
+   * **枠の形を写真に合わせる。**（オーナー報告 2026-09-15「横長だと元の
+   * 取った画像の上や下が見切れてる部分がある」）
+   *
+   * 札の形を升目から決め、写真を `object-cover` で流し込んでいたので、
+   * **形が合わない写真は必ず切られていた**。枠のほうを写真に合わせれば
+   * 切る所が無くなり、大きさを変えれば写真全体がそのまま大きくなる。
+   * 横幅は升目のまま（並びの律動は保つ）で、高さだけが写真に従う。
+   */
+  it("**枠の縦横の比は、写真そのものから取る**（上下が切れない）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/naturalHeight \/ img\.naturalWidth/);
+    // 写真がまだ読めていない札は升目の比に倒す（枠が消えない）。
+    expect(home).toMatch(/photoRatio\[s\.id\] \?\? ratioOf\(sizes\[i\]\)/);
+  });
+
+  /**
+   * **後から触った札が上。**（オーナー指示 2026-09-15「後から画像と画像を
+   * 重ねた場合は、後から重ねた部分を上に表示するようにして」）
+   *
+   * 重なりは並び順がそのまま持つので、`album_order` として保存され、
+   * 次に開いても同じ重なりで出る。
+   */
+  it("**触った札を並びの最後（＝最前面）へ送る**", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const fn = home.slice(
+      home.indexOf("function commitPlace"),
+      home.indexOf("function commitPlace") + 700,
+    );
+    expect(fn).toMatch(/return \[\.\.\.rest, moved\]/);
+    // 重なりは並び順そのもの。`i % 5` のような繰り返しに戻すと、
+    // 何番目に触ったかが重なりに出なくなる。
+    expect(home).toMatch(/z: 10 \+ i,/);
+    expect(home).not.toMatch(/z: 10 \+ \(i % 5\)/);
+  });
+
+  it("**自動の置き場所は「触った順」で変わらない**（関係ない札が動かない）", () => {
+    // 重なりのために並びを入れ替えるので、置き場所をそちらで決めると
+    // 触っていない札まで升目が繰り上がって動く。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const memo = home.slice(
+      home.indexOf("const autoById = useMemo"),
+      home.indexOf("const autoById = useMemo") + 900,
+    );
+    expect(memo).toMatch(/\[\.\.\.stickers\]/);
+    expect(memo).toMatch(/\}, \[stickers\]\);/);
+  });
+
+  /**
+   * **答え合わせで選択肢を押し込まない。**（オーナー報告 2026-09-15
+   * 「単語復習すると注音が潰れて見える」）
+   *
+   * `grid-rows-4` で残りの高さを4等分していたので、答え合わせの面が出て
+   * 札が縮むと、1行が2行（語＋注音）より小さくなり**注音が語に重なる**。
+   * 声調記号は台湾華語でいちばん間違えやすい所なので、実害。
+   */
+  it("復習の選択肢は、高さで押し込まない（注音が潰れる）", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).not.toMatch(/grid-rows-4/);
+    // 入らなければ送る（「必ずしも選択肢をすべて表示する必要はない」）。
+    expect(rv).toMatch(/flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto/);
+  });
+
+  it("解説が無い語でも、答え合わせを空にしない", () => {
+    // 仕組みは在って呼ばれてもいたのに、`explain` も `top_chunk` も無い語で
+    // `null` を返していたので「語 ＋ 読み ＋ 次へ」だけになっていた。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const fn = rv.slice(rv.indexOf("export function AnswerExplain"));
+    const fallback = fn.slice(0, fn.indexOf('return (\n    <div className="mb-1 max-h-'));
+    expect(fallback).toMatch(/card\.meaning_ja/);
+    expect(fallback).toMatch(/card\.example_sentence/);
   });
 
   it("**台紙の高さは中身から決まる**（縦は幅で測るので、伸びても札は動かない）", () => {
@@ -2923,26 +2996,26 @@ describe("キャッチの報酬演出", () => {
    * 収束する。
    */
   it("タブの印は**左右別々のばね**で動く（伸びを時間で書かない）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     // 端ごとに1本ずつ、2本。
     expect((src.match(/createSpring\(/g) ?? []).length).toBe(2);
     // 進む側と残る側で速さを変える。ここが同じだと伸びない。
-    expect(src).toMatch(/const lead = \{[^}]*response:/);
-    expect(src).toMatch(/const trail =/);
+    expect(src).toMatch(/const fast = \{[^}]*response: lead/);
+    expect(src).toMatch(/const slow = \{[^}]*response: trail/);
     // 向きで入れ替える。入れ替えないと、片方向にしか伸びない。
-    expect(src).toMatch(/goingRight \? lead : trail/);
-    expect(src).toMatch(/goingRight \? trail : lead/);
+    expect(src).toMatch(/goingRight \? fast : slow/);
+    expect(src).toMatch(/goingRight \? slow : fast/);
   });
 
   it("タブの印は**跳ねない**（押した所と違う所に居る一瞬を作らない）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     // 先に着く側は damping 1（行き過ぎ無し）。伸びは2本の差でもう出ている。
-    const lead = src.slice(src.indexOf("const lead ="));
-    expect(lead.slice(0, 80)).toMatch(/damping: 1\b/);
+    const fast = src.slice(src.indexOf("const fast ="));
+    expect(fast.slice(0, 80)).toMatch(/damping: 1\b/);
   });
 
   it("動きを減らす設定では、伸びも移動も出さない", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     const branch = src.slice(src.indexOf("if (reduced)"));
     expect(branch.slice(0, 160)).toMatch(/L\.set\(/);
     expect(branch.slice(0, 160)).toMatch(/R\.set\(/);
@@ -2956,8 +3029,8 @@ describe("キャッチの報酬演出", () => {
    * を指したままになる。しかも `cursor` は変わらないので、下の effect も
    * 走らない = **次にタブを押すまで直らない**。
    */
-  it("横向きにしても、印が正しいタブを指す（幅が変わったら値を入れ直す）", () => {
-    const src = codeOnly(read("components/TabIndicator.tsx"));
+  it("横向きにしても、印が正しい所を指す（幅が変わったら値を入れ直す）", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
     const onResize = src.slice(
       src.indexOf("const onResize"),
       src.indexOf("window.addEventListener"),
@@ -2965,9 +3038,38 @@ describe("キャッチの報酬演出", () => {
     // 描き直すだけでは足りない。値そのものを入れ直していること。
     expect(onResize).toMatch(/leftRef\.current\?\.set\(/);
     expect(onResize).toMatch(/rightRef\.current\?\.set\(/);
-    // 入れ直す値は、いまの `cursor` と**いまの**幅から出すこと。
-    expect(onResize).toMatch(/cursorRef\.current/);
-    expect(onResize).toMatch(/unit\(\)/);
+    // 入れ直す値は、いまの位置と**いまの**寸法から出すこと。
+    expect(onResize).toMatch(/indexRef\.current/);
+    expect(onResize).toMatch(/edgesAt\(/);
+  });
+
+  /**
+   * **位置は本物の兄弟を測って決める。**（オーナー指摘 2026-09-15
+   * 「アイコンが中心に来てない。バランスが悪い」）
+   *
+   * 親に内側の余白があると `clientWidth` はそれを含む一方、中の物は余白の
+   * 内側から始まる。割り算で出した位置は左にずれ、1つぶんの幅も広すぎる。
+   * 下のタブでは5番目で**約 21px のずれ**になっていた（実測 0px に）。
+   */
+  it("**印の位置は割り算で出さない**（アイコンの中心からずれる）", () => {
+    const src = codeOnly(read("components/SlidingIndicator.tsx"));
+    expect(src).toMatch(/getBoundingClientRect\(\)/);
+    expect(src).not.toMatch(/clientWidth \/ Math\.max\(count/);
+  });
+
+  /**
+   * **同じ印を、全部の切り替えに使う。**（オーナー指示 2026-09-15
+   * 「全ての切り替え機能の切り替えのボタンを押した時、必ず…残像感、
+   * 滑らか感を出して。例えば設定の変更のボタン」）
+   */
+  it("設定の丸い選択肢も、下のタブと**同じ印**で滑る", () => {
+    const st = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(st).toMatch(/<SlidingIndicator/);
+    // 丸いボタンなので真円のカプセル。
+    expect(st).toMatch(/radiusRatio=\{0\.5\}/);
+    // 印が滑ってくるので、選ばれたボタンが自分で地を塗ると滑って見えない。
+    const cls = st.slice(st.indexOf("value === o.value"), st.indexOf("value === o.value") + 200);
+    expect(cls).not.toMatch(/bg-primary\b/);
   });
 });
 
