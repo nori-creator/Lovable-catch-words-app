@@ -3465,10 +3465,48 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 素の `<select>` は iOS でだけ OS の輪が開き、Android とブラウザでは
    * ただの一覧が落ちてくる。同じアプリが端末で別物になっていた。
    */
-  it("設定の言語とレベルは、素の `<select>` ではなく輪で選ぶ", () => {
+  it("設定の言語とレベルは、押すと開く行で選ぶ（素の `<select>` ではない）", () => {
     const st = codeOnly(read("routes/_authenticated/settings.tsx"));
-    expect((st.match(/<WheelPicker/g) ?? []).length).toBe(4);
+    expect((st.match(/<PickerRow/g) ?? []).length).toBe(4);
     expect(st).not.toMatch(/<SelectRow/);
+  });
+
+  /**
+   * **iOS の「設定」の行に倣う**（オーナー指示 2026-09-15「設定の縦のスクロール
+   * 元のあれに戻して、その元の設定をタップしたら選択肢がスクロールできるように
+   * 2段階にしたい。Apple の公式のデザイン調べて同じもの再現して」）。
+   *
+   * 輪を4つ並べていた版は、**設定を眺めたいだけの人にも輪が居座る**ので
+   * 画面がどこまでも縦に伸びた。畳んでおけば、いま何が選ばれているかは
+   * 1行で読める。
+   */
+  it("畳んでいる行でも「いま選んでいる値」が読める", () => {
+    const src = codeOnly(read("components/PickerRow.tsx"));
+    // 左に項目名、右にいまの値、右端に開閉の印。
+    expect(src).toMatch(/options\.find\(\(o\) => o\.value === value\)\?\.label/);
+    expect(src).toMatch(/className="picker-row__value"/);
+    expect(src).toMatch(/<ChevronDown/);
+    // 開いているかを読み上げにも伝える。
+    expect(src).toMatch(/aria-expanded=\{open\}/);
+    expect(src).toMatch(/aria-controls=\{bodyId\}/);
+    // 指の下限。
+    expect(read("styles.css")).toMatch(/\.picker-row__head \{[^}]*min-height: 44px;/);
+  });
+
+  /**
+   * **輪は畳んでいる間も置いたままにする。**
+   * 開いた瞬間に作ると、高さ 0 の箱の中で位置を合わせることになり、
+   * 選んでいる行が真ん中に来ない（実測 0px に）。
+   */
+  it("行を開け閉めしても輪は作り直さない", () => {
+    const src = codeOnly(read("components/PickerRow.tsx"));
+    // 開いている時だけ描く、になっていないこと。
+    expect(src).not.toMatch(/\{open && <WheelPicker/);
+    expect(src).toMatch(/<WheelPicker/);
+    // 高さは 0fr ↔ 1fr で動かす（`max-height` の当てずっぽうにしない）。
+    const css = read("styles.css");
+    expect(css).toMatch(/\.picker-row__body \{[^}]*grid-template-rows: 0fr;/);
+    expect(css).toMatch(/\.picker-row__body\[data-open\] \{\s*grid-template-rows: 1fr;/);
   });
 
   /**
@@ -3522,6 +3560,102 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 画面ごとに `AppShell` を描いているので、押した瞬間に殻ごと作り直される。
    * 覆いを状態で持つと、演出が始まる前に持ち主が消える。
    */
+  /**
+   * **「いまその行き先に居るか」の判定を、1箇所にまとめる。**
+   * （オーナー報告 2026-09-15「2回目カメラボタン押した時にすでに表示されて
+   * いるのにもう1回重ねてカメラのアニメーションが表示されてる」）
+   *
+   * 末尾に `/` が付くことがある（`/capture` と `/capture/` の両方が来る）。
+   * 並びの番号を出す所だけがそれを見ていて、押した時の判定とカメラの丸の色は
+   * 素の `===` のままだった。だから**カメラの画面に居るのに「居ない」**と
+   * 判断され、押すたびに演出が走っていた。
+   */
+  it("行き先に居るかの判定は1箇所で、末尾の `/` も見る", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    expect(shell).toMatch(
+      /const atPath = \(to: string\) =>\s*pathname === to \|\| pathname === `\$\{to\}\/`/,
+    );
+    // 3箇所とも同じ物を使っていること。
+    expect(shell).toMatch(/items\.findIndex\(\(i\) => atPath\(i\.to\)\)/);
+    expect(shell).toMatch(/const isCurrent = atPath\(to\)/);
+    expect(shell).toMatch(/if \(!isCurrent\) playCameraLaunch\(\)/);
+    // 素の比較が残っていないこと。
+    expect(shell).not.toMatch(/pathname === "\/capture"/);
+    expect(shell).not.toMatch(/pathname !== "\/capture"/);
+  });
+
+  /**
+   * **走っている間の押下は黙って捨てる。**
+   * 「消してから出し直す」にすると、連打で同じ絵が頭から何度も始まり、
+   * 見ている側には「もう1回重ねて出た」と映る。
+   */
+  it("開く演出は1回の操作に1つ（連打で出し直さない）", () => {
+    const lib = codeOnly(read("lib/camera-launch.ts"));
+    expect(lib).toMatch(/if \(live\) return;/);
+  });
+
+  /**
+   * **撮る画面を、暇なうちに取っておく。**（オーナー報告 2026-09-15
+   * 「カメラを開いた時に、実際にカメラが開くまで5秒ぐらいラグがある」）
+   *
+   * 録画を1コマずつ見ると、押した直後に下のタブの選択だけが変わり、
+   * **中身はホームのまま5秒**続いていた。待っているのはカメラではなく、
+   * 撮る画面そのものの到着。
+   */
+  it("撮る画面は、開いた後の暇な時間に先に取っておく", () => {
+    expect(codeOnly(read("router.tsx"))).toMatch(/defaultPreload: "intent"/);
+    const warm = codeOnly(read("hooks/use-warm-camera.ts"));
+    expect(warm).toMatch(/preloadRoute\(\{ to: "\/capture" \}\)/);
+    // 1回だけ（殻は画面ごとに描き直される）。
+    expect(warm).toMatch(/^let warmed = false;$/m);
+    // いま見ている画面より先に取りに行かない。
+    expect(warm).toMatch(/requestIdleCallback/);
+    expect(codeOnly(read("components/AppShell.tsx"))).toMatch(/useWarmCamera\(\)/);
+  });
+
+  /**
+   * **切り抜きの模型を、画面が出るより先に取りに行かない。**
+   * ONNX の実行時は測って 762KB（`ort.bundle` と `ort.webgpu.bundle` で
+   * 381KB ずつ）。開いた瞬間のいちばん細い回線を、カメラの映像と奪い合う。
+   */
+  it("切り抜きの模型は、暇になってから温める", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const at = cap.indexOf("preloadCutout()");
+    expect(at).toBeGreaterThan(0);
+    // 素の `useEffect(() => { preloadCutout(); }, [])` に戻っていないこと。
+    expect(cap).not.toMatch(/useEffect\(\(\) => \{\s*preloadCutout\(\);\s*\}, \[\]\)/);
+    expect(cap).toMatch(/requestIdleCallback/);
+  });
+
+  /**
+   * **ホームのアルバムは、上からポンと貼られる。**（オーナー指示 2026-09-15
+   * 「壁紙ではなくアルバムが上からポンと貼られるようなアニメーションに」）
+   */
+  it("アルバムの登場は「めくる」ではなく「貼る」", () => {
+    const css = read("styles.css");
+    expect(css).toMatch(/@keyframes album-stamp \{/);
+    expect(css).toMatch(/\.album-open \{[^}]*animation: album-stamp/);
+    // 本を開く動き（綴じ目を軸に回す）が残っていないこと。
+    const open = css.slice(css.indexOf(".album-open {"), css.indexOf(".album-open {") + 200);
+    expect(open).not.toMatch(/rotateY/);
+    expect(open).not.toMatch(/transform-origin: left center/);
+  });
+
+  /**
+   * **面が出るのを、絵が飛び終わる頃まで待たせる。**（オーナー報告 2026-09-15
+   * 「画像が同じものが二重になって表示されてる」）
+   *
+   * 押した瞬間から面を濃くすると、その間**後ろのアルバムが透けて見える**。
+   * 面の中には大きな写真、後ろにはアルバムの写真 — 写真の上に写真が
+   * 半分ずつ重なるので二重写しになる。
+   */
+  it("札の面は、飛んでいる絵が着く頃から濃くなる", () => {
+    const css = read("styles.css");
+    const rule = css.slice(css.indexOf(".sheet-fade-in {"), css.indexOf(".sheet-hero-hidden"));
+    const m = rule.match(/animation: sheet-fade-in ([\d.]+)s [^;]*?\s([\d.]+)s backwards;/);
+    expect([!!m, m && Number(m[2]) >= 0.15]).toEqual([true, true]);
+  });
+
   it("カメラの演出は画面の入れ替わりで消えない（状態に持たない）", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     expect(shell).toMatch(/playCameraLaunch\(\)/);

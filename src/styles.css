@@ -1686,6 +1686,70 @@ html[data-motion="reduce"] {
    ## 透けさせないのは以前からの指定
    参照(App Store)はガラスだが、この帯は「後ろは透けない(NORI指定)」で
    不透明に決めてある。今回の指示は**形と配り**の話なので、そこは変えない。 */
+/* ── 設定の1行（押すと下から輪が開く）`components/PickerRow.tsx` ───────
+   iOS の「設定」の行に倣う: 左に項目名・右にいまの値・右端に開閉の印。 */
+.picker-row {
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--foreground) 3%, var(--background));
+}
+.picker-row__head {
+  display: flex;
+  width: 100%;
+  min-height: 44px; /* 指の下限(HIG §11) */
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+}
+.picker-row__label {
+  font-size: var(--text-field, 1rem);
+  font-weight: 500;
+  color: var(--foreground);
+}
+/* いまの値。**控えめな色**で、項目名と役割を分ける(HIG: secondary label)。 */
+.picker-row__value {
+  margin-inline-start: auto;
+  font-size: var(--text-field, 1rem);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-row__chevron {
+  height: 1rem;
+  width: 1rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 0.22s var(--ease-ios);
+}
+.picker-row__chevron[data-open] {
+  transform: rotate(180deg);
+}
+/* 開け閉め。**`height: auto` を滑らかに動かせる唯一の書き方**が 0fr ↔ 1fr。
+   `max-height` の当てずっぽうだと、選択肢の数で速さが変わる。 */
+.picker-row__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s var(--ease-ios);
+}
+.picker-row__body[data-open] {
+  grid-template-rows: 1fr;
+}
+.picker-row__inner {
+  overflow: hidden;
+  min-height: 0;
+  padding-inline: 0.5rem;
+}
+.picker-row__body[data-open] .picker-row__inner {
+  padding-bottom: 0.5rem;
+}
+html[data-motion="reduce"] {
+  .picker-row__chevron,
+  .picker-row__body {
+    transition: none;
+  }
+}
+
 /* ── 指で転がして選ぶ輪（`components/WheelPicker.tsx`）─────────────────
    転がすのはブラウザの巻き取りそのもの。ここが持つのは見た目だけ。 */
 .wheel {
@@ -1880,7 +1944,21 @@ html[data-motion="reduce"] .group:active .tabbar__lens {
   }
 }
 .sheet-fade-in {
-  animation: sheet-fade-in 0.22s var(--ease-ios) backwards;
+  /**
+   * **面が出るのを、絵が飛び終わる頃まで待たせる。**（オーナー報告
+   * 2026-09-15「画像が同じものが二重になって表示されてる」）
+   *
+   * ここは押した瞬間から 0.22 秒かけて面を濃くしていた。面の地は
+   * `material-thick`(95%) なので、その間**後ろのアルバムが透けて見える**。
+   * 面の中には開いた札の大きな写真、後ろにはアルバムの写真 —
+   * 写真の上に写真が半分ずつ重なるので、二重写しにしか見えない。
+   *
+   * 飛んでいる絵は 0.3 秒ほどで行き先の大きさに届く（実測）。そこまでは
+   * **アルバムと、飛んでいる1枚だけ**が見えているのが正しい。
+   * 0.18 秒待ってから 0.16 秒で濃くすると、重なるのは面の地と文字だけで、
+   * 写真どうしが混ざる瞬間が無くなる。
+   */
+  animation: sheet-fade-in 0.16s var(--ease-ios) 0.18s backwards;
 }
 /* 飛んでいる間だけ、本物の見出しを伏せる（`components/HeroFlight.tsx`）。
    `visibility` にするのは、場所を取ったまま消したいから — `display: none`
@@ -2364,27 +2442,54 @@ html[data-motion="reduce"] {
   --mem-4: oklch(0.84 0.14 160);
   --mem-5: oklch(0.8 0.13 245);
 }
-/* ── アルバムの表紙が開く ──────────────────────────────────
-   オーナー指摘⑪「アルバムを開く演出」。本を開く動きなので、綴じ目
-   (左端)を軸に回す。ページをめくる `.page-turn` より角度を大きく、
-   時間も長めにして「表紙」と「中の紙」を区別する。
+/* ── アルバムが上からポンと貼られる ──────────────────────────────────
+   オーナー指示 2026-09-15:
+   > 「今ホーム画面開いたら画像の壁紙がめくれるようにアニメーションあるけど、
+   >  そうでなく壁紙ではなくアルバムが上からポンと貼られるようなアニメーション
+   >  に変更したい。」
 
-   **1回開いたら二度と回さない。** ホームは1日に何度も開く画面なので、
-   毎回2秒の演出が挟まると邪魔にしかならない(呼ぶ側が付け外しする)。 */
-@keyframes album-open {
-  from {
-    transform: perspective(1400px) rotateY(-84deg);
-    opacity: 0.2;
+   ## 前は「表紙がめくれる」だった
+   綴じ目(`transform-origin: left center`)を軸に `rotateY(-84deg)` から開く、
+   本を開く動き。620ms かかるうえ、**紙が横から回り込んでくる**ので、
+   開いた瞬間のいちばん見たいもの（今日の写真）が斜めに歪んだまま半分見える。
+
+   ## いまは「上から貼る」
+   写真を台紙に置く手つき。少し上・少し大きい所から降りてきて、
+   台紙に触れた所でほんの少し行き過ぎて落ち着く。
+
+   `translate` と `scale` は**別々の property** で書く。`transform` に
+   まとめると、中の札が持っているインラインの `transform` と取り合いになる
+   （アルバムで一度やった失敗。`components/…` の注を参照）。ここは親なので
+   実害は無いが、同じ書き方で揃えておく。
+
+   ## 跳ねは 4% まで
+   「ポン」は行き過ぎてこそ出るが、台紙は画面の幅いっぱいなので、
+   大きく跳ねると**縁が画面からはみ出して見える**。1.04 → 1.00 で足りる。
+
+   **1回貼ったら二度と貼り直さない。** ホームは1日に何度も開く画面なので、
+   毎回演出が挟まると邪魔にしかならない(呼ぶ側が付け外しする)。 */
+@keyframes album-stamp {
+  0% {
+    translate: 0 -18px;
+    scale: 1.04;
+    opacity: 0;
   }
-  to {
-    transform: perspective(1400px) rotateY(0deg);
+  55% {
+    opacity: 1;
+  }
+  70% {
+    translate: 0 0;
+    scale: 0.992;
+  }
+  100% {
+    translate: 0 0;
+    scale: 1;
     opacity: 1;
   }
 }
 .album-open {
-  transform-origin: left center;
-  animation: album-open 620ms cubic-bezier(0.25, 0.8, 0.3, 1) both;
-  backface-visibility: hidden;
+  transform-origin: 50% 0%;
+  animation: album-stamp 420ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 html[data-motion="reduce"] {
   .album-open {

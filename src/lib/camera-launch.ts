@@ -31,13 +31,15 @@ let live: { el: HTMLElement; timer: number } | null = null;
 
 export function playCameraLaunch(): void {
   if (typeof document === "undefined") return;
-  // 連打。**前のを消してから出し直す** — 重ねると2枚目が1枚目の上で
-  // 同じ絵を描き、縁が二重に見える。
-  if (live) {
-    window.clearTimeout(live.timer);
-    live.el.remove();
-    live = null;
-  }
+  /**
+   * **もう出ているなら、何もしない。**
+   *
+   * 前は「消してから出し直す」にしていた。重ならないので一見正しいが、
+   * 連打すると**同じ絵が頭から何度も始まる**ので、見ている側には
+   * 「もう1回重ねて出た」と映る（オーナー報告 2026-09-15）。
+   * 開く演出は1回の操作に1つ。走っている間の押下は黙って捨てる。
+   */
+  if (live) return;
   const el = document.createElement("div");
   el.className = "camera-launch";
   el.setAttribute("aria-hidden", "true");
