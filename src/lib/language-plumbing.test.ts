@@ -2488,6 +2488,79 @@ describe("ホームのアルバムの長押し", () => {
     expect(src).not.toMatch(/rounded-full/);
   });
 
+  /**
+   * **枠の形を写真に合わせる。**（オーナー報告 2026-09-15「横長だと元の
+   * 取った画像の上や下が見切れてる部分がある」）
+   *
+   * 札の形を升目から決め、写真を `object-cover` で流し込んでいたので、
+   * **形が合わない写真は必ず切られていた**。枠のほうを写真に合わせれば
+   * 切る所が無くなり、大きさを変えれば写真全体がそのまま大きくなる。
+   * 横幅は升目のまま（並びの律動は保つ）で、高さだけが写真に従う。
+   */
+  it("**枠の縦横の比は、写真そのものから取る**（上下が切れない）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/naturalHeight \/ img\.naturalWidth/);
+    // 写真がまだ読めていない札は升目の比に倒す（枠が消えない）。
+    expect(home).toMatch(/photoRatio\[s\.id\] \?\? ratioOf\(sizes\[i\]\)/);
+  });
+
+  /**
+   * **後から触った札が上。**（オーナー指示 2026-09-15「後から画像と画像を
+   * 重ねた場合は、後から重ねた部分を上に表示するようにして」）
+   *
+   * 重なりは並び順がそのまま持つので、`album_order` として保存され、
+   * 次に開いても同じ重なりで出る。
+   */
+  it("**触った札を並びの最後（＝最前面）へ送る**", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const fn = home.slice(
+      home.indexOf("function commitPlace"),
+      home.indexOf("function commitPlace") + 700,
+    );
+    expect(fn).toMatch(/return \[\.\.\.rest, moved\]/);
+    // 重なりは並び順そのもの。`i % 5` のような繰り返しに戻すと、
+    // 何番目に触ったかが重なりに出なくなる。
+    expect(home).toMatch(/z: 10 \+ i,/);
+    expect(home).not.toMatch(/z: 10 \+ \(i % 5\)/);
+  });
+
+  it("**自動の置き場所は「触った順」で変わらない**（関係ない札が動かない）", () => {
+    // 重なりのために並びを入れ替えるので、置き場所をそちらで決めると
+    // 触っていない札まで升目が繰り上がって動く。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const memo = home.slice(
+      home.indexOf("const autoById = useMemo"),
+      home.indexOf("const autoById = useMemo") + 900,
+    );
+    expect(memo).toMatch(/\[\.\.\.stickers\]/);
+    expect(memo).toMatch(/\}, \[stickers\]\);/);
+  });
+
+  /**
+   * **答え合わせで選択肢を押し込まない。**（オーナー報告 2026-09-15
+   * 「単語復習すると注音が潰れて見える」）
+   *
+   * `grid-rows-4` で残りの高さを4等分していたので、答え合わせの面が出て
+   * 札が縮むと、1行が2行（語＋注音）より小さくなり**注音が語に重なる**。
+   * 声調記号は台湾華語でいちばん間違えやすい所なので、実害。
+   */
+  it("復習の選択肢は、高さで押し込まない（注音が潰れる）", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).not.toMatch(/grid-rows-4/);
+    // 入らなければ送る（「必ずしも選択肢をすべて表示する必要はない」）。
+    expect(rv).toMatch(/flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto/);
+  });
+
+  it("解説が無い語でも、答え合わせを空にしない", () => {
+    // 仕組みは在って呼ばれてもいたのに、`explain` も `top_chunk` も無い語で
+    // `null` を返していたので「語 ＋ 読み ＋ 次へ」だけになっていた。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const fn = rv.slice(rv.indexOf("export function AnswerExplain"));
+    const fallback = fn.slice(0, fn.indexOf('return (\n    <div className="mb-1 max-h-'));
+    expect(fallback).toMatch(/card\.meaning_ja/);
+    expect(fallback).toMatch(/card\.example_sentence/);
+  });
+
   it("**台紙の高さは中身から決まる**（縦は幅で測るので、伸びても札は動かない）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).toMatch(/const boardH = useMemo\(\(\) => boardHeight\(items\)/);

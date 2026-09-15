@@ -738,8 +738,43 @@ export function ScrapbookAlbum({
     () => ordered.map((s, i) => s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length]),
     [ordered],
   );
-  /** まだ自分で置いていない札を、**昔の升目とまったく同じ所**へ。 */
-  const autoCells = useMemo(() => packAuto(sizes), [sizes]);
+  /**
+   * まだ自分で置いていない札の、昔の升目とまったく同じ置き場所。
+   *
+   * **`ordered` ではなく、表から届いた並び（`stickers`）で決める。**
+   * 重なり順のために `ordered` を入れ替えるので（下の `bringToFront`）、
+   * そちらで決めると**触った札とは関係のない札まで升目が繰り上がって動く**。
+   * 置き場所は「その札が何番目に撮られたか」で決まるべきで、
+   * 「さっき誰を触ったか」で変わってはいけない。
+   */
+  const autoById = useMemo(() => {
+    const base = [...stickers].sort(
+      (a, b) =>
+        (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
+    );
+    const cells = packAuto(
+      base.map((s, i) => s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length]),
+    );
+    const map = new Map<string, Placement>();
+    base.forEach((s, i) => {
+      const size = s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length];
+      map.set(s.id, placeFromCell(cells[i], size, s.id));
+    });
+    return map;
+  }, [stickers]);
+  /**
+   * 写真そのものの縦横の比。**読み込めた札はこちらを使う。**
+   *
+   * オーナー報告 2026-09-15「横長だと元の取った画像の上や下が見切れてる
+   * 部分がある」。札の形を升目から決め、写真は `object-cover` で流し込んで
+   * いたので、**形が合わない写真は必ず切られていた**（横長の写真を縦長の
+   * 枠に入れれば、上下が落ちる）。
+   *
+   * 枠の形を**写真に合わせる**のがいちばん素直な答え。切る所が無くなるので、
+   * 大きさを変えれば写真全体がそのまま大きくなる。横幅は升目のまま
+   * （並びの律動は保つ）で、高さだけが写真に従う。
+   */
+  const [photoRatio, setPhotoRatio] = useState<Record<string, number>>({});
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -752,13 +787,23 @@ export function ScrapbookAlbum({
          */
         place: placementFrom(
           { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-          placeFromCell(autoCells[i], sizes[i], s.id),
+          autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, sizes[i], s.id),
         ),
-        /** 縦横の比。最初の大きさで決まり、指で広げても変わらない。 */
-        ratio: ratioOf(sizes[i]),
-        z: 10 + (i % 5),
+        /**
+         * 縦横の比。**写真が読めていれば写真の比**、まだなら升目の比。
+         * 指で広げても比は変わらない（横長の写真が縦長にならない）。
+         */
+        ratio: photoRatio[s.id] ?? ratioOf(sizes[i]),
+        /**
+         * 重なりの順。**並びの後ろほど上。**（オーナー指示 2026-09-15
+         * 「後から画像と画像を重ねた場合は、後から重ねた部分を上に表示する」）
+         * 触った札を並びの最後へ送るので（`bringToFront`）、最後に触った物が
+         * いちばん上に来る。`album_order` がそのまま保存されるので、
+         * 次に開いても同じ重なりで出る。
+         */
+        z: 10 + i,
       })),
-    [ordered, autoCells, sizes],
+    [ordered, autoById, sizes, photoRatio],
   );
   /**
    * 台紙の高さ（幅に対する割合）。**中身から決める。**
@@ -771,7 +816,7 @@ export function ScrapbookAlbum({
       const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
       const p = placementFrom(
         { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-        placeFromCell(autoCells[order] ?? { col: 0, row: 0 }, size, s.id),
+        autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
       );
       return {
         sticker_id: s.id,
@@ -810,16 +855,29 @@ export function ScrapbookAlbum({
       () => toast.error(t("home.placementSaveFailed")),
     );
   }
-  /** 置き方を書き戻す。**指を離したときだけ**呼ぶ。 */
+  /**
+   * 置き方を書き戻し、**その札を並びの最後（＝いちばん上）へ送る**。
+   * **指を離したときだけ**呼ぶ。
+   *
+   * オーナー指示 2026-09-15「後から画像と画像を重ねた場合は、後から重ねた
+   * 部分を上に表示するようにして」。重なりは並び順 `album_order` がそのまま
+   * 持つので、次に開いても同じ重なりで出る。
+   */
   function commitPlace(id: string, p: Placement) {
     changed.current = true;
-    setOrdered((xs) =>
-      xs.map((s) =>
-        s.id === id
-          ? { ...s, album_x: p.x, album_y: p.y, album_scale: p.scale, album_rot: p.rot }
-          : s,
-      ),
-    );
+    setOrdered((xs) => {
+      const i = xs.findIndex((s) => s.id === id);
+      if (i < 0) return xs;
+      const moved = {
+        ...xs[i],
+        album_x: p.x,
+        album_y: p.y,
+        album_scale: p.scale,
+        album_rot: p.rot,
+      };
+      const rest = xs.filter((_, k) => k !== i);
+      return [...rest, moved];
+    });
   }
 
   /**
@@ -1223,6 +1281,14 @@ export function ScrapbookAlbum({
                 {heroUrl ? (
                   <div className="h-full w-full overflow-hidden">
                     <CachedImg
+                      onLoad={(e) => {
+                        // 写真そのものの比を控える。**枠の形をこれに合わせる**
+                        // ので、上下も左右も切られなくなる。
+                        const img = e.currentTarget;
+                        if (!img.naturalWidth || !img.naturalHeight) return;
+                        const r = img.naturalHeight / img.naturalWidth;
+                        setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
+                      }}
                       src={heroUrl}
                       alt={t("common.memoryOf", { word: s.word.headword })}
                       loading="lazy"
