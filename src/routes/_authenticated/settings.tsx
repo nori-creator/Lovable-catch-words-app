@@ -1193,6 +1193,9 @@ export function PhotoLibrarySyncToggle() {
           setPhotoLibrarySyncEnabled(next);
         }}
       />
+      <p className="pr-12 text-caption text-muted-foreground">
+        {t("settings.photoLibrarySyncHint")}
+      </p>
     </div>
   );
 }
