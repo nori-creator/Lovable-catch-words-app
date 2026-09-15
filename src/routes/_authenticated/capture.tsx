@@ -57,8 +57,10 @@ import { tStatic } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Capacitor } from "@capacitor/core";
-import { isPhotoLibrarySyncEnabled } from "@/lib/photo-library-sync";
-import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
+import {
+  photoLibrarySaveRequiresUserGesture,
+  saveCaptureToPhotoLibrary,
+} from "@/lib/device-photo-library";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   validateSearch: (
@@ -298,7 +300,9 @@ function CapturePage() {
         source: CameraSource.Camera,
         resultType: CameraResultType.Uri,
         quality: 90,
-        saveToGallery: isPhotoLibrarySyncEnabled(),
+        // 撮っただけでは保存しない。「図鑑に追加」が成功した後にだけ
+        // saveCaptureToPhotoLibrary() へ渡す。
+        saveToGallery: false,
         correctOrientation: true,
       });
       if (!photo.webPath) return;
@@ -434,9 +438,6 @@ function CapturePage() {
       const url = await fileToDataUrl(file);
       const compressed = await compressImage(url, 1600);
       setObjectImg(compressed);
-      // ブラウザのfile input経路は端末カメラ側で保存されない場合がある。
-      // ネイティブCamera経路はsaveToGallery済みなので二重保存しない。
-      if (!Capacitor.isNativePlatform()) void saveCaptureToPhotoLibrary(compressed);
       const queued = await enqueueCapture({
         object_img: compressed,
         selfie_img: null,
@@ -923,6 +924,9 @@ function CapturePage() {
    */
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
+    // Webのダウンロードは、クリックから通信を1回でも待つとブラウザに止められる。
+    // そのためWebだけはこの瞬間、ネイティブはDB保存の成功後に実行する。
+    if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
     const hero = cutoutImg ?? objectImg;
     // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
     // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
@@ -955,6 +959,9 @@ function CapturePage() {
     const savePromise = doSave(card, selectedHead).then((res) => {
       savedId = res.id;
       savedRef.current = true;
+      // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
+      // キャッチを巻き戻さないため、ここは待たずに実行する。
+      if (objectImg && !photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
       return res;
     });
     // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
@@ -1056,6 +1063,7 @@ function CapturePage() {
    */
   async function recordReencounter(objectImg: string | null, cutoutImg: string | null) {
     if (!reenc || reencResult || reencSubmittingRef.current) return;
+    if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
     reencSubmittingRef.current = true;
     try {
       // 再会も「どこで会い直したか」が残るべき記録。
@@ -1093,6 +1101,7 @@ function CapturePage() {
         next_due_at: res.next_due_at,
         photo_saved: !!(image_path || cutout_path),
       });
+      if (objectImg && !photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
     } catch (e) {
@@ -1101,6 +1110,12 @@ function CapturePage() {
     } finally {
       reencSubmittingRef.current = false;
     }
+  }
+
+  function syncPhotoToDevice(dataUrl: string) {
+    void saveCaptureToPhotoLibrary(dataUrl).then((result) => {
+      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+    });
   }
 
   return (
