@@ -4174,6 +4174,10 @@ html[data-motion="reduce"] .camera-flip:active {
 
 .camera-modes__item {
   flex: 1 1 0;
+  /* **印の上に字を出す。** 印（`SlidingIndicator`）は絶対配置の兄弟なので、
+     ここが積み重なりの文脈に入っていないと字が印の下に潜る。 */
+  position: relative;
+  z-index: 1;
   /* 押せる高さは 44px を割らない（HIG §11）。 */
   min-height: 44px;
   padding: 0 4px;
@@ -4190,35 +4194,19 @@ html[data-motion="reduce"] .camera-flip:active {
     font-weight 200ms ease-out;
 }
 
-/* 仕切りの細い縦線（参考画像）。**いちばん右には引かない。** */
-.camera-modes__item + .camera-modes__item {
-  border-left: 1px solid color-mix(in srgb, var(--cam-ink) 22%, transparent);
-}
+/**
+ * **仕切りの線は引かない。**（2026-09-16、印をバブルに替えたとき）
+ *
+ * 参考画像に線が在ったのは、選ばれている物の印が小さな点1つだったから。
+ * 滑るバブルが選択を囲むようになった以上、線はバブルを横切るだけで、
+ * 区切る仕事はもう終わっている。
+ */
 
 .camera-modes__item[data-on] {
   color: var(--cam-paper);
   font-weight: 700;
 }
 
-/**
- * いまどれに居るかの点。**測らずに置く。**
- *
- * 3つは等分なので中心は幅の 1/6・3/6・5/6 に必ず来る。測ってから置く形に
- * すると、最初の1コマだけ左端に出る（この作業で何度も踏んだ罠）。
- */
-.camera-modes__dot {
-  position: absolute;
-  bottom: -2px;
-  width: 6px;
-  height: 6px;
-  margin-left: -3px;
-  border-radius: 9999px;
-  background: var(--cam-accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--cam-accent) 70%, transparent);
-  transition: left 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-html[data-motion="reduce"] .camera-modes__dot,
 html[data-motion="reduce"] .camera-modes__item {
   transition: none;
 }

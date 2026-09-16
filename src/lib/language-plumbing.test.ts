@@ -3927,29 +3927,36 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **撮り方は横に3つ並べ、選ばれている物の下に点を置く。**（オーナー指示
-   * 2026-09-16「カメラの開いた画面これを再現してほしい」／参考画像）
+   * **撮り方は横に3つ。左から 検索 → 撮影 → スキャン。**（オーナー指示
+   * 2026-09-16「真ん中に撮影、右にスキャン、左に検索にして」）
    *
-   * 直前はシャッターを囲むダイヤルだった。回せはするが、**3つの名前が
-   * いつも同時に読めるわけではない**（真上に来た1つだけ）。参考画像の形は
-   * iPhone のカメラと同じで、3つが常に並び、いまどれかが点1つで分かる。
+   * 既定の撮影が**真ん中**なので、どちらへ払っても1回で隣に着く。左端に
+   * 置いていたときは、スキャンへ行くのに2回ぶん払う人が出ていた。
    *
-   * 並びは左から 撮影 → スキャン → 検索。**押したら既定は撮影**なので、
-   * 真ん中ではなく左端が撮影でよい。
+   * 印は**このアプリの他の切り替えと同じ滑って伸びるバブル**（オーナー指示
+   * 2026-09-16「青い点ではなく、設定のスライドと同じように残像感のある
+   * バブルを採用して」）。下のタブでも設定の選択肢でも使っている
+   * `SlidingIndicator` をそのまま置く — 同じ切り替えの見え方を画面ごとに
+   * 作り分けない。
    */
-  it("撮り方は横に3つ並び、点が選ばれている物の下に来る", () => {
+  it("撮り方は 検索・撮影・スキャン の順で、印は滑るバブル", () => {
     const src = codeOnly(read("components/CameraChrome.tsx"));
     expect(src).toMatch(
-      /export const CAMERA_MODES: CameraMode\[\] = \["photo", "scan", "search"\];/,
+      /export const CAMERA_MODES: CameraMode\[\] = \["search", "photo", "scan"\];/,
     );
     expect(src).toMatch(/export function CameraModeStrip\(/);
+    // 印は他の切り替えと同じ部品。自前の点を描き足さない。
+    expect(src).toMatch(/<SlidingIndicator/);
+    expect(src).toMatch(/persistKey="camera-modes"/);
+    expect(src).not.toMatch(/camera-modes__dot/);
+    expect(read("styles.css")).not.toMatch(/\.camera-modes__dot \{/);
     /**
-     * 点は**測らずに置く**。3つは等分なので中心は 1/6・3/6・5/6 に必ず来る。
-     * 測ってから置く形にすると、最初の1コマだけ左端に出る。
+     * `SlidingIndicator` は**自分以外の兄弟を実測**して位置を決めるので、
+     * 箱の**最初の子**でなければならない。後ろに置くと、測る対象に自分より
+     * 前の物しか入らず、位置がずれる。
      */
-    expect(src).toMatch(
-      /left: `\$\{\(\(index \* 2 \+ 1\) \/ \(CAMERA_MODES\.length \* 2\)\) \* 100\}%`/,
-    );
+    const strip = src.slice(src.indexOf('role="tablist"'));
+    expect(strip.indexOf("<SlidingIndicator")).toBeLessThan(strip.indexOf("CAMERA_MODES.map"));
     // シャッターの絵は撮り方ごと（オーナー指示「アイコン変更して」）。
     expect(src).toMatch(/export const SHUTTER_ICON: Record<CameraMode, typeof Camera>/);
     for (const icon of ["photo: Camera", "search: Search", "scan: ScanLine"]) {
@@ -3958,6 +3965,26 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // ダイヤルは**消した**。同じ役目の部品を2つ残さない。
     expect(() => read("components/CameraDial.tsx")).toThrow();
     expect(read("styles.css")).not.toMatch(/\.camera-dial__arc \{/);
+  });
+
+  /**
+   * **「写真」はこのアプリで撮った写真を出す。**（オーナー指示 2026-09-16
+   * 「写真はこのアプリを通じて過去に撮った写真を表示する。端末の写真から
+   *  単語を捕まえるわけではない」）
+   *
+   * 絵柄は決め打ちの記号ではなく、**いちばん新しく捕まえた1枚**。押すと
+   * ホーム（アルバム）へ。端末の写真フォルダは開かない。
+   */
+  it("「写真」はアプリの中の写真を出す（端末の写真は開かない）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    // アプリの札から、写真を持っているいちばん新しい1枚を選ぶ。
+    expect(cap).toMatch(/queryKey: \["stickers"\]/);
+    expect(cap).toMatch(/const url = stickerPhotoUrl\(s, \{ thumb: true \}\);/);
+    expect(cap).toMatch(/onOpenLibrary=\{\(\) => void navigate\(\{ to: "\/home" \}\)\}/);
+    // 端末の写真を選ばせる道を、この釦に付けない。
+    const at = cap.indexOf("<CameraLibraryButton");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(cap.slice(at, at + 300)).not.toMatch(/input|accept=|capture=/);
   });
 
   /**

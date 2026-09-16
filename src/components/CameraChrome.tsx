@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Image as ImageIcon, Loader2, ScanLine, Search, SwitchCamera } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
+import { SlidingIndicator } from "@/components/SlidingIndicator";
 
 /**
  * カメラの上に載る共通の操作。**撮る画面とスキャン画面で同じ物を使う。**
@@ -22,19 +23,19 @@ import { CachedImg } from "@/lib/image-cache";
 export type CameraMode = "search" | "photo" | "scan";
 
 /**
- * **画面に出る順**。左から 撮影 → スキャン → 検索
- * （オーナー指示 2026-09-16、参考画像のとおり）。
+ * **画面に出る順**。左から 検索 → 撮影 → スキャン
+ * （オーナー指示 2026-09-16「真ん中に撮影、右にスキャン、左に検索にして」）。
  *
- * 「押したら既定は撮影」なので、真ん中ではなく**左端が撮影**でよい。
- * 指で左へ払うと右隣（スキャン）へ進む。
+ * 既定の撮影が**真ん中**なので、どちらへ払っても1回で隣に着く。左端に
+ * 置いていたときは、スキャンへ行くのに2回ぶん払う人が出ていた。
  */
-export const CAMERA_MODES: CameraMode[] = ["photo", "scan", "search"];
+export const CAMERA_MODES: CameraMode[] = ["search", "photo", "scan"];
 
-/** i18n の鍵。文言は `capture.photoTitle` / `scan.button` / `capture.typeWord`。 */
+/** i18n の鍵。文言は `capture.typeWord` / `capture.photoTitle` / `scan.button`。 */
 const MODE_KEY: Record<CameraMode, string> = {
+  search: "capture.typeWord",
   photo: "capture.photoTitle",
   scan: "scan.button",
-  search: "capture.typeWord",
 };
 
 /** 撮り方ごとのシャッターの絵（オーナー指示「モードによってアイコン変更して」）。 */
@@ -59,10 +60,16 @@ const SWIPE_PX = 44;
  * iPhone のカメラと同じで、3つが常に並んで見え、いまどれに居るかが
  * 点1つで分かる。覚えることが少ない。
  *
- * ## 点の動かし方
- * 3つは等分（`flex-1`）なので、中心は幅の 1/6・3/6・5/6 に**必ず**来る。
- * だから測らずに `left` を割合で置ける — 測ってから置く形にすると、
- * 最初の1コマだけ左端に出る（この作業で何度も踏んだ罠）。
+ * ## 印は、このアプリの他の切り替えと同じ「滑って伸びるバブル」
+ * （オーナー指示 2026-09-16「モード切替のスライドは青い点ではなく、
+ *  設定のスライドと同じように残像感のあるバブルを採用して」）
+ *
+ * 下のタブでも設定の選択肢でも使っている `SlidingIndicator` をそのまま置く。
+ * 左端と右端に別々のばねを持たせ、進む側を速くする — それだけで伸びも尾も
+ * 着地の縮みも出る。**同じ切り替えの見え方を、画面ごとに作り分けない。**
+ *
+ * 置き方は他と同じで、**この箱の最初の子**にする（位置は自分以外の兄弟を
+ * 実測して決めるので、仕切り線が挟まっても合う）。
  */
 export function CameraModeStrip({
   mode,
@@ -106,6 +113,21 @@ export function CameraModeStrip({
         drag.current = null;
       }}
     >
+      {/**
+       * いまどれに居るかの印。**この箱の最初の子に置く**（`SlidingIndicator`
+       * は自分以外の兄弟を実測して位置を決める）。
+       *
+       * 尾の長さは**設定の選択肢と同じ**にしてある。動く距離が近いので、
+       * 下のタブの遅さを当てると短い距離の割に長く残る（`settings.tsx` の注）。
+       */}
+      <SlidingIndicator
+        index={index}
+        persistKey="camera-modes"
+        radiusRatio={0.5}
+        lead={0.24}
+        trail={0.32}
+        className="bottom-0 left-0 top-0 bg-primary/26"
+      />
       {CAMERA_MODES.map((m) => (
         <button
           key={m}
@@ -121,12 +143,6 @@ export function CameraModeStrip({
           {t(MODE_KEY[m])}
         </button>
       ))}
-      {/* いまどれに居るかの点。等分なので中心は 1/6・3/6・5/6 に必ず来る。 */}
-      <span
-        aria-hidden="true"
-        className="camera-modes__dot"
-        style={{ left: `${((index * 2 + 1) / (CAMERA_MODES.length * 2)) * 100}%` }}
-      />
     </div>
   );
 }
