@@ -1148,17 +1148,6 @@ html[data-motion="reduce"] {
   border-bottom-width: 1px;
   border-radius: 0 0 0.65rem 0;
 }
-.capture-focus i {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 999px;
-  background: var(--primary);
-  box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 18%, transparent);
-  transform: translate(-50%, -50%);
-  animation: capture-focus-breathe 2.8s ease-in-out infinite;
-}
 /**
  * **カメラの上の物は、テーマに従わせない。**（この回の検査で出た赤）
  *
@@ -1192,12 +1181,6 @@ html[data-motion="reduce"] {
 .capture-search {
   animation: capture-search-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-@keyframes capture-focus-breathe {
-  50% {
-    transform: translate(-50%, -50%) scale(1.35);
-    opacity: 0.72;
-  }
-}
 @keyframes capture-search-in {
   from {
     opacity: 0;
@@ -1212,9 +1195,6 @@ html[data-motion="reduce"] {
   }
   .camera-launch__lens {
     animation: camera-lens-open-reduced 220ms ease both;
-  }
-  .capture-focus i {
-    animation: none;
   }
   .capture-search {
     animation: reduced-fade-in 180ms ease both;

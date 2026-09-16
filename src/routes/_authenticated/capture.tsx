@@ -2041,12 +2041,19 @@ export function CaptureObjectPanel({
         <p className="capture-retake ja-phrase">{t("retake.hint", { w: retakeWord })}</p>
       )}
 
+      {/*
+        枠の四隅だけ。**真ん中の青い点は置かない**（オーナー指示 2026-09-16
+        「カメラ向けた時の真ん中の青い点消して」）。
+
+        あれは「ここに合わせる」を示す息づく点だったが、ピントを自分で
+        合わせられるわけではないので、**動いているのに触れない物**だった。
+        四隅の枠だけで「この中へ」は伝わる。
+      */}
       <div className="capture-focus" aria-hidden="true">
         <span />
         <span />
         <span />
         <span />
-        <i />
       </div>
 
       {error && <p className="capture-error">{error}</p>}

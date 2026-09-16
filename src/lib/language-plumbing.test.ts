@@ -3968,6 +3968,29 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
+   * **枠の真ん中に青い点は置かない。**（オーナー指示 2026-09-16
+   * 「カメラ向けた時の真ん中の青い点消して」）
+   *
+   * あれは「ここに合わせる」を示す息づく点だったが、**ピントを自分で
+   * 合わせられるわけではない** — 動いているのに触れない物だった。
+   * 四隅の枠だけで「この中へ」は伝わる。
+   *
+   * 動きの側も一緒に消す。使われない `@keyframes` を残すと、「動きを減らす」
+   * の一覧（`scripts/ui-audit.mjs`）に幽霊の名前が並び続ける。
+   */
+  it("撮る枠は四隅だけ（真ん中の点と、その息づきは残さない）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const at = cap.indexOf('<div className="capture-focus"');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const box = cap.slice(at, cap.indexOf("</div>", at));
+    expect((box.match(/<span \/>/g) ?? []).length).toBe(4);
+    expect(box).not.toMatch(/<i \/>/);
+    const css = read("styles.css");
+    expect(css).not.toMatch(/\.capture-focus i \{/);
+    expect(css).not.toMatch(/capture-focus-breathe/);
+  });
+
+  /**
    * **「写真」はこのアプリで撮った写真を出す。**（オーナー指示 2026-09-16
    * 「写真はこのアプリを通じて過去に撮った写真を表示する。端末の写真から
    *  単語を捕まえるわけではない」）
