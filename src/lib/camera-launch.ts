@@ -51,10 +51,33 @@ export function setCameraScreenOpen(open: boolean): void {
   cameraScreenOpen = open;
 }
 
-export function playCameraLaunch(): void {
+/**
+ * 画面を入れ替えてよい頃合い(ms)。**育った板が画面の真ん中を覆ったあと。**
+ *
+ * ## なぜ待つのか（オーナー報告 2026-09-16
+ * 「カメラのアイコン押したら、カメラの画面の黒い画面（カメラ画面は開いて
+ *  ない）に移行し、その上から同じ画面のアニメーションが出て2重になってる。
+ *  今開いてる画面からカメラのアニメーションが出るようにして」）
+ *
+ * 前は押した瞬間に移っていた。行き先の読み込みを先に済ませてある
+ * （`useWarmCamera`）ので**すぐ着いてしまい**、まだ小さい板の後ろに
+ * 行き先の黒い面が出る。押した画面から育つはずの物が、黒い面の上で
+ * 育っているように見える ＝ 二重。
+ *
+ * かといって「着くまで何もしない」のは前に直した 0.52 秒の待ちに戻る
+ * （押しても半秒なにも起きない）。**演出は押した瞬間に始め、入れ替えだけを
+ * 板の裏に隠す。** 320ms は板が 264×396 まで育つ頃 — 画面の中央 2/3 を
+ * 覆っているので、後ろが入れ替わっても縁しか見えない。
+ */
+const SWAP_AT_MS = 320;
+
+export function playCameraLaunch(onSwap?: () => void): void {
   if (typeof document === "undefined") return;
-  // すでに撮る画面が出ている。開く演出に用は無い。
-  if (cameraScreenOpen) return;
+  // すでに撮る画面が出ている。開く演出に用は無い（移動だけ通す）。
+  if (cameraScreenOpen) {
+    onSwap?.();
+    return;
+  }
   /**
    * **もう出ているなら、何もしない。**
    *
@@ -63,7 +86,10 @@ export function playCameraLaunch(): void {
    * 「もう1回重ねて出た」と映る（オーナー報告 2026-09-15）。
    * 開く演出は1回の操作に1つ。走っている間の押下は黙って捨てる。
    */
-  if (live) return;
+  if (live) {
+    onSwap?.();
+    return;
+  }
   const el = document.createElement("div");
   el.className = "camera-launch";
   el.setAttribute("aria-hidden", "true");
@@ -86,7 +112,14 @@ export function playCameraLaunch(): void {
   lens.appendChild(shutter);
   el.appendChild(lens);
   document.body.appendChild(el);
-  const ms = motionReducedNow() ? OPEN_MS_REDUCED : OPEN_MS;
+  const reduced = motionReducedNow();
+  const ms = reduced ? OPEN_MS_REDUCED : OPEN_MS;
+  /**
+   * **入れ替えは板の裏で。** 動きを減らす設定の人は演出が 220ms しか
+   * 無いので、比で縮めて待ち時間が置き去りにならないようにする
+   * （前にこれを忘れて、その設定の人だけ待たされ続けた）。
+   */
+  window.setTimeout(() => onSwap?.(), reduced ? 60 : SWAP_AT_MS);
   const timer = window.setTimeout(() => {
     el.remove();
     live = null;

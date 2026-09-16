@@ -723,7 +723,7 @@ function ScanPage() {
         */}
         <div
           ref={sheetRef}
-          className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+          className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
         >
           {/* 1) チップ: ドットをタップした単語 — 常に一番上・すぐキャッチできる */}
           {chip && (

@@ -2114,7 +2114,20 @@ export function LightModeCard({
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
         {heroUrl && (
-          <div className="mb-1.5 h-[clamp(5rem,24vh,14rem)] min-h-0 w-full shrink overflow-hidden rounded-2xl bg-secondary">
+          /**
+           * **写真は余りを受け取る側。**（オーナー報告 2026-09-16
+           * 「復習の4択スクロールしないと4択が全て見れないようになってる」）
+           *
+           * 前はここが `clamp(5rem, 24vh, 14rem)` の固定の高さで、
+           * **画面が低いと写真が先に場所を取り、4つ目が外へ出ていた**
+           * （実測: 写真のある札は 800px 未満で必ず溢れ、568px では
+           *  1つしか見えなかった）。
+           *
+           * この画面の仕事は「4つから選ぶ」ことで、写真はその手がかり。
+           * 選ぶ物が画面に収まることが先で、写真は**残った分だけ**もらう。
+           * `flex-1` ＋ `min-h-0` で縮み切れるようにし、上限だけ置く。
+           */
+          <div className="quiz-photo mb-1.5 min-h-0 w-full flex-1 overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
               src={heroUrl}
               alt={t("rv.targetAlt")}
@@ -2160,8 +2173,8 @@ export function LightModeCard({
          * 伸びすぎることはない。
          */}
         <ul
-          className="grid min-h-0 flex-1 gap-1.5 overflow-y-auto overscroll-contain"
-          style={{ gridTemplateRows: `repeat(${infos.length}, minmax(3.5rem, 1fr))` }}
+          className="grid min-h-0 gap-1.5 overflow-y-auto overscroll-contain"
+          style={{ gridTemplateRows: `repeat(${infos.length}, minmax(3rem, 4.25rem))` }}
         >
           {infos.map((info) => {
             const c = info.headword;

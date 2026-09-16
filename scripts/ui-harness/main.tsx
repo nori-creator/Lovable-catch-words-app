@@ -278,11 +278,11 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "home-tap", label: "札を押して詳細が広がる動き（作り直し）" },
-  { scene: "camera-dial", label: "撮り方のダイヤル（滑らせて切り替え）" },
-  { scene: "capture-object", label: "撮る画面（上の帯なし・全画面）" },
-  { scene: "review-choice", label: "復習の4択（下の余白を詰めた）" },
-  { scene: "scan-camera", label: "スキャンの上の操作" },
+  { scene: "camera-dial", label: "撮り方のダイヤル（囲い・真鍮・回せる）" },
+  { scene: "capture-object", label: "撮る画面（下の余白を詰めた・配色）" },
+  { scene: "review-choice", label: "復習の4択（スクロールなしで4つ）" },
+  { scene: "home-tap", label: "札を押して詳細が広がる動き" },
+  { scene: "home", label: "ホーム（変な縮尺で跳ねない）" },
 ];
 
 const explicitScene = q.get("scene");

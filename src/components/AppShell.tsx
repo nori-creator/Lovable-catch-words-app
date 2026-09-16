@@ -384,7 +384,7 @@ export function AppShell({
               <Link
                 to={to}
                 data-nav={to}
-                onClick={() => {
+                onClick={(event) => {
                   // §13 multimodal feedback on the causal event; the camera
                   // entrance also primes audio for the scan/catch chimes.
                   if (isScan) {
@@ -409,8 +409,23 @@ export function AppShell({
                      * ここで状態に持つと、画面が入れ替わった瞬間に
                      * `AppShell` ごと消えて演出が道連れになる — オーナー指摘
                      * 「最初だけで2回目とか押すと表示されなくなる」の正体。
+                     *
+                     * **入れ替えの頃合いは演出側が決める**（オーナー報告
+                     * 2026-09-16「カメラの黒い画面に移行し、その上から同じ
+                     * 画面のアニメーションが出て2重になってる。今開いてる
+                     * 画面からカメラのアニメーションが出るようにして」）。
+                     *
+                     * 行き先を先に温めてある（`useWarmCamera`）ので、押した
+                     * 瞬間に移ると**まだ小さい板の後ろに行き先の黒い面が出る**。
+                     * 板が画面の真ん中を覆うまで待ってから入れ替えれば、
+                     * 押した画面の上で育つ絵になる。待ちは 320ms だが、
+                     * 動き自体は押した瞬間に始まっているので「無反応の半秒」
+                     * には戻らない。
                      */
-                    if (!isCurrent) playCameraLaunch();
+                    if (!isCurrent) {
+                      event.preventDefault();
+                      playCameraLaunch(() => void navigate({ to }));
+                    }
                     unlockAudio();
                     Sound.tap();
                     haptic("medium");

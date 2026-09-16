@@ -907,12 +907,29 @@ html[data-motion="reduce"] {
   overflow: hidden;
   animation: camera-ground 720ms ease-out both;
 }
+/**
+ * 覆いの地。**押した画面を見せてから、入れ替えの瞬間だけ隠す。**
+ *
+ * オーナー報告 2026-09-16「カメラの黒い画面に移行し、その上から同じ画面の
+ * アニメーションが出て2重になってる」。板が小さいうちに後ろが入れ替わると、
+ * 押した画面ではなく**行き先の黒い面の上で板が育つ**ように見える。
+ *
+ * 前半は薄いまま（＝押した画面がちゃんと見えて、その上で板が育つ）。
+ * 入れ替えの頃合い（`SWAP_AT_MS` = 320ms ＝ 44%）にはほぼ不透明にして、
+ * 後ろの差し替えを見せない。板が画面いっぱいになれば地は用済みなので戻す。
+ */
 @keyframes camera-ground {
   0% {
     background: transparent;
   }
-  40% {
-    background: color-mix(in oklab, var(--foreground) 55%, transparent);
+  22% {
+    background: color-mix(in oklab, var(--foreground) 24%, transparent);
+  }
+  44% {
+    background: color-mix(in oklab, var(--foreground) 96%, transparent);
+  }
+  76% {
+    background: color-mix(in oklab, var(--foreground) 96%, transparent);
   }
   100% {
     background: transparent;
@@ -971,14 +988,16 @@ html[data-motion="reduce"] {
  * 変わるので、割合で置くと着地点も一緒に動いてしまう。育ち切った親は
  * 画面そのものなので、ここの `bottom` は**画面下端からの距離**になる。
  *
- * 8.75rem = 140px は撮る画面のシャッターの下端の実測値（844px の画面で
- * 上 624・下 704 ＝ 下端から 140px）。`components/CameraDial.tsx` の
- * 大きさ 80px と、下の帯の余白を変えたらここも一緒に動かすこと。
+ * 7.375rem = 118px は撮る画面のシャッターの下端の実測値（844px の画面で
+ * 上 646・下 726 ＝ 下端から 118px）。`components/CameraDial.tsx` の
+ * 大きさ 80px と、下の帯の余白（`capture.tsx` の `pb-[…]`）を変えたら
+ * **ここも一緒に動かすこと** — 2026-09-16 に余白を詰めたとき、ここを
+ * 忘れて 22px ずれた。
  */
 .camera-launch__shutter {
   position: absolute;
   left: 50%;
-  bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(7.375rem + env(safe-area-inset-bottom, 0px));
   width: 80px;
   height: 80px;
   border-radius: 999px;
@@ -1043,9 +1062,9 @@ html[data-motion="reduce"] {
   inset: 0;
   z-index: 20;
   isolation: isolate;
-  /* 地は黒で固定（上の `.capture-controls` と同じ理由）。 */
-  background: #000;
-  color: #fff;
+  /* 地はカメラの本体色で固定（上の `.capture-controls` と同じ理由）。 */
+  background: var(--cam-body);
+  color: var(--cam-ink);
 }
 .capture-viewfinder__light {
   background:
@@ -1137,16 +1156,19 @@ html[data-motion="reduce"] {
  * （`components/CameraChrome.tsx` の色と同じ考え方）。
  */
 .camera-ink {
-  color: #fff;
+  color: var(--cam-ink);
 }
 .capture-shutter {
-  background: #fff;
-  color: #111;
-  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.78);
+  /* 印画紙のクリーム＋真鍮の環（`--cam-*` の注）。真っ白ではない。 */
+  background: var(--cam-paper);
+  color: var(--cam-body);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--cam-brass) 55%, transparent),
+    0 6px 18px rgb(0 0 0 / 0.35);
   transition: transform 100ms ease;
 }
 .capture-shutter__core {
-  background: #fff;
+  background: var(--cam-paper);
 }
 .capture-shutter:active {
   transform: scale(0.9);
@@ -2051,27 +2073,30 @@ html[data-motion="reduce"] .group:active .tabbar__lens {
    面は飛んでいる間まるごと伏せ、絵が届いた1コマで出す。混ぜる時間が
    無いので、後ろのアルバムが透ける瞬間そのものが無くなる。 */
 /**
- * 押した札から写真が広がる回の、**まわりの入場**。
+ * 押した札から写真が広がる回、**まわりには何も掛けない。**
  *
- * 写真そのものは `use-hero-reveal` が px のばねで広げる。面ごと動かすと
- * 写真の行き先も一緒に動いて、写真が着地点を追いかけ続けるので、ここでは
- * **一切動かさず、濃さだけ**を乗せる。写真の下の文字や釦はこの薄い上がりで
- * 出るが、写真の位置は最初から最後まで動かない。
+ * ## 一度やって壊した形（オーナー報告 2026-09-16
+ * 「単語の詳細が開くときに上の単語の設定の項目の順番が勝手に開いて
+ *  画像が見れない」）
+ *
+ * ここには「面の子を全部まとめて薄く出す」規則を置いていた
+ * （`.sheet-around-in` に、子を名指ししない selector）。
+ * ところが面の直下には**自分で出入りを決める覆い**が居る
+ * （`SectionsPanel` — 項目の並べ替え。閉じている間は `opacity-0`）。
+ *
+ * `animation: … both` は `forwards` を含むので、終わったあとも 100% の
+ * コマ（`opacity: 1`）を握り続ける。CSS アニメーションは class より強いので、
+ * **閉じているはずの覆いが開きっぱなしで写真の上に居座った**。しかも
+ * `pointer-events-none` なので押して閉じることもできない。
+ * （すぐ下の `.material-in` の注が、同じ罠を別の所で踏んだ記録。）
+ *
+ * ## 直し方 — 掛けるのをやめる
+ * 面は不透明（`material-thick`）で、動くのは中の写真1枚だけ。写真は箱の
+ * 大きさを変えずに**描かれる絵だけ**が育つので、まわりの文字は最初から
+ * 最終の位置に居る。薄く出す必要がそもそも無かった。
+ *
+ * 子を名指ししない規則は、**次に子が増えたときに黙って壊れる**。置かない。
  */
-.sheet-around-in > *:not([data-sheet-hero]) {
-  animation: sheet-around-in 180ms ease-out both;
-}
-@keyframes sheet-around-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-html[data-motion="reduce"] .sheet-around-in > *:not([data-sheet-hero]) {
-  animation: none;
-}
 
 .material-in {
   /* **`both` ではなく `backwards`。**
@@ -4006,7 +4031,9 @@ html[data-motion="reduce"] .camera-modes__other:active {
   gap: 2px;
   padding: 4px;
   border-radius: 9999px;
-  background: rgb(0 0 0 / 0.42);
+  /* 色はカメラの世界から（`--cam-*` の注）。真っ黒の板にしない。 */
+  background: color-mix(in srgb, var(--cam-body) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cam-brass) 24%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -4029,7 +4056,7 @@ html[data-motion="reduce"] .camera-modes__other:active {
   font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1;
-  color: rgb(255 255 255 / 0.92);
+  color: var(--cam-ink);
   border-radius: 9999px;
   font-variant-numeric: tabular-nums;
   transition:
@@ -4038,8 +4065,8 @@ html[data-motion="reduce"] .camera-modes__other:active {
 }
 
 .camera-zoom__stop[data-on] .camera-zoom__dot {
-  color: #ffd60a;
-  background: rgb(255 255 255 / 0.16);
+  color: var(--cam-body);
+  background: var(--cam-brass);
   scale: 1.12;
 }
 
@@ -4056,9 +4083,9 @@ html[data-motion="reduce"] .camera-zoom__stop[data-on] .camera-zoom__dot {
   place-items: center;
   width: 44px;
   height: 44px;
-  color: #fff;
-  background: rgb(0 0 0 / 0.42);
-  border: 0;
+  color: var(--cam-ink);
+  background: color-mix(in srgb, var(--cam-body) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cam-brass) 24%, transparent);
   border-radius: 9999px;
   backdrop-filter: blur(12px);
   transition: scale 120ms ease-out;
@@ -4078,69 +4105,127 @@ html[data-motion="reduce"] .camera-flip:active {
 /* ------------------------------------------------------------------
  * 撮り方のダイヤル（`components/CameraDial.tsx`）
  *
- * オーナー指示 2026-09-16「シャッターボタンの丸の周りにダイヤルのように
- * ボタンとして囲い、スライドしたら切り替えられるように」。
+ * ## 色はこのアプリの世界から取る（オーナー指摘 2026-09-16
+ * 「デザインが白黒すぎる。私のアプリ全体のデザインuiuxから統一感出して」）
  *
- * ## 見た目をこのアプリの世界観に寄せた
- * オーナー指摘「カメラのデザイン無機質すぎるから、このアプリのコンセプトを
- * もとにもっといいデザインにして」。
+ * このアプリは**街で出会った言葉を捕まえて図鑑に貼る**もの。ホームは
+ * クリーム色の台紙に写真を角で留めたスクラップブックで、真鍮色の枠が
+ * 走っている（`.album-bg-frame` の `#b88a4d`）。カメラだけが黒地に白と
+ * Apple の黄色だと、そこだけ別のアプリに見える。
  *
- * このアプリは**街で出会った言葉を捕まえて図鑑に貼る**もので、ホームは
- * 写真の角を留めた台紙、札には白フチが付く。カメラだけが素の黒い板だと、
- * 撮った瞬間に別のアプリへ移ったように見える。
+ * そこで:
+ *  ・地 … 真っ黒ではなく**革のような温かい暗色**（カメラの本体）
+ *  ・選ばれている撮り方と輪 … **真鍮**（台紙の枠と同じ色）
+ *  ・シャッター … **印画紙のクリーム**（台紙の紙と同じ色）
  *
- * そこで下の操作の地を**真っ黒ではなく温かい暗色**にし、上端に紙の縁
- * （細い明るい線）を1本入れて、台紙が下から差し込まれているように見せる。
- * 色はテーマに従わせない — 映像の上なので、明暗どちらでも同じ見え方が要る。
+ * **テーマには従わせない。** 映像の上に載るので、明暗どちらでも同じ
+ * 見え方が要る（暗いテーマで白地に白いシャッターになって消えた事故がある）。
  * ------------------------------------------------------------------ */
+
+:root {
+  /* カメラの本体。革の暗い茶。 */
+  --cam-body: #1d1712;
+  /* 真鍮。台紙の枠（`.album-bg-frame`）と同じ色。 */
+  --cam-brass: #c79a55;
+  /* 印画紙のクリーム。台紙の紙（`.album-bg-paper`）と同じ色。 */
+  --cam-paper: #f5ecd6;
+  /* 映像の上に置く字。真鍮より薄く、地よりずっと明るい。 */
+  --cam-ink: #efe3cc;
+}
 
 .camera-dial {
   position: relative;
   display: grid;
   place-items: center;
   width: 100%;
-  /* 名前を置く円（半径 74px）＋ 字の高さが収まる箱。 */
-  height: 184px;
+  /* 名前を置く円（半径 74px）＋ 粒の高さが収まる箱。 */
+  height: 180px;
   touch-action: pan-y;
   user-select: none;
 }
 
+/**
+ * 回る輪。**見える輪にする**（オーナー指示 2026-09-16
+ * 「シャッターボタンの周りで本物のダイヤルのように回せるように」）。
+ *
+ * 前は名前だけが回っていて、輪そのものが描かれていなかった。何が回るのか
+ * が絵から読めないと、滑らせて回せることに気づけない。真鍮の細い環を
+ * 敷いて、その上に粒を並べる。
+ */
 .camera-dial__ring {
   position: absolute;
   inset: 0;
-  /* 回るのはこの層だけ。真ん中のシャッターは別に置く。 */
   will-change: rotate;
 }
 
+.camera-dial__ring::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 148px;
+  height: 148px;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--cam-brass) 38%, transparent);
+  /* 目盛りの刻み。回っているのが一目で分かる。 */
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      color-mix(in srgb, var(--cam-brass) 30%, transparent) 0deg 0.6deg,
+      transparent 0.6deg 15deg
+    );
+  mask: radial-gradient(circle, transparent 0 65px, #000 65px 74px, transparent 74px);
+}
+
+/**
+ * 撮り方の粒。**それぞれ囲う**（オーナー指示「3つのモードはそれぞれ囲い」）。
+ * 囲いがあると「押せる物が3つ、輪の上に載っている」と読める。
+ */
 .camera-dial__label {
   position: absolute;
   translate: -50% -50%;
-  /* 押せる範囲は 44px を割らない（HIG §11）。 */
+  /* 押せる範囲は 44px を割らない（HIG §11）。見える囲いはその中。 */
+  display: grid;
+  place-items: center;
   min-height: 44px;
-  padding: 0 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  transition: scale 160ms ease-out;
+}
+
+.camera-dial__chip {
+  display: block;
+  padding: 5px 12px;
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  color: rgb(255 255 255 / 0.62);
-  background: none;
-  border: 0;
+  color: var(--cam-ink);
+  background: color-mix(in srgb, var(--cam-body) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cam-brass) 30%, transparent);
   border-radius: 9999px;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(6px);
   transition:
     color 160ms ease-out,
-    scale 160ms ease-out;
+    background-color 160ms ease-out,
+    border-color 160ms ease-out;
 }
 
 /* 選ばれている撮り方。**色だけで伝えない** — 大きさと `aria-current` も変える。 */
 .camera-dial__label[data-on] {
-  color: #ffd60a;
-  font-size: 0.9375rem;
+  scale: 1.06;
+}
+.camera-dial__label[data-on] .camera-dial__chip {
   font-weight: 700;
-  scale: 1.04;
+  color: var(--cam-body);
+  background: var(--cam-brass);
+  border-color: var(--cam-paper);
 }
 
-html[data-motion="reduce"] .camera-dial__label {
+html[data-motion="reduce"] .camera-dial__label,
+html[data-motion="reduce"] .camera-dial__chip {
   transition: none;
 }
 
@@ -4157,9 +4242,9 @@ html[data-motion="reduce"] .camera-dial__label {
 }
 
 /**
- * シャッターの中の丸。**図鑑の判子**に寄せて、白い丸の中に撮り方の絵を置く。
- * 素の白い輪だけだと「何をする釦か」が絵から読めない — 撮り方が3つある
- * この画面では、押した先が写真なのか検索なのかが**押す前に**分かるべき。
+ * シャッターの中の丸。**印画紙のクリーム＋真鍮の環** — 図鑑に貼る1枚を
+ * ここから取り出す、という筋にする。中の絵は撮り方ごとに変わるので、
+ * 押した先が写真なのか検索なのかが**押す前に**分かる。
  */
 .camera-dial__core {
   display: grid;
@@ -4167,18 +4252,18 @@ html[data-motion="reduce"] .camera-dial__label {
   width: 64px;
   height: 64px;
   border-radius: 9999px;
-  color: #1a1a1a;
+  color: var(--cam-body);
 }
 
 .camera-dial__shutter:disabled {
   opacity: 0.5;
 }
 
-/* 下の操作の地。真っ黒ではなく、少し温かい暗色＋紙の縁。 */
+/* 下の操作の地。真っ黒ではなく、革の暗色＋真鍮の細い縁。 */
 .capture-controls {
-  background: #14110f;
-  color: #fff;
-  border-top: 1px solid rgb(255 255 255 / 0.1);
+  background: var(--cam-body);
+  color: var(--cam-ink);
+  border-top: 1px solid color-mix(in srgb, var(--cam-brass) 22%, transparent);
 }
 
 /**
@@ -4198,4 +4283,30 @@ html[data-motion="reduce"] .camera-dial__label {
 }
 html[data-motion="reduce"] .tabbar__lens--gone {
   transition: none;
+}
+
+/**
+ * 復習の4択の上に出る写真。**余りを受け取る側**（`routes/…/review.tsx` の注）。
+ *
+ * 上限を置くのは、背の高い端末で写真だけが伸びて選択肢が下に押し込まれる
+ * のを止めるため。
+ */
+.quiz-photo {
+  max-height: 14rem;
+}
+
+/**
+ * **低い画面では写真を出さない。**
+ *
+ * 余りを受け取る形にすると、画面が低いほど写真は薄く潰れる。実測で
+ * 667px の画面では 32px — 写真の上端の帯だけが見える、読み取れない絵に
+ * なっていた。この画面の仕事は「4つから選ぶ」ことなので、意味を持てない
+ * 高さしか渡せないなら**出さないほうが正直**（選択肢がそのぶん楽に入る）。
+ *
+ * 700px は実測の境目（ここを下回ると写真の取り分が 65px を切る）。
+ */
+@media (max-height: 700px) {
+  .quiz-photo {
+    display: none;
+  }
 }
