@@ -451,6 +451,10 @@ const MODES = [
   ["capture-saving-landing", "", false, { scene: "capture-saving", landing: "1" }],
   // 覗いている最中に映像の上へ載る操作。倍率を持たない端末の姿も見る。
   ["scan-camera", "", false, { scene: "scan-camera" }],
+  // 撮り方の帯と下の行（写真・シャッター・切替）。**参考画像の形**。
+  ["camera-strip", "", false, { scene: "camera-strip" }],
+  ["camera-strip-scan", "", false, { scene: "camera-strip", mode: "scan" }],
+  ["camera-strip-zoom", "", false, { scene: "camera-strip", zoom: "many" }],
   // 画面の下端に集まる3つ（倍率の粒・ダイヤル・タブ帯）の**重なり**を見る面。
   ["scan-bottom", "", false, { scene: "scan-bottom" }],
   ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
@@ -568,7 +572,7 @@ const BARE_SCENES = new Set([
   "capture-saving",
   "scan-camera",
   "scan-bottom",
-  "camera-dial",
+  "camera-strip",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 実物でも上のバーは映像の下に隠れる。
   "capture-object",
@@ -581,12 +585,13 @@ const BARE_SCENES = new Set([
  *
  * - `capture-saving-landing`: 飛行が始まった瞬間。元の絵も字も消して、
  *   上に載る層(`CatchLandingOverlay`)へ見た目を渡した状態。空が正解。
- * - `scan-camera-nozoom`: 倍率を持たない端末。残るのは前後の切替の記号だけ。
+ * - （`scan-camera-nozoom` はここから外した。2026-09-16 から、倍率を1つしか
+ *   持たない端末でも `1×` の札を出すようにしたので、字が無い面ではない。）
  *
  * ここに足すのは「そう設計したから字が無い」面だけ。
  * 「なぜか出ない」面を黙らせるために足さない。
  */
-const WORDLESS_SCENES = new Set(["capture-saving-landing", "scan-camera-nozoom"]);
+const WORDLESS_SCENES = new Set(["capture-saving-landing"]);
 
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({

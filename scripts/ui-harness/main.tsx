@@ -25,7 +25,7 @@ import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { InputCatchScene } from "./scenes/input-catch";
 import { HeroPickerScene } from "./scenes/hero-picker";
-import { CameraDialScene } from "./scenes/camera-dial";
+import { CameraStripScene } from "./scenes/camera-strip";
 import { RewardCatchScene } from "./scenes/reward-catch";
 import {
   CaptureCardScene,
@@ -151,7 +151,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-saving": CaptureSavingScene,
   "scan-camera": ScanCameraScene,
   "scan-bottom": ScanBottomScene,
-  "camera-dial": CameraDialScene,
+  "camera-strip": CameraStripScene,
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
@@ -256,7 +256,7 @@ const BARE = new Set([
   "capture-saving",
   "scan-camera",
   "scan-bottom",
-  "camera-dial",
+  "camera-strip",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
   // 読みやすさを測ることになる（実際、枠の「Catchwords」が
@@ -283,12 +283,11 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "review-memory-list", label: "記憶の一覧（下へ行くほど段も％も高い）" },
-  { scene: "capture-object", label: "撮る画面（丸みのある3つの孤・青）" },
-  { scene: "camera-dial", label: "撮り方のダイヤル（孤を押す・回す）" },
+  { scene: "capture-object", label: "カメラの画面（参考画像の形）" },
+  { scene: "camera-strip", label: "撮り方の帯と下の行（写真・シャッター・切替）" },
   { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
-  { scene: "tabbar", label: "下の帯（カメラの丸）" },
-  { scene: "home", label: "ホーム（変な縮尺で跳ねない）" },
+  { scene: "tabbar", label: "下の帯（カメラのとき暗くなる）" },
+  { scene: "review-memory-list", label: "記憶の一覧（下へ行くほど段も％も高い）" },
 ];
 
 const explicitScene = q.get("scene");

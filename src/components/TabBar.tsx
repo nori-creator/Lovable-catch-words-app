@@ -48,16 +48,25 @@ export function TabBar({
    * （オーナー指示「青いバブルで囲うのではなく」）。
    */
   indicatorOpacity = 1,
+  /**
+   * いまカメラの機械の中に居るか（オーナー指示 2026-09-16「下のバーも
+   * 撮影モードのときはこのような色にして」）。
+   *
+   * 白いカプセルのままだと、画面いっぱいの映像の上で**そこだけ紙を
+   * 貼ったように浮く**。カメラの中では帯も暗いガラスにする。
+   */
+  onCamera = false,
   /** `<li>` 5つ。**印はここが自分で置く**ので、渡すのは升目だけ。 */
   children,
 }: {
   cursor: number;
   indicatorOpacity?: number;
+  onCamera?: boolean;
   children: ReactNode;
 }) {
   return (
     <nav className="tabbar-dock">
-      <div className="tabbar">
+      <div className="tabbar" data-camera={onCamera || undefined}>
         <ul className="tabbar__row">
           {/* いま居る所の印。**升目より先に置く** — 後ろに敷くものなので、
               重なりの順で言えばここが一番下。伸び方の理由は部品の側に。 */}

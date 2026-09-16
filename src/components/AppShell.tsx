@@ -254,7 +254,21 @@ export function AppShell({
    */
   const atPath = (to: string) => pathname === to || pathname === `${to}/`;
   const tabIndex = items.findIndex((i) => atPath(i.to));
+  /**
+   * いま**カメラの機械の中に居るか**。帯の色と、横払いの持ち主を決める
+   * （オーナー指示 2026-09-16「下のバーも撮影モードのときはこのような
+   *  色にして」）。撮る・調べる・読み取るは同じ一台の3つのモード。
+   */
+  const onCameraScreen = atPath("/capture") || atPath("/scan");
   const { progress } = useTabSwipe({
+    /**
+     * **カメラの中では、横に払うのはタブの切り替えではない。**（オーナー指示
+     * 2026-09-16「スライドしたら検索、スキャンに変更できる」）
+     *
+     * カメラの画面では横払いが**撮り方の帯**の物になる。両方が同じ指の
+     * 動きを取ると、撮り方を変えたつもりで復習の画面へ飛ぶ。
+     */
+    enabled: !onCameraScreen,
     index: tabIndex,
     count: items.length,
     onCommit: (n) => {
@@ -371,7 +385,7 @@ export function AppShell({
           設定でONにした人だけ動く(既定はOFF)。 */}
       <PlaceMemoryWatcher />
 
-      <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity}>
+      <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity} onCamera={onCameraScreen}>
         {items.map(({ to, labelKey, icon: Icon }, i) => {
           const label = t(labelKey);
           const isScan = to === "/capture";
@@ -389,7 +403,7 @@ export function AppShell({
            * 並びの番号(`tabIndex`)と指で払う順は**5つの行き先のまま**にする。
            * `/scan` はタブではないので、そこへ混ぜると順が狂う。
            */
-          const isCurrent = isScan ? atPath(to) || atPath("/scan") : atPath(to);
+          const isCurrent = isScan ? onCameraScreen : atPath(to);
           // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
           const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
           return (
@@ -463,7 +477,7 @@ export function AppShell({
                     : undefined
                 }
               >
-                {isScan ? (
+                {isScan && !isCurrent ? (
                   /**
                    * **カメラは印で囲わない。中の色が変わる。**
                    * （オーナー指示 2026-09-15「カメラのアイコンの色を変化して
@@ -491,19 +505,25 @@ export function AppShell({
                       押す所そのものは升目が持っているので、カメラから
                       出られなくなることはない。
                     */}
-                    <span
-                      className={
-                        isCurrent
-                          ? "tabbar__lens tabbar__lens--gone"
-                          : "tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40"
-                      }
-                      aria-hidden={isCurrent || undefined}
-                    >
+                    <span className="tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40">
                       <Icon className="h-6 w-6" />
                     </span>
                   </span>
                 ) : (
-                  <Icon className="h-5 w-5 transition-transform duration-150 group-active:scale-90" />
+                  /**
+                   * カメラの機械に居る間、この升目は**ふつうの絵に戻る**
+                   * （オーナー指示 2026-09-16、参考画像のとおり）。
+                   *
+                   * 丸はシャッターへ移っているので、下に丸は要らない。
+                   * ただし**絵まで消すと、どこに居るかが帯から読めない** —
+                   * 前の版は丸ごと隠していて、カメラの升目だけ空白だった。
+                   * 選ばれている升目として、主色の絵と字を出す。
+                   */
+                  <Icon
+                    className={`h-5 w-5 transition-transform duration-150 group-active:scale-90 ${
+                      isScan && isCurrent ? "text-primary" : ""
+                    }`}
+                  />
                 )}
                 <span>{label}</span>
               </Link>

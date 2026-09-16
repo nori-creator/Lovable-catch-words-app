@@ -3405,26 +3405,47 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 読まれない。地と字を入れ替える。
    */
   /**
-   * **カメラの画面に居る間、下の丸は居ない。**（オーナー指示 2026-09-16
-   * 「下のカメラのアイコンがそのままシャッターボタンになるようにして。
-   *  つまり下のカメラのアイコンが上に移動し下にはカメラのアイコンなくなる」）
+   * **カメラの機械の中では、丸をやめて帯ごと暗くする。**（オーナー指示
+   * 2026-09-16「下のバーも撮影モードのときはこのような色にして」／参考画像）
    *
-   * 丸はシャッターへ移った、という筋を通す。両方に在ると「同じ物が2つ
-   * ある」ことになり、上へ動いた意味が消える。押す所そのものは升目が
-   * 持っているので、カメラから出られなくなることはない。
+   * 丸はシャッターへ移ったので下には置かない。ただし**絵まで消さない** —
+   * 前の版は丸ごと隠していて、カメラの升目だけ空白になっていた。参考画像
+   * では主色の絵と字が出ている。どこに居るかは帯から読めないといけない。
+   *
+   * 白いカプセルのままだと、画面いっぱいの映像の上で**そこだけ紙を貼った
+   * ように浮く**。帯は暗いガラスへ入れ替える。
    */
-  it("カメラの画面に居る間、下の帯の丸は消える", () => {
+  it("カメラの機械の中では、丸をやめて帯ごと暗いガラスにする", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
-    expect(shell).toMatch(/tabbar__lens tabbar__lens--gone/);
     // 居ないときはこれまでどおり主色の丸。
     expect(shell).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
-    // パッと消さない（壊れたように見える）。濃さと大きさで送る。
+    // 居るときは丸を出さず、ふつうの絵を主色で出す。
+    expect(shell).toMatch(/\{isScan && !isCurrent \? \(/);
+    expect(shell).toMatch(/isScan && isCurrent \? "text-primary" : ""/);
+    // 帯そのものに印を渡す。
+    expect(shell).toMatch(/onCamera=\{onCameraScreen\}/);
+    expect(codeOnly(read("components/TabBar.tsx"))).toMatch(
+      /data-camera=\{onCamera \|\| undefined\}/,
+    );
     const css = read("styles.css");
-    const rule = css.slice(css.indexOf(".tabbar__lens--gone {"));
-    const body = rule.slice(0, rule.indexOf("\n}"));
-    expect(body).toMatch(/opacity: 0/);
-    expect(body).toMatch(/scale: 0\.4/);
-    expect(body).toMatch(/transition:/);
+    const at = css.indexOf(".tabbar[data-camera] {");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const body = css.slice(at, css.indexOf("\n}", at));
+    expect(body).toMatch(/backdrop-filter: blur/);
+    expect(body).toMatch(/--cam-body/);
+  });
+
+  /**
+   * **カメラの中では、横に払うのは撮り方の切り替え。**（オーナー指示
+   * 2026-09-16「スライドしたら検索、スキャンに変更できる」）
+   *
+   * タブの横払いと同じ指の動きなので、両方が取ると**撮り方を変えたつもりで
+   * 復習の画面へ飛ぶ**。カメラの中ではタブ側を止める。
+   */
+  it("カメラの中では、タブの横払いを止める", () => {
+    const shell = codeOnly(read("components/AppShell.tsx"));
+    expect(shell).toMatch(/enabled: !onCameraScreen,/);
+    expect(shell).toMatch(/const onCameraScreen = atPath\("\/capture"\) \|\| atPath\("\/scan"\);/);
   });
 
   /**
@@ -3662,9 +3683,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
      * 同時に在る**ことになる。調べるは `/capture?mode=search` なので、道が
      * 同じここで一緒に片付く。
      */
-    expect(shell).toMatch(
-      /const isCurrent = isScan \? atPath\(to\) \|\| atPath\("\/scan"\) : atPath\(to\)/,
-    );
+    expect(shell).toMatch(/const isCurrent = isScan \? onCameraScreen : atPath\(to\)/);
     // 並びの番号と指で払う順は**5つの行き先のまま**。`/scan` を混ぜない。
     expect(shell).not.toMatch(
       /items\.findIndex\(\(i\) => atPath\(i\.to\) \|\| atPath\("\/scan"\)\)/,
@@ -3908,81 +3927,54 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **撮り方はシャッターを囲むダイヤル。**（オーナー指示 2026-09-16
-   * 「写真を撮る、検索、スキャンがシャッターボタンの丸の周りにダイヤルの
-   *  ようにボタンとして囲い、スライドしたら切り替えられるようにして。
-   *  また切り替えるとシャッターボタンのアイコンも変化するようにして」）
+   * **撮り方は横に3つ並べ、選ばれている物の下に点を置く。**（オーナー指示
+   * 2026-09-16「カメラの開いた画面これを再現してほしい」／参考画像）
    *
-   * 前は縦積みの帯だった。読めはするが、切り替えるには狙って押すしかない。
-   * カメラは覗いたまま片手で扱う物なので、親指を横に滑らせるだけで変わる
-   * 形にした。ブラウザで実測: 名前は半径 74px の円周に 0°/120°/240°、
-   * どれも高さ 44px 以上、左へ滑らせると「写真を撮る」→「スキャン」へ
-   * 変わり、真ん中の絵も `lucide-camera` → `lucide-scan-line` に変わる。
-   */
-  it("撮り方は輪の上に等間隔で並び、真ん中の絵が撮り方ごとに変わる", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    // 3つを 120° おきに置く（数を書き並べない）。
-    expect(src).toMatch(/const STEP = 360 \/ 3;/);
-    expect(src).toMatch(/const deg = i \* STEP;/);
-    // シャッターの絵は撮り方ごと。
-    expect(src).toMatch(/const SHUTTER_ICON: Record<CameraMode, typeof Camera>/);
-    for (const icon of ["photo: Camera", "search: Search", "scan: ScanLine"]) {
-      expect(src).toContain(icon);
-    }
-    // 字は輪と逆に回して水平を保つ（回る輪の上で字が傾かない）。
-    expect(src).toMatch(/el\.style\.rotate = `\$\{-deg\}deg`/);
-    // 縦積みの古い帯は消えていること（同じ役目の部品を2つ残さない）。
-    expect(codeOnly(read("components/CameraChrome.tsx"))).not.toMatch(/CameraModeStrip/);
-  });
-
-  /**
-   * **指で滑らせて回す。** 押して選ぶだけなら輪にする意味が無い。
-   * 離した所からいちばん近い刻みへ寄せる（apple-design §18）。
-   */
-  it("ダイヤルは指に 1:1 で追従し、離すと近い刻みへ寄る", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    expect(src).toMatch(/setPointerCapture/);
-    // 動かしている間は状態ではなく、ばねの値を直に置き換える（§14）。
-    expect(src).toMatch(/const deg = d\.from \+ \(e\.clientX - d\.x\) \* DEG_PER_PX;/);
-    expect(src).toMatch(/sp\.set\(deg\)/);
-    // 離したら刻みへ。**行き先は「指が向かっていた先」から出す**（§18）。
-    expect(src).toMatch(/const aim = sp\.value\(\) \+ project\(d\.v\);/);
-    expect(src).toMatch(/Math\.round\(aim \/ STEP\) \* STEP/);
-    // 離した速度をばねへ渡す（継ぎ目を作らない）。
-    expect(src).toMatch(/sp\.to\(snapped, \{ velocity: d\.v \}\)/);
-    /**
-     * **見積もりは1刻みで頭打ち。** 惰性の式をそのまま当てると、ひと払い
-     * （実測 833°/秒）で 416° ＝ 1周ちょっと流れて元の撮り方に戻ってくる。
-     */
-    expect(src).toMatch(/Math\.max\(-STEP, Math\.min\(STEP, raw\)\)/);
-  });
-
-  /**
-   * **孤を押しても切り替わる。**（オーナー指示 2026-09-16
-   * 「シャッターボタンの周りにぴったり沿うように3つのモードを孤にして」）
+   * 直前はシャッターを囲むダイヤルだった。回せはするが、**3つの名前が
+   * いつも同時に読めるわけではない**（真上に来た1つだけ）。参考画像の形は
+   * iPhone のカメラと同じで、3つが常に並び、いまどれかが点1つで分かる。
    *
-   * 押して選ぶのを `onClick` に任せられない。輪の上で指を捕まえている
-   * （`setPointerCapture`）ので `pointerdown` も `pointerup` も外側の箱に
-   * 届き、ブラウザは共通の親へ `click` を出す — **孤そのものには一度も
-   * 届かない**（実測: 孤を押しても撮り方が変わらなかった）。
-   * 離した所の角度から撮り方を出す形に一本化する。
+   * 並びは左から 撮影 → スキャン → 検索。**押したら既定は撮影**なので、
+   * 真ん中ではなく左端が撮影でよい。
    */
-  it("孤は押しても切り替わる（角度から撮り方を出す）", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    expect(src).toMatch(/function modeAtPoint\(/);
-    // 帯の外（シャッターの上・輪の外）を押しても撮り方は変わらない。
-    expect(src).toMatch(/if \(r < R_IN \|\| r > R_OUT\) return null;/);
-    // 画面の角度から輪の回転を引くと、輪の中での角度になる。
-    expect(src).toMatch(/const localDeg = \(\(\(screenDeg - ringDeg\) % 360\) \+ 360\) % 360;/);
-    // ほとんど動いていなければ「押した」。
-    expect(src).toMatch(/const moved = Math\.hypot\(e\.clientX - d\.x, e\.clientY - d\.y\);/);
-    expect(src).toMatch(/moved < TAP_PX/);
-    // 届かない `onClick` を孤に残さない（残すと「直したつもり」になる）。
-    const arcs = src.slice(
-      src.indexOf("camera-dial__arcs"),
-      src.indexOf("camera-dial__arcs") + 400,
+  it("撮り方は横に3つ並び、点が選ばれている物の下に来る", () => {
+    const src = codeOnly(read("components/CameraChrome.tsx"));
+    expect(src).toMatch(
+      /export const CAMERA_MODES: CameraMode\[\] = \["photo", "scan", "search"\];/,
     );
-    expect(arcs).not.toMatch(/onClick/);
+    expect(src).toMatch(/export function CameraModeStrip\(/);
+    /**
+     * 点は**測らずに置く**。3つは等分なので中心は 1/6・3/6・5/6 に必ず来る。
+     * 測ってから置く形にすると、最初の1コマだけ左端に出る。
+     */
+    expect(src).toMatch(
+      /left: `\$\{\(\(index \* 2 \+ 1\) \/ \(CAMERA_MODES\.length \* 2\)\) \* 100\}%`/,
+    );
+    // シャッターの絵は撮り方ごと（オーナー指示「アイコン変更して」）。
+    expect(src).toMatch(/export const SHUTTER_ICON: Record<CameraMode, typeof Camera>/);
+    for (const icon of ["photo: Camera", "search: Search", "scan: ScanLine"]) {
+      expect([icon, src.includes(icon)]).toEqual([icon, true]);
+    }
+    // ダイヤルは**消した**。同じ役目の部品を2つ残さない。
+    expect(() => read("components/CameraDial.tsx")).toThrow();
+    expect(read("styles.css")).not.toMatch(/\.camera-dial__arc \{/);
+  });
+
+  /**
+   * **指で払っても変わる。**（オーナー指示 2026-09-16
+   * 「スライドしたら検索、スキャンに変更できる」）
+   *
+   * 押して選ぶのを `onClick` だけに任せられない — 指を捕まえている
+   * （`setPointerCapture`）ので、払った回の `click` も外側の箱に届く。
+   * だから離した所で「押した」か「払った」かを距離で分ける。
+   */
+  it("撮り方の帯は、押しても指で払っても変わる", () => {
+    const src = codeOnly(read("components/CameraChrome.tsx"));
+    expect(src).toMatch(/setPointerCapture/);
+    expect(src).toMatch(/const TAP_PX = 8;/);
+    expect(src).toMatch(/const SWIPE_PX = 44;/);
+    expect(src).toMatch(/if \(Math\.abs\(dx\) < SWIPE_PX\) return;/);
+    expect(src).toMatch(/CAMERA_MODES\[index \+ \(dx < 0 \? 1 : -1\)\]/);
   });
 
   /**
@@ -3994,11 +3986,13 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(src).toMatch(/const textOpen = mode === "search"/);
     // 輪から出るのはスキャンのときだけ。
-    const dial = src.slice(src.indexOf("<CameraDial"), src.indexOf("<CameraDial") + 900);
-    expect(dial).toMatch(/if \(m === "scan"\)/);
-    expect(dial).toMatch(/onOpenScan\(\)/);
-    // 「検索」に居るときの真ん中は、撮るのではなく調べる。
-    expect(dial).toMatch(/if \(mode === "search"\)/);
+    const at = src.indexOf("<CameraModeStrip");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const strip = src.slice(at, at + 900);
+    expect(strip).toMatch(/if \(m === "scan"\)/);
+    expect(strip).toMatch(/onOpenScan\(\)/);
+    // 「検索」に居るときのシャッターは、撮るのではなく調べる。
+    expect(src).toMatch(/if \(mode === "search"\) \{/);
   });
 
   /**
@@ -4015,7 +4009,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * |---|---|
    * | 0% の板 | 49×49・下から中心 56 ＝ 帯の丸（48px・56） |
    * | 100% の板 | 390×844 ＝ 画面いっぱい |
-   * | 100% の中のシャッター | 76px・下から中心 **166** ＝ 本物（76px・**166**） |
+   * | 100% の中のシャッター | 76px・下端 **80px** ＝ 本物（76px・下端 **80px**） |
    */
   it("開く演出は、カメラの形が育って本物のシャッターに重なる", () => {
     const css = read("styles.css");
@@ -4036,7 +4030,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
     const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
     const shBody = sh.slice(0, sh.indexOf("\n}"));
-    expect(shBody).toMatch(/bottom: calc\(8rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(shBody).toMatch(/bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
     expect(shBody).toMatch(/width: 76px/);
   });
 
@@ -4221,151 +4215,6 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **3つの孤でシャッターを1周する。**（オーナー指示 2026-09-16
-   * 「シャッターボタンの周りにぴったり沿うように3つのモードを孤にして。
-   *  3つでシャッターボタンを1周するように」）
-   *
-   * 前は名前の粒が3つ、輪の上に浮いていた。粒と粒の間は押しても何も起きない
-   * ＝ **押せる所が輪の上に飛び飛びにある**。いまは輪そのものが3つに分かれ、
-   * 輪の上のどこを押しても必ずどれかに当たる。
-   */
-  it("撮り方は3つの孤で、合わせてちょうど1周する", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    // 孤は「ドーナツの一切れ」。3つ ＝ 360°。
-    expect(src).toMatch(/function sector\(center: number\)/);
-    expect(src).toMatch(/const a0 = center - HALF;/);
-    expect(src).toMatch(/const a1 = center \+ HALF;/);
-    expect(src).toMatch(/const SECTORS = CAMERA_MODES\.map\(\(_, i\) => sector\(i \* STEP\)\);/);
-    // シャッターにぴったり沿う（外(38) のすぐ外から）。
-    expect(src).toMatch(/const SHUTTER = 76;/);
-    // 帯の太さは 44px を割らない（HIG §11 の指の下限）。半径はそこから出す。
-    expect(src).toMatch(/const BAND = 44;/);
-    expect(src).toMatch(/const R_MID = 66;/);
-    expect(src).toMatch(/const R_IN = R_MID - BAND \/ 2;/);
-    expect(src).toMatch(/const R_OUT = R_MID \+ BAND \/ 2;/);
-    // 隙間は**角度**で持つ。px で持つと半径を変えたとき3つのバランスが崩れる。
-    expect(src).toMatch(/const GAP = 10;/);
-    // 古い「浮いた粒」は残さない。
-    expect(src).not.toMatch(/camera-dial__chip/);
-    const css = read("styles.css");
-    expect(css).not.toMatch(/\.camera-dial__chip \{/);
-    // 孤そのものが指の当たり。
-    expect(css).toMatch(/\.camera-dial__arc \{/);
-    const arc = css.slice(
-      css.indexOf(".camera-dial__arc {"),
-      css.indexOf(".camera-dial__arc {") + 700,
-    );
-    expect(arc).toMatch(/pointer-events: auto/);
-  });
-
-  /**
-   * **回る輪の中では、真ん中合わせに `translate` を使わない。**
-   *
-   * `translate: -50% -50%` は輪の回転と一緒に回る。半分ずらしたはずの向きが
-   * 傾いて、名前と絵が孤の外（映像の上）へ飛ぶ — 実測で、選ばれている物が
-   * 中心から 122px 上、輪の外に出ていた。`margin` は組版の側の値なので回らない。
-   *
-   * 位置も割合で書かない。輪は `inset: 0` で親の幅いっぱい（390px）に
-   * 広がっていて、`196` の箱ではない。
-   */
-  it("回る輪の上の名前は、余白で真ん中に置く（`translate` では置かない）", () => {
-    const css = read("styles.css");
-    const at = css.indexOf(".camera-dial__label {");
-    expect(at).toBeGreaterThanOrEqual(0);
-    const label = css.slice(at, at + 700);
-    expect(label).toMatch(/margin-left: -48px/);
-    expect(label).toMatch(/margin-top: -20px/);
-    expect(label).not.toMatch(/translate: -50% -50%/);
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    expect(src).toMatch(
-      /left: `calc\(50% \+ \$\{Math\.round\(\(x - BOX \/ 2\) \* 10\) \/ 10\}px\)`/,
-    );
-  });
-
-  /**
-   * **角を丸める。カクカクさせない。**（オーナー指示 2026-09-16
-   * 「Appleのglass UIを参考して、カクカクさせないで。丸みを帯びた感じで。
-   *  それぞれのモードのすき間のバランスを最適にして」）
-   *
-   * ## 「線の先を丸める」では駄目だった
-   * 最初は太さ 44px の線を引いて `stroke-linecap: round` にした。角は消えるが、
-   * **半円の先端が大きすぎて3つの丸い塊に見えた** — 線の長さ(73°≒84px)に対して
-   * 太さが 44px あるので、両端の半円だけで全体の3分の1が埋まる。
-   *
-   * いまは扇形を描き、その外周を太さ `2×CR` の線でなぞる。線が形を全方向へ
-   * `CR` だけ太らせ、`stroke-linejoin: round` が角4つを半径 `CR` で丸める。
-   * だから `CameraDial.tsx` が渡すのは**一回り小さい扇形**（`DRAW_IN`〜
-   * `DRAW_OUT`、角度も `CAP` ぶん狭い）で、なぞったあとが狙いの帯になる。
-   */
-  it("孤は角が丸く、隙間は3つとも同じ角度で開く", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    // 丸みの半径と、それを見込んだ「一回り小さい扇形」。
-    expect(src).toMatch(/const CR = 10;/);
-    expect(src).toMatch(/const DRAW_IN = R_IN \+ CR;/);
-    expect(src).toMatch(/const DRAW_OUT = R_OUT - CR;/);
-    // なぞりは角度方向にも伸びる。伸びる分を引かないと隙間が塞がる。
-    expect(src).toMatch(/const CAP = \(CR \/ R_MID\) \* \(180 \/ Math\.PI\);/);
-    expect(src).toMatch(/const HALF = STEP \/ 2 - GAP \/ 2 - CAP;/);
-    // 塊に見えた「線の先を丸める」やり方へ戻っていないこと。
-    expect(src).not.toMatch(/arcPath/);
-    const css = read("styles.css");
-    const arc = css.slice(
-      css.indexOf(".camera-dial__arc {"),
-      css.indexOf(".camera-dial__arc[data-on]"),
-    );
-    expect(arc).toMatch(/stroke-width: 20/);
-    expect(arc).toMatch(/stroke-linejoin: round/);
-    expect(arc).not.toMatch(/stroke-linecap: round/);
-    /**
-     * **薄めるのは色ではなく要素ぜんぶ。**
-     * 塗りと線の色を半透明にすると、線が形の境目をまたぐせいで内側半分に
-     * 二重に乗り、**縁に暗い溝**ができる（実測。`paint-order` を入れ替えても
-     * 重ねて合成することに変わりはない）。
-     */
-    expect(arc).toMatch(/opacity: 0\.34/);
-    expect(arc).not.toMatch(/stopOpacity/);
-    expect(src).not.toMatch(/stopOpacity/);
-  });
-
-  /**
-   * **ダイヤルは、指に対して回りすぎない。**（オーナー指示 2026-09-16
-   * 「ダイヤルが早く回りすぎてるから、少し反応落として」）
-   *
-   * 前は 120px 動かすと1つ隣だったので、親指をふつうに払うだけで2つ飛んだ。
-   * 170px ＝ 390px 幅の画面で親指が無理なく届く距離にする。
-   * 指から離れたあとのばねも、`.snappy` と同じ 0.5 秒ぶんに緩める。
-   */
-  it("ダイヤルは 170px で1つ隣、ばねは 0.5 秒ぶん", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    expect(src).toMatch(/const DEG_PER_PX = STEP \/ 170;/);
-    expect(src).toMatch(
-      /createSpring\(angleRef\.current, paint, \{ damping: 0\.85, response: 0\.5 \}\)/,
-    );
-  });
-
-  /**
-   * **名前は「真上に来た1つ」に出す。**（オーナー指示 2026-09-16
-   * 「選ばれてないこのときはアイコンだけで、うえに来たらアイコンと名前を
-   *  表示して」）
-   *
-   * 「選ばれているか」ではなく「真上に来たか」で決める — 回している最中も、
-   * 上に来た物の名前がそのまま読める。印は1コマごとではなく**変わった時だけ**
-   * 付け外しする（毎コマ書くと、濃さの移り変わりが最初からやり直しになる）。
-   */
-  it("名前は真上に来た1つだけに出る（選択ではなく位置で決める）", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    expect(src).toMatch(/const TOP_DEG = 14;/);
-    expect(src).toMatch(/const off = Math\.min\(a, 360 - a\);/);
-    expect(src).toMatch(/const near = off <= TOP_DEG;/);
-    expect(src).toMatch(/el\.toggleAttribute\("data-top", near\)/);
-    const css = read("styles.css");
-    expect(css).toMatch(/\.camera-dial__label\[data-top\] \.camera-dial__name \{/);
-    // 「選ばれている物」に結び付けていた古い書き方が残っていないこと。
-    expect(css).not.toMatch(/\.camera-dial__label\[data-on\] \.camera-dial__name/);
-    expect(css).not.toMatch(/\.camera-dial\[data-dragging\] \.camera-dial__name/);
-  });
-
-  /**
    * **段と % は同じ1つの数から出す。**（オーナー報告 2026-09-16
    * 「SRSは長期記憶なのに、%が覚えたの状態より低いのが変。一番下に行けば
    *  行くほど、記憶の状態がより高く % も高くして」）
@@ -4422,26 +4271,6 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **選ばれている孤は、内側を濃くする。**（絵の検査で見つけた）
-   *
-   * 名前が載るのは半径 53〜65px。勾配を「内が明るい」にすると、そこが
-   * いちばん明るい青になって、白い 13px の字が **4.13:1** しか取れない
-   * （本文の下限は 4.5:1）。濃い側に字を載せると **7.2:1**。
-   * 光は外の縁が拾う形にする。
-   */
-  it("ダイヤルの勾配は内側が濃い（名前の地を暗く保つ）", () => {
-    const src = codeOnly(read("components/CameraDial.tsx"));
-    const at = src.indexOf('id="camera-dial-glass"');
-    expect(at).toBeGreaterThanOrEqual(0);
-    const g = src.slice(at, at + 500);
-    // 内(0.82 まで)が濃い青、外の縁だけ明るい。
-    expect(g).toMatch(/<stop offset="0\.82" stopColor="var\(--cam-accent-deep\)" \/>/);
-    expect(g).toMatch(/<stop offset="1" stopColor="var\(--cam-accent\)" \/>/);
-    // 逆向き（内が明るい）に戻っていないこと。
-    expect(g).not.toMatch(/<stop offset="0\.45" stopColor="var\(--cam-accent\)" \/>/);
-  });
-
-  /**
    * **出題日の狙いは 90%。**（オーナー指示 2026-09-16「アルゴリズムを
    * 最適化して」／`lib/srs.ts` の「ずれ ②」）
    *
@@ -4475,60 +4304,38 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **回る箱は指を受けない。受けるのは孤と名前だけ。**（絵の検査で見つけた）
-   *
-   * 輪（`.camera-dial__ring`）と孤の板（`.camera-dial__arcs`）は、親の幅
-   * いっぱい 390×196 に広がったうえで回る。120° 回すと箱の外接は 365×436 まで
-   * 膨らみ、**ダイヤルの上にある倍率の粒を覆う** — 絵の検査が
-   * 「送り切っても下敷きのまま: 倍率 2倍 ← <svg>」と出した（＝粒が押せない）。
-   * `<svg>` は置き換え要素なので、描いていない所も箱ぜんぶが当たりになる。
-   *
-   * 指を引きずって回す受け皿は、**回らない外側の箱**（`.camera-dial`）が持つ。
-   */
-  it("回る輪と孤の板は指を受けず、孤と名前だけが受ける", () => {
-    const css = read("styles.css");
-    const block = (sel: string) => {
-      const at = css.indexOf(sel);
-      expect([sel, at >= 0]).toEqual([sel, true]);
-      return css.slice(at, css.indexOf("\n}", at));
-    };
-    expect(block(".camera-dial__ring {")).toMatch(/pointer-events: none/);
-    expect(block(".camera-dial__arcs {")).toMatch(/pointer-events: none/);
-    expect(block(".camera-dial__arc {")).toMatch(/pointer-events: auto/);
-    expect(block(".camera-dial__label {")).toMatch(/pointer-events: auto/);
-    // 字の大きさは6段の階調から取る（12px は階調に無い）。
-    expect(block(".camera-dial__name {")).toMatch(/font-size: var\(--text-footnote\)/);
-  });
-
-  /**
    * **下の余白と、演出の着地点は同じ数で動く。**
    *
    * 2026-09-16 に下の余白を 5.5rem → 4.25rem に詰めたとき、開く演出の
    * 中のシャッターの着地点を直し忘れて **22px ずれた**。片方だけ動かすと
    * 「演出が終わった所に釦が無い」になるので、両方を門で押さえる。
    *
-   * 同じ日にダイヤルを孤に作り替えて、箱が 180 → 196px・シャッターが
-   * 80 → 76px になった。着地点はその都度ここで計算し直す:
-   *   下の余白 68px ＋ 箱の半分 98px ＝ 中心 166px、半径 38px を引いて
-   *   **下端 128px ＝ 8rem**。
+   * 同じ日にダイヤルを横並びの帯へ作り替えた。下の行は操作のいちばん下
+   * なので、`.capture-controls` の下の余白が**そのままシャッターの下端**に
+   * なる。80px にしてあるのは、下のタブ帯（下端から 71px まで）を 9px 越える
+   * ため — 68px だと帯の上端に 3px 潜る。
    */
   it("下の余白を詰めたら、開く演出の着地点も一緒に動いている", () => {
-    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    expect(cap).toMatch(/pb-\[calc\(4\.25rem\+env\(safe-area-inset-bottom,0px\)\)\]/);
+    const css = read("styles.css");
+    // 撮る画面の下の余白は CSS 側（`.capture-controls`）が持つ。
+    const ctrl = css.slice(css.indexOf(".capture-controls {"));
+    expect(ctrl.slice(0, 700)).toMatch(
+      /padding: 24px 20px calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
+    );
     // スキャン側の逃げ場も同じ数（2つの画面で下端が違うと揃って見えない）。
     expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
-      /bottom-\[calc\(4\.25rem\+env\(safe-area-inset-bottom\)\)\]/,
+      /bottom-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]/,
     );
-    const css = read("styles.css");
-    const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
-    expect(sh.slice(0, 400)).toMatch(/bottom: calc\(8rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    // 箱の高さとシャッターの大きさ（上の計算の元になる2つ）。
-    const dial = codeOnly(read("components/CameraDial.tsx"));
-    expect(dial).toMatch(/const BOX = 196;/);
-    expect(dial).toMatch(/const SHUTTER = 76;/);
-    expect(css.slice(css.indexOf(".camera-dial {"), css.indexOf(".camera-dial {") + 400)).toMatch(
-      /height: 196px/,
+    const landing = css.slice(css.indexOf(".camera-launch__shutter {"));
+    expect(landing.slice(0, 400)).toMatch(
+      /bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
     );
+    // シャッターの大きさと、下の行の余白（上の計算の元になる2つ）。
+    const sh = css.slice(css.indexOf(".camera-shutter {"), css.indexOf(".camera-shutter__core"));
+    expect(sh).toMatch(/width: 76px/);
+    expect(css.slice(css.indexOf(".capture-actions {"))).toMatch(/margin-top: 18px/);
+    // 下の帯（下端から 71px）を越えていること。
+    expect(80).toBeGreaterThan(71);
   });
 
   /**
@@ -4548,7 +4355,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 呼ぶ側が場所を渡す（部品が勝手に画面の下端に付かない）。
     expect(src).toMatch(/zoomBottom\?: string;/);
     expect(src).toMatch(
-      /zoomBottom=\{`calc\(4\.25rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`\}/,
+      /zoomBottom=\{`calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`\}/,
     );
     // 画面の下端に貼り付ける書き方が残っていないこと。
     expect(src).not.toMatch(/className="absolute inset-x-0 bottom-4 z-10 flex justify-center"/);
