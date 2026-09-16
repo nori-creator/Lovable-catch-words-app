@@ -1696,7 +1696,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.saved": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
   "settings.signout": { ja: "サインアウト", en: "Sign out", "zh-TW": "登出" },
   // --- capture ---
-  "capture.photoTitle": { ja: "写真を撮る", en: "Take a photo", "zh-TW": "拍照" },
+  "capture.photoTitle": { ja: "撮影", en: "Photo", "zh-TW": "拍照" },
   "capture.photoHint": {
     ja: "見つけたものを枠の中へ",
     en: "Place what you found inside the frame",
@@ -1717,6 +1717,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // オーナー指示 2026-09-15「検索・写真を撮る・スキャンの3つのモードを
   // カメラのアイコンを押した時に表示する」。
   "camera.modeGroup": { ja: "撮り方", en: "Camera mode", "zh-TW": "拍攝模式" },
+  /** シャッターの左。**過去に撮った写真**への入口（オーナー指示 2026-09-16）。 */
+  "camera.library": { ja: "写真", en: "Photos", "zh-TW": "照片" },
+  /** シャッターの右。記号の下に出す短い名前（読み上げは `scan.flipCamera`）。 */
+  "camera.flipShort": { ja: "切替", en: "Flip", "zh-TW": "切換" },
   "camera.zoomTo": { ja: "倍率 {x}倍", en: "Zoom to {x}×", "zh-TW": "縮放 {x} 倍" },
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },

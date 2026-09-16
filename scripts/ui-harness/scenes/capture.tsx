@@ -150,6 +150,7 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
       setTypedWord={setTypedWord}
       onSearch={() => {}}
       onOpenScan={() => {}}
+      onOpenLibrary={() => {}}
       error={v === "error" ? "写真を読み込めませんでした" : null}
     />
   );

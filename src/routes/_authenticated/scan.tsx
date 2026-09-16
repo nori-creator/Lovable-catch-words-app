@@ -1,6 +1,13 @@
 import { setCameraScreenOpen } from "@/lib/camera-launch";
-import { CameraFlipButton, CameraZoomMeter } from "@/components/CameraChrome";
-import { CameraDial } from "@/components/CameraDial";
+import {
+  CameraFlipButton,
+  CameraLibraryButton,
+  CameraModeStrip,
+  CameraShutter,
+  CameraZoomMeter,
+} from "@/components/CameraChrome";
+import { listMyStickers } from "@/lib/stickers.functions";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
@@ -114,6 +121,26 @@ function ScanPage() {
     return () => setCameraScreenOpen(false);
   }, []);
   const navigate = useNavigate();
+  /**
+   * シャッターの左に出す**いちばん新しい1枚**（撮る画面と同じ物）。
+   * 鍵はホームと同じ `["stickers"]` — 同じ物を別の鍵で取り直さない。
+   */
+  const stickersFn = useServerFn(listMyStickers);
+  const { data: allStickers } = useQuery({
+    queryKey: ["stickers"],
+    queryFn: () => stickersFn(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const lastPhotoUrl = useMemo(() => {
+    const items = Array.isArray(allStickers) ? allStickers : (allStickers?.items ?? []);
+    for (const s of items) {
+      const url = stickerPhotoUrl(s, { thumb: true });
+      if (url) return url;
+    }
+    return null;
+  }, [allStickers]);
+
   const detectFn = useServerFn(detectScan);
   const lookupFn = useServerFn(lookupHeadwords);
   const tapFn = useServerFn(markScanTap);
@@ -696,14 +723,16 @@ function ScanPage() {
             hidden={!!snapshot}
             facing={facing}
             onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-            showZoom={ready && zoomMax > 1}
+            // 倍率を持たない端末でも `1×` の札は出す（参考画像のとおり）。
+            // 押せる粒になるかどうかは `CameraZoomMeter` が決める。
+            showZoom={ready}
             zoom={zoom}
             zoomMin={zoomCapsRef.current?.min ?? 1}
             zoomMax={zoomMax}
             onZoom={applyZoom}
             // シートの上端のすぐ上。シートは `4.25rem + 安全域` の上に
             // 立っているので、その高さを足した所が上端になる。
-            zoomBottom={`calc(4.25rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`}
+            zoomBottom={`calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`}
           />
 
           {/* compact metrics badge (always visible after a scan) */}
@@ -726,7 +755,7 @@ function ScanPage() {
         */}
         <div
           ref={sheetRef}
-          className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+          className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
         >
           {/* 1) チップ: ドットをタップした単語 — 常に一番上・すぐキャッチできる */}
           {chip && (
@@ -776,24 +805,38 @@ function ScanPage() {
                   撮る画面の側へ揃える。
                 */}
                 {/*
-                  撮り方のダイヤル。**撮る画面とまったく同じ物**を置く
+                  撮り方の帯と下の行。**撮る画面とまったく同じ物**を置く
                   （オーナー指示「撮る画面とスキャン画面を1つにして」）。
-                  真ん中を押すとスキャンが走り、輪を回すと撮る画面へ渡る。
+                  真ん中を押すとスキャンが走り、帯を払うと撮る画面へ渡る。
                 */}
-                <CameraDial
+                <CameraModeStrip
                   mode="scan"
                   // 選んだ撮り方をそのまま渡す。渡さないと、「検索」を選んだ
-                  // 人が「写真を撮る」の画面に着く。
+                  // 人が「撮影」の画面に着く。
                   onChange={(m) =>
                     void navigate({
                       to: "/capture",
                       search: { mode: m === "search" ? "search" : "photo" },
                     })
                   }
-                  shutterLabel={t("scan.button")}
-                  onShutter={doScan}
-                  busy={!ready || scanning}
                 />
+                <div className="capture-actions">
+                  <CameraLibraryButton
+                    photoUrl={lastPhotoUrl}
+                    onOpen={() => void navigate({ to: "/home" })}
+                  />
+                  <CameraShutter
+                    mode="scan"
+                    label={t("scan.button")}
+                    busy={!ready || scanning}
+                    onPress={doScan}
+                  />
+                  <CameraFlipButton
+                    facing={facing}
+                    withLabel
+                    onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+                  />
+                </div>
                 {/*
                   **スキャンのときは、下の検索の欄も調べる釦も出さない。**
                   （オーナー指示 2026-09-16「スキャンボタン押したら下の
@@ -1315,17 +1358,6 @@ export function ScanCameraControls({
   if (hidden) return null;
   return (
     <>
-      {/*
-        前後の切替。**上の安全域を足す。** この画面は上の帯を出さない
-        （`AppShell bare`）ので、`top-4` だけだと切り欠き／時計の帯の
-        真下に入る端末がある。帯があった頃はその分だけ下がっていた。
-      */}
-      <CameraFlipButton
-        facing={facing}
-        onFlip={onFlip}
-        className="absolute left-3 z-10 top-[calc(1rem+env(safe-area-inset-top,0px))]"
-      />
-
       {/*
         倍率。**縦のスライダーをやめ、iPhone と同じ丸い粒にした**
         (オーナー指示 2026-09-15「Apple風のズームメーターを付けて」)。

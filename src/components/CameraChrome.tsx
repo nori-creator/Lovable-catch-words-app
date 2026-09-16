@@ -1,5 +1,8 @@
-import { SwitchCamera } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Image as ImageIcon, Loader2, ScanLine, Search, SwitchCamera } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { CachedImg } from "@/lib/image-cache";
+import { SlidingIndicator } from "@/components/SlidingIndicator";
 
 /**
  * カメラの上に載る共通の操作。**撮る画面とスキャン画面で同じ物を使う。**
@@ -19,23 +22,195 @@ import { useT } from "@/lib/i18n";
 /** 撮り方。画面の名前ではなく、**いまカメラで何をしているか**。 */
 export type CameraMode = "search" | "photo" | "scan";
 
+/**
+ * **画面に出る順**。左から 検索 → 撮影 → スキャン
+ * （オーナー指示 2026-09-16「真ん中に撮影、右にスキャン、左に検索にして」）。
+ *
+ * 既定の撮影が**真ん中**なので、どちらへ払っても1回で隣に着く。左端に
+ * 置いていたときは、スキャンへ行くのに2回ぶん払う人が出ていた。
+ */
 export const CAMERA_MODES: CameraMode[] = ["search", "photo", "scan"];
 
-/** i18n の鍵。文言は `capture.typeWord` / `photoTitle` / `scan.button` と同じ物を使う。 */
+/** i18n の鍵。文言は `capture.typeWord` / `capture.photoTitle` / `scan.button`。 */
 const MODE_KEY: Record<CameraMode, string> = {
   search: "capture.typeWord",
   photo: "capture.photoTitle",
   scan: "scan.button",
 };
 
+/** 撮り方ごとのシャッターの絵（オーナー指示「モードによってアイコン変更して」）。 */
+export const SHUTTER_ICON: Record<CameraMode, typeof Camera> = {
+  photo: Camera,
+  search: Search,
+  scan: ScanLine,
+};
+
+/** 押したと見なす動きの上限(px)。これを超えたら「払った」。 */
+const TAP_PX = 8;
+/** 1つ隣へ移るのに要る横の動き(px)。 */
+const SWIPE_PX = 44;
+
 /**
- * 撮り方の並べ方は **`components/CameraDial.tsx`** へ移した
- * （オーナー指示 2026-09-16「シャッターボタンの丸の周りにダイヤルのように
- *  ボタンとして囲い、スライドしたら切り替えられるように」）。
+ * 撮り方の帯。**横に3つ並べ、選ばれている物の下に点を置く**
+ * （オーナー指示 2026-09-16、参考画像のとおり）。
  *
- * ここに在った縦積みの帯は消した。**使われない物を残さない** — 同じ役目の
- * 部品が2つあると、次に直す人がどちらを直せばいいか分からなくなる。
+ * ## なぜ輪をやめたか
+ * 直前はシャッターを囲むダイヤルだった。回せはするが、**3つの名前が
+ * いつも同時に読めるわけではない**（真上に来た1つだけ）。参考画像の形は
+ * iPhone のカメラと同じで、3つが常に並んで見え、いまどれに居るかが
+ * 点1つで分かる。覚えることが少ない。
+ *
+ * ## 印は、このアプリの他の切り替えと同じ「滑って伸びるバブル」
+ * （オーナー指示 2026-09-16「モード切替のスライドは青い点ではなく、
+ *  設定のスライドと同じように残像感のあるバブルを採用して」）
+ *
+ * 下のタブでも設定の選択肢でも使っている `SlidingIndicator` をそのまま置く。
+ * 左端と右端に別々のばねを持たせ、進む側を速くする — それだけで伸びも尾も
+ * 着地の縮みも出る。**同じ切り替えの見え方を、画面ごとに作り分けない。**
+ *
+ * 置き方は他と同じで、**この箱の最初の子**にする（位置は自分以外の兄弟を
+ * 実測して決めるので、仕切り線が挟まっても合う）。
  */
+export function CameraModeStrip({
+  mode,
+  onChange,
+  className = "",
+}: {
+  mode: CameraMode;
+  onChange: (m: CameraMode) => void;
+  className?: string;
+}) {
+  const t = useT();
+  const index = Math.max(0, CAMERA_MODES.indexOf(mode));
+  const drag = useRef<{ id: number; x: number; y: number } | null>(null);
+
+  return (
+    <div
+      className={`camera-modes ${className}`}
+      role="tablist"
+      aria-label={t("camera.modeGroup")}
+      onPointerDown={(e) => {
+        drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current;
+        if (!d || d.id !== e.pointerId) return;
+        drag.current = null;
+        const dx = e.clientX - d.x;
+        /**
+         * **払ったら隣へ、押したらその場所へ。**
+         *
+         * 指を捕まえている（`setPointerCapture`）ので、押した時の `click` は
+         * 外側の箱に届き、中の釦には来ない。だからここで両方を決める。
+         */
+        if (Math.abs(dx) < TAP_PX) return;
+        if (Math.abs(dx) < SWIPE_PX) return;
+        const next = CAMERA_MODES[index + (dx < 0 ? 1 : -1)];
+        if (next && next !== mode) onChange(next);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+    >
+      {/**
+       * いまどれに居るかの印。**この箱の最初の子に置く**（`SlidingIndicator`
+       * は自分以外の兄弟を実測して位置を決める）。
+       *
+       * 尾の長さは**設定の選択肢と同じ**にしてある。動く距離が近いので、
+       * 下のタブの遅さを当てると短い距離の割に長く残る（`settings.tsx` の注）。
+       */}
+      <SlidingIndicator
+        index={index}
+        persistKey="camera-modes"
+        radiusRatio={0.5}
+        lead={0.24}
+        trail={0.32}
+        className="bottom-0 left-0 top-0 bg-primary/26"
+      />
+      {CAMERA_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="tab"
+          aria-selected={m === mode}
+          data-on={m === mode || undefined}
+          className="camera-modes__item"
+          onClick={() => {
+            if (m !== mode) onChange(m);
+          }}
+        >
+          {t(MODE_KEY[m])}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * シャッター。**白い丸に青い環**、中の絵は撮り方ごとに変わる
+ * （オーナー指示「モードによってシャッターボタンの中のアイコン変更して」）。
+ */
+export function CameraShutter({
+  mode,
+  label,
+  busy = false,
+  onPress,
+}: {
+  mode: CameraMode;
+  label: string;
+  busy?: boolean;
+  onPress: () => void;
+}) {
+  const Icon = SHUTTER_ICON[mode];
+  return (
+    <button
+      type="button"
+      className="camera-shutter"
+      aria-label={label}
+      disabled={busy}
+      onClick={onPress}
+    >
+      <span className="camera-shutter__core">
+        {busy ? (
+          <Loader2 className="h-6 w-6 animate-spin" />
+        ) : (
+          <Icon className="h-6 w-6" strokeWidth={2.2} />
+        )}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * シャッターの左。**過去に撮った写真を出す**（オーナー指示 2026-09-16
+ * 「写真の部分は過去に撮った写真を表示する」）。
+ *
+ * 絵柄は決め打ちの記号ではなく、**いちばん新しく捕まえた1枚**。
+ * iPhone のカメラと同じで、「さっき撮った物がここに溜まっている」という
+ * 筋がそのまま見える。まだ1枚も無い人には記号を出す。
+ */
+export function CameraLibraryButton({
+  photoUrl,
+  onOpen,
+}: {
+  photoUrl: string | null;
+  onOpen: () => void;
+}) {
+  const t = useT();
+  return (
+    <button type="button" className="camera-side" onClick={onOpen}>
+      <span className="camera-side__box">
+        {photoUrl ? (
+          <CachedImg src={photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <ImageIcon className="h-5 w-5" />
+        )}
+      </span>
+      <span className="camera-side__label">{t("camera.library")}</span>
+    </button>
+  );
+}
 
 /**
  * 倍率の刻み。**端末が本当に出せる範囲からだけ作る。**
@@ -87,9 +262,23 @@ export function CameraZoomMeter({
 }) {
   const t = useT();
   const stops = zoomStops(min, max);
-  // 刻みが1つしか無い端末＝倍率を持たない。動かない物を置かない。
-  if (stops.length < 2) return null;
   const on = nearestStop(stops, zoom);
+  /**
+   * **倍率を1つしか持たない端末でも `1×` は出す**（オーナー指示 2026-09-16、
+   * 参考画像のとおり。iPhone も単眼機では `1×` が出たまま動かない）。
+   *
+   * ただし**釦にはしない** — 押しても何も起きない物を置かない、という
+   * この画面の決まりはそのまま。いまの倍率を読むだけの札にする。
+   */
+  if (stops.length < 2) {
+    return (
+      <p className={`camera-zoom camera-zoom--fixed ${className}`} aria-label={t("scan.zoom")}>
+        <span className="camera-zoom__dot" data-on>
+          {`${on ?? 1}×`}
+        </span>
+      </p>
+    );
+  }
   return (
     <div className={`camera-zoom ${className}`} role="group" aria-label={t("scan.zoom")}>
       {stops.map((s) => {
@@ -118,17 +307,40 @@ export function CameraZoomMeter({
   );
 }
 
-/** 前後の切り替え。**覗いている間はいつでも出す**（倍率と違って常にある）。 */
+/**
+ * 前後の切り替え。**覗いている間はいつでも出す**（倍率と違って常にある）。
+ *
+ * シャッターの右に置くときは名前も出す（`withLabel`）— 参考画像のとおり、
+ * 左の「写真」と左右で同じ形にするため。映像の隅に小さく置くときは記号だけ。
+ */
 export function CameraFlipButton({
   facing,
   onFlip,
+  withLabel = false,
   className = "",
 }: {
   facing: "environment" | "user";
   onFlip: () => void;
+  withLabel?: boolean;
   className?: string;
 }) {
   const t = useT();
+  if (withLabel) {
+    return (
+      <button
+        type="button"
+        onClick={onFlip}
+        aria-label={t("scan.flipCamera")}
+        aria-pressed={facing === "user"}
+        className={`camera-side ${className}`}
+      >
+        <span className="camera-side__box">
+          <SwitchCamera className="h-5 w-5" />
+        </span>
+        <span className="camera-side__label">{t("camera.flipShort")}</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"

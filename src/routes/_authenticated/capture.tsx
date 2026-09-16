@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
 import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
-import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
+import { listMyStickers, saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import {
   enqueueCapture,
@@ -41,8 +42,14 @@ import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-spe
 import { putCachedImage } from "@/lib/image-cache";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
 import { useVoiceInput } from "@/lib/use-voice-input";
-import { CameraFlipButton, CameraZoomMeter, type CameraMode } from "@/components/CameraChrome";
-import { CameraDial } from "@/components/CameraDial";
+import {
+  CameraFlipButton,
+  CameraLibraryButton,
+  CameraModeStrip,
+  CameraShutter,
+  CameraZoomMeter,
+  type CameraMode,
+} from "@/components/CameraChrome";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
 import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
@@ -212,6 +219,29 @@ function CapturePage() {
   const pronounce = usePronounce(targetLanguage);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  /**
+   * シャッターの左に出す**いちばん新しい1枚**（オーナー指示 2026-09-16
+   * 「写真の部分は過去に撮った写真を表示する」）。
+   *
+   * 鍵はホームと同じ `["stickers"]`。同じ物を別の鍵で取り直すと、
+   * カメラを開くたびに一覧をもう一度引くことになる。
+   */
+  const fetchStickers = useServerFn(listMyStickers);
+  const { data: allStickers } = useQuery({
+    queryKey: ["stickers"],
+    queryFn: () => fetchStickers(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const lastPhotoUrl = useMemo(() => {
+    const items = Array.isArray(allStickers) ? allStickers : (allStickers?.items ?? []);
+    for (const s of items) {
+      // 小さい控えを先に使う。隅の 44px の枠に原寸を落とす意味が無い。
+      const url = stickerPhotoUrl(s, { thumb: true });
+      if (url) return url;
+    }
+    return null;
+  }, [allStickers]);
   const {
     word: wordParam,
     pending: pendingParam,
@@ -1185,6 +1215,8 @@ function CapturePage() {
           searching={searching}
           initialMode={modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
+          lastPhotoUrl={lastPhotoUrl}
+          onOpenLibrary={() => void navigate({ to: "/home" })}
           error={error}
         />
       )}
@@ -1818,6 +1850,10 @@ export function CaptureObjectPanel({
   searching = false,
   initialMode = "photo",
   onOpenScan,
+  /** シャッターの左に出す、いちばん新しく捕まえた1枚。 */
+  lastPhotoUrl = null,
+  /** その釦を押したとき（過去の写真を見に行く）。 */
+  onOpenLibrary,
   error,
 }: {
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
@@ -1833,6 +1869,12 @@ export function CaptureObjectPanel({
   /** どの撮り方で開くか（`/capture?mode=search` から来たとき）。 */
   initialMode?: CameraMode;
   onOpenScan: () => void;
+  /**
+   * シャッターの左に出す1枚（オーナー指示 2026-09-16「写真の部分は過去に
+   * 撮った写真を表示する」）。まだ1枚も無ければ `null` で記号が出る。
+   */
+  lastPhotoUrl?: string | null;
+  onOpenLibrary: () => void;
   error: string | null;
 }) {
   const t = useT();
@@ -1958,70 +2000,70 @@ export function CaptureObjectPanel({
      * 画面いっぱいだったので、**同じ「カメラを覗いている」状態なのに
      * 見た目が2種類**あった。広いほうへ揃える。
      */
-    <div className="capture-viewfinder flex flex-col overflow-hidden">
-      {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
-              思い出させる。ここに来るまでに数タップ挟まるので、
-              単語を持ってこないと目的が消える。 */}
-      {retakeWord && (
-        <p className="ja-phrase absolute left-1/2 top-3 z-10 max-w-[80%] -translate-x-1/2 truncate rounded-full bg-background/80 px-3 py-2 text-footnote font-semibold text-foreground backdrop-blur-md">
-          {t("retake.hint", { w: retakeWord })}
-        </p>
-      )}
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
-        {!onNativeCapture && (
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            className="absolute inset-0 h-full w-full object-cover"
-            aria-hidden="true"
-            // 倍率を持たない端末では、見た目だけを拡大して代用する
-            // (スキャン画面と同じ扱い)。
-            style={zoomCaps ? undefined : { scale: String(zoom) }}
-          />
-        )}
-        {/*
-          上の見出しは置かない。**下の帯が「写真を撮る」と言っている**ので
-          同じ語が画面に2つ出ることになるうえ、ここは映像の真上 —
-          地の色が決まらない所に、地を持たない字を置くことになる（検査で
-          白字 対 明るい映像が 1.17 と出た）。iPhone のカメラにも
-          この見出しは無い。
-        */}
-        <div className="capture-focus" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-          <i />
-        </div>
-        {/* 倍率の目盛り。映像の上、下の操作のすぐ上に置く(iPhone と同じ位置)。 */}
-        {!onNativeCapture && cameraReady && (
-          <div className="absolute inset-x-0 bottom-4 flex justify-center">
-            <CameraZoomMeter
-              zoom={zoom}
-              min={zoomCaps?.min ?? 1}
-              // 倍率を持たない端末でも、**見た目の拡大**なら 3× まで出せる。
-              max={zoomCaps?.max ?? 3}
-              onZoom={applyZoom}
-            />
-          </div>
-        )}
+    <div className="capture-viewfinder">
+      {/*
+        **映像は画面いっぱい。操作はその上に浮く。**（オーナー指示 2026-09-16、
+        参考画像のとおり）
 
-        {error && (
-          <p className="absolute inset-x-5 bottom-20 rounded-xl bg-destructive/85 px-3 py-2 text-center text-footnote text-destructive-foreground backdrop-blur-md">
-            {error}
-          </p>
-        )}
-      </div>
+        前は上半分が映像・下半分が地色の帯、という2段だった。参考画像は
+        いちばん下まで映像が続いていて、名前も釦もその上に載っている。
+        「いま何が見えているか」が最後まで隠れないので、構図を決めながら
+        撮り方を選べる。
+      */}
+      <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+      {!onNativeCapture && (
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className="absolute inset-0 h-full w-full object-cover"
+          aria-hidden="true"
+          // 倍率を持たない端末では、見た目だけを拡大して代用する
+          // (スキャン画面と同じ扱い)。
+          style={zoomCaps ? undefined : { scale: String(zoom) }}
+        />
+      )}
 
       {/*
-        下の操作。**下のタブ帯（63px）を避けた所に置く。**
-        画面いっぱいの映像の上にタブ帯が重なって出るので、ここを詰めると
-        シャッターが帯の下に隠れる。開く演出（`camera-lens-open`）の着地点も
-        この 5.5rem を前提に置いてあるので、変えるときは両方を一緒に動かす。
+        **アプリの名前を映像の上に出す**（参考画像のとおり）。帯は作らない —
+        帯を置くとその高さだけ映像が削られる。上の安全域（切り欠き・時計）は
+        避ける。参考画像の右上にある言語の札は**置かない**（オーナー指示
+        2026-09-16「右上の台湾華語のような言語設定はいらない」）。
       */}
-      <div className="capture-controls relative px-5 pt-2 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))]">
+      <p className="capture-brand" aria-hidden="true">
+        Catchwords
+      </p>
+
+      {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
+          思い出させる。ここに来るまでに数タップ挟まるので、
+          単語を持ってこないと目的が消える。 */}
+      {retakeWord && (
+        <p className="capture-retake ja-phrase">{t("retake.hint", { w: retakeWord })}</p>
+      )}
+
+      {/*
+        枠の四隅だけ。**真ん中の青い点は置かない**（オーナー指示 2026-09-16
+        「カメラ向けた時の真ん中の青い点消して」）。
+
+        あれは「ここに合わせる」を示す息づく点だったが、ピントを自分で
+        合わせられるわけではないので、**動いているのに触れない物**だった。
+        四隅の枠だけで「この中へ」は伝わる。
+      */}
+      <div className="capture-focus" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+
+      {error && <p className="capture-error">{error}</p>}
+
+      {/*
+        下の操作。映像の上に浮くので、**字が読めるだけの陰**を下から敷く
+        （`styles.css` の `.capture-controls`）。明るい景色に白い字を直に
+        置くと読めない（検査で 1.17 と出たことがある）。
+      */}
+      <div className="capture-controls">
         {textOpen && (
           <form
             onSubmit={(e) => {
@@ -2038,11 +2080,6 @@ export function CaptureObjectPanel({
                  * **鍵盤はユーザーが欄を押してから出す。**（オーナー指示
                  * 2026-09-16「ユーザーが検索欄タップするまでキーボード表示
                  * しないで」）
-                 *
-                 * `autoFocus` を付けていたので、撮り方を「検索」に回した
-                 * 瞬間に鍵盤が上がり、**画面の半分が隠れて映像が見えなく
-                 * なる**。輪を回して見比べている最中に視界を奪うのは、
-                 * 触った覚えのない物が出てくるのと同じ（HIG「直接操作」）。
                  */
                 value={typedWord}
                 onChange={(e) => setTypedWord(e.target.value)}
@@ -2055,8 +2092,7 @@ export function CaptureObjectPanel({
             </div>
             {/*
               **声で調べる道はここにある。**（2026-09-16 にスキャン画面の
-              検索欄を畳んだとき、そこにしか無かったので移した。欄を1つ
-              消しただけで機能が黙って無くなるのは、直したい形ではない。）
+              検索欄を畳んだとき、そこにしか無かったので移した。）
               使えない端末には出さない — 押しても何も起きない釦を置かない。
             */}
             {voice.available && (
@@ -2078,38 +2114,42 @@ export function CaptureObjectPanel({
           </form>
         )}
 
-        {/*
-          **撮り方はシャッターを囲むダイヤル**（オーナー指示 2026-09-16
-          「写真を撮る、検索、スキャンがシャッターボタンの丸の周りに
-           ダイヤルのようにボタンとして囲い、スライドしたら切り替えられる
-           ようにして。また切り替えるとシャッターボタンのアイコンも変化する
-           ようにして」）。
+        {/* 倍率。撮り方の帯のすぐ上（iPhone と同じ位置）。 */}
+        {!onNativeCapture && cameraReady && (
+          <div className="mb-3 flex justify-center">
+            <CameraZoomMeter
+              zoom={zoom}
+              min={zoomCaps?.min ?? 1}
+              // 倍率を持たない端末でも、**見た目の拡大**なら 3× まで出せる。
+              max={zoomCaps?.max ?? 3}
+              onZoom={applyZoom}
+            />
+          </div>
+        )}
 
-          前は3つを縦に並べていた。読めはするが、切り替えるには狙って押す
-          しかない。カメラは覗いたまま片手で扱う物なので、親指を横に
-          滑らせるだけで変わる形にした。
+        {/*
+          **撮り方は横に3つ並べる**（オーナー指示 2026-09-16、参考画像のとおり）。
+          押しても、指で払っても変わる。「スキャン」だけは別の画面なので渡す。
         */}
-        <div className="relative">
-          {/* 前後の切り替えはダイヤルの左に重ねる（輪の外側なので当たらない）。 */}
-          {!onNativeCapture && (
-            <div className="absolute bottom-6 left-0 z-10">
-              <CameraFlipButton
-                facing={facing}
-                onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-              />
-            </div>
-          )}
-          <CameraDial
+        <CameraModeStrip
+          mode={mode}
+          onChange={(m) => {
+            if (m === "scan") {
+              onOpenScan();
+              return;
+            }
+            setMode(m);
+          }}
+        />
+
+        {/* 写真 ／ シャッター ／ 切替。左右は同じ形・同じ大きさにする。 */}
+        <div className="capture-actions">
+          <CameraLibraryButton photoUrl={lastPhotoUrl} onOpen={onOpenLibrary} />
+          <CameraShutter
             mode={mode}
-            onChange={(m) => {
-              if (m === "scan") {
-                onOpenScan();
-                return;
-              }
-              setMode(m);
-            }}
-            shutterLabel={t("capture.tapToShoot")}
-            onShutter={() => {
+            label={t("capture.tapToShoot")}
+            busy={searching}
+            onPress={() => {
               // 「検索」に居るときの真ん中は**撮るのではなく調べる**。
               // 絵が虫眼鏡に変わっているので、押した先もそれに合わせる。
               if (mode === "search") {
@@ -2119,8 +2159,16 @@ export function CaptureObjectPanel({
               }
               openCamera();
             }}
-            busy={searching}
           />
+          {onNativeCapture ? (
+            <span className="camera-side camera-side--empty" aria-hidden="true" />
+          ) : (
+            <CameraFlipButton
+              facing={facing}
+              withLabel
+              onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+            />
+          )}
         </div>
 
         <input
