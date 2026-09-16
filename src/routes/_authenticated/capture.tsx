@@ -2034,7 +2034,16 @@ export function CaptureObjectPanel({
             <div className="relative flex-1">
               <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                autoFocus
+                /**
+                 * **鍵盤はユーザーが欄を押してから出す。**（オーナー指示
+                 * 2026-09-16「ユーザーが検索欄タップするまでキーボード表示
+                 * しないで」）
+                 *
+                 * `autoFocus` を付けていたので、撮り方を「検索」に回した
+                 * 瞬間に鍵盤が上がり、**画面の半分が隠れて映像が見えなく
+                 * なる**。輪を回して見比べている最中に視界を奪うのは、
+                 * 触った覚えのない物が出てくるのと同じ（HIG「直接操作」）。
+                 */
                 value={typedWord}
                 onChange={(e) => setTypedWord(e.target.value)}
                 placeholder={t("capture.searchPlaceholder")}

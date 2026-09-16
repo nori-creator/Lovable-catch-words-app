@@ -35,6 +35,7 @@ import {
   CapturePickScene,
   CaptureReunionScene,
 } from "./scenes/capture";
+import { ScanBottomScene } from "./scenes/scan-bottom";
 import {
   ScanCameraScene,
   ScanChipScene,
@@ -148,6 +149,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-object": CaptureObjectScene,
   "capture-saving": CaptureSavingScene,
   "scan-camera": ScanCameraScene,
+  "scan-bottom": ScanBottomScene,
   "camera-dial": CameraDialScene,
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
@@ -251,6 +253,7 @@ const BARE = new Set([
   "sticker-sheet",
   "capture-saving",
   "scan-camera",
+  "scan-bottom",
   "camera-dial",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
@@ -278,10 +281,10 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "camera-dial", label: "撮り方のダイヤル（囲い・真鍮・回せる）" },
-  { scene: "capture-object", label: "撮る画面（下の余白を詰めた・配色）" },
-  { scene: "review-choice", label: "復習の4択（スクロールなしで4つ）" },
-  { scene: "home-tap", label: "札を押して詳細が広がる動き" },
+  { scene: "capture-object", label: "撮る画面（アプリの青・3つの孤で1周）" },
+  { scene: "camera-dial", label: "撮り方のダイヤル（孤を押す・回す）" },
+  { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
+  { scene: "tabbar", label: "下の帯（カメラの丸）" },
   { scene: "home", label: "ホーム（変な縮尺で跳ねない）" },
 ];
 

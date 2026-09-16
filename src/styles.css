@@ -793,6 +793,19 @@
    =========================================================================== */
 .album-page {
   position: relative;
+  /**
+   * **札は紙からはみ出さない。**（オーナー報告 2026-09-16
+   * 「ホームのアルバムに移った時に画像の変な残像がある」）
+   *
+   * 札の大きさは測った台紙の幅から出している。測り損ねた一瞬があると、
+   * その値のまま巨大な札が描かれる — 録画では2コマだけ、写真が幅いっぱいに
+   * 広がって下の「これまでのページ」の見出しまで覆っていた。
+   *
+   * 紙に貼った写真が紙の外へ出ることは**design としてあり得ない**ので、
+   * ここで切っても正しい絵は1pxも変わらない。測る側の直し
+   * （`useLayoutEffect`）と合わせて、**中と外の両方から**塞ぐ。
+   */
+  overflow: hidden;
   /* 紙の繊維: フラクタルノイズを極薄で重ねる(画像アセット不要) */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.26 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
   box-shadow:
@@ -976,7 +989,7 @@ html[data-motion="reduce"] {
   position: absolute;
   inset: 0 0 34% 0;
   border-radius: inherit;
-  background: #14110f;
+  background: var(--cam-body);
   opacity: 0;
   animation: camera-parts 720ms ease-out both;
 }
@@ -988,18 +1001,19 @@ html[data-motion="reduce"] {
  * 変わるので、割合で置くと着地点も一緒に動いてしまう。育ち切った親は
  * 画面そのものなので、ここの `bottom` は**画面下端からの距離**になる。
  *
- * 7.375rem = 118px は撮る画面のシャッターの下端の実測値（844px の画面で
- * 上 646・下 726 ＝ 下端から 118px）。`components/CameraDial.tsx` の
- * 大きさ 80px と、下の帯の余白（`capture.tsx` の `pb-[…]`）を変えたら
+ * 8rem = 128px は撮る画面のシャッターの下端の実測値（下の帯の余白 68px ＋
+ * ダイヤルの箱の半分 98px ＝ 中心 166px、そこから半径 38px を引いた値）。
+ * `components/CameraDial.tsx` の大きさ 76px（箱 196px）と、
+ * 下の帯の余白（`capture.tsx` の `pb-[…]`）を変えたら
  * **ここも一緒に動かすこと** — 2026-09-16 に余白を詰めたとき、ここを
  * 忘れて 22px ずれた。
  */
 .camera-launch__shutter {
   position: absolute;
   left: 50%;
-  bottom: calc(7.375rem + env(safe-area-inset-bottom, 0px));
-  width: 80px;
-  height: 80px;
+  bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  width: 76px;
+  height: 76px;
   border-radius: 999px;
   background: #fff;
   translate: -50% 0;
@@ -1159,11 +1173,11 @@ html[data-motion="reduce"] {
   color: var(--cam-ink);
 }
 .capture-shutter {
-  /* 印画紙のクリーム＋真鍮の環（`--cam-*` の注）。真っ白ではない。 */
+  /* 青みの白＋アプリの青の環（`--cam-*` の注）。真っ白ではない。 */
   background: var(--cam-paper);
   color: var(--cam-body);
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--cam-brass) 55%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--cam-accent) 55%, transparent),
     0 6px 18px rgb(0 0 0 / 0.35);
   transition: transform 100ms ease;
 }
@@ -4033,7 +4047,7 @@ html[data-motion="reduce"] .camera-modes__other:active {
   border-radius: 9999px;
   /* 色はカメラの世界から（`--cam-*` の注）。真っ黒の板にしない。 */
   background: color-mix(in srgb, var(--cam-body) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cam-brass) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cam-accent) 24%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -4066,7 +4080,7 @@ html[data-motion="reduce"] .camera-modes__other:active {
 
 .camera-zoom__stop[data-on] .camera-zoom__dot {
   color: var(--cam-body);
-  background: var(--cam-brass);
+  background: var(--cam-accent);
   scale: 1.12;
 }
 
@@ -4085,7 +4099,7 @@ html[data-motion="reduce"] .camera-zoom__stop[data-on] .camera-zoom__dot {
   height: 44px;
   color: var(--cam-ink);
   background: color-mix(in srgb, var(--cam-body) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cam-brass) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cam-accent) 24%, transparent);
   border-radius: 9999px;
   backdrop-filter: blur(12px);
   transition: scale 120ms ease-out;
@@ -4105,32 +4119,44 @@ html[data-motion="reduce"] .camera-flip:active {
 /* ------------------------------------------------------------------
  * 撮り方のダイヤル（`components/CameraDial.tsx`）
  *
- * ## 色はこのアプリの世界から取る（オーナー指摘 2026-09-16
- * 「デザインが白黒すぎる。私のアプリ全体のデザインuiuxから統一感出して」）
+ * ## 色はこのアプリの青から取る（オーナー指示 2026-09-16
+ * 「カメラの画面はこのアプリと同じ青い色をベースにAppleのなめらかさ、
+ *  美しさ、人間工学に基づいてデザインし直して」）
  *
- * このアプリは**街で出会った言葉を捕まえて図鑑に貼る**もの。ホームは
- * クリーム色の台紙に写真を角で留めたスクラップブックで、真鍮色の枠が
- * 走っている（`.album-bg-frame` の `#b88a4d`）。カメラだけが黒地に白と
- * Apple の黄色だと、そこだけ別のアプリに見える。
+ * 前の版は革の茶＋真鍮だった。台紙（図鑑）とは揃っていたが、**アプリの
+ * 主色＝青とは揃っていなかった**。下の帯の丸も、捕まえた時の光も、
+ * 図鑑の見出しも青。カメラだけ茶色だと、押した瞬間に別のアプリへ
+ * 移ったように見える。
  *
  * そこで:
- *  ・地 … 真っ黒ではなく**革のような温かい暗色**（カメラの本体）
- *  ・選ばれている撮り方と輪 … **真鍮**（台紙の枠と同じ色）
- *  ・シャッター … **印画紙のクリーム**（台紙の紙と同じ色）
+ *  ・地 … 真っ黒ではなく**深い青の機体**（`--cam-body`）
+ *  ・輪と縁 … **アプリの青そのもの**（`--cam-accent` ＝ `--primary` と同じ値）
+ *  ・選ばれている孤 … **濃い青**（`--cam-accent-deep`）。白字を載せるため
+ *  ・シャッター … **青みの白**（`--cam-paper`）
  *
- * **テーマには従わせない。** 映像の上に載るので、明暗どちらでも同じ
- * 見え方が要る（暗いテーマで白地に白いシャッターになって消えた事故がある）。
+ * **`var(--primary)` を参照しない。** 値としては同じだが、`--primary` は
+ * 見た目パック（`pack-styles.css`）で黄にも赤にも変わる。カメラは映像の上に
+ * 載るので、明暗どちらでも・どのパックでも同じ見え方が要る（暗いテーマで
+ * 白地に白いシャッターになって消えた事故がある）。だから**値を写して
+ * 固定する**。`--primary` を変えるときは、揃えるかどうかをここで決める。
+ *
+ * ## 字と地の比（実測が要る所）
+ *  ・`--cam-ink` 対 `--cam-body` … 暗い地の上の字。4.5:1 以上
+ *  ・白 対 `--cam-accent-deep` … 選ばれている孤の名前。4.5:1 以上
+ * `--cam-accent`（明るい青）の上に白い小さな字は置かない — 3.7:1 しかない。
  * ------------------------------------------------------------------ */
 
 :root {
-  /* カメラの本体。革の暗い茶。 */
-  --cam-body: #1d1712;
-  /* 真鍮。台紙の枠（`.album-bg-frame`）と同じ色。 */
-  --cam-brass: #c79a55;
-  /* 印画紙のクリーム。台紙の紙（`.album-bg-paper`）と同じ色。 */
-  --cam-paper: #f5ecd6;
-  /* 映像の上に置く字。真鍮より薄く、地よりずっと明るい。 */
-  --cam-ink: #efe3cc;
+  /* カメラの機体。深い青。 */
+  --cam-body: oklch(0.2 0.045 258);
+  /* アプリの青（`--primary` と同じ値を写したもの。上の注を見よ）。 */
+  --cam-accent: oklch(0.62 0.21 255);
+  /* 白い字を載せる濃い青。小さい字でも 4.5:1 を取れる明るさ。 */
+  --cam-accent-deep: oklch(0.45 0.19 258);
+  /* シャッターの面。青みのある白。 */
+  --cam-paper: oklch(0.98 0.012 255);
+  /* 映像の上・機体の上に置く字。 */
+  --cam-ink: oklch(0.95 0.025 255);
 }
 
 .camera-dial {
@@ -4138,19 +4164,15 @@ html[data-motion="reduce"] .camera-flip:active {
   display: grid;
   place-items: center;
   width: 100%;
-  /* 名前を置く円（半径 74px）＋ 粒の高さが収まる箱。 */
-  height: 180px;
+  /* 孤の外径 176px ＋ 影の余白（`CameraDial.tsx` の `BOX`）。 */
+  height: 196px;
   touch-action: pan-y;
   user-select: none;
 }
 
 /**
- * 回る輪。**見える輪にする**（オーナー指示 2026-09-16
- * 「シャッターボタンの周りで本物のダイヤルのように回せるように」）。
- *
- * 前は名前だけが回っていて、輪そのものが描かれていなかった。何が回るのか
- * が絵から読めないと、滑らせて回せることに気づけない。真鍮の細い環を
- * 敷いて、その上に粒を並べる。
+ * 回る輪。孤と、その上の名前・絵がまとめて回る。
+ * 中のシャッターは**別の層**なので回らない。
  */
 .camera-dial__ring {
   position: absolute;
@@ -4158,74 +4180,109 @@ html[data-motion="reduce"] .camera-flip:active {
   will-change: rotate;
 }
 
-.camera-dial__ring::before {
-  content: "";
+/* 孤3つ。**これで円が1周ぶん埋まる**（`CameraDial.tsx` の `SECTORS`）。 */
+.camera-dial__arcs {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 148px;
-  height: 148px;
-  translate: -50% -50%;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--cam-brass) 38%, transparent);
-  /* 目盛りの刻み。回っているのが一目で分かる。 */
-  background:
-    repeating-conic-gradient(
-      from 0deg,
-      color-mix(in srgb, var(--cam-brass) 30%, transparent) 0deg 0.6deg,
-      transparent 0.6deg 15deg
-    );
-  mask: radial-gradient(circle, transparent 0 65px, #000 65px 74px, transparent 74px);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 /**
- * 撮り方の粒。**それぞれ囲う**（オーナー指示「3つのモードはそれぞれ囲い」）。
- * 囲いがあると「押せる物が3つ、輪の上に載っている」と読める。
+ * 孤ひとつ。**押せるのは孤そのもの**（`pointer-events: auto`）。
+ * 前の版は名前の粒だけが押せて、輪の上に押せない隙間が空いていた。
+ */
+.camera-dial__arc {
+  pointer-events: auto;
+  cursor: pointer;
+  /* **青を混ぜた薄い塗り。** 機体色そのものだと、下の操作の地
+     （`.capture-controls` も `--cam-body`）と同じ色になって孤が消える。
+     映像の上でも機体の上でも見えるのは、どちらとも違う色だけ。 */
+  fill: color-mix(in srgb, var(--cam-accent) 18%, transparent);
+  stroke: color-mix(in srgb, var(--cam-accent) 55%, transparent);
+  stroke-width: 1;
+  transition:
+    fill 180ms ease-out,
+    stroke 180ms ease-out;
+}
+
+/* 選ばれている孤。**色だけで伝えない** — 名前もここにだけ出る。 */
+.camera-dial__arc[data-on] {
+  fill: var(--cam-accent-deep);
+  stroke: color-mix(in srgb, var(--cam-paper) 62%, transparent);
+  stroke-width: 1.5;
+}
+
+/**
+ * 孤の上に載る名前と絵。**輪と一緒に回るが、中身は立ったまま**
+ * （`CameraDial.tsx` が逆に回して打ち消す）。
  */
 .camera-dial__label {
   position: absolute;
-  translate: -50% -50%;
-  /* 押せる範囲は 44px を割らない（HIG §11）。見える囲いはその中。 */
+  /* **真ん中合わせは余白で。** `translate` は輪の回転と一緒に回ってしまう
+     （`CameraDial.tsx` の注）。箱の大きさを決め打ちして半分を戻す。 */
+  width: 96px;
+  height: 40px;
+  margin-left: -48px;
+  margin-top: -20px;
+  /* 中身は見せるだけ。指は孤（上）が受ける。 */
+  pointer-events: none;
   display: grid;
   place-items: center;
-  min-height: 44px;
   padding: 0;
   background: none;
   border: 0;
-  transition: scale 160ms ease-out;
-}
-
-.camera-dial__chip {
-  display: block;
-  padding: 5px 12px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
   color: var(--cam-ink);
-  background: color-mix(in srgb, var(--cam-body) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cam-brass) 30%, transparent);
-  border-radius: 9999px;
-  backdrop-filter: blur(6px);
-  transition:
-    color 160ms ease-out,
-    background-color 160ms ease-out,
-    border-color 160ms ease-out;
 }
 
-/* 選ばれている撮り方。**色だけで伝えない** — 大きさと `aria-current` も変える。 */
+.camera-dial__content {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.camera-dial__glyph {
+  width: 20px;
+  height: 20px;
+}
+
+/**
+ * 名前は**選ばれている1つだけ**に出す（＝いつも真上）。
+ * 斜めの位置で水平の字を出すと、帯の外へはみ出す（`CameraDial.tsx` の注）。
+ * 回している最中は消す — 回っている途中の位置で名前が出ると、
+ * 同じ理由ではみ出す。
+ */
+.camera-dial__name {
+  /* 絵の**真下**にぶら下げる。組版から外すので、名前が出ても絵の位置は
+     動かない — 回すたびに絵が半径方向へ跳ねるのを防ぐ。 */
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  translate: -50% 0;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
 .camera-dial__label[data-on] {
-  scale: 1.06;
-}
-.camera-dial__label[data-on] .camera-dial__chip {
-  font-weight: 700;
-  color: var(--cam-body);
-  background: var(--cam-brass);
-  border-color: var(--cam-paper);
+  color: var(--cam-paper);
 }
 
-html[data-motion="reduce"] .camera-dial__label,
-html[data-motion="reduce"] .camera-dial__chip {
+.camera-dial__label[data-on] .camera-dial__name {
+  opacity: 1;
+}
+
+.camera-dial[data-dragging] .camera-dial__name {
+  opacity: 0;
+}
+
+html[data-motion="reduce"] .camera-dial__arc,
+html[data-motion="reduce"] .camera-dial__name {
   transition: none;
 }
 
@@ -4234,23 +4291,22 @@ html[data-motion="reduce"] .camera-dial__chip {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
   padding: 0;
   border: 0;
   border-radius: 9999px;
 }
 
 /**
- * シャッターの中の丸。**印画紙のクリーム＋真鍮の環** — 図鑑に貼る1枚を
- * ここから取り出す、という筋にする。中の絵は撮り方ごとに変わるので、
- * 押した先が写真なのか検索なのかが**押す前に**分かる。
+ * シャッターの中の丸。**青みの白＋青い環**。中の絵は撮り方ごとに変わる
+ * ので、押した先が写真なのか検索なのかが**押す前に**分かる。
  */
 .camera-dial__core {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 9999px;
   color: var(--cam-body);
 }
@@ -4259,11 +4315,11 @@ html[data-motion="reduce"] .camera-dial__chip {
   opacity: 0.5;
 }
 
-/* 下の操作の地。真っ黒ではなく、革の暗色＋真鍮の細い縁。 */
+/* 下の操作の地。真っ黒ではなく、深い青の機体＋青い細い縁。 */
 .capture-controls {
   background: var(--cam-body);
   color: var(--cam-ink);
-  border-top: 1px solid color-mix(in srgb, var(--cam-brass) 22%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--cam-accent) 22%, transparent);
 }
 
 /**

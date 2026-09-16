@@ -701,6 +701,9 @@ function ScanPage() {
             zoomMin={zoomCapsRef.current?.min ?? 1}
             zoomMax={zoomMax}
             onZoom={applyZoom}
+            // シートの上端のすぐ上。シートは `4.25rem + 安全域` の上に
+            // 立っているので、その高さを足した所が上端になる。
+            zoomBottom={`calc(4.25rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`}
           />
 
           {/* compact metrics badge (always visible after a scan) */}
@@ -1280,6 +1283,7 @@ export function ScanCameraControls({
   zoomMin,
   zoomMax,
   onZoom,
+  zoomBottom = "1rem",
 }: {
   /** 撮った絵を止めている間は操作を出さない。 */
   hidden: boolean;
@@ -1291,11 +1295,36 @@ export function ScanCameraControls({
   zoomMin: number;
   zoomMax: number;
   onZoom: (v: number) => void;
+  /**
+   * 倍率の粒を、画面の下端からどれだけ上に置くか（CSSの長さ）。
+   *
+   * **呼ぶ側が渡す。** ここは `fixed inset-0` のカメラ面の中なので、
+   * 「下端から 16px」は**画面の下端から 16px**という意味になる。
+   * そこには下のタブ帯（下端から 8px・高さ 63px）が浮いていて、
+   * 粒 54px のうち **47px が帯の裏に入る**（実測。`scan-bottom` の面）。
+   * 帯の裏から暗いカプセルが少しだけ覗く、あの「被っているもの」が
+   * これ（オーナー報告 2026-09-16「スキャンモードの時に一番下に
+   * ある被ってるもの消して」）。
+   *
+   * 撮る画面では、倍率は**映像の箱の下端**＝操作の帯のすぐ上に付いて
+   * いて、帯とは重ならない。同じ位置になるよう、スキャンでは操作
+   * シートの高さを測って渡す。
+   */
+  zoomBottom?: string;
 }) {
   if (hidden) return null;
   return (
     <>
-      <CameraFlipButton facing={facing} onFlip={onFlip} className="absolute left-3 top-4 z-10" />
+      {/*
+        前後の切替。**上の安全域を足す。** この画面は上の帯を出さない
+        （`AppShell bare`）ので、`top-4` だけだと切り欠き／時計の帯の
+        真下に入る端末がある。帯があった頃はその分だけ下がっていた。
+      */}
+      <CameraFlipButton
+        facing={facing}
+        onFlip={onFlip}
+        className="absolute left-3 z-10 top-[calc(1rem+env(safe-area-inset-top,0px))]"
+      />
 
       {/*
         倍率。**縦のスライダーをやめ、iPhone と同じ丸い粒にした**
@@ -1305,7 +1334,7 @@ export function ScanCameraControls({
         置き場所も撮る画面と揃えて、映像の下端の中央にする。
       */}
       {showZoom && (
-        <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center">
+        <div className="absolute inset-x-0 z-10 flex justify-center" style={{ bottom: zoomBottom }}>
           <CameraZoomMeter zoom={zoom} min={zoomMin} max={zoomMax} onZoom={onZoom} />
         </div>
       )}
