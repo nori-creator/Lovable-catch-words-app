@@ -16,6 +16,28 @@ export const getMyProfile = createServerFn({ method: "GET" })
    */
   .handler(async ({ context }): Promise<(MyProfile & { partial?: boolean }) | null> => {
     const { supabase, userId } = context;
+
+    /**
+     * **自分の行は SECURITY DEFINER の関数で読む。**
+     *
+     * `profiles` の私用の列（言語・級・plan・復習設定）は `authenticated` に
+     * SELECT が与えられていない（SELECT ポリシーが `true` なので、列を配ると
+     * 他人の設定まで読めてしまう）。そのため直に `select` すると必ず
+     * `permission denied for table profiles` になり、下の `partial` 経路
+     * ＝既定値が返って「設定が毎回戻る」ように見えていた。
+     * `get_my_profile()` は `auth.uid()` の行だけを返すので、他人の設定を
+     * 晒さずに本人の設定を読める。
+     */
+    const rpc = await (
+      supabase as unknown as {
+        rpc: (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+      }
+    ).rpc("get_my_profile");
+    if (!rpc.error && rpc.data) {
+      const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+      if (row) return row as MyProfile;
+    }
+
     const { data, error } = await supabase
       .from("profiles")
       .select(
