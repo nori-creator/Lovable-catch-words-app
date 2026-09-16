@@ -725,9 +725,11 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
        *
        * 押した札から広げる回は、面ごとの入場演出を掛けない — 面が動くと
        * 写真の行き先も一緒に動いて、写真が着地点を追いかけ続ける。
-       * 動きは写真1枚が持ち、まわりの文字だけが薄く乗る(`sheet-around-in`)。
+       * 動きは写真1枚が持つ。**まわりには何も掛けない** — 子を名指し
+       * しない規則を置いたら、自分で出入りを決める覆い(`SectionsPanel`)を
+       * 開きっぱなしにして写真を隠した(`styles.css` の注)。
        */
-      className={`fixed inset-0 z-50 flex flex-col material-thick ${reveal ? "sheet-around-in" : "material-in"}`}
+      className={`fixed inset-0 z-50 flex flex-col material-thick ${reveal ? "" : "material-in"}`}
       role="dialog"
       aria-modal="true"
       aria-label={s ? s.word.headword : t("common.card")}

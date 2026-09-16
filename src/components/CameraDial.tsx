@@ -176,7 +176,9 @@ export function CameraDial({
                 if (m !== mode) onChange(m);
               }}
             >
-              {t(MODE_KEY[m])}
+              {/* **それぞれ囲う。** 囲いがあると「押せる物が3つ、輪の上に
+                  載っている」と読める（オーナー指示 2026-09-16）。 */}
+              <span className="camera-dial__chip">{t(MODE_KEY[m])}</span>
             </button>
           );
         })}

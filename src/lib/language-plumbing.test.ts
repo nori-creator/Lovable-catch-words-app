@@ -2588,17 +2588,33 @@ describe("ホームのアルバムの長押し", () => {
     // 等分に押し込む古い形が残っていないこと。
     expect(rv).not.toMatch(/grid-rows-4/);
     /**
-     * **下限つきで余りを分ける。**（オーナー指摘 2026-09-16
-     * 「復讐の四択の下の余白気になる。下までバランスよく大きさを計算して」）
+     * **4つが必ず画面に収まる。**（オーナー報告 2026-09-16
+     * 「復習の4択スクロールしないと4択が全て見れないようになってる」）
      *
-     * 縦に積むだけだと余りが全部いちばん下に溜まる（実測 390×844 で
-     * 札の中に 292px の空き）。`minmax(3.5rem, 1fr)` にすると余りは
-     * 行数で等分され、**3.5rem より縮むことは絶対に無い** — 注音が
-     * 潰れないという上の約束は守ったまま、余白だけが消える（実測 13px）。
+     * 前は写真が `clamp(5rem, 24vh, 14rem)` の固定の高さを先に取り、
+     * 選択肢が残りを等分していた。**画面が低いと写真が場所を取り切って
+     * 4つ目が外へ出る**（実測: 写真のある札は 800px 未満で必ず溢れ、
+     * 568px では1つしか見えなかった）。
+     *
+     * 順番を逆にする。選ぶ物が先に取り（1つ 3〜4.25rem）、写真は
+     * **残った分だけ**もらう（`flex-1` ＋ `min-h-0`）。実測で 568px
+     * （iPhone SE）から上は写真の有無にかかわらず 4/4 が収まる。
      */
-    expect(rv).toMatch(/minmax\(3\.5rem, 1fr\)/);
-    // 入らなければ送る（「必ずしも選択肢をすべて表示する必要はない」）。
-    expect(rv).toMatch(/grid min-h-0 flex-1 gap-1\.5 overflow-y-auto/);
+    expect(rv).toMatch(/minmax\(3rem, 4\.25rem\)/);
+    expect(rv).toMatch(/grid min-h-0 gap-1\.5 overflow-y-auto/);
+    // 写真は余りを受け取る側（先に高さを取らない）。
+    expect(rv).toMatch(/quiz-photo mb-1\.5 min-h-0 w-full flex-1/);
+    expect(rv).not.toMatch(/clamp\(5rem,24vh,14rem\)/);
+    /**
+     * 低い画面では写真を出さない。余りを受け取る形だと、画面が低いほど
+     * 写真は薄く潰れる（実測 667px で 32px ＝ 上端の帯だけ）。意味を
+     * 持てない高さしか渡せないなら出さないほうが正直。
+     */
+    const css = read("styles.css");
+    expect(css).toMatch(/@media \(max-height: 700px\)/);
+    const q = css.slice(css.indexOf("@media (max-height: 700px)"));
+    expect(q.slice(0, 120)).toMatch(/\.quiz-photo/);
+    expect(q.slice(0, 160)).toMatch(/display: none/);
   });
 
   it("解説が無い語でも、答え合わせを空にしない", () => {
@@ -3487,12 +3503,21 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("札を開く面の入場クラスは、動きの途中で切り替わらない", () => {
     const src = codeOnly(read("components/StickerSheet.tsx"));
-    expect(src).toMatch(/\$\{reveal \? "sheet-around-in" : "material-in"\}/);
+    expect(src).toMatch(/\$\{reveal \? "" : "material-in"\}/);
     // 開いた時の値をそのまま持ち回る（着地で変わる値を見ない）。
     expect(src).toMatch(/const reveal = flightRef\.current\.origin;/);
     expect(src).not.toMatch(/landed/);
-    // まわりだけ薄く乗せ、写真の箱には掛けない。
-    expect(read("styles.css")).toMatch(/\.sheet-around-in > \*:not\(\[data-sheet-hero\]\)/);
+    /**
+     * **まわりには何も掛けない。**（オーナー報告 2026-09-16
+     * 「上の単語の設定の項目の順番が勝手に開いて画像が見れない」）
+     *
+     * 子を名指ししない規則（`> *` に `animation: … both`）を置いたら、
+     * 自分で出入りを決める覆い（`SectionsPanel`）まで `opacity: 1` に
+     * 固定され、閉じているはずの物が写真の上に居座った。CSS アニメーション
+     * は class より強く、`both` は終わったあとも効き続ける。
+     */
+    expect(read("styles.css")).not.toMatch(/\.sheet-around-in > \*/);
+    expect(src).not.toMatch(/sheet-around-in/);
   });
 
   /**
@@ -3628,7 +3653,14 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 3箇所とも同じ物を使っていること。
     expect(shell).toMatch(/items\.findIndex\(\(i\) => atPath\(i\.to\)\)/);
     expect(shell).toMatch(/const isCurrent = atPath\(to\)/);
-    expect(shell).toMatch(/if \(!isCurrent\) playCameraLaunch\(\)/);
+    /**
+     * **入れ替えの頃合いは演出側が決める。**（オーナー報告 2026-09-16
+     * 「カメラの黒い画面に移行し、その上から同じ画面のアニメーションが
+     *  出て2重になってる」）
+     * 押した瞬間に移ると、まだ小さい板の後ろに行き先の黒い面が出る。
+     */
+    expect(shell).toMatch(/playCameraLaunch\(\(\) => void navigate\(\{ to \}\)\)/);
+    expect(shell).toMatch(/event\.preventDefault\(\)/);
     // 素の比較が残っていないこと。
     expect(shell).not.toMatch(/pathname === "\/capture"/);
     expect(shell).not.toMatch(/pathname !== "\/capture"/);
@@ -3641,7 +3673,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("開く演出は1回の操作に1つ（連打で出し直さない）", () => {
     const lib = codeOnly(read("lib/camera-launch.ts"));
-    expect(lib).toMatch(/if \(live\) return;/);
+    expect(lib).toMatch(/if \(live\) \{/);
   });
 
   /**
@@ -3713,7 +3745,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
 
   it("カメラの演出は画面の入れ替わりで消えない（状態に持たない）", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
-    expect(shell).toMatch(/playCameraLaunch\(\)/);
+    expect(shell).toMatch(/playCameraLaunch\(/);
     // 状態も覆いの描画も殻から外れていること。
     expect(shell).not.toMatch(/cameraOpening/);
     expect(shell).not.toMatch(/className="camera-launch"/);
@@ -3753,8 +3785,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(lib).toMatch(/export function setCameraScreenOpen\(open: boolean\): void/);
     // 出ていたら何もせず返る。走っている最中の押下も捨てる。
     const play = lib.slice(lib.indexOf("export function playCameraLaunch"));
-    expect(play).toMatch(/if \(cameraScreenOpen\) return;/);
-    expect(play).toMatch(/if \(live\) return;/);
+    expect(play).toMatch(/if \(cameraScreenOpen\) \{/);
+    expect(play).toMatch(/if \(live\) \{/);
     // カメラを出す画面はどちらも名乗ること（片方だけだと、そこだけ重なる）。
     for (const f of ["routes/_authenticated/capture.tsx", "routes/_authenticated/scan.tsx"]) {
       const src = codeOnly(read(f));
@@ -3930,7 +3962,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * |---|---|
    * | 0% の板 | 49×49・下から中心 56 ＝ 帯の丸（48px・56） |
    * | 100% の板 | 390×844 ＝ 画面いっぱい |
-   * | 100% の中のシャッター | 80px・下から中心 **180** ＝ 本物（80px・**180**） |
+   * | 100% の中のシャッター | 80px・下から中心 **158** ＝ 本物（80px・**158**） |
    */
   it("開く演出は、カメラの形が育って本物のシャッターに重なる", () => {
     const css = read("styles.css");
@@ -3951,7 +3983,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
     const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
     const shBody = sh.slice(0, sh.indexOf("\n}"));
-    expect(shBody).toMatch(/bottom: calc\(8\.75rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(shBody).toMatch(/bottom: calc\(7\.375rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
     expect(shBody).toMatch(/width: 80px/);
   });
 
@@ -4066,5 +4098,104 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).toMatch(/useVoiceInput\(\{/);
     expect(cap).toMatch(/voice\.available && \(/);
+  });
+
+  /**
+   * **台紙は描かれる前に測る。**（オーナー報告 2026-09-16
+   * 「ホームに移るたびに、アルバムの画像が高速で変な縮尺で移動する不具合」）
+   *
+   * 測る所が `useEffect` だと、**画面に描かれたあと**に走る。札の大きさも
+   * 位置も `board.w` から出しているので、最初の1〜2枚は幅 0 のまま描かれ、
+   * 直後に正しい寸法へ飛ぶ。ちょうど同時に貼り付く演出（`album-open`）が
+   * 走るので、「高速で変な縮尺で移動する」ように見える。
+   *
+   * ブラウザで数えた（ホームを開いてから 1.2 秒、毎コマ札の幅を記録）:
+   *
+   * | 測り方 | 幅 0 で描かれたコマ |
+   * |---|---|
+   * | `useEffect` | **2**（最初のコマが `[0,0,0]`） |
+   * | `useLayoutEffect` | **0** |
+   */
+  it("ホームの台紙は、描かれる前に寸法を測る", () => {
+    const src = codeOnly(read("routes/_authenticated/home.tsx"));
+    const at = src.indexOf("const boardRef = useRef<HTMLDivElement | null>(null);");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const block = src.slice(at, at + 700);
+    expect(block).toMatch(/useLayoutEffect\(\(\) => \{/);
+    // 同じ所が `useEffect` に戻っていないこと。
+    expect(block).not.toMatch(/useEffect\(\(\) => \{\s*const el = boardRef/);
+  });
+
+  /**
+   * **カメラの色は、このアプリの世界から取る。**（オーナー指摘 2026-09-16
+   * 「デザインが白黒すぎる。私のアプリ全体のデザインuiuxから統一感出して」）
+   *
+   * ホームはクリーム色の台紙に写真を角で留めたスクラップブックで、真鍮色の
+   * 枠が走っている。カメラだけが黒地に白と Apple の黄色だと、そこだけ別の
+   * アプリに見える。地は革の暗色、選択と輪は真鍮、シャッターは印画紙。
+   *
+   * 生の `#fff` / `#000` / `#ffd60a` を直に書かない — 名前を付けておかないと、
+   * 次に触る人が同じ色を別の値で書き足して、少しずつ散らばる。
+   */
+  it("カメラの色は名前の付いた札から取る（生の白黒を書かない）", () => {
+    const css = read("styles.css");
+    for (const token of ["--cam-body", "--cam-brass", "--cam-paper", "--cam-ink"]) {
+      expect([token, css.includes(token)]).toEqual([token, true]);
+    }
+    // カメラの部分だけを見る（アプリ全体の他の色は対象外）。
+    const from = css.indexOf("撮り方のダイヤル（`components/CameraDial.tsx`）");
+    expect(from).toBeGreaterThanOrEqual(0);
+    const to = css.indexOf(".tabbar__lens--gone {", from);
+    expect(to).toBeGreaterThan(from);
+    const cam = css.slice(from, to);
+    expect(cam).not.toMatch(/#ffd60a/);
+    expect(cam).not.toMatch(/background:\s*#fff\b/);
+    expect(cam).not.toMatch(/background:\s*#000\b/);
+  });
+
+  /**
+   * **輪は見える輪にする。**（オーナー指示 2026-09-16
+   * 「3つのモードはそれぞれ囲いシャッターボタンの周りで本物のダイヤルの
+   *  ように回せるようにして」）
+   *
+   * 前は名前だけが回っていて、輪そのものが描かれていなかった。何が回るのかが
+   * 絵から読めないと、滑らせて回せることに気づけない。
+   */
+  it("ダイヤルは輪が見え、撮り方はそれぞれ囲われている", () => {
+    const css = read("styles.css");
+    // 輪の環そのもの。
+    expect(css).toMatch(/\.camera-dial__ring::before \{/);
+    const ring = css.slice(css.indexOf(".camera-dial__ring::before {"));
+    expect(ring.slice(0, 700)).toMatch(/border-radius: 9999px/);
+    expect(ring.slice(0, 700)).toMatch(/repeating-conic-gradient/);
+    // 撮り方は1つずつ囲う。
+    expect(css).toMatch(/\.camera-dial__chip \{/);
+    expect(codeOnly(read("components/CameraDial.tsx"))).toMatch(
+      /<span className="camera-dial__chip">\{t\(MODE_KEY\[m\]\)\}<\/span>/,
+    );
+  });
+
+  /**
+   * **下の余白と、演出の着地点は同じ数で動く。**
+   *
+   * 2026-09-16 に下の余白を 5.5rem → 4.25rem に詰めたとき、開く演出の
+   * 中のシャッターの着地点を直し忘れて **22px ずれた**。片方だけ動かすと
+   * 「演出が終わった所に釦が無い」になるので、両方を門で押さえる。
+   *
+   * 実測（844px の画面）: 本物のシャッターは下から中心 158px、
+   * 演出 100% の中のシャッターも 158px（0px 差）。
+   */
+  it("下の余白を詰めたら、開く演出の着地点も一緒に動いている", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/pb-\[calc\(4\.25rem\+env\(safe-area-inset-bottom,0px\)\)\]/);
+    // スキャン側の逃げ場も同じ数（2つの画面で下端が違うと揃って見えない）。
+    expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
+      /bottom-\[calc\(4\.25rem\+env\(safe-area-inset-bottom\)\)\]/,
+    );
+    const css = read("styles.css");
+    const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
+    expect(sh.slice(0, 400)).toMatch(
+      /bottom: calc\(7\.375rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
+    );
   });
 });

@@ -23,6 +23,13 @@ import {
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 
+/** 4択の上に出る写真。縦長（実物のキャッチ写真はだいたい縦）。 */
+const PHOTO =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="#9fb8c8"/></svg>',
+  );
+
 const CARD: DueReviewCard = {
   review_id: "r1",
   sticker_id: "s1",
@@ -125,7 +132,23 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
 }
 
 /** 4択のカード。**アプリでいちばん多く押される画面。** */
-export function ReviewChoiceScene() {
+export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
+  /**
+   * **写真のある回も撮る。**（オーナー報告 2026-09-16
+   * 「復習の4択スクロールしないと4択が全て見れないようになってる」）
+   *
+   * ここまでこの場面は写真が `null` の札しか描いていなかった。写真が
+   * 入ると上の枠がその高さを取るので、**4つ目が画面の外へ出るのは
+   * 写真がある回だけ**。無い回だけを測っていたので、溢れが一度も
+   * 絵に映らなかった。
+   *
+   * **既定は写真なしのまま**にして、`?photo=1` で足す。既定を変えると
+   * この場面から派生している他の検査（答え合わせの `review-right` /
+   * `review-wrong`）の絵まで一斉に変わり、**この作業と関係のない指摘が
+   * 4件増えた**。場面を足すときは、既にある絵を動かさない。
+   */
+  const withPhoto = q.get("photo") === "1";
+  const card: DueReviewCard = withPhoto ? { ...CARD, object_url: PHOTO } : CARD;
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const root = document.getElementById("root");
@@ -163,7 +186,7 @@ export function ReviewChoiceScene() {
       <section className="mb-2 shrink-0">
         <ReviewHeader answered={3} total={12} progress={25} mode="choice" onMode={() => {}} />
       </section>
-      <LightModeCard card={CARD} onNext={() => {}} onOpenMemory={() => {}} />
+      <LightModeCard card={card} onNext={() => {}} onOpenMemory={() => {}} />
     </>
   );
 }

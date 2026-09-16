@@ -2021,7 +2021,7 @@ export function CaptureObjectPanel({
         シャッターが帯の下に隠れる。開く演出（`camera-lens-open`）の着地点も
         この 5.5rem を前提に置いてあるので、変えるときは両方を一緒に動かす。
       */}
-      <div className="capture-controls relative px-5 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="capture-controls relative px-5 pt-2 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))]">
         {textOpen && (
           <form
             onSubmit={(e) => {

@@ -41,7 +41,7 @@ import {
   removePendingCapture,
   type PendingCapture,
 } from "@/lib/offline-queue";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BookText, Check, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -755,7 +755,21 @@ export function ScrapbookAlbum({
    */
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [board, setBoard] = useState({ w: 0, h: 0 });
-  useEffect(() => {
+  /**
+   * **描かれる前に測る。**（オーナー報告 2026-09-16
+   * 「ホームに移るたびに、アルバムの画像が高速で変な縮尺で移動する不具合」）
+   *
+   * ここは `useEffect` だった。`useEffect` は**画面に描かれたあと**に走るので、
+   * 最初の1枚は `board.w === 0` のまま描かれる — 札の大きさも位置も
+   * `board.w` から出しているので、**全部が潰れた形で一度描かれ、直後に
+   * 正しい寸法へ飛ぶ**。台紙の高さも `minHeight: 20rem` から本来の高さへ
+   * 跳ねる。ちょうど同時に貼り付く演出（`album-open`）が走っているので、
+   * 「高速で変な縮尺で移動する」ように見えていた。
+   *
+   * `useLayoutEffect` なら描かれる前に走り、その場の再描画も描画前に
+   * 終わる。**間違った寸法の枚は一度も画面に出ない。**
+   */
+  useLayoutEffect(() => {
     const el = boardRef.current;
     if (!el) return;
     const measure = () => setBoard({ w: el.clientWidth, h: el.clientHeight });

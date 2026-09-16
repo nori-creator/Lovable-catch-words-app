@@ -240,6 +240,10 @@ const MODES = [
   ...crossThemes("review-explain", { scene: "review-explain" }),
   // 押したあとの面。正解と不正解でそれぞれ色が変わる。
   ...crossThemes("review-right", { scene: "review-choice", click: "ul li:nth-child(1) button" }),
+  // 写真のある札。**4つ目が画面の外へ出るのは写真がある回だけ**だったので、
+  // その回も絵に映るようにする（オーナー報告 2026-09-16）。
+  ["review-choice-photo", "", false, { scene: "review-choice", photo: "1" }],
+  ["review-choice-photo-dark", 'class="dark"', false, { scene: "review-choice", photo: "1" }],
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
   // 記憶の段階で形が変わる所(要望 #32)。**3つの形が全部出ることを見る** —
   // ★の段を確率で切って3段しか使っていなかったのと同じ取りこぼしを避ける。
