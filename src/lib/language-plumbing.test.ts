@@ -3968,6 +3968,31 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
+   * **カメラの画面の物は、ひとつ残らずテーマに従わせない。**（絵の検査で
+   * 出た赤／2026-09-16）
+   *
+   * 映像が来るまでの下地 `.capture-viewfinder__light` だけが `--foreground`
+   * を地にしていた。明るいテーマでは黒い面になるが、**暗いテーマではそれが
+   * 白に反転して、カメラの画面が真っ白になる**（実測: 上端 #c2d9fa、
+   * 撮り方の帯の地 #f2f6f8 — 白い字が 1.12〜2.32 で完全に読めない）。
+   *
+   * 映像は明るいとも暗いとも決まっていないので、この画面はテーマの色を
+   * 借りてはいけない。カメラ自前の固定色（`--cam-*`）だけで描く。
+   */
+  it("カメラの下地はテーマの色を借りない（暗いテーマで白く反転しない）", () => {
+    const css = read("styles.css");
+    for (const sel of [".capture-viewfinder__light {", ".capture-viewfinder__light::after {"]) {
+      const at = css.indexOf(sel);
+      expect([sel, at >= 0]).toEqual([sel, true]);
+      const body = css.slice(at, css.indexOf("\n}", at));
+      for (const token of ["--foreground", "--background", "--primary"]) {
+        expect([sel, token, body.includes(token)]).toEqual([sel, token, false]);
+      }
+      expect([sel, /--cam-/.test(body)]).toEqual([sel, true]);
+    }
+  });
+
+  /**
    * **枠の真ん中に青い点は置かない。**（オーナー指示 2026-09-16
    * 「カメラ向けた時の真ん中の青い点消して」）
    *

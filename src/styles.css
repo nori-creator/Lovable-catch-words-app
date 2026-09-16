@@ -1082,17 +1082,28 @@ html[data-motion="reduce"] {
   background: var(--cam-body);
   color: var(--cam-ink);
 }
+/**
+ * 映像が来るまでの下地。**テーマに従わせない**（絵の検査で出た赤）。
+ *
+ * ここは `var(--foreground)` を地にしていた。明るいテーマでは黒い面に
+ * なるが、**暗いテーマではそれが白に反転して、カメラの画面が真っ白に
+ * なる**（実測: 上端 #c2d9fa、撮り方の帯の地 #f2f6f8 — 白い字が
+ * 1.12〜2.32 で完全に読めない）。
+ *
+ * この画面の他の物と同じく、カメラ自前の固定色（`--cam-*`）で描く。
+ * 映像は明るいとも暗いとも決まっていないので、テーマの色を借りてはいけない。
+ */
 .capture-viewfinder__light {
   background:
     radial-gradient(
       circle at 50% 42%,
-      color-mix(in oklab, var(--primary) 24%, transparent),
+      color-mix(in srgb, var(--cam-accent) 22%, transparent),
       transparent 38%
     ),
     linear-gradient(
       155deg,
-      color-mix(in oklab, var(--primary) 28%, var(--foreground)),
-      var(--foreground) 58%
+      color-mix(in srgb, var(--cam-accent) 16%, var(--cam-body)),
+      var(--cam-body) 58%
     );
 }
 .capture-viewfinder__light::after {
@@ -1101,7 +1112,7 @@ html[data-motion="reduce"] {
   inset: 0;
   opacity: 0.22;
   background-image: radial-gradient(
-    color-mix(in oklab, var(--background) 38%, transparent) 0.7px,
+    color-mix(in srgb, var(--cam-ink) 34%, transparent) 0.7px,
     transparent 0.7px
   );
   background-size: 7px 7px;
