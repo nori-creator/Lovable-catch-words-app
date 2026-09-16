@@ -1055,6 +1055,10 @@ function CapturePage() {
     setLanding(false);
     setReenc(null);
     setReencResult(null);
+    // **やり直したら、預けた写真も捨てる。**
+    // ここで id だけ手放すと IndexedDB の行が残り、ホームの
+    // 「解析待ちの写真」が消えないまま撮るたびに積み上がっていた。
+    if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
     setPendingId(null);
     pendingIdRef.current = null;
     savedRef.current = false;
@@ -1129,6 +1133,13 @@ function CapturePage() {
         photo_saved: !!(image_path || cutout_path),
       });
       if (objectImg && !photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
+      // 再会も「その写真の役目が終わった」時点。預けた分を消しておかないと
+      // ホームの「解析待ちの写真」が残り続ける。
+      if (pendingIdRef.current) {
+        void removePendingCapture(pendingIdRef.current);
+        pendingIdRef.current = null;
+        setPendingId(null);
+      }
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
     } catch (e) {
