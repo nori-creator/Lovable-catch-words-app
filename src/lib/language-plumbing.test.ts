@@ -4233,14 +4233,18 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("components/CameraDial.tsx"));
     // 孤は「ドーナツの一切れ」。3つ ＝ 360°。
     expect(src).toMatch(/function sector\(center: number\)/);
-    expect(src).toMatch(/const a0 = center - STEP \/ 2 \+ GAP \/ 2;/);
-    expect(src).toMatch(/const a1 = center \+ STEP \/ 2 - GAP \/ 2;/);
+    expect(src).toMatch(/const a0 = center - HALF;/);
+    expect(src).toMatch(/const a1 = center \+ HALF;/);
     expect(src).toMatch(/const SECTORS = CAMERA_MODES\.map\(\(_, i\) => sector\(i \* STEP\)\);/);
     // シャッターにぴったり沿う（外(38) のすぐ外から）。
     expect(src).toMatch(/const SHUTTER = 76;/);
-    expect(src).toMatch(/const R_IN = 44;/);
-    // 帯の太さは 44px を割らない（HIG §11 の指の下限）。
-    expect(src).toMatch(/const R_OUT = 88;/);
+    // 帯の太さは 44px を割らない（HIG §11 の指の下限）。半径はそこから出す。
+    expect(src).toMatch(/const BAND = 44;/);
+    expect(src).toMatch(/const R_MID = 66;/);
+    expect(src).toMatch(/const R_IN = R_MID - BAND \/ 2;/);
+    expect(src).toMatch(/const R_OUT = R_MID \+ BAND \/ 2;/);
+    // 隙間は**角度**で持つ。px で持つと半径を変えたとき3つのバランスが崩れる。
+    expect(src).toMatch(/const GAP = 10;/);
     // 古い「浮いた粒」は残さない。
     expect(src).not.toMatch(/camera-dial__chip/);
     const css = read("styles.css");
@@ -4276,6 +4280,162 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(src).toMatch(
       /left: `calc\(50% \+ \$\{Math\.round\(\(x - BOX \/ 2\) \* 10\) \/ 10\}px\)`/,
     );
+  });
+
+  /**
+   * **角を丸める。カクカクさせない。**（オーナー指示 2026-09-16
+   * 「Appleのglass UIを参考して、カクカクさせないで。丸みを帯びた感じで。
+   *  それぞれのモードのすき間のバランスを最適にして」）
+   *
+   * ## 「線の先を丸める」では駄目だった
+   * 最初は太さ 44px の線を引いて `stroke-linecap: round` にした。角は消えるが、
+   * **半円の先端が大きすぎて3つの丸い塊に見えた** — 線の長さ(73°≒84px)に対して
+   * 太さが 44px あるので、両端の半円だけで全体の3分の1が埋まる。
+   *
+   * いまは扇形を描き、その外周を太さ `2×CR` の線でなぞる。線が形を全方向へ
+   * `CR` だけ太らせ、`stroke-linejoin: round` が角4つを半径 `CR` で丸める。
+   * だから `CameraDial.tsx` が渡すのは**一回り小さい扇形**（`DRAW_IN`〜
+   * `DRAW_OUT`、角度も `CAP` ぶん狭い）で、なぞったあとが狙いの帯になる。
+   */
+  it("孤は角が丸く、隙間は3つとも同じ角度で開く", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    // 丸みの半径と、それを見込んだ「一回り小さい扇形」。
+    expect(src).toMatch(/const CR = 10;/);
+    expect(src).toMatch(/const DRAW_IN = R_IN \+ CR;/);
+    expect(src).toMatch(/const DRAW_OUT = R_OUT - CR;/);
+    // なぞりは角度方向にも伸びる。伸びる分を引かないと隙間が塞がる。
+    expect(src).toMatch(/const CAP = \(CR \/ R_MID\) \* \(180 \/ Math\.PI\);/);
+    expect(src).toMatch(/const HALF = STEP \/ 2 - GAP \/ 2 - CAP;/);
+    // 塊に見えた「線の先を丸める」やり方へ戻っていないこと。
+    expect(src).not.toMatch(/arcPath/);
+    const css = read("styles.css");
+    const arc = css.slice(
+      css.indexOf(".camera-dial__arc {"),
+      css.indexOf(".camera-dial__arc[data-on]"),
+    );
+    expect(arc).toMatch(/stroke-width: 20/);
+    expect(arc).toMatch(/stroke-linejoin: round/);
+    expect(arc).not.toMatch(/stroke-linecap: round/);
+    /**
+     * **薄めるのは色ではなく要素ぜんぶ。**
+     * 塗りと線の色を半透明にすると、線が形の境目をまたぐせいで内側半分に
+     * 二重に乗り、**縁に暗い溝**ができる（実測。`paint-order` を入れ替えても
+     * 重ねて合成することに変わりはない）。
+     */
+    expect(arc).toMatch(/opacity: 0\.34/);
+    expect(arc).not.toMatch(/stopOpacity/);
+    expect(src).not.toMatch(/stopOpacity/);
+  });
+
+  /**
+   * **ダイヤルは、指に対して回りすぎない。**（オーナー指示 2026-09-16
+   * 「ダイヤルが早く回りすぎてるから、少し反応落として」）
+   *
+   * 前は 120px 動かすと1つ隣だったので、親指をふつうに払うだけで2つ飛んだ。
+   * 170px ＝ 390px 幅の画面で親指が無理なく届く距離にする。
+   * 指から離れたあとのばねも、`.snappy` と同じ 0.5 秒ぶんに緩める。
+   */
+  it("ダイヤルは 170px で1つ隣、ばねは 0.5 秒ぶん", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/const DEG_PER_PX = STEP \/ 170;/);
+    expect(src).toMatch(
+      /createSpring\(angleRef\.current, paint, \{ damping: 0\.85, response: 0\.5 \}\)/,
+    );
+  });
+
+  /**
+   * **名前は「真上に来た1つ」に出す。**（オーナー指示 2026-09-16
+   * 「選ばれてないこのときはアイコンだけで、うえに来たらアイコンと名前を
+   *  表示して」）
+   *
+   * 「選ばれているか」ではなく「真上に来たか」で決める — 回している最中も、
+   * 上に来た物の名前がそのまま読める。印は1コマごとではなく**変わった時だけ**
+   * 付け外しする（毎コマ書くと、濃さの移り変わりが最初からやり直しになる）。
+   */
+  it("名前は真上に来た1つだけに出る（選択ではなく位置で決める）", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/const TOP_DEG = 14;/);
+    expect(src).toMatch(/const off = Math\.min\(a, 360 - a\);/);
+    expect(src).toMatch(/const near = off <= TOP_DEG;/);
+    expect(src).toMatch(/el\.toggleAttribute\("data-top", near\)/);
+    const css = read("styles.css");
+    expect(css).toMatch(/\.camera-dial__label\[data-top\] \.camera-dial__name \{/);
+    // 「選ばれている物」に結び付けていた古い書き方が残っていないこと。
+    expect(css).not.toMatch(/\.camera-dial__label\[data-on\] \.camera-dial__name/);
+    expect(css).not.toMatch(/\.camera-dial\[data-dragging\] \.camera-dial__name/);
+  });
+
+  /**
+   * **段と % は同じ1つの数から出す。**（オーナー報告 2026-09-16
+   * 「SRSは長期記憶なのに、%が覚えたの状態より低いのが変。一番下に行けば
+   *  行くほど、記憶の状態がより高く % も高くして」）
+   *
+   * 前の作りは、段と % が**別の軸**から出ていた:
+   *   ・長期記憶 … 間隔30日以上 かつ 定着度80%以上
+   *   ・覚えた   … 定着度85%以上 かつ 復習3回以上
+   * 条件が重なっていたので「長期記憶 82%」が「覚えた 95%」より上に並んだ。
+   *
+   * いまは `memoryStrength`（定着度 × 熟し）という1本の数を6つに区切る。
+   * **段が上がれば % も必ず上がる。**
+   */
+  it("記憶の段は「強さ」1つだけから決まる（条件を継ぎ足さない）", () => {
+    const mem = codeOnly(read("lib/memory.ts"));
+    // 段を決める関数が受けるのは数1つ。
+    expect(mem).toMatch(/export function memoryLevel\(strength: number\): MemoryLevelInfo/);
+    // 境目は重ならない（下から順に1本の物差し）。
+    for (const line of [
+      "if (strength < 30) return LEVELS[0];",
+      "if (strength < 50) return LEVELS[1];",
+      "if (strength < 70) return LEVELS[2];",
+      "if (strength < 85) return LEVELS[3];",
+      "if (strength < 95) return LEVELS[4];",
+    ]) {
+      expect([line, mem.includes(line)]).toEqual([line, true]);
+    }
+    // 間隔や復習回数を段の条件に**戻さない**（これが逆転の原因だった）。
+    expect(mem).not.toMatch(/intervalDays >= 30 && retention >= 80/);
+    expect(mem).not.toMatch(/repetitions >= 3/);
+    // 並べ替えも同じ数だけを見る。
+    expect(mem).toMatch(/const sa = memoryOf\(a\)\.strength;/);
+    expect(mem).toMatch(/const sb = memoryOf\(b\)\.strength;/);
+    // 画面は `retention` ではなく強さを出す（バーも数字も）。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).toMatch(/const \{ level: lv, strength \} = memoryOf\(w\);/);
+    expect(rv).toMatch(/style=\{\{ width: `\$\{strength\}%` \}\}/);
+    expect(rv).not.toMatch(/\{w\.retention\}%/);
+  });
+
+  /**
+   * **出題日の狙いは 90%。**（オーナー指示 2026-09-16「アルゴリズムを
+   * 最適化して」／`lib/srs.ts` の「ずれ ②」）
+   *
+   * 2026-09-16 までは `S = 間隔 × ease` だったので、出題日の定着度は 67%。
+   * 一方、忘却曲線の画面は「85% 付近が最適」と言い、間隔30日の語では
+   * **出題日より 18日も前**を最適だと表示していた。SuperMemo / Anki / FSRS
+   * と同じ 90% に揃えて、出す日と画面の言う日を噛み合わせる。
+   *
+   * **式を写さない。** 安定度の計算は `lib/srs.ts` の1か所だけに置く —
+   * 写した先が古い式のまま残ると、同じ語が画面ごとに違う段になる
+   * （実際、復習画面と曲線の2か所に写されていた）。
+   */
+  it("安定度の式は1か所にあり、狙いは 90%", () => {
+    const srs = codeOnly(read("lib/srs.ts"));
+    expect(srs).toMatch(/export const TARGET_RETENTION = 0\.9;/);
+    expect(srs).toMatch(
+      /const STABILITY_K = 1 \/ \(BASE_EASE \* Math\.log\(1 \/ TARGET_RETENTION\)\);/,
+    );
+    expect(srs).toMatch(
+      /Math\.max\(0\.5, Math\.max\(1, interval_days\) \* Math\.max\(1, ease\) \* STABILITY_K\)/,
+    );
+    // 写しが残っていないこと。
+    for (const file of [
+      "routes/_authenticated/review.tsx",
+      "components/ForgettingCurveChart.tsx",
+    ]) {
+      const src = codeOnly(read(file));
+      expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
+      expect([file, src.includes("stabilityOf(")]).toEqual([file, true]);
+    }
   });
 
   /**

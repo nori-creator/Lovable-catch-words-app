@@ -4210,28 +4210,84 @@ html[data-motion="reduce"] .camera-flip:active {
 }
 
 /**
- * 孤ひとつ。**押せるのは孤そのもの**（`pointer-events: auto`）。
- * 前の版は名前の粒だけが押せて、輪の上に押せない隙間が空いていた。
+ * 孤ひとつ。**塗った扇形ではなく、太さ 44px の線**（オーナー指示 2026-09-16
+ * 「Appleのglass UIを参考して、カクカクさせないで。丸みを帯びた感じで」）。
+ *
+ * 扇形を塗ると角が4つできる。帯の真ん中を通る円弧を太い線で引き、両端を
+ * 丸くすれば（`stroke-linecap: round`）、同じ帯を占めたまま角が消える。
+ * Apple Watch の輪や iOS の進み具合の輪と同じ描き方。
+ *
+ * 押せるのは孤そのもの（`pointer-events: auto`）。前の版は名前の粒だけが
+ * 押せて、輪の上に押せない隙間が空いていた。
  */
 .camera-dial__arc {
   pointer-events: auto;
   cursor: pointer;
-  /* **青を混ぜた薄い塗り。** 機体色そのものだと、下の操作の地
-     （`.capture-controls` も `--cam-body`）と同じ色になって孤が消える。
-     映像の上でも機体の上でも見えるのは、どちらとも違う色だけ。 */
-  fill: color-mix(in srgb, var(--cam-accent) 18%, transparent);
-  stroke: color-mix(in srgb, var(--cam-accent) 55%, transparent);
-  stroke-width: 1;
-  transition:
-    fill 180ms ease-out,
-    stroke 180ms ease-out;
+  /**
+   * **塗りと、同じ色のなぞりを重ねる。**
+   *
+   * なぞり（太さ 20px ＝ 角の丸み 10px の2倍）が形を全方向へ 10px 太らせ、
+   * `stroke-linejoin: round` が角4つを半径 10px で丸める。だから
+   * `CameraDial.tsx` は**一回り小さい扇形**を渡してくる — なぞったあとが
+   * 狙いの帯（半径 44〜88px）になる。
+   *
+   * 線の**先端だけ**を丸めるやり方（`linecap` を `round` にする）では
+   * こうならない。太さ 44px の線は先端の半円が大きすぎて、輪ではなく
+   * **3つの丸い塊**に見えた（実測: 線の長さ 73°≒84px に対し太さ 44px）。
+   */
+  stroke-width: 20;
+  stroke-linejoin: round;
+  /**
+   * **なぞりを先に、塗りを後に。**
+   *
+   * 線は形の境目をまたいで引かれるので、既定の順（塗り→なぞり）だと
+   * 内側半分で塗りと線が重なり、半透明どうしが足し合わさって**縁だけ
+   * 濃い輪郭**になる（ガラスに黒い枠が付いたように見えた）。
+   * 順を入れ替えると、重なった内側は塗りが覆い隠す。
+   */
+  paint-order: stroke;
+  /**
+   * **青を混ぜた薄いガラス。** 機体色そのものだと、下の操作の地
+   * （`.capture-controls` も `--cam-body`）と同じ色になって孤が消える。
+   * 映像の上でも機体の上でも見えるのは、どちらとも違う色だけ。
+   */
+  fill: url(#camera-dial-glass);
+  stroke: url(#camera-dial-glass);
+  /**
+   * **薄めるのは色ではなく、孤ぜんぶ。**
+   *
+   * 塗りと線の色を半透明にすると、線が形の境目をまたぐせいで内側半分に
+   * 二重に乗り、**縁に暗い溝**ができる（順を入れ替えても、重ねて合成する
+   * ことに変わりはない）。要素の `opacity` は描き終えた絵を1枚にしてから
+   * 1回だけ薄めるので、溝が出ない。
+   */
+  opacity: 0.34;
+  transition: opacity 200ms ease-out;
 }
 
-/* 選ばれている孤。**色だけで伝えない** — 名前もここにだけ出る。 */
+/**
+ * 選ばれている孤。**色だけで伝えない** — 名前もここにだけ出る。
+ * 浮いて見えるよう、機体へ落ちる影を付ける（apple-design §13「奥行き」）。
+ */
 .camera-dial__arc[data-on] {
-  fill: var(--cam-accent-deep);
-  stroke: color-mix(in srgb, var(--cam-paper) 62%, transparent);
-  stroke-width: 1.5;
+  opacity: 1;
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--cam-accent) 30%, transparent));
+}
+
+/**
+ * すりガラスを使わない設定のときは、透けない塗りに落とす（HIG の
+ * `prefers-reduced-transparency`）。**下地の勾配ごと単色にする。**
+ */
+@media (prefers-reduced-transparency: reduce) {
+  .camera-dial__arc {
+    opacity: 1;
+    fill: color-mix(in srgb, var(--cam-body) 86%, var(--cam-accent));
+    stroke: color-mix(in srgb, var(--cam-body) 86%, var(--cam-accent));
+  }
+  .camera-dial__arc[data-on] {
+    fill: var(--cam-accent-deep);
+    stroke: var(--cam-accent-deep);
+  }
 }
 
 /**
@@ -4272,10 +4328,11 @@ html[data-motion="reduce"] .camera-flip:active {
 }
 
 /**
- * 名前は**選ばれている1つだけ**に出す（＝いつも真上）。
- * 斜めの位置で水平の字を出すと、帯の外へはみ出す（`CameraDial.tsx` の注）。
- * 回している最中は消す — 回っている途中の位置で名前が出ると、
- * 同じ理由ではみ出す。
+ * 名前は**真上に来た1つだけ**に出す（オーナー指示 2026-09-16
+ * 「選ばれてないこのときはアイコンだけで、うえに来たらアイコンと名前を
+ *  表示して」）。印は `CameraDial.tsx` が真上からのずれで付け外しする。
+ *
+ * 斜めの位置で水平の字を出すと、帯の内側(44px)を越えてシャッターに掛かる。
  */
 .camera-dial__name {
   /* 絵の**真下**にぶら下げる。組版から外すので、名前が出ても絵の位置は
@@ -4291,19 +4348,15 @@ html[data-motion="reduce"] .camera-flip:active {
   line-height: 1.1;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 180ms ease-out;
+  transition: opacity 200ms ease-out;
 }
 
 .camera-dial__label[data-on] {
   color: var(--cam-paper);
 }
 
-.camera-dial__label[data-on] .camera-dial__name {
+.camera-dial__label[data-top] .camera-dial__name {
   opacity: 1;
-}
-
-.camera-dial[data-dragging] .camera-dial__name {
-  opacity: 0;
 }
 
 html[data-motion="reduce"] .camera-dial__arc,

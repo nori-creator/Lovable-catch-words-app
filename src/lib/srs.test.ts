@@ -94,11 +94,22 @@ describe("retentionNow", () => {
 });
 
 describe("stabilityOf", () => {
+  /** 係数は「ease 2.5 の語が出題日にちょうど 90%」から決まる（`srs.ts`）。 */
+  const K = 1 / (2.5 * Math.log(1 / 0.9));
+
   it("未復習(interval 0)でも 1日 × ease ぶんは持つ", () => {
-    expect(stabilityOf(0, 2.5)).toBe(2.5);
+    expect(stabilityOf(0, 2.5)).toBeCloseTo(2.5 * K, 6);
   });
   it("ease が 1 未満でも安定度を縮めない", () => {
-    expect(stabilityOf(10, 0.2)).toBe(10);
+    expect(stabilityOf(10, 0.2)).toBeCloseTo(10 * K, 6);
+  });
+  /**
+   * **間隔にも ease にも比例する。** 片方だけに効く形にすると、
+   * 「覚えにくい語」の信号か「育った語」の信号のどちらかが消える。
+   */
+  it("間隔にも ease にも比例する", () => {
+    expect(stabilityOf(20, 2.5)).toBeCloseTo(2 * stabilityOf(10, 2.5), 6);
+    expect(stabilityOf(10, 3.0)).toBeGreaterThan(stabilityOf(10, 2.0));
   });
 });
 
@@ -165,17 +176,29 @@ describe("SM-2 の原典との一致（動かしてはいけない所）", () =>
   });
 
   /**
-   * **出題日の定着度は ease だけで決まる（間隔によらない）。**
+   * **出題日の定着度は 90%。**（オーナー指示 2026-09-16「アルゴリズムを
+   * 最適化して」／`srs.ts` の「ずれ ②」）
    *
-   * `S = 間隔 × ease` と置いている以上、`R(出題日) = exp(−1/ease)` になる。
-   * ease 2.5 なら 67%。狙いを 90% に変えるなら `stabilityOf` を直すしかない
-   * ので、いまの値をここに留めておく（変えたらここが落ちる）。
+   * SuperMemo / Anki / FSRS と同じ狙い。2026-09-16 までは `S = 間隔 × ease`
+   * だったので 67% — **出す日と、画面が言う「最適な日」が 18日ずれていた**。
+   * ここが落ちたら、狙いの定着度が動いたということ。
    */
-  it("いまの式では、出題日の定着度が 67% になる（狙いの 90% ではない）", () => {
+  it("出題日の定着度は 90%（間隔によらない）", () => {
     for (const interval of [1, 3, 7, 30, 90]) {
       const s = stabilityOf(interval, 2.5);
       const r = 100 * Math.exp(-interval / s);
-      expect([interval, Math.round(r)]).toEqual([interval, 67]);
+      expect([interval, Math.round(r)]).toEqual([interval, 90]);
     }
+  });
+
+  /**
+   * **ease の効きは消さない。** 一律に `間隔 / ln(1/0.9)` にすると、どの語も
+   * 出題日ちょうど 90% になり、「覚えにくい語」という信号が消える。
+   */
+  it("覚えにくい語ほど、出題日の定着度が低い", () => {
+    const r = (ease: number) => 100 * Math.exp(-30 / stabilityOf(30, ease));
+    expect(Math.round(r(1.3))).toBe(82);
+    expect(Math.round(r(2.5))).toBe(90);
+    expect(Math.round(r(3.0))).toBe(92);
   });
 });

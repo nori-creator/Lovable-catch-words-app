@@ -30,7 +30,9 @@ import { CAMERA_MODES } from "@/components/CameraChrome";
  *   シャッター  直径 76          … 半径 38
  *   孤の内側    半径 44          … シャッターの縁から 6px 外
  *   孤の外側    半径 88          … 帯の太さ 44px（HIG §11 の下限ちょうど）
- *   名前と絵    半径 66          … 帯の真ん中
+ *   角の丸み    10px             … 4つの角すべて
+ *   隙間        10°              … 帯の真ん中で約 11.5px。3つとも同じ
+ *   絵          半径 68          … 帯の真ん中より少し外
  *   箱の高さ    196              … 外径 176 ＋ 影の余白
  * ```
  * 帯の太さを 44px にしてあるので、**孤のどこを押しても指の当たりは
@@ -42,34 +44,78 @@ import { CAMERA_MODES } from "@/components/CameraChrome";
  * そうなっているが、指標を読む機械と違ってここは**一目で選ぶ**画面なので、
  * 傾いた字は用を成さない。
  *
- * 名前を出すのは**選ばれている1つだけ**（＝いつも真上）。残り2つは絵だけ。
- * 3つとも名前を出すと、真上以外の2つは帯の外へはみ出す（「写真を撮る」は
- * 13px で 65px 幅あり、斜めの位置では帯の外周 88px を 10px 超える）。
- * 絵には `aria-label` で名前が付いているので、読み上げでは3つとも名前で読む。
+ * 名前を出すのは**真上に来た1つだけ**（オーナー指示 2026-09-16
+ * 「選ばれてないこのときはアイコンだけで、うえに来たらアイコンと名前を
+ *  表示して」）。残り2つは絵だけ。3つとも名前を出すと、真上以外の2つは
+ * 帯の外へはみ出す（「写真を撮る」は 13px で 65px 幅あり、斜めの位置では
+ * 帯の外周 88px を超える）。絵には `aria-label` で名前が付いているので、
+ * 読み上げでは3つとも名前で読む。
  */
 
 /** 刻みの間隔(度)。3つなので 120 — **これが「3つで1周」の正体**。 */
 const STEP = 360 / 3;
-/** 孤と孤の切れ目(度)。押せない場所ではなく、分かれ目を見せる線。 */
-const GAP = 6;
+/** 帯の太さ(px)。指の当たりの下限（HIG §11）と同じ 44。 */
+const BAND = 44;
+/** 帯の中心の半径(px)。シャッター(半径38)のすぐ外から 44〜88 を占める。 */
+const R_MID = 66;
+/** 孤の内側/外側の半径(px)。押した所の判定に使う。 */
+const R_IN = R_MID - BAND / 2;
+const R_OUT = R_MID + BAND / 2;
 /** シャッターの直径(px)。 */
 const SHUTTER = 76;
-/** 孤の内側の半径(px)。シャッターの縁(38)から 6px 外＝「ぴったり沿う」。 */
-const R_IN = 44;
-/** 孤の外側の半径(px)。帯の太さが 44px になる所（HIG §11）。 */
-const R_OUT = 88;
 /**
- * 絵を置く半径(px)。帯の真ん中(66)より少し外。
+ * 孤と孤の**見た目の**隙間(度)。10° ＝ 帯の真ん中で約 11.5px。
  *
- * 選ばれている孤では、絵の**すぐ下に名前がぶら下がる**。真ん中に置くと
- * 名前が帯の内側(44)を越えてシャッターに掛かるので、絵のぶんだけ外へ
- * 逃がしてある（実測: 絵は半径 60〜80、名前は 45〜58 に収まる）。
+ * 3つとも同じ幅・同じ隙間になるよう、隙間は角度で持つ（px で持つと
+ * 半径を変えたときに3つのバランスが崩れる）。
  */
-const R_ICON = 70;
+const GAP = 10;
+/**
+ * 角の丸み(px)（オーナー指示 2026-09-16「Appleのglass UIを参考して、
+ * カクカクさせないで。丸みを帯びた感じで」）。
+ *
+ * ## なぜ「線の先を丸める」ではないのか
+ * 最初は太さ 44px の線を引いて `stroke-linecap: round` にした。角は消えるが、
+ * **半円の先端が大きすぎて3つの丸い塊に見えた** — 線の長さ(73°≒84px)に対して
+ * 太さが 44px あるので、両端の半円で全体の3分の1が埋まる。輪に見えない。
+ *
+ * そこで**扇形を描き、その外周を太さ `2×CR` の線でなぞる**。線は形を
+ * 全方向へ `CR` だけ太らせ、`stroke-linejoin: round` が角4つを半径 `CR` で
+ * 丸める。帯の太さは変わらないまま、角だけが取れる。
+ */
+const CR = 10;
+/** なぞる前の扇形の内外の半径。なぞると `R_IN`〜`R_OUT` に戻る。 */
+const DRAW_IN = R_IN + CR;
+const DRAW_OUT = R_OUT - CR;
+/** なぞりが角度方向へ伸びる分。帯の真ん中で `CR` px ぶん。 */
+const CAP = (CR / R_MID) * (180 / Math.PI);
+/** なぞる前の扇形の片側の角度。なぞると見た目が `STEP - GAP` になる。 */
+const HALF = STEP / 2 - GAP / 2 - CAP;
+/** 絵を置く半径(px)。帯の真ん中より少し外（選ばれた孤では名前が下に付く）。 */
+const R_ICON = 68;
 /** 箱の一辺(px)。外径 176 に影のぶんを足す。 */
 const BOX = 196;
-/** 1px 滑らせるごとに輪が回る角度。半径ぶん動かすと 1 刻みぶん回る。 */
-const DEG_PER_PX = STEP / 120;
+/**
+ * 1px 滑らせるごとに輪が回る角度。
+ *
+ * **170px 動かして1つ隣**（オーナー指示 2026-09-16「ダイヤルが早く回り
+ * すぎてるから、少し反応落として」）。前は 120px で1つ隣だったので、
+ * 親指をふつうに払うだけで2つ飛んでいた。170px は 390px 幅の画面で
+ * 親指が無理なく届く距離。
+ */
+const DEG_PER_PX = STEP / 170;
+/**
+ * 名前を出す範囲（真上から±何度まで）。
+ *
+ * オーナー指示 2026-09-16「選ばれてないこのときはアイコンだけで、うえに
+ * 来たらアイコンと名前を表示して」。**選ばれているかどうかではなく、
+ * 真上に来たかどうか**で決める — 回している最中も、上に来た物の名前が
+ * そのまま読める。
+ *
+ * 14° より外へ出すと、水平の名前が帯の内側(44px)を越えてシャッターに
+ * 掛かる（実測。`scripts/ui-audit.mjs` の `camera-dial` の面）。
+ */
+const TOP_DEG = 14;
 
 /** 撮り方ごとのシャッターの絵（オーナー指示「切り替えるとアイコンも変化」）。 */
 const SHUTTER_ICON: Record<CameraMode, typeof Camera> = {
@@ -91,17 +137,20 @@ function at(r: number, deg: number) {
 }
 
 /**
- * 孤ひとつ分の道（ドーナツの一切れ）。外周を進み、内周を戻って閉じる。
- * 3つ並べると切れ目のぶんを除いて**円が1周ぶん埋まる**。
+ * 孤ひとつ分の道（角を丸めた扇形）。
+ *
+ * 外周を進み、内周を戻って閉じる。ここで描くのは**丸める前の一回り小さい
+ * 扇形**で、`styles.css` 側が太さ `2×CR` の線でなぞって角を落とす。
+ * 3つ並べると、隙間のぶんを除いて**円が1周ぶん埋まる**。
  */
 function sector(center: number) {
-  const a0 = center - STEP / 2 + GAP / 2;
-  const a1 = center + STEP / 2 - GAP / 2;
-  const [x0, y0] = at(R_OUT, a0);
-  const [x1, y1] = at(R_OUT, a1);
-  const [x2, y2] = at(R_IN, a1);
-  const [x3, y3] = at(R_IN, a0);
-  return `M ${x0} ${y0} A ${R_OUT} ${R_OUT} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${R_IN} ${R_IN} 0 0 0 ${x3} ${y3} Z`;
+  const a0 = center - HALF;
+  const a1 = center + HALF;
+  const [x0, y0] = at(DRAW_OUT, a0);
+  const [x1, y1] = at(DRAW_OUT, a1);
+  const [x2, y2] = at(DRAW_IN, a1);
+  const [x3, y3] = at(DRAW_IN, a0);
+  return `M ${x0} ${y0} A ${DRAW_OUT} ${DRAW_OUT} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${DRAW_IN} ${DRAW_IN} 0 0 0 ${x3} ${y3} Z`;
 }
 
 const SECTORS = CAMERA_MODES.map((_, i) => sector(i * STEP));
@@ -175,6 +224,9 @@ export function CameraDial({
   const t = useT();
   const ringRef = useRef<HTMLDivElement | null>(null);
   const contentRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const labelRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  /** いま真上に居るか（名前を出す印）。変わった時だけ DOM を触るための控え。 */
+  const atTop = useRef<boolean[]>([false, false, false]);
   const index = Math.max(0, CAMERA_MODES.indexOf(mode));
   const Icon = SHUTTER_ICON[mode];
 
@@ -195,13 +247,36 @@ export function CameraDial({
       ring.style.rotate = `${deg}deg`;
       // 名前と絵は水平のまま。輪と逆に回して打ち消す。
       for (const el of contentRefs.current) if (el) el.style.rotate = `${-deg}deg`;
+      /**
+       * **真上に来た物にだけ名前を出す。**
+       *
+       * 印は属性で渡し、濃さの移り変わりは CSS に任せる。1コマごとに
+       * `style.opacity` を書くと、書くたびに移り変わりが最初からやり直しに
+       * なって、つながった動きにならない。**変わった時だけ**触る。
+       */
+      for (let i = 0; i < labelRefs.current.length; i++) {
+        const el = labelRefs.current[i];
+        if (!el) continue;
+        // 輪が回ったあとの、画面の上での角度（0〜360、真上が 0）。
+        const a = (((i * STEP + deg) % 360) + 360) % 360;
+        // 真上からのずれ（0〜180）。359° は 1° ぶんのずれ。
+        const off = Math.min(a, 360 - a);
+        const near = off <= TOP_DEG;
+        if (near !== atTop.current[i]) {
+          atTop.current[i] = near;
+          el.toggleAttribute("data-top", near);
+        }
+      }
     };
     /**
-     * 回す物なので `damping` は 1 未満（apple-design §17 の表「Rotation
-     * … damping 0.8 / response 0.4」）。行き過ぎて戻る一拍が、輪が
-     * 刻みに落ちた感触になる。
+     * 回す物なので `damping` は 1 未満（apple-design §17「Rotation」）。
+     * 行き過ぎて戻る一拍が、輪が刻みに落ちた感触になる。
+     *
+     * `response` は 0.4 → **0.5**（Apple の `.snappy` と同じ長さ）。
+     * オーナー指示「ダイヤルが早く回りすぎてるから、少し反応落として」。
+     * 指から離れたあとの動きも、ひと呼吸ぶんゆっくり落ちる。
      */
-    const sp = createSpring(angleRef.current, paint, { damping: 0.8, response: 0.4 });
+    const sp = createSpring(angleRef.current, paint, { damping: 0.85, response: 0.5 });
     springRef.current = sp;
     paint(angleRef.current);
     return () => sp.dispose();
@@ -320,6 +395,31 @@ export function CameraDial({
           `aria-hidden` のまま — **同じ物が2つ読み上げられない**ようにする。
         */}
         <svg className="camera-dial__arcs" viewBox={`0 0 ${BOX} ${BOX}`} aria-hidden="true">
+          {/*
+            ガラスの下地。**輪の中心から外へ向かう勾配**にしてある。
+            中心が動かないので、輪が何度回っても光の当たり方が変わらない
+            （帯の上下で明暗を付ける勾配だと、回した時に光ごと回ってしまい、
+             ガラスではなく塗った輪に見える）。
+            内側が明るく、外へ向かって深い青へ沈む ＝ 厚みのある帯の見え方。
+
+            **色は透かさない。透かすのは孤ぜんぶ**（`styles.css` の `opacity`）。
+            塗りと線の両方を半透明にすると、線が形の境目をまたぐせいで
+            **内側半分だけ二重に乗って、縁に暗い溝**ができる
+            （`paint-order` を入れ替えても、重ねて合成することに変わりはない）。
+            要素ごと透かせば、描き終えた絵を1回だけ薄める形になる。
+          */}
+          <defs>
+            <radialGradient
+              id="camera-dial-glass"
+              gradientUnits="userSpaceOnUse"
+              cx={BOX / 2}
+              cy={BOX / 2}
+              r={R_OUT}
+            >
+              <stop offset="0.45" stopColor="var(--cam-accent)" />
+              <stop offset="1" stopColor="var(--cam-accent-deep)" />
+            </radialGradient>
+          </defs>
           {CAMERA_MODES.map((m, i) => (
             <path
               key={m}
@@ -339,6 +439,9 @@ export function CameraDial({
             <button
               key={m}
               type="button"
+              ref={(el) => {
+                labelRefs.current[i] = el;
+              }}
               className="camera-dial__label"
               data-on={m === mode || undefined}
               aria-current={m === mode ? "true" : undefined}

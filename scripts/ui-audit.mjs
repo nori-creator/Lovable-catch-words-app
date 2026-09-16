@@ -232,7 +232,9 @@ const MODES = [
   ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
   ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
-  ...crossThemes("review-memory", { scene: "review-memory" }),
+  ...crossThemes("review-memory", { scene: "review-memory" }), // 記憶の一覧。**オーナー報告 2026-09-16 の画面**（段と % の逆転）。
+  ...crossThemes("review-memory-list", { scene: "review-memory-list" }),
+
   // 見出し(「3 / 12」の進捗と進捗バー、出題の型の切替)も一緒に描く。
   // 以前は札だけだったので、独立監査が「クイズに進捗が無い」と誤指摘した
   // — 実物には最初からある。**部品だけを切り出した絵は、その画面の絵ではない。**

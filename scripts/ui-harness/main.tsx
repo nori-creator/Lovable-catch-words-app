@@ -84,6 +84,7 @@ import {
   ReviewSayResultScene,
   ReviewSayScene,
   ReviewMemoryScene,
+  ReviewMemoryListScene,
 } from "./scenes/review";
 import {
   ChunksScene,
@@ -175,6 +176,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-detail": ScanDetailScene,
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
+  "review-memory-list": ReviewMemoryListScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -281,7 +283,8 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "capture-object", label: "撮る画面（アプリの青・3つの孤で1周）" },
+  { scene: "review-memory-list", label: "記憶の一覧（下へ行くほど段も％も高い）" },
+  { scene: "capture-object", label: "撮る画面（丸みのある3つの孤・青）" },
   { scene: "camera-dial", label: "撮り方のダイヤル（孤を押す・回す）" },
   { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
   { scene: "tabbar", label: "下の帯（カメラの丸）" },

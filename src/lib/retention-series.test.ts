@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { stabilityOf } from "./srs";
 import {
   buildRetentionSeries,
   cardStateAt,
@@ -92,8 +93,8 @@ describe("cardStateAt", () => {
   it("1度も復習していない期間は、出会った日を起点に初期の安定度で忘れる", () => {
     const s = cardStateAt(card({ taken_at: iso(NOW - 3 * DAY) }), [], NOW);
     expect(s?.anchorMs).toBe(NOW - 3 * DAY);
-    // 初期の安定度は 1日 × ease 2.5 = 2.5日。0.5日ではない。
-    expect(s?.stabilityDays).toBeCloseTo(2.5, 6);
+    // 初期の安定度は `stabilityOf(0, 2.5)`（1日 × ease 2.5 × 係数）。0.5日ではない。
+    expect(s?.stabilityDays).toBeCloseTo(stabilityOf(0, 2.5), 6);
   });
 
   it("記録が無いのに復習済みの古い行は、いまの状態で補う", () => {
@@ -103,7 +104,7 @@ describe("cardStateAt", () => {
       NOW,
     );
     expect(s?.anchorMs).toBe(NOW - 2 * DAY);
-    expect(s?.stabilityDays).toBeCloseTo(8, 6);
+    expect(s?.stabilityDays).toBeCloseTo(stabilityOf(4, 2.0), 6);
   });
 });
 

@@ -12,7 +12,8 @@ import {
   ReferenceDot,
 } from "recharts";
 import { useT } from "@/lib/i18n";
-import { MEMORY_LEVELS, memoryLevel } from "@/lib/memory";
+import { MEMORY_LEVELS, memoryOf } from "@/lib/memory";
+import { stabilityOf } from "@/lib/srs";
 
 export type HistoryPoint = {
   reviewed_at: string;
@@ -30,7 +31,7 @@ type Props = {
 };
 
 /**
- * 記憶の段は**アプリ全体で1つ**(`memoryLevel`、6段)。
+ * 記憶の段は**アプリ全体で1つ**(`memoryOf`、6段)。
  *
  * ここには独自の3段(strong / fading / weak)があり、色も語も帯グラフ側と
  * 対応していなかった。同じ画面に「忘れかけ / あやうい / うろ覚え / 定着中 /
@@ -112,19 +113,25 @@ export function ForgettingCurveChart({
     if (lastReviewedAt) {
       const lastMs = new Date(lastReviewedAt).getTime();
       const dtDays = Math.max(0, (Date.now() - lastMs) / 86400_000);
-      const stability = Math.max(0.5, currentIntervalDays * Math.max(1, currentEase));
+      // **安定度の式は1か所（`lib/srs.ts`）。** ここに写すと、狙いの定着度を
+      // 変えたときに曲線だけ古い式で描かれる。
+      const stability = stabilityOf(currentIntervalDays, currentEase);
       const retention = 100 * Math.exp(-dtDays / stability);
       nowPoint = {
         t: round((lastMs - t0) / 86400_000 + dtDays),
         retention: round(retention),
       };
-      level = memoryLevel(retention, currentIntervalDays, history.length);
+      level = memoryOf({
+        retention,
+        interval_days: currentIntervalDays,
+        ease: currentEase,
+      }).level;
     } else if (segments.length) {
-      level = memoryLevel(
-        segments[segments.length - 1].retention,
-        currentIntervalDays,
-        history.length,
-      );
+      level = memoryOf({
+        retention: segments[segments.length - 1].retention,
+        interval_days: currentIntervalDays,
+        ease: currentEase,
+      }).level;
     }
 
     return { data: segments, nowPoint, level };
