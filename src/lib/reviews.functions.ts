@@ -198,6 +198,31 @@ async function getReviewPrefs(
   userId: string,
 ): Promise<{ limit: number; focus: ReviewStageFocus }> {
   const fallback = { limit: 20, focus: "all" as ReviewStageFocus };
+  const clamp = (limit: number, focusRaw: unknown) => ({
+    limit: Math.max(0, Math.min(200, typeof limit === "number" ? limit : 20)),
+    focus: (focusRaw === "weak" || focusRaw === "new" ? focusRaw : "all") as ReviewStageFocus,
+  });
+  /**
+   * **自分の行は SECURITY DEFINER の関数で読む**（`profile.functions.ts` に
+   * 同じ注）。`profiles` の私用の列は `authenticated` に配られていないので、
+   * 直の `select` は必ず権限違反になり、復習の枚数設定が毎回既定に戻る。
+   */
+  try {
+    const rpc = await (
+      supabase as {
+        rpc: (fn: string) => Promise<{ data: unknown; error: unknown }>;
+      }
+    ).rpc("get_my_profile");
+    if (!rpc.error && rpc.data) {
+      const row = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as {
+        review_daily_limit?: number;
+        review_stage_focus?: string;
+      } | null;
+      if (row) return clamp(row.review_daily_limit ?? 20, row.review_stage_focus);
+    }
+  } catch {
+    /* 関数がまだ無い環境では下の直読みへ落ちる */
+  }
   try {
     const { data, error } = await (
       supabase as {
