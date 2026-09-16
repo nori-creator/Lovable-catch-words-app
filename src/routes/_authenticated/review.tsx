@@ -2114,7 +2114,7 @@ export function LightModeCard({
             「『(同じ意味)』はどれ?」なので、**同じ文字が縦に2回**並び、
             画面の3分の1を repeat に使っていた。写真が無いなら、問いが主役。 */}
         {heroUrl && (
-          <div className="mb-1.5 h-[clamp(5rem,18vh,10rem)] min-h-0 w-full shrink overflow-hidden rounded-2xl bg-secondary">
+          <div className="mb-1.5 h-[clamp(5rem,24vh,14rem)] min-h-0 w-full shrink overflow-hidden rounded-2xl bg-secondary">
             <CachedImg
               src={heroUrl}
               alt={t("rv.targetAlt")}
@@ -2141,8 +2141,28 @@ export function LightModeCard({
          *
          * オーナー指示「必ずしも選択肢をすべて表示する必要はない」に従い、
          * **1つぶんの高さは中身が決め、入らなければ送る**形にした。
+         *
+         * ## 余った高さは選択肢どうしで分ける（オーナー指摘 2026-09-16
+         * 「復讐の四択の下の余白気になる。下までバランスよく大きさを計算して」）
+         *
+         * 縦に積むだけだと、選択肢は中身のぶんしか伸びないので、**余りが
+         * 全部いちばん下に溜まる**（実測 390×844 で札の中に 292px の空き）。
+         *
+         * `minmax(3.5rem, 1fr)` の格子にすると、余りは行数で分けられ、かつ
+         * **3.5rem より縮むことは絶対に無い**。上の「押し込まない」約束は
+         * 守ったまま、余白だけが消える（`repeat(N, 1fr)` に戻すと、また
+         * 注音が潰れる）。入り切らない回はこれまでどおり送れる。
+         *
+         * **上限は置かない。** 一度 `5.5rem` で頭を止めてみたが、写真の無い
+         * 語（文字で入れた語）ではその上限ぶんがそのまま下の空きに戻り、
+         * 932px の画面で 236px 空いた — 直したかった物がそのまま残る。
+         * 写真がある回は上の枠が先に取る（`24vh`）ので、選択肢だけが
+         * 伸びすぎることはない。
          */}
-        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
+        <ul
+          className="grid min-h-0 flex-1 gap-1.5 overflow-y-auto overscroll-contain"
+          style={{ gridTemplateRows: `repeat(${infos.length}, minmax(3.5rem, 1fr))` }}
+        >
           {infos.map((info) => {
             const c = info.headword;
             const isAnswer = c === card.headword;
@@ -2167,7 +2187,7 @@ export function LightModeCard({
             // ぶん狭く、しかも「押す物が2つ横に並ぶ」形だった。押す物の中に
             // 押す物は入れられないので、箱は敷いたまま音声だけ上に重ねる。
             return (
-              <li key={c} className="relative flex shrink-0 scroll-mb-56 items-stretch">
+              <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
                 <button
                   disabled={!!picked}
                   onClick={() => submit(c)}

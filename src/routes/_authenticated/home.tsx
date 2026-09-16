@@ -31,7 +31,7 @@ import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
-import type { FlightOrigin } from "@/components/HeroFlight";
+import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
@@ -243,7 +243,7 @@ function HomePage() {
   const [openId, setOpenId] = useState<string | null>(null);
   /**
    * 押した札の場所と絵。ここから詳細の見出しへ**絵が飛ぶ**
-   * （オーナー指示 2026-09-15「軌跡アニメーション」／`components/HeroFlight.tsx`）。
+   * （オーナー指示 2026-09-15「軌跡アニメーション」／`components/use-hero-reveal.ts`）。
    * 長押しで開いた時は空にする — 長押しは「この札の写真を選び直す」であって、
    * 絵が育って開く動きではない。
    */
