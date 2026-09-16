@@ -4279,6 +4279,32 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
+   * **回る箱は指を受けない。受けるのは孤と名前だけ。**（絵の検査で見つけた）
+   *
+   * 輪（`.camera-dial__ring`）と孤の板（`.camera-dial__arcs`）は、親の幅
+   * いっぱい 390×196 に広がったうえで回る。120° 回すと箱の外接は 365×436 まで
+   * 膨らみ、**ダイヤルの上にある倍率の粒を覆う** — 絵の検査が
+   * 「送り切っても下敷きのまま: 倍率 2倍 ← <svg>」と出した（＝粒が押せない）。
+   * `<svg>` は置き換え要素なので、描いていない所も箱ぜんぶが当たりになる。
+   *
+   * 指を引きずって回す受け皿は、**回らない外側の箱**（`.camera-dial`）が持つ。
+   */
+  it("回る輪と孤の板は指を受けず、孤と名前だけが受ける", () => {
+    const css = read("styles.css");
+    const block = (sel: string) => {
+      const at = css.indexOf(sel);
+      expect([sel, at >= 0]).toEqual([sel, true]);
+      return css.slice(at, css.indexOf("\n}", at));
+    };
+    expect(block(".camera-dial__ring {")).toMatch(/pointer-events: none/);
+    expect(block(".camera-dial__arcs {")).toMatch(/pointer-events: none/);
+    expect(block(".camera-dial__arc {")).toMatch(/pointer-events: auto/);
+    expect(block(".camera-dial__label {")).toMatch(/pointer-events: auto/);
+    // 字の大きさは6段の階調から取る（12px は階調に無い）。
+    expect(block(".camera-dial__name {")).toMatch(/font-size: var\(--text-footnote\)/);
+  });
+
+  /**
    * **下の余白と、演出の着地点は同じ数で動く。**
    *
    * 2026-09-16 に下の余白を 5.5rem → 4.25rem に詰めたとき、開く演出の

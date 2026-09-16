@@ -4178,6 +4178,15 @@ html[data-motion="reduce"] .camera-flip:active {
   position: absolute;
   inset: 0;
   will-change: rotate;
+  /**
+   * **回る箱そのものは指を受けない。** 受けるのは孤と名前だけ。
+   *
+   * この箱は親の幅いっぱい（390×196）まで広がったうえに回る。120° 回すと
+   * 外接は 365×436 まで膨らみ、**ダイヤルの上にある倍率の粒を覆う**
+   * （絵の検査で「送り切っても下敷きのまま: 倍率 2倍」＝粒が押せなかった）。
+   * 指を引きずって回す受け皿は、回らない外側の箱（`.camera-dial`）が持つ。
+   */
+  pointer-events: none;
 }
 
 /* 孤3つ。**これで円が1周ぶん埋まる**（`CameraDial.tsx` の `SECTORS`）。 */
@@ -4187,6 +4196,17 @@ html[data-motion="reduce"] .camera-flip:active {
   width: 100%;
   height: 100%;
   overflow: visible;
+  /**
+   * **板そのものは指を受けない。受けるのは描いた孤だけ。**
+   *
+   * `<svg>` は置き換え要素なので、既定では**箱ぜんぶ**が当たり判定になる。
+   * この板は輪の子で、輪は親の幅いっぱい（390×196）まで広がったうえに
+   * 回る。120° 回すと箱の外接は 365×436 まで膨らみ、**ダイヤルの上に
+   * ある倍率の粒を覆ってしまう**（絵の検査で「送り切っても下敷きのまま:
+   * 倍率 2倍 ← <svg>」と出た＝粒が押せなくなっていた）。
+   * ここを切って、下の `.camera-dial__arc` だけに戻す。
+   */
+  pointer-events: none;
 }
 
 /**
@@ -4226,8 +4246,12 @@ html[data-motion="reduce"] .camera-flip:active {
   height: 40px;
   margin-left: -48px;
   margin-top: -20px;
-  /* 中身は見せるだけ。指は孤（上）が受ける。 */
-  pointer-events: none;
+  /**
+   * 押した行き先は角度から決まる（`CameraDial.tsx`）ので、ここが受けても
+   * 孤が受けても結果は同じ。**受ける側にしておく** — 押せる物が別の物の
+   * 下敷きになっていない、という形を保つため（絵の検査がそこを見ている）。
+   */
+  pointer-events: auto;
   display: grid;
   place-items: center;
   padding: 0;
@@ -4261,7 +4285,8 @@ html[data-motion="reduce"] .camera-flip:active {
   left: 50%;
   translate: -50% 0;
   margin-top: 2px;
-  font-size: 0.75rem;
+  /* 字の大きさは6段の階調から取る（12px は階調に無い）。 */
+  font-size: var(--text-footnote);
   font-weight: 600;
   line-height: 1.1;
   white-space: nowrap;
