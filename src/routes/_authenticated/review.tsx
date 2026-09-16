@@ -739,7 +739,14 @@ export function MemoryOverviewPanel({
             <li key={w.sticker_id}>
               <button
                 onClick={() => onOpenWord(w)}
-                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
+                /**
+                 * **行の高さは 44px を割らない**（HIG §11 / 絵の検査で発覚）。
+                 *
+                 * ここは実測 358×32 だった。一覧は**この画面でいちばん押される
+                 * 所**（押すと忘却曲線が開く）なのに、指の下限を 12px 割って
+                 * いた。雛形に一覧が無かったので、一度も測られていなかった。
+                 */
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
                 <Term
                   lang={targetLanguage}

@@ -4406,6 +4406,42 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
+   * **記憶の一覧の行は、指の下限を割らない。**（絵の検査で見つけた）
+   *
+   * 実測 358×32。一覧は**この画面でいちばん押される所**（押すと忘却曲線が
+   * 開く）なのに、44px を 12px 割っていた。雛形に一覧が無かったので、
+   * 一度も測られていなかった — 見ていない所は壊れていても分からない。
+   */
+  it("記憶の一覧の行は 44px 以上", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const at = rv.indexOf("onClick={() => onOpenWord(w)}");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(rv.slice(at, at + 400)).toMatch(/className="flex min-h-11 w-full items-center/);
+    // 雛形に一覧の面があること（無ければまた測られなくなる）。
+    expect(read("../scripts/ui-harness/main.tsx")).toContain('"review-memory-list"');
+  });
+
+  /**
+   * **選ばれている孤は、内側を濃くする。**（絵の検査で見つけた）
+   *
+   * 名前が載るのは半径 53〜65px。勾配を「内が明るい」にすると、そこが
+   * いちばん明るい青になって、白い 13px の字が **4.13:1** しか取れない
+   * （本文の下限は 4.5:1）。濃い側に字を載せると **7.2:1**。
+   * 光は外の縁が拾う形にする。
+   */
+  it("ダイヤルの勾配は内側が濃い（名前の地を暗く保つ）", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    const at = src.indexOf('id="camera-dial-glass"');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const g = src.slice(at, at + 500);
+    // 内(0.82 まで)が濃い青、外の縁だけ明るい。
+    expect(g).toMatch(/<stop offset="0\.82" stopColor="var\(--cam-accent-deep\)" \/>/);
+    expect(g).toMatch(/<stop offset="1" stopColor="var\(--cam-accent\)" \/>/);
+    // 逆向き（内が明るい）に戻っていないこと。
+    expect(g).not.toMatch(/<stop offset="0\.45" stopColor="var\(--cam-accent\)" \/>/);
+  });
+
+  /**
    * **出題日の狙いは 90%。**（オーナー指示 2026-09-16「アルゴリズムを
    * 最適化して」／`lib/srs.ts` の「ずれ ②」）
    *

@@ -400,7 +400,10 @@ export function CameraDial({
             中心が動かないので、輪が何度回っても光の当たり方が変わらない
             （帯の上下で明暗を付ける勾配だと、回した時に光ごと回ってしまい、
              ガラスではなく塗った輪に見える）。
-            内側が明るく、外へ向かって深い青へ沈む ＝ 厚みのある帯の見え方。
+            **内側が濃く、外の縁で明るくなる。** 逆（内が明るい）にすると、
+            名前が載る半径 53〜65px がいちばん明るい青になり、白い 13px の字が
+            **4.13:1** しか取れない（絵の検査の実測。本文の下限は 4.5:1）。
+            濃い側に字を載せると 7.2:1。光は外の縁が拾う形にする。
 
             **色は透かさない。透かすのは孤ぜんぶ**（`styles.css` の `opacity`）。
             塗りと線の両方を半透明にすると、線が形の境目をまたぐせいで
@@ -416,8 +419,8 @@ export function CameraDial({
               cy={BOX / 2}
               r={R_OUT}
             >
-              <stop offset="0.45" stopColor="var(--cam-accent)" />
-              <stop offset="1" stopColor="var(--cam-accent-deep)" />
+              <stop offset="0.82" stopColor="var(--cam-accent-deep)" />
+              <stop offset="1" stopColor="var(--cam-accent)" />
             </radialGradient>
           </defs>
           {CAMERA_MODES.map((m, i) => (
