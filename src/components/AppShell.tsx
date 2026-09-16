@@ -375,8 +375,21 @@ export function AppShell({
         {items.map(({ to, labelKey, icon: Icon }, i) => {
           const label = t(labelKey);
           const isScan = to === "/capture";
-          /** いまこのタブに居るか。カメラの丸の**中の色**を決めるのに使う。 */
-          const isCurrent = atPath(to);
+          /**
+           * いま**カメラの機械の中に居るか**。カメラの丸を下から消すのに使う。
+           *
+           * 「このタブの行き先に居るか」ではない。撮る・調べる・読み取るは
+           * 同じ一台の3つのモードで、`/scan` は行き先が別なだけ。行き先で
+           * 判定すると、読み取り中だけ丸が下に戻ってきて**シャッターと
+           * 下の丸が同時に在る**ことになる（オーナー報告 2026-09-16
+           * 「スキャンのとき、検索のときも下のバーのカメラあいこん
+           * ひょうじしなくていい。カメラのとき同じように」）。
+           * 調べるは `/capture?mode=search` なので、道が同じここで一緒に片付く。
+           *
+           * 並びの番号(`tabIndex`)と指で払う順は**5つの行き先のまま**にする。
+           * `/scan` はタブではないので、そこへ混ぜると順が狂う。
+           */
+          const isCurrent = isScan ? atPath(to) || atPath("/scan") : atPath(to);
           // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
           const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
           return (

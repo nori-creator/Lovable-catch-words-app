@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memoryLevel } from "./memory";
+import { memoryOf } from "./memory";
 import {
   formatForLevel,
   normalizeReviewMode,
@@ -65,9 +65,14 @@ describe("reviewFormatFor", () => {
     ).toBe("choice");
   });
 
+  /**
+   * **段は「記憶の強さ」から決まる**（2026-09-16 以降。`lib/memory.ts`）。
+   * 定着度そのものではないので、ここの値は**強さが 50〜69 に入る**組み合わせ。
+   * 定着度 85・間隔5日 → 安定度 47.5日 → 強さ 66 ＝「うろ覚え」。
+   */
   it("AIが選ぶ: うろ覚えは発音", () => {
     expect(
-      reviewFormatFor({ pref: "hybrid", retention: 60, intervalDays: 5, repetitions: 2 }),
+      reviewFormatFor({ pref: "hybrid", retention: 85, intervalDays: 5, repetitions: 2 }),
     ).toBe("say");
   });
 
@@ -102,7 +107,8 @@ describe("reviewFormatFor", () => {
   });
 
   it("フレーズの札は発音の段でも会話のまま(発音する1語が無い)", () => {
-    const band = { pref: "hybrid" as const, retention: 60, intervalDays: 5, repetitions: 2 };
+    // 強さ 66 ＝「うろ覚え」＝ 発音の段（上の注）。
+    const band = { pref: "hybrid" as const, retention: 85, intervalDays: 5, repetitions: 2 };
     expect(reviewFormatFor(band)).toBe("say");
     expect(reviewFormatFor({ ...band, entryType: "phrase" })).toBe("compose");
   });
@@ -132,7 +138,7 @@ describe("reviewFormatFor", () => {
     for (const retention of [0, 10, 29, 30, 49, 50, 69, 70, 84, 85, 100]) {
       for (const intervalDays of [1, 7, 29, 30, 90]) {
         for (const repetitions of [0, 2, 3, 10]) {
-          const lv = memoryLevel(retention, intervalDays, repetitions).level;
+          const lv = memoryOf({ retention, interval_days: intervalDays }).level.level;
           expect(reviewFormatFor({ pref: "hybrid", retention, intervalDays, repetitions })).toBe(
             formatForLevel(lv),
           );

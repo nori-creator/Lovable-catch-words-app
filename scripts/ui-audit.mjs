@@ -232,7 +232,9 @@ const MODES = [
   ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
   ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
-  ...crossThemes("review-memory", { scene: "review-memory" }),
+  ...crossThemes("review-memory", { scene: "review-memory" }), // 記憶の一覧。**オーナー報告 2026-09-16 の画面**（段と % の逆転）。
+  ...crossThemes("review-memory-list", { scene: "review-memory-list" }),
+
   // 見出し(「3 / 12」の進捗と進捗バー、出題の型の切替)も一緒に描く。
   // 以前は札だけだったので、独立監査が「クイズに進捗が無い」と誤指摘した
   // — 実物には最初からある。**部品だけを切り出した絵は、その画面の絵ではない。**
@@ -449,6 +451,8 @@ const MODES = [
   ["capture-saving-landing", "", false, { scene: "capture-saving", landing: "1" }],
   // 覗いている最中に映像の上へ載る操作。倍率を持たない端末の姿も見る。
   ["scan-camera", "", false, { scene: "scan-camera" }],
+  // 画面の下端に集まる3つ（倍率の粒・ダイヤル・タブ帯）の**重なり**を見る面。
+  ["scan-bottom", "", false, { scene: "scan-bottom" }],
   ["scan-camera-nozoom", "", false, { scene: "scan-camera", nozoom: "1" }],
   ...crossThemes("word-card", { scene: "word-card" }),
   // 候補を選んだ直後。**訳と発音だけ**が出ているか目で確かめる。
@@ -563,6 +567,7 @@ const BARE_SCENES = new Set([
   "sticker-sheet",
   "capture-saving",
   "scan-camera",
+  "scan-bottom",
   "camera-dial",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 実物でも上のバーは映像の下に隠れる。

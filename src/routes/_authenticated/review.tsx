@@ -27,7 +27,7 @@ import {
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
-import { compareByMemory, memoryLevel, MEMORY_LEVELS } from "@/lib/memory";
+import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -570,7 +570,9 @@ function memWordOf(card: DueReviewCard): MemoryWord {
     fresh: card.repetitions <= 2,
     long_term: card.interval_days >= 30,
     anchor_at: card.taken_at,
-    stability_days: Math.max(0.5, Math.max(1, card.interval_days) * Math.max(1, card.ease)),
+    // **安定度の式は1か所（`lib/srs.ts`）。** ここに写すと、狙いの定着度を
+    // 変えたときにこの画面だけ古い式で動く。
+    stability_days: stabilityOf(card.interval_days, card.ease),
     ease: card.ease,
   };
 }
@@ -618,10 +620,7 @@ export function MemoryLevelSummary({
 }) {
   const t = useT();
   const counts = MEMORY_LEVELS.map(
-    (lv) =>
-      words.filter(
-        (w) => memoryLevel(w.retention, w.interval_days, w.repetitions).level === lv.level,
-      ).length,
+    (lv) => words.filter((w) => memoryOf(w).level.level === lv.level).length,
   );
   const total = words.length || 1;
   return (
@@ -668,11 +667,11 @@ export function MemoryLevelSummary({
 /** 出題カード右上の記憶バッジ — この単語の今の状態がパッと見え、タップで曲線へ。 */
 export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?: () => void }) {
   const t = useT();
-  const lv = memoryLevel(card.retention, card.interval_days, card.repetitions);
+  const { level: lv, strength } = memoryOf(card);
   return (
     <button
       onClick={onOpen}
-      aria-label={`${t(lv.labelKey)} ${card.retention}%`}
+      aria-label={`${t(lv.labelKey)} ${strength}%`}
       // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
       // すると主役の写真より重くなる)。**当たり判定だけ広げる。**
       // 実寸は 82x19 で、指の下限を割っていた。
@@ -689,7 +688,14 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
   );
 }
 
-function MemoryOverviewPanel({
+/**
+ * 記憶の一覧。**オーナーが「%が逆転している」と言った画面そのもの。**
+ *
+ * `export` にしたのは検査の雛形から描くため。ここまで雛形にあったのは
+ * 上の帯（`MemoryLevelSummary`）だけで、**一覧は一度も絵に映っていなかった** —
+ * 逆転が起きていたのはこの一覧の側なので、見ていない所で起きていたことになる。
+ */
+export function MemoryOverviewPanel({
   overview,
   onOpenWord,
 }: {
@@ -715,16 +721,32 @@ function MemoryOverviewPanel({
        * 数えている「長期記憶」だけが、一覧から抜け落ちる並びだった。
        * バーと一覧は同じ `words` を見るのだから、数が食い違ってはいけない。
        */}
+      {/* **％が何の数字かを書く。** 曲線の画面には「記憶率」という別の数字が
+          出るので、言わないと読み比べられない（`lib/memory.ts` の注）。 */}
+      <p className="ja-phrase mt-1 text-caption text-muted-foreground">{t("rv.strengthNote")}</p>
       <ul className="mt-1 max-h-80 space-y-1.5 overflow-y-auto">
         {/* **並べ替えはここで1回だけ**（`lib/memory.ts` の `compareByMemory`）。
             取得の側は記憶率だけで並べていて、100% が続く所では段が混ざる。 */}
         {[...overview.words].sort(compareByMemory).map((w) => {
-          const lv = memoryLevel(w.retention, w.interval_days, w.repetitions);
+          /**
+           * **バーも数字も段も、同じ1つの数から出す**（`lib/memory.ts` の
+           * `memoryOf`）。以前はバーと数字が「いまの定着度」、段が別の条件
+           * だったので、**長期記憶 82% が 覚えた 95% より上**に並んでいた
+           * （オーナー報告 2026-09-16）。
+           */
+          const { level: lv, strength } = memoryOf(w);
           return (
             <li key={w.sticker_id}>
               <button
                 onClick={() => onOpenWord(w)}
-                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
+                /**
+                 * **行の高さは 44px を割らない**（HIG §11 / 絵の検査で発覚）。
+                 *
+                 * ここは実測 358×32 だった。一覧は**この画面でいちばん押される
+                 * 所**（押すと忘却曲線が開く）なのに、指の下限を 12px 割って
+                 * いた。雛形に一覧が無かったので、一度も測られていなかった。
+                 */
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
                 <Term
                   lang={targetLanguage}
@@ -735,11 +757,11 @@ function MemoryOverviewPanel({
                 <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                   <span
                     className={`absolute inset-y-0 left-0 ${lv.bar}`}
-                    style={{ width: `${w.retention}%` }}
+                    style={{ width: `${strength}%` }}
                   />
                 </span>
                 <span className={`w-9 shrink-0 text-right text-caption font-semibold ${lv.text}`}>
-                  {w.retention}%
+                  {strength}%
                 </span>
                 <span
                   className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-caption font-medium ${lv.chip}`}
@@ -764,7 +786,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
     staleTime: 60_000,
   });
   const t = useT();
-  const lv = memoryLevel(word.retention, word.interval_days, word.repetitions);
+  const { level: lv, strength } = memoryOf(word);
 
   /**
    * **履歴が要る語は、届くまで線を引かない。**（オーナー指摘 2026-09-15
@@ -894,7 +916,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}
           >
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-            {t(lv.labelKey)} · {word.retention}%
+            {t(lv.labelKey)} · {strength}%
           </span>
           <span className="text-muted-foreground">
             {t("memory.reviews")} <b className="text-foreground">{word.repetitions}</b>{" "}

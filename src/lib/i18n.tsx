@@ -502,6 +502,18 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Overall retention (±2 weeks)",
     "zh-TW": "整體記憶率（前後兩週）",
   },
+  /**
+   * **％の意味を書いておく。**（2026-09-16 に「いまの定着度」から
+   * 「記憶の強さ」へ変えたため）
+   *
+   * 曲線の画面には「記憶率」という別の数字が出る。同じ画面で2つの％が
+   * 並ぶので、一覧の％が何なのかを言わないと読み比べられない。
+   */
+  "rv.strengthNote": {
+    ja: "％は「記憶の強さ」＝ いま思い出せるか × どれだけ長くもつか。下へ行くほど強い語です。",
+    en: "% is memory strength = how likely you'd recall it now × how long it lasts. Stronger words sit further down.",
+    "zh-TW": "％是「記憶強度」＝ 現在想得起來的機率 × 能維持多久。越往下的字越牢固。",
+  },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
     en: "Tap to see each word's forgetting curve and when you're predicted to forget it",

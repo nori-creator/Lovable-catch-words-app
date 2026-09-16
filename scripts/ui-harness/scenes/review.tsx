@@ -9,12 +9,14 @@
  */
 import { useEffect } from "react";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
+import { stabilityOf } from "@/lib/srs";
 import {
   AnswerExplain,
   DoneState,
   EmptyState,
   LightModeCard,
   MemoryLevelSummary,
+  MemoryOverviewPanel,
   ReviewHeader,
   ReviewPreparing,
   SayResult,
@@ -127,6 +129,52 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
       <button className="w-full text-left" aria-expanded={open}>
         <MemoryLevelSummary words={words} expanded={open} />
       </button>
+    </section>
+  );
+}
+
+/**
+ * 記憶の一覧。**オーナー報告 2026-09-16 の画面**
+ * 「SRSは長期記憶なのに、%が覚えたの状態より低いのが変。一番下に行けば
+ *  行くほど、記憶の状態がより高く % も高くして」。
+ *
+ * ここまで雛形にあったのは上の帯だけで、**一覧は一度も撮っていなかった** —
+ * 逆転はこの一覧で起きていたので、見ていない所で起きていたことになる。
+ *
+ * 語は**わざとばらばらの順**で渡す。並べ替えは画面の側の仕事なので、
+ * 揃えて渡すと「並べ替えが効いている」ことを確かめられない。
+ */
+export function ReviewMemoryListScene() {
+  const raw: Array<[string, number, number, number]> = [
+    // 見出し語, 定着度, 間隔(日), 復習回数
+    ["珍珠奶茶", 100, 90, 12], // 育った語（前は「長期記憶 100%」）
+    ["雨傘", 100, 0, 0], // 今日キャッチ（前は 100% で最下段＝最強に見えた）
+    ["夜市", 82, 45, 9], // 出題日が近い長期の語（前は「長期記憶 82%」）
+    ["捷運", 96, 5, 3], // 間隔は短いが直後（前は「覚えた 96%」で上の語より下）
+    ["咖啡", 44, 2, 1],
+    ["蘋果", 68, 14, 5],
+  ];
+  const words = raw.map(([headword, retention, interval_days, repetitions], i) => ({
+    sticker_id: `s${i}`,
+    headword,
+    retention,
+    interval_days,
+    repetitions,
+    due_at: null,
+    days_until_forgot: null,
+    fresh: repetitions <= 2,
+    long_term: interval_days >= 30,
+    anchor_at: null,
+    stability_days: stabilityOf(interval_days, 2.5),
+    ease: 2.5,
+  }));
+  return (
+    <section className="mb-4">
+      <MemoryLevelSummary words={words} expanded />
+      <MemoryOverviewPanel
+        overview={{ danger: 1, fuzzy: 2, solid: 3, words }}
+        onOpenWord={() => {}}
+      />
     </section>
   );
 }

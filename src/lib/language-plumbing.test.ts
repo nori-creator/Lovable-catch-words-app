@@ -3652,7 +3652,23 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     );
     // 3箇所とも同じ物を使っていること。
     expect(shell).toMatch(/items\.findIndex\(\(i\) => atPath\(i\.to\)\)/);
-    expect(shell).toMatch(/const isCurrent = atPath\(to\)/);
+    /**
+     * **カメラの丸を下から消すのは「カメラの機械に居る間」。**（オーナー指示
+     * 2026-09-16「スキャンのとき、検索のときも下のバーのカメラあいこん
+     * ひょうじしなくていい。カメラのとき同じように」）
+     *
+     * 撮る・調べる・読み取るは同じ一台の3つのモードで、`/scan` だけ行き先が
+     * 別。行き先で判定すると読み取り中だけ丸が下に戻り、**シャッターと下の丸が
+     * 同時に在る**ことになる。調べるは `/capture?mode=search` なので、道が
+     * 同じここで一緒に片付く。
+     */
+    expect(shell).toMatch(
+      /const isCurrent = isScan \? atPath\(to\) \|\| atPath\("\/scan"\) : atPath\(to\)/,
+    );
+    // 並びの番号と指で払う順は**5つの行き先のまま**。`/scan` を混ぜない。
+    expect(shell).not.toMatch(
+      /items\.findIndex\(\(i\) => atPath\(i\.to\) \|\| atPath\("\/scan"\)\)/,
+    );
     /**
      * **入れ替えの頃合いは演出側が決める。**（オーナー報告 2026-09-16
      * 「カメラの黒い画面に移行し、その上から同じ画面のアニメーションが
@@ -3927,9 +3943,46 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("components/CameraDial.tsx"));
     expect(src).toMatch(/setPointerCapture/);
     // 動かしている間は状態ではなく、ばねの値を直に置き換える（§14）。
-    expect(src).toMatch(/sp\.set\(d\.from \+ \(e\.clientX - d\.x\) \* DEG_PER_PX\)/);
-    // 離したら刻みへ。
-    expect(src).toMatch(/Math\.round\(sp\.value\(\) \/ STEP\) \* STEP/);
+    expect(src).toMatch(/const deg = d\.from \+ \(e\.clientX - d\.x\) \* DEG_PER_PX;/);
+    expect(src).toMatch(/sp\.set\(deg\)/);
+    // 離したら刻みへ。**行き先は「指が向かっていた先」から出す**（§18）。
+    expect(src).toMatch(/const aim = sp\.value\(\) \+ project\(d\.v\);/);
+    expect(src).toMatch(/Math\.round\(aim \/ STEP\) \* STEP/);
+    // 離した速度をばねへ渡す（継ぎ目を作らない）。
+    expect(src).toMatch(/sp\.to\(snapped, \{ velocity: d\.v \}\)/);
+    /**
+     * **見積もりは1刻みで頭打ち。** 惰性の式をそのまま当てると、ひと払い
+     * （実測 833°/秒）で 416° ＝ 1周ちょっと流れて元の撮り方に戻ってくる。
+     */
+    expect(src).toMatch(/Math\.max\(-STEP, Math\.min\(STEP, raw\)\)/);
+  });
+
+  /**
+   * **孤を押しても切り替わる。**（オーナー指示 2026-09-16
+   * 「シャッターボタンの周りにぴったり沿うように3つのモードを孤にして」）
+   *
+   * 押して選ぶのを `onClick` に任せられない。輪の上で指を捕まえている
+   * （`setPointerCapture`）ので `pointerdown` も `pointerup` も外側の箱に
+   * 届き、ブラウザは共通の親へ `click` を出す — **孤そのものには一度も
+   * 届かない**（実測: 孤を押しても撮り方が変わらなかった）。
+   * 離した所の角度から撮り方を出す形に一本化する。
+   */
+  it("孤は押しても切り替わる（角度から撮り方を出す）", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/function modeAtPoint\(/);
+    // 帯の外（シャッターの上・輪の外）を押しても撮り方は変わらない。
+    expect(src).toMatch(/if \(r < R_IN \|\| r > R_OUT\) return null;/);
+    // 画面の角度から輪の回転を引くと、輪の中での角度になる。
+    expect(src).toMatch(/const localDeg = \(\(\(screenDeg - ringDeg\) % 360\) \+ 360\) % 360;/);
+    // ほとんど動いていなければ「押した」。
+    expect(src).toMatch(/const moved = Math\.hypot\(e\.clientX - d\.x, e\.clientY - d\.y\);/);
+    expect(src).toMatch(/moved < TAP_PX/);
+    // 届かない `onClick` を孤に残さない（残すと「直したつもり」になる）。
+    const arcs = src.slice(
+      src.indexOf("camera-dial__arcs"),
+      src.indexOf("camera-dial__arcs") + 400,
+    );
+    expect(arcs).not.toMatch(/onClick/);
   });
 
   /**
@@ -3962,7 +4015,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * |---|---|
    * | 0% の板 | 49×49・下から中心 56 ＝ 帯の丸（48px・56） |
    * | 100% の板 | 390×844 ＝ 画面いっぱい |
-   * | 100% の中のシャッター | 80px・下から中心 **158** ＝ 本物（80px・**158**） |
+   * | 100% の中のシャッター | 76px・下から中心 **166** ＝ 本物（76px・**166**） |
    */
   it("開く演出は、カメラの形が育って本物のシャッターに重なる", () => {
     const css = read("styles.css");
@@ -3983,8 +4036,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
     const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
     const shBody = sh.slice(0, sh.indexOf("\n}"));
-    expect(shBody).toMatch(/bottom: calc\(7\.375rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    expect(shBody).toMatch(/width: 80px/);
+    expect(shBody).toMatch(/bottom: calc\(8rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(shBody).toMatch(/width: 76px/);
   });
 
   /**
@@ -4127,19 +4180,29 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **カメラの色は、このアプリの世界から取る。**（オーナー指摘 2026-09-16
-   * 「デザインが白黒すぎる。私のアプリ全体のデザインuiuxから統一感出して」）
+   * **カメラの色は、このアプリの青から取る。**（オーナー指示 2026-09-16
+   * 「カメラの画面はこのアプリと同じ青い色をベースに…デザインし直して」）
    *
-   * ホームはクリーム色の台紙に写真を角で留めたスクラップブックで、真鍮色の
-   * 枠が走っている。カメラだけが黒地に白と Apple の黄色だと、そこだけ別の
-   * アプリに見える。地は革の暗色、選択と輪は真鍮、シャッターは印画紙。
+   * 下の帯の丸も、捕まえた時の光も、図鑑の見出しも青。カメラだけ茶色
+   * （前の版は革＋真鍮だった）だと、押した瞬間に別のアプリへ移ったように
+   * 見える。地は深い青の機体、輪と縁はアプリの青、シャッターは青みの白。
+   *
+   * **`var(--primary)` を参照しない。** 値としては同じだが、`--primary` は
+   * 見た目パックで黄にも赤にも変わる。カメラは映像の上に載るので、どの
+   * パックでも同じ見え方が要る。だから値を写して固定する。
    *
    * 生の `#fff` / `#000` / `#ffd60a` を直に書かない — 名前を付けておかないと、
    * 次に触る人が同じ色を別の値で書き足して、少しずつ散らばる。
    */
   it("カメラの色は名前の付いた札から取る（生の白黒を書かない）", () => {
     const css = read("styles.css");
-    for (const token of ["--cam-body", "--cam-brass", "--cam-paper", "--cam-ink"]) {
+    for (const token of [
+      "--cam-body",
+      "--cam-accent",
+      "--cam-accent-deep",
+      "--cam-paper",
+      "--cam-ink",
+    ]) {
       expect([token, css.includes(token)]).toEqual([token, true]);
     }
     // カメラの部分だけを見る（アプリ全体の他の色は対象外）。
@@ -4151,28 +4214,290 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(cam).not.toMatch(/#ffd60a/);
     expect(cam).not.toMatch(/background:\s*#fff\b/);
     expect(cam).not.toMatch(/background:\s*#000\b/);
+    // 見た目パックに引きずられない（値を写して持つ）。
+    expect(cam).not.toMatch(/--cam-accent: var\(--primary\)/);
+    // 真鍮の名前が残っていないこと（名前と値が食い違うと次に触る人が迷う）。
+    expect(css).not.toMatch(/--cam-brass/);
   });
 
   /**
-   * **輪は見える輪にする。**（オーナー指示 2026-09-16
-   * 「3つのモードはそれぞれ囲いシャッターボタンの周りで本物のダイヤルの
-   *  ように回せるようにして」）
+   * **3つの孤でシャッターを1周する。**（オーナー指示 2026-09-16
+   * 「シャッターボタンの周りにぴったり沿うように3つのモードを孤にして。
+   *  3つでシャッターボタンを1周するように」）
    *
-   * 前は名前だけが回っていて、輪そのものが描かれていなかった。何が回るのかが
-   * 絵から読めないと、滑らせて回せることに気づけない。
+   * 前は名前の粒が3つ、輪の上に浮いていた。粒と粒の間は押しても何も起きない
+   * ＝ **押せる所が輪の上に飛び飛びにある**。いまは輪そのものが3つに分かれ、
+   * 輪の上のどこを押しても必ずどれかに当たる。
    */
-  it("ダイヤルは輪が見え、撮り方はそれぞれ囲われている", () => {
+  it("撮り方は3つの孤で、合わせてちょうど1周する", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    // 孤は「ドーナツの一切れ」。3つ ＝ 360°。
+    expect(src).toMatch(/function sector\(center: number\)/);
+    expect(src).toMatch(/const a0 = center - HALF;/);
+    expect(src).toMatch(/const a1 = center \+ HALF;/);
+    expect(src).toMatch(/const SECTORS = CAMERA_MODES\.map\(\(_, i\) => sector\(i \* STEP\)\);/);
+    // シャッターにぴったり沿う（外(38) のすぐ外から）。
+    expect(src).toMatch(/const SHUTTER = 76;/);
+    // 帯の太さは 44px を割らない（HIG §11 の指の下限）。半径はそこから出す。
+    expect(src).toMatch(/const BAND = 44;/);
+    expect(src).toMatch(/const R_MID = 66;/);
+    expect(src).toMatch(/const R_IN = R_MID - BAND \/ 2;/);
+    expect(src).toMatch(/const R_OUT = R_MID \+ BAND \/ 2;/);
+    // 隙間は**角度**で持つ。px で持つと半径を変えたとき3つのバランスが崩れる。
+    expect(src).toMatch(/const GAP = 10;/);
+    // 古い「浮いた粒」は残さない。
+    expect(src).not.toMatch(/camera-dial__chip/);
     const css = read("styles.css");
-    // 輪の環そのもの。
-    expect(css).toMatch(/\.camera-dial__ring::before \{/);
-    const ring = css.slice(css.indexOf(".camera-dial__ring::before {"));
-    expect(ring.slice(0, 700)).toMatch(/border-radius: 9999px/);
-    expect(ring.slice(0, 700)).toMatch(/repeating-conic-gradient/);
-    // 撮り方は1つずつ囲う。
-    expect(css).toMatch(/\.camera-dial__chip \{/);
-    expect(codeOnly(read("components/CameraDial.tsx"))).toMatch(
-      /<span className="camera-dial__chip">\{t\(MODE_KEY\[m\]\)\}<\/span>/,
+    expect(css).not.toMatch(/\.camera-dial__chip \{/);
+    // 孤そのものが指の当たり。
+    expect(css).toMatch(/\.camera-dial__arc \{/);
+    const arc = css.slice(
+      css.indexOf(".camera-dial__arc {"),
+      css.indexOf(".camera-dial__arc {") + 700,
     );
+    expect(arc).toMatch(/pointer-events: auto/);
+  });
+
+  /**
+   * **回る輪の中では、真ん中合わせに `translate` を使わない。**
+   *
+   * `translate: -50% -50%` は輪の回転と一緒に回る。半分ずらしたはずの向きが
+   * 傾いて、名前と絵が孤の外（映像の上）へ飛ぶ — 実測で、選ばれている物が
+   * 中心から 122px 上、輪の外に出ていた。`margin` は組版の側の値なので回らない。
+   *
+   * 位置も割合で書かない。輪は `inset: 0` で親の幅いっぱい（390px）に
+   * 広がっていて、`196` の箱ではない。
+   */
+  it("回る輪の上の名前は、余白で真ん中に置く（`translate` では置かない）", () => {
+    const css = read("styles.css");
+    const at = css.indexOf(".camera-dial__label {");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const label = css.slice(at, at + 700);
+    expect(label).toMatch(/margin-left: -48px/);
+    expect(label).toMatch(/margin-top: -20px/);
+    expect(label).not.toMatch(/translate: -50% -50%/);
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(
+      /left: `calc\(50% \+ \$\{Math\.round\(\(x - BOX \/ 2\) \* 10\) \/ 10\}px\)`/,
+    );
+  });
+
+  /**
+   * **角を丸める。カクカクさせない。**（オーナー指示 2026-09-16
+   * 「Appleのglass UIを参考して、カクカクさせないで。丸みを帯びた感じで。
+   *  それぞれのモードのすき間のバランスを最適にして」）
+   *
+   * ## 「線の先を丸める」では駄目だった
+   * 最初は太さ 44px の線を引いて `stroke-linecap: round` にした。角は消えるが、
+   * **半円の先端が大きすぎて3つの丸い塊に見えた** — 線の長さ(73°≒84px)に対して
+   * 太さが 44px あるので、両端の半円だけで全体の3分の1が埋まる。
+   *
+   * いまは扇形を描き、その外周を太さ `2×CR` の線でなぞる。線が形を全方向へ
+   * `CR` だけ太らせ、`stroke-linejoin: round` が角4つを半径 `CR` で丸める。
+   * だから `CameraDial.tsx` が渡すのは**一回り小さい扇形**（`DRAW_IN`〜
+   * `DRAW_OUT`、角度も `CAP` ぶん狭い）で、なぞったあとが狙いの帯になる。
+   */
+  it("孤は角が丸く、隙間は3つとも同じ角度で開く", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    // 丸みの半径と、それを見込んだ「一回り小さい扇形」。
+    expect(src).toMatch(/const CR = 10;/);
+    expect(src).toMatch(/const DRAW_IN = R_IN \+ CR;/);
+    expect(src).toMatch(/const DRAW_OUT = R_OUT - CR;/);
+    // なぞりは角度方向にも伸びる。伸びる分を引かないと隙間が塞がる。
+    expect(src).toMatch(/const CAP = \(CR \/ R_MID\) \* \(180 \/ Math\.PI\);/);
+    expect(src).toMatch(/const HALF = STEP \/ 2 - GAP \/ 2 - CAP;/);
+    // 塊に見えた「線の先を丸める」やり方へ戻っていないこと。
+    expect(src).not.toMatch(/arcPath/);
+    const css = read("styles.css");
+    const arc = css.slice(
+      css.indexOf(".camera-dial__arc {"),
+      css.indexOf(".camera-dial__arc[data-on]"),
+    );
+    expect(arc).toMatch(/stroke-width: 20/);
+    expect(arc).toMatch(/stroke-linejoin: round/);
+    expect(arc).not.toMatch(/stroke-linecap: round/);
+    /**
+     * **薄めるのは色ではなく要素ぜんぶ。**
+     * 塗りと線の色を半透明にすると、線が形の境目をまたぐせいで内側半分に
+     * 二重に乗り、**縁に暗い溝**ができる（実測。`paint-order` を入れ替えても
+     * 重ねて合成することに変わりはない）。
+     */
+    expect(arc).toMatch(/opacity: 0\.34/);
+    expect(arc).not.toMatch(/stopOpacity/);
+    expect(src).not.toMatch(/stopOpacity/);
+  });
+
+  /**
+   * **ダイヤルは、指に対して回りすぎない。**（オーナー指示 2026-09-16
+   * 「ダイヤルが早く回りすぎてるから、少し反応落として」）
+   *
+   * 前は 120px 動かすと1つ隣だったので、親指をふつうに払うだけで2つ飛んだ。
+   * 170px ＝ 390px 幅の画面で親指が無理なく届く距離にする。
+   * 指から離れたあとのばねも、`.snappy` と同じ 0.5 秒ぶんに緩める。
+   */
+  it("ダイヤルは 170px で1つ隣、ばねは 0.5 秒ぶん", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/const DEG_PER_PX = STEP \/ 170;/);
+    expect(src).toMatch(
+      /createSpring\(angleRef\.current, paint, \{ damping: 0\.85, response: 0\.5 \}\)/,
+    );
+  });
+
+  /**
+   * **名前は「真上に来た1つ」に出す。**（オーナー指示 2026-09-16
+   * 「選ばれてないこのときはアイコンだけで、うえに来たらアイコンと名前を
+   *  表示して」）
+   *
+   * 「選ばれているか」ではなく「真上に来たか」で決める — 回している最中も、
+   * 上に来た物の名前がそのまま読める。印は1コマごとではなく**変わった時だけ**
+   * 付け外しする（毎コマ書くと、濃さの移り変わりが最初からやり直しになる）。
+   */
+  it("名前は真上に来た1つだけに出る（選択ではなく位置で決める）", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    expect(src).toMatch(/const TOP_DEG = 14;/);
+    expect(src).toMatch(/const off = Math\.min\(a, 360 - a\);/);
+    expect(src).toMatch(/const near = off <= TOP_DEG;/);
+    expect(src).toMatch(/el\.toggleAttribute\("data-top", near\)/);
+    const css = read("styles.css");
+    expect(css).toMatch(/\.camera-dial__label\[data-top\] \.camera-dial__name \{/);
+    // 「選ばれている物」に結び付けていた古い書き方が残っていないこと。
+    expect(css).not.toMatch(/\.camera-dial__label\[data-on\] \.camera-dial__name/);
+    expect(css).not.toMatch(/\.camera-dial\[data-dragging\] \.camera-dial__name/);
+  });
+
+  /**
+   * **段と % は同じ1つの数から出す。**（オーナー報告 2026-09-16
+   * 「SRSは長期記憶なのに、%が覚えたの状態より低いのが変。一番下に行けば
+   *  行くほど、記憶の状態がより高く % も高くして」）
+   *
+   * 前の作りは、段と % が**別の軸**から出ていた:
+   *   ・長期記憶 … 間隔30日以上 かつ 定着度80%以上
+   *   ・覚えた   … 定着度85%以上 かつ 復習3回以上
+   * 条件が重なっていたので「長期記憶 82%」が「覚えた 95%」より上に並んだ。
+   *
+   * いまは `memoryStrength`（定着度 × 熟し）という1本の数を6つに区切る。
+   * **段が上がれば % も必ず上がる。**
+   */
+  it("記憶の段は「強さ」1つだけから決まる（条件を継ぎ足さない）", () => {
+    const mem = codeOnly(read("lib/memory.ts"));
+    // 段を決める関数が受けるのは数1つ。
+    expect(mem).toMatch(/export function memoryLevel\(strength: number\): MemoryLevelInfo/);
+    // 境目は重ならない（下から順に1本の物差し）。
+    for (const line of [
+      "if (strength < 30) return LEVELS[0];",
+      "if (strength < 50) return LEVELS[1];",
+      "if (strength < 70) return LEVELS[2];",
+      "if (strength < 85) return LEVELS[3];",
+      "if (strength < 95) return LEVELS[4];",
+    ]) {
+      expect([line, mem.includes(line)]).toEqual([line, true]);
+    }
+    // 間隔や復習回数を段の条件に**戻さない**（これが逆転の原因だった）。
+    expect(mem).not.toMatch(/intervalDays >= 30 && retention >= 80/);
+    expect(mem).not.toMatch(/repetitions >= 3/);
+    // 並べ替えも同じ数だけを見る。
+    expect(mem).toMatch(/const sa = memoryOf\(a\)\.strength;/);
+    expect(mem).toMatch(/const sb = memoryOf\(b\)\.strength;/);
+    // 画面は `retention` ではなく強さを出す（バーも数字も）。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).toMatch(/const \{ level: lv, strength \} = memoryOf\(w\);/);
+    expect(rv).toMatch(/style=\{\{ width: `\$\{strength\}%` \}\}/);
+    expect(rv).not.toMatch(/\{w\.retention\}%/);
+  });
+
+  /**
+   * **記憶の一覧の行は、指の下限を割らない。**（絵の検査で見つけた）
+   *
+   * 実測 358×32。一覧は**この画面でいちばん押される所**（押すと忘却曲線が
+   * 開く）なのに、44px を 12px 割っていた。雛形に一覧が無かったので、
+   * 一度も測られていなかった — 見ていない所は壊れていても分からない。
+   */
+  it("記憶の一覧の行は 44px 以上", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const at = rv.indexOf("onClick={() => onOpenWord(w)}");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(rv.slice(at, at + 400)).toMatch(/className="flex min-h-11 w-full items-center/);
+    // 雛形に一覧の面があること（無ければまた測られなくなる）。
+    expect(read("../scripts/ui-harness/main.tsx")).toContain('"review-memory-list"');
+  });
+
+  /**
+   * **選ばれている孤は、内側を濃くする。**（絵の検査で見つけた）
+   *
+   * 名前が載るのは半径 53〜65px。勾配を「内が明るい」にすると、そこが
+   * いちばん明るい青になって、白い 13px の字が **4.13:1** しか取れない
+   * （本文の下限は 4.5:1）。濃い側に字を載せると **7.2:1**。
+   * 光は外の縁が拾う形にする。
+   */
+  it("ダイヤルの勾配は内側が濃い（名前の地を暗く保つ）", () => {
+    const src = codeOnly(read("components/CameraDial.tsx"));
+    const at = src.indexOf('id="camera-dial-glass"');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const g = src.slice(at, at + 500);
+    // 内(0.82 まで)が濃い青、外の縁だけ明るい。
+    expect(g).toMatch(/<stop offset="0\.82" stopColor="var\(--cam-accent-deep\)" \/>/);
+    expect(g).toMatch(/<stop offset="1" stopColor="var\(--cam-accent\)" \/>/);
+    // 逆向き（内が明るい）に戻っていないこと。
+    expect(g).not.toMatch(/<stop offset="0\.45" stopColor="var\(--cam-accent\)" \/>/);
+  });
+
+  /**
+   * **出題日の狙いは 90%。**（オーナー指示 2026-09-16「アルゴリズムを
+   * 最適化して」／`lib/srs.ts` の「ずれ ②」）
+   *
+   * 2026-09-16 までは `S = 間隔 × ease` だったので、出題日の定着度は 67%。
+   * 一方、忘却曲線の画面は「85% 付近が最適」と言い、間隔30日の語では
+   * **出題日より 18日も前**を最適だと表示していた。SuperMemo / Anki / FSRS
+   * と同じ 90% に揃えて、出す日と画面の言う日を噛み合わせる。
+   *
+   * **式を写さない。** 安定度の計算は `lib/srs.ts` の1か所だけに置く —
+   * 写した先が古い式のまま残ると、同じ語が画面ごとに違う段になる
+   * （実際、復習画面と曲線の2か所に写されていた）。
+   */
+  it("安定度の式は1か所にあり、狙いは 90%", () => {
+    const srs = codeOnly(read("lib/srs.ts"));
+    expect(srs).toMatch(/export const TARGET_RETENTION = 0\.9;/);
+    expect(srs).toMatch(
+      /const STABILITY_K = 1 \/ \(BASE_EASE \* Math\.log\(1 \/ TARGET_RETENTION\)\);/,
+    );
+    expect(srs).toMatch(
+      /Math\.max\(0\.5, Math\.max\(1, interval_days\) \* Math\.max\(1, ease\) \* STABILITY_K\)/,
+    );
+    // 写しが残っていないこと。
+    for (const file of [
+      "routes/_authenticated/review.tsx",
+      "components/ForgettingCurveChart.tsx",
+    ]) {
+      const src = codeOnly(read(file));
+      expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
+      expect([file, src.includes("stabilityOf(")]).toEqual([file, true]);
+    }
+  });
+
+  /**
+   * **回る箱は指を受けない。受けるのは孤と名前だけ。**（絵の検査で見つけた）
+   *
+   * 輪（`.camera-dial__ring`）と孤の板（`.camera-dial__arcs`）は、親の幅
+   * いっぱい 390×196 に広がったうえで回る。120° 回すと箱の外接は 365×436 まで
+   * 膨らみ、**ダイヤルの上にある倍率の粒を覆う** — 絵の検査が
+   * 「送り切っても下敷きのまま: 倍率 2倍 ← <svg>」と出した（＝粒が押せない）。
+   * `<svg>` は置き換え要素なので、描いていない所も箱ぜんぶが当たりになる。
+   *
+   * 指を引きずって回す受け皿は、**回らない外側の箱**（`.camera-dial`）が持つ。
+   */
+  it("回る輪と孤の板は指を受けず、孤と名前だけが受ける", () => {
+    const css = read("styles.css");
+    const block = (sel: string) => {
+      const at = css.indexOf(sel);
+      expect([sel, at >= 0]).toEqual([sel, true]);
+      return css.slice(at, css.indexOf("\n}", at));
+    };
+    expect(block(".camera-dial__ring {")).toMatch(/pointer-events: none/);
+    expect(block(".camera-dial__arcs {")).toMatch(/pointer-events: none/);
+    expect(block(".camera-dial__arc {")).toMatch(/pointer-events: auto/);
+    expect(block(".camera-dial__label {")).toMatch(/pointer-events: auto/);
+    // 字の大きさは6段の階調から取る（12px は階調に無い）。
+    expect(block(".camera-dial__name {")).toMatch(/font-size: var\(--text-footnote\)/);
   });
 
   /**
@@ -4182,8 +4507,10 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 中のシャッターの着地点を直し忘れて **22px ずれた**。片方だけ動かすと
    * 「演出が終わった所に釦が無い」になるので、両方を門で押さえる。
    *
-   * 実測（844px の画面）: 本物のシャッターは下から中心 158px、
-   * 演出 100% の中のシャッターも 158px（0px 差）。
+   * 同じ日にダイヤルを孤に作り替えて、箱が 180 → 196px・シャッターが
+   * 80 → 76px になった。着地点はその都度ここで計算し直す:
+   *   下の余白 68px ＋ 箱の半分 98px ＝ 中心 166px、半径 38px を引いて
+   *   **下端 128px ＝ 8rem**。
    */
   it("下の余白を詰めたら、開く演出の着地点も一緒に動いている", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
@@ -4194,8 +4521,36 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     );
     const css = read("styles.css");
     const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
-    expect(sh.slice(0, 400)).toMatch(
-      /bottom: calc\(7\.375rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
+    expect(sh.slice(0, 400)).toMatch(/bottom: calc\(8rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    // 箱の高さとシャッターの大きさ（上の計算の元になる2つ）。
+    const dial = codeOnly(read("components/CameraDial.tsx"));
+    expect(dial).toMatch(/const BOX = 196;/);
+    expect(dial).toMatch(/const SHUTTER = 76;/);
+    expect(css.slice(css.indexOf(".camera-dial {"), css.indexOf(".camera-dial {") + 400)).toMatch(
+      /height: 196px/,
     );
+  });
+
+  /**
+   * **倍率の粒は、下の帯の裏に入らない。**（オーナー報告 2026-09-16
+   * 「スキャンモードの時に一番下にある被ってるもの消して」）
+   *
+   * スキャンのカメラ面は `fixed inset-0` なので、その中の「下端から 16px」は
+   * **画面の下端から 16px**。そこには下のタブ帯（下端から 8px・高さ 63px）が
+   * 浮いていて、粒 54px のうち **47px が帯の裏**に入っていた（実測。
+   * 帯の裏から暗いカプセルが少しだけ覗くのがオーナーの言う「被ってるもの」）。
+   *
+   * 撮る画面では倍率は映像の箱の下端＝操作の帯のすぐ上に付いていて重ならない。
+   * スキャンでも操作シートの高さを測って、その上に置く。
+   */
+  it("スキャンの倍率の粒は、操作シートの上に置く（帯の裏に入らない）", () => {
+    const src = codeOnly(read("routes/_authenticated/scan.tsx"));
+    // 呼ぶ側が場所を渡す（部品が勝手に画面の下端に付かない）。
+    expect(src).toMatch(/zoomBottom\?: string;/);
+    expect(src).toMatch(
+      /zoomBottom=\{`calc\(4\.25rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`\}/,
+    );
+    // 画面の下端に貼り付ける書き方が残っていないこと。
+    expect(src).not.toMatch(/className="absolute inset-x-0 bottom-4 z-10 flex justify-center"/);
   });
 });
