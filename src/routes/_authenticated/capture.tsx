@@ -1055,6 +1055,10 @@ function CapturePage() {
     setLanding(false);
     setReenc(null);
     setReencResult(null);
+    // **やり直したら、預けた写真も捨てる。**
+    // ここで id だけ手放すと IndexedDB の行が残り、ホームの
+    // 「解析待ちの写真」が消えないまま撮るたびに積み上がっていた。
+    if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
     setPendingId(null);
     pendingIdRef.current = null;
     savedRef.current = false;
