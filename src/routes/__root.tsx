@@ -133,7 +133,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // フォントは public/fonts から自前で配る(styles.css の @font-face)。
       // 以前は Google Fonts から読んでいたが、ネイティブアプリではオフラインで
       // 落ちるうえ、起動ごとに外部通信が入って初回描画が遅れていた。
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
     scripts: [
       // **最初の1枚を正しい色で描くための、描画前スクリプト。**
