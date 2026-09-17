@@ -4403,3 +4403,244 @@ html[data-motion="reduce"] .tabbar__lens--gone {
     display: none;
   }
 }
+
+/* ===========================================================================
+   ホーム = 雑誌の1ページ (オーナー指示 2026-09-17)
+
+   > 「ホーム画面が単調すぎる。…ホームのデザインを雑誌やホームアルバム風に
+   >  したい。ただ写真を並べるのではなく、毎日の出来事を雑誌やるるぶのような
+   >  ガイドマップの観光モデルコースのような撮った時刻のタイムラインで
+   >  紹介する。撮ったときに書いた1言も画像のように表示する。
+   >  一番上には今日の日付を書いて、下にずっとスクロールできるようにして。」
+
+   紙の上の物なので、色は**テーマで動かさない**（--album-ink / --album-ink-dim）。
+   台紙(.album-bg-*)も印画紙も明るい面で固定してあるので、その上の字だけ
+   テーマ追従にすると、暗いテーマで「明るい灰色を白い紙に載せる」ことになる。
+   =========================================================================== */
+
+/* ── 表紙 ────────────────────────────────────────────────────────── */
+.day-masthead {
+  margin-bottom: 1.25rem;
+  text-align: center;
+  /* 表紙は台紙の外に立つので、ここだけはテーマに従う字色でよい。 */
+  color: var(--foreground);
+}
+.day-masthead__title {
+  /* §3: 大きい字ほど字間は詰める。行送りも詰める。 */
+  font-size: clamp(1.75rem, 8.5vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+/* 手で引いた下線。定規の直線だと雑誌ではなく書類に見える。 */
+.day-masthead__rule {
+  display: block;
+  width: min(58%, 12rem);
+  height: 0.5rem;
+  margin: 0.15rem auto 0;
+  color: var(--primary);
+  opacity: 0.55;
+}
+.day-masthead__date {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.day-masthead__weekday {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.day-masthead__tagline {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* ── その日の紙 ──────────────────────────────────────────────────── */
+.day-sheet {
+  /* 写真は少し傾けて貼るので、紙の縁まで詰めない。 */
+  padding: 1.25rem 1rem 1rem;
+}
+@media (min-width: 640px) {
+  .day-sheet {
+    padding: 1.5rem 1.25rem 1.25rem;
+  }
+}
+
+/* ── 時刻の道順 ──────────────────────────────────────────────────── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* 左から: 時刻 / 道と丸 / 中身。 */
+.timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem 0.9rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+  align-items: start;
+  padding-bottom: 1.75rem;
+}
+.timeline__item:last-child {
+  padding-bottom: 0;
+}
+/* 道の点線。丸の真下から次の丸まで。**最後の停留所からは伸ばさない** —
+   伸ばすと「この先にまだ在る」と読める。 */
+.timeline__item::before {
+  content: "";
+  position: absolute;
+  top: 1.35rem;
+  bottom: 0;
+  /* 丸の中心＝ 3rem(時刻) + 0.5rem(すき間) + 0.45rem(2列目の半分) */
+  left: calc(3.95rem - 1px);
+  width: 2px;
+  background-image: radial-gradient(circle at 1px 1px, var(--album-ink-dim) 1px, transparent 1.5px);
+  background-size: 2px 8px;
+  opacity: 0.55;
+}
+.timeline__item:last-child::before {
+  display: none;
+}
+.timeline__time {
+  grid-column: 1;
+  padding-top: 0.1rem;
+  text-align: right;
+  font-size: 1.125rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--album-ink);
+}
+.timeline__dot {
+  grid-column: 2;
+  justify-self: center;
+  margin-top: 0.4rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--album-ink);
+  /* 点線の上に乗るので、下地の色で縁を取って丸が潰れないようにする。 */
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.72);
+}
+.timeline__body {
+  grid-column: 3;
+  min-width: 0;
+}
+
+/* 押せるのは「語 + 写真」の塊。タップの的は写真ぶん十分に大きい(§11)。 */
+.timeline__card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  /* ここで囲みを描かない — 紙に貼った物が主役で、ボタンの器は要らない。 */
+  background: none;
+  border: 0;
+  padding: 0;
+  /* §11: 指の当たり判定は 44px を下回らない。写真の無い札（文字で調べた語）
+     は実測 26px しかなく、**その日の停留所なのに押しにくかった**。 */
+  min-height: 2.75rem;
+}
+/* 写真の無い札は、**語そのものが1枚の紙**になる（文字で調べた語には
+   そもそも写真が来ないので、空の枠を置くと永久に空のまま並ぶ）。 */
+.timeline__card--text .timeline__word {
+  display: inline-flex;
+  padding: 0.45rem 0.7rem;
+  background: linear-gradient(180deg, #fffdf6 0%, #fbf4e3 100%);
+  border-radius: 2px;
+  box-shadow:
+    0 1px 1.5px rgba(60, 42, 18, 0.25),
+    0 5px 12px -6px rgba(60, 42, 18, 0.28);
+}
+.timeline__word {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.4rem;
+  padding-top: 0.05rem;
+}
+.timeline__head {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  /* 繁体字は画数が多いので、小さいと潰れる。字間を少し開ける。 */
+  letter-spacing: 0.02em;
+  color: var(--album-ink);
+}
+.timeline__gloss {
+  font-size: 0.8125rem;
+  color: var(--album-ink-dim);
+}
+.timeline__gloss::before {
+  content: "・";
+  opacity: 0.6;
+}
+
+/* 写真。印画紙(.photo-print)を使うが、**下の文字帯は要らない** —
+   語はこの上に出しているので、空けると白い余白だけが残る。 */
+.timeline__photo {
+  display: block;
+  margin-top: 0.55rem;
+  padding: 6px;
+}
+.timeline__photo::after {
+  inset: 6px;
+}
+.timeline__frame {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+.timeline__photo .washi-tape {
+  top: -0.5rem;
+  left: 16%;
+  rotate: -5deg;
+}
+
+/* 撮ったときに書いた1言。**本文として流さず、貼った memo として出す。**
+   写真の下フチに少し重ね、テープで留める。 */
+.timeline__note {
+  position: relative;
+  margin: 0.6rem 0.75rem 0 1.5rem;
+  padding: 0.6rem 0.75rem 0.55rem;
+  background: linear-gradient(180deg, #fffdf6 0%, #fbf4e3 100%);
+  border-radius: 2px;
+  box-shadow:
+    0 1px 1.5px rgba(60, 42, 18, 0.28),
+    0 6px 14px -6px rgba(60, 42, 18, 0.3);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--album-ink);
+}
+/* **写真の下フチに重ねるのは、写真が在るときだけ。**
+   写真の無い札に重ねると、書いた1言が見出し語の上に乗り上げて
+   語を覆っていた（実測の絵で「腳踏車」が読めなくなっていた）。 */
+.timeline__note--under {
+  margin-top: -0.6rem;
+}
+.timeline__note-tape {
+  top: -0.45rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 0.75rem;
+  rotate: 6deg;
+}
+.timeline__place {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  margin-left: 0.1rem;
+  font-size: 0.75rem;
+  color: var(--album-ink-dim);
+}
+.timeline__end {
+  margin-top: 1.5rem;
+  text-align: right;
+  font-size: 1rem;
+  color: var(--album-ink);
+}

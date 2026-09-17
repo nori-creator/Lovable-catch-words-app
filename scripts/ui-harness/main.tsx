@@ -49,6 +49,7 @@ import {
   WordbookQuizNoMeaningScene,
 } from "./scenes/wordbook";
 import {
+  HomeAlbumScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -120,6 +121,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
   home: HomeScene,
+  "home-album": HomeAlbumScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,

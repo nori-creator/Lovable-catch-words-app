@@ -2063,6 +2063,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "home.dayJournal": { ja: "この日の日記", en: "That day's diary", "zh-TW": "這天的日記" },
   "home.dayJournalUsed": { ja: "使った言葉", en: "Words used", "zh-TW": "用到的字" },
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages", "zh-TW": "以前的頁面" },
+  // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
+  // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
+  "home.todayPage": { ja: "今日の1ページ", en: "Today's Page", "zh-TW": "今天的一頁" },
+  "home.todayTagline": {
+    ja: "きょう出会った言葉を、撮った時刻の順に。",
+    en: "Today's words, in the order you caught them.",
+    "zh-TW": "今天遇到的字，依拍下的時間排列。",
+  },
   "home.memories": { ja: "枚の思い出", en: "memories caught", "zh-TW": "張回憶" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet", "zh-TW": "還沒有照片" },
   "home.background": { ja: "背景", en: "Background", "zh-TW": "背景" },

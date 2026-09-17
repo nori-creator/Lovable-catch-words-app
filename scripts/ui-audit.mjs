@@ -300,6 +300,9 @@ const MODES = [
   // 雛形の枠を外して撮る(`BARE`)。
   ...crossThemes("onboarding", { scene: "onboarding" }),
   ["onboarding-starting", "", false, { scene: "onboarding", variant: "starting" }],
+  // 指で置く台紙。ホームからは呼んでいないが、消していないので見続ける
+  // (`scenes/home.tsx` の `HomeAlbumScene` の注)。
+  ...crossThemes("home-album", { scene: "home-album" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
   ...crossThemes("home-loading", { scene: "home-loading" }),

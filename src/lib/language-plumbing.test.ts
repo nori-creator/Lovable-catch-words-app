@@ -2311,6 +2311,20 @@ describe("独自ドメインへ移れる形になっているか", () => {
  * >  画像が揺れてドラックしたら場所を変更できて、角を引っ張ったら
  * >  大きさを変更できるようにして。」
  */
+/**
+ * 指で自由に置く台紙（`ScrapbookAlbum`）だけを切り出す。
+ *
+ * ホームには時刻の道順（`DayTimeline`）も同じファイルに在るので、
+ * 「台紙の作り」を見る門をファイル全体に掛けると、道順の側の正しい
+ * 書き方まで禁じてしまう（実際 `aspectRatio` で落ちた）。
+ */
+function albumOnly(): string {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const a = home.indexOf("export function ScrapbookAlbum(");
+  expect(a).toBeGreaterThan(-1);
+  return home.slice(a);
+}
+
 describe("ホームのアルバムの長押し", () => {
   it("**長押しした指でそのまま掴める**（一度離して押し直させない）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
@@ -2457,8 +2471,14 @@ describe("ホームのアルバムの長押し", () => {
   it("**2本目の指は台紙のどこに置いても効く**（札の上を要求しない）", () => {
     // 札は 88px ほどしかないうえ、動かすと別の札に重なる。札の上だけで
     // 受けると、重なった回に上の札へ当たって弾かれる（実測で確認）。
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    const board = home.slice(home.indexOf("ref={boardRef}"), home.indexOf("aspectRatio"));
+    //
+    // **切り出す終わりを「そこに無い語」で決めない。** ここは
+    // `indexOf("aspectRatio")` で終わりを取っていた。無ければ `-1` が
+    // 返り、`slice(a, -1)` は「最後の1文字まで」になるので**たまたま
+    // 通っていた**。ホームに時刻の道順（`DayTimeline`）が入って
+    // `aspectRatio` がこの台紙より**前**に現れた日、同じ式が空文字を
+    // 返して門が落ちた。台紙そのもので切り出す。
+    const board = albumOnly().slice(albumOnly().indexOf("ref={boardRef}"));
     expect(board).toMatch(/onPointerDown=/);
     expect(board).toMatch(/g\.pointers\.set\(e\.pointerId/);
   });
@@ -2628,12 +2648,16 @@ describe("ホームのアルバムの長押し", () => {
   });
 
   it("**台紙の高さは中身から決まる**（縦は幅で測るので、伸びても札は動かない）", () => {
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/const boardH = useMemo\(\(\) => boardHeight\(items\)/);
-    expect(home).toMatch(/height: board\.w \? `\$\{board\.w \* boardH\}px`/);
+    // **この門は台紙（`ScrapbookAlbum`）の話**なので、ファイル全体では
+    // なくその関数だけを見る。同じファイルに在る時刻の道順
+    // （`DayTimeline`）は写真の比を `aspectRatio` で持つのが正しく、
+    // ファイル全体で禁じると、関係のない所を直せなくなる。
+    const album = albumOnly();
+    expect(album).toMatch(/const boardH = useMemo\(\(\) => boardHeight\(items\)/);
+    expect(album).toMatch(/height: board\.w \? `\$\{board\.w \* boardH\}px`/);
     // 決め打ちの形に戻っていないこと。
-    expect(home).not.toMatch(/aspectRatio:/);
-    expect(home).toMatch(/ResizeObserver/);
+    expect(album).not.toMatch(/aspectRatio:/);
+    expect(album).toMatch(/ResizeObserver/);
   });
 });
 
@@ -4434,5 +4458,143 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     );
     // 画面の下端に貼り付ける書き方が残っていないこと。
     expect(src).not.toMatch(/className="absolute inset-x-0 bottom-4 z-10 flex justify-center"/);
+  });
+});
+
+/**
+ * ホーム = 雑誌の1ページ（オーナー指示 2026-09-17）
+ *
+ * > 「ホーム画面が単調すぎる。女性受けしないとこのアプリはヒットしない。
+ * >  からホームのデザインを雑誌やホームアルバム風にしたい。ただ写真を
+ * >  並べるのではなく、毎日の出来事を雑誌やるるぶのようなガイドマップの
+ * >  観光モデルコースのような撮った時刻のタイムラインで紹介する。
+ * >  撮ったときに書いた1言も画像のように表示する。一番上には今日の日付を
+ * >  書いて、下にずっとスクロールできるようにして。」
+ */
+describe("ホームは撮った時刻の道順", () => {
+  const timelineOnly = () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const a = home.indexOf("export function DayTimeline(");
+    expect(a).toBeGreaterThan(-1);
+    return home.slice(a, home.indexOf("export function ScrapbookAlbum("));
+  };
+
+  it("**並びは撮った時刻の早い順**（表から来る新しい順をそのまま出さない）", () => {
+    // 朝から夜へ辿れることがこの画面の中身。表の並び（新しい順）で出すと
+    // 夜から朝へ遡ることになり、「その日を1ページで読む」にならない。
+    const tl = timelineOnly();
+    expect(tl).toMatch(/takenAt\(a\)\.getTime\(\) - takenAt\(b\)\.getTime\(\)/);
+    // 時刻は `taken_at`。無い/壊れている札は保存した時刻に落とす
+    // （落とさないと `Invalid Date` が並びの先頭に固まる）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const at = home.slice(home.indexOf("function takenAt("));
+    expect(at.slice(0, 260)).toMatch(/s\.taken_at \?\? s\.created_at/);
+    expect(at.slice(0, 260)).toMatch(/Number\.isNaN/);
+  });
+
+  it("**撮った時刻を札の横に出す**（24時間表記・数字は揃える）", () => {
+    const tl = timelineOnly();
+    expect(tl).toMatch(/toLocaleTimeString\(locale/);
+    expect(tl).toMatch(/hour12: false/);
+    const css = read("styles.css");
+    const time = css.slice(css.indexOf(".timeline__time {"));
+    // 桁が揃わないと、下へ読むときに時刻の列が波打つ。
+    expect(time.slice(0, 260)).toMatch(/font-variant-numeric: tabular-nums/);
+  });
+
+  it("**撮ったときに書いた1言を出す**（貼った memo として）", () => {
+    // オーナー指示「撮ったときに書いた1言も画像のように表示する」。
+    // `caption` は保存はされていたが、ホームには一度も出ていなかった。
+    const tl = timelineOnly();
+    expect(tl).toMatch(/\{s\.caption && \(/);
+    expect(tl).toMatch(/timeline__note ja-phrase/);
+    const css = read("styles.css");
+    const note = css.slice(css.indexOf(".timeline__note {"), css.indexOf(".timeline__note--under"));
+    // 本文として流さない — 紙と影を持つ（「画像のように」の中身）。
+    expect(note).toMatch(/box-shadow:/);
+    expect(note).toMatch(/background: linear-gradient/);
+    // **写真の下フチに重ねるのは写真が在るときだけ。** 写真の無い札に
+    // 重ねると、書いた1言が見出し語に乗り上げて語が読めなくなる。
+    expect(tl).toMatch(/heroUrl \? " timeline__note--under" : ""/);
+    expect(css).toMatch(/\.timeline__note--under \{\s*margin-top: -0\.6rem;/);
+  });
+
+  it("**手書き風は数字にだけ**（Caveat に漢字が無い）", () => {
+    // `.handwritten` は Caveat。漢字に当てると別のフォントへ落ち、
+    // 繁体字の字形指定より優先されてしまう。
+    const tl = timelineOnly();
+    expect(tl).toMatch(/className="timeline__time handwritten"/);
+    // 見出し語にも、書いた1言にも当てない。
+    expect(tl).not.toMatch(/timeline__head[^"]*handwritten/);
+    expect(tl).not.toMatch(/timeline__note[^"]*handwritten/);
+  });
+
+  it("**一番上は今日の日付**（誌名 → 見出し → 日付と曜日）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    // ルートの一番上で表紙を描くこと。
+    expect(home).toMatch(/<AppShell>\s*<DayMasthead date=\{today\} \/>/);
+    const mast = home.slice(
+      home.indexOf("export function DayMasthead("),
+      home.indexOf("function takenAt("),
+    );
+    expect(mast).toMatch(/weekday: "long"/);
+    expect(mast).toMatch(/month: "long", day: "numeric"/);
+    // **誌名をここに書かない。** 上の帯（`AppShell`）が 40px 上で同じ語を
+    // 出しているので、2つ並ぶと雑誌の誌名ではなく書き間違いに見える。
+    expect(mast).not.toMatch(/day-masthead__brand/);
+  });
+
+  it("**過去の日も同じ道順**（下へスクロールすると昨日へ続く）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const past = home.slice(
+      home.indexOf("export function PastDays("),
+      home.indexOf("export function BackgroundPicker("),
+    );
+    expect(past).toMatch(/<DayTimeline/);
+    expect(past).not.toMatch(/<ScrapbookAlbum/);
+    // 表紙が開く演出は今日の1冊だけ（遡るたびに何十冊も回り出す）。
+    expect(past).not.toMatch(/opening/);
+  });
+
+  it("**写真の無い札も、押せる大きさの1枚の紙**（§11 の 44px）", () => {
+    // 文字で調べた語にはそもそも写真が来ない。素の1行のまま並べると
+    // 実測 26px で、その日の停留所なのに押しにくかった。
+    const tl = timelineOnly();
+    expect(tl).toMatch(/heroUrl \? "" : " timeline__card--text"/);
+    const css = read("styles.css");
+    // 終わりは行頭の `.timeline__word {` で取る。`indexOf(".timeline__word {")`
+    // だと、1つ手前の `.timeline__card--text .timeline__word {` の中に同じ
+    // 文字列が在るので、見たい所の**手前**で切れてしまう。
+    const card = css.slice(css.indexOf(".timeline__card {"), css.indexOf("\n.timeline__word {"));
+    expect(card).toMatch(/min-height: 2\.75rem/);
+    expect(card).toMatch(/\.timeline__card--text \.timeline__word/);
+  });
+
+  it("**時刻の道は最後の停留所で終わる**（この先にまだ在ると読ませない）", () => {
+    const css = read("styles.css");
+    expect(css).toMatch(/\.timeline__item:last-child::before \{\s*display: none;/);
+  });
+
+  it("**紙の上の字はテーマで動かさない**（暗いテーマで白い紙に明るい灰色を載せない）", () => {
+    // 台紙も印画紙も明るい面で固定してあるので、その上の字だけ
+    // テーマ追従にすると噛み合わない（実測 2.39:1 になっていた）。
+    const css = read("styles.css");
+    const tl = css.slice(css.indexOf(".timeline {"), css.indexOf(".timeline__end {"));
+    expect(tl).not.toMatch(/var\(--muted-foreground\)/);
+    expect(tl).toMatch(/var\(--album-ink\)/);
+    expect(tl).toMatch(/var\(--album-ink-dim\)/);
+  });
+
+  it("**指で置く台紙は消していないので、検査からも外さない**", () => {
+    // ホームからは呼んでいないが、指で動かす・つまんで広げる・重ねた物を
+    // 上に出すはオーナーの指示で作った機能。戻すかどうかはオーナーが決める。
+    // 呼ばれていないからと検査から外すと、次に戻したとき誰も見ていない
+    // 状態で画面に出る。
+    const scene = codeOnly(read("../scripts/ui-harness/scenes/home.tsx"));
+    expect(scene).toMatch(/export function HomeAlbumScene\(/);
+    const main = codeOnly(read("../scripts/ui-harness/main.tsx"));
+    expect(main).toMatch(/"home-album": HomeAlbumScene/);
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/crossThemes\("home-album", \{ scene: "home-album" \}\)/);
   });
 });
