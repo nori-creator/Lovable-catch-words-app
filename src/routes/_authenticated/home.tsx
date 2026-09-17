@@ -18,12 +18,10 @@ import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DayJournalPage } from "@/components/DayJournalPage";
-import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { groupBySpan, keyToDate } from "@/lib/album-span";
-import { JournalComposer } from "@/components/JournalComposer";
 import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
-import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -250,9 +248,6 @@ function HomePage() {
   const [openFrom, setOpenFrom] = useState<FlightOrigin | null>(null);
   /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
   const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
-  /** 見開きの右ページ(今日の日記を書く紙)を開いているか。 */
-  const [writing, setWriting] = useState(false);
-
   const [bg, setBg] = useState<BgId>("paper");
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("album-bg") : null;
@@ -338,8 +333,8 @@ function HomePage() {
   const bgClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
 
   return (
-    <AppShell>
-      <DayMasthead date={today} />
+    <AppShell surface="paper">
+      <DayMasthead date={today} total={total} />
 
       <PendingCapturesBanner />
 
@@ -359,6 +354,7 @@ function HomePage() {
             stickers={todayStickers}
             bgClass={bgClass}
             opening
+            tagline={dayTagline(todayStickers, t)}
             onOpen={(id, from) => {
               setOpenId(id);
               setOpenFrom(from ?? null);
@@ -369,17 +365,13 @@ function HomePage() {
               setOpenPhotoPicker(true);
             }}
           />
-          {/* 「日記を書く」は別の画面に飛ばさない(オーナー指摘)。
-              押すとこのページがめくれて、**左に今日の写真・右に書く紙**が
-              向かい合う。読む側(`DayJournalPage`)と同じ紙・同じ綴じ目。 */}
-          {JOURNAL_ENABLED &&
-            (writing ? (
-              <JournalWritingPage onClose={() => setWriting(false)}>
-                <JournalComposer showHeading={false} />
-              </JournalWritingPage>
-            ) : (
-              <JournalLink onWrite={() => setWriting(true)} />
-            ))}
+          {/* **「今日の日記」の欄は出さない**（オーナー指示 2026-09-17
+              「今日の日記の欄も消して」）。
+
+              紙の下に青いボタンが1つ座っていると、そこで誌面が終わって
+              **アプリの画面に戻る**。この面は1枚の紙であって、道具の並んだ
+              画面ではない。日記そのものは消していない — 過去の日の紙の
+              向かいには今までどおり出るし、書く画面(`/journal`)も残っている。 */}
         </>
       )}
 
@@ -693,52 +685,99 @@ function flightFrom(button: HTMLElement): FlightOrigin | null {
 }
 
 /**
- * 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌やホーム
- * アルバム風にしたい」「一番上には今日の日付を書いて」)。
+ * 雑誌の表紙（オーナー指示 2026-09-17、見本の絵3枚「本物のアルバムや雑誌の
+ * 雰囲気を作り上げて。これらのデザインを完全再現して。タイムライン順に。」）。
  *
- * 誌名(Catchwords)を小さく、その下に大きく「今日の1ページ」、
- * 手で引いたような下線、そして**日付と曜日**。日付が主役なのは変わらない —
- * 変えたのは、日付だけがぽつんと在る面を**1冊の表紙**にしたこと。
+ * 細い罫 → その日の日付 → 大きな明朝の「今日の1ページ」＋手で引いた青い下線、
+ * 右に**手書きの一言**（その日の場所と数から作る）。誌名はここに書かない —
+ * 上の帯（`AppShell`）が 40px 上で同じ語を出しており、2つ並ぶと雑誌の誌名では
+ * なく書き間違いに見える（実測の絵で確認）。
  *
- * 誌名はラテン文字の飾りなので `.label-caps` が効く(和文では字間を
- * 広げない)。手書き風(`.handwritten` = Caveat)は**ラテンと数字にしか
- * 字が無い**ので、和文の入る見出しには当てない。
+ * 書体の使い分けは3つだけ:
+ *   ・見出し … 明朝（`Shippori Mincho`。**この見出しの字だけ**に絞った 9KB）
+ *   ・手書きの一言 … `Zen Kurenaido`（和文の手書き。`.handwritten-ja`）
+ *   ・数字だけの所 … `Caveat`（`.handwritten`。**漢字を持たない**ので和文に当てない）
  */
-export function DayMasthead({ date }: { date: Date }) {
+export function DayMasthead({
+  date,
+  tagline,
+  total,
+}: {
+  date: Date;
+  /** 右の手書きの一言。無ければ出さない。 */
+  tagline?: string;
+  /** これまでに捕まえた語の数。見本の絵の右上の数字。 */
+  total?: number;
+}) {
   const t = useT();
   const locale = localeOf(useUiLang());
-  const dateLabel = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
+  // **曜日が先。**（見本の絵「水曜日、9月16日」）
+  // 1回の `toLocaleDateString` に3つ渡すと和文では「9月17日木曜日」と
+  // 続き、区切りが無いので1つの語に見える。2つに分けて、区切りは CSS に
+  // 置く（`.label-caps` と同じで、言語の出し分けは CSS に1箇所だけ）。
   const weekday = date.toLocaleDateString(locale, { weekday: "long" });
+  const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
   return (
     <header className="day-masthead">
-      {/* **誌名はここに書かない。** 見本の絵には小さく「Catchwords」が
-          入っていたが、実物では上の帯(`AppShell`)が 40px 上で同じ語を
-          出している。40px 離れて同じ語が2つ並ぶと、雑誌の誌名ではなく
-          **書き間違い**に見える(実測の絵で確認)。 */}
-      <h1 className="day-masthead__title font-display">{t("home.todayPage")}</h1>
-      {/* 手で引いた下線。定規の直線だと雑誌ではなく書類に見える。
-          `preserveAspectRatio="none"` で幅に追従させるので、線の太さは
-          `vector-effect` で保つ(伸ばしても線が太らない)。 */}
-      <svg
-        className="day-masthead__rule"
-        viewBox="0 0 160 10"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M3 7C28 2 52 9 78 5s52-3 79 1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <p className="day-masthead__date">
-        {dateLabel}
-        <span className="day-masthead__weekday label-caps">{weekday}</span>
-      </p>
-      <p className="day-masthead__tagline ja-phrase">{t("home.todayTagline")}</p>
+      <div className="day-masthead__rail">
+        <span className="day-masthead__rule-line" aria-hidden="true" />
+        {total != null && (
+          <span className="day-masthead__count">
+            <span className="day-masthead__count-n">{formatCount(total)}</span>
+            {/* 数字だけでは何の数か分からない（§3）。見本の絵は裸の数字だが、
+                実物では読む人が意味を取れないので小さく添える。 */}
+            <span className="day-masthead__count-label label-caps">{t("home.countLabel")}</span>
+          </span>
+        )}
+      </div>
+      <div className="day-masthead__row">
+        <div className="day-masthead__lead">
+          <p className="day-masthead__date">
+            {weekday}
+            <span className="day-masthead__sep" aria-hidden="true" />
+            {monthDay}
+          </p>
+          <h1 className="day-masthead__title font-serif-ja">{t("home.todayPage")}</h1>
+          {/* 手で引いた下線。定規の直線だと雑誌ではなく書類に見える。
+              `preserveAspectRatio="none"` で幅に追従させるので、線の太さは
+              `vector-effect` で保つ（伸ばしても線が太らない）。 */}
+          <svg
+            className="day-masthead__rule"
+            viewBox="0 0 160 10"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M3 7C28 2 52 9 78 5s52-3 79 1"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+        {tagline && (
+          <p className="day-masthead__tagline handwritten-ja">
+            {tagline}
+            <svg
+              className="day-masthead__tagline-rule"
+              viewBox="0 0 120 8"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 5C24 1 46 7 70 4s34-2 48 1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          </p>
+        )}
+      </div>
     </header>
   );
 }
@@ -749,54 +788,121 @@ function takenAt(s: StickerWithWord): Date {
   return Number.isNaN(d.getTime()) ? new Date(s.created_at) : d;
 }
 
-/** マスキングテープの色。札ごとに順に回す(全部同じ色だと機械の表に見える)。 */
-const TAPE_COLORS = ["blue", "yellow", "mint", ""] as const;
+/**
+ * その日の手書きの一言を作る。**作り話はしない** — 手元に在るのは
+ * 「その日いちばん多く出てくる場所の名前」と「語の数」だけなので、
+ * その2つだけで書く。場所が1つも無い日は場所を言わない。
+ */
+export function dayTagline(
+  stickers: StickerWithWord[],
+  t: (k: string, v?: Record<string, string | number>) => string,
+): string | undefined {
+  if (stickers.length === 0) return undefined;
+  const tally = new Map<string, number>();
+  for (const s of stickers) {
+    const p = s.location_name?.trim();
+    if (p) tally.set(p, (tally.get(p) ?? 0) + 1);
+  }
+  const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  // **長い場所の名前で1行を占領させない。** 「台北駅 地下街」のような名前が
+  // そのまま入ると、手書きの一言が3行に割れて見出しを押し下げる。
+  const place = top && top.length > 10 ? `${top.slice(0, 10)}…` : top;
+  const n = formatCount(stickers.length);
+  return place ? t("home.taglineAt", { place, n }) : t("home.tagline", { n });
+}
 
 /**
- * その日の**時刻の道順**(オーナー指示 2026-09-17)。
+ * マスキングテープの1本ぶん。**貼り方は写真の形と重さで決める。**
  *
- * > 「ただ写真を並べるのではなく、毎日の出来事を雑誌やるるぶのような
- * >  ガイドマップの観光モデルコースのような撮った時刻のタイムラインで
- * >  紹介する。撮ったときに書いた1言も画像のように表示する。」
+ * オーナー指示 2026-09-17:
+ * > 「マスキングテープももっとクオリティーが高いものを作って、写真の
+ * >  大きさや配置、重心を考えてによって貼り方を変えて。」
  *
- * 左に時刻、その右に点線の道と丸、右に「語 → 写真 → 書いた1言 → 場所」。
- * 並びは**撮った時刻の早い順** — 朝から夜へ辿るので、下へ読むと
- * その日を追体験できる。ガイドブックのモデルコースと同じ読み方。
+ * 紙のアルバムで人が実際にやっていることを写す:
+ *   ・**縦長で重い写真**は落ちやすいので、上の真ん中を1本でしっかり留める
+ *   ・**横長の写真**は左右に振れるので、上の両隅を斜めに2本
+ *   ・**小さい写真**は角を1本、斜めに掛けるだけで足りる
+ * 角度は写真の傾きと**逆向き**にする — 傾きを押さえている形になる。
+ */
+type Tape = { left: string; top: string; width: string; rot: number; tone: string };
+
+function tapesFor(ratio: number, small: boolean, tilt: number, seed: number): Tape[] {
+  // 色は札ごとに順に回す。全部同じ色だと機械の表に見える。
+  const tones = ["iris", "sage", "rose", "cream"];
+  const a = tones[seed % 4];
+  const b = tones[(seed + 2) % 4];
+  const against = tilt > 0 ? -1 : 1; // 傾きと逆に掛ける
+  // `left` は**テープの中心**（CSS 側で `translate: -50% 0`）。
+  if (small) {
+    // 小さい写真 — 角に1本、斜めに掛けるだけで足りる。
+    return [{ left: "4%", top: "2%", width: "46%", rot: against * -44, tone: a }];
+  }
+  if (ratio >= 1.15) {
+    // 縦長で重い — 落ちやすいので、上の真ん中を1本でしっかり留める。
+    return [{ left: "50%", top: "-0.6rem", width: "42%", rot: against * 2.5, tone: a }];
+  }
+  if (ratio <= 0.85) {
+    // 横長 — 左右に振れるので、上の両隅を斜めに2本。
+    return [
+      { left: "12%", top: "-0.45rem", width: "32%", rot: -40, tone: a },
+      { left: "88%", top: "-0.45rem", width: "32%", rot: 40, tone: b },
+    ];
+  }
+  // ほぼ正方形 — 上のやや左を1本。
+  return [{ left: "34%", top: "-0.55rem", width: "38%", rot: against * 5, tone: a }];
+}
+
+/**
+ * その日の**切り貼りのページ**（オーナー指示 2026-09-17、見本の絵9枚）。
  *
- * **自由に置く台紙(`ScrapbookAlbum`)とは両立しない。** 置き場所が
- * 「撮った時刻」で決まる以上、指で動かす余地が無い。指で置く機能は
- * 残してあるが、この画面からは呼んでいない(オーナー確認待ち)。
+ * > 「本物のアルバムや雑誌の雰囲気を作り上げて。…完全再現して。」
+ * > 「字体や写真の角度、配置、大きさ、写真の重なり具合、手書きのひと言を
+ * >  完全再現して。紙は方眼紙ではなく、アルバムなどを張る無地の少しかための紙。」
+ *
+ * ## 形
+ *
+ * 無地のアルバム台紙に、写真を**2列**で貼っていく。1枚ずつ傾きが違い、
+ * マスキングテープで留めてあり、写真の下フチには**ちぎった紙の見出し**が
+ * 重なる。時刻はその横に手書き。撮ったときに書いた1言は、その下に和文の
+ * 手書きで添える。
+ *
+ * 並びは**撮った時刻の早い順**（左上 → 右上 → 左下 → 右下）。右の列は
+ * 少し下げてあるので、貼り合わせたページに見える。
+ *
+ * **道は線で繋がない**（オーナー指示）。時刻が並んでいれば順は読める。
  */
 export function DayTimeline({
   stickers,
   bgClass,
   opening,
+  tagline,
   onOpen,
   onLongPress,
 }: {
   stickers: StickerWithWord[];
   bgClass: string;
-  /** 表紙が開く演出。**今日の1冊だけ**(過去の日に付けると遡るたびに回り出す)。 */
+  /** 表紙が開く演出。**今日の1冊だけ**（過去の日に付けると遡るたびに回り出す）。 */
   opening?: boolean;
+  /** 紙の下に貼る、その日の手書きの一言。無ければ出さない。 */
+  tagline?: string;
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   /** 写真の長押し = この札の主役の写真を選び直す。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
 }) {
   const t = useT();
-  const isEn = useUiLang() === "en";
   const locale = localeOf(useUiLang());
   // 「アルバムなので自撮りを先に」の落ち方は `sticker-photo.ts` に1つだけ。
   const photoPref = usePhotoPref();
   const surfaceRoles = useSurfaceRoleMap();
   /**
-   * 写真そのものの縦横の比。**読めた札はこちらを使う**ので、
-   * 上下を切らずに全部が出る(オーナー報告 2026-09-15「上や下が見切れてる」)。
+   * 写真そのものの縦横の比（高さ÷幅）。**読めた札はこちらを使う**ので、
+   * 上下を切らずに全部が出る（オーナー報告 2026-09-15「上や下が見切れてる」）。
    * 読めるまでは 4:3 で場所を取っておく — 0 にすると、読み込むたびに
    * 下の札が突き上げられる。
    */
   const [photoRatio, setPhotoRatio] = useState<Record<string, number>>({});
 
-  /** **撮った時刻の早い順。** 表から来る順(新しい順)ではない。 */
+  /** **撮った時刻の早い順。** 表から来る順（新しい順）ではない。 */
   const entries = useMemo(
     () => [...stickers].sort((a, b) => takenAt(a).getTime() - takenAt(b).getTime()),
     [stickers],
@@ -826,138 +932,211 @@ export function DayTimeline({
   }
   useEffect(() => endLongPress, []);
 
-  return (
-    <div
-      className={`album-page day-sheet relative rounded-2xl border border-amber-900/20 ${bgClass} ${
-        opening ? "album-open" : ""
-      }`}
-    >
-      <ol className="timeline">
-        {entries.map((s, i) => {
-          const at = takenAt(s);
-          const time = at.toLocaleTimeString(locale, {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          });
-          // **ネットの絵はアルバムに貼らない**(オーナー指摘 2026-08-21)。
-          // 借りてきた絵を同じ紙に貼ると、撮った日の思い出と見分けが付かない。
-          const heroUrl = stickerPhotoUrl(s, {
-            prefer: resolveSurfaceRole({
-              surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
-              heroRole: s.hero_role,
-              screenIntent: resolvePrefer(photoPref, "selfie"),
-            }),
-            exclude: ["placeholder"],
-          });
-          // 傾きは交互。同じ向きに揃えると、貼ったのではなく印刷に見える。
-          const tilt = i % 2 === 0 ? -1.4 : 1.5;
-          const ratio = photoRatio[s.id] ?? 0.75;
-          return (
-            <li key={s.id} className="timeline__item">
-              {/* 時刻。数字だけなので手書き風(Caveat)を当てても字が落ちない。 */}
-              <span className="timeline__time handwritten">{time}</span>
-              <span className="timeline__dot" aria-hidden="true" />
-              <div className="timeline__body">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    // 長押しが成立した回の「離す」では開かない。
-                    if (longPressFired.current) {
-                      longPressFired.current = false;
-                      return;
-                    }
-                    // 押した札の写真から**絵が飛ぶ**(`use-hero-reveal`)。
-                    onOpen(s.id, flightFrom(e.currentTarget));
+  function stop(s: StickerWithWord, index: number) {
+    const at = takenAt(s);
+    const time = at.toLocaleTimeString(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    // **ネットの絵はアルバムに貼らない**（オーナー指摘 2026-08-21）。
+    // 借りてきた絵を同じ紙に貼ると、撮った日の思い出と見分けが付かない。
+    const hero = pickStickerPhoto(s, {
+      prefer: resolveSurfaceRole({
+        surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
+        heroRole: s.hero_role,
+        screenIntent: resolvePrefer(photoPref, "selfie"),
+      }),
+      exclude: ["placeholder"],
+    });
+    /**
+     * **同じ瞬間のもう1枚**（自撮りと元写真の、選ばれなかったほう）。
+     * 見本の絵で大きな写真の角に小さな写真が重なっているのがこれ —
+     * 作り物の飾りではなく、**その札が実際に持っているもう1枚**を出す。
+     * 切り抜きは出さない（同じ絵の抜き型なので、2枚並べる意味が無い）。
+     */
+    const second = hero
+      ? pickStickerPhoto(s, { exclude: ["placeholder", "cutout", hero.role], thumb: true })
+      : null;
+    // 傾きは札ごとに散らす。揃えると、貼ったのではなく印刷に見える。
+    const tilt = [-2.4, 1.8, 3.0, -1.4, 2.2, -3.1][index % 6];
+    const ratio = photoRatio[s.id] ?? 0.75;
+    // 大きさも散らす。**全部同じ幅で並べると、貼った物ではなく一覧表になる。**
+    // 4枚に1枚は少し小さく貼る（見本の絵と同じ）。
+    const small = index % 4 === 2;
+    const tapes = tapesFor(ratio, small, tilt, index);
+    return (
+      <li key={s.id} className="scrap__item" data-small={small || undefined}>
+        <button
+          type="button"
+          onClick={(e) => {
+            // 長押しが成立した回の「離す」では開かない。
+            if (longPressFired.current) {
+              longPressFired.current = false;
+              return;
+            }
+            // 押した札の写真から**絵が飛ぶ**（`use-hero-reveal`）。
+            onOpen(s.id, flightFrom(e.currentTarget));
+          }}
+          onPointerDown={(e) => beginLongPress(s.id, { x: e.clientX, y: e.clientY })}
+          onPointerMove={(e) => {
+            // 押さえたまま待つのが長押し。遊びを越えて動いたら、
+            // めくろうとしたと見て取り消す。
+            const o = pressOrigin.current;
+            if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endLongPress();
+          }}
+          onPointerUp={endLongPress}
+          onPointerCancel={endLongPress}
+          onContextMenu={(e) => e.preventDefault()}
+          // 押したまま動かすと Chromium が中の <img> でネイティブの drag を
+          // 始め、`pointercancel` で指を取り上げる。
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
+          className={`scrap__card photo-lift${hero ? "" : " scrap__card--text"}`}
+        >
+          {hero && (
+            <span className="scrap__photo photo-print" style={{ rotate: `${tilt}deg` }}>
+              {tapes.map((tp, k) => (
+                <span
+                  key={k}
+                  aria-hidden
+                  className={`washi washi--${tp.tone}`}
+                  style={{
+                    left: tp.left,
+                    top: tp.top,
+                    width: tp.width,
+                    rotate: `${tp.rot}deg`,
                   }}
-                  onPointerDown={(e) => beginLongPress(s.id, { x: e.clientX, y: e.clientY })}
-                  onPointerMove={(e) => {
-                    // 押さえたまま待つのが長押し。遊びを越えて動いたら、
-                    // めくろうとしたと見て取り消す。
-                    const o = pressOrigin.current;
-                    if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP)
-                      endLongPress();
+                />
+              ))}
+              <span className="scrap__frame" style={{ aspectRatio: `1 / ${ratio}` }}>
+                <CachedImg
+                  src={hero.url}
+                  alt={t("common.memoryOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.naturalWidth || !img.naturalHeight) return;
+                    const r = img.naturalHeight / img.naturalWidth;
+                    setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
                   }}
-                  onPointerUp={endLongPress}
-                  onPointerCancel={endLongPress}
-                  onContextMenu={(e) => e.preventDefault()}
-                  // 押したまま動かすと Chromium が中の <img> でネイティブの
-                  // drag を始め、`pointercancel` で指を取り上げる。
-                  draggable={false}
-                  onDragStart={(e) => e.preventDefault()}
-                  className={`timeline__card photo-lift${heroUrl ? "" : " timeline__card--text"}`}
+                  className="block h-full w-full object-cover"
+                />
+              </span>
+              {second && (
+                <span
+                  aria-hidden
+                  className="scrap__photo2 photo-print"
+                  style={{ rotate: `${-tilt * 1.5}deg` }}
                 >
-                  <span
-                    className="timeline__word"
-                    // 写真の無い札は、語そのものが1枚の紙になる(下の CSS)。
-                    // 傾きは写真と同じ向きに揃える — 同じ紙の上の物として並ぶ。
-                    style={heroUrl ? undefined : { rotate: `${tilt}deg` }}
-                  >
-                    {/* 字形は学習言語で決める(`Term`)。手書き風は当てない —
-                        Caveat に漢字が無く、繁体字の字形指定を壊す。 */}
-                    <Term lang={s.word.language} className="timeline__head">
-                      {s.word.headword}
-                    </Term>
-                    {s.word.meaning_ja && (
-                      <span className="timeline__gloss">{s.word.meaning_ja}</span>
-                    )}
+                  <span className="scrap__frame scrap__frame--square">
+                    <CachedImg
+                      src={second.url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="block h-full w-full object-cover"
+                    />
                   </span>
-                  {heroUrl ? (
-                    <span className="timeline__photo photo-print" style={{ rotate: `${tilt}deg` }}>
-                      <span aria-hidden className={`washi-tape ${TAPE_COLORS[i % 4]}`} />
-                      <span className="timeline__frame" style={{ aspectRatio: `1 / ${ratio}` }}>
-                        <CachedImg
-                          src={heroUrl}
-                          alt={t("common.memoryOf", { word: s.word.headword })}
-                          loading="lazy"
-                          decoding="async"
-                          onLoad={(e) => {
-                            const img = e.currentTarget;
-                            if (!img.naturalWidth || !img.naturalHeight) return;
-                            const r = img.naturalHeight / img.naturalWidth;
-                            setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
-                          }}
-                          className="block h-full w-full object-cover"
-                        />
-                      </span>
-                    </span>
-                  ) : null}
-                </button>
-                {/* **撮ったときに書いた1言**(オーナー指示 2026-09-17
-                    「撮ったときに書いた1言も画像のように表示する」)。
-                    ただの本文として流さず、**写真の下に貼った memo** として
-                    出す — 紙・影・テープ・わずかな傾きを持たせる。
-                    和文が入るので手書き風(Caveat)は当てない。 */}
-                {s.caption && (
-                  <p
-                    className={`timeline__note ja-phrase${heroUrl ? " timeline__note--under" : ""}`}
-                    style={{ rotate: `${-tilt * 0.7}deg` }}
-                  >
-                    <span aria-hidden className="washi-tape yellow timeline__note-tape" />
-                    {s.caption}
-                  </p>
-                )}
-                {s.location_name && (
-                  <p className="timeline__place">
-                    <MapPin aria-hidden className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{s.location_name}</span>
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      {/* 締めの1行。台紙の上の字なので**固定のインク**(テーマで色を
-          変えると、暗いテーマで明るい灰色を明るい紙に載せることになる)。 */}
-      <p className="timeline__end">
-        <span className={isEn ? "handwritten" : "font-medium tracking-[0.02em]"}>
-          — {formatCount(stickers.length)}
-          {t("home.memories")}
-        </span>
-      </p>
+                </span>
+              )}
+            </span>
+          )}
+          {/* ちぎった紙の見出し。写真の下フチに重ねて貼る。
+              字形は学習言語で決める(`Term`)。**手書き風は当てない** —
+              Caveat に漢字が無く、Zen Kurenaido は和文の字形なので、
+              どちらも繁体字の字形指定を壊す。 */}
+          <span className="scrap__label" style={{ rotate: `${-tilt * 0.45}deg` }}>
+            <Term lang={s.word.language} className="scrap__head">
+              {s.word.headword}
+            </Term>
+          </span>
+          {/* 撮った時刻。数字だけなので手書き風(Caveat)を当てても字が落ちない。 */}
+          <span className="scrap__time handwritten">{time}</span>
+          {/* **撮ったときに書いた1言**（オーナー指示）。見本の絵では紙の上に
+              **手で書いてある**。和文の手書き書体(`Zen Kurenaido`)を当てる —
+              ここが「アルバムの雰囲気」のいちばんの中身で、ゴシックで組むと
+              途端に管理画面に戻る。 */}
+          {s.caption && (
+            <span
+              className="scrap__note handwritten-ja ja-phrase"
+              style={{ rotate: `${tilt * 0.3}deg` }}
+            >
+              {s.caption}
+            </span>
+          )}
+          {s.location_name && (
+            <span className="scrap__place">
+              <MapPin aria-hidden className="h-3 w-3 shrink-0" />
+              <span className="truncate">{s.location_name}</span>
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    // 紙は**ちぎった縁**にする。角の丸い板は「カード」で、紙ではない。
+    // 影は `filter: drop-shadow` で付ける — `clip-path` を掛けた要素では
+    // `box-shadow` が四角いままはみ出す。
+    <div className={`day-sheet__shadow ${opening ? "album-open" : ""}`}>
+      <div className={`day-sheet ${bgClass}`}>
+        {/* **紙の一番上に、その日の日付を手で書く**（オーナー指示 2026-09-17
+            「紙の一番上に今日の日付を手書きで書いて」）。 */}
+        <p className="day-sheet__date handwritten-ja">{dateLine(entries, locale)}</p>
+        <ol className="scrap">{entries.map((s, i) => stop(s, i))}</ol>
+        <div className="scrap__closing">
+          {tagline && (
+            <p className="scrap__summary handwritten-ja ja-phrase">
+              {tagline}
+              <svg
+                className="scrap__summary-rule"
+                viewBox="0 0 120 8"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 5C26 1 50 7 74 4s32-2 44 1"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </p>
+          )}
+          <div className="scrap__closing-right">
+            {/* 締めの書き添えは**今日の紙にだけ**。遡ると日ごとに紙が続くので、
+                同じ手書きの言葉が何十回も並ぶと、手で書いた物ではなく印刷
+                された欄外の飾りに見える。 */}
+            {opening && (
+              <p className="scrap__sign handwritten">
+                Small words
+                <br />
+                Big days.
+              </p>
+            )}
+            <p className="scrap__end">
+              {formatCount(stickers.length)}
+              {t("home.memories")}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
+}
+
+/** 紙の一番上に手で書く日付。**その紙が何日ぶんか**を紙自身に持たせる。 */
+function dateLine(entries: StickerWithWord[], locale: string): string {
+  const d = entries[0] ? takenAt(entries[0]) : new Date();
+  return `${d.toLocaleDateString(locale, { month: "long", day: "numeric" })}  ${d.toLocaleDateString(
+    locale,
+    { weekday: "long" },
+  )}`;
 }
 
 export function ScrapbookAlbum({

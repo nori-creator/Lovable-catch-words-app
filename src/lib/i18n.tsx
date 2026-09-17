@@ -2066,6 +2066,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
   // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
   "home.todayPage": { ja: "今日の1ページ", en: "Today's Page", "zh-TW": "今天的一頁" },
+  // 右上の数字（これまでに捕まえた語）。裸の数字では何の数か分からないので
+  // 小さく添える（見本の絵は裸だが、実物では読む人が意味を取れない）。
+  "home.countLabel": { ja: "ことば", en: "words", "zh-TW": "個字" },
+  // 表紙の手書きの一言。**手元に在る事実だけで書く** — その日いちばん多く
+  // 出てくる場所の名前と、語の数。場所が1つも無い日は場所を言わない。
+  "home.tagline": {
+    ja: "今日は{n}つの言葉に出会った。",
+    en: "Caught {n} words today.",
+    "zh-TW": "今天遇到了 {n} 個字。",
+  },
+  "home.taglineAt": {
+    ja: "{place}で、{n}つの言葉に出会った。",
+    en: "{n} words, around {place}.",
+    "zh-TW": "在{place}，遇到了 {n} 個字。",
+  },
   "home.todayTagline": {
     ja: "きょう出会った言葉を、撮った時刻の順に。",
     en: "Today's words, in the order you caught them.",

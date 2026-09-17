@@ -16,6 +16,7 @@ import {
   DayHeader,
   DayMasthead,
   DayTimeline,
+  dayTagline,
   HomeEmptyState,
   HomeLoading,
   JournalLink,
@@ -28,6 +29,7 @@ import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
+import { tStatic } from "@/lib/i18n";
 
 const svg = (w: number, h: number, color: string) =>
   "data:image/svg+xml;utf8," +
@@ -136,10 +138,15 @@ export function HomeScene({ q }: { q: URLSearchParams }) {
   const bg = q.get("bg") ?? "paper";
   return (
     <>
-      <DayMasthead date={new Date()} />
+      <DayMasthead date={new Date()} total={257} />
       <BackgroundPicker current={bg as "paper"} onChange={() => {}} />
-      <DayTimeline stickers={today} bgClass={`album-bg-${bg}`} onOpen={() => {}} />
-      <JournalLink />
+      <DayTimeline
+        stickers={today}
+        bgClass={`album-bg-${bg}`}
+        opening
+        tagline={dayTagline(today, tStatic)}
+        onOpen={() => {}}
+      />
     </>
   );
 }
@@ -265,8 +272,14 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} />
-      <DayTimeline stickers={today} bgClass="album-bg-paper" onOpen={() => {}} />
+      <DayMasthead date={new Date()} total={257} />
+      <DayTimeline
+        stickers={today}
+        bgClass="album-bg-paper"
+        opening
+        tagline={dayTagline(today, tStatic)}
+        onOpen={() => {}}
+      />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />
       </JournalWritingPage>

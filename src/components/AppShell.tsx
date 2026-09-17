@@ -210,6 +210,7 @@ export function AppShell({
   title,
   fixedViewport = false,
   bare = false,
+  surface = "app",
 }: {
   children: ReactNode;
   title?: string;
@@ -224,6 +225,17 @@ export function AppShell({
    * すでに言っている。下のタブ帯は残す — カメラから出る道が要る。
    */
   bare?: boolean;
+  /**
+   * 画面の地（オーナー指示 2026-09-17「本物のアルバムや雑誌の雰囲気を
+   * 作り上げて」）。
+   *
+   * ホームは**1冊の雑誌のページ**なので、紙が画面いっぱいに在ってほしい。
+   * ここを既定の `--background`（アプリの青みがかった地）のままにすると、
+   * 紙がその上に浮いた1枚の板に見えて、雑誌ではなく管理画面に戻る。
+   *
+   * 上の帯は半透明のまま（`material-thin`）なので、紙の上を中身が潜る。
+   */
+  surface?: "app" | "paper";
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
@@ -330,8 +342,10 @@ export function AppShell({
     <div
       className={
         fixedViewport
-          ? "h-dvh overflow-hidden bg-background"
-          : "min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]"
+          ? `h-dvh overflow-hidden ${surface === "paper" ? "app-paper" : "bg-background"}`
+          : `min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] ${
+              surface === "paper" ? "app-paper" : "bg-background"
+            }`
       }
     >
       {/* Top chrome — a translucent material the content scrolls under (§12).
