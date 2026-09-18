@@ -46,6 +46,8 @@ export type Pronounce = ((text: string) => Promise<void>) & {
    * 「先読み済み」と言いながら押した瞬間に mp3 のダウンロードが始まっていた。
    */
   prefetch: (text: string) => void;
+  /** Unlock before a delayed animation cue, synchronously in the gesture. */
+  prepare: () => void;
 };
 
 /** いま取りに行っている語。**二重に取りに行かない**(費用と帯域の無駄)。 */
@@ -169,6 +171,10 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     speak(word, language);
   } as Pronounce;
 
+  pronounce.prepare = () => {
+    if (!elRef.current) elRef.current = new Audio();
+    primeAudio(elRef.current);
+  };
   pronounce.prefetch = (text: string) => {
     const word = text.trim();
     if (!word) return;

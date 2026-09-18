@@ -146,7 +146,7 @@ function DexPage() {
     landingStartedRef.current = justCaught;
     if (document.documentElement.dataset.rewardFlight) {
       const t = setTimeout(() => {
-        void navigate({ to: "/dex", search: {}, replace: true });
+        void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
       }, 6000);
       return () => clearTimeout(t);
     }
@@ -169,7 +169,7 @@ function DexPage() {
     );
 
     const t = setTimeout(() => {
-      void navigate({ to: "/dex", search: {}, replace: true });
+      void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
     }, 1600);
     return () => {
       clearTimeout(impact);
@@ -177,12 +177,11 @@ function DexPage() {
     };
   }, [justCaught, navigate, captured]);
 
-  // 再取得された札から着地先の棚を確定する。この更新は効果音を再発火させない。
+  // 全カテゴリーを表示したまま、着地先のセルへ移動する。
   useEffect(() => {
     if (!justCaught) return;
-    const caught = captured.find((item) => item.id === justCaught);
-    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
-  }, [justCaught, captured]);
+    setFilter(NO_FILTER);
+  }, [justCaught]);
 
   // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
   // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
@@ -221,6 +220,7 @@ function DexPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
+    if (justCaught) return; // Arrival must not restore a previous category/view filter.
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
       setView(saved);

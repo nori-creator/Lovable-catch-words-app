@@ -1,3 +1,4 @@
+import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
@@ -981,6 +982,7 @@ function CapturePage() {
    */
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
+    pronounce.prepare();
     // Webのダウンロードは、クリックから通信を1回でも待つとブラウザに止められる。
     // そのためWebだけはこの瞬間、ネイティブはDB保存の成功後に実行する。
     if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
@@ -1749,15 +1751,15 @@ export function CaptureCardPanel({
         >
           <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
             <div className="grid h-full place-items-center p-6">
-              {cutoutImg ? (
-                <img
-                  src={cutoutImg}
-                  alt={selectedHead}
-                  className="max-h-full max-w-full object-contain cutout-pop"
-                />
-              ) : objectImg ? (
-                <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
-              ) : null}
+              <PeelSticker
+                photoUrl={objectImg}
+                cutoutUrl={cutoutImg && cutoutImg !== objectImg ? cutoutImg : null}
+                label={selectedHead}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={saving || landing || flipped}
+                onPeel={onSave}
+              />
             </div>
           </div>
           <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
@@ -1779,7 +1781,14 @@ export function CaptureCardPanel({
           <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
         </Button>
       </div>
-      <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
+      <button
+        type="button"
+        className="block mx-auto text-caption text-muted-foreground"
+        disabled={saving || landing}
+        onClick={() => setFlipped((f) => !f)}
+      >
+        {t("capture.flipHint")}
+      </button>
 
       <WordCard
         word={{
