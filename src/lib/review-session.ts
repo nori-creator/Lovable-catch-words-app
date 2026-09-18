@@ -117,13 +117,15 @@ function numberOr(v: unknown, fallback: number): number {
 }
 
 /**
- * **`sessionStorage` を使う。** 続きから出すのはその日そのタブの話で、
- * 明日まで持ち越す物ではない（明日はもう別の束）。
+ * **`localStorage` を使う。** 束は `review-cache.ts` が `localStorage` に
+ * 4時間書き留める。位置だけ `sessionStorage` にしていたので、アプリを
+ * 閉じて開くと同じ束が1枚目から出て、**答えた札を二度採点**していた。
+ * 置き場所と寿命を束に合わせる（古い位置は `readMark` が捨てる）。
  */
 function browserStore(): Storage | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage;
+    return window.localStorage;
   } catch {
     return null;
   }
