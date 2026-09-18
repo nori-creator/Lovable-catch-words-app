@@ -106,7 +106,7 @@ export function writeMark(
       s.removeItem(KEY);
       return;
     }
-    s.setItem(KEY, JSON.stringify({ batch, ...mark }));
+    s.setItem(KEY, JSON.stringify({ batch, ...mark, at: Date.now() }));
   } catch {
     /* storage unavailable */
   }
