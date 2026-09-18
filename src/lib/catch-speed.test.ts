@@ -7,9 +7,9 @@ import {
 } from "./catch-speed";
 
 describe("normalizeCatchSpeed / cutoutAtCatch", () => {
-  it("速さを選んだときだけ切り抜きを飛ばす", () => {
+  it("停止中は保存済みモードにかかわらず切り抜かない", () => {
     expect(cutoutAtCatch("fast")).toBe(false);
-    expect(cutoutAtCatch("detail")).toBe(true);
+    expect(cutoutAtCatch("detail")).toBe(false);
   });
 
   /**
@@ -20,7 +20,7 @@ describe("normalizeCatchSpeed / cutoutAtCatch", () => {
     "知らない値 %p は detail(今まで通り)に落ちる",
     (bad) => {
       expect(normalizeCatchSpeed(bad)).toBe("detail");
-      expect(cutoutAtCatch(bad as never)).toBe(true);
+      expect(cutoutAtCatch(bad as never)).toBe(false);
     },
   );
 });

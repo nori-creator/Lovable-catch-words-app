@@ -1,3 +1,4 @@
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { peelGeometry } from "@/lib/peel-geometry";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
@@ -41,7 +42,9 @@ export function PeelSticker({
     angle: number | null;
   } | null>(null);
   const frame = useRef(0);
-  const ready = !!cutoutUrl && loaded === cutoutUrl;
+  const artwork = CUTOUT_ENABLED && cutoutUrl ? cutoutUrl : photoUrl;
+  const isPhoto = !(CUTOUT_ENABLED && cutoutUrl);
+  const ready = !!artwork && loaded === artwork;
   const url = (name: string) => `url(#${id}-${name})`;
   useEffect(() => {
     setLoaded(null);
@@ -50,17 +53,17 @@ export function PeelSticker({
     drag.current = null;
     setHeld(false);
     cancelAnimationFrame(frame.current);
-    if (!cutoutUrl) return;
+    if (!artwork) return;
     let alive = true;
     const image = new Image();
     image.onload = () => {
-      if (alive) setLoaded(cutoutUrl);
+      if (alive) setLoaded(artwork);
     };
-    image.src = cutoutUrl;
+    image.src = artwork;
     return () => {
       alive = false;
     };
-  }, [cutoutUrl]);
+  }, [artwork]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // The parent re-enables the surface after a failed save. Allow retry.
   useEffect(() => {
@@ -153,6 +156,7 @@ export function PeelSticker({
     <div
       className="cw-peel"
       data-ready={ready}
+      data-photo={isPhoto}
       data-held={held}
       data-reduced={reduced}
       data-committed={committed}
@@ -189,6 +193,9 @@ export function PeelSticker({
               }}
             >
               <defs>
+                <clipPath id={`${id}-photo-round`}>
+                  <rect x="32" y="32" width="256" height="256" rx="22" />
+                </clipPath>
                 <filter
                   id={`${id}-paper`}
                   x="-30%"
@@ -217,14 +224,20 @@ export function PeelSticker({
                   width="360"
                   height="360"
                 >
-                  <image
-                    href={cutoutUrl!}
-                    x="32"
-                    y="32"
-                    width="256"
-                    height="256"
-                    filter={url("silhouette")}
-                  />
+                  {isPhoto ? (
+                    <rect x="32" y="32" width="256" height="256" rx="22" fill="white" />
+                  ) : (
+                    <image
+                      href={artwork!}
+                      x="32"
+                      y="32"
+                      width="256"
+                      height="256"
+                      filter={isPhoto ? undefined : url("silhouette")}
+                      clipPath={isPhoto ? url("photo-round") : undefined}
+                      preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}
+                    />
+                  )}
                 </mask>
                 <clipPath id={`${id}-front`}>
                   <polygon points={fold.front} />
@@ -264,12 +277,14 @@ export function PeelSticker({
               <g className="cw-peel-shadow">
                 <g clipPath={url("front")}>
                   <image
-                    href={cutoutUrl!}
+                    href={artwork!}
                     x="32"
                     y="32"
                     width="256"
                     height="256"
-                    filter={url("paper")}
+                    filter={isPhoto ? undefined : url("paper")}
+                    clipPath={isPhoto ? url("photo-round") : undefined}
+                    preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}
                   />
                   <g mask={url("alpha")}>
                     <rect

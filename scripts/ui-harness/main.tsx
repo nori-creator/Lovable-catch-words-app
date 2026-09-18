@@ -286,7 +286,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "sticker-peel", label: "切り抜き・シールはがし" },
+  { scene: "sticker-peel", label: "写真ピール・キャッチ演出" },
   { scene: "capture-object", label: "カメラの画面（参考画像の形）" },
   { scene: "camera-strip", label: "撮り方の帯と下の行（写真・シャッター・切替）" },
   { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },

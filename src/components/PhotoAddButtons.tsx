@@ -1,3 +1,4 @@
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { Camera, Loader2, Scissors } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
@@ -56,7 +57,7 @@ export function PhotoAddButtons({
    * 直したが、すでに在る行は直らない)。「切り抜きが在る」と見なして
    * ボタンを隠すと、その札は二度と切り抜けない。
    */
-  const canCutout = !!objectUrl;
+  const canCutout = CUTOUT_ENABLED && !!objectUrl;
   const canSelfie = !selfieUrl;
   if (!canCutout && !canSelfie) return null;
 

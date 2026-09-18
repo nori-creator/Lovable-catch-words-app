@@ -34,7 +34,7 @@ export function PeelStickerScene() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [fallback, setFallback] = useState(false);
+
   const [reduced, setReduced] = useState(false);
   const source = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
@@ -62,14 +62,22 @@ export function PeelStickerScene() {
         startEl: source.current,
         fly,
         destinationId: "preview-tea",
-        speakLine: () => {
-          if ("speechSynthesis" in window) {
-            const u = new SpeechSynthesisUtterance("珍珠奶茶");
-            u.lang = "zh-TW";
-            u.rate = 0.85;
-            speechSynthesis.speak(u);
-          }
-        },
+        speakLine: () =>
+          new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, 6000);
+            const done = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            if ("speechSynthesis" in window) {
+              const u = new SpeechSynthesisUtterance("珍珠奶茶");
+              u.lang = "zh-TW";
+              u.rate = 0.95;
+              u.onend = done;
+              u.onerror = done;
+              speechSynthesis.speak(u);
+            } else done();
+          }),
         openDex: () => {
           setSaved(true);
         },
@@ -161,9 +169,9 @@ export function PeelStickerScene() {
                 }}
               >
                 <img
-                  src={fallback ? photo : cutout}
+                  src={photo}
                   alt="珍珠奶茶"
-                  style={{ width: "100%", height: 160, objectFit: "contain" }}
+                  style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: "8.6%" }}
                 />
                 <b>珍珠奶茶</b>
               </div>
@@ -197,7 +205,7 @@ export function PeelStickerScene() {
               <PeelSticker
                 key={round}
                 photoUrl={photo}
-                cutoutUrl={ready && !fallback ? cutout : null}
+                cutoutUrl={ready ? cutout : null}
                 label="珍珠奶茶"
                 hint="好きな方向にはがしてキャッチ"
                 actionLabel="図鑑へ追加"
@@ -237,15 +245,6 @@ export function PeelStickerScene() {
                   <input
                     type="checkbox"
                     disabled={saving}
-                    checked={fallback}
-                    onChange={(e) => setFallback(e.target.checked)}
-                  />{" "}
-                  切り抜きなし・失敗時
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    disabled={saving}
                     checked={reduced}
                     onChange={(e) => setReduced(e.target.checked)}
                   />{" "}
@@ -260,7 +259,7 @@ export function PeelStickerScene() {
       {saving && (
         <CatchLandingOverlay
           ref={fly}
-          image={fallback ? photo : cutout}
+          image={photo}
           headword="珍珠奶茶"
           reading="ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ"
           lang="zh-TW"

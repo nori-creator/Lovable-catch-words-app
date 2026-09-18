@@ -140,3 +140,12 @@ html[data-motion="reduce"] .cw-peel *,
   animation: none !important;
   transition: none !important;
 }
+.cw-peel[data-photo="true"][data-ready="true"] .cw-peel-photo {
+  opacity: 0;
+}
+.cw-peel[data-photo="true"] .cw-peel-art {
+  animation: none;
+}
+.cw-peel[data-photo="true"] {
+  background: #e4e9e7;
+}
