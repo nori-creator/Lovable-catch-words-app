@@ -27,6 +27,8 @@
  * **先頭と長さ**で足りる（違う束なら、ほぼ確実にどちらかが変わる）。
  */
 
+import { REVIEW_CACHE_MAX_AGE_MS } from "./review-cache";
+
 const KEY = "review-session-v1";
 
 /**
