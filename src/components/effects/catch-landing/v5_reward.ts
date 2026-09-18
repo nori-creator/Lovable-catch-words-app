@@ -67,8 +67,18 @@ export const v5reward: LandingRunner = async ({
   // 付いている。箱の寸法で飛ばすと `object-contain` が写真を箱いっぱいまで
   // 広げるので、離陸の瞬間に **16% ほど大きくなって**「別の物に入れ替わった」
   // ように見える。中に img が在ればそれを測る(無ければ従来どおり枠)。
-  const measured = startEl.querySelector("img") ?? startEl;
-  const source = measured.getBoundingClientRect();
+  const peelArt = startEl.querySelector(".cw-peel-art");
+  const measured = peelArt ?? startEl.querySelector("img") ?? startEl;
+  const bounds = measured.getBoundingClientRect();
+  // The alpha image occupies 32..288 inside the 320px SVG viewBox.
+  const source = peelArt
+    ? {
+        left: bounds.left + bounds.width * 0.1,
+        top: bounds.top + bounds.height * 0.1,
+        width: bounds.width * 0.8,
+        height: bounds.height * 0.8,
+      }
+    : bounds;
   const width = Math.max(source.width, 1);
   const height = Math.max(source.height, 1);
   const centerX = source.left + width / 2;
@@ -227,7 +237,7 @@ export const v5reward: LandingRunner = async ({
       return;
     }
 
-    const targetRect = target.getBoundingClientRect();
+    const targetRect = (target.querySelector("img") ?? target).getBoundingClientRect();
     target.style.visibility = "hidden";
     hiddenCell = target;
     const dx = targetRect.left - heroRect.left;
