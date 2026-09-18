@@ -966,7 +966,13 @@ export function DayTimeline({
     const small = index % 4 === 2;
     const tapes = tapesFor(ratio, small, tilt, index);
     return (
-      <li key={s.id} className="scrap__item" data-small={small || undefined}>
+      <li
+        key={s.id}
+        className="scrap__item"
+        data-small={small || undefined}
+        // 後に貼った写真ほど上に重なる（紙に順に貼っていった形）。
+        style={{ zIndex: 10 + index }}
+      >
         <button
           type="button"
           onClick={(e) => {

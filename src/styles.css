@@ -6455,14 +6455,16 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   line-height: 1.05;
 }
 .day-masthead__count-n {
-  font-size: 0.9375rem;
+  font-size: var(--text-body);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .day-masthead__count-label {
-  /* 9px まで落としていたが、**小さすぎる**（§3: 読めなくなるほど縮めない）。
-     入らないなら字を縮めるのではなく、折り返すか出さない。 */
-  font-size: 0.625rem;
+  /* **階調の上に置く。** 9px→10px と自分で決めていたが、この app は
+     `--text-*` の7段しか持たない（`ui-audit` が「階調に無い大きさ」で
+     捕まえる）。段の外の大きさを1つ作るたびに、画面ごとに少しずつ違う
+     字が増えていく。 */
+  font-size: var(--text-caption);
   color: var(--album-ink-dim);
 }
 .day-masthead__row {
@@ -6476,7 +6478,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   min-width: 0;
 }
 .day-masthead__date {
-  font-size: 0.75rem;
+  font-size: var(--text-footnote);
   font-weight: 600;
   color: var(--album-ink-dim);
 }
@@ -6493,7 +6495,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
      **折り返させない。** 「今日の1ペー / ジ」と割れると、雑誌の題ではなく
      入り切らなかった文字列に見える（実測の絵で割れていた）。入らない幅では
      字のほうを詰める。 */
-  font-size: clamp(1.5rem, 7.4vw, 2.125rem);
+  font-size: var(--text-hero);
   line-height: 1.12;
   letter-spacing: -0.01em;
   margin-top: 0.1rem;
@@ -6514,7 +6516,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   flex: 0 1 9.5rem;
   min-width: 0;
   padding-top: 0.75rem;
-  font-size: 0.875rem;
+  font-size: var(--text-body);
   line-height: 1.6;
   text-align: right;
   color: var(--album-blue);
@@ -6580,8 +6582,8 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 /* 紙の一番上に手で書いた日付（オーナー指示「紙の一番上に今日の日付を
    手書きで書いて」）。 */
 .day-sheet__date {
-  margin-bottom: 1rem;
-  font-size: 1.125rem;
+  margin-bottom: 0.9rem;
+  font-size: var(--text-headline);
   line-height: 1.2;
   color: var(--album-ink);
   rotate: -0.8deg;
@@ -6659,11 +6661,14 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 /* ── 貼ってある物（2列） ─────────────────────────────────────────
    左上 → 右上 → 左下 → 右下 の順に貼る。読む順が**そのまま時刻の順**。
    右の列は少し下げてあるので、貼り合わせたページに見える。 */
+/* **紙に余白を作りすぎない**（オーナー指示 2026-09-17）。
+   列の間も行の間も詰め、写真は枠より少し広く貼って**互いに重ねる**。
+   重なるのは写真どうしだけ（字の枠は動かさない）。 */
 .scrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  column-gap: 0.875rem;
-  row-gap: 2.25rem;
+  column-gap: 0.5rem;
+  row-gap: 1rem;
   align-items: start;
   list-style: none;
   margin: 0;
@@ -6675,8 +6680,29 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 /* 右の列を下げて段違いにする。揃えると2列の表に見える。 */
 .scrap__item:nth-child(2n) {
-  margin-top: 2.25rem;
+  margin-top: 1.5rem;
 }
+/**
+ * **写真は枠からはみ出して、隣と重なる。**
+ *
+ * 枠の中に収めていたときは、写真の縦横比がまちまちなぶんだけ紙に穴が
+ * 空いた（オーナー指摘「ノートに余白をあまり作りすぎないで」）。
+ * 左の列は右へ、右の列は左へ、それぞれ溝を越えて広げる。字の枠は動かさない
+ * ので、重なる相手は**必ず隣の写真**になる。
+ *
+ * 後の写真ほど上に重なる（紙に順に貼っていった形）。重なりの順は
+ * `style` の `zIndex`（札ごと）で持つ。
+ */
+.scrap__item:nth-child(2n + 1) .scrap__photo {
+  margin-right: -0.9rem;
+}
+.scrap__item:nth-child(2n) .scrap__photo {
+  margin-left: -0.9rem;
+}
+/* **縦には食い込ませない。** 一度は3枚目から上の行へ食い込ませたが、
+   上の行に在るのは隣の列の**字**なので、写真がその上に乗り得る（後の札
+   ほど重なりが上なので、前の停留所の時刻や1言が消える）。
+   詰めるのは行の間隔（`row-gap`）でやる — そちらなら字は動かない。 */
 /* 4枚に1枚は少し小さく貼る。**全部同じ幅だと、貼った物ではなく一覧表。** */
 .scrap__item[data-small] .scrap__card {
   width: 82%;
@@ -6695,10 +6721,26 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   /* §11: 指の当たり判定は 44px を下回らない。 */
   min-height: 2.75rem;
 }
+/* 写真の角は丸みを帯びさせる（オーナー指示 2026-09-17）。
+   印画紙の白フチごと丸めて、中の写真もそれより 1px 内側で丸める —
+   フチだけ丸めると、角に四角い写真の隅が残って**切り忘れ**に見える。 */
 .scrap__photo {
   position: relative;
   display: block;
   padding: 6px 6px 8px;
+  border-radius: 14px;
+}
+.scrap__photo::after {
+  border-radius: 9px;
+}
+.scrap__frame {
+  border-radius: 9px;
+}
+.scrap__photo2 {
+  border-radius: 10px;
+}
+.scrap__photo2 .scrap__frame {
+  border-radius: 7px;
 }
 .scrap__photo::after {
   inset: 6px 6px 8px;
@@ -6755,7 +6797,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   margin-top: 0;
 }
 .scrap__head {
-  font-size: 1.0625rem;
+  font-size: var(--text-headline);
   font-weight: 700;
   line-height: 1.35;
   /* 繁体字は画数が多いので、小さいと潰れる。字間を少し開ける。 */
@@ -6766,7 +6808,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .scrap__time {
   display: block;
   margin: 0.35rem 0 0 0.5rem;
-  font-size: 0.9375rem;
+  font-size: var(--text-body);
   line-height: 1.1;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
@@ -6776,7 +6818,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .scrap__note {
   display: block;
   margin: 0.3rem 0 0 0.5rem;
-  font-size: 0.875rem;
+  font-size: var(--text-body);
   line-height: 1.7;
   color: var(--album-ink);
   transform-origin: left center;
@@ -6786,7 +6828,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   align-items: center;
   gap: 0.2rem;
   margin: 0.3rem 0 0 0.5rem;
-  font-size: 0.6875rem;
+  font-size: var(--text-caption);
   color: var(--album-ink-dim);
 }
 
@@ -6805,7 +6847,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   flex: 1 1 auto;
   padding: 0.7rem 0.9rem 0.8rem;
   background: #fffdf6;
-  font-size: 1rem;
+  font-size: var(--text-body);
   line-height: 1.7;
   color: var(--album-ink);
   rotate: -0.6deg;
@@ -6843,7 +6885,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   gap: 0.6rem;
 }
 .scrap__sign {
-  font-size: 1.25rem;
+  font-size: var(--text-title);
   line-height: 1.15;
   text-align: right;
   color: var(--album-ink-dim);
@@ -6854,6 +6896,242 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .scrap__end {
   flex: none;
   align-self: flex-end;
-  font-size: 0.6875rem;
+  font-size: var(--text-caption);
   color: var(--album-ink-dim);
+}
+
+/* ===========================================================================
+   迎える面（オーナー指示 2026-09-17、見本の絵）
+
+   > 「ログイン画面はクロワッサンが映ってるものをデザイン、字体、色を完全
+   >  再現して。ただし…ホーム画面で作ったような丸みを帯びた写真にして。」
+
+   淡い青の地に、角の丸い写真を3枚傾けて重ね、その下に見出しと入口。
+   写真は `public/welcome/` に置けば出る。無ければ淡い地のまま出る —
+   **無い物を描かない**ので、置き忘れても壊れない。
+   =========================================================================== */
+.auth-page {
+  min-height: 100dvh;
+  padding: calc(1.5rem + env(safe-area-inset-top)) 1.25rem
+    calc(1.5rem + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(
+      120% 60% at 88% 4%,
+      color-mix(in oklab, var(--primary) 14%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--primary) 6%, var(--background)),
+      var(--background)
+    );
+}
+.auth-inner {
+  margin: 0 auto;
+  max-width: 24rem;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.auth-brand__mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+}
+.auth-brand__name {
+  font-size: var(--text-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* 迎えの写真。**角の丸い写真**を少し傾けて重ねる（ホームの紙と同じ貼り方）。 */
+.auth-photos {
+  position: relative;
+  height: 11rem;
+  margin: 1.25rem 0 0.5rem;
+}
+.auth-photo {
+  position: absolute;
+  display: block;
+  overflow: hidden;
+  border-radius: 1.125rem;
+  background: linear-gradient(150deg, #eef3fb 0%, #e3ebf7 60%, #dbe5f4 100%);
+  box-shadow:
+    0 1px 2px rgba(30, 45, 80, 0.12),
+    0 10px 20px -10px rgba(30, 45, 80, 0.3);
+}
+.auth-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.auth-photo__label {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.4rem;
+  font-size: var(--text-footnote);
+  color: var(--primary-ink);
+}
+.auth-photo--a {
+  left: 0;
+  top: 1.25rem;
+  width: 44%;
+  height: 8.5rem;
+  rotate: -3deg;
+}
+.auth-photo--b {
+  left: 37%;
+  top: 0;
+  width: 33%;
+  height: 7rem;
+  rotate: 2.5deg;
+  z-index: 2;
+}
+.auth-photo--c {
+  right: 0;
+  top: 2.75rem;
+  width: 40%;
+  height: 7.75rem;
+  rotate: -2deg;
+  z-index: 3;
+}
+
+.auth-hero {
+  margin-top: 0.5rem;
+  font-size: var(--text-hero);
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.03em;
+}
+.auth-hero__accent {
+  display: block;
+  color: var(--primary);
+}
+.auth-lead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+.auth-sub {
+  font-size: var(--text-body);
+  color: var(--muted-foreground);
+}
+.auth-welcome {
+  position: relative;
+  flex: none;
+  font-size: var(--text-title);
+  line-height: 1.1;
+  color: var(--primary);
+  rotate: -5deg;
+}
+.auth-welcome__rule {
+  display: block;
+  width: 100%;
+  height: 0.4rem;
+  opacity: 0.7;
+}
+
+.auth-card {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.1rem;
+  border-radius: 1.25rem;
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgba(30, 45, 80, 0.06),
+    0 12px 28px -18px rgba(30, 45, 80, 0.35);
+}
+.auth-oauth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  /* §11: 入口のボタンなので、指の的は 44px を下回らない。 */
+  min-height: 3rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--foreground);
+}
+.auth-oauth__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+.auth-oauth--apple {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+.auth-oauth--mail {
+  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+  color: var(--primary-ink);
+}
+.auth-oauth:disabled {
+  opacity: 0.6;
+}
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.2rem 0;
+  font-size: var(--text-footnote);
+  color: var(--muted-foreground);
+}
+.auth-or > span {
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: var(--text-footnote);
+}
+.auth-switch {
+  margin-top: 0.2rem;
+  text-align: center;
+  font-size: var(--text-footnote);
+  color: var(--muted-foreground);
+}
+.auth-switch__link {
+  /* §11: 小さく見えるが、当たり判定は上下に伸ばして 44px を確保する。 */
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.85rem 0.25rem;
+  margin-top: -0.85rem;
+  margin-bottom: -0.85rem;
+  font-weight: 700;
+  color: var(--primary-ink);
+  text-decoration: underline;
+}
+.auth-legal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+}
+.auth-legal a {
+  display: inline-block;
+  padding: 0.85rem 0.25rem;
+  margin: -0.85rem 0;
+  text-decoration: underline;
 }

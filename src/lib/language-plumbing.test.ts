@@ -4736,3 +4736,116 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(audit).toMatch(/crossThemes\("home-album", \{ scene: "home-album" \}\)/);
   });
 });
+
+/**
+ * 迎える面（ログイン）とホームの仕上げ（オーナー指示 2026-09-17）
+ *
+ * > 「写真の角は丸みを帯びさせて。また写真と写真をお手本のように重ねたりして
+ * >  ノートに余白をあまり作りすぎないで。」
+ * > 「ログイン画面はクロワッサンが映ってるものをデザイン、字体、色を完全再現
+ * >  して。…好きなものから言葉をのキャッチコピーを、日常があなただけの
+ * >  単語帳に。変更して。撮って、集めて、覚えようはそのままでいい」
+ */
+describe("迎える面とホームの仕上げ", () => {
+  const cssBlock = (from: string, to: string) => {
+    const css = read("styles.css");
+    const i = css.indexOf(from);
+    expect(i).toBeGreaterThan(-1);
+    const j = css.indexOf(to, i);
+    expect(j).toBeGreaterThan(i);
+    return css.slice(i, j);
+  };
+
+  it("**写真の角は丸みを帯びさせる**（白フチも中の写真も）", () => {
+    // フチだけ丸めると、角に四角い写真の隅が残って「切り忘れ」に見える。
+    const photo = cssBlock(".scrap__photo {", ".scrap__frame--square");
+    expect(photo).toMatch(/\.scrap__photo \{[\s\S]*?border-radius: 14px/);
+    expect(photo).toMatch(/\.scrap__frame \{\s*border-radius: 9px/);
+  });
+
+  it("**紙に余白を作りすぎない**（写真は枠からはみ出して隣と重なる）", () => {
+    const css = read("styles.css");
+    // 列の間も行の間も詰める。
+    const grid = cssBlock(".scrap {", ".scrap__item {");
+    expect(grid).toMatch(/column-gap: 0\.5rem/);
+    expect(grid).toMatch(/row-gap: 1rem/);
+    // 写真は溝を越えて広がる（字の枠は動かさない）。
+    expect(css).toMatch(
+      /\.scrap__item:nth-child\(2n \+ 1\) \.scrap__photo \{\s*margin-right: -0\.9rem/,
+    );
+    expect(css).toMatch(/\.scrap__item:nth-child\(2n\) \.scrap__photo \{\s*margin-left: -0\.9rem/);
+    // **縦には食い込ませない**（上の行に在るのは隣の列の字なので、写真が
+    // その上に乗り得る）。
+    expect(css).not.toMatch(/\.scrap__item:nth-child\(n \+ 3\) \.scrap__photo \{\s*margin-top/);
+  });
+
+  it("**字は階調の上に置く**（`--text-*` の7段しか使わない）", () => {
+    // 段の外の大きさを1つ作るたびに、画面ごとに少しずつ違う字が増える
+    // （`ui-audit` が「階調に無い大きさ」で捕まえる。実測 162件出ていた）。
+    const css = read("styles.css");
+    const home = css.slice(css.indexOf("ホーム = 雑誌の1ページ（オーナー指示"));
+    const off = [...home.matchAll(/font-size: ([\d.]+)rem/g)].map((m) => m[1]);
+    expect(off).toEqual([]);
+  });
+
+  it("**迎える面の言葉**（日常があなただけの単語帳に／撮って、集めて、覚えよう）", () => {
+    const dict = read("lib/i18n.tsx");
+    expect(dict).toMatch(/"auth\.heroA": \{ ja: "日常が"/);
+    expect(dict).toMatch(/ja: "あなただけの単語帳に。"/);
+    // 下の1行は**そのまま**（オーナー「撮って、集めて、覚えようはそのままでいい」）。
+    expect(dict).toMatch(/ja: "撮って、集めて、覚えよう。"/);
+    // 前の言葉は残っていないこと。
+    expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
+  });
+
+  it("**迎える面は、角の丸い写真を傾けて重ねる**（ステッカーではない）", () => {
+    // オーナー指示「添付の画像のようなステッカーではなく、ホーム画面で作った
+    // ような丸みを帯びた写真」。
+    const auth = codeOnly(read("routes/auth.tsx"));
+    expect(auth).toMatch(/auth-photo auth-photo--/);
+    const photo = cssBlock(".auth-photo {", ".auth-photo img");
+    expect(photo).toMatch(/border-radius: 1\.125rem/);
+    // 3枚とも違う傾き（揃えると貼った物に見えない）。
+    const rot = [
+      ...read("styles.css").matchAll(/\.auth-photo--[abc] \{[\s\S]*?rotate: (-?[\d.]+)deg/g),
+    ].map((m) => m[1]);
+    expect(new Set(rot).size).toBe(3);
+  });
+
+  it("**写真が無くても壊れない**（`public/welcome/` は任意）", () => {
+    // 手元に写真を持っていないので、**無い物を描かない**。読めなければ
+    // その1枚を隠して、淡い地のまま出す。
+    const auth = codeOnly(read("routes/auth.tsx"));
+    expect(auth).toMatch(/onError=\{\(e\) => \{/);
+    expect(auth).toMatch(/e\.currentTarget\.style\.display = "none"/);
+  });
+
+  it("**面と通信を分けてある**（雛形から迎える面を描ける）", () => {
+    // ここはルートのファイルに直書きで、**入れたばかりの人が最初に見る面**
+    // なのに一度も機械で見ていなかった。
+    const auth = codeOnly(read("routes/auth.tsx"));
+    expect(auth).toMatch(/export function AuthView\(/);
+    const scene = codeOnly(read("../scripts/ui-harness/scenes/auth.tsx"));
+    expect(scene).toMatch(/import \{ AuthView \} from "@\/routes\/auth"/);
+    const main = codeOnly(read("../scripts/ui-harness/main.tsx"));
+    expect(main).toMatch(/auth: AuthScene/);
+    const audit = read("../scripts/ui-audit.mjs");
+    expect(audit).toMatch(/crossThemes\("auth", \{ scene: "auth" \}\)/);
+  });
+
+  it("**見比べの帯は、いま直した画面を先頭に出す**", () => {
+    // Netlify の Deploy Preview は**この雛形**を配っている（`netlify.toml`）。
+    // `REVIEW_SCENES` を古いままにすると、開いた人は直していない画面を見て
+    // 「昔のプレビューのままだ」と言うことになる（実際そう報告された）。
+    // ファイル自身の注にも「作業ごとに書き換える」と書いてある。
+    const main = codeOnly(read("../scripts/ui-harness/main.tsx"));
+    const list = main.slice(
+      main.indexOf("const REVIEW_SCENES"),
+      main.indexOf("const explicitScene"),
+    );
+    expect(list).toMatch(/\{ scene: "home"/);
+    expect(list).toMatch(/\{ scene: "auth"/);
+    // 先頭は何も打たずに開いた人が最初に見る面。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+  });
+});

@@ -1144,18 +1144,42 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "set.keyMissing": { ja: "({env} 未設定)", en: "({env} not set)", "zh-TW": "（{env} 未設定）" },
   // --- ログイン・発音練習 ---
+  // 迎える面の言葉（オーナー指示 2026-09-17）。
+  // > 「好きなものから言葉をのキャッチコピーを、日常があなただけの単語帳に。
+  // >  変更して。撮って、集めて、覚えようはそのままでいい」
+  "auth.heroA": { ja: "日常が", en: "Your days,", "zh-TW": "日常，" },
+  "auth.heroB": {
+    ja: "あなただけの単語帳に。",
+    en: "your own vocabulary book.",
+    "zh-TW": "成為你專屬的單字本。",
+  },
   "auth.tagline": {
-    ja: "街で出会う言葉を、ステッカーに。",
-    en: "Turn the words you meet into stickers.",
-    "zh-TW": "把在街上遇到的字，變成貼紙。",
+    ja: "撮って、集めて、覚えよう。",
+    en: "Snap it, collect it, learn it.",
+    "zh-TW": "拍下來、收集起來、記住它。",
+  },
+  "auth.emailLogin": {
+    ja: "メールでログイン",
+    en: "Sign in with email",
+    "zh-TW": "用電子郵件登入",
+  },
+  "auth.noAccount": {
+    ja: "アカウントをお持ちでない方は",
+    en: "No account yet? ",
+    "zh-TW": "還沒有帳號？",
+  },
+  "auth.haveAccount": {
+    ja: "すでにアカウントをお持ちの方は",
+    en: "Already have an account? ",
+    "zh-TW": "已經有帳號了？",
   },
   "auth.signin": { ja: "ログイン", en: "Sign in", "zh-TW": "登入" },
   "auth.signup": { ja: "新規登録", en: "Sign up", "zh-TW": "註冊" },
   "auth.email": { ja: "メールアドレス", en: "Email", "zh-TW": "電子郵件" },
   "auth.password": { ja: "パスワード", en: "Password", "zh-TW": "密碼" },
   "auth.or": { ja: "または", en: "or", "zh-TW": "或" },
-  "auth.google": { ja: "Googleでサインイン", en: "Sign in with Google", "zh-TW": "用 Google 登入" },
-  "auth.apple": { ja: "Appleでサインイン", en: "Sign in with Apple", "zh-TW": "用 Apple 登入" },
+  "auth.google": { ja: "Googleで続ける", en: "Continue with Google", "zh-TW": "用 Google 繼續" },
+  "auth.apple": { ja: "Appleで続ける", en: "Continue with Apple", "zh-TW": "用 Apple 繼續" },
   "auth.agreeBefore": {
     ja: "続行すると、",
     en: "By continuing you agree to the ",
