@@ -1031,7 +1031,7 @@ function CapturePage() {
       // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
-      speakLine: () => void pronounce(selectedHead),
+      speakLine: () => pronounce(selectedHead, true),
       // **先に読ませない。** 押した時点ではまだ決まっていない。
       getDestinationId: () => savedId,
       openDex: () => {

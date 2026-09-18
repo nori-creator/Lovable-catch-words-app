@@ -1,3 +1,4 @@
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -738,26 +739,30 @@ function SettingsPage() {
               }}
               options={[
                 { value: "object", label: t("settings.photoObject") },
-                { value: "cutout", label: t("settings.photoCutout") },
+                ...(CUTOUT_ENABLED
+                  ? [{ value: "cutout" as const, label: t("settings.photoCutout") }]
+                  : []),
                 { value: "selfie", label: t("settings.photoSelfie") },
               ]}
             />
             {/* 要望 #18「キャッチ時に切り抜きするしない」。
                 **既定は今まで通り「丁寧」** — 速さのために見た目を落とすかは
                 人が決めることで、黙って切り替えるものではない。 */}
-            <ChoiceRow
-              cols={2}
-              label={t("settings.catchSpeed")}
-              value={catchSpeed}
-              onChange={(v) => {
-                setCatchSpeedState(v);
-                setCatchSpeed(v);
-              }}
-              options={[
-                { value: "detail", label: t("settings.speedDetail") },
-                { value: "fast", label: t("settings.speedFast") },
-              ]}
-            />
+            {CUTOUT_ENABLED && (
+              <ChoiceRow
+                cols={2}
+                label={t("settings.catchSpeed")}
+                value={catchSpeed}
+                onChange={(v) => {
+                  setCatchSpeedState(v);
+                  setCatchSpeed(v);
+                }}
+                options={[
+                  { value: "detail", label: t("settings.speedDetail") },
+                  { value: "fast", label: t("settings.speedFast") },
+                ]}
+              />
+            )}
             {/* **発音判定の厳しさの欄は消した**(オーナー指示 2026-08-26)。
                 列(`pronunciation_strictness`)は残す — 既に選んである人の
                 値を保存のたびに書き戻して、消さないため。 */}

@@ -42,7 +42,7 @@ export async function runCatchLanding(ctx: {
    * `.current` を先に読むと必ず null になる(`lib/wait-for-ref.ts` に経緯)。
    */
   fly: RefObject<HTMLImageElement | null>;
-  speakLine?: () => void;
+  speakLine?: () => void | Promise<void>;
   destinationId?: string;
   /** 保存済みの札を後から受け取る口(`types.ts` の注)。 */
   getDestinationId?: () => string | undefined;

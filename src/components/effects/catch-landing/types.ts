@@ -13,7 +13,7 @@ export type LandingCtx = {
   /** 着弾先(下タブの図鑑アイコン)。 */
   dexEl: HTMLElement | null;
   /** 決め台詞を鳴らす(対応する版だけが呼ぶ)。 */
-  speakLine?: () => void;
+  speakLine?: () => void | Promise<void>;
   /**
    * その語の段(TOCFL / CEFR の 1〜6)。**珍しい語ほど演出を大きくする**ため。
    *
