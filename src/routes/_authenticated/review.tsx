@@ -316,7 +316,7 @@ function ReviewPage() {
     revalidated.current = true;
     void refetch();
   }, [cachedBatch, idx, tally.answered, refetch]);
-  // 進んだら憶える。**別の頁へ行っても消えない**(`sessionStorage`)。
+  // 進んだら憶える。**アプリを閉じても消えない**(`localStorage`、束と同じ4時間)。
   useEffect(() => {
     if (!batch || restoredFor.current !== batch) return;
     writeMark(batch, { idx, answered: tally.answered, correct: tally.correct });
