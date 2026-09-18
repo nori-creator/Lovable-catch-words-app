@@ -100,6 +100,7 @@ export const v5reward: LandingRunner = async ({
 
   root.dataset.stage = "lift";
   Sound.rewardLift();
+  Sound.itemFanfare();
   await fly.animate(
     [
       { transform: "translate3d(0,-2px,0) scale(1.018) rotateX(0deg)" },

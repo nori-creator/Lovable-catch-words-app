@@ -40,8 +40,7 @@ function ensureCtx(): AudioContext | null {
   if (!ctx) {
     const Ctor = (window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
-      | typeof AudioContext
-      | undefined;
+      typeof AudioContext | undefined;
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();
@@ -146,6 +145,16 @@ export const Sound = {
     tone(880, 0.32, { type: "sine", from: 720, to: 1320, gain: 0.13, delay: 0.025 });
     tone(2100, 0.46, { type: "sine", from: 2400, to: 1680, gain: 0.05, delay: 0.08 });
     noise(0.075, { hp: 2400, lp: 9000, gain: 0.04 });
+  },
+  /** Original short reveal fanfare, deliberately below the spoken word. */
+  itemFanfare() {
+    [523.25, 659.25, 783.99, 1046.5].forEach((hz, i) => {
+      tone(hz, 0.24, { type: "triangle", gain: 0.065, delay: i * 0.115 });
+      tone(hz * 2, 0.18, { type: "sine", gain: 0.018, delay: i * 0.115 });
+    });
+    [523.25, 659.25, 783.99].forEach((hz) =>
+      tone(hz, 0.48, { type: "sine", gain: 0.022, delay: 0.46 }),
+    );
   },
   rewardTransfer() {
     tone(520, 0.3, { type: "sine", from: 520, to: 980, gain: 0.055 });

@@ -4430,3 +4430,38 @@ html[data-motion="reduce"] .reward-catch__particles {
 html[data-motion="reduce"] .reward-catch__copy {
   animation: none !important;
 }
+
+.reward-catch__field::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: repeating-conic-gradient(
+    from 12deg at 50% 44%,
+    transparent 0deg 12deg,
+    #79c9ff55 14deg 17deg,
+    transparent 20deg 36deg,
+    #b8abff44 39deg 42deg,
+    transparent 46deg 60deg
+  );
+  mask-image: radial-gradient(ellipse at 50% 44%, transparent 3%, black 15%, transparent 62%);
+}
+.reward-catch[data-stage="break"] .reward-catch__field::before,
+.reward-catch[data-stage="reveal"] .reward-catch__field::before {
+  animation: itemRays 2.4s ease-out both;
+}
+@keyframes itemRays {
+  from {
+    transform: scale(0.75) rotate(-8deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.18) rotate(12deg);
+    opacity: 0.6;
+  }
+}
+html[data-motion="reduce"] .reward-catch__field::before {
+  display: none;
+}
