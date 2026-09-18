@@ -29,6 +29,13 @@
 
 const KEY = "review-session-v1";
 
+/**
+ * ## 2026-09-18 の直し（同じ札を二度採点していた）
+ * 束は `review-cache.ts` が `localStorage` に4時間書き留めるのに、続きの
+ * 位置だけ `sessionStorage` だった。アプリを閉じて開くと、**同じ束が
+ * 1枚目から**出て、答えた札がもう一度採点され、次に出す日が狂う。
+ * 位置も束と同じ置き場所・同じ寿命にする。
+ */
 export type SessionMark = {
   /** その束の目印。 */
   batch: string;
@@ -37,6 +44,8 @@ export type SessionMark = {
   /** その回の成績（戻ったときに数え直しにしない）。 */
   answered: number;
   correct: number;
+  /** 書き留めた時刻。束の寿命(4時間)より古い位置は使わない。 */
+  at?: number;
 };
 
 export const EMPTY_MARK: Omit<SessionMark, "batch"> = { idx: 0, answered: 0, correct: 0 };
