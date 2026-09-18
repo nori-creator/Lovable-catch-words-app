@@ -232,7 +232,7 @@ export const v5reward: LandingRunner = async ({
     const copy = handoff.querySelector(".reward-catch__copy") as HTMLElement | null;
     const backgroundMotion = [
       veil?.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: 420,
+        duration: 320,
         easing: EASE_IOS,
         fill: "forwards",
       }).finished,
