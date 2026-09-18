@@ -77,6 +77,11 @@ export function readMark(
     if (!raw) return EMPTY_MARK;
     const m = JSON.parse(raw) as Partial<SessionMark>;
     if (m?.batch !== batch) return EMPTY_MARK;
+    // 束の寿命より古い位置は使わない（`at` が無い古い形はそのまま使う）。
+    if (typeof m.at === "number" && Number.isFinite(m.at)) {
+      const age = Date.now() - m.at;
+      if (age < 0 || age > REVIEW_CACHE_MAX_AGE_MS) return EMPTY_MARK;
+    }
     return {
       idx: numberOr(m.idx, 0),
       answered: numberOr(m.answered, 0),
