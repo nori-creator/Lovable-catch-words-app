@@ -221,11 +221,12 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
         hidden={false}
         facing="environment"
         onFlip={() => {}}
-        // 前面カメラは倍率を持たないことが多い。**つまみが出ない姿**も撮る。
-        showZoom={!noZoom}
-        zoom={zoom}
-        zoomMin={zoomMin}
-        zoomMax={6}
+        // 実物は `showZoom={ready}` で常に渡す。倍率を1つしか持たない端末では
+        // `CameraZoomMeter` 自身が「押せない `1×` の札」に落とす（参考画像の形）。
+        showZoom
+        zoom={noZoom ? 1 : zoom}
+        zoomMin={noZoom ? 1 : zoomMin}
+        zoomMax={noZoom ? 1 : 6}
         onZoom={() => {}}
       />
     </div>

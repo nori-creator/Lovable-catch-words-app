@@ -48,7 +48,9 @@ import {
   WordbookQuizScene,
   WordbookQuizNoMeaningScene,
 } from "./scenes/wordbook";
+import { AuthScene } from "./scenes/auth";
 import {
+  HomeAlbumScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -119,7 +121,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   gallery: GalleryScene,
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
+  auth: AuthScene,
   home: HomeScene,
+  "home-album": HomeAlbumScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -251,6 +255,7 @@ function Frame({ children }: { children: ReactNode }) {
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 const BARE = new Set([
+  "auth",
   "onboarding",
   "sticker-sheet",
   "capture-saving",
@@ -283,11 +288,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "capture-object", label: "カメラの画面（参考画像の形）" },
-  { scene: "camera-strip", label: "撮り方の帯と下の行（写真・シャッター・切替）" },
-  { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
-  { scene: "tabbar", label: "下の帯（カメラのとき暗くなる）" },
-  { scene: "review-memory-list", label: "記憶の一覧（下へ行くほど段も％も高い）" },
+  { scene: "home", label: "ホーム（アルバム台紙・今日の1ページ）" },
+  { scene: "home-past", label: "ホームの下（過去の日が続く）" },
+  { scene: "auth", label: "ログインの画面" },
+  { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
+  { scene: "capture-object", label: "カメラの画面" },
+  { scene: "tabbar", label: "下の帯" },
 ];
 
 const explicitScene = q.get("scene");

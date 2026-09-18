@@ -300,6 +300,12 @@ const MODES = [
   // 雛形の枠を外して撮る(`BARE`)。
   ...crossThemes("onboarding", { scene: "onboarding" }),
   ["onboarding-starting", "", false, { scene: "onboarding", variant: "starting" }],
+  // 指で置く台紙。ホームからは呼んでいないが、消していないので見続ける
+  // (`scenes/home.tsx` の `HomeAlbumScene` の注)。
+  // 迎える面（ログイン）。**入れたばかりの人が最初に見る面。**
+  ...crossThemes("auth", { scene: "auth" }),
+  ["auth-signup", "", false, { scene: "auth", variant: "signup" }],
+  ...crossThemes("home-album", { scene: "home-album" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
   ...crossThemes("home-loading", { scene: "home-loading" }),
@@ -567,6 +573,8 @@ const FOCUS_MIN_RATIO = 3;
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
 const BARE_SCENES = new Set([
+  // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
+  "auth",
   "onboarding",
   "sticker-sheet",
   "capture-saving",

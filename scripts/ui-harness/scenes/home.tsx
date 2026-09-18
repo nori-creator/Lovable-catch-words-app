@@ -14,6 +14,9 @@ import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   BackgroundPicker,
   DayHeader,
+  DayMasthead,
+  DayTimeline,
+  dayTagline,
   HomeEmptyState,
   HomeLoading,
   JournalLink,
@@ -26,6 +29,7 @@ import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
+import { tStatic } from "@/lib/i18n";
 
 const svg = (w: number, h: number, color: string) =>
   "data:image/svg+xml;utf8," +
@@ -42,23 +46,61 @@ const svg = (w: number, h: number, color: string) =>
  * **字だけ**で並ぶ。詳細を開くとネットの絵が見出しに入るので、その絵が
  * アルバム側へ回り込んでいないかは**絵でしか確かめられない**。
  */
-const FIXTURES: Array<{ head: string; selfie?: string; object?: string; net?: string }> = [
-  { head: "珍珠奶茶", selfie: svg(120, 160, "#b07a4a") },
-  { head: "夜市", object: svg(200, 120, "#d0483c") },
-  { head: "腳踏車" },
-  { head: "芒果", selfie: svg(140, 140, "#f5a623") },
-  { head: "捷運", object: svg(110, 190, "#4a90d9") },
-  { head: "雨傘" },
-  { head: "獎學金", net: svg(160, 160, "#2f8f5b") },
+/**
+ * 時刻・書いた1言・場所も入れる(オーナー指示 2026-09-17)。
+ * ホームは**撮った時刻の道順**になったので、時刻がばらけていない
+ * 作り物では「朝から夜へ辿る」という肝心の所が一度も撮れない。
+ * 1言の無い札・場所の無い札も混ぜる — 無い日に空の紙が挟まらないかを見る。
+ */
+const FIXTURES: Array<{
+  head: string;
+  gloss?: string;
+  selfie?: string;
+  object?: string;
+  net?: string;
+  /** その日の何時何分に撮ったか。 */
+  at: [number, number];
+  caption?: string;
+  place?: string;
+}> = [
+  {
+    head: "珍珠奶茶",
+    gloss: "タピオカミルクティー",
+    selfie: svg(120, 160, "#b07a4a"),
+    at: [9, 20],
+    caption: "朝いちばんの一杯。氷少なめでと言えた。",
+    place: "台北駅 地下街",
+  },
+  { head: "夜市", gloss: "夜市", object: svg(200, 120, "#d0483c"), at: [11, 5] },
+  { head: "腳踏車", gloss: "自転車", at: [12, 40], caption: "看板の字だけ拾った。" },
+  {
+    head: "芒果",
+    gloss: "マンゴー",
+    selfie: svg(140, 140, "#f5a623"),
+    at: [14, 10],
+    place: "永康街",
+  },
+  {
+    head: "捷運",
+    gloss: "MRT",
+    object: svg(110, 190, "#4a90d9"),
+    at: [17, 45],
+    caption: "改札の上の表示。読めた!",
+    place: "中山駅",
+  },
+  { head: "雨傘", gloss: "傘", at: [19, 2] },
+  { head: "獎學金", gloss: "奨学金", net: svg(160, 160, "#2f8f5b"), at: [21, 30] },
 ];
 
 function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
-  const at = new Date(Date.now() - day * 24 * 60 * 60 * 1000).toISOString();
+  const d = new Date(Date.now() - day * 24 * 60 * 60 * 1000);
+  d.setHours(f.at[0], f.at[1], 0, 0);
+  const at = d.toISOString();
   return {
     id: `s${day}-${i}`,
     word_id: `w${i}`,
-    caption: null,
-    location_name: null,
+    caption: f.caption ?? null,
+    location_name: f.place ?? null,
     lat: null,
     lng: null,
     taken_at: at,
@@ -77,7 +119,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
       headword: f.head,
       reading_zhuyin: null,
       pinyin: null,
-      meaning_ja: "",
+      meaning_ja: f.gloss ?? "",
       part_of_speech: null,
       example_sentence: null,
       example_translation: null,
@@ -92,14 +134,11 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
 const today = FIXTURES.map((f, i) => makeSticker(f, i, 0));
 
 /** 今日のアルバム。**普通の日にいちばん長く見ている面。** */
-export function HomeScene({ q }: { q: URLSearchParams }) {
-  const bg = q.get("bg") ?? "paper";
+export function HomeScene() {
   return (
     <>
-      <DayHeader date={new Date()} />
-      <BackgroundPicker current={bg as "paper"} onChange={() => {}} />
-      <ScrapbookAlbum stickers={today} bgClass={`album-bg-${bg}`} onOpen={() => {}} />
-      <JournalLink />
+      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayTimeline stickers={today} opening onOpen={() => {}} />
     </>
   );
 }
@@ -113,7 +152,7 @@ export function HomeScene({ q }: { q: URLSearchParams }) {
 export function HomeEmptyScene() {
   return (
     <>
-      <DayHeader date={new Date()} />
+      <DayMasthead date={new Date()} />
       <HomeEmptyState />
     </>
   );
@@ -126,7 +165,7 @@ export function HomeEmptyScene() {
 export function HomeLoadingScene() {
   return (
     <>
-      <DayHeader date={new Date()} />
+      <DayMasthead date={new Date()} />
       <HomeLoading />
     </>
   );
@@ -179,6 +218,22 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
   );
 }
 
+/**
+ * **指で自由に置く台紙(`ScrapbookAlbum`)。**
+ *
+ * ホームは時刻の道順(`DayTimeline`)に変わったので、この台紙はもう
+ * どの画面からも呼んでいない — だが**消してはいない**。指で動かす・
+ * つまんで大きさを変える・重ねた物を上に出すは、いずれもオーナーの
+ * 指示で作った機能で、戻すかどうかはオーナーが決めること。
+ *
+ * 呼ばれていないからといって検査から外さない。外した部品は、次に
+ * 戻したとき**誰も見ていない状態で画面に出る**。
+ */
+export function HomeAlbumScene({ q }: { q: URLSearchParams }) {
+  const bg = q.get("bg") ?? "paper";
+  return <ScrapbookAlbum stickers={today} bgClass={`album-bg-${bg}`} onOpen={() => {}} />;
+}
+
 /** 圏外で撮って預かっている写真の帯。**オフラインでしか出ない面。** */
 export function HomePendingScene({ q }: { q: URLSearchParams }) {
   // 2件目は `object_img` が空。写真が読めなかったときに WifiOff の絵に
@@ -209,8 +264,8 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayHeader date={new Date()} />
-      <ScrapbookAlbum stickers={today} bgClass="album-bg-paper" onOpen={() => {}} />
+      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayTimeline stickers={today} opening onOpen={() => {}} />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />
       </JournalWritingPage>
@@ -268,9 +323,8 @@ export function HomeTapScene() {
       >
         飛ぶ元: {got}
       </p>
-      <ScrapbookAlbum
+      <DayTimeline
         stickers={today}
-        bgClass="album-bg-paper"
         onOpen={(id, from) => {
           setGot(
             from
