@@ -1,3 +1,4 @@
+import { peelGeometry } from "@/lib/peel-geometry";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { haptic } from "@/lib/haptics";
@@ -14,7 +15,7 @@ type Props = {
 };
 
 /** Provider-independent alpha silhouette. The peeled half reflects across
- * x+y=c; the back uses the same mask rather than a rectangular fake fold. */
+ * the drag direction; the back uses the same mask rather than a rectangular fake fold. */
 export function PeelSticker({
   photoUrl,
   cutoutUrl,
@@ -28,9 +29,17 @@ export function PeelSticker({
   const reduced = usePrefersReducedMotion();
   const [loaded, setLoaded] = useState<string | null>(null);
   const [pose, setPose] = useState({ p: 0, x: 0, y: 0 });
+  const [angle, setAngle] = useState(Math.PI / 4);
   const [held, setHeld] = useState(false);
   const [committed, setCommitted] = useState(false);
-  const drag = useRef<{ id: number; x: number; y: number; width: number; p: number } | null>(null);
+  const drag = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    width: number;
+    p: number;
+    angle: number | null;
+  } | null>(null);
   const frame = useRef(0);
   const ready = !!cutoutUrl && loaded === cutoutUrl;
   const url = (name: string) => `url(#${id}-${name})`;
@@ -102,6 +111,7 @@ export function PeelSticker({
       y: e.clientY,
       width: e.currentTarget.clientWidth,
       p: 0,
+      angle: null,
     };
     setHeld(true);
     haptic("selection");
@@ -112,7 +122,15 @@ export function PeelSticker({
     if (!d || d.id !== e.pointerId) return;
     const dx = e.clientX - d.x,
       dy = e.clientY - d.y;
-    const p = Math.max(0, Math.min(1, (dx + dy) / (d.width * 0.72)));
+    if (d.angle === null && Math.hypot(dx, dy) > 5) {
+      d.angle = Math.atan2(dy, dx);
+      setAngle(d.angle);
+    }
+    const direction = d.angle ?? angle;
+    const p = Math.max(
+      0,
+      Math.min(1, (dx * Math.cos(direction) + dy * Math.sin(direction)) / (d.width * 0.5)),
+    );
     d.p = p;
     setPose({
       p: reduced ? 0 : p,
@@ -130,7 +148,7 @@ export function PeelSticker({
     if (e.currentTarget.hasPointerCapture(e.pointerId))
       e.currentTarget.releasePointerCapture(e.pointerId);
   }
-  const c = pose.p * 690;
+  const fold = peelGeometry(pose.p, angle);
   return (
     <div
       className="cw-peel"
@@ -209,10 +227,10 @@ export function PeelSticker({
                   />
                 </mask>
                 <clipPath id={`${id}-front`}>
-                  <polygon points={`${c - 360},360 360,${c - 360} 900,900 -360,900`} />
+                  <polygon points={fold.front} />
                 </clipPath>
                 <clipPath id={`${id}-fold`}>
-                  <polygon points={`-360,-360 ${c + 360},-360 -360,${c + 360}`} />
+                  <polygon points={fold.fold} />
                 </clipPath>
                 <linearGradient id={`${id}-back`} x1="0" y1="0" x2="1" y2="1">
                   <stop stopColor="#fff" />
@@ -229,10 +247,10 @@ export function PeelSticker({
                 <linearGradient
                   id={`${id}-curl`}
                   gradientUnits="userSpaceOnUse"
-                  x1={c / 2}
-                  y1={c / 2}
-                  x2={c / 2 + 26}
-                  y2={c / 2 + 26}
+                  x1={fold.x}
+                  y1={fold.y}
+                  x2={fold.x + fold.nx * 36}
+                  y2={fold.y + fold.ny * 36}
                 >
                   <stop stopColor="#85838d" />
                   <stop offset=".24" stopColor="#dedde2" />
@@ -265,16 +283,11 @@ export function PeelSticker({
                   </g>
                 </g>
                 {pose.p > 0.005 && (
-                  <g transform={`matrix(0 -1 -1 0 ${c} ${c})`}>
+                  <g transform={fold.matrix}>
                     <g clipPath={url("fold")}>
                       <g mask={url("alpha")}>
                         <rect width="320" height="320" fill={url("back")} />
-                        <rect
-                          width="320"
-                          height="320"
-                          fill={url("curl")}
-                          transform={`matrix(0 -1 -1 0 ${c} ${c})`}
-                        />
+                        <rect width="320" height="320" fill={url("curl")} transform={fold.matrix} />
                       </g>
                     </g>
                   </g>
@@ -283,7 +296,7 @@ export function PeelSticker({
             </svg>
           </button>
           <span className="cw-peel-hint" aria-hidden="true">
-            ↘ {hint}
+            {hint}
           </span>
         </>
       )}

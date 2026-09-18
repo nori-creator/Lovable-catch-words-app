@@ -982,6 +982,7 @@ function CapturePage() {
    */
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
+    pronounce.prepare();
     // Webのダウンロードは、クリックから通信を1回でも待つとブラウザに止められる。
     // そのためWebだけはこの瞬間、ネイティブはDB保存の成功後に実行する。
     if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);

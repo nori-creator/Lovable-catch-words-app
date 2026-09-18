@@ -1,3 +1,5 @@
+import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { unlockAudio } from "@/lib/sound-engine";
 import { useEffect, useRef, useState } from "react";
 import { PeelSticker } from "@/components/PeelSticker";
 
@@ -34,38 +36,52 @@ export function PeelStickerScene() {
   const [saved, setSaved] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [reduced, setReduced] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const source = useRef<HTMLDivElement>(null);
+  const fly = useRef<HTMLImageElement>(null);
+  const busy = useRef(false);
   useEffect(() => {
     setReady(false);
-    const t = setTimeout(() => setReady(true), 750);
+    const t = setTimeout(() => setReady(true), 500);
     return () => clearTimeout(t);
   }, [round]);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
   useEffect(() => {
-    const prev = document.documentElement.dataset.motion;
+    const previous = document.documentElement.dataset.motion;
     document.documentElement.dataset.motion = reduced ? "reduce" : "full";
     return () => {
-      if (prev) document.documentElement.dataset.motion = prev;
+      if (previous) document.documentElement.dataset.motion = previous;
       else delete document.documentElement.dataset.motion;
     };
   }, [reduced]);
-  function save() {
-    if (saving || saved) return;
+  async function save() {
+    if (busy.current || saved) return;
+    busy.current = true;
+    unlockAudio();
     setSaving(true);
-    timer.current = setTimeout(() => {
-      setSaved(true);
+    try {
+      await runCatchLanding({
+        startEl: source.current,
+        fly,
+        destinationId: "preview-tea",
+        speakLine: () => {
+          if ("speechSynthesis" in window) {
+            const u = new SpeechSynthesisUtterance("珍珠奶茶");
+            u.lang = "zh-TW";
+            u.rate = 0.85;
+            speechSynthesis.speak(u);
+          }
+        },
+        openDex: () => {
+          setSaved(true);
+        },
+        gate: Promise.resolve(),
+      });
+    } finally {
       setSaving(false);
-    }, 700);
+      busy.current = false;
+    }
   }
   function reset() {
-    if (timer.current) clearTimeout(timer.current);
     setSaved(false);
-    setSaving(false);
     setRound((n) => n + 1);
   }
   return (
@@ -74,125 +90,182 @@ export function PeelStickerScene() {
         minHeight: "100svh",
         background: "#f4f3ef",
         color: "#242c29",
-        padding: "30px 20px 48px",
-        fontFamily: "Inter,system-ui,sans-serif",
+        padding: "24px 20px 48px",
       }}
     >
       <div style={{ maxWidth: 390, margin: "auto" }}>
-        <div
+        <header
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 34,
+            marginBottom: 24,
           }}
         >
-          <b style={{ letterSpacing: "-.7px", fontSize: 21 }}>
+          <b style={{ fontSize: 21 }}>
             CatchWords<span style={{ color: "#087cf4" }}>✦</span>
           </b>
-          <span style={{ fontSize: 10, letterSpacing: 2, color: "#7d847e" }}>
-            MOTION STUDY / 01
+          <span style={{ fontSize: 12, color: "#7d847e" }}>
+            {saved ? "図鑑 / すべて" : "キャッチ"}
           </span>
-        </div>
-        <p style={{ fontSize: 11, letterSpacing: 2, color: "#7d847e" }}>TODAY, IN YOUR WORDS</p>
-        <h1 style={{ fontSize: 29, fontWeight: 550, letterSpacing: "-1.4px", margin: "8px 0" }}>
-          日常を、ひとつ持ち帰る。
-        </h1>
-        <p style={{ fontSize: 13, color: "#7d847e", marginBottom: 26 }}>
-          触れて、はがして、あなたの言葉に。
-        </p>
-        <div style={{ aspectRatio: "1", position: "relative" }}>
-          <PeelSticker
-            key={round}
-            photoUrl={photo}
-            cutoutUrl={ready && !fallback ? cutout : null}
-            label="珍珠奶茶"
-            hint="右下へはがして図鑑へ"
-            actionLabel="図鑑へ追加"
-            disabled={saving || saved}
-            onPeel={save}
-          />
-          {saved && (
-            <div
-              role="status"
+        </header>
+        {saved ? (
+          <section aria-label="全カテゴリーの図鑑">
+            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>図鑑 · すべて</h1>
+            {["食べ物", "日用品"].map((name) => (
+              <section key={name} style={{ marginBottom: 28 }}>
+                <h2 style={{ fontSize: 22, marginBottom: 16 }}>{name}</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  {[0, 1].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        height: 190,
+                        border: "1px dashed #ccd0cc",
+                        borderRadius: 20,
+                        display: "grid",
+                        placeItems: "center",
+                        color: "#a0aaa5",
+                      }}
+                    >
+                      ＋
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <p style={{ fontSize: 12, color: "#7d847e" }}>YOUR COLLECTION</p>
+            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>飲み物</h1>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div
+                style={{
+                  border: "1px dashed #b8bebc",
+                  borderRadius: 20,
+                  minHeight: 200,
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#aaa",
+                }}
+              >
+                ＋
+              </div>
+              <div
+                id="dex-cell-preview-tea"
+                style={{
+                  borderRadius: 20,
+                  background: "white",
+                  padding: 14,
+                  textAlign: "center",
+                  minHeight: 200,
+                  boxShadow: "0 8px 24px #00000008",
+                }}
+              >
+                <img
+                  src={fallback ? photo : cutout}
+                  alt="珍珠奶茶"
+                  style={{ width: "100%", height: 160, objectFit: "contain" }}
+                />
+                <b>珍珠奶茶</b>
+              </div>
+            </div>
+            {!saving && (
+              <>
+                <p role="status" style={{ textAlign: "center", fontSize: 13, margin: 24 }}>
+                  飲み物の欄に追加しました
+                </p>
+                <button
+                  onClick={reset}
+                  style={{
+                    width: "100%",
+                    padding: 14,
+                    borderRadius: 28,
+                    background: "#087cf4",
+                    color: "white",
+                  }}
+                >
+                  もう一度キャッチ
+                </button>
+                <p style={{ fontSize: 11, color: "#888", marginTop: 16 }}>
+                  保存先はプレビュー用です。実際の図鑑には追加されません。
+                </p>
+              </>
+            )}
+          </section>
+        ) : (
+          <>
+            <div ref={source} style={{ aspectRatio: "1", opacity: saving ? 0 : 1 }}>
+              <PeelSticker
+                key={round}
+                photoUrl={photo}
+                cutoutUrl={ready && !fallback ? cutout : null}
+                label="珍珠奶茶"
+                hint="好きな方向にはがしてキャッチ"
+                actionLabel="図鑑へ追加"
+                disabled={saving}
+                onPeel={() => void save()}
+              />
+            </div>
+            <div style={{ margin: "22px 0" }}>
+              <h2 style={{ fontSize: 24, margin: 0 }}>珍珠奶茶</h2>
+              <p style={{ fontSize: 12, color: "#7d847e", marginTop: 6 }}>
+                ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ · タピオカミルクティー
+              </p>
+            </div>
+            <button
+              onClick={() => void save()}
+              disabled={saving}
               style={{
-                position: "absolute",
-                inset: 0,
-                display: "grid",
-                placeContent: "center",
-                textAlign: "center",
-                borderRadius: 24,
-                background: "#26302944",
-                backdropFilter: "blur(6px)",
+                width: "100%",
+                padding: 16,
+                borderRadius: 30,
+                background: "#087cf4",
                 color: "white",
+                border: 0,
+                fontSize: 14,
+                fontWeight: 600,
               }}
             >
-              <span style={{ fontSize: 38 }}>✓</span>
-              <b>図鑑に追加しました</b>
-              <small style={{ marginTop: 8 }}>プレビューのため保存はシミュレーションです</small>
-            </div>
-          )}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            margin: "24px 0",
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: 24, margin: 0, fontWeight: 550 }}>珍珠奶茶</h2>
-            <p style={{ fontSize: 12, color: "#7d847e", margin: "5px 0" }}>ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ</p>
-          </div>
-          <span style={{ fontSize: 12, color: "#7d847e" }}>タピオカミルクティー</span>
-        </div>
-        <button
-          onClick={saved ? reset : save}
-          disabled={saving}
-          style={{
-            width: "100%",
-            padding: 16,
-            borderRadius: 30,
-            background: "#087cf4",
-            color: "white",
-            border: 0,
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          {saving ? "追加しています…" : saved ? "もう一度はがす" : "図鑑へ追加"}
-        </button>
-        <p style={{ fontSize: 12, color: "#7d847e", textAlign: "center", margin: "16px 0 26px" }}>
-          少し引いて離すと元に戻ります。
-        </p>
-        <details style={{ fontSize: 12, color: "#7d847e" }}>
-          <summary>動作を確認する</summary>
-          <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={fallback}
-                onChange={(e) => {
-                  setFallback(e.target.checked);
-                  reset();
-                }}
-              />{" "}
-              切り抜きなし・失敗時
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={reduced}
-                onChange={(e) => setReduced(e.target.checked)}
-              />{" "}
-              動きを減らす
-            </label>
-            <button onClick={reset}>撮影直後から再生</button>
-            <small>サンプル画像。実際の画面では撮影した写真と切り抜きを使います。</small>
-          </div>
-        </details>
+              図鑑へ登録
+            </button>
+            <p style={{ fontSize: 12, color: "#7d847e", textAlign: "center", margin: 18 }}>
+              どの方向でも。少し引いて離すと元に戻ります。
+            </p>
+            <details style={{ fontSize: 12, color: "#7d847e" }}>
+              <summary>動作を確認する</summary>
+              <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    checked={fallback}
+                    onChange={(e) => setFallback(e.target.checked)}
+                  />{" "}
+                  切り抜きなし・失敗時
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    checked={reduced}
+                    onChange={(e) => setReduced(e.target.checked)}
+                  />{" "}
+                  動きを減らす
+                </label>
+                <small>音声は端末の台湾華語音声を使用。本番は既存の単語音声を使用します。</small>
+              </div>
+            </details>
+          </>
+        )}
       </div>
+      {saving && (
+        <CatchLandingOverlay
+          ref={fly}
+          image={fallback ? photo : cutout}
+          headword="珍珠奶茶"
+          reading="ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ"
+          lang="zh-TW"
+        />
+      )}
     </div>
   );
 }

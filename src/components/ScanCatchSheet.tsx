@@ -26,8 +26,6 @@ import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
 import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
-import { Sound } from "@/lib/sound-engine";
-import { haptic } from "@/lib/haptics";
 import {
   photoLibrarySaveRequiresUserGesture,
   saveCaptureToPhotoLibrary,
@@ -223,7 +221,7 @@ export function ScanCatchSheet({
    * ここに残すのは**どの版でも共通の前後処理**だけ: phase の切替、チャイム、
    * 振動、そして reduced motion のときは飛行そのものを省く判断。
    */
-  async function runLandingAnimation(): Promise<void> {
+  async function runLandingAnimation(gate: Promise<void>): Promise<void> {
     setPhase("landing");
     await runCatchLanding({
       startEl: cutoutBoxRef.current,
@@ -231,7 +229,8 @@ export function ScanCatchSheet({
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
       speakLine: () => void pronounceRef.current?.(headword),
-      destinationId: landingDestinationRef.current ?? undefined,
+      getDestinationId: () => landingDestinationRef.current ?? undefined,
+      gate,
       openDex: () => {
         const id = landingDestinationRef.current;
         if (id) return navigate({ to: "/dex", search: { justCaught: id } });
@@ -241,12 +240,19 @@ export function ScanCatchSheet({
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    pronounceRef.current.prepare();
     // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
     if (photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
-    Sound.rewardGrip();
-    haptic("selection");
     setSaving(true);
     setErr(null);
+    let releaseSave!: () => void;
+    let failSave!: (e: unknown) => void;
+    const gate = new Promise<void>((resolve, reject) => {
+      releaseSave = resolve;
+      failSave = reject;
+    });
+    void gate.catch(() => {});
+    const landing = runLandingAnimation(gate).catch((e) => console.warn("catch landing failed", e));
     try {
       // §3.3 acceptance: the prefetched card is reused — no additional AI call
       // here. A reunion upgrade doesn't need the card at all (word exists).
@@ -419,7 +425,8 @@ export function ScanCatchSheet({
       landingDestinationRef.current = stickerId;
       // ネイティブ版は札の保存が成功した時点でだけ共有フォトへ同期する。
       if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
-      await runLandingAnimation();
+      releaseSave();
+      await landing;
       setPhase("done");
       if (firstCatch) {
         // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
@@ -432,6 +439,7 @@ export function ScanCatchSheet({
         navigate({ to: "/dex", search: { justCaught: stickerId } });
       }
     } catch (e) {
+      failSave(e);
       console.error(e);
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       toast.error(t("cap.saveFailed"));

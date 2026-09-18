@@ -2962,9 +2962,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.useThis": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
   "capture.peelHint": {
-    ja: "右下へはがして図鑑へ",
-    en: "Peel down-right to collect",
-    "zh-TW": "往右下撕，收入圖鑑",
+    ja: "好きな方向にはがしてキャッチ",
+    en: "Peel in any direction to catch",
+    "zh-TW": "往任何方向撕，捕捉單字",
   },
   "capture.flipHint": {
     ja: "画像をタップで自撮りにフリップ",

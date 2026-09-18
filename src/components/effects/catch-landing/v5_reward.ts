@@ -51,7 +51,14 @@ export const v5reward: LandingRunner = async ({
   const root = document.getElementById("reward-catch");
   if (!root || !startEl || !fly) {
     speakLine?.();
-    await wait(650);
+    if (gate) {
+      try {
+        await gate;
+      } catch {
+        return;
+      }
+    }
+    await openDex?.();
     return;
   }
 
@@ -68,7 +75,7 @@ export const v5reward: LandingRunner = async ({
   const centerY = source.top + height / 2;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const targetWidth = Math.min(viewportWidth * 0.76, 350);
+  const targetWidth = Math.min(viewportWidth * 0.9, viewportHeight * 0.52, 560);
   const heroScale = targetWidth / width;
   const heroX = viewportWidth / 2 - centerX;
   const heroY = viewportHeight * 0.38 - centerY;
@@ -78,7 +85,7 @@ export const v5reward: LandingRunner = async ({
   fly.style.width = `${width}px`;
   fly.style.height = `${height}px`;
   fly.style.opacity = "1";
-  fly.style.transformOrigin = "50% 70%";
+  fly.style.transformOrigin = "50% 50%";
 
   root.dataset.stage = "grip";
   Sound.rewardGrip();
@@ -122,12 +129,13 @@ export const v5reward: LandingRunner = async ({
         transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972}) rotateZ(0deg)`,
       },
     ],
-    { duration: 560, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" },
+    { duration: 200, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" },
   ).finished;
 
   root.dataset.stage = "hold";
-  await wait(96);
+  await wait(60);
   root.dataset.stage = "break";
+  speakLine?.();
   Sound.rewardBreak();
   setTimeout(() => haptic("heavy"), 32);
   await fly.animate(
@@ -143,7 +151,6 @@ export const v5reward: LandingRunner = async ({
   ).finished;
 
   root.dataset.stage = "reveal";
-  speakLine?.();
   await wait(1000);
   // **見せ場の1秒は、保存を待つ関所も兼ねる。**
   // 演出は押した瞬間に始まっているので、ここでまだ保存が終わっていない
@@ -173,6 +180,7 @@ export const v5reward: LandingRunner = async ({
   handoffImage.style.width = `${heroRect.width}px`;
   handoffImage.style.height = `${heroRect.height}px`;
   handoffImage.style.transform = "none";
+  handoffImage.style.transformOrigin = "0 0";
   handoffImage.style.opacity = "1";
   // 着地先は**いま**読む。冒頭で分解した値は、押した時点ではまだ null。
   const targetId = getDestinationId?.() ?? destinationId;
