@@ -333,8 +333,8 @@ function HomePage() {
   const bgClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
 
   return (
-    <AppShell surface="paper">
-      <DayMasthead date={today} total={total} />
+    <AppShell>
+      <DayMasthead date={today} total={total} tagline={dayTagline(todayStickers, t)} />
 
       <PendingCapturesBanner />
 
@@ -352,9 +352,7 @@ function HomePage() {
               過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
           <DayTimeline
             stickers={todayStickers}
-            bgClass={bgClass}
             opening
-            tagline={dayTagline(todayStickers, t)}
             onOpen={(id, from) => {
               setOpenId(id);
               setOpenFrom(from ?? null);
@@ -540,12 +538,7 @@ export function PastDays({
           {/* **日付の見出しだけ。** 週・月の束ね方は消した(オーナー指示
               「ホームの画面の日、週、月のボタンを消して」)。 */}
           <DayHeader date={keyToDate(k)} compact />
-          <DayTimeline
-            stickers={items}
-            bgClass={bgClass}
-            onOpen={onOpen}
-            onLongPress={onLongPress}
-          />
+          <DayTimeline stickers={items} onOpen={onOpen} onLongPress={onLongPress} />
           {/* 写真のページの**向かい**に日記を置く(要望 #22)。
               使った語は `used_sticker_ids` から出す — 書かれてはいたが
               **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
@@ -812,79 +805,42 @@ export function dayTagline(
 }
 
 /**
- * マスキングテープの1本ぶん。**貼り方は写真の形と重さで決める。**
+ * その日の**足あと**（オーナー指示 2026-09-18）。
  *
- * オーナー指示 2026-09-17:
- * > 「マスキングテープももっとクオリティーが高いものを作って、写真の
- * >  大きさや配置、重心を考えてによって貼り方を変えて。」
+ * > 「ホームのデザインとこのアプリのコンセプトが一致してない。やっぱり背景の
+ * >  紙なくして。マスキングテープもなしくて。また画像と画像の間が広すぎて
+ * >  見づらい。一目でぱっと今日の撮ったものが見れるように詰めて。画像のような
+ * >  手書き感とこのアプリのコンセプト融合させて」
  *
- * 紙のアルバムで人が実際にやっていることを写す:
- *   ・**縦長で重い写真**は落ちやすいので、上の真ん中を1本でしっかり留める
- *   ・**横長の写真**は左右に振れるので、上の両隅を斜めに2本
- *   ・**小さい写真**は角を1本、斜めに掛けるだけで足りる
- * 角度は写真の傾きと**逆向き**にする — 傾きを押さえている形になる。
- */
-type Tape = { left: string; top: string; width: string; rot: number; tone: string };
-
-function tapesFor(ratio: number, small: boolean, tilt: number, seed: number): Tape[] {
-  // 色は札ごとに順に回す。全部同じ色だと機械の表に見える。
-  const tones = ["iris", "sage", "rose", "cream"];
-  const a = tones[seed % 4];
-  const b = tones[(seed + 2) % 4];
-  const against = tilt > 0 ? -1 : 1; // 傾きと逆に掛ける
-  // `left` は**テープの中心**（CSS 側で `translate: -50% 0`）。
-  if (small) {
-    // 小さい写真 — 角に1本、斜めに掛けるだけで足りる。
-    return [{ left: "4%", top: "2%", width: "46%", rot: against * -44, tone: a }];
-  }
-  if (ratio >= 1.15) {
-    // 縦長で重い — 落ちやすいので、上の真ん中を1本でしっかり留める。
-    return [{ left: "50%", top: "-0.6rem", width: "42%", rot: against * 2.5, tone: a }];
-  }
-  if (ratio <= 0.85) {
-    // 横長 — 左右に振れるので、上の両隅を斜めに2本。
-    return [
-      { left: "12%", top: "-0.45rem", width: "32%", rot: -40, tone: a },
-      { left: "88%", top: "-0.45rem", width: "32%", rot: 40, tone: b },
-    ];
-  }
-  // ほぼ正方形 — 上のやや左を1本。
-  return [{ left: "34%", top: "-0.55rem", width: "38%", rot: against * 5, tone: a }];
-}
-
-/**
- * その日の**切り貼りのページ**（オーナー指示 2026-09-17、見本の絵9枚）。
+ * ## 何をやめたか
  *
- * > 「本物のアルバムや雑誌の雰囲気を作り上げて。…完全再現して。」
- * > 「字体や写真の角度、配置、大きさ、写真の重なり具合、手書きのひと言を
- * >  完全再現して。紙は方眼紙ではなく、アルバムなどを張る無地の少しかための紙。」
+ * 紙の台紙・マスキングテープ・傾き・ちぎった紙をすべて外した。紙の上に貼る
+ * 形は「1枚ずつ眺める本」には合うが、この app は**街で見つけた語をその場で
+ * 捕まえる道具**で、ホームは「今日はこれだけ捕まえた」を**一目で**見る面。
+ * 貼り物が増えるほど1枚あたりの場所を食い、同じ画面に入る枚数が減っていた。
+ *
+ * ## 何を残したか（手書き感の融合）
+ *
+ * **アプリが書く字はゴシック、人が書いた字は手書き。** 時刻・語・場所は
+ * アプリが持っている事実なのでゴシックで揃え、**その日の一言**と
+ * **撮ったときに書いた1言**だけを和文の手書き（Zen Kurenaido）で出す。
+ * こうすると、手書きは飾りではなく「ここから先はあなたの字」という合図になる。
  *
  * ## 形
  *
- * 無地のアルバム台紙に、写真を**2列**で貼っていく。1枚ずつ傾きが違い、
- * マスキングテープで留めてあり、写真の下フチには**ちぎった紙の見出し**が
- * 重なる。時刻はその横に手書き。撮ったときに書いた1言は、その下に和文の
- * 手書きで添える。
- *
- * 並びは**撮った時刻の早い順**（左上 → 右上 → 左下 → 右下）。右の列は
- * 少し下げてあるので、貼り合わせたページに見える。
- *
- * **道は線で繋がない**（オーナー指示）。時刻が並んでいれば順は読める。
+ * 左に青い1本の道。丸と時刻が並び、右に角の丸い写真と語。**撮った時刻の
+ * 早い順**に上から下へ。1つおきに写真を少し細くして右へ寄せ、同じ幅が
+ * 続く単調さだけを崩す（傾けない — 傾けると場所を食う）。
  */
 export function DayTimeline({
   stickers,
-  bgClass,
   opening,
-  tagline,
   onOpen,
   onLongPress,
 }: {
   stickers: StickerWithWord[];
-  bgClass: string;
-  /** 表紙が開く演出。**今日の1冊だけ**（過去の日に付けると遡るたびに回り出す）。 */
+  /** 開く演出。**今日の1日だけ**（過去の日に付けると遡るたびに走る）。 */
   opening?: boolean;
-  /** 紙の下に貼る、その日の手書きの一言。無ければ出さない。 */
-  tagline?: string;
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   /** 写真の長押し = この札の主役の写真を選び直す。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
@@ -897,7 +853,7 @@ export function DayTimeline({
   /**
    * 写真そのものの縦横の比（高さ÷幅）。**読めた札はこちらを使う**ので、
    * 上下を切らずに全部が出る（オーナー報告 2026-09-15「上や下が見切れてる」）。
-   * 読めるまでは 4:3 で場所を取っておく — 0 にすると、読み込むたびに
+   * 読めるまでは 16:10 で場所を取っておく — 0 にすると、読み込むたびに
    * 下の札が突き上げられる。
    */
   const [photoRatio, setPhotoRatio] = useState<Record<string, number>>({});
@@ -932,217 +888,108 @@ export function DayTimeline({
   }
   useEffect(() => endLongPress, []);
 
-  function stop(s: StickerWithWord, index: number) {
-    const at = takenAt(s);
-    const time = at.toLocaleTimeString(locale, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    // **ネットの絵はアルバムに貼らない**（オーナー指摘 2026-08-21）。
-    // 借りてきた絵を同じ紙に貼ると、撮った日の思い出と見分けが付かない。
-    const hero = pickStickerPhoto(s, {
-      prefer: resolveSurfaceRole({
-        surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
-        heroRole: s.hero_role,
-        screenIntent: resolvePrefer(photoPref, "selfie"),
-      }),
-      exclude: ["placeholder"],
-    });
-    /**
-     * **同じ瞬間のもう1枚**（自撮りと元写真の、選ばれなかったほう）。
-     * 見本の絵で大きな写真の角に小さな写真が重なっているのがこれ —
-     * 作り物の飾りではなく、**その札が実際に持っているもう1枚**を出す。
-     * 切り抜きは出さない（同じ絵の抜き型なので、2枚並べる意味が無い）。
-     */
-    const second = hero
-      ? pickStickerPhoto(s, { exclude: ["placeholder", "cutout", hero.role], thumb: true })
-      : null;
-    // 傾きは札ごとに散らす。揃えると、貼ったのではなく印刷に見える。
-    const tilt = [-2.4, 1.8, 3.0, -1.4, 2.2, -3.1][index % 6];
-    const ratio = photoRatio[s.id] ?? 0.75;
-    // 大きさも散らす。**全部同じ幅で並べると、貼った物ではなく一覧表になる。**
-    // 4枚に1枚は少し小さく貼る（見本の絵と同じ）。
-    const small = index % 4 === 2;
-    const tapes = tapesFor(ratio, small, tilt, index);
-    return (
-      <li
-        key={s.id}
-        className="scrap__item"
-        data-small={small || undefined}
-        // 後に貼った写真ほど上に重なる（紙に順に貼っていった形）。
-        style={{ zIndex: 10 + index }}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            // 長押しが成立した回の「離す」では開かない。
-            if (longPressFired.current) {
-              longPressFired.current = false;
-              return;
-            }
-            // 押した札の写真から**絵が飛ぶ**（`use-hero-reveal`）。
-            onOpen(s.id, flightFrom(e.currentTarget));
-          }}
-          onPointerDown={(e) => beginLongPress(s.id, { x: e.clientX, y: e.clientY })}
-          onPointerMove={(e) => {
-            // 押さえたまま待つのが長押し。遊びを越えて動いたら、
-            // めくろうとしたと見て取り消す。
-            const o = pressOrigin.current;
-            if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endLongPress();
-          }}
-          onPointerUp={endLongPress}
-          onPointerCancel={endLongPress}
-          onContextMenu={(e) => e.preventDefault()}
-          // 押したまま動かすと Chromium が中の <img> でネイティブの drag を
-          // 始め、`pointercancel` で指を取り上げる。
-          draggable={false}
-          onDragStart={(e) => e.preventDefault()}
-          className={`scrap__card photo-lift${hero ? "" : " scrap__card--text"}`}
-        >
-          {hero && (
-            <span className="scrap__photo photo-print" style={{ rotate: `${tilt}deg` }}>
-              {tapes.map((tp, k) => (
-                <span
-                  key={k}
-                  aria-hidden
-                  className={`washi washi--${tp.tone}`}
-                  style={{
-                    left: tp.left,
-                    top: tp.top,
-                    width: tp.width,
-                    rotate: `${tp.rot}deg`,
-                  }}
-                />
-              ))}
-              <span className="scrap__frame" style={{ aspectRatio: `1 / ${ratio}` }}>
-                <CachedImg
-                  src={hero.url}
-                  alt={t("common.memoryOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  onLoad={(e) => {
-                    const img = e.currentTarget;
-                    if (!img.naturalWidth || !img.naturalHeight) return;
-                    const r = img.naturalHeight / img.naturalWidth;
-                    setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
-                  }}
-                  className="block h-full w-full object-cover"
-                />
-              </span>
-              {second && (
-                <span
-                  aria-hidden
-                  className="scrap__photo2 photo-print"
-                  style={{ rotate: `${-tilt * 1.5}deg` }}
-                >
-                  <span className="scrap__frame scrap__frame--square">
-                    <CachedImg
-                      src={second.url}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="block h-full w-full object-cover"
-                    />
-                  </span>
+  return (
+    <ol className={`trail ${opening ? "trail--open" : ""}`}>
+      {entries.map((s, index) => {
+        const time = takenAt(s).toLocaleTimeString(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        // **ネットの絵はホームに出さない**（オーナー指摘 2026-08-21）。
+        // 借りてきた絵を並べると、撮った日の思い出と見分けが付かない。
+        const hero = stickerPhotoUrl(s, {
+          prefer: resolveSurfaceRole({
+            surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
+            heroRole: s.hero_role,
+            screenIntent: resolvePrefer(photoPref, "selfie"),
+          }),
+          exclude: ["placeholder"],
+        });
+        /**
+         * 写真の高さの上限（オーナー指示 2026-09-18「一目でぱっと今日の
+         * 撮ったものが見れるように詰めて」）。
+         *
+         * 縦長の写真をそのまま幅いっぱいに出すと、実測で1枚 470px（画面の
+         * 半分以上）になり、**1画面に2枚も入らない**。見本の絵はどれも
+         * 横長で、下まで一気に読める。**横長より縦長にはしない** —
+         * 横長の写真はそのまま全部出て、縦長だけ 16:10 で切る。
+         */
+        const ratio = Math.min(photoRatio[s.id] ?? 0.625, 0.625);
+        return (
+          <li key={s.id} className="trail__item" data-narrow={index % 2 === 1 || undefined}>
+            <span className="trail__dot" aria-hidden="true" />
+            <span className="trail__time">{time}</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                // 長押しが成立した回の「離す」では開かない。
+                if (longPressFired.current) {
+                  longPressFired.current = false;
+                  return;
+                }
+                // 押した札の写真から**絵が飛ぶ**（`use-hero-reveal`）。
+                onOpen(s.id, flightFrom(e.currentTarget));
+              }}
+              onPointerDown={(e) => beginLongPress(s.id, { x: e.clientX, y: e.clientY })}
+              onPointerMove={(e) => {
+                // 押さえたまま待つのが長押し。遊びを越えて動いたら、
+                // めくろうとしたと見て取り消す。
+                const o = pressOrigin.current;
+                if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endLongPress();
+              }}
+              onPointerUp={endLongPress}
+              onPointerCancel={endLongPress}
+              onContextMenu={(e) => e.preventDefault()}
+              // 押したまま動かすと Chromium が中の <img> でネイティブの drag を
+              // 始め、`pointercancel` で指を取り上げる。
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              className="trail__card press-in"
+            >
+              {hero && (
+                <span className="trail__photo" style={{ aspectRatio: `1 / ${ratio}` }}>
+                  <CachedImg
+                    src={hero}
+                    alt={t("common.memoryOf", { word: s.word.headword })}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.naturalWidth || !img.naturalHeight) return;
+                      const r = img.naturalHeight / img.naturalWidth;
+                      setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
+                    }}
+                    className="block h-full w-full object-cover"
+                  />
                 </span>
               )}
-            </span>
-          )}
-          {/* ちぎった紙の見出し。写真の下フチに重ねて貼る。
-              字形は学習言語で決める(`Term`)。**手書き風は当てない** —
-              Caveat に漢字が無く、Zen Kurenaido は和文の字形なので、
-              どちらも繁体字の字形指定を壊す。 */}
-          <span className="scrap__label" style={{ rotate: `${-tilt * 0.45}deg` }}>
-            <Term lang={s.word.language} className="scrap__head">
-              {s.word.headword}
-            </Term>
-          </span>
-          {/* 撮った時刻。数字だけなので手書き風(Caveat)を当てても字が落ちない。 */}
-          <span className="scrap__time handwritten">{time}</span>
-          {/* **撮ったときに書いた1言**（オーナー指示）。見本の絵では紙の上に
-              **手で書いてある**。和文の手書き書体(`Zen Kurenaido`)を当てる —
-              ここが「アルバムの雰囲気」のいちばんの中身で、ゴシックで組むと
-              途端に管理画面に戻る。 */}
-          {s.caption && (
-            <span
-              className="scrap__note handwritten-ja ja-phrase"
-              style={{ rotate: `${tilt * 0.3}deg` }}
-            >
-              {s.caption}
-            </span>
-          )}
-          {s.location_name && (
-            <span className="scrap__place">
-              <MapPin aria-hidden className="h-3 w-3 shrink-0" />
-              <span className="truncate">{s.location_name}</span>
-            </span>
-          )}
-        </button>
-      </li>
-    );
-  }
-
-  return (
-    // 紙は**ちぎった縁**にする。角の丸い板は「カード」で、紙ではない。
-    // 影は `filter: drop-shadow` で付ける — `clip-path` を掛けた要素では
-    // `box-shadow` が四角いままはみ出す。
-    <div className={`day-sheet__shadow ${opening ? "album-open" : ""}`}>
-      <div className={`day-sheet ${bgClass}`}>
-        {/* **紙の一番上に、その日の日付を手で書く**（オーナー指示 2026-09-17
-            「紙の一番上に今日の日付を手書きで書いて」）。 */}
-        <p className="day-sheet__date handwritten-ja">{dateLine(entries, locale)}</p>
-        <ol className="scrap">{entries.map((s, i) => stop(s, i))}</ol>
-        <div className="scrap__closing">
-          {tagline && (
-            <p className="scrap__summary handwritten-ja ja-phrase">
-              {tagline}
-              <svg
-                className="scrap__summary-rule"
-                viewBox="0 0 120 8"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M2 5C26 1 50 7 74 4s32-2 44 1"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            </p>
-          )}
-          <div className="scrap__closing-right">
-            {/* 締めの書き添えは**今日の紙にだけ**。遡ると日ごとに紙が続くので、
-                同じ手書きの言葉が何十回も並ぶと、手で書いた物ではなく印刷
-                された欄外の飾りに見える。 */}
-            {opening && (
-              <p className="scrap__sign handwritten">
-                Small words
-                <br />
-                Big days.
-              </p>
-            )}
-            <p className="scrap__end">
-              {formatCount(stickers.length)}
-              {t("home.memories")}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+              {/* 語。**アプリが持っている事実**なのでゴシックで揃える。
+                  字形は学習言語で決める(`Term`) — 手書きの書体はどれも和文か
+                  ラテンの字形なので、繁体字の字形指定を壊す。 */}
+              <span className="trail__word">
+                <Term lang={s.word.language} className="trail__head">
+                  {s.word.headword}
+                </Term>
+              </span>
+              {s.word.meaning_ja && <span className="trail__gloss">{s.word.meaning_ja}</span>}
+              {/* **撮ったときに書いた1言だけが手書き。**
+                  ここから先は人が書いた字、という合図にする。 */}
+              {s.caption && (
+                <span className="trail__note handwritten-ja ja-phrase">{s.caption}</span>
+              )}
+              {s.location_name && (
+                <span className="trail__place">
+                  <MapPin aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{s.location_name}</span>
+                </span>
+              )}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
-}
-
-/** 紙の一番上に手で書く日付。**その紙が何日ぶんか**を紙自身に持たせる。 */
-function dateLine(entries: StickerWithWord[], locale: string): string {
-  const d = entries[0] ? takenAt(entries[0]) : new Date();
-  return `${d.toLocaleDateString(locale, { month: "long", day: "numeric" })}  ${d.toLocaleDateString(
-    locale,
-    { weekday: "long" },
-  )}`;
 }
 
 export function ScrapbookAlbum({

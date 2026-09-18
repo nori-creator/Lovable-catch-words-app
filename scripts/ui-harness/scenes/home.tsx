@@ -134,19 +134,11 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
 const today = FIXTURES.map((f, i) => makeSticker(f, i, 0));
 
 /** 今日のアルバム。**普通の日にいちばん長く見ている面。** */
-export function HomeScene({ q }: { q: URLSearchParams }) {
-  const bg = q.get("bg") ?? "paper";
+export function HomeScene() {
   return (
     <>
-      <DayMasthead date={new Date()} total={257} />
-      <BackgroundPicker current={bg as "paper"} onChange={() => {}} />
-      <DayTimeline
-        stickers={today}
-        bgClass={`album-bg-${bg}`}
-        opening
-        tagline={dayTagline(today, tStatic)}
-        onOpen={() => {}}
-      />
+      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayTimeline stickers={today} opening onOpen={() => {}} />
     </>
   );
 }
@@ -272,14 +264,8 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} total={257} />
-      <DayTimeline
-        stickers={today}
-        bgClass="album-bg-paper"
-        opening
-        tagline={dayTagline(today, tStatic)}
-        onOpen={() => {}}
-      />
+      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayTimeline stickers={today} opening onOpen={() => {}} />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />
       </JournalWritingPage>
@@ -339,7 +325,6 @@ export function HomeTapScene() {
       </p>
       <DayTimeline
         stickers={today}
-        bgClass="album-bg-paper"
         onOpen={(id, from) => {
           setGot(
             from

@@ -4471,8 +4471,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
  * >  撮ったときに書いた1言も画像のように表示する。一番上には今日の日付を
  * >  書いて、下にずっとスクロールできるようにして。」
  */
-describe("ホームは1枚のアルバム台紙", () => {
-  const timelineOnly = () => {
+describe("ホームは今日の足あと", () => {
+  const trailOnly = () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     const a = home.indexOf("export function DayTimeline(");
     expect(a).toBeGreaterThan(-1);
@@ -4486,13 +4486,11 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(j).toBeGreaterThan(i);
     return css.slice(i, j);
   };
-  /** 注釈を落とした CSS。「縞は入れない」と**書いてある**注釈で落ちないように。 */
-  const bare = (block: string) => block.replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("**並びは撮った時刻の早い順**（表から来る新しい順をそのまま出さない）", () => {
     // 朝から夜へ辿れることがこの画面の中身。表の並び（新しい順）で出すと
-    // 夜から朝へ遡ることになり、「その日を1ページで読む」にならない。
-    const tl = timelineOnly();
+    // 夜から朝へ遡ることになり、「今日を1枚で読む」にならない。
+    const tl = trailOnly();
     expect(tl).toMatch(/takenAt\(a\)\.getTime\(\) - takenAt\(b\)\.getTime\(\)/);
     // 時刻は `taken_at`。無い/壊れている札は保存した時刻に落とす
     // （落とさないと `Invalid Date` が並びの先頭に固まる）。
@@ -4502,54 +4500,79 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(at.slice(0, 260)).toMatch(/Number\.isNaN/);
   });
 
-  it("**時刻は書くだけ。線で繋がない**（オーナー指示 2026-09-17）", () => {
-    // > 「時間は青い線で繋がなくていい。添付の画像のように時間を書くだけでいい。」
-    // 一度は停留所の間に手描きの矢印を引いていた。取り消しの指示なので、
-    // **矢印そのものを消す**（薄くするのではなく）。
-    const tl = timelineOnly();
-    expect(tl).not.toMatch(/timeline__arrow|scrap__arrow/);
-    expect(tl).not.toMatch(/from-left|from-right/);
+  it("**紙もマスキングテープも傾きも使わない**（オーナー指示 2026-09-18）", () => {
+    // > 「やっぱり背景の紙なくして。マスキングテープもなしくて。」
+    // 貼り物が増えるほど1枚あたりの場所を食い、同じ画面に入る枚数が減る。
+    const css = read("styles.css");
+    expect(css).not.toMatch(/\.app-paper/);
+    expect(css).not.toMatch(/\.day-sheet/);
+    expect(css).not.toMatch(/^\.washi \{/m);
+    const tl = trailOnly();
+    expect(tl).not.toMatch(/washi|day-sheet|photo-print|tapesFor/);
+    expect(tl).not.toMatch(/rotate: `\$\{tilt\}deg`/);
+    // 地はアプリの既定に戻す（`AppShell` に紙の面を持たせない）。
+    const shell = codeOnly(read("../src/components/AppShell.tsx"));
+    expect(shell).not.toMatch(/app-paper|surface/);
+  });
+
+  it("**手描きの線で繋がない**（オーナー指示 2026-09-17）", () => {
+    // > 「時間は青い線で繋がなくていい。…時間を書くだけでいい。」
+    // 停留所の間に引いていた手描きの矢印は消した。左に通る1本の道は
+    // **見本の絵（2026-09-18「今日の足あと」）そのもの**なので別物。
+    const tl = trailOnly();
+    expect(tl).not.toMatch(/timeline__arrow|scrap__arrow|from-left|from-right/);
     const css = read("styles.css");
     expect(css).not.toMatch(/\.timeline__arrow|\.scrap__arrow/);
+    // 道は直線1本（丸の中心を通す）。
+    expect(cssBlock(".trail::before {", "\n}")).toMatch(/left: 5px/);
+  });
+
+  it("**一目で見えるように詰める**（写真の高さに上限を置く）", () => {
+    // > 「画像と画像の間が広すぎて見づらい。一目でぱっと今日の撮ったものが
+    // >  見れるように詰めて。」
+    // 縦長の写真をそのまま幅いっぱいに出すと実測 470px（画面の半分以上）に
+    // なり、1画面に2枚も入らなかった。**横長より縦長にはしない。**
+    const tl = trailOnly();
+    expect(tl).toMatch(/Math\.min\(photoRatio\[s\.id\] \?\? 0\.625, 0\.625\)/);
+    expect(cssBlock(".trail__item {", ".trail__item:last-child")).toMatch(
+      /padding-bottom: 1\.25rem/,
+    );
+  });
+
+  it("**写真の角は丸みを帯びさせる**", () => {
+    expect(cssBlock(".trail__photo {", "\n}")).toMatch(/border-radius: 14px/);
+  });
+
+  it("**アプリが書く字はゴシック、人が書いた字は手書き**", () => {
+    // > 「画像のような手書き感とこのアプリのコンセプト融合させて」
+    // 時刻・語・場所はアプリが持っている事実なのでゴシックで揃え、
+    // **その日の一言**と**撮ったときに書いた1言**だけを和文の手書きにする。
+    // 手書きが飾りではなく「ここから先はあなたの字」という合図になる。
+    const tl = trailOnly();
+    expect(tl).toMatch(/trail__note handwritten-ja/);
+    expect(tl).not.toMatch(/trail__time[^"]*handwritten/);
+    expect(tl).not.toMatch(/trail__head[^"]*handwritten/);
+    expect(tl).not.toMatch(/trail__place[^"]*handwritten/);
+    // その日の一言は表紙に置く（見本の絵と同じ右上）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const mast = home.slice(
+      home.indexOf("export function DayMasthead("),
+      home.indexOf("function takenAt("),
+    );
+    expect(mast).toMatch(/day-masthead__tagline handwritten-ja/);
   });
 
   it("**撮った時刻を書く**（24時間表記・数字は揃える）", () => {
-    const tl = timelineOnly();
+    const tl = trailOnly();
     expect(tl).toMatch(/toLocaleTimeString\(locale/);
     expect(tl).toMatch(/hour12: false/);
     // 桁が揃わないと、下へ読むときに時刻の列が波打つ。
-    expect(cssBlock(".scrap__time {", "\n}")).toMatch(/font-variant-numeric: tabular-nums/);
+    expect(cssBlock(".trail__time {", "\n}")).toMatch(/font-variant-numeric: tabular-nums/);
   });
 
-  it("**紙の一番上に、その日の日付を手書きで書く**", () => {
-    // オーナー指示「紙の一番上に今日の日付を手書きで書いて」。
-    const tl = timelineOnly();
-    expect(tl).toMatch(/day-sheet__date handwritten-ja/);
-    expect(tl).toMatch(/\{dateLine\(entries, locale\)\}/);
-    // 紙が何日ぶんかは**その紙の1枚目**から出す（引数で渡さない）。
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    const fn = home.slice(home.indexOf("function dateLine("));
-    expect(fn.slice(0, 320)).toMatch(/takenAt\(entries\[0\]\)/);
-  });
-
-  it("**撮ったときに書いた1言を、和文の手書きで出す**", () => {
-    // オーナー指示「撮ったときに書いた1言も画像のように表示する」
-    // 「単語や一言の手書き感」。`caption` は保存はされていたが、ホームには
-    // 一度も出ていなかった列。ゴシックで組むと途端に管理画面に戻る。
-    const tl = timelineOnly();
-    expect(tl).toMatch(/\{s\.caption && /);
-    expect(tl).toMatch(/scrap__note handwritten-ja/);
-  });
-
-  it("**書体の当て方**（Caveat は数字だけ / 和文の手書きは和文だけ）", () => {
-    const tl = timelineOnly();
-    // `.handwritten` は Caveat。**漢字を持たない**ので、当たるのは数字だけ。
-    expect(tl).toMatch(/scrap__time handwritten"/);
-    // 見出し語には**どちらの手書きも当てない**。Caveat に漢字が無く、
-    // Zen Kurenaido は和文の字形なので、どちらも繁体字の字形指定を壊す。
-    expect(tl).not.toMatch(/scrap__head[^"]*handwritten/);
-    const head = cssBlock(".scrap__head {", "\n}");
-    expect(head).not.toMatch(/font-family/);
+  it("**撮ったときに書いた1言を出す**", () => {
+    // `caption` は保存はされていたが、ホームには一度も出ていなかった列。
+    expect(trailOnly()).toMatch(/\{s\.caption && /);
   });
 
   it("**和文の手書き書体を自前で配る**（外へ取りに行かない）", () => {
@@ -4581,44 +4604,7 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(missing).toEqual([]);
   });
 
-  it("**マスキングテープの貼り方は、写真の形と重さで変わる**", () => {
-    // オーナー指示「写真の大きさや配置、重心を考えてによって貼り方を変えて」。
-    // 紙のアルバムで人が実際にやっていること: 縦長で重い写真は上の真ん中を
-    // 1本、横長は上の両隅を斜めに2本、小さい写真は角に1本。
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    const fn = home.slice(home.indexOf("function tapesFor("));
-    const body = fn.slice(0, fn.indexOf("\n}"));
-    expect(body).toMatch(/if \(small\)/);
-    expect(body).toMatch(/ratio >= 1\.15/);
-    expect(body).toMatch(/ratio <= 0\.85/);
-    // 横長だけ2本。1本しか返さないなら「重さで変える」になっていない。
-    // 終わりは**最後の `return [`**（正方形の枝）で取る。注釈で切ろうとすると
-    // `codeOnly` が注釈行を落としているので `-1` になり、末尾まで拾う。
-    const wide = body.slice(body.indexOf("ratio <= 0.85"), body.lastIndexOf("return ["));
-    expect((wide.match(/tone:/g) ?? []).length).toBe(2);
-    // 角度は写真の傾きと**逆向き**（傾きを押さえている形）。
-    expect(body).toMatch(/const against = tilt > 0 \? -1 : 1/);
-    // 和紙なので下が透ける。濃くすると「塗った線」に見える。
-    const washi = bare(cssBlock(".washi {", ".washi--iris"));
-    expect(washi).toMatch(/opacity: 0\.6\d/);
-    expect(washi).toMatch(/clip-path: polygon\(/);
-  });
-
-  it("**紙は無地。方眼も罫も入れない**（オーナー指示 2026-09-17）", () => {
-    // > 「紙は方眼紙ではなく、アルバムなどを張る無地の少しかための紙。」
-    // 規則正しい周期の模様は、紙ではなく壁紙・方眼紙に見える。厚みは
-    // 「縁の淡い影」だけで出す。
-    const sheet = bare(cssBlock(".day-sheet {", ".day-sheet::before"));
-    expect(sheet).not.toMatch(/repeating-linear-gradient/);
-    expect(sheet).not.toMatch(/feTurbulence/);
-    const paper = bare(cssBlock(".app-paper {", "\n}"));
-    expect(paper).not.toMatch(/repeating-linear-gradient/);
-    // 厚みは縁の影だけ。
-    expect(cssBlock(".day-sheet::before {", "\n}")).toMatch(/linear-gradient\(180deg/);
-  });
-
   it("**「今日の日記」の欄を出さない**（オーナー指示 2026-09-17）", () => {
-    // > 「今日の日記の欄も消して。」
     // 紙の下に青いボタンが1つ座っていると、そこで誌面が終わって**アプリの
     // 画面に戻る**。日記そのものは消していない（過去の日の紙の向かいには
     // 今までどおり出るし、書く画面も残っている）。
@@ -4634,40 +4620,15 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(home).toMatch(/<DayJournalPage/);
   });
 
-  it("**紙の上の字はテーマで動かさない**（暗いテーマで白い紙に明るい灰色を載せない）", () => {
-    const tl = cssBlock(".scrap {", ".scrap__closing {");
-    expect(tl).not.toMatch(/var\(--muted-foreground\)/);
-    expect(tl).not.toMatch(/var\(--foreground\)/);
-    expect(tl).toMatch(/var\(--album-ink\)/);
-    expect(tl).toMatch(/var\(--album-ink-dim\)/);
-  });
-
-  it("**紙は画面いっぱい。紙に載る層は紙用の色に差し替える**", () => {
-    // 地をアプリの青のままにすると、紙がその上に浮いた1枚の板に見えて
-    // 雑誌ではなく管理画面に戻る。そして紙の上でテーマ追従の色を使うと、
-    // 暗いテーマで**白い紙に白い字**になる（実測で上の帯の「Catchwords」が
-    // 消えていた）。1つずつ直すと取り残すので、変数ごと差し替える。
-    const shell = codeOnly(read("../src/components/AppShell.tsx"));
-    expect(shell).toMatch(/surface === "paper" \? "app-paper" : "bg-background"/);
-    const scope = cssBlock(".app-paper > header,", ".app-paper {");
-    expect(scope).toMatch(/--foreground: var\(--album-ink\)/);
-    expect(scope).toMatch(/--muted-foreground: var\(--album-ink-dim\)/);
-  });
-
   it("**写真の無い札も、押せる大きさ**（§11 の 44px）", () => {
     // 文字で調べた語にはそもそも写真が来ない。素の1行のまま並べると
     // 実測 26px で、その日の停留所なのに押しにくかった。
-    const tl = timelineOnly();
-    expect(tl).toMatch(/hero \? "" : " scrap__card--text"/);
-    // `.scrap__item[data-small] .scrap__card` が先に在るので、**行頭の**
-    // `.scrap__card {` で取る（前方一致だと小さい札の上書きを拾う）。
-    expect(cssBlock("\n.scrap__card {", "\n}")).toMatch(/min-height: 2\.75rem/);
+    expect(cssBlock(".trail__card {", "\n}")).toMatch(/min-height: 2\.75rem/);
   });
 
   it("**一番上は今日の日付**（曜日 → 日付 → 明朝の見出し）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    // ルートの一番上で表紙を描くこと。
-    expect(home).toMatch(/<AppShell surface="paper">\s*<DayMasthead date=\{today\}/);
+    expect(home).toMatch(/<AppShell>\s*<DayMasthead date=\{today\}/);
     const mast = home.slice(
       home.indexOf("export function DayMasthead("),
       home.indexOf("function takenAt("),
@@ -4694,7 +4655,7 @@ describe("ホームは1枚のアルバム台紙", () => {
     expect(body).toMatch(/top\.length > 10/);
   });
 
-  it("**過去の日も同じ紙**（下へスクロールすると昨日へ続く）", () => {
+  it("**過去の日も同じ足あと**（下へスクロールすると昨日へ続く）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     const past = home.slice(
       home.indexOf("export function PastDays("),
@@ -4702,17 +4663,24 @@ describe("ホームは1枚のアルバム台紙", () => {
     );
     expect(past).toMatch(/<DayTimeline/);
     expect(past).not.toMatch(/<ScrapbookAlbum/);
-    // 表紙が開く演出は今日の1冊だけ（遡るたびに何十冊も回り出す）。
+    // 開く演出は今日の1日だけ（遡るたびに走らせない）。
     expect(past).not.toMatch(/opening/);
   });
 
+  it("**字は階調の上に置く**（`--text-*` の7段しか使わない）", () => {
+    // 段の外の大きさを1つ作るたびに、画面ごとに少しずつ違う字が増える
+    // （`ui-audit` が「階調に無い大きさ」で捕まえる。実測 162件出ていた）。
+    const css = read("styles.css");
+    const home = css.slice(css.indexOf("ホーム = 今日の足あと（オーナー指示"));
+    const off = [...home.matchAll(/font-size: ([\d.]+)rem/g)].map((m) => m[1]);
+    expect(off).toEqual([]);
+  });
+
   it("**同じ選択子を2つ置かない**（`.album-bg-paper` の再発防止）", () => {
-    // ここより 1000 行ほど下に、同じ `.album-bg-paper` が `!important` 付きで
-    // もう1つ在った。後ろが勝つので、**手前を直しても何も変わらない**状態が
-    // 続いていた（実測: 色を白に寄せても画面はクリーム色のまま）。
+    // かつて同じ `.album-bg-paper` が `!important` 付きでもう1つ在った。
+    // 後ろが勝つので、**手前を直しても何も変わらない**状態が続いていた。
     const css = read("styles.css");
     expect((css.match(/^\.album-bg-paper \{/gm) ?? []).length).toBe(1);
-    expect(css).not.toMatch(/#e9dcb9 100%\) !important/);
   });
 
   it("**雛形は本物の `public/` を配る**（フォントが一度も本物で出ていなかった）", () => {
@@ -4735,58 +4703,6 @@ describe("ホームは1枚のアルバム台紙", () => {
     const audit = read("../scripts/ui-audit.mjs");
     expect(audit).toMatch(/crossThemes\("home-album", \{ scene: "home-album" \}\)/);
   });
-});
-
-/**
- * 迎える面（ログイン）とホームの仕上げ（オーナー指示 2026-09-17）
- *
- * > 「写真の角は丸みを帯びさせて。また写真と写真をお手本のように重ねたりして
- * >  ノートに余白をあまり作りすぎないで。」
- * > 「ログイン画面はクロワッサンが映ってるものをデザイン、字体、色を完全再現
- * >  して。…好きなものから言葉をのキャッチコピーを、日常があなただけの
- * >  単語帳に。変更して。撮って、集めて、覚えようはそのままでいい」
- */
-describe("迎える面とホームの仕上げ", () => {
-  const cssBlock = (from: string, to: string) => {
-    const css = read("styles.css");
-    const i = css.indexOf(from);
-    expect(i).toBeGreaterThan(-1);
-    const j = css.indexOf(to, i);
-    expect(j).toBeGreaterThan(i);
-    return css.slice(i, j);
-  };
-
-  it("**写真の角は丸みを帯びさせる**（白フチも中の写真も）", () => {
-    // フチだけ丸めると、角に四角い写真の隅が残って「切り忘れ」に見える。
-    const photo = cssBlock(".scrap__photo {", ".scrap__frame--square");
-    expect(photo).toMatch(/\.scrap__photo \{[\s\S]*?border-radius: 14px/);
-    expect(photo).toMatch(/\.scrap__frame \{\s*border-radius: 9px/);
-  });
-
-  it("**紙に余白を作りすぎない**（写真は枠からはみ出して隣と重なる）", () => {
-    const css = read("styles.css");
-    // 列の間も行の間も詰める。
-    const grid = cssBlock(".scrap {", ".scrap__item {");
-    expect(grid).toMatch(/column-gap: 0\.5rem/);
-    expect(grid).toMatch(/row-gap: 1rem/);
-    // 写真は溝を越えて広がる（字の枠は動かさない）。
-    expect(css).toMatch(
-      /\.scrap__item:nth-child\(2n \+ 1\) \.scrap__photo \{\s*margin-right: -0\.9rem/,
-    );
-    expect(css).toMatch(/\.scrap__item:nth-child\(2n\) \.scrap__photo \{\s*margin-left: -0\.9rem/);
-    // **縦には食い込ませない**（上の行に在るのは隣の列の字なので、写真が
-    // その上に乗り得る）。
-    expect(css).not.toMatch(/\.scrap__item:nth-child\(n \+ 3\) \.scrap__photo \{\s*margin-top/);
-  });
-
-  it("**字は階調の上に置く**（`--text-*` の7段しか使わない）", () => {
-    // 段の外の大きさを1つ作るたびに、画面ごとに少しずつ違う字が増える
-    // （`ui-audit` が「階調に無い大きさ」で捕まえる。実測 162件出ていた）。
-    const css = read("styles.css");
-    const home = css.slice(css.indexOf("ホーム = 雑誌の1ページ（オーナー指示"));
-    const off = [...home.matchAll(/font-size: ([\d.]+)rem/g)].map((m) => m[1]);
-    expect(off).toEqual([]);
-  });
 
   it("**迎える面の言葉**（日常があなただけの単語帳に／撮って、集めて、覚えよう）", () => {
     const dict = read("lib/i18n.tsx");
@@ -4794,17 +4710,13 @@ describe("迎える面とホームの仕上げ", () => {
     expect(dict).toMatch(/ja: "あなただけの単語帳に。"/);
     // 下の1行は**そのまま**（オーナー「撮って、集めて、覚えようはそのままでいい」）。
     expect(dict).toMatch(/ja: "撮って、集めて、覚えよう。"/);
-    // 前の言葉は残っていないこと。
     expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
   });
 
   it("**迎える面は、角の丸い写真を傾けて重ねる**（ステッカーではない）", () => {
-    // オーナー指示「添付の画像のようなステッカーではなく、ホーム画面で作った
-    // ような丸みを帯びた写真」。
     const auth = codeOnly(read("routes/auth.tsx"));
     expect(auth).toMatch(/auth-photo auth-photo--/);
-    const photo = cssBlock(".auth-photo {", ".auth-photo img");
-    expect(photo).toMatch(/border-radius: 1\.125rem/);
+    expect(cssBlock(".auth-photo {", ".auth-photo img")).toMatch(/border-radius: 1\.125rem/);
     // 3枚とも違う傾き（揃えると貼った物に見えない）。
     const rot = [
       ...read("styles.css").matchAll(/\.auth-photo--[abc] \{[\s\S]*?rotate: (-?[\d.]+)deg/g),
@@ -4821,8 +4733,6 @@ describe("迎える面とホームの仕上げ", () => {
   });
 
   it("**面と通信を分けてある**（雛形から迎える面を描ける）", () => {
-    // ここはルートのファイルに直書きで、**入れたばかりの人が最初に見る面**
-    // なのに一度も機械で見ていなかった。
     const auth = codeOnly(read("routes/auth.tsx"));
     expect(auth).toMatch(/export function AuthView\(/);
     const scene = codeOnly(read("../scripts/ui-harness/scenes/auth.tsx"));
@@ -4837,7 +4747,6 @@ describe("迎える面とホームの仕上げ", () => {
     // Netlify の Deploy Preview は**この雛形**を配っている（`netlify.toml`）。
     // `REVIEW_SCENES` を古いままにすると、開いた人は直していない画面を見て
     // 「昔のプレビューのままだ」と言うことになる（実際そう報告された）。
-    // ファイル自身の注にも「作業ごとに書き換える」と書いてある。
     const main = codeOnly(read("../scripts/ui-harness/main.tsx"));
     const list = main.slice(
       main.indexOf("const REVIEW_SCENES"),

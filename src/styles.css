@@ -6317,91 +6317,23 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 
 /* ===========================================================================
-   ホーム = 雑誌の1ページ（オーナー指示 2026-09-17、見本の絵3枚）
+   ホーム = 今日の足あと（オーナー指示 2026-09-18）
 
-   > 「ホーム画面が単調すぎる。…雑誌やるるぶのようなガイドマップの観光
-   >  モデルコースのような撮った時刻のタイムラインで紹介する。撮ったときに
-   >  書いた1言も画像のように表示する。」
-   > 「本物のアルバムや雑誌の雰囲気を作り上げて。…完全再現して。タイムライン順に。」
+   > 「ホームのデザインとこのアプリのコンセプトが一致してない。やっぱり背景の
+   >  紙なくして。マスキングテープもなしくて。また画像と画像の間が広すぎて
+   >  見づらい。一目でぱっと今日の撮ったものが見れるように詰めて。画像のような
+   >  手書き感とこのアプリのコンセプト融合させて」
 
-   ## この面の決まりごと
+   紙の台紙・マスキングテープ・傾き・ちぎった紙は**全部外した**。貼り物が
+   増えるほど1枚あたりの場所を食い、同じ画面に入る枚数が減っていた。
 
-   ① **紙は画面いっぱい。** 地をアプリの青のままにすると、紙がその上に
-      浮いた1枚の板に見えて雑誌ではなく管理画面に戻る（`.app-paper`）。
-   ② **紙の上の字はテーマで動かさない。** 紙も印画紙も明るい面で固定して
-      あるので、そこに `--muted-foreground` のようなテーマ追従の色を載せる
-      と、暗いテーマで「明るい灰色を白い紙に載せる」ことになる。
-      使うのは `--album-ink` / `--album-ink-dim` だけ。
-   ③ **角の丸い板を作らない。** 紙はちぎった縁を持つ。`clip-path` を掛けた
-      要素では `box-shadow` が四角いままはみ出すので、影は外側の箱に
-      `filter: drop-shadow` で付ける。
+   ## 手書き感の融合の仕方
+
+   **アプリが書く字はゴシック、人が書いた字は手書き。**
+   時刻・語・場所はアプリが持っている事実なのでゴシックで揃え、
+   **その日の一言**と**撮ったときに書いた1言**だけを和文の手書きで出す。
+   手書きが飾りではなく「ここから先はあなたの字」という合図になる。
    =========================================================================== */
-
-/* ── 紙の地 ─────────────────────────────────────────────────────── */
-:root {
-  /* 見本の絵の地。暖かいが黄ばんではいない白。 */
-  --album-paper: oklch(0.966 0.005 85);
-  --album-sheet: oklch(0.982 0.008 82);
-  /**
-   * 紙に引く**青いペン**。**テーマで動かさない。**
-   *
-   * ここを `--primary` にしていると、暗いテーマで明るい水色になり、
-   * **白い紙の上に薄い水色**を引くことになる（この画面で何度もやっている
-   * 失敗と同じ形）。紙の色が固定なら、その上のインクも固定でなければ
-   * 噛み合わない。明るい紙（oklch 0.988）に対して 7:1 を満たす濃さ。
-   */
-  --album-blue: oklch(0.46 0.16 258);
-}
-/**
- * **紙の上の層は、まとめて紙用の色に差し替える。**
- *
- * 暗いテーマで、上の帯の「Catchwords」が消えていた（実測の絵で
- * 白い紙に白い字）。原因は1箇所ではない — 帯の題、記録の入口の丸、
- * 日記のボタン、空の面、読み込み中の板…と、`--foreground` や
- * `--muted-foreground` を使っている物すべてが同じ形で外れる。
- *
- * 1つずつ直すと必ず取り残しが出るので、**紙に載る層（帯と本文）の中だけ
- * 変数そのものを差し替える**。こうすると、この画面に後から何を置いても
- * 自動で紙用の色になる。
- *
- * 下のタブ帯は入れない（`app-paper` の直下だが `header`/`main` ではない）
- * — あれは紙の上ではなく画面の上に浮いている別の層で、暗いテーマでは
- * 暗いガラスのままが正しい。
- */
-.app-paper > header,
-.app-paper > main {
-  --background: var(--album-paper);
-  --foreground: var(--album-ink);
-  --muted-foreground: var(--album-ink-dim);
-  --card: var(--album-sheet);
-  --card-foreground: var(--album-ink);
-  --secondary: oklch(0.945 0.008 85);
-  --secondary-foreground: var(--album-ink);
-  --border: oklch(0.88 0.01 85);
-  --primary: var(--album-blue);
-  --primary-ink: var(--album-blue);
-  --primary-foreground: oklch(0.99 0 0);
-  color: var(--album-ink);
-}
-/**
- * 紙の地（オーナー指示 2026-09-17「背景の紙のリアルな紙質」）。
- *
- * 本物の紙は「均一な色＋細かいノイズ」ではない。近くで見ると**細かい繊維**、
- * 離れて見ると**粗い斑（むら）**が見える。周期の違うノイズを2枚重ねると、
- * 1枚より紙に見える（1枚だけだと、どの倍率で見ても同じ粒なので
- * 「砂を撒いた板」になる）。
- */
-.app-paper {
-  background-color: var(--album-paper);
-  /* **筋は入れない。** 一度 `repeating-linear-gradient` で漉き筋を足したが、
-     実測の絵では紙ではなく**縞模様の壁紙**になった（周期が規則正しいので、
-     紙の不規則さと逆の印象になる）。不規則なノイズ2枚だけで作る。 */
-  background-image:
-    /* ② 粗い斑。離れて見たときの紙のムラ。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.35 0 0 0 0 0.24 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23c)'/%3E%3C/svg%3E"),
-    /* ① 細かい繊維。近くで見たときの粒。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.26 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
-}
 
 /* ── 書体 ───────────────────────────────────────────────────────── */
 :root {
@@ -6428,13 +6360,8 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 
 /* ── 表紙 ───────────────────────────────────────────────────────── */
-/* **表紙も紙の上に在る。** 地が `--background` だった頃の名残で
-   `--foreground` を使っていたが、いまは画面いっぱいが紙（`.app-paper`）
-   なので、暗いテーマで**白い紙に明るい灰色**を載せることになる。
-   紙の上の字は全部 `--album-ink` / `--album-ink-dim` / `--album-blue`。 */
 .day-masthead {
-  margin-bottom: 1.1rem;
-  color: var(--album-ink);
+  margin-bottom: 1.25rem;
 }
 .day-masthead__rail {
   display: flex;
@@ -6445,8 +6372,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   margin-top: 0.55rem;
   height: 1px;
   flex: 1;
-  background: currentColor;
-  opacity: 0.35;
+  background: var(--border);
 }
 .day-masthead__count {
   display: flex;
@@ -6460,12 +6386,8 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   font-variant-numeric: tabular-nums;
 }
 .day-masthead__count-label {
-  /* **階調の上に置く。** 9px→10px と自分で決めていたが、この app は
-     `--text-*` の7段しか持たない（`ui-audit` が「階調に無い大きさ」で
-     捕まえる）。段の外の大きさを1つ作るたびに、画面ごとに少しずつ違う
-     字が増えていく。 */
   font-size: var(--text-caption);
-  color: var(--album-ink-dim);
+  color: var(--muted-foreground);
 }
 .day-masthead__row {
   display: flex;
@@ -6480,7 +6402,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .day-masthead__date {
   font-size: var(--text-footnote);
   font-weight: 600;
-  color: var(--album-ink-dim);
+  color: var(--muted-foreground);
 }
 /* 曜日と日付の区切り。**言語の出し分けは CSS に1箇所だけ置く**
    （`.label-caps` と同じ考え方）。和文・中文は読点、欧文はコンマ。 */
@@ -6492,9 +6414,8 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 .day-masthead__title {
   /* §3: 大きい字ほど字間も行送りも詰める。
-     **折り返させない。** 「今日の1ペー / ジ」と割れると、雑誌の題ではなく
-     入り切らなかった文字列に見える（実測の絵で割れていた）。入らない幅では
-     字のほうを詰める。 */
+     **折り返させない。** 「今日の1ペー / ジ」と割れると、題ではなく入り
+     切らなかった文字列に見える。入らない幅では字のほうを詰める。 */
   font-size: var(--text-hero);
   line-height: 1.12;
   letter-spacing: -0.01em;
@@ -6506,20 +6427,20 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   width: 62%;
   height: 0.5rem;
   margin-top: 0.05rem;
-  color: var(--album-blue);
+  color: var(--primary);
   opacity: 0.8;
 }
-/* 右の手書きの一言。紙に青いペンで書き足した見え方にする。 */
+/* その日の一言。**人が書いた字ではないが、その日の要約**なので手書きにする
+   （見本の絵と同じ位置・同じ青いペン）。 */
 .day-masthead__tagline {
   position: relative;
-  /* 見出しを押し潰さない幅。**伸びるのはこちら**（見出しは折り返さない）。 */
   flex: 0 1 9.5rem;
   min-width: 0;
   padding-top: 0.75rem;
   font-size: var(--text-body);
   line-height: 1.6;
   text-align: right;
-  color: var(--album-blue);
+  color: var(--primary-ink);
   /* 助詞の手前で切らない（`.ja-phrase` と同じ理由）。 */
   word-break: auto-phrase;
 }
@@ -6531,187 +6452,56 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   opacity: 0.55;
 }
 
-/* ── その日の紙 ───────────────────────────────────────────────────
-   オーナー指示 2026-09-17:
-   > 「紙は方眼紙ではなく、アルバムなどを張る無地の少しかための紙。」
-
-   **無地。罫も方眼も入れない。** 少し厚みのある台紙に見せるために、
-   ①わずかな厚みの断面（下の縁の細い明線）②角の反り（内側の淡い影）
-   ③手でちぎった上下の縁、の3つだけを使う。模様は一切足さない。 */
-.day-sheet__shadow {
-  /* `clip-path` を掛けた紙に影を付ける唯一の方法。`box-shadow` だと
-     切り抜く前の四角い影がはみ出す。 */
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7))
-    drop-shadow(0 2px 2px rgba(60, 42, 18, 0.13)) drop-shadow(0 14px 22px rgba(60, 42, 18, 0.1));
-}
-.day-sheet {
+/* ── 今日の足あと ───────────────────────────────────────────────── */
+.trail {
   position: relative;
-  padding: 1.25rem 1rem 1.5rem;
-  background-color: var(--album-sheet);
-  /* 手でちぎった上下の縁。角の丸い板は「カード」で、紙ではない。 */
-  clip-path: polygon(
-    0 5px,
-    16% 0,
-    39% 6px,
-    63% 1px,
-    86% 5px,
-    100% 1px,
-    100% calc(100% - 4px),
-    83% 100%,
-    57% calc(100% - 6px),
-    32% 100%,
-    11% calc(100% - 3px),
-    0 100%
-  );
-}
-/* 台紙の反り。**無地のまま厚みだけを出す。** */
-.day-sheet::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(120, 100, 70, 0.045) 0, transparent 2.5rem),
-    linear-gradient(0deg, rgba(120, 100, 70, 0.05) 0, transparent 2.5rem);
-}
-@media (min-width: 640px) {
-  .day-sheet {
-    padding: 1.5rem 1.5rem 1.75rem;
-  }
-}
-/* 紙の一番上に手で書いた日付（オーナー指示「紙の一番上に今日の日付を
-   手書きで書いて」）。 */
-.day-sheet__date {
-  margin-bottom: 0.9rem;
-  font-size: var(--text-headline);
-  line-height: 1.2;
-  color: var(--album-ink);
-  rotate: -0.8deg;
-  transform-origin: left center;
-}
-
-/* ── マスキングテープ ─────────────────────────────────────────────
-   オーナー指示 2026-09-17:
-   > 「マスキングテープももっとクオリティーが高いものを作って、写真の
-   >  大きさや配置、重心を考えてによって貼り方を変えて。」
-
-   本物のマスキングテープは ①和紙なので**下が透ける** ②**縦の繊維**が
-   走っている ③端は切らずに**手でちぎる**ので毛羽立つ ④紙に密着する
-   ので影はごく浅い、の4つでできている。順に作る。
-   （貼る位置・本数・角度は写真の形と重さで決める → `tapesFor()`）。 */
-.washi {
-  position: absolute;
-  z-index: 3;
-  height: 1.125rem;
-  /* 中心を軸に回す。左端を軸にすると、角に掛けた1本が写真から離れる。 */
-  transform-origin: center;
-  translate: -50% 0;
-  background-color: var(--tape);
-  background-image:
-    /* ③ 和紙の繊維（不規則な縦筋）。 */
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.28) 0 1px,
-      transparent 1px 2px,
-      rgba(255, 255, 255, 0.14) 2px 3px,
-      transparent 3px 5px
-    ),
-    /* ② 上下の縁がわずかに濃い（テープの厚みの断面）。 */
-    linear-gradient(
-        180deg,
-        rgba(0, 0, 0, 0.07) 0,
-        transparent 18%,
-        transparent 82%,
-        rgba(0, 0, 0, 0.07) 100%
-      );
-  /* ① 和紙なので下が透ける。**ここを濃くすると、テープではなく塗った線に
-     見える**（実測の絵で紫の棒になっていた）。 */
-  opacity: 0.62;
-  opacity: 0.78;
-  /* ③ 手でちぎった両端。 */
-  clip-path: polygon(
-    3% 0,
-    0 26%,
-    4% 52%,
-    1% 78%,
-    3% 100%,
-    97% 100%,
-    100% 74%,
-    96% 48%,
-    99% 22%,
-    97% 0
-  );
-  /* ④ 紙に密着しているので影はごく浅い。`clip-path` を掛けているので
-     `box-shadow` ではなく `drop-shadow`（四角い影がはみ出さない）。 */
-  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.16));
-}
-.washi--iris {
-  --tape: #c3ccef;
-}
-.washi--sage {
-  --tape: #c9d6c2;
-}
-.washi--rose {
-  --tape: #edc9cc;
-}
-.washi--cream {
-  --tape: #eee5cd;
-}
-
-/* ── 貼ってある物（2列） ─────────────────────────────────────────
-   左上 → 右上 → 左下 → 右下 の順に貼る。読む順が**そのまま時刻の順**。
-   右の列は少し下げてあるので、貼り合わせたページに見える。 */
-/* **紙に余白を作りすぎない**（オーナー指示 2026-09-17）。
-   列の間も行の間も詰め、写真は枠より少し広く貼って**互いに重ねる**。
-   重なるのは写真どうしだけ（字の枠は動かさない）。 */
-.scrap {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 0.5rem;
-  row-gap: 1rem;
-  align-items: start;
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.scrap__item {
+/* 左に通る1本の道。**丸の中心を通す。** */
+.trail::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 2px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--primary) 28%, transparent);
+}
+.trail__item {
   position: relative;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  align-items: start;
+  /* **詰める。** 「一目でぱっと今日の撮ったものが見れるように」
+     （オーナー指示 2026-09-18）。 */
+  padding-bottom: 1.25rem;
 }
-/* 右の列を下げて段違いにする。揃えると2列の表に見える。 */
-.scrap__item:nth-child(2n) {
-  margin-top: 1.5rem;
+.trail__item:last-child {
+  padding-bottom: 0;
 }
-/**
- * **写真は枠からはみ出して、隣と重なる。**
- *
- * 枠の中に収めていたときは、写真の縦横比がまちまちなぶんだけ紙に穴が
- * 空いた（オーナー指摘「ノートに余白をあまり作りすぎないで」）。
- * 左の列は右へ、右の列は左へ、それぞれ溝を越えて広げる。字の枠は動かさない
- * ので、重なる相手は**必ず隣の写真**になる。
- *
- * 後の写真ほど上に重なる（紙に順に貼っていった形）。重なりの順は
- * `style` の `zIndex`（札ごと）で持つ。
- */
-.scrap__item:nth-child(2n + 1) .scrap__photo {
-  margin-right: -0.9rem;
+.trail__dot {
+  position: absolute;
+  left: 0;
+  top: 0.3rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--primary);
+  /* 道の線の上に乗るので、地の色で縁を取って丸が潰れないようにする。 */
+  box-shadow: 0 0 0 3px var(--background);
 }
-.scrap__item:nth-child(2n) .scrap__photo {
-  margin-left: -0.9rem;
+.trail__time {
+  grid-column: 1;
+  padding: 0.3rem 0.5rem 0 1.3rem;
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
 }
-/* **縦には食い込ませない。** 一度は3枚目から上の行へ食い込ませたが、
-   上の行に在るのは隣の列の**字**なので、写真がその上に乗り得る（後の札
-   ほど重なりが上なので、前の停留所の時刻や1言が消える）。
-   詰めるのは行の間隔（`row-gap`）でやる — そちらなら字は動かない。 */
-/* 4枚に1枚は少し小さく貼る。**全部同じ幅だと、貼った物ではなく一覧表。** */
-.scrap__item[data-small] .scrap__card {
-  width: 82%;
-}
-.scrap__item[data-small]:nth-child(2n) .scrap__card {
-  margin-left: auto;
-}
-
-.scrap__card {
+.trail__card {
+  grid-column: 2;
   display: block;
   width: 100%;
   text-align: left;
@@ -6721,183 +6511,52 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   /* §11: 指の当たり判定は 44px を下回らない。 */
   min-height: 2.75rem;
 }
-/* 写真の角は丸みを帯びさせる（オーナー指示 2026-09-17）。
-   印画紙の白フチごと丸めて、中の写真もそれより 1px 内側で丸める —
-   フチだけ丸めると、角に四角い写真の隅が残って**切り忘れ**に見える。 */
-.scrap__photo {
-  position: relative;
-  display: block;
-  padding: 6px 6px 8px;
-  border-radius: 14px;
-}
-.scrap__photo::after {
-  border-radius: 9px;
-}
-.scrap__frame {
-  border-radius: 9px;
-}
-.scrap__photo2 {
-  border-radius: 10px;
-}
-.scrap__photo2 .scrap__frame {
-  border-radius: 7px;
-}
-.scrap__photo::after {
-  inset: 6px 6px 8px;
-}
-.scrap__frame {
+/* 写真。**角の丸い写真だけ**（白フチもテープも傾きも無い）。 */
+.trail__photo {
   display: block;
   width: 100%;
   overflow: hidden;
+  border-radius: 14px;
+  background: var(--secondary);
 }
-.scrap__frame--square {
-  aspect-ratio: 1;
+/* 1つおきに少し細くして右へ寄せる。**同じ幅が続く単調さだけを崩す**
+   （傾けない — 傾けると場所を食う）。 */
+.trail__item[data-narrow] .trail__photo {
+  width: 84%;
+  margin-left: auto;
 }
-/* 同じ瞬間のもう1枚。大きい写真の角に重ねて貼る。 */
-.scrap__photo2 {
-  position: absolute;
-  right: -1rem;
-  bottom: -1.25rem;
-  width: 46%;
-  padding: 4px;
-  z-index: 4;
+.trail__word {
+  display: block;
+  margin-top: 0.6rem;
 }
-.scrap__photo2::after {
-  inset: 4px;
-}
-
-/* ちぎった紙の見出し。写真の下フチに重ねて貼る。 */
-.scrap__label {
-  position: relative;
-  z-index: 5;
-  display: inline-block;
-  margin: -0.85rem 0 0 0.4rem;
-  padding: 0.18rem 0.55rem 0.24rem;
-  background: #fffdf6;
-  transform-origin: left center;
-  /* 手でちぎった紙（上下の縁が不揃い）。 */
-  clip-path: polygon(
-    0 6%,
-    7% 0,
-    30% 6%,
-    56% 0,
-    80% 5%,
-    100% 0,
-    100% 94%,
-    77% 100%,
-    47% 95%,
-    23% 100%,
-    5% 95%
-  );
-  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.28))
-    drop-shadow(0 4px 7px rgba(60, 42, 18, 0.16));
-}
-/* 写真の無い札（文字で調べた語）は重ねる相手が無いので、持ち上げない。 */
-.scrap__card--text .scrap__label {
-  margin-top: 0;
-}
-.scrap__head {
-  font-size: var(--text-headline);
+.trail__head {
+  font-size: var(--text-title);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
   /* 繁体字は画数が多いので、小さいと潰れる。字間を少し開ける。 */
-  letter-spacing: 0.04em;
-  color: var(--album-ink);
+  letter-spacing: 0.02em;
 }
-/* 撮った時刻。数字だけなので Caveat が当たる。 */
-.scrap__time {
+.trail__gloss {
   display: block;
-  margin: 0.35rem 0 0 0.5rem;
+  margin-top: 0.1rem;
   font-size: var(--text-body);
-  line-height: 1.1;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-  color: var(--album-ink-dim);
+  color: var(--muted-foreground);
 }
-/* 撮ったときに書いた1言。**紙に手で書いてある**ように出す。 */
-.scrap__note {
+/* 撮ったときに書いた1言。**ここだけが人の字。** */
+.trail__note {
   display: block;
-  margin: 0.3rem 0 0 0.5rem;
+  margin-top: 0.35rem;
   font-size: var(--text-body);
   line-height: 1.7;
-  color: var(--album-ink);
-  transform-origin: left center;
+  color: var(--foreground);
 }
-.scrap__place {
+.trail__place {
   display: flex;
   align-items: center;
-  gap: 0.2rem;
-  margin: 0.3rem 0 0 0.5rem;
-  font-size: var(--text-caption);
-  color: var(--album-ink-dim);
-}
-
-/* ── 紙の締め ───────────────────────────────────────────────────── */
-.scrap__closing {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 3rem;
-}
-/* その日の一言。**ちぎった紙に手で書いて貼った**形で置く。 */
-.scrap__summary {
-  position: relative;
-  flex: 1 1 auto;
-  padding: 0.7rem 0.9rem 0.8rem;
-  background: #fffdf6;
-  font-size: var(--text-body);
-  line-height: 1.7;
-  color: var(--album-ink);
-  rotate: -0.6deg;
-  clip-path: polygon(
-    0 5%,
-    9% 0,
-    34% 5%,
-    61% 0,
-    84% 4%,
-    100% 0,
-    100% 95%,
-    79% 100%,
-    49% 96%,
-    24% 100%,
-    6% 96%
-  );
-  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.22))
-    drop-shadow(0 5px 9px rgba(60, 42, 18, 0.14));
-}
-.scrap__summary-rule {
-  display: block;
-  width: 58%;
-  height: 0.5rem;
-  margin-top: 0.15rem;
-  color: var(--album-blue);
-  opacity: 0.6;
-}
-/* 書き添えと枚数は**縦に積む**。横に並べると、短い日には両方が
-   同じ行に来て重なった（実測で「Big days.」と「7枚の思い出」が重なった）。 */
-.scrap__closing-right {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.6rem;
-}
-.scrap__sign {
-  font-size: var(--text-title);
-  line-height: 1.15;
-  text-align: right;
-  color: var(--album-ink-dim);
-  rotate: -3deg;
-}
-/* **紙の中に収める。** 紙は `clip-path` で切ってあるので、外へ出した字は
-   丸ごと消える（実測で「7枚の思い出」が紙の下端で半分になっていた）。 */
-.scrap__end {
-  flex: none;
-  align-self: flex-end;
-  font-size: var(--text-caption);
-  color: var(--album-ink-dim);
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  font-size: var(--text-footnote);
+  color: var(--muted-foreground);
 }
 
 /* ===========================================================================

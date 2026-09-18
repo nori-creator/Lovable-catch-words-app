@@ -199,24 +199,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  * 見出しの下敷きになって消えていた。実物と同じ箱を置いて初めて、
  * sticky の止まる位置が実物と同じになる。
  */
-/**
- * **地の色も実物に合わせる。** ホームは `AppShell surface="paper"` で
- * 画面いっぱいが紙になった（オーナー指示 2026-09-17）。ここを
- * `bg-background` のままにすると、雛形だけが青い地に紙を1枚浮かせた絵に
- * なり、**実物では起こらない縁**を検査が見ることになる。
- */
-const PAPER = new Set([
-  "home",
-  "home-empty",
-  "home-loading",
-  "home-past",
-  "home-writing",
-  "home-tap",
-]);
-
-function Frame({ children, paper }: { children: ReactNode; paper?: boolean }) {
+function Frame({ children }: { children: ReactNode }) {
   return (
-    <div className={`min-h-screen ${paper ? "app-paper" : "bg-background"}`}>
+    <div className="min-h-screen bg-background">
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
@@ -411,7 +396,7 @@ createRoot(document.getElementById("root")!).render(
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (
-        <Frame paper={PAPER.has(wanted)}>
+        <Frame>
           <Scene q={q} />
         </Frame>
       )}
