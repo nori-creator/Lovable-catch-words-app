@@ -1,0 +1,112 @@
+.cw-peel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  isolation: isolate;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #deddd7;
+}
+.cw-peel-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition:
+    filter 0.65s,
+    transform 0.8s,
+    opacity 0.65s;
+}
+.cw-peel[data-ready="true"] .cw-peel-photo {
+  filter: blur(14px) brightness(0.72) saturate(0.8);
+  transform: scale(1.14);
+}
+.cw-peel-touch {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+.cw-peel-touch:focus-visible {
+  outline: 3px solid #73b7ff;
+  outline-offset: -5px;
+  border-radius: 24px;
+}
+.cw-peel-touch:disabled {
+  cursor: default;
+}
+.cw-peel[data-held="true"] .cw-peel-touch {
+  cursor: grabbing;
+}
+.cw-peel-art {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: cw-peel-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform;
+}
+.cw-peel-shadow {
+  filter: drop-shadow(0 14px 12px #0005);
+}
+.cw-peel[data-held="true"] .cw-peel-shadow {
+  filter: drop-shadow(-8px 24px 15px #0006);
+}
+.cw-peel-shine {
+  animation: cw-peel-sheen 1.3s 0.6s ease-in-out both;
+}
+.cw-peel-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: #2227;
+  border: 1px solid #fff3;
+  border-radius: 30px;
+  padding: 6px 12px;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  transition: opacity 0.2s;
+}
+.cw-peel[data-held="true"] .cw-peel-hint,
+.cw-peel[data-committed="true"] .cw-peel-hint {
+  opacity: 0;
+}
+@keyframes cw-peel-reveal {
+  from {
+    opacity: 0;
+    scale: 0.86;
+    translate: 0 12px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+}
+@keyframes cw-peel-sheen {
+  from {
+    transform: translateX(0) skewX(-20deg);
+  }
+  to {
+    transform: translateX(650px) skewX(-20deg);
+  }
+}
+html[data-motion="reduce"] .cw-peel *,
+.cw-peel[data-reduced="true"] * {
+  animation: none !important;
+  transition: none !important;
+}

@@ -1,3 +1,5 @@
+import { PeelSticker } from "@/components/PeelSticker";
+import { cutoutAtCatch, getCatchSpeed } from "@/lib/catch-speed";
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { Reading, useReadingText } from "@/lib/phonetic";
@@ -13,7 +15,7 @@ import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, thumbPath, removeBackgroundSmart } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
@@ -120,8 +122,8 @@ export function ScanCatchSheet({
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
-  // Cutout is disabled — always null; the plain crop (objectDataUrl) is used.
-  const [cutoutUrl] = useState<string | null>(null);
+  // Reveal the cutout when ready; saving the photo never waits for it.
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -160,8 +162,7 @@ export function ScanCatchSheet({
   // background cutout is a best-effort *visual upgrade*, never a gate on the
   // catch. (Previously the sheet spun "分析中" until background removal finished,
   // and the save button + doSave both required the cutout, so a slow/absent
-  // remove.bg model left the word impossible to file. The scan doesn't cut
-  // anything out, so there's nothing to wait for.)
+  // remove.bg model left the word impossible to file.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -171,8 +172,15 @@ export function ScanCatchSheet({
         setObjectDataUrl(cropped);
         setPhase("ready"); // ready as soon as the photo exists
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-        // Background removal (cutout) is fully disabled for now — the scan
-        // never cuts anything out; the plain crop is what we keep and show.
+        if (cutoutAtCatch(getCatchSpeed())) {
+          void removeBackgroundSmart(cropped)
+            .then((cut) => {
+              if (!cancelled) setCutoutUrl(cut);
+            })
+            .catch(() => {
+              /* Keep the original photo usable. */
+            });
+        }
       } catch (e) {
         console.warn("crop failed", e);
         if (cancelled) return;
@@ -482,11 +490,17 @@ export function ScanCatchSheet({
           className="mx-auto mt-2 grid aspect-square w-64 max-w-full place-items-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
         >
           {(cutoutUrl ?? objectDataUrl) ? (
-            <img
-              src={(cutoutUrl ?? objectDataUrl)!}
-              alt={headword}
-              className={`h-full w-full object-contain ${cutoutUrl ? "cutout-pop" : "rounded-3xl object-cover"} ${phase === "landing" ? "opacity-0" : ""}`}
-            />
+            <div className={`h-full w-full ${phase === "landing" ? "opacity-0" : ""}`}>
+              <PeelSticker
+                photoUrl={objectDataUrl}
+                cutoutUrl={cutoutUrl}
+                label={headword}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={saving || phase !== "ready"}
+                onPeel={() => void doSave()}
+              />
+            </div>
           ) : (
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">

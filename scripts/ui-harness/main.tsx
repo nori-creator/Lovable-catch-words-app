@@ -1,3 +1,4 @@
+import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -115,6 +116,7 @@ import "@/pack-styles.css";
 // 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
+  "sticker-peel": PeelStickerScene,
   shelf: ShelfScene,
   gallery: GalleryScene,
   tabbar: TabBarScene,
@@ -251,6 +253,7 @@ function Frame({ children }: { children: ReactNode }) {
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 const BARE = new Set([
+  "sticker-peel",
   "onboarding",
   "sticker-sheet",
   "capture-saving",
@@ -283,6 +286,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "sticker-peel", label: "切り抜き・シールはがし" },
   { scene: "capture-object", label: "カメラの画面（参考画像の形）" },
   { scene: "camera-strip", label: "撮り方の帯と下の行（写真・シャッター・切替）" },
   { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
