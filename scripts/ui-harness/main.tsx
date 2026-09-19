@@ -1,4 +1,5 @@
 import { PeelStickerScene } from "./scenes/peel-sticker";
+import { AuthProviderButtons } from "@/components/AuthProviderButtons";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -116,6 +117,16 @@ import "@/pack-styles.css";
 // 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
+  auth: () => (
+    <div className="mx-auto w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <AuthProviderButtons
+        appleLabel="Appleでサインイン"
+        googleLabel="Googleでサインイン"
+        onApple={() => undefined}
+        onGoogle={() => undefined}
+      />
+    </div>
+  ),
   "sticker-peel": PeelStickerScene,
   shelf: ShelfScene,
   gallery: GalleryScene,
