@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { AuthProviderButtons } from "@/components/AuthProviderButtons";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -208,26 +209,13 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogle}
-              disabled={loading}
-            >
-              {t("auth.google")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full bg-black text-white hover:bg-black/90 hover:text-white"
-              onClick={handleApple}
-              disabled={loading}
-            >
-              {t("auth.apple")}
-            </Button>
-          </div>
+          <AuthProviderButtons
+            appleLabel={t("auth.apple")}
+            googleLabel={t("auth.google")}
+            loading={loading}
+            onApple={handleApple}
+            onGoogle={handleGoogle}
+          />
         </div>
 
         <p className="mt-6 text-center text-caption text-muted-foreground">
