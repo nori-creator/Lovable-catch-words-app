@@ -25,7 +25,7 @@ const cup = `<defs><linearGradient id="tea" x2=".8" y2="1"><stop stop-color="#ee
 const svg = (body: string) =>
   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">${body}</svg>`)}`;
 const cutout = svg(cup);
-const photo = svg(
+export const photo = svg(
   `<rect width="320" height="320" fill="#a9b2a2"/><rect y="175" width="320" height="145" fill="#c8b394"/><path d="M0 195L320 215M0 265L320 285" stroke="#af9a7d" stroke-width="3"/><rect x="12" y="12" width="85" height="148" fill="#55664e"/><rect x="109" y="12" width="199" height="148" fill="#d9ded1"/>${cup}`,
 );
 
@@ -64,7 +64,7 @@ export function PeelStickerScene() {
         destinationId: "preview-tea",
         speakLine: () =>
           new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, 6000);
+            const timer = setTimeout(resolve, 2400);
             const done = () => {
               clearTimeout(timer);
               resolve();

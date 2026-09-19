@@ -1,3 +1,4 @@
+import { photo } from "./peel-sticker";
 /**
  * 撮ったあとの面。**カメラが要るのは撮る2段だけ**で、その先は写真の
  * data URL さえあれば描ける。ここまで `capture.tsx` を丸ごと「カメラ依存」
@@ -93,6 +94,9 @@ export function CaptureReunionScene({ q }: { q: URLSearchParams }) {
   const done = q.get("variant") !== "saving";
   return (
     <ReencounterPanel
+      photo={photo}
+      failed={q.get("variant") === "error"}
+      onRetry={() => {}}
       dateLocale="ja-JP"
       reenc={
         {

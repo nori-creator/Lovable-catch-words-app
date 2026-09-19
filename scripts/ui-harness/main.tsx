@@ -59,6 +59,7 @@ import {
   HomeWritingScene,
 } from "./scenes/home";
 import {
+  SettingsPolishScene,
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsSelectsScene,
@@ -131,6 +132,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "wordbook-quiz": WordbookQuizScene,
   "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
+  "settings-polish": SettingsPolishScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,
   "settings-sources": SettingsSourcesScene,
@@ -286,12 +288,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "sticker-peel", label: "写真ピール・キャッチ演出" },
-  { scene: "capture-object", label: "カメラの画面（参考画像の形）" },
-  { scene: "camera-strip", label: "撮り方の帯と下の行（写真・シャッター・切替）" },
-  { scene: "scan-bottom", label: "スキャンの下（倍率が帯に被らない）" },
-  { scene: "tabbar", label: "下の帯（カメラのとき暗くなる）" },
-  { scene: "review-memory-list", label: "記憶の一覧（下へ行くほど段も％も高い）" },
+  { scene: "sticker-peel", label: "ピール・キャッチ演出" },
+  { scene: "settings-polish", label: "設定・言語選択" },
+  { scene: "capture-reunion", label: "同じ単語に写真を追加" },
+  { scene: "place-memory", label: "母語の復習通知" },
+  { scene: "scan-camera", label: "小数点の倍率メーター" },
+  { scene: "review-memory-list", label: "記憶の一覧" },
 ];
 
 const explicitScene = q.get("scene");

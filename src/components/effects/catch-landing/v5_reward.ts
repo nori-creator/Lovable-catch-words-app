@@ -73,10 +73,10 @@ export const v5reward: LandingRunner = async ({
   // The alpha image occupies 32..288 inside the 320px SVG viewBox.
   const source = peelArt
     ? {
-        left: bounds.left + bounds.width * 0.1,
-        top: bounds.top + bounds.height * 0.1,
-        width: bounds.width * 0.8,
-        height: bounds.height * 0.8,
+        left: bounds.left + bounds.width * 0.0625,
+        top: bounds.top + bounds.height * 0.0625,
+        width: bounds.width * 0.875,
+        height: bounds.height * 0.875,
       }
     : bounds;
   const width = Math.max(source.width, 1);
@@ -98,7 +98,7 @@ export const v5reward: LandingRunner = async ({
   fly.style.transformOrigin = "50% 50%";
 
   // 0–120ms release; 120–600ms entrance + signature; 600ms name/voice;
-  // voice end: glint 220ms + 500ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
+  // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
   Sound.rewardGrip();
   haptic("selection");
@@ -139,7 +139,7 @@ export const v5reward: LandingRunner = async ({
     { duration: 280, easing: EASE_IOS, fill: "forwards" },
   ).finished;
   // Keep burst running, and don't leave while the word is still being read.
-  await Promise.all([wait(500), Promise.race([spoken, wait(6500)])]);
+  await Promise.race([spoken, wait(2600)]);
   root.dataset.stage = "reveal";
   Sound.itemGlint();
   haptic("light");
@@ -149,15 +149,27 @@ export const v5reward: LandingRunner = async ({
       { filter: "brightness(1.45) drop-shadow(0 0 26px #90edff99)", offset: 0.35 },
       { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
     ],
-    { duration: 220, easing: "ease-out" },
+    { duration: 180, easing: "ease-out" },
   ).finished;
-  await wait(500);
+  await wait(280);
   if (gate) {
+    // Slow storage must not leave a frozen reward image. Do not claim a landing
+    // until persistence succeeds; keep the photo gently airborne while it waits.
+    const hover = fly.animate(
+      [
+        { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
+        { transform: `translate(${heroX}px,${heroY - 9}px) scale(${heroScale * 1.015})` },
+        { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
+      ],
+      { duration: 900, iterations: Infinity, easing: "ease-in-out" },
+    );
     try {
       await gate;
     } catch {
       root.dataset.stage = "idle";
       return;
+    } finally {
+      hover.cancel();
     }
   }
 

@@ -1,3 +1,5 @@
+import { REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 /**
  * 設定画面の場面。**ルートに書かれている本物の部品を、本物の文言で描く。**
  *
@@ -24,6 +26,7 @@
  */
 import { DataSourcesList } from "@/components/DataSourcesList";
 import {
+  ToggleRow,
   AvatarRow,
   ChoiceRow,
   DangerZone,
@@ -62,17 +65,19 @@ export function SettingsChoicesScene() {
             (検査の絵で気づいた)。選択肢を手で写している限り、
             実物が変わっても絵は変わらない — このハーネスが避けようとして
             いる形そのものなので、写しは増やさず本物と同じ並びを保つ。 */}
-        <ChoiceRow
-          cols={3}
-          label={t("settings.reviewMode")}
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "hybrid", label: t("settings.modeHybrid") },
-            { value: "speaking", label: t("settings.modeSpeaking") },
-            { value: "choice", label: t("settings.modeChoice") },
-          ]}
-        />
+        {REVIEW_PRACTICE_ENABLED && (
+          <ChoiceRow
+            cols={3}
+            label={t("settings.reviewMode")}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "hybrid", label: t("settings.modeHybrid") },
+              { value: "speaking", label: t("settings.modeSpeaking") },
+              { value: "choice", label: t("settings.modeChoice") },
+            ]}
+          />
+        )}
         {/* 要望 #16 の設定。**4つ並ぶ**ので、狭い画面で札が潰れないかを見る。 */}
         <ChoiceRow
           cols={3}
@@ -86,16 +91,18 @@ export function SettingsChoicesScene() {
           ]}
         />
         {/* 要望 #18 の速さのつまみ。 */}
-        <ChoiceRow
-          cols={2}
-          label={t("settings.catchSpeed")}
-          value={speed}
-          onChange={setSpeed}
-          options={[
-            { value: "detail", label: t("settings.speedDetail") },
-            { value: "fast", label: t("settings.speedFast") },
-          ]}
-        />
+        {CUTOUT_ENABLED && (
+          <ChoiceRow
+            cols={2}
+            label={t("settings.catchSpeed")}
+            value={speed}
+            onChange={setSpeed}
+            options={[
+              { value: "detail", label: t("settings.speedDetail") },
+              { value: "fast", label: t("settings.speedFast") },
+            ]}
+          />
+        )}
         <ChoiceRow
           cols={3}
           label={t("settings.strictness")}
@@ -267,6 +274,25 @@ export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
         <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
       </Button>
       <DangerZone defaultOpen defaultConfirmText={variant === "armed" ? "削除" : ""} />
+    </div>
+  );
+}
+
+export function SettingsPolishScene() {
+  const [selfie, setSelfie] = useState(true);
+  const [saved, setSaved] = useState(false);
+  return (
+    <div className="settings-page space-y-7 pb-24">
+      <div className="sticky top-2 z-30 flex justify-end">
+        <Button onClick={() => setSaved(true)}>
+          {saved ? "保存しました" : t("settings.save")}
+        </Button>
+      </div>
+      <SettingsSelectsScene />
+      <SettingsCard title={t("settings.selfieMode")}>
+        <ToggleRow label={t("settings.selfieMode")} value={selfie} onChange={setSelfie} />
+      </SettingsCard>
+      <SettingsChoicesScene />
     </div>
   );
 }

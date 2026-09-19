@@ -26,10 +26,6 @@ import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
 import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
-import {
-  photoLibrarySaveRequiresUserGesture,
-  saveCaptureToPhotoLibrary,
-} from "@/lib/device-photo-library";
 
 type Props = {
   snapshotDataUrl: string;
@@ -242,7 +238,7 @@ export function ScanCatchSheet({
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
     pronounceRef.current.prepare();
     // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
-    if (photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
+
     setSaving(true);
     setErr(null);
     let releaseSave!: () => void;
@@ -424,7 +420,7 @@ export function ScanCatchSheet({
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       landingDestinationRef.current = stickerId;
       // ネイティブ版は札の保存が成功した時点でだけ共有フォトへ同期する。
-      if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
+
       releaseSave();
       await landing;
       setPhase("done");
@@ -446,12 +442,6 @@ export function ScanCatchSheet({
       setSaving(false);
       setPhase("ready");
     }
-  }
-
-  function syncPhotoToDevice(dataUrl: string) {
-    void saveCaptureToPhotoLibrary(dataUrl).then((result) => {
-      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
-    });
   }
 
   // 下へ引いて閉じる。**閉じるボタンと同じ条件に揃える** —
