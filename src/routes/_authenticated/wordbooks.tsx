@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { WORDBOOKS_ENABLED } from "@/lib/product-features";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
@@ -35,6 +36,9 @@ export const Route = createFileRoute("/_authenticated/wordbooks")({
       },
     ],
   }),
+  beforeLoad: () => {
+    if (!WORDBOOKS_ENABLED) throw redirect({ to: "/review" });
+  },
   component: WordbooksPage,
 });
 

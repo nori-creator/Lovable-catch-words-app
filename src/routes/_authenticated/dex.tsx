@@ -1370,12 +1370,6 @@ export function DexHeader({
         <div className="pl-1">
           {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
           <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
-          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
-          <p className="text-footnote text-muted-foreground">
-            {t("dex.found")} <span className="font-semibold text-foreground">{found}</span>
-            <span className="mx-1.5">·</span>
-            {t("dex.caught")} <span className="font-semibold text-foreground">{caught}</span>
-          </p>
         </div>
       </div>
 

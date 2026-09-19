@@ -117,10 +117,7 @@ export const recordEncounter = createServerFn({ method: "POST" })
       .maybeSingle();
     if (stErr || !sticker) throw new Error("ステッカーが見つかりません");
 
-    // Encounter log + counter are best-effort: the tables/columns may not
-    // exist until the migration is applied. The SRS update below still runs.
     const newCount = (sticker.encounter_count ?? 0) + 1;
-    // 写真の列がまだ無い環境でも記録は残す — 列名を落として入れ直す。
     const row = {
       user_id: userId,
       sticker_id: data.sticker_id,
@@ -132,10 +129,8 @@ export const recordEncounter = createServerFn({ method: "POST" })
       cutout_path: data.cutout_path ?? null,
     };
     const ins = await supabase.from("encounters").insert(row);
-    if (ins.error && /image_path|cutout_path/.test(ins.error.message)) {
-      const { image_path: _i, cutout_path: _c, ...legacy } = row;
-      await supabase.from("encounters").insert(legacy);
-    }
+    // Never report an uploaded photo as saved if its association failed.
+    if (ins.error) throw ins.error;
     await supabase
       .from("stickers")
       .update({ encounter_count: newCount })
@@ -250,7 +245,7 @@ export const listStickerPhotos = createServerFn({ method: "GET" })
       });
     }
     for (const e of encounters) {
-      const p = e.cutout_path || e.image_path;
+      const p = e.image_path || e.cutout_path;
       if (p) wanted.push({ path: p, taken_at: e.created_at, place: e.location_name, first: false });
     }
     if (wanted.length === 0) return { photos: [] as StickerPhoto[] };

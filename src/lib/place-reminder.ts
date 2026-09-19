@@ -207,7 +207,7 @@ export function buildMessage(m: NearbyMemoryLike): { title: string; body: string
   //
   // 母語が分からない札では問いを立てられないので、そのときだけ
   // 見出し語のまま出す(何も知らせないよりはよい)。
-  const ask = (m.meaning_ja ?? "").trim() || m.headword;
+  const ask = (m.meaning_ja ?? "").trim() || tStatic("place.thisWord");
 
   // ## 場所は**地名**で言う(オーナー指摘)
   // 「ここで撮った」では、通知を見た人がどこの話か分からない。
