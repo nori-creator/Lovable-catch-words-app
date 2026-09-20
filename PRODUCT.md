@@ -80,9 +80,17 @@ Do not optimize for completion of all words; language is effectively unbounded.
 Optimize for **growth**:
 - categories gain items over time;
 - categories can emerge/discover as the user's collection grows;
+- AI may propose the initial category, but AI classification is not authoritative;
+- users can rename their own categories and manually move/add/remove their words between categories without changing the canonical word itself;
+- preserve a sensible default/AI suggestion so editing is optional, not required;
 - avoid assigning excessive visible categories to one item;
 - Map is another view of the personal collection/memory.
 Avoid arbitrary “rarity” until there is defensible data behind it.
+
+### Optional personal albums inside Collection
+Separate from the Home/day album, Collection may support user-created personal albums such as “Night Market”, “Trip to Tainan”, or “Photos with friends”.
+These are **personal groupings of catches/photos**, not linguistic categories. A catch may belong to a linguistic category and zero or more personal albums at the same time.
+This is optional/post-core work and must not block Web MVP reliability.
 
 ## Home
 Today's catches are primary.
