@@ -295,6 +295,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "settings-polish", label: "設定・自動保存と再試行" },
   { scene: "home", label: "ホーム（今日の足あと）" },
   { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
@@ -306,7 +307,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "tabbar", label: "下の帯" },
   // main から合流した、別の作業で見る面。
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
-  { scene: "settings-polish", label: "設定・言語選択" },
   { scene: "capture-reunion", label: "同じ単語に写真を追加" },
   { scene: "place-memory", label: "母語の復習通知" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },

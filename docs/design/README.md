@@ -1,3 +1,7 @@
+> **歴史資料（現行の実装指示ではありません）**
+> 現行仕様と実行順はルートの [PRODUCT.md](../../PRODUCT.md)、[ROADMAP.md](../../ROADMAP.md)、[ARCHITECTURE.md](../../ARCHITECTURE.md)、[QA.md](../../QA.md) を参照してください。
+> このディレクトリ内の旧課金制限・ネイティブ化の順序・日記／ソーシャル等の優先順位は、そのまま採用しないでください。技術的な指摘も現在のコードで再検証が必要です。資料は削除せず経緯として保存しています。
+
 # Catchwords 設計ドキュメント
 
 > ⚠️ **正式仕様(Source of Truth)は [`06-scan-first-mvp.md`](./06-scan-first-mvp.md)**。

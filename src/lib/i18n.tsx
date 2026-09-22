@@ -1717,6 +1717,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.save": { ja: "保存", en: "Save", "zh-TW": "儲存" },
   "settings.saving": { ja: "保存中…", en: "Saving...", "zh-TW": "儲存中…" },
+  "settings.autosaved": { ja: "自動保存", en: "Saved automatically", "zh-TW": "自動儲存" },
+  "settings.autosaveRetry": {
+    ja: "保存できませんでした · 再試行",
+    en: "Couldn’t save · Retry",
+    "zh-TW": "儲存失敗 · 重試",
+  },
   "settings.saved": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
   "settings.signout": { ja: "サインアウト", en: "Sign out", "zh-TW": "登出" },
   // --- capture ---
