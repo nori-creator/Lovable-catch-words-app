@@ -687,12 +687,13 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
       className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-      {/* **段の名前だけを出す。** 「定着中 72%」と並べていたので、
-          同じ画面の帯にある「定着中 1(語)」と読み比べたときに
-          *定着中 = 72%* と読めてしまい、段の名前なのか比率なのかが
-          解けなかった(独立監査「語義が二重」)。
-          数字は曲線の中で、何の数字かと一緒に出す。押せば開く。 */}
-      {t(lv.labelKey)}
+      {/* **段の名前と % を並べる**（オーナー指示 2026-09-22「図鑑や復習の
+          単語の画像の右上にその単語の記憶の状態と記憶数値を書きたして」）。
+          以前は独立監査（「定着中 72%」が同じ画面の「定着中 1(語)」と
+          読み比べられて *定着中 = 72%* と読める）を受けて段の名前だけに
+          していた。オーナーの指示で数を戻す。図鑑の印と同じ形・同じ数
+          （`MemoryBadge` / `memoryOf`）。 */}
+      {t(lv.labelKey)} {strength}%
     </button>
   );
 }

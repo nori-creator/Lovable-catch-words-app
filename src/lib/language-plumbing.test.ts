@@ -5244,3 +5244,44 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
     expect(propose.indexOf("return {")).toBeLessThan(propose.indexOf('.from("words")'));
   });
 });
+
+/**
+ * **図鑑・復習の画像の右上に、記憶の段と % を出す**（オーナー指示 2026-09-22）。
+ */
+describe("画像の右上の記憶の印", () => {
+  it("**図鑑の札の右上に出す**（復習と同じ問い合わせ・同じ計算）", () => {
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    const grid = dex.slice(
+      dex.indexOf("export function DexAlbumGrid("),
+      dex.indexOf("export function PackGallery("),
+    );
+    expect(grid).toMatch(/const fetched = useMemoryBadges\(\);/);
+    expect(grid).toMatch(
+      /<MemoryBadge\s+info=\{memoryById\.get\(s\.id\)!\}\s+className="absolute right-1 top-1/,
+    );
+    // 同じ鍵を使う（復習で採点したら図鑑にも届く）。
+    expect(codeOnly(read("lib/use-memory-map.ts"))).toMatch(/queryKey: \["memory-overview"\]/);
+    expect(codeOnly(read("lib/memory-badge.ts"))).toMatch(/m\.set\(w\.sticker_id, memoryOf\(w\)\)/);
+  });
+
+  it("**再会の回数（×N）は右上に置かない**（印どうしが重なって段の名前が隠れた）", () => {
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    const grid = dex.slice(
+      dex.indexOf("export function DexAlbumGrid("),
+      dex.indexOf("export function PackGallery("),
+    );
+    expect(grid).not.toMatch(/absolute (left|right)-1\.5 top-1\.5[^"]*amber/);
+  });
+
+  it("**狭い札でも % は欠けない**（段の名前だけを詰める）", () => {
+    const badge = codeOnly(read("components/MemoryBadge.tsx"));
+    expect(badge).toMatch(/className="min-w-0 truncate">\s*\{label\}/);
+    expect(badge).toMatch(/className="shrink-0 tabular-nums">\s*\{info\.strength\}%/);
+  });
+
+  it("**復習の出題カードの右上も、段と % を出す**", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const b = rv.slice(rv.indexOf("export function CardMemoryBadge("));
+    expect(b.slice(0, 1800)).toMatch(/\{t\(lv\.labelKey\)\} \{strength\}%/);
+  });
+});

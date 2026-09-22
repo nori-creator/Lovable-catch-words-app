@@ -5,6 +5,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { MemoryBadge } from "@/components/MemoryBadge";
+import { useMemoryBadges } from "@/lib/use-memory-map";
+import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
 import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
@@ -684,12 +687,20 @@ export function DexAlbumGrid({
   items,
   justCaught,
   onOpen,
+  memory,
 }: {
   items: StickerWithWord[];
   justCaught?: string;
   onOpen: (id: string) => void;
+  /**
+   * 札の id → 記憶の印。渡さなければ復習と同じ問い合わせから読む
+   * （`useMemoryBadges`）。雛形は通信できないので、こちらで渡す。
+   */
+  memory?: Map<string, MemoryBadgeInfo>;
 }) {
   const t = useT();
+  const fetched = useMemoryBadges();
+  const memoryById = memory ?? fetched;
   return (
     <div className="grid grid-cols-3 gap-2.5">
       {items.map((s) => {
@@ -751,8 +762,19 @@ export function DexAlbumGrid({
                   </span>
                 </div>
               )}
-              {s.encounter_count > 0 && (
-                <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
+              {/* **右上は記憶の印**（オーナー指示 2026-09-22「図鑑や復習の単語の
+                  画像の右上にその単語の記憶の状態と記憶数値を書きたして」）。
+                  再会の回数（×N）は下の名前の帯へ移した — 上の隅に2つ並べると、
+                  幅の狭い札では印どうしが重なり、段の名前の頭が隠れた
+                  （実測: 「忘れかけ」が「れかけ」になった）。 */}
+              {memoryById.get(s.id) && (
+                <MemoryBadge
+                  info={memoryById.get(s.id)!}
+                  className="absolute right-1 top-1 max-w-[calc(100%-0.5rem)]"
+                />
+              )}
+              {!hasImage && s.encounter_count > 0 && (
+                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
                   ×{s.encounter_count}
                 </span>
               )}
@@ -773,10 +795,18 @@ export function DexAlbumGrid({
               {hasImage && (
                 <div className="absolute inset-x-0 bottom-0">
                   <div className="h-5 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="bg-black/60 px-2 pb-1.5">
-                    <div lang="zh-Hant" className="truncate text-footnote font-semibold text-white">
+                  <div className="flex items-center gap-1 bg-black/60 px-2 pb-1.5">
+                    <div
+                      lang="zh-Hant"
+                      className="min-w-0 flex-1 truncate text-footnote font-semibold text-white"
+                    >
                       {s.word.headword}
                     </div>
+                    {s.encounter_count > 0 && (
+                      <span className="shrink-0 rounded-full bg-amber-400/95 px-1.5 text-caption font-bold text-amber-950">
+                        ×{s.encounter_count}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

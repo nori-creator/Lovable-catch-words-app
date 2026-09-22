@@ -409,7 +409,8 @@ export function ScanCatchSheet({
             lng: loc.lng,
             taken_at: nowIso,
             created_at: nowIso,
-            encounter_count: 1,
+            // 再会の回数。**初めて捕まえた札は 0**（1 にすると「×1」の札が付く）。
+            encounter_count: 0,
             object_url: objectDataUrl,
             cutout_url: cutoutUrl,
             selfie_url: selfieDataUrl,

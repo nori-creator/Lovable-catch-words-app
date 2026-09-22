@@ -1031,7 +1031,8 @@ function CapturePage() {
         lng: here.lng,
         taken_at: nowIso,
         created_at: nowIso,
-        encounter_count: 1,
+        // 再会の回数。**初めて捕まえた札は 0**（1 にすると「×1」の札が付く）。
+        encounter_count: 0,
         // アップロード前の手元の絵。署名付き URL を待たずに出せて、
         // 読み直しが届いて本物に替わっても同じ絵なので見た目は変わらない。
         object_url: objectImg,

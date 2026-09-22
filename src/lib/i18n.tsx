@@ -1874,6 +1874,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.submit": { ja: "送信してフィードバック", en: "Get feedback", "zh-TW": "送出並取得回饋" },
   "review.grading": { ja: "AIが添削中…", en: "AI is reviewing…", "zh-TW": "AI 批改中…" },
   // --- memory ---
+  "memory.badgeAria": {
+    ja: "記憶の状態: {label}（{n}%）",
+    en: "Memory: {label} ({n}%)",
+    "zh-TW": "記憶狀態：{label}（{n}%）",
+  },
   "memory.level0": { ja: "忘れかけ", en: "Fading", "zh-TW": "快忘了" },
   "memory.level1": { ja: "あやうい", en: "Shaky", "zh-TW": "有點危險" },
   "memory.level2": { ja: "うろ覚え", en: "Fuzzy", "zh-TW": "記得模糊" },
