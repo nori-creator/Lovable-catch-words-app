@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import {
@@ -191,10 +192,10 @@ export const correctMyJournal = createServerFn({ method: "POST" })
           .upsert(baseRow, { onConflict: "user_id,entry_date" })
           .select("*")
           .single();
-        if (e2) throw new Error(e2.message);
+        if (e2) throw internalFailure("journal", e2, "日記を保存できませんでした");
         inserted = { ...toJournalEntry(row2), native_phrases: corrected.native_phrases };
       } else {
-        throw new Error(error.message);
+        throw internalFailure("journal", error, "日記を保存できませんでした");
       }
     }
     await logUsage(supabase, userId, "correction");

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -105,7 +106,7 @@ export const saveGhostSticker = createServerFn({ method: "POST" })
       // Migration not applied yet — save the bare ghost (no placeholder columns).
       res = await supabase.from("stickers").insert(baseRow).select("id").single();
     }
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) throw internalFailure("ghost", res.error, "保存できませんでした");
 
     // KPI: first catch (ghosts count as "found").
     const { count } = await supabase
@@ -183,6 +184,6 @@ export const attachPhotoToSticker = createServerFn({ method: "POST" })
         .eq("id", data.sticker_id)
         .eq("user_id", userId);
     }
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) throw internalFailure("ghost", res.error, "保存できませんでした");
     return { id: data.sticker_id };
   });

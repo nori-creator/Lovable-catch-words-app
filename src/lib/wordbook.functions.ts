@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -161,7 +162,9 @@ export const createWordbook = createServerFn({ method: "POST" })
       .insert({ user_id: userId, title: wordbookTitle(data.title, today) })
       .select("id")
       .single();
-    if (bookErr || !book) throw new Error(bookErr?.message ?? "単語帳を作れませんでした");
+    if (bookErr || !book) {
+      throw internalFailure("wordbook", bookErr ?? "no row", "単語帳を作れませんでした");
+    }
 
     const { error: rowErr } = await supabase.from("wordbook_entries").insert(
       entries.map((e) => ({
@@ -255,7 +258,7 @@ export const getWordbookDue = createServerFn({ method: "POST" })
       .eq("wordbook_id", data.wordbook_id)
       .order("due_at", { ascending: true })
       .limit(200);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("wordbook", error, "単語帳を読み込めませんでした");
 
     type Row = {
       id: string;
@@ -317,7 +320,7 @@ export const gradeWordbookEntry = createServerFn({ method: "POST" })
       .eq("id", data.entry_id)
       .eq("user_id", userId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("wordbook", error, "単語帳を読み込めませんでした");
     if (!row) throw new Error("この語を編集する権限がありません");
 
     const prev = row as { ease: number; interval_days: number; repetitions: number };
@@ -337,7 +340,7 @@ export const gradeWordbookEntry = createServerFn({ method: "POST" })
       })
       .eq("id", data.entry_id)
       .eq("user_id", userId);
-    if (upErr) throw new Error(upErr.message);
+    if (upErr) throw internalFailure("wordbook", upErr, "採点を保存できませんでした");
     return { next_due_at: dueAt, interval_days: next.interval_days };
   });
 
@@ -352,6 +355,6 @@ export const deleteWordbook = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.wordbook_id)
       .eq("user_id", userId);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("wordbook", error, "単語帳を削除できませんでした");
     return { ok: true };
   });

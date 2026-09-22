@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { L1_ORDER } from "@/lib/l1";
@@ -160,7 +161,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
       if (Object.keys(payload).length === 0) return { ok: true, skipped };
       ({ error } = await save(payload));
     }
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("profile", error, "設定を保存できませんでした");
     // **何が落ちたかを返す。** 黙って一部だけ保存すると、
     // 「保存しました」と言われた設定が次に開いたとき戻っている。
     return skipped.length > 0 ? { ok: true, skipped } : { ok: true };
@@ -245,7 +246,7 @@ export const setMyAvatar = createServerFn({ method: "POST" })
         .from("avatars")
         .upload(path, bytes, { contentType, upsert: true }));
     }
-    if (upErr) throw new Error(upErr.message);
+    if (upErr) throw internalFailure("profile", upErr, "写真をアップロードできませんでした");
 
     const {
       data: { publicUrl },
@@ -255,7 +256,7 @@ export const setMyAvatar = createServerFn({ method: "POST" })
       .from("profiles")
       .update({ avatar_url: publicUrl } as never)
       .eq("id", userId);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("profile", error, "写真を保存できませんでした");
     return { avatar_url: publicUrl };
   });
 
@@ -268,7 +269,7 @@ export const clearMyAvatar = createServerFn({ method: "POST" })
       .from("profiles")
       .update({ avatar_url: null } as never)
       .eq("id", context.userId);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("profile", error, "写真を外せませんでした");
     return { ok: true };
   });
 
@@ -306,7 +307,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       if (!files || files.length === 0) break;
       const paths = files.map((f) => `${userId}/${f.name}`);
       const { error: rmErr } = await supabaseAdmin.storage.from("stickers").remove(paths);
-      if (rmErr) throw new Error(`写真の削除に失敗しました: ${rmErr.message}`);
+      if (rmErr) throw internalFailure("account-delete", rmErr, "写真の削除に失敗しました");
       if (files.length < 1000) break;
     }
 
@@ -316,7 +317,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
         .from("words")
         .update({ created_by: null })
         .eq("created_by", userId);
-      if (error) throw new Error(error.message);
+      if (error) throw internalFailure("account-delete", error, "退会処理に失敗しました");
     }
 
     // 3) Row deletes, children before parents (FK order verified against the

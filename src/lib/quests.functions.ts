@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateStructured, getAi, logUsage } from "./ai-provider.server";
@@ -30,7 +31,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .eq("quest_date", today)
       .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("quests", error, "今日のクエストを読み込めませんでした");
     if (existing && existing.length > 0) return existing as DailyQuest[];
 
     // Generate 3 quests via AI
@@ -109,6 +110,6 @@ export const completeQuest = createServerFn({ method: "POST" })
       .update({ completed_at: new Date().toISOString(), sticker_id: data.sticker_id ?? null })
       .eq("id", data.quest_id)
       .eq("user_id", userId);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("quests", error, "クエストの記録に失敗しました");
     return { ok: true };
   });
