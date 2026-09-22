@@ -1,8 +1,8 @@
-# Catchwords 設計ドキュメント
+# Catchwords 設計ドキュメント — Historical archive
 
-> ⚠️ **正式仕様(Source of Truth)は [`06-scan-first-mvp.md`](./06-scan-first-mvp.md)**。
-> `01`〜`05` と本書 06 が矛盾する場合は **必ず 06 を優先** する。
-> 01〜05 は背景・分析・過去の検討経緯として残す。
+> ⚠️ **このフォルダは過去の設計資料です。現在の Source of Truth ではありません。**
+> 新しい実装・判断はリポジトリ直下の `PRODUCT.md`、`ROADMAP.md`、`ARCHITECTURE.md`、`QA.md` を必ず優先してください。
+> `06-scan-first-mvp.md` を含むこのフォルダ内の「Source of Truth」という表記は歴史的記録であり、現在は無効です。
 
 「街で出会った言葉を、写真1枚で 意味・発音・カード化・復習 まで自動化する」アプリの全体設計書。
 現在のコードベース(TanStack Start + Supabase + Lovable AI Gateway)を実際に読んだ上で、
