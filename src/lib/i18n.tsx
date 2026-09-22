@@ -2089,7 +2089,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages", "zh-TW": "以前的頁面" },
   // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
   // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
-  "home.todayPage": { ja: "今日の1ページ", en: "Today's Page", "zh-TW": "今天的一頁" },
   // 右上の数字（これまでに捕まえた語）。裸の数字では何の数か分からないので
   // 小さく添える（見本の絵は裸だが、実物では読む人が意味を取れない）。
   "home.countLabel": { ja: "ことば", en: "words", "zh-TW": "個字" },

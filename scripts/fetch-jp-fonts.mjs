@@ -14,7 +14,7 @@
  *   1.4MB になるので、Google が配っているのと同じ **122枚の切り分け**を
  *   そのまま貰う。`unicode-range` が付いているので、browser は
  *   **その画面に出ている字が入っている枚だけ**を取る（実測で数十KB）。
- * - **Shippori Mincho**（明朝）… 表紙の見出し「今日の1ページ」**だけ**に
+ * - **Shippori Mincho**（明朝）… 表紙の見出し（その日の日付）**だけ**に
  *   当てる。出る字が決まっているので、**その字だけに絞る**（9KB）。
  *   絞っているので、見出しの文言を変えたらここを走らせ直すこと
  *   （`language-plumbing.test.ts` に、字が増えたら落ちる門を置いてある）。
@@ -29,8 +29,17 @@ const OUT = path.resolve("public/fonts");
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 
-/** 見出しに出る字。**ここを変えたら、絞り直しが要る。** */
-const TITLE_TEXT = "今日の1ページToday's Page今天的一頁 0123456789";
+/**
+ * 見出しに出る字。**ここを変えたら、絞り直しが要る。**
+ *
+ * 見出しは**その日の日付そのもの**になった（オーナー指示 2026-09-22
+ * 「今日のページではなく、上は今日の日付を書いて」）。出る字は
+ * `toLocaleDateString(locale, { month: "long", day: "numeric" })` が
+ * 返す形 — 和文・繁體中文は「9月22日」、欧文は「September 22」。
+ * だから数字と「月」「日」、それに**英語の月名に出る字**が要る。
+ */
+const TITLE_TEXT =
+  "0123456789月日 January February March April May June July August September October November December";
 
 async function get(url, headers = {}) {
   const res = await fetch(url, { headers });

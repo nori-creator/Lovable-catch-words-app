@@ -15,14 +15,13 @@ import {
   BackgroundPicker,
   DayHeader,
   DayMasthead,
-  DayTimeline,
   dayTagline,
   HomeEmptyState,
   HomeLoading,
   JournalLink,
   PastDays,
   PendingCapturesCard,
-  ScrapbookAlbum,
+  DayCollage,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { JournalComposer } from "@/components/JournalComposer";
@@ -138,7 +137,7 @@ export function HomeScene() {
   return (
     <>
       <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
-      <DayTimeline stickers={today} opening onOpen={() => {}} />
+      <DayCollage stickers={today} opening onOpen={() => {}} />
     </>
   );
 }
@@ -208,7 +207,6 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
   return (
     <PastDays
       days={days}
-      bgClass="album-bg-paper"
       onOpen={() => {}}
       truncated
       shown={1000}
@@ -219,19 +217,13 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
 }
 
 /**
- * **指で自由に置く台紙(`ScrapbookAlbum`)。**
+ * **指で自由に置く誌面(`DayCollage`)だけを見る場面。**
  *
- * ホームは時刻の道順(`DayTimeline`)に変わったので、この台紙はもう
- * どの画面からも呼んでいない — だが**消してはいない**。指で動かす・
- * つまんで大きさを変える・重ねた物を上に出すは、いずれもオーナーの
- * 指示で作った機能で、戻すかどうかはオーナーが決めること。
- *
- * 呼ばれていないからといって検査から外さない。外した部品は、次に
- * 戻したとき**誰も見ていない状態で画面に出る**。
+ * ホームそのもの（`HomeScene`）は表紙も過去の日も付くので、
+ * 置き方・重なり・時刻の出方だけを見たいときはこちらを開く。
  */
-export function HomeAlbumScene({ q }: { q: URLSearchParams }) {
-  const bg = q.get("bg") ?? "paper";
-  return <ScrapbookAlbum stickers={today} bgClass={`album-bg-${bg}`} onOpen={() => {}} />;
+export function HomeAlbumScene() {
+  return <DayCollage stickers={today} onOpen={() => {}} />;
 }
 
 /** 圏外で撮って預かっている写真の帯。**オフラインでしか出ない面。** */
@@ -265,7 +257,7 @@ export function HomeWritingScene() {
   return (
     <>
       <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
-      <DayTimeline stickers={today} opening onOpen={() => {}} />
+      <DayCollage stickers={today} opening onOpen={() => {}} />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />
       </JournalWritingPage>
@@ -291,7 +283,7 @@ export function HomeWritingScene() {
  * いなかった**。飛ぶ絵の部品（`hero-flight` の場面）だけは測っていたので
  * 「部品は動く・実物は動かない」がずっと見えなかった。
  *
- * この場面は本物の `ScrapbookAlbum` を描き、押したときに
+ * この場面は本物の誌面（`DayCollage`）を描き、押したときに
  * `flightFrom` が何を返したかを**画面に出す**。飛ぶ元が取れていなければ、
  * その時点で `null` と出る — どこで切れているかが一目で分かる。
  */
@@ -323,7 +315,7 @@ export function HomeTapScene() {
       >
         飛ぶ元: {got}
       </p>
-      <DayTimeline
+      <DayCollage
         stickers={today}
         onOpen={(id, from) => {
           setGot(
