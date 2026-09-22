@@ -4972,3 +4972,46 @@ describe("絵の検査で出た赤（実測で本当だったもの）", () => {
     expect(fn.slice(0, 900)).toMatch(/if \(bare\) return \[\];/);
   });
 });
+
+/**
+ * オーナー指示 2026-09-22 の回。**実際に描いて／押して確かめた物**だけ。
+ */
+describe("日本語の検索・候補の行・項目の並べ替え", () => {
+  it("**0件をそのまま「見つからない」にしない**（一度だけ引き直す）", () => {
+    // `CandidateSchema` は `.default([])` を持つので、生成の形が読めなかった
+    // ときも静かに0件になり、画面は「単語が見つかりませんでした」と言う。
+    // 打った人からは機能そのものが壊れているように見える。
+    const fn = codeOnly(read("lib/ai.functions.ts"));
+    const body = fn.slice(fn.indexOf("export const suggestWordCandidates"));
+    expect(body).toMatch(/if \(raw\.candidates\.length === 0\) \{/);
+    expect(body).toMatch(/raw = await ask\(/);
+  });
+
+  it("**候補は捨てる前に一度だけ直す**（注釈付きの見出し語で全滅させない）", () => {
+    const fn = codeOnly(read("lib/ai.functions.ts"));
+    const body = fn.slice(fn.indexOf("export const suggestWordCandidates"));
+    expect(body).toMatch(/coerceTargetHeadword\(c\.headword, data\.targetLanguage\)/);
+    // 直せない物はここで落ちる（母語がそのまま見出しになるのを止める）。
+    expect(body).toMatch(/c\.headword && isTargetHeadword\(c\.headword, data\.targetLanguage\)/);
+  });
+
+  it("**候補の行は横に伸びない**（折り返す）", () => {
+    // 見出し語が `shrink-0` だと、句をキャッチしたときに語＋訳が行の幅を
+    // 越えて中身が横にはみ出す（実測 320px で 47px）。
+    const row = codeOnly(read("components/WordCandidateRow.tsx"));
+    expect(row).toMatch(/className="flex flex-wrap items-baseline/);
+    expect(row).not.toMatch(/className="shrink-0 text-title/);
+  });
+
+  it("**指で掴む所は `touch-action: none`**（掴んだ瞬間に巻き取られない）", () => {
+    // `touch-action` は「指が降りた要素」の値が使われる。親の `<ul>` に
+    // 当てても、指が降りるのは行と取っ手なので効かない。始まった巻き取りは
+    // `pointercancel` を呼び、掴んだ手がその場で離れる。
+    const card = codeOnly(read("components/WordCard.tsx"));
+    // 最初の当たりは `onPointerDown` の中の判定。**釦の方**を見る。
+    const handle = card.slice(card.indexOf("<button\n                data-drag-handle"));
+    expect(handle.length).toBeGreaterThan(0);
+    expect(handle.slice(0, 400)).toMatch(/touch-none/);
+    expect(card).toMatch(/dragging\s*\n?\s*\? "touch-none /);
+  });
+});

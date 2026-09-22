@@ -17,7 +17,7 @@ import { readySpeech } from "../speech";
  * 発音ボタンは**鳴らせるようになってから**出る。足場にはサーバが無いので、
  * ここで支度が済んだことにしないと**ボタンが1つも撮られない**。
  */
-const WORDS = ["面紙", "雞肉", "遙控器", "珍珠奶茶"];
+const WORDS = ["面紙", "雞肉", "遙控器", "珍珠奶茶", "滷肉飯"];
 
 export function WordCandidateScene() {
   readySpeech(WORDS);
@@ -54,6 +54,20 @@ export function WordCandidateScene() {
           pinyin="yáo kòng qì"
           meaning="エアコンやテレビのリモコン(手に持つ操作器)"
           distinction="家電を離れて操作する方"
+          onPick={() => {}}
+        />
+      </li>
+      <li>
+        {/* **使い分けが長い回**（オーナー報告 2026-09-22「候補の解説が長い
+            場合に横にスライドしないといけない場合があるけど、必ず固定して」）。
+            ここが無かったので、長い一言で行が横に伸びる姿を一度も
+            撮っていなかった。 */}
+        <WordCandidateRow
+          headword="滷肉飯"
+          zhuyin="ㄌㄨˇ ㄖㄡˋ ㄈㄢˋ"
+          pinyin="lǔ ròu fàn"
+          meaning="魯肉飯"
+          distinction="台湾の定番。細かく刻んだ豚バラを甘辛く煮込んで白飯にかけたもので、南部では「肉燥飯」と呼ぶことが多い"
           onPick={() => {}}
         />
       </li>

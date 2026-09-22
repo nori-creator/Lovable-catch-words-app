@@ -23,7 +23,7 @@ import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
 // 呼ぶ側に押し付けない。
 export type { GeneratedCard };
-import { isTargetHeadword } from "./target-language";
+import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import { REGEN_SECTIONS, sectionHasContent, type RegenSection } from "./card-sections";
 import {
@@ -265,18 +265,43 @@ ${langRule}
 - 実際に使われている語だけ。${candProfile.capture.scriptRule}。
 - 2〜5個。**確かなものだけ**。1つしか無いならそれだけ返す。`;
 
-    const raw = await generateStructured({
-      model: ai.gateway(ai.modelFast),
-      schema: CandidateSchema,
-      prompt,
-    });
+    const ask = (extra = "") =>
+      generateStructured({
+        model: ai.gateway(ai.modelFast),
+        schema: CandidateSchema,
+        prompt: prompt + extra,
+      });
+
+    let raw = await ask();
+    /**
+     * **0件は「そんな語は無い」ではないことが多い。**
+     * `CandidateSchema` は `.default([])` を持つので、生成の形が読めなかった
+     * ときも**静かに0件**になる（鍵が違う・前後に説明が付く・配列だけ返す）。
+     * 画面はそれを「単語が見つかりませんでした」と言うので、打った人からは
+     * 機能そのものが壊れているように見える
+     * （オーナー報告 2026-09-22「カメラの検索で日本語での検索ができない」）。
+     *
+     * 0件のときだけ、**形をはっきり言い直して一度だけ引き直す。**
+     * 上限の数え方は変えない（`assertWithinDailyCap` は1回ぶんのまま）—
+     * 失敗した回を二重に数えると、直そうとして上限を削ることになる。
+     */
+    if (raw.candidates.length === 0) {
+      raw = await ask(
+        `\n\n出力の形: {"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+      );
+    }
 
     // 生成物は必ず想定外を出す。**学んでいる言語でないものは落とす** —
     // ここを通すと、母語がそのまま見出しになる元の不具合に戻る。
+    // ただし**捨てる前に一度だけ直す**（`coerceTargetHeadword`）: 頼んで
+    // いない注釈（「烤肉 (BBQ)」）が付いただけで、中身は正しいことがある。
     const seen = new Set<string>();
     const candidates = raw.candidates
-      .map((c) => ({ ...c, headword: c.headword.trim() }))
-      .filter((c) => isTargetHeadword(c.headword, data.targetLanguage))
+      .map((c) => ({
+        ...c,
+        headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
+      }))
+      .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage))
       .filter((c) => {
         if (seen.has(c.headword)) return false;
         seen.add(c.headword);
