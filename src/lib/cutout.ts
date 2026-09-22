@@ -1,3 +1,4 @@
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 /**
  * Shared in-browser cutout pipeline (@imgly/background-removal).
  *
@@ -101,6 +102,7 @@ export function shouldPreloadCutout(): boolean {
 
 /** Warm the wasm module and model weights ahead of the first real cutout. */
 export function preloadCutout(): void {
+  if (!CUTOUT_ENABLED) return;
   // 門はここに置く。呼ぶ側に置くと、次に呼ぶ人がまた素通りさせる。
   if (!shouldPreloadCutout()) return;
   void loadModule()
@@ -172,6 +174,7 @@ export function thumbPath(path: string): string {
  * silently — a catch must never fail because a paid service hiccuped.
  */
 export async function removeBackgroundSmart(dataUrl: string): Promise<string> {
+  if (!CUTOUT_ENABLED) return dataUrl;
   try {
     const { removeBackgroundApi } = await import("./cutout.functions");
     // Higher input resolution than the local path — the API is doing the

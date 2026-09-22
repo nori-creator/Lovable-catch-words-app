@@ -1,3 +1,9 @@
+import {
+  REVIEW_PRACTICE_ENABLED,
+  selfieCaptureEnabled,
+  setSelfieCaptureEnabled,
+} from "@/lib/product-features";
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -348,6 +354,7 @@ function SettingsPage() {
   const [catchSpeed, setCatchSpeedState] = useState<CatchSpeed>("detail");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
+  const [selfieMode, setSelfieMode] = useState(selfieCaptureEnabled);
   const [saving, setSaving] = useState(false);
   // 端末ごとの設定なので、プロフィールの到着を待たずに読む
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
@@ -629,7 +636,26 @@ function SettingsPage() {
     <AppShell title={t("title.settings")}>
       {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
           差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
-      <div className="space-y-7">
+      <div className="settings-page space-y-7 pb-24">
+        <div className="sticky top-2 z-30 flex justify-end pointer-events-none">
+          <Button
+            className="pointer-events-auto rounded-full px-6 shadow-lg"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? t("settings.saving") : t("settings.save")}
+          </Button>
+        </div>
+        <SettingsCard title={t("capture.photoTitle")}>
+          <ToggleRow
+            label={t("settings.selfieMode")}
+            value={selfieMode}
+            onChange={(v) => {
+              setSelfieMode(v);
+              setSelfieCaptureEnabled(v);
+            }}
+          />
+        </SettingsCard>
         <SettingsCard title={t("settings.profile")}>
           <div className="space-y-3">
             <AvatarRow />
@@ -701,22 +727,24 @@ function SettingsPage() {
           <div className="space-y-3">
             {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
                 既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
-            <ChoiceRow
-              cols={3}
-              label={t("settings.reviewMode")}
-              value={reviewMode}
-              onChange={(v) => {
-                const next = normalizeReviewMode(v);
-                setReviewMode(next);
-                // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
-                setStoredReviewMode(next);
-              }}
-              options={[
-                { value: "hybrid", label: t("settings.modeHybrid") },
-                { value: "speaking", label: t("settings.modeSpeaking") },
-                { value: "choice", label: t("settings.modeChoice") },
-              ]}
-            />
+            {REVIEW_PRACTICE_ENABLED && (
+              <ChoiceRow
+                cols={3}
+                label={t("settings.reviewMode")}
+                value={reviewMode}
+                onChange={(v) => {
+                  const next = normalizeReviewMode(v);
+                  setReviewMode(next);
+                  // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
+                  setStoredReviewMode(next);
+                }}
+                options={[
+                  { value: "hybrid", label: t("settings.modeHybrid") },
+                  { value: "speaking", label: t("settings.modeSpeaking") },
+                  { value: "choice", label: t("settings.modeChoice") },
+                ]}
+              />
+            )}
             {/* 要望 #16「表示画像(切り抜き/元画像/自撮り)を設定から選べる」。
                 端末ごとの設定にしてある(理由は `lib/photo-pref.ts`)ので、
                 保存はここで即座に効く — サーバへは行かない。 */}
@@ -738,26 +766,30 @@ function SettingsPage() {
               }}
               options={[
                 { value: "object", label: t("settings.photoObject") },
-                { value: "cutout", label: t("settings.photoCutout") },
+                ...(CUTOUT_ENABLED
+                  ? [{ value: "cutout" as const, label: t("settings.photoCutout") }]
+                  : []),
                 { value: "selfie", label: t("settings.photoSelfie") },
               ]}
             />
             {/* 要望 #18「キャッチ時に切り抜きするしない」。
                 **既定は今まで通り「丁寧」** — 速さのために見た目を落とすかは
                 人が決めることで、黙って切り替えるものではない。 */}
-            <ChoiceRow
-              cols={2}
-              label={t("settings.catchSpeed")}
-              value={catchSpeed}
-              onChange={(v) => {
-                setCatchSpeedState(v);
-                setCatchSpeed(v);
-              }}
-              options={[
-                { value: "detail", label: t("settings.speedDetail") },
-                { value: "fast", label: t("settings.speedFast") },
-              ]}
-            />
+            {CUTOUT_ENABLED && (
+              <ChoiceRow
+                cols={2}
+                label={t("settings.catchSpeed")}
+                value={catchSpeed}
+                onChange={(v) => {
+                  setCatchSpeedState(v);
+                  setCatchSpeed(v);
+                }}
+                options={[
+                  { value: "detail", label: t("settings.speedDetail") },
+                  { value: "fast", label: t("settings.speedFast") },
+                ]}
+              />
+            )}
             {/* **発音判定の厳しさの欄は消した**(オーナー指示 2026-08-26)。
                 列(`pronunciation_strictness`)は残す — 既に選んである人の
                 値を保存のたびに書き戻して、消さないため。 */}

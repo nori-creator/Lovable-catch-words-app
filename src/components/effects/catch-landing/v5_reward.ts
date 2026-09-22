@@ -51,7 +51,14 @@ export const v5reward: LandingRunner = async ({
   const root = document.getElementById("reward-catch");
   if (!root || !startEl || !fly) {
     speakLine?.();
-    await wait(650);
+    if (gate) {
+      try {
+        await gate;
+      } catch {
+        return;
+      }
+    }
+    await openDex?.();
     return;
   }
 
@@ -60,15 +67,25 @@ export const v5reward: LandingRunner = async ({
   // 付いている。箱の寸法で飛ばすと `object-contain` が写真を箱いっぱいまで
   // 広げるので、離陸の瞬間に **16% ほど大きくなって**「別の物に入れ替わった」
   // ように見える。中に img が在ればそれを測る(無ければ従来どおり枠)。
-  const measured = startEl.querySelector("img") ?? startEl;
-  const source = measured.getBoundingClientRect();
+  const peelArt = startEl.querySelector(".cw-peel-art");
+  const measured = peelArt ?? startEl.querySelector("img") ?? startEl;
+  const bounds = measured.getBoundingClientRect();
+  // The alpha image occupies 32..288 inside the 320px SVG viewBox.
+  const source = peelArt
+    ? {
+        left: bounds.left + bounds.width * 0.0625,
+        top: bounds.top + bounds.height * 0.0625,
+        width: bounds.width * 0.875,
+        height: bounds.height * 0.875,
+      }
+    : bounds;
   const width = Math.max(source.width, 1);
   const height = Math.max(source.height, 1);
   const centerX = source.left + width / 2;
   const centerY = source.top + height / 2;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const targetWidth = Math.min(viewportWidth * 0.76, 350);
+  const targetWidth = Math.min(viewportWidth * 0.9, viewportHeight * 0.52, 560);
   const heroScale = targetWidth / width;
   const heroX = viewportWidth / 2 - centerX;
   const heroY = viewportHeight * 0.38 - centerY;
@@ -78,85 +95,81 @@ export const v5reward: LandingRunner = async ({
   fly.style.width = `${width}px`;
   fly.style.height = `${height}px`;
   fly.style.opacity = "1";
-  fly.style.transformOrigin = "50% 70%";
+  fly.style.transformOrigin = "50% 50%";
 
+  // 0–120ms release; 120–600ms entrance + signature; 600ms name/voice;
+  // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
   Sound.rewardGrip();
   haptic("selection");
   await fly.animate(
-    [
-      { transform: "translate3d(0, 2px, 0) scale3d(.985,.972,1) rotateX(2deg)" },
-      { transform: "translate3d(0, -2px, 0) scale3d(1.018,1.018,1) rotateX(0deg)" },
-    ],
-    { duration: 180, easing: "cubic-bezier(.22,.78,.22,1)", fill: "forwards" },
+    [{ transform: "translateY(0) scale(1)" }, { transform: "translateY(-8px) scale(1.025)" }],
+    { duration: 120, easing: EASE_IOS, fill: "forwards" },
   ).finished;
 
   root.dataset.stage = "lift";
-  Sound.rewardLift();
+  Sound.itemFanfare();
+  haptic("medium");
   await fly.animate(
     [
-      { transform: "translate3d(0,-2px,0) scale(1.018) rotateX(0deg)" },
-      {
-        offset: 0.2,
-        transform: `translate3d(${heroX * 0.2}px,${heroY * 0.35}px,0) scale(${1 + (heroScale - 1) * 0.08}) rotateZ(-1.4deg)`,
-      },
-      {
-        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)`,
-      },
-    ],
-    { duration: 440, easing: "cubic-bezier(.14,.72,.18,1)", fill: "forwards" },
-  ).finished;
-
-  root.dataset.stage = "charge";
-  Sound.rewardCharge();
-  await fly.animate(
-    [
-      {
-        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.96}) rotateZ(.35deg)`,
-      },
+      { transform: "translateY(-8px) scale(1.025)" },
       {
         offset: 0.72,
-        transform: `translate3d(${heroX}px,${heroY - 3}px,0) scale(${heroScale}) rotateZ(0deg)`,
+        transform: `translate(${heroX}px,${heroY - 12}px) scale(${heroScale * 1.06}) rotate(-2deg)`,
       },
-      {
-        transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972}) rotateZ(0deg)`,
-      },
+      { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale}) rotate(0deg)` },
     ],
-    { duration: 560, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" },
+    { duration: 480, easing: "cubic-bezier(.16,.8,.22,1)", fill: "forwards" },
   ).finished;
 
-  root.dataset.stage = "hold";
-  await wait(96);
   root.dataset.stage = "break";
-  Sound.rewardBreak();
-  setTimeout(() => haptic("heavy"), 32);
+  haptic("success");
+  const spoken = Promise.resolve()
+    .then(() => speakLine?.())
+    .catch(() => {});
   await fly.animate(
     [
-      { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale * 0.972})` },
+      { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
       {
-        offset: 0.58,
-        transform: `translate3d(${heroX}px,${heroY - 7}px,0) scale(${heroScale * 1.065})`,
+        offset: 0.4,
+        transform: `translate(${heroX}px,${heroY - 5}px) scale(${heroScale * 1.025})`,
       },
-      { transform: `translate3d(${heroX}px,${heroY}px,0) scale(${heroScale})` },
+      { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
     ],
-    { duration: 340, easing: "cubic-bezier(.16,1.3,.3,1)", fill: "forwards" },
+    { duration: 280, easing: EASE_IOS, fill: "forwards" },
   ).finished;
-
+  // Keep burst running, and don't leave while the word is still being read.
+  await Promise.race([spoken, wait(2600)]);
   root.dataset.stage = "reveal";
-  speakLine?.();
-  await wait(1000);
-  // **見せ場の1秒は、保存を待つ関所も兼ねる。**
-  // 演出は押した瞬間に始まっているので、ここでまだ保存が終わっていない
-  // ことがある。ここで待たないと、演出の後に無言の待ち時間が現れる
-  // (見せ場の後に空白が来るのが、いちばん間の抜けた形)。
-  // **転んだらここで畳む。** 受け渡し(図鑑へ飛び込む)まで進んでしまうと、
-  // 保存に失敗したのに祝ってから謝ることになる。覆いを外すのは呼ぶ側。
+  Sound.itemGlint();
+  haptic("light");
+  await fly.animate(
+    [
+      { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
+      { filter: "brightness(1.45) drop-shadow(0 0 26px #90edff99)", offset: 0.35 },
+      { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
+    ],
+    { duration: 180, easing: "ease-out" },
+  ).finished;
+  await wait(280);
   if (gate) {
+    // Slow storage must not leave a frozen reward image. Do not claim a landing
+    // until persistence succeeds; keep the photo gently airborne while it waits.
+    const hover = fly.animate(
+      [
+        { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
+        { transform: `translate(${heroX}px,${heroY - 9}px) scale(${heroScale * 1.015})` },
+        { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
+      ],
+      { duration: 900, iterations: Infinity, easing: "ease-in-out" },
+    );
     try {
       await gate;
     } catch {
       root.dataset.stage = "idle";
       return;
+    } finally {
+      hover.cancel();
     }
   }
 
@@ -173,6 +186,7 @@ export const v5reward: LandingRunner = async ({
   handoffImage.style.width = `${heroRect.width}px`;
   handoffImage.style.height = `${heroRect.height}px`;
   handoffImage.style.transform = "none";
+  handoffImage.style.transformOrigin = "0 0";
   handoffImage.style.opacity = "1";
   // 着地先は**いま**読む。冒頭で分解した値は、押した時点ではまだ null。
   const targetId = getDestinationId?.() ?? destinationId;
@@ -218,7 +232,7 @@ export const v5reward: LandingRunner = async ({
       return;
     }
 
-    const targetRect = target.getBoundingClientRect();
+    const targetRect = (target.querySelector("img") ?? target).getBoundingClientRect();
     target.style.visibility = "hidden";
     hiddenCell = target;
     const dx = targetRect.left - heroRect.left;
@@ -230,7 +244,7 @@ export const v5reward: LandingRunner = async ({
     const copy = handoff.querySelector(".reward-catch__copy") as HTMLElement | null;
     const backgroundMotion = [
       veil?.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: 420,
+        duration: 320,
         easing: EASE_IOS,
         fill: "forwards",
       }).finished,
@@ -242,44 +256,60 @@ export const v5reward: LandingRunner = async ({
         { duration: 260, easing: EASE_IOS, fill: "forwards" },
       ).finished,
     ].filter(Boolean);
+    const apexX = dx * 0.3;
+    const apexY = -Math.min(190, viewportHeight * 0.24);
     await Promise.all([
       handoffImage.animate(
         [
-          { transform: "translate3d(0,0,0) scale(1) rotateZ(0deg)", offset: 0 },
-          {
-            transform: `translate3d(${dx * 0.42}px,${dy * 0.25 - 28}px,0) scale(${1 - (1 - sx) * 0.2},${1 - (1 - sy) * 0.2}) rotateZ(-3deg)`,
-            offset: 0.32,
-          },
-          {
-            transform: `translate3d(${dx * 0.88}px,${dy * 0.78 - 18}px,0) scale(${sx * 1.08},${sy * 1.08}) rotateZ(1.2deg)`,
-            offset: 0.78,
-          },
-          { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy}) rotateZ(0deg)` },
+          { transform: "translate(0,0) scale(1)" },
+          { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
         ],
-        { duration: 720, easing: "cubic-bezier(.34,.05,.18,1)", fill: "forwards" },
+        { duration: 320, easing: "cubic-bezier(.12,.8,.22,1)", fill: "forwards" },
       ).finished,
       ...backgroundMotion,
     ]);
+    Sound.itemDrop();
+    await handoffImage.animate(
+      [
+        { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
+        { transform: `translate(${dx}px,${dy}px) scale(${sx},${sy}) rotate(0deg)` },
+      ],
+      { duration: 240, easing: "cubic-bezier(.65,0,1,.45)", fill: "forwards" },
+    ).finished;
 
     handoff.dataset.stage = "impact";
     Sound.shelfLand();
     haptic("heavy");
+    target.animate([{ boxShadow: "0 0 0 0 #58d7ff99" }, { boxShadow: "0 0 0 24px #58d7ff00" }], {
+      duration: 600,
+      easing: "ease-out",
+    });
+    const shelf = target.parentElement;
+    shelf?.animate(
+      [
+        { transform: "translateY(0)" },
+        { transform: "translateY(5px)", offset: 0.2 },
+        { transform: "translateY(-2px)", offset: 0.5 },
+        { transform: "translateY(0)" },
+      ],
+      { duration: 320, easing: "ease-out" },
+    );
     // 着弾の跳ね。ここが中断されても外側の `finally` が借り物を返すので、
     // 以前あった内側の `try/finally` は要らない(同じ後始末の二重書きだった)。
     await handoffImage.animate(
       [
         { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
         {
-          transform: `translate3d(${dx}px,${dy + targetRect.height * 0.035}px,0) scale(${sx * 1.07},${sy * 0.9})`,
-          offset: 0.28,
+          transform: `translate3d(${dx}px,${dy + targetRect.height * 0.07}px,0) scale(${sx * 1.12},${sy * 0.83})`,
+          offset: 0.14,
         },
         {
-          transform: `translate3d(${dx}px,${dy - targetRect.height * 0.045}px,0) scale(${sx * 0.98},${sy * 1.04})`,
-          offset: 0.58,
+          transform: `translate3d(${dx}px,${dy - targetRect.height * 0.15}px,0) scale(${sx * 0.98},${sy * 1.04})`,
+          offset: 0.46,
         },
         { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
       ],
-      { duration: 360, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
+      { duration: 560, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
     ).finished;
   } finally {
     // 借りた物を返す。どの経路で抜けても、ここだけは通る。

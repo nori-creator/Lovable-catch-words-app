@@ -1,3 +1,4 @@
+import { useState } from "react";
 /**
  * 語の印を押したときに出る札。**scan の中でいちばん読む所**。
  *
@@ -212,7 +213,7 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
    *  ・`wide` … 広角を持つ端末。0.5 の粒が増える
    *  ・`between` … ピンチで刻みの間にいる。**どの粒も点かない**のが正しい
    */
-  const zoom = v === "between" ? 2.4 : v === "wide" ? 0.5 : 2;
+  const [zoom, setZoom] = useState(v === "between" ? 2.4 : v === "wide" ? 0.5 : 2);
   const zoomMin = v === "wide" ? 0.5 : 1;
   return (
     // 足場はインラインの `style`。雛形にしか無いクラスは生成されない。
@@ -221,13 +222,15 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
         hidden={false}
         facing="environment"
         onFlip={() => {}}
-        // 実物は `showZoom={ready}` で常に渡す。倍率を1つしか持たない端末では
-        // `CameraZoomMeter` 自身が「押せない `1×` の札」に落とす（参考画像の形）。
+        // 実物は `showZoom={ready}` で常に渡す（`routes/_authenticated/scan.tsx`）。
+        // 倍率を1つしか持たない端末では `CameraZoomMeter` 自身が
+        // 「押せない `1×` の札」に落とすので、`nozoom=1` は幅の方を潰す。
         showZoom
         zoom={noZoom ? 1 : zoom}
         zoomMin={noZoom ? 1 : zoomMin}
         zoomMax={noZoom ? 1 : 6}
-        onZoom={() => {}}
+        // 触れる目盛りとして撮る（main で入った小数点の倍率メーター）。
+        onZoom={setZoom}
       />
     </div>
   );

@@ -1,3 +1,5 @@
+import { PeelSticker } from "@/components/PeelSticker";
+import { cutoutAtCatch, getCatchSpeed } from "@/lib/catch-speed";
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { Reading, useReadingText } from "@/lib/phonetic";
@@ -13,7 +15,7 @@ import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, thumbPath, removeBackgroundSmart } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
@@ -24,12 +26,6 @@ import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { useT } from "@/lib/i18n";
 import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
-import { Sound } from "@/lib/sound-engine";
-import { haptic } from "@/lib/haptics";
-import {
-  photoLibrarySaveRequiresUserGesture,
-  saveCaptureToPhotoLibrary,
-} from "@/lib/device-photo-library";
 
 type Props = {
   snapshotDataUrl: string;
@@ -120,8 +116,8 @@ export function ScanCatchSheet({
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
-  // Cutout is disabled — always null; the plain crop (objectDataUrl) is used.
-  const [cutoutUrl] = useState<string | null>(null);
+  // Reveal the cutout when ready; saving the photo never waits for it.
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -160,8 +156,7 @@ export function ScanCatchSheet({
   // background cutout is a best-effort *visual upgrade*, never a gate on the
   // catch. (Previously the sheet spun "分析中" until background removal finished,
   // and the save button + doSave both required the cutout, so a slow/absent
-  // remove.bg model left the word impossible to file. The scan doesn't cut
-  // anything out, so there's nothing to wait for.)
+  // remove.bg model left the word impossible to file.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -171,8 +166,15 @@ export function ScanCatchSheet({
         setObjectDataUrl(cropped);
         setPhase("ready"); // ready as soon as the photo exists
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-        // Background removal (cutout) is fully disabled for now — the scan
-        // never cuts anything out; the plain crop is what we keep and show.
+        if (cutoutAtCatch(getCatchSpeed())) {
+          void removeBackgroundSmart(cropped)
+            .then((cut) => {
+              if (!cancelled) setCutoutUrl(cut);
+            })
+            .catch(() => {
+              /* Keep the original photo usable. */
+            });
+        }
       } catch (e) {
         console.warn("crop failed", e);
         if (cancelled) return;
@@ -215,15 +217,16 @@ export function ScanCatchSheet({
    * ここに残すのは**どの版でも共通の前後処理**だけ: phase の切替、チャイム、
    * 振動、そして reduced motion のときは飛行そのものを省く判断。
    */
-  async function runLandingAnimation(): Promise<void> {
+  async function runLandingAnimation(gate: Promise<void>): Promise<void> {
     setPhase("landing");
     await runCatchLanding({
       startEl: cutoutBoxRef.current,
       // ref のまま渡す。演出の層はこの直前の setPhase("landing") で
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
-      speakLine: () => void pronounceRef.current?.(headword),
-      destinationId: landingDestinationRef.current ?? undefined,
+      speakLine: () => pronounceRef.current?.(headword, true),
+      getDestinationId: () => landingDestinationRef.current ?? undefined,
+      gate,
       openDex: () => {
         const id = landingDestinationRef.current;
         if (id) return navigate({ to: "/dex", search: { justCaught: id } });
@@ -233,12 +236,19 @@ export function ScanCatchSheet({
 
   async function doSave() {
     if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    pronounceRef.current.prepare();
     // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
-    if (photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
-    Sound.rewardGrip();
-    haptic("selection");
+
     setSaving(true);
     setErr(null);
+    let releaseSave!: () => void;
+    let failSave!: (e: unknown) => void;
+    const gate = new Promise<void>((resolve, reject) => {
+      releaseSave = resolve;
+      failSave = reject;
+    });
+    void gate.catch(() => {});
+    const landing = runLandingAnimation(gate).catch((e) => console.warn("catch landing failed", e));
     try {
       // §3.3 acceptance: the prefetched card is reused — no additional AI call
       // here. A reunion upgrade doesn't need the card at all (word exists).
@@ -410,8 +420,9 @@ export function ScanCatchSheet({
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       landingDestinationRef.current = stickerId;
       // ネイティブ版は札の保存が成功した時点でだけ共有フォトへ同期する。
-      if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectDataUrl);
-      await runLandingAnimation();
+
+      releaseSave();
+      await landing;
       setPhase("done");
       if (firstCatch) {
         // Onboarding §2: the SRS teaser is tomorrow's reason to come back.
@@ -424,18 +435,13 @@ export function ScanCatchSheet({
         navigate({ to: "/dex", search: { justCaught: stickerId } });
       }
     } catch (e) {
+      failSave(e);
       console.error(e);
       setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
       toast.error(t("cap.saveFailed"));
       setSaving(false);
       setPhase("ready");
     }
-  }
-
-  function syncPhotoToDevice(dataUrl: string) {
-    void saveCaptureToPhotoLibrary(dataUrl).then((result) => {
-      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
-    });
   }
 
   // 下へ引いて閉じる。**閉じるボタンと同じ条件に揃える** —
@@ -482,11 +488,17 @@ export function ScanCatchSheet({
           className="mx-auto mt-2 grid aspect-square w-64 max-w-full place-items-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
         >
           {(cutoutUrl ?? objectDataUrl) ? (
-            <img
-              src={(cutoutUrl ?? objectDataUrl)!}
-              alt={headword}
-              className={`h-full w-full object-contain ${cutoutUrl ? "cutout-pop" : "rounded-3xl object-cover"} ${phase === "landing" ? "opacity-0" : ""}`}
-            />
+            <div className={`h-full w-full ${phase === "landing" ? "opacity-0" : ""}`}>
+              <PeelSticker
+                photoUrl={objectDataUrl}
+                cutoutUrl={cutoutUrl}
+                label={headword}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={saving || phase !== "ready"}
+                onPeel={() => void doSave()}
+              />
+            </div>
           ) : (
             <div className="grid h-full w-full place-items-center rounded-3xl bg-white/5">
               <div className="flex flex-col items-center gap-2 text-white/80">

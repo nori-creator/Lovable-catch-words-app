@@ -38,7 +38,7 @@ import {
  * `useSpeechReady(text, language)` がその判定。押しても鳴らないボタンを
  * 一瞬でも出さないために、**状態は画面をまたいで1つ**にしてある。
  */
-export type Pronounce = ((text: string) => Promise<void>) & {
+export type Pronounce = ((text: string, waitUntilEnded?: boolean) => Promise<void>) & {
   /**
    * 音を先に取っておく(鳴らさない)。
    *
@@ -46,6 +46,8 @@ export type Pronounce = ((text: string) => Promise<void>) & {
    * 「先読み済み」と言いながら押した瞬間に mp3 のダウンロードが始まっていた。
    */
   prefetch: (text: string) => void;
+  /** Unlock before a delayed animation cue, synchronously in the gesture. */
+  prepare: () => void;
 };
 
 /** いま取りに行っている語。**二重に取りに行かない**(費用と帯域の無駄)。 */
@@ -126,9 +128,19 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     [ttsFn, language],
   );
 
-  const pronounce = async function pronounce(text: string) {
+  const pronounce = async function pronounce(text: string, waitUntilEnded = false) {
     const word = text.trim();
     if (!word) return;
+    const deviceVoice = () =>
+      waitUntilEnded
+        ? new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, 2400);
+            speak(word, language, 0.95, () => {
+              clearTimeout(timer);
+              resolve();
+            });
+          })
+        : Promise.resolve(speak(word, language));
     // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
     if (!elRef.current) elRef.current = new Audio();
     primeAudio(elRef.current);
@@ -149,26 +161,59 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
      */
     if (speechState(key) === "failed") {
       void ensureAudio(key, word, fetcher);
-      speak(word, language);
+      await deviceVoice();
       return;
     }
     try {
       // 端末に在るならここで終わり — ネットに一度も出ない。
-      const url = speechUrl(key) ?? (await ensureAudio(key, word, fetcher));
+      const url =
+        speechUrl(key) ??
+        (await (waitUntilEnded
+          ? Promise.race([
+              ensureAudio(key, word, fetcher),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 350)),
+            ])
+          : ensureAudio(key, word, fetcher)));
       if (url) {
         // 音声の被り対策: このフックは画面ごとに別インスタンスなので、各自が
         // 自前の Audio を持つと重なって鳴る。再生前にグローバルで排他を取る。
         claimAudio(elRef.current);
         elRef.current.src = url;
-        await elRef.current.play();
+        const audio = elRef.current;
+        if (waitUntilEnded) {
+          await new Promise<void>((resolve, reject) => {
+            const cleanup = () => {
+              clearTimeout(timer);
+              audio.removeEventListener("ended", done);
+              audio.removeEventListener("pause", done);
+              audio.removeEventListener("error", done);
+            };
+            const done = () => {
+              cleanup();
+              resolve();
+            };
+            const timer = setTimeout(done, 2400);
+            audio.addEventListener("ended", done, { once: true });
+            audio.addEventListener("pause", done, { once: true });
+            audio.addEventListener("error", done, { once: true });
+            audio.play().catch((error) => {
+              cleanup();
+              reject(error);
+            });
+          });
+        } else await audio.play();
         return;
       }
     } catch {
       /* server TTS unavailable — use the device voice below */
     }
-    speak(word, language);
+    await deviceVoice();
   } as Pronounce;
 
+  pronounce.prepare = () => {
+    if (!elRef.current) elRef.current = new Audio();
+    primeAudio(elRef.current);
+  };
   pronounce.prefetch = (text: string) => {
     const word = text.trim();
     if (!word) return;

@@ -262,47 +262,39 @@ export function CameraZoomMeter({
 }) {
   const t = useT();
   const stops = zoomStops(min, max);
-  const on = nearestStop(stops, zoom);
-  /**
-   * **倍率を1つしか持たない端末でも `1×` は出す**（オーナー指示 2026-09-16、
-   * 参考画像のとおり。iPhone も単眼機では `1×` が出たまま動かない）。
-   *
-   * ただし**釦にはしない** — 押しても何も起きない物を置かない、という
-   * この画面の決まりはそのまま。いまの倍率を読むだけの札にする。
-   */
-  if (stops.length < 2) {
-    return (
-      <p className={`camera-zoom camera-zoom--fixed ${className}`} aria-label={t("scan.zoom")}>
-        <span className="camera-zoom__dot" data-on>
-          {`${on ?? 1}×`}
-        </span>
-      </p>
-    );
-  }
   return (
-    <div className={`camera-zoom ${className}`} role="group" aria-label={t("scan.zoom")}>
-      {stops.map((s) => {
-        const active = on === s;
-        return (
+    <div className={`camera-zoom-ruler ${className}`} role="group" aria-label={t("scan.zoom")}>
+      <output className="text-lg font-semibold tabular-nums text-amber-200">
+        {zoom.toFixed(1)}×
+      </output>
+      {max > min && (
+        <>
+          <div className="camera-zoom-ruler__ticks" aria-hidden />
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={0.1}
+            value={zoom}
+            aria-label={t("scan.zoom")}
+            aria-valuetext={`${zoom.toFixed(1)}×`}
+            onChange={(e) => onZoom(Number(e.target.value))}
+          />
+        </>
+      )}
+      <div className="flex justify-center gap-3">
+        {stops.map((s) => (
           <button
             key={s}
             type="button"
-            aria-pressed={active}
-            aria-label={t("camera.zoomTo", { x: String(s) })}
+            className="min-h-11 min-w-11 rounded-full bg-white/10"
             onClick={() => onZoom(s)}
-            className="camera-zoom__stop"
-            data-on={active || undefined}
+            aria-label={t("camera.zoomTo", { x: String(s) })}
           >
-            {/*
-              押せる箱は 44px、見える丸は 34px（HIG §11 の下限は**箱**の
-              話なので、丸を大きくするのではなく箱を広げる）。検査は
-              要素の箱を測るので、擬似要素で広げても数えられない — 実際
-              34×34 で赤が3件出た。丸を中の span に移した。
-            */}
-            <span className="camera-zoom__dot">{active ? `${s}×` : `${s}`}</span>
+            {s}×
           </button>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }

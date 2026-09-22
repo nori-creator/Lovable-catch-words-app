@@ -822,7 +822,10 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // 無かった。渡すのは絵の在りかだけ。
     const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
     expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
-    expect(btns).toMatch(/const canCutout = !!objectUrl;/);
+    // main（2026-09-19）で切り抜きが機能ごと止まった（`CUTOUT_ENABLED`）。
+    // 止めた事実はそのまま認めつつ、**元の写真が無ければ切り抜かない**
+    // という条件が消えていないことは見続ける。
+    expect(btns).toMatch(/const canCutout = CUTOUT_ENABLED && !!objectUrl;/);
     // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
     for (const rel of [
       "components/HeroPhotoPicker.tsx",
@@ -1086,8 +1089,11 @@ describe("発音のラグ: 端末に貯める／出来てからボタンを出�
 
   it("端末に在るときは**サーバに行かない**", () => {
     const hook = codeOnly(read("lib/use-pronounce.tsx"));
-    // `speechUrl(key)` が在れば、その場で鳴らす。
-    expect(hook).toMatch(/const url = speechUrl\(key\) \?\? \(await ensureAudio\(/);
+    // `speechUrl(key)` が在れば、その場で鳴らす。**`??` の左が端末**
+    // であることだけを見る（右側は main で `waitUntilEnded` の分岐が
+    // 入ったので、中身まで文字で縛ると直しでないもので落ちる）。
+    expect(hook).toMatch(/const url =\s*\n?\s*speechUrl\(key\) \?\?/);
+    expect(hook).toMatch(/ensureAudio\(key, word, fetcher\)/);
   });
 
   it("**二重に取りに行かない**(同じ語の合成を2回払わない)", () => {
@@ -1276,9 +1282,13 @@ describe("2026-08-26 の2度目の報告", () => {
     // オーナー報告「発音のラグがまだある」。合成が使えないとき、
     // `fetchWithBackoff` が4回まで待ってから端末の声に落ちていた。
     const hook = codeOnly(read("lib/use-pronounce.tsx"));
+    // 端末の声に落ちる所は main で `deviceVoice()`（`speak` を包んで
+    // 鳴り終わりを待てるようにした関数）へ変わった。**待たずに端末へ
+    // 落ちる**ことだけを見る。
     expect(hook).toMatch(
-      /if \(speechState\(key\) === "failed"\) \{[\s\S]{0,200}?speak\(word, language\);/,
+      /if \(speechState\(key\) === "failed"\) \{[\s\S]{0,300}?(speak\(word, language\)|deviceVoice\(\));/,
     );
+    expect(hook).toMatch(/const deviceVoice = \(\) =>[\s\S]{0,400}?speak\(word, language/);
   });
 
   it("記憶の状態も**学習言語で分ける**", () => {
@@ -3602,15 +3612,17 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("畳んでいる行でも「いま選んでいる値」が読める", () => {
     const src = codeOnly(read("components/PickerRow.tsx"));
-    // 左に項目名、右にいまの値、右端に開閉の印。
+    // main（2026-09-19）で、その場で開く2段階から**前に出る輪**へ変わった。
+    // 形は変わってよいが、**押す前にいまの値が1行で読める**ことは変わらない。
     expect(src).toMatch(/options\.find\(\(o\) => o\.value === value\)\?\.label/);
-    expect(src).toMatch(/className="picker-row__value"/);
     expect(src).toMatch(/<ChevronDown/);
-    // 開いているかを読み上げにも伝える。
-    expect(src).toMatch(/aria-expanded=\{open\}/);
-    expect(src).toMatch(/aria-controls=\{bodyId\}/);
-    // 指の下限。
-    expect(read("styles.css")).toMatch(/\.picker-row__head \{[^}]*min-height: 44px;/);
+    // 押す物には名前が要る（中身は値だけなので、項目名は `aria-label`）。
+    expect(src).toMatch(/aria-label=\{label\}/);
+    // 開く輪にも名前が要る（`DialogTitle` を `aria-labelledby` で指す）。
+    expect(src).toMatch(/aria-labelledby=\{`\$\{id\}-sheet-label`\}/);
+    // 指の下限。**`.picker-row__head` はもう誰も使っていない**ので、
+    // 生きている方（trigger の `min-h-14` = 56px）を見る。
+    expect(src).toMatch(/className="mt-2 flex min-h-14 w-full/);
   });
 
   /**
@@ -3924,12 +3936,28 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("設定の選び行は、見出しを箱の外に置く", () => {
     const src = codeOnly(read("components/PickerRow.tsx"));
-    const label = src.indexOf("id={labelId}");
-    const box = src.indexOf('className="picker-row mt-1"');
+    const label = src.indexOf("{label}</span>");
+    const box = src.indexOf("<DialogTrigger");
     expect(label).toBeGreaterThanOrEqual(0);
     expect(box).toBeGreaterThanOrEqual(0);
-    // 見出しが先（＝箱の外）にあること。
+    // 見出しが先（＝押す箱の外）にあること。
     expect(label).toBeLessThan(box);
+  });
+
+  it("設定の選び行に**固定の白を置かない**（暗い面でここだけ光る）", () => {
+    // main 2026-09-19 の作り直しで `bg-white` / `text-slate-900` /
+    // `border-slate-200` が入り、`.picker-sheet` の輪も `white` 直書きに
+    // なっていた。この app はテーマを明暗2つ持つので、暗い面では設定の
+    // 行と輪だけが白い板になる。
+    const src = codeOnly(read("components/PickerRow.tsx"));
+    expect(src).not.toMatch(/className="[^"]*\b(bg-white|text-slate-\d+|border-slate-\d+)\b/);
+    const css = read("styles.css");
+    const sheet = css.slice(
+      css.indexOf(".picker-sheet .wheel {"),
+      css.indexOf(".settings-page select,"),
+    );
+    expect(sheet.length).toBeGreaterThan(0);
+    expect(sheet).not.toMatch(/background: white|linear-gradient\(white|#[0-9a-f]{3,6}/i);
   });
 
   /**
@@ -4083,7 +4111,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("撮る画面の「検索」は、画面を移らずに欄を開く", () => {
     const src = codeOnly(read("routes/_authenticated/capture.tsx"));
-    expect(src).toMatch(/const textOpen = mode === "search"/);
+    // main で自撮りの面が足され `!selfieMode &&` が前に付いた。
+    // **画面を移らずに欄を開く**という筋は変わっていない。
+    expect(src).toMatch(/const textOpen = (!selfieMode && )?mode === "search"/);
     // 輪から出るのはスキャンのときだけ。
     const at = src.indexOf("<CameraModeStrip");
     expect(at).toBeGreaterThanOrEqual(0);
@@ -4091,7 +4121,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(strip).toMatch(/if \(m === "scan"\)/);
     expect(strip).toMatch(/onOpenScan\(\)/);
     // 「検索」に居るときのシャッターは、撮るのではなく調べる。
-    expect(src).toMatch(/if \(mode === "search"\) \{/);
+    expect(src).toMatch(/if \((!selfieMode && )?mode === "search"\) \{/);
   });
 
   /**
@@ -4206,7 +4236,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(shell).toMatch(/bare\?: boolean;/);
     expect(shell).toMatch(/\{!bare && \(/);
     expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
-      /bare=\{step === "object"\}/,
+      // main で自撮りの面も全画面になったので `|| step === "selfie"` が付いた。
+      /bare=\{step === "object"( \|\| step === "selfie")?\}/,
     );
     expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
       /<AppShell title=\{t\("nav\.camera"\)\} bare>/,

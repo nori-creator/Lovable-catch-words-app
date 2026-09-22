@@ -11,6 +11,21 @@
 
 <!-- LOVABLE:END -->
 
+## CatchWords source of truth
+
+Before planning or implementing CatchWords product work, read these files in the repository root:
+
+1. `PRODUCT.md` — current product concept and approved Web MVP behavior.
+2. `ROADMAP.md` — authoritative execution order and resume procedure.
+3. `ARCHITECTURE.md` — architecture/refactor/data/AI guardrails.
+4. `QA.md` — behavior that must survive cleanup and release gates.
+
+Files under `docs/design` may contain valuable historical context, but they are **not authoritative when they conflict with the four root source-of-truth files above**.
+
+If the user starts a fresh ChatGPT/Codex/Work session and says **“CatchWords開発再開。ロードマップ通り進めて”**, do not ask them to reconstruct prior discussions. Read the source-of-truth files, inspect the latest `main` and open PRs, determine the earliest unfinished roadmap phase from repository evidence, and continue from there.
+
+The repository has accumulated repeated vibe-coding iterations. Cleanup is desired, but preserving current implemented behavior is more important than deleting code. Characterize/test behavior before replacing or deleting uncertain legacy paths.
+
 ## UI / UX preview workflow
 
 The user is a non-technical product owner. UI/UX review must therefore be visual and require as few manual developer steps as possible.

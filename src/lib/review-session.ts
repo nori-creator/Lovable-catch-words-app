@@ -27,8 +27,17 @@
  * **先頭と長さ**で足りる（違う束なら、ほぼ確実にどちらかが変わる）。
  */
 
+import { REVIEW_CACHE_MAX_AGE_MS } from "./review-cache";
+
 const KEY = "review-session-v1";
 
+/**
+ * ## 2026-09-18 の直し（同じ札を二度採点していた）
+ * 束は `review-cache.ts` が `localStorage` に4時間書き留めるのに、続きの
+ * 位置だけ `sessionStorage` だった。アプリを閉じて開くと、**同じ束が
+ * 1枚目から**出て、答えた札がもう一度採点され、次に出す日が狂う。
+ * 位置も束と同じ置き場所・同じ寿命にする。
+ */
 export type SessionMark = {
   /** その束の目印。 */
   batch: string;
@@ -37,6 +46,8 @@ export type SessionMark = {
   /** その回の成績（戻ったときに数え直しにしない）。 */
   answered: number;
   correct: number;
+  /** 書き留めた時刻。束の寿命(4時間)より古い位置は使わない。 */
+  at?: number;
 };
 
 export const EMPTY_MARK: Omit<SessionMark, "batch"> = { idx: 0, answered: 0, correct: 0 };
@@ -68,6 +79,11 @@ export function readMark(
     if (!raw) return EMPTY_MARK;
     const m = JSON.parse(raw) as Partial<SessionMark>;
     if (m?.batch !== batch) return EMPTY_MARK;
+    // 束の寿命より古い位置は使わない（`at` が無い古い形はそのまま使う）。
+    if (typeof m.at === "number" && Number.isFinite(m.at)) {
+      const age = Date.now() - m.at;
+      if (age < 0 || age > REVIEW_CACHE_MAX_AGE_MS) return EMPTY_MARK;
+    }
     return {
       idx: numberOr(m.idx, 0),
       answered: numberOr(m.answered, 0),
@@ -90,7 +106,7 @@ export function writeMark(
       s.removeItem(KEY);
       return;
     }
-    s.setItem(KEY, JSON.stringify({ batch, ...mark }));
+    s.setItem(KEY, JSON.stringify({ batch, ...mark, at: Date.now() }));
   } catch {
     /* storage unavailable */
   }
@@ -101,13 +117,15 @@ function numberOr(v: unknown, fallback: number): number {
 }
 
 /**
- * **`sessionStorage` を使う。** 続きから出すのはその日そのタブの話で、
- * 明日まで持ち越す物ではない（明日はもう別の束）。
+ * **`localStorage` を使う。** 束は `review-cache.ts` が `localStorage` に
+ * 4時間書き留める。位置だけ `sessionStorage` にしていたので、アプリを
+ * 閉じて開くと同じ束が1枚目から出て、**答えた札を二度採点**していた。
+ * 置き場所と寿命を束に合わせる（古い位置は `readMark` が捨てる）。
  */
 function browserStore(): Storage | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage;
+    return window.localStorage;
   } catch {
     return null;
   }

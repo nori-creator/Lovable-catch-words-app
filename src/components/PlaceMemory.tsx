@@ -31,7 +31,6 @@ import {
   notifyMemory,
   takenDateLabel,
 } from "@/lib/place-reminder";
-import { Zh } from "@/components/Zh";
 import { useT } from "@/lib/i18n";
 
 export function PlaceMemoryWatcher() {
@@ -112,6 +111,7 @@ export function PlaceMemoryCard({
 }: {
   memory: Pick<NearbyMemory, "headword" | "location_name" | "image_url"> & {
     taken_at?: string | null;
+    meaning_ja?: string | null;
   };
   onStart: () => void;
   onDismiss: () => void;
@@ -126,8 +126,8 @@ export function PlaceMemoryCard({
   return (
     // **上から。** 端末の通知と同じ向きから降りてくる。
     // 安全域(ノッチ)を避けてから、その下に置く。
-    <div className="fixed inset-x-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 material-in">
-      <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-lg">
+    <div className="fixed inset-x-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 material-in mx-auto max-w-md">
+      <div className="flex items-center gap-3 rounded-[28px] border border-white/80 bg-white/95 p-4 text-slate-900 shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
         {/* **撮ったときの写真。** これが思い出す手がかりそのもの。
             まだ画像が無いカード(文字から作った語)だけ、場所の印に落ちる。 */}
         {memory.image_url ? (
@@ -147,7 +147,7 @@ export function PlaceMemoryCard({
                 Remember "〇〇"? と語順が違うので前後を別キーにしている。
                 単語だけ <Zh> で囲む必要があり、1文にまとめられない。 */}
             {t("place.rememberBefore")}
-            <Zh>{memory.headword}</Zh>
+            <span>{memory.meaning_ja?.trim() || t("place.thisWord")}</span>
             {t("place.rememberAfter")}
           </span>
           <span className="block truncate text-caption text-muted-foreground">{line}</span>

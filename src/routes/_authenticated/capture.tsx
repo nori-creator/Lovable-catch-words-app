@@ -1,3 +1,6 @@
+import { selfieCaptureEnabled } from "@/lib/product-features";
+import { viewfinderCrop } from "@/lib/capture-framing";
+import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
@@ -330,7 +333,16 @@ function CapturePage() {
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const selfieInputRef = useRef<HTMLInputElement | null>(null);
+  const objectImageRef = useRef<string | null>(null);
+  const selfieImageRef = useRef<string | null>(null);
+  const selfiePendingRef = useRef(false);
+  const analysisNextRef = useRef<Step | null>(null);
+  const [reencFailed, setReencFailed] = useState(false);
+  const captureBusyRef = useRef(false);
+  function showAnalysisStep(next: Step) {
+    if (selfiePendingRef.current) analysisNextRef.current = next;
+    else setStep(next);
+  }
   const autoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
 
@@ -460,6 +472,8 @@ function CapturePage() {
       }
       setPendingId(item.id);
       pendingIdRef.current = item.id;
+      objectImageRef.current = item.object_img;
+      selfieImageRef.current = item.selfie_img;
       setObjectImg(item.object_img);
       setSelfieImg(item.selfie_img);
       if (item.lat != null && item.lng != null) {
@@ -485,7 +499,20 @@ function CapturePage() {
   // 下の `<label>` を指で押せば `capture="user"` はそのまま効く。
   // 1タップ増えるが、**開いたカメラが逆を向いている**よりよい。
 
-  async function handleObjectFile(file: File) {
+  async function handleObjectFile(file: File, analysisImage?: string) {
+    if (captureBusyRef.current) return;
+    captureBusyRef.current = true;
+    selfiePendingRef.current = selfieCaptureEnabled();
+    analysisNextRef.current = null;
+    setSelfieImg(null);
+    selfieImageRef.current = null;
+    setStep(selfiePendingRef.current ? "selfie" : "processing");
+    // Browser save starts on capture, never during the reward gesture.
+    if (photoLibrarySaveRequiresUserGesture()) {
+      const downloadUrl = URL.createObjectURL(file);
+      syncPhotoToDevice(downloadUrl);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+    }
     // **写真を読めなかったことを言う。**
     //
     // `fileToDataUrl` の reject を誰も受けておらず、失敗すると画面は
@@ -494,10 +521,12 @@ function CapturePage() {
     try {
       const url = await fileToDataUrl(file);
       const compressed = await compressImage(url, 1600);
+      objectImageRef.current = compressed;
       setObjectImg(compressed);
+      if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
       const queued = await enqueueCapture({
         object_img: compressed,
-        selfie_img: null,
+        selfie_img: selfieImageRef.current,
         lat: null,
         lng: null,
         location_name: null,
@@ -505,20 +534,33 @@ function CapturePage() {
       if (queued) {
         setPendingId(queued.id);
         pendingIdRef.current = queued.id;
+        if (selfieImageRef.current)
+          void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
       }
-      setStep("selfie");
+      void runAi(analysisImage ?? compressed);
     } catch (e) {
       console.error(e);
       setError(t("cap.photoReadFailed"));
       toast.error(t("cap.photoReadFailed"));
+      selfiePendingRef.current = false;
+      setStep("object");
+    } finally {
+      captureBusyRef.current = false;
     }
   }
 
   async function handleSelfieFile(file: File | null) {
     if (file) {
+      if (photoLibrarySaveRequiresUserGesture()) {
+        const url = URL.createObjectURL(file);
+        syncPhotoToDevice(url);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
       try {
         const url = await fileToDataUrl(file);
         const compressed = await compressImage(url, 1280);
+        if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
+        selfieImageRef.current = compressed;
         setSelfieImg(compressed);
         if (pendingIdRef.current) {
           void updatePendingCapture(pendingIdRef.current, { selfie_img: compressed });
@@ -528,7 +570,9 @@ function CapturePage() {
         console.warn("selfie read failed", e);
       }
     }
-    await runAi();
+    selfiePendingRef.current = false;
+    setStep(analysisNextRef.current ?? "processing");
+    analysisNextRef.current = null;
   }
 
   async function runAi(imgOverride?: string) {
@@ -536,7 +580,7 @@ function CapturePage() {
     if (!img) return;
     const token = ++runTokenRef.current;
     setWaitKind("analyze");
-    setStep("processing");
+    showAnalysisStep("processing");
     setError(null);
     setSavedReason(null);
 
@@ -555,7 +599,7 @@ function CapturePage() {
       ]);
       if (runTokenRef.current !== token) return;
       setSuggestions(suggestRes.suggestions);
-      setStep("select");
+      showAnalysisStep("select");
     } catch (e) {
       console.error(e);
       if (runTokenRef.current !== token) return;
@@ -576,14 +620,14 @@ function CapturePage() {
       const here = await resolveLocation();
       const saved = pendingIdRef.current
         ? await updatePendingCapture(pendingIdRef.current, {
-            selfie_img: selfieImg,
+            selfie_img: selfieImageRef.current ?? selfieImg,
             lat: here.lat,
             lng: here.lng,
             location_name: here.name,
           })
         : await enqueueCapture({
-            object_img: img,
-            selfie_img: selfieImg,
+            object_img: objectImageRef.current ?? img,
+            selfie_img: selfieImageRef.current ?? selfieImg,
             lat: here.lat,
             lng: here.lng,
             location_name: here.name,
@@ -594,12 +638,12 @@ function CapturePage() {
         // 401 や壊れた画像のような直らない失敗まで「あとで続きができます」
         // に見えてしまう。理由を出し、その場で再試行もできるようにする。
         setSavedReason(reason);
-        setStep("offlineSaved");
+        showAnalysisStep("offlineSaved");
         return;
       }
       // 保存もできなかったときだけ、撮り直しをお願いする。
       setError(reason);
-      setStep("object");
+      showAnalysisStep("object");
       toast.error(t("cap.aiFailedRetry"));
     }
   }
@@ -772,7 +816,7 @@ function CapturePage() {
         // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
         // その単語の写真として足す。待つのは画面を出したあとなので、
         // 学習者は演出を見ている間に終わる。
-        void cutoutPromise.then((cut) => recordReencounter(objectImg, cut));
+        void cutoutPromise.then((cut) => recordReencounter(owned, objectImg, cut));
         return;
       }
     } catch {
@@ -846,7 +890,7 @@ function CapturePage() {
   async function doSave(card: CardData, selectedHead: string) {
     // 温めてある位置を**ここで確定させる**。状態を直に読むと、
     // 候補を早く選んだ回はまだ届いていない。
-    const here = await resolveLocation();
+    const locationPromise = resolveLocation();
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) throw new Error("Not signed in");
@@ -867,7 +911,7 @@ function CapturePage() {
       // original when it's missing (old stickers, encode failure).
       const thumb = await thumbPromise;
       if (thumb) {
-        await supabase.storage
+        void supabase.storage
           .from("stickers")
           .upload(thumbPath(path), thumb, {
             contentType: thumb.type || "image/webp",
@@ -903,6 +947,7 @@ function CapturePage() {
       upload(selfieImg, "selfie").catch(() => null),
     ]);
 
+    const here = await locationPromise;
     const res = await saveFn({
       data: {
         word: {
@@ -981,9 +1026,7 @@ function CapturePage() {
    */
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
-    // Webのダウンロードは、クリックから通信を1回でも待つとブラウザに止められる。
-    // そのためWebだけはこの瞬間、ネイティブはDB保存の成功後に実行する。
-    if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
+    pronounce.prepare();
     const hero = cutoutImg ?? objectImg;
     // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
     // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
@@ -1018,7 +1061,6 @@ function CapturePage() {
       savedRef.current = true;
       // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
       // キャッチを巻き戻さないため、ここは待たずに実行する。
-      if (objectImg && !photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
       return res;
     });
     // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
@@ -1029,7 +1071,7 @@ function CapturePage() {
       // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
-      speakLine: () => void pronounce(selectedHead),
+      speakLine: () => pronounce(selectedHead, true),
       // **先に読ませない。** 押した時点ではまだ決まっていない。
       getDestinationId: () => savedId,
       openDex: () => {
@@ -1067,6 +1109,8 @@ function CapturePage() {
   }
 
   function reset() {
+    selfiePendingRef.current = false;
+    analysisNextRef.current = null;
     // 走っている解析・切り抜きを無効化してから畳む。番号を進めないと、
     // 前の写真の結果が後から届いて新しい画面を上書きする。
     runTokenRef.current++;
@@ -1122,9 +1166,13 @@ function CapturePage() {
    * 代わりに、**今回撮った写真をその単語に足す**。今まではここで写真を
    * 捨てていた。復習の間隔は動かさない(`recalled: null`)。
    */
-  async function recordReencounter(objectImg: string | null, cutoutImg: string | null) {
-    if (!reenc || reencResult || reencSubmittingRef.current) return;
-    if (objectImg && photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
+  async function recordReencounter(
+    owned: OwnedWord,
+    objectImg: string | null,
+    cutoutImg: string | null,
+  ) {
+    if (reencSubmittingRef.current) return;
+    setReencFailed(false);
     reencSubmittingRef.current = true;
     try {
       // 再会も「どこで会い直したか」が残るべき記録。
@@ -1136,18 +1184,17 @@ function CapturePage() {
       // 「撮ったのに何も起きなかった」が一番困る。
       const [image_path, cutout_path] = userId
         ? await Promise.all([
-            uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts }).catch(
-              () => null,
-            ),
+            uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts }),
             uploadStickerImage({ userId, dataUrl: cutoutImg, kind: "encounter-cutout", ts }).catch(
               () => null,
             ),
           ])
         : [null, null];
 
+      if (objectImg && !image_path) throw new Error("Photo upload failed");
       const res = await encounterFn({
         data: {
-          sticker_id: reenc.sticker_id,
+          sticker_id: owned.sticker_id,
           recalled: null,
           lat: here.lat,
           lng: here.lng,
@@ -1162,7 +1209,6 @@ function CapturePage() {
         next_due_at: res.next_due_at,
         photo_saved: !!(image_path || cutout_path),
       });
-      if (objectImg && !photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(objectImg);
       // 再会も「その写真の役目が終わった」時点。預けた分を消しておかないと
       // ホームの「解析待ちの写真」が残り続ける。
       if (pendingIdRef.current) {
@@ -1172,8 +1218,10 @@ function CapturePage() {
       }
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
+      await queryClient.invalidateQueries({ queryKey: ["sticker", owned.sticker_id] });
     } catch (e) {
       console.error(e);
+      setReencFailed(true);
       toast.error(t("cap.recordFailed"));
     } finally {
       reencSubmittingRef.current = false;
@@ -1192,13 +1240,25 @@ function CapturePage() {
      * 「カメラのとき、上の集めるの余白いらない。すべてカメラ画面でいい」）。
      * 撮り終わってカードを見る段からは、ふつうの帯に戻す。
      */
-    <AppShell title={t("title.capture")} fixedViewport={step === "object"} bare={step === "object"}>
-      {step === "object" && (
+    <AppShell
+      title={t("title.capture")}
+      fixedViewport={step === "object" || step === "selfie"}
+      bare={step === "object" || step === "selfie"}
+    >
+      {(step === "object" || step === "selfie") && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
           cameraInputRef={cameraInputRef}
-          onObjectFile={handleObjectFile}
-          onNativeCapture={Capacitor.isNativePlatform() ? () => void openNativeCamera() : undefined}
+          onObjectFile={
+            step === "selfie" ? (file) => void handleSelfieFile(file) : handleObjectFile
+          }
+          selfieMode={step === "selfie"}
+          onSkipSelfie={() => void handleSelfieFile(null)}
+          onNativeCapture={
+            Capacitor.isNativePlatform() && step === "object"
+              ? () => void openNativeCamera()
+              : undefined
+          }
           typedWord={typedWord}
           setTypedWord={setTypedWord}
           /**
@@ -1219,46 +1279,6 @@ function CapturePage() {
           onOpenLibrary={() => void navigate({ to: "/home" })}
           error={error}
         />
-      )}
-
-      {step === "selfie" && (
-        <div className="space-y-4">
-          <h2 className="text-title font-semibold tracking-tight">{t("capture.selfieTitle")}</h2>
-          <p className="text-body text-muted-foreground">{t("capture.selfieHint")}</p>
-          {objectImg && (
-            <div className="mb-2 grid aspect-square w-32 place-items-center overflow-hidden rounded-2xl bg-secondary">
-              <img
-                src={objectImg}
-                alt={t("cap.photoTaken")}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          )}
-          <label className="block">
-            <div className="grid aspect-[3/4] place-items-center rounded-3xl border-2 border-dashed border-border bg-card text-muted-foreground transition-colors hover:border-primary">
-              <div className="flex flex-col items-center gap-2">
-                <Camera className="h-10 w-10" />
-                <span className="text-body">{t("capture.addSelfie")}</span>
-              </div>
-            </div>
-            <input
-              ref={selfieInputRef}
-              type="file"
-              accept="image/*"
-              capture="user"
-              className="sr-only"
-              onChange={(e) => handleSelfieFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => handleSelfieFile(null)} className="flex-1">
-              {t("capture.skipNext")}
-            </Button>
-            <Button variant="ghost" onClick={reset}>
-              <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.redo")}
-            </Button>
-          </div>
-        </div>
       )}
 
       {step === "processing" && (
@@ -1330,6 +1350,9 @@ function CapturePage() {
       {step === "reencounter" && reenc && (
         <ReencounterPanel
           reenc={reenc}
+          photo={objectImg}
+          failed={reencFailed}
+          onRetry={() => void recordReencounter(reenc, objectImg, null)}
           reencResult={reencResult}
           dateLocale={dateLocale}
           onAgain={reset}
@@ -1432,92 +1455,87 @@ export function ReencounterPanel({
   dateLocale,
   onAgain,
   onSeeInDex,
+  photo,
+  failed = false,
+  onRetry,
 }: {
   reenc: OwnedWord;
   reencResult: { encounter_count: number; photo_saved?: boolean } | null;
   dateLocale: string;
   onAgain: () => void;
   onSeeInDex: () => void;
+  photo?: string | null;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
   const t = useT();
-  const targetLanguage = useTargetLang();
+  const language = useTargetLang();
+  const image = photo || reenc.cutout_url;
   return (
-    <div className="space-y-4">
-      {/* **素の Tailwind の番号と `white` の直書きをやめる。**
-          `from-amber-50 to-white` は明るい面の前提で固定なので、暗いテーマでは
-          面だけ白いまま、文字はテーマの明るい色になり、**見出し語が 1.01:1
-          = 完全に読めない**状態だった(検査に入れて初めて写った)。
-          琥珀はこの app のトークン `--warn` が持っている。 */}
-      <div className="rounded-3xl border border-warn/40 bg-[color-mix(in_oklab,var(--warn)_12%,var(--card))] p-5 text-center shadow-lg">
-        {/* 琥珀の上の文字は `--warn-foreground`。**白は乗らない** —
-            琥珀はどのテーマでも明るい側の色なので、白を置くと 2.46:1 にしかならない。 */}
-        <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-warn px-3 py-1 text-footnote font-bold text-warn-foreground">
-          <PartyPopper className="h-3.5 w-3.5" /> {t("capture.reunion")}
-        </div>
-        <p className="ja-phrase mt-2 text-balance text-body text-muted-foreground">
-          {t("cap.reencBefore")}
-          {reenc.location_name
-            ? t("cap.reencAt", {
-                place: reenc.location_name,
-                date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
-              })
-            : t("cap.reencOn", {
-                date: new Date(reenc.taken_at).toLocaleDateString(dateLocale),
-              })}
-          {t("cap.reencAfter")}
-        </p>
-        {reenc.cutout_url && (
-          <div className="mx-auto my-3 grid aspect-square w-40 place-items-center overflow-hidden rounded-2xl bg-card shadow ring-1 ring-border">
+    <div className="mx-auto max-w-md space-y-5">
+      <div className="overflow-hidden rounded-[32px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
+        {image && (
+          <div className="relative p-3">
             <img
-              src={reenc.cutout_url}
+              src={image}
               alt={reenc.headword}
-              className="h-full w-full object-contain p-2"
+              className="aspect-[4/3] w-full rounded-[24px] object-cover"
             />
+            <span className="absolute bottom-6 left-6 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm">
+              {t("capture.reunion")}
+            </span>
           </div>
         )}
-        <Term lang={targetLanguage} as="div" className="text-hero font-bold tracking-tight">
-          {reenc.headword}
-        </Term>
-        {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26
-            「学習言語英語のとき、注音やピンインを決して表示しないで」)。
-            ここは注音と拼音を素で並べていた。 */}
-        <Reading
-          lang={targetLanguage}
-          zhuyin={reenc.reading_zhuyin}
-          pinyin={reenc.pinyin}
-          className="mt-1 block text-footnote text-muted-foreground"
-        />
-
-        {/* **意味は伏せない。** 撮った本人がその物の母語を知らないはずが
-              ないので、「覚えてる?」と伏せる問いは成り立たない。
-              再会でやることは「前にいつ撮ったか」を思い出させることと、
-              今回の1枚をその単語に足すこと。 */}
-        <div className="mt-3 rounded-2xl bg-card/90 p-4 ring-1 ring-warn/30">
-          <p className="text-headline font-semibold">{reenc.meaning_ja}</p>
-          <p className="mt-2 text-footnote text-muted-foreground">
-            {reencResult
-              ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
-              : t("cap.reunionSaving")}
+        <div className="space-y-3 px-6 pb-6 pt-3">
+          <Term as="h1" lang={language} className="text-4xl font-bold tracking-tight">
+            {reenc.headword}
+          </Term>
+          <Reading
+            lang={language}
+            zhuyin={reenc.reading_zhuyin}
+            pinyin={reenc.pinyin}
+            className="block text-sm text-muted-foreground"
+          />
+          <p className="text-xl font-medium">{reenc.meaning_ja}</p>
+          <p className="text-sm text-muted-foreground">
+            {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
+            {reenc.location_name ? ` · ${reenc.location_name}` : ""}
           </p>
-          {reencResult?.photo_saved && (
-            <p className="mt-1 inline-flex items-center gap-1.5 text-footnote font-medium text-ok-ink">
-              <ImagePlus className="h-3.5 w-3.5" />
-              {t("cap.photoAdded")}
-            </p>
+          <div
+            className="flex items-center gap-2 rounded-2xl bg-primary/5 p-4 text-sm text-primary-ink"
+            role="status"
+          >
+            {reencResult ? (
+              <Check className="h-5 w-5" />
+            ) : failed ? (
+              <RotateCcw className="h-5 w-5" />
+            ) : (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            )}
+            {failed
+              ? t("cap.recordFailed")
+              : reencResult?.photo_saved
+                ? t("cap.photoAdded")
+                : reencResult
+                  ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
+                  : t("cap.reunionSaving")}
+          </div>
+          {failed && (
+            <Button className="w-full rounded-full" onClick={onRetry}>
+              {t("cap.reencRetry")}
+            </Button>
+          )}
+          {reencResult && (
+            <Button className="w-full rounded-full" onClick={onSeeInDex}>
+              {t("capture.seeInDex")}
+            </Button>
           )}
         </div>
       </div>
-
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={onAgain} className="flex-1">
-          <Camera className="mr-1 h-4 w-4" /> {t("capture.shootAnother")}
-        </Button>
-        {reencResult && (
-          <Button onClick={onSeeInDex} className="flex-1">
-            {t("capture.seeInDex")}
-          </Button>
-        )}
-      </div>
+      <Button variant="outline" className="w-full rounded-full" onClick={onAgain}>
+        <Camera className="mr-2 h-4 w-4" />
+        {t("capture.shootAnother")}
+      </Button>
     </div>
   );
 }
@@ -1747,17 +1765,17 @@ export function CaptureCardPanel({
           ref={heroBoxRef}
           className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
         >
-          <div className="card-face absolute inset-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-sky-50 to-white shadow-xl">
-            <div className="grid h-full place-items-center p-6">
-              {cutoutImg ? (
-                <img
-                  src={cutoutImg}
-                  alt={selectedHead}
-                  className="max-h-full max-w-full object-contain cutout-pop"
-                />
-              ) : objectImg ? (
-                <img src={objectImg} alt={selectedHead} className="h-full w-full object-cover" />
-              ) : null}
+          <div className="card-face absolute inset-0 overflow-hidden rounded-3xl">
+            <div className="grid h-full place-items-center">
+              <PeelSticker
+                photoUrl={objectImg}
+                cutoutUrl={cutoutImg && cutoutImg !== objectImg ? cutoutImg : null}
+                label={selectedHead}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={saving || landing || flipped}
+                onPeel={onSave}
+              />
             </div>
           </div>
           <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
@@ -1779,7 +1797,14 @@ export function CaptureCardPanel({
           <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
         </Button>
       </div>
-      <p className="text-center text-caption text-muted-foreground">{t("capture.flipHint")}</p>
+      <button
+        type="button"
+        className="block mx-auto text-caption text-muted-foreground"
+        disabled={saving || landing}
+        onClick={() => setFlipped((f) => !f)}
+      >
+        {t("capture.flipHint")}
+      </button>
 
       <WordCard
         word={{
@@ -1840,6 +1865,8 @@ export function CaptureCardPanel({
  * 前は「文字で打つ」のボタンで、押して面が開いてからようやく打てた。
  */
 export function CaptureObjectPanel({
+  selfieMode = false,
+  onSkipSelfie,
   retakeWord,
   cameraInputRef,
   onObjectFile,
@@ -1857,9 +1884,11 @@ export function CaptureObjectPanel({
   error,
 }: {
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
+  selfieMode?: boolean;
+  onSkipSelfie?: () => void;
   retakeWord: string | null;
   cameraInputRef: RefObject<HTMLInputElement | null>;
-  onObjectFile: (f: File) => void;
+  onObjectFile: (f: File, analysisImage?: string) => void;
   onNativeCapture?: () => void;
   typedWord: string;
   setTypedWord: (v: string) => void;
@@ -1884,7 +1913,7 @@ export function CaptureObjectPanel({
    * 出てくる」)。「スキャン」だけは別の画面へ渡す。
    */
   const [mode, setMode] = useState<CameraMode>(initialMode);
-  const textOpen = mode === "search";
+  const textOpen = !selfieMode && mode === "search";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -1894,6 +1923,10 @@ export function CaptureObjectPanel({
    * 片方にしか無い**状態だったので、共通の部品にして両方へ載せた。
    */
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  useEffect(() => {
+    setFacing(selfieMode ? "user" : "environment");
+    setCameraReady(false);
+  }, [selfieMode]);
   /** 声で打ち込む（`lib/use-voice-input.ts`）。聞こえた語を欄へ流し込む。 */
   const voice = useVoiceInput({
     lang: "cmn-Hant-TW",
@@ -1962,7 +1995,10 @@ export function CaptureObjectPanel({
     if (!caps) return;
     const track = streamRef.current?.getVideoTracks()[0];
     // `zoom` は標準の型に無い(端末依存の拡張)。失敗しても CSS 側が追う。
-    void track?.applyConstraints?.({ advanced: [{ zoom: v }] } as never).catch(() => {});
+    void track?.applyConstraints?.({ advanced: [{ zoom: v }] } as never).catch(() => {
+      zoomCapsRef.current = null;
+      setZoomCaps(null);
+    });
   };
 
   const openCamera = () => {
@@ -1973,18 +2009,52 @@ export function CaptureObjectPanel({
     const video = videoRef.current;
     if (cameraReady && video?.videoWidth) {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const viewport = video.parentElement!.getBoundingClientRect();
+      const crop = viewfinderCrop(
+        video.videoWidth,
+        video.videoHeight,
+        viewport.width,
+        viewport.height,
+        zoomCaps ? 1 : zoom,
+      );
+      canvas.width = Math.round(crop.sw);
+      canvas.height = Math.round(crop.sh);
       const context = canvas.getContext("2d");
       if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(
-          (blob) => {
-            if (blob) onObjectFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-          },
-          "image/jpeg",
-          0.9,
+        context.drawImage(
+          video,
+          crop.sx,
+          crop.sy,
+          crop.sw,
+          crop.sh,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
         );
+        const full = canvas.toDataURL("image/jpeg", 0.9);
+        // AI sees the visible guide first; keep the full photo for the user's album.
+        const focus = video.parentElement!.querySelector(".capture-focus")?.getBoundingClientRect();
+        let analysisImage: string | undefined;
+        if (focus && !selfieMode) {
+          const ai = document.createElement("canvas");
+          ai.width = 768;
+          ai.height = Math.round((768 * focus.height) / focus.width);
+          ai.getContext("2d")?.drawImage(
+            canvas,
+            ((focus.left - viewport.left) / viewport.width) * canvas.width,
+            ((focus.top - viewport.top) / viewport.height) * canvas.height,
+            (focus.width / viewport.width) * canvas.width,
+            (focus.height / viewport.height) * canvas.height,
+            0,
+            0,
+            ai.width,
+            ai.height,
+          );
+          analysisImage = ai.toDataURL("image/jpeg", 0.85);
+        }
+        const bytes = Uint8Array.from(atob(full.split(",")[1]), (c) => c.charCodeAt(0));
+        onObjectFile(new File([bytes], "capture.jpg", { type: "image/jpeg" }), analysisImage);
         return;
       }
     }
@@ -2049,12 +2119,26 @@ export function CaptureObjectPanel({
         合わせられるわけではないので、**動いているのに触れない物**だった。
         四隅の枠だけで「この中へ」は伝わる。
       */}
-      <div className="capture-focus" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
+      {!selfieMode && (
+        <div className="capture-focus" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      {selfieMode && (
+        <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
+          <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full bg-black/35 px-6"
+            onClick={onSkipSelfie}
+          >
+            {t("capture.selfieSkip")}
+          </button>
+        </div>
+      )}
 
       {error && <p className="capture-error">{error}</p>}
 
@@ -2131,16 +2215,18 @@ export function CaptureObjectPanel({
           **撮り方は横に3つ並べる**（オーナー指示 2026-09-16、参考画像のとおり）。
           押しても、指で払っても変わる。「スキャン」だけは別の画面なので渡す。
         */}
-        <CameraModeStrip
-          mode={mode}
-          onChange={(m) => {
-            if (m === "scan") {
-              onOpenScan();
-              return;
-            }
-            setMode(m);
-          }}
-        />
+        {!selfieMode && (
+          <CameraModeStrip
+            mode={mode}
+            onChange={(m) => {
+              if (m === "scan") {
+                onOpenScan();
+                return;
+              }
+              setMode(m);
+            }}
+          />
+        )}
 
         {/* 写真 ／ シャッター ／ 切替。左右は同じ形・同じ大きさにする。 */}
         <div className="capture-actions">
@@ -2152,7 +2238,7 @@ export function CaptureObjectPanel({
             onPress={() => {
               // 「検索」に居るときの真ん中は**撮るのではなく調べる**。
               // 絵が虫眼鏡に変わっているので、押した先もそれに合わせる。
-              if (mode === "search") {
+              if (!selfieMode && mode === "search") {
                 const w = typedWord.trim();
                 if (w) onSearch(w);
                 return;
@@ -2179,7 +2265,7 @@ export function CaptureObjectPanel({
           ref={cameraInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
+          capture={selfieMode ? "user" : "environment"}
           className="sr-only"
           tabIndex={-1}
           aria-hidden="true"

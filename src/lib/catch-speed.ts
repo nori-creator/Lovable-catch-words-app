@@ -1,3 +1,4 @@
+import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useEffect, useState } from "react";
 
 /**
@@ -74,7 +75,7 @@ export function useCatchSpeed(): CatchSpeed {
 
 /** キャッチの瞬間に切り抜くか。 */
 export function cutoutAtCatch(speed: CatchSpeed | string | null | undefined): boolean {
-  return normalizeCatchSpeed(speed) === "detail";
+  return CUTOUT_ENABLED && normalizeCatchSpeed(speed) === "detail";
 }
 
 // ---------------------------------------------------------------------------

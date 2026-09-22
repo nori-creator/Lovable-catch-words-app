@@ -42,7 +42,7 @@ export async function runCatchLanding(ctx: {
    * `.current` を先に読むと必ず null になる(`lib/wait-for-ref.ts` に経緯)。
    */
   fly: RefObject<HTMLImageElement | null>;
-  speakLine?: () => void;
+  speakLine?: () => void | Promise<void>;
   destinationId?: string;
   /** 保存済みの札を後から受け取る口(`types.ts` の注)。 */
   getDestinationId?: () => string | undefined;
@@ -64,7 +64,13 @@ export async function runCatchLanding(ctx: {
     // 演出は押した瞬間に始まるので、ここではまだ札の id が決まっていない。
     // 待たずに移ると `?justCaught=` が空のまま図鑑が開き、
     // **動きを減らしている人だけ着弾が出ない**ことになる。
-    if (ctx.gate) await ctx.gate.catch(() => {});
+    if (ctx.gate) {
+      try {
+        await ctx.gate;
+      } catch {
+        return;
+      }
+    }
     await ctx.openDex?.();
     await new Promise((r) => setTimeout(r, 500));
     return;

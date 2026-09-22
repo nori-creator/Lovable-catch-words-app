@@ -1,3 +1,4 @@
+import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -60,6 +61,7 @@ import {
   HomeWritingScene,
 } from "./scenes/home";
 import {
+  SettingsPolishScene,
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsSelectsScene,
@@ -117,6 +119,9 @@ import "@/pack-styles.css";
 // 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
+  // `auth` は下の `AuthScene`（作り直した迎える面まるごと）。main に在った
+  // 「ボタン2つだけ」の場面は、同じ鍵で実物より狭い面を撮ることになるので外した。
+  "sticker-peel": PeelStickerScene,
   shelf: ShelfScene,
   gallery: GalleryScene,
   tabbar: TabBarScene,
@@ -133,6 +138,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "wordbook-quiz": WordbookQuizScene,
   "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
+  "settings-polish": SettingsPolishScene,
   "settings-choices": SettingsChoicesScene,
   "settings-selects": SettingsSelectsScene,
   "settings-sources": SettingsSourcesScene,
@@ -256,6 +262,7 @@ function Frame({ children }: { children: ReactNode }) {
  */
 const BARE = new Set([
   "auth",
+  "sticker-peel",
   "onboarding",
   "sticker-sheet",
   "capture-saving",
@@ -288,12 +295,22 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "home", label: "ホーム（アルバム台紙・今日の1ページ）" },
+  { scene: "home", label: "ホーム（今日の足あと）" },
   { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
   { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
+  // 2026-09-22 の直し（狭い画面・指・声）で触った面。
+  { scene: "word-card", label: "単語カード（横のはみ出しを直した）" },
+  { scene: "review-memory", label: "復習の記憶の帯（指の下限と声の案内）" },
   { scene: "capture-object", label: "カメラの画面" },
   { scene: "tabbar", label: "下の帯" },
+  // main から合流した、別の作業で見る面。
+  { scene: "sticker-peel", label: "ピール・キャッチ演出" },
+  { scene: "settings-polish", label: "設定・言語選択" },
+  { scene: "capture-reunion", label: "同じ単語に写真を追加" },
+  { scene: "place-memory", label: "母語の復習通知" },
+  { scene: "scan-camera", label: "小数点の倍率メーター" },
+  { scene: "review-memory-list", label: "記憶の一覧" },
 ];
 
 const explicitScene = q.get("scene");

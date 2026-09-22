@@ -125,8 +125,16 @@ export function pickVoice<T extends VoiceLike>(
 const cached = new Map<string, SpeechSynthesisVoice>();
 
 /** 学習言語の文字列を、端末で一番ましな声で読む。 */
-export function speak(text: string, lang: string = DEFAULT_TARGET_LANGUAGE, rate = 0.95): void {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+export function speak(
+  text: string,
+  lang: string = DEFAULT_TARGET_LANGUAGE,
+  rate = 0.95,
+  onDone?: () => void,
+): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onDone?.();
+    return;
+  }
   const synth = window.speechSynthesis;
 
   // 初回は `voiceschanged` と下の保険の両方が走りうるので、1度だけ話す。
@@ -145,6 +153,8 @@ export function speak(text: string, lang: string = DEFAULT_TARGET_LANGUAGE, rate
     // 近い言語の声で埋めるより、端末に決めさせるほうが害が小さい。
     u.lang = voice?.lang ?? speechLangOf(key);
     u.rate = rate;
+    u.onend = () => onDone?.();
+    u.onerror = () => onDone?.();
     // 音声の被り対策: 直前に鳴っている <audio>(サーバーTTS)も止めてから話す。
     // synth.cancel() だけでは Audio 要素は止まらず、二重に聞こえていた。
     stopOtherAudio();

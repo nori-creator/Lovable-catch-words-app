@@ -146,7 +146,7 @@ function DexPage() {
     landingStartedRef.current = justCaught;
     if (document.documentElement.dataset.rewardFlight) {
       const t = setTimeout(() => {
-        void navigate({ to: "/dex", search: {}, replace: true });
+        void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
       }, 6000);
       return () => clearTimeout(t);
     }
@@ -169,7 +169,7 @@ function DexPage() {
     );
 
     const t = setTimeout(() => {
-      void navigate({ to: "/dex", search: {}, replace: true });
+      void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
     }, 1600);
     return () => {
       clearTimeout(impact);
@@ -177,12 +177,11 @@ function DexPage() {
     };
   }, [justCaught, navigate, captured]);
 
-  // 再取得された札から着地先の棚を確定する。この更新は効果音を再発火させない。
+  // 全カテゴリーを表示したまま、着地先のセルへ移動する。
   useEffect(() => {
     if (!justCaught) return;
-    const caught = captured.find((item) => item.id === justCaught);
-    if (caught) setFilter({ ...NO_FILTER, category: asCategoryKey(caught.word.category_key) });
-  }, [justCaught, captured]);
+    setFilter(NO_FILTER);
+  }, [justCaught]);
 
   // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
   // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
@@ -221,6 +220,7 @@ function DexPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
+    if (justCaught) return; // Arrival must not restore a previous category/view filter.
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
     if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
       setView(saved);
@@ -1370,12 +1370,6 @@ export function DexHeader({
         <div className="pl-1">
           {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
           <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
-          {/* §5.3: found (incl. ghosts) vs captured (has a real photo) */}
-          <p className="text-footnote text-muted-foreground">
-            {t("dex.found")} <span className="font-semibold text-foreground">{found}</span>
-            <span className="mx-1.5">·</span>
-            {t("dex.caught")} <span className="font-semibold text-foreground">{caught}</span>
-          </p>
         </div>
       </div>
 
