@@ -98,6 +98,9 @@ export function coerceTargetHeadword(raw: string, targetLanguage: string): strin
   // 切った所に飾りが残る（「烤肉 (」）。`headwordCore` はこれを落として
   // 判定するので**通ってしまう**が、そのまま保存すると図鑑に飾りが残る。
   // 落ちる文字なら、落としてから返す。
-  const trimmed = best.replace(/[\s，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'’”—–\-~〜]+$/u, "");
+  const trimmed = best.replace(
+    /[\s，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'’”—–\-~〜]+$/u,
+    "",
+  );
   return trimmed && isTargetHeadword(trimmed, targetLanguage) ? trimmed : best;
 }
