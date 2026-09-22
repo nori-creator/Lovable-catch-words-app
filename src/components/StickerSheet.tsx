@@ -21,7 +21,6 @@ import { SectionsPanel } from "@/components/SectionsPanel";
 import {
   getSticker,
   updateWordExtras,
-  reportWordIssue,
   deleteSticker,
   replaceStickerPhoto,
   setStickerHeroRole,
@@ -90,8 +89,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
   const saveExtras = useServerFn(updateWordExtras);
-  const reportFn = useServerFn(reportWordIssue);
-  const [reporting, setReporting] = useState(false);
   const fetchProfile = useServerFn(getMyProfile);
   const fetchPhotos = useServerFn(listStickerPhotos);
   const deleteFn = useServerFn(deleteSticker);
@@ -683,40 +680,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
 
   const hasSelfie = !!s?.selfie_url;
 
-  // 間違い報告: AIが単語を作り直し(自動修正)、報告も記録する(ユーザーFB)。
-  async function reportIssue() {
-    if (!s || reporting) return;
-    setReporting(true);
-    try {
-      const card = await enrichWord({
-        data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
-      });
-      await saveExtras({
-        data: {
-          word_id: s.word_id,
-          extras: card.extras,
-          patch: {
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            meaning_ja: card.meaning_ja,
-          },
-        },
-      });
-      await reportFn({ data: { word_id: s.word_id, headword: s.word.headword } });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      toast.success(t("card.reportDone"));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("card.reportFailed"));
-    } finally {
-      setReporting(false);
-    }
-  }
-
   return (
     <div
       {...dragProps}
@@ -826,8 +789,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
             }}
             regenerating={regenerating}
             regenerate={regenerate}
-            reporting={reporting}
-            reportIssue={reportIssue}
             webCandidates={webCandidates}
             swapping={swapping}
             swapWebImage={swapWebImage}
@@ -907,8 +868,6 @@ export function StickerSheetBody({
   onEnrichRetry,
   regenerating,
   regenerate,
-  reporting,
-  reportIssue,
   webCandidates,
   swapping,
   swapWebImage,
@@ -950,8 +909,6 @@ export function StickerSheetBody({
   onEnrichRetry: () => void;
   regenerating: boolean;
   regenerate: () => void;
-  reporting: boolean;
-  reportIssue: () => void;
   webCandidates: Array<{ url: string; credit?: { name?: string; link?: string }; source: string }>;
   swapping: string | null;
   swapWebImage: (cand: {
@@ -1267,13 +1224,11 @@ export function StickerSheetBody({
         onEditHeadword={editHeadword}
       />
 
-      {enriching && (
-        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 py-2 text-footnote text-primary-ink">
-          <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-          {t("card.preparing")}
-        </div>
-      )}
-
+      {/* **「詳しい解説をAIが準備中…」の帯は出さない**（オーナー指示
+          2026-09-22「※詳しい解説をAIが準備中...のバナー削除して」）。
+          解説は裏で作り続け、届いた節から順に現れる（中身の無い節は
+          最初から並べない — `WordCard` の `shown`）。待っていることを
+          帯で告げる必要が無い。 */}
       {/* 解説の生成に失敗したときは、空欄のまま黙らせない。
             何が起きたかと「もう一度」を必ず見せる(apple-design §8)。 */}
       {!enriching && enrichError && (
@@ -1312,21 +1267,11 @@ export function StickerSheetBody({
           </div>
         ))}
 
-      {/* 間違い報告: 意味・発音が変なときAIに作り直させ、報告も記録する */}
-      <div className="mt-4 text-center">
-        <button
-          onClick={() => reportIssue()}
-          disabled={reporting}
-          className="press-in inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-footnote font-medium text-muted-foreground disabled:opacity-60"
-        >
-          {reporting ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Flag className="h-3.5 w-3.5" />
-          )}
-          {reporting ? t("card.reportFixing") : t("card.reportPrompt")}
-        </button>
-      </div>
+      {/* **「意味や発音が変？報告してAIに直させる」の帯は消した**
+          （オーナー指示 2026-09-22）。押すと**全部の解説を作り直して**
+          いた — Pro 限定の「作り直し」（上の帯）を誰でも使えていた。
+          報告は見出しの行の小さな「報告」から、**どの項目か**を選んで
+          その項目だけを直す（`WordCard` の `ReportButton`）。 */}
 
       {/* **一番下の地図は消した**(オーナー指示 2026-08-25「単語の詳細の
           一番下の地図は要らない。上に別にあるから」)。上の「撮った所」の

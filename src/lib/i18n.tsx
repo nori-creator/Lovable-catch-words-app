@@ -620,7 +620,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
   "card.pronZhuyin": { ja: "発音・注音", en: "Pronunciation & Zhuyin", "zh-TW": "發音・注音" },
   "card.posLabel": { ja: "品詞", en: "Part of speech", "zh-TW": "詞性" },
-  "card.otherLabel": { ja: "その他", en: "Other", "zh-TW": "其他" },
   "card.reportError": {
     ja: "この語の誤りを報告",
     en: "Report an error in this entry",
@@ -2031,11 +2030,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.changePhoto": { ja: "写真を変更", en: "Change photo", "zh-TW": "更換照片" },
   "card.report": { ja: "報告", en: "Report", "zh-TW": "回報" },
   "card.reportWhat": { ja: "どこが違う？", en: "What's wrong?", "zh-TW": "哪裡不對？" },
-  "card.reportThanks": {
-    ja: "🙏 報告ありがとうございます",
-    en: "🙏 Thanks for reporting",
-    "zh-TW": "🙏 謝謝你的回報",
-  },
   "card.regenAll": {
     ja: "✨ 解説を再生成",
     en: "✨ Regenerate details",
@@ -2045,11 +2039,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "解説の再生成は Pro 限定",
     en: "Regenerating details is Pro-only",
     "zh-TW": "重新產生解說是 Pro 限定",
-  },
-  "card.preparing": {
-    ja: "詳しい解説をAIが準備中…",
-    en: "AI is preparing the details…",
-    "zh-TW": "AI 正在準備詳細解說…",
   },
   "card.enrichFailed": {
     ja: "詳しい解説を作れませんでした",
@@ -2242,16 +2231,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "🌐 正在從網路上找圖片…",
   },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…", "zh-TW": "重新產生中…" },
-  "card.reportPrompt": {
-    ja: "意味や発音が変？報告してAIに直させる",
-    en: "Wrong meaning or reading? Report and let AI fix it",
-    "zh-TW": "意思或發音怪怪的？回報讓 AI 改",
+  "card.reportFixing": { ja: "確かめています…", en: "Checking…", "zh-TW": "確認中…" },
+  "card.reportFixed": {
+    ja: "「{item}」を直しました",
+    en: "Fixed “{item}”",
+    "zh-TW": "已修正「{item}」",
   },
-  "card.reportFixing": { ja: "AIが作り直し中…", en: "AI is rebuilding…", "zh-TW": "AI 重做中…" },
-  "card.reportDone": {
-    ja: "報告ありがとう。AIが作り直しました",
-    en: "Thanks — AI rebuilt this card",
-    "zh-TW": "謝謝你的回報，AI 已經重做好了",
+  "card.reportQueued": {
+    ja: "報告を受け付けました。確かめてから直します",
+    en: "Report received. We'll check it before changing anything",
+    "zh-TW": "已收到回報，確認後會修正",
   },
   "card.reportFailed": {
     ja: "報告に失敗しました",

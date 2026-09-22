@@ -31,7 +31,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
 import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
-import { listMyStickers, saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
+import {
+  listMyStickers,
+  saveSticker,
+  setStickerVoiceVideo,
+  type StickerWithWord,
+} from "@/lib/stickers.functions";
+import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import {
@@ -891,8 +897,17 @@ function CapturePage() {
     // 温めてある位置を**ここで確定させる**。状態を直に読むと、
     // 候補を早く選んだ回はまだ届いていない。
     const locationPromise = resolveLocation();
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
+    /**
+     * **`getSession` で足りる**（オーナー報告 2026-09-22「祝福の演出が…
+     * 4秒位停止してる」の一因）。
+     *
+     * `getUser()` は毎回**認証サーバーへ問い合わせる**。ここで要るのは
+     * アップロード先のフォルダ名（自分の id）だけで、本人確認はこの後の
+     * アップロードと保存がそれぞれ鍵付きで行う（保存側は `ownPath` で
+     * 他人のフォルダを弾く）。1往復ぶん、演出が保存を待つ時間が縮む。
+     */
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
     if (!userId) throw new Error("Not signed in");
 
     const ts = Date.now();
@@ -997,7 +1012,55 @@ function CapturePage() {
       })();
     }
 
+    /**
+     * **いま捕まえた札を、図鑑の手元の一覧へ先に入れる**
+     * （`lib/optimistic-sticker.ts` の注。オーナー報告 2026-09-22
+     * 「発音のあとその画面のまま4秒位停止してる」）。
+     *
+     * 入れないと、図鑑は全部の札を読み直し終えるまでこの札のマス目を
+     * 描けず、演出はその間ずっと着地先を待って止まっていた。
+     */
+    const nowIso = new Date().toISOString();
+    queryClient.setQueryData<StickerListCache>(["stickers"], (prev) =>
+      prependSticker(prev, {
+        id: res.id,
+        word_id: res.word_id,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+        taken_at: nowIso,
+        created_at: nowIso,
+        encounter_count: 1,
+        // アップロード前の手元の絵。署名付き URL を待たずに出せて、
+        // 読み直しが届いて本物に替わっても同じ絵なので見た目は変わらない。
+        object_url: objectImg,
+        cutout_url: cutForSave,
+        selfie_url: selfieImg,
+        object_thumb_url: null,
+        cutout_thumb_url: null,
+        capture_type: "photo",
+        hero_role: null,
+        placeholder_url: null,
+        placeholder_credit: null,
+        word: {
+          headword: selectedHead,
+          language: targetLanguage,
+          reading_zhuyin: card.reading_zhuyin ?? null,
+          pinyin: card.pinyin ?? null,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech ?? null,
+          example_sentence: card.example_sentence ?? null,
+          example_translation: card.example_translation ?? null,
+          level: card.level ?? null,
+          category_key: card.category_key ?? null,
+          silhouette_emoji: null,
+          extras: (card.extras ?? null) as StickerWithWord["word"]["extras"],
+        },
+      }),
+    );
     // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+    // 届いたら上の仮の札は同じ id の本物に置き換わる。
     void queryClient.invalidateQueries({ queryKey: ["stickers"] });
     if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
     return res;

@@ -27,6 +27,18 @@ import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import { REGEN_SECTIONS, sectionHasContent, type RegenSection } from "./card-sections";
 import {
+  dictionaryFixPatch,
+  shouldApplyCorrection,
+  verdictFromLlm,
+  type CorrectionVerdict,
+} from "./correction-judge";
+import { choice as jevChoice, choiceProb } from "./jev";
+import {
+  DICTIONARY_SELECT,
+  resolveDictionaryFields,
+  type RawDictionaryRow,
+} from "./dictionary-entry";
+import {
   assertWithinDailyCap,
   getAi,
   getAiFor,
@@ -797,324 +809,584 @@ function specificChunkRule(headword: string, levelGoal: string): string {
   );
 }
 
+/**
+ * 項目を1つ作る。**書くか、案だけ返すかを選べる。**
+ *
+ * - `"write"` … いままでの「作り直し」。作ってそのまま語に書く（Pro）。
+ * - `"propose"` … 案だけ返して**書かない**。報告からの直し
+ *   （`reportAndFixSection`）が使う。語は**全員で共有している**ので、
+ *   1人の報告で書き換える前に別の目で確かめる（`QA.md`「User-reported
+ *   canonical corrections require validation before global propagation」）。
+ *
+ * 作り方は1つにしておく — 2つの道で別々に書くと、片方だけ直って
+ * もう片方から古い形が入り続ける。
+ */
+type SectionRegenData = z.infer<typeof RegenInput>;
+type SectionProposal = {
+  section: RegenSection;
+  /** 語の列（意味・例文）への書き込み。確認済みの語では空。 */
+  baseUpdate: Record<string, unknown>;
+  /** extras へ混ぜた後の全体。 */
+  merged: unknown;
+  /** 比べるための、作り直す前と後（その項目の分だけ）。 */
+  before: unknown;
+  after: unknown;
+  headword: string;
+  language: string | null;
+};
+
+async function runSectionRegen(
+  // 呼ぶ側の `requireSupabaseAuth` の文脈そのもの。型は生成物で長いので緩く受ける
+  // （`upsertWord` と同じ扱い）。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: { supabase: any; userId: string },
+  data: SectionRegenData,
+  mode: "write" | "propose",
+): Promise<{ ok: true; section: RegenSection; filled: boolean; proposal?: SectionProposal }> {
+  const { supabase, userId } = context;
+  const {
+    isProUser: proCheck,
+    levelInstruction: lvl,
+    explanationLanguageRule: langFn,
+  } = await import("./ai-provider.server");
+  // 作り直し（書く）は Pro。報告からの直し（案だけ）は誰でも — ただし
+  // 書く前に別の目で確かめる（`reportAndFixSection`）。
+  if (mode === "write" && !data.only_if_empty && !(await proCheck(userId))) {
+    throw new Error("項目の再生成は Pro 限定です");
+  }
+  await assertWithinDailyCap(userId, "card");
+
+  // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
+  const { data: owned } = await supabase
+    .from("stickers")
+    .select("id, caption, location_name, taken_at")
+    .eq("user_id", userId)
+    .eq("word_id", data.word_id)
+    .order("taken_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!owned) throw new Error("この単語を編集する権限がありません");
+
+  // 例文をその人の記録から作るための材料(オーナー指摘)。
+  // **例文の項目を作り直すときだけ**読む — ほかの項目には要らないし、
+  // 毎回2本の問い合わせを足す理由が無い。
+  let material: PersonalMaterial = {};
+  if (data.section === "example" || data.section === "examples_extra") {
+    const st = owned as {
+      caption?: string | null;
+      location_name?: string | null;
+      taken_at?: string | null;
+    };
+    // 日記が読めなくても例文は作れる。**失敗で全体を落とさない。**
+    const { data: diaryRows } = await supabase
+      .from("journal_entries")
+      .select("user_draft")
+      .eq("user_id", userId)
+      .order("entry_date", { ascending: false })
+      .limit(DIARY_COUNT);
+    material = {
+      caption: st.caption ?? null,
+      place: st.location_name ?? null,
+      takenAt: st.taken_at ?? null,
+      diaries: ((diaryRows ?? []) as Array<{ user_draft: string | null }>).map((d) => d.user_draft),
+    };
+  }
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: word, error } = await supabaseAdmin
+    .from("words")
+    .select(
+      "id, headword, language, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
+    )
+    .eq("id", data.word_id)
+    .maybeSingle();
+  if (error || !word) throw new Error("単語が見つかりません");
+
+  // すでに埋まっている節を、裏の自動生成が上書きしない。
+  // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
+  // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
+  // 言い続ける — 止まらない生成になる。
+  if (
+    data.only_if_empty &&
+    sectionHasContent(data.section, {
+      headword: word.headword as string,
+      // **学習言語を渡す。** 渡さないと英語のカードの例文を台湾華語の
+      // 目盛りで数え、英語の型を1つ残らず「無い」と判ずる — つまり
+      // 作っても作っても空のままになる(`card-sections.ts` の注)。
+      language: word.language as string | null,
+      meaning_ja: word.meaning_ja as string | null,
+      example_sentence: word.example_sentence as string | null,
+      extras: normalizeExtras(word.extras),
+    })
+  ) {
+    return { ok: true, section: data.section, filled: false };
+  }
+
+  const levelRule = await lvl(userId);
+  // 型はレベルで変える(オーナー指示 2026-08-28 ③「ユーザーの語学の
+  // レベルによって表示するものを変えるのは守って」)。作り直すときも
+  // 同じレベルに合わせないと、その節だけ別のレベルの型になる。
+  const regenLevelGoal = await getUserLevelGoal(userId);
+  const langRule = await langFn(userId);
+  // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
+  const regenLang = await getExplanationLanguage(userId);
+  // 表示言語は3つある(2026-08-25)。`=== "en" ? … : "日本語"` と書くと、
+  // 台湾の人の解説だけが黙って日本語で作られる。呼び名の表は1つ。
+  const NL = explanationLanguageName(regenLang);
+  const l1Pron = await l1Rule(userId, "pronunciation");
+  // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
+  // 一括生成(generateCard)と同じ観点になるようにする。
+  const l1Gram = await l1Rule(userId, "wordorder");
+  const regenL1 = await getLearnerL1(userId);
+  const learnerL1 = regenL1.speakerJa;
+  const head = word.headword as string;
+  // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
+  // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
+  // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
+  const regenProfile = targetProfile(word.language as string | null);
+  const targetName = regenProfile.promptName;
+  const regenReadingNames = readingPromptNames(regenProfile);
+  const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
+
+  // 各項目のプロンプトと出力形。extras へのマージで反映する。
+  const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
+    meaning: {
+      prompt: `${base}\n${meaningRule(regenProfile.promptName, NL)}\n{"meaning_ja": ""}`,
+      schema: z.object({ meaning_ja: z.string().min(1) }),
+    },
+    measure_words: {
+      prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
+      schema: z.object({
+        measure_words: z
+          .array(
+            z.object({
+              word: z.string(),
+              zhuyin: z.string().catch(""),
+              pinyin: z.string().catch(""),
+              note: z.string().catch(""),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    usage_context: {
+      prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面","register_scale":-2〜+2の整数(-2=完全に口語 / 0=中立 / +2=完全に書面)}`,
+      schema: z.object({
+        usage_context: z.string(),
+        frequency_level: z.number().int().min(1).max(5).catch(3),
+        register_tag: z.string().catch(""),
+        register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
+      }),
+    },
+    example: {
+      prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      schema: z.object({
+        example_sentence: z.string().min(1),
+        example_translation: z.string().catch(""),
+        example_chunks: z
+          .array(z.object({ text: z.string(), pos: z.string().catch("") }))
+          .catch([]),
+      }),
+    },
+    examples_extra: {
+      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+      schema: z.object({
+        examples_extra: z
+          .array(
+            z.object({
+              zh: z.string(),
+              ja: z.string().catch(""),
+              scene: z.string().catch(""),
+              chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    usage_chunks: {
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+      schema: z.object({
+        usage_chunks: z
+          .array(
+            z.object({
+              parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+              ja: z.string().catch(""),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    related_words: {
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      schema: z.object({
+        related_words: z
+          .array(
+            z.object({
+              word: z.string(),
+              kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
+              note: z.string().catch(""),
+              reading: z.string().catch(""),
+              reading_alt: z.string().catch(""),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    pronunciation_tips: {
+      prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。\n${l1Pron}\nこの語に実際に当てはまるものだけを具体的に。\n{"pronunciation_tips":""}`,
+      schema: z.object({ pronunciation_tips: z.string().min(1) }),
+    },
+    etymology: {
+      prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}"}`,
+      schema: z.object({
+        etymology: z.string().min(1),
+        etymology_relatives: z
+          .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
+          .catch([]),
+        radicals: z.string().catch(""),
+      }),
+    },
+    mnemonic: {
+      prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
+      schema: z.object({ mnemonic: z.string().min(1) }),
+    },
+    taiwan_note: {
+      prompt: `${base}\n{"taiwan_note":"${regenProfile.capture.noteRule}"}`,
+      schema: z.object({ taiwan_note: z.string().min(1) }),
+    },
+    // --- 英語のカードの節 ---------------------------------------------
+    // **`forms`(活用)はここに無い。** 語形は ECDICT から来る辞書の事実で、
+    // AI に作らせる物ではない(作らせると "child" の複数形が "childs" に
+    // なり得る)。取り込みの時点で埋まっているので、作り直す口も要らない。
+    countability: {
+      prompt: `${base}\n「${head}」が可算名詞か不可算名詞かと、付く冠詞。\n**${learnerL1}にとってここが最大のつまずき**(母語に冠詞が無い/薄い)ので、note には「なぜ間違えやすいか」ではなく「**どう言えば正しいか**」を書く。\nkind は countable / uncountable / both のどれか。両方あるなら、どちらの意味でどちらになるかを note に書く。\narticle は実際に付く形("a" / "an" / "the" / 付かないなら "—")。\n**note は必ず${NL}で書く。**\n{"countability":{"kind":"uncountable","article":"—","note":"数えるときは a piece of ~ を使う"}}`,
+      schema: z.object({
+        countability: z.object({
+          kind: z.enum(["countable", "uncountable", "both"]).catch("countable"),
+          article: z.string().catch(""),
+          note: z.string().catch(""),
+        }),
+      }),
+    },
+    stress: {
+      prompt: `${base}\n「${head}」を音節に切って、どこを強く読むか。\nsyllables は綴りを音節ごとに切った配列(例: "photograph" → ["pho","to","graph"])。**綴りの文字を1つも足さない・落とさない** — つないだら元の語に戻ること。\nprimary は第一強勢の音節の添字(0始まり)、secondary は第二強勢があればその添字、無ければ null。\n**${learnerL1}は声調の言語なので強勢が意識に上りにくい。** note には、この語で特に気をつける点を1文だけ(${NL}で)。\n{"stress":{"syllables":["pho","to","graph"],"primary":0,"secondary":2,"note":"最初を強く、あとは軽く"}}`,
+      schema: z.object({
+        stress: z.object({
+          syllables: z.array(z.string()).min(1),
+          primary: z.number().int().min(0).nullable().catch(null),
+          secondary: z.number().int().min(0).nullable().catch(null),
+          note: z.string().catch(""),
+        }),
+      }),
+    },
+    phrasal_verbs: {
+      prompt: `${base}\n「${head}」を使う句動詞を2〜4個。**語そのものからは意味が読めない物を優先する**(give up / give in のような物。give me は句動詞ではない)。\n「${head}」が句動詞を作らない語なら、その語を**含む**よく使う連語を挙げる。\nmeaning は${NL}で、example は英語の短い一文。\n{"phrasal_verbs":[{"phrase":"give up","meaning":"あきらめる","example":"Do not give up now."}]}`,
+      schema: z.object({
+        phrasal_verbs: z
+          .array(
+            z.object({
+              phrase: z.string(),
+              meaning: z.string().catch(""),
+              example: z.string().catch(""),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    /**
+     * 英語の一言メモ。オーナー指示 2026-08-26:
+     * > 「台湾人が学習言語英語で勉強する時、単語の項目の台湾ノートは
+     * >  要らない。そのかわりひと言単語に関する雑学や知識やを
+     * >  コメントをかいて」
+     *
+     * 前はここが「米/英の言い方の違い」だけだった。違いが無い語のほうが
+     * 多いので、**大半の語でこの節が薄くなる**。何を書くかは
+     * `target-profile.ts` の `noteRule` が唯一の正
+     * (カード全体を作るときの指示と同じ文を使う)。
+     */
+    culture_note: {
+      prompt: `${base}\n${regenProfile.capture.noteRule}(${NL}で)\n{"culture_note":""}`,
+      schema: z.object({ culture_note: z.string().min(1) }),
+    },
+  };
+
+  const { prompt, schema } = spec[data.section];
+  const ai = await getAiFor("card");
+  // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
+  // 無料の人にも項目は埋まる — 書き手が変わるだけ。
+  const model = (await proCheck(userId)) ? ai.modelRichPremium : ai.modelRich;
+  const result = await withModelFallback(ai, model, (m) =>
+    generateText({ model: ai.gateway(m), prompt }),
+  );
+  let out: Record<string, unknown>;
+  try {
+    out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;
+  } catch {
+    throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
+  }
+
+  // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。
+  const baseUpdate: Record<string, unknown> = {};
+  // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
+  // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
+  const extrasPatch: Record<string, unknown> = {
+    ...scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+  };
+  if (data.section === "meaning") {
+    delete extrasPatch.meaning_ja;
+    if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;
+  }
+  if (data.section === "example") {
+    delete extrasPatch.example_sentence;
+    delete extrasPatch.example_translation;
+    if (word.source !== "verified") {
+      baseUpdate.example_sentence = out.example_sentence;
+      baseUpdate.example_translation = out.example_translation;
+    }
+  }
+
+  const merged = mergeExtras(
+    (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
+    extrasPatch as Parameters<typeof mergeExtras>[1],
+  );
+  await logUsage(context.supabase, userId, "card");
+  if (mode === "propose") {
+    return {
+      ok: true,
+      section: data.section,
+      filled: false,
+      proposal: {
+        section: data.section,
+        baseUpdate,
+        merged,
+        before: sectionSnapshot(Object.keys(out), word),
+        after: out,
+        headword: word.headword as string,
+        language: (word.language as string | null) ?? null,
+      },
+    };
+  }
+  const { error: upErr } = await supabaseAdmin
+    .from("words")
+    .update({ ...baseUpdate, extras: merged as never } as never)
+    .eq("id", data.word_id);
+  if (upErr) throw new Error(upErr.message);
+
+  return { ok: true, section: data.section, filled: true };
+}
+
+/**
+ * 直す前のその項目だけを取り出す（比べるため）。語全体を渡すと、
+ * 確認する側が関係のない所まで読んで判断がぶれる。
+ */
+function sectionSnapshot(keys: string[], word: Record<string, unknown>): Record<string, unknown> {
+  // **作り直した案と同じ鍵だけ**を、語の列 → extras の順に探す。
+  // 項目ごとの鍵の表を別に持つと、項目を足したときに表だけ古くなる。
+  const ex = (word.extras ?? {}) as Record<string, unknown>;
+  return Object.fromEntries(keys.map((k) => [k, (k in word ? word[k] : ex[k]) ?? null]));
+}
+
 export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    const {
-      isProUser: proCheck,
-      levelInstruction: lvl,
-      explanationLanguageRule: langFn,
-    } = await import("./ai-provider.server");
-    if (!data.only_if_empty && !(await proCheck(userId))) {
-      throw new Error("項目の再生成は Pro 限定です");
-    }
-    await assertWithinDailyCap(userId, "card");
+    const r = await runSectionRegen(context, data, "write");
+    return { ok: r.ok, section: r.section, filled: r.filled };
+  });
 
-    // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
+/**
+ * **報告された項目だけを直す。**（オーナー指示 2026-09-22）
+ *
+ * > 単語の詳細のエラーを具体的にどの項目か報告し、その該当箇所をAIが
+ * > 自動修整する。だけにして。今このバナーを押すとAIがすべての解説を
+ * > 再生成する。これは課金ユーザーだけにしたいから。
+ *
+ * ## 何をするか
+ * 1. 報告を残す（`entry_reports`。管理画面の確認待ちに載る）
+ * 2. **その項目だけ**を直す案を作る
+ *    - 発音・品詞 … AIに作らせず**辞書と照らす**（事実なので）
+ *    - それ以外 … AIがその項目だけ作り直す（`runSectionRegen` の案）
+ * 3. 語は**全員で共有している**ので、**作った目とは別の目**で前と後を
+ *    比べ、後の方が正しいと十分に言えたときだけ書く
+ *    （`lib/correction-judge.ts`。`QA.md` の約束）
+ *
+ * ## 誰が使えるか
+ * **全員**。直すのはその項目1つだけで、全部の作り直しは Pro のまま
+ * （`regenerateCardSection`）。1日の上限は作り直しと同じ枠を使う。
+ */
+const ReportFixInput = z.object({
+  word_id: z.string().uuid(),
+  item: z.union([z.enum(REGEN_SECTIONS), z.literal("pronunciation"), z.literal("pos")]),
+  note: z.string().max(500).optional().default(""),
+});
+
+export type ReportFixResult = {
+  /** 直して語に書いたか。 */
+  fixed: boolean;
+  /** 誰が確かめたか（`dictionary` は辞書と照らした）。 */
+  by: "dictionary" | "jev" | "llm" | "none";
+};
+
+export const reportAndFixSection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ReportFixInput.parse(input))
+  .handler(async ({ context, data }): Promise<ReportFixResult> => {
+    const { supabase, userId } = context;
+    // 所有チェック: この語のステッカーを持つ人だけが直せる。
     const { data: owned } = await supabase
       .from("stickers")
-      .select("id, caption, location_name, taken_at")
+      .select("id")
       .eq("user_id", userId)
       .eq("word_id", data.word_id)
-      .order("taken_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (!owned) throw new Error("この単語を編集する権限がありません");
 
-    // 例文をその人の記録から作るための材料(オーナー指摘)。
-    // **例文の項目を作り直すときだけ**読む — ほかの項目には要らないし、
-    // 毎回2本の問い合わせを足す理由が無い。
-    let material: PersonalMaterial = {};
-    if (data.section === "example" || data.section === "examples_extra") {
-      const st = owned as {
-        caption?: string | null;
-        location_name?: string | null;
-        taken_at?: string | null;
-      };
-      // 日記が読めなくても例文は作れる。**失敗で全体を落とさない。**
-      const { data: diaryRows } = await supabase
-        .from("journal_entries")
-        .select("user_draft")
-        .eq("user_id", userId)
-        .order("entry_date", { ascending: false })
-        .limit(DIARY_COUNT);
-      material = {
-        caption: st.caption ?? null,
-        place: st.location_name ?? null,
-        takenAt: st.taken_at ?? null,
-        diaries: ((diaryRows ?? []) as Array<{ user_draft: string | null }>).map(
-          (d) => d.user_draft,
-        ),
-      };
-    }
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: word, error } = await supabaseAdmin
+    const { data: word } = await supabaseAdmin
       .from("words")
-      .select(
-        "id, headword, language, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
-      )
+      .select("id, headword, language, source, reading_zhuyin, pinyin, part_of_speech")
       .eq("id", data.word_id)
       .maybeSingle();
-    if (error || !word) throw new Error("単語が見つかりません");
+    if (!word) throw new Error("単語が見つかりません");
+    const w = word as {
+      headword: string;
+      language: string | null;
+      source: string | null;
+      reading_zhuyin: string | null;
+      pinyin: string | null;
+      part_of_speech: string | null;
+    };
 
-    // すでに埋まっている節を、裏の自動生成が上書きしない。
-    // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
-    // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
-    // 言い続ける — 止まらない生成になる。
-    if (
-      data.only_if_empty &&
-      sectionHasContent(data.section, {
-        headword: word.headword as string,
-        // **学習言語を渡す。** 渡さないと英語のカードの例文を台湾華語の
-        // 目盛りで数え、英語の型を1つ残らず「無い」と判ずる — つまり
-        // 作っても作っても空のままになる(`card-sections.ts` の注)。
-        language: word.language as string | null,
-        meaning_ja: word.meaning_ja as string | null,
-        example_sentence: word.example_sentence as string | null,
-        extras: normalizeExtras(word.extras),
+    // 1. 報告を残す。**直せても直せなくても残す** — 人が後で確かめられる。
+    //    種類の列は4つしか取れない（`entry_reports` の制約）ので、
+    //    どの項目かは本文の頭に書く。
+    const kind =
+      data.item === "pronunciation" || data.item === "pos" || data.item === "meaning"
+        ? data.item
+        : "other";
+    await supabase
+      .from("entry_reports")
+      .insert({
+        user_id: userId,
+        headword: w.headword,
+        kind,
+        note: `[item:${data.item}] ${data.note}`.trim(),
       })
-    ) {
-      return { ok: true, section: data.section, filled: false };
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+
+    // 2a. 発音・品詞 … 辞書と照らす。
+    if (data.item === "pronunciation" || data.item === "pos") {
+      const { data: rows } = await supabaseAdmin
+        .from("dictionary_entries")
+        .select(DICTIONARY_SELECT)
+        .eq("language", w.language ?? DEFAULT_TARGET_LANGUAGE)
+        .eq("headword", w.headword)
+        .limit(1)
+        .overrideTypes<Array<RawDictionaryRow & { pos: string | null; source: string | null }>>();
+      const row = rows?.[0] ?? null;
+      const f = row ? resolveDictionaryFields(row, "ja") : null;
+      const patch = dictionaryFixPatch(
+        data.item,
+        w,
+        row && f
+          ? { source: row.source, reading: f.reading, readingAlt: f.readingAlt, pos: row.pos }
+          : null,
+      );
+      if (!patch) return { fixed: false, by: "dictionary" };
+      const { error } = await supabaseAdmin
+        .from("words")
+        .update(patch as never)
+        .eq("id", data.word_id);
+      if (error) throw new Error(error.message);
+      return { fixed: true, by: "dictionary" };
     }
 
-    const levelRule = await lvl(userId);
-    // 型はレベルで変える(オーナー指示 2026-08-28 ③「ユーザーの語学の
-    // レベルによって表示するものを変えるのは守って」)。作り直すときも
-    // 同じレベルに合わせないと、その節だけ別のレベルの型になる。
-    const regenLevelGoal = await getUserLevelGoal(userId);
-    const langRule = await langFn(userId);
-    // 各項目の指示にある「日本語で」を表示言語に合わせて差し替える(#65)。
-    const regenLang = await getExplanationLanguage(userId);
-    // 表示言語は3つある(2026-08-25)。`=== "en" ? … : "日本語"` と書くと、
-    // 台湾の人の解説だけが黙って日本語で作られる。呼び名の表は1つ。
-    const NL = explanationLanguageName(regenLang);
-    const l1Pron = await l1Rule(userId, "pronunciation");
-    // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
-    // 一括生成(generateCard)と同じ観点になるようにする。
-    const l1Gram = await l1Rule(userId, "wordorder");
-    const regenL1 = await getLearnerL1(userId);
-    const learnerL1 = regenL1.speakerJa;
-    const head = word.headword as string;
-    // **学習言語を決め打たない。** ここは「台湾華語(繁体字)の単語」と
-    // 直に書いてあった。英語のカードをそのまま流すと、AI は英語の語を
-    // 渡されながら「台湾華語の単語だ」と言われる。呼び名は言語の表が持つ。
-    const regenProfile = targetProfile(word.language as string | null);
-    const targetName = regenProfile.promptName;
-    const regenReadingNames = readingPromptNames(regenProfile);
-    const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
-
-    // 各項目のプロンプトと出力形。extras へのマージで反映する。
-    const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
-      meaning: {
-        prompt: `${base}\n${meaningRule(regenProfile.promptName, NL)}\n{"meaning_ja": ""}`,
-        schema: z.object({ meaning_ja: z.string().min(1) }),
-      },
-      measure_words: {
-        prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
-        schema: z.object({
-          measure_words: z
-            .array(
-              z.object({
-                word: z.string(),
-                zhuyin: z.string().catch(""),
-                pinyin: z.string().catch(""),
-                note: z.string().catch(""),
-              }),
-            )
-            .min(1),
-        }),
-      },
-      usage_context: {
-        prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面","register_scale":-2〜+2の整数(-2=完全に口語 / 0=中立 / +2=完全に書面)}`,
-        schema: z.object({
-          usage_context: z.string(),
-          frequency_level: z.number().int().min(1).max(5).catch(3),
-          register_tag: z.string().catch(""),
-          register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
-        }),
-      },
-      example: {
-        prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
-        schema: z.object({
-          example_sentence: z.string().min(1),
-          example_translation: z.string().catch(""),
-          example_chunks: z
-            .array(z.object({ text: z.string(), pos: z.string().catch("") }))
-            .catch([]),
-        }),
-      },
-      examples_extra: {
-        prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
-        schema: z.object({
-          examples_extra: z
-            .array(
-              z.object({
-                zh: z.string(),
-                ja: z.string().catch(""),
-                scene: z.string().catch(""),
-                chunks: z
-                  .array(z.object({ text: z.string(), pos: z.string().catch("") }))
-                  .catch([]),
-              }),
-            )
-            .min(1),
-        }),
-      },
-      usage_chunks: {
-        prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
-        schema: z.object({
-          usage_chunks: z
-            .array(
-              z.object({
-                parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
-                ja: z.string().catch(""),
-              }),
-            )
-            .min(1),
-        }),
-      },
-      related_words: {
-        prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
-        schema: z.object({
-          related_words: z
-            .array(
-              z.object({
-                word: z.string(),
-                kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
-                note: z.string().catch(""),
-                reading: z.string().catch(""),
-                reading_alt: z.string().catch(""),
-              }),
-            )
-            .min(1),
-        }),
-      },
-      pronunciation_tips: {
-        prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。\n${l1Pron}\nこの語に実際に当てはまるものだけを具体的に。\n{"pronunciation_tips":""}`,
-        schema: z.object({ pronunciation_tips: z.string().min(1) }),
-      },
-      etymology: {
-        prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}"}`,
-        schema: z.object({
-          etymology: z.string().min(1),
-          etymology_relatives: z
-            .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
-            .catch([]),
-          radicals: z.string().catch(""),
-        }),
-      },
-      mnemonic: {
-        prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
-        schema: z.object({ mnemonic: z.string().min(1) }),
-      },
-      taiwan_note: {
-        prompt: `${base}\n{"taiwan_note":"${regenProfile.capture.noteRule}"}`,
-        schema: z.object({ taiwan_note: z.string().min(1) }),
-      },
-      // --- 英語のカードの節 ---------------------------------------------
-      // **`forms`(活用)はここに無い。** 語形は ECDICT から来る辞書の事実で、
-      // AI に作らせる物ではない(作らせると "child" の複数形が "childs" に
-      // なり得る)。取り込みの時点で埋まっているので、作り直す口も要らない。
-      countability: {
-        prompt: `${base}\n「${head}」が可算名詞か不可算名詞かと、付く冠詞。\n**${learnerL1}にとってここが最大のつまずき**(母語に冠詞が無い/薄い)ので、note には「なぜ間違えやすいか」ではなく「**どう言えば正しいか**」を書く。\nkind は countable / uncountable / both のどれか。両方あるなら、どちらの意味でどちらになるかを note に書く。\narticle は実際に付く形("a" / "an" / "the" / 付かないなら "—")。\n**note は必ず${NL}で書く。**\n{"countability":{"kind":"uncountable","article":"—","note":"数えるときは a piece of ~ を使う"}}`,
-        schema: z.object({
-          countability: z.object({
-            kind: z.enum(["countable", "uncountable", "both"]).catch("countable"),
-            article: z.string().catch(""),
-            note: z.string().catch(""),
-          }),
-        }),
-      },
-      stress: {
-        prompt: `${base}\n「${head}」を音節に切って、どこを強く読むか。\nsyllables は綴りを音節ごとに切った配列(例: "photograph" → ["pho","to","graph"])。**綴りの文字を1つも足さない・落とさない** — つないだら元の語に戻ること。\nprimary は第一強勢の音節の添字(0始まり)、secondary は第二強勢があればその添字、無ければ null。\n**${learnerL1}は声調の言語なので強勢が意識に上りにくい。** note には、この語で特に気をつける点を1文だけ(${NL}で)。\n{"stress":{"syllables":["pho","to","graph"],"primary":0,"secondary":2,"note":"最初を強く、あとは軽く"}}`,
-        schema: z.object({
-          stress: z.object({
-            syllables: z.array(z.string()).min(1),
-            primary: z.number().int().min(0).nullable().catch(null),
-            secondary: z.number().int().min(0).nullable().catch(null),
-            note: z.string().catch(""),
-          }),
-        }),
-      },
-      phrasal_verbs: {
-        prompt: `${base}\n「${head}」を使う句動詞を2〜4個。**語そのものからは意味が読めない物を優先する**(give up / give in のような物。give me は句動詞ではない)。\n「${head}」が句動詞を作らない語なら、その語を**含む**よく使う連語を挙げる。\nmeaning は${NL}で、example は英語の短い一文。\n{"phrasal_verbs":[{"phrase":"give up","meaning":"あきらめる","example":"Do not give up now."}]}`,
-        schema: z.object({
-          phrasal_verbs: z
-            .array(
-              z.object({
-                phrase: z.string(),
-                meaning: z.string().catch(""),
-                example: z.string().catch(""),
-              }),
-            )
-            .min(1),
-        }),
-      },
-      /**
-       * 英語の一言メモ。オーナー指示 2026-08-26:
-       * > 「台湾人が学習言語英語で勉強する時、単語の項目の台湾ノートは
-       * >  要らない。そのかわりひと言単語に関する雑学や知識やを
-       * >  コメントをかいて」
-       *
-       * 前はここが「米/英の言い方の違い」だけだった。違いが無い語のほうが
-       * 多いので、**大半の語でこの節が薄くなる**。何を書くかは
-       * `target-profile.ts` の `noteRule` が唯一の正
-       * (カード全体を作るときの指示と同じ文を使う)。
-       */
-      culture_note: {
-        prompt: `${base}\n${regenProfile.capture.noteRule}(${NL}で)\n{"culture_note":""}`,
-        schema: z.object({ culture_note: z.string().min(1) }),
-      },
-    };
-
-    const { prompt, schema } = spec[data.section];
-    const ai = await getAiFor("card");
-    // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
-    // 無料の人にも項目は埋まる — 書き手が変わるだけ。
-    const model = (await proCheck(userId)) ? ai.modelRichPremium : ai.modelRich;
-    const result = await withModelFallback(ai, model, (m) =>
-      generateText({ model: ai.gateway(m), prompt }),
+    // 2b. それ以外 … その項目だけの案を作る（まだ書かない）。
+    const r = await runSectionRegen(
+      context,
+      { word_id: data.word_id, section: data.item, only_if_empty: false },
+      "propose",
     );
-    let out: Record<string, unknown>;
-    try {
-      out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;
-    } catch {
-      throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
-    }
+    const proposal = r.proposal;
+    if (!proposal) return { fixed: false, by: "none" };
 
-    // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。
-    const baseUpdate: Record<string, unknown> = {};
-    // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
-    // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
-    const extrasPatch: Record<string, unknown> = {
-      ...scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
-    };
-    if (data.section === "meaning") {
-      delete extrasPatch.meaning_ja;
-      if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;
-    }
-    if (data.section === "example") {
-      delete extrasPatch.example_sentence;
-      delete extrasPatch.example_translation;
-      if (word.source !== "verified") {
-        baseUpdate.example_sentence = out.example_sentence;
-        baseUpdate.example_translation = out.example_translation;
-      }
-    }
+    // 3. 別の目で確かめる。
+    const verdict = await judgeCorrection({
+      headword: proposal.headword,
+      language: proposal.language,
+      item: data.item,
+      before: proposal.before,
+      after: proposal.after,
+      note: data.note,
+    });
+    if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by };
 
-    const merged = mergeExtras(
-      (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
-      extrasPatch as Parameters<typeof mergeExtras>[1],
-    );
     const { error: upErr } = await supabaseAdmin
       .from("words")
-      .update({ ...baseUpdate, extras: merged as never } as never)
+      .update({ ...proposal.baseUpdate, extras: proposal.merged as never } as never)
       .eq("id", data.word_id);
     if (upErr) throw new Error(upErr.message);
-
-    await logUsage(context.supabase, userId, "card");
-    return { ok: true, section: data.section, filled: true };
+    return { fixed: true, by: verdict.by };
   });
+
+/**
+ * 前と後のどちらが正しいかを、**作った目とは別の目**に聞く。
+ *
+ * Jev を先に使う（判断だけをするモデルで、速く安い）。使えなければ
+ * 別の呼び出しのAIに、決まった形（JSON）で答えさせる。どちらも駄目なら
+ * 「確かめられなかった」（書かない）。
+ */
+async function judgeCorrection(p: {
+  headword: string;
+  language: string | null;
+  item: string;
+  before: unknown;
+  after: unknown;
+  note: string;
+}): Promise<CorrectionVerdict> {
+  const state = {
+    word: p.headword,
+    language: p.language,
+    card_item: p.item,
+    current: p.before as never,
+    proposed: p.after as never,
+    learner_report: p.note || null,
+  };
+  const { askJev } = await import("./jev.server");
+  const jev = await askJev(state, {
+    verdict: jevChoice(
+      "A learner reported that one item of a vocabulary card is wrong. For this word and item, " +
+        "compare `current` with `proposed`. Which one is more accurate, natural and useful " +
+        "for a learner? Judge only this item.",
+      {
+        after: "proposed is clearly more accurate or natural than current",
+        before: "current is already correct, or better than proposed",
+        unsure: "cannot tell, or both are about the same",
+      },
+    ),
+  });
+  const pAfter = choiceProb(jev?.answers.verdict, "after");
+  if (pAfter != null) return { by: "jev", pAfter };
+
+  try {
+    const ai = await getAiFor("audit");
+    const prompt =
+      `語学カードの1項目について、学習者から「間違っている」と報告がありました。\n` +
+      `語: ${p.headword}（${p.language ?? ""}）\n項目: ${p.item}\n` +
+      `報告: ${p.note || "(なし)"}\n` +
+      `いまの内容: ${JSON.stringify(p.before)}\n` +
+      `作り直した案: ${JSON.stringify(p.after)}\n` +
+      `この項目だけを見て、どちらが正確で自然かを判定してください。迷ったら unsure。\n` +
+      `出力はJSONだけ: {"verdict":"after"|"before"|"unsure","confidence":0〜1の数}`;
+    const res = await withModelFallback(ai, ai.modelRich, (m) =>
+      generateText({ model: ai.gateway(m), prompt }),
+    );
+    return verdictFromLlm(parseJsonFromAiText(res.text));
+  } catch {
+    return { by: "none", pAfter: null };
+  }
+}

@@ -5124,3 +5124,119 @@ describe("日本語の検索・候補の行・項目の並べ替え", () => {
     expect(card).toMatch(/dragging\s*\n?\s*\? "touch-none /);
   });
 });
+
+/**
+ * **祝福の演出が、発音のあと止まらない**（オーナー報告 2026-09-22
+ * 「単語をキャッチしたときの祝福の演出、単語の発音をされたあとに
+ *  その画面のまま4秒位停止してる」）。
+ *
+ * 撮る画面そのものが図鑑の一覧（`["stickers"]`）を見ているので、
+ * 保存のあと一覧の読み直しを `await` すると、**全部の札を読み直し
+ * 終えるまで**演出の関所が開かない。演出は発音のあとその関所で待つ。
+ * 持っている札が多い人ほど長く止まっていた。
+ */
+describe("祝福の演出が、発音のあと止まらない", () => {
+  it("**スキャンの保存は、図鑑の読み直しを待たずに演出の関所を開ける**", () => {
+    const sheet = codeOnly(read("components/ScanCatchSheet.tsx"));
+    const i = sheet.indexOf("releaseSave();\n");
+    expect(i).toBeGreaterThan(-1);
+    const before = sheet.slice(sheet.indexOf("async function upload(u:"), i);
+    expect(before).not.toMatch(/await qc\.invalidateQueries\(\{ queryKey: \["stickers"\] \}\)/);
+    expect(before).toMatch(/void qc\.invalidateQueries\(\{ queryKey: \["stickers"\] \}\)/);
+    // 小さい絵のアップロードも待たない（その往復ぶん関所が遅れる）。
+    expect(before).not.toMatch(
+      /await supabase\.storage\s*\.from\("stickers"\)\s*\.upload\(thumbPath/,
+    );
+  });
+
+  it("**保存した札を、図鑑の手元の一覧へ先に入れる**（着地先のマス目を待たない）", () => {
+    // 入れないと、図鑑は全部を読み直し終えるまでその札のマス目を描けず、
+    // 演出は着地先を最長5秒待って止まる。
+    for (const f of ["routes/_authenticated/capture.tsx", "components/ScanCatchSheet.tsx"]) {
+      const src = codeOnly(read(f));
+      expect(src).toMatch(
+        /setQueryData<StickerListCache>\(\["stickers"\], \(prev\) =>\s*prependSticker\(prev,/,
+      );
+    }
+  });
+
+  it("**アップロード先の id は手元の `getSession` から取る**（認証サーバーへの往復を1つ減らす）", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const save = cap.slice(
+      cap.indexOf("async function doSave("),
+      cap.indexOf("async function handleSave("),
+    );
+    expect(save).toMatch(/supabase\.auth\.getSession\(\)/);
+    expect(save).not.toMatch(/supabase\.auth\.getUser\(\)/);
+  });
+
+  it("**保存の中で、互いを待たない2つの手順を並べる**", () => {
+    const fns = codeOnly(read("lib/stickers.functions.ts"));
+    const save = fns.slice(fns.indexOf("export const saveSticker"));
+    expect(save.slice(0, 1600)).toMatch(
+      /const \[wordId, shelfKey\] = await Promise\.all\(\[\s*upsertWord\(/,
+    );
+  });
+});
+
+/**
+ * **報告は「どの項目か」を選び、その項目だけを直す**（オーナー指示 2026-09-22）。
+ *
+ * > ※詳しい解説をAIが準備中...のバナー削除して。
+ * > P 意味や発音が変? 報告してAIに直させるのバナーも消して。単語の詳細の
+ * > エラーを具体的にどの項目化報告し、その該当箇所をAIが自動修整する。
+ * > だけにして。今このバナーを押すとAIがすべての解説を再生成する。
+ * > これは課金ユーザーだけにしたいから。
+ */
+describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
+  it("**2つの帯を出さない**", () => {
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).not.toMatch(/card\.preparing/);
+    expect(sheet).not.toMatch(/card\.reportPrompt/);
+    // 押すと全部を作り直していた関数そのものが無い。
+    expect(sheet).not.toMatch(/function reportIssue\(/);
+  });
+
+  it("**報告の印は、項目を選ばせてその項目だけを直す**", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    const rb = card.slice(
+      card.indexOf("function ReportButton("),
+      card.indexOf("function SectionCard("),
+    );
+    expect(rb).toMatch(/useServerFn\(reportAndFixSection\)/);
+    expect(rb).toMatch(/fixFn\(\{ data: \{ word_id: wordId!, item \} \}\)/);
+    // 記録だけの古い通報には戻さない。
+    expect(card).not.toMatch(/reportEntry/);
+    // 画面に出ている節から選ぶ（発音と品詞を先頭に）。
+    expect(card).toMatch(
+      /return \["pronunciation", "pos", \.\.\.shown\.filter\(isRegenSection\)\];/,
+    );
+  });
+
+  it("**直した案は、別の目で確かめてからしか書かない**（語は全員で共有）", () => {
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    const fn = ai.slice(
+      ai.indexOf("export const reportAndFixSection"),
+      ai.indexOf("async function judgeCorrection("),
+    );
+    expect(fn).toMatch(/runSectionRegen\(\s*context,[\s\S]*?"propose",\s*\)/);
+    expect(fn).toMatch(
+      /if \(!shouldApplyCorrection\(verdict\)\) return \{ fixed: false, by: verdict\.by \};/,
+    );
+    // 発音・品詞は AI に作らせず、辞書と照らす。
+    expect(fn).toMatch(/dictionaryFixPatch\(/);
+    // 報告は直せても直せなくても残す。
+    expect(fn).toMatch(/from\("entry_reports"\)\s*\.insert\(/);
+  });
+
+  it("**全部の作り直し（書く）は Pro のまま。案を作るだけなら誰でも**", () => {
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    const run = ai.slice(ai.indexOf("async function runSectionRegen("));
+    expect(run.slice(0, 1400)).toMatch(
+      /if \(mode === "write" && !data\.only_if_empty && !\(await proCheck\(userId\)\)\) \{/,
+    );
+    // 案だけのときは書かずに返す。
+    const propose = run.slice(run.indexOf('if (mode === "propose") {'));
+    expect(propose.indexOf("return {")).toBeLessThan(propose.indexOf('.from("words")'));
+  });
+});

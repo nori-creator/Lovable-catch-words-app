@@ -11,7 +11,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Camera, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
+import { saveSticker, setStickerVoiceVideo, type StickerWithWord } from "@/lib/stickers.functions";
+import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
@@ -261,8 +262,11 @@ export function ScanCatchSheet({
             new Promise<null>((r) => setTimeout(() => r(null), 8000)),
           ]);
 
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
+      // `getUser()` は毎回認証サーバーへ問い合わせる。要るのはフォルダ名
+      // （自分の id）だけなので手元の `getSession` で足りる（`capture.tsx` と同じ。
+      // 本人確認はアップロードと保存がそれぞれ鍵付きで行う）。
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
       if (!userId) throw new Error("Not signed in");
       const ts = Date.now();
       async function upload(u: string | null, kind: string): Promise<string | null> {
@@ -278,7 +282,10 @@ export function ScanCatchSheet({
         if (error) throw error;
         const thumb = await thumbPromise;
         if (thumb) {
-          await supabase.storage
+          // **待たない**（`capture.tsx` と同じ）。小さい絵は一覧を軽くする
+          // ための物で、無くても元の写真に落ちる。ここで待つと、その
+          // 往復ぶん祝福の演出が保存を待って止まる。
+          void supabase.storage
             .from("stickers")
             .upload(thumbPath(path), thumb, {
               contentType: thumb.type || "image/webp",
@@ -389,6 +396,47 @@ export function ScanCatchSheet({
         });
         stickerId = res.id;
         firstCatch = res.first_catch ?? false;
+        // **いま捕まえた札を、図鑑の手元の一覧へ先に入れる**
+        // （`lib/optimistic-sticker.ts` の注）。
+        const nowIso = new Date().toISOString();
+        qc.setQueryData<StickerListCache>(["stickers"], (prev) =>
+          prependSticker(prev, {
+            id: res.id,
+            word_id: res.word_id,
+            caption: caption || null,
+            location_name: loc.name,
+            lat: loc.lat,
+            lng: loc.lng,
+            taken_at: nowIso,
+            created_at: nowIso,
+            encounter_count: 1,
+            object_url: objectDataUrl,
+            cutout_url: cutoutUrl,
+            selfie_url: selfieDataUrl,
+            object_thumb_url: null,
+            cutout_thumb_url: null,
+            capture_type: "photo",
+            hero_role: null,
+            placeholder_url: null,
+            placeholder_credit: null,
+            word: {
+              headword: word.headword,
+              language: targetLanguage,
+              reading_zhuyin: word.reading_zhuyin ?? null,
+              pinyin: word.pinyin ?? null,
+              meaning_ja: word.meaning_ja,
+              part_of_speech: word.part_of_speech ?? null,
+              example_sentence: word.example_sentence ?? null,
+              example_translation: word.example_translation ?? null,
+              level: word.level ?? null,
+              category_key: word.category_key ?? null,
+              silhouette_emoji: null,
+              extras: ("extras" in word
+                ? (word.extras ?? null)
+                : null) as StickerWithWord["word"]["extras"],
+            },
+          }),
+        );
       }
 
       // **声の一言は札が出来てから、裏で。**
@@ -416,7 +464,17 @@ export function ScanCatchSheet({
       }
 
       void caughtFn({ data: { headword } }).catch(() => {});
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      /**
+       * **図鑑の読み直しを待たない**（オーナー報告 2026-09-22「祝福の演出、
+       * 単語の発音をされたあとにその画面のまま4秒位停止してる」の本体）。
+       *
+       * 撮る画面そのものが図鑑の一覧（`["stickers"]`）を見ているので、
+       * ここで `await` すると**全部の札を読み直し終えるまで**下の
+       * `releaseSave()` に届かない。演出は発音のあとその関所で待つので、
+       * 持っている札が多い人ほど長く止まっていた。
+       * 新しい札は上で手元の一覧に入れてあるので、読み直しは裏で済めばいい。
+       */
+      void qc.invalidateQueries({ queryKey: ["stickers"] });
       void qc.invalidateQueries({ queryKey: ["scan-context"] });
       landingDestinationRef.current = stickerId;
       // ネイティブ版は札の保存が成功した時点でだけ共有フォトへ同期する。
