@@ -176,7 +176,7 @@ export const createWordbook = createServerFn({ method: "POST" })
         meaning_ja: e.meaning_ja ?? null,
       })),
     );
-    if (rowErr) throw new Error(rowErr.message);
+    if (rowErr) throw internalFailure("wordbook", rowErr, "単語帳の語を保存できませんでした");
 
     return { wordbook_id: (book as { id: string }).id, added: entries.length };
   });

@@ -85,7 +85,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
     // に当たっても 500 にしない。挿入結果を信じず「今日の最終状態」を1回読み直して
     // 3件に収める(自分と競合のどちらが勝っても表示は3件で一貫する)。
     if (insErr && !/duplicate key|unique|conflict/i.test(insErr.message)) {
-      throw new Error(insErr.message);
+      throw internalFailure("quests", insErr, "クエストを作れませんでした");
     }
     const { data: finalRows, error: reErr } = await supabase
       .from("daily_quests")
@@ -94,7 +94,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       .eq("quest_date", today)
       .order("created_at", { ascending: true })
       .limit(3);
-    if (reErr) throw new Error(reErr.message);
+    if (reErr) throw internalFailure("quests", reErr, "今日のクエストを読み込めませんでした");
     return (finalRows ?? []) as DailyQuest[];
   });
 

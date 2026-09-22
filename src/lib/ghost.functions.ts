@@ -148,7 +148,7 @@ export const attachPhotoToSticker = createServerFn({ method: "POST" })
       .eq("id", data.sticker_id)
       .eq("user_id", userId)
       .maybeSingle();
-    if (ownErr) throw new Error(ownErr.message);
+    if (ownErr) throw internalFailure("ghost", ownErr, "保存できませんでした");
     if (!owned) throw new Error("このカードは編集できません");
 
     // Same storage path-spoofing guard as saveSticker.

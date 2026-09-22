@@ -53,7 +53,7 @@ export const getMyProfile = createServerFn({ method: "GET" })
         error.message,
       )
     ) {
-      throw new Error(error.message);
+      throw internalFailure("profile", error, "設定を読み込めませんでした");
     }
 
     // Some environments intentionally grant only public profile columns to the
@@ -64,7 +64,7 @@ export const getMyProfile = createServerFn({ method: "GET" })
       .select("id, display_name, avatar_url, created_at, onboarded")
       .eq("id", userId)
       .maybeSingle();
-    if (publicError) throw new Error(publicError.message);
+    if (publicError) throw internalFailure("profile", publicError, "設定を読み込めませんでした");
     if (!publicData) return null;
 
     // **ここで返す言語は「その人の設定」ではなく、ただの置き場所。**
