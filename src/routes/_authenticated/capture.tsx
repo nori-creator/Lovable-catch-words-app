@@ -1,5 +1,5 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
-import { viewfinderCrop } from "@/lib/capture-framing";
+import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -1864,6 +1864,19 @@ export function CaptureCardPanel({
  * オーナー指示 2026-08-26「検索欄をカメラの画面に直接置いて」。
  * 前は「文字で打つ」のボタンで、押して面が開いてからようやく打てた。
  */
+/**
+ * レンズにいま効いている倍率を読む。
+ *
+ * `zoom` は標準の `MediaTrackSettings` に無い（端末依存の拡張）ので
+ * `unknown` 経由で読む — 型が無いからといって `any` にしない。
+ * 読めなければ 1（＝レンズは何もしていない）と見なす。
+ */
+function readTrackZoom(track: MediaStreamTrack | null | undefined): number {
+  const settings = (track?.getSettings as undefined | (() => { zoom?: number }))?.call(track);
+  const z = settings?.zoom;
+  return typeof z === "number" && Number.isFinite(z) && z > 0 ? z : 1;
+}
+
 export function CaptureObjectPanel({
   selfieMode = false,
   onSkipSelfie,
@@ -1937,6 +1950,18 @@ export function CaptureObjectPanel({
   const [zoom, setZoom] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
   const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number } | null>(null);
+  /**
+   * **レンズに本当に効いた倍率。**（`track.getSettings().zoom`）
+   *
+   * 「端末が倍率を持っている」と言われただけで任せてはいけない。
+   * `applyConstraints` は受け取っておきながら何も変えないことがあり
+   * （約束は解決するのに設定は 1 のまま）、そのとき覗いている絵と
+   * 撮れる写真が食い違う。覗く側も撮る側も、この数から出した
+   * `residualZoom` **1つだけ**を見る。
+   */
+  const [hwZoom, setHwZoom] = useState(1);
+  /** 見た目と切り出しの両方が使う、補うぶんの倍率。 */
+  const shownZoom = residualZoom(zoom, hwZoom);
 
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
@@ -1975,6 +2000,7 @@ export function CaptureObjectPanel({
         zoomCapsRef.current = next;
         setZoomCaps(next);
         setZoom(1);
+        setHwZoom(readTrackZoom(track));
       })
       .catch(() => setCameraReady(false));
     return () => {
@@ -1992,13 +2018,24 @@ export function CaptureObjectPanel({
   const applyZoom = (v: number) => {
     setZoom(v);
     const caps = zoomCapsRef.current;
-    if (!caps) return;
     const track = streamRef.current?.getVideoTracks()[0];
-    // `zoom` は標準の型に無い(端末依存の拡張)。失敗しても CSS 側が追う。
-    void track?.applyConstraints?.({ advanced: [{ zoom: v }] } as never).catch(() => {
-      zoomCapsRef.current = null;
-      setZoomCaps(null);
-    });
+    if (!caps || !track) {
+      // レンズを持たない端末。見た目と切り出しで補う（`shownZoom` が効く）。
+      setHwZoom(1);
+      return;
+    }
+    // `zoom` は標準の型に無い(端末依存の拡張)。
+    void track
+      .applyConstraints?.({ advanced: [{ zoom: v }] } as never)
+      .then(() => {
+        // **約束が解決しても、効いたとは限らない。** 読み直して確かめる。
+        setHwZoom(readTrackZoom(track));
+      })
+      .catch(() => {
+        zoomCapsRef.current = null;
+        setZoomCaps(null);
+        setHwZoom(1);
+      });
   };
 
   const openCamera = () => {
@@ -2015,7 +2052,7 @@ export function CaptureObjectPanel({
         video.videoHeight,
         viewport.width,
         viewport.height,
-        zoomCaps ? 1 : zoom,
+        shownZoom,
       );
       canvas.width = Math.round(crop.sw);
       canvas.height = Math.round(crop.sh);
@@ -2090,7 +2127,9 @@ export function CaptureObjectPanel({
           aria-hidden="true"
           // 倍率を持たない端末では、見た目だけを拡大して代用する
           // (スキャン画面と同じ扱い)。
-          style={zoomCaps ? undefined : { scale: String(zoom) }}
+          // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
+          // `shownZoom` が 1 になるので、ここでは何も起きない。
+          style={{ scale: String(shownZoom) }}
         />
       )}
 

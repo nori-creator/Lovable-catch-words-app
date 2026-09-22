@@ -4976,6 +4976,31 @@ describe("絵の検査で出た赤（実測で本当だったもの）", () => {
 /**
  * オーナー指示 2026-09-22 の回。**実際に描いて／押して確かめた物**だけ。
  */
+describe("覗いている絵と撮れる写真の倍率", () => {
+  it("**同じ1つの数を、見た目と切り出しの両方が使う**", () => {
+    // 前は「端末が倍率を持っていると言った」だけでレンズに任せ、
+    // 覗く側は CSS を当てず、撮る側は切り出しに `1` を渡していた。
+    // レンズが受け取っただけで何もしない端末では、倍率を上げるほど
+    // 写真だけが引きになる。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/const shownZoom = residualZoom\(zoom, hwZoom\);/);
+    // 覗く側。
+    expect(cap).toMatch(/style=\{\{ scale: String\(shownZoom\) \}\}/);
+    // 撮る側。
+    expect(cap).toMatch(/viewport\.height,\n\s*shownZoom,/);
+    // 「持っていると言った」だけで手を引かない。
+    expect(cap).not.toMatch(/zoomCaps \? 1 : zoom/);
+    expect(cap).not.toMatch(/zoomCaps \? undefined : \{ scale/);
+  });
+
+  it("**効いたかどうかは読み直して確かめる**", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(/function readTrackZoom\(/);
+    // 約束が解決した後に読み直す。
+    expect(cap).toMatch(/\.then\(\(\) => \{[\s\S]{0,160}?setHwZoom\(readTrackZoom\(track\)\)/);
+  });
+});
+
 describe("日本語の検索・候補の行・項目の並べ替え", () => {
   it("**0件をそのまま「見つからない」にしない**（一度だけ引き直す）", () => {
     // `CandidateSchema` は `.default([])` を持つので、生成の形が読めなかった
