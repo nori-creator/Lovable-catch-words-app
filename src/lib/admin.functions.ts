@@ -240,8 +240,18 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
     });
     if (!isAdmin) throw new Error("管理者のみ");
     const clean: AiModelConfig = {};
-    for (const [k, v] of Object.entries(data.config)) {
-      if (k === "features") continue; // オブジェクトなので下で個別に扱う
+    // **書ける項目は決め打ちで並べる。** 以前は受け取った物を丸ごと写して
+    // いたので、知らない名前の設定がそのまま app_config に残り続けた。
+    const ALLOWED = [
+      "provider",
+      "base_url",
+      "api_key_env",
+      "fast",
+      "rich",
+      "rich_premium",
+    ] as const;
+    for (const k of ALLOWED) {
+      const v = (data.config as Record<string, unknown>)[k];
       if (typeof v === "string" && v.trim()) {
         (clean as Record<string, string>)[k] = v.trim();
       }
