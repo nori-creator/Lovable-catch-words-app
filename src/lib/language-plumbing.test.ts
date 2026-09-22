@@ -3952,12 +3952,31 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("components/PickerRow.tsx"));
     expect(src).not.toMatch(/className="[^"]*\b(bg-white|text-slate-\d+|border-slate-\d+)\b/);
     const css = read("styles.css");
-    const sheet = css.slice(
-      css.indexOf(".picker-sheet .wheel {"),
-      css.indexOf(".settings-page select,"),
-    );
+    // 注釈に昔の色を書き留めてあるので、**規則だけ**を見る。
+    const sheet = css
+      .slice(css.indexOf(".picker-sheet .wheel {"), css.indexOf(".settings-page select,"))
+      .replace(/\/\*[\s\S]*?\*\//g, "");
     expect(sheet.length).toBeGreaterThan(0);
     expect(sheet).not.toMatch(/background: white|linear-gradient\(white|#[0-9a-f]{3,6}/i);
+  });
+
+  it("選ぶ輪の**帯を不透明にしない**（選んでいる行の字が消える）", () => {
+    // 帯は `z-index: 1` で行の上に乗る。`.picker-sheet` の上書きが
+    // `#f0f7ff` と地を混ぜた色を置いていたので、**いま選んでいる行だけが
+    // 帯に塗り潰されて読めなかった**（開くと真ん中が空に見える）。
+    const css = read("styles.css");
+    const band = css.slice(
+      css.indexOf(".picker-sheet .wheel__band {"),
+      css.indexOf("}", css.indexOf(".picker-sheet .wheel__band {")),
+    );
+    expect(band.length).toBeGreaterThan(0);
+    expect(band).not.toMatch(/background/);
+    // 下敷きの規則は透かしたまま。
+    const base = css.slice(
+      css.indexOf("\n.wheel__band {"),
+      css.indexOf("}", css.indexOf("\n.wheel__band {")),
+    );
+    expect(base).toMatch(/background: color-mix\(in oklab, var\(--primary\) \d+%, transparent\)/);
   });
 
   /**

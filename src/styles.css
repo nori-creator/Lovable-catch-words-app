@@ -6979,8 +6979,10 @@ html[data-motion="reduce"] .reward-catch__field::after {
   background: var(--card);
   border-radius: 22px;
 }
+/* **帯は透かす。** `z-index: 1` で行の上に乗るので、地の色を混ぜて
+   不透明にすると**選んでいる行の字が帯に隠れて消える**（実際そうなって
+   いた: `#f0f7ff` の直書き）。混ぜる相手は透明のまま、角だけ合わせる。 */
 .picker-sheet .wheel__band {
-  background: color-mix(in oklab, var(--primary) 10%, var(--card));
   border-radius: 12px;
 }
 .picker-sheet .wheel__fade {
