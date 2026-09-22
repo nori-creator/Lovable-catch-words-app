@@ -2171,12 +2171,18 @@ export function CaptureObjectPanel({
           )}
         </div>
 
+        {/* **これは人が触る欄ではない。** シャッターを押したときに
+            `.click()` で代わりに開く控えの口で、`sr-only` のままだと
+            キーボードの順番にも声の案内にも「名前の無い欄」として
+            現れていた。目から隠すだけでなく、両方から外す。 */}
         <input
           ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
           className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
         />
       </div>

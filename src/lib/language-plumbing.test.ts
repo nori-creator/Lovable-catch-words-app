@@ -4758,3 +4758,70 @@ describe("ホームは今日の足あと", () => {
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
   });
 });
+
+/**
+ * 実際に描いて測って見つけた不具合（2026-09-22）。
+ * 「機能不具合、デザインの不具合、ユーザーが不自然に感じる箇所」を
+ * 探す指示で、絵を出して **指で押せる大きさ・横のはみ出し・声の案内**
+ * を測った結果いくつ出たものだけを、ここに固定する。
+ */
+describe("狭い画面と指と声", () => {
+  it("**使う場面の計器に rem の下限を置かない**（1枠が card 全体を押し広げる）", () => {
+    // 320px でも、文字を 125% にしても、`minmax(7.5rem, …) minmax(10rem, …)`
+    // の 17.5rem + 余白が譲らないので、grid の1本の列が最小幅を決める仕組みで
+    // **単語カードの全部の段**が横にはみ出していた（実測 8px / 54px）。
+    const css = read("styles.css");
+    const block = css.slice(
+      css.indexOf("\n.usage-context__metrics {"),
+      css.indexOf("\n.usage-metric,"),
+    );
+    expect(block).toMatch(/grid-template-columns: minmax\(0, [\d.]+fr\) minmax\(0, [\d.]+fr\)/);
+    expect(block).not.toMatch(/minmax\([\d.]+rem/);
+    // 狭いときは縦に積む。幅の条件も rem なので、文字を大きくした人にも効く。
+    expect(css).toMatch(/@media \(max-width: [\d.]+rem\) \{\n\s*\.usage-context__metrics \{/);
+  });
+
+  it("**記憶の帯は指の下限(44px)を満たす**", () => {
+    // 帯そのものは 28px しかない。見た目を変えずに、当たり判定だけを
+    // 上下に広げる（この作業場で前から使っている見えない `::before`）。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const head = rv.slice(rv.indexOf("aria-expanded={memListOpen}"));
+    expect(head.slice(0, 200)).toContain(
+      "relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
+    );
+    // 雛形が実物と違う形で包むと、検査は実物を映さなくなる。
+    const scene = codeOnly(read("../scripts/ui-harness/scenes/review.tsx"));
+    expect(scene).toMatch(/before:absolute before:inset-x-0 before:-inset-y-2/);
+  });
+
+  it("**記憶の帯は色だけで語らない**（畳んでいても字で読める）", () => {
+    // 畳んでいる間、この帯の中に字は1つも無かった。包んでいるボタンの
+    // 名前も空になり、声の案内は「ボタン」としか読まなかった。
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const sum = rv.slice(rv.indexOf("export function MemoryLevelSummary"));
+    expect(sum).toMatch(/\{!expanded && \(\n\s*<span className="sr-only">/);
+    expect(sum).toMatch(/t\("review\.memoryBreakdown"\)/);
+    const i18n = read("lib/i18n.tsx");
+    expect(i18n).toMatch(
+      /"review\.memoryBreakdown": \{ ja: "[^"]+", en: "[^"]+", "zh-TW": "[^"]+" \}/,
+    );
+  });
+
+  it("**押すためだけの隠し input は、指にも声にも渡さない**", () => {
+    // シャッターが `.click()` で代わりに開く控えの口。`sr-only` のままだと
+    // キーボードの順番にも声の案内にも「名前の無い欄」として現れていた。
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const box = cap.slice(cap.indexOf("ref={cameraInputRef}"));
+    expect(box.slice(0, 300)).toMatch(/tabIndex=\{-1\}/);
+    expect(box.slice(0, 300)).toMatch(/aria-hidden="true"/);
+  });
+
+  it("**打つ欄の名前を placeholder 頼りにしない**", () => {
+    // placeholder は打ち始めた瞬間に消える。消えた後も何の欄か分かるように。
+    const sheet = codeOnly(read("components/InputCatchSheet.tsx"));
+    expect(sheet).toMatch(/aria-label=\{t\("sheet\.inputPlaceholder"\)\}/);
+    expect(sheet).toMatch(
+      /aria-label=\{isPhrase \? t\("input\.scene"\) : t\("input\.sceneWord"\)\}/,
+    );
+  });
+});

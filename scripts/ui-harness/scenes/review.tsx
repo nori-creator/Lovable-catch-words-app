@@ -126,7 +126,10 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
       />
       {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
           変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
-      <button className="w-full text-left" aria-expanded={open}>
+      <button
+        className="relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+        aria-expanded={open}
+      >
         <MemoryLevelSummary words={words} expanded={open} />
       </button>
     </section>

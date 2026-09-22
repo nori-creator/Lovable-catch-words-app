@@ -3222,7 +3222,10 @@ html[data-motion="reduce"] {
 }
 .usage-context__metrics {
   display: grid;
-  grid-template-columns: minmax(7.5rem, 0.8fr) minmax(10rem, 1.2fr);
+  /* 横幅の下限を rem で置くと、狭い端末でも文字を大きくした人の画面でも
+     この1枠だけが card 全体を押し広げてしまう。0 を下限にして、
+     入りきらなくなったら下の縦積みに切り替える。 */
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
@@ -3238,12 +3241,30 @@ html[data-motion="reduce"] {
   color: var(--foreground);
 }
 .usage-metric {
+  min-width: 0;
   padding-right: 0.75rem;
   border-right: 1px solid var(--border);
 }
 .usage-register {
   min-width: 0;
   padding-left: 0.75rem;
+}
+/* 2つ並べると窮屈になる幅（文字を大きくした人も含む。rem なので一緒に効く）
+   では、横の仕切りを下の仕切りに置き換えて縦に積む。 */
+@media (max-width: 23.5rem) {
+  .usage-context__metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+  .usage-metric {
+    padding-right: 0;
+    padding-bottom: 0.75rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .usage-register {
+    padding-left: 0;
+  }
 }
 .usage-metric__label,
 .usage-register {
@@ -4463,9 +4484,6 @@ html[data-motion="reduce"] {
   transform: translateY(1px) scale(0.95);
 }
 @media (max-width: 360px) {
-  .usage-context__metrics {
-    grid-template-columns: minmax(6.75rem, 0.78fr) minmax(9rem, 1.22fr);
-  }
   .usage-chunk-row__main {
     grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.75fr);
     gap: 0.375rem;

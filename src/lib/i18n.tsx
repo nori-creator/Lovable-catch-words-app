@@ -2885,6 +2885,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't save your result — this word will come up again next time.",
     "zh-TW": "無法儲存結果。這個單字下次會再出一次。",
   },
+  /** 記憶の帯は色だけで、畳んでいる間は読む字が無い。声の案内はこれを読む。 */
+  "review.memoryBreakdown": { ja: "記憶の内訳", en: "Memory breakdown", "zh-TW": "記憶分布" },
   "review.memoryLoading": {
     ja: "記憶データを準備中です。",
     en: "Preparing memory data…",
