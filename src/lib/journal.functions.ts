@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import {
@@ -60,7 +61,7 @@ export const listJournal = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .order("entry_date", { ascending: false })
       .limit(30);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("journal", error, "日記を読み込めませんでした");
     return (data ?? []).map(toJournalEntry);
   });
 
@@ -96,7 +97,7 @@ async function getTodaysCaptures(supabase: SupabaseLike, userId: string) {
     .gte("created_at", start)
     .order("created_at", { ascending: true })
     .limit(12);
-  if (error) throw new Error(error.message);
+  if (error) throw internalFailure("journal", error, "日記を読み込めませんでした");
   return { today, stickers: (data ?? []) as TodaysCapture[] };
 }
 
@@ -191,10 +192,10 @@ export const correctMyJournal = createServerFn({ method: "POST" })
           .upsert(baseRow, { onConflict: "user_id,entry_date" })
           .select("*")
           .single();
-        if (e2) throw new Error(e2.message);
+        if (e2) throw internalFailure("journal", e2, "日記を保存できませんでした");
         inserted = { ...toJournalEntry(row2), native_phrases: corrected.native_phrases };
       } else {
-        throw new Error(error.message);
+        throw internalFailure("journal", error, "日記を保存できませんでした");
       }
     }
     await logUsage(supabase, userId, "correction");

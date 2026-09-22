@@ -15,6 +15,13 @@
       "when": 1789519160277,
       "tag": "0001_restore_get_my_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790089155649,
+      "tag": "0002_tighten_words_insert_and_profiles_select",
+      "breakpoints": true
     }
   ]
 }

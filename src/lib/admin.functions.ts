@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { partitionByLanguage, type DictionaryImportRow as ImportRow } from "./dictionary-import";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -240,17 +241,30 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
     });
     if (!isAdmin) throw new Error("管理者のみ");
     const clean: AiModelConfig = {};
-    for (const [k, v] of Object.entries(data.config)) {
-      if (k === "features") continue; // オブジェクトなので下で個別に扱う
+    // **書ける項目は決め打ちで並べる。** 以前は受け取った物を丸ごと写して
+    // いたので、知らない名前の設定がそのまま app_config に残り続けた。
+    const ALLOWED = [
+      "provider",
+      "base_url",
+      "api_key_env",
+      "fast",
+      "rich",
+      "rich_premium",
+    ] as const;
+    for (const k of ALLOWED) {
+      const v = (data.config as Record<string, unknown>)[k];
       if (typeof v === "string" && v.trim()) {
         (clean as Record<string, string>)[k] = v.trim();
       }
     }
     // 機能ごとの割り当て。空文字は「既定に戻す」なので保存しない。
+    // 機能の名前も決め打ち — 知らない機能名は受け取らない。
+    const ALLOWED_FEATURES = ["scan", "card", "review", "journal", "audit"] as const;
     const rawFeatures = data.config.features;
     if (rawFeatures && typeof rawFeatures === "object") {
       const features: Record<string, string> = {};
-      for (const [k, v] of Object.entries(rawFeatures)) {
+      for (const k of ALLOWED_FEATURES) {
+        const v = (rawFeatures as Record<string, unknown>)[k];
         if (typeof v === "string" && v.trim()) features[k] = v.trim();
       }
       if (Object.keys(features).length > 0) clean.features = features;
@@ -261,6 +275,6 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
       updated_by: context.userId,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("admin", error, "設定を保存できませんでした");
     return { ok: true, config: clean };
   });

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateStructured, getAi, logUsage } from "./ai-provider.server";
@@ -30,7 +31,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .eq("quest_date", today)
       .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("quests", error, "今日のクエストを読み込めませんでした");
     if (existing && existing.length > 0) return existing as DailyQuest[];
 
     // Generate 3 quests via AI
@@ -84,7 +85,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
     // に当たっても 500 にしない。挿入結果を信じず「今日の最終状態」を1回読み直して
     // 3件に収める(自分と競合のどちらが勝っても表示は3件で一貫する)。
     if (insErr && !/duplicate key|unique|conflict/i.test(insErr.message)) {
-      throw new Error(insErr.message);
+      throw internalFailure("quests", insErr, "クエストを作れませんでした");
     }
     const { data: finalRows, error: reErr } = await supabase
       .from("daily_quests")
@@ -93,7 +94,7 @@ export const getTodayQuests = createServerFn({ method: "GET" })
       .eq("quest_date", today)
       .order("created_at", { ascending: true })
       .limit(3);
-    if (reErr) throw new Error(reErr.message);
+    if (reErr) throw internalFailure("quests", reErr, "今日のクエストを読み込めませんでした");
     return (finalRows ?? []) as DailyQuest[];
   });
 
@@ -109,6 +110,6 @@ export const completeQuest = createServerFn({ method: "POST" })
       .update({ completed_at: new Date().toISOString(), sticker_id: data.sticker_id ?? null })
       .eq("id", data.quest_id)
       .eq("user_id", userId);
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("quests", error, "クエストの記録に失敗しました");
     return { ok: true };
   });
