@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { internalFailure } from "./safe-error";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { partitionByLanguage, type DictionaryImportRow as ImportRow } from "./dictionary-import";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
