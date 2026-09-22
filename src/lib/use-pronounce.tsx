@@ -134,7 +134,7 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     const deviceVoice = () =>
       waitUntilEnded
         ? new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, 6000);
+            const timer = setTimeout(resolve, 2400);
             speak(word, language, 0.95, () => {
               clearTimeout(timer);
               resolve();
@@ -166,7 +166,14 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     }
     try {
       // 端末に在るならここで終わり — ネットに一度も出ない。
-      const url = speechUrl(key) ?? (await ensureAudio(key, word, fetcher));
+      const url =
+        speechUrl(key) ??
+        (await (waitUntilEnded
+          ? Promise.race([
+              ensureAudio(key, word, fetcher),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 350)),
+            ])
+          : ensureAudio(key, word, fetcher)));
       if (url) {
         // 音声の被り対策: このフックは画面ごとに別インスタンスなので、各自が
         // 自前の Audio を持つと重なって鳴る。再生前にグローバルで排他を取る。
@@ -178,14 +185,16 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
             const cleanup = () => {
               clearTimeout(timer);
               audio.removeEventListener("ended", done);
+              audio.removeEventListener("pause", done);
               audio.removeEventListener("error", done);
             };
             const done = () => {
               cleanup();
               resolve();
             };
-            const timer = setTimeout(done, 6000);
+            const timer = setTimeout(done, 2400);
             audio.addEventListener("ended", done, { once: true });
+            audio.addEventListener("pause", done, { once: true });
             audio.addEventListener("error", done, { once: true });
             audio.play().catch((error) => {
               cleanup();

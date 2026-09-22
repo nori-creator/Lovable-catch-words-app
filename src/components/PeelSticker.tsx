@@ -132,19 +132,19 @@ export function PeelSticker({
     const direction = d.angle ?? angle;
     const p = Math.max(
       0,
-      Math.min(1, (dx * Math.cos(direction) + dy * Math.sin(direction)) / (d.width * 0.5)),
+      Math.min(1, (dx * Math.cos(direction) + dy * Math.sin(direction)) / (d.width * 1.75)),
     );
     d.p = p;
     setPose({
       p: reduced ? 0 : p,
-      x: reduced ? 0 : Math.max(-12, Math.min(28, dx * 0.12)),
-      y: reduced ? 0 : Math.max(-12, Math.min(28, dy * 0.12)),
+      x: 0,
+      y: 0,
     });
   }
   function release(e: PointerEvent<HTMLButtonElement>, cancelled = false) {
     e.stopPropagation();
     if (drag.current?.id !== e.pointerId) return;
-    if (!cancelled && drag.current.p >= 0.58) commit();
+    if (!cancelled && drag.current.p >= 0.32) commit();
     else settle(0);
     drag.current = null;
     setHeld(false);
@@ -189,12 +189,12 @@ export function PeelSticker({
               viewBox="0 0 320 320"
               aria-hidden="true"
               style={{
-                transform: `translate3d(${pose.x}px,${pose.y}px,0) rotate(${held ? -2 : 0}deg) scale(${held ? 1.035 : 1})`,
+                transform: `translate3d(${pose.x}px,${pose.y}px,0) rotate(0deg) scale(1)`,
               }}
             >
               <defs>
                 <clipPath id={`${id}-photo-round`}>
-                  <rect x="32" y="32" width="256" height="256" rx="22" />
+                  <rect x="20" y="20" width="280" height="280" rx="22" />
                 </clipPath>
                 <filter
                   id={`${id}-paper`}
@@ -225,14 +225,14 @@ export function PeelSticker({
                   height="360"
                 >
                   {isPhoto ? (
-                    <rect x="32" y="32" width="256" height="256" rx="22" fill="white" />
+                    <rect x="20" y="20" width="280" height="280" rx="22" fill="white" />
                   ) : (
                     <image
                       href={artwork!}
-                      x="32"
-                      y="32"
-                      width="256"
-                      height="256"
+                      x="20"
+                      y="20"
+                      width="280"
+                      height="280"
                       filter={isPhoto ? undefined : url("silhouette")}
                       clipPath={isPhoto ? url("photo-round") : undefined}
                       preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}
@@ -278,10 +278,10 @@ export function PeelSticker({
                 <g clipPath={url("front")}>
                   <image
                     href={artwork!}
-                    x="32"
-                    y="32"
-                    width="256"
-                    height="256"
+                    x="20"
+                    y="20"
+                    width="280"
+                    height="280"
                     filter={isPhoto ? undefined : url("paper")}
                     clipPath={isPhoto ? url("photo-round") : undefined}
                     preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}

@@ -250,6 +250,7 @@ export function PlaceMemoryScene({ q }: { q: URLSearchParams }) {
     <PlaceMemoryCard
       memory={{
         headword: "珍珠奶茶",
+        meaning_ja: "タピオカミルクティー",
         location_name: "士林夜市",
         image_url: noPhoto ? null : shot,
         taken_at: "2026-08-01T12:30:00Z",

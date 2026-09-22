@@ -1,3 +1,4 @@
+import { REVIEW_PRACTICE_ENABLED, WORDBOOKS_ENABLED } from "@/lib/product-features";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
@@ -47,7 +48,6 @@ import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
-import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 import { useReviewMode, setStoredReviewMode } from "@/lib/review-mode-pref";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
@@ -164,6 +164,7 @@ function ReviewPage() {
     // 名指しの1枚は列の中身を変えるので、**鍵にも入れる**。
     // 入れないと、前に読んだ普通の列がそのまま出てくる。
     queryKey: ["reviews-due", wantedSticker ?? null],
+    enabled: REVIEW_PRACTICE_ENABLED,
     queryFn: () => fetchDue(wantedSticker ? { data: { sticker_id: wantedSticker } } : undefined),
     /**
      * **一度出した束を、画面に戻るたび作り直さない**(オーナー報告
@@ -433,13 +434,20 @@ function ReviewPage() {
   return (
     <AppShell
       title={t("title.review")}
-      fixedViewport={format === "choice" && !memListOpen && !done && !isLoading && !isError}
+      fixedViewport={
+        REVIEW_PRACTICE_ENABLED &&
+        format === "choice" &&
+        !memListOpen &&
+        !done &&
+        !isLoading &&
+        !isError
+      }
     >
       <section className={`${format === "choice" && !memListOpen ? "mb-2" : "mb-4"} shrink-0`}>
         <ReviewHeader
-          answered={cards ? Math.min(idx, cards.length) : null}
-          total={cards?.length ?? null}
-          progress={progress}
+          answered={REVIEW_PRACTICE_ENABLED && cards ? Math.min(idx, cards.length) : null}
+          total={REVIEW_PRACTICE_ENABLED ? (cards?.length ?? null) : null}
+          progress={REVIEW_PRACTICE_ENABLED ? progress : 0}
           mode={mode}
           onMode={setMode}
           reviewStreak={myStats?.review_streak ?? null}
@@ -458,7 +466,7 @@ function ReviewPage() {
             >
               <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
             </button>
-            {memListOpen && (
+            {(memListOpen || !REVIEW_PRACTICE_ENABLED) && (
               <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
                 <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
                 <div className="mt-3 border-t border-border pt-2">
@@ -473,7 +481,7 @@ function ReviewPage() {
         )}
       </section>
 
-      {isLoading ? (
+      {!REVIEW_PRACTICE_ENABLED ? null : isLoading ? (
         <ReviewPreparing />
       ) : isError ? (
         // 空ではなく**失敗**。ここを EmptyState にしていたせいで、
@@ -534,19 +542,6 @@ function ReviewPage() {
               onOpenMemory={() => setMemModal(memWordOf(current))}
             />
           )}
-          {/* 「どうしても覚えられない語は、もう一度撮ってみよう」(オーナー指摘)。
-              出す形は3つあるので、**札の外に1度だけ**置く。中に入れると
-              4択・発話・作文の3箇所に同じ判断を書くことになり、
-              いずれ食い違う。条件は `src/lib/retake.ts` が持つ。 */}
-          <RetakeSuggestion
-            headword={current.headword}
-            reviewCount={current.review_count}
-            lapses={current.lapses}
-            intervalDays={current.interval_days}
-            retention={current.retention}
-            photoCount={current.photo_count}
-            onRetake={() => void navigate({ to: "/capture", search: { retake: current.headword } })}
-          />
         </>
       ) : null}
 
@@ -723,7 +718,7 @@ export function MemoryOverviewPanel({
        */}
       {/* **％が何の数字かを書く。** 曲線の画面には「記憶率」という別の数字が
           出るので、言わないと読み比べられない（`lib/memory.ts` の注）。 */}
-      <p className="ja-phrase mt-1 text-caption text-muted-foreground">{t("rv.strengthNote")}</p>
+
       <ul className="mt-1 max-h-80 space-y-1.5 overflow-y-auto">
         {/* **並べ替えはここで1回だけ**（`lib/memory.ts` の `compareByMemory`）。
             取得の側は記憶率だけで並べていて、100% が続く所では段が混ざる。 */}
@@ -2594,31 +2589,35 @@ export function ReviewHeader({
               {formatCount(answered)} / {formatCount(total)}
             </span>
           )}
-          <Link
-            to="/wordbooks"
-            aria-label={t("wb.openShelf")}
-            title={t("wb.openShelf")}
-            className="lift-soft grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-primary-ink"
-          >
-            <BookMarked className="h-5 w-5" aria-hidden />
-          </Link>
+          {WORDBOOKS_ENABLED && (
+            <Link
+              to="/wordbooks"
+              aria-label={t("wb.openShelf")}
+              title={t("wb.openShelf")}
+              className="lift-soft grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-primary-ink"
+            >
+              <BookMarked className="h-5 w-5" aria-hidden />
+            </Link>
+          )}
           {/* いま選ばれている形を**名前で**出す。印だけにすると、
               押すまで何が選ばれているのか分からない。
               当たり判定は 44px（`::before` ではなく箱そのもの）。 */}
-          <button
-            onClick={() => setModeOpen((v) => !v)}
-            aria-expanded={modeOpen}
-            aria-label={t("rv.modeAria")}
-            className={`lift-soft inline-flex min-h-11 items-center gap-1 rounded-full border border-border px-3 text-caption font-semibold ${
-              modeOpen ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
-            }`}
-          >
-            {current ? t(current.labelKey) : t("rv.modeAria")}
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform ${modeOpen ? "rotate-180" : ""}`}
-              aria-hidden
-            />
-          </button>
+          {REVIEW_PRACTICE_ENABLED && (
+            <button
+              onClick={() => setModeOpen((v) => !v)}
+              aria-expanded={modeOpen}
+              aria-label={t("rv.modeAria")}
+              className={`lift-soft inline-flex min-h-11 items-center gap-1 rounded-full border border-border px-3 text-caption font-semibold ${
+                modeOpen ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+              }`}
+            >
+              {current ? t(current.labelKey) : t("rv.modeAria")}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${modeOpen ? "rotate-180" : ""}`}
+                aria-hidden
+              />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2633,7 +2632,7 @@ export function ReviewHeader({
           一致させる。2つ用の `w-1/2` のまま3つ目を足すと、
           丸が最後の札の半分しか覆わない。 */}
       <div
-        hidden={!modeOpen}
+        hidden={!REVIEW_PRACTICE_ENABLED || !modeOpen}
         className="relative mt-2 flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
         role="tablist"
         aria-label={t("rv.modeAria")}

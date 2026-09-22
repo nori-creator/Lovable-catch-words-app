@@ -33,9 +33,9 @@ describe("buildMessage — 答えを書かない", () => {
   });
 
   /** 母語が無い札では問いを立てられない。何も知らせないよりはよい。 */
-  it("母語が無ければ見出し語のまま出す", () => {
-    expect(buildMessage({ ...base, meaning_ja: null }).title).toContain("珍珠奶茶");
-    expect(buildMessage({ ...base, meaning_ja: "   " }).title).toContain("珍珠奶茶");
+  it("母語が無ければ答えを明かさず汎用の問いを出す", () => {
+    expect(buildMessage({ ...base, meaning_ja: null }).title).toContain("この言葉");
+    expect(buildMessage({ ...base, meaning_ja: "   " }).title).not.toContain("珍珠奶茶");
   });
 });
 

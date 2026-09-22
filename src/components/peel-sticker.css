@@ -149,3 +149,29 @@ html[data-motion="reduce"] .cw-peel *,
 .cw-peel[data-photo="true"] {
   background: #e4e9e7;
 }
+/* A single coated release liner, not nested grey mats. */
+.cw-peel[data-photo="true"] {
+  background: linear-gradient(128deg, #fff 5%, #f5f8fc 32%, #fff 46%, #eef4fa 72%, #fff 95%);
+  border: 1px solid #fff;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 -1px 6px #d8e3ee77,
+    0 15px 35px #294c6d12;
+}
+.cw-peel[data-photo="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    #ffffffdd 35%,
+    transparent 44%,
+    #fff8 72%,
+    transparent 80%
+  );
+}
+.cw-peel[data-held="true"] .cw-peel-art {
+  transition: none;
+}

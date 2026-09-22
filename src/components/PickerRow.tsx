@@ -1,33 +1,10 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { WheelPicker } from "@/components/WheelPicker";
-import { haptic } from "@/lib/haptics";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useT } from "@/lib/i18n";
 
-/**
- * 設定の1行。**押すと、その下から選ぶ輪が開く**（2段階）。
- *
- * ## オーナー指示 2026-09-15
- * > 「設定の縦のスクロール元のあれに戻して、その元の設定をタップしたら
- * >  選択肢がスクロールできるように2段階にしたい。Apple の公式のデザイン
- * >  調べて同じもの再現して」
- *
- * ## 何を写したか — iOS の「設定」の行
- * Apple の Human Interface Guidelines（Lists / Pickers）に沿った形:
- *   ・行の**左に項目名、右にいま選んでいる値**（値は控えめな色）
- *   ・右端に**開閉の印**（下向きの山。開くと上を向く）
- *   ・押すと**その場で下に開く**。別の画面へ飛ばさない
- *     （HIG §10「使うのは必要なときだけ。できるだけその場で完結させる」）
- *
- * 前の版は輪を最初から4つ並べていた。選ぶのは楽だが、**設定を眺めたいだけの
- * 人にも輪が4つ居座る**ので、画面がどこまでも縦に伸びていた。
- * 畳んでおけば、いま何が選ばれているかは**1行で読める**。
- *
- * ## 輪は畳んでいる間も置いたままにする
- * 開いた瞬間に作ると、高さが 0 の箱の中で位置を合わせることになり、
- * **選んでいる行が真ん中に来ない**。ずっと置いておき、外側の箱だけを
- * 開け閉めする（`grid-template-rows` の 0fr ↔ 1fr。高さが `auto` でも
- * 滑らかに動かせる唯一の書き方）。
- */
+/** The row stays fixed; choices are a separate, focus-trapped overlay. */
 export function PickerRow({
   id,
   label,
@@ -42,50 +19,42 @@ export function PickerRow({
   options: ReadonlyArray<{ value: string; label: string }>;
 }) {
   const [open, setOpen] = useState(false);
-  const labelId = useId();
-  const bodyId = useId();
-  const current = options.find((o) => o.value === value)?.label ?? "";
+  const t = useT();
   return (
     <div>
-      {/**
-       * **見出しは箱の外。**（オーナー指示 2026-09-15「設定のスクロールは
-       * 選択するものだけをスクロールのボックスに含めて。左側のタイトルは
-       * 前のバージョンに戻して」）
-       *
-       * 前の `SelectRow` と同じく、項目名は箱の上に素の見出しとして置く。
-       * 箱の中に入れると、**箱＝選ぶ所**という読みが崩れる。
-       */}
-      <span id={labelId} className="text-field font-medium text-foreground">
-        {label}
-      </span>
-      <div className="picker-row mt-1">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => {
-            setOpen((v) => !v);
-            haptic("selection");
-          }}
-          className="picker-row__head"
+      <span className="text-field font-medium text-foreground">{label}</span>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="mt-2 flex min-h-14 w-full items-center justify-between rounded-[20px] border border-slate-200 bg-white px-4 text-left text-slate-900 shadow-sm"
+            aria-label={label}
+          >
+            <span>{options.find((o) => o.value === value)?.label}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </button>
+        </DialogTrigger>
+        <DialogContent
+          aria-labelledby={`${id}-sheet-label`}
+          aria-describedby={undefined}
+          className="picker-sheet w-[calc(100%-2rem)] rounded-[30px] bg-white p-6 text-slate-900 sm:rounded-[30px]"
         >
-          {/* **いま選んでいる値は、畳んでいても読める。** これが無いと、
-            開かないと何を選んだか分からない行になる。 */}
-          <span className="picker-row__value">{current}</span>
-          <ChevronDown aria-hidden className="picker-row__chevron" data-open={open || undefined} />
-        </button>
-        <div id={bodyId} className="picker-row__body" data-open={open || undefined}>
-          <div className="picker-row__inner" inert={!open}>
-            <WheelPicker
-              id={id}
-              labelledBy={labelId}
-              value={value}
-              onChange={onChange}
-              options={options}
-            />
-          </div>
-        </div>
-      </div>
+          <DialogTitle id={`${id}-sheet-label`}>{label}</DialogTitle>
+          <WheelPicker
+            id={`${id}-sheet`}
+            labelledBy={`${id}-sheet-label`}
+            value={value}
+            onChange={onChange}
+            options={options}
+          />
+          <button
+            onClick={() => setOpen(false)}
+            className="min-h-12 rounded-full bg-primary px-6 font-semibold text-white"
+          >
+            {t("common.close")}
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

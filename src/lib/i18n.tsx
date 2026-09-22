@@ -2961,6 +2961,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // オーナー指示 2026-09-15「これにするは検索ボタンに変えて」。
   "capture.useThis": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
+  "place.thisWord": { ja: "この言葉", en: "this word", "zh-TW": "這個詞" },
+  "settings.selfieMode": {
+    ja: "撮影後に自撮り",
+    en: "Selfie after capture",
+    "zh-TW": "拍照後自拍",
+  },
+  "capture.selfieSkip": { ja: "スキップ", en: "Skip", "zh-TW": "略過" },
+  "capture.selfieLive": {
+    ja: "ものと一緒に、もう一枚",
+    en: "One more, with you",
+    "zh-TW": "和它一起，再拍一張",
+  },
+  "cap.reencRetry": { ja: "写真の追加を再試行", en: "Retry adding photo", "zh-TW": "重試新增照片" },
   "capture.peelHint": {
     ja: "好きな方向にはがしてキャッチ",
     en: "Peel in any direction to catch",

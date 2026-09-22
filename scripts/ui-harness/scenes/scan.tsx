@@ -1,3 +1,4 @@
+import { useState } from "react";
 /**
  * 語の印を押したときに出る札。**scan の中でいちばん読む所**。
  *
@@ -212,7 +213,7 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
    *  ・`wide` … 広角を持つ端末。0.5 の粒が増える
    *  ・`between` … ピンチで刻みの間にいる。**どの粒も点かない**のが正しい
    */
-  const zoom = v === "between" ? 2.4 : v === "wide" ? 0.5 : 2;
+  const [zoom, setZoom] = useState(v === "between" ? 2.4 : v === "wide" ? 0.5 : 2);
   const zoomMin = v === "wide" ? 0.5 : 1;
   return (
     // 足場はインラインの `style`。雛形にしか無いクラスは生成されない。
@@ -226,7 +227,7 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
         zoom={zoom}
         zoomMin={zoomMin}
         zoomMax={6}
-        onZoom={() => {}}
+        onZoom={setZoom}
       />
     </div>
   );

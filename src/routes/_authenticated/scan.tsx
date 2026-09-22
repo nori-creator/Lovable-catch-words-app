@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
 import {
   CameraFlipButton,
@@ -442,6 +444,9 @@ function ScanPage() {
       setError(t("scan.noFrame"));
       return;
     }
+    void saveCaptureToPhotoLibrary(frame).then((result) => {
+      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+    });
     setSnapshot(frame);
     setScanning(true);
     // KPI: first scan ever (localStorage-deduped).

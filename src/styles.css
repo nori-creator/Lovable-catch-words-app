@@ -4553,3 +4553,37 @@ html[data-motion="reduce"] .reward-catch__field::before {
 html[data-motion="reduce"] .reward-catch__field::after {
   display: none;
 }
+.picker-sheet .wheel {
+  background: white;
+  border-radius: 22px;
+}
+.picker-sheet .wheel__band {
+  background: #f0f7ff;
+  border-radius: 12px;
+}
+.picker-sheet .wheel__fade {
+  background: linear-gradient(white, transparent 35% 65%, white);
+}
+.settings-page select,
+.settings-page input {
+  border-radius: 16px;
+}
+.camera-zoom-ruler {
+  width: min(80vw, 310px);
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: #061423bb;
+  color: white;
+  backdrop-filter: blur(20px);
+  text-align: center;
+}
+.camera-zoom-ruler input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: #ffd268;
+}
+.camera-zoom-ruler__ticks {
+  height: 14px;
+  background: repeating-linear-gradient(90deg, #ffffff70 0 1px, transparent 1px 10px);
+  mask-image: linear-gradient(90deg, transparent, black 10% 90%, transparent);
+}
