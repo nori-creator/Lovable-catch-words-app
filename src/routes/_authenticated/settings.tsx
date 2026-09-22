@@ -4,6 +4,8 @@ import {
   setSelfieCaptureEnabled,
 } from "@/lib/product-features";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
+import { useMotion } from "@/components/motion-provider";
+import { motionDiagnosisKey, parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -351,6 +353,12 @@ function SettingsPage() {
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
+  /** 出す札。**切り抜きが止まっている間は2つ**（升の数もここから数える）。 */
+  const photoPrefOptions = [
+    { value: "object" as const, label: t("settings.photoObject") },
+    ...(CUTOUT_ENABLED ? [{ value: "cutout" as const, label: t("settings.photoCutout") }] : []),
+    { value: "selfie" as const, label: t("settings.photoSelfie") },
+  ];
   const [catchSpeed, setCatchSpeedState] = useState<CatchSpeed>("detail");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
@@ -646,16 +654,9 @@ function SettingsPage() {
             {saving ? t("settings.saving") : t("settings.save")}
           </Button>
         </div>
-        <SettingsCard title={t("capture.photoTitle")}>
-          <ToggleRow
-            label={t("settings.selfieMode")}
-            value={selfieMode}
-            onChange={(v) => {
-              setSelfieMode(v);
-              setSelfieCaptureEnabled(v);
-            }}
-          />
-        </SettingsCard>
+        {/* **プロフィールが一番上**（オーナー指示 2026-09-22）。
+            撮影の束をここに置いていたので、名前と顔写真が2枚目に落ちていた。
+            「撮影後に自撮り」は、消した録画（インカメ）の場所へ移した。 */}
         <SettingsCard title={t("settings.profile")}>
           <div className="space-y-3">
             <AvatarRow />
@@ -756,21 +757,21 @@ function SettingsPage() {
                 既に `auto` のまま使っている人の見え方を、設定を開いた
                 だけで変えないため — その人にはどれも選ばれていない
                 状態で出て、押したときに初めて決まる。 */}
+            {/* **升の数は選択肢の数から出す。**（オーナー指摘 2026-09-22
+                「選択肢が2つしかないから、他の設定のようにスライドできる
+                ように。元々3つあったものだから左に偏ってる」）
+                切り抜きを止めた時点で選択肢は2つになったのに `cols` が 3 の
+                ままだったので、**2つの札が左の2升に寄り、右の1升が空**。
+                滑る印も3升ぶんの幅で計算していた。数え直せばずれない。 */}
             <ChoiceRow
-              cols={3}
+              cols={photoPrefOptions.length as 2 | 3}
               label={t("settings.photoPref")}
               value={photoPref}
               onChange={(v) => {
                 setPhotoPrefState(v);
                 setPhotoPref(v);
               }}
-              options={[
-                { value: "object", label: t("settings.photoObject") },
-                ...(CUTOUT_ENABLED
-                  ? [{ value: "cutout" as const, label: t("settings.photoCutout") }]
-                  : []),
-                { value: "selfie", label: t("settings.photoSelfie") },
-              ]}
+              options={photoPrefOptions}
             />
             {/* 要望 #18「キャッチ時に切り抜きするしない」。
                 **既定は今まで通り「丁寧」** — 速さのために見た目を落とすかは
@@ -810,23 +811,38 @@ function SettingsPage() {
             />
             {/* **優先する記憶段階の欄も消した**(同上)。列は残す。 */}
           </div>
-          <VideoRecordingToggle />
+          {/* **録画（インカメ）は消した**（オーナー指示 2026-09-22
+              「録画のインカメラの設定を消して。そこに置き換えて」）。
+              代わりに、撮ったあと自撮りの面へ自動で進むかをここで選ぶ。 */}
+          <div className="mt-4 border-t border-border pt-3">
+            <ToggleRow
+              label={t("settings.selfieMode")}
+              value={selfieMode}
+              onChange={(v) => {
+                setSelfieMode(v);
+                setSelfieCaptureEnabled(v);
+              }}
+            />
+          </div>
           <PhotoLibrarySyncToggle />
           <PlaceReminderToggle />
         </SettingsCard>
 
         <SettingsCard title={t("settings.appearance")}>
-          <ChoiceRow
-            cols={3}
-            label={t("settings.theme")}
-            value={theme}
-            onChange={setTheme}
-            options={[
-              { value: "light", label: t("settings.light") },
-              { value: "dark", label: t("settings.dark") },
-              { value: "system", label: t("settings.system") },
-            ]}
-          />
+          <div className="space-y-3">
+            <ChoiceRow
+              cols={3}
+              label={t("settings.theme")}
+              value={theme}
+              onChange={setTheme}
+              options={[
+                { value: "light", label: t("settings.light") },
+                { value: "dark", label: t("settings.dark") },
+                { value: "system", label: t("settings.system") },
+              ]}
+            />
+            <MotionChoiceRow />
+          </div>
         </SettingsCard>
 
         <SoundAndHapticsPanel />
@@ -1116,11 +1132,6 @@ function DeveloperPanel() {
   );
 }
 
-// Review-mode itself is saved to profiles.review_mode (above); this
-// device-local toggle only covers the camera recording, which is a
-// per-device preference (main branch's VIDEO_KEY, read by review.tsx).
-const VIDEO_KEY = "review-video-v1";
-
 /**
  * プロフィール写真。登録するとヘッダーの丸アイコンが「C」から自分の顔になる。
  * 保存前に 256px まで縮めてから送る(ヘッダーは 32px 表示なので十分で、
@@ -1217,19 +1228,42 @@ export function AvatarRow() {
   );
 }
 
-export function VideoRecordingToggle() {
+/**
+ * 動きを見せるか、減らすか（オーナー指示 2026-09-22「設定から動きを減らす
+ * 設定ボタンを追加して」）。
+ *
+ * 2026-09-15 に欄ごと消してあったが、仕組み（`lib/motion-pref.ts` と
+ * `components/motion-provider.tsx`）は丸ごと残してあったので、
+ * **置き直すのは欄1つだけ**。
+ *
+ * ## 「自動」を残す理由
+ * 既定は今までどおり「見せる」。端末の「動きを減らす」設定に従うかどうかを
+ * 本人が選べる形にしてある — 前庭障害のある人には大きく動く絵が実害になる
+ * ので、**端末に従う道を閉じない**。
+ *
+ * ## 何が起きているかを字で出す
+ * 「減らす」とだけ書いても、端末の設定で消えている人には伝わらない
+ * （自分で入れた覚えが無い）。端末がいま何を返しているかをそのまま出す。
+ */
+export function MotionChoiceRow() {
   const t = useT();
-  const [video, setVideo] = useState(false);
-  useEffect(() => {
-    setVideo(localStorage.getItem(VIDEO_KEY) === "1");
-  }, []);
-  function toggle(val: boolean) {
-    setVideo(val);
-    localStorage.setItem(VIDEO_KEY, val ? "1" : "0");
-  }
+  const { choice, osReduces, setChoice } = useMotion();
   return (
-    <div className="mt-4 border-t border-border pt-3">
-      <ToggleRow label={t("settings.videoLabel")} value={video} onChange={toggle} />
+    <div>
+      <ChoiceRow
+        cols={3}
+        label={t("settings.motion")}
+        value={choice}
+        onChange={(v) => setChoice(parseMotionChoice(v))}
+        options={[
+          { value: "system", label: t("settings.motionSystem") },
+          { value: "full", label: t("settings.motionFull") },
+          { value: "reduce", label: t("settings.motionReduce") },
+        ]}
+      />
+      <p className="mt-1.5 text-caption text-muted-foreground">
+        {t(motionDiagnosisKey(choice, osReduces))}
+      </p>
     </div>
   );
 }

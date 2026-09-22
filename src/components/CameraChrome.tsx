@@ -239,13 +239,31 @@ export function nearestStop(stops: number[], zoom: number): number | null {
   return Math.abs(best - zoom) <= 0.15 ? best : null;
 }
 
+/** 見せ方。`1` は `1`、`1.4` は `1.4`（末尾の `.0` は出さない）。 */
+function fmtZoom(v: number): string {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
 /**
- * 倍率の目盛り。**iPhone のカメラと同じ丸い粒。**（オーナー指示 2026-09-15
- * 「カメラにはApple風のズームメーターを付けて」）
+ * 倍率。**既定は刻みの粒だけ。選んでいる粒をもう一度押すと、細かい目盛りが出る。**
  *
- * 選ばれている粒だけが大きく・色付きで `1×` のように `×` を伴い、他は
- * `0.5` のように数字だけで小さく出る。これは Apple の見た目そのままだが、
- * **`aria-pressed` も一緒に変える**ので、色が見えなくても読み上げで分かる。
+ * オーナー指示 2026-09-22:
+ * > カメラの倍率のやつが大きすぎる。デフォルトは整数だけの倍率を並べて、
+ * > そこをタップするとメーターを触れるようになる。また、そのメーター自体も
+ * > 縦に小さく薄くして。
+ *
+ * これは iPhone のカメラそのままの作りでもある — 普段は `0.5 1 2` の粒が
+ * 並ぶだけで、選んでいる粒を押すと細かいダイヤルが開く。前の版は
+ * **いつでも**大きな読み上げ値・目盛りの帯・44px のつまみを出していたので、
+ * 映像の下端を 100px 近く塞いでいた。
+ *
+ * ## 粒の押し分け
+ * ・選んでいない粒 → その倍率へ飛ぶ（細かい目盛りは閉じる）
+ * ・選んでいる粒 → 細かい目盛りを開く／閉じる
+ *
+ * ## 細かい目盛りを開いている間だけ、生の値を出す
+ * 粒の文字が `1` から `1.4×` に変わる。閉じているときに小数を出すと、
+ * 「刻みが4つある」ように見えてしまう。
  */
 export function CameraZoomMeter({
   zoom,
@@ -261,15 +279,47 @@ export function CameraZoomMeter({
   className?: string;
 }) {
   const t = useT();
+  const [fine, setFine] = useState(false);
   const stops = zoomStops(min, max);
+  /** 点く粒。**細かい目盛りを開いている間は、離れていても一番近い粒を点ける** —
+      どの粒から動かしているのかが見えないと、数字だけが宙に浮く。 */
+  const snapped = nearestStop(stops, zoom);
+  const nearest = stops.length
+    ? stops.reduce((a, b) => (Math.abs(b - zoom) < Math.abs(a - zoom) ? b : a))
+    : null;
+  const lit = fine ? nearest : snapped;
+  const canFine = max > min;
   return (
-    <div className={`camera-zoom-ruler ${className}`} role="group" aria-label={t("scan.zoom")}>
-      <output className="text-headline font-semibold tabular-nums text-amber-200">
-        {zoom.toFixed(1)}×
-      </output>
-      {max > min && (
-        <>
-          <div className="camera-zoom-ruler__ticks" aria-hidden />
+    <div className={`camera-zoom ${className}`} role="group" aria-label={t("scan.zoom")}>
+      <div className="camera-zoom__stops">
+        {stops.map((s) => {
+          const on = lit === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={on}
+              data-on={on || undefined}
+              className="camera-zoom__stop"
+              aria-label={t("camera.zoomTo", { x: String(s) })}
+              onClick={() => {
+                if (on && canFine) {
+                  setFine((v) => !v);
+                  return;
+                }
+                setFine(false);
+                onZoom(s);
+              }}
+            >
+              {on && fine ? `${fmtZoom(zoom)}×` : fmtZoom(s)}
+            </button>
+          );
+        })}
+      </div>
+      {/* **閉じている間は場所も取らない。** `hidden` なら高さ 0 なので、
+          映像が下まで見える。 */}
+      {canFine && (
+        <div className="camera-zoom__fine" hidden={!fine}>
           <input
             type="range"
             min={min}
@@ -277,24 +327,11 @@ export function CameraZoomMeter({
             step={0.1}
             value={zoom}
             aria-label={t("scan.zoom")}
-            aria-valuetext={`${zoom.toFixed(1)}×`}
+            aria-valuetext={`${fmtZoom(zoom)}×`}
             onChange={(e) => onZoom(Number(e.target.value))}
           />
-        </>
+        </div>
       )}
-      <div className="flex justify-center gap-3">
-        {stops.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className="min-h-11 min-w-11 rounded-full bg-white/10"
-            onClick={() => onZoom(s)}
-            aria-label={t("camera.zoomTo", { x: String(s) })}
-          >
-            {s}×
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

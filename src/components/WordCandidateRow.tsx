@@ -78,7 +78,17 @@ export function WordCandidateRow({
      */
     <div className="lift flex items-center gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary hover:bg-accent/40">
       <button onClick={onPick} className="min-w-0 flex-1 text-left">
-        <div className="flex items-baseline gap-3">
+        {/**
+         * **折り返す。横へ伸ばさない。**（オーナー報告 2026-09-22
+         * 「候補の…解説が長い場合に横にスライドしないといけない場合が
+         * あるけど、必ず固定して」）
+         *
+         * 見出し語は `shrink-0` で縮まないので、句をキャッチしたときのように
+         * 語が長いと、語＋訳の合計が行の幅を越えて**中身が横にはみ出す**
+         * （実測 320px で 47px）。`flex-wrap` にすると、収まらない回は
+         * 訳が次の行へ落ちるだけで、語は割れず、行も横に伸びない。
+         */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
           {/* 主役。**縮ませない** — 長い訳に押されて語が割れるのが一番困る。 */}
           {/* **太字にしない**(オーナー指摘 2026-08-21「候補の文字太すぎる」)。
               大きさ(title=22px)だけで十分に主役になる。繁体字は画数が多いので、
@@ -86,11 +96,11 @@ export function WordCandidateRow({
           {/* **その語の字で組む**(オーナー報告 2026-08-26「候補の字体が変」)。
               `Zh` は `lang="zh-Hant"` を決め打ちで付ける包みなので、英語の
               候補にも中国語のフォントが当たっていた(`Term` の注)。 */}
-          <Term lang={language} className="shrink-0 text-title leading-tight tracking-tight">
+          <Term lang={language} className="min-w-0 text-title leading-tight tracking-tight">
             {headword}
           </Term>
           {/* 訳は右端へ。溢れるときは訳のほうを詰める。 */}
-          <span className="min-w-0 flex-1 truncate text-right text-footnote text-muted-foreground">
+          <span className="min-w-0 flex-1 basis-24 truncate text-right text-footnote text-muted-foreground">
             {meaning}
           </span>
         </div>

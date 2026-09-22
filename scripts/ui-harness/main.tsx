@@ -295,7 +295,8 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "home", label: "ホーム（今日の足あと）" },
+  { scene: "home", label: "ホーム（今日の誌面・日付の見出し）" },
+  { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
   { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
   { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },

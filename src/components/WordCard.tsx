@@ -367,8 +367,20 @@ export function WordCardSectionsEditor() {
              * ▲▼ を1つの**取っ手**にまとめて2つにし、行を 44px に収める
              * (どの携帯でも設定の一覧の行はこの寸法)。
              */
-            className={`flex touch-manipulation items-center justify-between gap-2 rounded-lg pl-2 text-footnote transition-shadow ${
-              dragging ? "bg-card shadow-lg ring-2 ring-primary" : "bg-secondary/60"
+            /**
+             * **`touch-action` は「指が降りた要素」の値が使われる。**
+             * 親の `<ul>` に `touch-action: none` を当てていたが、指が降りる
+             * のはこの行（と中の取っ手）なので、そちらが `manipulation` の
+             * ままだと browser は掴んだ後も巻き取りを始めてしまう。
+             * 始まれば `pointercancel` が飛び、掴んだ手がその場で離れる —
+             * **指では並べ替えられない**のはこれが原因だった
+             * （オーナー報告 2026-09-22、通算4度目）。掴んでいる行だけ
+             * `none` にする（一覧そのものの巻き取りは残す）。
+             */
+            className={`flex items-center justify-between gap-2 rounded-lg pl-2 text-footnote transition-shadow ${
+              dragging
+                ? "touch-none bg-card shadow-lg ring-2 ring-primary"
+                : "touch-manipulation bg-secondary/60"
             }`}
           >
             {/* **一覧でも同じ丸**(オーナー指示 2026-08-28 ⑧「すべて統一」)。
@@ -413,7 +425,13 @@ export function WordCardSectionsEditor() {
                */}
               <button
                 data-drag-handle
-                className="lift-soft inline-flex h-11 w-11 cursor-grab items-center justify-center rounded-md active:cursor-grabbing"
+                /**
+                 * **取っ手の上では最初から巻き取らせない。** 指はここに
+                 * 降りるので、ここが `auto` のままだと長押しが成立する前に
+                 * browser が巻き取りを始め、`pointercancel` で掴み損ねる。
+                 * この釦は掴むためだけの物なので、常に `none` でよい。
+                 */
+                className="lift-soft inline-flex h-11 w-11 cursor-grab touch-none items-center justify-center rounded-md active:cursor-grabbing"
                 aria-label={t("card.reorder")}
                 onKeyDown={(e) => {
                   if (e.key === "ArrowUp") {

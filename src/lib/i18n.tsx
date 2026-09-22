@@ -2089,7 +2089,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages", "zh-TW": "以前的頁面" },
   // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
   // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
-  "home.todayPage": { ja: "今日の1ページ", en: "Today's Page", "zh-TW": "今天的一頁" },
   // 右上の数字（これまでに捕まえた語）。裸の数字では何の数か分からないので
   // 小さく添える（見本の絵は裸だが、実物では読む人が意味を取れない）。
   "home.countLabel": { ja: "ことば", en: "words", "zh-TW": "個字" },
@@ -2748,10 +2747,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
    * 「主役」は作り手の言葉で、この欄が何を決めるのかを言っていない。
    * 決まるのは **既定でどの写真から見せるか** なので、そう書く。
    */
+  /**
+   * オーナー指示 2026-09-22「初めに見せる写真じゃなくて**表示するタイプ**と
+   * 設定の名前を変えて」。切り抜きを止めてから選択肢が2つになり、
+   * 「はじめに見せる」＝順番の話に聞こえるのが実態と合わなくなった。
+   */
   "settings.photoPref": {
-    ja: "はじめに見せる写真",
-    en: "Photo shown first",
-    "zh-TW": "優先顯示的照片",
+    ja: "表示するタイプ",
+    en: "Photo type",
+    "zh-TW": "顯示的類型",
   },
   "settings.photoLibrarySync": {
     ja: "写真の同期",
