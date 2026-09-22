@@ -2614,7 +2614,7 @@ describe("ホームのアルバムの長押し", () => {
     );
     expect(memo).toMatch(/\[\.\.\.stickers\]/);
     // `ordered`（触った順で入れ替わる）が依存に入っていないこと。
-    expect(memo).toMatch(/\}, \[stickers, frameRatio, heroById\]\);/);
+    expect(memo).toMatch(/\}, \[stickers, frameRatio, heroById, board\.w\]\);/);
   });
 
   /**
@@ -4700,6 +4700,43 @@ describe("ホームは今日の誌面", () => {
     // 読む道は残っている。
     expect(home).toMatch(/export function JournalLink\(/);
     expect(home).toMatch(/<DayJournalPage/);
+  });
+
+  it("**字だけの札も、押せる大きさ**（§11 の 44px）", () => {
+    // 枠が字の高さしか無いので、写真の札のように勝手に 44px を越えない。
+    // 実測 170x35 だった（`ui-audit`）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/const MIN_TAP_PX = 44;/);
+    expect(home).toMatch(
+      /Math\.max\(PLAIN_WORD_PX \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\), MIN_TAP_PX\)/,
+    );
+    expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
+    expect(cssBlock("[data-plain] {", "\n}")).toMatch(/min-height: 2\.75rem/);
+  });
+
+  it("**字のぶんの場所は px で取る**（紙が細い画面で行数が増える）", () => {
+    // 字の大きさは px で決まっているので、紙が細い画面ほど1行に入る字数が
+    // 減り、**同じ一言が行数だけ増える**。割合で取ると細い画面で足りない —
+    // 実測 320px の画面で、1枚目の一言の下 16px に次の写真が乗った
+    // （360px 以上では偶然足りていた）。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
+    expect(home).toMatch(/const CAP_ROW_PX = 29;/);
+    expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
+    // 台紙の幅で割って、`packCollage` が積む割合に直す。
+    expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);
+    // 一言の行数には CSS 側で上限が在る（どれだけ長くても越えない）。
+    expect(cssBlock(".collage__note {", "\n}")).toMatch(/-webkit-line-clamp: 3/);
+  });
+
+  it("**「◯枚の思い出」は地の色に追従する**（暗い画面で読めなくならない）", () => {
+    // `text-album-ink` は**紙の台紙の上に書くための固定のインク**で、
+    // 台紙は 2026-09-18 に外してある。固定のまま残っていたので、暗い画面で
+    // 1.45:1 しか無かった（`ui-audit`）。
+    const collage = codeOnly(read("routes/_authenticated/home.tsx"));
+    const foot = collage.slice(collage.indexOf("home.memories") - 700);
+    expect(foot.slice(0, 700)).not.toMatch(/text-album-ink/);
+    expect(foot.slice(0, 700)).toMatch(/text-muted-foreground/);
   });
 
   it("**文字で調べた語は、文字だけを書く**（オーナー指示 2026-09-22）", () => {

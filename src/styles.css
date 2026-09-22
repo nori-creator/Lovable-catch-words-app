@@ -6525,6 +6525,12 @@ html[data-motion="reduce"] .tabbar__lens--gone {
  * 枠も地も影も持たせない。紙に字を書いただけにする — 白い札を置くと
  * 「写真の代わりに何か貼ってある」ように見えて、誌面の流れが切れる。
  */
+/* §11: 指の当たり判定は 44px を下回らない。枠は字の高さしか無いので、
+   紙が細い画面では `PLAIN_RATIO` だけでは足りない。余るぶんは字の**下**に
+   付く（字は枠の上端から書く）ので、隠れるのは空白だけ。 */
+[data-plain] {
+  min-height: 2.75rem;
+}
 .collage__plain {
   display: flex;
   flex-direction: column;

@@ -3,6 +3,7 @@ import {
   applyDelta,
   boardHeight,
   COLLAGE_CAP_W,
+  COLLAGE_COL_W,
   collageRatio,
   gestureDelta,
   packCollage,
@@ -834,17 +835,28 @@ export function dayTagline(
 const PLACEHOLDER_RATIO = 1.2;
 
 /**
- * 写真の下に付く字の高さ（台紙の幅に対する割合）。
+ * 写真の下に付く字の高さ。**px で持つ。**
  *
  * `packCollage` に渡して、次の札がここへ乗らないようにする。
- * 幅 358px の台紙で `CAP_ROW_H` ＝ 約 29px（時刻と語の札の行）、
- * `CAP_NOTE_H` ＝ 約 32px（手書きの一言、2行まで）。
+ *
+ * ## なぜ割合ではなく px か
+ * ここは前まで「台紙の幅に対する割合」だった。ところが**字の大きさは
+ * px で決まっている**ので、紙が細い画面ほど1行に入る字数が減り、
+ * 同じ一言が**行数だけ増える**。割合で取ると、細い画面でそのぶんが
+ * 足りなくなる — 実測 320px の画面で、1枚目の一言（3行に増えた）の
+ * 下 16px に次の写真が乗った。360px 以上では偶然足りていた。
+ *
+ * 数え方（`styles.css` の `.collage__cap` 系と対で決まる）:
+ *   `CAP_ROW_PX`  … 語の白い札 17px × 1.2 ＋ 上下の詰め 5px ＋ 写真との間 4px
+ *   `CAP_NOTE_PX` … 手書きの一言 13px × 1.35 × **3行**（`-webkit-line-clamp`）
+ *                   ＋ 上の間 3px。行数の上限が CSS 側に在るので、
+ *                   どれだけ長い一言でもここを越えない。
  */
-const CAP_ROW_H = 0.08;
-const CAP_NOTE_H = 0.15;
+const CAP_ROW_PX = 29;
+const CAP_NOTE_PX = 56;
 
 /**
- * **文字から調べた語の枠の比。**（オーナー指示 2026-09-22
+ * **文字から調べた語の枠の高さ（px）。**（オーナー指示 2026-09-22
  * 「文字で検索したものは文字だけをアルバムに書いて」）
  *
  * 写真の無い札は、枠の中に**時刻と語と一言をそのまま書く**。写真と同じ
@@ -852,12 +864,12 @@ const CAP_NOTE_H = 0.15;
  * 時刻が語から1行離れて別々の物に見えた（実測: 「獎學金」と「21:30」が
  * 上下に離れて並んだ）。
  *
- * 高さは中身で決まるので、比も一言の有無で2通り持つ。列の幅は
- * 台紙の 0.41〜0.5 なので、`0.11 / 0.45 ≈ 0.25`（語と時刻の1行）、
- * 一言が付く札はそれに 2行ぶんを足す。
+ * こちらも px。語は 22px（`--text-title`）の1行で、一言が付けば
+ * 写真の札と同じ3行ぶん。**44px を下回らせない**（§11 の指の当たり判定。
+ * 実測 170×35 で落ちていた）。
  */
-const PLAIN_RATIO = 0.2;
-const PLAIN_RATIO_NOTE = 0.55;
+const PLAIN_WORD_PX = 32;
+const MIN_TAP_PX = 44;
 
 export function DayCollage({
   stickers,
@@ -1013,13 +1025,22 @@ export function DayCollage({
    */
   const frameRatio = useMemo(() => {
     const hasNote = new Map(stickers.map((s) => [s.id, Boolean(s.caption)]));
-    return (id: string) =>
-      heroById.get(id)
-        ? collageRatio(photoRatio[id] ?? PLACEHOLDER_RATIO)
-        : hasNote.get(id)
-          ? PLAIN_RATIO_NOTE
-          : PLAIN_RATIO;
-  }, [heroById, photoRatio, stickers]);
+    /**
+     * 字だけの札の高さ（px）→ 比。
+     *
+     * 割るのは**いちばん細い札の幅**。札ごとの幅は `packCollage` の中で
+     * `id` から決まるので、ここからは見えない。細いほうに合わせておけば、
+     * 太い札では枠が字より少し高くなるだけ — 枠は見えないので、余るのは
+     * 字の**下**の空白であって、隠れる物は無い。
+     */
+    const narrowest = Math.max(board.w * COLLAGE_COL_W * 0.78, 1);
+    return (id: string) => {
+      if (heroById.get(id)) return collageRatio(photoRatio[id] ?? PLACEHOLDER_RATIO);
+      const px = Math.max(PLAIN_WORD_PX + (hasNote.get(id) ? CAP_NOTE_PX : 0), MIN_TAP_PX);
+      // 台紙をまだ測れていない最初の1枚は、ほどほどの比で場所を取っておく。
+      return board.w ? px / narrowest : 0.3;
+    };
+  }, [heroById, photoRatio, stickers, board.w]);
   /**
    * まだ自分で置いていない札の置き場所。**誌面の石積み**（`packCollage`）。
    *
@@ -1047,15 +1068,22 @@ export function DayCollage({
         // 升目の比をそのまま使うと `portrait` が 2.6 になり、読み込むまで
         // 塔のような枠が並ぶ（写真の無い語の札も同じ）。
         ratio: frameRatio(s.id),
-        // 写真の下に付く字のぶん。**一言が在る札だけ余分に要る。**
-        // 字だけの札は枠の中に書くので、外に足すぶんは無い。
-        extra: heroById.get(s.id) ? CAP_ROW_H + (s.caption ? CAP_NOTE_H : 0) : 0,
+        /**
+         * 写真の下に付く字のぶん。**一言が在る札だけ余分に要る。**
+         * 字だけの札は枠の中に書くので、外に足すぶんは無い。
+         *
+         * px を台紙の幅で割って割合に直す（`packCollage` は割合で積む）。
+         */
+        extra:
+          heroById.get(s.id) && board.w
+            ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w
+            : 0,
       })),
     );
     const map = new Map<string, Placement>();
     base.forEach((s, i) => map.set(s.id, places[i]));
     return map;
-  }, [stickers, frameRatio, heroById]);
+  }, [stickers, frameRatio, heroById, board.w]);
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -1429,6 +1457,9 @@ export function DayCollage({
           return (
             <button
               key={s.id}
+              /* 写真の無い札。**枠が字の高さしか無い**ので、指の当たり判定の
+                 下限（§11 の 44px）を CSS 側でも保証する。 */
+              data-plain={heroUrl ? undefined : ""}
               onClick={(e) => {
                 // 長押しが成立した回の「離す」でカードを開かない。
                 if (longPressFired.current) {
@@ -1681,7 +1712,13 @@ export function DayCollage({
         {/* 台紙の上の字なので**固定のインク**。`text-amber-900/70` は
             番号直書き + 70% で、紙で 3.56:1、コルクで 2.35:1 しか無かった。 */}
         <span
-          className={`text-body text-album-ink ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
+          /**
+           * **地の色に追従させる。**（`text-album-ink` は紙の台紙の上に
+           * 書くための固定のインクで、台紙は 2026-09-18 に外してある。
+           * 固定のまま残っていたので、**暗い画面で 1.45:1** しか無く、
+           * ほぼ読めなかった。）
+           */
+          className={`text-body text-muted-foreground ${isEn ? "handwritten" : "font-medium tracking-[0.02em]"}`}
         >
           — {formatCount(stickers.length)}
           {t("home.memories")}
