@@ -86,7 +86,7 @@ export function SettingsChoicesScene() {
           onChange={setPhoto}
           options={[
             { value: "object", label: t("settings.photoObject") },
-            { value: "cutout", label: t("settings.photoCutout") },
+            ...(CUTOUT_ENABLED ? [{ value: "cutout", label: t("settings.photoCutout") }] : []),
             { value: "selfie", label: t("settings.photoSelfie") },
           ]}
         />

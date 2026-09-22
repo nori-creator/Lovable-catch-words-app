@@ -35,6 +35,7 @@ export function PickerRow({
           </button>
         </DialogTrigger>
         <DialogContent
+          aria-labelledby={`${id}-sheet-label`}
           aria-describedby={undefined}
           className="picker-sheet w-[calc(100%-2rem)] rounded-[30px] bg-white p-6 text-slate-900 sm:rounded-[30px]"
         >
