@@ -48,14 +48,7 @@ import type { WordExtrasDTO } from "./extras";
 
 /** 札の種類（extras に入っている粒度）。 */
 export type BubbleKind =
-  | "limited"
-  | "place"
-  | "media"
-  | "situation"
-  | "emotion"
-  | "time"
-  | "season"
-  | "trait";
+  "limited" | "place" | "media" | "situation" | "emotion" | "time" | "season" | "trait";
 
 /**
  * 束ねる軸。**画面はこの単位で見出しを出す。**

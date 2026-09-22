@@ -1,3 +1,6 @@
+import { SettingsSaveStatus } from "@/components/SettingsSaveStatus";
+import { useSettingsAutosave } from "@/lib/use-settings-autosave";
+import { useMemo, useRef } from "react";
 import { REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 /**
@@ -262,14 +265,9 @@ export function SettingsTogglesScene() {
  */
 export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
   const variant = q.get("variant");
-  const saving = variant === "saving";
+
   return (
     <div className="space-y-7">
-      {/* 保存中は文字が「保存」→「保存中...」に伸びて、押せなくなる。
-          伸びた側と沈んだ色を撮らないと、待っている間の面が未検査になる。 */}
-      <Button className="w-full" disabled={saving}>
-        {saving ? t("settings.saving") : t("settings.save")}
-      </Button>
       <Button variant="outline" className="w-full">
         <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
       </Button>
@@ -279,19 +277,43 @@ export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
 }
 
 export function SettingsPolishScene() {
-  const [selfie, setSelfie] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [displayName, setDisplayName] = useState("のり");
+  const [language, setLanguage] = useState("ja");
+  const [offline, setOffline] = useState(false);
+  const offlineRef = useRef(offline);
+  offlineRef.current = offline;
+  const preferences = useMemo(() => ({ displayName, language }), [displayName, language]);
+  const autosave = useSettingsAutosave(preferences, true, "preview-settings", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (offlineRef.current) throw new Error("Preview offline");
+  });
   return (
     <div className="settings-page space-y-7 pb-24">
-      <div className="sticky top-2 z-30 flex justify-end">
-        <Button onClick={() => setSaved(true)}>
-          {saved ? "保存しました" : t("settings.save")}
-        </Button>
-      </div>
-      <SettingsSelectsScene />
-      <SettingsCard title={t("settings.selfieMode")}>
-        <ToggleRow label={t("settings.selfieMode")} value={selfie} onChange={setSelfie} />
+      <SettingsSaveStatus state={autosave.state} retry={() => void autosave.retry()} />
+      <SettingsCard title={t("settings.displayName")}>
+        <Label htmlFor="preview-name">{t("settings.displayName")}</Label>
+        <Input
+          id="preview-name"
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+        />
       </SettingsCard>
+      <SettingsCard title={t("settings.uiLang")}>
+        <PickerRow
+          id="preview-ui-language"
+          label={t("settings.uiLang")}
+          value={language}
+          onChange={setLanguage}
+          options={UI_LANGS.map((value) => ({ value, label: t(UI_LANG_LABEL_KEYS[value]) }))}
+        />
+      </SettingsCard>
+      <SettingsCard title="プレビューの通信テスト">
+        <ToggleRow label="通信失敗を再現" value={offline} onChange={setOffline} />
+        <p className="mt-3 text-sm text-muted-foreground">
+          名前や言語を変更すると自動保存します。通信失敗をオフに戻し、上の再試行を押すと復旧します。この画面はテスト用で、アカウントの設定は変更しません。
+        </p>
+      </SettingsCard>
+      <SettingsSelectsScene />
       <SettingsChoicesScene />
     </div>
   );

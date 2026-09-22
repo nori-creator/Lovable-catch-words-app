@@ -51,8 +51,7 @@ export function useLanguagePrefsSync(): void {
 
   useEffect(() => {
     const p = data as
-      | { target_language?: string; ui_language?: string; partial?: boolean }
-      | undefined;
+      { target_language?: string; ui_language?: string; partial?: boolean } | undefined;
     if (!p) return;
     /**
      * **中身の無いプロフィールで上書きしない。**

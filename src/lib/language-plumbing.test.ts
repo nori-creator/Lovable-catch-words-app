@@ -438,7 +438,7 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     expect(src).toMatch(/restoreSettings\(\{/);
     expect(src).toMatch(/uiLanguage: storedUiLang\(\)/);
     expect(src).toMatch(/targetLanguage: storedTarget/);
-    expect(src).toMatch(/if \(picked\.pushToServer\)/);
+    expect(src).toMatch(/setPreferencesNeedSync\(picked\.pushToServer\)/);
     // 読み込んだ生の値をそのまま画面へ入れないこと。
     expect(src).not.toMatch(/setTargetLanguage\(profile\.target_language\)/);
   });
@@ -1153,17 +1153,13 @@ describe("2026-08-26 の報告: 言語が混ざる", () => {
     expect(src).not.toMatch(/\}\)\.partial\) return;/);
   });
 
-  it("言語だけを**単独で保存する**(他の列に巻き込まれない)", () => {
-    // 1回の UPDATE にまとめると、どれか1列が撥ねられただけで
-    // 言語もまとめて保存されない。
+  it("設定は単一の自動保存キューへ送り、未対応列はサーバで分離する", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
-    const first = src.slice(src.indexOf("async function handleSave"));
-    const call = first.slice(first.indexOf("await updateProfile"), first.indexOf("});") + 3);
-    expect(call).toMatch(/ui_language: uiLanguage/);
-    expect(call).toMatch(/target_language: targetLanguage/);
-    // **同じ塊にレベルや名前を入れない。**
-    expect(call).not.toMatch(/level_goal/);
-    expect(call).not.toMatch(/display_name/);
+    expect(src).toMatch(/useSettingsAutosave\(/);
+    expect(src).not.toMatch(/async function handleSave/);
+    const server = codeOnly(read("lib/profile.functions.ts"));
+    expect(server).toMatch(/offendingColumn/);
+    expect(server).toMatch(/delete payload\[/);
   });
 
   it("値を撥ねられた列も**外して保存し直す**", () => {
@@ -1364,7 +1360,7 @@ describe("2026-08-26 の3度目の報告", () => {
     expect(fs.existsSync(path.join(root, "lib/level-pref.ts"))).toBe(true);
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
     // 保存のときに書く。`current_level` の列が無い環境でも消えない。
-    const save = src.slice(src.indexOf("async function handleSave"));
+    const save = src;
     expect(save).toMatch(/setStoredLevels\(targetLanguage, \{[\s\S]*?current: currentLevel/);
   });
 
@@ -3874,16 +3870,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * それを見ずに必ず成功を出していたので、**上限が保存されていないのに
    * 保存されたと見える**。設定と実際の食い違いは、ここでしか気づけない。
    */
-  it("設定は、保存できなかった項目を名指しで言う", () => {
+  it("設定は部分保存を成功扱いせず、再試行できる", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
-    expect(src).toMatch(/skipped/);
-    expect(src).toMatch(/toast\.warning\(t\("settings\.savedPartly"/);
-    const ok = src.indexOf('toast.success(t("settings.saved")');
-    const warn = src.indexOf('toast.warning(t("settings.savedPartly"');
-    expect(ok).toBeGreaterThanOrEqual(0);
-    expect(warn).toBeGreaterThanOrEqual(0);
-    // 成功は「落ちた項目が無いとき」だけ。
-    expect(src).toMatch(/skipped\.length > 0/);
+    expect(src).toMatch(/res\.skipped\?\.length/);
+    expect(src).toMatch(/throw new Error\(t\("settings\.savedPartly"/);
+    expect(src).toMatch(/<SettingsSaveStatus/);
+    expect(codeOnly(read("components/SettingsSaveStatus.tsx"))).toMatch(/settings\.autosaveRetry/);
   });
 
   /**
@@ -4805,7 +4797,7 @@ describe("ホームは今日の足あと", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "settings-polish"/);
   });
 });
 

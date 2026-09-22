@@ -1,3 +1,5 @@
+import { SettingsSaveStatus } from "@/components/SettingsSaveStatus";
+import { readSettingsDraft, useSettingsAutosave } from "@/lib/use-settings-autosave";
 import {
   REVIEW_PRACTICE_ENABLED,
   selfieCaptureEnabled,
@@ -28,7 +30,7 @@ import { checkIsAdmin } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { SlidingIndicator } from "@/components/SlidingIndicator";
 import { PickerRow } from "@/components/PickerRow";
 import { toast } from "sonner";
@@ -355,7 +357,9 @@ function SettingsPage() {
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [selfieMode, setSelfieMode] = useState(selfieCaptureEnabled);
-  const [saving, setSaving] = useState(false);
+  const [preferencesNeedSync, setPreferencesNeedSync] = useState(false);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const hydratedProfile = useRef<string | null>(null);
   // 端末ごとの設定なので、プロフィールの到着を待たずに読む
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
   useEffect(() => {
@@ -394,7 +398,8 @@ function SettingsPage() {
     if (saved.goal) setLevelGoal(restoreLevel(scale, saved.goal, 2));
   }, []);
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || hydratedProfile.current === profile.id) return;
+    hydratedProfile.current = profile.id;
     setDisplayName(profile.display_name ?? "");
     /**
      * **私用の列が読めなかった行で、言語と級を上書きしない。**
@@ -458,21 +463,10 @@ function SettingsPage() {
         partial,
       },
     });
+    setPreferencesNeedSync(picked.pushToServer);
     const targetPick = { value: picked.targetLanguage };
     // **読めなかった行へ書き戻さない。** 読めないのは権限の話なので、
     // 書きに行っても通らないし、通ったとしても比べた相手が置き場所の値。
-    if (picked.pushToServer) {
-      // **待たない。** 画面を描くのを止めてまで揃える話ではない。
-      // 落ちてもこの端末の選択はそのまま効く。
-      void updateProfile({
-        data: {
-          ui_language: picked.uiLanguage,
-          target_language: picked.targetLanguage,
-        },
-      }).catch(() => {
-        /* 端末の選択が正なので、書き戻せなくても画面は壊れない */
-      });
-    }
     // **一覧に無い値をそのまま渡さない。** 母語を12から3に絞ったので
     // (オーナー決定 2026-08-25)、`ko` を選んでいた人の値は一覧に無い。
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
@@ -506,104 +500,84 @@ function SettingsPage() {
         ? p.review_stage_focus
         : "all",
     );
+    const draft = readSettingsDraft<Record<string, unknown>>(profile.id);
+    if (draft) {
+      if (typeof draft.display_name === "string") setDisplayName(draft.display_name);
+      if (typeof draft.ui_language === "string") {
+        setUiLanguage(normalizeUiLang(draft.ui_language));
+        setUiLang(normalizeUiLang(draft.ui_language));
+      }
+      if (
+        typeof draft.target_language === "string" &&
+        TARGET_LANGUAGES.includes(draft.target_language as (typeof TARGET_LANGUAGES)[number])
+      ) {
+        setTargetLanguage(draft.target_language);
+        setTargetLang(draft.target_language);
+      }
+      if (typeof draft.current_level === "string") setCurrentLevel(draft.current_level);
+      if (typeof draft.level_goal === "string") setLevelGoal(draft.level_goal);
+      if (
+        draft.pronunciation_strictness === "easy" ||
+        draft.pronunciation_strictness === "normal" ||
+        draft.pronunciation_strictness === "strict"
+      )
+        setStrictness(draft.pronunciation_strictness);
+      if (typeof draft.review_daily_limit === "number") setReviewLimit(draft.review_daily_limit);
+      if (
+        draft.review_stage_focus === "all" ||
+        draft.review_stage_focus === "weak" ||
+        draft.review_stage_focus === "new"
+      )
+        setReviewFocus(draft.review_stage_focus);
+    }
+    setPreferencesReady(true);
   }, [profile]);
 
-  async function handleSave() {
-    setSaving(true);
-    try {
-      /**
-       * **言語だけを先に、単独で送る**(オーナー報告 2026-08-26
-       * 「設定のページを触ると勝手に学習言語が台湾華語、表示言語が
-       * 日本語に戻る」)。
-       *
-       * 設定はこれまで1回の UPDATE でまとめて送っていた。この形だと
-       * **どれか1列が値を撥ねられただけで、言語もまとめて保存されない**。
-       * 画面には選んだ値が残るので保存できたように見え、次に開いたとき
-       * 既定へ戻る — それが報告の姿。
-       *
-       * すぐ下の出題形式には既に同じ注が書いてある。言語は出題形式より
-       * 重い設定(撮る・解説・復習の全部がこれで決まる)なので、
-       * **こちらこそ単独で送るべきだった。**
-       */
-      await updateProfile({
-        data: {
-          // **母語は表示言語から決まる。** 列は残すので、統合後も
-          // 食い違わないように同じ値の側から書く(`reader-language.ts`)。
-          native_language: readerL1({
-            uiLanguage,
-            nativeLanguage,
-            targetLanguage,
-          }),
-          ui_language: uiLanguage,
-          target_language: targetLanguage,
-        },
-      });
-      /**
-       * **級も端末に憶えさせる**(オーナー報告 2026-08-26、3度目)。
-       *
-       * すぐ上の言語と同じ理由。`current_level` の列がまだ無い環境では
-       * `updateMyProfile` がその名前を黙って落として保存し直すので、
-       * サーバだけを頼りにすると**選んだのに保存されない**。
-       * 送るのは送る(解説の難しさは server 側が読む)が、
-       * 画面に戻す値の出所は端末にする。
-       */
+  const preferences = useMemo(
+    () => ({
+      ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
+      native_language: readerL1({ uiLanguage, nativeLanguage, targetLanguage }),
+      ui_language: uiLanguage,
+      target_language: targetLanguage,
+      current_level: currentLevel,
+      level_goal: levelGoal,
+      pronunciation_strictness: strictness,
+      review_daily_limit: reviewLimit,
+      review_stage_focus: reviewFocus,
+      ...(REVIEW_PRACTICE_ENABLED ? { review_mode: reviewMode } : {}),
+    }),
+    [
+      displayName,
+      uiLanguage,
+      nativeLanguage,
+      targetLanguage,
+      currentLevel,
+      levelGoal,
+      strictness,
+      reviewLimit,
+      reviewFocus,
+      reviewMode,
+    ],
+  );
+  useEffect(() => {
+    if (preferencesReady)
       setStoredLevels(targetLanguage, { current: currentLevel, goal: levelGoal });
-      const res = await updateProfile({
-        data: {
-          // Only send a non-empty name: the server rejects "" (min length 1),
-          // which would otherwise fail the whole save (theme/level too)
-          // for anyone whose display name is blank.
-          ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
-          level_goal: levelGoal,
-          current_level: currentLevel,
-          pronunciation_strictness: strictness,
-          review_daily_limit: reviewLimit,
-          review_stage_focus: reviewFocus,
-        },
-      });
-      // **出題形式は別に送る。** 同じ payload に混ぜると、この1列の制約違反で
-      // 名前も言語もレベルも**まとめて保存されない**。端末には既に書いて
-      // あるので、ここが落ちてもその端末では選んだ形が効く。
-      await updateProfile({ data: { review_mode: reviewMode } }).catch(() =>
-        toast(t("review.modeLocalOnly")),
+  }, [preferencesReady, targetLanguage, currentLevel, levelGoal]);
+  const autosave = useSettingsAutosave(
+    preferences,
+    preferencesReady,
+    profile?.id ?? "",
+    async (data) => {
+      const res = await updateProfile({ data });
+      if (res.skipped?.length)
+        throw new Error(t("settings.savedPartly", { fields: res.skipped.join(", ") }));
+      // Merge only acknowledged fields. Never refetch over a newer local edit.
+      queryClient.setQueryData(["profile"], (prev: Record<string, unknown> | undefined) =>
+        prev ? { ...prev, ...data } : prev,
       );
-      // **ここで "ja" に落とさない。** 繁體中文を選んだ人が保存するたびに
-      // 日本語へ戻ってしまう（型でもビルドでも落ちない）。
-      setUiLang(normalizeUiLang(uiLanguage));
-      // 学習言語も端末に憶えさせる。ここを忘れると、設定では英語なのに
-      // 撮る道だけ台湾華語のまま、という食い違いが残る。
-      setTargetLang(targetLanguage);
-      await queryClient.invalidateQueries({ queryKey: ["profile"] });
-      /**
-       * **保存できなかった項目を、黙って捨てない。**（オーナー報告 2026-09-15
-       * 「設定で復習の枚数を無制限にしても復習ができない」）
-       *
-       * サーバは、DB がまだ持っていない列や値を撥ねた列を**payload から
-       * 落として残りを保存**し、落とした名前を `skipped` で返す
-       * （`lib/profile.functions.ts`。1列のせいで言語もテーマも保存できない
-       * 事故を避けるための造り）。ところがここは**その返事を読まずに
-       * 「保存しました」と出していた**。
-       *
-       * つまり、枚数の列が production にまだ無ければ、
-       *   ・画面は「保存しました」と言う
-       *   ・値は保存されていない
-       *   ・次に開くと 20 に戻っている（＝無制限にしたのに 20 枚で止まる）
-       * という、**いちばん追いにくい形**で壊れる。名指しで出す。
-       */
-      const skipped = (res as { skipped?: string[] } | undefined)?.skipped ?? [];
-      if (skipped.length > 0) {
-        toast.warning(t("settings.savedPartly", { fields: skipped.join(", ") }), {
-          duration: 8000,
-        });
-      } else {
-        toast.success(t("settings.saved"));
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
-    } finally {
-      setSaving(false);
-    }
-  }
+    },
+    preferencesNeedSync,
+  );
 
   // 設定が読めていないときに**フォームを出してはいけない**。
   //
@@ -612,10 +586,10 @@ function SettingsPage() {
   // 本当の設定ではなく既定値が並び、「保存」を押した人は自分の設定を
   // **既定値で上書きする**。読み込み失敗が、黙ってデータを壊す操作に
   // すり替わっていた(§8: 空とエラーを同じ絵で描かない)。
-  if (profileLoading || profileFailed) {
+  if (profileLoading || profileFailed || !profile) {
     return (
       <AppShell title={t("title.settings")}>
-        {profileFailed ? (
+        {profileFailed || (!profileLoading && !profile) ? (
           <LoadFailed
             onRetry={() => void refetchProfile()}
             retrying={profileFetching}
@@ -637,15 +611,7 @@ function SettingsPage() {
       {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
           差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
       <div className="settings-page space-y-7 pb-24">
-        <div className="sticky top-2 z-30 flex justify-end pointer-events-none">
-          <Button
-            className="pointer-events-auto rounded-full px-6 shadow-lg"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("settings.saving") : t("settings.save")}
-          </Button>
-        </div>
+        <SettingsSaveStatus state={autosave.state} retry={() => void autosave.retry()} />
         <SettingsCard title={t("capture.photoTitle")}>
           <ToggleRow
             label={t("settings.selfieMode")}
@@ -661,7 +627,12 @@ function SettingsPage() {
             <AvatarRow />
             <div>
               <Label htmlFor="dn">{t("settings.displayName")}</Label>
-              <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <Input
+                id="dn"
+                maxLength={60}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
             </div>
           </div>
         </SettingsCard>
@@ -830,10 +801,6 @@ function SettingsPage() {
         </SettingsCard>
 
         <SoundAndHapticsPanel />
-
-        <Button className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? t("settings.saving") : t("settings.save")}
-        </Button>
 
         <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
