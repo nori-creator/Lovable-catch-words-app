@@ -6410,32 +6410,6 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .day-masthead {
   margin-bottom: 0.7rem;
 }
-.day-masthead__rail {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-.day-masthead__rule-line {
-  margin-top: 0.5rem;
-  height: 1px;
-  flex: 1;
-  background: var(--border);
-}
-.day-masthead__count {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.05;
-}
-.day-masthead__count-n {
-  font-size: var(--text-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.day-masthead__count-label {
-  font-size: var(--text-caption);
-  color: var(--muted-foreground);
-}
 .day-masthead__row {
   display: flex;
   align-items: flex-start;

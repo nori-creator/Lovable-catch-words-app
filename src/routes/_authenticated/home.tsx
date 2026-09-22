@@ -306,7 +306,7 @@ function HomePage() {
    */
   return (
     <AppShell>
-      <DayMasthead date={today} total={total} tagline={dayTagline(todayStickers, t)} />
+      <DayMasthead date={today} tagline={dayTagline(todayStickers, t)} />
 
       <PendingCapturesBanner />
 
@@ -636,13 +636,10 @@ function flightFrom(button: HTMLElement): FlightOrigin | null {
 export function DayMasthead({
   date,
   tagline,
-  total,
 }: {
   date: Date;
   /** 右の手書きの一言。無ければ出さない。 */
   tagline?: string;
-  /** これまでに捕まえた語の数。見本の絵の右上の数字。 */
-  total?: number;
 }) {
   const t = useT();
   const locale = localeOf(useUiLang());
@@ -659,17 +656,9 @@ export function DayMasthead({
   const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
   return (
     <header className="day-masthead">
-      <div className="day-masthead__rail">
-        <span className="day-masthead__rule-line" aria-hidden="true" />
-        {total != null && (
-          <span className="day-masthead__count">
-            <span className="day-masthead__count-n">{formatCount(total)}</span>
-            {/* 数字だけでは何の数か分からない（§3）。見本の絵は裸の数字だが、
-                実物では読む人が意味を取れないので小さく添える。 */}
-            <span className="day-masthead__count-label label-caps">{t("home.countLabel")}</span>
-          </span>
-        )}
-      </div>
+      {/* **右上の「ことば N」と横線は出さない**（オーナー指示 2026-09-22
+          「ホーム画面右上の ことば０と横の線を消して」）。語の総数は図鑑に
+          在り、ここでは今日の日付と写真が主役。 */}
       <div className="day-masthead__row">
         <div className="day-masthead__lead">
           <p className="day-masthead__date">{weekday}</p>

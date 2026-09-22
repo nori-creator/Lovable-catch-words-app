@@ -136,7 +136,7 @@ const today = FIXTURES.map((f, i) => makeSticker(f, i, 0));
 export function HomeScene() {
   return (
     <>
-      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
       <DayCollage stickers={today} opening onOpen={() => {}} />
     </>
   );
@@ -231,7 +231,7 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
       <DayCollage stickers={today} opening onOpen={() => {}} />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />

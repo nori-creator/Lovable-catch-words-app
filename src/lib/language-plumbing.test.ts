@@ -5285,3 +5285,16 @@ describe("画像の右上の記憶の印", () => {
     expect(b.slice(0, 1800)).toMatch(/\{t\(lv\.labelKey\)\} \{strength\}%/);
   });
 });
+
+describe("ホームの表紙に語の総数と横線を出さない", () => {
+  it("**右上の「ことば N」と横線が無い**（オーナー指示 2026-09-22）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const mast = home.slice(
+      home.indexOf("export function DayMasthead("),
+      home.indexOf("function takenAt("),
+    );
+    expect(mast).not.toMatch(/day-masthead__rail|day-masthead__count|day-masthead__rule-line/);
+    expect(mast).not.toMatch(/total\?: number/);
+    expect(read("styles.css")).not.toMatch(/\.day-masthead__(rail|count|rule-line) \{/);
+  });
+});
