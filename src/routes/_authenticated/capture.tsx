@@ -1481,28 +1481,28 @@ export function ReencounterPanel({
               alt={reenc.headword}
               className="aspect-[4/3] w-full rounded-[24px] object-cover"
             />
-            <span className="absolute bottom-6 left-6 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm">
+            <span className="absolute bottom-6 left-6 rounded-full bg-card/95 px-4 py-2 text-footnote font-semibold text-primary-ink shadow-sm">
               {t("capture.reunion")}
             </span>
           </div>
         )}
         <div className="space-y-3 px-6 pb-6 pt-3">
-          <Term as="h1" lang={language} className="text-4xl font-bold tracking-tight">
+          <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
             {reenc.headword}
           </Term>
           <Reading
             lang={language}
             zhuyin={reenc.reading_zhuyin}
             pinyin={reenc.pinyin}
-            className="block text-sm text-muted-foreground"
+            className="block text-footnote text-muted-foreground"
           />
-          <p className="text-xl font-medium">{reenc.meaning_ja}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-title font-medium">{reenc.meaning_ja}</p>
+          <p className="text-footnote text-muted-foreground">
             {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
             {reenc.location_name ? ` · ${reenc.location_name}` : ""}
           </p>
           <div
-            className="flex items-center gap-2 rounded-2xl bg-primary/5 p-4 text-sm text-primary-ink"
+            className="flex items-center gap-2 rounded-2xl bg-primary/5 p-4 text-footnote text-primary-ink"
             role="status"
           >
             {reencResult ? (
@@ -2257,12 +2257,18 @@ export function CaptureObjectPanel({
           )}
         </div>
 
+        {/* **これは人が触る欄ではない。** シャッターを押したときに
+            `.click()` で代わりに開く控えの口で、`sr-only` のままだと
+            キーボードの順番にも声の案内にも「名前の無い欄」として
+            現れていた。目から隠すだけでなく、両方から外す。 */}
         <input
           ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture={selfieMode ? "user" : "environment"}
           className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
         />
       </div>

@@ -976,6 +976,7 @@ export function InputCatchFace({
           value={text}
           onChange={(e) => onText(e.target.value)}
           placeholder={t("sheet.inputPlaceholder")}
+          aria-label={t("sheet.inputPlaceholder")}
           className="w-full rounded-full border border-border bg-card py-3 pl-9 pr-4 text-field outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
         />
       </div>
@@ -988,6 +989,7 @@ export function InputCatchFace({
         value={scene}
         onChange={(e) => onScene(e.target.value)}
         placeholder={isPhrase ? t("input.scene") : t("input.sceneWord")}
+        aria-label={isPhrase ? t("input.scene") : t("input.sceneWord")}
         className="w-full rounded-xl border border-border bg-secondary/50 p-3 text-field outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-card"
       />
 

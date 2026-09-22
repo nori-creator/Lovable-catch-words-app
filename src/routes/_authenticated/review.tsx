@@ -453,7 +453,9 @@ function ReviewPage() {
           reviewStreak={myStats?.review_streak ?? null}
         />
         {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
-            バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。 */}
+            バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。
+            帯自体は28pxしかないので、見た目は変えずに before で指の当たり判定
+            だけを上下に広げ、44pxの下限を満たす。 */}
         {memOverview && memOverview.words.length > 0 && (
           <>
             <button
@@ -462,7 +464,7 @@ function ReviewPage() {
                 setMemListOpen((v) => !v);
               }}
               aria-expanded={memListOpen}
-              className="w-full text-left"
+              className="relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
             >
               <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
             </button>
@@ -634,6 +636,18 @@ export function MemoryLevelSummary({
             ) : null,
           )}
         </div>
+        {/* **畳んでいる間、この帯には読む字が1つも無い。** 色だけが
+            意味を担うので、色を見分けられない人と声の案内には何も届かず、
+            包んでいるボタンの名前も空だった(「ボタン」としか読まれない)。
+            目に見える形は変えずに、同じ中身を字でも置く。 */}
+        {!expanded && (
+          <span className="sr-only">
+            {t("review.memoryBreakdown")}:{" "}
+            {MEMORY_LEVELS.map((lv, i) => (counts[i] > 0 ? `${t(lv.labelKey)} ${counts[i]}` : null))
+              .filter(Boolean)
+              .join("、")}
+          </span>
+        )}
         {expanded !== undefined && (
           <ChevronDown
             aria-hidden

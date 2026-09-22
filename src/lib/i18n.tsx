@@ -1144,18 +1144,42 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "set.keyMissing": { ja: "({env} 未設定)", en: "({env} not set)", "zh-TW": "（{env} 未設定）" },
   // --- ログイン・発音練習 ---
+  // 迎える面の言葉（オーナー指示 2026-09-17）。
+  // > 「好きなものから言葉をのキャッチコピーを、日常があなただけの単語帳に。
+  // >  変更して。撮って、集めて、覚えようはそのままでいい」
+  "auth.heroA": { ja: "日常が", en: "Your days,", "zh-TW": "日常，" },
+  "auth.heroB": {
+    ja: "あなただけの単語帳に。",
+    en: "your own vocabulary book.",
+    "zh-TW": "成為你專屬的單字本。",
+  },
   "auth.tagline": {
-    ja: "街で出会う言葉を、ステッカーに。",
-    en: "Turn the words you meet into stickers.",
-    "zh-TW": "把在街上遇到的字，變成貼紙。",
+    ja: "撮って、集めて、覚えよう。",
+    en: "Snap it, collect it, learn it.",
+    "zh-TW": "拍下來、收集起來、記住它。",
+  },
+  "auth.emailLogin": {
+    ja: "メールでログイン",
+    en: "Sign in with email",
+    "zh-TW": "用電子郵件登入",
+  },
+  "auth.noAccount": {
+    ja: "アカウントをお持ちでない方は",
+    en: "No account yet? ",
+    "zh-TW": "還沒有帳號？",
+  },
+  "auth.haveAccount": {
+    ja: "すでにアカウントをお持ちの方は",
+    en: "Already have an account? ",
+    "zh-TW": "已經有帳號了？",
   },
   "auth.signin": { ja: "ログイン", en: "Sign in", "zh-TW": "登入" },
   "auth.signup": { ja: "新規登録", en: "Sign up", "zh-TW": "註冊" },
   "auth.email": { ja: "メールアドレス", en: "Email", "zh-TW": "電子郵件" },
   "auth.password": { ja: "パスワード", en: "Password", "zh-TW": "密碼" },
   "auth.or": { ja: "または", en: "or", "zh-TW": "或" },
-  "auth.google": { ja: "Googleでサインイン", en: "Sign in with Google", "zh-TW": "用 Google 登入" },
-  "auth.apple": { ja: "Appleでサインイン", en: "Sign in with Apple", "zh-TW": "用 Apple 登入" },
+  "auth.google": { ja: "Googleで続ける", en: "Continue with Google", "zh-TW": "用 Google 繼續" },
+  "auth.apple": { ja: "Appleで続ける", en: "Continue with Apple", "zh-TW": "用 Apple 繼續" },
   "auth.agreeBefore": {
     ja: "続行すると、",
     en: "By continuing you agree to the ",
@@ -2063,6 +2087,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "home.dayJournal": { ja: "この日の日記", en: "That day's diary", "zh-TW": "這天的日記" },
   "home.dayJournalUsed": { ja: "使った言葉", en: "Words used", "zh-TW": "用到的字" },
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages", "zh-TW": "以前的頁面" },
+  // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
+  // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
+  "home.todayPage": { ja: "今日の1ページ", en: "Today's Page", "zh-TW": "今天的一頁" },
+  // 右上の数字（これまでに捕まえた語）。裸の数字では何の数か分からないので
+  // 小さく添える（見本の絵は裸だが、実物では読む人が意味を取れない）。
+  "home.countLabel": { ja: "ことば", en: "words", "zh-TW": "個字" },
+  // 表紙の手書きの一言。**手元に在る事実だけで書く** — その日いちばん多く
+  // 出てくる場所の名前と、語の数。場所が1つも無い日は場所を言わない。
+  "home.tagline": {
+    ja: "今日は{n}つの言葉に出会った。",
+    en: "Caught {n} words today.",
+    "zh-TW": "今天遇到了 {n} 個字。",
+  },
+  "home.taglineAt": {
+    ja: "{place}で、{n}つの言葉に出会った。",
+    en: "{n} words, around {place}.",
+    "zh-TW": "在{place}，遇到了 {n} 個字。",
+  },
+  "home.todayTagline": {
+    ja: "きょう出会った言葉を、撮った時刻の順に。",
+    en: "Today's words, in the order you caught them.",
+    "zh-TW": "今天遇到的字，依拍下的時間排列。",
+  },
   "home.memories": { ja: "枚の思い出", en: "memories caught", "zh-TW": "張回憶" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet", "zh-TW": "還沒有照片" },
   "home.background": { ja: "背景", en: "Background", "zh-TW": "背景" },
@@ -2838,6 +2885,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't save your result — this word will come up again next time.",
     "zh-TW": "無法儲存結果。這個單字下次會再出一次。",
   },
+  /** 記憶の帯は色だけで、畳んでいる間は読む字が無い。声の案内はこれを読む。 */
+  "review.memoryBreakdown": { ja: "記憶の内訳", en: "Memory breakdown", "zh-TW": "記憶分布" },
   "review.memoryLoading": {
     ja: "記憶データを準備中です。",
     en: "Preparing memory data…",

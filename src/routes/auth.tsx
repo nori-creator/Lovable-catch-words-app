@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Mail } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
-import { AuthProviderButtons } from "@/components/AuthProviderButtons";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -146,88 +146,217 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/60 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-3xl bg-primary text-primary-foreground text-title font-bold shadow-lg shadow-primary/30">
-            C
-          </div>
-          <h1 className="text-title font-semibold tracking-tight">Catchwords</h1>
-          <p className="mt-1 text-body text-muted-foreground">{t("auth.tagline")}</p>
+    <AuthView
+      mode={mode}
+      setMode={setMode}
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      loading={loading}
+      onEmail={handleEmail}
+      onGoogle={handleGoogle}
+      onApple={handleApple}
+    />
+  );
+}
+
+/**
+ * 迎える面（オーナー指示 2026-09-17、見本の絵）。
+ *
+ * > 「ログイン画面はクロワッサンが映ってるものをデザイン、字体、色を完全
+ * >  再現して。ただし添付の画像は画像のようなステッカーではなく、ホーム
+ * >  画面で作ったような丸みを帯びた写真…にして。」
+ *
+ * 上に**角の丸い写真**を3枚、少しずつ傾けて重ねる（ホームの紙と同じ貼り方）。
+ * その下に見出し、手書きの Welcome!、そして入口のボタン。
+ *
+ * **面だけを切り出してある。** 通信も行き先も上の `AuthPage` が持っていて、
+ * ここは受け取った関数を呼ぶだけ — こうしないと雛形から描けず、
+ * 「入れたばかりの人が最初に見る面」を一度も機械で見られない。
+ */
+export function AuthView({
+  mode,
+  setMode,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  loading,
+  onEmail,
+  onGoogle,
+  onApple,
+}: {
+  mode: "signin" | "signup";
+  setMode: (m: "signin" | "signup") => void;
+  email: string;
+  setEmail: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  loading: boolean;
+  onEmail: (e: React.FormEvent) => void;
+  onGoogle: () => void;
+  onApple: () => void;
+}) {
+  const t = useT();
+  /** メールの欄は**押すまで出さない**（見本の絵と同じ。既定は2つのボタン）。 */
+  const [showEmail, setShowEmail] = useState(false);
+  return (
+    <div className="auth-page">
+      <div className="auth-inner">
+        <header className="auth-brand">
+          <img src="/icon-192.png" alt="" className="auth-brand__mark" />
+          <span className="auth-brand__name">CatchWords</span>
+        </header>
+
+        {/* 迎えの写真。**角の丸い写真**を少し傾けて重ねる（ホームの紙と同じ）。
+            `public/welcome/` に写真を置けばそれが出る。無ければ淡い地のまま
+            出る — **無い物を描かない**ので、置き忘れても壊れない。 */}
+        <div className="auth-photos" aria-hidden="true">
+          {[
+            { src: "/welcome/coffee.jpg", label: "咖啡", cls: "a" },
+            { src: "/welcome/flower.jpg", label: "flower", cls: "b" },
+            { src: "/welcome/croissant.jpg", label: "croissant", cls: "c" },
+          ].map((p) => (
+            <span key={p.cls} className={`auth-photo auth-photo--${p.cls}`}>
+              <img
+                src={p.src}
+                alt=""
+                loading="eager"
+                decoding="async"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+              <span className="auth-photo__label handwritten-ja">{p.label}</span>
+            </span>
+          ))}
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex gap-2 rounded-full bg-secondary p-1 text-footnote">
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className={`min-h-11 flex-1 rounded-full py-2.5 ${mode === "signin" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
-            >
-              {t("auth.signin")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`min-h-11 flex-1 rounded-full py-2.5 ${mode === "signup" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
-            >
-              {t("auth.signup")}
-            </button>
-          </div>
-
-          <form onSubmit={handleEmail} className="space-y-3">
-            <div>
-              <Label htmlFor="email">{t("auth.email")}</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
+        <h1 className="auth-hero">
+          {t("auth.heroA")}
+          <span className="auth-hero__accent">{t("auth.heroB")}</span>
+        </h1>
+        <div className="auth-lead">
+          <p className="auth-sub">{t("auth.tagline")}</p>
+          <p className="auth-welcome handwritten" aria-hidden="true">
+            Welcome!
+            <svg className="auth-welcome__rule" viewBox="0 0 120 8" preserveAspectRatio="none">
+              <path
+                d="M2 5C26 1 50 7 74 4s32-2 44 1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
               />
-            </div>
-            <div>
-              <Label htmlFor="password">{t("auth.password")}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "..." : mode === "signup" ? t("auth.signup") : t("auth.signin")}
-            </Button>
-          </form>
+            </svg>
+          </p>
+        </div>
 
-          <div className="my-4 flex items-center gap-2 text-footnote text-muted-foreground">
-            <div className="h-px flex-1 bg-border" />
+        <div className="auth-card">
+          <button type="button" className="auth-oauth" onClick={onGoogle} disabled={loading}>
+            <svg className="auth-oauth__icon" viewBox="0 0 48 48" aria-hidden="true">
+              <path
+                fill="#EA4335"
+                d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.4 17.7 9.5 24 9.5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M46.6 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9c4.4-4.1 7.2-10.2 7.2-17.4z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M10.4 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6.1C1 16.4 0 20.1 0 24s1 7.6 2.6 10.8l7.8-6.1z"
+              />
+              <path
+                fill="#34A853"
+                d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.8 2.3-8.3 2.3-6.3 0-11.7-3.9-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"
+              />
+            </svg>
+            {t("auth.google")}
+          </button>
+          <button
+            type="button"
+            className="auth-oauth auth-oauth--apple"
+            onClick={onApple}
+            disabled={loading}
+          >
+            <svg className="auth-oauth__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.9-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-2.9.9-3.7 2.3-1.6 2.8-.4 6.9 1.1 9.1.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2c.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.6zM14.2 5.3c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3z"
+              />
+            </svg>
+            {t("auth.apple")}
+          </button>
+
+          <div className="auth-or">
+            <span />
             {t("auth.or")}
-            <div className="h-px flex-1 bg-border" />
+            <span />
           </div>
 
-          <AuthProviderButtons
-            appleLabel={t("auth.apple")}
-            googleLabel={t("auth.google")}
-            loading={loading}
-            onApple={handleApple}
-            onGoogle={handleGoogle}
-          />
+          {showEmail ? (
+            <form onSubmit={onEmail} className="auth-form">
+              <div className="auth-field">
+                <Label htmlFor="email">{t("auth.email")}</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="auth-field">
+                <Label htmlFor="password">{t("auth.password")}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "…" : mode === "signup" ? t("auth.signup") : t("auth.signin")}
+              </Button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              className="auth-oauth auth-oauth--mail"
+              onClick={() => setShowEmail(true)}
+            >
+              <Mail aria-hidden className="h-5 w-5" />
+              {t("auth.emailLogin")}
+            </button>
+          )}
+
+          <p className="auth-switch">
+            {mode === "signin" ? t("auth.noAccount") : t("auth.haveAccount")}
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setShowEmail(true);
+              }}
+              className="auth-switch__link"
+            >
+              {mode === "signin" ? t("auth.signup") : t("auth.signin")}
+            </button>
+          </p>
         </div>
 
-        <p className="mt-6 text-center text-caption text-muted-foreground">
-          {t("auth.agreeBefore")}
-          <a href="/terms" className="inline-block py-3 -my-3 underline hover:text-foreground">
-            {t("auth.terms")}
-          </a>
-          {t("auth.agreeMid")}
-          <a href="/privacy" className="inline-block py-3 -my-3 underline hover:text-foreground">
-            {t("auth.privacy")}
-          </a>
-          {t("auth.agreeAfter")}
+        <p className="auth-legal">
+          <a href="/terms">{t("auth.terms")}</a>
+          <span aria-hidden="true">・</span>
+          <a href="/privacy">{t("auth.privacy")}</a>
         </p>
       </div>
     </div>

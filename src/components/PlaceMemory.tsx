@@ -127,7 +127,10 @@ export function PlaceMemoryCard({
     // **上から。** 端末の通知と同じ向きから降りてくる。
     // 安全域(ノッチ)を避けてから、その下に置く。
     <div className="fixed inset-x-4 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 material-in mx-auto max-w-md">
-      <div className="flex items-center gap-3 rounded-[28px] border border-white/80 bg-white/95 p-4 text-slate-900 shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
+      {/* **地はテーマに従わせる。** 明るい面を前提にした固定の白と濃紺を
+          直に書いていたので、暗いテーマでは白い板が1枚だけ浮き、しかも
+          中の字はトークンなので**白地に明るい灰色**になっていた（実測 2.21）。 */}
+      <div className="flex items-center gap-3 rounded-[28px] border border-border bg-card/95 p-4 text-foreground shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
         {/* **撮ったときの写真。** これが思い出す手がかりそのもの。
             まだ画像が無いカード(文字から作った語)だけ、場所の印に落ちる。 */}
         {memory.image_url ? (

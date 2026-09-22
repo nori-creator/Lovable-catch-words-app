@@ -300,6 +300,12 @@ const MODES = [
   // 雛形の枠を外して撮る(`BARE`)。
   ...crossThemes("onboarding", { scene: "onboarding" }),
   ["onboarding-starting", "", false, { scene: "onboarding", variant: "starting" }],
+  // 指で置く台紙。ホームからは呼んでいないが、消していないので見続ける
+  // (`scenes/home.tsx` の `HomeAlbumScene` の注)。
+  // 迎える面（ログイン）。**入れたばかりの人が最初に見る面。**
+  ...crossThemes("auth", { scene: "auth" }),
+  ["auth-signup", "", false, { scene: "auth", variant: "signup" }],
+  ...crossThemes("home-album", { scene: "home-album" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
   ...crossThemes("home-loading", { scene: "home-loading" }),
@@ -567,6 +573,10 @@ const FOCUS_MIN_RATIO = 3;
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
 const BARE_SCENES = new Set([
+  // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
+  "auth",
+  // 剥がして捕まえる演出（main 2026-09-19）も全画面。
+  "sticker-peel",
   "onboarding",
   "sticker-sheet",
   "capture-saving",
@@ -1510,10 +1520,14 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   const stick = await page.evaluate(
     async (bare) => {
       const out = [];
-      const bar = document.querySelector("header");
       // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
+      // **枠を被せない場面では、見つかった `<header>` はアプリのバーでは
+      // なく、その画面自身の見出し**（迎える面の誌名など）。それを
+      // 「sticky ではない」と咎めると、実物どおりに撮った場面が落ちる。
+      if (bare) return [];
+      const bar = document.querySelector("header");
       // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
-      if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
+      if (!bar) return ["上のバーが無い(ハーネスが実物と違う)"];
       // バーが本当に貼り付いているか。ここが relative だと、下の
       // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
       if (getComputedStyle(bar).position !== "sticky") {
