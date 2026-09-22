@@ -4697,9 +4697,13 @@ describe("ホームは今日の誌面", () => {
     );
     expect(page).not.toMatch(/<JournalLink/);
     expect(page).not.toMatch(/<JournalWritingPage/);
-    // 読む道は残っている。
-    expect(home).toMatch(/export function JournalLink\(/);
-    expect(home).toMatch(/<DayJournalPage/);
+    // **過去の日の向かいにも出さない**（オーナー指示 2026-09-22「ホームの
+    // 日記は消して」）。ホームは日記を読みすらしない。
+    expect(home).not.toMatch(/<DayJournalPage/);
+    expect(home).not.toMatch(/listJournal/);
+    expect(home).not.toMatch(/journals\?\.get\(/);
+    // 日記そのものは消していない（書く画面と読む部品は残る）。
+    expect(read("components/DayJournalPage.tsx")).toMatch(/export function DayJournalPage\(/);
   });
 
   it("**字だけの札も、押せる大きさ**（§11 の 44px）", () => {

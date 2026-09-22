@@ -20,9 +20,7 @@ import {
 import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { DayJournalPage } from "@/components/DayJournalPage";
 import { groupBySpan, keyToDate } from "@/lib/album-span";
-import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
@@ -48,7 +46,6 @@ import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
-import { JOURNAL_ENABLED } from "@/lib/features";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -302,37 +299,11 @@ function HomePage() {
     }));
   }, [stickers, todayKey]);
 
-  /**
-   * 日付ごとの日記(要望 #22)。
-   *
-   * 日記の画面と**同じ問い合わせ鍵**を使うので、どちらかを開いていれば
-   * もう一方は取り直さない。失敗しても黙って消える — 日記が出ないことで
-   * ホームを止めない。
-   *
-   * **直した文が在ればそちら、無ければ下書き。** 添削前の日も本には残る。
+  /*
+   * **ホームに日記は出さない**（オーナー指示 2026-09-22「ホームの日記は
+   * 消して」）。前はここで日記を読み、過去の日の写真の向かいに挟んでいた。
+   * 日記そのもの（`/journal` と `DayJournalPage`）は消していない。
    */
-  const fetchJournal = useServerFn(listJournal);
-  const { data: journalEntries } = useQuery({
-    queryKey: ["journal"],
-    queryFn: () => fetchJournal(),
-    enabled: JOURNAL_ENABLED,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-  const journalsByDay = useMemo(() => {
-    const m = new Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>();
-    for (const e of journalEntries ?? []) {
-      const body = (e.correction ?? e.user_draft ?? "").trim();
-      // **空の日は入れない。** 入れると空の紙が本に挟まる。
-      if (!body) continue;
-      m.set(e.entry_date, {
-        body,
-        note: e.feedback_ja,
-        used_sticker_ids: e.used_sticker_ids ?? [],
-      });
-    }
-    return m;
-  }, [journalEntries]);
   return (
     <AppShell>
       <DayMasthead date={today} total={total} tagline={dayTagline(todayStickers, t)} />
@@ -398,7 +369,6 @@ function HomePage() {
           truncated={truncated}
           shown={shown}
           total={total}
-          journals={JOURNAL_ENABLED ? journalsByDay : undefined}
         />
       )}
       <StickerSheet
@@ -490,7 +460,6 @@ export function PastDays({
   truncated,
   shown,
   total,
-  journals,
   onLongPress,
 }: {
   days: Array<[string, StickerWithWord[]]>;
@@ -500,12 +469,6 @@ export function PastDays({
   total: number;
   /** 写真の長押し。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
-  /**
-   * 日付(YYYY-MM-DD)ごとの日記(要望 #22)。
-   * **無い日は入っていない** — 日記の無い日に空の枠を並べると、
-   * 本が書き損じの束に見える。
-   */
-  journals?: Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>;
 }) {
   const t = useT();
   const dateLocale = localeOf(useUiLang());
@@ -537,25 +500,6 @@ export function PastDays({
               「ホームの画面の日、週、月のボタンを消して」)。 */}
           <DayHeader date={keyToDate(k)} compact />
           <DayCollage stickers={items} onOpen={onOpen} onLongPress={onLongPress} />
-          {/* 写真のページの**向かい**に日記を置く(要望 #22)。
-              使った語は `used_sticker_ids` から出す — 書かれてはいたが
-              **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
-              id を突き合わせるだけでよく、問い合わせは増えない。 */}
-          {(() => {
-            // **日記の紙は日ごとのページにだけ挟む。** 週や月の束には
-            // 何日ぶんもの日記が入り得るので、どれを見開きに置くのか
-            // 決められない(適当に1日ぶんだけ出すと、書いた日が消える)。
-            const j = journals?.get(k);
-            if (!j) return null;
-            const used = new Set(j.used_sticker_ids);
-            return (
-              <DayJournalPage
-                body={j.body}
-                note={j.note}
-                usedWords={items.filter((s) => used.has(s.id)).map((s) => s.word.headword)}
-              />
-            );
-          })()}
         </div>
       ))}
     </section>

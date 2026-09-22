@@ -25,7 +25,7 @@ import {
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { JournalComposer } from "@/components/JournalComposer";
-import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
+import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
@@ -173,9 +173,7 @@ export function HomeLoadingScene() {
 /**
  * 過去の日。区切り線と、出し切れていないときの断り。
  *
- * **日記の在る日と無い日を1枚に入れる**(要望 #22)。
- * 無い日に空の枠が並んでいないか、在る日が写真のページと
- * 向かい合って見えるか — どちらも絵でしか分からない。
+ * **日記は出さない**（オーナー指示 2026-09-22「ホームの日記は消して」）。
  */
 export function HomePastScene({ q }: { q: URLSearchParams }) {
   // 束ね方(オーナー指摘⑪)。日以外では**日記の紙を出さない**ので、
@@ -190,30 +188,7 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
     FIXTURES.slice(0, 4).map((f, i) => makeSticker(f, i, d)),
   );
   const days = groupBySpan(shots, (s) => new Date(s.created_at), span);
-  // いちばん新しい束の1日目にだけ日記を置く。ほかは**何も出ないのが正しい姿**。
-  const first = days[0];
-  const journals = new Map([
-    [
-      // 日記は**地方時の**日付を鍵に持つ。`created_at` は UTC の文字列
-      // なので、頭10文字を切ると UTC より西の人で1日ずれる。
-      localDayKey(new Date(first[1][0].created_at)),
-      {
-        body: "今天在士林夜市喝了珍珠奶茶。天氣很熱,所以我點了少冰。老闆問我要不要加珍珠,我說要。",
-        note: "「去」の後ろに「了」を入れると、行った動作が完了したことがはっきりします。",
-        used_sticker_ids: [first[1][0].id, first[1][2].id],
-      },
-    ],
-  ]);
-  return (
-    <PastDays
-      days={days}
-      onOpen={() => {}}
-      truncated
-      shown={1000}
-      total={1342}
-      journals={journals}
-    />
-  );
+  return <PastDays days={days} onOpen={() => {}} truncated shown={1000} total={1342} />;
 }
 
 /**
