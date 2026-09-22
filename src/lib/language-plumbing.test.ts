@@ -4566,20 +4566,25 @@ describe("ホームは今日の誌面", () => {
     expect(at.slice(0, 260)).toMatch(/Number\.isNaN/);
   });
 
-  it("**紙もマスキングテープも戻さない**（オーナー指示 2026-09-18）", () => {
-    // > 「やっぱり背景の紙なくして。マスキングテープもなしくて。」
-    // 貼り物が増えるほど1枚あたりの場所を食い、同じ画面に入る枚数が減る。
-    // **傾きと重なりは別**（2026-09-22「いろんな角度で画像が有機的に
-    // 重なりかさあって1つの作品になるように」）。
+  it("**壁に貼る。ただし壁は誌面の中だけ**（オーナー指示 2026-09-22）", () => {
+    // > ホーム画面、やっぱり背景、壁が必要だわ。…前のように壁に付箋や
+    // > 四隅を固定して画像を張るようにして。
+    // 2026-09-18 の「紙なくして。マスキングテープもなしくて」を上書きする指示。
+    // **画面全体（AppShell）は紙にしない** — 表紙とタブ帯はアプリの面のまま。
     const css = read("styles.css");
     expect(css).not.toMatch(/\.app-paper/);
-    expect(css).not.toMatch(/\.day-sheet/);
-    expect(css).not.toMatch(/^\.washi \{/m);
-    const cl = collageOnly();
-    expect(cl).not.toMatch(/washi|day-sheet|photo-print|tapesFor/);
-    // 地はアプリの既定に戻す（`AppShell` に紙の面を持たせない）。
     const shell = codeOnly(read("../src/components/AppShell.tsx"));
     expect(shell).not.toMatch(/app-paper|surface/);
+    const cl = collageOnly();
+    // 誌面そのものに壁の地を敷く（既定は紙）。
+    expect(cl).toMatch(/surface = "album-bg-paper"/);
+    expect(cl).toMatch(/className=\{`collage collage-board relative \$\{surface\}/);
+    // 写真はテープか四隅で留める（字だけの札は留めない）。
+    expect(cl).toMatch(/\{heroUrl && <CollageFasteners id=\{s\.id\} \/>\}/);
+    // 壁の中の字は紙用の色に固定（暗いテーマでも明るい紙の上）。
+    const board = cssBlock(".collage-board {", "\n}");
+    expect(board).toMatch(/--foreground: var\(--album-ink\);/);
+    expect(board).toMatch(/--muted-foreground: var\(--album-ink-dim\);/);
   });
 
   it("**手描きの線でも1本の道でも繋がない**（オーナー指示 2026-09-17）", () => {
@@ -4608,8 +4613,12 @@ describe("ホームは今日の誌面", () => {
     expect(collageOnly()).toMatch(/collageRatio\(photoRatio\[id\] \?\? PLACEHOLDER_RATIO\)/);
   });
 
-  it("**写真の角は丸みを帯びさせる**", () => {
-    expect(cssBlock(".collage__photo {", "\n}")).toMatch(/border-radius: 12px/);
+  it("**写真は白い縁の印画紙。角は少しだけ丸める**", () => {
+    // 2026-09-17「写真の角は丸みを帯びさせて」。12px まで丸めるとアプリの
+    // カードに見えるので、紙の縁は 6px。
+    const photo = cssBlock(".collage__photo {", "\n}");
+    expect(photo).toMatch(/border-radius: 6px/);
+    expect(photo).toMatch(/padding: 5px/);
   });
 
   it("**アプリが書く字はゴシック、人が書いた字は手書き**", () => {
@@ -5273,16 +5282,23 @@ describe("画像の右上の記憶の印", () => {
     expect(grid).not.toMatch(/absolute (left|right)-1\.5 top-1\.5[^"]*amber/);
   });
 
-  it("**狭い札でも % は欠けない**（段の名前だけを詰める）", () => {
+  it("**色と数だけ**（オーナー指示 2026-09-22「その色と数字だけでいい」）", () => {
     const badge = codeOnly(read("components/MemoryBadge.tsx"));
-    expect(badge).toMatch(/className="min-w-0 truncate">\s*\{label\}/);
     expect(badge).toMatch(/className="shrink-0 tabular-nums">\s*\{info\.strength\}%/);
+    // 段の名前は画面に出さない（読み上げにだけ残す）。
+    expect(badge).not.toMatch(/>\s*\{label\}\s*</);
+    expect(badge).toMatch(
+      /aria-label=\{t\("memory\.badgeAria", \{ label, n: info\.strength \}\)\}/,
+    );
+    // 色は段の色。
+    expect(badge).toMatch(/\$\{info\.level\.chip\}/);
   });
 
-  it("**復習の出題カードの右上も、段と % を出す**", () => {
+  it("**復習の出題カードの右上も、段の色と % だけ**", () => {
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
     const b = rv.slice(rv.indexOf("export function CardMemoryBadge("));
-    expect(b.slice(0, 1800)).toMatch(/\{t\(lv\.labelKey\)\} \{strength\}%/);
+    expect(b.slice(0, 1800)).toMatch(/<span className="tabular-nums">\{strength\}%<\/span>/);
+    expect(b.slice(0, 1800)).not.toMatch(/\{t\(lv\.labelKey\)\} \{strength\}%/);
   });
 });
 

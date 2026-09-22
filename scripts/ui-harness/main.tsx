@@ -295,21 +295,20 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "home", label: "ホーム（今日の誌面・日付の見出し）" },
+  // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
+  { scene: "home", label: "ホーム（壁に貼った誌面・テープと四隅）" },
+  { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
+  { scene: "gallery", label: "図鑑（右上の記憶の色と %）" },
+  { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
-  { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
   { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
-  // 2026-09-22 の直し（狭い画面・指・声）で触った面。
-  { scene: "word-card", label: "単語カード（横のはみ出しを直した）" },
-  { scene: "review-memory", label: "復習の記憶の帯（指の下限と声の案内）" },
+  { scene: "word-card", label: "単語カード" },
+  { scene: "review-memory", label: "復習の記憶の帯" },
   { scene: "capture-object", label: "カメラの画面" },
   { scene: "tabbar", label: "下の帯" },
-  // main から合流した、別の作業で見る面。
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
   { scene: "settings-polish", label: "設定・言語選択" },
-  { scene: "capture-reunion", label: "同じ単語に写真を追加" },
-  { scene: "place-memory", label: "母語の復習通知" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },
   { scene: "review-memory-list", label: "記憶の一覧" },
 ];

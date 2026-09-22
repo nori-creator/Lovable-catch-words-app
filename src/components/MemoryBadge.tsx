@@ -2,7 +2,7 @@ import { useT } from "@/lib/i18n";
 import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 
 /**
- * 画像の右上の**記憶の印**（段の名前 + %）。
+ * 画像の右上の**記憶の印**（段の色 + %）。
  *
  * 色は段ごとのトークン（`mem-lv-N mem-chip`）で持つ — 暗いテーマでも
  * 読める濃さが styles.css 側で測ってある。**写真の上に乗る**ので、
@@ -24,11 +24,9 @@ export function MemoryBadge({
       aria-label={t("memory.badgeAria", { label, n: info.strength })}
     >
       <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${info.level.bar}`} />
-      {/* 狭い札（320px の画面で1枚 90px ほど）では段の名前だけを詰め、
-       **% は必ず残す** — 数が欠けると印の意味が無くなる。 */}
-      <span aria-hidden="true" className="min-w-0 truncate">
-        {label}
-      </span>
+      {/* **色と数だけ**（オーナー指示 2026-09-22「画像の右上の記憶の状態は
+          その色と数字だけでいい」）。段の名前は読み上げ（`aria-label`）に
+          だけ残す — 画面では色が段を、数が強さを言う。 */}
       <span aria-hidden="true" className="shrink-0 tabular-nums">
         {info.strength}%
       </span>

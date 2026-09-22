@@ -687,13 +687,11 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
       className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold ${lv.chip} before:absolute before:-inset-y-3 before:-inset-x-2 before:content-[''] active:scale-95`}
     >
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-      {/* **段の名前と % を並べる**（オーナー指示 2026-09-22「図鑑や復習の
-          単語の画像の右上にその単語の記憶の状態と記憶数値を書きたして」）。
-          以前は独立監査（「定着中 72%」が同じ画面の「定着中 1(語)」と
-          読み比べられて *定着中 = 72%* と読める）を受けて段の名前だけに
-          していた。オーナーの指示で数を戻す。図鑑の印と同じ形・同じ数
-          （`MemoryBadge` / `memoryOf`）。 */}
-      {t(lv.labelKey)} {strength}%
+      {/* **段の色と % だけ**（オーナー指示 2026-09-22「画像の右上の記憶の
+          状態はその色と数字だけでいい」）。図鑑の印と同じ形・同じ数
+          （`MemoryBadge` / `memoryOf`）。段の名前は読み上げにだけ残す
+          （上の `aria-label`）。 */}
+      <span className="tabular-nums">{strength}%</span>
     </button>
   );
 }

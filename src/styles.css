@@ -6476,21 +6476,157 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 
    **紙とテープは戻さない**（オーナー指示 2026-09-18）。残したのは
    「角の丸い写真・傾き・重なり・紙の札」。 */
+/* ── 壁（台紙）────────────────────────────────────────────────────
+   オーナー指示 2026-09-22:
+   > ホーム画面、やっぱり背景、壁が必要だわ。…前のように壁に付箋や四隅を
+   > 固定して画像を張るようにして。あと文字は必ず見えるようにして。
+
+   2026-09-18 に「紙なくして。マスキングテープもなしくて」で外したものを、
+   **その日の誌面の中だけに**戻す。画面全体（`AppShell`）を紙にはしない —
+   表紙（日付）と下のタブ帯はアプリの面のまま、写真の載る所だけが壁。
+
+   地は `album-bg-*`（紙・額・ノート・コルク）のどれか。既定は紙。
+
+   ## 字の色は壁に合わせて固定する
+   壁は**テーマに関わらず明るい**。その上にテーマ追従の色を載せると、
+   暗いテーマで「明るい灰色を白い紙に」書くことになる（以前 2.39:1 まで
+   落ちた）。壁の中だけ色の変数を差し替え、後から何を載せても紙用の色になる
+   ようにする（2026-09-17 に画面全体の紙でやったのと同じ考え方）。 */
 .collage {
-  /* 台紙を敷かない。写真そのものが面を作る。 */
   margin-block: 0 1.25rem;
 }
-/* 写真。**角を丸め、地から浮かせる。** 白フチも三角コーナーも付けない。 */
+.collage-board {
+  --foreground: var(--album-ink);
+  --muted-foreground: var(--album-ink-dim);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: var(--album-ink);
+  --secondary: oklch(0.945 0.008 85);
+  color: var(--album-ink);
+  border-radius: 22px;
+  /* 壁の縁ぎりぎりに写真を置かない。傾いた角とテープがはみ出す余地。 */
+  padding: 1.1rem 0.75rem 1.25rem;
+  box-shadow:
+    0 1px 2px rgba(60, 42, 18, 0.08),
+    0 18px 36px -20px rgba(60, 42, 18, 0.35);
+}
+/* 写真。**白い縁のある印画紙**として貼る（見本の絵のとおり）。
+   角は少しだけ丸める（オーナー指示 2026-09-17「写真の角は丸みを帯びさせて」）
+   — ただし 12px まで丸めると印画紙ではなくアプリのカードに見えるので、
+   紙の縁は 6px、中の絵は 3px。 */
 .collage__photo {
+  position: relative;
   display: block;
   height: 100%;
   width: 100%;
   overflow: hidden;
-  border-radius: 12px;
-  background: var(--secondary);
+  border-radius: 6px;
+  padding: 5px;
+  background: oklch(0.995 0.004 85);
   box-shadow:
-    0 1px 2px color-mix(in oklab, var(--foreground) 12%, transparent),
-    0 12px 26px -14px color-mix(in oklab, var(--foreground) 30%, transparent);
+    0 1px 2px rgba(60, 42, 18, 0.14),
+    0 12px 22px -12px rgba(60, 42, 18, 0.38);
+}
+.collage__photo img {
+  border-radius: 3px;
+}
+
+/* ── 留め具 ───────────────────────────────────────────────────────
+   どれで留めるかは `lib/collage-decor.ts`（`id` から決まる）。 */
+
+/* マスキングテープ。本物は ①和紙なので**下が透ける** ②**縦の繊維**が
+   走る ③端は手でちぎるので毛羽立つ ④紙に密着するので影はごく浅い。
+   （2026-09-17 に作った物を、写真の留め具として戻した。） */
+.collage-tape {
+  position: absolute;
+  z-index: 2;
+  width: 3.4rem;
+  height: 1rem;
+  pointer-events: none;
+  background-color: var(--tape);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.28) 0 1px,
+      transparent 1px 2px,
+      rgba(255, 255, 255, 0.14) 2px 3px,
+      transparent 3px 5px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.07) 0,
+      transparent 18%,
+      transparent 82%,
+      rgba(0, 0, 0, 0.07) 100%
+    );
+  opacity: 0.82;
+  clip-path: polygon(
+    3% 0,
+    0 26%,
+    4% 52%,
+    1% 78%,
+    3% 100%,
+    97% 100%,
+    100% 74%,
+    96% 48%,
+    99% 22%,
+    97% 0
+  );
+  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.16));
+}
+.collage-tape--top {
+  top: -0.45rem;
+  left: 50%;
+  translate: -50% 0;
+}
+.collage-tape--corner-tl {
+  top: 0.35rem;
+  left: -0.9rem;
+}
+.collage-tape--corner-tr {
+  top: 0.35rem;
+  right: -0.9rem;
+}
+.collage-tape--iris {
+  --tape: #c3ccef;
+}
+.collage-tape--sage {
+  --tape: #c9d6c2;
+}
+.collage-tape--rose {
+  --tape: #edc9cc;
+}
+.collage-tape--cream {
+  --tape: #eee5cd;
+}
+/* 三角コーナー（アルバムの台紙に差し込む紙の角）。 */
+.collage-corner {
+  position: absolute;
+  z-index: 2;
+  width: 1.05rem;
+  height: 1.05rem;
+  pointer-events: none;
+  background: oklch(0.3 0.03 68 / 0.82);
+  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.25));
+}
+.collage-corner--tl {
+  top: -2px;
+  left: -2px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.collage-corner--tr {
+  top: -2px;
+  right: -2px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.collage-corner--bl {
+  bottom: -2px;
+  left: -2px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.collage-corner--br {
+  bottom: -2px;
+  right: -2px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 /**
  * **文字から調べた語。**（オーナー指示 2026-09-22「文字で検索したものは
