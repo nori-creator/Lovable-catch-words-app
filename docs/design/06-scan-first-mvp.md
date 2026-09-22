@@ -1,4 +1,9 @@
-# Catchwords 統合マスター仕様書 v2 — Scan-First MVP
+# Catchwords 統合マスター仕様書 v2 — Scan-First MVP (Historical)
+
+> ⚠️ **HISTORICAL / OBSOLETE PRODUCT SPEC (2026-09-23)**
+> This file is retained only as implementation history. It is **not** the current Source of Truth.
+> For all new work, use root `PRODUCT.md`, `ROADMAP.md`, `ARCHITECTURE.md`, and `QA.md`.
+> Any “唯一の正式仕様 / Source of Truth” wording below is superseded and must not be followed when it conflicts with those files.
 
 > この文書は Catchwords の**唯一の正式仕様(Source of Truth)**である。
 > リポジトリ内の `docs/design/01〜05` と矛盾する場合は**本書を優先**する。
