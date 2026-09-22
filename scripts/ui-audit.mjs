@@ -1520,10 +1520,14 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
   const stick = await page.evaluate(
     async (bare) => {
       const out = [];
-      const bar = document.querySelector("header");
       // 全画面の面(入れて最初に見る画面など)には実物にもバーが無い。
+      // **枠を被せない場面では、見つかった `<header>` はアプリのバーでは
+      // なく、その画面自身の見出し**（迎える面の誌名など）。それを
+      // 「sticky ではない」と咎めると、実物どおりに撮った場面が落ちる。
+      if (bare) return [];
+      const bar = document.querySelector("header");
       // **無いことを咎めると、実物どおりに撮った場面が落ちる。**
-      if (!bar) return bare ? [] : ["上のバーが無い(ハーネスが実物と違う)"];
+      if (!bar) return ["上のバーが無い(ハーネスが実物と違う)"];
       // バーが本当に貼り付いているか。ここが relative だと、下の
       // 「止まる位置」の話が全部意味を失う(実際そうなっていた)。
       if (getComputedStyle(bar).position !== "sticky") {

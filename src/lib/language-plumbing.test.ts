@@ -4875,3 +4875,100 @@ describe("狭い画面と指と声", () => {
     );
   });
 });
+
+/**
+ * 絵の検査（`node scripts/ui-audit.mjs`）が出した赤のうち、**画素で測って
+ * 本当だったもの**だけを直した分（2026-09-22）。
+ *
+ * 箱の大きさで測る「タップ領域」の赤は、この作業場が前から使っている
+ * 見えない `::before` の当たり判定を見ないので偽の警報だった（`elementFromPoint`
+ * で押し直して確かめた）。ここに門を置いたのは、**色と大きさ**の方だけ。
+ */
+describe("絵の検査で出た赤（実測で本当だったもの）", () => {
+  it("**使う場面の計器の字を階調の外に置かない**（9px / 10px）", () => {
+    const css = read("styles.css");
+    const block = css.slice(
+      css.indexOf(".usage-meter__number {"),
+      css.indexOf("@keyframes usage-meter-rise"),
+    );
+    expect(block).toMatch(/font-size: var\(--text-caption\)/);
+    for (const sel of [".usage-register__labels {", ".usage-scenes__items .scene-chip {"]) {
+      const b = css.slice(css.indexOf(sel), css.indexOf("}", css.indexOf(sel)));
+      expect(b.length).toBeGreaterThan(0);
+      expect(b).not.toMatch(/font-size: [\d.]+rem/);
+    }
+  });
+
+  it("**迎える面の写真の下地をテーマに従わせる**（手書きのラベルが読めない）", () => {
+    // 淡い色を直書きしていたので、暗いテーマでは地も字も明るくなり
+    // 実測 1.47〜2.05 だった（直して 4.81 / 6.56）。
+    const css = read("styles.css");
+    const b = css.slice(css.indexOf("\n.auth-photo {"), css.indexOf("\n.auth-photo img"));
+    expect(b).not.toMatch(/#[0-9a-f]{6}/i);
+    expect(b).toMatch(/color-mix\(in oklab, var\(--primary\) \d+%, var\(--card\)\)/);
+  });
+
+  it("**手書きの Welcome! は字のための色を使う**（22px は本文と同じ 4.5:1）", () => {
+    const css = read("styles.css");
+    const b = css.slice(css.indexOf("\n.auth-welcome {"), css.indexOf("\n.auth-welcome__rule"));
+    expect(b).toMatch(/color: var\(--primary-ink\)/);
+  });
+
+  it("**例文の語と計器の値は、塗りの色そのままで字にしない**", () => {
+    // `--pos` / `--primary` は塗るための色。15px の本文に使うと 3.31〜4.03。
+    const css = read("styles.css");
+    const at = css.indexOf("\n.chunk-word,");
+    const chunk = css.slice(at, css.indexOf("}", at));
+    expect(chunk).toMatch(/color: color-mix\(in oklab, var\(--pos\) \d+%, var\(--foreground\)\)/);
+    const reg = css.slice(
+      css.indexOf(".usage-register__value {"),
+      css.indexOf("}", css.indexOf(".usage-register__value {")),
+    );
+    expect(reg).toMatch(/color: var\(--primary-ink\)/);
+  });
+
+  it("**はがす案内の地を透かしすぎない**（明るい写真の上で白い字が消える）", () => {
+    const css = read("../src/components/peel-sticker.css");
+    const b = css.slice(
+      css.indexOf(".cw-peel-hint {"),
+      css.indexOf("}", css.indexOf(".cw-peel-hint {")),
+    );
+    expect(b).toMatch(/background: rgba\(\d+, \d+, \d+, 0\.[89]\d?\)/);
+  });
+
+  it("**アルバムの台紙は `background-image` で色ごと消さない**", () => {
+    // 台紙の色は `.album-bg-*` が `background` の短縮形で置いている＝**画像の層**。
+    // 後から `background-image` を書くと色ごと消え、暗いテーマでは
+    // 真っ黒な台紙に濃い茶色の字（実測 1.42）になっていた。
+    const css = read("styles.css");
+    const page = css.slice(css.indexOf("\n.album-page {"), css.indexOf("\n.album-page::before"));
+    expect(page.length).toBeGreaterThan(0);
+    expect(page).not.toMatch(/background-image:/);
+    // 紙の繊維は上に重ねる層（`::before`）へ移した。
+    const over = css.slice(css.indexOf("\n.album-page::before"), css.indexOf("\n/* 印画紙"));
+    expect(over).toMatch(/fractalNoise/);
+  });
+
+  it("**場所の知らせもテーマに従う**（白い板に明るい灰色の字）", () => {
+    const src = codeOnly(read("components/PlaceMemory.tsx"));
+    expect(src).not.toMatch(/bg-white\/95|text-slate-900/);
+    expect(src).toMatch(/bg-card\/95/);
+  });
+
+  it("**再会の面と倍率の字は階調の7段から選ぶ**", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const panel = cap.slice(cap.indexOf("export function ReencounterPanel"));
+    expect(panel.length).toBeGreaterThan(0);
+    expect(panel.slice(0, 3000)).not.toMatch(/className="[^"]*\btext-(xs|sm|base|lg|xl|[2-9]xl)\b/);
+    const chrome = codeOnly(read("components/CameraChrome.tsx"));
+    expect(chrome).not.toMatch(/<output className="text-lg/);
+  });
+
+  it("**枠を被せない場面の `<header>` を、アプリのバーと取り違えない**", () => {
+    // 迎える面は自前で全画面。誌名の `<header>` を「sticky ではない」と
+    // 咎めていた（実物にアプリのバーが無い面なので、見るものが無い）。
+    const audit = read("../scripts/ui-audit.mjs");
+    const fn = audit.slice(audit.indexOf("const stick = await page.evaluate"));
+    expect(fn.slice(0, 900)).toMatch(/if \(bare\) return \[\];/);
+  });
+});

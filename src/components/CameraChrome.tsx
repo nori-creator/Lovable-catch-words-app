@@ -264,7 +264,7 @@ export function CameraZoomMeter({
   const stops = zoomStops(min, max);
   return (
     <div className={`camera-zoom-ruler ${className}`} role="group" aria-label={t("scan.zoom")}>
-      <output className="text-lg font-semibold tabular-nums text-amber-200">
+      <output className="text-headline font-semibold tabular-nums text-amber-200">
         {zoom.toFixed(1)}×
       </output>
       {max > min && (

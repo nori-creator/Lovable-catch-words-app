@@ -74,7 +74,11 @@
   font-size: 11px;
   letter-spacing: 0.02em;
   color: #fff;
-  background: #2227;
+  /* **地を透かしすぎない。** `#2227`(47%) だと明るい写真の上では
+     白い字が白い地に溶ける（実測 1.00 = まったく読めない。写真が
+     まだ無い面ではそのまま白地になる）。82% なら、真っ白な上でも
+     8:1 前後、暗い写真の上でも同じように読める。 */
+  background: rgba(24, 24, 27, 0.82);
   border: 1px solid #fff3;
   border-radius: 30px;
   padding: 6px 12px;
