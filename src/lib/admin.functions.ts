@@ -257,10 +257,13 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
       }
     }
     // 機能ごとの割り当て。空文字は「既定に戻す」なので保存しない。
+    // 機能の名前も決め打ち — 知らない機能名は受け取らない。
+    const ALLOWED_FEATURES = ["scan", "card", "review", "journal", "audit"] as const;
     const rawFeatures = data.config.features;
     if (rawFeatures && typeof rawFeatures === "object") {
       const features: Record<string, string> = {};
-      for (const [k, v] of Object.entries(rawFeatures)) {
+      for (const k of ALLOWED_FEATURES) {
+        const v = (rawFeatures as Record<string, unknown>)[k];
         if (typeof v === "string" && v.trim()) features[k] = v.trim();
       }
       if (Object.keys(features).length > 0) clean.features = features;
@@ -271,6 +274,6 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
       updated_by: context.userId,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw internalFailure("admin", error, "設定を保存できませんでした");
     return { ok: true, config: clean };
   });
