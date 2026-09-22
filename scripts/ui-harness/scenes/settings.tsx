@@ -36,7 +36,6 @@ import {
   SettingsCard,
   SoundAndHapticsPanel,
   LEVEL_OPTIONS,
-  VideoRecordingToggle,
 } from "@/routes/_authenticated/settings";
 import { PickerRow } from "@/components/PickerRow";
 import { Button } from "@/components/ui/button";
@@ -142,8 +141,8 @@ export function SettingsChoicesScene() {
         />
       </div>
       {/* 束の**中**に入る。丸い列の下に区切り線で足されるので、
-          外に出すと区切り線の位置も余白も別物になる。 */}
-      <VideoRecordingToggle />
+          外に出すと区切り線の位置も余白も別物になる。
+          録画（インカメ）は 2026-09-22 に消し、「撮影後に自撮り」に置き換えた。 */}
       <PhotoLibrarySyncToggle />
       <PlaceReminderToggle />
     </SettingsCard>

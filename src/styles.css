@@ -7022,22 +7022,101 @@ html[data-motion="reduce"] .reward-catch__field::after {
 .settings-page input {
   border-radius: 16px;
 }
-.camera-zoom-ruler {
-  width: min(80vw, 310px);
-  padding: 10px 16px;
-  border-radius: 24px;
-  background: #061423bb;
-  color: white;
-  backdrop-filter: blur(20px);
-  text-align: center;
+/* ── 倍率（`components/CameraChrome.tsx` の `CameraZoomMeter`）───────────
+   オーナー指示 2026-09-22「カメラの倍率のやつが大きすぎる。デフォルトは
+   整数だけの倍率を並べて、そこをタップするとメーターを触れるように。
+   また、そのメーター自体も縦に小さく薄くして」。
+
+   前は 310px の板に大きな読み上げ値・目盛りの帯・44px のつまみを**常に**
+   出していて、映像の下端を 100px 近く塞いでいた。普段は粒だけ。 */
+.camera-zoom {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
 }
-.camera-zoom-ruler input {
+.camera-zoom__stops {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  /* iPhone と同じ、映像の上に浮く薄い丸帯。 */
+  background: #0b182ba8;
+  backdrop-filter: blur(16px);
+}
+.camera-zoom__stop {
+  /* **見た目は小さく、指は 44px。** 粒そのものを大きくすると iPhone に
+     見えなくなるので、当たり判定だけを見えない `::before` で広げる。 */
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #ffffffcc;
+  transition:
+    background 0.18s var(--ease-ios),
+    color 0.18s var(--ease-ios);
+}
+.camera-zoom__stop::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.125rem;
+}
+.camera-zoom__stop[data-on] {
+  background: #ffffff1f;
+  color: #ffd268;
+}
+/* 細かい目盛り。**縦に小さく薄く。** つまみは指で掴むので当たりだけ残す。 */
+.camera-zoom__fine {
+  width: min(66vw, 240px);
+  padding: 0 0.25rem;
+}
+.camera-zoom__fine input {
+  /* **`appearance: none` は input 側にも要る。** つまみだけに付けても
+     下の帯はブラウザ既定のまま（10px ほど）で、細くならない。 */
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
   width: 100%;
-  min-height: 44px;
-  accent-color: #ffd268;
+  height: 1.75rem;
+  margin: 0;
+  background: transparent;
 }
-.camera-zoom-ruler__ticks {
+.camera-zoom__fine input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+.camera-zoom__fine input::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: #ffffff59;
+}
+.camera-zoom__fine input::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: #ffffff59;
+}
+.camera-zoom__fine input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
   height: 14px;
-  background: repeating-linear-gradient(90deg, #ffffff70 0 1px, transparent 1px 10px);
-  mask-image: linear-gradient(90deg, transparent, black 10% 90%, transparent);
+  margin-top: -5.5px;
+  border-radius: 999px;
+  background: #ffd268;
+  box-shadow: 0 1px 3px #00000059;
+}
+.camera-zoom__fine input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffd268;
+  box-shadow: 0 1px 3px #00000059;
 }
