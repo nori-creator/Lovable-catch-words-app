@@ -37,13 +37,8 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
-import {
-  ScanCameraScene,
-  ScanChipScene,
-  ScanDotsScene,
-  ScanFoundScene,
-  ScanNothingScene,
-} from "./scenes/scan";
+import { ScanResultScene } from "./scenes/scan-result";
+import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import {
   WordbookShelfScene,
   WordbookQuizScene,
@@ -154,7 +149,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-pick": CapturePickScene,
   "capture-reunion": CaptureReunionScene,
   "scan-chip": ScanChipScene,
-  "scan-found": ScanFoundScene,
+  "scan-found": ScanResultScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -300,6 +295,8 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
+  { scene: "scan-found", label: "スキャンの後（候補の1行・光が揺れる）" },
+  { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
   { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },
   { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
   { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },

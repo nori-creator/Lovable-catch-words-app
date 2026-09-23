@@ -4902,8 +4902,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-22 の記憶のグラフ）。ホームも同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-curve"/);
+    // （2026-09-22 のスキャンの後の面）。記憶のグラフ・ホームも同じ PR で
+    // 直したので帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "scan-found"/);
+    expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "memory-overall"/);
   });
 });
@@ -5361,5 +5363,47 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     expect(chart).toMatch(/t\("curve\.reviewNow"\)/);
     expect(chart).toMatch(/t\("curve\.reviewOn"/);
     expect(chart).toMatch(/to="\/review"\s+search=\{\{ sticker: stickerId \}\}/);
+  });
+});
+
+describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", () => {
+  const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+  const css = read("styles.css");
+
+  it("**写真は画面いっぱい**で止める（短い箱に押し込むと下に黒い地が出て、点もずれる）", () => {
+    expect(scan).toMatch(
+      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-cover"/,
+    );
+    expect(scan).not.toMatch(/calc\(100% - \$\{sheetSize\.h \+ 24\}px\)/);
+    // 点は写真と同じ切り落としで置く。
+    expect(scan).toMatch(/coverPoint\(it\.point, snapshotSize, boxSize\)/);
+  });
+
+  it("**撮った後も `<video>` を外さない**（外すと「もう一度」で真っ黒・再スキャンが必ず失敗）", () => {
+    expect(scan).not.toMatch(/\{!snapshot && \(\s*<video/);
+  });
+
+  it("**候補は1行の横送り**（縦の一覧と2つの釦をやめた）", () => {
+    expect(scan).toMatch(/<ScanCandidateStrip/);
+    expect(scan).not.toMatch(/ScanFoundList/);
+    expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
+    expect(scan).toMatch(
+      /className="scan-strip relative flex[^"]*snap-x snap-mandatory[^"]*overflow-x-auto/,
+    );
+  });
+
+  it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {
+    expect(scan).toMatch(/data-active=\{it\.id === activeId \|\| undefined\}/);
+    expect(css).toMatch(
+      /\.scan-dot\[data-active\] \.scan-dot__core \{\s*transform: scale\(1\.9\);\s*animation: scan-dot-wiggle/,
+    );
+    // 答えは `<html data-motion>` ひとつ（端末直結の @media では書かない決まり）。
+    expect(css).toMatch(
+      /html\[data-motion="reduce"\] \.scan-dot\[data-active\] \.scan-dot__core \{\s*animation: none;/,
+    );
+  });
+
+  it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {
+    expect(scan).toMatch(/if \(performance\.now\(\) < programmaticUntil\.current\) return;/);
   });
 });

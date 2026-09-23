@@ -1759,7 +1759,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },
   "scan.again": { ja: "もう一度", en: "Retake", "zh-TW": "再一次" },
-  "scan.rescan": { ja: "再スキャン", en: "Scan again", "zh-TW": "重新掃描" },
   "scan.found": { ja: "見つかった単語", en: "Words found", "zh-TW": "找到的單字" },
   "scan.searchPlaceholder": {
     ja: "候補に無い？日本語で調べる（例: マンゴー）",

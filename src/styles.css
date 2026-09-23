@@ -7277,3 +7277,53 @@ html[data-motion="reduce"] .reward-catch__field::after {
   background: #ffd268;
   box-shadow: 0 1px 3px #00000059;
 }
+
+/* スキャン後の候補の1行（`ScanCandidateStrip`）。横に送るだけの列なので
+   スクロールバーは出さない（指で送る物に細い棒は要らない）。両端は
+   ぼかして、まだ先に候補があることを見せる。 */
+.scan-strip {
+  scrollbar-width: none;
+  scroll-padding-inline: 1rem;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent 100%
+  );
+}
+.scan-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* 下の列で注目している候補の光。**大きくなって、揺れる**
+   （オーナー指示 2026-09-22）。大きさはばねのように少し行き過ぎて止まり、
+   その後ゆっくり左右に揺れ続ける。動きを減らす設定では大きさだけ変える。 */
+.scan-dot__core {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.scan-dot[data-active] .scan-dot__core {
+  transform: scale(1.9);
+  animation: scan-dot-wiggle 1.1s ease-in-out 0.3s infinite;
+}
+@keyframes scan-dot-wiggle {
+  0%,
+  100% {
+    transform: scale(1.9) rotate(0deg) translateX(0);
+  }
+  25% {
+    transform: scale(2.05) rotate(-8deg) translateX(-1.5px);
+  }
+  50% {
+    transform: scale(1.9) rotate(0deg) translateX(0);
+  }
+  75% {
+    transform: scale(2.05) rotate(8deg) translateX(1.5px);
+  }
+}
+html[data-motion="reduce"] .scan-dot__core {
+  transition: none;
+}
+html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
+  animation: none;
+}
