@@ -2956,17 +2956,51 @@ html[data-motion="reduce"] {
  * **ここも一緒に動かすこと** — 2026-09-16 に余白を詰めたとき、ここを
  * 忘れて 22px ずれた。
  */
-.camera-launch__shutter {
+/**
+ * **下の帯のカメラの丸 → シャッター。**（オーナー指示 2026-09-23）
+ *
+ * 始まりは帯の丸と同じ（48px・青・白い絵、中心は画面下から 56px ＋ 安全域）。
+ * 終わりは本物のシャッター（`.camera-shutter`）と同じ: 中の丸 60px、
+ * 白い環 3px を 5px 離して外径 76px、下端は画面下から 80px ＋ 安全域。
+ * 中の丸の下端はそこから 8px 上。**シャッターの大きさや下の余白を変えたら
+ * ここも動かすこと**（`.camera-launch__lens` の注と同じ）。
+ */
+.camera-launch__morph {
   position: absolute;
   left: 50%;
-  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
-  width: 76px;
-  height: 76px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
-  background: #fff;
+  background: var(--cam-accent);
+  color: #fff;
   translate: -50% 0;
-  opacity: 0;
-  animation: camera-parts 720ms ease-out both;
+  animation: camera-morph 720ms cubic-bezier(0.22, 0.86, 0.26, 1) both;
+}
+.camera-launch__morph svg {
+  width: 24px;
+  height: 24px;
+}
+@keyframes camera-morph {
+  0% {
+    width: 48px;
+    height: 48px;
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    outline: 3px solid transparent;
+    outline-offset: 5px;
+    box-shadow: 0 10px 28px color-mix(in oklab, var(--cam-accent) 45%, transparent);
+  }
+  100% {
+    width: 60px;
+    height: 60px;
+    bottom: calc(5rem + 8px + env(safe-area-inset-bottom, 0px));
+    outline: 3px solid var(--cam-paper);
+    outline-offset: 5px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  }
+}
+html[data-motion="reduce"] .camera-launch__morph {
+  display: none;
 }
 @keyframes camera-parts {
   0%,
@@ -6178,13 +6212,16 @@ html[data-motion="reduce"] .camera-modes__item {
  * シャッター。**白い丸に青い環**（参考画像）。
  * 環は縁で描き、内側の丸との間を空ける — 影で描くと、間の隙間が作れない。
  */
+/* **鮮やかな青の丸に白い絵、外に白い環**（オーナー指示 2026-09-23「単語の
+   詳細の発音ボタンのように鮮やかな青色に変更して。中のアイコン自体は白色で」）。
+   発音ボタン（`PronounceButton` の hero）と同じ主色。 */
 .camera-shutter {
   display: grid;
   place-items: center;
   width: 76px;
   height: 76px;
   padding: 0;
-  border: 3px solid var(--cam-accent);
+  border: 3px solid var(--cam-paper);
   border-radius: 9999px;
   background: transparent;
   transition: transform 100ms ease-out;
@@ -6196,8 +6233,9 @@ html[data-motion="reduce"] .camera-modes__item {
   width: 60px;
   height: 60px;
   border-radius: 9999px;
-  background: var(--cam-paper);
-  color: var(--cam-body);
+  background: var(--cam-accent);
+  color: #fff;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--cam-accent) 40%, transparent);
 }
 
 .camera-shutter:active {

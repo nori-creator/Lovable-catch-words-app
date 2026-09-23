@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, MapPin, X } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
-import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { photoCandidates, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { stickerDayKey } from "@/lib/dex-filter";
 import { CachedImg } from "@/lib/image-cache";
 import { Zh } from "@/components/Zh";
@@ -380,7 +380,16 @@ function StopPin({
   onPin: (id: string) => void;
   style?: React.CSSProperties;
 }) {
-  const photo = stickerPhotoUrl(stop.items[0].s, { thumb: true });
+  /**
+   * **読めなければ次を試す**（オーナー報告 2026-09-23「地図上で丸いバブルの
+   * 画像が表示されてない」）。以前は縮小版の URL を素の `<img>` で1回だけ
+   * 読んでいた — 縮小版が保存に無い札・署名の切れた札では白い丸のまま。
+   * いまは端末の写真置き場（`CachedImg`、時間軸の写真と同じ）を通し、
+   * 失敗したら原寸 → その立ち寄りの別の写真へ落ちる。
+   */
+  const candidates = useMemo(() => stop.items.flatMap((it) => photoCandidates(it.s)), [stop.items]);
+  const [tried, setTried] = useState(0);
+  const photo = candidates[tried] ?? null;
   return (
     <button
       type="button"
@@ -396,7 +405,14 @@ function StopPin({
     >
       <span className="dex-pin__face">
         {photo ? (
-          <img src={photo} alt="" className="h-full w-full object-cover" draggable={false} />
+          <CachedImg
+            key={photo}
+            src={photo}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+            onError={() => setTried((n) => n + 1)}
+          />
         ) : (
           <span className="grid h-full w-full place-items-center bg-card text-caption font-bold">
             {stop.items[0].s.word.headword.slice(0, 2)}

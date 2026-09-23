@@ -245,6 +245,23 @@ function fmtZoom(v: number): string {
 }
 
 /**
+ * 指で払った距離から倍率を出す（オーナー指示 2026-09-23「倍率をスライドすると
+ * メーターが出て調整できるようにして」）。
+ *
+ * **倍で効かせる**: 右へ 120px で 2 倍、左へ 120px で半分。1→2 と 2→4 が
+ * 同じ手の動きになる（iPhone のダイヤルと同じ感覚）。範囲に収め、0.1 刻み。
+ */
+export const ZOOM_PX_PER_DOUBLING = 120;
+export function zoomFromDrag(start: number, dx: number, min: number, max: number): number {
+  const v = start * Math.pow(2, dx / ZOOM_PX_PER_DOUBLING);
+  const clamped = Math.min(max, Math.max(min, v));
+  return Math.round(clamped * 10) / 10;
+}
+
+/** 払いと見なす動き(px)。これより小さければ粒を押しただけ。 */
+const ZOOM_DRAG_SLOP = 6;
+
+/**
  * 倍率。**既定は刻みの粒だけ。選んでいる粒をもう一度押すと、細かい目盛りが出る。**
  *
  * オーナー指示 2026-09-22:
@@ -289,9 +306,54 @@ export function CameraZoomMeter({
     : null;
   const lit = fine ? nearest : snapped;
   const canFine = max > min;
+  /**
+   * 粒の帯を**指で払うと目盛りが開き、そのまま倍率が動く**。
+   * 払ったあとの「押した」は捨てる（払い終わりで粒へ飛ばない）。
+   */
+  const drag = useRef<{ x: number; zoom: number; id: number; moved: boolean } | null>(null);
+  const swallowClick = useRef(false);
   return (
     <div className={`camera-zoom ${className}`} role="group" aria-label={t("scan.zoom")}>
-      <div className="camera-zoom__stops">
+      <div
+        className="camera-zoom__stops"
+        onPointerDown={(e) => {
+          if (!canFine) return;
+          drag.current = { x: e.clientX, zoom, id: e.pointerId, moved: false };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d || d.id !== e.pointerId) return;
+          const dx = e.clientX - d.x;
+          if (!d.moved) {
+            if (Math.abs(dx) < ZOOM_DRAG_SLOP) return;
+            d.moved = true;
+            setFine(true);
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {
+              /* 取れない端末でも、帯の上に居る間は動く */
+            }
+          }
+          onZoom(zoomFromDrag(d.zoom, dx, min, max));
+        }}
+        onPointerUp={(e) => {
+          const d = drag.current;
+          drag.current = null;
+          if (d?.moved) {
+            swallowClick.current = true;
+            try {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            } catch {
+              /* 既に離れている */
+            }
+          }
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+        }}
+        // 払っている間に画面ごとスクロールさせない（横の払いは帯のもの）。
+        style={{ touchAction: canFine ? "pan-y" : undefined }}
+      >
         {stops.map((s) => {
           const on = lit === s;
           return (
@@ -303,6 +365,10 @@ export function CameraZoomMeter({
               className="camera-zoom__stop"
               aria-label={t("camera.zoomTo", { x: String(s) })}
               onClick={() => {
+                if (swallowClick.current) {
+                  swallowClick.current = false;
+                  return;
+                }
                 if (on && canFine) {
                   setFine((v) => !v);
                   return;
@@ -311,7 +377,9 @@ export function CameraZoomMeter({
                 onZoom(s);
               }}
             >
-              {on && fine ? `${fmtZoom(zoom)}×` : fmtZoom(s)}
+              {/* **どの粒にも × を付ける**（オーナー指示 2026-09-23「カメラの
+                  倍率×を書きたして」）。数字だけだと倍率だと読めない。 */}
+              {on && fine ? `${fmtZoom(zoom)}×` : `${fmtZoom(s)}×`}
             </button>
           );
         })}

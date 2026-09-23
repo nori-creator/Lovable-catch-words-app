@@ -796,6 +796,7 @@ const MIN_TAP_PX = 44;
 /** 写真を壁に留める物（`lib/collage-decor.ts`）。 */
 function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
   const d = decorFor(id, wall);
+  if (d.kind === "none") return null;
   if (d.kind === "pin") {
     // コルクの壁は**画鋲**。頭の色は4色、位置は上の辺の真ん中あたり。
     return (

@@ -96,7 +96,11 @@ export function WordCandidateRow({
           {/* **その語の字で組む**(オーナー報告 2026-08-26「候補の字体が変」)。
               `Zh` は `lang="zh-Hant"` を決め打ちで付ける包みなので、英語の
               候補にも中国語のフォントが当たっていた(`Term` の注)。 */}
-          <Term lang={language} className="min-w-0 text-title leading-tight tracking-tight">
+          {/* **字の組み方は復習の4択と同じ**（オーナー指示 2026-09-23「単語の
+              字体デザインは、復習の四択と同じデザインにして。字体の大きさ
+              そのままでいい」）— 太さ `font-medium`・字間は詰めない。
+              大きさだけ `title` のまま。 */}
+          <Term lang={language} className="min-w-0 text-title font-medium leading-tight">
             {headword}
           </Term>
           {/* 訳は右端へ。溢れるときは訳のほうを詰める。 */}

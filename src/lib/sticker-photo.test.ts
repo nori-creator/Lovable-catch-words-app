@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hasOwnPhoto, pickStickerPhoto, stickerPhotoUrl, type PhotoSources } from "./sticker-photo";
+import { photoCandidates } from "./sticker-photo";
 
 /**
  * ここが7通りに散らばっていたせいで、同じ札が画面をまたぐと
@@ -167,5 +168,21 @@ describe("exclude — 画面ごとに外す役", () => {
     expect(stickerPhotoUrl({ placeholder_url: "net.jpg" }, { exclude: ["placeholder"] })).toBe(
       null,
     );
+  });
+});
+
+describe("photoCandidates（地図のピン: 読めなければ次へ）", () => {
+  it("縮小版 → 原寸 → 別の役。重複なし", () => {
+    const c = photoCandidates({
+      object_thumb_url: "o.thumb",
+      object_url: "o",
+      cutout_url: "c",
+      placeholder_url: "p",
+    });
+    expect(c).toEqual(["o.thumb", "o", "c", "p"]);
+  });
+  it("何も無ければ空", () => {
+    expect(photoCandidates(null)).toEqual([]);
+    expect(photoCandidates({})).toEqual([]);
   });
 });

@@ -4184,12 +4184,15 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 中身はカメラの縮図（覗き窓とシャッター）。
     const lib = codeOnly(read("lib/camera-launch.ts"));
     expect(lib).toMatch(/camera-launch__eye/);
-    expect(lib).toMatch(/camera-launch__shutter/);
-    // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
-    const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
-    const shBody = sh.slice(0, sh.indexOf("\n}"));
-    expect(shBody).toMatch(/bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    expect(shBody).toMatch(/width: 76px/);
+    // 下の帯の丸がそのままシャッターになる（オーナー指示 2026-09-23）。
+    // 板の外に置く（板は傾いて伸びるので、中に置くと一緒に歪む）。
+    expect(lib).toMatch(/camera-launch__morph/);
+    expect(lib).toMatch(/el\.appendChild\(morph\)/);
+    // 着地点は px で持つ（本物のシャッターの中の丸と同じ所・同じ大きさ）。
+    const mk = css.slice(css.indexOf("@keyframes camera-morph {"));
+    const end = mk.slice(mk.indexOf("100% {"), mk.indexOf("\n}"));
+    expect(end).toMatch(/bottom: calc\(5rem \+ 8px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(end).toMatch(/width: 60px/);
   });
 
   /**
@@ -4485,9 +4488,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
       /bottom-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]/,
     );
-    const landing = css.slice(css.indexOf(".camera-launch__shutter {"));
-    expect(landing.slice(0, 400)).toMatch(
-      /bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
+    const landing = css.slice(css.indexOf("@keyframes camera-morph {"));
+    expect(landing.slice(0, 900)).toMatch(
+      /bottom: calc\(5rem \+ 8px \+ env\(safe-area-inset-bottom, 0px\)\)/,
     );
     // シャッターの大きさと、下の行の余白（上の計算の元になる2つ）。
     const sh = css.slice(css.indexOf(".camera-shutter {"), css.indexOf(".camera-shutter__core"));

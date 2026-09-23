@@ -1698,7 +1698,9 @@ export function PickWordPanel({
           />
         </div>
       )}
-      <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
+      {/* 「ステップ 3: 単語を選ぶ」は画面に出さない（オーナー指示 2026-09-23
+          「ステップ３の文字消して」）。読み上げには見出しとして残す。 */}
+      <h2 className="sr-only">{t("capture.pickTitle")}</h2>
       {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
           「ステップ3の単語を選ぶの小さな文細かいは消して」）。
           候補が並んでいれば、選ぶ所であることは見れば分かる。 */}

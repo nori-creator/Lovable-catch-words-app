@@ -158,3 +158,45 @@ describe("groupReviews", () => {
     expect(g.reduce((a, b) => a + b.n, 0)).toBe(5);
   });
 });
+
+import { curveValueAt, nextLevelDrop } from "./memory-curve";
+
+describe("次に段が下がる日（オーナー指示 2026-09-23）", () => {
+  it("境目を割る日を解く（S=10・今日100% → 95% を割るのは約0.56日後）", () => {
+    const r = nextLevelDrop(100, 0, 10)!;
+    expect(r.level).toBe(4);
+    expect(r.d).toBeCloseTo(10 * Math.log(100 / 94.5), 2);
+  });
+  it("過ぎた時間を差し引く。忘れかけは null", () => {
+    const r = nextLevelDrop(90, 2, 30)!;
+    expect(r.level).toBe(3);
+    expect(r.d).toBeCloseTo(30 * Math.log(100 / 84.5) - 2, 2);
+    expect(nextLevelDrop(20, 5, 3)).toBeNull();
+  });
+});
+
+describe("線の上の値（指で辿る）", () => {
+  const curve = {
+    past: [
+      { d: -10, r: 100 },
+      { d: -5, r: 60 },
+      { d: -5, r: 100 },
+      { d: 0, r: 80 },
+    ],
+    future: [
+      { d: 0, r: 80 },
+      { d: 10, r: 40 },
+    ],
+  };
+  it("間は線形に。今日より後は予測の線", () => {
+    expect(curveValueAt(curve, -7.5)).toBe(80);
+    expect(curveValueAt(curve, 5)).toBe(60);
+  });
+  it("復習の瞬間は復習した後の値", () => {
+    expect(curveValueAt(curve, -5)).toBe(100);
+  });
+  it("端の外は端の値", () => {
+    expect(curveValueAt(curve, -20)).toBe(100);
+    expect(curveValueAt(curve, 50)).toBe(40);
+  });
+});

@@ -47,6 +47,12 @@ export type MemoryCurve = {
   domain: [number, number];
   /** 軸に出す目盛り。今日・復習どき・復習日だけ。 */
   ticks: CurveTick[];
+  /**
+   * 復習しなかったら**次に段が下がる日**（今日からの日数）と、下がった先の段。
+   * 「忘れかけ」まで落ちている語は null。（オーナー指示 2026-09-23「忘れる予測は
+   * 何日後に状態が変わるのか具体的に日付を1つ書いて」）
+   */
+  nextDrop: { d: number; level: number } | null;
 };
 
 /**
@@ -152,7 +158,50 @@ export function buildMemoryCurve(
     bestDay,
     domain: [start, end],
     ticks: curveTicks({ reviews: reviewDays, bestDay, domain: [start, end] }),
+    nextDrop: nextLevelDrop(todayR, sinceLast, last.stability),
   };
+}
+
+/** 段の下の境目（`memoryLevel` と同じ 30 / 50 / 70 / 85 / 95）。段 0 は下が無い。 */
+const LEVEL_FLOOR = [0, 30, 50, 70, 85, 95] as const;
+
+/**
+ * 次に段が下がる日。表示の % は四捨五入なので、`境目 − 0.5` を割る瞬間が
+ * 「画面の段が変わる」瞬間。`R = 100·exp(−t/S)` を解いて出す。
+ */
+export function nextLevelDrop(
+  todayR: number,
+  sinceLastDays: number,
+  stability: number,
+): { d: number; level: number } | null {
+  const level = memoryLevel(todayR).level;
+  if (level === 0) return null;
+  const edge = LEVEL_FLOOR[level] - 0.5;
+  const t = Math.max(0.1, stability) * Math.log(100 / edge);
+  const d = t - Math.max(0, sinceLastDays);
+  return { d: d2(Math.max(0, d)), level: level - 1 };
+}
+
+/**
+ * 線の上の、ある日の値（今日より前は「これまで」、後は「復習しなかったら」）。
+ * 指で辿った所の % を出すのに使う（オーナー指示 2026-09-23「過去のグラフの時の
+ * 記憶の状態が何 % だったか辿れるようにして」）。
+ *
+ * 復習の瞬間は同じ日に2点（直前と 100）が並ぶ — **復習した後の値**を返す。
+ */
+export function curveValueAt(curve: Pick<MemoryCurve, "past" | "future">, d: number): number {
+  const line = d <= 0 ? curve.past : curve.future;
+  if (line.length === 0) return 0;
+  if (d <= line[0].d) return line[0].r;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1];
+    const b = line[i];
+    if (d < b.d || (d === b.d && (i + 1 >= line.length || line[i + 1].d !== b.d))) {
+      const k = b.d === a.d ? 1 : (d - a.d) / (b.d - a.d);
+      return Math.round(a.r + (b.r - a.r) * Math.min(1, Math.max(0, k)));
+    }
+  }
+  return line[line.length - 1].r;
 }
 
 /**

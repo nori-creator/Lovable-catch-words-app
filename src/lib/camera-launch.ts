@@ -21,6 +21,13 @@ import { motionReducedNow } from "@/hooks/use-reduced-motion";
  * 剥がす。画面が何回入れ替わろうと、貼った物は誰の持ち物でもないので消えない。
  */
 
+/**
+ * カメラの絵（lucide の `Camera` と同じ線）。React の外で描くので、
+ * 部品ではなく SVG の文字列で持つ。帯の丸・シャッターと同じ 24px・白。
+ */
+const CAMERA_GLYPH =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>';
+
 /** 演出の長さ(ms)。CSS の `camera-lens-open` と揃える。 */
 const OPEN_MS = 720;
 /** 動きを減らす設定のときの長さ。CSS の `-reduced` と揃える。 */
@@ -106,11 +113,22 @@ export function playCameraLaunch(onSwap?: () => void): void {
   lens.className = "camera-launch__lens";
   const eye = document.createElement("i");
   eye.className = "camera-launch__eye";
-  const shutter = document.createElement("i");
-  shutter.className = "camera-launch__shutter";
   lens.appendChild(eye);
-  lens.appendChild(shutter);
   el.appendChild(lens);
+  /**
+   * **下の帯のカメラの丸が、そのままシャッターになる。**（オーナー指示
+   * 2026-09-23「カメラのアイコンアニメーションともに下のバーのアイコンが
+   * カメラボタンのシャッターアイコンになるようにアニメーションに追加して」）
+   *
+   * 育つ板（`lens`）とは別の物にする。板は傾きながら画面いっぱいに育つので、
+   * その中に置くと一緒に傾いて伸びてしまう。丸は**帯の丸と同じ大きさ・同じ
+   * 青・同じ白い絵**で始まり、まっすぐ上がって本物のシャッター（青い丸に
+   * 白い絵・白い環）の位置と大きさで止まる。
+   */
+  const morph = document.createElement("span");
+  morph.className = "camera-launch__morph";
+  morph.innerHTML = CAMERA_GLYPH;
+  el.appendChild(morph);
   document.body.appendChild(el);
   const reduced = motionReducedNow();
   const ms = reduced ? OPEN_MS_REDUCED : OPEN_MS;

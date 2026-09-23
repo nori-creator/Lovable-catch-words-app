@@ -1117,7 +1117,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Computed from your last {n} scans (spec §9 pass line)",
     "zh-TW": "由最近 {n} 次掃描計算（規格 §9 的合格標準）",
   },
-  "set.placeLabel": { ja: "場所で思い出す", en: "Remember by place", "zh-TW": "在原地想起來" },
+  "set.placeLabel": { ja: "近くに来たら知らせる", en: "Nearby reminders", "zh-TW": "靠近時提醒我" },
+  "set.placeDesc": {
+    ja: "単語を撮った場所の近くに来ると、その単語を通知で思い出させます",
+    en: "When you're back near where you caught a word, you'll get a reminder of it.",
+    "zh-TW": "回到拍下單字的地方附近時，會用通知提醒你那個單字。",
+  },
   "set.placeChecking": {
     ja: "許可を確認しています…",
     en: "Checking permission…",
@@ -1637,6 +1642,18 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "curve.legendReview": { ja: "復習した日", en: "Reviewed", "zh-TW": "複習過的日子" },
   "curve.todayPct": { ja: "今日 {pct}%", en: "Today {pct}%", "zh-TW": "今天 {pct}%" },
   "curve.bestTick": { ja: "復習どき", en: "Review", "zh-TW": "複習時機" },
+  "curve.daysAgo": { ja: "{n}日前", en: "{n}d ago", "zh-TW": "{n} 天前" },
+  "curve.daysLater": { ja: "{n}日後", en: "in {n}d", "zh-TW": "{n} 天後" },
+  "curve.nextDrop": {
+    ja: "復習しないと {date}（{n}日後）に「{level}」になります",
+    en: "Without review it becomes “{level}” on {date} (in {n}d)",
+    "zh-TW": "不複習的話，{date}（{n} 天後）會變成「{level}」",
+  },
+  "curve.nextDropToday": {
+    ja: "復習しないと 今日のうちに「{level}」になります",
+    en: "Without review it becomes “{level}” later today",
+    "zh-TW": "不複習的話，今天之內會變成「{level}」",
+  },
   "curve.aria": {
     ja: "記憶の曲線。今日の記憶率 {pct}%、復習 {n} 回",
     en: "Memory curve. Today {pct}%, reviewed {n} times",
@@ -1717,7 +1734,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.soundFull": { ja: "しっかり", en: "Full", "zh-TW": "完整" },
   "settings.haptics": { ja: "振動", en: "Haptics", "zh-TW": "震動" },
   "settings.appearance": { ja: "外観", en: "Appearance", "zh-TW": "外觀" },
-  "settings.theme": { ja: "テーマ", en: "Theme", "zh-TW": "主題" },
+  // 「テーマ」と「UIテーマ」が並ぶと区別できない（オーナー指示 2026-09-23）。
+  "settings.theme": { ja: "画面の明るさ", en: "Light / dark", "zh-TW": "畫面明暗" },
   "home.placementNotSaved": {
     ja: "配置は保存できませんでした（表の準備がまだです）。この画面を開いている間は動いたままです。",
     en: "Layout could not be saved (the table isn't ready yet). It stays as you left it while this screen is open.",
@@ -2555,9 +2573,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "開發者專用（只有你看得到）",
   },
   "settings.themeCompare": {
-    ja: "UIテーマを比較",
-    en: "Compare UI themes",
-    "zh-TW": "比較 UI 主題",
+    ja: "配色デザイン（開発者のみ）",
+    en: "Color design (developers only)",
+    "zh-TW": "配色設計（僅限開發者）",
   },
   "settings.themeKeep": { ja: "保持", en: "Kept", "zh-TW": "保留" },
   "settings.aiSwitch": {
@@ -2787,9 +2805,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "顯示的類型",
   },
   "settings.photoLibrarySync": {
-    ja: "写真の同期",
-    en: "Photo sync",
-    "zh-TW": "照片同步",
+    ja: "端末の写真にも保存",
+    en: "Also save to Photos",
+    "zh-TW": "也存到手機相簿",
+  },
+  "settings.photoLibrarySyncDesc": {
+    ja: "撮った写真をスマホの写真アプリにも残します（アプリ版のみ）",
+    en: "Keeps a copy of each photo in your phone's Photos app (app version only).",
+    "zh-TW": "拍下的照片也會存進手機的相簿（僅限 App 版）。",
   },
   "cap.photoLibrarySaveFailed": {
     ja: "図鑑には追加しましたが、スマホへの写真保存ができませんでした。端末の許可を確認してください。",
@@ -3051,9 +3074,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
   "place.thisWord": { ja: "この言葉", en: "this word", "zh-TW": "這個詞" },
   "settings.selfieMode": {
-    ja: "撮影後に自撮り",
-    en: "Selfie after capture",
-    "zh-TW": "拍照後自拍",
+    ja: "撮ったあと自分も撮る",
+    en: "Selfie after each catch",
+    "zh-TW": "拍完接著自拍",
+  },
+  "settings.selfieModeDesc": {
+    ja: "単語を撮ったあと、続けてその場の自分を撮る画面に進みます",
+    en: "After catching a word, go straight to a selfie of the moment.",
+    "zh-TW": "拍下單字後，會接著進入自拍畫面，留下當下的自己。",
   },
   "capture.selfieSkip": { ja: "スキップ", en: "Skip", "zh-TW": "略過" },
   "capture.selfieLive": {
