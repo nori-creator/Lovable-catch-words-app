@@ -358,7 +358,13 @@ export const lookupHeadwords = createServerFn({ method: "POST" })
 
     // §4.3: pre-generated audio is served straight from Storage. Sign all
     // audio paths in one call so tap→audio start needs zero further requests.
-    const paths = (rows ?? []).map((r) => r.audio_path).filter((p): p is string => !!p);
+    // **いまの声で作った音だけ**を渡す。開発者が声を変えた後、前の声で作り置いた
+    // 音を渡すと古い声が鳴り続ける（その語はタップ時に新しい声で作られる）。
+    const { currentVoiceTag } = await import("./tts-provider.server");
+    const voicePrefix = `${data.language}/${await currentVoiceTag(data.language)}/`;
+    const paths = (rows ?? [])
+      .map((r) => r.audio_path)
+      .filter((p): p is string => !!p && p.startsWith(voicePrefix));
     const urlByPath = new Map<string, string>();
     if (paths.length > 0) {
       const { data: signed } = await context.supabase.storage

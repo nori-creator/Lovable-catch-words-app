@@ -28,6 +28,8 @@ import {
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
+import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
+import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -366,7 +368,23 @@ function SettingsPage() {
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [selfieMode, setSelfieMode] = useState(selfieCaptureEnabled);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
+  /**
+   * **変えたらすぐ保存する**（オーナー指示 2026-09-23「設定の上と下の保存ボタン
+   * 消して。ユーザーが変更したら即適用して」）。
+   *
+   * 数えるのは**本人が触った回数**だけ（`edit` で包んだ操作）。プロフィールが
+   * 届いて画面に値を入れる動きは数えない — 数えると、開いただけで保存が走り、
+   * 読めなかった行の既定値で上書きする道ができる（下の注の事故と同じ形）。
+   */
+  const userEdit = useRef(0);
+  const lastSavedEdit = useRef(0);
+  const edit =
+    <A extends unknown[]>(fn: (...a: A) => void) =>
+    (...a: A) => {
+      userEdit.current += 1;
+      fn(...a);
+    };
   // 端末ごとの設定なので、プロフィールの到着を待たずに読む
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
   useEffect(() => {
@@ -519,8 +537,29 @@ function SettingsPage() {
     );
   }, [profile]);
 
+  // 本人が触ったら、少し待って保存する（名前を打っている間に何度も送らない）。
+  useEffect(() => {
+    if (!profile || userEdit.current === lastSavedEdit.current) return;
+    const id = window.setTimeout(() => void handleSave(), 700);
+    return () => window.clearTimeout(id);
+    // `handleSave` は毎回作り直されるが、読む値はこの依存に全部入っている。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    profile,
+    displayName,
+    uiLanguage,
+    targetLanguage,
+    currentLevel,
+    levelGoal,
+    strictness,
+    reviewMode,
+    reviewLimit,
+    reviewFocus,
+  ]);
+
   async function handleSave() {
     setSaving(true);
+    lastSavedEdit.current = userEdit.current;
     try {
       /**
        * **言語だけを先に、単独で送る**(オーナー報告 2026-08-26
@@ -602,12 +641,12 @@ function SettingsPage() {
        * という、**いちばん追いにくい形**で壊れる。名指しで出す。
        */
       const skipped = (res as { skipped?: string[] } | undefined)?.skipped ?? [];
+      // **保存できた時は黙る**（変えるたびに自動で保存するので、毎回「保存
+      // しました」と出すと、それ自体が騒がしい）。落とした項目だけは名指しで言う。
       if (skipped.length > 0) {
         toast.warning(t("settings.savedPartly", { fields: skipped.join(", ") }), {
           duration: 8000,
         });
-      } else {
-        toast.success(t("settings.saved"));
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
@@ -625,7 +664,7 @@ function SettingsPage() {
   // すり替わっていた(§8: 空とエラーを同じ絵で描かない)。
   if (profileLoading || profileFailed) {
     return (
-      <AppShell title={t("title.settings")}>
+      <AppShell title={t("title.settings")} headerless>
         {profileFailed ? (
           <LoadFailed
             onRetry={() => void refetchProfile()}
@@ -644,19 +683,11 @@ function SettingsPage() {
   }
 
   return (
-    <AppShell title={t("title.settings")}>
+    <AppShell title={t("title.settings")} headerless>
       {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
           差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
       <div className="settings-page space-y-7 pb-24">
-        <div className="sticky top-2 z-30 flex justify-end pointer-events-none">
-          <Button
-            className="pointer-events-auto rounded-full px-6 shadow-lg"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("settings.saving") : t("settings.save")}
-          </Button>
-        </div>
+        {/* 保存ボタンは置かない — 変えたらすぐ保存する（上の `edit` の注）。 */}
         {/* **プロフィールが一番上**（オーナー指示 2026-09-22）。
             撮影の束をここに置いていたので、名前と顔写真が2枚目に落ちていた。
             「撮影後に自撮り」は、消した録画（インカメ）の場所へ移した。 */}
@@ -665,7 +696,13 @@ function SettingsPage() {
             <AvatarRow />
             <div>
               <Label htmlFor="dn">{t("settings.displayName")}</Label>
-              <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <Input
+                id="dn"
+                value={displayName}
+                onChange={edit((e: React.ChangeEvent<HTMLInputElement>) =>
+                  setDisplayName(e.target.value),
+                )}
+              />
             </div>
           </div>
         </SettingsCard>
@@ -684,7 +721,7 @@ function SettingsPage() {
               id="lang-ui"
               label={t("settings.uiLang")}
               value={uiLanguage}
-              onChange={pickUiLanguage}
+              onChange={edit(pickUiLanguage)}
               // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
               // ここを直し忘れると、訳したのに選べない状態になる。
               options={UI_LANGS.map((code) => ({
@@ -696,7 +733,7 @@ function SettingsPage() {
               id="lang-target"
               label={t("settings.targetLang")}
               value={targetLanguage}
-              onChange={pickTargetLanguage}
+              onChange={edit(pickTargetLanguage)}
               // **一覧を書き並べない。** `TARGET_LANGUAGES` を回す —
               // ここに手書きの写しを置くと、言語を足したときにここだけ
               // 増えない(または、外したのにここだけ残る)。
@@ -709,7 +746,7 @@ function SettingsPage() {
               id="lang-cur"
               label={t("settings.currentLevel")}
               value={currentLevel}
-              onChange={setCurrentLevel}
+              onChange={edit(setCurrentLevel)}
               options={levelChoices}
             />
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
@@ -719,7 +756,7 @@ function SettingsPage() {
               id="lang-level"
               label={t("settings.levelGoal")}
               value={levelGoal}
-              onChange={setLevelGoal}
+              onChange={edit(setLevelGoal)}
               options={levelChoices}
             />
             {/* **学習言語を渡す。** 渡していなかったので既定(台湾華語)で
@@ -739,12 +776,12 @@ function SettingsPage() {
                 cols={3}
                 label={t("settings.reviewMode")}
                 value={reviewMode}
-                onChange={(v) => {
+                onChange={edit((v: string) => {
                   const next = normalizeReviewMode(v);
                   setReviewMode(next);
                   // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
                   setStoredReviewMode(next);
-                }}
+                })}
                 options={[
                   { value: "hybrid", label: t("settings.modeHybrid") },
                   { value: "speaking", label: t("settings.modeSpeaking") },
@@ -806,7 +843,7 @@ function SettingsPage() {
               cols={5}
               label={t("settings.reviewLimit")}
               value={reviewLimit}
-              onChange={setReviewLimit}
+              onChange={edit(setReviewLimit)}
               options={[
                 { value: 10, label: "10" },
                 { value: 20, label: "20" },
@@ -848,10 +885,6 @@ function SettingsPage() {
                 { value: "system", label: t("settings.system") },
               ]}
             />
-            {/* **開発者だけの配色デザインは、明るさのすぐ下**（オーナー指示
-                2026-09-23）。名前は「画面の明るさ」と「配色デザイン」に分けた —
-                どちらも「テーマ」だと、どちらを触ればいいか分からない。 */}
-            <AdminOnlyUiTheme />
             <MotionChoiceRow />
             {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
                 オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
@@ -863,10 +896,6 @@ function SettingsPage() {
         </SettingsCard>
 
         <SoundAndHapticsPanel />
-
-        <Button className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? t("settings.saving") : t("settings.save")}
-        </Button>
 
         <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
@@ -1498,22 +1527,14 @@ function AdminOnlySection() {
       {/* **「見た目を比べる」と「エフェクトラボ」は消した**(オーナー指示
           2026-08-26)。どちらも作っている最中の道具で、
           設定に置いておく理由がもう無い。 */}
-      {/* 配色デザインは「見た目」の束へ移した（`AdminOnlyUiTheme`）。 */}
+      {/* **配色デザインは開発者の欄に戻した**（オーナー指示 2026-09-23 2回目
+          「設定の配色デザインはやっぱり開発者の私だけが見えるように戻して」）。
+          名前は「画面の明るさ」と区別できる「配色デザイン」のまま。 */}
+      <UiThemePicker />
       <AiModelPanel />
+      <TtsVoicePanel />
     </div>
   );
-}
-
-/** 配色デザインの選択。開発者（admin）にだけ出す。 */
-function AdminOnlyUiTheme() {
-  const adminFn = useServerFn(checkIsAdmin);
-  const { data: adm } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: () => adminFn(),
-    staleTime: 300_000,
-  });
-  if (!adm?.isAdmin) return null;
-  return <UiThemePicker />;
 }
 
 /**
@@ -1580,6 +1601,38 @@ function UiThemePicker() {
 }
 
 /** AIモデルの切替。鍵は環境変数のまま、モデル名と提供元だけを差し替える。 */
+/**
+ * **発音の声を出す会社を選ぶ**（開発者だけ。オーナー指示 2026-09-23「台湾華語の
+ * 発音が機械音で気に入らないから…開発者の私だけ、apiを設定できるようにして」）。
+ *
+ * 学習言語ごとに「会社・声・モデル」を選び、**その場で鳴らして届くまでの時間を
+ * 見てから**切り替える（「速さと正確性が命」）。鍵はここでは入れない — 環境変数
+ * （Lovable の Secrets）に置き、ここには揃っているかだけを出す。
+ */
+function TtsVoicePanel() {
+  const t = useT();
+  const getFn = useServerFn(getTtsVoiceAdmin);
+  const setFn = useServerFn(setTtsVoiceAdmin);
+  const tryFn = useServerFn(previewTtsVoice);
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["tts-voice-admin"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+  });
+  return (
+    <TtsVoiceForm
+      data={data}
+      onTry={(language, text, choice) => tryFn({ data: { language, text, choice } })}
+      onSave={async (languages) => {
+        await setFn({ data: { config: { languages } } });
+        await qc.invalidateQueries({ queryKey: ["tts-voice-admin"] });
+        toast.success(t("settings.ttsSaved"));
+      }}
+    />
+  );
+}
+
 function AiModelPanel() {
   const t = useT();
   const getFn = useServerFn(getAiModelConfig);

@@ -211,6 +211,7 @@ export function AppShell({
   fixedViewport = false,
   bare = false,
   immersive = false,
+  headerless = false,
 }: {
   children: ReactNode;
   title?: string;
@@ -233,6 +234,15 @@ export function AppShell({
    * 画面側が自分で重ねる（図鑑の `DexOverlay`）。下のバーは残す。
    */
   immersive?: boolean;
+  /**
+   * **上の帯（自分のアイコンと名前）だけを出さない。**（オーナー指示 2026-09-23
+   * 「復習、設定の欄の一番上の自分のアイコンとタイトルの欄消して。復習はその分
+   * 表示画像を大きくして」）
+   *
+   * 中身の組み方はそのまま。帯の高さ（`--app-header-h`）を 0 にするので、
+   * 画面いっぱいに組む場面（復習の4択）はその分だけ大きくなる。
+   */
+  headerless?: boolean;
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
@@ -342,11 +352,19 @@ export function AppShell({
           ? "h-dvh overflow-hidden bg-background"
           : "min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]"
       }
+      style={
+        headerless
+          ? ({
+              "--app-header-h": "0px",
+              paddingTop: "env(safe-area-inset-top)",
+            } as React.CSSProperties)
+          : undefined
+      }
     >
       {/* Top chrome — a translucent material the content scrolls under (§12).
           区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
-      {!bare && !immersive && (
+      {!bare && !immersive && !headerless && (
         <header
           data-scrolled={scrolled ? "true" : undefined}
           className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"

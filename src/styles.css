@@ -6475,38 +6475,37 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    上は今日の日付を書いて」）。前は小さく日付、その下に大きく「今日の1
    ページ」と2段あり、**写真が始まるまでに縦を 2段ぶん使っていた**。
    日付を題そのものに上げて、空いた1段を写真に回す。 */
-/* ── 壁紙に直に書く日付（オーナー指示 2026-09-23「日記のように」）────────
-   書体は手書き1つだけ（日付・曜日・一言）。下線は引かない。字の色は板の
-   インク（`--album-ink`）なので、どの壁紙でも読める濃さが保たれる。 */
-.collage-heading {
-  position: relative;
-  z-index: 3;
-  margin: 0 0.25rem 0.6rem;
+/* ── アルバムの上に大きく書く日付（オーナー指示 2026-09-23 改）─────────
+   アプリの字体（`--font-display`、端末の公式書体）で、大きく・詰めて。
+   壁紙の外（画面の地）に書くので、色は画面の前景色。 */
+.album-date {
+  margin: 0.25rem 0.25rem 0.75rem;
 }
 .diary-date__line {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.2rem 0.6rem;
+  gap: 0.15rem 0.6rem;
   margin: 0;
-  font-weight: 400;
-  color: var(--album-ink);
+  font-family: var(--font-display);
+  color: var(--foreground);
 }
 .diary-date__day {
   font-size: var(--text-hero);
+  font-weight: 700;
   line-height: 1.05;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.02em;
 }
 .diary-date__weekday {
   font-size: var(--text-body);
-  color: var(--album-ink-dim);
+  font-weight: 600;
+  color: var(--muted-foreground);
 }
 .diary-date__note {
   margin-top: 0.2rem;
   font-size: var(--text-footnote);
   line-height: 1.45;
-  color: var(--album-ink-dim);
-  word-break: auto-phrase;
+  color: var(--muted-foreground);
 }
 .diary-date--compact .diary-date__day {
   font-size: var(--text-title);
@@ -7656,7 +7655,8 @@ html[data-motion="reduce"] .dex-cf__slot {
   left: 0;
   right: 0;
   top: var(--dex-overlay-h, 8rem);
-  bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+  /* 下の帯と開いた時間軸の上まで（`--dex-dock-h` は地図が測って書く）。 */
+  bottom: calc(var(--dex-dock-h, 10rem) + 0.5rem);
 }
 /* 一番下の日付の帯と、その上に開く時間軸。下のバーのすぐ上に浮かせる。 */
 .dex-daymap__dock {
@@ -7688,7 +7688,9 @@ html[data-motion="reduce"] .dex-cf__slot {
   box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
 }
 .dex-daymap__timeline {
-  max-height: min(50dvh, 28rem);
+  /* **地図のピンと両方見える高さに抑える**（オーナー指示 2026-09-23
+     「タイムラインが地図を覆って見えない」）。画面の3割ほど。 */
+  max-height: min(32dvh, 17rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 1rem 1rem 0.5rem 1.25rem;

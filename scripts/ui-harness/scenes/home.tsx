@@ -143,7 +143,7 @@ export function HomeScene({ q }: { q: URLSearchParams }) {
         opening
         onOpen={() => {}}
         surface={wallClass(wall)}
-        heading={<DiaryDate date={new Date()} tagline={dayTagline(today, tStatic)} />}
+        heading={<DiaryDate date={new Date()} />}
       />
     </>
   );
@@ -250,7 +250,7 @@ export function HomeWritingScene() {
         stickers={today}
         opening
         onOpen={() => {}}
-        heading={<DiaryDate date={new Date()} tagline={dayTagline(today, tStatic)} />}
+        heading={<DiaryDate date={new Date()} />}
       />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />

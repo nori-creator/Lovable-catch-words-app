@@ -280,14 +280,9 @@ export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
 
 export function SettingsPolishScene() {
   const [selfie, setSelfie] = useState(true);
-  const [saved, setSaved] = useState(false);
+  // 保存ボタンは無い（オーナー指示 2026-09-23「変更したら即適用して」）。
   return (
     <div className="settings-page space-y-7 pb-24">
-      <div className="sticky top-2 z-30 flex justify-end">
-        <Button onClick={() => setSaved(true)}>
-          {saved ? "保存しました" : t("settings.save")}
-        </Button>
-      </div>
       <SettingsSelectsScene />
       <SettingsCard title={t("settings.study")}>
         {/* 名前を直して一言の説明を付けた3つ（オーナー指示 2026-09-23）。 */}

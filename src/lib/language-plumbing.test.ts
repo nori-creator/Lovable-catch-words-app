@@ -1699,7 +1699,8 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
     const fn = src.slice(src.indexOf("const pickUiLanguage"));
     expect(fn.slice(0, fn.indexOf("};"))).toMatch(/setUiLang\(normalized\)/);
     // 欄が新しい口を使っていること（作っただけで繋がっていない、を防ぐ）。
-    expect(src).toMatch(/onChange=\{pickUiLanguage\}/);
+    // （本人が触った回数を数える `edit` で包む — 変えたら即保存。2026-09-23）
+    expect(src).toMatch(/onChange=\{edit\(pickUiLanguage\)\}/);
   });
 
   it("**学習言語を切り替えたら一覧を読み直す**", () => {
@@ -3888,12 +3889,15 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
     expect(src).toMatch(/skipped/);
     expect(src).toMatch(/toast\.warning\(t\("settings\.savedPartly"/);
-    const ok = src.indexOf('toast.success(t("settings.saved")');
     const warn = src.indexOf('toast.warning(t("settings.savedPartly"');
-    expect(ok).toBeGreaterThanOrEqual(0);
     expect(warn).toBeGreaterThanOrEqual(0);
-    // 成功は「落ちた項目が無いとき」だけ。
     expect(src).toMatch(/skipped\.length > 0/);
+    // 変えたら即保存（オーナー指示 2026-09-23）。保存ボタンは置かず、成功は黙る。
+    expect(src).not.toMatch(/onClick=\{handleSave\}/);
+    expect(src).not.toMatch(/toast\.success\(t\("settings\.saved"\)/);
+    expect(src).toMatch(/window\.setTimeout\(\(\) => void handleSave\(\), 700\)/);
+    // 開いただけでは保存しない（本人が触った回数だけを見る）。
+    expect(src).toMatch(/userEdit\.current === lastSavedEdit\.current/);
   });
 
   /**
@@ -4266,7 +4270,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("撮る画面とスキャン画面は、上の帯を出さない", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     expect(shell).toMatch(/bare\?: boolean;/);
-    expect(shell).toMatch(/\{!bare && !immersive && \(/);
+    expect(shell).toMatch(/\{!bare && !immersive && !headerless && \(/);
     expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
       // main で自撮りの面も全画面になったので `|| step === "selfie"` が付いた。
       /bare=\{step === "object"( \|\| step === "selfie")?\}/,
@@ -4749,14 +4753,10 @@ describe("ホームは今日の誌面", () => {
     expect(cssBlock(".collage__note {", "\n}")).toMatch(/-webkit-line-clamp: 3/);
   });
 
-  it("**「◯枚の思い出」は地の色に追従する**（暗い画面で読めなくならない）", () => {
-    // `text-album-ink` は**紙の台紙の上に書くための固定のインク**で、
-    // 台紙は 2026-09-18 に外してある。固定のまま残っていたので、暗い画面で
-    // 1.45:1 しか無かった（`ui-audit`）。
-    const collage = codeOnly(read("routes/_authenticated/home.tsx"));
-    const foot = collage.slice(collage.indexOf("home.memories") - 700);
-    expect(foot.slice(0, 700)).not.toMatch(/text-album-ink/);
-    expect(foot.slice(0, 700)).toMatch(/text-muted-foreground/);
+  it("**「◯枚の思い出」とその日の一言は出さない**（オーナー指示 2026-09-23）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/t\("home\.memories"\)/);
+    expect(home).not.toMatch(/tagline=\{dayTagline/);
   });
 
   it("**文字で調べた語は、文字だけを書く**（オーナー指示 2026-09-22）", () => {
@@ -4773,27 +4773,23 @@ describe("ホームは今日の誌面", () => {
     expect(frame.slice(0, 600)).toMatch(/collage__plain-word/);
   });
 
-  it("**日付は壁紙に直に、手書き1つで書く**（オーナー指示 2026-09-22 / 09-23）", () => {
-    // > 09-22「今日のページではなく、上は今日の日付を書いて。」
-    // > 09-23「ホーム画面の日付は背景の壁紙に直接書いて。日記のように。
-    // >        日付の字体を統一して。また文字の下の青い波線いらない。」
+  it("**日付はアルバムの上に大きく、アプリの字体で**（オーナー指示 2026-09-23 2回目）", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    // 上の見出しの帯は使わず、今日の誌面の板の中に書く。
     expect(home).not.toMatch(/<AppShell>\s*<DayMasthead/);
-    expect(home).toMatch(
-      /heading=\{<DiaryDate date=\{today\} tagline=\{dayTagline\(todayStickers, t\)\} \/>\}/,
-    );
-    expect(home).toMatch(/heading=\{<DiaryDate date=\{keyToDate\(k\)\} compact \/>\}/);
+    expect(home).toMatch(/heading=\{<DiaryDate date=\{today\} \/>\}/);
+    // 板（壁紙）の外、上に書く。
+    expect(home).toMatch(/\{heading && <div className="album-date">\{heading\}<\/div>\}/);
     const diary = home.slice(
       home.indexOf("export function DiaryDate("),
       home.indexOf("export function JournalLink("),
     );
-    // 書体は手書き1つ（日付・曜日・一言が同じ箱の中）。波線（svg）は引かない。
-    expect(diary).toMatch(/className=\{`diary-date handwritten-ja/);
-    expect(diary).not.toMatch(/<svg/);
+    // 手書きの書体・明朝・波線（svg）は使わない。
+    expect(diary).not.toMatch(/handwritten/);
     expect(diary).not.toMatch(/font-serif-ja/);
-    expect(diary).toMatch(/weekday: "long" \}/);
-    expect(diary).toMatch(/month: "long", day: "numeric" \}/);
+    expect(diary).not.toMatch(/<svg/);
+    const css = read("styles.css");
+    const line = css.slice(css.indexOf(".diary-date__line {"));
+    expect(line.slice(0, line.indexOf("\n}"))).toMatch(/font-family: var\(--font-display\)/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4913,7 +4909,10 @@ describe("ホームは今日の誌面", () => {
     // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
     // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    // 2026-09-23 の3回目の依頼（単語を押すとピンが浮く地図が先頭）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map&at=2"/);
+    expect(list).toMatch(/\{ scene: "tts-voices"/);
+    expect(list).toMatch(/\{ scene: "dex-cards&n=150"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "wallpapers"/);
     expect(list).toMatch(/\{ scene: "review-memory-list"/);
@@ -5402,9 +5401,13 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
-    expect(scan).toMatch(
-      /className="scan-box relative snap-y snap-mandatory overflow-y-auto overscroll-contain/,
-    );
+    // 1行の箱は巻き取りに任せず、払った分だけ1つずつ送る（2026-09-23 の
+    // 4回目の指示「スクロールしにくい」）。画面は動かない。
+    expect(scan).toMatch(/className="scan-box relative touch-none overflow-hidden p-1"/);
+    expect(scan).toMatch(/const n = Math\.round\(-dy \/ 32\) \|\| -Math\.sign\(dy\);/);
+    // 数の札は押せば次の候補へ。追加のボタンはいま出ている候補を図鑑へ。
+    expect(scan).toMatch(/aria-label=\{t\("scan\.nextCandidate"\)\}/);
+    expect(scan).toMatch(/onClick=\{\(\) => onOpen\(active\)\}/);
     // 一番下の1行ぶん（2026-09-23 の3回目の指示）。
     expect(css).toMatch(/\.scan-box \{[^}]*max-height: calc\(3rem \+ 0\.5rem\);/);
   });
@@ -5418,6 +5421,18 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(css).toMatch(
       /html\[data-motion="reduce"\] \.scan-dot\[data-active\] \.scan-dot__core \{\s*animation: none;/,
     );
+  });
+
+  it("**「AIが分析中」は下のバーより上**・**印の札は枠の内側へ寄せる**（オーナー報告 2026-09-23）", () => {
+    for (const f of ["v0_cutout", "v6_minimal"]) {
+      expect(read(`components/effects/scan-analyzing/${f}.tsx`)).toMatch(
+        /pb-\[calc\(7\.5rem\+env\(safe-area-inset-bottom\)\)\]/,
+      );
+    }
+    expect(scan).toMatch(
+      /clamp\(\$\{4 - dotX\}px, -50%, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
+    );
+    expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 
   it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {
@@ -5502,7 +5517,9 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
     expect(cf).toMatch(/coverFlowPose\(/);
     expect(cf).toMatch(/frame\.current = requestAnimationFrame\(layout\)/);
-    expect(cf).toMatch(/i === center \? onOpen\(s\.id\) : bringToCenter\(i\)/);
+    expect(cf).toMatch(/i === centerRef\.current \? onOpenRef\.current\(id\) : bringToCenter\(i\)/);
+    // 真ん中が動いても全部の札を描き直さない（2026-09-23「最大まで滑らかに」）。
+    expect(cf).toMatch(/const CoverCard = memo\(function CoverCard/);
   });
 
   it("別の日にも出会った語は、詳細のいちばん上の写真を横に送れる", () => {

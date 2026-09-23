@@ -27,7 +27,7 @@ export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
     <div className="absolute inset-0">
       <div className="absolute inset-0 bg-black/25" />
       <div className="absolute inset-0 shimmer-sweep" />
-      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-16 pt-24 text-center text-white">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-24 text-center text-white">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 animate-pulse" />
           <span className="font-semibold">{label}</span>

@@ -114,6 +114,7 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
         dotStyle={dotStyle as never}
         onOpen={(it) => setActiveId((it as { id: string }).id)}
         activeId={activeId}
+        boxWidth={box.w}
       />
       <div
         ref={sheetRef}

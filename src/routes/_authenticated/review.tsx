@@ -444,6 +444,7 @@ function ReviewPage() {
   return (
     <AppShell
       title={t("title.review")}
+      headerless
       fixedViewport={
         REVIEW_PRACTICE_ENABLED &&
         format === "choice" &&
