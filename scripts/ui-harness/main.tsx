@@ -1,3 +1,4 @@
+import { FirstCatchScene } from "./scenes/first-catch";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
@@ -126,6 +127,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   gallery: GalleryScene,
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
+  "first-catch": FirstCatchScene,
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
@@ -261,6 +263,7 @@ function Frame({ children }: { children: ReactNode }) {
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 const BARE = new Set([
+  "first-catch",
   "auth",
   "sticker-peel",
   "onboarding",
@@ -295,6 +298,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "first-catch", label: "初回体験 → 図鑑へ追加 → 登録" },
   { scene: "home", label: "ホーム（今日の誌面・日付の見出し）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
   { scene: "home-past", label: "ホームの下（過去の日が続く）" },

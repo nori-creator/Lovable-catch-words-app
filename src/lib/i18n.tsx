@@ -139,6 +139,146 @@ export function setUiLang(lang: UiLang) {
  * 手で直した決めごとが次の文字列で戻らないようにする。
  */
 export const DICT: Record<string, Record<UiLang, string>> = {
+  "first.display": {
+    ja: "表示言語を\n選んでください",
+    en: "Choose your\ndisplay language",
+    "zh-TW": "選擇介面語言",
+  },
+  "first.displayHint": {
+    ja: "メニューや説明に使う言語です。",
+    en: "The language for menus and explanations.",
+    "zh-TW": "選擇選單與說明使用的語言。",
+  },
+  "first.target": {
+    ja: "学びたい言語は？",
+    en: "What would you\nlike to learn?",
+    "zh-TW": "你想學哪種語言？",
+  },
+  "first.targetHint": {
+    ja: "街で出会ったことばを、この言語で学びます。",
+    en: "Learn how to say the things you encounter.",
+    "zh-TW": "學會用這個語言說出生活中的事物。",
+  },
+  "first.time": {
+    ja: "1日、どれくらい\n学びたい？",
+    en: "A little time,\nevery day.",
+    "zh-TW": "每天想學多久？",
+  },
+  "first.timeHint": {
+    ja: "あなたのペースで。あとから変更できます。",
+    en: "Go at your own pace. You can change this later.",
+    "zh-TW": "依照自己的步調，之後可以調整。",
+  },
+  "first.minutes": { ja: "{n}分", en: "{n} min", "zh-TW": "{n} 分鐘" },
+  "first.start": { ja: "体験をはじめる", en: "Try your first Catch", "zh-TW": "開始體驗" },
+  "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
+  "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
+  "first.home": {
+    ja: "今日の発見が、写真とことばで残ります。",
+    en: "Keep today’s discoveries as photos and words.",
+    "zh-TW": "用照片和單字，留下今天的發現。",
+  },
+  "first.dex": {
+    ja: "集めたことばを、写真から探せます。",
+    en: "Find the words you collected through your photos.",
+    "zh-TW": "透過照片，找回你收集的單字。",
+  },
+  "first.review": {
+    ja: "集めて終わりにせず、復習して思い出せるように。",
+    en: "Turn your collection into words you can remember.",
+    "zh-TW": "透過複習，讓收集的單字真正留在記憶裡。",
+  },
+  "first.shoot": {
+    ja: "目の前のものを、1枚撮ってみよう。",
+    en: "Take one photo of something in front of you.",
+    "zh-TW": "拍一張眼前的東西吧。",
+  },
+  "first.shootCta": { ja: "1枚撮ってみる", en: "Take your first photo", "zh-TW": "拍下第一張照片" },
+  "first.pick": {
+    ja: "写真に写っている、覚えたいことばを選んでください。",
+    en: "Choose a word in your photo that you want to learn.",
+    "zh-TW": "選一個照片中你想學的單字。",
+  },
+  "first.detail": {
+    ja: "発音・意味・使い方を、その場で確認できます。",
+    en: "Hear the pronunciation and see how to use your word.",
+    "zh-TW": "立刻確認發音、意思與用法。",
+  },
+  "first.peel": {
+    ja: "写真をめくって、最初のことばを図鑑へ。",
+    en: "Peel your photo into your collection.",
+    "zh-TW": "掀起照片，把第一個單字加入圖鑑。",
+  },
+  "first.added": {
+    ja: "図鑑に追加しました！",
+    en: "Added to your collection!",
+    "zh-TW": "已加入圖鑑！",
+  },
+  "first.local": {
+    ja: "この端末に、最初の1語が入りました。",
+    en: "Your first word is now on this device.",
+    "zh-TW": "第一個單字已儲存在這個裝置上。",
+  },
+  "first.keep": { ja: "このことばを保存する", en: "Keep this word", "zh-TW": "保存這個單字" },
+  "first.account": {
+    ja: "最初のことばを、\nあなたのものに。",
+    en: "Make your first word\ntruly yours.",
+    "zh-TW": "讓第一個單字，\n成為你的收藏。",
+  },
+  "first.accountHint": {
+    ja: "登録して、この写真とことばをアカウントに保存。",
+    en: "Sign up to save this photo and word to your account.",
+    "zh-TW": "註冊帳號，保存這張照片和單字。",
+  },
+  "first.analyzing": {
+    ja: "写真からことばを探しています",
+    en: "Finding words in your photo",
+    "zh-TW": "正在尋找照片中的單字",
+  },
+  "first.preparing": {
+    ja: "意味と使い方を準備しています",
+    en: "Preparing the meaning and example",
+    "zh-TW": "正在準備意思與例句",
+  },
+  "first.failed": {
+    ja: "処理できませんでした。写真を残したまま、もう一度試せます。",
+    en: "That did not work. Your photo is kept so you can retry.",
+    "zh-TW": "處理失敗。照片仍保留著，可以再試一次。",
+  },
+  "first.storage": {
+    ja: "この端末に保存できませんでした。空き容量やブラウザの保存設定を確認してください。",
+    en: "Could not save on this device. Check free space and browser storage settings.",
+    "zh-TW": "無法儲存在這個裝置上，請確認剩餘空間與瀏覽器儲存設定。",
+  },
+  "first.retry": { ja: "もう一度試す", en: "Try again", "zh-TW": "再試一次" },
+  "first.retake": { ja: "撮り直す", en: "Retake photo", "zh-TW": "重新拍照" },
+  "first.guestUnavailable": {
+    ja: "現在、登録前の撮影体験を利用できません。写真はこの端末に残っています。時間をおいて再試行してください。",
+    en: "The pre-signup experience is currently unavailable. Your photo is kept on this device. Please try again later.",
+    "zh-TW": "目前無法使用註冊前的拍照體驗。照片已保留在這個裝置上，請稍後再試。",
+  },
+  "first.importing": {
+    ja: "最初のことばを引き継いでいます",
+    en: "Saving your first word to your account",
+    "zh-TW": "正在將第一個單字存入帳號",
+  },
+  "first.importFailed": {
+    ja: "引き継ぎが完了していません。写真と単語は端末に残っています。再試行してください。",
+    en: "Transfer is not complete. Your photo and word are still on this device. Please retry.",
+    "zh-TW": "尚未完成轉存，照片和單字仍保留在裝置上。請重試。",
+  },
+  "first.confirm": {
+    ja: "確認メールを送りました。メールのリンクを開いて、登録を完了してください。写真と単語はこの端末に残っています。",
+    en: "Check your email to finish signing up. Your photo and word are kept on this device.",
+    "zh-TW": "請開啟確認信中的連結完成註冊，照片和單字仍保留在這個裝置上。",
+  },
+  "first.signin": {
+    ja: "アカウントをお持ちの方はログイン",
+    en: "Already have an account? Sign in",
+    "zh-TW": "已有帳號？登入",
+  },
+  "first.ready": { ja: "保存できました", en: "Saved", "zh-TW": "已儲存" },
+
   // --- 動的ページタイトル ---
   "page.post": {
     ja: "投稿 {id} — Catchwords",

@@ -23,11 +23,11 @@ The product should make the user's own life, photos, places and encounters becom
 Account creation must not be the first experience.
 1. Choose display language.
 2. Choose learning language.
-3. Ask lightweight learner questions: current level, purpose, desired daily study amount.
+3. Ask desired daily study amount. The initial questionnaire is limited to display language, learning language and daily amount (owner-approved first-run design, 2026-09-22).
 4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product, not by showing a long feature list.
 5. User takes one real photo and completes one Catch.
 6. Only after experiencing the first Catch/Collection moment, ask the user to create/sign in to an account so the collection can be saved.
-Guest progress must survive registration.
+Guest progress must survive registration. The first photo/word must be durably added to the local Collection and its landing completed **before** the registration screen appears. Reuse actual Home components behind registration; do not promise a different illustrated home.
 
 ## Catch
 - Image analysis normally returns roughly 3–5 useful candidate words depending on the image.

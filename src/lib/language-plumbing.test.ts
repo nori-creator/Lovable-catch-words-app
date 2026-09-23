@@ -4847,23 +4847,15 @@ describe("ホームは今日の誌面", () => {
     expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
   });
 
-  it("**迎える面は、角の丸い写真を傾けて重ねる**（ステッカーではない）", () => {
+  it("初回登録の背景は、今日の写真を持つ実物のホームと同じ部品", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
-    expect(auth).toMatch(/auth-photo auth-photo--/);
-    expect(cssBlock(".auth-photo {", ".auth-photo img")).toMatch(/border-radius: 1\.125rem/);
-    // 3枚とも違う傾き（揃えると貼った物に見えない）。
-    const rot = [
-      ...read("styles.css").matchAll(/\.auth-photo--[abc] \{[\s\S]*?rotate: (-?[\d.]+)deg/g),
-    ].map((m) => m[1]);
-    expect(new Set(rot).size).toBe(3);
-  });
-
-  it("**写真が無くても壊れない**（`public/welcome/` は任意）", () => {
-    // 手元に写真を持っていないので、**無い物を描かない**。読めなければ
-    // その1枚を隠して、淡い地のまま出す。
-    const auth = codeOnly(read("routes/auth.tsx"));
-    expect(auth).toMatch(/onError=\{\(e\) => \{/);
-    expect(auth).toMatch(/e\.currentTarget\.style\.display = "none"/);
+    const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
+    expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
+    expect(home).toMatch(/<DayMasthead /);
+    expect(home).toMatch(/<DayCollage stickers=\{\[sticker\]\}/);
+    expect(home).toMatch(/<HomeEmptyState \/>/);
+    // 画像の装飾3枚を登録背景の代わりにしない。
+    expect(auth).not.toMatch(/auth-photo auth-photo--/);
   });
 
   it("**面と通信を分けてある**（雛形から迎える面を描ける）", () => {
@@ -4889,7 +4881,7 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
   });
 });
 

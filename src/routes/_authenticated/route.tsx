@@ -1,3 +1,5 @@
+import { canRequestAccount, readFirstCatch, type FirstCatch } from "@/lib/first-catch";
+import { FirstCatchTransfer } from "@/components/onboarding/FirstCatchTransfer";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +16,7 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const [state, setState] = useState<"checking" | "ready" | "failed">("checking");
   const [attempt, setAttempt] = useState(0);
+  const [pending, setPending] = useState<{ draft: FirstCatch; userId: string } | null>(null);
 
   const retry = useCallback(() => {
     setState("checking");
@@ -32,12 +35,20 @@ function AuthenticatedLayout() {
     );
 
     Promise.race([supabase.auth.getSession(), timeout])
-      .then((res) => {
+      .then(async (res) => {
         if (!active) return;
         const session = (res as Awaited<ReturnType<typeof supabase.auth.getSession>>).data.session;
-        if (!session) {
-          navigate({ to: "/auth", replace: true, search: { next: "" } });
+        if (!session || session.user.is_anonymous) {
+          const prior = await readFirstCatch().catch(() => null);
+          if (!active) return;
+          if (prior?.stage === "done")
+            navigate({ to: "/auth", replace: true, search: { next: "" } });
+          else navigate({ to: "/welcome", replace: true });
         } else {
+          // An unavailable guest draft must not lock out an existing account.
+          const draft = await readFirstCatch().catch(() => null);
+          if (!active) return;
+          if (draft && canRequestAccount(draft)) setPending({ draft, userId: session.user.id });
           setState("ready");
         }
       })
@@ -47,7 +58,8 @@ function AuthenticatedLayout() {
       });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate({ to: "/auth", replace: true, search: { next: "" } });
+      if (_e === "SIGNED_OUT") navigate({ to: "/auth", replace: true, search: { next: "" } });
+      else if (session?.user.is_anonymous) navigate({ to: "/welcome", replace: true });
     });
     return () => {
       active = false;
@@ -73,5 +85,6 @@ function AuthenticatedLayout() {
     );
   }
 
+  if (pending) return <FirstCatchTransfer {...pending} onDone={() => setPending(null)} />;
   return <Outlet />;
 }
