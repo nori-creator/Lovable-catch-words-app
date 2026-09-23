@@ -1,4 +1,5 @@
 import { siteUrlFor } from "@/lib/site-url";
+import { useReadableError } from "@/lib/errors";
 import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { SOCIAL_ENABLED } from "@/lib/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,6 +60,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function UserProfilePage() {
   const t = useT();
+  const readable = useReadableError();
   const lang = useUiLang();
   const { userId } = Route.useParams();
   const qc = useQueryClient();
@@ -97,7 +99,7 @@ function UserProfilePage() {
       await doFollow({ data: { target_user_id: data.id, follow: !data.is_following } });
       await qc.invalidateQueries({ queryKey: ["public-profile", userId] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("err.failed"));
+      toast.error(readable(e, t("err.failed")));
     } finally {
       setBusy(false);
     }

@@ -4,6 +4,7 @@ import {
   selfieCaptureEnabled,
   setSelfieCaptureEnabled,
 } from "@/lib/product-features";
+import { useReadableError } from "@/lib/errors";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useMotion } from "@/components/motion-provider";
 import { parseMotionChoice } from "@/lib/motion-pref";
@@ -293,6 +294,7 @@ export function SelectRow({
 
 function SettingsPage() {
   const t = useT();
+  const readable = useReadableError();
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();
@@ -649,7 +651,7 @@ function SettingsPage() {
         });
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -981,6 +983,7 @@ export function DangerZone({
   defaultConfirmText?: string;
 } = {}) {
   const t = useT();
+  const readable = useReadableError();
   const deleteFn = useServerFn(deleteMyAccount);
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -1003,7 +1006,7 @@ export function DangerZone({
       await router.invalidate();
       navigate({ to: "/auth", replace: true, search: { next: "" } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.deleteFailed"));
+      toast.error(readable(e, t("settings.deleteFailed")));
       setDeleting(false);
     }
   }

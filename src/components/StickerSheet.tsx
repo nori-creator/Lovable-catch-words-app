@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -87,6 +88,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   });
 
   const t = useT();
+  const readable = useReadableError();
   const uiLang = useUiLang();
   const fetchSticker = useServerFn(getSticker);
   const enrichWord = useServerFn(generateCard);
@@ -388,7 +390,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
       closePicker();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
+      toast.error(readable(e, t("card.photoFailed")));
     } finally {
       setSavingHero(false);
     }
@@ -485,7 +487,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    */
   const photoAttach = usePhotoAttach(stickerId ?? null, {
     onDone: () => closePicker(),
-    onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
+    onError: (e) => toast.error(readable(e, t("card.photoFailed"))),
   });
 
   async function handleImageFile(file: File) {

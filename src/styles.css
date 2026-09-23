@@ -4533,7 +4533,8 @@ html[data-motion="reduce"] {
   display: grid;
   /* 語と訳の2列。**右端のボタンを外した**（`WordCard` の `ChunkRow` の注）
      ので、痩せていた訳の取り分が戻る。 */
-  grid-template-columns: minmax(0, 1fr) minmax(6.5rem, 0.8fr);
+  /* 音声・語・訳の3列。音声は左端に小さく（訳の取り分を削らない）。 */
+  grid-template-columns: auto minmax(0, 1fr) minmax(6.5rem, 0.8fr);
   align-items: center;
   gap: 0.5rem;
 }
@@ -4568,7 +4569,7 @@ html[data-motion="reduce"] {
 }
 @media (max-width: 360px) {
   .usage-chunk-row__main {
-    grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.75fr);
+    grid-template-columns: auto minmax(0, 1fr) minmax(5.5rem, 0.75fr);
     gap: 0.375rem;
   }
 }
@@ -6481,34 +6482,45 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .album-date {
   margin: 0.25rem 0.25rem 0.75rem;
 }
+.diary-date {
+  text-align: center;
+}
 .diary-date__line {
+  /* iPhone のカレンダーの組み方: 曜日・大きな日にち・年月を縦に、中央揃え。 */
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.15rem 0.6rem;
+  flex-direction: column;
+  align-items: center;
   margin: 0;
   font-family: var(--font-display);
   color: var(--foreground);
 }
-.diary-date__day {
-  font-size: var(--text-hero);
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
 .diary-date__weekday {
-  font-size: var(--text-body);
+  font-size: var(--text-footnote);
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--primary);
+}
+.diary-date__day {
+  font-size: clamp(3.75rem, 19vw, 5.25rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+.diary-date__month {
+  margin-top: 0.15rem;
+  font-size: var(--text-footnote);
+  font-weight: 500;
   color: var(--muted-foreground);
 }
 .diary-date__note {
-  margin-top: 0.2rem;
+  margin-top: 0.35rem;
   font-size: var(--text-footnote);
   line-height: 1.45;
   color: var(--muted-foreground);
 }
 .diary-date--compact .diary-date__day {
-  font-size: var(--text-title);
+  font-size: var(--text-hero);
 }
 /* 白紙の日の一言とボタン。 */
 .home-blank {
@@ -7553,31 +7565,33 @@ html[data-motion="reduce"] .dex-day__card {
 /* 図鑑のカード表示（`DexCoverFlow`）。カードは送った位置に応じて毎フレーム
    傾く（JS が transform を書く）。ここは寸法・奥行き・影・床への映り込み。
    札どうしを少し重ねて、カバーフローの「並んだ束」に見せる。 */
-.dex-cf__scroller {
+.dex-cf__stage {
   /* 図鑑を全画面にした分、カードも大きく（オーナー指示 2026-09-23）。
      高さは画面に収まるよう、縦の余白からも上限を取る。 */
   --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
+  position: relative;
+  height: calc(var(--cf-w) * 1.48 + 3rem);
   perspective: 1100px;
-  padding-inline: calc(50% - var(--cf-w) / 2);
-  scrollbar-width: none;
-}
-.dex-cf__scroller::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
+  /* 横の送りはこちらが受け持つ（`DexCoverFlow` のばね）。縦は画面に譲る。 */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
 }
 .dex-cf__slot {
+  /* 全部の札を真ん中に重ね、位置と傾きは JS が `transform` 1つで書く。 */
+  position: absolute;
+  top: 1.5rem;
+  left: calc(50% - var(--cf-w) / 2);
   width: var(--cf-w);
   height: calc(var(--cf-w) * 1.48);
-  margin-inline: calc(var(--cf-w) * -0.19);
-  transform-style: preserve-3d;
   will-change: transform;
+  -webkit-user-drag: none;
 }
-/* 端のカードは重ねる相手が片側にしか無い。負の余白を付けたままだと
-   真ん中からずれて、止まっている時も傾いて見えた（実測）。 */
-.dex-cf__slot:first-child {
-  margin-left: 0;
-}
-.dex-cf__slot:last-child {
-  margin-right: 0;
+.dex-cf__slot img {
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
 .dex-cf__card {
   /* 鏡映り（`-webkit-box-reflect`）はやめた — 傾きが変わるたびに映りごと
@@ -7735,8 +7749,8 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 .dex-pin {
   position: absolute;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   transform: translate(-50%, -50%);
   z-index: 1;
   transition:
@@ -7780,6 +7794,25 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 html[data-motion="reduce"] .dex-pin {
   transition: none;
+}
+/* 浮いたピンに添える撮った時刻。ピンごと 1.45 倍になるので、字は逆に縮めて
+   ふつうの大きさに見せる。 */
+.dex-pin__time {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 3px);
+  transform: translateX(-50%) scale(0.69);
+  transform-origin: 50% 0;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
 }
 
 /* 画鋲（コルクの壁の留め方）。丸い頭に光の点、下に落ちる短い影。

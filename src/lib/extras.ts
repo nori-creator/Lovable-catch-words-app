@@ -623,6 +623,28 @@ export function usableCollocations(
  * 読み上げ側が `parts.join("")` を自前で書くと、英語の型が
  * `put onsocks` として合成される。
  */
+/**
+ * **チャンクの右に出す訳だけ**を取り出す。（オーナー指示 2026-09-23「チャンクの
+ * 右側は訳だけにして」）
+ *
+ * 生成の頼み方が長く「短い説明」だったので、既存のカードには
+ * 「タピオカミルクティーを頼む（注文の定番）」「よく使う型: …」のような説明が
+ * 混ざっている。表示の側で、最初の1文から括弧書き・見出し（`…:`）・矢印の左を
+ * 落として、訳の部分だけにする。頼み方は「訳だけ」に直した（`ai.functions.ts`）。
+ */
+export function chunkTranslation(ja: string | null | undefined): string {
+  let t = (ja ?? "").split(/[。．\n]/, 1)[0] ?? "";
+  // 矢印・イコールの右が訳（「喝+珍珠奶茶 → タピオカを飲む」）。
+  const arrow = t.split(/→|=|＝/);
+  t = arrow[arrow.length - 1];
+  // 見出し「〜の型:」の後ろが訳。
+  const colon = t.split(/[:：]/);
+  if (colon.length > 1 && colon[colon.length - 1].trim()) t = colon[colon.length - 1];
+  // 括弧書きの注釈は落とす（全角・半角）。
+  t = t.replace(/[（(][^）)]*[）)]/g, "");
+  return t.replace(/\s+/g, " ").trim();
+}
+
 export function chunkSpeechText(chunk: UsageChunk, language?: string | null): string {
   return chunkText(chunk, normalizeTargetLanguage(language) === "en" ? " " : "");
 }

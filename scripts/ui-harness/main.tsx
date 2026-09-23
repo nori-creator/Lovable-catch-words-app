@@ -308,6 +308,13 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-09-23 の4回目の依頼（12項目）で触った面（上から順に見る）。
+  { scene: "home", label: "ホームの日付（iPhone のカレンダーの組み方・中央）" },
+  { scene: "dex-cards&n=150", label: "図鑑のカード（指で送る・ばね・読みは設定の表記）" },
+  { scene: "dex-map&at=2", label: "図鑑の地図（近くに寄せる・地図の色・浮いたピンに時刻）" },
+  { scene: "word-card", label: "単語の詳細のチャンク（右は訳だけ・左に音声）" },
+  { scene: "settings-polish", label: "設定（自撮りモード・カメラロールに保存・場所でリマインド）" },
+  { scene: "scan-found&lang=en", label: "英語の画面（日本語が混ざらない）" },
   // 2026-09-23「キャッチの祝福に映画のクライマックスのような BGM」— 聴き比べ。
   { scene: "catch-sound", label: "キャッチの祝福の音（新しい BGM とこれまでを聴き比べ）" },
   // 2026-09-23 の3回目の依頼（10項目）で触った面（上から順に見る）。

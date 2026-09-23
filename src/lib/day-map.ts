@@ -142,3 +142,26 @@ export function neighborDay(days: string[], current: string, dir: -1 | 1): strin
   }
   return days[i + dir] ?? null;
 }
+
+/**
+ * **選んでいる立ち寄りの近くだけ**を返す（その立ち寄りを含む）。地図はこの範囲に
+ * 寄せる。（オーナー指示 2026-09-23 の3回目「撮った場所が遠いとすごい引きの
+ * マップになるから、寄りのマップを表示して、タイムラインで移動させて。遠い場合は
+ * その日のすべての画像が写る必要はない」）
+ *
+ * 場所の無い立ち寄りは入れない。基準が場所を持たなければ、場所を持つ最初の
+ * 立ち寄りを基準にする。
+ */
+export function nearbyStops<T extends StopItem>(
+  stops: Stop<T>[],
+  anchorId: string | null,
+  km = 3,
+): Stop<T>[] {
+  const located = stops.filter((s) => s.lat != null && s.lng != null);
+  const anchor = located.find((s) => s.id === anchorId) ?? located[0];
+  if (!anchor) return [];
+  const a = { lat: anchor.lat as number, lng: anchor.lng as number };
+  return located.filter(
+    (s) => haversineKm(a, { lat: s.lat as number, lng: s.lng as number }) <= km,
+  );
+}

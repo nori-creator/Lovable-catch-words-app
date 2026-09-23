@@ -314,3 +314,21 @@ describe("refineUsageChunks", () => {
     });
   });
 });
+
+import { chunkTranslation } from "./extras";
+
+describe("chunkTranslation（チャンクの右は訳だけ。オーナー指示 2026-09-23）", () => {
+  it("訳だけならそのまま", () => {
+    expect(chunkTranslation("タピオカミルクティーを飲む")).toBe("タピオカミルクティーを飲む");
+  });
+  it("括弧書きの注釈・2文目・見出し・矢印の左は落とす", () => {
+    expect(chunkTranslation("タピオカを頼む（注文の定番）。店でよく使う")).toBe("タピオカを頼む");
+    expect(chunkTranslation("よく使う型: タピオカを飲む")).toBe("タピオカを飲む");
+    expect(chunkTranslation("喝+珍珠奶茶 → タピオカを飲む")).toBe("タピオカを飲む");
+    expect(chunkTranslation("drink bubble tea (casual)")).toBe("drink bubble tea");
+  });
+  it("空は空", () => {
+    expect(chunkTranslation("")).toBe("");
+    expect(chunkTranslation(undefined)).toBe("");
+  });
+});

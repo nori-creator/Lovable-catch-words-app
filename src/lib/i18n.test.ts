@@ -105,7 +105,7 @@ describe("辞書が3言語ぶんそろっている", () => {
   const keys = Object.keys(DICT);
 
   it("1,073項目ある", () => {
-    expect(keys.length).toBe(1109);
+    expect(keys.length).toBe(1115);
   });
 
   /**
@@ -199,5 +199,24 @@ describe("繁體中文に簡体字が混ざっていない", () => {
         expect([s, c, toHk(c)], `${s} の ${c} が誤検知`).toEqual([s, c, c]);
       }
     }
+  });
+});
+
+describe("言語が混ざらない（オーナー指示 2026-09-23 の3回目「母語・学習言語を変えても言語が混ざらないように」）", () => {
+  /**
+   * 台湾華語・英語の文に**日本語のかな・日本語の句読点**を入れない。
+   * 漢字は台湾華語と共有なので見ない。`・`（日本語の中黒）は台湾華語では
+   * 「、」、英語では「 · 」。
+   */
+  it("zh-TW と en の文に、ひらがな・カタカナ・日本語の中黒が無い", () => {
+    const kana = /[぀-ヿ]/;
+    const bad: string[] = [];
+    for (const [k, e] of Object.entries(DICT)) {
+      for (const l of ["zh-TW", "en"] as const) {
+        const v = (e as Record<string, string>)[l];
+        if (v && kana.test(v)) bad.push(`${k}.${l}: ${v.slice(0, 40)}`);
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });

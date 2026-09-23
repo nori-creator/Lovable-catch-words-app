@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupStops, haversineKm, neighborDay, projectStops } from "./day-map";
+import { groupStops, haversineKm, nearbyStops, neighborDay, projectStops } from "./day-map";
 
 const at = (h: number, m = 0) => new Date(2026, 8, 12, h, m).toISOString();
 const it0 = (
@@ -82,5 +82,34 @@ describe("neighborDay", () => {
   it("写真の無い日からでも、いちばん近い前後へ", () => {
     expect(neighborDay(days, "2026-09-07", -1)).toBe("2026-09-05");
     expect(neighborDay(days, "2026-09-07", 1)).toBe("2026-09-12");
+  });
+});
+
+describe("nearbyStops（寄りの地図。オーナー指示 2026-09-23 の3回目）", () => {
+  const st = (id: string, lat: number | null, lng: number | null) => ({
+    id,
+    items: [],
+    start: "",
+    end: "",
+    lat,
+    lng,
+    place: null,
+  });
+  // 台北駅・西門町（約1km）・淡水（約17km）・場所なし
+  const stops = [
+    st("taipei", 25.0478, 121.517),
+    st("ximen", 25.0421, 121.5076),
+    st("tamsui", 25.1677, 121.4452),
+    st("none", null, null),
+  ];
+  it("選んだ所から 3km 以内だけ（遠い淡水は入れない）", () => {
+    expect(nearbyStops(stops, "taipei").map((s) => s.id)).toEqual(["taipei", "ximen"]);
+  });
+  it("遠い所を選んだら、そこの近くだけ", () => {
+    expect(nearbyStops(stops, "tamsui").map((s) => s.id)).toEqual(["tamsui"]);
+  });
+  it("基準が場所を持たなければ、場所のある最初の立ち寄りを基準に", () => {
+    expect(nearbyStops(stops, "none").map((s) => s.id)).toEqual(["taipei", "ximen"]);
+    expect(nearbyStops([st("x", null, null)], "x")).toEqual([]);
   });
 });

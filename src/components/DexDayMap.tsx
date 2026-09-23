@@ -9,7 +9,7 @@ import { CachedImg } from "@/lib/image-cache";
 import { Zh } from "@/components/Zh";
 import { DexCalendar } from "@/components/DexCalendar";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
-import { groupStops, neighborDay, projectStops, type Stop } from "@/lib/day-map";
+import { groupStops, nearbyStops, neighborDay, projectStops, type Stop } from "@/lib/day-map";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 type Item = {
@@ -439,6 +439,7 @@ function StopPin({
     const order = face ? [face, ...stop.items.filter((it) => it !== face)] : stop.items;
     return order.flatMap((it) => photoCandidates(it.s));
   }, [stop.items, faceItemId]);
+  const locale = localeOf(useUiLang());
   const [tried, setTried] = useState(0);
   // 顔の写真が替わったら、最初の候補から試し直す。
   useEffect(() => setTried(0), [candidates]);
@@ -473,6 +474,12 @@ function StopPin({
         )}
       </span>
       {stop.items.length > 1 && <span className="dex-pin__count">{stop.items.length}</span>}
+      {/* 浮いたピンにだけ、撮った時刻を添える（どれを見ているか一目で分かる）。 */}
+      {active && (
+        <span className="dex-pin__time" aria-hidden>
+          {new Date(stop.start).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      )}
     </button>
   );
 }
@@ -498,7 +505,7 @@ function FallbackDayMap({
     setBox({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
-  const pos = projectStops(stops, box, 44);
+  const pos = projectStops(stops, box, 48);
   return (
     // 方眼は画面いっぱい。ピンを置く範囲だけ、上の操作と下の日付の帯を避ける
     // （`.dex-daymap__plane-area`）。
@@ -554,6 +561,33 @@ function useGoogleMaps(enabled: boolean): any | null {
 }
 
 /** 上に重ねた絞り込みの板の高さ（`--dex-overlay-h`、図鑑が書き出す）。 */
+/**
+ * 地図の色（Google Maps の `styles`）。写真の丸と道筋が主役になるよう、
+ * 地面は淡く、お店・駅・道路番号の印は消す。暗い画面では暗い地図。
+ */
+const MAP_STYLE_LIGHT = [
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ color: "#eef1f4" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e3efe4" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bfe0f5" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fdfdfd" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+];
+const MAP_STYLE_DARK = [
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ color: "#1b1f27" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e2a3f" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a303b" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9aa4b2" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1b1f27" }] },
+];
+
 function overlayTop(): number {
   if (typeof document === "undefined") return 0;
   const v = getComputedStyle(document.documentElement).getPropertyValue("--dex-overlay-h");
@@ -595,12 +629,17 @@ function GoogleDayMap({
    */
   useEffect(() => {
     if (!el.current) return;
+    const dark = document.documentElement.classList.contains("dark");
     map.current ??= new g.Map(el.current, {
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 14,
       disableDefaultUI: true,
       clickableIcons: false,
       gestureHandling: "greedy",
+      // 写真が主役の地図（オーナー指示 2026-09-23「マップのデザイン向上」）。
+      // 色を落とし、お店・駅の印を消して、写真の丸と道筋だけが目に入るように。
+      styles: dark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
+      backgroundColor: dark ? "#1b1f27" : "#eef1f4",
     });
     // ピンは地図の上に**ふつうの HTML** として置く（写真の丸・浮き上がりを CSS で描く）。
     class PinLayer extends g.OverlayView {
@@ -634,38 +673,78 @@ function GoogleDayMap({
     };
   }, [g]);
 
-  // その日が替わったら、その日の立ち寄りが全部収まるように寄せる。
-  useEffect(() => {
+  const insetRef = useRef(bottomInset);
+  insetRef.current = bottomInset;
+  const padding = () => ({
+    top: overlayTop() + 24,
+    bottom: insetRef.current + 32,
+    left: 48,
+    right: 48,
+  });
+  /**
+   * **選んでいる立ち寄りの近くに寄せる。**（オーナー指示 2026-09-23 の3回目
+   * 「撮った場所が遠いとすごい引きのマップになるから、寄りのマップを表示して、
+   * タイムラインで移動させて」）
+   *
+   * 前はその日の立ち寄りを**全部**収めていた。朝は台北・夕方は淡水の日だと、
+   * 街の名前しか読めない引きの地図になる。いまは選んだ所から 3km 以内
+   * （`nearbyStops`）だけを収め、遠い所へは時間軸で送ったときに移る。
+   */
+  const frame = (anchorId: string | null) => {
     const m = map.current;
     if (!m) return;
-    const pts = stops
-      .filter((s) => s.lat != null && s.lng != null)
-      .map((s) => ({ lat: s.lat as number, lng: s.lng as number }));
-    if (pts.length === 1) {
-      m.setCenter(pts[0]);
+    const near = nearbyStops(stopsRef.current, anchorId);
+    if (near.length === 0) return;
+    if (near.length === 1) {
       m.setZoom(16);
-    } else if (pts.length > 1) {
-      const b = new g.LatLngBounds();
-      pts.forEach((p) => b.extend(p));
-      // 上の操作と下の日付の帯（と時間軸）の裏にピンを置かない。
-      m.fitBounds(b, { top: overlayTop() + 24, bottom: bottomInset + 32, left: 48, right: 48 });
+      m.panTo({ lat: near[0].lat as number, lng: near[0].lng as number });
+      m.panBy(0, Math.round((insetRef.current - overlayTop()) / 2));
+      return;
     }
+    const b = new g.LatLngBounds();
+    near.forEach((p) => b.extend({ lat: p.lat as number, lng: p.lng as number }));
+    m.fitBounds(b, padding());
+    // 近い2点だけの日に、建物の中まで寄りすぎない。
+    g.event.addListenerOnce(m, "idle", () => {
+      if (m.getZoom() > 17) m.setZoom(17);
+    });
+  };
+
+  /** その立ち寄りが、上の操作と下の帯を除いた「見えている所」に入っているか。 */
+  const inView = (s: MapStop) => {
+    const proj = overlay.current?.getProjection?.();
+    const box = el.current;
+    if (!proj || !box || s.lat == null || s.lng == null) return false;
+    const p = proj.fromLatLngToContainerPixel(new g.LatLng(s.lat, s.lng));
+    if (!p) return false;
+    const pad = padding();
+    return (
+      p.x >= pad.left &&
+      p.x <= box.clientWidth - pad.right &&
+      p.y >= pad.top &&
+      p.y <= box.clientHeight - pad.bottom
+    );
+  };
+
+  // その日が替わったら、最初の立ち寄りの近くに寄せる。
+  useEffect(() => {
+    frame(stops.find((s) => s.lat != null)?.id ?? null);
     // 帯の高さが変わるたびに寄せ直すと、指で動かした地図が戻ってしまう。日が替わった時だけ。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g, stops]);
 
   /**
-   * 選んだ立ち寄りへ寄る。**見えている所の真ん中**に置く — 画面の真ん中だと
-   * 下の時間軸の裏に入る（オーナー指示 2026-09-23「タイムラインとその単語の
-   * 地図上のバブル画像が両方見えるように」）。
+   * 選んだ立ち寄りへ。**見えている所にもう入っていれば動かさない**（地図が
+   * 行ったり来たりしない）。外にあれば、その立ち寄りの近くに寄せ直す —
+   * 遠い所へは、その日の全部を収める引きではなく、寄りのまま移る。
    */
   useEffect(() => {
     const s = stops.find((x) => x.id === activeId);
-    const m = map.current;
-    if (!m || !s || s.lat == null || s.lng == null) return;
-    m.panTo({ lat: s.lat, lng: s.lng });
-    m.panBy(0, Math.round((bottomInset - overlayTop()) / 2));
-  }, [activeId, stops, bottomInset]);
+    if (!s || s.lat == null || s.lng == null) return;
+    if (inView(s)) return;
+    frame(s.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, stops]);
 
   // ピンを描き直したら、位置を付け直す。
   useLayoutEffect(() => {

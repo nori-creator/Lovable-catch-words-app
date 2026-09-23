@@ -33,8 +33,10 @@ import {
 } from "./card-sections";
 import { stripUnrequested, wantsSection } from "./card-request";
 import {
+  consensusFixPatch,
   dictionaryFixPatch,
   shouldApplyCorrection,
+  type ReadingAnswer,
   verdictFromLlm,
   type CorrectionVerdict,
 } from "./correction-judge";
@@ -61,6 +63,7 @@ import {
   parseJsonFromAiText,
   withModelFallback,
   generateStructured,
+  type AiConfig,
 } from "./ai-provider.server";
 
 const SuggestInput = z.object({
@@ -418,7 +421,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
@@ -1079,7 +1082,7 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"短い説明"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
@@ -1340,7 +1343,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       data.item === "pronunciation" || data.item === "pos" || data.item === "meaning"
         ? data.item
         : "other";
-    await supabase
+    const { data: reportRow } = await supabase
       .from("entry_reports")
       .insert({
         user_id: userId,
@@ -1348,10 +1351,25 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
         kind,
         note: `[item:${data.item}] ${data.note}`.trim(),
       })
+      .select("id")
+      .maybeSingle()
       .then(
-        () => undefined,
-        () => undefined,
+        (r) => r,
+        () => ({ data: null }),
       );
+    /** 直せたら、報告を「対応済み」にする（管理画面の確認待ちに残さない）。 */
+    const markResolved = async () => {
+      const id = (reportRow as { id?: string } | null)?.id;
+      if (!id) return;
+      await supabaseAdmin
+        .from("entry_reports")
+        .update({ status: "resolved" })
+        .eq("id", id)
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    };
 
     // 2a. 発音・品詞 … 辞書と照らす。
     if (data.item === "pronunciation" || data.item === "pos") {
@@ -1371,13 +1389,46 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
           ? { source: row.source, reading: f.reading, readingAlt: f.readingAlt, pos: row.pos }
           : null,
       );
-      if (!patch) return { fixed: false, by: "dictionary" };
-      const { error } = await supabaseAdmin
+      if (patch) {
+        const { error } = await supabaseAdmin
+          .from("words")
+          .update(patch as never)
+          .eq("id", data.word_id);
+        if (error) throw new Error(error.message);
+        await markResolved();
+        return { fixed: true, by: "dictionary" };
+      }
+      // 確かな辞書の行があって今の値と同じなら、今の値が正しい（直さない）。
+      const licensed = row && row.source && row.source !== "ai";
+      if (licensed) return { fixed: false, by: "dictionary" };
+
+      // **確かな辞書に無い語**: 2つの別の AI の答えが一致し、さらに Jev が
+      // 「直した方が正しい」と言えたときだけ直す（`consensusFixPatch` の注）。
+      const answers = await askReadingTwice(w.headword, w.language);
+      const cPatch = consensusFixPatch(
+        data.item,
+        { ...w, source: (word as { source: string | null }).source },
+        answers,
+      );
+      if (!cPatch) return { fixed: false, by: "none" };
+      const cVerdict = await judgeCorrection({
+        headword: w.headword,
+        language: w.language,
+        item: data.item,
+        before: Object.fromEntries(
+          Object.keys(cPatch).map((k) => [k, (w as Record<string, unknown>)[k] ?? ""]),
+        ),
+        after: cPatch,
+        note: data.note,
+      });
+      if (!shouldApplyCorrection(cVerdict)) return { fixed: false, by: cVerdict.by };
+      const { error: cErr } = await supabaseAdmin
         .from("words")
-        .update(patch as never)
+        .update(cPatch as never)
         .eq("id", data.word_id);
-      if (error) throw new Error(error.message);
-      return { fixed: true, by: "dictionary" };
+      if (cErr) throw new Error(cErr.message);
+      await markResolved();
+      return { fixed: true, by: cVerdict.by };
     }
 
     // 2b. それ以外 … その項目だけの案を作る（まだ書かない）。
@@ -1405,8 +1456,50 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       .update({ ...proposal.baseUpdate, extras: proposal.merged as never } as never)
       .eq("id", data.word_id);
     if (upErr) throw new Error(upErr.message);
+    await markResolved();
     return { fixed: true, by: verdict.by };
   });
+
+/**
+ * 読み・品詞を**2つの別の AI に独立に**聞く（`consensusFixPatch` が突き合わせる）。
+ * 片方でも答えられなければ、答えは1つ以下になり、直さない側に倒れる。
+ */
+async function askReadingTwice(
+  headword: string,
+  language: string | null,
+): Promise<ReadingAnswer[]> {
+  const zh = (language ?? DEFAULT_TARGET_LANGUAGE).startsWith("zh");
+  const prompt =
+    `語: ${headword}\n` +
+    (zh
+      ? "台湾（教育部）の標準の読みを答えてください。reading は注音（声調記号つき、音節ごとに半角スペース区切り）、reading_alt は拼音（声調記号つき）。"
+      : "reading はアメリカ英語の IPA、reading_alt はイギリス英語の IPA（どちらも / / なし）。") +
+    ` pos はこの語のいちばん普通の品詞を日本語1語（名詞・動詞・形容詞・副詞など）。\n` +
+    `出力はJSONだけ: {"reading":"","reading_alt":"","pos":""}`;
+  const a = await getAiFor("audit");
+  const b = await getAiFor("card");
+  const models: Array<[AiConfig, string]> = [
+    [a, a.modelRich],
+    [b, b.modelFast === a.modelRich ? b.modelRich : b.modelFast],
+  ];
+  const out = await Promise.all(
+    models.map(async ([cfg, model]) => {
+      try {
+        const r = await generateText({ model: cfg.gateway(model), prompt });
+        const j = parseJsonFromAiText(r.text) as Partial<ReadingAnswer> | null;
+        if (!j || typeof j !== "object") return null;
+        return {
+          reading: String(j.reading ?? ""),
+          reading_alt: String(j.reading_alt ?? ""),
+          pos: String(j.pos ?? ""),
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return out.filter((x): x is ReadingAnswer => x !== null);
+}
 
 /**
  * 前と後のどちらが正しいかを、**作った目とは別の目**に聞く。

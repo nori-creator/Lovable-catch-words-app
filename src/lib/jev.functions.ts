@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askJev, jevAvailable } from "./jev.server";
-import { candidateQuestion, rankByWanted } from "./jev-tasks";
+import { candidateQuestion, doubtfulTaiwanTerms, rankByWanted } from "./jev-tasks";
 
 /**
  * スキャンで見つかった候補を「いちばん調べたい見込み」の高い順に並べる。
@@ -35,9 +35,13 @@ export const rankScanCandidates = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    if (!jevAvailable()) return { order: null, probs: null };
+    if (!jevAvailable()) return { order: null, probs: null, doubtful: [] as number[] };
     const q = candidateQuestion(data.items.map((it) => ({ ...it, kind: it.kind ?? undefined })));
     const res = await askJev(q.state, q.questions, { timeoutMs: 2500 });
     const ranked = rankByWanted(data.items, res?.answers.wanted);
-    return ranked ? { order: ranked.order, probs: ranked.probs } : { order: null, probs: null };
+    // 台湾の言い方として**はっきり疑わしい**候補（画面は後ろへ回し「?」を付ける）。
+    const doubtful = doubtfulTaiwanTerms(data.items.length, res?.answers);
+    return ranked
+      ? { order: ranked.order, probs: ranked.probs, doubtful }
+      : { order: null, probs: null, doubtful };
   });

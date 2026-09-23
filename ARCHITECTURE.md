@@ -62,6 +62,10 @@ Experimental models should initially run shadow predictions, not control product
 - Every Jev interval decision (Jev days, SM-2 days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
 - ease and repetitions remain SM-2 state.
 
+**Jev usage map (owner request 2026-09-23, "速さと正確性を両立させて"):** Jev is a fast, text-only judge. Use it to *check, rank and decide*, never to *write* learner-facing content (LLMs write; Jev verifies). Every Jev call must have a timeout and a non-Jev fallback, and must not add latency to the first thing the user sees.
+- Live: review interval (guardrails above); scan candidate ranking + Taiwan-standard-term check in the same single call, made after the dots are shown (doubtful items are demoted and marked low-confidence, never deleted); second opinion before writing a reported correction to a shared word; category only when generation fell back to "other".
+- Shadow (logged only, until calibrated): recall prediction, speaking judgement, example-sentence naturalness. Next candidate for going live: repair examples Jev rates clearly unnatural (<0.2) in a background job after the word is saved, applied only with the correction judge's approval.
+
 **Displayed number (owner decision 2026-09-23, "単語の数値は1つに統一したい"):** every surface (photo badge, review list, forgetting-curve y-axis and colors, modal chip) shows one number: the estimated probability of recalling the word now (`memoryOf` → `memoryPercent(retention)`), matching PRODUCT.md. How long a word lasts is expressed as the next review date, never as a second percentage. The stability-weighted `maturityLevel` is internal and only chooses the review question format.
 
 ## Data licensing

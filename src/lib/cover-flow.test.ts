@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverFlowPose, poseTransform } from "./cover-flow";
+import { coverFlowPose, poseTransform, settleIndex } from "./cover-flow";
 
 describe("coverFlowPose", () => {
   it("真ん中は正面・手前・いちばん上", () => {
@@ -62,5 +62,21 @@ describe("カードの下の点（オーナー指示 2026-09-23）", () => {
   });
   it("空なら何も出さない", () => {
     expect(dotWindow(0, 0)).toEqual([]);
+  });
+});
+
+describe("settleIndex（離したときに着く札）", () => {
+  it("止めて離せば、いちばん近い札", () => {
+    expect(settleIndex(140, 0, 100, 10)).toBe(1);
+    expect(settleIndex(160, 0, 100, 10)).toBe(2);
+  });
+  it("速く払うほど先の札へ。逆向きも同じ", () => {
+    expect(settleIndex(100, 1500, 100, 30)).toBeGreaterThan(3);
+    expect(settleIndex(1000, -1500, 100, 30)).toBeLessThan(7);
+  });
+  it("端は越えない", () => {
+    expect(settleIndex(0, -5000, 100, 10)).toBe(0);
+    expect(settleIndex(900, 5000, 100, 10)).toBe(9);
+    expect(settleIndex(0, 0, 100, 0)).toBe(0);
   });
 });

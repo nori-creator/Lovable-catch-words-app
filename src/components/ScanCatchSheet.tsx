@@ -1,4 +1,5 @@
 import { PeelSticker } from "@/components/PeelSticker";
+import { useReadableError } from "@/lib/errors";
 import { cutoutAtCatch, getCatchSpeed } from "@/lib/catch-speed";
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -86,6 +87,7 @@ export function ScanCatchSheet({
   onClose,
 }: Props) {
   const t = useT();
+  const readable = useReadableError();
   /** いま撮った物を何語として保存するか（設定の学習言語）。 */
   const targetLanguage = useTargetLang();
   /**
@@ -496,7 +498,7 @@ export function ScanCatchSheet({
     } catch (e) {
       failSave(e);
       console.error(e);
-      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
+      setErr(readable(e, t("cap.saveFailed")));
       toast.error(t("cap.saveFailed"));
       setSaving(false);
       setPhase("ready");
