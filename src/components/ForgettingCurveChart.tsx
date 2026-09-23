@@ -407,9 +407,11 @@ function ScrubLayer({
     <g className="memory-scrub">
       {d != null && r != null && (
         <g pointerEvents="none">
+          {/* **端から端まで**（オーナー指示 2026-09-23「点線は一番横まで、縦線を
+              一番上まで」）。横は描く面の左端から右端、縦は上端から下端。 */}
           <line
             x1={offset.left}
-            x2={x}
+            x2={offset.left + offset.width}
             y1={y}
             y2={y}
             stroke="var(--foreground)"
@@ -420,7 +422,7 @@ function ScrubLayer({
           <line
             x1={x}
             x2={x}
-            y1={y}
+            y1={offset.top}
             y2={bottom}
             stroke="var(--foreground)"
             strokeOpacity={0.55}

@@ -86,10 +86,36 @@ export function DexDayMap({
   }, [byDay, current]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = stops.find((s) => s.id === activeId)?.id ?? stops[0]?.id ?? null;
-  useEffect(() => setActiveId(null), [current]);
+  /** 時間軸で押した写真（浮いたピンの顔・ピンを押したときに開く札）。 */
+  const [activeItem, setActiveItem] = useState<string | null>(null);
+  useEffect(() => {
+    setActiveId(null);
+    setActiveItem(null);
+  }, [current]);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [open, setOpen] = useState(initialOpen);
+  /** 下の帯（と時間軸）の高さ。地図はこの上の見えている所にピンを寄せる。 */
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const [dockH, setDockH] = useState(160);
+  useLayoutEffect(() => {
+    const el = dockRef.current;
+    if (!el) return;
+    const put = () => {
+      // 帯の上端から画面の下端まで（下のバーのぶんも含む）。
+      const h = Math.round(window.innerHeight - el.getBoundingClientRect().top);
+      setDockH((c) => (c === h ? c : h));
+      el.parentElement?.style.setProperty("--dex-dock-h", `${h}px`);
+    };
+    put();
+    const ro = new ResizeObserver(put);
+    ro.observe(el);
+    window.addEventListener("resize", put);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", put);
+    };
+  }, [open]);
 
   // ---- 時間軸を送ると、読んでいる行の立ち寄りへ -----------------------------
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +134,23 @@ export function DexDayMap({
     setActiveId((c) => (c === next ? c : next));
   };
 
+  /**
+   * **ピンを押したとき。**（オーナー指示 2026-09-23「単語をタップしたら地図上で
+   * 丸い画像がぽんっと浮き上がり、そのバブルをタップすると単語の詳細に飛ぶ」）
+   *  ・浮いていないピン → そのピンを浮かせ、時間軸をその行へ送る
+   *  ・浮いているピン   → 選んでいた写真（無ければその場所の1枚目）の詳細を開く
+   */
+  const onPin = (id: string) => {
+    const st = stops.find((x) => x.id === id);
+    if (!st) return;
+    if (id === active) {
+      const it = st.items.find((x) => x.id === activeItem) ?? st.items[0];
+      if (it) onOpen(it.id);
+      return;
+    }
+    setActiveItem(null);
+    focusStop(id);
+  };
   const focusStop = (id: string) => {
     setActiveId(id);
     setOpen(true);
@@ -143,13 +186,15 @@ export function DexDayMap({
         <DayMapCanvas
           stops={stops}
           activeId={active}
-          onPin={focusStop}
+          faceItemId={activeItem}
+          onPin={onPin}
           forceFallback={forceFallback}
+          bottomInset={dockH}
         />
       </div>
 
       {/* 一番下の日付の帯と、押すと開く時間軸。 */}
-      <div className="dex-daymap__dock" data-open={open || undefined}>
+      <div ref={dockRef} className="dex-daymap__dock" data-open={open || undefined}>
         {open && (
           <div
             ref={listRef}
@@ -196,11 +241,20 @@ export function DexDayMap({
                           <button
                             key={it.id}
                             type="button"
+                            /* **押したら地図の上でその写真のピンが浮く。** 詳細は
+                               浮いたピンを押して開く（オーナー指示 2026-09-23
+                               「この単語を取ったのはどこかで振り返りたい」）。 */
                             onClick={(e) => {
                               e.stopPropagation();
-                              onOpen(it.id);
+                              setActiveId(st.id);
+                              setActiveItem(it.id);
                             }}
-                            className="press-in flex min-h-11 items-center gap-3 text-left"
+                            aria-pressed={on && activeItem === it.id}
+                            className={`press-in flex min-h-11 items-center gap-3 rounded-2xl p-1 text-left ${
+                              on && activeItem === it.id
+                                ? "bg-primary/10 ring-1 ring-primary/40"
+                                : ""
+                            }`}
                           >
                             <span className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-secondary shadow-sm">
                               {photo ? (
@@ -332,27 +386,44 @@ type MapStop = Stop<Item>;
 function DayMapCanvas({
   stops,
   activeId,
+  faceItemId,
   onPin,
   forceFallback,
+  bottomInset,
 }: {
   stops: MapStop[];
   activeId: string | null;
+  faceItemId: string | null;
   onPin: (id: string) => void;
   forceFallback: boolean;
+  bottomInset: number;
 }) {
   const g = useGoogleMaps(!forceFallback);
-  if (g) return <GoogleDayMap g={g} stops={stops} activeId={activeId} onPin={onPin} />;
-  return <FallbackDayMap stops={stops} activeId={activeId} onPin={onPin} />;
+  if (g)
+    return (
+      <GoogleDayMap
+        g={g}
+        stops={stops}
+        activeId={activeId}
+        faceItemId={faceItemId}
+        onPin={onPin}
+        bottomInset={bottomInset}
+      />
+    );
+  return <FallbackDayMap stops={stops} activeId={activeId} faceItemId={faceItemId} onPin={onPin} />;
 }
 
 function StopPin({
   stop,
   active,
+  faceItemId = null,
   onPin,
   style,
 }: {
   stop: MapStop;
   active: boolean;
+  /** 時間軸で選んだ写真。浮いたピンはその写真の顔になる。 */
+  faceItemId?: string | null;
   onPin: (id: string) => void;
   style?: React.CSSProperties;
 }) {
@@ -363,8 +434,14 @@ function StopPin({
    * いまは端末の写真置き場（`CachedImg`、時間軸の写真と同じ）を通し、
    * 失敗したら原寸 → その立ち寄りの別の写真へ落ちる。
    */
-  const candidates = useMemo(() => stop.items.flatMap((it) => photoCandidates(it.s)), [stop.items]);
+  const candidates = useMemo(() => {
+    const face = stop.items.find((it) => it.id === faceItemId);
+    const order = face ? [face, ...stop.items.filter((it) => it !== face)] : stop.items;
+    return order.flatMap((it) => photoCandidates(it.s));
+  }, [stop.items, faceItemId]);
   const [tried, setTried] = useState(0);
+  // 顔の写真が替わったら、最初の候補から試し直す。
+  useEffect(() => setTried(0), [candidates]);
   const photo = candidates[tried] ?? null;
   return (
     <button
@@ -403,10 +480,12 @@ function StopPin({
 function FallbackDayMap({
   stops,
   activeId,
+  faceItemId,
   onPin,
 }: {
   stops: MapStop[];
   activeId: string | null;
+  faceItemId: string | null;
   onPin: (id: string) => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -433,6 +512,7 @@ function FallbackDayMap({
               key={s.id}
               stop={s}
               active={s.id === activeId}
+              faceItemId={s.id === activeId ? faceItemId : null}
               onPin={onPin}
               style={{ left: p.x, top: p.y }}
             />
@@ -473,16 +553,28 @@ function useGoogleMaps(enabled: boolean): any | null {
   return g;
 }
 
+/** 上に重ねた絞り込みの板の高さ（`--dex-overlay-h`、図鑑が書き出す）。 */
+function overlayTop(): number {
+  if (typeof document === "undefined") return 0;
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--dex-overlay-h");
+  return Number.parseFloat(v) || 0;
+}
+
 function GoogleDayMap({
   g,
   stops,
   activeId,
+  faceItemId,
   onPin,
+  bottomInset,
 }: {
   g: any;
   stops: MapStop[];
   activeId: string | null;
+  faceItemId: string | null;
   onPin: (id: string) => void;
+  /** 下の日付の帯（と開いた時間軸）の高さ。ピンをその裏に置かない。 */
+  bottomInset: number;
 }) {
   const el = useRef<HTMLDivElement | null>(null);
   const map = useRef<any>(null);
@@ -491,9 +583,19 @@ function GoogleDayMap({
   stopsRef.current = stops;
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
 
+  /**
+   * **地図とピンの層は、この効果が走るたびに必ずそろえる。**（オーナー報告
+   * 2026-09-23「マップ上で画像付きのバブルが表示されてない」）
+   *
+   * 前は「地図がもう在れば何もしない」で抜けていた。開発時の React
+   * （StrictMode）は効果を**付ける → 外す → 付け直す**と2回走らせる。
+   * 1回目の後始末でピンの層を外し、2回目は地図が在るので抜ける —
+   * **地図は出るのにピンの層だけが無い**。Lovable のプレビューはこの
+   * 開発時の形で動くので、ピンが1本も出なかった。
+   */
   useEffect(() => {
-    if (!el.current || map.current) return;
-    map.current = new g.Map(el.current, {
+    if (!el.current) return;
+    map.current ??= new g.Map(el.current, {
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 14,
       disableDefaultUI: true,
@@ -527,6 +629,8 @@ function GoogleDayMap({
     setLayer(o.container);
     return () => {
       o.setMap(null);
+      overlay.current = null;
+      setLayer(null);
     };
   }, [g]);
 
@@ -543,17 +647,25 @@ function GoogleDayMap({
     } else if (pts.length > 1) {
       const b = new g.LatLngBounds();
       pts.forEach((p) => b.extend(p));
-      // 上の操作と下の日付の帯の裏にピンを置かない。
-      m.fitBounds(b, { top: 150, bottom: 200, left: 48, right: 48 });
+      // 上の操作と下の日付の帯（と時間軸）の裏にピンを置かない。
+      m.fitBounds(b, { top: overlayTop() + 24, bottom: bottomInset + 32, left: 48, right: 48 });
     }
+    // 帯の高さが変わるたびに寄せ直すと、指で動かした地図が戻ってしまう。日が替わった時だけ。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g, stops]);
 
-  // 読んでいる立ち寄りへ寄る。
+  /**
+   * 選んだ立ち寄りへ寄る。**見えている所の真ん中**に置く — 画面の真ん中だと
+   * 下の時間軸の裏に入る（オーナー指示 2026-09-23「タイムラインとその単語の
+   * 地図上のバブル画像が両方見えるように」）。
+   */
   useEffect(() => {
     const s = stops.find((x) => x.id === activeId);
-    if (!map.current || !s || s.lat == null || s.lng == null) return;
-    map.current.panTo({ lat: s.lat, lng: s.lng });
-  }, [activeId, stops]);
+    const m = map.current;
+    if (!m || !s || s.lat == null || s.lng == null) return;
+    m.panTo({ lat: s.lat, lng: s.lng });
+    m.panBy(0, Math.round((bottomInset - overlayTop()) / 2));
+  }, [activeId, stops, bottomInset]);
 
   // ピンを描き直したら、位置を付け直す。
   useLayoutEffect(() => {
@@ -567,7 +679,15 @@ function GoogleDayMap({
         createPortal(
           stops
             .filter((s) => s.lat != null)
-            .map((s) => <StopPin key={s.id} stop={s} active={s.id === activeId} onPin={onPin} />),
+            .map((s) => (
+              <StopPin
+                key={s.id}
+                stop={s}
+                active={s.id === activeId}
+                faceItemId={s.id === activeId ? faceItemId : null}
+                onPin={onPin}
+              />
+            )),
           layer,
         )}
     </div>
