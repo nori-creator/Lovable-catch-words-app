@@ -498,14 +498,34 @@ export function DiaryDate({
   compact?: boolean;
 }) {
   const locale = localeOf(useUiLang());
+  /**
+   * **iPhone のカレンダーと同じ組み方**（オーナー指示 2026-09-23 の3回目
+   * 「日付のフォントと左寄りの配置が気に入らない。Apple の公式の字体に戻して」）。
+   * 上に曜日（色付き・小さく）、真ん中に日にちの数字を大きく、下に年月。
+   * 書体は端末の公式書体（`--font-display` = SF Pro / ヒラギノ）、中央揃え。
+   * 数字は言語に依らないので、日にちは数字だけで書く（「23日」にしない）。
+   */
   const weekday = date.toLocaleDateString(locale, { weekday: "long" });
-  const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
+  const monthYear = date.toLocaleDateString(locale, { year: "numeric", month: "long" });
+  const full = date.toLocaleDateString(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
   const Tag = compact ? "h2" : "h1";
   return (
     <div className={`diary-date ${compact ? "diary-date--compact" : ""}`}>
-      <Tag className="diary-date__line">
-        <span className="diary-date__day">{monthDay}</span>
-        <span className="diary-date__weekday">{weekday}</span>
+      <Tag className="diary-date__line" aria-label={full}>
+        <span className="diary-date__weekday" aria-hidden>
+          {weekday}
+        </span>
+        <span className="diary-date__day" aria-hidden>
+          {date.getDate()}
+        </span>
+        <span className="diary-date__month" aria-hidden>
+          {monthYear}
+        </span>
       </Tag>
       {tagline && <p className="diary-date__note">{tagline}</p>}
     </div>

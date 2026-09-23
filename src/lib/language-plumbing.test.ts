@@ -3928,7 +3928,10 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(at).toBeGreaterThanOrEqual(0);
     const row = src.slice(at, at + 2000);
     expect(row).toMatch(/usage-chunk-row__meaning/);
-    expect(row).not.toMatch(/PronounceButton/);
+    // 右は訳だけ（説明を落とす）。音声は**左端**に小さく（2026-09-23 の指示で復活。
+    // 右端に置くと訳が痩せるので、訳より前に置く）。
+    expect(row).toMatch(/const translation = chunkTranslation\(chunk\.ja\);/);
+    expect(row.indexOf("<PronounceButton")).toBeLessThan(row.indexOf("usage-chunk-row__meaning"));
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
@@ -4790,6 +4793,9 @@ describe("ホームは今日の誌面", () => {
     const css = read("styles.css");
     const line = css.slice(css.indexOf(".diary-date__line {"));
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/font-family: var\(--font-display\)/);
+    // iPhone のカレンダーの組み方: 曜日・大きな日にち・年月、中央揃え（2026-09-23 の3回目）。
+    expect(line.slice(0, line.indexOf("\n}"))).toMatch(/align-items: center;/);
+    expect(diary).toMatch(/<span className="diary-date__day" aria-hidden>\s*\{date\.getDate\(\)\}/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4902,8 +4908,10 @@ describe("ホームは今日の誌面", () => {
     );
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
-    // 先頭は何も打たずに開いた人が最初に見る面。
+    // 先頭は何も打たずに開いた人が最初に見る面 = 初回体験（PR #106）。
+    // 4回目の依頼の面（ホームの日付ほか）は、その次から帯に残す。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    expect(list).toMatch(/\{ scene: "home", label: "ホームの日付/);
     expect(list).toMatch(/scene: "dex-map&at=2"/);
     expect(list).toMatch(/\{ scene: "tts-voices"/);
     expect(list).toMatch(/\{ scene: "catch-sound"/);
@@ -5511,7 +5519,16 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
 
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
     expect(cf).toMatch(/coverFlowPose\(/);
-    expect(cf).toMatch(/frame\.current = requestAnimationFrame\(layout\)/);
+    // 送りと傾きは同じ1コマで書く（ブラウザのスクロールに任せない。2026-09-23 の3回目）。
+    expect(cf).not.toMatch(/overflow-x-auto|onScroll=/);
+    expect(cf).toMatch(/const sp = createSpring\(0, paint\);/);
+    expect(cf).toMatch(
+      /el\.style\.transform = `translate3d\(\$\{\(i \* s - x\)\.toFixed\(2\)\}px,0,0\) \$\{poseTransform\(pose\)\}`;/,
+    );
+    // 離したら速さを引き継いで近い札へ（Apple の減衰の見込み）。
+    expect(cf).toMatch(
+      /const target = settleIndex\(offset\.current, v, step\.current, countRef\.current\);/,
+    );
     expect(cf).toMatch(/i === centerRef\.current \? onOpenRef\.current\(id\) : bringToCenter\(i\)/);
     // 真ん中が動いても全部の札を描き直さない（2026-09-23「最大まで滑らかに」）。
     expect(cf).toMatch(/const CoverCard = memo\(function CoverCard/);
@@ -5615,7 +5632,11 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
   });
 
   it("**候補の並びは後から**、本人が押した後は変えない", () => {
-    expect(scan).toMatch(/if \(cancelled \|\| touchedRef\.current \|\| !r\.order\) return;/);
+    expect(scan).toMatch(/if \(cancelled\) return;/);
+    // 疑わしい候補の「?」は付けるが、本人が押した後は並びを変えない。
+    expect(scan).toMatch(/if \(touchedRef\.current\) return;\s*const order = r\.order/);
+    // 1回のスキャンで1回だけ聞く。
+    expect(scan).toMatch(/rankAsked\.current = true;/);
   });
 });
 
@@ -5776,5 +5797,38 @@ describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () =
   it("途中で抜けても鳴り残さない（finally と保存の失敗で止める）", () => {
     expect(v5).toMatch(/finally \{[^}]*Score\.stop\(\);/);
     expect(v5).toMatch(/root\.dataset\.stage = "idle";\s*Score\.stop\(\);/);
+  });
+});
+
+describe("スキャンの「検出に失敗」（オーナー報告 2026-09-23）", () => {
+  const fn = codeOnly(read("lib/scan.functions.ts"));
+  const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+
+  it("返事は寛容に読み（1か所の形の違いで全部を捨てない）、駄目なら既定の AI でもう1回", () => {
+    expect(fn).toMatch(/const items = normalizeDetection\(raw\);/);
+    expect(fn).not.toMatch(/DetectResponseSchema/);
+    expect(fn).toMatch(/found = await ask\(base\);/);
+  });
+
+  it("辞書が引けなくても、見つけた語は出す", () => {
+    expect(scan).toMatch(
+      /\} catch \(lookupErr\) \{\s*console\.warn\("\[scan\] dictionary lookup failed"/,
+    );
+  });
+});
+
+describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-23 の3回目）", () => {
+  const dm = codeOnly(read("components/DexDayMap.tsx"));
+  it("その日の全部ではなく、選んだ所の近く（3km）だけを収める", () => {
+    expect(dm).toMatch(/const near = nearbyStops\(stopsRef\.current, anchorId\);/);
+    expect(dm).not.toMatch(/pts\.forEach\(\(p\) => b\.extend\(p\)\)/);
+  });
+  it("見えている所に入っていれば地図を動かさない。外なら、その近くへ寄せ直す", () => {
+    expect(dm).toMatch(/if \(inView\(s\)\) return;\s*frame\(s\.id\);/);
+  });
+  it("写真が主役の地図の色（お店・駅の印を消す）。浮いたピンに時刻", () => {
+    expect(dm).toMatch(/styles: dark \? MAP_STYLE_DARK : MAP_STYLE_LIGHT/);
+    expect(dm).toMatch(/featureType: "poi", stylers: \[\{ visibility: "off" \}\]/);
+    expect(dm).toMatch(/className="dex-pin__time"/);
   });
 });

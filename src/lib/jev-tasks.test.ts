@@ -155,3 +155,21 @@ describe("復習の間隔（Jev が決める。オーナー指示 2026-09-23）"
     expect(pickInterval(300, 999, 5).days).toBe(365);
   });
 });
+
+import { candidateQuestion as cq, doubtfulTaiwanTerms } from "./jev-tasks";
+
+describe("スキャンの候補: 台湾の言い方かも同じ1回で聞く（2026-09-23 の3回目）", () => {
+  it("候補ごとに tw の問いが付く（並べ替えの問いと一緒）", () => {
+    const q = cq([{ headword: "出租车" }, { headword: "計程車" }]);
+    expect(Object.keys(q.questions).sort()).toEqual(["tw0", "tw1", "wanted"]);
+  });
+  it("はっきり疑わしい（15% 未満）ものだけを返す。迷うもの・答えの無いものは疑わない", () => {
+    expect(
+      doubtfulTaiwanTerms(3, {
+        tw0: { type: "noul", noul: 0.05 },
+        tw1: { type: "noul", noul: 0.4 },
+      }),
+    ).toEqual([0]);
+    expect(doubtfulTaiwanTerms(2, undefined)).toEqual([]);
+  });
+});

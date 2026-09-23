@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useReadableError } from "@/lib/errors";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { BookText, Wand2 } from "lucide-react";
@@ -38,6 +39,7 @@ export function JournalComposer({
   showHeading?: boolean;
 } = {}) {
   const t = useT();
+  const readable = useReadableError();
   const qc = useQueryClient();
   const fetchJournal = useServerFn(listJournal);
   const correct = useServerFn(correctMyJournal);
@@ -134,7 +136,7 @@ export function JournalComposer({
       setSavedLocally(false);
       qc.invalidateQueries({ queryKey: ["journal"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("journal.failed")),
+    onError: (e: unknown) => toast.error(readable(e, t("journal.failed"))),
   });
 
   return (

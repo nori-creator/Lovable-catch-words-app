@@ -221,19 +221,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "幾分鐘也很好，照著自己的步調來。",
   },
   "first.goal.conversation": { ja: "日常会話", en: "Everyday conversation", "zh-TW": "日常會話" },
-  "first.goal.travel": { ja: "旅行・留学", en: "Travel & study abroad", "zh-TW": "旅行・留學" },
-  "first.goal.work": { ja: "仕事・キャリア", en: "Work & career", "zh-TW": "工作・職涯" },
+  "first.goal.travel": { ja: "旅行・留学", en: "Travel & study abroad", "zh-TW": "旅行、留學" },
+  "first.goal.work": { ja: "仕事・キャリア", en: "Work & career", "zh-TW": "工作、職涯" },
   "first.goal.exams": { ja: "試験対策", en: "Exam preparation", "zh-TW": "考試準備" },
-  "first.goal.culture": { ja: "趣味・教養", en: "Hobbies & culture", "zh-TW": "興趣・文化" },
+  "first.goal.culture": { ja: "趣味・教養", en: "Hobbies & culture", "zh-TW": "興趣、文化" },
   "first.goal.other": { ja: "その他", en: "Something else", "zh-TW": "其他" },
   "first.interest.food": { ja: "食べ物", en: "Food & drink", "zh-TW": "美食" },
   "first.interest.travel": { ja: "旅行", en: "Travel", "zh-TW": "旅行" },
   "first.interest.animals": { ja: "動物", en: "Animals", "zh-TW": "動物" },
   "first.interest.nature": { ja: "自然", en: "Nature", "zh-TW": "自然" },
-  "first.interest.city": { ja: "建物・街", en: "City & architecture", "zh-TW": "建築・街景" },
+  "first.interest.city": { ja: "建物・街", en: "City & architecture", "zh-TW": "建築、街景" },
   "first.interest.fashion": { ja: "ファッション", en: "Fashion", "zh-TW": "時尚" },
   "first.interest.business": { ja: "ビジネス", en: "Business", "zh-TW": "商業" },
-  "first.interest.music": { ja: "音楽・映画", en: "Music & film", "zh-TW": "音樂・電影" },
+  "first.interest.music": { ja: "音楽・映画", en: "Music & film", "zh-TW": "音樂、電影" },
   "first.interest.sports": { ja: "スポーツ", en: "Sports", "zh-TW": "運動" },
   "first.openWord": {
     ja: "追加した単語を見てみる",
@@ -285,7 +285,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.visualSample": {
     ja: "画面の見本 · 撮影結果ではありません",
     en: "Visual example · Not a photo analysis result",
-    "zh-TW": "畫面示範・非照片分析結果",
+    "zh-TW": "畫面示範，非照片分析結果",
   },
   "first.display": {
     ja: "表示言語を\n選んでください",
@@ -508,17 +508,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "oauth.scope1": {
     ja: "・あなたの Catchwords プロフィール（表示名・アバター）",
     en: "· Your Catchwords profile (display name, avatar)",
-    "zh-TW": "・你的 Catchwords 個人檔案（顯示名稱、頭像）",
+    "zh-TW": "、你的 Catchwords 個人檔案（顯示名稱、頭像）",
   },
   "oauth.scope2": {
     ja: "・あなたのステッカー（単語カード・キャプション・撮影地）",
     en: "· Your stickers (word cards, captions, capture locations)",
-    "zh-TW": "・你的貼紙（單字卡、感想、拍攝地點）",
+    "zh-TW": "、你的貼紙（單字卡、感想、拍攝地點）",
   },
   "oauth.scope3": {
     ja: "・あなたの SRS 復習の予定",
     en: "· Your SRS review schedule",
-    "zh-TW": "・你的 SRS 複習排程",
+    "zh-TW": "、你的 SRS 複習排程",
   },
   "oauth.rlsNote": {
     ja: "このアプリの権限とバックエンドポリシー(RLS)は引き続き適用されます。他ユーザーのデータは公開されません。",
@@ -957,7 +957,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.reorder": { ja: "並べ替え", en: "Reorder", "zh-TW": "調整順序" },
   "card.toggleShow": { ja: "表示切替", en: "Show / hide", "zh-TW": "切換顯示" },
   "card.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
-  "card.pronZhuyin": { ja: "発音・注音", en: "Pronunciation & Zhuyin", "zh-TW": "發音・注音" },
+  "card.pronZhuyin": { ja: "発音・注音", en: "Pronunciation & Zhuyin", "zh-TW": "發音、注音" },
   "card.posLabel": { ja: "品詞", en: "Part of speech", "zh-TW": "詞性" },
   "card.reportError": {
     ja: "この語の誤りを報告",
@@ -1020,7 +1020,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.moeHint": {
     ja: "台湾教育部の公式辞書（定義・注音）",
     en: "Taiwan's official MOE dictionary (definitions, Zhuyin)",
-    "zh-TW": "台灣教育部的官方辭典（釋義・注音）",
+    "zh-TW": "台灣教育部的官方辭典（釋義、注音）",
   },
   // --- 英語のカードの「実際の使われ方」(第4段) -----------------------------
   // **札の名前は使い回す**(YouTube / Threads / ニュース / 文の中)。
@@ -1072,7 +1072,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.mwHint": {
     ja: "アメリカ英語の標準的な辞書（定義・発音）",
     en: "The standard American English dictionary (definitions, pronunciation)",
-    "zh-TW": "美式英語的標準辭典（釋義・發音）",
+    "zh-TW": "美式英語的標準辭典（釋義、發音）",
   },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": {
@@ -1134,7 +1134,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.aiUnverified": {
     ja: "AI生成・未検証",
     en: "AI generated · unverified",
-    "zh-TW": "AI 生成・未驗證",
+    "zh-TW": "AI 生成、未驗證",
   },
   "scan.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
   "card.title": { ja: "カード", en: "Card", "zh-TW": "字卡" },
@@ -1291,9 +1291,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "room.town": { ja: "街", en: "Town", "zh-TW": "街" },
   "room.house": { ja: "家", en: "Home", "zh-TW": "家" },
   "room.wear": { ja: "身につける", en: "Wear", "zh-TW": "穿戴" },
-  "room.play": { ja: "学び・遊び", en: "Learn & play", "zh-TW": "學習・玩樂" },
+  "room.play": { ja: "学び・遊び", en: "Learn & play", "zh-TW": "學習、玩樂" },
   "room.nature": { ja: "自然", en: "Nature", "zh-TW": "自然" },
-  "room.people": { ja: "人・体", en: "People", "zh-TW": "人・身體" },
+  "room.people": { ja: "人・体", en: "People", "zh-TW": "人、身體" },
   "room.marks": { ja: "しるし", en: "Marks", "zh-TW": "標記" },
   // --- 集める・キャッチ・設定 ---
   "cap.pendingNotFound": {
@@ -1447,7 +1447,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Computed from your last {n} scans (spec §9 pass line)",
     "zh-TW": "由最近 {n} 次掃描計算（規格 §9 的合格標準）",
   },
-  "set.placeLabel": { ja: "近くに来たら知らせる", en: "Nearby reminders", "zh-TW": "靠近時提醒我" },
+  "set.placeLabel": { ja: "場所でリマインド", en: "Location reminders", "zh-TW": "地點提醒" },
   "set.placeDesc": {
     ja: "単語を撮った場所の近くに来ると、その単語を通知で思い出させます",
     en: "When you're back near where you caught a word, you'll get a reminder of it.",
@@ -1642,6 +1642,27 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "user.someone": { ja: "ユーザー", en: "User", "zh-TW": "使用者" },
   "err.failed": { ja: "失敗しました", en: "Something went wrong", "zh-TW": "失敗了" },
+  "err.dailyCap": {
+    ja: "1日の利用上限に達しました。24時間以内に自動で回復します。",
+    en: "You've reached today's limit. It resets automatically within 24 hours.",
+    "zh-TW": "已達今日使用上限，24 小時內會自動恢復。",
+  },
+  "err.proOnly": {
+    ja: "Pro 限定の機能です",
+    en: "This is a Pro feature",
+    "zh-TW": "這是 Pro 限定功能",
+  },
+  "err.forbidden": {
+    ja: "この操作はできません",
+    en: "You can't do that here",
+    "zh-TW": "無法進行這個操作",
+  },
+  "err.notFound": { ja: "見つかりませんでした", en: "Couldn't find it", "zh-TW": "找不到" },
+  "err.tryAgain": {
+    ja: "うまくいきませんでした。もう一度お試しください",
+    en: "That didn't work. Please try again",
+    "zh-TW": "沒有成功，請再試一次",
+  },
   "ob.title": {
     ja: "かざして、タップしてみて",
     en: "Point it, then tap",
@@ -2035,7 +2056,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.search": {
     ja: "単語・読み・意味で検索",
     en: "Search word / reading / meaning",
-    "zh-TW": "用單字・讀音・意思搜尋",
+    "zh-TW": "用單字、讀音、意思搜尋",
   },
   "dex.category": { ja: "カテゴリ", en: "Category", "zh-TW": "分類" },
   "dex.pos": { ja: "品詞", en: "Part of speech", "zh-TW": "詞性" },
@@ -2151,6 +2172,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "用說的查聽到的字",
   },
   "scan.owned": { ja: "取得済み", en: "Collected", "zh-TW": "已收集" },
+  "scan.new": { ja: "新しい", en: "New", "zh-TW": "新的" },
   "scan.reunion": { ja: "未撮影", en: "No photo yet", "zh-TW": "還沒拍過" },
   "scan.catch": { ja: "キャッチ", en: "Catch", "zh-TW": "捕捉" },
   "scan.addToDex": { ja: "図鑑に追加", en: "Add to collection", "zh-TW": "加入圖鑑" },
@@ -2285,7 +2307,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.usage_context": {
     ja: "頻度・使う場面",
     en: "Frequency & where it's used",
-    "zh-TW": "頻率・使用場合",
+    "zh-TW": "頻率、使用場合",
   },
   "card.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
   "card.examples_extra": { ja: "追加の例文", en: "More examples", "zh-TW": "更多例句" },
@@ -2297,7 +2319,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.related_words": {
     ja: "類義語・反義語・関連語",
     en: "Synonyms, antonyms & related",
-    "zh-TW": "近義詞・反義詞・相關詞",
+    "zh-TW": "近義詞、反義詞、相關詞",
   },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card", "zh-TW": "把字卡補完" },
   "card.filling": { ja: "作っています…", en: "Writing it…", "zh-TW": "製作中…" },
@@ -2308,7 +2330,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "card.fillRetry": { ja: "もう一度ためす", en: "Try again", "zh-TW": "再試一次" },
   "card.pronunciation_tips": { ja: "発音のコツ", en: "Pronunciation tips", "zh-TW": "發音訣竅" },
-  "card.etymology": { ja: "語源・部首", en: "Origin & radicals", "zh-TW": "字源・部首" },
+  "card.etymology": { ja: "語源・部首", en: "Origin & radicals", "zh-TW": "字源、部首" },
   // 部首の無い言語(英語)の見出し。**「語源・部首」は英語では嘘。**
   "card.etymologyOnly": { ja: "語源", en: "Word origin", "zh-TW": "字源" },
   "card.mnemonic": { ja: "覚え方", en: "Memory hook", "zh-TW": "記憶方法" },
@@ -2694,7 +2716,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "input.scene": {
     ja: "シーン: どこで・誰が・何と言った？（任意）",
     en: "Scene: where / who / what was said (optional)",
-    "zh-TW": "場景：在哪裡・誰・說了什麼？（選填）",
+    "zh-TW": "場景：在哪裡、誰、說了什麼？（選填）",
   },
   "input.lookup": {
     ja: "調べてカードにする",
@@ -2990,12 +3012,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.aiFast": {
     ja: "速い系（スキャン・候補・4択の生成）",
     en: "Fast (scan, candidates, quiz)",
-    "zh-TW": "快速型（掃描・候選・四選一的產生）",
+    "zh-TW": "快速型（掃描、候選、四選一的產生）",
   },
   "settings.aiRich": {
     ja: "詳しい系（カード・添削）",
     en: "Rich (cards, corrections)",
-    "zh-TW": "詳細型（字卡・修改）",
+    "zh-TW": "詳細型（字卡、修改）",
   },
   "settings.aiPremium": { ja: "Pro ユーザー用", en: "For Pro users", "zh-TW": "給 Pro 使用者" },
   "settings.aiApply": {
@@ -3038,7 +3060,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.aiFeature.review": {
     ja: "復習の添削・ヒント",
     en: "Review feedback & hints",
-    "zh-TW": "複習的修改・提示",
+    "zh-TW": "複習的修改、提示",
   },
   "settings.aiFeature.journal": {
     ja: "日記の添削",
@@ -3193,9 +3215,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "顯示的類型",
   },
   "settings.photoLibrarySync": {
-    ja: "端末の写真にも保存",
-    en: "Also save to Photos",
-    "zh-TW": "也存到手機相簿",
+    ja: "カメラロールに保存",
+    en: "Save to Camera Roll",
+    "zh-TW": "儲存到相機膠卷",
   },
   "settings.photoLibrarySyncDesc": {
     ja: "撮った写真をスマホの写真アプリにも残します（アプリ版のみ）",
@@ -3210,7 +3232,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.calMonthSummary": {
     ja: "{n}枚・{d}日",
     en: "{n} photos · {d} days",
-    "zh-TW": "{n} 張・{d} 天",
+    "zh-TW": "{n} 張、{d} 天",
   },
   "dex.calPhotos": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
@@ -3238,7 +3260,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "sources.ecdict": {
     ja: "英語の意味・品詞・活用・頻度・検定タグ",
     en: "English meanings, part of speech, inflections, frequency and exam tags",
-    "zh-TW": "英文的意思・詞性・變化・頻率・檢定標籤",
+    "zh-TW": "英文的意思、詞性、變化、頻率、檢定標籤",
   },
   "sources.cmudict": {
     ja: "アメリカ英語の発音",
@@ -3353,7 +3375,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.hintsLabel": {
     ja: "ヒント（型・チャンク・文法）",
     en: "Hints (patterns, chunks, grammar)",
-    "zh-TW": "提示（句型・組塊・文法）",
+    "zh-TW": "提示（句型、組塊、文法）",
   },
   "review.buildYourOwn": {
     ja: "これを使って自分の一文を組み立ててみよう（答えはまだ見せません）",
@@ -3462,9 +3484,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
   "place.thisWord": { ja: "この言葉", en: "this word", "zh-TW": "這個詞" },
   "settings.selfieMode": {
-    ja: "撮ったあと自分も撮る",
-    en: "Selfie after each catch",
-    "zh-TW": "拍完接著自拍",
+    ja: "自撮りモード",
+    en: "Selfie mode",
+    "zh-TW": "自拍模式",
   },
   "settings.selfieModeDesc": {
     ja: "単語を撮ったあと、続けてその場の自分を撮る画面に進みます",

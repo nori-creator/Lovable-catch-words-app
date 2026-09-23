@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useReadableError } from "@/lib/errors";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import {
   PersonalWordLesson,
@@ -46,6 +47,7 @@ import { Prose } from "@/components/Prose";
 import { useWebImages } from "@/lib/use-web-images";
 import {
   chunkSpeechText,
+  chunkTranslation,
   refineUsageChunks,
   usableCollocations,
   type UsageChunk,
@@ -1086,6 +1088,7 @@ function ReportButton({
   language: string | null;
 }) {
   const t = useT();
+  const readable = useReadableError();
   const fixFn = useServerFn(reportAndFixSection);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -1110,7 +1113,7 @@ function ReportButton({
         toast(t("card.reportQueued"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("card.reportFailed"));
+      toast.error(readable(e, t("card.reportFailed")));
     } finally {
       setBusy(false);
     }
@@ -1967,10 +1970,20 @@ function RelatedWordRow({
 function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
   const pronounce = usePronounce(language ?? undefined);
   const whole = chunkSpeechText(chunk, language);
-  const translation = chunk.ja?.split(/[。．\n]/, 1)[0]?.trim();
+  const translation = chunkTranslation(chunk.ja);
   return (
     <div className="usage-chunk-row">
       <div className="usage-chunk-row__main">
+        {/* **型ぜんぶをひと息で鳴らす**（オーナー指示 2026-09-23「チャンクの音声
+            ボタンを追加して」）。前は右端に置いて訳を痩せさせたので、**左端**に
+            小さく置く（見た目 36px・当たり判定は 48px）。 */}
+        <PronounceButton
+          text={whole}
+          language={language ?? undefined}
+          size="sm"
+          tone="quiet"
+          stopPropagation
+        />
         <div className="usage-chunk-row__words">
           <ChunkPills
             parts={chunk.parts}

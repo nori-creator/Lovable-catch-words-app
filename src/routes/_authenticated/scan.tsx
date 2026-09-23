@@ -51,7 +51,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
-import { readableError } from "@/lib/errors";
+import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
@@ -120,6 +120,7 @@ function ScanPage() {
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
+  const readable = useReadableError();
   /**
    * かざす画面も「撮る画面」の仲間。開く演出をこの上に重ねない
    * （`lib/camera-launch.ts`）。
@@ -245,6 +246,9 @@ function ScanPage() {
    * 押した後に並びが動くと、押そうとした行が逃げる。
    */
   const [rankOrder, setRankOrder] = useState<string[] | null>(null);
+  // 1回のスキャンで1回だけ聞く（疑わしい候補の確かさを下げると `items` が
+  // 替わり、この効果がもう一度走るため）。
+  const rankAsked = useRef(false);
   const touchedRef = useRef(false);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
@@ -458,6 +462,7 @@ function ScanPage() {
     setChip(null);
     setItems(null);
     setRankOrder(null);
+    rankAsked.current = false;
     touchedRef.current = false;
     setEntries({});
     setDetectMs(null);
@@ -534,15 +539,22 @@ function ScanPage() {
       if (items.length > 0) {
         setScanStage("matching");
         const tl = performance.now();
-        const { entries } = await lookupFn({
-          data: {
-            headwords: items.map((i) => i.headword),
-            language: targetLanguage,
-            explain_lang: uiLang,
-          },
-        });
-        setLookupMs(Math.round(performance.now() - tl));
-        setEntries(entries);
+        // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
+        // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
+        // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
+        try {
+          const { entries } = await lookupFn({
+            data: {
+              headwords: items.map((i) => i.headword),
+              language: targetLanguage,
+              explain_lang: uiLang,
+            },
+          });
+          setLookupMs(Math.round(performance.now() - tl));
+          setEntries(entries);
+        } catch (lookupErr) {
+          console.warn("[scan] dictionary lookup failed", lookupErr);
+        }
       }
     } catch (e) {
       // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
@@ -552,7 +564,7 @@ function ScanPage() {
       // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
       // 押し続けることになる(監査の指摘)。
       console.error(e);
-      setError(readableError(e, t("scan.detectFailed")));
+      setError(readable(e, t("scan.detectFailed")));
       haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
@@ -702,6 +714,7 @@ function ScanPage() {
     setSnapshot(null);
     setActiveId(null);
     setRankOrder(null);
+    rankAsked.current = false;
     touchedRef.current = false;
     setChip(null);
     setEntries({});
@@ -763,9 +776,10 @@ function ScanPage() {
    */
   const rankFn = useServerFn(rankScanCandidates);
   useEffect(() => {
-    if (scanning || !items || rankOrder) return;
+    if (scanning || !items || rankOrder || rankAsked.current) return;
     const list = items.filter(isTarget);
     if (list.length < 2) return;
+    rankAsked.current = true;
     let cancelled = false;
     void rankFn({
       data: {
@@ -779,8 +793,33 @@ function ScanPage() {
       },
     })
       .then((r) => {
-        if (cancelled || touchedRef.current || !r.order) return;
-        setRankOrder(r.order.map((i) => list[i].id));
+        if (cancelled) return;
+        /**
+         * **台湾の言い方として疑わしい候補**（Jev、同じ1回の問い合わせ）は、
+         * 確かさを下げて「?」を付け、並びの後ろへ回す。消しはしない（本人が
+         * 写した物の名前かもしれない）。
+         */
+        const doubt = new Set((r.doubtful ?? []).map((i) => list[i]?.id).filter(Boolean));
+        if (doubt.size > 0) {
+          setItems((cur) =>
+            cur
+              ? cur.map((it) =>
+                  doubt.has(it.id) ? { ...it, confidence: Math.min(it.confidence, 0.5) } : it,
+                )
+              : cur,
+          );
+        }
+        if (touchedRef.current) return;
+        const order = r.order
+          ? r.order.map((i) => list[i].id)
+          : doubt.size > 0
+            ? list.map((it) => it.id)
+            : null;
+        if (!order) return;
+        setRankOrder([
+          ...order.filter((id) => !doubt.has(id)),
+          ...order.filter((id) => doubt.has(id)),
+        ]);
         // 先頭が替わるので、光らせる候補も先頭へ（箱が選び直す）。
         setActiveId(null);
       })
@@ -1750,7 +1789,7 @@ export function ScanDots({
             className={`scan-dot absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100 ${
               it.id === activeId ? "z-10" : ""
             }`}
-            aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
+            aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : t("scan.new")}`}
           >
             <span
               className={[

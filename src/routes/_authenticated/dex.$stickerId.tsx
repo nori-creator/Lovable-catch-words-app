@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useReadableError } from "@/lib/errors";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -273,6 +274,7 @@ export function StickerDetailHero({
   dateLocale: string;
 }) {
   const t = useT();
+  const readable = useReadableError();
   const [flipped, setFlipped] = useState(false);
   /**
    * **切り抜き・自撮りをここからも足せる**（オーナー指示 2026-08-26
@@ -296,7 +298,7 @@ export function StickerDetailHero({
   const [savingHero, setSavingHero] = useState(false);
   const photoAttach = usePhotoAttach(s.id, {
     onDone: () => setPickerOpen(false),
-    onError: (e) => toast.error(e instanceof Error ? e.message : t("card.photoFailed")),
+    onError: (e) => toast.error(readable(e, t("card.photoFailed"))),
   });
   /**
    * **長押しで「どの絵で見せるか」を選ぶ**（オーナー指示 2026-08-26
@@ -338,7 +340,7 @@ export function StickerDetailHero({
       await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
       setPickerOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("card.photoFailed"));
+      toast.error(readable(e, t("card.photoFailed")));
     } finally {
       setSavingHero(false);
     }
