@@ -1,11 +1,12 @@
 import {
+  REVIEW_MODE_CHOICE_ENABLED,
   REVIEW_PRACTICE_ENABLED,
   selfieCaptureEnabled,
   setSelfieCaptureEnabled,
 } from "@/lib/product-features";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useMotion } from "@/components/motion-provider";
-import { motionDiagnosisKey, parseMotionChoice } from "@/lib/motion-pref";
+import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -27,6 +28,8 @@ import {
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
+import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
+import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,7 +65,9 @@ import {
   setPlaceReminderEnabled,
   requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
-import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
+import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
+import { ModelPicker } from "@/components/ModelPicker";
+import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2, User } from "lucide-react";
@@ -363,7 +368,23 @@ function SettingsPage() {
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [selfieMode, setSelfieMode] = useState(selfieCaptureEnabled);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
+  /**
+   * **変えたらすぐ保存する**（オーナー指示 2026-09-23「設定の上と下の保存ボタン
+   * 消して。ユーザーが変更したら即適用して」）。
+   *
+   * 数えるのは**本人が触った回数**だけ（`edit` で包んだ操作）。プロフィールが
+   * 届いて画面に値を入れる動きは数えない — 数えると、開いただけで保存が走り、
+   * 読めなかった行の既定値で上書きする道ができる（下の注の事故と同じ形）。
+   */
+  const userEdit = useRef(0);
+  const lastSavedEdit = useRef(0);
+  const edit =
+    <A extends unknown[]>(fn: (...a: A) => void) =>
+    (...a: A) => {
+      userEdit.current += 1;
+      fn(...a);
+    };
   // 端末ごとの設定なので、プロフィールの到着を待たずに読む
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
   useEffect(() => {
@@ -516,8 +537,29 @@ function SettingsPage() {
     );
   }, [profile]);
 
+  // 本人が触ったら、少し待って保存する（名前を打っている間に何度も送らない）。
+  useEffect(() => {
+    if (!profile || userEdit.current === lastSavedEdit.current) return;
+    const id = window.setTimeout(() => void handleSave(), 700);
+    return () => window.clearTimeout(id);
+    // `handleSave` は毎回作り直されるが、読む値はこの依存に全部入っている。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    profile,
+    displayName,
+    uiLanguage,
+    targetLanguage,
+    currentLevel,
+    levelGoal,
+    strictness,
+    reviewMode,
+    reviewLimit,
+    reviewFocus,
+  ]);
+
   async function handleSave() {
     setSaving(true);
+    lastSavedEdit.current = userEdit.current;
     try {
       /**
        * **言語だけを先に、単独で送る**(オーナー報告 2026-08-26
@@ -599,12 +641,12 @@ function SettingsPage() {
        * という、**いちばん追いにくい形**で壊れる。名指しで出す。
        */
       const skipped = (res as { skipped?: string[] } | undefined)?.skipped ?? [];
+      // **保存できた時は黙る**（変えるたびに自動で保存するので、毎回「保存
+      // しました」と出すと、それ自体が騒がしい）。落とした項目だけは名指しで言う。
       if (skipped.length > 0) {
         toast.warning(t("settings.savedPartly", { fields: skipped.join(", ") }), {
           duration: 8000,
         });
-      } else {
-        toast.success(t("settings.saved"));
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
@@ -622,7 +664,7 @@ function SettingsPage() {
   // すり替わっていた(§8: 空とエラーを同じ絵で描かない)。
   if (profileLoading || profileFailed) {
     return (
-      <AppShell title={t("title.settings")}>
+      <AppShell title={t("title.settings")} headerless>
         {profileFailed ? (
           <LoadFailed
             onRetry={() => void refetchProfile()}
@@ -641,19 +683,11 @@ function SettingsPage() {
   }
 
   return (
-    <AppShell title={t("title.settings")}>
+    <AppShell title={t("title.settings")} headerless>
       {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
           差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
       <div className="settings-page space-y-7 pb-24">
-        <div className="sticky top-2 z-30 flex justify-end pointer-events-none">
-          <Button
-            className="pointer-events-auto rounded-full px-6 shadow-lg"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("settings.saving") : t("settings.save")}
-          </Button>
-        </div>
+        {/* 保存ボタンは置かない — 変えたらすぐ保存する（上の `edit` の注）。 */}
         {/* **プロフィールが一番上**（オーナー指示 2026-09-22）。
             撮影の束をここに置いていたので、名前と顔写真が2枚目に落ちていた。
             「撮影後に自撮り」は、消した録画（インカメ）の場所へ移した。 */}
@@ -662,18 +696,44 @@ function SettingsPage() {
             <AvatarRow />
             <div>
               <Label htmlFor="dn">{t("settings.displayName")}</Label>
-              <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <Input
+                id="dn"
+                value={displayName}
+                onChange={edit((e: React.ChangeEvent<HTMLInputElement>) =>
+                  setDisplayName(e.target.value),
+                )}
+              />
             </div>
           </div>
         </SettingsCard>
 
         <SettingsCard title={t("settings.language")}>
           <div className="space-y-3">
+            {/* **母語がいちばん上**（オーナー指示 2026-09-23「設定の母語は
+                学習言語のうえに配置して」）。画面の言葉そのものが変わる選択
+                なので、先に決めてから学ぶ言語を選ぶ順にする。 */}
+            {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
+                日本語、英語、台湾華語にして」。ほとんどの人にとって
+                「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
+                発音のコツをどの母語向けに書くかは `reader-language.ts` が
+                表示言語から決める。DB の `native_language` の列は残す。 */}
+            <PickerRow
+              id="lang-ui"
+              label={t("settings.uiLang")}
+              value={uiLanguage}
+              onChange={edit(pickUiLanguage)}
+              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
+              // ここを直し忘れると、訳したのに選べない状態になる。
+              options={UI_LANGS.map((code) => ({
+                value: code,
+                label: t(UI_LANG_LABEL_KEYS[code]),
+              }))}
+            />
             <PickerRow
               id="lang-target"
               label={t("settings.targetLang")}
               value={targetLanguage}
-              onChange={pickTargetLanguage}
+              onChange={edit(pickTargetLanguage)}
               // **一覧を書き並べない。** `TARGET_LANGUAGES` を回す —
               // ここに手書きの写しを置くと、言語を足したときにここだけ
               // 増えない(または、外したのにここだけ残る)。
@@ -686,7 +746,7 @@ function SettingsPage() {
               id="lang-cur"
               label={t("settings.currentLevel")}
               value={currentLevel}
-              onChange={setCurrentLevel}
+              onChange={edit(setCurrentLevel)}
               options={levelChoices}
             />
             {/* 説明は**2つ揃ってから**出す。「今のレベル〜目標レベル」と
@@ -696,7 +756,7 @@ function SettingsPage() {
               id="lang-level"
               label={t("settings.levelGoal")}
               value={levelGoal}
-              onChange={setLevelGoal}
+              onChange={edit(setLevelGoal)}
               options={levelChoices}
             />
             {/* **学習言語を渡す。** 渡していなかったので既定(台湾華語)で
@@ -704,23 +764,6 @@ function SettingsPage() {
                 (オーナー指摘「学習言語が英語のときピンイン・注音の設定を
                 消して」)。英語では米式/英式の IPA の選択になる。 */}
             <PhoneticRow lang={targetLanguage} />
-            {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
-                日本語、英語、台湾華語にして」。ほとんどの人にとって
-                「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
-                発音のコツをどの母語向けに書くかは `reader-language.ts` が
-                表示言語から決める。DB の `native_language` の列は残す。 */}
-            <PickerRow
-              id="lang-ui"
-              label={t("settings.uiLang")}
-              value={uiLanguage}
-              onChange={pickUiLanguage}
-              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
-              // ここを直し忘れると、訳したのに選べない状態になる。
-              options={UI_LANGS.map((code) => ({
-                value: code,
-                label: t(UI_LANG_LABEL_KEYS[code]),
-              }))}
-            />
           </div>
         </SettingsCard>
 
@@ -728,17 +771,17 @@ function SettingsPage() {
           <div className="space-y-3">
             {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
                 既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
-            {REVIEW_PRACTICE_ENABLED && (
+            {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
               <ChoiceRow
                 cols={3}
                 label={t("settings.reviewMode")}
                 value={reviewMode}
-                onChange={(v) => {
+                onChange={edit((v: string) => {
                   const next = normalizeReviewMode(v);
                   setReviewMode(next);
                   // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
                   setStoredReviewMode(next);
-                }}
+                })}
                 options={[
                   { value: "hybrid", label: t("settings.modeHybrid") },
                   { value: "speaking", label: t("settings.modeSpeaking") },
@@ -800,7 +843,7 @@ function SettingsPage() {
               cols={5}
               label={t("settings.reviewLimit")}
               value={reviewLimit}
-              onChange={setReviewLimit}
+              onChange={edit(setReviewLimit)}
               options={[
                 { value: 10, label: "10" },
                 { value: 20, label: "20" },
@@ -817,6 +860,7 @@ function SettingsPage() {
           <div className="mt-4 border-t border-border pt-3">
             <ToggleRow
               label={t("settings.selfieMode")}
+              description={t("settings.selfieModeDesc")}
               value={selfieMode}
               onChange={(v) => {
                 setSelfieMode(v);
@@ -842,14 +886,16 @@ function SettingsPage() {
               ]}
             />
             <MotionChoiceRow />
+            {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
+                オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
+            <div>
+              <p className="mb-2 text-footnote font-medium">{t("home.background")}</p>
+              <WallpaperPicker />
+            </div>
           </div>
         </SettingsCard>
 
         <SoundAndHapticsPanel />
-
-        <Button className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? t("settings.saving") : t("settings.save")}
-        </Button>
 
         <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
@@ -1247,7 +1293,8 @@ export function AvatarRow() {
  */
 export function MotionChoiceRow() {
   const t = useT();
-  const { choice, osReduces, setChoice } = useMotion();
+  // 下の説明文は消した（オーナー指示 2026-09-23「アニメーションの下の説明文消して」）。
+  const { choice, setChoice } = useMotion();
   return (
     <div>
       <ChoiceRow
@@ -1261,9 +1308,6 @@ export function MotionChoiceRow() {
           { value: "reduce", label: t("settings.motionReduce") },
         ]}
       />
-      <p className="mt-1.5 text-caption text-muted-foreground">
-        {t(motionDiagnosisKey(choice, osReduces))}
-      </p>
     </div>
   );
 }
@@ -1276,6 +1320,7 @@ export function PhotoLibrarySyncToggle() {
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
         label={t("settings.photoLibrarySync")}
+        description={t("settings.photoLibrarySyncDesc")}
         value={on}
         onChange={(next) => {
           setOn(next);
@@ -1323,9 +1368,10 @@ export function PlaceReminderToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
-        // **解説は消した**(オーナー指示「設定のボタンの下の解説を全部消す」)。
         // 確認中は札そのものを変えて知らせる — 下に一行足すのではなく。
+        // 何をする設定かの一言は戻した（オーナー指示 2026-09-23）。
         label={busy ? t("set.placeChecking") : t("set.placeLabel")}
+        description={t("set.placeDesc")}
         value={on}
         onChange={(v) => void toggle(v)}
       />
@@ -1409,15 +1455,24 @@ export function ToggleRow({
   label,
   value,
   onChange,
+  description,
 }: {
   label: string;
   value: boolean;
   onChange: (v: boolean) => void;
+  /**
+   * 何が変わるかの一言（オーナー指示 2026-09-23「内容が分かるように小さく
+   * 説明文を書きたして」）。名前だけでは中身が伝わらない行にだけ付ける。
+   */
+  description?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="text-body font-medium">{label}</div>
+        {description && (
+          <p className="mt-0.5 text-caption leading-snug text-muted-foreground">{description}</p>
+        )}
       </div>
       {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
       <button
@@ -1472,8 +1527,12 @@ function AdminOnlySection() {
       {/* **「見た目を比べる」と「エフェクトラボ」は消した**(オーナー指示
           2026-08-26)。どちらも作っている最中の道具で、
           設定に置いておく理由がもう無い。 */}
+      {/* **配色デザインは開発者の欄に戻した**（オーナー指示 2026-09-23 2回目
+          「設定の配色デザインはやっぱり開発者の私だけが見えるように戻して」）。
+          名前は「画面の明るさ」と区別できる「配色デザイン」のまま。 */}
       <UiThemePicker />
       <AiModelPanel />
+      <TtsVoicePanel />
     </div>
   );
 }
@@ -1542,6 +1601,38 @@ function UiThemePicker() {
 }
 
 /** AIモデルの切替。鍵は環境変数のまま、モデル名と提供元だけを差し替える。 */
+/**
+ * **発音の声を出す会社を選ぶ**（開発者だけ。オーナー指示 2026-09-23「台湾華語の
+ * 発音が機械音で気に入らないから…開発者の私だけ、apiを設定できるようにして」）。
+ *
+ * 学習言語ごとに「会社・声・モデル」を選び、**その場で鳴らして届くまでの時間を
+ * 見てから**切り替える（「速さと正確性が命」）。鍵はここでは入れない — 環境変数
+ * （Lovable の Secrets）に置き、ここには揃っているかだけを出す。
+ */
+function TtsVoicePanel() {
+  const t = useT();
+  const getFn = useServerFn(getTtsVoiceAdmin);
+  const setFn = useServerFn(setTtsVoiceAdmin);
+  const tryFn = useServerFn(previewTtsVoice);
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["tts-voice-admin"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+  });
+  return (
+    <TtsVoiceForm
+      data={data}
+      onTry={(language, text, choice) => tryFn({ data: { language, text, choice } })}
+      onSave={async (languages) => {
+        await setFn({ data: { config: { languages } } });
+        await qc.invalidateQueries({ queryKey: ["tts-voice-admin"] });
+        toast.success(t("settings.ttsSaved"));
+      }}
+    />
+  );
+}
+
 function AiModelPanel() {
   const t = useT();
   const getFn = useServerFn(getAiModelConfig);
@@ -1558,6 +1649,12 @@ function AiModelPanel() {
   const [premium, setPremium] = useState("");
   const [features, setFeatures] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const orFn = useServerFn(listOpenRouterModels);
+  const { data: orData } = useQuery({
+    queryKey: ["openrouter-models"],
+    queryFn: () => orFn(),
+    staleTime: 60 * 60_000,
+  });
 
   useEffect(() => {
     if (!data) return;
@@ -1669,19 +1766,31 @@ function AiModelPanel() {
           />
         </div>
 
-        {/* βテスト〜ローンチで「機能ごとに別のAI」を試せるようにする。 */}
+        {/* 機能ごとに別のAI。**OpenRouter の一覧から押して選ぶ**
+            （オーナー指示 2026-09-22「これみたいに簡単に設定したい」）。
+            一覧が取れないときだけ、前と同じ手で打つ欄に落ちる。 */}
         <div className="rounded-xl border border-border p-2">
           <div className="text-footnote font-semibold">{t("settings.aiPerFeature")}</div>
+          {orData && !orData.keyFound && (
+            <p className="mt-1 text-caption text-muted-foreground">{t("set.orNoKey")}</p>
+          )}
+          {orData?.error && (
+            <p className="mt-1 text-caption text-destructive-ink">
+              {t("set.orLoadFailed", { e: orData.error })}
+            </p>
+          )}
           <div className="mt-2 space-y-2">
             {(data?.features ?? []).map((f) => (
-              <div key={f.id}>
-                <Label className="text-caption">{t(`settings.aiFeature.${f.id}`)}</Label>
-                <Input
-                  value={features[f.id] ?? ""}
-                  onChange={(e) => setFeatures((prev) => ({ ...prev, [f.id]: e.target.value }))}
-                  placeholder={t("settings.aiEnvDefault")}
-                />
-              </div>
+              <ModelPicker
+                key={f.id}
+                label={t(`settings.aiFeature.${f.id}`)}
+                value={features[f.id] ?? ""}
+                onChange={(v) => setFeatures((prev) => ({ ...prev, [f.id]: v }))}
+                models={orData?.models ?? []}
+                // スキャンは写真を読む。画像を読めないモデルを選ぶと、スキャンが丸ごと止まる。
+                visionOnly={f.id === "scan"}
+                unavailable={!orData || orData.models.length === 0}
+              />
             ))}
           </div>
           <p className="mt-2 text-caption text-muted-foreground">

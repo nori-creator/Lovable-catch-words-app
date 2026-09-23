@@ -65,12 +65,12 @@ Preserve guest Catch state across signup.
 7. Add user correction/report flow.
 
 ## Phase 6 — Memory Engine V2
-1. Give displayed memory probability a mathematically clear definition.
+1. Give displayed memory probability a mathematically clear definition. — Done 2026-09-23: one number everywhere = estimated recall probability now (`memoryOf`).
 2. Preserve first-attempt failure as negative evidence even after successful retry.
 3. Incorporate question modality, hint/retry use, intervals and history; treat response time as secondary evidence.
 4. Track recognition/recall/production where useful.
 5. Establish a validated scheduler baseline.
-6. Evaluate Jev/other experimental prediction in shadow mode against real outcomes and calibration before production scheduling.
+6. Evaluate Jev/other experimental prediction in shadow mode against real outcomes and calibration before production scheduling. — **Owner override 2026-09-23:** Jev already controls the review interval inside guardrails (see ARCHITECTURE.md › Memory). Calibration evaluation from the logged decisions is still required and decides whether the guardrails widen or Jev is rolled back.
 7. Build calibration dashboards/tests.
 
 ## Phase 7 — Review UX

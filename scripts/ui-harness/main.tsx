@@ -38,13 +38,14 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
-import {
-  ScanCameraScene,
-  ScanChipScene,
-  ScanDotsScene,
-  ScanFoundScene,
-  ScanNothingScene,
-} from "./scenes/scan";
+import { ScanResultScene } from "./scenes/scan-result";
+import { DexCalendarScene } from "./scenes/dex-calendar";
+import { DexCardsScene } from "./scenes/dex-cards";
+import { TtsVoicesScene } from "./scenes/tts-voices";
+import { CatchSoundScene } from "./scenes/catch-sound";
+import { AiModelsScene } from "./scenes/ai-models";
+import { DexMapScene } from "./scenes/dex-map";
+import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import {
   WordbookShelfScene,
   WordbookQuizScene,
@@ -58,6 +59,7 @@ import {
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  WallpaperPickerScene,
   HomeTapScene,
   HomeWritingScene,
 } from "./scenes/home";
@@ -90,6 +92,8 @@ import {
   ReviewSayScene,
   ReviewMemoryScene,
   ReviewMemoryListScene,
+  MemoryCurveScene,
+  MemoryOverallScene,
 } from "./scenes/review";
 import {
   ChunksScene,
@@ -154,7 +158,14 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-pick": CapturePickScene,
   "capture-reunion": CaptureReunionScene,
   "scan-chip": ScanChipScene,
-  "scan-found": ScanFoundScene,
+  "scan-found": ScanResultScene,
+  "dex-calendar": DexCalendarScene,
+  "dex-cards": DexCardsScene,
+  "ai-models": AiModelsScene,
+  "tts-voices": TtsVoicesScene,
+  "catch-sound": CatchSoundScene,
+  "dex-map": DexMapScene,
+  wallpapers: WallpaperPickerScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -189,6 +200,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
   "review-memory-list": ReviewMemoryListScene,
+  "memory-curve": MemoryCurveScene,
+  "memory-overall": MemoryOverallScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -298,24 +311,60 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 初回体験（PR #106）。何も打たずに開くとここから。
   { scene: "first-catch", label: "初回体験 → 図鑑へ追加 → 登録" },
-  { scene: "home", label: "ホーム（今日の誌面・日付の見出し）" },
+  // 2026-09-23「キャッチの祝福に映画のクライマックスのような BGM」— 聴き比べ。
+  { scene: "catch-sound", label: "キャッチの祝福の音（新しい BGM とこれまでを聴き比べ）" },
+  // 2026-09-23 の3回目の依頼（10項目）で触った面（上から順に見る）。
+  {
+    scene: "dex-map&at=2",
+    label: "図鑑の地図（単語を押すとピンが浮く・時間軸と地図が両方見える）",
+  },
+  { scene: "scan-found", label: "スキャンの後（語が切れない・図鑑に追加・払って1つずつ送る）" },
+  { scene: "dex-cards&n=150", label: "図鑑のカード（150枚でも引っかからない）" },
+  { scene: "home", label: "ホーム（日付をアルバムの上に大きく・一言と枚数なし）" },
+  { scene: "memory-curve", label: "記憶のグラフ（点線を端から端まで）" },
+  { scene: "settings-polish", label: "設定（保存ボタンなし・変えたらすぐ反映）" },
+  { scene: "tts-voices", label: "開発者: 発音の声の会社を選ぶ" },
+  // 2026-09-23 の20項目の依頼で触った面（上から順に見る）。
+  { scene: "dex-map", label: "図鑑の地図（全画面・下の日付の帯）" },
+  { scene: "dex-map&variant=open", label: "図鑑の地図（帯を押して時間軸・写真の横に一言）" },
+  { scene: "dex-cards", label: "図鑑のカード（大きく・青い点・滑らか）" },
+  { scene: "home", label: "ホーム（日付を壁紙に手書き・語は写真の真ん中下）" },
+  { scene: "home-empty", label: "ホーム（白紙の日の一言・今日の一枚を撮る）" },
+  { scene: "home&wall=frame", label: "ホーム（額縁はテープなし）" },
+  { scene: "memory-curve", label: "記憶のグラフ（指で辿る・25/75%・次に変わる日）" },
+  { scene: "capture-reunion", label: "もう一度撮った語（剥がして図鑑へ）" },
+  { scene: "capture-object", label: "カメラ（青いシャッター・倍率に×）" },
+  { scene: "capture-pick", label: "語を選ぶ（ステップ3を消した・4択と同じ字）" },
+  { scene: "word-card", label: "単語の詳細（頻度を星で）" },
+  { scene: "sections-panel", label: "単語の項目の並べ替え（指で動く・既定を上に）" },
+  { scene: "settings-polish", label: "設定（母語が上・名前と説明・画面の明るさ）" },
+  // 2026-09-23「単語の数値は1つに統一」: 右上・一覧・グラフが同じ数（いま思い出せる確率）。
+  { scene: "review-memory-list", label: "記憶の一覧（同じ％・段の新しい名前）" },
+  { scene: "gallery", label: "図鑑（写真の右上の％）" },
+  // 2026-09-22〜23 の依頼で触った面。
+  { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
+  { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
+  { scene: "home&wall=wall", label: "ホーム（壁）" },
+  { scene: "home&wall=notebook", label: "ホーム（ノート）" },
+  { scene: "dex-map&at=3", label: "図鑑の地図（時間を進めた形）" },
+  { scene: "ai-models", label: "開発者: 機能ごとのAI（OpenRouter）" },
+  { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
+  { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
+  { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
+  { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
+  { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
+  { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
+  { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
+  { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
+  { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
-  { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
-  { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
-  // 2026-09-22 の直し（狭い画面・指・声）で触った面。
-  { scene: "word-card", label: "単語カード（横のはみ出しを直した）" },
-  { scene: "review-memory", label: "復習の記憶の帯（指の下限と声の案内）" },
-  { scene: "capture-object", label: "カメラの画面" },
+  { scene: "review-memory", label: "復習の記憶の帯" },
   { scene: "tabbar", label: "下の帯" },
-  // main から合流した、別の作業で見る面。
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
-  { scene: "settings-polish", label: "設定・言語選択" },
-  { scene: "capture-reunion", label: "同じ単語に写真を追加" },
-  { scene: "place-memory", label: "母語の復習通知" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },
-  { scene: "review-memory-list", label: "記憶の一覧" },
 ];
 
 const explicitScene = q.get("scene");
@@ -390,11 +439,13 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        const on = r.scene === wanted;
+        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
+        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
+        const on = r.scene === here;
         return (
           <a
             key={r.scene}
-            href={`?scene=${encodeURIComponent(r.scene)}&review=1`}
+            href={`?scene=${r.scene}&review=1`}
             style={{
               padding: "6px 10px",
               borderRadius: 999,

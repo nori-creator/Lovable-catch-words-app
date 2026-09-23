@@ -1,4 +1,6 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { cardSectionsNow } from "@/lib/card-prefs";
+import { takeScanHandoff } from "@/lib/scan-handoff";
 import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -31,7 +33,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
 import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
-import { listMyStickers, saveSticker, setStickerVoiceVideo } from "@/lib/stickers.functions";
+import {
+  listMyStickers,
+  saveSticker,
+  setStickerVoiceVideo,
+  type StickerWithWord,
+} from "@/lib/stickers.functions";
+import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import {
@@ -318,6 +326,8 @@ function CapturePage() {
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
   const reencSubmittingRef = useRef(false);
+  /** 再会の記録（写真の保存を含む）。剥がして図鑑へ飛ばす演出の関所に使う。 */
+  const reencPromiseRef = useRef<Promise<boolean> | null>(null);
   /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
   const savedRef = useRef(false);
   // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
@@ -459,6 +469,52 @@ function CapturePage() {
     void confirmWord(wordParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
+
+  /**
+   * **スキャンで選んだ語を、この画面の流れで足す**（オーナー指示 2026-09-23
+   * 「単語の候補をタップしたら、撮影モードと全く同じように単語を追加する
+   * 流れにして」）。スキャンの写真と場所を受け取り、写真を撮った後の段から
+   * 始める: 迷った語なら「語を選ぶ」、そうでなければそのままカード（持って
+   * いる語なら再会の画面）。受け渡しは1回きり（`lib/scan-handoff.ts`）。
+   */
+  useEffect(() => {
+    const h = takeScanHandoff();
+    if (!h) return;
+    objectImageRef.current = h.image;
+    setObjectImg(h.image);
+    selfieImageRef.current = null;
+    setSelfieImg(null);
+    if (h.loc.lat != null && h.loc.lng != null) setLoc(h.loc);
+    // 撮影モードと同じく、端末の控えに先に入れる（通信が切れても失わない）。
+    void enqueueCapture({
+      object_img: h.image,
+      selfie_img: null,
+      lat: h.loc.lat,
+      lng: h.loc.lng,
+      location_name: h.loc.name,
+    }).then((q) => {
+      if (!q) return;
+      setPendingId(q.id);
+      pendingIdRef.current = q.id;
+    });
+    const first: Suggestion = { headword: h.headword, ...h.hint };
+    if (h.alternatives.length > 0) {
+      setSuggestions([
+        first,
+        ...h.alternatives.map((alt) => ({
+          headword: alt,
+          reading_zhuyin: "",
+          pinyin: "",
+          meaning_ja: "",
+          category_key: h.hint.category_key,
+        })),
+      ]);
+      setStep("select");
+    } else {
+      void confirmWord(h.headword, first);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Offline-queue restore: /capture?pending=<id>.
   useEffect(() => {
@@ -775,6 +831,9 @@ function CapturePage() {
 
   async function confirmWord(head: string, hint?: Suggestion) {
     const token = ++runTokenRef.current;
+    // 写真は ref から読む。スキャンから渡されたときは、同じ描画のうちに
+    // ここへ来るので、`objectImg`（状態）はまだ前の値のまま。
+    const photo = objectImageRef.current ?? objectImg;
     setSelectedHead(head);
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
     pronounce.prefetch(head);
@@ -794,8 +853,8 @@ function CapturePage() {
     // だから待つのは保存の直前(`save`)だけにする。
     const wantCutout = cutoutAtCatch(catchSpeed);
     const cutoutPromise: Promise<string | null> =
-      objectImg && wantCutout
-        ? removeBackgroundSmart(objectImg).catch((e) => {
+      photo && wantCutout
+        ? removeBackgroundSmart(photo).catch((e) => {
             console.warn("background removal failed, using original", e);
             return null;
           })
@@ -816,7 +875,7 @@ function CapturePage() {
         // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
         // その単語の写真として足す。待つのは画面を出したあとなので、
         // 学習者は演出を見ている間に終わる。
-        void cutoutPromise.then((cut) => recordReencounter(owned, objectImg, cut));
+        reencPromiseRef.current = cutoutPromise.then((cut) => recordReencounter(owned, photo, cut));
         return;
       }
     } catch {
@@ -840,6 +899,7 @@ function CapturePage() {
             headword: head,
             targetLanguage: targetLanguage,
             hintCategory: hint.category_key,
+            sections: cardSectionsNow(),
           },
         })
           .then((c) => {
@@ -850,7 +910,7 @@ function CapturePage() {
           .catch(() => {});
       } else {
         const c = await cardFn({
-          data: { headword: head, targetLanguage: targetLanguage },
+          data: { headword: head, targetLanguage: targetLanguage, sections: cardSectionsNow() },
         });
         if (runTokenRef.current !== token) return;
         setCard(c);
@@ -859,7 +919,7 @@ function CapturePage() {
       // **カードは待たずに出す。** 切り抜きが間に合えば、あとから絵が
       // 差し替わる(「ポン」と現れる返事はそのまま残る)。
       if (runTokenRef.current !== token) return;
-      setCutoutImg(objectImg);
+      setCutoutImg(photo);
       setStep("card");
       void cutoutPromise.then((cut) => {
         if (cut && runTokenRef.current === token) setCutoutImg(cut);
@@ -891,8 +951,17 @@ function CapturePage() {
     // 温めてある位置を**ここで確定させる**。状態を直に読むと、
     // 候補を早く選んだ回はまだ届いていない。
     const locationPromise = resolveLocation();
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
+    /**
+     * **`getSession` で足りる**（オーナー報告 2026-09-22「祝福の演出が…
+     * 4秒位停止してる」の一因）。
+     *
+     * `getUser()` は毎回**認証サーバーへ問い合わせる**。ここで要るのは
+     * アップロード先のフォルダ名（自分の id）だけで、本人確認はこの後の
+     * アップロードと保存がそれぞれ鍵付きで行う（保存側は `ownPath` で
+     * 他人のフォルダを弾く）。1往復ぶん、演出が保存を待つ時間が縮む。
+     */
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
     if (!userId) throw new Error("Not signed in");
 
     const ts = Date.now();
@@ -997,7 +1066,56 @@ function CapturePage() {
       })();
     }
 
+    /**
+     * **いま捕まえた札を、図鑑の手元の一覧へ先に入れる**
+     * （`lib/optimistic-sticker.ts` の注。オーナー報告 2026-09-22
+     * 「発音のあとその画面のまま4秒位停止してる」）。
+     *
+     * 入れないと、図鑑は全部の札を読み直し終えるまでこの札のマス目を
+     * 描けず、演出はその間ずっと着地先を待って止まっていた。
+     */
+    const nowIso = new Date().toISOString();
+    queryClient.setQueryData<StickerListCache>(["stickers"], (prev) =>
+      prependSticker(prev, {
+        id: res.id,
+        word_id: res.word_id,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+        taken_at: nowIso,
+        created_at: nowIso,
+        // 再会の回数。**初めて捕まえた札は 0**（1 にすると「×1」の札が付く）。
+        encounter_count: 0,
+        // アップロード前の手元の絵。署名付き URL を待たずに出せて、
+        // 読み直しが届いて本物に替わっても同じ絵なので見た目は変わらない。
+        object_url: objectImg,
+        cutout_url: cutForSave,
+        selfie_url: selfieImg,
+        object_thumb_url: null,
+        cutout_thumb_url: null,
+        capture_type: "photo",
+        hero_role: null,
+        placeholder_url: null,
+        placeholder_credit: null,
+        word: {
+          headword: selectedHead,
+          language: targetLanguage,
+          reading_zhuyin: card.reading_zhuyin ?? null,
+          pinyin: card.pinyin ?? null,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech ?? null,
+          example_sentence: card.example_sentence ?? null,
+          example_translation: card.example_translation ?? null,
+          level: card.level ?? null,
+          category_key: card.category_key ?? null,
+          silhouette_emoji: null,
+          extras: (card.extras ?? null) as StickerWithWord["word"]["extras"],
+        },
+      }),
+    );
     // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+    // 届いたら上の仮の札は同じ id の本物に置き換わる。
     void queryClient.invalidateQueries({ queryKey: ["stickers"] });
     if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
     return res;
@@ -1170,8 +1288,8 @@ function CapturePage() {
     owned: OwnedWord,
     objectImg: string | null,
     cutoutImg: string | null,
-  ) {
-    if (reencSubmittingRef.current) return;
+  ): Promise<boolean> {
+    if (reencSubmittingRef.current) return false;
     setReencFailed(false);
     reencSubmittingRef.current = true;
     try {
@@ -1219,13 +1337,51 @@ function CapturePage() {
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker", owned.sticker_id] });
+      return true;
     } catch (e) {
       console.error(e);
       setReencFailed(true);
       toast.error(t("cap.recordFailed"));
+      return false;
     } finally {
       reencSubmittingRef.current = false;
     }
+  }
+
+  /**
+   * **再会でも、剥がして図鑑へ飛ばす。**（オーナー指示 2026-09-23「再度同じ
+   * 画像を撮った時も、ステッカーを剥がし、図鑑に追加するアニメーション入れて」）
+   *
+   * 新しく捕まえたときと同じ演出（`runCatchLanding`）。着地先は**その語の
+   * 図鑑の枠**（元の札）。関所は再会の記録 — 記録に失敗したら祝わずに畳む。
+   */
+  function landReencounter() {
+    if (!reenc || landing) return;
+    const owned = reenc;
+    setSelectedHead(owned.headword);
+    setLanding(true);
+    const gate = (reencPromiseRef.current ?? Promise.resolve(false)).then((ok) => {
+      if (!ok) throw new Error("re-encounter not recorded");
+    });
+    void gate.catch(() => setLanding(false));
+    const done = runCatchLanding({
+      startEl: heroBoxRef.current,
+      fly: flyRef,
+      speakLine: () => pronounce(owned.headword, true),
+      getDestinationId: () => owned.sticker_id,
+      openDex: () => navigate({ to: "/dex", search: { justCaught: owned.sticker_id } }),
+      gate,
+    });
+    void done
+      .then(() => {
+        if (window.location.pathname !== "/dex") {
+          navigate({ to: "/dex", search: { justCaught: owned.sticker_id } });
+        }
+      })
+      .catch((e) => {
+        console.warn("re-encounter landing failed", e);
+        setLanding(false);
+      });
   }
 
   function syncPhotoToDevice(dataUrl: string) {
@@ -1351,6 +1507,9 @@ function CapturePage() {
         <ReencounterPanel
           reenc={reenc}
           photo={objectImg}
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          onPeel={landReencounter}
           failed={reencFailed}
           onRetry={() => void recordReencounter(reenc, objectImg, null)}
           reencResult={reencResult}
@@ -1458,7 +1617,16 @@ export function ReencounterPanel({
   photo,
   failed = false,
   onRetry,
+  heroBoxRef,
+  landing = false,
+  onPeel,
 }: {
+  /** 剥がす札の枠。演出はここから飛び立つ（`runCatchLanding` の startEl）。 */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消す。 */
+  landing?: boolean;
+  /** 剥がしたとき（図鑑へ飛ばす）。渡さなければ写真だけ出す（見本用）。 */
+  onPeel?: () => void;
   reenc: OwnedWord;
   reencResult: { encounter_count: number; photo_saved?: boolean } | null;
   dateLocale: string;
@@ -1474,7 +1642,29 @@ export function ReencounterPanel({
   return (
     <div className="mx-auto max-w-md space-y-5">
       <div className="overflow-hidden rounded-[32px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
-        {image && (
+        {image && onPeel ? (
+          /* **新しく捕まえたときと同じ、剥がす札**（オーナー指示 2026-09-23）。
+             剥がすと図鑑のその語の枠へ飛んで着地する。 */
+          <div className="relative p-3">
+            <div
+              ref={heroBoxRef}
+              className={`mx-auto grid aspect-square w-full max-w-xs place-items-center ${landing ? "opacity-0" : ""}`}
+            >
+              <PeelSticker
+                photoUrl={image}
+                cutoutUrl={null}
+                label={reenc.headword}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={landing || failed}
+                onPeel={onPeel}
+              />
+            </div>
+            <span className="absolute left-6 top-6 rounded-full bg-card/95 px-4 py-2 text-footnote font-semibold text-primary-ink shadow-sm">
+              {t("capture.reunion")}
+            </span>
+          </div>
+        ) : image ? (
           <div className="relative p-3">
             <img
               src={image}
@@ -1485,7 +1675,7 @@ export function ReencounterPanel({
               {t("capture.reunion")}
             </span>
           </div>
-        )}
+        ) : null}
         <div className="space-y-3 px-6 pb-6 pt-3">
           <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
             {reenc.headword}
@@ -1582,7 +1772,9 @@ export function PickWordPanel({
           />
         </div>
       )}
-      <h2 className="text-title font-semibold tracking-tight">{t("capture.pickTitle")}</h2>
+      {/* 「ステップ 3: 単語を選ぶ」は画面に出さない（オーナー指示 2026-09-23
+          「ステップ３の文字消して」）。読み上げには見出しとして残す。 */}
+      <h2 className="sr-only">{t("capture.pickTitle")}</h2>
       {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
           「ステップ3の単語を選ぶの小さな文細かいは消して」）。
           候補が並んでいれば、選ぶ所であることは見れば分かる。 */}

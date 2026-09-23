@@ -19,6 +19,8 @@ import {
   type WordExtrasDTO,
 } from "./extras";
 
+import type { AlbumEncounter } from "./album-encounters";
+
 // WordExtrasDTO / extras の正規化は src/lib/extras.ts に一本化(re-export)。
 export type { WordExtrasDTO } from "./extras";
 
@@ -471,7 +473,49 @@ export const listMyStickers = createServerFn({ method: "GET" })
         otherLanguages = Math.max(0, all.count - total);
       }
     }
-    return { items: result, truncated, total, targetLanguage, otherLanguages };
+    /**
+     * **再会の写真**（ホームのアルバムに貼る。`lib/album-encounters.ts`）。
+     * 直近 120 日・500 枚まで。読めなくても一覧は返す（飾りなので空に倒す）。
+     */
+    let albumEncounters: AlbumEncounter[] = [];
+    try {
+      const ids = new Set(result.map((r) => r.id));
+      const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
+      const { data: encRows, error: encErr } = await supabase
+        .from("encounters")
+        .select("id, sticker_id, created_at, location_name, lat, lng, image_path, cutout_path")
+        .eq("user_id", userId)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (!encErr && encRows) {
+        const withPhoto = encRows.filter(
+          (e) => ids.has(e.sticker_id) && (e.image_path || e.cutout_path),
+        );
+        const encUrls = await signUrlMap(
+          supabase,
+          withPhoto.flatMap((e) => [e.image_path, e.cutout_path, thumbOf(e.image_path)]),
+        );
+        albumEncounters = withPhoto
+          .map((e) => ({
+            id: e.id,
+            sticker_id: e.sticker_id,
+            created_at: e.created_at,
+            location_name: e.location_name ?? null,
+            lat: e.lat ?? null,
+            lng: e.lng ?? null,
+            image_url:
+              (e.image_path ? encUrls.get(e.image_path) : undefined) ??
+              (e.cutout_path ? encUrls.get(e.cutout_path) : undefined) ??
+              "",
+            thumb_url: e.image_path ? (encUrls.get(`${e.image_path}.thumb.webp`) ?? null) : null,
+          }))
+          .filter((e) => e.image_url);
+      }
+    } catch {
+      albumEncounters = [];
+    }
+    return { items: result, truncated, total, targetLanguage, otherLanguages, albumEncounters };
   });
 
 export const getSticker = createServerFn({ method: "GET" })
@@ -885,11 +929,18 @@ export const saveSticker = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
     }
-    const wordId = await upsertWord(supabase, userId, data.word, data.language);
-
-    // その人だけの棚。**失敗しても語のキャッチは通す。**
-    // 棚が1つ増えないことと、キャッチが丸ごと失敗することは重さが違う。
-    const shelfKey = await ensureUserShelf(supabase, userId, data.new_shelf);
+    /**
+     * 語の登録と棚の用意は**互いを待たない**ので並べて走らせる
+     * （オーナー報告 2026-09-22「祝福の演出が…4秒位停止してる」— 演出は
+     * この保存が返るまで次へ進めない。直列だと往復がそのまま足し算になる）。
+     *
+     * 棚は、その人だけの棚。**失敗しても語のキャッチは通す。**
+     * 棚が1つ増えないことと、キャッチが丸ごと失敗することは重さが違う。
+     */
+    const [wordId, shelfKey] = await Promise.all([
+      upsertWord(supabase, userId, data.word, data.language),
+      ensureUserShelf(supabase, userId, data.new_shelf),
+    ]);
 
     // Guard against cross-account storage path spoofing: only accept paths
     // rooted under the caller's own uid folder (the client upload convention).

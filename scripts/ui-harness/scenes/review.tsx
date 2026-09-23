@@ -7,16 +7,19 @@
  * 似たHTMLをこちらに書き写すことはしない — それをやると
  * 「直しても画像が変わらない検査」に戻る。
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { stabilityOf } from "@/lib/srs";
 import {
   AnswerExplain,
   DoneState,
   EmptyState,
+  ForgettingCurveModal,
   LightModeCard,
   MemoryLevelSummary,
   MemoryOverviewPanel,
+  MiniRetentionGraph,
   ReviewHeader,
   ReviewPreparing,
   SayResult,
@@ -150,10 +153,11 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
 export function ReviewMemoryListScene() {
   const raw: Array<[string, number, number, number]> = [
     // 見出し語, 定着度, 間隔(日), 復習回数
-    ["珍珠奶茶", 100, 90, 12], // 育った語（前は「長期記憶 100%」）
-    ["雨傘", 100, 0, 0], // 今日キャッチ（前は 100% で最下段＝最強に見えた）
-    ["夜市", 82, 45, 9], // 出題日が近い長期の語（前は「長期記憶 82%」）
-    ["捷運", 96, 5, 3], // 間隔は短いが直後（前は「覚えた 96%」で上の語より下）
+    // % は「いま思い出せる確率」1つだけ（オーナー指示 2026-09-23）。
+    ["珍珠奶茶", 100, 90, 12], // 育った語。同じ 100% なら、もちが長いので下
+    ["雨傘", 100, 0, 0], // 今日キャッチ。同じ 100% でも、もちが短いので上
+    ["夜市", 82, 45, 9], // 出題日を少し過ぎた語
+    ["捷運", 96, 5, 3],
     ["咖啡", 44, 2, 1],
     ["蘋果", 68, 14, 5],
   ];
@@ -391,6 +395,89 @@ export function RetakeSuggestionScene() {
         photoCount={1}
         onRetake={() => {}}
       />
+    </div>
+  );
+}
+
+/**
+ * 1語の記憶のグラフ（復習の一覧で語を押すと開く）。
+ * （オーナー指摘 2026-09-22「記憶のグラフが見づらい…復習5回となってるのに
+ *  5回復習したあとないとか」）
+ *
+ * わざと**実物で崩れていた形**の履歴を渡す:
+ *  ・一番古い復習は 70 日前（以前は 45 日で切れて落ちていた）
+ *  ・同じ日に2回（以前は日単位に丸めて1点に潰れていた）
+ *  ・途中で1回間違えている（`repetitions` は 0 に戻るので「復習 N 回」が
+ *    実際の回数と合わなかった）
+ *
+ * `?variant=due` で「もう復習どきが来ている」形（押せば復習へ進める）。
+ *
+ * 通信は返ってこない（stubs/react-start.ts）ので、履歴は問い合わせの
+ * 置き場へ先に入れておく — 画面の部品は1字も変えずに描ける。
+ */
+export function MemoryCurveScene({ q }: { q: URLSearchParams }) {
+  const due = q.get("variant") === "due";
+  const qc = useQueryClient();
+  const [word] = useState(() => {
+    const day = 86_400_000;
+    const now = Date.now();
+    const at = (d: number, h = 0) => new Date(now - d * day + h * 3600_000).toISOString();
+    // 既定は「最後の復習が昨日」＝復習どきはこれから。`due` は同じ履歴を
+    // 5日ぶん過去へずらし、復習どきを過ぎた形にする。
+    const shift = due ? 5 : 0;
+    const history = [
+      { reviewed_at: at(65 + shift), score: 4, interval_days_after: 1, ease_after: 2.5 },
+      { reviewed_at: at(50 + shift), score: 4, interval_days_after: 3, ease_after: 2.5 },
+      { reviewed_at: at(25 + shift), score: 1, interval_days_after: 1, ease_after: 2.3 },
+      { reviewed_at: at(25 + shift, 3), score: 4, interval_days_after: 1, ease_after: 2.3 },
+      { reviewed_at: at(1 + shift), score: 5, interval_days_after: 3, ease_after: 2.4 },
+    ];
+    qc.setQueryData(["sticker-memory", "curve-s1"], {
+      history,
+      current: {
+        ease: 2.4,
+        interval_days: 3,
+        last_reviewed_at: history[history.length - 1].reviewed_at,
+        due_at: null,
+      },
+      taken_at: at(69 + shift),
+    });
+    const stability = stabilityOf(3, 2.4);
+    const since = 1 + shift;
+    return {
+      sticker_id: "curve-s1",
+      headword: "珍珠奶茶",
+      retention: Math.round(100 * Math.exp(-since / stability)),
+      interval_days: 3,
+      // SM-2 の「続けて正解した回数」。途中で間違えたので 2（実際の復習は5回）。
+      repetitions: 2,
+      due_at: null,
+      days_until_forgot: null,
+      fresh: false,
+      long_term: false,
+      anchor_at: history[history.length - 1].reviewed_at,
+      stability_days: stability,
+      ease: 2.4,
+    };
+  });
+  return <ForgettingCurveModal word={word} onClose={() => {}} />;
+}
+
+/**
+ * 全体の記憶率（前後2週間）。1語のグラフと同じ見た目にそろえた。
+ * 過去は記録（途中で語が無かった日は null = 線が切れる）、未来は予測。
+ */
+export function MemoryOverallScene() {
+  const series = Array.from({ length: 29 }, (_, i) => {
+    const d = i - 14;
+    if (d < -11) return { day_offset: d, avg_retention: null };
+    // 復習した日（-8, -3）に持ち直し、未来は下がっていく。
+    const base = d <= -8 ? 92 - (d + 11) * 6 : d <= -3 ? 94 - (d + 8) * 4 : 90 - (d + 3) * 2.2;
+    return { day_offset: d, avg_retention: Math.round(Math.max(20, Math.min(100, base))) };
+  });
+  return (
+    <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <MiniRetentionGraph series={series} />
     </div>
   );
 }

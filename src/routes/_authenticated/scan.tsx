@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { cardSectionsNow } from "@/lib/card-prefs";
 import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
 import {
@@ -27,8 +28,9 @@ import {
   Sparkles,
   Bug,
   ChevronDown,
-  ChevronRight,
+  ChevronsUpDown,
   Search,
+  Plus,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -52,6 +54,10 @@ import { haptic } from "@/lib/haptics";
 import { readableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
+import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
+import { rankScanCandidates } from "@/lib/jev.functions";
+import { putScanHandoff } from "@/lib/scan-handoff";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/scan")({
@@ -206,7 +212,9 @@ function ScanPage() {
       const hit = cache.get(headword);
       if (hit) return hit;
       const t0 = performance.now();
-      const p = cardFn({ data: { headword, targetLanguage: targetLanguage } });
+      const p = cardFn({
+        data: { headword, targetLanguage: targetLanguage, sections: cardSectionsNow() },
+      });
       cache.set(headword, p);
       p.then(() => {
         prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
@@ -224,6 +232,20 @@ function ScanPage() {
   const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  /** 撮った写真の元の大きさ。光の点を `object-cover` の写真に合わせて置くのに要る。 */
+  const [snapshotSize, setSnapshotSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  /**
+   * いま注目している候補（下の列で真ん中にある／押した候補）。その光の点が
+   * 大きくなって揺れる（オーナー指示 2026-09-22）。
+   */
+  const [activeId, setActiveId] = useState<string | null>(null);
+  /**
+   * Jev が付けた「調べたい見込み」の順（候補の id の並び）。スキャンの結果を
+   * 出した**後から**届く。届く前に本人が候補を押していたら使わない —
+   * 押した後に並びが動くと、押そうとした行が逃げる。
+   */
+  const [rankOrder, setRankOrder] = useState<string[] | null>(null);
+  const touchedRef = useRef(false);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
   /**
@@ -435,6 +457,8 @@ function ScanPage() {
     setError(null);
     setChip(null);
     setItems(null);
+    setRankOrder(null);
+    touchedRef.current = false;
     setEntries({});
     setDetectMs(null);
     setLookupMs(null);
@@ -559,6 +583,8 @@ function ScanPage() {
   const openChip = useCallback(
     (item: DetectedItem) => {
       const lowConf = item.confidence < 0.75 && item.alternatives.length > 0;
+      touchedRef.current = true;
+      setActiveId(item.id);
       setChip({ item, chosenHeadword: item.headword, showingCandidates: lowConf });
       if (!lowConf) {
         void playAudio(item.headword, item);
@@ -569,6 +595,50 @@ function ScanPage() {
     // playAudio はこの下で定義しているため、依存に書くと参照が初期化前になる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [startPrefetch],
+  );
+
+  /**
+   * **候補を押したら、撮影モードと同じ流れで足す**（オーナー指示 2026-09-23）。
+   * 撮った写真・場所・押した語を撮影モードへ渡し、そちらの「カード →
+   * 保存の演出」（持っている語なら再会の画面）で続ける。検出が迷った語は
+   * 撮影モードと同じく「語を選ぶ」から（`lib/scan-handoff.ts`）。
+   */
+  const addViaCapture = useCallback(
+    (item: DetectedItem) => {
+      if (!snapshot) return;
+      touchedRef.current = true;
+      const unsure = item.confidence < 0.75 && item.alternatives.length > 0;
+      putScanHandoff({
+        image: snapshot,
+        headword: item.headword,
+        hint: {
+          reading_zhuyin: item.zhuyin ?? "",
+          pinyin: item.pinyin ?? "",
+          meaning_ja: item.meaning_ja ?? "",
+          category_key: "",
+        },
+        alternatives: unsure ? item.alternatives : [],
+        loc: scanLoc,
+      });
+      void navigate({ to: "/capture", search: { mode: "photo" } });
+    },
+    [snapshot, scanLoc, navigate],
+  );
+
+  /**
+   * 写真の上の光を押したときは、**その候補に注目して読み上げる**だけ。
+   * 下の箱もその行へ送る。足すのは箱の行を押したとき（撮影モードの流れ）。
+   */
+  const focusDot = useCallback(
+    (item: DetectedItem) => {
+      touchedRef.current = true;
+      setActiveId(item.id);
+      pronounce.prefetch(item.headword);
+      void playAudio(item.headword, item);
+    },
+    // playAudio はこの下で定義している（openChip と同じ理由）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const pickCandidate = useCallback(
@@ -630,6 +700,9 @@ function ScanPage() {
   const reset = useCallback(() => {
     setItems(null);
     setSnapshot(null);
+    setActiveId(null);
+    setRankOrder(null);
+    touchedRef.current = false;
     setChip(null);
     setEntries({});
     setDetectMs(null);
@@ -645,21 +718,21 @@ function ScanPage() {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const sheetSize = useBoxSize(sheetRef);
   /**
-   * ドット(光のボタン)の配置。
-   * スキャン後は下からシートが せり上がるので、そのままだと下半分のドットが
-   * シートの裏に隠れて**押せなくなる**。写真の見える範囲(= シートの上端まで)
-   * にドットを収め、常にすべてのドットをタップできるようにする。
+   * 光の点の位置。写真は画面いっぱいの `object-cover`（覗いていた映像と
+   * 同じ見え方）なので、点も同じ切り落としで置く（`lib/scan-layout.ts`）。
+   * そのうえで、下の操作シートの裏に入る点はシートの上へ持ち上げる —
+   * 隠れた点は押せず、候補を選んだときの動きも見えない。
    */
   const dotStyle = useCallback(
     (it: DetectedItem): React.CSSProperties => {
-      const [x, y] = it.point;
-      const reserved = snapshot ? sheetSize.h + 24 : 0;
-      const usableH = Math.max(120, boxSize.h - reserved);
-      const left = (x / 1000) * boxSize.w;
-      const top = (y / 1000) * usableH;
-      return { left, top };
+      const p = coverPoint(it.point, snapshotSize, boxSize);
+      if (!snapshot) return p;
+      const sheetTop = sheetRef.current?.getBoundingClientRect().top ?? boxSize.h;
+      return clampToVisible(p, { w: boxSize.w, bottom: sheetTop });
     },
-    [boxSize, sheetSize.h, snapshot],
+    // sheetSize.h: シートの高さが変わったら上端も変わるので、置き直す。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [boxSize, sheetSize.h, snapshot, snapshotSize],
   );
 
   const chosenDict = chip ? entries[chip.chosenHeadword] : undefined;
@@ -672,10 +745,51 @@ function ScanPage() {
 
   // Only surface target-language (Chinese) words as candidates — drop English
   // and other non-learning-language detections from the dots and the list.
-  const visibleItems = useMemo(
-    () => (items ?? []).filter((it) => /[㐀-鿿豈-﫿]/.test(it.headword)),
-    [items],
-  );
+  const isTarget = (it: DetectedItem) => /[㐀-鿿豈-﫿]/.test(it.headword);
+  const visibleItems = useMemo(() => {
+    const list = (items ?? []).filter(isTarget);
+    if (!rankOrder) return list;
+    const at = (id: string) => {
+      const i = rankOrder.indexOf(id);
+      return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return [...list].sort((a, b) => at(a.id) - at(b.id));
+  }, [items, rankOrder]);
+
+  /**
+   * **Jev に「どれを調べたいか」を聞き、候補の並びを替える**（オーナー指示
+   * 2026-09-22）。結果を出してから頼むので、スキャンの待ち時間は延びない。
+   * 鍵が無い・自信が低い・本人がもう押した、のどれでも並びは変えない。
+   */
+  const rankFn = useServerFn(rankScanCandidates);
+  useEffect(() => {
+    if (scanning || !items || rankOrder) return;
+    const list = items.filter(isTarget);
+    if (list.length < 2) return;
+    let cancelled = false;
+    void rankFn({
+      data: {
+        items: list.slice(0, 24).map((it) => ({
+          headword: it.headword,
+          meaning: it.meaning_ja ?? null,
+          kind: it.kind ?? null,
+          confidence: it.confidence,
+          owned: Boolean(scanCtx?.owned[normHead(it.headword)]),
+        })),
+      },
+    })
+      .then((r) => {
+        if (cancelled || touchedRef.current || !r.order) return;
+        setRankOrder(r.order.map((i) => list[i].id));
+        // 先頭が替わるので、光らせる候補も先頭へ（箱が選び直す）。
+        setActiveId(null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, scanning]);
 
   return (
     // スキャンも画面いっぱいのカメラ。上の帯は出さない（撮る画面と同じ）。
@@ -693,36 +807,51 @@ function ScanPage() {
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          {/* live camera */}
-          {!snapshot && (
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              className="absolute inset-0 h-full w-full object-cover"
-              // **前面でも鏡像にしない。** 自撮りの見慣れた向きは鏡像だが、
-              // ここは見つけた物の上に印を落とす画面で、印の座標は
-              // 撮った絵のままの向きで来る。鏡にすると印と物がずれる。
-              // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
-              style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
-            />
-          )}
+          {/* live camera。**撮った後も外さない。** 以前は写真を出す間
+              `<video>` を外していたので、「もう一度」で戻ると新しい
+              `<video>` にはカメラの流れが繋がっておらず**真っ黒**になり、
+              写真の上から押す「再スキャン」は映像が無くて必ず失敗していた。
+              写真はこの上に重ねて覆う。 */}
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="absolute inset-0 h-full w-full object-cover"
+            // **前面でも鏡像にしない。** 自撮りの見慣れた向きは鏡像だが、
+            // ここは見つけた物の上に印を落とす画面で、印の座標は
+            // 撮った絵のままの向きで来る。鏡にすると印と物がずれる。
+            // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
+            style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
+          />
           {/* frozen snapshot after scan */}
           {snapshot && (
-            // 写真もドットと同じ「シートの上」の範囲に収める。
-            // こうしておくと座標と見た目がずれない。
+            // **覗いていた映像と同じ見え方**（画面いっぱい）で止める。
+            // 以前は「シートの上まで」の短い箱に押し込んでいたので、箱の下に
+            // カメラの黒い地がむき出しになっていた（「候補の下に黒い余白」）。
             <img
               src={snapshot}
               alt=""
-              className="absolute inset-x-0 top-0 w-full object-cover"
-              style={{ height: `calc(100% - ${sheetSize.h + 24}px)` }}
+              className="absolute inset-0 h-full w-full object-cover"
+              onLoad={(e) =>
+                setSnapshotSize({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
             />
           )}
 
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
           {scanning && scanStage !== "idle" && <ScanEffect stage={scanStage} />}
 
-          <ScanDots items={visibleItems} scanCtx={scanCtx} dotStyle={dotStyle} onOpen={openChip} />
+          <ScanDots
+            items={visibleItems}
+            scanCtx={scanCtx}
+            dotStyle={dotStyle}
+            onOpen={focusDot}
+            activeId={activeId}
+            boxWidth={boxSize.w}
+          />
 
           <ScanCameraControls
             hidden={!!snapshot}
@@ -853,33 +982,26 @@ function ScanPage() {
                   画面から読めなくなる（HIG「一貫性」）。
                 */}
               </div>
-            ) : (
-              <>
-                <button
-                  onClick={reset}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-secondary px-5 py-2.5 text-body font-medium text-secondary-foreground shadow"
-                >
-                  <RotateCcw className="h-4 w-4" /> {t("scan.again")}
-                </button>
-                <button
-                  onClick={doScan}
-                  disabled={scanning}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground shadow"
-                >
-                  <Camera className="h-4 w-4" /> {t("scan.rescan")}
-                </button>
-              </>
-            )}
+            ) : null}
           </div>
 
-          {/* Nothing found: a completed scan produced no target-language words.
-              Without this the user just stares at a frozen photo with no dots
-              and no explanation. */}
-          {items !== null && !scanning && visibleItems.length === 0 && <ScanNothingFound />}
-
-          {/* 3) 見つかった単語(スクロールできるガラスのシート) */}
-          {visibleItems.length > 0 && !scanning && (
-            <ScanFoundList items={visibleItems} scanCtx={scanCtx} onOpen={openChip} />
+          {/*
+            撮った後の下の段。**候補を1行だけ**、横に送って選ぶ
+            （オーナー指示 2026-09-22「スキャンの後は画面したに単語の候補1行が
+             出てきてスクロールでき、その単語のものの光の点が大きくなったり、
+             揺れる」）。以前は縦に積む一覧（画面の 26% まで）と「もう一度」
+             「再スキャン」の2つの釦で、写真の下半分を覆っていた。
+          */}
+          {snapshot && !scanning && (
+            <ScanCandidateStrip
+              items={visibleItems}
+              scanCtx={scanCtx}
+              activeId={activeId}
+              onFocus={setActiveId}
+              onOpen={addViaCapture}
+              onAgain={reset}
+              nothingFound={items !== null && visibleItems.length === 0}
+            />
           )}
         </div>
 
@@ -1207,83 +1329,259 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 /**
- * 撮った枠から見つかった語の一覧。**scan で結果を読む所**。
+ * 撮った後に下へ出る**候補の箱**。箱の中だけが縦に動く。
  *
- * 出会い方(はじめて / 持っている / 再会)で行の印が変わる。
- * `<video>` は使わない — ここは静止画の上に乗るガラスのシート。
+ * （オーナー指示 2026-09-23「スキャンの単語は一番下に単語の候補を表示し、
+ *  縦にスクロールできるようにする。画面は固定し、スクロールするとボックスの
+ *  なかの単語の候補が見える」。前日の「候補1行…光の点が大きくなったり、
+ *  揺れる」も続けて満たす）
+ *
+ *  ・箱は**一番下の1行ぶん**（2026-09-23 の指示で2行半から変更）。中の候補は
+ *    1語1行で、縦に払うと1行ずつ替わる。写真と画面は動かない
+ *    （`overscroll-contain` で、箱の端で画面ごと引っぱられない）。
+ *    右に「何件中の何件目」を小さく出し、下にまだあることを伝える。
+ *  ・送って**箱の真ん中に来た候補**が「いま見ている候補」になり、写真の上の
+ *    その光の点が大きくなって揺れる（`onFocus`）。押すと札が開く。
+ *  ・写真の上の点を押したときは、箱のほうもその候補を真ん中へ送る。
+ *  ・**右下の端**の丸い釦で撮り直す（以前の「もう一度」と「再スキャン」は、
+ *    どちらも覗く画面へ戻るだけなので1つにした）。
+ *  ・行を押すと**撮影モードと同じ流れ**で足す（`onOpen`）。
+ *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
-export function ScanFoundList({
+export function ScanCandidateStrip({
   items,
   scanCtx,
+  activeId,
+  onFocus,
   onOpen,
+  onAgain,
+  nothingFound = false,
 }: {
   items: DetectedItem[];
   scanCtx: ScanCtx | undefined;
+  activeId: string | null;
+  onFocus: (id: string) => void;
   onOpen: (it: DetectedItem) => void;
+  onAgain: () => void;
+  nothingFound?: boolean;
 }) {
   const t = useT();
-  const visibleItems = items;
-  const openChip = onOpen;
-  if (!visibleItems.length) return null;
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef(0);
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  /**
+   * 箱を**こちらから**送っている間は、送りの途中で真ん中を通り過ぎる候補に
+   * 注目を移さない。移すと、点を押して選んだ候補が送りの途中の別の候補に
+   * 奪われる（実測: 「吸管」の点を押しても、送り終わると「珍珠」が光っていた）。
+   */
+  const programmaticUntil = useRef(0);
+
+  // 最初は先頭の候補に注目する（何も光っていないと、箱と点の対応が読めない）。
+  useEffect(() => {
+    if (!activeId && items[0]) onFocus(items[0].id);
+  }, [activeId, items, onFocus]);
+
+  // 点を押して注目が移ったら、箱もその候補を真ん中へ。
+  useEffect(() => {
+    if (!activeId) return;
+    const el = rowRefs.current.get(activeId);
+    const sc = scrollerRef.current;
+    if (!el || !sc) return;
+    const max = sc.scrollHeight - sc.clientHeight;
+    const target = Math.max(
+      0,
+      Math.min(max, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2),
+    );
+    if (Math.abs(sc.scrollTop - target) < 4) return;
+    const reduce = motionReducedNow();
+    programmaticUntil.current = performance.now() + (reduce ? 100 : 700);
+    sc.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
+  }, [activeId]);
+
+  const onScroll = () => {
+    if (performance.now() < programmaticUntil.current) return;
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(() => {
+      const sc = scrollerRef.current;
+      if (!sc) return;
+      // 横の列と同じ選び方を、縦に読み替えて使う。
+      const boxes = items.map((it) => {
+        const el = rowRefs.current.get(it.id);
+        return { left: el?.offsetTop ?? 0, width: el?.offsetHeight ?? 0 };
+      });
+      const i = focusedIndex(boxes, {
+        scrollLeft: sc.scrollTop,
+        width: sc.clientHeight,
+        scrollWidth: sc.scrollHeight,
+      });
+      if (i >= 0 && items[i].id !== activeId) onFocus(items[i].id);
+    });
+  };
+  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
+
+  /**
+   * **1行の箱は、払った分だけ1つずつ送る。**（オーナー報告 2026-09-23
+   * 「スキャン後の候補のスクロールがしにくい」）
+   *
+   * 1行ぶんの高さしかない箱をブラウザの巻き取りに任せると、指の動きが
+   * 小さすぎて止まる所が読めない（吸い付く前に戻ってしまう）。時計の
+   * ダイヤルと同じく、**上へ払えば次、下へ払えば前**。大きく払えば
+   * その分だけ進む（32px で1つ）。押しただけなら、その候補を選ぶ。
+   */
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((it) => it.id === activeId),
+  );
+  const step = (n: number) => {
+    if (!items.length) return;
+    const j = Math.max(0, Math.min(items.length - 1, activeIndex + n));
+    if (items[j]) onFocus(items[j].id);
+  };
+  const swipe = useRef<{ y: number; id: number; moved: boolean } | null>(null);
+  const swallowClick = useRef(false);
+  const active = items[activeIndex];
+
   return (
-    <div className="max-h-[26vh] overflow-y-auto overscroll-contain rounded-2xl p-1.5 shadow-lg material-thick">
-      {
-        <div className="space-y-1.5">
-          <p className="px-1 text-caption font-medium label-caps text-muted-foreground">
-            {t("scan.found")}
+    <div className="flex items-end gap-2" data-scan-strip>
+      {nothingFound ? (
+        <div className="min-w-0 flex-1 rounded-2xl px-3 py-2 shadow-lg material-thick">
+          <p className="text-footnote font-medium">{t("scan.nothingFound")}</p>
+          <p className="ja-phrase text-caption text-muted-foreground">
+            {t("scan.nothingFoundHint")}
           </p>
-          {visibleItems.map((it) => {
-            const st = dotStateFor(it.headword, scanCtx);
-            return (
-              <button
-                key={it.id}
-                onClick={() => openChip(it)}
-                className="press-in flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm"
-              >
-                <span
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                    st === "owned"
-                      ? "bg-emerald-400"
-                      : st === "reunion"
-                        ? "bg-amber-400"
-                        : "bg-sky-400"
+        </div>
+      ) : (
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
+          {items.length > 1 && (
+            // 1行しか見えないので、**まだ下にある**ことを数で言う。押すと次へ
+            // （最後なら先頭へ）。指の当たりは 44px。
+            <button
+              type="button"
+              onClick={() => (activeIndex >= items.length - 1 ? step(-items.length) : step(1))}
+              aria-label={t("scan.nextCandidate")}
+              className="absolute right-1 top-1/2 z-10 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-0.5 rounded-full px-2 text-caption tabular-nums text-muted-foreground"
+            >
+              {activeIndex + 1}/{items.length}
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div
+            ref={scrollerRef}
+            onScroll={onScroll}
+            onPointerDown={(e) => {
+              // 払った後にブラウザが押しを出さないこともあるので、次の押しで
+              // 必ず解く（残ると、次に本当に押した候補が開かない）。
+              swallowClick.current = false;
+              swipe.current = { y: e.clientY, id: e.pointerId, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const sw = swipe.current;
+              if (sw && sw.id === e.pointerId && Math.abs(e.clientY - sw.y) > 8) sw.moved = true;
+            }}
+            onPointerUp={(e) => {
+              const sw = swipe.current;
+              swipe.current = null;
+              if (!sw || sw.id !== e.pointerId || !sw.moved) return;
+              const dy = e.clientY - sw.y;
+              const n = Math.round(-dy / 32) || -Math.sign(dy);
+              swallowClick.current = true;
+              step(n);
+            }}
+            onPointerCancel={() => {
+              swipe.current = null;
+            }}
+            onWheel={(e) => {
+              if (Math.abs(e.deltaY) < 4) return;
+              step(Math.sign(e.deltaY));
+            }}
+            role="listbox"
+            aria-label={t("scan.found")}
+            className="scan-box relative touch-none overflow-hidden p-1"
+          >
+            {items.map((it) => {
+              const st = dotStateFor(it.headword, scanCtx);
+              const on = it.id === activeId;
+              return (
+                <button
+                  key={it.id}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(it.id, el);
+                    else rowRefs.current.delete(it.id);
+                  }}
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => {
+                    if (swallowClick.current) {
+                      swallowClick.current = false;
+                      return;
+                    }
+                    onOpen(it);
+                  }}
+                  className={`press-in flex min-h-12 w-full items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
+                    on ? "bg-card shadow-sm ring-2 ring-primary" : ""
                   }`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2">
-                    <span lang="zh-Hant" className="truncate text-body font-semibold">
-                      {it.headword}
-                    </span>
-                    {it.zhuyin && (
-                      <span className="shrink-0 text-caption text-muted-foreground">
-                        {it.zhuyin}
-                      </span>
-                    )}
+                >
+                  <span
+                    aria-hidden
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      st === "owned"
+                        ? "bg-emerald-400"
+                        : st === "reunion"
+                          ? "bg-amber-400"
+                          : "bg-sky-400"
+                    }`}
+                  />
+                  <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
+                    {it.headword}
                   </span>
-                  {it.meaning_ja && (
-                    <span className="block truncate text-footnote text-muted-foreground">
-                      {it.meaning_ja}
+                  {/* 注音は長い語で数の札に潜っていた（360px 実測）。縮めて省く側に回す。 */}
+                  {it.zhuyin && (
+                    <span className="min-w-0 shrink truncate text-caption text-muted-foreground">
+                      {it.zhuyin}
                     </span>
                   )}
-                </span>
-                {/* §2: don't lean on colour alone — reunion carries a text tag,
-                    owned a check, new a chevron. */}
-                {st === "owned" ? (
-                  <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-muted-foreground">
-                    <Check className="h-3.5 w-3.5" /> {t("scan.owned")}
+                  <span className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
+                    {it.meaning_ja}
                   </span>
-                ) : st === "reunion" ? (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/30">
-                    {t("scan.reunion")}
-                  </span>
-                ) : (
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-              </button>
-            );
-          })}
+                  {st === "owned" ? (
+                    <Check
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      aria-label={t("scan.owned")}
+                    />
+                  ) : st === "reunion" ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-caption font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+                      {t("scan.reunion")}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      }
+      )}
+      {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する
+          ボタンを追加して」）。いま箱に出ている候補を、撮影モードと同じ流れで足す。 */}
+      {!nothingFound && active && (
+        <button
+          onClick={() => onOpen(active)}
+          aria-label={t("scan.addToDex")}
+          className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+        >
+          <span className="grid place-items-center leading-none">
+            <Plus className="h-5 w-5" aria-hidden />
+            <span className="mt-0.5 text-[10px] font-semibold">{t("scan.addShort")}</span>
+          </span>
+        </button>
+      )}
+      {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
+          候補の行を押す指と重ならない。 */}
+      <button
+        onClick={onAgain}
+        aria-label={t("scan.again")}
+        className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
+      >
+        <RotateCcw className="h-5 w-5" />
+      </button>
     </div>
   );
 }
@@ -1394,6 +1692,8 @@ export function ScanDots({
   scanCtx,
   dotStyle,
   onOpen,
+  activeId = null,
+  boxWidth,
 }: {
   items: DetectedItem[];
   scanCtx: ScanCtx | undefined;
@@ -1401,6 +1701,13 @@ export function ScanDots({
   dotStyle: (it: DetectedItem) => React.CSSProperties;
   /** 印を押したとき。 */
   onOpen: (it: DetectedItem) => void;
+  /** 下の列で注目している候補。その印が大きくなって揺れる。 */
+  activeId?: string | null;
+  /**
+   * 写真の枠の幅。渡すと、印の下の語の札を枠の内側へ寄せる
+   * （端の印の札が画面の外で切れない。オーナー指示 2026-09-23）。
+   */
+  boxWidth?: number;
 }) {
   const t = useT();
   const visibleItems = items;
@@ -1424,19 +1731,30 @@ export function ScanDots({
             : state === "reunion"
               ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
               : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
+        const pos = dotStyle(it);
+        const dotX = typeof pos.left === "number" ? pos.left : null;
+        // 札は印の真ん中に揃えるが、枠の端から 4px より外へは出さない。
+        const labelShift =
+          boxWidth && dotX !== null
+            ? `clamp(${4 - dotX}px, -50%, calc(${boxWidth - 4 - dotX}px - 100%)) 0`
+            : "-50% 0";
         return (
           <button
             key={it.id}
             onClick={() => openChip(it)}
-            style={dotStyle(it)}
+            style={pos}
+            data-active={it.id === activeId || undefined}
             // §11: the dot is 16px but the tap target is padded to the 44px
             // floor — these on-camera markers are the primary interaction.
-            className={`absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100`}
+            // 注目中の印は前へ出す（大きくなった光が隣の印の下に潜らない）。
+            className={`scan-dot absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100 ${
+              it.id === activeId ? "z-10" : ""
+            }`}
             aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
           >
             <span
               className={[
-                "block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px] transition-all",
+                "scan-dot__core block h-4 w-4 rounded-full ring-1 backdrop-blur-[1px]",
                 marker,
                 low ? "opacity-70" : "",
               ].join(" ")}
@@ -1469,7 +1787,10 @@ export function ScanDots({
             )}
             {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
                   B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
-            <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm">
+            <span
+              style={{ translate: labelShift }}
+              className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[200px] items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm"
+            >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
               <span lang="zh-Hant" className="truncate">
                 {it.headword}

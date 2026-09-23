@@ -54,3 +54,17 @@ describe("いま点く粒", () => {
     expect(nearestStop([], 1)).toBe(null);
   });
 });
+
+import { zoomFromDrag, ZOOM_PX_PER_DOUBLING } from "./CameraChrome";
+
+describe("払って倍率を変える（オーナー指示 2026-09-23）", () => {
+  it("右へ一定の距離で2倍、左へ同じだけで半分", () => {
+    expect(zoomFromDrag(1, ZOOM_PX_PER_DOUBLING, 0.5, 5)).toBe(2);
+    expect(zoomFromDrag(2, -ZOOM_PX_PER_DOUBLING, 0.5, 5)).toBe(1);
+  });
+  it("端末の範囲を越えない・0.1 刻み", () => {
+    expect(zoomFromDrag(1, 1000, 1, 3)).toBe(3);
+    expect(zoomFromDrag(1, -1000, 1, 3)).toBe(1);
+    expect(zoomFromDrag(1, 30, 1, 3)).toBe(1.2);
+  });
+});

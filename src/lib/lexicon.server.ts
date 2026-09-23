@@ -1,4 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { allowDismiss, allowEntryFix } from "./jev-tasks";
+import { entryJevOpinion } from "./jev-tasks.server";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { z } from "zod";
 import { generateStructured, getAi, getAiFor } from "./ai-provider.server";
@@ -189,8 +191,23 @@ ${listing}
     const row = byHead.get(v.headword);
     if (!row) continue;
     let applied = false;
-    if (!v.ok && row.source === "ai" && v.confidence >= 0.85) {
+    // **Jev の第二の目**（オーナー指示 2026-09-23「単語の詳細の解説が正しいか
+    // どうかの AI の日々の点検…で jev を活用」）。直す候補にだけ聞く。
+    const jev =
+      !v.ok && row.source === "ai" && v.confidence >= 0.85
+        ? await entryJevOpinion(
+            row.headword,
+            { zhuyin: row.zhuyin, pinyin: row.pinyin, meaning: row.meaning_ja },
+            {
+              zhuyin: v.zhuyin || row.zhuyin,
+              pinyin: v.pinyin || row.pinyin,
+              meaning: v.meaning_ja || row.meaning_ja,
+            },
+          ).catch(() => null)
+        : null;
+    if (!v.ok && row.source === "ai" && allowEntryFix(v.confidence, jev)) {
       // AI由来のみ、確信の高い修正を自動適用(監査AIはrichモデル)。
+      // Jev が使えるときは、Jev も案を選んだときだけ。
       const patch: { zhuyin?: string; pinyin?: string; meaning_ja?: string } = {};
       if (v.zhuyin) patch.zhuyin = v.zhuyin;
       if (v.pinyin) patch.pinyin = v.pinyin;
@@ -215,7 +232,13 @@ ${listing}
       confidence: v.confidence,
       suggestion: v.ok
         ? null
-        : ({ zhuyin: v.zhuyin, pinyin: v.pinyin, meaning_ja: v.meaning_ja, note: v.note } as never),
+        : ({
+            zhuyin: v.zhuyin,
+            pinyin: v.pinyin,
+            meaning_ja: v.meaning_ja,
+            note: v.note,
+            jev: jev ?? undefined,
+          } as never),
       applied,
     });
   }
@@ -613,7 +636,21 @@ ${listing}
     }
 
     let applied = false;
-    if (!v.ok && row && row.source === "ai" && v.confidence >= 0.85) {
+    // 直す／却下する前に **Jev の第二の目**（下の2か所の判断にだけ使う）。
+    const decisive = row && v.confidence >= 0.85 && (v.ok || row.source === "ai");
+    const jev =
+      decisive && row
+        ? await entryJevOpinion(
+            row.headword,
+            { zhuyin: row.zhuyin, pinyin: row.pinyin, meaning: row.meaning_ja },
+            {
+              zhuyin: v.zhuyin || row.zhuyin,
+              pinyin: v.pinyin || row.pinyin,
+              meaning: v.meaning_ja || row.meaning_ja,
+            },
+          ).catch(() => null)
+        : null;
+    if (!v.ok && row && row.source === "ai" && allowEntryFix(v.confidence, jev)) {
       // **空文字で上書きしない。** 消すのは直すことではない。
       const patch: { zhuyin?: string; pinyin?: string; meaning_ja?: string } = {};
       if (v.zhuyin.trim()) patch.zhuyin = v.zhuyin.trim();
@@ -644,6 +681,7 @@ ${listing}
           pinyin: v.pinyin,
           meaning_ja: v.meaning_ja,
           note: v.note,
+          jev: jev ?? undefined,
         } as never,
         applied,
       });
@@ -654,7 +692,7 @@ ${listing}
     if (applied) {
       await supabaseAdmin.from("entry_reports").update({ status: "resolved" }).eq("id", r.id);
       fixed += 1;
-    } else if (v.ok && v.confidence >= 0.85) {
+    } else if (v.ok && allowDismiss(v.confidence, jev)) {
       await supabaseAdmin.from("entry_reports").update({ status: "dismissed" }).eq("id", r.id);
       dismissed += 1;
     } else {

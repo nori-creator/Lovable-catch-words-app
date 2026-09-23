@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { synthesizeSpeech } from "@/lib/tts.functions";
+import { getTtsVoiceTags, synthesizeSpeech } from "@/lib/tts.functions";
+import { refreshVoiceTagsOnce, voiceTagFor } from "@/lib/tts-voice-tag";
 import { speak } from "@/lib/speak";
 import { claimAudio, primeAudio } from "@/lib/audio";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
@@ -122,6 +123,11 @@ function ensureAudio(
  */
 export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronounce {
   const ttsFn = useServerFn(synthesizeSpeech);
+  // 開発者が声を変えていたら、端末の古い音を使わない（1起動に1回だけ聞く）。
+  const tagsFn = useServerFn(getTtsVoiceTags);
+  useEffect(() => {
+    void refreshVoiceTagsOnce(() => tagsFn());
+  }, [tagsFn]);
   const elRef = useRef<HTMLAudioElement | null>(null);
   const fetcher = useCallback<Fetcher>(
     (text) => ttsFn({ data: { text, language } }),
@@ -146,7 +152,7 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     primeAudio(elRef.current);
     // **鍵に言語を混ぜる。** 同じ綴りが両方の言語に在り得る("a" / "in")。
     // 混ぜないと、先に鳴らしたほうの声が残る。
-    const key = audioCacheKey(language, word);
+    const key = audioCacheKey(language, word, voiceTagFor(language));
     /**
      * **一度駄目だった語で、押すたびに待たせない**(オーナー指摘 2026-08-26
      * 「発音のラグがまだある」)。
@@ -217,7 +223,7 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
   pronounce.prefetch = (text: string) => {
     const word = text.trim();
     if (!word) return;
-    void ensureAudio(audioCacheKey(language, word), word, fetcher);
+    void ensureAudio(audioCacheKey(language, word, voiceTagFor(language)), word, fetcher);
   };
 
   return pronounce;
@@ -239,7 +245,7 @@ export function useSpeechReady(
 ): SpeechState {
   const ttsFn = useServerFn(synthesizeSpeech);
   const word = (text ?? "").trim();
-  const key = word ? audioCacheKey(language, word) : "";
+  const key = word ? audioCacheKey(language, word, voiceTagFor(language)) : "";
 
   const state = useSyncExternalStore(
     subscribeSpeech,
@@ -294,7 +300,7 @@ export function usePrefetchSpeech(
     const items = JSON.parse(planKey) as { word: string; url: string | null }[];
     for (const { word, url } of items) {
       void ensureAudio(
-        audioCacheKey(language, word),
+        audioCacheKey(language, word, voiceTagFor(language)),
         word,
         (t) => ttsFn({ data: { text: t, language } }),
         url,

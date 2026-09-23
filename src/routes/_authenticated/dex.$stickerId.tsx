@@ -240,6 +240,8 @@ export function StickerDetailBody({
           currentEase={mem?.current?.ease ?? 2.5}
           currentIntervalDays={mem?.current?.interval_days ?? 1}
           lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
+          takenAt={mem?.taken_at ?? null}
+          stickerId={s.id}
         />
       </section>
 

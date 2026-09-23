@@ -90,6 +90,16 @@ export function useDragDismiss({
    * 閉じる意思ではない**。iOS の面も同じ約束で動いている。
    */
   const canStartFrom = (target: EventTarget | null): boolean => {
+    /**
+     * **自分で指を扱う物の上では、面を引かない。**（オーナー報告 2026-09-23
+     * 「単語の表示する項目が指でスライドして動かせない」— 通算5度目）
+     *
+     * 項目の並べ替え（`SectionsPanel`）はこの面の**中**に在る。そこで指を
+     * 縦に動かすと、この面が 10px で指を捕まえて（`setPointerCapture`）
+     * 面ごと下へ動かし、並べ替えの側は指を失っていた。長押しの判定や
+     * `touch-action` をいくら直しても、上で面が指を奪う限り動かない。
+     */
+    if ((target as HTMLElement | null)?.closest?.("[data-sheet-no-drag]")) return false;
     let el = target as HTMLElement | null;
     while (el && el !== sheetRef.current) {
       const style = getComputedStyle(el);

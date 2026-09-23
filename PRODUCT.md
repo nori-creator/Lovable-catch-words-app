@@ -71,7 +71,7 @@ The number shown on a word should have a precise meaning. Target concept: estima
 Track evidence from first-attempt correctness, hints, retries, elapsed response time (as a secondary feature), review history, interval and question modality.
 A first failed attempt remains evidence of failure even if a retry succeeds; retry success may be stored separately as relearning evidence.
 Internally distinguish recognition, recall and production when practical. The card/Dex can show one primary probability, with deeper dimensions available on demand.
-Use a validated scheduling baseline (e.g. FSRS-style concepts) and test experimental predictors/models such as Jev in shadow mode before allowing them to control scheduling.
+Use a validated scheduling baseline (e.g. FSRS-style concepts) and test experimental predictors/models such as Jev in shadow mode before allowing them to control scheduling. (Owner override 2026-09-23: Jev sets intervals now, within the guardrails in ARCHITECTURE.md › Memory, while its decisions keep being logged for calibration.)
 Never present review backlog as debt (“73 reviews due”). Always provide a low-friction session such as a one-minute review and allow the user to continue voluntarily.
 Question difficulty/modality should adapt to memory state and evidence, moving from recognition toward recall and production rather than only increasing by raw repetition count.
 

@@ -131,7 +131,28 @@ export const PROVIDER_PRESETS: Record<
     label: "Kimi (Moonshot)",
   },
   lovable: { base_url: LOVABLE_BASE_URL, api_key_env: "LOVABLE_API_KEY", label: "Lovable Gateway" },
+  /**
+   * OpenRouter（オーナー 2026-09-22 に鍵を追加）。1つの鍵で各社のモデルを
+   * 呼べるので、**機能ごとに別のモデルを試す**のに使う（設定の開発者欄）。
+   * 入口は公式 SDK `@openrouter/sdk` の本番の URL と同じ。
+   */
+  openrouter: {
+    base_url: "https://openrouter.ai/api/v1",
+    api_key_env: "OPENROUTER_API_KEY",
+    label: "OpenRouter",
+  },
 };
+
+/**
+ * 提供元ごとの認証の見出し。Anthropic だけ形が違う。
+ * OpenRouter は `X-Title` でアプリの名前を名乗れる（利用状況の画面に出る）。
+ */
+function providerHeaders(providerId: string, key: string): Record<string, string> {
+  if (providerId === "anthropic") return { "x-api-key": key, "anthropic-version": "2023-06-01" };
+  if (providerId === "openrouter")
+    return { Authorization: `Bearer ${key}`, "X-Title": "CatchWords" };
+  return { Authorization: `Bearer ${key}` };
+}
 
 /**
  * app_config の上書きがあればそれを使って AiConfig を組む。
@@ -152,10 +173,7 @@ export async function getAiRuntime(): Promise<AiConfig> {
     gateway: createOpenAICompatible({
       name: ov.provider,
       baseURL,
-      headers:
-        ov.provider === "anthropic"
-          ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
-          : { Authorization: `Bearer ${key}` },
+      headers: providerHeaders(ov.provider, key),
     }),
     modelFast: fast,
     modelRich: rich,
@@ -197,10 +215,7 @@ export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
     gateway: createOpenAICompatible({
       name: providerId,
       baseURL: preset.base_url,
-      headers:
-        providerId === "anthropic"
-          ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
-          : { Authorization: `Bearer ${key}` },
+      headers: providerHeaders(providerId, key),
     }),
     modelFast: model,
     modelRich: model,
@@ -295,6 +310,8 @@ const KEY_ALIASES: Record<string, string[]> = {
   deepseek: ["DEEPSEEK_API_KEY"],
   kimi: ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
   lovable: ["LOVABLE_API_KEY"],
+  // 秘密の名前はオーナーから聞いていないので、よくある綴りを全部見る。
+  openrouter: ["OPENROUTER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY", "OPENROUTER_TOKEN"],
   "openai-compatible": ["AI_API_KEY"],
 };
 

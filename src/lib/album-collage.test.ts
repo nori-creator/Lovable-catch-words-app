@@ -167,7 +167,30 @@ describe("その日の1枚目", () => {
 
   it("**2枚の日は大きくしない**（残り1枚が取り残される）", () => {
     const out = packCollage(items(2));
-    expect(out[0].scale * BASE_WIDTH).toBeLessThan(COLLAGE_HERO_W);
+    expect(wOf(out[0])).toBeLessThan(COLLAGE_HERO_W);
+  });
+
+  it("**主役は1枚**（ほかのどの札も1枚目より小さい）", () => {
+    const out = packCollage(items(9));
+    for (const p of out.slice(1)) expect(wOf(p)).toBeLessThan(wOf(out[0]));
+  });
+
+  it("**大・小の律動**（同じ列で大きい物が続かない）", () => {
+    const out = packCollage(items(9)).slice(1);
+    for (const c of [0, 1]) {
+      const ws = out.filter((p) => colOf(p) === c).map(wOf);
+      for (let i = 1; i < ws.length; i++) expect(Math.abs(ws[i] - ws[i - 1])).toBeGreaterThan(0.02);
+    }
+  });
+
+  it("**左の列は左へ、右の列は右へ傾く**（外へ開いて見開きに見える）", () => {
+    const out = packCollage(items(9)).slice(1);
+    for (const p of out) {
+      if (colOf(p) === 0) expect(p.rot).toBeLessThan(0);
+      else expect(p.rot).toBeGreaterThan(0);
+      expect(Math.abs(p.rot)).toBeGreaterThanOrEqual(1);
+      expect(Math.abs(p.rot)).toBeLessThanOrEqual(3.5);
+    }
   });
 
   it("1枚目の下も、空いているほうへ積む", () => {

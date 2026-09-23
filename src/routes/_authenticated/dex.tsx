@@ -5,17 +5,25 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { MemoryBadge } from "@/components/MemoryBadge";
+import { useMemoryBadges } from "@/lib/use-memory-map";
+import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
-import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   Library,
   LayoutGrid,
   List,
   Map as MapIcon,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
+  GalleryHorizontal,
   Search,
   X,
   Volume2,
@@ -35,19 +43,19 @@ import {
   categoryOptions,
   dayOptions,
   isFiltering,
-  stickerDayKey,
   pruneFilter,
   type DexFilter,
   type FilterOption,
 } from "@/lib/dex-filter";
 import { FilterMenu } from "@/components/FilterMenu";
+import { DexDayMap } from "@/components/DexDayMap";
+import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
-import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
@@ -77,7 +85,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "shelf" | "gallery" | "list" | "map" | "calendar";
+type ViewMode = "shelf" | "gallery" | "cards" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -222,7 +230,13 @@ function DexPage() {
   useEffect(() => {
     if (justCaught) return; // Arrival must not restore a previous category/view filter.
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
+    if (
+      saved === "list" ||
+      saved === "gallery" ||
+      saved === "cards" ||
+      saved === "map" ||
+      saved === "calendar"
+    )
       setView(saved);
     else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
@@ -283,48 +297,55 @@ function DexPage() {
   }, [filtered]);
 
   return (
-    <AppShell title={t("title.dex")}>
-      <DexHeader
-        found={captured.length}
-        caught={
-          captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
-            .length
-        }
-        view={view}
-        onView={setView}
-        filter={filter}
-        onFilter={setFilter}
-        categories={catOptions}
-        days={dOptions}
-      />
+    // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
+    // 表示し、上のカテゴリー選択や日付選択検索はその画面の上に来るようにして」）。
+    // 上の帯は出さず、絞り込みと検索を画面の上に重ねる（`DexOverlay`）。
+    <AppShell title={t("title.dex")} immersive>
+      <DexOverlay>
+        <DexHeader
+          found={captured.length}
+          caught={
+            captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
+              .length
+          }
+          view={view}
+          onView={setView}
+          filter={filter}
+          onFilter={setFilter}
+          categories={catOptions}
+          days={dOptions}
+        />
 
-      {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
+        {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
           地図表示のときも出す。 */}
-      {
-        <div className="relative mb-4">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("dex.search")}
-            aria-label={t("dex.searchAria")}
-            className="rounded-full pl-9 pr-11"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              aria-label={t("dex.clearSearch")}
-              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      }
+        {
+          <div className="relative mt-2">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("dex.search")}
+              aria-label={t("dex.searchAria")}
+              className="rounded-full pl-9 pr-11"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label={t("dex.clearSearch")}
+                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        }
+      </DexOverlay>
+      {/* 重ねた操作の高さぶん、中身を下げる（地図は画面に貼り付くので関係ない）。 */}
+      <div aria-hidden style={{ height: "var(--dex-overlay-h, 9rem)" }} />
 
       {/* カテゴリーの実名で絞り込む(NORI指定: 「カテゴリー/品詞」の切替ボタンは
           廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
@@ -368,9 +389,12 @@ function DexPage() {
       ) : view === "map" ? (
         // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
         // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
-        <DexMap stickers={filtered} onOpen={setOpenId} />
+        // **地図とカレンダーを1つにした**（オーナー指示 2026-09-23）。開くと
+        // 地図、下で日付を送り、暦から日を選び、時間軸でその日を辿る。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
       ) : view === "calendar" ? (
-        <DexCalendar stickers={filtered} onOpen={setOpenId} />
+        // 前に「カレンダー」を選んでいた人も、同じ地図へ。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
         <DexEmptyState
           otherLanguages={stickers?.otherLanguages ?? 0}
@@ -378,6 +402,8 @@ function DexPage() {
         />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
+      ) : view === "cards" ? (
+        <DexCoverFlow stickers={filtered} onOpen={setOpenId} />
       ) : DEX_SHELF_ENABLED && view === "shelf" ? (
         <DexShelf
           stickers={filtered}
@@ -684,12 +710,20 @@ export function DexAlbumGrid({
   items,
   justCaught,
   onOpen,
+  memory,
 }: {
   items: StickerWithWord[];
   justCaught?: string;
   onOpen: (id: string) => void;
+  /**
+   * 札の id → 記憶の印。渡さなければ復習と同じ問い合わせから読む
+   * （`useMemoryBadges`）。雛形は通信できないので、こちらで渡す。
+   */
+  memory?: Map<string, MemoryBadgeInfo>;
 }) {
   const t = useT();
+  const fetched = useMemoryBadges();
+  const memoryById = memory ?? fetched;
   return (
     <div className="grid grid-cols-3 gap-2.5">
       {items.map((s) => {
@@ -751,8 +785,19 @@ export function DexAlbumGrid({
                   </span>
                 </div>
               )}
-              {s.encounter_count > 0 && (
-                <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
+              {/* **右上は記憶の印**（オーナー指示 2026-09-22「図鑑や復習の単語の
+                  画像の右上にその単語の記憶の状態と記憶数値を書きたして」）。
+                  再会の回数（×N）は下の名前の帯へ移した — 上の隅に2つ並べると、
+                  幅の狭い札では印どうしが重なり、段の名前の頭が隠れた
+                  （実測: 「忘れかけ」が「れかけ」になった）。 */}
+              {memoryById.get(s.id) && (
+                <MemoryBadge
+                  info={memoryById.get(s.id)!}
+                  className="absolute right-1 top-1 max-w-[calc(100%-0.5rem)]"
+                />
+              )}
+              {!hasImage && s.encounter_count > 0 && (
+                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
                   ×{s.encounter_count}
                 </span>
               )}
@@ -773,10 +818,18 @@ export function DexAlbumGrid({
               {hasImage && (
                 <div className="absolute inset-x-0 bottom-0">
                   <div className="h-5 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="bg-black/60 px-2 pb-1.5">
-                    <div lang="zh-Hant" className="truncate text-footnote font-semibold text-white">
+                  <div className="flex items-center gap-1 bg-black/60 px-2 pb-1.5">
+                    <div
+                      lang="zh-Hant"
+                      className="min-w-0 flex-1 truncate text-footnote font-semibold text-white"
+                    >
                       {s.word.headword}
                     </div>
+                    {s.encounter_count > 0 && (
+                      <span className="shrink-0 rounded-full bg-amber-400/95 px-1.5 text-caption font-bold text-amber-950">
+                        ×{s.encounter_count}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -852,495 +905,6 @@ export function PackGallery({
   );
 }
 
-/**
- * カレンダー表示: その日に撮った写真が、その日のマスに入る。
- * 「いつ何を集めたか」が一目で分かる — 日記としての図鑑。
- */
-function DexCalendar({
-  stickers,
-  onOpen,
-}: {
-  stickers: StickerWithWord[];
-  onOpen: (id: string) => void;
-}) {
-  const t = useT();
-  // 写真がある日だけをまとめる。
-  const byDay = useMemo(() => {
-    const m = new Map<string, typeof stickers>();
-    for (const s of stickers) {
-      const k = stickerDayKey(s.created_at);
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(s);
-    }
-    return m;
-  }, [stickers]);
-
-  // 最初に開く月は「一番新しい写真の月」。空の今月を見せても意味がない。
-  const newest = useMemo(() => {
-    let best: string | null = null;
-    for (const k of byDay.keys()) if (!best || k > best) best = k;
-    return best;
-  }, [byDay]);
-  const [cursor, setCursor] = useState<{ y: number; m: number }>(() => {
-    const d = newest ? new Date(`${newest}T00:00:00`) : new Date();
-    return { y: d.getFullYear(), m: d.getMonth() };
-  });
-  useEffect(() => {
-    if (!newest) return;
-    const d = new Date(`${newest}T00:00:00`);
-    setCursor({ y: d.getFullYear(), m: d.getMonth() });
-  }, [newest]);
-
-  const first = new Date(cursor.y, cursor.m, 1);
-  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
-  const leading = first.getDay(); // 0=日
-  const cells: (number | null)[] = [
-    ...Array.from({ length: leading }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  const [openDay, setOpenDay] = useState<string | null>(null);
-  const dayItems = useMemo(
-    () =>
-      openDay
-        ? [...(byDay.get(openDay) ?? [])].sort(
-            (a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime(),
-          )
-        : [],
-    [byDay, openDay],
-  );
-  useSwipeBack({ enabled: !!openDay, onBack: () => setOpenDay(null) });
-  useEffect(() => {
-    if (!openDay) return;
-    document.documentElement.dataset.swipeSubview = "calendar-day";
-    return () => {
-      if (document.documentElement.dataset.swipeSubview === "calendar-day") {
-        delete document.documentElement.dataset.swipeSubview;
-      }
-    };
-  }, [openDay]);
-
-  const monthLabel = first.toLocaleDateString(undefined, { year: "numeric", month: "long" });
-
-  if (openDay) {
-    return (
-      <section className="min-h-[60dvh]" aria-label={t("dex.timelineTitle")}>
-        <button
-          type="button"
-          onClick={() => setOpenDay(null)}
-          className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-body font-semibold text-primary-ink"
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden />
-          {t("dex.timelineBack")}
-        </button>
-        <div className="mb-5">
-          <h2 className="text-title font-semibold">{openDay}</h2>
-          <p className="text-footnote text-muted-foreground">{t("dex.timelineTitle")}</p>
-        </div>
-        <ol className="relative ml-5 border-l border-border pl-6">
-          {dayItems.map((s) => {
-            const photo = stickerPhotoUrl(s, { thumb: true });
-            const taken = new Date(s.taken_at);
-            const time = Number.isNaN(taken.getTime())
-              ? ""
-              : taken.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-            return (
-              <li key={s.id} className="relative pb-5 last:pb-0">
-                <span className="absolute -left-[1.8rem] top-5 h-3 w-3 rounded-full border-2 border-background bg-primary" />
-                <button
-                  type="button"
-                  onClick={() => onOpen(s.id)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-card p-2 text-left shadow-sm ring-1 ring-border"
-                >
-                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
-                    {photo ? (
-                      <CachedImg src={photo} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <Zh className="text-body font-semibold">{s.word.headword}</Zh>
-                    )}
-                  </div>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-mono text-footnote text-primary-ink">{time}</span>
-                    <Zh className="mt-1 block truncate text-body font-semibold">
-                      {s.word.headword}
-                    </Zh>
-                    <span className="block truncate text-footnote text-muted-foreground">
-                      {s.word.meaning_ja}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      {/* 月送りの帯。**カテゴリーの帯の直下にくっつく(NORI指定)。**
-          上の余白は上の帯が持たない側に寄せてあるので、ここでは足さない。 */}
-      <div className="mb-2 flex items-center justify-between pt-1">
-        <button
-          onClick={() =>
-            setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))
-          }
-          aria-label={t("dex.prevMonth")}
-          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <p className="text-body font-semibold">{monthLabel}</p>
-        <button
-          onClick={() =>
-            setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { ...c, m: c.m + 1 }))
-          }
-          aria-label={t("dex.nextMonth")}
-          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) => {
-          if (day == null) return <div key={`x${i}`} />;
-          const key = `${cursor.y}-${`${cursor.m + 1}`.padStart(2, "0")}-${`${day}`.padStart(2, "0")}`;
-          const items = byDay.get(key) ?? [];
-          const thumb = stickerPhotoUrl(items[0], { thumb: true });
-          const has = items.length > 0;
-          return (
-            <button
-              key={key}
-              onClick={() => has && setOpenDay(openDay === key ? null : key)}
-              disabled={!has}
-              aria-pressed={openDay === key}
-              aria-label={`${day}${t("dex.dayUnit")}${has ? ` — ${items.length}` : ""}`}
-              className={`relative aspect-square overflow-hidden rounded-lg border text-left ${
-                openDay === key ? "border-primary ring-2 ring-primary/40" : "border-border"
-              } ${has ? "bg-secondary" : "bg-card opacity-50"}`}
-            >
-              {thumb && (
-                <CachedImg
-                  src={thumb}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-              )}
-              <span
-                className={`absolute left-0.5 top-0.5 rounded px-1 text-caption font-semibold ${
-                  thumb ? "bg-black/55 text-white" : "text-muted-foreground"
-                }`}
-              >
-                {day}
-              </span>
-              {items.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-caption font-bold text-white">
-                  {items.length}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {byDay.size === 0 && (
-        <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
-      )}
-    </section>
-  );
-}
-
-function DexMap({
-  stickers,
-  onOpen,
-}: {
-  stickers: StickerWithWord[];
-  onOpen: (id: string) => void;
-}) {
-  // 撮った日の絞り込みは**この中に持たない**(オーナー指摘 2026-08-21)。
-  // 前はここだけが日付の列を持っていて、一覧・棚・カレンダーには手段が
-  // 無く、地図を離れると選んだ日が黙って消えた。いまは上の
-  // 「あなたの図鑑」の欄で絞られた物が `stickers` として降りてくる。
-  const shown = stickers;
-  const shownRef = useRef(shown);
-  shownRef.current = shown;
-  const mapRef = useRef<HTMLDivElement>(null);
-  // renderMarkers はマウント時のクロージャを使い回すので、最新の onOpen を
-  // ref 経由で参照する(古い関数を掴んだままにしない)。
-  const onOpenRef = useRef(onOpen);
-  onOpenRef.current = onOpen;
-  const t = useT();
-  const [mapFailed, setMapFailed] = useState(false);
-  /** 「もう一度」で読み込みからやり直すための番号。 */
-  const [mapAttempt, setMapAttempt] = useState(0);
-  const mapInstance = useRef<unknown>(null);
-  const markersRef = useRef<unknown[]>([]);
-  const pinIconCache = useRef<Map<string, string | null>>(new Map());
-  // Lovable-free first: prefer a plain VITE_ key, fall back to Lovable's
-  // connector-injected name so it keeps working during the migration.
-  const browserKey =
-    import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ??
-    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
-  const channel =
-    import.meta.env.VITE_GOOGLE_MAPS_TRACKING_ID ??
-    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
-
-  useEffect(() => {
-    if (!browserKey) return;
-    if (window.google) {
-      initMap();
-      return;
-    }
-    window.initDexMap = initMap;
-    const existing = document.querySelector("script[data-dex-map]");
-    if (existing) return;
-    const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${browserKey}&loading=async&callback=initDexMap${channel ? `&channel=${channel}` : ""}`;
-    s.async = true;
-    s.dataset.dexMap = "1";
-    // **読み込めなかったことを画面に出す。**
-    //
-    // キーが無いときは「地図は使えません」と言う配慮があるのに、
-    // キーはあるが読み込めない(圏外・ブロック・キー無効・課金停止)ときは
-    // `initMap` が呼ばれず、**灰色の角丸だけが残っていた**。その下には
-    // 日付チップと「位置情報あり N件」が普通に並ぶので、「ピンが1本も
-    // 無い地図」に見える — 集めた場所の記録が無いように見える
-    // (独立監査の指摘)。
-    s.onerror = () => {
-      s.remove(); // 消しておかないと `existing` で二度と再試行できない
-      setMapFailed(true);
-    };
-    document.head.appendChild(s);
-
-    function initMap() {
-      if (!mapRef.current) return;
-      const g = (window.google as { maps: { Map: new (el: HTMLElement, opts: object) => unknown } })
-        .maps;
-      mapInstance.current = new g.Map(mapRef.current, {
-        center: { lat: 25.033, lng: 121.5654 },
-        zoom: 12,
-        disableDefaultUI: true,
-        zoomControl: true,
-      });
-      renderMarkers();
-      setMapFailed(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapAttempt]);
-
-  function renderMarkers() {
-    if (!mapInstance.current || !window.google) return;
-    const g = (
-      window.google as {
-        maps: {
-          Marker: new (opts: object) => unknown;
-          LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean };
-          Size: new (a: number, b: number) => unknown;
-          Point: new (a: number, b: number) => unknown;
-        };
-      }
-    ).maps;
-    for (const m of markersRef.current) {
-      (m as { setMap: (x: null) => void }).setMap(null);
-    }
-    markersRef.current = [];
-    const bounds = new g.LatLngBounds();
-    // 同じ場所で撮った写真はピンが完全に重なってタップできない。
-    // 座標を約11m格子に丸めてグループ化し、2枚目以降を円形に散らす
-    // (spiderfy)。散らす半径はズームに依らない実距離で決める。
-    const groups = new Map<string, number>();
-    const keyOf = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
-    // **絞り込み後の `shown` を回すこと。**
-    //
-    // ここだけ絞り込み前の `stickers` を見ていた。日付チップを押すと
-    // 「位置情報あり N件」の数字も下の写真も減るのに、**地図のピンだけ
-    // 全部出たまま**になる。押した結果が半分だけ反映される画面は、
-    // どちらが本当なのか分からない。`shownRef` は用意してあったのに
-    // どこからも読まれていなかった(独立監査の指摘)。
-    for (const s of shownRef.current) {
-      if (s.lat == null || s.lng == null) continue;
-      const emoji = s.word.silhouette_emoji ?? "📍";
-      const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`,
-      )}`;
-      // このグループで何枚目か → 角度をずらして配置
-      const gk = keyOf(s.lat, s.lng);
-      const idx = groups.get(gk) ?? 0;
-      groups.set(gk, idx + 1);
-      let posLat = s.lat;
-      let posLng = s.lng;
-      if (idx > 0) {
-        const ring = Math.ceil(idx / 8); // 8個ごとに外側の輪へ
-        const slot = (idx - 1) % 8;
-        const angle = (slot / 8) * Math.PI * 2 + ring * 0.4;
-        const meters = 14 * ring; // 14m, 28m, …
-        const dLat = (meters * Math.cos(angle)) / 111_320;
-        const dLng =
-          (meters * Math.sin(angle)) / (111_320 * Math.max(0.2, Math.cos((s.lat * Math.PI) / 180)));
-        posLat += dLat;
-        posLng += dLng;
-      }
-      const marker = new g.Marker({
-        position: { lat: posLat, lng: posLng },
-        map: mapInstance.current,
-        title: s.word.headword,
-        icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
-      });
-      // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
-      // Thumbs first: a pin head is 52px, a 400px thumb is already 8x overkill.
-      const photoUrl = stickerPhotoUrl(s, { thumb: true });
-      if (photoUrl) {
-        const cached = pinIconCache.current.get(s.id);
-        const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);
-        void iconPromise.then((icon) => {
-          pinIconCache.current.set(s.id, icon);
-          if (!icon || !markersRef.current.includes(marker)) return;
-          (marker as { setIcon: (i: object) => void }).setIcon({
-            url: icon,
-            scaledSize: new g.Size(52, 60),
-            anchor: new g.Point(26, 58),
-          });
-        });
-      }
-      // マーカー(丸い写真)のタップで単語の詳細を開く。
-      // 以前はルート遷移(/dex/$stickerId)にしていたが、地図の再マウントで
-      // 画面が戻ってしまい「タップしても飛ばない」状態になっていた。
-      // 同じ画面の上にシートを重ねる方式に変更して確実に開くようにする。
-      (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
-        onOpenRef.current(s.id);
-      });
-      bounds.extend({ lat: posLat, lng: posLng });
-      markersRef.current.push(marker);
-    }
-    if (!bounds.isEmpty()) {
-      (mapInstance.current as { fitBounds: (b: object, p: number) => void }).fitBounds(bounds, 64);
-    }
-  }
-
-  useEffect(() => {
-    if (mapInstance.current) renderMarkers();
-  }, [shown]);
-
-  // Tapping a photo below pans+zooms the map to where it was caught.
-  function focusOnMap(s: (typeof stickers)[number]) {
-    if (s.lat == null || s.lng == null) return;
-    const map = mapInstance.current as {
-      panTo: (l: object) => void;
-      setZoom: (z: number) => void;
-    } | null;
-    if (map) {
-      map.panTo({ lat: s.lat, lng: s.lng });
-      map.setZoom(17);
-    }
-    mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  const withLoc = shown.filter((s) => s.lat != null && s.lng != null);
-  const recent = withLoc.slice(0, 12);
-
-  if (!browserKey) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6 text-body text-muted-foreground">
-        {t("dex.mapUnavailable")}
-      </div>
-    );
-  }
-
-  if (mapFailed) {
-    // **`mapFailed` を戻すのは「もう一度」を押した側の役目。**
-    // 番号を増やすだけにしていたら、地図の div は外れたままなので
-    // `initMap` が `if (!mapRef.current) return;` で抜け、
-    // `setMapFailed(false)` に永久に届かなかった —
-    // 「もう一度」が二度と効かない再試行ボタンを作っていた。
-    return (
-      <LoadFailed
-        what={t("err.whatMap")}
-        onRetry={() => {
-          setMapFailed(false);
-          setMapAttempt((n) => n + 1);
-        }}
-      />
-    );
-  }
-
-  return (
-    <>
-      <div
-        ref={mapRef}
-        className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
-      />
-
-      <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
-        <span>{t("dex.withLocation")}</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary-ink">
-          {withLoc.length} {t("dex.items")}
-        </span>
-      </div>
-
-      {recent.length > 0 && (
-        <section className="mt-5">
-          <h3 className="mb-1 text-body font-semibold tracking-tight">{t("dex.placesTitle")}</h3>
-          <p className="mb-2 text-caption text-muted-foreground">{t("dex.placesHint")}</p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {recent.map((s) => {
-              const thumb = stickerPhotoUrl(s, { thumb: true });
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => focusOnMap(s)}
-                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
-                  aria-label={t("dex.seeOnMap", { word: s.word.headword })}
-                >
-                  <div className="aspect-square w-full overflow-hidden bg-secondary">
-                    {thumb ? (
-                      <CachedImg
-                        src={thumb}
-                        alt={t("common.photoOf", { word: s.word.headword })}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="grid h-full w-full place-items-center text-title">
-                        {s.word.silhouette_emoji ?? "📍"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-1.5">
-                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span lang="zh-Hant" className="truncate text-footnote font-medium">
-                      {s.word.headword}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-    </>
-  );
-}
-
-/**
- * 「あなたの図鑑」の欄。見出し・数・表示の切替と、**絞り込みのボタン2つ**。
- *
- * オーナー指摘 2026-08-21:
- * > 「図鑑のカテゴリーや日付の選択は、**選択肢をすべて表示するのではなく、
- * >  ボタンを押したら選択肢が出てきて選べる**ようにして。またカテゴリーと
- * >  日付のボタンは**あなたの図鑑の欄に収めて**。」
- *
- * 前はカテゴリーの丸が持っている数だけ横に伸び(60語で十数個)、日付の列は
- * **地図の中にだけ**在った。集めた物を見る画面なのに、道具のほうが場所を
- * 取っていた。ボタン2つに畳んで、この欄の中へ入れる。
- *
- * **ルートから切り出してある**のは検査のため。ここは図鑑を開くたび必ず
- * 見る所なのに、ルートに直書きだと一度も写真に撮れない。
- */
 export function DexHeader({
   found,
   caught,
@@ -1362,14 +926,15 @@ export function DexHeader({
 }) {
   const t = useT();
   return (
-    <section className="mb-3 rounded-2xl border border-border bg-card p-3">
+    <section>
       {/* 見出しと数は**1行を丸ごと使う**。表示の切替(丸5つ=228px)を
           同じ行の右に置いていたら、390px の画面で「あなたの図/鑑」と
           2行に割れていた。数の検査は割れを見ないので、絵で見つけた。 */}
       <div className="flex items-baseline justify-between gap-2">
         <div className="pl-1">
           {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
-          <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
+          {/* 見出しは読み上げにだけ（全画面にした分、字は地図や写真に譲る）。 */}
+          <h1 className="sr-only">{t("dex.yours")}</h1>
         </div>
       </div>
 
@@ -1378,7 +943,7 @@ export function DexHeader({
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
       {/* 外側の余白と安全領域は main 側（Lovable）の直しを採る。 */}
-      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-ml-1 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* 中の隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
             4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
             隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
@@ -1386,10 +951,15 @@ export function DexHeader({
         <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1">
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+            // **並びは 箱 → カード → 地図 → 段**（オーナー指示 2026-09-23「図鑑の
+            // 種類は左からボックスのように表示されるもの、またカードのように横に
+            // スライドできるもの、そしてマップ、そして一番右に縦から段のように
+            // 並ぶやつに順番を変更して」）。
             ["gallery", LayoutGrid, t("dex.gallery")] as const,
-            ["list", List, t("dex.list")] as const,
+            ["cards", GalleryHorizontal, t("dex.cards")] as const,
+            // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
-            ["calendar", CalendarDays, t("dex.calendar")] as const,
+            ["list", List, t("dex.list")] as const,
           ].map(([v, Icon, label]) => (
             <button
               key={v}
@@ -1449,6 +1019,36 @@ export function DexHeader({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * 図鑑の上に**重ねる**操作の板（表示の切替・カテゴリー・日付・検索）。
+ * 高さを `--dex-overlay-h` に書き出し、中身（と地図のピンを置く範囲）が
+ * その下から始まるようにする。
+ */
+export function DexOverlay({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const put = () => root.style.setProperty("--dex-overlay-h", `${el.offsetHeight}px`);
+    put();
+    const ro = new ResizeObserver(put);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--dex-overlay-h");
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="dex-overlay fixed inset-x-0 top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+    >
+      <div className="mx-auto max-w-3xl px-4 pb-2 pt-2">{children}</div>
+    </div>
   );
 }
 

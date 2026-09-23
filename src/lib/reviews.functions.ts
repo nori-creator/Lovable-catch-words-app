@@ -10,6 +10,7 @@ import { z } from "zod";
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
 import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
+import { pickInterval } from "@/lib/jev-tasks";
 import {
   buildRetentionSeries,
   type RetentionCard,
@@ -601,10 +602,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
         if (s.path && s.signedUrl && !s.error) cutoutUrlByPath.set(s.path, s.signedUrl);
       }
     }
+    // 置き場所は**いまの声の札**で引く（開発者が声を変えたら、新しい声の音を探す）。
+    const { currentVoiceTag } = await import("./tts-provider.server");
+    const voice = await currentVoiceTag(DEFAULT_TARGET_LANGUAGE);
     const audioPaths = await Promise.all(
-      rows.map((r) =>
-        ttsObjectPath(DEFAULT_TARGET_LANGUAGE, TTS_VOICE_DEFAULT, r.stickers!.words!.headword),
-      ),
+      rows.map((r) => ttsObjectPath(DEFAULT_TARGET_LANGUAGE, voice, r.stickers!.words!.headword)),
     );
     const audioUrlByPath = new Map<string, string>();
     {
@@ -913,7 +915,7 @@ export const gradeReview = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("reviews")
-      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen")
+      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at")
       .eq("id", data.review_id)
       .eq("user_id", userId)
       .single();
@@ -935,11 +937,47 @@ export const gradeReview = createServerFn({ method: "POST" })
     }
     score = Math.max(0, Math.min(5, score));
 
-    const next = nextSrs(
+    const srs = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
       score,
     );
-    const dueAt = new Date(Date.now() + next.interval_days * 86400 * 1000).toISOString();
+
+    /**
+     * **次の復習の日は Jev が決める。**（オーナー指示 2026-09-23「jevに
+     * すぐに切り替えて」— それまでは影で記録するだけだった）
+     *
+     * SM-2 の日数を基準にして、Jev の日数を柵の中に収める（`pickInterval`）:
+     * 思い出せなかった語は明日のまま、Jev の答えが無ければ SM-2 のまま、
+     * Jev の日数は SM-2 の半分〜2倍まで。ease と連続回数は SM-2 のまま
+     * （次の SM-2 の基準になるので）。
+     */
+    const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+    const now = Date.now();
+    const daysSince = lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10;
+    const recalled = score >= LAPSE_SCORE;
+    const { jevScheduleDays, logScheduleDecision, recordRecallShadow } =
+      await import("./jev-tasks.server");
+    const jev =
+      score >= LAPSE_SCORE
+        ? await jevScheduleDays(supabase as never, {
+            userId,
+            stickerId: row.sticker_id,
+            state: {
+              headword: "",
+              daysSinceLastReview: daysSince,
+              intervalDaysBefore: row.interval_days,
+              ease: row.ease,
+              repetitionsBefore: row.repetitions,
+              recalled,
+              score,
+              responseSeconds:
+                data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
+            },
+          })
+        : null;
+    const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
+    const next = { ...srs, interval_days: picked.days };
+    const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
 
     const { error: upErr } = await supabase
       .from("reviews")
@@ -969,6 +1007,41 @@ export const gradeReview = createServerFn({ method: "POST" })
       ease_after: next.ease,
       repetitions_after: next.repetitions,
     });
+
+    /**
+     * **記録**（待たない — 復習の返事を遅らせない）。
+     *  ・決めた間隔（Jev の日数・SM-2 の日数・使った日数）
+     *  ・答える**前**の状態だけで Jev が出した「いま思い出せるか」と、
+     *    このアプリの式の見込み・実際の正誤（較正を見るため）
+     * 鍵が無ければ何もしない。
+     */
+    if (jev) {
+      void logScheduleDecision(supabase as never, {
+        userId,
+        stickerId: row.sticker_id,
+        model: jev.model,
+        confidence: jev.confidence,
+        jevDays: jev.days,
+        srsDays: srs.interval_days,
+        usedDays: next.interval_days,
+      });
+    }
+    {
+      const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
+      void recordRecallShadow(supabase as never, {
+        userId,
+        stickerId: row.sticker_id,
+        outcome: recalled,
+        state: {
+          headword: "",
+          daysSinceLastReview: daysSince,
+          intervalDays: row.interval_days,
+          ease: row.ease,
+          repetitions: row.repetitions,
+          baselineRecall: Math.max(0, Math.min(1, baseline)),
+        },
+      });
+    }
 
     return { score, next_due_at: dueAt, interval_days: next.interval_days };
   });
@@ -1346,6 +1419,16 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       accepted: 1,
       meta: { headword: w.headword, score: feedback.natural_score },
     });
+
+    // **Jev の判定を影で記録**（画面の判定は変えない。添削 AI との一致を後で見る）。
+    void import("./jev-tasks.server").then(({ recordSpeakingShadow }) =>
+      recordSpeakingShadow(supabase as never, {
+        userId,
+        headword: w.headword,
+        utterance: data.transcript,
+        llmOk: feedback.used_target && feedback.natural_score >= 3,
+      }),
+    );
 
     return {
       ...feedback,

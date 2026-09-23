@@ -43,6 +43,9 @@ Speech service interface should support provider routing and fallback.
 Cache key must be pronunciation-safe and versioned.
 Do not share user-specific/private speech output as a global cache. Canonical headword pronunciation may be shared when appropriate.
 
+Provider routing (2026-09-23): the developer picks a provider/voice/model per target language in Settings → developer section (`app_config.key='tts_voice'`, keys stay in env: `AZURE_SPEECH_KEY`+`AZURE_SPEECH_REGION`, `ELEVENLABS_API_KEY`, `MINIMAX_API_KEY`). Providers are called directly, not via OpenRouter (latency). VoAI and ATEN are listed but not connected until their official API specs are available.
+The voice tag (`voiceTag`) is part of every audio cache key (Storage path and on-device IndexedDB key), so switching voices never replays the old voice; no choice = legacy tag `alloy`. On provider failure the request falls back to the legacy voice and caches it under the legacy path only.
+
 ## Memory
 Separate:
 1. scheduling state;
@@ -51,6 +54,15 @@ Separate:
 4. experimental model predictions.
 Store enough event data to re-evaluate algorithms later without rewriting history.
 Experimental models should initially run shadow predictions, not control production schedules.
+
+**Owner override (2026-09-23, "jevにすぐに切り替えて"):** Jev now sets the next review interval in `gradeReview`, without a prior shadow-calibration period. Guardrails that must stay:
+- A failed/hinted review (score < `LAPSE_SCORE`) always stays on SM-2 (tomorrow); Jev is not asked.
+- If Jev is unavailable, times out (2.5 s) or returns an invalid shape, SM-2 is used.
+- Jev's days are clamped to 0.5×–2× the SM-2 interval (1–365 days) by `pickInterval` (`src/lib/jev-tasks.ts`). Widen only after calibration data supports it.
+- Every Jev interval decision (Jev days, SM-2 days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
+- ease and repetitions remain SM-2 state.
+
+**Displayed number (owner decision 2026-09-23, "単語の数値は1つに統一したい"):** every surface (photo badge, review list, forgetting-curve y-axis and colors, modal chip) shows one number: the estimated probability of recalling the word now (`memoryOf` → `memoryPercent(retention)`), matching PRODUCT.md. How long a word lasts is expressed as the next review date, never as a second percentage. The stability-weighted `maturityLevel` is internal and only chooses the review question format.
 
 ## Data licensing
 Maintain provenance for external lexical/corpus data.

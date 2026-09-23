@@ -160,6 +160,32 @@ export function stickerPhotoUrl(
   return pickStickerPhoto(sources, options)?.url ?? null;
 }
 
+/**
+ * 試す順に並べた絵の URL（重複なし）。**1枚目が読めなかったときの次**が要る所
+ * （図鑑の地図のピン）で使う。縮小版 → 原寸 → 別の役の順。
+ *
+ * （オーナー報告 2026-09-23「地図上で丸いバブルの画像が表示されてない」—
+ *  縮小版が保存に無い札・署名の切れた札で、ピンが白い丸のまま残っていた）
+ */
+export function photoCandidates(
+  sources: PhotoSources | null | undefined,
+  options: Omit<PickOptions, "thumb"> = {},
+): string[] {
+  if (!sources) return [];
+  const out: string[] = [];
+  const add = (u: string | null | undefined) => {
+    if (u && !out.includes(u)) out.push(u);
+  };
+  add(stickerPhotoUrl(sources, { ...options, thumb: true }));
+  add(stickerPhotoUrl(sources, { ...options, thumb: false }));
+  for (const role of FALLBACK) {
+    if ((options.exclude ?? []).includes(role)) continue;
+    add(urlFor(sources, role, true)?.url);
+    add(urlFor(sources, role, false)?.url);
+  }
+  return out;
+}
+
 /** その札が**自分で撮った絵**を持っているか(ネット画像しか無い札と区別する)。 */
 export function hasOwnPhoto(sources: PhotoSources | null | undefined): boolean {
   if (!sources) return false;
