@@ -5384,13 +5384,14 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).not.toMatch(/\{!snapshot && \(\s*<video/);
   });
 
-  it("**候補は1行の横送り**（縦の一覧と2つの釦をやめた）", () => {
+  it("**候補は下の箱の中で縦に送る。画面は動かない**（2026-09-23 の指示で横送りから変更）", () => {
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
     expect(scan).toMatch(
-      /className="scan-strip relative flex[^"]*snap-x snap-mandatory[^"]*overflow-x-auto/,
+      /className="scan-box relative snap-y snap-proximity overflow-y-auto overscroll-contain/,
     );
+    expect(css).toMatch(/\.scan-box \{\s*max-height: calc\(3rem \* 2\.5 \+ 0\.75rem\);/);
   });
 
   it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {

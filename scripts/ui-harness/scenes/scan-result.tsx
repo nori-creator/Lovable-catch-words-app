@@ -9,7 +9,7 @@
  * 部品だけを撮ると、部品どうしの重なり（写真の下の黒い地・下の帯との
  * 被り）は一度も写らない。実物と同じ3つを同じ座標で置く:
  *   1) 画面いっぱいの写真と光の点（`coverPoint` で写真に合わせる）
- *   2) 候補の1行（本物の `ScanCandidateStrip`）
+ *   2) 候補の箱（本物の `ScanCandidateStrip`。中だけが縦に動く）
  *   3) 本物の `TabBar`（カメラの中なので暗い）
  *
  * 出会い方3通り（はじめて・持っている・再会）を必ず入れる。
@@ -51,6 +51,7 @@ const mk = (
   id: string,
   headword: string,
   zhuyin: string,
+  meaning: string,
   point: [number, number],
   kind: "object" | "text" = "object",
 ) => ({
@@ -59,7 +60,7 @@ const mk = (
   headword,
   zhuyin,
   pinyin: "",
-  meaning_ja: "",
+  meaning_ja: meaning,
   pos: "N",
   point,
   confidence: 0.9,
@@ -67,12 +68,12 @@ const mk = (
 });
 
 const FOUND = [
-  mk("d1", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", [305, 350]),
-  mk("d2", "吸管", "ㄒㄧ ㄍㄨㄢˇ", [295, 140]),
-  mk("d3", "杯子", "ㄅㄟ ㄗ˙", [720, 505]),
-  mk("d4", "半糖", "ㄅㄢˋ ㄊㄤˊ", [380, 770], "text"),
-  mk("d5", "少冰", "ㄕㄠˇ ㄅㄧㄥ", [620, 770], "text"),
-  mk("d6", "珍珠", "ㄓㄣ ㄓㄨ", [270, 450]),
+  mk("d1", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", "タピオカミルクティー", [305, 350]),
+  mk("d2", "吸管", "ㄒㄧ ㄍㄨㄢˇ", "ストロー", [295, 140]),
+  mk("d3", "杯子", "ㄅㄟ ㄗ˙", "コップ", [720, 505]),
+  mk("d4", "半糖", "ㄅㄢˋ ㄊㄤˊ", "甘さ半分", [380, 770], "text"),
+  mk("d5", "少冰", "ㄕㄠˇ ㄅㄧㄥ", "氷少なめ", [620, 770], "text"),
+  mk("d6", "珍珠", "ㄓㄣ ㄓㄨ", "タピオカ", [270, 450]),
 ] as never[];
 
 export function ScanResultScene({ q }: { q: URLSearchParams }) {

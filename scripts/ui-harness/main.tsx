@@ -299,7 +299,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
   { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
   { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
-  { scene: "scan-found", label: "スキャンの後（候補の1行・光が揺れる）" },
+  { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
   { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
   { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },
   { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },

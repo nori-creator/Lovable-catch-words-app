@@ -1224,16 +1224,20 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 /**
- * 撮った後に下へ出る**候補の1行**。横に送って選ぶ。
+ * 撮った後に下へ出る**候補の箱**。箱の中だけが縦に動く。
  *
- * （オーナー指示 2026-09-22「スキャンの後は画面したに単語の候補1行が
- *  出てきてスクロールでき、その単語のものの光の点が大きくなったり、
- *  揺れるアニメーションにする」）
+ * （オーナー指示 2026-09-23「スキャンの単語は一番下に単語の候補を表示し、
+ *  縦にスクロールできるようにする。画面は固定し、スクロールするとボックスの
+ *  なかの単語の候補が見える」。前日の「候補1行…光の点が大きくなったり、
+ *  揺れる」も続けて満たす）
  *
- *  ・送って**真ん中に来た候補**が「いま見ている候補」になり、写真の上の
+ *  ・箱の高さは決めてあり（2行半ぶん）、中の候補は1語1行で縦に送る。
+ *    半分見えている行が「まだ下にある」を伝える。写真と画面は動かない
+ *    （`overscroll-contain` で、箱の端で画面ごと引っぱられない）。
+ *  ・送って**箱の真ん中に来た候補**が「いま見ている候補」になり、写真の上の
  *    その光の点が大きくなって揺れる（`onFocus`）。押すと札が開く。
- *  ・写真の上の点を押したときは、列のほうもその候補を真ん中へ送る。
- *  ・左端の丸い釦で撮り直す（以前の「もう一度」と「再スキャン」は、
+ *  ・写真の上の点を押したときは、箱のほうもその候補を真ん中へ送る。
+ *  ・左の丸い釦で撮り直す（以前の「もう一度」と「再スキャン」は、
  *    どちらも覗く画面へ戻るだけなので1つにした）。
  *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
@@ -1257,30 +1261,34 @@ export function ScanCandidateStrip({
   const t = useT();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef(0);
-  const pillRefs = useRef(new Map<string, HTMLButtonElement>());
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
   /**
-   * 列を**こちらから**送っている間は、送りの途中で真ん中を通り過ぎる候補に
+   * 箱を**こちらから**送っている間は、送りの途中で真ん中を通り過ぎる候補に
    * 注目を移さない。移すと、点を押して選んだ候補が送りの途中の別の候補に
    * 奪われる（実測: 「吸管」の点を押しても、送り終わると「珍珠」が光っていた）。
    */
   const programmaticUntil = useRef(0);
 
-  // 最初は先頭の候補に注目する（何も光っていないと、列と点の対応が読めない）。
+  // 最初は先頭の候補に注目する（何も光っていないと、箱と点の対応が読めない）。
   useEffect(() => {
     if (!activeId && items[0]) onFocus(items[0].id);
   }, [activeId, items, onFocus]);
 
-  // 点を押して注目が移ったら、列もその候補を真ん中へ。
+  // 点を押して注目が移ったら、箱もその候補を真ん中へ。
   useEffect(() => {
     if (!activeId) return;
-    const el = pillRefs.current.get(activeId);
+    const el = rowRefs.current.get(activeId);
     const sc = scrollerRef.current;
     if (!el || !sc) return;
-    const target = el.offsetLeft + el.offsetWidth / 2 - sc.clientWidth / 2;
-    if (Math.abs(sc.scrollLeft - target) < 8) return;
+    const max = sc.scrollHeight - sc.clientHeight;
+    const target = Math.max(
+      0,
+      Math.min(max, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2),
+    );
+    if (Math.abs(sc.scrollTop - target) < 4) return;
     const reduce = motionReducedNow();
     programmaticUntil.current = performance.now() + (reduce ? 100 : 700);
-    sc.scrollTo({ left: target, behavior: reduce ? "auto" : "smooth" });
+    sc.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
   }, [activeId]);
 
   const onScroll = () => {
@@ -1289,14 +1297,15 @@ export function ScanCandidateStrip({
     frameRef.current = requestAnimationFrame(() => {
       const sc = scrollerRef.current;
       if (!sc) return;
+      // 横の列と同じ選び方を、縦に読み替えて使う。
       const boxes = items.map((it) => {
-        const el = pillRefs.current.get(it.id);
-        return { left: el?.offsetLeft ?? 0, width: el?.offsetWidth ?? 0 };
+        const el = rowRefs.current.get(it.id);
+        return { left: el?.offsetTop ?? 0, width: el?.offsetHeight ?? 0 };
       });
       const i = focusedIndex(boxes, {
-        scrollLeft: sc.scrollLeft,
-        width: sc.clientWidth,
-        scrollWidth: sc.scrollWidth,
+        scrollLeft: sc.scrollTop,
+        width: sc.clientHeight,
+        scrollWidth: sc.scrollHeight,
       });
       if (i >= 0 && items[i].id !== activeId) onFocus(items[i].id);
     });
@@ -1304,7 +1313,7 @@ export function ScanCandidateStrip({
   useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
 
   return (
-    <div className="flex items-center gap-2" data-scan-strip>
+    <div className="flex items-end gap-2" data-scan-strip>
       <button
         onClick={onAgain}
         aria-label={t("scan.again")}
@@ -1320,63 +1329,64 @@ export function ScanCandidateStrip({
           </p>
         </div>
       ) : (
-        <div
-          ref={scrollerRef}
-          onScroll={onScroll}
-          role="listbox"
-          aria-label={t("scan.found")}
-          className="scan-strip relative flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-3 py-1"
-        >
-          {items.map((it) => {
-            const st = dotStateFor(it.headword, scanCtx);
-            const on = it.id === activeId;
-            return (
-              <button
-                key={it.id}
-                ref={(el) => {
-                  if (el) pillRefs.current.set(it.id, el);
-                  else pillRefs.current.delete(it.id);
-                }}
-                role="option"
-                aria-selected={on}
-                onClick={() => onOpen(it)}
-                className={`press-in flex min-h-12 shrink-0 snap-center items-center gap-2 rounded-full px-3.5 shadow-lg transition-[box-shadow,background-color] ${
-                  on ? "bg-card ring-2 ring-primary" : "material-thick"
-                }`}
-              >
-                <span
-                  aria-hidden
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                    st === "owned"
-                      ? "bg-emerald-400"
-                      : st === "reunion"
-                        ? "bg-amber-400"
-                        : "bg-sky-400"
+        <div className="min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
+          <div
+            ref={scrollerRef}
+            onScroll={onScroll}
+            role="listbox"
+            aria-label={t("scan.found")}
+            className="scan-box relative snap-y snap-proximity overflow-y-auto overscroll-contain p-1.5"
+          >
+            {items.map((it) => {
+              const st = dotStateFor(it.headword, scanCtx);
+              const on = it.id === activeId;
+              return (
+                <button
+                  key={it.id}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(it.id, el);
+                    else rowRefs.current.delete(it.id);
+                  }}
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => onOpen(it)}
+                  className={`press-in flex min-h-12 w-full snap-center items-center gap-2.5 rounded-2xl px-3 text-left transition-[box-shadow,background-color] ${
+                    on ? "bg-card shadow-sm ring-2 ring-primary" : ""
                   }`}
-                />
-                <span className="flex flex-col items-start leading-tight">
-                  <span lang="zh-Hant" className="whitespace-nowrap text-body font-semibold">
+                >
+                  <span
+                    aria-hidden
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      st === "owned"
+                        ? "bg-emerald-400"
+                        : st === "reunion"
+                          ? "bg-amber-400"
+                          : "bg-sky-400"
+                    }`}
+                  />
+                  <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
                     {it.headword}
                   </span>
                   {it.zhuyin && (
-                    <span className="whitespace-nowrap text-caption text-muted-foreground">
-                      {it.zhuyin}
-                    </span>
+                    <span className="shrink-0 text-caption text-muted-foreground">{it.zhuyin}</span>
                   )}
-                </span>
-                {st === "owned" ? (
-                  <Check
-                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    aria-label={t("scan.owned")}
-                  />
-                ) : st === "reunion" ? (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-caption font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
-                    {t("scan.reunion")}
+                  <span className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
+                    {it.meaning_ja}
                   </span>
-                ) : null}
-              </button>
-            );
-          })}
+                  {st === "owned" ? (
+                    <Check
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      aria-label={t("scan.owned")}
+                    />
+                  ) : st === "reunion" ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-caption font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+                      {t("scan.reunion")}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

@@ -7278,21 +7278,16 @@ html[data-motion="reduce"] .reward-catch__field::after {
   box-shadow: 0 1px 3px #00000059;
 }
 
-/* スキャン後の候補の1行（`ScanCandidateStrip`）。横に送るだけの列なので
-   スクロールバーは出さない（指で送る物に細い棒は要らない）。両端は
-   ぼかして、まだ先に候補があることを見せる。 */
-.scan-strip {
+/* スキャン後の候補の箱（`ScanCandidateStrip`）。**高さは決めて、中だけが
+   縦に動く**（オーナー指示 2026-09-23「画面は固定し、スクロールすると
+   ボックスのなかの単語の候補が見える」）。2行半ぶんの高さにして、半分
+   見えている行で「まだ下にある」を伝える。スクロールバーは出さない。 */
+.scan-box {
+  max-height: calc(3rem * 2.5 + 0.75rem);
   scrollbar-width: none;
-  scroll-padding-inline: 1rem;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000 12px,
-    #000 calc(100% - 12px),
-    transparent 100%
-  );
+  touch-action: pan-y;
 }
-.scan-strip::-webkit-scrollbar {
+.scan-box::-webkit-scrollbar {
   display: none;
 }
 
