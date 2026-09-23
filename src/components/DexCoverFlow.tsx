@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type React from "react";
 import { MapPin } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -9,8 +10,9 @@ import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
-import { coverFlowPose, dotWindow, poseTransform } from "@/lib/cover-flow";
-import { focusedIndex } from "@/lib/scan-layout";
+import { neutralReadings, useReadingText } from "@/lib/phonetic";
+import { COVER_STEP, coverFlowPose, dotWindow, poseTransform, settleIndex } from "@/lib/cover-flow";
+import { APPLE_SPRING, createSpring, rubberband, velocityFrom, type Spring } from "@/lib/spring";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
@@ -33,108 +35,195 @@ export function DexCoverFlow({
   stickers,
   onOpen,
   memory,
+  initialIndex = 0,
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
+  /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
+  initialIndex?: number;
 }) {
   const t = useT();
   const fetched = useMemoryBadges();
   const memoryById = memory ?? fetched;
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const frame = useRef(0);
   const [center, setCenter] = useState(0);
   const centerRef = useRef(0);
   centerRef.current = center;
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
+  const countRef = useRef(stickers.length);
+  countRef.current = stickers.length;
 
   /**
-   * **滑らかさのために、測るのは1回・書くのは変わった札だけ。**（オーナー報告
-   * 2026-09-23「カクカクしてるからもっと滑らかにスライドできるように」）
+   * **送りも傾きも、同じ1コマの中でこちらが決める。**（オーナー報告 2026-09-23
+   * の3回目「図鑑の横スライドもっとなめらかにして」）
    *
-   * 前は1コマごとに**全部の札**の `offsetLeft` を読み、その合間に傾きを
-   * 書いていた。書いた直後に読むと、ブラウザは毎回レイアウトをやり直す
-   * （札の数だけ）。さらに全部の札に鏡映り（`-webkit-box-reflect`）が付いて
-   * いて、傾きが変わるたびに描き直していた。
-   *  ・位置と幅は**大きさが変わった時だけ**測る（`measure`）。傾きは
-   *    `offsetLeft` を変えないので、送っている間は測り直さなくてよい。
-   *  ・傾きの文字列が前と同じ札には書かない（4枚より先はずっと同じ）。
-   *  ・鏡映りはやめた（styles.css の `.dex-cf__card`）。
+   * 前はブラウザの横スクロールに任せ、スクロールの後から傾きを書いていた。
+   * スクロールは別の糸（合成の糸）で先に進むので、**傾きがいつも1コマ遅れて**
+   * 付いてくる — これが「カクカク」の残り。いまは:
+   *  ・指の位置をそのまま「どこまで送ったか」（`offset`）にする（1:1 で吸い付く）
+   *  ・離したら、指の速さから滑り着く先を見込み（Apple の減衰の式）、
+   *    いちばん近い札へ**ばね**で着く（`APPLE_SPRING`、速さは引き継ぐ）
+   *  ・位置と傾きは**同じ `transform` 1つ**で書く。遅れが生まれる隙が無い
+   *  ・画面の外の札は描かない（`visibility`）。何百枚あっても書くのは十数枚
    */
-  const boxes = useRef<Array<{ left: number; width: number }>>([]);
-  const written = useRef<string[]>([]);
-  const measure = useCallback(() => {
-    boxes.current = cardRefs.current.map((el) =>
-      el ? { left: el.offsetLeft, width: el.offsetWidth || 1 } : { left: 0, width: 1 },
-    );
-    written.current = [];
-  }, []);
-  const layout = useCallback(() => {
-    const sc = scrollerRef.current;
-    if (!sc) return;
+  const step = useRef(1);
+  const offset = useRef(0);
+  const hidden = useRef<boolean[]>([]);
+  const paint = useCallback((x: number) => {
+    offset.current = x;
+    const s = step.current;
     const reduced = motionReducedNow();
-    const mid = sc.scrollLeft + sc.clientWidth / 2;
-    const bx = boxes.current;
     cardRefs.current.forEach((el, i) => {
-      const b = bx[i];
-      if (!el || !b) return;
-      const pose = coverFlowPose((b.left + b.width / 2 - mid) / (b.width * 0.62), reduced);
-      const key = `${poseTransform(pose)}|${pose.zIndex}`;
-      if (written.current[i] === key) return;
-      written.current[i] = key;
-      el.style.transform = poseTransform(pose);
+      if (!el) return;
+      const rel = (i * s - x) / s;
+      const far = Math.abs(rel) > 5;
+      if (far) {
+        if (!hidden.current[i]) {
+          hidden.current[i] = true;
+          el.style.visibility = "hidden";
+        }
+        return;
+      }
+      if (hidden.current[i]) {
+        hidden.current[i] = false;
+        el.style.visibility = "";
+      }
+      const pose = coverFlowPose(rel, reduced);
+      el.style.transform = `translate3d(${(i * s - x).toFixed(2)}px,0,0) ${poseTransform(pose)}`;
       el.style.zIndex = String(pose.zIndex);
     });
-    const i = focusedIndex(bx, {
-      scrollLeft: sc.scrollLeft,
-      width: sc.clientWidth,
-      scrollWidth: sc.scrollWidth,
-    });
-    if (i >= 0) setCenter((c) => (c === i ? c : i));
+    const c = Math.max(0, Math.min(countRef.current - 1, Math.round(x / s)));
+    setCenter((prev) => (prev === c ? prev : c));
   }, []);
+  const spring = useRef<Spring | null>(null);
+  useEffect(() => {
+    const sp = createSpring(0, paint);
+    spring.current = sp;
+    return () => sp.dispose();
+  }, [paint]);
 
-  const onScroll = () => {
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(layout);
-  };
+  const measure = useCallback(() => {
+    const first = cardRefs.current.find(Boolean);
+    step.current = Math.max(1, (first?.offsetWidth ?? 1) * COVER_STEP);
+  }, []);
   useLayoutEffect(() => {
-    // 絞り込みで札が減ったとき、前の札の控えを残さない。
+    // 絞り込みで札が変わったら、前の札の控えを残さず先頭（または指定の札）から。
     cardRefs.current.length = stickers.length;
+    hidden.current = [];
     measure();
-    layout();
-  }, [measure, layout, stickers]);
+    const start = Math.max(0, Math.min(stickers.length - 1, initialIndex)) * step.current;
+    spring.current?.set(start, 0);
+    paint(start);
+  }, [measure, paint, stickers, initialIndex]);
   useEffect(() => {
-    const h = () => {
+    const onResize = () => {
       measure();
-      layout();
+      spring.current?.set(centerRef.current * step.current, 0);
     };
-    window.addEventListener("resize", h);
-    return () => {
-      window.removeEventListener("resize", h);
-      cancelAnimationFrame(frame.current);
-    };
-  }, [measure, layout]);
-  // 絞り込みを変えたら先頭へ戻す（前の位置のままだと、無いカードの位置で止まる）。
-  useEffect(() => {
-    scrollerRef.current?.scrollTo({ left: 0 });
-  }, [stickers.length]);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [measure]);
 
   const bringToCenter = useCallback((i: number) => {
-    const sc = scrollerRef.current;
-    const el = cardRefs.current[i];
-    if (!sc || !el) return;
-    sc.scrollTo({
-      left: el.offsetLeft + el.offsetWidth / 2 - sc.clientWidth / 2,
-      behavior: motionReducedNow() ? "auto" : "smooth",
-    });
+    const n = countRef.current;
+    if (!n) return;
+    const j = Math.max(0, Math.min(n - 1, i));
+    if (motionReducedNow()) spring.current?.set(j * step.current, 0);
+    else spring.current?.to(j * step.current, APPLE_SPRING.smooth);
   }, []);
+
+  // ---- 指で送る -------------------------------------------------------------
+  const drag = useRef<{
+    id: number;
+    x0: number;
+    y0: number;
+    from: number;
+    on: boolean;
+    history: { t: number; x: number }[];
+  } | null>(null);
+  const swallowClick = useRef(false);
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    swallowClick.current = false;
+    spring.current?.stop();
+    drag.current = {
+      id: e.pointerId,
+      x0: e.clientX,
+      y0: e.clientY,
+      from: offset.current,
+      on: false,
+      history: [{ t: e.timeStamp, x: e.clientX }],
+    };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x0;
+    if (!d.on) {
+      // 縦に動かしたなら、送りではない（画面の縦の動きに譲る）。
+      if (Math.abs(e.clientY - d.y0) > 10 && Math.abs(e.clientY - d.y0) > Math.abs(dx)) {
+        drag.current = null;
+        return;
+      }
+      if (Math.abs(dx) < 6) return;
+      d.on = true;
+      stageRef.current?.setPointerCapture(e.pointerId);
+    }
+    const max = (countRef.current - 1) * step.current;
+    let x = d.from - dx;
+    // 端では抵抗を付ける（硬く止めない）。
+    if (x < 0) x = -rubberband(-x, step.current * 2);
+    else if (x > max) x = max + rubberband(x - max, step.current * 2);
+    d.history.push({ t: e.timeStamp, x: e.clientX });
+    if (d.history.length > 6) d.history.shift();
+    spring.current?.set(x, 0);
+  };
+  const endDrag = (e: React.PointerEvent) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.id !== e.pointerId || !d.on) return;
+    swallowClick.current = true;
+    // 指の速さ（px/s）。送り（offset）は指と逆向きに進む。
+    const v = -velocityFrom(d.history);
+    const target = settleIndex(offset.current, v, step.current, countRef.current);
+    if (motionReducedNow()) spring.current?.set(target * step.current, 0);
+    else
+      spring.current?.to(target * step.current, {
+        // 勢いのある払いにだけ、わずかな行き過ぎ（Apple の snappy）。
+        ...(Math.abs(v) > 600 ? APPLE_SPRING.snappy : APPLE_SPRING.smooth),
+        velocity: v,
+      });
+  };
+
+  // トラックパッドの横の払い。止まったら近い札へ着く。
+  const wheelTimer = useRef(0);
+  const onWheel = (e: React.WheelEvent) => {
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!dx) return;
+    const max = (countRef.current - 1) * step.current;
+    spring.current?.set(Math.max(0, Math.min(max, offset.current + dx)), 0);
+    window.clearTimeout(wheelTimer.current);
+    wheelTimer.current = window.setTimeout(
+      () => bringToCenter(Math.round(offset.current / step.current)),
+      140,
+    );
+  };
+  useEffect(() => () => window.clearTimeout(wheelTimer.current), []);
+
   // 札に渡す関数は作り直さない（作り直すと、真ん中が1枚動くたびに全部の札を
   // 描き直すことになり、送りの途中で引っかかる）。
   const pressCard = useCallback(
-    (i: number, id: string) => (i === centerRef.current ? onOpenRef.current(id) : bringToCenter(i)),
+    (i: number, id: string) => {
+      if (swallowClick.current) {
+        swallowClick.current = false;
+        return;
+      }
+      return i === centerRef.current ? onOpenRef.current(id) : bringToCenter(i);
+    },
     [bringToCenter],
   );
   const setCardRef = useCallback((i: number, el: HTMLDivElement | null) => {
@@ -145,9 +234,20 @@ export function DexCoverFlow({
   return (
     <section aria-label={t("dex.cards")} className="dex-cf -mx-4">
       <div
-        ref={scrollerRef}
-        onScroll={onScroll}
-        className="dex-cf__scroller flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pb-6 pt-6"
+        ref={stageRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onWheel={onWheel}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") bringToCenter(centerRef.current + 1);
+          else if (e.key === "ArrowLeft") bringToCenter(centerRef.current - 1);
+          else return;
+          e.preventDefault();
+        }}
+        tabIndex={0}
+        className="dex-cf__stage"
       >
         {stickers.map((s, i) => (
           <CoverCard
@@ -210,10 +310,15 @@ const CoverCard = memo(function CoverCard({
   const locale = localeOf(useUiLang());
   const photo = stickerPhotoUrl(s);
   const cat = asCategoryKey(s.word.category_key);
-  const reading = s.word.reading_zhuyin || s.word.pinyin;
+  // **設定の表記だけ**（注音かピンイン。オーナー報告 2026-09-23「ピン音に設定して
+  // いるのに、図鑑の横にスライドするやつが注音のまま」）。英語の語なら IPA。
+  const reading = useReadingText(
+    s.word.language,
+    neutralReadings(s.word.language, s.word.reading_zhuyin, s.word.pinyin),
+  );
   const date = new Date(s.taken_at);
   return (
-    <div ref={(el) => setRef(i, el)} className="dex-cf__slot shrink-0 snap-center">
+    <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
       <button
         type="button"
         onClick={() => onPress(i, s.id)}

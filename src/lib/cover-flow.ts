@@ -1,3 +1,4 @@
+import { projectMomentum } from "./spring";
 /**
  * 図鑑のカード表示（カバーフロー）の、1枚ごとの傾き・奥行き。
  *
@@ -17,6 +18,19 @@ export type CoverPose = {
 };
 
 const MAX_TILT = 50;
+
+/** 札と札の間隔（札の幅に対して）。重なって並ぶ量はここで決まる。 */
+export const COVER_STEP = 0.62;
+
+/**
+ * 指を離したとき、どの札に着くか。指の速さから滑り着く先を見込んで
+ * （Apple の減衰の式 `projectMomentum`）、いちばん近い札を選ぶ。端は越えない。
+ */
+export function settleIndex(offset: number, velocity: number, step: number, count: number): number {
+  if (count <= 0) return 0;
+  const projected = offset + projectMomentum(velocity);
+  return Math.max(0, Math.min(count - 1, Math.round(projected / Math.max(step, 1))));
+}
 const DEPTH = 110;
 
 export function coverFlowPose(offset: number, reduced = false): CoverPose {

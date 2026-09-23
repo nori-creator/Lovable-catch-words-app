@@ -5518,7 +5518,16 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
 
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
     expect(cf).toMatch(/coverFlowPose\(/);
-    expect(cf).toMatch(/frame\.current = requestAnimationFrame\(layout\)/);
+    // 送りと傾きは同じ1コマで書く（ブラウザのスクロールに任せない。2026-09-23 の3回目）。
+    expect(cf).not.toMatch(/overflow-x-auto|onScroll=/);
+    expect(cf).toMatch(/const sp = createSpring\(0, paint\);/);
+    expect(cf).toMatch(
+      /el\.style\.transform = `translate3d\(\$\{\(i \* s - x\)\.toFixed\(2\)\}px,0,0\) \$\{poseTransform\(pose\)\}`;/,
+    );
+    // 離したら速さを引き継いで近い札へ（Apple の減衰の見込み）。
+    expect(cf).toMatch(
+      /const target = settleIndex\(offset\.current, v, step\.current, countRef\.current\);/,
+    );
     expect(cf).toMatch(/i === centerRef\.current \? onOpenRef\.current\(id\) : bringToCenter\(i\)/);
     // 真ん中が動いても全部の札を描き直さない（2026-09-23「最大まで滑らかに」）。
     expect(cf).toMatch(/const CoverCard = memo\(function CoverCard/);

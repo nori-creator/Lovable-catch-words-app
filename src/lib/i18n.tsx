@@ -1124,7 +1124,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Computed from your last {n} scans (spec §9 pass line)",
     "zh-TW": "由最近 {n} 次掃描計算（規格 §9 的合格標準）",
   },
-  "set.placeLabel": { ja: "近くに来たら知らせる", en: "Nearby reminders", "zh-TW": "靠近時提醒我" },
+  "set.placeLabel": { ja: "場所でリマインド", en: "Location reminders", "zh-TW": "地點提醒" },
   "set.placeDesc": {
     ja: "単語を撮った場所の近くに来ると、その単語を通知で思い出させます",
     en: "When you're back near where you caught a word, you'll get a reminder of it.",
@@ -2870,9 +2870,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "顯示的類型",
   },
   "settings.photoLibrarySync": {
-    ja: "端末の写真にも保存",
-    en: "Also save to Photos",
-    "zh-TW": "也存到手機相簿",
+    ja: "カメラロールに保存",
+    en: "Save to Camera Roll",
+    "zh-TW": "儲存到相機膠卷",
   },
   "settings.photoLibrarySyncDesc": {
     ja: "撮った写真をスマホの写真アプリにも残します（アプリ版のみ）",
@@ -3139,9 +3139,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.noSelfie": { ja: "自撮りなし", en: "No selfie", "zh-TW": "沒有自拍" },
   "place.thisWord": { ja: "この言葉", en: "this word", "zh-TW": "這個詞" },
   "settings.selfieMode": {
-    ja: "撮ったあと自分も撮る",
-    en: "Selfie after each catch",
-    "zh-TW": "拍完接著自拍",
+    ja: "自撮りモード",
+    en: "Selfie mode",
+    "zh-TW": "自拍模式",
   },
   "settings.selfieModeDesc": {
     ja: "単語を撮ったあと、続けてその場の自分を撮る画面に進みます",

@@ -48,7 +48,7 @@ import {
   fetchImageAsDataUrl,
   type ImageCandidate,
 } from "@/lib/images.functions";
-import { Reading } from "@/lib/phonetic";
+import { neutralReadings, Reading, useReadingText } from "@/lib/phonetic";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { heroSearchQuery } from "@/lib/hero-image";
@@ -620,6 +620,15 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
     enabled: !reducedMotionForDrag,
   });
 
+  const overlayReading = useReadingText(
+    targetLanguage,
+    neutralReadings(
+      targetLanguage,
+      isPhrase ? phraseCard?.reading_zhuyin : dict?.zhuyin || card?.reading_zhuyin,
+      isPhrase ? phraseCard?.pinyin : dict?.pinyin || card?.pinyin,
+    ),
+  );
+
   return (
     <div
       {...dragProps}
@@ -884,11 +893,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           image={attachedDataUrl ?? candidates[picked]?.thumb ?? null}
           headword={text.trim()}
           lang={targetLanguage}
-          reading={
-            isPhrase
-              ? phraseCard?.reading_zhuyin || phraseCard?.pinyin
-              : dict?.zhuyin || card?.reading_zhuyin || dict?.pinyin || card?.pinyin
-          }
+          // 設定の表記だけを出す（注音とピンインの決め打ちをしない）。
+          reading={overlayReading}
         />
       )}
     </div>

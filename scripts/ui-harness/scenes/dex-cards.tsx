@@ -5,7 +5,6 @@
  * `?at=N` で N 枚目を真ん中に送った形（送った途中の傾きも見るため）。
  * `?n=N` で札を N 枚に増やす（何百枚でも送りが引っかからないかを見るため）。
  */
-import { useEffect } from "react";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { memoryBadgeMap } from "@/lib/memory-badge";
 import { FIXTURES, makeSticker } from "./home";
@@ -24,18 +23,9 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
     })),
   );
   const at = Number(q.get("at") ?? 0);
-  useEffect(() => {
-    if (!at) return;
-    const id = window.setTimeout(() => {
-      const sc = document.querySelector(".dex-cf__scroller");
-      const slot = document.querySelectorAll<HTMLElement>(".dex-cf__slot")[at];
-      if (sc && slot) sc.scrollLeft = slot.offsetLeft + slot.offsetWidth / 2 - sc.clientWidth / 2;
-    }, 50);
-    return () => window.clearTimeout(id);
-  }, [at]);
   return (
     <div className="px-4">
-      <DexCoverFlow stickers={items} onOpen={() => {}} memory={memory} />
+      <DexCoverFlow stickers={items} onOpen={() => {}} memory={memory} initialIndex={at} />
     </div>
   );
 }
