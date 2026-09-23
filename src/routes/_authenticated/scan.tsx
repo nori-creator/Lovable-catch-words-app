@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Search,
+  Plus,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -849,6 +850,7 @@ function ScanPage() {
             dotStyle={dotStyle}
             onOpen={focusDot}
             activeId={activeId}
+            boxWidth={boxSize.w}
           />
 
           <ScanCameraControls
@@ -1417,6 +1419,28 @@ export function ScanCandidateStrip({
   };
   useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
 
+  /**
+   * **1行の箱は、払った分だけ1つずつ送る。**（オーナー報告 2026-09-23
+   * 「スキャン後の候補のスクロールがしにくい」）
+   *
+   * 1行ぶんの高さしかない箱をブラウザの巻き取りに任せると、指の動きが
+   * 小さすぎて止まる所が読めない（吸い付く前に戻ってしまう）。時計の
+   * ダイヤルと同じく、**上へ払えば次、下へ払えば前**。大きく払えば
+   * その分だけ進む（32px で1つ）。押しただけなら、その候補を選ぶ。
+   */
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((it) => it.id === activeId),
+  );
+  const step = (n: number) => {
+    if (!items.length) return;
+    const j = Math.max(0, Math.min(items.length - 1, activeIndex + n));
+    if (items[j]) onFocus(items[j].id);
+  };
+  const swipe = useRef<{ y: number; id: number; moved: boolean } | null>(null);
+  const swallowClick = useRef(false);
+  const active = items[activeIndex];
+
   return (
     <div className="flex items-end gap-2" data-scan-strip>
       {nothingFound ? (
@@ -1429,21 +1453,50 @@ export function ScanCandidateStrip({
       ) : (
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
           {items.length > 1 && (
-            // 1行しか見えないので、**まだ下にある**ことを数で言う。
-            <span
-              aria-hidden
-              className="pointer-events-none absolute right-3 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 text-caption tabular-nums text-muted-foreground"
+            // 1行しか見えないので、**まだ下にある**ことを数で言う。押すと次へ
+            // （最後なら先頭へ）。指の当たりは 44px。
+            <button
+              type="button"
+              onClick={() => (activeIndex >= items.length - 1 ? step(-items.length) : step(1))}
+              aria-label={t("scan.nextCandidate")}
+              className="absolute right-1 top-1/2 z-10 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-0.5 rounded-full px-2 text-caption tabular-nums text-muted-foreground"
             >
-              {Math.max(1, items.findIndex((it) => it.id === activeId) + 1)}/{items.length}
+              {activeIndex + 1}/{items.length}
               <ChevronsUpDown className="h-3.5 w-3.5" />
-            </span>
+            </button>
           )}
           <div
             ref={scrollerRef}
             onScroll={onScroll}
+            onPointerDown={(e) => {
+              // 払った後にブラウザが押しを出さないこともあるので、次の押しで
+              // 必ず解く（残ると、次に本当に押した候補が開かない）。
+              swallowClick.current = false;
+              swipe.current = { y: e.clientY, id: e.pointerId, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const sw = swipe.current;
+              if (sw && sw.id === e.pointerId && Math.abs(e.clientY - sw.y) > 8) sw.moved = true;
+            }}
+            onPointerUp={(e) => {
+              const sw = swipe.current;
+              swipe.current = null;
+              if (!sw || sw.id !== e.pointerId || !sw.moved) return;
+              const dy = e.clientY - sw.y;
+              const n = Math.round(-dy / 32) || -Math.sign(dy);
+              swallowClick.current = true;
+              step(n);
+            }}
+            onPointerCancel={() => {
+              swipe.current = null;
+            }}
+            onWheel={(e) => {
+              if (Math.abs(e.deltaY) < 4) return;
+              step(Math.sign(e.deltaY));
+            }}
             role="listbox"
             aria-label={t("scan.found")}
-            className="scan-box relative snap-y snap-mandatory overflow-y-auto overscroll-contain p-1"
+            className="scan-box relative touch-none overflow-hidden p-1"
           >
             {items.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
@@ -1457,8 +1510,14 @@ export function ScanCandidateStrip({
                   }}
                   role="option"
                   aria-selected={on}
-                  onClick={() => onOpen(it)}
-                  className={`press-in flex min-h-12 w-full snap-center items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
+                  onClick={() => {
+                    if (swallowClick.current) {
+                      swallowClick.current = false;
+                      return;
+                    }
+                    onOpen(it);
+                  }}
+                  className={`press-in flex min-h-12 w-full items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
                     on ? "bg-card shadow-sm ring-2 ring-primary" : ""
                   }`}
                 >
@@ -1475,8 +1534,11 @@ export function ScanCandidateStrip({
                   <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
                     {it.headword}
                   </span>
+                  {/* 注音は長い語で数の札に潜っていた（360px 実測）。縮めて省く側に回す。 */}
                   {it.zhuyin && (
-                    <span className="shrink-0 text-caption text-muted-foreground">{it.zhuyin}</span>
+                    <span className="min-w-0 shrink truncate text-caption text-muted-foreground">
+                      {it.zhuyin}
+                    </span>
                   )}
                   <span className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
                     {it.meaning_ja}
@@ -1496,6 +1558,20 @@ export function ScanCandidateStrip({
             })}
           </div>
         </div>
+      )}
+      {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する
+          ボタンを追加して」）。いま箱に出ている候補を、撮影モードと同じ流れで足す。 */}
+      {!nothingFound && active && (
+        <button
+          onClick={() => onOpen(active)}
+          aria-label={t("scan.addToDex")}
+          className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+        >
+          <span className="grid place-items-center leading-none">
+            <Plus className="h-5 w-5" aria-hidden />
+            <span className="mt-0.5 text-[10px] font-semibold">{t("scan.addShort")}</span>
+          </span>
+        </button>
       )}
       {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
           候補の行を押す指と重ならない。 */}
@@ -1617,6 +1693,7 @@ export function ScanDots({
   dotStyle,
   onOpen,
   activeId = null,
+  boxWidth,
 }: {
   items: DetectedItem[];
   scanCtx: ScanCtx | undefined;
@@ -1626,6 +1703,11 @@ export function ScanDots({
   onOpen: (it: DetectedItem) => void;
   /** 下の列で注目している候補。その印が大きくなって揺れる。 */
   activeId?: string | null;
+  /**
+   * 写真の枠の幅。渡すと、印の下の語の札を枠の内側へ寄せる
+   * （端の印の札が画面の外で切れない。オーナー指示 2026-09-23）。
+   */
+  boxWidth?: number;
 }) {
   const t = useT();
   const visibleItems = items;
@@ -1649,11 +1731,18 @@ export function ScanDots({
             : state === "reunion"
               ? "bg-amber-400 ring-amber-100/70 shadow-[0_0_10px_2px_rgba(251,191,36,0.5)]"
               : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
+        const pos = dotStyle(it);
+        const dotX = typeof pos.left === "number" ? pos.left : null;
+        // 札は印の真ん中に揃えるが、枠の端から 4px より外へは出さない。
+        const labelShift =
+          boxWidth && dotX !== null
+            ? `clamp(${4 - dotX}px, -50%, calc(${boxWidth - 4 - dotX}px - 100%)) 0`
+            : "-50% 0";
         return (
           <button
             key={it.id}
             onClick={() => openChip(it)}
-            style={dotStyle(it)}
+            style={pos}
             data-active={it.id === activeId || undefined}
             // §11: the dot is 16px but the tap target is padded to the 44px
             // floor — these on-camera markers are the primary interaction.
@@ -1698,7 +1787,10 @@ export function ScanDots({
             )}
             {/* 単語+発音をスキャン直後から表示 — タップ前に読み方が分かる。
                   B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
-            <span className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[150px] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm">
+            <span
+              style={{ translate: labelShift }}
+              className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[200px] items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm"
+            >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
               <span lang="zh-Hant" className="truncate">
                 {it.headword}

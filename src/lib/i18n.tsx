@@ -1830,6 +1830,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.owned": { ja: "取得済み", en: "Collected", "zh-TW": "已收集" },
   "scan.reunion": { ja: "未撮影", en: "No photo yet", "zh-TW": "還沒拍過" },
   "scan.catch": { ja: "キャッチ", en: "Catch", "zh-TW": "捕捉" },
+  "scan.addToDex": { ja: "図鑑に追加", en: "Add to collection", "zh-TW": "加入圖鑑" },
+  "scan.addShort": { ja: "追加", en: "Add", "zh-TW": "加入" },
+  "scan.nextCandidate": { ja: "次の候補", en: "Next candidate", "zh-TW": "下一個候選" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…", "zh-TW": "AI 分析中…" },
   "scan.zoom": { ja: "ズーム", en: "Zoom", "zh-TW": "縮放" },
   "scan.flipCamera": {

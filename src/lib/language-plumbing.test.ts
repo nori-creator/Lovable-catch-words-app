@@ -5398,9 +5398,13 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
-    expect(scan).toMatch(
-      /className="scan-box relative snap-y snap-mandatory overflow-y-auto overscroll-contain/,
-    );
+    // 1行の箱は巻き取りに任せず、払った分だけ1つずつ送る（2026-09-23 の
+    // 4回目の指示「スクロールしにくい」）。画面は動かない。
+    expect(scan).toMatch(/className="scan-box relative touch-none overflow-hidden p-1"/);
+    expect(scan).toMatch(/const n = Math\.round\(-dy \/ 32\) \|\| -Math\.sign\(dy\);/);
+    // 数の札は押せば次の候補へ。追加のボタンはいま出ている候補を図鑑へ。
+    expect(scan).toMatch(/aria-label=\{t\("scan\.nextCandidate"\)\}/);
+    expect(scan).toMatch(/onClick=\{\(\) => onOpen\(active\)\}/);
     // 一番下の1行ぶん（2026-09-23 の3回目の指示）。
     expect(css).toMatch(/\.scan-box \{[^}]*max-height: calc\(3rem \+ 0\.5rem\);/);
   });
@@ -5414,6 +5418,18 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(css).toMatch(
       /html\[data-motion="reduce"\] \.scan-dot\[data-active\] \.scan-dot__core \{\s*animation: none;/,
     );
+  });
+
+  it("**「AIが分析中」は下のバーより上**・**印の札は枠の内側へ寄せる**（オーナー報告 2026-09-23）", () => {
+    for (const f of ["v0_cutout", "v6_minimal"]) {
+      expect(read(`components/effects/scan-analyzing/${f}.tsx`)).toMatch(
+        /pb-\[calc\(7\.5rem\+env\(safe-area-inset-bottom\)\)\]/,
+      );
+    }
+    expect(scan).toMatch(
+      /clamp\(\$\{4 - dotX\}px, -50%, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
+    );
+    expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 
   it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {

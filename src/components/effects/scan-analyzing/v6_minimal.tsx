@@ -33,7 +33,7 @@ export function ScanAnalyzing_v6minimal({ stage }: { stage: Stage }) {
     <div className="absolute inset-0">
       {/* 光の帯(styles.css の shimmer-sweep)— 映像は見せたまま */}
       <div className="absolute inset-0 shimmer-sweep" />
-      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-6 pb-10 pt-20 text-center text-white">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-20 text-center text-white">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 animate-pulse" />
           <span className="font-semibold">{t("scan.analyzing")}</span>
