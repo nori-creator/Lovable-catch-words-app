@@ -1,4 +1,5 @@
 import { WORDBOOKS_ENABLED } from "@/lib/product-features";
+import { useReadableError } from "@/lib/errors";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/_authenticated/wordbooks")({
  */
 function WordbooksPage() {
   const t = useT();
+  const readable = useReadableError();
   const qc = useQueryClient();
   const listFn = useServerFn(listWordbooks);
   const {
@@ -135,7 +137,7 @@ function WordbooksPage() {
       await deleteWordbook({ data: { wordbook_id: id } });
       await qc.invalidateQueries({ queryKey: ["wordbooks"] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("wb.deleteFailed"));
+      toast.error(readable(e, t("wb.deleteFailed")));
     }
   }
 }
@@ -147,6 +149,7 @@ function ImportButton({
   onExtracted: (d: { title: string; entries: WordbookEntryDraft[] }) => void;
 }) {
   const t = useT();
+  const readable = useReadableError();
   const extract = useServerFn(extractWordbook);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -160,7 +163,7 @@ function ImportButton({
     } catch (e) {
       // **理由をそのまま出す。** 「読み取れませんでした」だけだと、
       // 撮り方を変えればいいのか、上限に当たったのかが分からない。
-      toast.error(e instanceof Error ? e.message : t("wb.extractFailed"));
+      toast.error(readable(e, t("wb.extractFailed")));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -219,6 +222,7 @@ function ImportConfirm({
   onChange: (d: { title: string; entries: WordbookEntryDraft[] }) => void;
 }) {
   const t = useT();
+  const readable = useReadableError();
   const create = useServerFn(createWordbook);
   const [saving, setSaving] = useState(false);
 
@@ -239,7 +243,7 @@ function ImportConfirm({
       toast.success(t("wb.saved", { n: formatCount(out.added) }));
       onSaved(out.wordbook_id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("wb.saveFailed"));
+      toast.error(readable(e, t("wb.saveFailed")));
     } finally {
       setSaving(false);
     }

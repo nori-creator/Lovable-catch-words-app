@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { sttLangOf } from "@/lib/target-lang";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -158,6 +159,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const { resolve: resolveLocation } = useCatchLocation();
   const t = useT();
+  const readable = useReadableError();
   /**
    * **いま撮ろうとしている物を何語として扱うか。**
    * ここが `targetLanguage` に決め打たれていたので、設定で
@@ -301,7 +303,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       }
       await buildCard(isPhrase ? headword : (wordChoiceRef.current ?? headword), soleCandidate);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t("err.generateFailed"));
+      setErr(readable(e, t("err.generateFailed")));
       setStep("input");
     }
   }
@@ -423,7 +425,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
       }
     } catch (e) {
       if (runTokenRef.current !== token) return;
-      setErr(e instanceof Error ? e.message : t("err.generateFailed"));
+      setErr(readable(e, t("err.generateFailed")));
       setStep("input");
     }
   }
@@ -605,7 +607,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         navigate({ to: "/dex", search: { justCaught: res.id } });
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t("cap.saveFailed"));
+      setErr(readable(e, t("cap.saveFailed")));
       setStep("preview");
     }
   }

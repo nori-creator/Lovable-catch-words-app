@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useReadableError } from "@/lib/errors";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
@@ -1058,6 +1059,7 @@ function ReportButton({
   language: string | null;
 }) {
   const t = useT();
+  const readable = useReadableError();
   const fixFn = useServerFn(reportAndFixSection);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -1082,7 +1084,7 @@ function ReportButton({
         toast(t("card.reportQueued"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("card.reportFailed"));
+      toast.error(readable(e, t("card.reportFailed")));
     } finally {
       setBusy(false);
     }

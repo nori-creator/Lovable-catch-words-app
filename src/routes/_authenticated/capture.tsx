@@ -1,4 +1,5 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { takeScanHandoff } from "@/lib/scan-handoff";
 import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
@@ -214,6 +215,7 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
 
 function CapturePage() {
   const t = useT();
+  const readable = useReadableError();
   /**
    * いま撮った物を**何語として扱うか**（設定の学習言語）。
    * 候補の提案・カードの生成・持っているかの判定・保存の全部が
@@ -1160,7 +1162,7 @@ function CapturePage() {
         navigate({ to: "/dex", search: { justCaught: res.id } });
       } catch (e) {
         console.error(e);
-        toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
+        toast.error(readable(e, t("cap.saveFailed")));
         setStep("card");
       }
       return;
@@ -1222,7 +1224,7 @@ function CapturePage() {
         navigate({ to: "/dex", search: {} });
         return;
       }
-      toast.error(e instanceof Error ? e.message : t("cap.saveFailed"));
+      toast.error(readable(e, t("cap.saveFailed")));
     }
   }
 

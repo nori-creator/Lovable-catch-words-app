@@ -51,7 +51,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
-import { readableError } from "@/lib/errors";
+import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
@@ -120,6 +120,7 @@ function ScanPage() {
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
+  const readable = useReadableError();
   /**
    * かざす画面も「撮る画面」の仲間。開く演出をこの上に重ねない
    * （`lib/camera-launch.ts`）。
@@ -563,7 +564,7 @@ function ScanPage() {
       // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
       // 押し続けることになる(監査の指摘)。
       console.error(e);
-      setError(readableError(e, t("scan.detectFailed")));
+      setError(readable(e, t("scan.detectFailed")));
       haptic("warning");
     } finally {
       window.clearTimeout(stageTimer1);
@@ -1788,7 +1789,7 @@ export function ScanDots({
             className={`scan-dot absolute -translate-x-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center transition-transform active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100 ${
               it.id === activeId ? "z-10" : ""
             }`}
-            aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : "新しい"}`}
+            aria-label={`${it.headword}${it.zhuyin ? ` ${it.zhuyin}` : ""} — ${state === "owned" ? t("scan.owned") : state === "reunion" ? t("scan.reunion") : t("scan.new")}`}
           >
             <span
               className={[
