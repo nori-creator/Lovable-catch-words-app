@@ -4909,9 +4909,11 @@ describe("ホームは今日の誌面", () => {
     // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
     // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
-    // 2026-09-23 の3回目の依頼（単語を押すとピンが浮く地図が先頭）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map&at=2"/);
+    // 2026-09-23「祝福に映画のような BGM」（聴き比べが先頭）。3回目の依頼の地図も帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "catch-sound"/);
+    expect(list).toMatch(/scene: "dex-map&at=2"/);
     expect(list).toMatch(/\{ scene: "tts-voices"/);
+    expect(list).toMatch(/\{ scene: "catch-sound"/);
     expect(list).toMatch(/\{ scene: "dex-cards&n=150"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "wallpapers"/);
@@ -5757,5 +5759,29 @@ describe("単語の項目を指で並べ替えられる（オーナー報告 202
     expect(down.slice(0, 1200)).toMatch(
       /if \(hit\.closest\("\[data-drag-handle\]"\)\) \{\s*draggingRef\.current = true;\s*setDragId\(id\);/,
     );
+  });
+});
+
+describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () => {
+  const v5 = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+  const landing = codeOnly(read("components/CatchLanding.tsx"));
+
+  it("浮き上がる間に溜め、止まる瞬間に打撃、語の後に二度目の山、着地で主音", () => {
+    expect(v5).toMatch(/root\.dataset\.stage = "lift";\s*Score\.build\(\);/);
+    expect(v5).toMatch(/root\.dataset\.stage = "break";\s*haptic\("success"\);\s*Score\.hit\(\);/);
+    expect(v5).toMatch(/root\.dataset\.stage = "reveal";\s*Score\.resolve\(\);/);
+    expect(v5).toMatch(/Sound\.shelfLand\(\);\s*Score\.land\(\);/);
+  });
+
+  it("語は打撃の後に、BGM を下げてから読む（発音を聞き取れることが先）", () => {
+    expect(v5).toMatch(
+      /wait\(SCORE\.speechDelayMs\)\s*\.then\(\(\) => \{\s*Score\.duck\(true\);\s*return speakLine\?\.\(\);/,
+    );
+    expect(landing).toMatch(/Score\.duck\(true\);\s*return ctx\.speakLine\?\.\(\);/);
+  });
+
+  it("途中で抜けても鳴り残さない（finally と保存の失敗で止める）", () => {
+    expect(v5).toMatch(/finally \{[^}]*Score\.stop\(\);/);
+    expect(v5).toMatch(/root\.dataset\.stage = "idle";\s*Score\.stop\(\);/);
   });
 });

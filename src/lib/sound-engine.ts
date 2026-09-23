@@ -40,7 +40,8 @@ function ensureCtx(): AudioContext | null {
   if (!ctx) {
     const Ctor = (window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
-      typeof AudioContext | undefined;
+      | typeof AudioContext
+      | undefined;
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();
@@ -77,6 +78,17 @@ export function unlockAudio() {
   if (!c) return;
   if (c.state === "suspended") void c.resume();
   unlocked = true;
+}
+
+/**
+ * 祝福の BGM（`celebration-score.ts`）が使う入口。音量の設定（オフ／控えめ／
+ * しっかり）は `master` が持つので、ここを通れば設定がそのまま効く。
+ * オフのとき・音を出せない環境では null。
+ */
+export function audioOut(): { c: AudioContext; out: GainNode } | null {
+  const c = ensureCtx();
+  if (!c || !master || level === "off") return null;
+  return { c, out: master };
 }
 
 function tone(

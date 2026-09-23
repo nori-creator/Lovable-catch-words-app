@@ -41,6 +41,7 @@ import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
 import { TtsVoicesScene } from "./scenes/tts-voices";
+import { CatchSoundScene } from "./scenes/catch-sound";
 import { AiModelsScene } from "./scenes/ai-models";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
@@ -160,6 +161,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "dex-cards": DexCardsScene,
   "ai-models": AiModelsScene,
   "tts-voices": TtsVoicesScene,
+  "catch-sound": CatchSoundScene,
   "dex-map": DexMapScene,
   wallpapers: WallpaperPickerScene,
   "scan-nothing": ScanNothingScene,
@@ -306,6 +308,8 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-09-23「キャッチの祝福に映画のクライマックスのような BGM」— 聴き比べ。
+  { scene: "catch-sound", label: "キャッチの祝福の音（新しい BGM とこれまでを聴き比べ）" },
   // 2026-09-23 の3回目の依頼（10項目）で触った面（上から順に見る）。
   {
     scene: "dex-map&at=2",

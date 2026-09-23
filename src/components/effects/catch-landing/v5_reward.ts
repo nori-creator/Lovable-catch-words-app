@@ -1,4 +1,5 @@
 import { Sound } from "@/lib/sound-engine";
+import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
 import type { LandingRunner } from "./types";
 
@@ -108,7 +109,8 @@ export const v5reward: LandingRunner = async ({
   ).finished;
 
   root.dataset.stage = "lift";
-  Sound.itemFanfare();
+  // 祝福の BGM（`celebration-score.ts`）。浮き上がる間に溜め、止まる瞬間に解放。
+  Score.build();
   haptic("medium");
   await fly.animate(
     [
@@ -124,8 +126,14 @@ export const v5reward: LandingRunner = async ({
 
   root.dataset.stage = "break";
   haptic("success");
-  const spoken = Promise.resolve()
-    .then(() => speakLine?.())
+  Score.hit();
+  // **語は打撃の響きが引いてから読む**。読む間は BGM を 20dB 下げる
+  // （発音を聞き取れることが、このアプリでいちばん大事）。
+  const spoken = wait(SCORE.speechDelayMs)
+    .then(() => {
+      Score.duck(true);
+      return speakLine?.();
+    })
     .catch(() => {});
   await fly.animate(
     [
@@ -141,6 +149,8 @@ export const v5reward: LandingRunner = async ({
   // Keep burst running, and don't leave while the word is still being read.
   await Promise.race([spoken, wait(2600)]);
   root.dataset.stage = "reveal";
+  // 二度目の山: ソの和音からドの和音へ（BGM もここで元の大きさに戻る）。
+  Score.resolve();
   Sound.itemGlint();
   haptic("light");
   await fly.animate(
@@ -167,6 +177,7 @@ export const v5reward: LandingRunner = async ({
       await gate;
     } catch {
       root.dataset.stage = "idle";
+      Score.stop();
       return;
     } finally {
       hover.cancel();
@@ -279,6 +290,7 @@ export const v5reward: LandingRunner = async ({
 
     handoff.dataset.stage = "impact";
     Sound.shelfLand();
+    Score.land();
     haptic("heavy");
     target.animate([{ boxShadow: "0 0 0 0 #58d7ff99" }, { boxShadow: "0 0 0 24px #58d7ff00" }], {
       duration: 600,
@@ -313,6 +325,8 @@ export const v5reward: LandingRunner = async ({
     ).finished;
   } finally {
     // 借りた物を返す。どの経路で抜けても、ここだけは通る。
+    // BGM の鳴り残し（語の下で続く和音）もここで必ず消す。
+    Score.stop();
     if (hiddenCell) hiddenCell.style.visibility = "";
     handoff.remove();
     delete document.documentElement.dataset.rewardFlight;

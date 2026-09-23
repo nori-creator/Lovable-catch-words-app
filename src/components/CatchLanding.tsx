@@ -1,5 +1,6 @@
 import { forwardRef, type CSSProperties, type RefObject } from "react";
 import { waitForRef } from "@/lib/wait-for-ref";
+import { Score, SCORE } from "@/lib/celebration-score";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Term } from "@/components/Term";
@@ -57,9 +58,17 @@ export async function runCatchLanding(ctx: {
   unlockAudio();
   const reducedMotion = motionReducedNow();
   if (reducedMotion) {
-    Sound.rewardBreak();
+    // 動きを減らしていても音は同じ山場を鳴らす（音は動きではない）。
+    // 語は打撃の響きが引いてから、BGM を下げて読む。
+    Score.hit();
     haptic("success");
-    ctx.speakLine?.();
+    void new Promise((r) => setTimeout(r, SCORE.speechDelayMs))
+      .then(() => {
+        Score.duck(true);
+        return ctx.speakLine?.();
+      })
+      .catch(() => {})
+      .finally(() => Score.resolve());
     // **図鑑へ移る前に保存を待つ。**
     // 演出は押した瞬間に始まるので、ここではまだ札の id が決まっていない。
     // 待たずに移ると `?justCaught=` が空のまま図鑑が開き、
