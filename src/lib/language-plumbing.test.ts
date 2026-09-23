@@ -5517,3 +5517,30 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
     expect(settings).toMatch(/visionOnly=\{f\.id === "scan"\}/);
   });
 });
+
+describe("Jev の使い方の約束（ARCHITECTURE: 実験的な予測は影で走らせてから）", () => {
+  const reviews = codeOnly(read("lib/reviews.functions.ts"));
+  const ai = codeOnly(read("lib/ai.functions.ts"));
+  const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+
+  it("**記憶の見込みは記録だけ**: 復習の予定を決めた後に、待たずに影で記録する", () => {
+    const grade = reviews.slice(reviews.indexOf("export const gradeReview"));
+    const body = grade.slice(0, grade.indexOf("export const", 10));
+    const scheduled = body.indexOf("const next = nextSrs(");
+    const shadow = body.indexOf('void import("./jev-tasks.server")');
+    expect(scheduled).toBeGreaterThan(0);
+    expect(shadow).toBeGreaterThan(scheduled);
+    // 影の表を読んで判断を変える所はどこにも無い。
+    for (const f of ["lib/reviews.functions.ts", "lib/ai.functions.ts", "lib/srs.ts"]) {
+      expect([f, /model_shadow_predictions/.test(codeOnly(read(f)))]).toEqual([f, false]);
+    }
+  });
+
+  it("**棚は「その他」のときだけ** Jev に聞く（共有の語の分類を上書きしない）", () => {
+    expect(ai).toMatch(/if \(categoryKey === "other"\) \{[\s\S]{0,200}categoryFallback\(/);
+  });
+
+  it("**候補の並びは後から**、本人が押した後は変えない", () => {
+    expect(scan).toMatch(/if \(cancelled \|\| touchedRef\.current \|\| !r\.order\) return;/);
+  });
+});

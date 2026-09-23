@@ -53,6 +53,7 @@ import { readableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
+import { rankScanCandidates } from "@/lib/jev.functions";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import { tStatic } from "@/lib/i18n";
 
@@ -235,6 +236,13 @@ function ScanPage() {
    * 大きくなって揺れる（オーナー指示 2026-09-22）。
    */
   const [activeId, setActiveId] = useState<string | null>(null);
+  /**
+   * Jev が付けた「調べたい見込み」の順（候補の id の並び）。スキャンの結果を
+   * 出した**後から**届く。届く前に本人が候補を押していたら使わない —
+   * 押した後に並びが動くと、押そうとした行が逃げる。
+   */
+  const [rankOrder, setRankOrder] = useState<string[] | null>(null);
+  const touchedRef = useRef(false);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
   /**
@@ -446,6 +454,8 @@ function ScanPage() {
     setError(null);
     setChip(null);
     setItems(null);
+    setRankOrder(null);
+    touchedRef.current = false;
     setEntries({});
     setDetectMs(null);
     setLookupMs(null);
@@ -570,6 +580,7 @@ function ScanPage() {
   const openChip = useCallback(
     (item: DetectedItem) => {
       const lowConf = item.confidence < 0.75 && item.alternatives.length > 0;
+      touchedRef.current = true;
       setActiveId(item.id);
       setChip({ item, chosenHeadword: item.headword, showingCandidates: lowConf });
       if (!lowConf) {
@@ -643,6 +654,8 @@ function ScanPage() {
     setItems(null);
     setSnapshot(null);
     setActiveId(null);
+    setRankOrder(null);
+    touchedRef.current = false;
     setChip(null);
     setEntries({});
     setDetectMs(null);
@@ -685,10 +698,51 @@ function ScanPage() {
 
   // Only surface target-language (Chinese) words as candidates — drop English
   // and other non-learning-language detections from the dots and the list.
-  const visibleItems = useMemo(
-    () => (items ?? []).filter((it) => /[㐀-鿿豈-﫿]/.test(it.headword)),
-    [items],
-  );
+  const isTarget = (it: DetectedItem) => /[㐀-鿿豈-﫿]/.test(it.headword);
+  const visibleItems = useMemo(() => {
+    const list = (items ?? []).filter(isTarget);
+    if (!rankOrder) return list;
+    const at = (id: string) => {
+      const i = rankOrder.indexOf(id);
+      return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return [...list].sort((a, b) => at(a.id) - at(b.id));
+  }, [items, rankOrder]);
+
+  /**
+   * **Jev に「どれを調べたいか」を聞き、候補の並びを替える**（オーナー指示
+   * 2026-09-22）。結果を出してから頼むので、スキャンの待ち時間は延びない。
+   * 鍵が無い・自信が低い・本人がもう押した、のどれでも並びは変えない。
+   */
+  const rankFn = useServerFn(rankScanCandidates);
+  useEffect(() => {
+    if (scanning || !items || rankOrder) return;
+    const list = items.filter(isTarget);
+    if (list.length < 2) return;
+    let cancelled = false;
+    void rankFn({
+      data: {
+        items: list.slice(0, 24).map((it) => ({
+          headword: it.headword,
+          meaning: it.meaning_ja ?? null,
+          kind: it.kind ?? null,
+          confidence: it.confidence,
+          owned: Boolean(scanCtx?.owned[normHead(it.headword)]),
+        })),
+      },
+    })
+      .then((r) => {
+        if (cancelled || touchedRef.current || !r.order) return;
+        setRankOrder(r.order.map((i) => list[i].id));
+        // 先頭が替わるので、光らせる候補も先頭へ（箱が選び直す）。
+        setActiveId(null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, scanning]);
 
   return (
     // スキャンも画面いっぱいのカメラ。上の帯は出さない（撮る画面と同じ）。

@@ -680,11 +680,25 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         },
       ]),
     );
+    /**
+     * **「その他」に逃げたときだけ** Jev に棚を聞く（`jev-tasks.server.ts`）。
+     * 語は共有なので、分類できている語は触らない。鍵が無い・自信が低いときは
+     * 「その他」のまま。
+     */
+    let categoryKey = normalizeCategory(resolvedHead, card.category_key);
+    if (categoryKey === "other") {
+      const { categoryFallback } = await import("./jev-tasks.server");
+      const picked = await categoryFallback(
+        { headword: resolvedHead, meaning: card.meaning_ja, pos: card.part_of_speech },
+        CATEGORY_KEYS,
+      ).catch(() => null);
+      if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
+    }
     return {
       ...card,
       headword_zh: resolvedHead,
       level: level.stored,
-      category_key: normalizeCategory(resolvedHead, card.category_key),
+      category_key: categoryKey,
       // どの言語で書いた解説かを刻む。表示言語を切り替えたときに
       // 古い言語のカードだけを作り直せる(#65)。
       // あわせて**どの母語向けに書いたか**も刻む。発音のコツと語順の説明は
