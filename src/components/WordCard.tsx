@@ -30,8 +30,9 @@ import {
   Pencil,
 } from "lucide-react";
 import { usePronounce } from "@/lib/use-pronounce";
-import { reportEntry } from "@/lib/reports.functions";
-import { generateCard, regenerateCardSection } from "@/lib/ai.functions";
+
+import { generateCard, regenerateCardSection, reportAndFixSection } from "@/lib/ai.functions";
+import { toast } from "sonner";
 import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading, ReadingOf } from "@/lib/phonetic";
@@ -65,6 +66,7 @@ import {
   type RegenSection,
   type SectionId,
 } from "@/lib/card-sections";
+import { CARD_PREF_EVENT, CARD_PREF_KEY, readCardPrefs, type CardPrefs } from "@/lib/card-prefs";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import {
   LONG_PRESS_MS,
@@ -150,28 +152,26 @@ const ALL_SECTIONS: { id: SectionId }[] = (() => {
   return base.map((id) => ({ id }));
 })();
 
-const PREF_KEY = "wordcard-prefs-v4";
-const PREF_EVENT = "wordcard-prefs-changed";
+/**
+ * 保存の形・既定（8項目）・前の版からの引き継ぎは `lib/card-prefs.ts`。
+ * 生成を頼む側も同じ所から「いま見えている節」を読む。
+ */
+const PREF_KEY = CARD_PREF_KEY;
+const PREF_EVENT = CARD_PREF_EVENT;
 
-type Prefs = { order: SectionId[]; hidden: SectionId[] };
+type Prefs = CardPrefs;
 
 function loadPrefs(): Prefs {
-  if (typeof window === "undefined") return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
+  let storage: Storage | null = null;
   try {
-    const raw = localStorage.getItem(PREF_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Prefs;
-      const valid = (id: SectionId) => ALL_SECTIONS.some((s) => s.id === id);
-      const missing = ALL_SECTIONS.map((s) => s.id).filter((id) => !p.order.includes(id));
-      return {
-        order: [...p.order.filter(valid), ...missing],
-        hidden: (p.hidden ?? []).filter(valid),
-      };
-    }
+    storage = typeof window === "undefined" ? null : window.localStorage;
   } catch {
-    /* noop */
+    storage = null;
   }
-  return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
+  return readCardPrefs(
+    ALL_SECTIONS.map((s) => s.id),
+    storage,
+  );
 }
 
 function savePrefs(p: Prefs) {
@@ -660,6 +660,8 @@ export const WordCard = forwardRef<
         autoplay={autoplay}
         minimal={minimal}
         onEditHeadword={onEditHeadword}
+        wordId={wordId}
+        reportItems={reportItemsFor(shown)}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
       <div className="grid gap-3">
@@ -821,9 +823,15 @@ function HeaderRow({
   autoplay,
   minimal = false,
   onEditHeadword,
+  wordId,
+  reportItems = [],
 }: {
   word: WordCardData;
   autoplay: boolean;
+  /** 報告から直すときの語の id。無ければ報告の印を出さない。 */
+  wordId?: string;
+  /** 報告できる項目（`reportItemsFor`）。 */
+  reportItems?: ReportItem[];
   onEditHeadword?: (next: string) => void | Promise<void>;
   /**
    * 撮った直後。**級の段々も品詞も出さない** — オーナー指示
@@ -999,7 +1007,7 @@ function HeaderRow({
                     {tag}
                   </span>
                 ))}
-              <ReportButton headword={word.headword} />
+              <ReportButton wordId={wordId} items={reportItems} language={word.language ?? null} />
             </div>
           )}
         </div>
@@ -1009,60 +1017,102 @@ function HeaderRow({
 }
 
 /**
- * 辞書エラー報告(A8): 発音・意味・品詞の誤りをその場で通報。監査の
- * ランダム抜き打ちだけでは拾えない実利用者の指摘を集める恒久ルート。
+ * **どの項目が違うかを選んで報告し、その項目だけを直す。**
+ * （オーナー指示 2026-09-22「単語の詳細のエラーを具体的にどの項目か報告し、
+ * その該当箇所をAIが自動修整する。だけにして」）
+ *
+ * 前は2つに分かれていた:
+ *   ・この小さな「報告」… 記録するだけで、何も直らなかった
+ *   ・下の大きな帯「意味や発音が変？報告してAIに直させる」… **全部の
+ *     解説を作り直していた**（Pro 限定の「作り直し」を誰でも使えていた）
+ * いまはこれ1つ。選んだ項目だけを直す（`reportAndFixSection`）。
+ *
+ * 語は全員で共有しているので、直した案は**別の目**で確かめてから書く。
+ * 確かめきれなかったときは直さずに報告として残り、そう伝える —
+ * 「直しました」と言って何も変わらないのがいちばん悪い。
  */
-function ReportButton({ headword }: { headword: string }) {
+function ReportButton({
+  wordId,
+  items,
+  language,
+}: {
+  wordId?: string;
+  /** 報告できる項目（画面に出ている節の並び）。 */
+  items: ReportItem[];
+  language: string | null;
+}) {
   const t = useT();
-  const reportFn = useServerFn(reportEntry);
+  const fixFn = useServerFn(reportAndFixSection);
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [sent, setSent] = useState(false);
-  const kinds: { kind: "pronunciation" | "meaning" | "pos" | "other"; label: string }[] = [
-    { kind: "pronunciation", label: t("card.pronZhuyin") },
-    { kind: "meaning", label: t("card.meaning") },
-    { kind: "pos", label: t("card.posLabel") },
-    { kind: "other", label: t("card.otherLabel") },
-  ];
-  async function send(kind: "pronunciation" | "meaning" | "pos" | "other") {
+  const [busy, setBusy] = useState(false);
+  if (!wordId) return null;
+  const labelOf = (item: ReportItem) =>
+    item === "pronunciation"
+      ? t("card.pronZhuyin")
+      : item === "pos"
+        ? t("card.posLabel")
+        : t(sectionTitleKey(item, language));
+  async function send(item: ReportItem) {
     setOpen(false);
+    setBusy(true);
     try {
-      await reportFn({ data: { headword, kind, note: "" } });
-      setSent(true);
-    } catch {
-      /* 報告失敗は致命的でない */
+      const res = await fixFn({ data: { word_id: wordId!, item } });
+      if (res.fixed) {
+        await qc.invalidateQueries({ queryKey: ["sticker"] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+        toast.success(t("card.reportFixed", { item: labelOf(item) }));
+      } else {
+        toast(t("card.reportQueued"));
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("card.reportFailed"));
+    } finally {
+      setBusy(false);
     }
-  }
-  if (sent) {
-    return <span className="text-caption text-muted-foreground">{t("card.reportThanks")}</span>;
   }
   return (
     <span className="relative ml-auto">
       <button
         onClick={() => setOpen((v) => !v)}
+        disabled={busy}
+        aria-expanded={open}
         // §11: 見た目は小さいまま、当たり判定だけを 44px へ広げる
         // (`::before` を伸ばす)。文字は `/70` をやめる — 薄めた結果
         // 明るい面 3.04:1 / 暗い面 1.76:1 だった。
-        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground"
+        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground disabled:opacity-60"
         aria-label={t("card.reportError")}
       >
-        <Flag className="h-3 w-3" /> {t("card.report")}
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Flag className="h-3 w-3" />}
+        {busy ? t("card.reportFixing") : t("card.report")}
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+        <div className="absolute right-0 top-7 z-20 max-h-72 w-48 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
           <p className="px-2 py-1 text-caption text-muted-foreground">{t("card.reportWhat")}</p>
-          {kinds.map((k) => (
+          {items.map((item) => (
             <button
-              key={k.kind}
-              onClick={() => send(k.kind)}
-              className="block w-full rounded-lg px-2 py-1.5 text-left text-footnote hover:bg-secondary"
+              key={item}
+              onClick={() => send(item)}
+              className="block min-h-11 w-full rounded-lg px-2 py-1.5 text-left text-footnote hover:bg-secondary"
             >
-              {k.label}
+              {labelOf(item)}
             </button>
           ))}
         </div>
       )}
     </span>
   );
+}
+
+/** 報告できる項目。発音と品詞は節ではないので別に足す。 */
+export type ReportItem = "pronunciation" | "pos" | RegenSection;
+
+/**
+ * 報告の一覧に並べる項目。**画面に出ている順**のまま、AIで直せる節だけ。
+ * 発音と品詞は見出しの行に在るので先頭に置く。
+ */
+export function reportItemsFor(shown: SectionId[]): ReportItem[] {
+  return ["pronunciation", "pos", ...shown.filter(isRegenSection)];
 }
 
 function SectionCard({

@@ -2592,12 +2592,26 @@
     /* 端がわずかに焼けた地。 */
     radial-gradient(circle at 22% 12%, #fffefb 0%, #fbf8f1 58%, #f3eee2 100%);
 }
+/* 額縁。**絵画の額**（オーナー指示 2026-09-23）: 木の縁（外側が濃く、
+   内側に金の細い線）＋白いマット。角は丸めない — 額は四角い。 */
 .album-bg-frame {
-  background: linear-gradient(135deg, #f3e8d4 0%, #e7d4b1 100%);
+  border-radius: 4px !important;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.5), transparent 40%), #f7f2e8;
   box-shadow:
-    inset 0 0 0 10px #b88a4d,
-    inset 0 0 0 14px #f5ecd6,
-    inset 0 0 0 24px #a06a2c;
+    inset 0 0 0 12px #6b4423,
+    inset 0 0 0 14px #c9a45c,
+    inset 0 0 0 16px #5a381c,
+    inset 0 0 0 30px #fbf8f1,
+    inset 0 4px 18px 16px rgb(0 0 0 / 0.18),
+    0 10px 24px -8px rgb(0 0 0 / 0.35);
+}
+/* 実際の壁。**漆喰の白壁**（オーナー指示 2026-09-23「実際の壁のような壁紙」）。
+   こて跡のムラ（大きいノイズ）と細かい砂目、上からの柔らかい光。 */
+.album-bg-wall {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.33 0 0 0 0 0.3 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='4'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.47 0 0 0 0 0.42 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23m)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, #f6f3ee 0%, #ece7df 100%);
 }
 .album-bg-notebook {
   background-color: #fdfbf3;
@@ -6410,32 +6424,6 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .day-masthead {
   margin-bottom: 0.7rem;
 }
-.day-masthead__rail {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-.day-masthead__rule-line {
-  margin-top: 0.5rem;
-  height: 1px;
-  flex: 1;
-  background: var(--border);
-}
-.day-masthead__count {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.05;
-}
-.day-masthead__count-n {
-  font-size: var(--text-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.day-masthead__count-label {
-  font-size: var(--text-caption);
-  color: var(--muted-foreground);
-}
 .day-masthead__row {
   display: flex;
   align-items: flex-start;
@@ -6502,21 +6490,170 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 
    **紙とテープは戻さない**（オーナー指示 2026-09-18）。残したのは
    「角の丸い写真・傾き・重なり・紙の札」。 */
+/* ── 壁（台紙）────────────────────────────────────────────────────
+   オーナー指示 2026-09-22:
+   > ホーム画面、やっぱり背景、壁が必要だわ。…前のように壁に付箋や四隅を
+   > 固定して画像を張るようにして。あと文字は必ず見えるようにして。
+
+   2026-09-18 に「紙なくして。マスキングテープもなしくて」で外したものを、
+   **その日の誌面の中だけに**戻す。画面全体（`AppShell`）を紙にはしない —
+   表紙（日付）と下のタブ帯はアプリの面のまま、写真の載る所だけが壁。
+
+   地は `album-bg-*`（紙・額・ノート・コルク）のどれか。既定は紙。
+
+   ## 字の色は壁に合わせて固定する
+   壁は**テーマに関わらず明るい**。その上にテーマ追従の色を載せると、
+   暗いテーマで「明るい灰色を白い紙に」書くことになる（以前 2.39:1 まで
+   落ちた）。壁の中だけ色の変数を差し替え、後から何を載せても紙用の色になる
+   ようにする（2026-09-17 に画面全体の紙でやったのと同じ考え方）。 */
 .collage {
-  /* 台紙を敷かない。写真そのものが面を作る。 */
   margin-block: 0 1.25rem;
 }
-/* 写真。**角を丸め、地から浮かせる。** 白フチも三角コーナーも付けない。 */
+.collage-board {
+  --foreground: var(--album-ink);
+  --muted-foreground: var(--album-ink-dim);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: var(--album-ink);
+  --secondary: oklch(0.945 0.008 85);
+  color: var(--album-ink);
+  border-radius: 22px;
+  /* 壁の縁ぎりぎりに写真を置かない。傾いた角とテープがはみ出す余地。 */
+  padding: 1.1rem 0.75rem 1.25rem;
+  box-shadow:
+    0 1px 2px rgba(60, 42, 18, 0.08),
+    0 18px 36px -20px rgba(60, 42, 18, 0.35);
+}
+/* 額縁の壁は、誌面の板そのものを**額**にする。板の影（上の規則）が額の縁を
+   上書きしていたので、ここで額の縁と外の影を一緒に持つ。写真は白いマットの
+   内側に収まるよう、縁の分だけ内側を空ける。 */
+.collage-board.album-bg-frame {
+  border-radius: 4px;
+  padding: 2.1rem 1.4rem 2.3rem;
+  box-shadow:
+    inset 0 0 0 12px #6b4423,
+    inset 0 0 0 14px #c9a45c,
+    inset 0 0 0 16px #5a381c,
+    inset 0 4px 18px 16px rgb(0 0 0 / 0.16),
+    0 14px 30px -10px rgb(0 0 0 / 0.4);
+}
+/* 写真。**白い縁のある印画紙**として貼る（見本の絵のとおり）。
+   角は少しだけ丸める（オーナー指示 2026-09-17「写真の角は丸みを帯びさせて」）
+   — ただし 12px まで丸めると印画紙ではなくアプリのカードに見えるので、
+   紙の縁は 6px、中の絵は 3px。 */
 .collage__photo {
+  position: relative;
   display: block;
   height: 100%;
   width: 100%;
   overflow: hidden;
-  border-radius: 12px;
-  background: var(--secondary);
+  border-radius: 6px;
+  padding: 5px;
+  background: oklch(0.995 0.004 85);
   box-shadow:
-    0 1px 2px color-mix(in oklab, var(--foreground) 12%, transparent),
-    0 12px 26px -14px color-mix(in oklab, var(--foreground) 30%, transparent);
+    0 1px 2px rgba(60, 42, 18, 0.14),
+    0 12px 22px -12px rgba(60, 42, 18, 0.38);
+}
+.collage__photo img {
+  border-radius: 3px;
+}
+
+/* ── 留め具 ───────────────────────────────────────────────────────
+   どれで留めるかは `lib/collage-decor.ts`（`id` から決まる）。 */
+
+/* マスキングテープ。本物は ①和紙なので**下が透ける** ②**縦の繊維**が
+   走る ③端は手でちぎるので毛羽立つ ④紙に密着するので影はごく浅い。
+   （2026-09-17 に作った物を、写真の留め具として戻した。） */
+.collage-tape {
+  position: absolute;
+  z-index: 2;
+  width: 3.4rem;
+  height: 1rem;
+  pointer-events: none;
+  background-color: var(--tape);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.28) 0 1px,
+      transparent 1px 2px,
+      rgba(255, 255, 255, 0.14) 2px 3px,
+      transparent 3px 5px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.07) 0,
+      transparent 18%,
+      transparent 82%,
+      rgba(0, 0, 0, 0.07) 100%
+    );
+  opacity: 0.82;
+  clip-path: polygon(
+    3% 0,
+    0 26%,
+    4% 52%,
+    1% 78%,
+    3% 100%,
+    97% 100%,
+    100% 74%,
+    96% 48%,
+    99% 22%,
+    97% 0
+  );
+  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.16));
+}
+.collage-tape--top {
+  top: -0.45rem;
+  left: 50%;
+  translate: -50% 0;
+}
+.collage-tape--corner-tl {
+  top: 0.35rem;
+  left: -0.9rem;
+}
+.collage-tape--corner-tr {
+  top: 0.35rem;
+  right: -0.9rem;
+}
+.collage-tape--iris {
+  --tape: #c3ccef;
+}
+.collage-tape--sage {
+  --tape: #c9d6c2;
+}
+.collage-tape--rose {
+  --tape: #edc9cc;
+}
+.collage-tape--cream {
+  --tape: #eee5cd;
+}
+/* 三角コーナー（アルバムの台紙に差し込む紙の角）。 */
+.collage-corner {
+  position: absolute;
+  z-index: 2;
+  width: 1.05rem;
+  height: 1.05rem;
+  pointer-events: none;
+  background: oklch(0.3 0.03 68 / 0.82);
+  filter: drop-shadow(0 1px 1px rgba(60, 42, 18, 0.25));
+}
+.collage-corner--tl {
+  top: -2px;
+  left: -2px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.collage-corner--tr {
+  top: -2px;
+  right: -2px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.collage-corner--bl {
+  bottom: -2px;
+  left: -2px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.collage-corner--br {
+  bottom: -2px;
+  right: -2px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 /**
  * **文字から調べた語。**（オーナー指示 2026-09-22「文字で検索したものは
@@ -7166,4 +7303,287 @@ html[data-motion="reduce"] .reward-catch__field::after {
   border-radius: 999px;
   background: #ffd268;
   box-shadow: 0 1px 3px #00000059;
+}
+
+/* スキャン後の候補の箱（`ScanCandidateStrip`）。**高さは決めて、中だけが
+   縦に動く**（オーナー指示 2026-09-23「画面は固定し、スクロールすると
+   ボックスのなかの単語の候補が見える」「1番下の1行で縦にスクロール」）。
+   1行ずつ止まる。スクロールバーは出さない。 */
+.scan-box {
+  /* 一番下の1行ぶん（オーナー指示 2026-09-23）。行は 3rem、上下の余白 0.25rem ずつ。 */
+  max-height: calc(3rem + 0.5rem);
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+.scan-box::-webkit-scrollbar {
+  display: none;
+}
+
+/* 下の列で注目している候補の光。**大きくなって、揺れる**
+   （オーナー指示 2026-09-22）。大きさはばねのように少し行き過ぎて止まり、
+   その後ゆっくり左右に揺れ続ける。動きを減らす設定では大きさだけ変える。 */
+.scan-dot__core {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.scan-dot[data-active] .scan-dot__core {
+  transform: scale(1.9);
+  animation: scan-dot-wiggle 1.1s ease-in-out 0.3s infinite;
+}
+@keyframes scan-dot-wiggle {
+  0%,
+  100% {
+    transform: scale(1.9) rotate(0deg) translateX(0);
+  }
+  25% {
+    transform: scale(2.05) rotate(-8deg) translateX(-1.5px);
+  }
+  50% {
+    transform: scale(1.9) rotate(0deg) translateX(0);
+  }
+  75% {
+    transform: scale(2.05) rotate(8deg) translateX(1.5px);
+  }
+}
+html[data-motion="reduce"] .scan-dot__core {
+  transition: none;
+}
+html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
+  animation: none;
+}
+
+/* 図鑑のカレンダー（`DexCalendar`）。升はやや縦長の角丸で、写真の日は
+   写真で埋め、下に薄い影を敷いて日付を白で読ませる。 */
+.dex-cal__cell {
+  aspect-ratio: 4 / 5;
+}
+.dex-cal__cell--photo {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 4px 10px -4px rgb(0 0 0 / 0.25);
+}
+.dex-cal__shade {
+  position: absolute;
+  inset: 45% 0 0 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), transparent);
+  pointer-events: none;
+}
+
+/* その日のタイムライン。左に時刻、縦の線、線の上の点、右に**少し浮いた**札
+   （オーナー指示「その時間に撮った写真が少し浮き上がるように」）。
+   札は開いたときに下から順に浮き上がり、写真は札から少しはみ出して
+   影を落とす。 */
+.dex-day__axis {
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: calc(3rem + 0.3rem);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+}
+.dex-day__tick {
+  transform: translateY(-50%);
+}
+.dex-day__node {
+  position: relative;
+  z-index: 1;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: -0.05rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--background);
+}
+.dex-day__card {
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.06),
+    0 12px 24px -10px rgb(0 0 0 / 0.3);
+  transform: translateY(-3px) rotate(var(--tilt, 0deg));
+  animation: dex-day-rise 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.dex-day__card--l {
+  --tilt: -0.6deg;
+}
+.dex-day__card--r {
+  --tilt: 0.6deg;
+}
+.dex-day__photo {
+  margin-top: -14px;
+  box-shadow: 0 8px 16px -6px rgb(0 0 0 / 0.4);
+  transform: rotate(calc(var(--tilt, 0deg) * -3));
+}
+@keyframes dex-day-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-3px) rotate(var(--tilt, 0deg));
+  }
+}
+html[data-motion="reduce"] .dex-day__card {
+  animation: none;
+}
+
+/* 図鑑のカード表示（`DexCoverFlow`）。カードは送った位置に応じて毎フレーム
+   傾く（JS が transform を書く）。ここは寸法・奥行き・影・床への映り込み。
+   札どうしを少し重ねて、カバーフローの「並んだ束」に見せる。 */
+.dex-cf__scroller {
+  --cf-w: min(62vw, 250px);
+  perspective: 1100px;
+  padding-inline: calc(50% - var(--cf-w) / 2);
+  scrollbar-width: none;
+}
+.dex-cf__scroller::-webkit-scrollbar {
+  display: none;
+}
+.dex-cf__slot {
+  width: var(--cf-w);
+  height: calc(var(--cf-w) * 1.48);
+  margin-inline: calc(var(--cf-w) * -0.19);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+/* 端のカードは重ねる相手が片側にしか無い。負の余白を付けたままだと
+   真ん中からずれて、止まっている時も傾いて見えた（実測）。 */
+.dex-cf__slot:first-child {
+  margin-left: 0;
+}
+.dex-cf__slot:last-child {
+  margin-right: 0;
+}
+.dex-cf__card {
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.08),
+    0 22px 40px -18px rgb(0 0 0 / 0.45);
+  -webkit-box-reflect: below 10px linear-gradient(transparent 76%, rgb(255 255 255 / 0.2));
+}
+html[data-motion="reduce"] .dex-cf__slot {
+  will-change: auto;
+}
+
+/* 単語の詳細の写真を横に送る箱（`HeroPhotoSlides`）。指で送るだけなので
+   スクロールバーは出さない。 */
+.hero-slides {
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+}
+.hero-slides::-webkit-scrollbar {
+  display: none;
+}
+
+/* 図鑑の地図（`DexDayMap`）。上に地図が貼り付き、下の時間軸を送ると
+   読んでいる立ち寄りのピンが**ポンと浮き上がる**（オーナー指示 2026-09-23）。 */
+.dex-daymap__map {
+  height: min(44vh, 380px);
+  background: var(--secondary);
+}
+/* 地図が読めないときの簡易の面。紙の地図のような薄い方眼。 */
+.dex-daymap__plane {
+  background-color: color-mix(in oklab, var(--secondary) 70%, var(--background));
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.dex-daymap__days {
+  scrollbar-width: none;
+}
+.dex-daymap__days::-webkit-scrollbar {
+  display: none;
+}
+.dex-pin {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.3s;
+}
+.dex-pin__face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  background: var(--card);
+}
+.dex-pin__count {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.dex-pin[data-active] {
+  z-index: 5;
+  transform: translate(-50%, -50%) translateY(-10px) scale(1.45);
+}
+.dex-pin[data-active] .dex-pin__face {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 3px white,
+    0 14px 24px -6px rgb(0 0 0 / 0.45);
+}
+html[data-motion="reduce"] .dex-pin {
+  transition: none;
+}
+
+/* 画鋲（コルクの壁の留め方）。丸い頭に光の点、下に落ちる短い影。
+   写真の上の辺に刺さる。 */
+.collage-pin {
+  position: absolute;
+  top: -7px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.85) 0 2px, transparent 3px), var(--pin);
+  box-shadow:
+    inset 0 -2px 3px rgb(0 0 0 / 0.25),
+    2px 4px 4px -1px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+.collage-pin--red {
+  --pin: #d9463b;
+}
+.collage-pin--blue {
+  --pin: #2f6fd6;
+}
+.collage-pin--yellow {
+  --pin: #e6b422;
+}
+.collage-pin--green {
+  --pin: #2f9e5b;
+}
+/* 設定の壁紙の見本。写真の札は実物より小さいので、留め具も縮める。 */
+.wall-swatch__photo {
+  padding: 3px;
+  background: #fffdf8;
+  box-shadow: 0 3px 8px -2px rgb(0 0 0 / 0.3);
+}
+.wall-swatch .collage-tape {
+  transform: scale(0.6);
+}
+.wall-swatch .collage-pin {
+  width: 12px;
+  height: 12px;
+  top: -5px;
 }

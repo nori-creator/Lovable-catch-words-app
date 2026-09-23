@@ -37,13 +37,12 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
-import {
-  ScanCameraScene,
-  ScanChipScene,
-  ScanDotsScene,
-  ScanFoundScene,
-  ScanNothingScene,
-} from "./scenes/scan";
+import { ScanResultScene } from "./scenes/scan-result";
+import { DexCalendarScene } from "./scenes/dex-calendar";
+import { DexCardsScene } from "./scenes/dex-cards";
+import { AiModelsScene } from "./scenes/ai-models";
+import { DexMapScene } from "./scenes/dex-map";
+import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import {
   WordbookShelfScene,
   WordbookQuizScene,
@@ -57,6 +56,7 @@ import {
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  WallpaperPickerScene,
   HomeTapScene,
   HomeWritingScene,
 } from "./scenes/home";
@@ -89,6 +89,8 @@ import {
   ReviewSayScene,
   ReviewMemoryScene,
   ReviewMemoryListScene,
+  MemoryCurveScene,
+  MemoryOverallScene,
 } from "./scenes/review";
 import {
   ChunksScene,
@@ -152,7 +154,12 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-pick": CapturePickScene,
   "capture-reunion": CaptureReunionScene,
   "scan-chip": ScanChipScene,
-  "scan-found": ScanFoundScene,
+  "scan-found": ScanResultScene,
+  "dex-calendar": DexCalendarScene,
+  "dex-cards": DexCardsScene,
+  "ai-models": AiModelsScene,
+  "dex-map": DexMapScene,
+  wallpapers: WallpaperPickerScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -187,6 +194,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
   "review-memory-list": ReviewMemoryListScene,
+  "memory-curve": MemoryCurveScene,
+  "memory-overall": MemoryOverallScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -295,21 +304,37 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "home", label: "ホーム（今日の誌面・日付の見出し）" },
+  // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
+  { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
+  { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
+  { scene: "home&wall=wall", label: "ホーム（壁）" },
+  { scene: "home&wall=frame", label: "ホーム（額縁）" },
+  { scene: "home&wall=notebook", label: "ホーム（ノート）" },
+  { scene: "dex-map", label: "図鑑の地図（カレンダーと統合・時間軸でピンが浮く）" },
+  { scene: "dex-map&at=3", label: "図鑑の地図（時間を進めた形）" },
+  { scene: "dex-cards", label: "図鑑のカード表示（横に送る）" },
+  { scene: "ai-models", label: "開発者: 機能ごとのAI（OpenRouter）" },
+  { scene: "word-card", label: "単語の詳細（既定の8項目）" },
+  { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
+  { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
+  { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
+  { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
+  { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },
+  { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
+  { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
+  { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
+  { scene: "home", label: "ホーム（壁に貼った誌面・テープと四隅）" },
+  { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
+  { scene: "gallery", label: "図鑑（右上の記憶の色と %）" },
+  { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
-  { scene: "home-past", label: "ホームの下（過去の日が続く）" },
   { scene: "auth", label: "ログインの画面" },
   { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
-  // 2026-09-22 の直し（狭い画面・指・声）で触った面。
-  { scene: "word-card", label: "単語カード（横のはみ出しを直した）" },
-  { scene: "review-memory", label: "復習の記憶の帯（指の下限と声の案内）" },
+  { scene: "review-memory", label: "復習の記憶の帯" },
   { scene: "capture-object", label: "カメラの画面" },
   { scene: "tabbar", label: "下の帯" },
-  // main から合流した、別の作業で見る面。
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
   { scene: "settings-polish", label: "設定・言語選択" },
-  { scene: "capture-reunion", label: "同じ単語に写真を追加" },
-  { scene: "place-memory", label: "母語の復習通知" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },
   { scene: "review-memory-list", label: "記憶の一覧" },
 ];
@@ -385,11 +410,13 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        const on = r.scene === wanted;
+        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
+        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
+        const on = r.scene === here;
         return (
           <a
             key={r.scene}
-            href={`?scene=${encodeURIComponent(r.scene)}&review=1`}
+            href={`?scene=${r.scene}&review=1`}
             style={{
               padding: "6px 10px",
               borderRadius: 999,

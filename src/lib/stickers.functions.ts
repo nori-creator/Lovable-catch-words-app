@@ -873,11 +873,18 @@ export const saveSticker = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 
-    const wordId = await upsertWord(supabase, userId, data.word, data.language);
-
-    // その人だけの棚。**失敗しても語のキャッチは通す。**
-    // 棚が1つ増えないことと、キャッチが丸ごと失敗することは重さが違う。
-    const shelfKey = await ensureUserShelf(supabase, userId, data.new_shelf);
+    /**
+     * 語の登録と棚の用意は**互いを待たない**ので並べて走らせる
+     * （オーナー報告 2026-09-22「祝福の演出が…4秒位停止してる」— 演出は
+     * この保存が返るまで次へ進めない。直列だと往復がそのまま足し算になる）。
+     *
+     * 棚は、その人だけの棚。**失敗しても語のキャッチは通す。**
+     * 棚が1つ増えないことと、キャッチが丸ごと失敗することは重さが違う。
+     */
+    const [wordId, shelfKey] = await Promise.all([
+      upsertWord(supabase, userId, data.word, data.language),
+      ensureUserShelf(supabase, userId, data.new_shelf),
+    ]);
 
     // Guard against cross-account storage path spoofing: only accept paths
     // rooted under the caller's own uid folder (the client upload convention).

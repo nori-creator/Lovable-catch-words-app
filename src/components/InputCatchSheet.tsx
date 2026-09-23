@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cardSectionsNow } from "@/lib/card-prefs";
 import { sttLangOf } from "@/lib/target-lang";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { targetProfile } from "@/lib/target-profile";
@@ -364,7 +365,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         // 母語(日本語)入力OK: generateCard が台湾華語の見出し語に解決して
         // headword_zh で返すので、辞書照合はその解決後の語で行う。
         realCardRef.current = null;
-        const inflight = cardFn({ data: { headword, targetLanguage: targetLanguage } })
+        const inflight = cardFn({
+          data: { headword, targetLanguage: targetLanguage, sections: cardSectionsNow() },
+        })
           .then((got) => {
             if (runTokenRef.current === token) realCardRef.current = got;
             return got;

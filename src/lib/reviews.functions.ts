@@ -913,7 +913,7 @@ export const gradeReview = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("reviews")
-      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen")
+      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at")
       .eq("id", data.review_id)
       .eq("user_id", userId)
       .single();
@@ -969,6 +969,35 @@ export const gradeReview = createServerFn({ method: "POST" })
       ease_after: next.ease,
       repetitions_after: next.repetitions,
     });
+
+    /**
+     * **Jev の影の実行**（記録だけ。上で決めた予定は変えない）。
+     * 答える**前**の状態だけを見せて「いま思い出せるか」を聞き、このアプリの
+     * 式の見込み・実際の正誤と並べて残す（`jev-tasks.server.ts`）。
+     * 待たない — 復習の返事を遅らせない。鍵が無ければ何もしない。
+     */
+    {
+      const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+      const now = Date.now();
+      const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
+      const recalled = score >= 3;
+      void import("./jev-tasks.server").then(({ recordRecallShadow }) =>
+        recordRecallShadow(supabase as never, {
+          userId,
+          stickerId: row.sticker_id,
+          outcome: recalled,
+          state: {
+            headword: "",
+            daysSinceLastReview:
+              lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10,
+            intervalDays: row.interval_days,
+            ease: row.ease,
+            repetitions: row.repetitions,
+            baselineRecall: Math.max(0, Math.min(1, baseline)),
+          },
+        }),
+      );
+    }
 
     return { score, next_due_at: dueAt, interval_days: next.interval_days };
   });
@@ -1346,6 +1375,16 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       accepted: 1,
       meta: { headword: w.headword, score: feedback.natural_score },
     });
+
+    // **Jev の判定を影で記録**（画面の判定は変えない。添削 AI との一致を後で見る）。
+    void import("./jev-tasks.server").then(({ recordSpeakingShadow }) =>
+      recordSpeakingShadow(supabase as never, {
+        userId,
+        headword: w.headword,
+        utterance: data.transcript,
+        llmOk: feedback.used_target && feedback.natural_score >= 3,
+      }),
+    );
 
     return {
       ...feedback,

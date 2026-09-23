@@ -12,7 +12,6 @@ import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
-  BackgroundPicker,
   DayHeader,
   DayMasthead,
   dayTagline,
@@ -25,10 +24,12 @@ import {
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { JournalComposer } from "@/components/JournalComposer";
-import { groupBySpan, localDayKey, type AlbumSpan } from "@/lib/album-span";
+import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
+import { parseWallpaper, wallClass } from "@/lib/wallpaper";
+import { WallpaperPicker } from "@/components/WallpaperPicker";
 
 const svg = (w: number, h: number, color: string) =>
   "data:image/svg+xml;utf8," +
@@ -51,7 +52,7 @@ const svg = (w: number, h: number, color: string) =>
  * 作り物では「朝から夜へ辿る」という肝心の所が一度も撮れない。
  * 1言の無い札・場所の無い札も混ぜる — 無い日に空の紙が挟まらないかを見る。
  */
-const FIXTURES: Array<{
+export const FIXTURES: Array<{
   head: string;
   gloss?: string;
   selfie?: string;
@@ -91,7 +92,7 @@ const FIXTURES: Array<{
   { head: "獎學金", gloss: "奨学金", net: svg(160, 160, "#2f8f5b"), at: [21, 30] },
 ];
 
-function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
+export function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
   const d = new Date(Date.now() - day * 24 * 60 * 60 * 1000);
   d.setHours(f.at[0], f.at[1], 0, 0);
   const at = d.toISOString();
@@ -133,12 +134,23 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): Stic
 const today = FIXTURES.map((f, i) => makeSticker(f, i, 0));
 
 /** 今日のアルバム。**普通の日にいちばん長く見ている面。** */
-export function HomeScene() {
+export function HomeScene({ q }: { q: URLSearchParams }) {
+  // `?wall=cork` などで壁紙を替えて撮る（オーナー指示 2026-09-23）。
+  const wall = parseWallpaper(q.get("wall"));
   return (
     <>
-      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
-      <DayCollage stickers={today} opening onOpen={() => {}} />
+      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
+      <DayCollage stickers={today} opening onOpen={() => {}} surface={wallClass(wall)} />
     </>
+  );
+}
+
+/** 設定の「ホームの壁紙」。5つの見本の札（実物と同じ留め方）。 */
+export function WallpaperPickerScene() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <WallpaperPicker value="cork" />
+    </div>
   );
 }
 
@@ -173,9 +185,7 @@ export function HomeLoadingScene() {
 /**
  * 過去の日。区切り線と、出し切れていないときの断り。
  *
- * **日記の在る日と無い日を1枚に入れる**(要望 #22)。
- * 無い日に空の枠が並んでいないか、在る日が写真のページと
- * 向かい合って見えるか — どちらも絵でしか分からない。
+ * **日記は出さない**（オーナー指示 2026-09-22「ホームの日記は消して」）。
  */
 export function HomePastScene({ q }: { q: URLSearchParams }) {
   // 束ね方(オーナー指摘⑪)。日以外では**日記の紙を出さない**ので、
@@ -190,30 +200,7 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
     FIXTURES.slice(0, 4).map((f, i) => makeSticker(f, i, d)),
   );
   const days = groupBySpan(shots, (s) => new Date(s.created_at), span);
-  // いちばん新しい束の1日目にだけ日記を置く。ほかは**何も出ないのが正しい姿**。
-  const first = days[0];
-  const journals = new Map([
-    [
-      // 日記は**地方時の**日付を鍵に持つ。`created_at` は UTC の文字列
-      // なので、頭10文字を切ると UTC より西の人で1日ずれる。
-      localDayKey(new Date(first[1][0].created_at)),
-      {
-        body: "今天在士林夜市喝了珍珠奶茶。天氣很熱,所以我點了少冰。老闆問我要不要加珍珠,我說要。",
-        note: "「去」の後ろに「了」を入れると、行った動作が完了したことがはっきりします。",
-        used_sticker_ids: [first[1][0].id, first[1][2].id],
-      },
-    ],
-  ]);
-  return (
-    <PastDays
-      days={days}
-      onOpen={() => {}}
-      truncated
-      shown={1000}
-      total={1342}
-      journals={journals}
-    />
-  );
+  return <PastDays days={days} onOpen={() => {}} truncated shown={1000} total={1342} />;
 }
 
 /**
@@ -256,7 +243,7 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} total={257} tagline={dayTagline(today, tStatic)} />
+      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
       <DayCollage stickers={today} opening onOpen={() => {}} />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />

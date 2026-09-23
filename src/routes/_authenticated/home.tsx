@@ -1,4 +1,5 @@
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
+import { decorFor } from "@/lib/collage-decor";
 import {
   applyDelta,
   boardHeight,
@@ -20,9 +21,7 @@ import {
 import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { DayJournalPage } from "@/components/DayJournalPage";
 import { groupBySpan, keyToDate } from "@/lib/album-span";
-import { listJournal } from "@/lib/journal.functions";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
@@ -43,12 +42,18 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookText, Check, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
+import { BookText, Check, Trash2, WifiOff } from "lucide-react";
+import {
+  readWallpaper,
+  wallClass,
+  wallFromClass,
+  WALLPAPER_EVENT,
+  type WallId,
+} from "@/lib/wallpaper";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
-import { JOURNAL_ENABLED } from "@/lib/features";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -212,15 +217,6 @@ export function PendingCapturesCard({
   );
 }
 
-const BG_OPTIONS = [
-  { id: "paper", labelKey: "home.bgPaper", className: "album-bg-paper" },
-  { id: "frame", labelKey: "home.bgFrame", className: "album-bg-frame" },
-  { id: "notebook", labelKey: "home.bgNotebook", className: "album-bg-notebook" },
-  { id: "cork", labelKey: "home.bgCork", className: "album-bg-cork" },
-] as const;
-
-type BgId = (typeof BG_OPTIONS)[number]["id"];
-
 function HomePage() {
   const t = useT();
   const navigate = useNavigate();
@@ -251,14 +247,23 @@ function HomePage() {
   const [openFrom, setOpenFrom] = useState<FlightOrigin | null>(null);
   /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
   const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
-  const [bg, setBg] = useState<BgId>("paper");
+  /**
+   * 壁紙。**選ぶ所は設定**（オーナー指示 2026-09-23「ホームの上に丸で表示
+   * するのはダサいからやめて」）。ここは読むだけで、設定で変えたら
+   * 知らせを受けて貼り替える（`lib/wallpaper.ts`）。
+   */
+  const [wall, setWall] = useState<WallId>("paper");
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("album-bg") : null;
-    if (saved && BG_OPTIONS.some((o) => o.id === saved)) setBg(saved as BgId);
+    setWall(readWallpaper());
+    const h = () => setWall(readWallpaper());
+    window.addEventListener(WALLPAPER_EVENT, h);
+    window.addEventListener("storage", h);
+    return () => {
+      window.removeEventListener(WALLPAPER_EVENT, h);
+      window.removeEventListener("storage", h);
+    };
   }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("album-bg", bg);
-  }, [bg]);
+  const surfaceClass = wallClass(wall);
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
@@ -302,40 +307,14 @@ function HomePage() {
     }));
   }, [stickers, todayKey]);
 
-  /**
-   * 日付ごとの日記(要望 #22)。
-   *
-   * 日記の画面と**同じ問い合わせ鍵**を使うので、どちらかを開いていれば
-   * もう一方は取り直さない。失敗しても黙って消える — 日記が出ないことで
-   * ホームを止めない。
-   *
-   * **直した文が在ればそちら、無ければ下書き。** 添削前の日も本には残る。
+  /*
+   * **ホームに日記は出さない**（オーナー指示 2026-09-22「ホームの日記は
+   * 消して」）。前はここで日記を読み、過去の日の写真の向かいに挟んでいた。
+   * 日記そのもの（`/journal` と `DayJournalPage`）は消していない。
    */
-  const fetchJournal = useServerFn(listJournal);
-  const { data: journalEntries } = useQuery({
-    queryKey: ["journal"],
-    queryFn: () => fetchJournal(),
-    enabled: JOURNAL_ENABLED,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-  const journalsByDay = useMemo(() => {
-    const m = new Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>();
-    for (const e of journalEntries ?? []) {
-      const body = (e.correction ?? e.user_draft ?? "").trim();
-      // **空の日は入れない。** 入れると空の紙が本に挟まる。
-      if (!body) continue;
-      m.set(e.entry_date, {
-        body,
-        note: e.feedback_ja,
-        used_sticker_ids: e.used_sticker_ids ?? [],
-      });
-    }
-    return m;
-  }, [journalEntries]);
   return (
     <AppShell>
-      <DayMasthead date={today} total={total} tagline={dayTagline(todayStickers, t)} />
+      <DayMasthead date={today} tagline={dayTagline(todayStickers, t)} />
 
       <PendingCapturesBanner />
 
@@ -353,6 +332,7 @@ function HomePage() {
               過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
           <DayCollage
             stickers={todayStickers}
+            surface={surfaceClass}
             opening
             onOpen={(id, from) => {
               setOpenId(id);
@@ -385,6 +365,7 @@ function HomePage() {
           日、週、月のボタンを消して」)。日ごとに素直に並べる。 */}
       {pastGroups.length > 0 && (
         <PastDays
+          surface={surfaceClass}
           days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
           onOpen={(id, from) => {
             setOpenId(id);
@@ -398,7 +379,6 @@ function HomePage() {
           truncated={truncated}
           shown={shown}
           total={total}
-          journals={JOURNAL_ENABLED ? journalsByDay : undefined}
         />
       )}
       <StickerSheet
@@ -490,9 +470,11 @@ export function PastDays({
   truncated,
   shown,
   total,
-  journals,
   onLongPress,
+  surface,
 }: {
+  /** 壁の地（`album-bg-*`）。今日の誌面と同じ物。 */
+  surface?: string;
   days: Array<[string, StickerWithWord[]]>;
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   truncated: boolean;
@@ -500,12 +482,6 @@ export function PastDays({
   total: number;
   /** 写真の長押し。渡さなければ何もしない。 */
   onLongPress?: (id: string) => void;
-  /**
-   * 日付(YYYY-MM-DD)ごとの日記(要望 #22)。
-   * **無い日は入っていない** — 日記の無い日に空の枠を並べると、
-   * 本が書き損じの束に見える。
-   */
-  journals?: Map<string, { body: string; note?: string | null; used_sticker_ids: string[] }>;
 }) {
   const t = useT();
   const dateLocale = localeOf(useUiLang());
@@ -536,58 +512,15 @@ export function PastDays({
           {/* **日付の見出しだけ。** 週・月の束ね方は消した(オーナー指示
               「ホームの画面の日、週、月のボタンを消して」)。 */}
           <DayHeader date={keyToDate(k)} compact />
-          <DayCollage stickers={items} onOpen={onOpen} onLongPress={onLongPress} />
-          {/* 写真のページの**向かい**に日記を置く(要望 #22)。
-              使った語は `used_sticker_ids` から出す — 書かれてはいたが
-              **読む所がどこにも無かった**列。その日の札は既に手元に在るので、
-              id を突き合わせるだけでよく、問い合わせは増えない。 */}
-          {(() => {
-            // **日記の紙は日ごとのページにだけ挟む。** 週や月の束には
-            // 何日ぶんもの日記が入り得るので、どれを見開きに置くのか
-            // 決められない(適当に1日ぶんだけ出すと、書いた日が消える)。
-            const j = journals?.get(k);
-            if (!j) return null;
-            const used = new Set(j.used_sticker_ids);
-            return (
-              <DayJournalPage
-                body={j.body}
-                note={j.note}
-                usedWords={items.filter((s) => used.has(s.id)).map((s) => s.word.headword)}
-              />
-            );
-          })()}
+          <DayCollage
+            stickers={items}
+            surface={surface}
+            onOpen={onOpen}
+            onLongPress={onLongPress}
+          />
         </div>
       ))}
     </section>
-  );
-}
-
-export function BackgroundPicker({
-  current,
-  onChange,
-}: {
-  current: BgId;
-  onChange: (b: BgId) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="mb-3 flex items-center justify-end">
-      <ImageIcon aria-hidden className="mr-1 h-3 w-3 text-muted-foreground" />
-      {/* §11: keep the swatch small but pad the tap target to the 44px floor. */}
-      {BG_OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          aria-label={`${t("home.background")}: ${t(o.labelKey)}`}
-          aria-pressed={current === o.id}
-          className="press-in grid h-11 w-11 place-items-center rounded-full"
-        >
-          <span
-            className={`block h-7 w-7 overflow-hidden rounded-full border ${o.className} ${current === o.id ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
-          />
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -692,13 +625,10 @@ function flightFrom(button: HTMLElement): FlightOrigin | null {
 export function DayMasthead({
   date,
   tagline,
-  total,
 }: {
   date: Date;
   /** 右の手書きの一言。無ければ出さない。 */
   tagline?: string;
-  /** これまでに捕まえた語の数。見本の絵の右上の数字。 */
-  total?: number;
 }) {
   const t = useT();
   const locale = localeOf(useUiLang());
@@ -715,17 +645,9 @@ export function DayMasthead({
   const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
   return (
     <header className="day-masthead">
-      <div className="day-masthead__rail">
-        <span className="day-masthead__rule-line" aria-hidden="true" />
-        {total != null && (
-          <span className="day-masthead__count">
-            <span className="day-masthead__count-n">{formatCount(total)}</span>
-            {/* 数字だけでは何の数か分からない（§3）。見本の絵は裸の数字だが、
-                実物では読む人が意味を取れないので小さく添える。 */}
-            <span className="day-masthead__count-label label-caps">{t("home.countLabel")}</span>
-          </span>
-        )}
-      </div>
+      {/* **右上の「ことば N」と横線は出さない**（オーナー指示 2026-09-22
+          「ホーム画面右上の ことば０と横の線を消して」）。語の総数は図鑑に
+          在り、ここでは今日の日付と写真が主役。 */}
       <div className="day-masthead__row">
         <div className="day-masthead__lead">
           <p className="day-masthead__date">{weekday}</p>
@@ -871,12 +793,54 @@ const CAP_NOTE_PX = 56;
 const PLAIN_WORD_PX = 32;
 const MIN_TAP_PX = 44;
 
+/** 写真を壁に留める物（`lib/collage-decor.ts`）。 */
+function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
+  const d = decorFor(id, wall);
+  if (d.kind === "pin") {
+    // コルクの壁は**画鋲**。頭の色は4色、位置は上の辺の真ん中あたり。
+    return (
+      <span
+        aria-hidden="true"
+        className={`collage-pin collage-pin--${d.color}`}
+        style={{ left: `${d.x}%` }}
+      />
+    );
+  }
+  if (d.kind === "corners") {
+    return (
+      <>
+        {(["tl", "tr", "bl", "br"] as const).map((c) => (
+          <span key={c} aria-hidden="true" className={`collage-corner collage-corner--${c}`} />
+        ))}
+      </>
+    );
+  }
+  return (
+    <>
+      {d.tapes.map((tp) => (
+        <span
+          key={tp.spot}
+          aria-hidden="true"
+          className={`collage-tape collage-tape--${tp.spot} collage-tape--${tp.color}`}
+          style={{ rotate: `${tp.rot}deg` }}
+        />
+      ))}
+    </>
+  );
+}
+
 export function DayCollage({
   stickers,
   onOpen,
   onLongPress,
   opening,
+  surface = "album-bg-paper",
 }: {
+  /**
+   * 壁の地（`album-bg-*`）。既定は紙（オーナー指示 2026-09-22「やっぱり
+   * 背景、壁が必要だわ」）。
+   */
+  surface?: string;
   stickers: StickerWithWord[];
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   /**
@@ -1363,9 +1327,10 @@ export function DayCollage({
   }, [live, board, boardH]);
 
   return (
-    // **誌面。紙は敷かない**（オーナー指示 2026-09-18「背景の紙なくして。
-    // マスキングテープもなしくて」）。写真そのものが面を作る。
-    <div className={`collage relative ${opening ? "album-open" : ""}`}>
+    // **壁に貼った誌面**（オーナー指示 2026-09-22「ホーム画面、やっぱり背景、
+    // 壁が必要だわ…前のように壁に付箋や四隅を固定して画像を張るようにして」）。
+    // 2026-09-18 に外した紙とテープを、**写真の載る所だけ**に戻した。
+    <div className={`collage collage-board relative ${surface} ${opening ? "album-open" : ""}`}>
       {editing && (
         /**
          * **画面に貼り付ける。台紙に貼らない。**（オーナー報告 2026-09-15
@@ -1672,6 +1637,9 @@ export function DayCollage({
                 </span>
               )}
 
+              {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
+                  紙に直に書いた物なので留めない。 */}
+              {heroUrl && <CollageFasteners id={s.id} wall={wallFromClass(surface)} />}
               {/**
                * 写真の下に付く字。**枠の外に出す**ので、置き方の計算には
                * `extra` として高さを渡してある（渡さないと次の札が乗る）。

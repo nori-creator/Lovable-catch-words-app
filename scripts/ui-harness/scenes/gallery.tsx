@@ -22,6 +22,7 @@
 import { DexAlbumGrid, PackGallery } from "@/routes/_authenticated/dex";
 import { makeStickers } from "./shelf";
 import type { LayoutId } from "@/lib/ui-pack";
+import { memoryBadgeMap } from "@/lib/memory-badge";
 
 export function GalleryScene({ q }: { q: URLSearchParams }) {
   const count = Number(q.get("count") ?? 8);
@@ -39,5 +40,27 @@ export function GalleryScene({ q }: { q: URLSearchParams }) {
     // (`ui-audit.mjs` の MODES)から渡す。
     return <PackGallery items={items} onOpen={() => {}} layout={layout as LayoutId} />;
   }
-  return <DexAlbumGrid items={items} onOpen={() => {}} />;
+  /**
+   * **記憶の印（右上）を6段すべて出す**（オーナー指示 2026-09-22）。
+   * 雛形は通信できないので、復習の画面と同じ形の値を手で渡す。
+   * 間隔と定着度を段ごとに振り、1枚目から「忘れかけ」→「長期記憶」と並ぶ。
+   * 最後の2枚は印なし（まだ復習の記録が無い札の姿）。
+   */
+  const samples: Array<[number, number]> = [
+    [20, 1],
+    [60, 1],
+    [90, 1],
+    [97, 3],
+    [100, 30],
+    [100, 90],
+  ];
+  const memory = memoryBadgeMap(
+    items.slice(0, samples.length).map((s, i) => ({
+      sticker_id: s.id,
+      retention: samples[i][0],
+      interval_days: samples[i][1],
+      ease: 2.5,
+    })),
+  );
+  return <DexAlbumGrid items={items} onOpen={() => {}} memory={memory} />;
 }

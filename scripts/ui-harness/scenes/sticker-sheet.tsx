@@ -140,8 +140,6 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           onEnrichRetry={() => {}}
           regenerating={false}
           regenerate={() => {}}
-          reporting={variant === "reporting"}
-          reportIssue={() => {}}
           // ネット画像の候補は、自分の写真が無いときだけ出る。
           webCandidates={variant === "candidates" ? CANDIDATES : []}
           swapping={null}

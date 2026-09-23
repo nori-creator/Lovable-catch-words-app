@@ -520,27 +520,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "點一下可以看每個字的遺忘曲線，以及「什麼時候會忘記」的預測",
   },
   "rv.today": { ja: "今日", en: "Today", "zh-TW": "今天" },
-  "rv.retention": { ja: "記憶保持率", en: "Retention", "zh-TW": "記憶保持率" },
-  "rv.daysLater": { ja: "{n}日後", en: "in {n}d", "zh-TW": "{n} 天後" },
-  "rv.daysAgo": { ja: "{n}日前", en: "{n}d ago", "zh-TW": "{n} 天前" },
-  "rv.avgRetention": { ja: "平均記憶率", en: "Average retention", "zh-TW": "平均記憶率" },
-  "rv.dayN": { ja: "{n}日", en: "{n}d", "zh-TW": "{n} 天" },
-  "rv.formula1": {
-    ja: "曲線は保持率 R = e−t/S(S = 間隔 × 定着度)。● の復習ごとに 100% へ回復し、",
-    en: "The curve is retention R = e−t/S (S = interval × strength). Each ● review restores it to 100%, and",
-    "zh-TW": "曲線是保持率 R = e−t/S（S = 間隔 × 熟練度）。每次 ● 複習都會回到 100%，",
-  },
-  "rv.formula2": {
-    ja: "正解すると S が伸びて坂が緩やかになります。",
-    en: "getting it right grows S, flattening the slope.",
-    "zh-TW": "答對時 S 會變長，坡度就變緩。",
-  },
-  "rv.formula3": {
-    ja: "付近が、思い出す努力が効く一番おいしい復習タイミングです。",
-    en: "is the sweet spot where the effort of recall pays off most.",
-    "zh-TW": "附近是「回想的努力」最划算的複習時機。",
-  },
-  "rv.greenLine": { ja: "緑の線(85%)", en: "The green line (85%)", "zh-TW": "綠色的線（85%）" },
   "rv.noAsr": {
     ja: "このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。",
     en: "This browser doesn't support speech recognition. Please type in the box instead.",
@@ -595,6 +574,39 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.allCategories": { ja: "すべて", en: "All", "zh-TW": "全部" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar", "zh-TW": "行事曆" },
+  "set.orSearch": {
+    ja: "モデルを探す（例: gemini flash）",
+    en: "Search models (e.g. gemini flash)",
+    "zh-TW": "搜尋模型（例如 gemini flash）",
+  },
+  "set.orFree": { ja: "無料", en: "Free", "zh-TW": "免費" },
+  "set.orVision": { ja: "画像を読める", en: "Reads images", "zh-TW": "可讀圖片" },
+  "set.orVisionOnly": {
+    ja: "スキャンは写真を読むので、画像を読めるモデルだけ出しています。",
+    en: "Scan reads photos, so only image-capable models are listed.",
+    "zh-TW": "掃描需要讀照片，所以只列出能讀圖片的模型。",
+  },
+  "set.orPriceUnit": {
+    ja: "値段は100万トークンあたり（入力 / 出力、米ドル）",
+    en: "Price per 1M tokens (input / output, USD)",
+    "zh-TW": "價格為每 100 萬 token（輸入 / 輸出，美元）",
+  },
+  "set.orNoKey": {
+    ja: "OpenRouter の鍵が見つかりません（OPENROUTER_API_KEY など）。選んでも既定のAIで動きます。",
+    en: "No OpenRouter key found (OPENROUTER_API_KEY etc.). Choices fall back to the default AI.",
+    "zh-TW": "找不到 OpenRouter 的金鑰（OPENROUTER_API_KEY 等）。選了也會使用預設的 AI。",
+  },
+  "set.orLoadFailed": {
+    ja: "OpenRouter の一覧を取れませんでした（{e}）。モデル名を手で入れてください。",
+    en: "Couldn't load the OpenRouter list ({e}). Type a model name instead.",
+    "zh-TW": "無法取得 OpenRouter 的清單（{e}）。請手動輸入模型名稱。",
+  },
+  "dex.prevDay": { ja: "前の撮った日", en: "Previous day", "zh-TW": "上一個拍攝日" },
+  "dex.nextDay": { ja: "次の撮った日", en: "Next day", "zh-TW": "下一個拍攝日" },
+  "dex.dayPhotos": { ja: "枚", en: "photos", "zh-TW": "張" },
+  "dex.dayPlaces": { ja: "か所", en: "places", "zh-TW": "個地點" },
+  "dex.dayHours": { ja: "時間帯", en: "hours", "zh-TW": "時段" },
+  "dex.cards": { ja: "カード", en: "Cards", "zh-TW": "卡片" },
   "dex.calendarEmpty": {
     ja: "まだ写真がありません。撮るとその日のマスに入ります。",
     en: "No photos yet. Each one lands on the day you took it.",
@@ -620,7 +632,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
   "card.pronZhuyin": { ja: "発音・注音", en: "Pronunciation & Zhuyin", "zh-TW": "發音・注音" },
   "card.posLabel": { ja: "品詞", en: "Part of speech", "zh-TW": "詞性" },
-  "card.otherLabel": { ja: "その他", en: "Other", "zh-TW": "其他" },
   "card.reportError": {
     ja: "この語の誤りを報告",
     en: "Report an error in this entry",
@@ -1272,9 +1283,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "等待分析的照片",
   },
   "home.bgPaper": { ja: "紙", en: "Paper", "zh-TW": "紙" },
-  "home.bgFrame": { ja: "額", en: "Frame", "zh-TW": "相框" },
+  "home.bgFrame": { ja: "額縁", en: "Picture frame", "zh-TW": "畫框" },
   "home.bgNotebook": { ja: "ノート", en: "Notebook", "zh-TW": "筆記本" },
-  "home.bgCork": { ja: "コルク", en: "Cork", "zh-TW": "軟木板" },
+  "home.bgCork": { ja: "コルクと画鋲", en: "Corkboard", "zh-TW": "軟木板與圖釘" },
+  "home.bgWall": { ja: "壁", en: "Wall", "zh-TW": "牆面" },
   "user.profile": { ja: "プロフィール", en: "Profile", "zh-TW": "個人檔案" },
   "user.loading": { ja: "読み込み中…", en: "Loading…", "zh-TW": "載入中…" },
   "user.loadFailed": {
@@ -1618,10 +1630,42 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "No review data yet. Review this word and its forgetting curve will appear here.",
     "zh-TW": "還沒有複習資料。複習之後，遺忘曲線就會顯示在這裡。",
   },
-  "curve.nowPct": { ja: "今 {pct}%", en: "now {pct}%", "zh-TW": "現在 {pct}%" },
-  "curve.retention": { ja: "記憶率", en: "Retention", "zh-TW": "記憶率" },
-  "curve.days": { ja: "{n}日", en: "day {n}", "zh-TW": "{n} 天" },
-  "curve.youAreHere": { ja: "今ココ", en: "You are here", "zh-TW": "你在這裡" },
+  "curve.axisNote": {
+    ja: "縦軸＝いま思い出せる見込み",
+    en: "Vertical axis = chance you can recall it now",
+    "zh-TW": "縱軸＝現在想得起來的機率",
+  },
+  "curve.legendPast": { ja: "これまで", en: "So far", "zh-TW": "到目前為止" },
+  "curve.legendFuture": { ja: "復習しなかったら", en: "If not reviewed", "zh-TW": "如果不複習" },
+  "curve.legendReview": { ja: "復習した日", en: "Reviewed", "zh-TW": "複習過的日子" },
+  "curve.todayPct": { ja: "今日 {pct}%", en: "Today {pct}%", "zh-TW": "今天 {pct}%" },
+  "curve.bestTick": { ja: "復習どき", en: "Review", "zh-TW": "複習時機" },
+  "curve.aria": {
+    ja: "記憶の曲線。今日の記憶率 {pct}%、復習 {n} 回",
+    en: "Memory curve. Today {pct}%, reviewed {n} times",
+    "zh-TW": "記憶曲線。今天的記憶率 {pct}%，複習 {n} 次",
+  },
+  "curve.reviewNow": {
+    ja: "今が復習どき",
+    en: "Now is the time to review",
+    "zh-TW": "現在就是複習時機",
+  },
+  "curve.reviewNowHint": {
+    ja: "いま思い出すと、次に忘れるまでの期間が伸びます。",
+    en: "Recalling it now makes the memory last longer.",
+    "zh-TW": "現在回想，下次忘記前的時間會變長。",
+  },
+  "curve.reviewNowCta": { ja: "いま復習する", en: "Review now", "zh-TW": "現在複習" },
+  "curve.reviewOn": {
+    ja: "{date}（{n}日後）が復習どき",
+    en: "Review on {date} (in {n}d)",
+    "zh-TW": "{date}（{n} 天後）是複習時機",
+  },
+  "curve.reviewOnHint": {
+    ja: "その日に復習に出ます。思い出すと記憶が長く続きます。復習しないと点線のように下がっていきます。",
+    en: "It will come up in review that day. Recalling it then makes it last. Without review it drops like the dashed line.",
+    "zh-TW": "那天會出現在複習裡。那時回想，記憶會更持久。不複習的話會像虛線一樣下降。",
+  },
   // --- bottom nav ---
   "nav.home": { ja: "ホーム", en: "Home", "zh-TW": "首頁" },
   "nav.dex": { ja: "図鑑", en: "Dex", "zh-TW": "圖鑑" },
@@ -1749,7 +1793,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- scan ---
   "scan.button": { ja: "スキャン", en: "Scan", "zh-TW": "掃描" },
   "scan.again": { ja: "もう一度", en: "Retake", "zh-TW": "再一次" },
-  "scan.rescan": { ja: "再スキャン", en: "Scan again", "zh-TW": "重新掃描" },
   "scan.found": { ja: "見つかった単語", en: "Words found", "zh-TW": "找到的單字" },
   "scan.searchPlaceholder": {
     ja: "候補に無い？日本語で調べる（例: マンゴー）",
@@ -1875,19 +1918,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.submit": { ja: "送信してフィードバック", en: "Get feedback", "zh-TW": "送出並取得回饋" },
   "review.grading": { ja: "AIが添削中…", en: "AI is reviewing…", "zh-TW": "AI 批改中…" },
   // --- memory ---
+  "memory.badgeAria": {
+    ja: "記憶の状態: {label}（{n}%）",
+    en: "Memory: {label} ({n}%)",
+    "zh-TW": "記憶狀態：{label}（{n}%）",
+  },
   "memory.level0": { ja: "忘れかけ", en: "Fading", "zh-TW": "快忘了" },
   "memory.level1": { ja: "あやうい", en: "Shaky", "zh-TW": "有點危險" },
   "memory.level2": { ja: "うろ覚え", en: "Fuzzy", "zh-TW": "記得模糊" },
   "memory.level3": { ja: "定着中", en: "Settling", "zh-TW": "正在扎根" },
   "memory.level4": { ja: "覚えた", en: "Learned", "zh-TW": "記住了" },
   "memory.level5": { ja: "長期記憶", en: "Long-term", "zh-TW": "長期記憶" },
-  "memory.bestReview": { ja: "ベスト復習", en: "Best review", "zh-TW": "最佳複習時機" },
-  "memory.forgetIn": { ja: "50%を切る", en: "Drops below 50%", "zh-TW": "掉到 50% 以下" },
-  "memory.nextDue": { ja: "次の出題", en: "Next due", "zh-TW": "下次出題" },
   "memory.reviews": { ja: "復習", en: "Reviews", "zh-TW": "複習" },
   "memory.times": { ja: "回", en: "×", "zh-TW": "次" },
-  "memory.today": { ja: "今日", en: "Today", "zh-TW": "今天" },
-  "memory.daysLater": { ja: "日後", en: "d later", "zh-TW": "天後" },
   // --- word card sections ---
   "card.meaning": { ja: "意味", en: "Meaning", "zh-TW": "意思" },
   "card.web_images": { ja: "ネットの画像", en: "Images from the web", "zh-TW": "網路上的圖片" },
@@ -2031,11 +2074,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.changePhoto": { ja: "写真を変更", en: "Change photo", "zh-TW": "更換照片" },
   "card.report": { ja: "報告", en: "Report", "zh-TW": "回報" },
   "card.reportWhat": { ja: "どこが違う？", en: "What's wrong?", "zh-TW": "哪裡不對？" },
-  "card.reportThanks": {
-    ja: "🙏 報告ありがとうございます",
-    en: "🙏 Thanks for reporting",
-    "zh-TW": "🙏 謝謝你的回報",
-  },
   "card.regenAll": {
     ja: "✨ 解説を再生成",
     en: "✨ Regenerate details",
@@ -2045,11 +2083,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "解説の再生成は Pro 限定",
     en: "Regenerating details is Pro-only",
     "zh-TW": "重新產生解說是 Pro 限定",
-  },
-  "card.preparing": {
-    ja: "詳しい解説をAIが準備中…",
-    en: "AI is preparing the details…",
-    "zh-TW": "AI 正在準備詳細解說…",
   },
   "card.enrichFailed": {
     ja: "詳しい解説を作れませんでした",
@@ -2091,7 +2124,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
   // 右上の数字（これまでに捕まえた語）。裸の数字では何の数か分からないので
   // 小さく添える（見本の絵は裸だが、実物では読む人が意味を取れない）。
-  "home.countLabel": { ja: "ことば", en: "words", "zh-TW": "個字" },
   // 表紙の手書きの一言。**手元に在る事実だけで書く** — その日いちばん多く
   // 出てくる場所の名前と、語の数。場所が1つも無い日は場所を言わない。
   "home.tagline": {
@@ -2111,7 +2143,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "home.memories": { ja: "枚の思い出", en: "memories caught", "zh-TW": "張回憶" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet", "zh-TW": "還沒有照片" },
-  "home.background": { ja: "背景", en: "Background", "zh-TW": "背景" },
+  "home.background": { ja: "ホームの壁紙", en: "Home wallpaper", "zh-TW": "首頁桌布" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
   // ヘッダーのアイコンを押すと出る、自分の記録。
@@ -2242,16 +2274,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "🌐 正在從網路上找圖片…",
   },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…", "zh-TW": "重新產生中…" },
-  "card.reportPrompt": {
-    ja: "意味や発音が変？報告してAIに直させる",
-    en: "Wrong meaning or reading? Report and let AI fix it",
-    "zh-TW": "意思或發音怪怪的？回報讓 AI 改",
+  "card.reportFixing": { ja: "確かめています…", en: "Checking…", "zh-TW": "確認中…" },
+  "card.reportFixed": {
+    ja: "「{item}」を直しました",
+    en: "Fixed “{item}”",
+    "zh-TW": "已修正「{item}」",
   },
-  "card.reportFixing": { ja: "AIが作り直し中…", en: "AI is rebuilding…", "zh-TW": "AI 重做中…" },
-  "card.reportDone": {
-    ja: "報告ありがとう。AIが作り直しました",
-    en: "Thanks — AI rebuilt this card",
-    "zh-TW": "謝謝你的回報，AI 已經重做好了",
+  "card.reportQueued": {
+    ja: "報告を受け付けました。確かめてから直します",
+    en: "Report received. We'll check it before changing anything",
+    "zh-TW": "已收到回報，確認後會修正",
   },
   "card.reportFailed": {
     ja: "報告に失敗しました",
@@ -2767,6 +2799,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Added to your collection, but the photo could not be saved to this phone. Check device permissions.",
     "zh-TW": "已加入圖鑑，但無法將照片儲存到手機。請檢查裝置權限。",
   },
+  "dex.calMonthSummary": {
+    ja: "{n}枚・{d}日",
+    en: "{n} photos · {d} days",
+    "zh-TW": "{n} 張・{d} 天",
+  },
+  "dex.calPhotos": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },

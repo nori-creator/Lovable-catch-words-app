@@ -278,3 +278,53 @@ export const setAiModelConfig = createServerFn({ method: "POST" })
     if (error) throw internalFailure("admin", error, "設定を保存できませんでした");
     return { ok: true, config: clean };
   });
+
+// --- OpenRouter のモデル一覧（開発者の設定で選ぶ用）------------------------
+
+let openRouterCache: {
+  at: number;
+  models: import("./openrouter-models").OpenRouterModel[];
+} | null = null;
+
+/**
+ * OpenRouter で呼べるモデルの一覧（admin 限定）。1時間ためておく。
+ *
+ * この一覧自体は鍵が無くても読める公開の入口だが、鍵が見つかっていれば
+ * 付けて頼む（その鍵で使える物に合わせるため）。取れなかったときは
+ * **空の一覧と理由**を返し、画面は手で打つ欄に落ちる。
+ */
+export const listOpenRouterModels = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("管理者のみ");
+    const { parseOpenRouterModels } = await import("./openrouter-models");
+    const { findKey } = await import("./ai-provider.server");
+    const key = findKey("openrouter");
+    if (openRouterCache && Date.now() - openRouterCache.at < 60 * 60_000) {
+      return {
+        models: openRouterCache.models,
+        keyFound: Boolean(key),
+        error: null as string | null,
+      };
+    }
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: key ? { Authorization: `Bearer ${key.value}` } : {},
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const models = parseOpenRouterModels(await res.json());
+      openRouterCache = { at: Date.now(), models };
+      return { models, keyFound: Boolean(key), error: null as string | null };
+    } catch (e) {
+      return {
+        models: [],
+        keyFound: Boolean(key),
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  });
