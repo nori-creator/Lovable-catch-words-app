@@ -222,7 +222,7 @@
 .first-intro-logo { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 20px; }
 .first-intro-heading h1 { font-size: 31px; font-weight: 780; line-height: 1.2; color: #10213d; letter-spacing: -.035em; }
 .first-intro-heading p { margin-top: 14px; font-size: 16px; line-height: 1.65; color: #63758b; white-space: pre-line; }
-.first-polaroids { position: relative; height: min(44dvh, 350px); min-height: 285px; margin: 24px auto 0; width: 100%; max-width: 350px; }
+.first-polaroids { position: relative; height: min(48dvh, 390px); min-height: 285px; margin: 24px auto 0; width: 100%; max-width: 370px; }
 .first-polaroid { position: absolute; width: 55%; padding: 7px 7px 12px; background: white; border-radius: 13px; box-shadow: 0 12px 24px #25608b25, 0 1px 4px #1b4f7712; animation: first-photo-enter .65s cubic-bezier(.2,.8,.2,1) backwards; }
 .first-polaroid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
 .first-polaroid span { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 7px; background: #eff8ff; font-size: 14px; font-weight: 750; }
@@ -259,6 +259,21 @@
 .first-ready-heading h1 { margin: 18px 0 14px; font-size: clamp(29px, 7vw, 34px); line-height: 1.4; letter-spacing: -.04em; font-weight: 780; }
 .first-ready-heading p { color: #667b90; line-height: 1.75; font-size: 15px; white-space: pre-line; }
 .first-ready-art { position: relative; width: min(77vw, 280px); margin: auto; transform: rotate(-5deg); animation: first-ready-float 3.5s ease-in-out infinite; }
+.first-confetti { position: absolute; inset: -30px -35px; pointer-events: none; }
+.first-confetti i { position: absolute; width: 7px; height: 14px; border-radius: 3px; background: #ffcb49; animation: first-confetti-drift 2.8s ease-in-out infinite alternate; }
+.first-confetti i:nth-child(1) { top: 2%; left: 12%; transform: rotate(-27deg); }
+.first-confetti i:nth-child(2) { top: 6%; right: 18%; background: #ff88b0; transform: rotate(28deg); animation-delay: -.5s; }
+.first-confetti i:nth-child(3) { top: 28%; left: -5%; background: #0e93ea; transform: rotate(42deg); animation-delay: -.9s; }
+.first-confetti i:nth-child(4) { top: 31%; right: -7%; background: #39cfac; transform: rotate(-32deg); animation-delay: -1.4s; }
+.first-confetti i:nth-child(5) { top: 50%; left: -12%; background: #ff85b0; transform: rotate(23deg); animation-delay: -.3s; }
+.first-confetti i:nth-child(6) { top: 53%; right: -12%; background: #ffcb49; transform: rotate(-18deg); animation-delay: -1.7s; }
+.first-confetti i:nth-child(7) { top: 77%; left: -6%; background: #36c8aa; transform: rotate(38deg); animation-delay: -1.1s; }
+.first-confetti i:nth-child(8) { top: 76%; right: -9%; background: #168ff2; transform: rotate(-44deg); animation-delay: -.7s; }
+.first-confetti i:nth-child(9) { bottom: -2%; left: 13%; background: #ffca4e; transform: rotate(18deg); animation-delay: -1.9s; }
+.first-confetti i:nth-child(10) { bottom: -4%; right: 14%; background: #e36ac1; transform: rotate(-29deg); animation-delay: -.4s; }
+.first-confetti i:nth-child(11) { top: 14%; left: -7%; background: #ffad52; transform: rotate(24deg); animation-delay: -1.3s; }
+.first-confetti i:nth-child(12) { top: 12%; right: -9%; background: #0e93ea; transform: rotate(-29deg); animation-delay: -.8s; }
+@keyframes first-confetti-drift { to { translate: 2px 9px; rotate: 14deg; } }
 .first-ready-photo { padding: 10px 10px 17px; background: white; border-radius: 12px; box-shadow: 0 16px 40px #007ed52b; }
 .first-ready-photo img { aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
 .first-ready-photo span { display: block; padding-top: 8px; color: #29496a; text-align: center; font-size: 15px; font-family: 'Zen Kurenaido', sans-serif; }

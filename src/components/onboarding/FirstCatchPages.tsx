@@ -179,6 +179,11 @@ export function FirstCatchReady({
           <p>{t("first.readyHint")}</p>
         </div>
         <div className="first-ready-art" aria-hidden="true">
+          <div className="first-confetti">
+            {Array.from({ length: 12 }, (_, i) => (
+              <i key={i} />
+            ))}
+          </div>
           <div className="first-ready-photo">
             <img src="/first-catch-ready.webp" alt="" />
             <span>{t("first.readyPhoto")}</span>

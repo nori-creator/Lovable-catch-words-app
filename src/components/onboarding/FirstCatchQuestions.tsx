@@ -69,13 +69,13 @@ export function FirstCatchQuestions({
             className="first-progress"
             role="progressbar"
             aria-valuemin={1}
-            aria-valuemax={5}
+            aria-valuemax={7}
             aria-valuenow={step + 1}
             aria-label={t("first.setup")}
           >
-            <span style={{ width: `${(step + 1) * 20}%` }} />
+            <span style={{ width: `${((step + 1) / 7) * 100}%` }} />
           </div>
-          <span className="first-count">{step + 1} / 5</span>
+          <span className="first-count">{step + 1} / 7</span>
         </header>
         <div className="first-question-heading">
           <span className="first-eyebrow">CatchWords</span>
@@ -212,7 +212,7 @@ export function FirstCatchQuestions({
               })
             }
           >
-            {t(step === 4 ? "first.start" : "first.next")}
+            {t("first.next")}
             <ArrowRight size={18} />
           </button>
           {step === 0 && (
