@@ -50,6 +50,57 @@ function sampleCard(target: FirstCatch["targetLanguage"], ui: FirstCatch["uiLang
     }[ui],
   });
 }
+// Only for explicitly labelled direct-link screen samples, never for a captured photograph.
+function sampleLesson(
+  target: FirstCatch["targetLanguage"],
+  ui: FirstCatch["uiLanguage"],
+): NonNullable<FirstCatch["lesson"]> {
+  const meaning = {
+    ja: ["コーヒー（飲み物）", "コーヒー（豆・粉）"],
+    en: ["coffee as a drink", "coffee beans or ground coffee"],
+    "zh-TW": ["作為飲品的咖啡", "咖啡豆或咖啡粉"],
+  }[ui];
+  const sentence = target === "en" ? "I bought coffee for the train ride." : "我買了咖啡帶上火車。";
+  const translation = {
+    ja: "列車で飲むためにコーヒーを買いました。",
+    en: "I bought coffee for the train ride.",
+    "zh-TW": "我買了咖啡帶上火車。",
+  }[ui];
+  return {
+    senses: meaning.map((value) => ({ meaning: value, note: "" })),
+    examples: [
+      {
+        sentence,
+        translation,
+        situation: {
+          ja: "旅先のカフェ",
+          en: "A cafe while traveling",
+          "zh-TW": "旅行途中的咖啡廳",
+        }[ui],
+        explanation: {
+          ja: "移動中に飲む一杯を買う場面です。",
+          en: "Use this for a drink you buy before a journey.",
+          "zh-TW": "描述旅途中買來喝的飲品。",
+        }[ui],
+      },
+      {
+        sentence:
+          target === "en" ? "These coffee beans smell wonderful." : "這些咖啡豆聞起來很香。",
+        translation: {
+          ja: "このコーヒー豆はとてもいい香りがします。",
+          en: "These coffee beans smell wonderful.",
+          "zh-TW": "這些咖啡豆聞起來很香。",
+        }[ui],
+        situation: { ja: "豆を選ぶとき", en: "Choosing coffee beans", "zh-TW": "挑選咖啡豆時" }[ui],
+        explanation: {
+          ja: "豆や粉を指す場合は、後ろに豆などを添えると明確です。",
+          en: "Add ‘beans’ when you mean the ingredient rather than the drink.",
+          "zh-TW": "指咖啡豆時，加上「豆」更清楚。",
+        }[ui],
+      },
+    ],
+  };
+}
 export function FirstCatchScene({ q }: { q: URLSearchParams }) {
   const t = useT();
   const [draft, setDraft] = useState<FirstCatch>(() => {
@@ -65,12 +116,13 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
       uiLanguage,
       targetLanguage,
       dailyMinutes: 10,
-      goals: [],
-      interests: [],
+      goals: stage === "explore" ? ["travel"] : [],
+      interests: stage === "explore" ? ["food"] : [],
       questionIndex: Math.max(0, Math.min(4, Number(q.get("question")) || 0)),
       stage,
       photo: sample ? "/first-catch-cafe.webp" : null,
       card: sample ? sampleCard(targetLanguage, uiLanguage) : null,
+      lesson: stage === "explore" ? sampleLesson(targetLanguage, uiLanguage) : undefined,
       capturedAt: sample ? "2026-09-23T09:00:00.000Z" : null,
     };
   });

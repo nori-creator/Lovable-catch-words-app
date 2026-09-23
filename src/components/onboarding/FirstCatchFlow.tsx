@@ -401,6 +401,7 @@ export function FirstCatchFlow({
           <WordCard
             word={sticker.word}
             autoplay={false}
+            guided
             personalContext={{
               id: draft.id,
               preferences: LearningPreferencesSchema.parse(draft),

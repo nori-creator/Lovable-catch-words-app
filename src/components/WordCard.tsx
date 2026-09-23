@@ -512,6 +512,8 @@ export const WordCard = forwardRef<
      * 図鑑の詳細では使わない — そちらは全部出るのが正しい。
      */
     minimal?: boolean;
+    /** Show the details during the first guided catch without exit links or report actions. */
+    guided?: boolean;
     personalContext?: PersonalLessonContext;
   }
 >(function WordCard(
@@ -523,6 +525,7 @@ export const WordCard = forwardRef<
     onPickImage,
     onEditHeadword,
     minimal = false,
+    guided = false,
     personalContext,
   },
   ref,
@@ -657,7 +660,10 @@ export const WordCard = forwardRef<
     id === "web_images" ? webImages.candidates.length > 0 : hasContent(id);
   const shown = minimal
     ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id) && canShow(id))
-    : order.filter((id) => isVisible(id) && canShow(id));
+    : order.filter(
+        (id) =>
+          isVisible(id) && canShow(id) && (!guided || !["web_images", "real_usage"].includes(id)),
+      );
 
   return (
     <div className="space-y-3">
@@ -665,6 +671,7 @@ export const WordCard = forwardRef<
         word={word}
         autoplay={autoplay}
         minimal={minimal}
+        guided={guided}
         onEditHeadword={onEditHeadword}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
@@ -834,6 +841,7 @@ function HeaderRow({
   word,
   autoplay,
   minimal = false,
+  guided = false,
   onEditHeadword,
 }: {
   word: WordCardData;
@@ -846,6 +854,7 @@ function HeaderRow({
    * (絵の3枚目で TOCFL の段々が画面の1/4を占めていた)。
    */
   minimal?: boolean;
+  guided?: boolean;
 }) {
   const t = useT();
   const autoplayedRef = useRef(false);
@@ -1013,7 +1022,7 @@ function HeaderRow({
                     {tag}
                   </span>
                 ))}
-              <ReportButton headword={word.headword} />
+              {!guided && <ReportButton headword={word.headword} />}
             </div>
           )}
         </div>

@@ -1375,7 +1375,7 @@ describe("2026-08-26 の3度目の報告", () => {
     // 2026-08-27 ④ で「ネットの画像は届いてから」が加わったので、
     // 条件は `canShow` に名前が付いた。中身は同じ — 行に中身が在るか、
     // ネットの画像なら1枚でも届いたか。
-    expect(src).toMatch(/order\.filter\(\(id\) => isVisible\(id\) && canShow\(id\)\)/);
+    expect(src).toMatch(/order\.filter\([\s\S]*?isVisible\(id\) && canShow\(id\)/);
     expect(src).toMatch(/: hasContent\(id\)/);
     // 「まだ作られていません」の枠そのものが残っていないこと。
     expect(src).not.toMatch(/EmptySection/);
@@ -4852,7 +4852,7 @@ describe("ホームは今日の誌面", () => {
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
     expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
     expect(home).toMatch(/<DayMasthead /);
-    expect(home).toMatch(/<DayCollage stickers=\{\[sticker \?\? sample\]\}/);
+    expect(home).toMatch(/<DayCollage\s+stickers=\{\[sticker \?\? sample\]\}/);
     expect(home).toMatch(/first-catch-cafe\.webp/);
     expect(home).not.toMatch(/<HomeEmptyState \/>/);
     // 画像の装飾3枚を登録背景の代わりにしない。
