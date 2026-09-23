@@ -228,7 +228,7 @@
 .first-polaroid span { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 7px; background: #eff8ff; font-size: 14px; font-weight: 750; }
 .first-polaroid-0 { left: 3%; top: 2%; transform: rotate(-9deg); animation-delay: .06s; }
 .first-polaroid-1 { right: 0; top: 28%; transform: rotate(8deg); animation-delay: .16s; z-index: 1; }
-.first-polaroid-2 { left: 16%; bottom: 0; transform: rotate(-5deg); animation-delay: .26s; z-index: 2; }
+.first-polaroid-2 { left: 7%; bottom: -46px; width: 43%; transform: rotate(-7deg); animation-delay: .26s; z-index: 2; }
 .first-handwriting { position: absolute; right: -2%; top: 1%; color: #0089e9; font-family: 'Zen Kurenaido', sans-serif; font-size: 18px; line-height: 1.5; white-space: pre-line; transform: rotate(-9deg); }
 .first-standalone-footer { margin-top: auto; padding-top: 24px; text-align: center; }
 .first-standalone-footer .first-primary { min-height: 58px; font-size: 17px; }
