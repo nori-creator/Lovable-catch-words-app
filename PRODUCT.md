@@ -23,10 +23,10 @@ The product should make the user's own life, photos, places and encounters becom
 Account creation must not be the first experience.
 1. Choose display language.
 2. Choose learning language.
-3. Ask desired daily study amount. The initial questionnaire is limited to display language, learning language and daily amount (owner-approved first-run design, 2026-09-22).
-4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product, not by showing a long feature list.
+3. Ask desired daily study amount, learning goals and interests (owner revision, 2026-09-23). Goals and interests are multi-select and tailor the learner's private example situations and explanations, never the shared dictionary meaning or which objects vision sees.
+4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product. Home starts with an explicitly marked generated-photo album example, so the first screen has no blank-day message.
 5. User takes one real photo and completes one Catch.
-6. Only after experiencing the first Catch/Collection moment, ask the user to create/sign in to an account so the collection can be saved.
+6. After the landing animation, let the user open the added word and read multiple real meanings, examples and usage. Only when the learner chooses to finish that view should they create/sign in to an account to save the collection.
 Guest progress must survive registration. The first photo/word must be durably added to the local Collection and its landing completed **before** the registration screen appears. Reuse actual Home components behind registration; do not promise a different illustrated home.
 
 ## Catch

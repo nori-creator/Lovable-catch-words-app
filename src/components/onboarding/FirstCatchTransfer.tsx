@@ -7,6 +7,8 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { readFirstCatch, writeFirstCatch, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
+import { supabase } from "@/integrations/supabase/client";
+import { learningPreferencesOf, LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { FirstCatchHome } from "./FirstCatchHome";
 import "./first-catch.css";
 
@@ -57,6 +59,14 @@ export function FirstCatchTransfer({
                 },
               }),
             preferences: async (current) => {
+              const { data: auth, error: authError } = await supabase.auth.getUser();
+              if (authError || auth.user?.id !== userId) throw new Error("Account changed");
+              if (!learningPreferencesOf(auth.user.user_metadata?.learning_preferences)) {
+                const { error } = await supabase.auth.updateUser({
+                  data: { learning_preferences: LearningPreferencesSchema.parse(current) },
+                });
+                if (error) throw error;
+              }
               const existing = await profile();
               if (!existing?.onboarded) {
                 const result = await update({

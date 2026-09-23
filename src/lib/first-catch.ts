@@ -3,6 +3,13 @@ import { CardSchema } from "./card-schema";
 import { UI_LANGS } from "./i18n";
 import { TARGET_LANGUAGES } from "./target-lang";
 import type { StickerWithWord } from "./stickers.functions";
+import {
+  DailyMinutesSchema,
+  FIRST_CATCH_GOALS,
+  FIRST_CATCH_INTERESTS,
+} from "./learning-preferences";
+import { PersonalLessonSchema } from "./first-catch-ai-schema";
+export { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS } from "./learning-preferences";
 
 export const FIRST_CATCH_KEY = "catchwords-first-catch-v1";
 export const FirstCatchSchema = z.object({
@@ -10,7 +17,10 @@ export const FirstCatchSchema = z.object({
   id: z.string().uuid(),
   uiLanguage: z.enum(UI_LANGS),
   targetLanguage: z.enum(TARGET_LANGUAGES),
-  dailyMinutes: z.union([z.literal(5), z.literal(10), z.literal(15)]),
+  dailyMinutes: DailyMinutesSchema,
+  goals: z.array(z.enum(FIRST_CATCH_GOALS)).max(6).optional(),
+  interests: z.array(z.enum(FIRST_CATCH_INTERESTS)).max(9).optional(),
+  questionIndex: z.number().int().min(0).max(4).optional(),
   stage: z.enum([
     "questions",
     "home",
@@ -19,11 +29,13 @@ export const FirstCatchSchema = z.object({
     "camera",
     "card",
     "added",
+    "explore",
     "account",
     "done",
   ]),
   photo: z.string().max(4_000_000).nullable(),
   card: CardSchema.nullable(),
+  lesson: PersonalLessonSchema.optional(),
   capturedAt: z.string().datetime().nullable(),
   importedUserId: z.string().uuid().optional(),
 });
@@ -63,7 +75,7 @@ export async function writeFirstCatch(draft: FirstCatch): Promise<void> {
 }
 export function canRequestAccount(draft: FirstCatch): boolean {
   return (
-    ["added", "account"].includes(draft.stage) &&
+    ["explore", "account"].includes(draft.stage) &&
     !!draft.photo &&
     !!draft.card &&
     !!draft.capturedAt

@@ -2,21 +2,17 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, Globe2, Loader2, CalendarCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, CalendarCheck } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  getUiLang,
-  setUiLang,
-  useT,
-  UI_LANGS,
-  UI_LANG_LABEL_KEYS,
-  TARGET_LANG_LABEL_KEYS,
-} from "@/lib/i18n";
-import { TARGET_LANGUAGES } from "@/lib/target-lang";
-import { getTargetLang, setTargetLang } from "@/lib/target-lang-pref";
-import { suggestWords, generateCard } from "@/lib/ai.functions";
-import { updateMyProfile } from "@/lib/profile.functions";
+import { getUiLang, useT } from "@/lib/i18n";
+import { FirstCatchQuestions } from "./FirstCatchQuestions";
+import { getTargetLang } from "@/lib/target-lang-pref";
+import type { suggestWords } from "@/lib/ai.functions";
+import { firstCatchAI } from "@/lib/first-catch-ai.functions";
+import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
+import { LearningPreferencesSchema } from "@/lib/learning-preferences";
+import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
   ensureFirstCatchSession,
   firstCatchPhoto,
@@ -43,29 +39,15 @@ export type FirstCatchServices = {
   prepare: (draft: FirstCatch) => Promise<void>;
   suggest: (photo: string, draft: FirstCatch) => ReturnType<typeof suggestWords>;
   card: (headword: string, draft: FirstCatch) => Promise<NonNullable<FirstCatch["card"]>>;
+  lesson?: (data: FirstCatchAIRequest) => Promise<unknown>;
 };
 
 export function FirstCatchEntry() {
-  const suggest = useServerFn(suggestWords);
-  const card = useServerFn(generateCard);
-  const profile = useServerFn(updateMyProfile);
+  const ai = useServerFn(firstCatchAI);
   const navigate = useNavigate();
   return (
     <FirstCatchFlow
-      services={{
-        prepare: async (draft) => {
-          await ensureFirstCatchSession();
-          const result = await profile({
-            data: { ui_language: draft.uiLanguage, target_language: draft.targetLanguage },
-          });
-          if ("skipped" in result && result.skipped?.length)
-            throw new Error("Preferences not saved");
-        },
-        suggest: (photo, draft) =>
-          suggest({ data: { imageBase64: photo, targetLanguage: draft.targetLanguage } }),
-        card: (headword, draft) =>
-          card({ data: { headword, targetLanguage: draft.targetLanguage } }),
-      }}
+      services={createFirstCatchServices((data) => ai({ data }), ensureFirstCatchSession)}
       onAccount={() => {
         void navigate({ to: "/auth", search: { next: "" } });
       }}
@@ -88,7 +70,6 @@ export function FirstCatchFlow({
   const [draft, setDraft] = useState<FirstCatch | null>(initialDraft ?? null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const [question, setQuestion] = useState(0);
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const retry = useRef<() => void>(() => {});
@@ -104,6 +85,7 @@ export function FirstCatchFlow({
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
+    if (initialDraft) applyFirstCatchLanguage(initialDraft);
     if (!initialDraft)
       void readFirstCatch()
         .then((saved) => {
@@ -150,9 +132,11 @@ export function FirstCatchFlow({
       if (mounted.current)
         setError(
           t(
-            e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
-              ? "first.guestUnavailable"
-              : "first.failed",
+            e instanceof Error && e.message === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
+              ? "first.previewUnavailable"
+              : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
+                ? "first.guestUnavailable"
+                : "first.failed",
           ),
         );
     } finally {
@@ -179,6 +163,7 @@ export function FirstCatchFlow({
         photo: image,
         capturedAt: new Date().toISOString(),
         card: null,
+        lesson: undefined,
         stage: "camera" as const,
       };
       await commit(next); // Durable BEFORE any network request.
@@ -193,6 +178,7 @@ export function FirstCatchFlow({
       await commit({
         ...draft,
         card: { ...card, headword_zh: card.headword_zh || headword },
+        lesson: undefined,
         stage: "card",
       });
       setDetailSeen(false);
@@ -211,7 +197,8 @@ export function FirstCatchFlow({
           startEl: hero.current,
           fly,
           gate,
-          destinationId: `dex-cell-${next.id}`,
+          // The shared runner adds the DOM prefix itself.
+          destinationId: next.id,
           speakLine: () => pronounce(next.card!.headword_zh),
           openDex: () => {
             if (mounted.current) setDraft(next);
@@ -231,29 +218,6 @@ export function FirstCatchFlow({
       onAccount();
     });
   }
-  // The actual Dex cell must be on screen with its photo loaded BEFORE signup.
-  // Reload of an already-added draft resumes this same confirmation, never a second Catch.
-  useEffect(() => {
-    if (draft?.stage !== "added" || !draft.photo || landing || error) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const image = new Image();
-    const schedule = () => {
-      if (cancelled || document.visibilityState !== "visible") return;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!cancelled && document.visibilityState === "visible") account();
-      }, 2000);
-    };
-    image.onload = schedule;
-    image.src = draft.photo;
-    document.addEventListener("visibilitychange", schedule);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", schedule);
-    };
-  }, [draft?.stage, landing, error]);
   useEffect(() => {
     if (draft?.stage === "account") onAccount();
   }, [draft?.stage]);
@@ -281,107 +245,21 @@ export function FirstCatchFlow({
     </div>
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
-  if (draft.stage === "questions") {
-    const title = ["first.display", "first.target", "first.time"][question];
-    const hint = ["first.displayHint", "first.targetHint", "first.timeHint"][question];
-    const choices =
-      question === 0
-        ? UI_LANGS.map((value) => ({
-            value,
-            label: t(UI_LANG_LABEL_KEYS[value]),
-            sub: value === "ja" ? "Japanese" : value === "en" ? "English" : "繁體中文",
-          }))
-        : question === 1
-          ? TARGET_LANGUAGES.map((value) => ({
-              value,
-              label: t(TARGET_LANG_LABEL_KEYS[value]),
-              sub: value === "en" ? "English" : "Taiwan Mandarin",
-            }))
-          : [5, 10, 15].map((value) => ({
-              value,
-              label: t("first.minutes", { n: value }),
-              sub: "",
-            }));
-    const selected =
-      question === 0
-        ? draft.uiLanguage
-        : question === 1
-          ? draft.targetLanguage
-          : draft.dailyMinutes;
+  if (draft.stage === "questions")
     return (
-      <div className="first-run">
-        <div className="first-questions">
-          <div className="first-brand">
-            <img src="/icon-192.png" alt="" />
-            CatchWords
-          </div>
-          <div className="first-progress">
-            <span style={{ width: `${((question + 1) / 3) * 100}%` }} />
-          </div>
-          <div className="first-count">{question + 1} / 3</div>
-          <h1>{t(title)}</h1>
-          <p className="first-sub">{t(hint)}</p>
-          <div role="radiogroup" aria-label={t(title)} className="first-choices">
-            {choices.map((choice) => (
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected === choice.value}
-                className="first-choice"
-                key={choice.value}
-                onClick={() => {
-                  const next = { ...draft };
-                  if (question === 0) {
-                    next.uiLanguage = choice.value as FirstCatch["uiLanguage"];
-                    setUiLang(next.uiLanguage);
-                  }
-                  if (question === 1) {
-                    next.targetLanguage = choice.value as FirstCatch["targetLanguage"];
-                    setTargetLang(next.targetLanguage);
-                  }
-                  if (question === 2)
-                    next.dailyMinutes = choice.value as FirstCatch["dailyMinutes"];
-                  setDraft(next);
-                }}
-              >
-                <Globe2 size={23} />
-                <span>
-                  {choice.label}
-                  <small>{choice.sub}</small>
-                </span>
-                {selected === choice.value && <CheckCircle2 size={21} />}
-              </button>
-            ))}
-          </div>
-          {errors}
-          <div className="first-footer">
-            <button
-              className="first-primary"
-              disabled={!!busy}
-              onClick={() =>
-                void action(async () => {
-                  await commit({ ...draft, stage: question === 2 ? "home" : "questions" });
-                  if (question < 2) setQuestion(question + 1);
-                })
-              }
-            >
-              {t(question === 2 ? "first.start" : "first.next")}
-              <ArrowRight size={19} />
-            </button>
-            {question > 0 ? (
-              <button className="first-secondary" onClick={() => setQuestion(question - 1)}>
-                {t("first.back")}
-              </button>
-            ) : (
-              <a className="first-secondary text-center" href="/auth">
-                {t("first.signin")}
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
+      <FirstCatchQuestions
+        draft={draft}
+        busy={!!busy}
+        error={errors}
+        onChange={(next) => {
+          applyFirstCatchLanguage(next);
+          setDraft(next);
+        }}
+        onContinue={(next) => {
+          void action(() => commit(next));
+        }}
+      />
     );
-  }
   if (busy && busy !== "save")
     return (
       <FirstCatchShell>
@@ -394,7 +272,7 @@ export function FirstCatchFlow({
   const sticker = firstCatchSticker(draft);
   return (
     <div className="first-run" data-first-stage={draft.stage}>
-      {draft.stage === "home" && <FirstCatchHome draft={null} />}
+      {draft.stage === "home" && <FirstCatchHome draft={draft} animated />}
       {draft.stage === "dex" && (
         <FirstCatchShell tab={1}>
           <h1 className="text-title font-bold mb-6">{t("nav.dex")}</h1>
@@ -488,14 +366,60 @@ export function FirstCatchFlow({
         <FirstCatchShell tab={1}>
           <h1 className="text-title font-bold mb-6">{t("nav.dex")}</h1>
           <section data-tour="added">
-            <DexAlbumGrid items={[sticker]} justCaught={sticker.id} onOpen={() => {}} />
+            <DexAlbumGrid
+              items={[sticker]}
+              justCaught={sticker.id}
+              onOpen={() => {
+                if (!landing && !busy) move("explore");
+              }}
+            />
           </section>
           <div className="first-added" role="status">
             <CheckCircle2 className="mx-auto text-primary" size={30} />
             <h2>{t("first.added")}</h2>
             <p className="first-sub">{t("first.local")}</p>
           </div>
+          <button
+            className="first-primary first-added-cta"
+            disabled={landing || !!busy}
+            onClick={() => move("explore")}
+          >
+            {t("first.openWord")}
+            <ArrowRight size={18} />
+          </button>
           {errors}
+        </FirstCatchShell>
+      )}
+      {draft.stage === "explore" && sticker && (
+        <FirstCatchShell tab={1}>
+          <div className="first-explore-heading">
+            <span className="first-eyebrow">{t("first.added")}</span>
+            <h1>{t("first.exploreTitle")}</h1>
+            <p className="first-sub">{t("first.exploreHint")}</p>
+          </div>
+          <img src={draft.photo!} alt="" className="first-word-photo" />
+          <WordCard
+            word={sticker.word}
+            autoplay={false}
+            personalContext={{
+              id: draft.id,
+              preferences: LearningPreferencesSchema.parse(draft),
+              initial: draft.lesson,
+              request: services.lesson,
+              onReady: (lesson) => {
+                const current = draftRef.current;
+                if (current && !current.lesson && current.stage === "explore")
+                  void commit({ ...current, lesson }).catch(() => setError(t("first.storage")));
+              },
+            }}
+          />
+          {errors}
+          <div className="first-detail-footer">
+            <button className="first-primary" disabled={!!busy} onClick={account}>
+              {t("first.keep")}
+              <ArrowRight size={18} />
+            </button>
+          </div>
         </FirstCatchShell>
       )}
       {!error && !landing && ["home", "dex", "review"].includes(draft.stage) && (
@@ -524,7 +448,7 @@ export function FirstCatchFlow({
           onNext={detailSeen ? undefined : () => setDetailSeen(true)}
         />
       )}
-      {!["camera", "card", "added", "account"].includes(draft.stage) && errors}
+      {!["camera", "card", "added", "explore", "account"].includes(draft.stage) && errors}
       {landing && sticker && (
         <CatchLandingOverlay
           ref={fly}

@@ -1,21 +1,21 @@
 # First Catch before signup
 
-Branch implementation: `/welcome` → questions → real Home/Dex/Review components → real camera → existing AI candidates/card → existing PeelSticker/CatchLanding → local Dex addition → `/auth` → authenticated import.
+Branch implementation: `/welcome` → five questions → generated photo in the real Home album → guided Dex/Review → real camera → real image analysis → word card → PeelSticker/CatchLanding → local Dex addition → open word detail → `/auth` → authenticated import.
 
 ## Product contract
 
-- Display language, learning language and desired daily minutes are the three opening questions. Minutes are a saved preference, not a daily quota, notification schedule or streak.
+- Display language, learning language, daily minutes, learning goals and interests are the five opening questions. Minutes are a saved preference, not a daily quota, notification schedule or streak. Goals/interests are stored on the user account and tailor personal examples and notes on word details, never the shared canonical word or vision evidence.
 - Supported display/learning languages come from the existing registries. No mascot, Spanish, badges, ranking or streak claims.
-- Registration is **after** the first photo/word has been committed to IndexedDB and the real Dex cell has rendered. The existing landing animation completes before the two-second added-state dwell starts.
+- Registration is **after** the first photo/word has been committed to IndexedDB, the existing landing animation has hit the real Dex cell and the learner has opened the detailed word card. There is no automatic time-based jump to signup.
 - During guidance, only the spotlighted operation and coach navigation are interactive. File input fallback, keyboard focus, camera errors, storage errors and retries remain supported.
-- Auth renders the same Home masthead/collage components with the actual captured photo. Before a photo exists, Home and Auth share the same generated cafe photograph (`public/first-catch-cafe.webp`); there is no separately illustrated login hero.
+- Auth renders the same Home masthead/collage components with the actual captured photo. Before a photo exists, Home and Auth share the same explicitly labelled generated cafe photograph (`public/first-catch-cafe.webp`); interests use `public/first-catch-interests.webp`.
 - Email signup confirmation, OAuth navigation and reload retain the local draft. Server import uses a stable sticker UUID, caller-owned photo path and existing authenticated functions. The local photo is cleared only after successful import and profile persistence.
 
 ## Review
 
-Netlify Deploy Preview opens `first-catch` by default. This uses production components, with deterministic AI results and in-memory persistence. It does not register accounts or call production AI.
+Netlify Deploy Preview opens `first-catch` by default without a developer menu. It uses the production components and an authenticated preview endpoint for the actual AI path. AI and Auth are unavailable until the intended environment has configured publishable Supabase and AI keys and reviewed anonymous sign-in. The preview fails explicitly; it never presents a canned word as though detected in the visitor's photo. In-memory sample screens and account form are for visual review only.
 
-Useful additional scenes: `?scene=first-catch&step=card`, `?scene=first-catch&step=added`, `?scene=first-catch&step=account`, and `?scene=first-catch&step=card&fail=storage`. Preview data is a labelled fixture; camera capture still uses the real camera component.
+Useful additional scenes: `?scene=first-catch&step=card`, `?scene=first-catch&step=added`, `?scene=first-catch&step=explore`, `?scene=first-catch&step=account`, and `?scene=first-catch&step=card&fail=storage`. Sample screens are explicitly labelled; camera capture still uses the real camera component.
 
 ## Production gate (not enabled by this PR)
 

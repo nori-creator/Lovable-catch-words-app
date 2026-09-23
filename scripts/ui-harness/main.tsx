@@ -326,7 +326,8 @@ const explicitScene = q.get("scene");
  * 必ず名指しで開くので、帯が写り込んで**実物に無い物を測る**ことになる。
  * 何も付けずに開いた回（＝人が Deploy Preview を見に来た回）だけ出す。
  */
-const showReviewBar = !explicitScene || q.get("review") === "1";
+// The phone review should open as the product, without the developer scene menu.
+const showReviewBar = q.get("review") === "1";
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
 
 /**

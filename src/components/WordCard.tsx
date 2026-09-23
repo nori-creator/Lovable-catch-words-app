@@ -8,6 +8,10 @@ import {
   useState,
 } from "react";
 import { SceneBubbles } from "@/components/SceneBubbles";
+import {
+  PersonalWordLesson,
+  type PersonalLessonContext,
+} from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
 import { examTagLabels } from "@/lib/exam-tags";
@@ -508,6 +512,7 @@ export const WordCard = forwardRef<
      * 図鑑の詳細では使わない — そちらは全部出るのが正しい。
      */
     minimal?: boolean;
+    personalContext?: PersonalLessonContext;
   }
 >(function WordCard(
   {
@@ -518,6 +523,7 @@ export const WordCard = forwardRef<
     onPickImage,
     onEditHeadword,
     minimal = false,
+    personalContext,
   },
   ref,
 ) {
@@ -662,6 +668,14 @@ export const WordCard = forwardRef<
         onEditHeadword={onEditHeadword}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
+      {!minimal && (
+        <PersonalWordLesson
+          headword={word.headword}
+          meaning={word.meaning_ja}
+          language={word.language}
+          context={personalContext}
+        />
+      )}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard

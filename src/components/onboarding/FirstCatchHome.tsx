@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
-import { DayMasthead, DayCollage, HomeEmptyState } from "@/routes/_authenticated/home";
+import { DayMasthead, DayCollage } from "@/routes/_authenticated/home";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
+import { useTargetLang } from "@/lib/target-lang-pref";
+import { CardSchema } from "@/lib/card-schema";
 
 export function FirstCatchShell({
   children,
@@ -47,18 +49,44 @@ export function FirstCatchShell({
   );
 }
 /** The exact components used by Home, with the actual captured photo. */
-export function FirstCatchHome({ draft }: { draft: FirstCatch | null }) {
+export function FirstCatchHome({
+  draft,
+  animated = false,
+}: {
+  draft: FirstCatch | null;
+  animated?: boolean;
+}) {
+  const t = useT();
+  const target = useTargetLang();
   const sticker = draft && firstCatchSticker(draft);
+  const sample = firstCatchSticker({
+    version: 1,
+    id: "00000000-0000-4000-8000-000000000001",
+    uiLanguage: draft?.uiLanguage ?? "ja",
+    targetLanguage: draft?.targetLanguage ?? target,
+    dailyMinutes: 10,
+    stage: "home",
+    photo: "/first-catch-cafe.webp",
+    capturedAt: "2026-09-23T09:00:00.000Z",
+    card: CardSchema.parse({
+      headword_zh: (draft?.targetLanguage ?? target) === "en" ? "coffee" : "咖啡",
+      meaning_ja: t("first.sampleCoffee"),
+      category_key: "drink",
+      level: "",
+    }),
+  })!;
   return (
     <FirstCatchShell>
       <DayMasthead date={new Date(draft?.capturedAt ?? Date.now())} />
       <section data-tour="home">
-        {sticker ? <DayCollage stickers={[sticker]} onOpen={() => {}} /> : (
-          <>
-            <img className="first-home-photo" src="/first-catch-cafe.webp" alt="" />
-            <HomeEmptyState />
-          </>
-        )}
+        {!sticker && <p className="first-sample-label">{t("first.sampleAlbum")}</p>}
+        <div inert={!sticker}>
+          <DayCollage
+            stickers={[sticker ?? sample]}
+            opening={animated && !sticker}
+            onOpen={() => {}}
+          />
+        </div>
       </section>
     </FirstCatchShell>
   );

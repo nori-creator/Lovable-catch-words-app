@@ -1,4 +1,5 @@
 import { FirstCatchHome } from "@/components/onboarding/FirstCatchHome";
+import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { readFirstCatch, canRequestAccount, type FirstCatch } from "@/lib/first-catch";
 import "@/components/onboarding/first-catch.css";
 import { siteUrlFor } from "@/lib/site-url";
@@ -112,7 +113,12 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo },
+          options: {
+            emailRedirectTo,
+            ...(draft
+              ? { data: { learning_preferences: LearningPreferencesSchema.parse(draft) } }
+              : {}),
+          },
         });
         if (error) throw error;
         setConfirmed(true);

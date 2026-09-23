@@ -139,6 +139,99 @@ export function setUiLang(lang: UiLang) {
  * 手で直した決めごとが次の文字列で戻らないようにする。
  */
 export const DICT: Record<string, Record<UiLang, string>> = {
+  "first.setup": { ja: "はじめの設定", en: "Getting started", "zh-TW": "開始設定" },
+  "first.goals": {
+    ja: "学ぶ目的を\n教えてください",
+    en: "What brings you\nhere?",
+    "zh-TW": "你學語言的目的是？",
+  },
+  "first.goalsHint": {
+    ja: "いくつでも選べます。例文の場面をあなたに合わせます。",
+    en: "Choose any. We’ll tailor example situations to you.",
+    "zh-TW": "可以複選，例句情境會配合你的目標。",
+  },
+  "first.interests": {
+    ja: "好きなことから、\nことばを広げよう",
+    en: "Start with what\nyou love.",
+    "zh-TW": "從喜歡的事物，\n開始學單字。",
+  },
+  "first.interestsHint": {
+    ja: "興味のあるテーマを選んでください（複数選択可）。",
+    en: "Choose the topics you enjoy. Select as many as you like.",
+    "zh-TW": "選擇感興趣的主題，可以複選。",
+  },
+  "first.timeNote": {
+    ja: "短い時間でも大丈夫。あなたのペースで続けましょう。",
+    en: "A few minutes is a great start. Make it your own pace.",
+    "zh-TW": "幾分鐘也很好，照著自己的步調來。",
+  },
+  "first.goal.conversation": { ja: "日常会話", en: "Everyday conversation", "zh-TW": "日常會話" },
+  "first.goal.travel": { ja: "旅行・留学", en: "Travel & study abroad", "zh-TW": "旅行・留學" },
+  "first.goal.work": { ja: "仕事・キャリア", en: "Work & career", "zh-TW": "工作・職涯" },
+  "first.goal.exams": { ja: "試験対策", en: "Exam preparation", "zh-TW": "考試準備" },
+  "first.goal.culture": { ja: "趣味・教養", en: "Hobbies & culture", "zh-TW": "興趣・文化" },
+  "first.goal.other": { ja: "その他", en: "Something else", "zh-TW": "其他" },
+  "first.interest.food": { ja: "食べ物", en: "Food & drink", "zh-TW": "美食" },
+  "first.interest.travel": { ja: "旅行", en: "Travel", "zh-TW": "旅行" },
+  "first.interest.animals": { ja: "動物", en: "Animals", "zh-TW": "動物" },
+  "first.interest.nature": { ja: "自然", en: "Nature", "zh-TW": "自然" },
+  "first.interest.city": { ja: "建物・街", en: "City & architecture", "zh-TW": "建築・街景" },
+  "first.interest.fashion": { ja: "ファッション", en: "Fashion", "zh-TW": "時尚" },
+  "first.interest.business": { ja: "ビジネス", en: "Business", "zh-TW": "商業" },
+  "first.interest.music": { ja: "音楽・映画", en: "Music & film", "zh-TW": "音樂・電影" },
+  "first.interest.sports": { ja: "スポーツ", en: "Sports", "zh-TW": "運動" },
+  "first.openWord": {
+    ja: "追加した単語を見てみる",
+    en: "Explore your new word",
+    "zh-TW": "看看剛加入的單字",
+  },
+  "first.exploreTitle": {
+    ja: "ひとつのことばを、もっと深く。",
+    en: "One word. More to discover.",
+    "zh-TW": "一個單字，更多發現。",
+  },
+  "first.exploreHint": {
+    ja: "意味・例文・使い方を確認できます。読み終えたら、登録して保存しましょう。",
+    en: "Explore the meanings, examples and usage. When you’re ready, sign up to keep your word.",
+    "zh-TW": "查看意思、例句與用法。看完後，註冊保存這個單字。",
+  },
+  "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
+  "first.sampleAlbum": {
+    ja: "こんなふうに、今日の発見が残ります · 見本",
+    en: "Your discoveries could look like this · Example",
+    "zh-TW": "把今天的發現留下來 · 示範",
+  },
+  "first.previewUnavailable": {
+    ja: "このプレビューは、まだ写真を解析するAIに接続されていません。写真はそのまま残っています。",
+    en: "Photo analysis is not connected in this preview yet. Your photo is kept.",
+    "zh-TW": "這個預覽尚未連接照片分析 AI，照片仍保留著。",
+  },
+  "first.personalTitle": {
+    ja: "あなたの場面で使ってみよう",
+    en: "Use it in your world",
+    "zh-TW": "用在你的生活裡",
+  },
+  "first.personalLoading": {
+    ja: "あなたに合う例文を準備しています",
+    en: "Preparing examples for you",
+    "zh-TW": "正在準備適合你的例句",
+  },
+  "first.personalHint": {
+    ja: "選んだ目的・興味に合わせた例文と解説",
+    en: "Examples and notes tailored to your goals and interests",
+    "zh-TW": "依照你的目標與興趣準備的例句與說明",
+  },
+  "first.personalFailed": {
+    ja: "例文を読み込めませんでした",
+    en: "Could not load your examples",
+    "zh-TW": "無法載入例句",
+  },
+  "first.otherMeanings": { ja: "意味と使い分け", en: "Meanings & usage", "zh-TW": "意思與用法" },
+  "first.visualSample": {
+    ja: "画面の見本 · 撮影結果ではありません",
+    en: "Visual example · Not a photo analysis result",
+    "zh-TW": "畫面示範・非照片分析結果",
+  },
   "first.display": {
     ja: "表示言語を\n選んでください",
     en: "Choose your\ndisplay language",
