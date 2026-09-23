@@ -5495,3 +5495,25 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
     expect(sheet).toMatch(/<HeroPhotoSlides/);
   });
 });
+
+describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オーナー指示 2026-09-22）", () => {
+  const prov = codeOnly(read("lib/ai-provider.server.ts"));
+  const admin = codeOnly(read("lib/admin.functions.ts"));
+  const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+
+  it("OpenRouter を提供元に持ち、鍵はよくある綴りを全部見る（値は返さない）", () => {
+    expect(prov).toMatch(/openrouter: \{\s*base_url: "https:\/\/openrouter\.ai\/api\/v1"/);
+    expect(prov).toMatch(/openrouter: \["OPENROUTER_API_KEY", "OPENROUTER_KEY"/);
+  });
+
+  it("一覧は管理者だけが読める", () => {
+    const fn = admin.slice(admin.indexOf("export const listOpenRouterModels"));
+    expect(fn).toMatch(/_role: "admin"/);
+    expect(fn).toMatch(/if \(!isAdmin\) throw new Error\("管理者のみ"\)/);
+  });
+
+  it("設定の機能ごとの欄は一覧から選ぶ。スキャンは画像を読めるモデルだけ", () => {
+    expect(settings).toMatch(/<ModelPicker/);
+    expect(settings).toMatch(/visionOnly=\{f\.id === "scan"\}/);
+  });
+});

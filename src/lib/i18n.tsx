@@ -574,6 +574,33 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.allCategories": { ja: "すべて", en: "All", "zh-TW": "全部" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar", "zh-TW": "行事曆" },
+  "set.orSearch": {
+    ja: "モデルを探す（例: gemini flash）",
+    en: "Search models (e.g. gemini flash)",
+    "zh-TW": "搜尋模型（例如 gemini flash）",
+  },
+  "set.orFree": { ja: "無料", en: "Free", "zh-TW": "免費" },
+  "set.orVision": { ja: "画像を読める", en: "Reads images", "zh-TW": "可讀圖片" },
+  "set.orVisionOnly": {
+    ja: "スキャンは写真を読むので、画像を読めるモデルだけ出しています。",
+    en: "Scan reads photos, so only image-capable models are listed.",
+    "zh-TW": "掃描需要讀照片，所以只列出能讀圖片的模型。",
+  },
+  "set.orPriceUnit": {
+    ja: "値段は100万トークンあたり（入力 / 出力、米ドル）",
+    en: "Price per 1M tokens (input / output, USD)",
+    "zh-TW": "價格為每 100 萬 token（輸入 / 輸出，美元）",
+  },
+  "set.orNoKey": {
+    ja: "OpenRouter の鍵が見つかりません（OPENROUTER_API_KEY など）。選んでも既定のAIで動きます。",
+    en: "No OpenRouter key found (OPENROUTER_API_KEY etc.). Choices fall back to the default AI.",
+    "zh-TW": "找不到 OpenRouter 的金鑰（OPENROUTER_API_KEY 等）。選了也會使用預設的 AI。",
+  },
+  "set.orLoadFailed": {
+    ja: "OpenRouter の一覧を取れませんでした（{e}）。モデル名を手で入れてください。",
+    en: "Couldn't load the OpenRouter list ({e}). Type a model name instead.",
+    "zh-TW": "無法取得 OpenRouter 的清單（{e}）。請手動輸入模型名稱。",
+  },
   "dex.cards": { ja: "カード", en: "Cards", "zh-TW": "卡片" },
   "dex.calendarEmpty": {
     ja: "まだ写真がありません。撮るとその日のマスに入ります。",

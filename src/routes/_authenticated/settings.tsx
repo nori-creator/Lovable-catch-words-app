@@ -62,7 +62,8 @@ import {
   setPlaceReminderEnabled,
   requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
-import { getAiModelConfig, setAiModelConfig } from "@/lib/admin.functions";
+import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
+import { ModelPicker } from "@/components/ModelPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2, User } from "lucide-react";
@@ -1558,6 +1559,12 @@ function AiModelPanel() {
   const [premium, setPremium] = useState("");
   const [features, setFeatures] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const orFn = useServerFn(listOpenRouterModels);
+  const { data: orData } = useQuery({
+    queryKey: ["openrouter-models"],
+    queryFn: () => orFn(),
+    staleTime: 60 * 60_000,
+  });
 
   useEffect(() => {
     if (!data) return;
@@ -1669,19 +1676,31 @@ function AiModelPanel() {
           />
         </div>
 
-        {/* βテスト〜ローンチで「機能ごとに別のAI」を試せるようにする。 */}
+        {/* 機能ごとに別のAI。**OpenRouter の一覧から押して選ぶ**
+            （オーナー指示 2026-09-22「これみたいに簡単に設定したい」）。
+            一覧が取れないときだけ、前と同じ手で打つ欄に落ちる。 */}
         <div className="rounded-xl border border-border p-2">
           <div className="text-footnote font-semibold">{t("settings.aiPerFeature")}</div>
+          {orData && !orData.keyFound && (
+            <p className="mt-1 text-caption text-muted-foreground">{t("set.orNoKey")}</p>
+          )}
+          {orData?.error && (
+            <p className="mt-1 text-caption text-destructive-ink">
+              {t("set.orLoadFailed", { e: orData.error })}
+            </p>
+          )}
           <div className="mt-2 space-y-2">
             {(data?.features ?? []).map((f) => (
-              <div key={f.id}>
-                <Label className="text-caption">{t(`settings.aiFeature.${f.id}`)}</Label>
-                <Input
-                  value={features[f.id] ?? ""}
-                  onChange={(e) => setFeatures((prev) => ({ ...prev, [f.id]: e.target.value }))}
-                  placeholder={t("settings.aiEnvDefault")}
-                />
-              </div>
+              <ModelPicker
+                key={f.id}
+                label={t(`settings.aiFeature.${f.id}`)}
+                value={features[f.id] ?? ""}
+                onChange={(v) => setFeatures((prev) => ({ ...prev, [f.id]: v }))}
+                models={orData?.models ?? []}
+                // スキャンは写真を読む。画像を読めないモデルを選ぶと、スキャンが丸ごと止まる。
+                visionOnly={f.id === "scan"}
+                unavailable={!orData || orData.models.length === 0}
+              />
             ))}
           </div>
           <p className="mt-2 text-caption text-muted-foreground">
