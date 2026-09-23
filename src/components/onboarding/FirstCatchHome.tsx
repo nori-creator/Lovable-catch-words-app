@@ -2,10 +2,71 @@ import type { ReactNode } from "react";
 import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
 import { DayMasthead, DayCollage } from "@/routes/_authenticated/home";
+import { DexAlbumGrid } from "@/routes/_authenticated/dex";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
+
+function sampleStickers(
+  draft: FirstCatch | null,
+  t: ReturnType<typeof useT>,
+  target: ReturnType<typeof useTargetLang>,
+) {
+  const selected = draft?.targetLanguage ?? target;
+  return [
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      photo: "/first-catch-cafe.webp",
+      word: selected === "en" ? "coffee" : "咖啡",
+      meaning: t("first.sampleCoffee"),
+      category: "drink",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      photo: "/first-catch-flower.webp",
+      word: selected === "en" ? "flower" : "花",
+      meaning: t("first.sampleFlower"),
+      category: "plant",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000003",
+      photo: "/first-catch-cat.webp",
+      word: selected === "en" ? "cat" : "貓",
+      meaning: t("first.sampleCat"),
+      category: "animal",
+    },
+  ].map(({ id, photo, word, meaning, category }) =>
+    firstCatchSticker({
+      version: 1,
+      id,
+      uiLanguage: draft?.uiLanguage ?? "ja",
+      targetLanguage: selected,
+      dailyMinutes: 10,
+      stage: "home",
+      photo,
+      capturedAt: "2026-09-23T09:00:00.000Z",
+      card: CardSchema.parse({
+        headword_zh: word,
+        meaning_ja: meaning,
+        category_key: category,
+        level: "",
+      }),
+    })!,
+  );
+}
+
+export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
+  const t = useT();
+  const target = useTargetLang();
+  const samples = sampleStickers(draft, t, target);
+  return (
+    <div className="first-sample-dex">
+      <p className="first-sample-label">{t("first.sampleDex")}</p>
+      <DexAlbumGrid items={samples} onOpen={() => {}} />
+    </div>
+  );
+}
 
 export function FirstCatchShell({
   children,
@@ -59,30 +120,15 @@ export function FirstCatchHome({
   const t = useT();
   const target = useTargetLang();
   const sticker = draft && firstCatchSticker(draft);
-  const sample = firstCatchSticker({
-    version: 1,
-    id: "00000000-0000-4000-8000-000000000001",
-    uiLanguage: draft?.uiLanguage ?? "ja",
-    targetLanguage: draft?.targetLanguage ?? target,
-    dailyMinutes: 10,
-    stage: "home",
-    photo: "/first-catch-cafe.webp",
-    capturedAt: "2026-09-23T09:00:00.000Z",
-    card: CardSchema.parse({
-      headword_zh: (draft?.targetLanguage ?? target) === "en" ? "coffee" : "咖啡",
-      meaning_ja: t("first.sampleCoffee"),
-      category_key: "drink",
-      level: "",
-    }),
-  })!;
+  const samples = sampleStickers(draft, t, target);
   return (
     <FirstCatchShell>
       <DayMasthead date={new Date(draft?.capturedAt ?? Date.now())} />
       <section data-tour="home">
         {!sticker && <p className="first-sample-label">{t("first.sampleAlbum")}</p>}
-        <div inert={!sticker}>
+        <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
           <DayCollage
-            stickers={[sticker ?? sample]}
+            stickers={sticker ? [sticker] : samples}
             opening={animated && !sticker}
             onOpen={() => {}}
           />

@@ -139,6 +139,66 @@ export function setUiLang(lang: UiLang) {
  * 手で直した決めごとが次の文字列で戻らないようにする。
  */
 export const DICT: Record<string, Record<UiLang, string>> = {
+  "first.introTagline": {
+    ja: "見つけたものが、\nあなたのことばになる。",
+    en: "See it. Catch it.\nMake it yours.",
+    "zh-TW": "發現生活裡的事物，\n學會用自己的話說出來。",
+  },
+  "first.introNote": {
+    ja: "見つけて\n集めて\n学ぼう",
+    en: "Find it\nCatch it\nLearn it",
+    "zh-TW": "發現\n收藏\n學會",
+  },
+  "first.introStart": { ja: "はじめる", en: "Get started", "zh-TW": "開始使用" },
+  "first.notificationsTitle": {
+    ja: "学習の通知を\n設定しますか？",
+    en: "Would you like\nlearning reminders?",
+    "zh-TW": "要設定學習提醒嗎？",
+  },
+  "first.notificationsHint": {
+    ja: "必要なものだけ選べます。あとから変更できます。",
+    en: "Choose what feels useful. You can change this later.",
+    "zh-TW": "只選需要的，之後隨時可以更改。",
+  },
+  "first.reminder.morning": {
+    ja: "学習のリマインダー",
+    en: "Learning reminder",
+    "zh-TW": "學習提醒",
+  },
+  "first.reminder.evening": { ja: "夜の振り返り", en: "Evening review", "zh-TW": "晚間複習" },
+  "first.notificationsNote": {
+    ja: "ここでは通知の希望を保存します。通知が使える端末では、登録後にあらためて確認できます。",
+    en: "We’ll save your choices. On supported devices, you can confirm notifications after sign-up.",
+    "zh-TW": "先儲存你的選擇。註冊後可在支援的裝置上確認通知。",
+  },
+  "first.readyTitle": { ja: "準備ができました！", en: "You’re all set!", "zh-TW": "準備好了！" },
+  "first.readyHint": {
+    ja: "まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。",
+    en: "Take a quick look around, then photograph something you’d like to learn.",
+    "zh-TW": "先看看怎麼使用，接著拍下一樣想學的東西吧。",
+  },
+  "first.readyPhoto": {
+    ja: "最初の発見は、もうすぐ。",
+    en: "Your first discovery is close.",
+    "zh-TW": "你的第一個發現，就快到了。",
+  },
+  "first.readyStart": {
+    ja: "チュートリアルをはじめる",
+    en: "Start the tutorial",
+    "zh-TW": "開始新手教學",
+  },
+  "first.readyFootnote": {
+    ja: "撮った写真は、あとからアカウントに保存できます。",
+    en: "You can save your photo to your account afterward.",
+    "zh-TW": "拍下的照片稍後可以存到帳號。",
+  },
+  "first.sampleFlower": { ja: "花", en: "flower", "zh-TW": "花" },
+  "first.sampleCat": { ja: "猫", en: "cat", "zh-TW": "貓" },
+  "first.sampleDex": {
+    ja: "写真で集まる、ことばの図鑑 · 見本",
+    en: "A photo collection of words · Example",
+    "zh-TW": "用照片收藏的單字圖鑑 · 示範",
+  },
   "first.setup": { ja: "はじめの設定", en: "Getting started", "zh-TW": "開始設定" },
   "first.goals": {
     ja: "学ぶ目的を\n教えてください",
@@ -197,9 +257,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {
-    ja: "こんなふうに、今日の発見が残ります · 見本",
-    en: "Your discoveries could look like this · Example",
-    "zh-TW": "把今天的發現留下來 · 示範",
+    ja: "写真とことばで残る、今日のアルバム · 見本",
+    en: "A day of photos and words · Example",
+    "zh-TW": "用照片和單字留下今天 · 示範",
   },
   "first.previewUnavailable": {
     ja: "このプレビューは、まだ写真を解析するAIに接続されていません。写真はそのまま残っています。",
@@ -267,19 +327,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
   "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
   "first.home": {
-    ja: "今日の発見が、写真とことばで残ります。",
-    en: "Keep today’s discoveries as photos and words.",
-    "zh-TW": "用照片和單字，留下今天的發現。",
+    ja: "ここがホームです。撮った写真と言葉が、その日のアルバムになります。",
+    en: "This is your home. Your photos and words become an album of your day.",
+    "zh-TW": "這裡是首頁。拍下的照片和單字，會成為當天的相簿。",
   },
   "first.dex": {
-    ja: "集めたことばを、写真から探せます。",
-    en: "Find the words you collected through your photos.",
-    "zh-TW": "透過照片，找回你收集的單字。",
+    ja: "ここが図鑑です。写真を見れば、あの日覚えた言葉を思い出せます。",
+    en: "This is your collection. Each photo helps you remember the word you caught.",
+    "zh-TW": "這裡是圖鑑。看到照片，就能想起那天學到的單字。",
   },
   "first.review": {
-    ja: "集めて終わりにせず、復習して思い出せるように。",
-    en: "Turn your collection into words you can remember.",
-    "zh-TW": "透過複習，讓收集的單字真正留在記憶裡。",
+    ja: "ここで、集めた言葉を短いクイズで復習できます。あとで思い出せるようにしましょう。",
+    en: "Here you can review what you caught with short quizzes, so the words stick.",
+    "zh-TW": "在這裡用短短的測驗複習，讓收集到的單字記得更久。",
   },
   "first.shoot": {
     ja: "目の前のものを、1枚撮ってみよう。",

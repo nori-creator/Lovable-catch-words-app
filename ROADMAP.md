@@ -33,7 +33,7 @@ The repository has evolved through repeated vibe-coding iterations. Refactor agg
 
 ## Phase 2 — First-run / onboarding
 Implement pre-signup onboarding:
-display language → learning language → daily study target → goals → interests → animated interactive tutorial → real first photo/Catch → animated Collection landing → open and explore the word detail → account creation.
+app introduction → display language → learning language → daily study target → goals → interests → optional notification preferences → ready screen → animated interactive tutorial → real first photo/Catch → animated Collection landing → open and explore the word detail → account creation.
 The five-question opening is the owner's 2026-09-23 revision. Personalized learning examples are private; the generated Home album is an explicit example. Implementation/release gates are recorded in `docs/first-catch-onboarding.md`; anonymous Auth is currently disabled and this phase is not production-complete until configured and verified.
 The tutorial must demonstrate pains solved by the product through real interaction.
 Preserve guest Catch state across signup.

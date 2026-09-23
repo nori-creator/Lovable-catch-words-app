@@ -1,6 +1,6 @@
 # First Catch before signup
 
-Branch implementation: `/welcome` → five questions → generated photo in the real Home album → guided Dex/Review → real camera → real image analysis → word card → PeelSticker/CatchLanding → local Dex addition → open word detail → `/auth` → authenticated import.
+Branch implementation: `/welcome` introduction → five questions → notification preferences → ready screen → generated photos in the real Home album and Dex → guided Review → real camera → real image analysis → word card → PeelSticker/CatchLanding → local Dex addition → open word detail → `/auth` → authenticated import.
 
 ## Product contract
 
@@ -8,7 +8,7 @@ Branch implementation: `/welcome` → five questions → generated photo in the 
 - Supported display/learning languages come from the existing registries. No mascot, Spanish, badges, ranking or streak claims.
 - Registration is **after** the first photo/word has been committed to IndexedDB, the existing landing animation has hit the real Dex cell and the learner has opened the detailed word card. There is no automatic time-based jump to signup.
 - During guidance, only the spotlighted operation and coach navigation are interactive. File input fallback, keyboard focus, camera errors, storage errors and retries remain supported.
-- Auth renders the same Home masthead/collage components with the actual captured photo. Before a photo exists, Home and Auth share the same explicitly labelled generated cafe photograph (`public/first-catch-cafe.webp`); interests use `public/first-catch-interests.webp`.
+- Auth renders the same Home masthead/collage components with the actual captured photo. Before a photo exists, Home and Auth share the same explicitly labelled generated cafe, flower and cat photos. The Dex tour displays these as examples rather than an empty-state message. The ready screen has a generated travel photo. Notification choices are stored as preferences; this flow does not promise scheduled browser delivery.
 - Email signup confirmation, OAuth navigation and reload retain the local draft. Server import uses a stable sticker UUID, caller-owned photo path and existing authenticated functions. The local photo is cleared only after successful import and profile persistence.
 
 ## Review

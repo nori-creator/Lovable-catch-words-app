@@ -208,7 +208,7 @@ export function FirstCatchQuestions({
               onContinue({
                 ...draft,
                 questionIndex: Math.min(4, step + 1),
-                stage: step === 4 ? "home" : "questions",
+                stage: step === 4 ? "notifications" : "questions",
               })
             }
           >

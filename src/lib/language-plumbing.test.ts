@@ -4852,8 +4852,10 @@ describe("ホームは今日の誌面", () => {
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
     expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
     expect(home).toMatch(/<DayMasthead /);
-    expect(home).toMatch(/<DayCollage\s+stickers=\{\[sticker \?\? sample\]\}/);
+    expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
     expect(home).toMatch(/first-catch-cafe\.webp/);
+    expect(home).toMatch(/first-catch-flower\.webp/);
+    expect(home).toMatch(/first-catch-cat\.webp/);
     expect(home).not.toMatch(/<HomeEmptyState \/>/);
     // 画像の装飾3枚を登録背景の代わりにしない。
     expect(auth).not.toMatch(/auth-photo auth-photo--/);

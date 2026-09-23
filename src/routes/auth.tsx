@@ -116,7 +116,12 @@ function AuthPage() {
           options: {
             emailRedirectTo,
             ...(draft
-              ? { data: { learning_preferences: LearningPreferencesSchema.parse(draft) } }
+              ? {
+                  data: {
+                    learning_preferences: LearningPreferencesSchema.parse(draft),
+                    notification_preferences: draft.reminders ?? { morning: false, evening: false },
+                  },
+                }
               : {}),
           },
         });

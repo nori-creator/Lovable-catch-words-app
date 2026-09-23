@@ -21,10 +21,10 @@ The product should make the user's own life, photos, places and encounters becom
 
 ## First-run experience
 Account creation must not be the first experience.
-1. Choose display language.
-2. Choose learning language.
-3. Ask desired daily study amount, learning goals and interests (owner revision, 2026-09-23). Goals and interests are multi-select and tailor the learner's private example situations and explanations, never the shared dictionary meaning or which objects vision sees.
-4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product. Home starts with an explicitly marked generated-photo album example, so the first screen has no blank-day message.
+1. Introduce the app with generated everyday photos, then choose display language and learning language.
+2. Ask desired daily study amount, learning goals and interests (owner revision, 2026-09-23). Goals and interests are multi-select and tailor the learner's private example situations and explanations, never the shared dictionary meaning or which objects vision sees.
+3. Offer an optional notification-preference page, then a ready screen that starts the interactive tour. Store the preference, but do not imply scheduled delivery on unsupported Web devices.
+4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product. Home and Collection start with explicitly marked generated-photo examples, so neither tour screen has a blank-state message. The generated album photo layout is shared with the account screen.
 5. User takes one real photo and completes one Catch.
 6. After the landing animation, let the user open the added word and read multiple real meanings, examples and usage. Only when the learner chooses to finish that view should they create/sign in to an account to save the collection.
 Guest progress must survive registration. The first photo/word must be durably added to the local Collection and its landing completed **before** the registration screen appears. Reuse actual Home components behind registration; do not promise a different illustrated home.

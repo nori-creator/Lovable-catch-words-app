@@ -61,9 +61,24 @@ export function FirstCatchTransfer({
             preferences: async (current) => {
               const { data: auth, error: authError } = await supabase.auth.getUser();
               if (authError || auth.user?.id !== userId) throw new Error("Account changed");
-              if (!learningPreferencesOf(auth.user.user_metadata?.learning_preferences)) {
+              if (
+                !learningPreferencesOf(auth.user.user_metadata?.learning_preferences) ||
+                !auth.user.user_metadata?.notification_preferences
+              ) {
                 const { error } = await supabase.auth.updateUser({
-                  data: { learning_preferences: LearningPreferencesSchema.parse(current) },
+                  data: {
+                    ...(!learningPreferencesOf(auth.user.user_metadata?.learning_preferences)
+                      ? { learning_preferences: LearningPreferencesSchema.parse(current) }
+                      : {}),
+                    ...(!auth.user.user_metadata?.notification_preferences
+                      ? {
+                          notification_preferences: current.reminders ?? {
+                            morning: false,
+                            evening: false,
+                          },
+                        }
+                      : {}),
+                  },
                 });
                 if (error) throw error;
               }

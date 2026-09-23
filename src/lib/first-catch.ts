@@ -22,7 +22,10 @@ export const FirstCatchSchema = z.object({
   interests: z.array(z.enum(FIRST_CATCH_INTERESTS)).max(9).optional(),
   questionIndex: z.number().int().min(0).max(4).optional(),
   stage: z.enum([
+    "intro",
     "questions",
+    "notifications",
+    "ready",
     "home",
     "dex",
     "review",
@@ -36,6 +39,7 @@ export const FirstCatchSchema = z.object({
   photo: z.string().max(4_000_000).nullable(),
   card: CardSchema.nullable(),
   lesson: PersonalLessonSchema.optional(),
+  reminders: z.object({ morning: z.boolean(), evening: z.boolean() }).optional(),
   capturedAt: z.string().datetime().nullable(),
   importedUserId: z.string().uuid().optional(),
 });

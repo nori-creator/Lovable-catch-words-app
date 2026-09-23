@@ -105,7 +105,7 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
   const t = useT();
   const [draft, setDraft] = useState<FirstCatch>(() => {
     const step = FirstCatchSchema.shape.stage.safeParse(q.get("step"));
-    const stage = step.success ? step.data : "questions";
+    const stage = step.success ? step.data : "intro";
     const targetLanguage =
       q.get("target") === "en" ? "en" : q.get("target") === "zh-TW" ? "zh-TW" : getTargetLang();
     const uiLanguage = getUiLang();

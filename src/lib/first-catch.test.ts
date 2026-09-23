@@ -30,12 +30,20 @@ const draft: FirstCatch = {
 };
 const userId = "8bb9ef3e-4af5-47e0-aef0-fa228b361290";
 describe("first Catch before signup", () => {
-  it.each(["questions", "home", "dex", "review", "camera", "card", "added"] as const)(
-    "never requests signup at %s, even when a card exists",
-    (stage) => {
-      expect(canRequestAccount({ ...draft, stage })).toBe(false);
-    },
-  );
+  it.each([
+    "intro",
+    "questions",
+    "notifications",
+    "ready",
+    "home",
+    "dex",
+    "review",
+    "camera",
+    "card",
+    "added",
+  ] as const)("never requests signup at %s, even when a card exists", (stage) => {
+    expect(canRequestAccount({ ...draft, stage })).toBe(false);
+  });
   it("requires the captured photo, word and addition, not merely pressing the shutter", () => {
     expect(canRequestAccount({ ...draft, stage: "explore" })).toBe(true);
     expect(canRequestAccount({ ...draft, photo: null })).toBe(false);
@@ -48,6 +56,7 @@ describe("first Catch before signup", () => {
       goals: ["travel"],
       interests: ["food"],
       questionIndex: 4,
+      reminders: { morning: true, evening: false },
     };
     await writeFirstCatch(ready);
     expect(await readFirstCatch()).toEqual(ready);

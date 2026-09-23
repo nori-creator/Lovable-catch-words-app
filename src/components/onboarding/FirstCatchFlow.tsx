@@ -7,6 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { getUiLang, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
+import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI } from "@/lib/first-catch-ai.functions";
@@ -26,11 +27,11 @@ import {
   type FirstCatch,
 } from "@/lib/first-catch";
 import { CaptureObjectPanel, PickWordPanel } from "@/routes/_authenticated/capture";
-import { DexEmptyState, DexAlbumGrid } from "@/routes/_authenticated/dex";
+import { DexAlbumGrid } from "@/routes/_authenticated/dex";
 import { EmptyState } from "@/components/EmptyState";
 import { PeelSticker } from "@/components/PeelSticker";
 import { WordCard } from "@/components/WordCard";
-import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
+import { FirstCatchHome, FirstCatchSampleDex, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
 import "./first-catch.css";
 
@@ -99,7 +100,7 @@ export function FirstCatchFlow({
                   uiLanguage: getUiLang(),
                   targetLanguage: getTargetLang(),
                   dailyMinutes: 10,
-                  stage: "questions",
+                  stage: "intro",
                   photo: null,
                   card: null,
                   capturedAt: null,
@@ -245,6 +246,8 @@ export function FirstCatchFlow({
     </div>
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
+  if (draft.stage === "intro")
+    return <FirstCatchIntro busy={!!busy} onStart={() => move("questions")} />;
   if (draft.stage === "questions")
     return (
       <FirstCatchQuestions
@@ -258,6 +261,25 @@ export function FirstCatchFlow({
         onContinue={(next) => {
           void action(() => commit(next));
         }}
+      />
+    );
+  if (draft.stage === "notifications")
+    return (
+      <FirstCatchNotifications
+        draft={draft}
+        busy={!!busy}
+        error={errors}
+        onChange={(reminders) => setDraft({ ...draft, reminders })}
+        onBack={() => void action(() => commit({ ...draft, stage: "questions", questionIndex: 4 }))}
+        onContinue={() => move("ready")}
+      />
+    );
+  if (draft.stage === "ready")
+    return (
+      <FirstCatchReady
+        busy={!!busy}
+        onBack={() => move("notifications")}
+        onStart={() => move("home")}
       />
     );
   if (busy && busy !== "save")
@@ -277,7 +299,7 @@ export function FirstCatchFlow({
         <FirstCatchShell tab={1}>
           <h1 className="text-title font-bold mb-6">{t("nav.dex")}</h1>
           <section data-tour="dex">
-            <DexEmptyState />
+            <FirstCatchSampleDex draft={draft} />
           </section>
         </FirstCatchShell>
       )}

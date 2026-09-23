@@ -215,3 +215,62 @@
 .personal-example-line > p { flex: 1; font-size: 16px; font-weight: 650; line-height: 1.6; }
 .personal-translation { color: #63758b; font-size: 13px; line-height: 1.7; }
 .personal-explanation { margin-top: 12px; padding-top: 12px; border-top: 1px solid #edf2f7; font-size: 13px; line-height: 1.8; }
+
+/* First-run pages use the same narrow white canvas and blue accent as the questions. */
+.first-standalone { width: min(100%, 460px); min-height: 100dvh; margin: auto; padding: max(28px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; background: radial-gradient(ellipse at 54% 70%, #e5f5ff 0%, #f9fdff 60%, #fff 84%); animation: first-enter .4s ease-out both; }
+.first-intro-heading { text-align: center; padding-top: clamp(30px, 8dvh, 76px); }
+.first-intro-logo { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 20px; }
+.first-intro-heading h1 { font-size: 31px; font-weight: 780; line-height: 1.2; color: #10213d; letter-spacing: -.035em; }
+.first-intro-heading p { margin-top: 14px; font-size: 16px; line-height: 1.65; color: #63758b; white-space: pre-line; }
+.first-polaroids { position: relative; height: min(44dvh, 350px); min-height: 285px; margin: 24px auto 0; width: 100%; max-width: 350px; }
+.first-polaroid { position: absolute; width: 55%; padding: 7px 7px 12px; background: white; border-radius: 13px; box-shadow: 0 12px 24px #25608b25, 0 1px 4px #1b4f7712; animation: first-photo-enter .65s cubic-bezier(.2,.8,.2,1) backwards; }
+.first-polaroid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.first-polaroid span { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 7px; background: #eff8ff; font-size: 14px; font-weight: 750; }
+.first-polaroid-0 { left: 3%; top: 2%; transform: rotate(-9deg); animation-delay: .06s; }
+.first-polaroid-1 { right: 0; top: 28%; transform: rotate(8deg); animation-delay: .16s; z-index: 1; }
+.first-polaroid-2 { left: 16%; bottom: 0; transform: rotate(-5deg); animation-delay: .26s; z-index: 2; }
+.first-handwriting { position: absolute; right: -2%; top: 1%; color: #0089e9; font-family: 'Zen Kurenaido', sans-serif; font-size: 18px; line-height: 1.5; white-space: pre-line; transform: rotate(-9deg); }
+.first-standalone-footer { margin-top: auto; padding-top: 24px; text-align: center; }
+.first-standalone-footer .first-primary { min-height: 58px; font-size: 17px; }
+.first-step-dots { display: flex; justify-content: center; gap: 10px; margin-top: 22px; }
+.first-step-dots i { width: 6px; height: 6px; border-radius: 50%; background: #bacbd8; }
+.first-step-dots .is-current { width: 8px; height: 8px; background: #008cf3; }
+@keyframes first-photo-enter { from { opacity: 0; translate: 0 20px; scale: .92; } to { opacity: 1; translate: 0 0; scale: 1; } }
+
+.first-notifications .first-question-heading { margin-top: clamp(22px, 6dvh, 68px); }
+.first-notifications .first-question-heading h1 { font-size: clamp(27px, 6.7vw, 31px); }
+.first-reminders { display: grid; gap: 14px; margin: 32px 0 24px; }
+.first-reminder { display: flex; align-items: center; gap: 16px; min-height: 80px; width: 100%; padding: 16px 20px; border: 1px solid #e6edf5; border-radius: 24px; background: white; box-shadow: 0 7px 24px #0e679a0b; text-align: left; transition: transform .18s, box-shadow .18s; }
+.first-reminder:active { transform: scale(.985); }
+.first-reminder-icon { color: #0789ef; }
+.first-reminder-text { display: grid; gap: 3px; flex: 1; }
+.first-reminder-text strong { font-size: 15px; font-weight: 700; }
+.first-reminder-text small { font-size: 13px; color: #75849a; }
+.first-toggle { width: 46px; height: 28px; padding: 3px; border-radius: 20px; background: #d8e1ea; transition: background .2s; }
+.first-toggle i { display: block; width: 22px; height: 22px; border-radius: 50%; background: white; box-shadow: 0 1px 4px #0002; transition: transform .2s; }
+.first-reminder[aria-checked="true"] .first-toggle { background: #008cf3; }
+.first-reminder[aria-checked="true"] .first-toggle i { transform: translateX(18px); }
+.first-notification-note { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; padding: 16px 18px; border: 1px solid #e3eff8; border-radius: 18px; background: white; color: #62768c; font-size: 13px; line-height: 1.65; }
+.first-notification-note svg { color: #0789ef; flex-shrink: 0; }
+
+.first-ready { position: relative; align-items: center; }
+.first-ready-back { position: absolute; top: max(20px, env(safe-area-inset-top)); left: 20px; }
+.first-ready-heading { text-align: center; padding-top: clamp(66px, 13dvh, 120px); }
+.first-ready-heading h1 { margin: 18px 0 14px; font-size: clamp(29px, 7vw, 34px); line-height: 1.4; letter-spacing: -.04em; font-weight: 780; }
+.first-ready-heading p { color: #667b90; line-height: 1.75; font-size: 15px; white-space: pre-line; }
+.first-ready-art { position: relative; width: min(77vw, 280px); margin: auto; transform: rotate(-5deg); animation: first-ready-float 3.5s ease-in-out infinite; }
+.first-ready-photo { padding: 10px 10px 17px; background: white; border-radius: 12px; box-shadow: 0 16px 40px #007ed52b; }
+.first-ready-photo img { aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+.first-ready-photo span { display: block; padding-top: 8px; color: #29496a; text-align: center; font-size: 15px; font-family: 'Zen Kurenaido', sans-serif; }
+.first-ready-sparkle { position: absolute; right: -24px; top: -30px; color: #119bff; }
+.first-ready .first-standalone-footer { width: 100%; }
+.first-ready-footnote { margin-top: 18px; color: #75849a; font-size: 12px; line-height: 1.6; }
+@keyframes first-ready-float { 50% { translate: 0 -8px; } }
+
+.first-sample-dex { padding: 16px 14px 24px; border: 1px solid #e3eff8; border-radius: 26px; background: white; box-shadow: 0 10px 30px #035c9610; }
+.first-sample-dex .first-sample-label { padding-top: 0; padding-bottom: 14px; }
+.first-sample-dex button { pointer-events: none; }
+.first-sample-album { max-width: 560px; margin: 6px auto 0; }
+.first-sample-album .collage { margin: 0 auto; }
+@media (max-height: 650px) { .first-intro-heading { padding-top: 12px; } .first-polaroids { height: 265px; min-height: 265px; } .first-ready-heading { padding-top: 52px; } .first-reminders { margin: 18px 0; } }
+@media (prefers-reduced-motion: reduce) { .first-standalone *, .first-notifications * { animation: none !important; transition: none !important; } }
