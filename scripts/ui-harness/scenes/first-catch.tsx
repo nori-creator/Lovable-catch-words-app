@@ -39,7 +39,7 @@ function sampleCard(target: FirstCatch["targetLanguage"], ui: FirstCatch["uiLang
     meaning_ja: meaning,
     reading_zhuyin: target === "en" ? "/ˈkɔːfi/" : "ㄎㄚ ㄈㄟ",
     pinyin: target === "en" ? "" : "kā fēi",
-    part_of_speech: "noun",
+    part_of_speech: "N",
     level: "",
     category_key: "drink",
     example_sentence: target === "en" ? "I'd like a coffee, please." : "我想要一杯咖啡。",

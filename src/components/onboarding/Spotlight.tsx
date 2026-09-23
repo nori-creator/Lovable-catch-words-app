@@ -1,24 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Overlay blocks pointer input outside the target; capture listeners also block
  * keyboard/assistive clicks and background scroll. No clone of the real control. */
 export function Spotlight({
   target,
+  title,
   text,
+  step,
   nextLabel,
   onNext,
   interactive = false,
   allowSelector,
 }: {
   target: string;
+  /** 短い見出し（「ホーム」「図鑑」…）。本文は1文だけにする。 */
+  title?: string;
   text: string;
+  /** 「1 / 3」— 案内があと何枚あるか（いまどこに居るかを答える）。 */
+  step?: string;
   nextLabel?: string;
   onNext?: () => void;
   interactive?: boolean;
   allowSelector?: string;
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const [coachH, setCoachH] = useState(0);
   const panel = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (panel.current) setCoachH(panel.current.offsetHeight);
+  }, [title, text, nextLabel]);
   useEffect(() => {
     const node = document.querySelector<HTMLElement>(target);
     if (!node) return;
@@ -91,6 +101,7 @@ export function Spotlight({
     };
   }, [target, interactive, allowSelector]);
   const top = rect ? Math.max(8, rect.top - 6) : 0;
+  const place = coachPlacement(rect, coachH);
   const bottom = rect ? Math.min(window.innerHeight, rect.bottom + 6) : 0;
   const left = rect ? Math.max(6, rect.left - 6) : 0;
   const right = rect ? Math.min(window.innerWidth - 6, rect.right + 6) : 0;
@@ -120,23 +131,60 @@ export function Spotlight({
       )}
       <div
         ref={panel}
+        key={text}
         role="dialog"
-        aria-label={text}
+        aria-label={title ?? text}
+        aria-describedby={title ? "tour-coach-text" : undefined}
         tabIndex={-1}
         className="tour-coach"
-        style={
-          rect && bottom + 200 < window.innerHeight - 100
-            ? { top: bottom + 18 }
-            : { bottom: `max(110px, env(safe-area-inset-bottom))` }
-        }
+        data-side={place.side}
+        style={place.style}
       >
-        <p>{text}</p>
+        {(title || step) && (
+          <div className="tour-coach__head">
+            {title && <h2>{title}</h2>}
+            {step && <span className="tour-coach__step">{step}</span>}
+          </div>
+        )}
+        <p id="tour-coach-text">{text}</p>
         {onNext && (
-          <button className="first-primary" onClick={onNext}>
+          <button className="tour-coach__next" onClick={onNext}>
             {nextLabel}
           </button>
         )}
       </div>
     </div>
   );
+}
+
+const GAP = 14;
+/** 下のバーの高さ（案内の札をその上に置く）。 */
+const TABBAR_CLEAR = 104;
+
+/**
+ * 案内の札を**示している物に重ねない**所に置く。
+ *
+ * 前は「下に 200px 空いていれば下、無ければ画面の下端」の2択で、単語の
+ * 詳細のように画面の下半分を占める物では札がちょうどその上に乗り、
+ * 読ませたい所を隠していた。下 → 上 → （どちらにも入らない大きな物は）
+ * 画面の下端、の順に空きを探す。
+ */
+function coachPlacement(
+  rect: DOMRect | null,
+  h: number,
+): { side: "below" | "above" | "bottom"; style: React.CSSProperties } {
+  const vh = typeof window === "undefined" ? 844 : window.innerHeight;
+  const need = (h || 140) + GAP;
+  if (rect) {
+    if (rect.bottom + 6 + need <= vh - TABBAR_CLEAR) {
+      return { side: "below", style: { top: rect.bottom + 6 + GAP } };
+    }
+    if (rect.top - 6 - need >= 8) {
+      return { side: "above", style: { top: rect.top - 6 - need } };
+    }
+  }
+  return {
+    side: "bottom",
+    style: { bottom: `max(${TABBAR_CLEAR}px, env(safe-area-inset-bottom))` },
+  };
 }

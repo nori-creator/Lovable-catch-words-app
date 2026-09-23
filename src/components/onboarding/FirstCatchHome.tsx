@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
-import { DayMasthead, DayCollage } from "@/routes/_authenticated/home";
+import { DiaryDate, DayCollage } from "@/routes/_authenticated/home";
 import { DexAlbumGrid } from "@/routes/_authenticated/dex";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
@@ -36,23 +36,24 @@ function sampleStickers(
       meaning: t("first.sampleCat"),
       category: "animal",
     },
-  ].map(({ id, photo, word, meaning, category }) =>
-    firstCatchSticker({
-      version: 1,
-      id,
-      uiLanguage: draft?.uiLanguage ?? "ja",
-      targetLanguage: selected,
-      dailyMinutes: 10,
-      stage: "home",
-      photo,
-      capturedAt: "2026-09-23T09:00:00.000Z",
-      card: CardSchema.parse({
-        headword_zh: word,
-        meaning_ja: meaning,
-        category_key: category,
-        level: "",
-      }),
-    })!,
+  ].map(
+    ({ id, photo, word, meaning, category }) =>
+      firstCatchSticker({
+        version: 1,
+        id,
+        uiLanguage: draft?.uiLanguage ?? "ja",
+        targetLanguage: selected,
+        dailyMinutes: 10,
+        stage: "home",
+        photo,
+        capturedAt: "2026-09-23T09:00:00.000Z",
+        card: CardSchema.parse({
+          headword_zh: word,
+          meaning_ja: meaning,
+          category_key: category,
+          level: "",
+        }),
+      })!,
   );
 }
 
@@ -80,14 +81,8 @@ export function FirstCatchShell({
   const t = useT();
   return (
     <div className="first-shell">
-      {!camera && (
-        <header>
-          <div className="first-brand">
-            <img src="/icon-192.png" alt="" />
-            CatchWords
-          </div>
-        </header>
-      )}
+      {/* 上にアプリ名の帯は置かない — 実物のアプリにも無い（案内の途中で
+          見た目が変わると、どれが本物の画面か分からなくなる）。 */}
       <main className={camera ? "" : "first-content"}>{children}</main>
       <TabBar cursor={tab} onCamera={camera} indicatorOpacity={camera ? 0 : 1}>
         {[Home, BookOpen, Camera, Sparkles, Settings].map((Icon, i) => (
@@ -123,12 +118,13 @@ export function FirstCatchHome({
   const samples = sampleStickers(draft, t, target);
   return (
     <FirstCatchShell>
-      <DayMasthead date={new Date(draft?.capturedAt ?? Date.now())} />
       <section data-tour="home">
         {!sticker && <p className="first-sample-label">{t("first.sampleAlbum")}</p>}
         <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
+          {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}
           <DayCollage
             stickers={sticker ? [sticker] : samples}
+            heading={<DiaryDate date={new Date(draft?.capturedAt ?? Date.now())} />}
             opening={animated && !sticker}
             onOpen={() => {}}
           />

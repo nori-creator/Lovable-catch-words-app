@@ -1046,7 +1046,11 @@ function HeaderRow({
                   </span>
                 ))}
               {!guided && (
-                <ReportButton wordId={wordId} items={reportItems} language={word.language ?? null} />
+                <ReportButton
+                  wordId={wordId}
+                  items={reportItems}
+                  language={word.language ?? null}
+                />
               )}
             </div>
           )}

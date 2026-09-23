@@ -4868,8 +4868,10 @@ describe("ホームは今日の誌面", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
     expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
-    expect(home).toMatch(/<DayMasthead /);
+    // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
+    expect(home).not.toMatch(/<DayMasthead /);
     expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
+    expect(home).toMatch(/heading=\{<DiaryDate /);
     expect(home).toMatch(/first-catch-cafe\.webp/);
     expect(home).toMatch(/first-catch-flower\.webp/);
     expect(home).toMatch(/first-catch-cat\.webp/);

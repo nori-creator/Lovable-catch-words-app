@@ -448,7 +448,9 @@ export function FirstCatchFlow({
       {!error && !landing && ["home", "dex", "review"].includes(draft.stage) && (
         <Spotlight
           target={`[data-tour="${draft.stage}"]`}
+          title={t(`first.${draft.stage}Title`)}
           text={t(`first.${draft.stage}`)}
+          step={`${["home", "dex", "review"].indexOf(draft.stage) + 1} / 3`}
           nextLabel={t(draft.stage === "review" ? "first.shootCta" : "first.next")}
           onNext={() =>
             move(draft.stage === "home" ? "dex" : draft.stage === "dex" ? "review" : "camera")
@@ -456,14 +458,25 @@ export function FirstCatchFlow({
         />
       )}
       {!error && !landing && draft.stage === "camera" && !draft.photo && (
-        <Spotlight target=".camera-shutter" text={t("first.shoot")} interactive />
+        <Spotlight
+          target=".camera-shutter"
+          title={t("first.shootTitle")}
+          text={t("first.shoot")}
+          interactive
+        />
       )}
       {!error && !landing && draft.stage === "camera" && suggestions.length > 0 && (
-        <Spotlight target='[data-tour="pick"]' text={t("first.pick")} interactive />
+        <Spotlight
+          target='[data-tour="pick"]'
+          title={t("first.pickTitle")}
+          text={t("first.pick")}
+          interactive
+        />
       )}
       {!error && !landing && draft.stage === "card" && (
         <Spotlight
           target={detailSeen ? '[data-tour="peel"]' : '[data-tour="detail"]'}
+          title={t(detailSeen ? "first.peelTitle" : "first.detailTitle")}
           text={t(detailSeen ? "first.peel" : "first.detail")}
           interactive
           allowSelector={detailSeen ? undefined : "button[aria-label]"}

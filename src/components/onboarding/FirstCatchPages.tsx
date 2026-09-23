@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Bell, Moon, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Moon } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
@@ -34,9 +34,14 @@ export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () 
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">
           <img src="/icon-192.png" alt="" className="first-intro-logo" />
-          <h1>CatchWords</h1>
+          <h1>Catchwords</h1>
           <p>{t("first.introTagline")}</p>
         </header>
+        {/* 写真の束は、残りの高さに収まる大きさで描く（`container-type: size`）。
+            前は高さを固定していたので、背の低い画面では「はじめる」の上に
+            猫の写真が重なり、667px では「はじめる」が画面の外へ落ちていた。
+            手書きの一言と4つの点は外した — 一言は見出しの言い直しで、
+            点は横に送れない画面を送れるように見せていた。 */}
         <div className="first-polaroids" aria-hidden="true">
           {photos.map(({ src, word }, i) => (
             <div key={src} className={`first-polaroid first-polaroid-${i}`}>
@@ -44,18 +49,11 @@ export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () 
               <span>{word}</span>
             </div>
           ))}
-          <p className="first-handwriting">{t("first.introNote")}</p>
         </div>
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.introStart")}
           </PrimaryAction>
-          <div className="first-step-dots" aria-hidden="true">
-            <i className="is-current" />
-            <i />
-            <i />
-            <i />
-          </div>
         </footer>
       </div>
     </div>
@@ -136,10 +134,7 @@ export function FirstCatchNotifications({
             </button>
           ))}
         </div>
-        <div className="first-notification-note">
-          <Sparkles size={18} />
-          <p>{t("first.notificationsNote")}</p>
-        </div>
+        <p className="first-notification-note">{t("first.notificationsNote")}</p>
         {error}
         <footer className="first-footer">
           <PrimaryAction onClick={onContinue} disabled={busy}>
@@ -174,10 +169,11 @@ export function FirstCatchReady({
           <ArrowLeft size={22} />
         </button>
         <div className="first-ready-heading">
-          <span className="first-eyebrow">CatchWords</span>
           <h1>{t("first.readyTitle")}</h1>
           <p>{t("first.readyHint")}</p>
         </div>
+        {/* 台湾の街の1枚（台北101の見える窓辺）。前はサントリーニの海で、
+            台湾華語を学ぶアプリの入口として場所が合っていなかった。 */}
         <div className="first-ready-art" aria-hidden="true">
           <div className="first-confetti">
             {Array.from({ length: 12 }, (_, i) => (
@@ -185,10 +181,9 @@ export function FirstCatchReady({
             ))}
           </div>
           <div className="first-ready-photo">
-            <img src="/first-catch-ready.webp" alt="" />
+            <img src="/first-catch-cat.webp" alt="" />
             <span>{t("first.readyPhoto")}</span>
           </div>
-          <Sparkles className="first-ready-sparkle" size={36} />
         </div>
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>

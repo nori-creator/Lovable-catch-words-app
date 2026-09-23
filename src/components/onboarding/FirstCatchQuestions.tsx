@@ -15,10 +15,14 @@ import { TARGET_LANGUAGES } from "@/lib/target-lang";
 import { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS, type FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
 
-const FLAGS = {
-  ja: "🇯🇵",
-  en: "🇺🇸",
-  "zh-TW": "🇹🇼",
+/**
+ * 言語の印は**国旗ではなく、その言語の字**。国旗は国を指し、言語を指さない
+ * （英語は米国だけの言語ではない。Apple の HIG も言語の選択に国旗を使わない）。
+ */
+const GLYPHS = {
+  ja: "あ",
+  en: "A",
+  "zh-TW": "繁",
 };
 const NATIVE = {
   ja: "日本語",
@@ -78,7 +82,6 @@ export function FirstCatchQuestions({
           <span className="first-count">{step + 1} / 7</span>
         </header>
         <div className="first-question-heading">
-          <span className="first-eyebrow">CatchWords</span>
           <h1>{t(`first.${title}`)}</h1>
           <p className="first-sub">{t(`first.${title}Hint`)}</p>
         </div>
@@ -86,6 +89,11 @@ export function FirstCatchQuestions({
           <div className="first-choices" role="radiogroup" aria-label={t(`first.${title}`)}>
             {(step === 0 ? UI_LANGS : TARGET_LANGUAGES).map((value) => {
               const checked = (step === 0 ? draft.uiLanguage : draft.targetLanguage) === value;
+              const label = t(
+                step === 0
+                  ? UI_LANG_LABEL_KEYS[value]
+                  : TARGET_LANG_LABEL_KEYS[value as FirstCatch["targetLanguage"]],
+              );
               return (
                 <button
                   key={value}
@@ -102,16 +110,14 @@ export function FirstCatchQuestions({
                     )
                   }
                 >
-                  <span className="first-flag" aria-hidden="true">
-                    {FLAGS[value]}
+                  <span className="first-glyph" aria-hidden="true" lang={value}>
+                    {GLYPHS[value]}
                   </span>
                   <span className="first-choice-copy">
-                    {t(
-                      step === 0
-                        ? UI_LANG_LABEL_KEYS[value]
-                        : TARGET_LANG_LABEL_KEYS[value as FirstCatch["targetLanguage"]],
-                    )}
-                    <small>{NATIVE[value]}</small>
+                    {label}
+                    {/* その言語自身の名前。表示と同じなら重ねて書かない
+                        （「日本語／日本語」と2回並んでいた）。 */}
+                    {NATIVE[value] !== label && <small lang={value}>{NATIVE[value]}</small>}
                   </span>
                   <span className="first-check" aria-hidden="true">
                     {checked && <Check size={15} strokeWidth={3} />}
