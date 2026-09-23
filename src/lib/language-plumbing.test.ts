@@ -4902,9 +4902,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-23 の図鑑のカード表示）。単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
+    // （2026-09-23 の図鑑の地図）。図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
     // 同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    expect(list).toMatch(/\{ scene: "dex-cards"/);
     expect(list).toMatch(/\{ scene: "word-card"/);
     expect(list).toMatch(/\{ scene: "dex-calendar/);
     expect(list).toMatch(/\{ scene: "scan-found"/);
@@ -5418,9 +5419,11 @@ describe("図鑑のカレンダー（オーナー指示 2026-09-22）", () => {
   const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
   const css = read("styles.css");
 
-  it("図鑑はカレンダーを部品から描く（雛形と同じ物を見る）", () => {
-    expect(dex).toMatch(/<DexCalendar stickers=\{filtered\} onOpen=\{setOpenId\} \/>/);
+  it("図鑑はカレンダーを部品から描く（雛形と同じ物を見る）。2026-09-23 からは地図の中の暦", () => {
     expect(dex).not.toMatch(/function DexCalendar/);
+    expect(codeOnly(read("components/DexDayMap.tsx"))).toMatch(
+      /<DexCalendar[\s\S]{0,200}onPickDay=/,
+    );
   });
 
   it("**曜日の見出し**があり、今日に印が付く", () => {
@@ -5569,5 +5572,40 @@ describe("スキャンの候補を押したら撮影モードと同じ流れ（�
     const again = strip.indexOf('aria-label={t("scan.again")}');
     expect(box).toBeGreaterThan(0);
     expect(again).toBeGreaterThan(box);
+  });
+});
+
+describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-09-23・RONDO 形）", () => {
+  const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+  const dm = codeOnly(read("components/DexDayMap.tsx"));
+  const css = read("styles.css");
+
+  it("表示の切替に「カレンダー」は無く、地図が両方を持つ", () => {
+    expect(dex).not.toMatch(/\["calendar", CalendarDays/);
+    expect(dex).toMatch(/view === "map" \?[\s\S]{0,300}<DexDayMap stickers=\{filtered\}/);
+  });
+
+  it("日付の横送り・前後の撮った日・暦から選ぶ", () => {
+    expect(dm).toMatch(/className="dex-daymap__days/);
+    expect(dm).toMatch(/neighborDay\(days, current, -1\)/);
+    expect(dm).toMatch(/onPickDay=\{\(k\) => \{/);
+  });
+
+  it("時間軸を送ると、読んでいる行の立ち寄りのピンが浮き上がる", () => {
+    expect(dm).toMatch(
+      /document\.addEventListener\("scroll", onScroll, \{ capture: true, passive: true \}\)/,
+    );
+    expect(dm).toMatch(/data-active=\{active \|\| undefined\}/);
+    expect(css).toMatch(/\.dex-pin\[data-active\] \{[^}]*translateY\(-10px\) scale\(1\.45\)/);
+    expect(css).toMatch(/html\[data-motion="reduce"\] \.dex-pin \{\s*transition: none;/);
+  });
+
+  it("地図が読めないときも、同じピンを簡易の面に描く", () => {
+    expect(dm).toMatch(/<FallbackDayMap/);
+    expect(dm).toMatch(/projectStops\(stops, box/);
+  });
+
+  it("**歩いた道のりの線と距離は出さない**（GPS をずっと使わないため・2026-09-23）", () => {
+    expect(dm).not.toMatch(/Polyline|polyline|routeKm|dex\.dayKm/);
   });
 });

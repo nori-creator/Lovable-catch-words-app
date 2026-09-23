@@ -601,6 +601,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't load the OpenRouter list ({e}). Type a model name instead.",
     "zh-TW": "無法取得 OpenRouter 的清單（{e}）。請手動輸入模型名稱。",
   },
+  "dex.prevDay": { ja: "前の撮った日", en: "Previous day", "zh-TW": "上一個拍攝日" },
+  "dex.nextDay": { ja: "次の撮った日", en: "Next day", "zh-TW": "下一個拍攝日" },
+  "dex.dayPhotos": { ja: "枚", en: "photos", "zh-TW": "張" },
+  "dex.dayPlaces": { ja: "か所", en: "places", "zh-TW": "個地點" },
+  "dex.dayHours": { ja: "時間帯", en: "hours", "zh-TW": "時段" },
   "dex.cards": { ja: "カード", en: "Cards", "zh-TW": "卡片" },
   "dex.calendarEmpty": {
     ja: "まだ写真がありません。撮るとその日のマスに入ります。",

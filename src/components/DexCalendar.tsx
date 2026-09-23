@@ -30,9 +30,18 @@ export function DexCalendar({
   onOpen,
   todayKey,
   initialDay = null,
+  initialMonth,
+  onPickDay,
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
+  /** 最初に開く月（その月の日の鍵）。 */
+  initialMonth?: string;
+  /**
+   * 日付を**選ぶ**だけの使い方（図鑑の地図の暦）。渡すと、押した日を返し、
+   * この中でタイムラインを開かない。
+   */
+  onPickDay?: (dayKey: string) => void;
   /** 今日の鍵（見本で日付を固定するため。ふだんは端末の今日）。 */
   todayKey?: string;
   /** 最初からその日のタイムラインを開く（見本用）。 */
@@ -59,15 +68,15 @@ export function DexCalendar({
     return best;
   }, [byDay]);
   const [cursor, setCursor] = useState<{ y: number; m: number }>(() => {
-    const k = initialDay ?? newest;
+    const k = initialDay ?? initialMonth ?? newest;
     const d = k ? new Date(`${k}T00:00:00`) : new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
   });
   useEffect(() => {
-    if (!newest || initialDay) return;
+    if (!newest || initialDay || initialMonth) return;
     const d = new Date(`${newest}T00:00:00`);
     setCursor({ y: d.getFullYear(), m: d.getMonth() });
-  }, [newest, initialDay]);
+  }, [newest, initialDay, initialMonth]);
 
   const [openDay, setOpenDay] = useState<string | null>(initialDay);
   useSwipeBack({ enabled: !!openDay, onBack: () => setOpenDay(null) });
@@ -207,7 +216,7 @@ export function DexCalendar({
           return (
             <button
               key={key}
-              onClick={() => setOpenDay(key)}
+              onClick={() => (onPickDay ? onPickDay(key) : setOpenDay(key))}
               aria-label={`${day}${t("dex.dayUnit")} — ${t("dex.calPhotos", { n: items.length })}`}
               className={`dex-cal__cell dex-cal__cell--photo press-in relative overflow-hidden rounded-[10px] bg-secondary ${
                 isToday ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""

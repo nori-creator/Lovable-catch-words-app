@@ -16,7 +16,6 @@ import {
   LayoutGrid,
   List,
   Map as MapIcon,
-  CalendarDays,
   GalleryHorizontal,
   Search,
   X,
@@ -42,7 +41,7 @@ import {
   type FilterOption,
 } from "@/lib/dex-filter";
 import { FilterMenu } from "@/components/FilterMenu";
-import { DexCalendar } from "@/components/DexCalendar";
+import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -376,9 +375,12 @@ function DexPage() {
       ) : view === "map" ? (
         // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
         // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
-        <DexMap stickers={filtered} onOpen={setOpenId} />
+        // **地図とカレンダーを1つにした**（オーナー指示 2026-09-23）。開くと
+        // 地図、下で日付を送り、暦から日を選び、時間軸でその日を辿る。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
       ) : view === "calendar" ? (
-        <DexCalendar stickers={filtered} onOpen={setOpenId} />
+        // 前に「カレンダー」を選んでいた人も、同じ地図へ。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
         <DexEmptyState
           otherLanguages={stickers?.otherLanguages ?? 0}
@@ -889,293 +891,6 @@ export function PackGallery({
   );
 }
 
-function DexMap({
-  stickers,
-  onOpen,
-}: {
-  stickers: StickerWithWord[];
-  onOpen: (id: string) => void;
-}) {
-  // 撮った日の絞り込みは**この中に持たない**(オーナー指摘 2026-08-21)。
-  // 前はここだけが日付の列を持っていて、一覧・棚・カレンダーには手段が
-  // 無く、地図を離れると選んだ日が黙って消えた。いまは上の
-  // 「あなたの図鑑」の欄で絞られた物が `stickers` として降りてくる。
-  const shown = stickers;
-  const shownRef = useRef(shown);
-  shownRef.current = shown;
-  const mapRef = useRef<HTMLDivElement>(null);
-  // renderMarkers はマウント時のクロージャを使い回すので、最新の onOpen を
-  // ref 経由で参照する(古い関数を掴んだままにしない)。
-  const onOpenRef = useRef(onOpen);
-  onOpenRef.current = onOpen;
-  const t = useT();
-  const [mapFailed, setMapFailed] = useState(false);
-  /** 「もう一度」で読み込みからやり直すための番号。 */
-  const [mapAttempt, setMapAttempt] = useState(0);
-  const mapInstance = useRef<unknown>(null);
-  const markersRef = useRef<unknown[]>([]);
-  const pinIconCache = useRef<Map<string, string | null>>(new Map());
-  // Lovable-free first: prefer a plain VITE_ key, fall back to Lovable's
-  // connector-injected name so it keeps working during the migration.
-  const browserKey =
-    import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ??
-    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
-  const channel =
-    import.meta.env.VITE_GOOGLE_MAPS_TRACKING_ID ??
-    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
-
-  useEffect(() => {
-    if (!browserKey) return;
-    if (window.google) {
-      initMap();
-      return;
-    }
-    window.initDexMap = initMap;
-    const existing = document.querySelector("script[data-dex-map]");
-    if (existing) return;
-    const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${browserKey}&loading=async&callback=initDexMap${channel ? `&channel=${channel}` : ""}`;
-    s.async = true;
-    s.dataset.dexMap = "1";
-    // **読み込めなかったことを画面に出す。**
-    //
-    // キーが無いときは「地図は使えません」と言う配慮があるのに、
-    // キーはあるが読み込めない(圏外・ブロック・キー無効・課金停止)ときは
-    // `initMap` が呼ばれず、**灰色の角丸だけが残っていた**。その下には
-    // 日付チップと「位置情報あり N件」が普通に並ぶので、「ピンが1本も
-    // 無い地図」に見える — 集めた場所の記録が無いように見える
-    // (独立監査の指摘)。
-    s.onerror = () => {
-      s.remove(); // 消しておかないと `existing` で二度と再試行できない
-      setMapFailed(true);
-    };
-    document.head.appendChild(s);
-
-    function initMap() {
-      if (!mapRef.current) return;
-      const g = (window.google as { maps: { Map: new (el: HTMLElement, opts: object) => unknown } })
-        .maps;
-      mapInstance.current = new g.Map(mapRef.current, {
-        center: { lat: 25.033, lng: 121.5654 },
-        zoom: 12,
-        disableDefaultUI: true,
-        zoomControl: true,
-      });
-      renderMarkers();
-      setMapFailed(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapAttempt]);
-
-  function renderMarkers() {
-    if (!mapInstance.current || !window.google) return;
-    const g = (
-      window.google as {
-        maps: {
-          Marker: new (opts: object) => unknown;
-          LatLngBounds: new () => { extend: (l: object) => void; isEmpty: () => boolean };
-          Size: new (a: number, b: number) => unknown;
-          Point: new (a: number, b: number) => unknown;
-        };
-      }
-    ).maps;
-    for (const m of markersRef.current) {
-      (m as { setMap: (x: null) => void }).setMap(null);
-    }
-    markersRef.current = [];
-    const bounds = new g.LatLngBounds();
-    // 同じ場所で撮った写真はピンが完全に重なってタップできない。
-    // 座標を約11m格子に丸めてグループ化し、2枚目以降を円形に散らす
-    // (spiderfy)。散らす半径はズームに依らない実距離で決める。
-    const groups = new Map<string, number>();
-    const keyOf = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
-    // **絞り込み後の `shown` を回すこと。**
-    //
-    // ここだけ絞り込み前の `stickers` を見ていた。日付チップを押すと
-    // 「位置情報あり N件」の数字も下の写真も減るのに、**地図のピンだけ
-    // 全部出たまま**になる。押した結果が半分だけ反映される画面は、
-    // どちらが本当なのか分からない。`shownRef` は用意してあったのに
-    // どこからも読まれていなかった(独立監査の指摘)。
-    for (const s of shownRef.current) {
-      if (s.lat == null || s.lng == null) continue;
-      const emoji = s.word.silhouette_emoji ?? "📍";
-      const svg = `data:image/svg+xml;utf-8,${encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='60' viewBox='0 0 52 60'><path d='M26 2c11 0 20 8.8 20 20 0 14-20 36-20 36S6 36 6 22C6 10.8 15 2 26 2z' fill='white' stroke='#0ea5e9' stroke-width='2'/><text x='26' y='30' text-anchor='middle' font-size='22' dominant-baseline='middle'>${emoji}</text></svg>`,
-      )}`;
-      // このグループで何枚目か → 角度をずらして配置
-      const gk = keyOf(s.lat, s.lng);
-      const idx = groups.get(gk) ?? 0;
-      groups.set(gk, idx + 1);
-      let posLat = s.lat;
-      let posLng = s.lng;
-      if (idx > 0) {
-        const ring = Math.ceil(idx / 8); // 8個ごとに外側の輪へ
-        const slot = (idx - 1) % 8;
-        const angle = (slot / 8) * Math.PI * 2 + ring * 0.4;
-        const meters = 14 * ring; // 14m, 28m, …
-        const dLat = (meters * Math.cos(angle)) / 111_320;
-        const dLng =
-          (meters * Math.sin(angle)) / (111_320 * Math.max(0.2, Math.cos((s.lat * Math.PI) / 180)));
-        posLat += dLat;
-        posLng += dLng;
-      }
-      const marker = new g.Marker({
-        position: { lat: posLat, lng: posLng },
-        map: mapInstance.current,
-        title: s.word.headword,
-        icon: { url: svg, scaledSize: new g.Size(40, 46), anchor: new g.Point(20, 44) },
-      });
-      // Swap in the photo pin as soon as it's drawn (emoji pin stays as fallback).
-      // Thumbs first: a pin head is 52px, a 400px thumb is already 8x overkill.
-      const photoUrl = stickerPhotoUrl(s, { thumb: true });
-      if (photoUrl) {
-        const cached = pinIconCache.current.get(s.id);
-        const iconPromise = cached !== undefined ? Promise.resolve(cached) : photoPinIcon(photoUrl);
-        void iconPromise.then((icon) => {
-          pinIconCache.current.set(s.id, icon);
-          if (!icon || !markersRef.current.includes(marker)) return;
-          (marker as { setIcon: (i: object) => void }).setIcon({
-            url: icon,
-            scaledSize: new g.Size(52, 60),
-            anchor: new g.Point(26, 58),
-          });
-        });
-      }
-      // マーカー(丸い写真)のタップで単語の詳細を開く。
-      // 以前はルート遷移(/dex/$stickerId)にしていたが、地図の再マウントで
-      // 画面が戻ってしまい「タップしても飛ばない」状態になっていた。
-      // 同じ画面の上にシートを重ねる方式に変更して確実に開くようにする。
-      (marker as { addListener: (ev: string, cb: () => void) => void }).addListener("click", () => {
-        onOpenRef.current(s.id);
-      });
-      bounds.extend({ lat: posLat, lng: posLng });
-      markersRef.current.push(marker);
-    }
-    if (!bounds.isEmpty()) {
-      (mapInstance.current as { fitBounds: (b: object, p: number) => void }).fitBounds(bounds, 64);
-    }
-  }
-
-  useEffect(() => {
-    if (mapInstance.current) renderMarkers();
-  }, [shown]);
-
-  // Tapping a photo below pans+zooms the map to where it was caught.
-  function focusOnMap(s: (typeof stickers)[number]) {
-    if (s.lat == null || s.lng == null) return;
-    const map = mapInstance.current as {
-      panTo: (l: object) => void;
-      setZoom: (z: number) => void;
-    } | null;
-    if (map) {
-      map.panTo({ lat: s.lat, lng: s.lng });
-      map.setZoom(17);
-    }
-    mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  const withLoc = shown.filter((s) => s.lat != null && s.lng != null);
-  const recent = withLoc.slice(0, 12);
-
-  if (!browserKey) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6 text-body text-muted-foreground">
-        {t("dex.mapUnavailable")}
-      </div>
-    );
-  }
-
-  if (mapFailed) {
-    // **`mapFailed` を戻すのは「もう一度」を押した側の役目。**
-    // 番号を増やすだけにしていたら、地図の div は外れたままなので
-    // `initMap` が `if (!mapRef.current) return;` で抜け、
-    // `setMapFailed(false)` に永久に届かなかった —
-    // 「もう一度」が二度と効かない再試行ボタンを作っていた。
-    return (
-      <LoadFailed
-        what={t("err.whatMap")}
-        onRetry={() => {
-          setMapFailed(false);
-          setMapAttempt((n) => n + 1);
-        }}
-      />
-    );
-  }
-
-  return (
-    <>
-      <div
-        ref={mapRef}
-        className="h-[55vh] w-full overflow-hidden rounded-3xl border border-border bg-secondary shadow-sm"
-      />
-
-      <div className="mt-3 flex items-center justify-between text-footnote text-muted-foreground">
-        <span>{t("dex.withLocation")}</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary-ink">
-          {withLoc.length} {t("dex.items")}
-        </span>
-      </div>
-
-      {recent.length > 0 && (
-        <section className="mt-5">
-          <h3 className="mb-1 text-body font-semibold tracking-tight">{t("dex.placesTitle")}</h3>
-          <p className="mb-2 text-caption text-muted-foreground">{t("dex.placesHint")}</p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {recent.map((s) => {
-              const thumb = stickerPhotoUrl(s, { thumb: true });
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => focusOnMap(s)}
-                  className="press-in overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm"
-                  aria-label={t("dex.seeOnMap", { word: s.word.headword })}
-                >
-                  <div className="aspect-square w-full overflow-hidden bg-secondary">
-                    {thumb ? (
-                      <CachedImg
-                        src={thumb}
-                        alt={t("common.photoOf", { word: s.word.headword })}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="grid h-full w-full place-items-center text-title">
-                        {s.word.silhouette_emoji ?? "📍"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-1.5">
-                    <MapPin className="h-3 w-3 shrink-0 text-primary" />
-                    <span lang="zh-Hant" className="truncate text-footnote font-medium">
-                      {s.word.headword}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-    </>
-  );
-}
-
-/**
- * 「あなたの図鑑」の欄。見出し・数・表示の切替と、**絞り込みのボタン2つ**。
- *
- * オーナー指摘 2026-08-21:
- * > 「図鑑のカテゴリーや日付の選択は、**選択肢をすべて表示するのではなく、
- * >  ボタンを押したら選択肢が出てきて選べる**ようにして。またカテゴリーと
- * >  日付のボタンは**あなたの図鑑の欄に収めて**。」
- *
- * 前はカテゴリーの丸が持っている数だけ横に伸び(60語で十数個)、日付の列は
- * **地図の中にだけ**在った。集めた物を見る画面なのに、道具のほうが場所を
- * 取っていた。ボタン2つに畳んで、この欄の中へ入れる。
- *
- * **ルートから切り出してある**のは検査のため。ここは図鑑を開くたび必ず
- * 見る所なのに、ルートに直書きだと一度も写真に撮れない。
- */
 export function DexHeader({
   found,
   caught,
@@ -1225,8 +940,8 @@ export function DexHeader({
             // カード表示（カバーフロー）。オーナー指示 2026-09-22。
             ["cards", GalleryHorizontal, t("dex.cards")] as const,
             ["list", List, t("dex.list")] as const,
+            // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
-            ["calendar", CalendarDays, t("dex.calendar")] as const,
           ].map(([v, Icon, label]) => (
             <button
               key={v}
