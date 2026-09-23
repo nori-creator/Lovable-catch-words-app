@@ -3928,7 +3928,10 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(at).toBeGreaterThanOrEqual(0);
     const row = src.slice(at, at + 2000);
     expect(row).toMatch(/usage-chunk-row__meaning/);
-    expect(row).not.toMatch(/PronounceButton/);
+    // 右は訳だけ（説明を落とす）。音声は**左端**に小さく（2026-09-23 の指示で復活。
+    // 右端に置くと訳が痩せるので、訳より前に置く）。
+    expect(row).toMatch(/const translation = chunkTranslation\(chunk\.ja\);/);
+    expect(row.indexOf("<PronounceButton")).toBeLessThan(row.indexOf("usage-chunk-row__meaning"));
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */

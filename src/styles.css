@@ -4533,7 +4533,8 @@ html[data-motion="reduce"] {
   display: grid;
   /* 語と訳の2列。**右端のボタンを外した**（`WordCard` の `ChunkRow` の注）
      ので、痩せていた訳の取り分が戻る。 */
-  grid-template-columns: minmax(0, 1fr) minmax(6.5rem, 0.8fr);
+  /* 音声・語・訳の3列。音声は左端に小さく（訳の取り分を削らない）。 */
+  grid-template-columns: auto minmax(0, 1fr) minmax(6.5rem, 0.8fr);
   align-items: center;
   gap: 0.5rem;
 }
@@ -4568,7 +4569,7 @@ html[data-motion="reduce"] {
 }
 @media (max-width: 360px) {
   .usage-chunk-row__main {
-    grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.75fr);
+    grid-template-columns: auto minmax(0, 1fr) minmax(5.5rem, 0.75fr);
     gap: 0.375rem;
   }
 }
