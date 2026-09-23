@@ -1,3 +1,4 @@
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 /**
  * **報告からの直しを、共有の語に書いてよいか**の決まり。
  *
@@ -104,4 +105,52 @@ export function dictionaryFixPatch(
     return { part_of_speech: norm(dict.pos) };
   }
   return null;
+}
+
+/**
+ * **確かな辞書に無い語の、発音・品詞の直し。**（オーナー指示 2026-09-23 の3回目
+ * 「ユーザーが単語の詳細などでエラーを報告したときに自動的に正しく修正する
+ * システムを構築して」）
+ *
+ * 上の `dictionaryFixPatch` は確かな辞書の行がある語しか直せない。辞書に無い語
+ * （写真で見つけた新しい語など）は、報告しても直らなかった。ここでは
+ * **2つの別の AI に独立に聞いた答えが完全に一致したとき**だけ直す案を作る。
+ * 書く前にさらに `judgeCorrection`（Jev）が前と後を比べる — 3つの目が揃わない
+ * 限り、全員の語は書き換わらない。
+ *
+ *  ・確認済みの語（`verified`）は書き換えない
+ *  ・答えが1つでも食い違えば直さない（揺れる答えは事実ではない）
+ *  ・台湾華語は、注音の音節の数と漢字の数が合わなければ直さない
+ *  ・今の値と同じなら直さない
+ */
+export type ReadingAnswer = { reading: string; reading_alt: string; pos: string };
+
+export function consensusFixPatch(
+  kind: "pronunciation" | "pos",
+  word: WordForFix & { headword: string; language: string | null },
+  answers: ReadingAnswer[],
+): Record<string, string> | null {
+  if (word.source === "verified") return null;
+  if (answers.length < 2) return null;
+  const norm = (v: string | null | undefined) =>
+    (v ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+  const same = (pick: (a: ReadingAnswer) => string) => {
+    const vals = answers.map((a) => norm(pick(a)));
+    return vals[0] && vals.every((v) => v === vals[0]) ? vals[0] : null;
+  };
+  if (kind === "pos") {
+    const pos = same((a) => a.pos);
+    return pos && pos !== norm(word.part_of_speech) ? { part_of_speech: pos } : null;
+  }
+  const reading = same((a) => a.reading);
+  if (!reading) return null;
+  const alt = same((a) => a.reading_alt);
+  if ((word.language ?? DEFAULT_TARGET_LANGUAGE).startsWith("zh")) {
+    const han = [...word.headword].filter((ch) => /\p{Script=Han}/u.test(ch)).length;
+    if (han > 0 && reading.split(" ").length !== han) return null;
+  }
+  const patch: Record<string, string> = {};
+  if (reading !== norm(word.reading_zhuyin)) patch.reading_zhuyin = reading;
+  if (alt && alt !== norm(word.pinyin)) patch.pinyin = alt;
+  return Object.keys(patch).length > 0 ? patch : null;
 }

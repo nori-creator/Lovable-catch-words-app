@@ -76,3 +76,36 @@ describe("発音・品詞は、辞書と照らして直す", () => {
     expect(dictionaryFixPatch("pronunciation", word, null)).toBeNull();
   });
 });
+
+import { consensusFixPatch } from "./correction-judge";
+
+describe("consensusFixPatch（辞書に無い語の発音・品詞。オーナー指示 2026-09-23 の3回目）", () => {
+  const w = {
+    headword: "吸管",
+    language: "zh-TW",
+    source: "ai",
+    reading_zhuyin: "ㄒㄧ ㄍㄨㄢˇ",
+    pinyin: "xī guǎn",
+    part_of_speech: "動詞",
+  };
+  const a = { reading: "ㄒㄧ ㄍㄨㄢˇ", reading_alt: "xīguǎn", pos: "名詞" };
+  it("2つの答えが一致し、今と違う所だけ直す", () => {
+    expect(consensusFixPatch("pos", w, [a, { ...a }])).toEqual({ part_of_speech: "名詞" });
+    expect(consensusFixPatch("pronunciation", w, [a, { ...a }])).toEqual({ pinyin: "xīguǎn" });
+  });
+  it("答えが食い違えば直さない", () => {
+    expect(consensusFixPatch("pos", w, [a, { ...a, pos: "動詞" }])).toBeNull();
+    expect(
+      consensusFixPatch("pronunciation", w, [a, { ...a, reading: "ㄒㄧˋ ㄍㄨㄢˇ" }]),
+    ).toBeNull();
+  });
+  it("注音の音節の数が漢字の数と合わなければ直さない", () => {
+    const bad = { ...a, reading: "ㄒㄧㄍㄨㄢˇ" };
+    expect(consensusFixPatch("pronunciation", w, [bad, { ...bad }])).toBeNull();
+  });
+  it("確認済みの語・答えが1つだけ・今と同じ、は直さない", () => {
+    expect(consensusFixPatch("pos", { ...w, source: "verified" }, [a, a])).toBeNull();
+    expect(consensusFixPatch("pos", w, [a])).toBeNull();
+    expect(consensusFixPatch("pos", { ...w, part_of_speech: "名詞" }, [a, a])).toBeNull();
+  });
+});
