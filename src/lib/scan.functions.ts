@@ -9,7 +9,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { isNounLike } from "./pos";
-import { assertWithinDailyCap, getAi, getAiFor, logUsage } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+  getAi,
+  getAiFor,
+  getAiRuntime,
+  logUsage,
+} from "./ai-provider.server";
+import { normalizeDetection } from "./scan-detect-parse";
 
 /**
  * Scan-First MVP §3.2 — one AI call combines object detection + OCR and returns
@@ -35,10 +42,6 @@ const DetectItemSchema = z.object({
   point: z.tuple([z.number(), z.number()]),
   confidence: z.number().min(0).max(1).default(0.8),
   alternatives: z.array(z.string()).default([]),
-});
-
-const DetectResponseSchema = z.object({
-  items: z.array(DetectItemSchema).max(12),
 });
 
 export type DetectedItem = z.infer<typeof DetectItemSchema> & { id: string };
@@ -139,31 +142,53 @@ export const detectScan = createServerFn({ method: "POST" })
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
     const t0 = Date.now();
-    let text = "";
-    try {
+    const prompt = `${PROMPT}\n\nレベル指示: ${levelRule}\n${langRule}`;
+    const ask = async (cfg: typeof ai) => {
       const r = await generateText({
-        model: ai.gateway(ai.modelFast),
+        model: cfg.gateway(cfg.modelFast),
         messages: [
           {
             role: "user",
             content: [
-              { type: "text", text: `${PROMPT}\n\nレベル指示: ${levelRule}\n${langRule}` },
+              { type: "text", text: prompt },
               { type: "image", image: imageInput },
             ],
           },
         ],
+        abortSignal: AbortSignal.timeout(25_000),
       });
-      text = r.text;
-    } catch (e) {
-      throw new Error(`scan detect failed: ${(e as Error).message}`);
-    }
-
-    let parsed: z.infer<typeof DetectResponseSchema>;
+      let raw: unknown;
+      try {
+        raw = parseJsonFromAiText(r.text);
+      } catch {
+        raw = null;
+      }
+      const items = normalizeDetection(raw);
+      if (!items) throw new Error("AI did not return valid detection JSON");
+      return items;
+    };
+    /**
+     * **1回失敗したら、既定の AI でもう1回。**（オーナー報告 2026-09-23「検出に
+     * 失敗と出る」）開発者が設定でスキャンに別の AI（OpenRouter など）を選んで
+     * いると、その AI が画像を読めない・止まっている・形の違う返事をする、で
+     * スキャンが丸ごと止まっていた。既定と同じ設定のときはやり直さない
+     * （同じ物に同じことを頼んでも結果は同じ）。
+     */
+    let found: Awaited<ReturnType<typeof ask>>;
     try {
-      parsed = DetectResponseSchema.parse(parseJsonFromAiText(text));
-    } catch {
-      throw new Error("AI did not return valid detection JSON");
+      found = await ask(ai);
+    } catch (first) {
+      const base = await getAiRuntime().catch(() => null);
+      const same = !base || (base.gateway === ai.gateway && base.modelFast === ai.modelFast);
+      console.warn(`[scan] detect failed with ${ai.modelFast}: ${(first as Error).message}`);
+      if (same) throw new Error(`scan detect failed: ${(first as Error).message}`);
+      try {
+        found = await ask(base);
+      } catch (second) {
+        throw new Error(`scan detect failed: ${(second as Error).message}`);
+      }
     }
+    const parsed = { items: found };
 
     await logUsage(supabase, userId, "scan_detect");
 
@@ -275,12 +300,16 @@ export const detectParts = createServerFn({ method: "POST" })
       throw new Error(`detect parts failed: ${(e as Error).message}`);
     }
 
-    let parsed: z.infer<typeof DetectResponseSchema>;
+    // 検出と同じく寛容に読む（1か所の形の違いで全部を捨てない）。
+    let raw: unknown = null;
     try {
-      parsed = DetectResponseSchema.parse(parseJsonFromAiText(text));
+      raw = parseJsonFromAiText(text);
     } catch {
-      throw new Error("AI did not return valid parts JSON");
+      /* 下で null として扱う */
     }
+    const partItems = normalizeDetection(raw);
+    if (!partItems) throw new Error("AI did not return valid parts JSON");
+    const parsed = { items: partItems };
 
     await logUsage(context.supabase, context.userId, "scan_parts");
 

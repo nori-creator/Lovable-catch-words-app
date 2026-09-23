@@ -5794,3 +5794,20 @@ describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () =
     expect(v5).toMatch(/root\.dataset\.stage = "idle";\s*Score\.stop\(\);/);
   });
 });
+
+describe("スキャンの「検出に失敗」（オーナー報告 2026-09-23）", () => {
+  const fn = codeOnly(read("lib/scan.functions.ts"));
+  const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+
+  it("返事は寛容に読み（1か所の形の違いで全部を捨てない）、駄目なら既定の AI でもう1回", () => {
+    expect(fn).toMatch(/const items = normalizeDetection\(raw\);/);
+    expect(fn).not.toMatch(/DetectResponseSchema/);
+    expect(fn).toMatch(/found = await ask\(base\);/);
+  });
+
+  it("辞書が引けなくても、見つけた語は出す", () => {
+    expect(scan).toMatch(
+      /\} catch \(lookupErr\) \{\s*console\.warn\("\[scan\] dictionary lookup failed"/,
+    );
+  });
+});

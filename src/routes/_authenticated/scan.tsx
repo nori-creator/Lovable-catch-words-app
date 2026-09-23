@@ -534,15 +534,22 @@ function ScanPage() {
       if (items.length > 0) {
         setScanStage("matching");
         const tl = performance.now();
-        const { entries } = await lookupFn({
-          data: {
-            headwords: items.map((i) => i.headword),
-            language: targetLanguage,
-            explain_lang: uiLang,
-          },
-        });
-        setLookupMs(Math.round(performance.now() - tl));
-        setEntries(entries);
+        // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
+        // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
+        // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
+        try {
+          const { entries } = await lookupFn({
+            data: {
+              headwords: items.map((i) => i.headword),
+              language: targetLanguage,
+              explain_lang: uiLang,
+            },
+          });
+          setLookupMs(Math.round(performance.now() - tl));
+          setEntries(entries);
+        } catch (lookupErr) {
+          console.warn("[scan] dictionary lookup failed", lookupErr);
+        }
       }
     } catch (e) {
       // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
