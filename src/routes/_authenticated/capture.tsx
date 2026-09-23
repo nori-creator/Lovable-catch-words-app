@@ -1,5 +1,6 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
 import { cardSectionsNow } from "@/lib/card-prefs";
+import { takeScanHandoff } from "@/lib/scan-handoff";
 import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -467,6 +468,52 @@ function CapturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
 
+  /**
+   * **スキャンで選んだ語を、この画面の流れで足す**（オーナー指示 2026-09-23
+   * 「単語の候補をタップしたら、撮影モードと全く同じように単語を追加する
+   * 流れにして」）。スキャンの写真と場所を受け取り、写真を撮った後の段から
+   * 始める: 迷った語なら「語を選ぶ」、そうでなければそのままカード（持って
+   * いる語なら再会の画面）。受け渡しは1回きり（`lib/scan-handoff.ts`）。
+   */
+  useEffect(() => {
+    const h = takeScanHandoff();
+    if (!h) return;
+    objectImageRef.current = h.image;
+    setObjectImg(h.image);
+    selfieImageRef.current = null;
+    setSelfieImg(null);
+    if (h.loc.lat != null && h.loc.lng != null) setLoc(h.loc);
+    // 撮影モードと同じく、端末の控えに先に入れる（通信が切れても失わない）。
+    void enqueueCapture({
+      object_img: h.image,
+      selfie_img: null,
+      lat: h.loc.lat,
+      lng: h.loc.lng,
+      location_name: h.loc.name,
+    }).then((q) => {
+      if (!q) return;
+      setPendingId(q.id);
+      pendingIdRef.current = q.id;
+    });
+    const first: Suggestion = { headword: h.headword, ...h.hint };
+    if (h.alternatives.length > 0) {
+      setSuggestions([
+        first,
+        ...h.alternatives.map((alt) => ({
+          headword: alt,
+          reading_zhuyin: "",
+          pinyin: "",
+          meaning_ja: "",
+          category_key: h.hint.category_key,
+        })),
+      ]);
+      setStep("select");
+    } else {
+      void confirmWord(h.headword, first);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Offline-queue restore: /capture?pending=<id>.
   useEffect(() => {
     if (!pendingParam || handledParamRef.current === `p:${pendingParam}`) return;
@@ -782,6 +829,9 @@ function CapturePage() {
 
   async function confirmWord(head: string, hint?: Suggestion) {
     const token = ++runTokenRef.current;
+    // 写真は ref から読む。スキャンから渡されたときは、同じ描画のうちに
+    // ここへ来るので、`objectImg`（状態）はまだ前の値のまま。
+    const photo = objectImageRef.current ?? objectImg;
     setSelectedHead(head);
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
     pronounce.prefetch(head);
@@ -801,8 +851,8 @@ function CapturePage() {
     // だから待つのは保存の直前(`save`)だけにする。
     const wantCutout = cutoutAtCatch(catchSpeed);
     const cutoutPromise: Promise<string | null> =
-      objectImg && wantCutout
-        ? removeBackgroundSmart(objectImg).catch((e) => {
+      photo && wantCutout
+        ? removeBackgroundSmart(photo).catch((e) => {
             console.warn("background removal failed, using original", e);
             return null;
           })
@@ -823,7 +873,7 @@ function CapturePage() {
         // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
         // その単語の写真として足す。待つのは画面を出したあとなので、
         // 学習者は演出を見ている間に終わる。
-        void cutoutPromise.then((cut) => recordReencounter(owned, objectImg, cut));
+        void cutoutPromise.then((cut) => recordReencounter(owned, photo, cut));
         return;
       }
     } catch {
@@ -867,7 +917,7 @@ function CapturePage() {
       // **カードは待たずに出す。** 切り抜きが間に合えば、あとから絵が
       // 差し替わる(「ポン」と現れる返事はそのまま残る)。
       if (runTokenRef.current !== token) return;
-      setCutoutImg(objectImg);
+      setCutoutImg(photo);
       setStep("card");
       void cutoutPromise.then((cut) => {
         if (cut && runTokenRef.current === token) setCutoutImg(cut);

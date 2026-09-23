@@ -5391,9 +5391,10 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
     expect(scan).toMatch(
-      /className="scan-box relative snap-y snap-proximity overflow-y-auto overscroll-contain/,
+      /className="scan-box relative snap-y snap-mandatory overflow-y-auto overscroll-contain/,
     );
-    expect(css).toMatch(/\.scan-box \{\s*max-height: calc\(3rem \* 2\.5 \+ 0\.75rem\);/);
+    // 一番下の1行ぶん（2026-09-23 の3回目の指示）。
+    expect(css).toMatch(/\.scan-box \{[^}]*max-height: calc\(3rem \+ 0\.5rem\);/);
   });
 
   it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {
@@ -5542,5 +5543,31 @@ describe("Jev の使い方の約束（ARCHITECTURE: 実験的な予測は影で�
 
   it("**候補の並びは後から**、本人が押した後は変えない", () => {
     expect(scan).toMatch(/if \(cancelled \|\| touchedRef\.current \|\| !r\.order\) return;/);
+  });
+});
+
+describe("スキャンの候補を押したら撮影モードと同じ流れ（オーナー指示 2026-09-23）", () => {
+  const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+  const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+
+  it("箱の行を押すと、写真と語を撮影モードへ渡して移る", () => {
+    expect(scan).toMatch(/onOpen=\{addViaCapture\}/);
+    expect(scan).toMatch(/putScanHandoff\(\{/);
+    expect(scan).toMatch(/navigate\(\{ to: "\/capture"/);
+  });
+
+  it("撮影モードは受け取ったら、撮った後の段から始める（迷った語は語を選ぶ段）", () => {
+    expect(cap).toMatch(/const h = takeScanHandoff\(\);/);
+    expect(cap).toMatch(/setStep\("select"\);[\s\S]{0,80}void confirmWord\(h\.headword, first\)/);
+    // 渡された写真は、同じ描画のうちに ref から読む。
+    expect(cap).toMatch(/const photo = objectImageRef\.current \?\? objectImg;/);
+  });
+
+  it("撮り直しは右下の端（箱の後ろに置く）", () => {
+    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
+    const box = strip.indexOf('className="scan-box');
+    const again = strip.indexOf('aria-label={t("scan.again")}');
+    expect(box).toBeGreaterThan(0);
+    expect(again).toBeGreaterThan(box);
   });
 });

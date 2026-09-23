@@ -7280,10 +7280,11 @@ html[data-motion="reduce"] .reward-catch__field::after {
 
 /* スキャン後の候補の箱（`ScanCandidateStrip`）。**高さは決めて、中だけが
    縦に動く**（オーナー指示 2026-09-23「画面は固定し、スクロールすると
-   ボックスのなかの単語の候補が見える」）。2行半ぶんの高さにして、半分
-   見えている行で「まだ下にある」を伝える。スクロールバーは出さない。 */
+   ボックスのなかの単語の候補が見える」「1番下の1行で縦にスクロール」）。
+   1行ずつ止まる。スクロールバーは出さない。 */
 .scan-box {
-  max-height: calc(3rem * 2.5 + 0.75rem);
+  /* 一番下の1行ぶん（オーナー指示 2026-09-23）。行は 3rem、上下の余白 0.25rem ずつ。 */
+  max-height: calc(3rem + 0.5rem);
   scrollbar-width: none;
   touch-action: pan-y;
 }

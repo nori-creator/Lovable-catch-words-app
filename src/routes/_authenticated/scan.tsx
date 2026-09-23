@@ -28,6 +28,7 @@ import {
   Sparkles,
   Bug,
   ChevronDown,
+  ChevronsUpDown,
   Search,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -54,6 +55,7 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
 import { rankScanCandidates } from "@/lib/jev.functions";
+import { putScanHandoff } from "@/lib/scan-handoff";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import { tStatic } from "@/lib/i18n";
 
@@ -594,6 +596,50 @@ function ScanPage() {
     [startPrefetch],
   );
 
+  /**
+   * **候補を押したら、撮影モードと同じ流れで足す**（オーナー指示 2026-09-23）。
+   * 撮った写真・場所・押した語を撮影モードへ渡し、そちらの「カード →
+   * 保存の演出」（持っている語なら再会の画面）で続ける。検出が迷った語は
+   * 撮影モードと同じく「語を選ぶ」から（`lib/scan-handoff.ts`）。
+   */
+  const addViaCapture = useCallback(
+    (item: DetectedItem) => {
+      if (!snapshot) return;
+      touchedRef.current = true;
+      const unsure = item.confidence < 0.75 && item.alternatives.length > 0;
+      putScanHandoff({
+        image: snapshot,
+        headword: item.headword,
+        hint: {
+          reading_zhuyin: item.zhuyin ?? "",
+          pinyin: item.pinyin ?? "",
+          meaning_ja: item.meaning_ja ?? "",
+          category_key: "",
+        },
+        alternatives: unsure ? item.alternatives : [],
+        loc: scanLoc,
+      });
+      void navigate({ to: "/capture", search: { mode: "photo" } });
+    },
+    [snapshot, scanLoc, navigate],
+  );
+
+  /**
+   * 写真の上の光を押したときは、**その候補に注目して読み上げる**だけ。
+   * 下の箱もその行へ送る。足すのは箱の行を押したとき（撮影モードの流れ）。
+   */
+  const focusDot = useCallback(
+    (item: DetectedItem) => {
+      touchedRef.current = true;
+      setActiveId(item.id);
+      pronounce.prefetch(item.headword);
+      void playAudio(item.headword, item);
+    },
+    // playAudio はこの下で定義している（openChip と同じ理由）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const pickCandidate = useCallback(
     async (headword: string, item: DetectedItem) => {
       setChip({ item, chosenHeadword: headword, showingCandidates: false });
@@ -801,7 +847,7 @@ function ScanPage() {
             items={visibleItems}
             scanCtx={scanCtx}
             dotStyle={dotStyle}
-            onOpen={openChip}
+            onOpen={focusDot}
             activeId={activeId}
           />
 
@@ -950,7 +996,7 @@ function ScanPage() {
               scanCtx={scanCtx}
               activeId={activeId}
               onFocus={setActiveId}
-              onOpen={openChip}
+              onOpen={addViaCapture}
               onAgain={reset}
               nothingFound={items !== null && visibleItems.length === 0}
             />
@@ -1288,14 +1334,16 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
  *  なかの単語の候補が見える」。前日の「候補1行…光の点が大きくなったり、
  *  揺れる」も続けて満たす）
  *
- *  ・箱の高さは決めてあり（2行半ぶん）、中の候補は1語1行で縦に送る。
- *    半分見えている行が「まだ下にある」を伝える。写真と画面は動かない
+ *  ・箱は**一番下の1行ぶん**（2026-09-23 の指示で2行半から変更）。中の候補は
+ *    1語1行で、縦に払うと1行ずつ替わる。写真と画面は動かない
  *    （`overscroll-contain` で、箱の端で画面ごと引っぱられない）。
+ *    右に「何件中の何件目」を小さく出し、下にまだあることを伝える。
  *  ・送って**箱の真ん中に来た候補**が「いま見ている候補」になり、写真の上の
  *    その光の点が大きくなって揺れる（`onFocus`）。押すと札が開く。
  *  ・写真の上の点を押したときは、箱のほうもその候補を真ん中へ送る。
- *  ・左の丸い釦で撮り直す（以前の「もう一度」と「再スキャン」は、
+ *  ・**右下の端**の丸い釦で撮り直す（以前の「もう一度」と「再スキャン」は、
  *    どちらも覗く画面へ戻るだけなので1つにした）。
+ *  ・行を押すと**撮影モードと同じ流れ**で足す（`onOpen`）。
  *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
 export function ScanCandidateStrip({
@@ -1371,13 +1419,6 @@ export function ScanCandidateStrip({
 
   return (
     <div className="flex items-end gap-2" data-scan-strip>
-      <button
-        onClick={onAgain}
-        aria-label={t("scan.again")}
-        className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
-      >
-        <RotateCcw className="h-5 w-5" />
-      </button>
       {nothingFound ? (
         <div className="min-w-0 flex-1 rounded-2xl px-3 py-2 shadow-lg material-thick">
           <p className="text-footnote font-medium">{t("scan.nothingFound")}</p>
@@ -1386,13 +1427,23 @@ export function ScanCandidateStrip({
           </p>
         </div>
       ) : (
-        <div className="min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
+          {items.length > 1 && (
+            // 1行しか見えないので、**まだ下にある**ことを数で言う。
+            <span
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 text-caption tabular-nums text-muted-foreground"
+            >
+              {Math.max(1, items.findIndex((it) => it.id === activeId) + 1)}/{items.length}
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+            </span>
+          )}
           <div
             ref={scrollerRef}
             onScroll={onScroll}
             role="listbox"
             aria-label={t("scan.found")}
-            className="scan-box relative snap-y snap-proximity overflow-y-auto overscroll-contain p-1.5"
+            className="scan-box relative snap-y snap-mandatory overflow-y-auto overscroll-contain p-1"
           >
             {items.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
@@ -1407,7 +1458,7 @@ export function ScanCandidateStrip({
                   role="option"
                   aria-selected={on}
                   onClick={() => onOpen(it)}
-                  className={`press-in flex min-h-12 w-full snap-center items-center gap-2.5 rounded-2xl px-3 text-left transition-[box-shadow,background-color] ${
+                  className={`press-in flex min-h-12 w-full snap-center items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
                     on ? "bg-card shadow-sm ring-2 ring-primary" : ""
                   }`}
                 >
@@ -1446,6 +1497,15 @@ export function ScanCandidateStrip({
           </div>
         </div>
       )}
+      {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
+          候補の行を押す指と重ならない。 */}
+      <button
+        onClick={onAgain}
+        aria-label={t("scan.again")}
+        className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
+      >
+        <RotateCcw className="h-5 w-5" />
+      </button>
     </div>
   );
 }
