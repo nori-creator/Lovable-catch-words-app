@@ -31,6 +31,8 @@ export function SectionsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const t = useT();
   return (
     <div
+      // 面を引いて閉じる操作に指を渡さない（`use-drag-dismiss.tsx` の注）。
+      data-sheet-no-drag
       className={`fixed right-3 top-[52px] z-20 w-72 max-w-[calc(100vw-1.5rem)] transition-all duration-300 [transition-timing-function:var(--ease-ios)] ${
         open ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-4 opacity-0"
       }`}

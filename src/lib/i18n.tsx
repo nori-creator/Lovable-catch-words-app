@@ -2116,7 +2116,28 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Point your camera at a sign or menu and your first photo lands here.",
     "zh-TW": "把相機對準街上的招牌或菜單，第一張就會貼在這裡。",
   },
-  "home.emptyCta": { ja: "街でひとつ見つける", en: "Find one outside", "zh-TW": "去街上找一個" },
+  "home.emptyCta": { ja: "今日の一枚を撮る", en: "Take today's photo", "zh-TW": "拍下今天的一張" },
+  // 白紙の日の一言（オーナー指示 2026-09-23、`lib/home-blank.ts`）。
+  "home.blankLearnOne": {
+    ja: "今日も知らない単語を1つ覚えよう！",
+    en: "Learn one new word today!",
+    "zh-TW": "今天也來記一個新單字吧！",
+  },
+  "home.blankWhatIsThat": {
+    ja: "目の前にあるもの、何て言う？",
+    en: "What's the word for what's in front of you?",
+    "zh-TW": "眼前的東西，要怎麼說？",
+  },
+  "home.blankStreak": {
+    ja: "{n}日連続で新しい単語に出会っています！",
+    en: "You've met new words {n} days in a row!",
+    "zh-TW": "已經連續 {n} 天遇見新單字了！",
+  },
+  "home.blankNth": {
+    ja: "{n}枚目の単語を記録してみよう！",
+    en: "Catch your word No. {n}!",
+    "zh-TW": "來記錄第 {n} 個單字吧！",
+  },
   "home.journal": { ja: "今日の日記を書く", en: "Write today's journal", "zh-TW": "寫今天的日記" },
   // 見開きの右ページ(ホームでその場で書く)。
   "home.writeToday": {

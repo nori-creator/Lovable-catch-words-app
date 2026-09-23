@@ -19,6 +19,7 @@ import { SectionIcon } from "@/components/SectionIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  Star,
   Volume2,
   Eye,
   EyeOff,
@@ -269,6 +270,20 @@ export function WordCardSectionsEditor() {
     clearHold();
     const { clientX: x, clientY: y, pointerId } = e;
     const el = e.currentTarget as HTMLElement;
+    /**
+     * **取っ手は押した瞬間に掴む。**（オーナー報告 2026-09-23）長押しは行の
+     * 地の部分だけ — 取っ手は掴むためだけの物なので、待たせる理由が無い。
+     */
+    if (hit.closest("[data-drag-handle]")) {
+      draggingRef.current = true;
+      setDragId(id);
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        /* 捕まえられない環境でも、指が一覧の中に在る限りは動く */
+      }
+      return;
+    }
     const timer = window.setTimeout(() => {
       draggingRef.current = true;
       setDragId(id);
@@ -1213,19 +1228,24 @@ function SectionCard({
  * この枠が描かれる道はどこにも無い。到達しない道は置かない。
  */
 
-/** 頻度メーター(1〜5)。 */
+/**
+ * 頻度(1〜5)。**星で出す**（オーナー指示 2026-09-23「単語の頻度は画像のように
+ * 星で表示して」— 参考は「頻度 ★★★★★」の札）。
+ *
+ * 点いた星は主色、消えた星は薄い輪郭。**色だけに頼らない** — 消えた星は
+ * 塗らないので、形でも数が読める。数は読み上げ（`aria-label`）にも渡す。
+ */
 function FrequencyMeter({ level }: { level: number }) {
   const t = useT();
   return (
-    <span className="usage-meter__instrument" aria-label={t("card.freqAria", { n: level })}>
+    <span className="freq-stars" role="img" aria-label={t("card.freqAria", { n: level })}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <span
+        <Star
           key={i}
-          className={`usage-meter__column ${i <= level ? "usage-meter__column--active" : ""}`}
-        >
-          <span className="usage-meter__bar" />
-          <span className="usage-meter__number">{i}</span>
-        </span>
+          aria-hidden
+          className={`freq-stars__star ${i <= level ? "freq-stars__star--on" : ""}`}
+          strokeWidth={1.8}
+        />
       ))}
     </span>
   );

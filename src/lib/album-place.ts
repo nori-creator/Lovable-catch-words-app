@@ -366,6 +366,30 @@ export const COLLAGE_COL_W = 0.58;
  * （`1 - COLLAGE_COL_W` を越えてはいけない）。
  */
 export const COLLAGE_CAP_W = 0.42;
+
+/**
+ * 写真の下の語を**どこに揃えるか**。基本は真ん中（`c`）— オーナー指示
+ * 2026-09-23「基本的に写真の真ん中下に来るようにして。場合によっては
+ * 右下や左下に来てもいい」。
+ *
+ * 真ん中に置いた字の幅（写真の幅か、字の上限 `COLLAGE_CAP_W` の狭いほう）が
+ * **自分の側の半分から出る**ときだけ、外側の端（左の列は `l`、右は `r`）へ
+ * 寄せる。出ると隣の列の写真に潜って読めない。少しの食い込み（台紙の 3%）は
+ * 許す — 写真はもともと真ん中を少し越えて重ねてある。
+ */
+export function captionAlign(xFrac: number, photoWpx: number, boardW: number): "c" | "l" | "r" {
+  const side = xFrac < 0.5 ? "l" : "r";
+  if (!boardW || !photoWpx) return side;
+  const capW = Math.min(photoWpx, boardW * COLLAGE_CAP_W);
+  const cx = xFrac * boardW;
+  const mid = boardW / 2;
+  const slack = boardW * 0.03;
+  const left = cx - capW / 2;
+  const right = cx + capW / 2;
+  if (left < 0 || right > boardW) return side;
+  if (side === "l") return right <= mid + slack ? "c" : "l";
+  return left >= mid - slack ? "c" : "r";
+}
 /**
  * その日の1枚目の幅（台紙の幅に対する割合）。
  *

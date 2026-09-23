@@ -4740,7 +4740,8 @@ describe("ホームは今日の誌面", () => {
     // （360px 以上では偶然足りていた）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
-    expect(home).toMatch(/const CAP_ROW_PX = 29;/);
+    // 語を 19px にした（オーナー指示 2026-09-23）ので 32px。
+    expect(home).toMatch(/const CAP_ROW_PX = 32;/);
     expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
     // 台紙の幅で割って、`packCollage` が積む割合に直す。
     expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);
@@ -4772,26 +4773,27 @@ describe("ホームは今日の誌面", () => {
     expect(frame.slice(0, 600)).toMatch(/collage__plain-word/);
   });
 
-  it("**題はその日の日付そのもの**（オーナー指示 2026-09-22）", () => {
-    // > 「今日のページではなく、上は今日の日付を書いて。」
-    // 前は小さく日付、その下に大きく「今日の1ページ」と2段あり、題が
-    // 日付を言い直しているだけで**写真が始まるまでに縦を2段ぶん使って
-    // いた**。日付を題に上げて、空いた1段を写真に回す。
+  it("**日付は壁紙に直に、手書き1つで書く**（オーナー指示 2026-09-22 / 09-23）", () => {
+    // > 09-22「今日のページではなく、上は今日の日付を書いて。」
+    // > 09-23「ホーム画面の日付は背景の壁紙に直接書いて。日記のように。
+    // >        日付の字体を統一して。また文字の下の青い波線いらない。」
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/<AppShell>\s*<DayMasthead date=\{today\}/);
-    const mast = home.slice(
-      home.indexOf("export function DayMasthead("),
-      home.indexOf("function takenAt("),
+    // 上の見出しの帯は使わず、今日の誌面の板の中に書く。
+    expect(home).not.toMatch(/<AppShell>\s*<DayMasthead/);
+    expect(home).toMatch(
+      /heading=\{<DiaryDate date=\{today\} tagline=\{dayTagline\(todayStickers, t\)\} \/>\}/,
     );
-    expect(mast).toMatch(/weekday: "long" \}/);
-    expect(mast).toMatch(/month: "long", day: "numeric" \}/);
-    // 明朝の見出しは**日付**。前の「今日の1ページ」は出さない。
-    expect(mast).toMatch(/day-masthead__title font-serif-ja">\{monthDay\}/);
-    expect(mast).not.toMatch(/home\.todayPage/);
-    // 曜日は題の上に小さく残る（「9月17日木曜日」と続けない）。
-    expect(mast).toMatch(/day-masthead__date">\{weekday\}/);
-    // **誌名をここに書かない。** 上の帯が 40px 上で同じ語を出している。
-    expect(mast).not.toMatch(/day-masthead__brand/);
+    expect(home).toMatch(/heading=\{<DiaryDate date=\{keyToDate\(k\)\} compact \/>\}/);
+    const diary = home.slice(
+      home.indexOf("export function DiaryDate("),
+      home.indexOf("export function JournalLink("),
+    );
+    // 書体は手書き1つ（日付・曜日・一言が同じ箱の中）。波線（svg）は引かない。
+    expect(diary).toMatch(/className=\{`diary-date handwritten-ja/);
+    expect(diary).not.toMatch(/<svg/);
+    expect(diary).not.toMatch(/font-serif-ja/);
+    expect(diary).toMatch(/weekday: "long" \}/);
+    expect(diary).toMatch(/month: "long", day: "numeric" \}/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -5704,6 +5706,21 @@ describe("Jev を広げる（オーナー指示 2026-09-23）— 共有の辞書
     // 記録は待たない（返事を遅らせない）。
     expect(reviews).toMatch(
       /void import\("\.\/jev-tasks\.server"\)\.then\(\(\{ recordSpeakingShadow \}\)/,
+    );
+  });
+});
+
+describe("単語の項目を指で並べ替えられる（オーナー報告 2026-09-23・通算5度目）", () => {
+  it("並べ替えの板の上では、面を引いて閉じる操作が指を奪わない", () => {
+    const hook = codeOnly(read("hooks/use-drag-dismiss.tsx"));
+    expect(hook).toMatch(/closest\?\.\("\[data-sheet-no-drag\]"\)\) return false;/);
+    expect(codeOnly(read("components/SectionsPanel.tsx"))).toMatch(/data-sheet-no-drag/);
+  });
+  it("取っ手は押した瞬間に掴む（長押しは行の地だけ）", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    const down = card.slice(card.indexOf("const onPointerDown = (id: SectionId)"));
+    expect(down.slice(0, 1200)).toMatch(
+      /if \(hit\.closest\("\[data-drag-handle\]"\)\) \{\s*draggingRef\.current = true;\s*setDragId\(id\);/,
     );
   });
 });

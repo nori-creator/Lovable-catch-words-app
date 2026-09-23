@@ -4,6 +4,7 @@ import {
   applyDelta,
   boardHeight,
   COLLAGE_CAP_W,
+  captionAlign,
   COLLAGE_COL_W,
   collageRatio,
   gestureDelta,
@@ -29,7 +30,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
-import { EmptyState } from "@/components/EmptyState";
 import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
@@ -42,7 +42,8 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookText, Check, Trash2, WifiOff } from "lucide-react";
+import { BookText, Camera, Check, Trash2, WifiOff } from "lucide-react";
+import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
 import {
   readWallpaper,
   wallClass,
@@ -314,8 +315,9 @@ function HomePage() {
    */
   return (
     <AppShell>
-      <DayMasthead date={today} tagline={dayTagline(todayStickers, t)} />
-
+      {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
+          背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
+          今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
       <PendingCapturesBanner />
 
       {isLoading ? (
@@ -325,7 +327,11 @@ function HomePage() {
         // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
         <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatHome")} />
       ) : todayStickers.length === 0 ? (
-        <HomeEmptyState />
+        <HomeEmptyState
+          surface={surfaceClass}
+          date={today}
+          message={homeBlankText(stickers?.items ?? [], total, today, t)}
+        />
       ) : (
         <>
           {/* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
@@ -333,6 +339,7 @@ function HomePage() {
           <DayCollage
             stickers={todayStickers}
             surface={surfaceClass}
+            heading={<DiaryDate date={today} tagline={dayTagline(todayStickers, t)} />}
             opening
             onOpen={(id, from) => {
               setOpenId(id);
@@ -406,22 +413,90 @@ export function HomeLoading() {
   return <div className="h-72 animate-pulse rounded-3xl bg-secondary" />;
 }
 
-/** 今日はまだ1枚も無いとき。**始めたばかりの人が最初に見る面**。 */
-export function HomeEmptyState() {
+/**
+ * 今日はまだ1枚も無いとき。**始めたばかりの人が最初に見る面**。
+ *
+ * （オーナー指示 2026-09-23）壁紙の上に日付と、その人の状態に合わせた一言を
+ * 書く（`lib/home-blank.ts`）。ボタンは「今日の一枚を撮る」。
+ */
+export function HomeEmptyState({
+  surface = "album-bg-paper",
+  date = new Date(),
+  message,
+}: {
+  surface?: string;
+  date?: Date;
+  /** 状態に合わせた一言。渡さなければ「目の前にあるもの何て言う？」。 */
+  message?: string;
+}) {
   const t = useT();
   return (
-    <EmptyState
-      icon={BookText}
-      title={t("home.emptyTitle")}
-      action={
+    <div className={`collage collage-board relative ${surface}`}>
+      <div className="collage-heading">
+        <DiaryDate date={date} />
+      </div>
+      <div className="home-blank">
+        <p className="home-blank__msg handwritten-ja">{message ?? t("home.blankWhatIsThat")}</p>
         <Link
           to="/capture"
-          className="press-in inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+          className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30"
         >
+          <Camera className="h-4 w-4" aria-hidden />
           {t("home.emptyCta")}
         </Link>
-      }
-    />
+      </div>
+    </div>
+  );
+}
+
+/** 白紙の日の一言を、手元の記録から選んで訳す。 */
+export function homeBlankText(
+  items: StickerWithWord[],
+  total: number,
+  today: Date,
+  t: (k: string, v?: Record<string, string | number>) => string,
+): string {
+  const days = new Set(items.map((s) => dayKey(new Date(s.created_at))));
+  const dayIndex = Math.floor(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 86_400_000,
+  );
+  const m = homeBlankMessage({
+    total,
+    streakDays: streakEndingYesterday(days, today),
+    dayIndex,
+  });
+  return "n" in m ? t(m.key, { n: m.n }) : t(m.key);
+}
+
+/**
+ * **日記のように、壁紙に直に書く日付。**（オーナー指示 2026-09-23「ホーム画面の
+ * 日付は背景の壁紙に直接書いて。日記のように。日付の字体を統一して。また文字の
+ * 下の青い波線いらない」）
+ *
+ * 書体は**手書き1つだけ**（日付・曜日・一言すべて）。前は明朝の日付・ゴシックの
+ * 曜日・手書きの一言と3つに割れ、青い波線が2本引いてあった。
+ */
+export function DiaryDate({
+  date,
+  tagline,
+  compact = false,
+}: {
+  date: Date;
+  tagline?: string;
+  compact?: boolean;
+}) {
+  const locale = localeOf(useUiLang());
+  const weekday = date.toLocaleDateString(locale, { weekday: "long" });
+  const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
+  const Tag = compact ? "h2" : "h1";
+  return (
+    <div className={`diary-date handwritten-ja ${compact ? "diary-date--compact" : ""}`}>
+      <Tag className="diary-date__line">
+        <span className="diary-date__day">{monthDay}</span>
+        <span className="diary-date__weekday">{weekday}</span>
+      </Tag>
+      {tagline && <p className="diary-date__note">{tagline}</p>}
+    </div>
   );
 }
 
@@ -511,10 +586,10 @@ export function PastDays({
               for users west of UTC). */}
           {/* **日付の見出しだけ。** 週・月の束ね方は消した(オーナー指示
               「ホームの画面の日、週、月のボタンを消して」)。 */}
-          <DayHeader date={keyToDate(k)} compact />
           <DayCollage
             stickers={items}
             surface={surface}
+            heading={<DiaryDate date={keyToDate(k)} compact />}
             onOpen={onOpen}
             onLongPress={onLongPress}
           />
@@ -769,12 +844,13 @@ const PLACEHOLDER_RATIO = 1.2;
  * 下 16px に次の写真が乗った。360px 以上では偶然足りていた。
  *
  * 数え方（`styles.css` の `.collage__cap` 系と対で決まる）:
- *   `CAP_ROW_PX`  … 語の白い札 17px × 1.2 ＋ 上下の詰め 5px ＋ 写真との間 4px
+ *   `CAP_ROW_PX`  … 語の白い札 19px × 1.2 ＋ 上下の詰め 5px ＋ 写真との間 4px
+ *                   （語を大きくした: オーナー指示 2026-09-23）
  *   `CAP_NOTE_PX` … 手書きの一言 13px × 1.35 × **3行**（`-webkit-line-clamp`）
  *                   ＋ 上の間 3px。行数の上限が CSS 側に在るので、
  *                   どれだけ長い一言でもここを越えない。
  */
-const CAP_ROW_PX = 29;
+const CAP_ROW_PX = 32;
 const CAP_NOTE_PX = 56;
 
 /**
@@ -836,7 +912,10 @@ export function DayCollage({
   onLongPress,
   opening,
   surface = "album-bg-paper",
+  heading,
 }: {
+  /** 板の上に直に書く日付（`DiaryDate`）。オーナー指示 2026-09-23。 */
+  heading?: React.ReactNode;
   /**
    * 壁の地（`album-bg-*`）。既定は紙（オーナー指示 2026-09-22「やっぱり
    * 背景、壁が必要だわ」）。
@@ -1353,6 +1432,7 @@ export function DayCollage({
           {t("album.done")}
         </button>
       )}
+      {heading && <div className="collage-heading">{heading}</div>}
       {/* **升目をやめて、1枚の紙にした**（オーナー指示 2026-09-15）。
           形を決め打ちにするのは、縦位置を割合で持てるようにするため。
           中身で伸びる箱だと、札を1枚足すたびに置いた物が動いてしまう。 */}
@@ -1503,6 +1583,13 @@ export function DayCollage({
                * 隣の列の写真に潜って時刻も語も読めなくなる（実測で2枚）。
                */
               data-col={place.x < 0.5 ? "l" : "r"}
+              /**
+               * **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23「基本的に
+               * 写真の真ん中下に来るようにして。場合によっては右下や左下に来ても
+               * いい」）。真ん中に置くと隣の列の写真に潜る時だけ、外側の端へ寄せる
+               * （`captionAlign`）。
+               */
+              data-cap={captionAlign(place.x, px.w, board.w)}
               className={`photo-lift group absolute block touch-none text-left ${
                 editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
               } ${live?.id === s.id ? "album-lifted" : ""}`}
