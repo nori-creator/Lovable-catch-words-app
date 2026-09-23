@@ -4916,7 +4916,8 @@ describe("ホームは今日の誌面", () => {
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
     // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
     // 2026-09-23「祝福に映画のような BGM」（聴き比べが先頭）。3回目の依頼の地図も帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "catch-sound"/);
+    // 2026-09-23 の4回目の依頼（ホームの日付が先頭）。祝福の音も帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
     expect(list).toMatch(/scene: "dex-map&at=2"/);
     expect(list).toMatch(/\{ scene: "tts-voices"/);
     expect(list).toMatch(/\{ scene: "catch-sound"/);
