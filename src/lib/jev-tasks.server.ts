@@ -1,5 +1,18 @@
 import { askJev, jevAvailable } from "./jev.server";
-import { acceptCategory, categoryQuestion, recallQuestion, type RecallState } from "./jev-tasks";
+import {
+  acceptCategory,
+  categoryQuestion,
+  entryFixQuestion,
+  entryOpinion,
+  exampleQuestion,
+  intervalDaysFrom,
+  intervalQuestion,
+  recallQuestion,
+  speakingQuestion,
+  type EntryFields,
+  type EntryOpinion,
+  type RecallState,
+} from "./jev-tasks";
 
 /**
  * Jev の問いを実際に投げる所。**どれも失敗を投げない**（従来の処理に戻る）。
@@ -41,9 +54,28 @@ export async function recordRecallShadow(
       state = { ...state, headword: w.headword, meaning: w.meaning_ja ?? null };
     }
     const q = recallQuestion(state);
-    const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
+    // 同じ呼び出しで「次はいつ見せるのがよいか」（復習のタイミング）も聞く。
+    const res = await askJev(
+      q.state,
+      { ...q.questions, interval: intervalQuestion() },
+      { timeoutMs: 4000 },
+    );
     const a = res?.answers.recall;
     if (!res || !a || a.type !== "noul") return;
+    const iv = res.answers.interval;
+    const days = intervalDaysFrom(iv);
+    if (days != null && iv && iv.type === "score") {
+      await db.from("model_shadow_predictions").insert({
+        user_id: args.userId,
+        sticker_id: args.stickerId,
+        task: "interval",
+        model: res.model,
+        // 間隔は確率ではないので、Jev の自信を入れ、日数は meta に置く。
+        predicted: Math.max(0, Math.min(1, iv.confidence)),
+        outcome: args.outcome,
+        meta: { jev_days: days, srs_days_before: state.intervalDays },
+      });
+    }
     await db.from("model_shadow_predictions").insert({
       user_id: args.userId,
       sticker_id: args.stickerId,
@@ -79,4 +111,92 @@ export async function categoryFallback(
   const res = await askJev(q.state, q.questions, { timeoutMs: 2500 });
   const picked = acceptCategory(res?.answers.category);
   return picked && keys.includes(picked) ? picked : null;
+}
+
+/**
+ * 共有の辞書を直す前の**第二の目**（日々の点検・報告の仕分け）。
+ * 鍵が無い・答えが無いときは `null`（呼ぶ側は従来の規則に戻る）。
+ */
+export async function entryJevOpinion(
+  headword: string,
+  current: EntryFields,
+  proposed: EntryFields,
+): Promise<EntryOpinion> {
+  if (!jevAvailable()) return null;
+  const q = entryFixQuestion(headword, current, proposed);
+  const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
+  return entryOpinion(res?.answers.which);
+}
+
+/** 影の記録を1行（失敗しても何もしない）。 */
+async function logShadow(
+  db: Db,
+  row: {
+    userId: string;
+    stickerId?: string | null;
+    task: string;
+    model: string;
+    predicted: number;
+    outcome?: boolean | null;
+    meta?: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    await db.from("model_shadow_predictions").insert({
+      user_id: row.userId,
+      sticker_id: row.stickerId ?? null,
+      task: row.task,
+      model: row.model,
+      predicted: Math.max(0, Math.min(1, row.predicted)),
+      outcome: row.outcome ?? null,
+      meta: row.meta ?? null,
+    });
+  } catch (e) {
+    console.warn("[jev] shadow log skipped:", (e as Error)?.message ?? e);
+  }
+}
+
+/**
+ * 話す練習の**判定**（影）。添削の AI の判定と並べて記録し、両者の一致を
+ * 後で見る。画面の判定は変えない。
+ */
+export async function recordSpeakingShadow(
+  db: Db,
+  args: { userId: string; headword: string; utterance: string; llmOk: boolean },
+): Promise<void> {
+  if (!jevAvailable() || !args.utterance.trim()) return;
+  const q = speakingQuestion(args.headword, args.utterance);
+  const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
+  const a = res?.answers.used;
+  if (!res || !a || a.type !== "noul") return;
+  await logShadow(db, {
+    userId: args.userId,
+    task: "speaking_judge",
+    model: res.model,
+    predicted: a.noul,
+    outcome: args.llmOk,
+    meta: { headword: args.headword },
+  });
+}
+
+/**
+ * 生成した例文の**自然さ**（影）。いまは記録だけ。当たり方が確かめられたら、
+ * 不自然と出た例文を作り直す判断に使う。
+ */
+export async function recordExampleShadow(
+  db: Db,
+  args: { userId: string; headword: string; sentence: string },
+): Promise<void> {
+  if (!jevAvailable() || !args.sentence.trim()) return;
+  const q = exampleQuestion(args.headword, args.sentence);
+  const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
+  const a = res?.answers.natural;
+  if (!res || !a || a.type !== "noul") return;
+  await logShadow(db, {
+    userId: args.userId,
+    task: "example_natural",
+    model: res.model,
+    predicted: a.noul,
+    meta: { headword: args.headword, sentence: args.sentence.slice(0, 120) },
+  });
 }

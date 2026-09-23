@@ -5635,3 +5635,25 @@ describe("ホームの壁紙（オーナー指示 2026-09-23）", () => {
     expect(home).toMatch(/window\.addEventListener\(WALLPAPER_EVENT, h\)/);
   });
 });
+
+describe("Jev を広げる（オーナー指示 2026-09-23）— 共有の辞書は二つの目、予定と判定は影", () => {
+  const lex = codeOnly(read("lib/lexicon.server.ts"));
+  const reviews = codeOnly(read("lib/reviews.functions.ts"));
+  const ai = codeOnly(read("lib/ai.functions.ts"));
+
+  it("日々の点検・報告の仕分けは、Jev も案を選んだときだけ直す／却下する", () => {
+    expect((lex.match(/allowEntryFix\(v\.confidence, jev\)/g) ?? []).length).toBe(2);
+    expect(lex).toMatch(/allowDismiss\(v\.confidence, jev\)/);
+    // 前の「確信 0.85 だけで直す」は残っていない。
+    expect(lex).not.toMatch(/row\.source === "ai" && v\.confidence >= 0\.85\) \{/);
+  });
+
+  it("話す練習の判定と例文の自然さは影で記録し、画面の判定は変えない", () => {
+    expect(reviews).toMatch(/recordSpeakingShadow\(/);
+    expect(ai).toMatch(/recordExampleShadow\(/);
+    // 記録は待たない（返事を遅らせない）。
+    expect(reviews).toMatch(
+      /void import\("\.\/jev-tasks\.server"\)\.then\(\(\{ recordSpeakingShadow \}\)/,
+    );
+  });
+});

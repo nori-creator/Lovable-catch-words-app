@@ -1376,6 +1376,16 @@ ${data.hint_used ? "※学習者は単語を思い出せずヒントを見まし
       meta: { headword: w.headword, score: feedback.natural_score },
     });
 
+    // **Jev の判定を影で記録**（画面の判定は変えない。添削 AI との一致を後で見る）。
+    void import("./jev-tasks.server").then(({ recordSpeakingShadow }) =>
+      recordSpeakingShadow(supabase as never, {
+        userId,
+        headword: w.headword,
+        utterance: data.transcript,
+        llmOk: feedback.used_target && feedback.natural_score >= 3,
+      }),
+    );
+
     return {
       ...feedback,
       headword: w.headword,

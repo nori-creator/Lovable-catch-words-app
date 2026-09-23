@@ -1,4 +1,4 @@
-import { choice, noul, type JevAnswer, type JevEntry, type JevQuestion } from "./jev";
+import { choice, noul, score, type JevAnswer, type JevEntry, type JevQuestion } from "./jev";
 
 /**
  * Jev に聞く問いの**中身**と、答えの読み方。通信は `jev-tasks.server.ts`。
@@ -126,6 +126,117 @@ export function recallQuestion(s: RecallState): {
         true: "recalls it correctly",
         false: "fails to recall it",
       }),
+    },
+  };
+}
+
+// --- 4) 辞書の日々の点検・報告の仕分け: 直してよいかの**第二の目** ------------
+
+export type EntryFields = { zhuyin: string | null; pinyin: string | null; meaning: string | null };
+
+/**
+ * 共有の辞書の1行について、「いまの中身」と「直した案」のどちらが正しいかを
+ * 聞く。点検の AI とは**別の目**（`QA.md`「利用者の報告による正本の修正は、
+ * 全体へ広げる前に確かめる」）。
+ */
+export function entryFixQuestion(
+  headword: string,
+  current: EntryFields,
+  proposed: EntryFields,
+): { state: JevEntry; questions: Record<string, JevQuestion> } {
+  return {
+    state: {
+      language: "Taiwan Mandarin (Traditional Chinese, Taiwan Ministry of Education standard)",
+      word: headword,
+      current: { zhuyin: current.zhuyin, pinyin: current.pinyin, meaning_ja: current.meaning },
+      proposed: { zhuyin: proposed.zhuyin, pinyin: proposed.pinyin, meaning_ja: proposed.meaning },
+    },
+    questions: {
+      which: choice(
+        "Which dictionary entry is correct for this word in Taiwan Mandarin? Mainland-only pronunciations or meanings are not correct here.",
+        { current: "the current entry", proposed: "the proposed fix", unsure: "cannot tell" },
+      ),
+    },
+  };
+}
+
+export type EntryOpinion = { pProposed: number; pCurrent: number } | null;
+
+export function entryOpinion(answer: JevAnswer | undefined): EntryOpinion {
+  if (!answer || answer.type !== "choice") return null;
+  return {
+    pProposed: answer.probabilities.proposed ?? 0,
+    pCurrent: answer.probabilities.current ?? 0,
+  };
+}
+
+/**
+ * **直す**のは、点検の AI が 0.85 以上で確信し、かつ Jev も直した案を
+ * 6割以上で選んだときだけ。Jev が使えないときは従来どおり（AI の確信だけ）。
+ * 二つの目がそろわない修正は、人間の確認へ回る。
+ */
+export function allowEntryFix(llmConfidence: number, jev: EntryOpinion): boolean {
+  if (llmConfidence < 0.85) return false;
+  return jev == null || jev.pProposed >= 0.6;
+}
+
+/** 報告を**却下**するのも同じ。Jev がいまの中身を6割以上で選んだときだけ。 */
+export function allowDismiss(llmConfidence: number, jev: EntryOpinion): boolean {
+  if (llmConfidence < 0.85) return false;
+  return jev == null || jev.pCurrent >= 0.6;
+}
+
+// --- 5) 復習のタイミング（**影の実行**）--------------------------------------
+
+/** 次の復習までの間隔の段（日）。記憶の問いと同じ呼び出しで聞く。 */
+export const INTERVAL_BUCKETS = [1, 3, 7, 14, 30, 60] as const;
+
+export function intervalQuestion(): JevQuestion {
+  return score(
+    "After this review, how many days until this learner should see the word again so that they are just about to forget it?",
+    INTERVAL_BUCKETS.map((d) => `${d} days`),
+  );
+}
+
+/** 段の期待値から日数へ（段の間は線形に）。 */
+export function intervalDaysFrom(answer: JevAnswer | undefined): number | null {
+  if (!answer || answer.type !== "score") return null;
+  const x = Math.max(0, Math.min(INTERVAL_BUCKETS.length - 1, answer.score));
+  const lo = Math.floor(x);
+  const hi = Math.min(INTERVAL_BUCKETS.length - 1, lo + 1);
+  return Math.round(
+    INTERVAL_BUCKETS[lo] + (INTERVAL_BUCKETS[hi] - INTERVAL_BUCKETS[lo]) * (x - lo),
+  );
+}
+
+// --- 6) 話す練習の判定（**影の実行**）・7) 例文の自然さ（**影の実行**）------
+
+export function speakingQuestion(
+  headword: string,
+  utterance: string,
+): { state: JevEntry; questions: Record<string, JevQuestion> } {
+  return {
+    state: { target_word: headword, learner_utterance: utterance },
+    questions: {
+      used: noul(
+        "Did the learner use the target word correctly and naturally in Taiwan Mandarin?",
+        { true: "correct and natural use", false: "missing, wrong, or unnatural" },
+      ),
+    },
+  };
+}
+
+export function exampleQuestion(
+  headword: string,
+  sentence: string,
+): { state: JevEntry; questions: Record<string, JevQuestion> } {
+  return {
+    state: { target_word: headword, example_sentence: sentence },
+    questions: {
+      natural: noul(
+        "Would a native Taiwan Mandarin speaker naturally say this sentence in everyday life?",
+        { true: "natural", false: "unnatural or textbook-like" },
+      ),
     },
   };
 }

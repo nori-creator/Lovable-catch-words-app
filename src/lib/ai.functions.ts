@@ -685,6 +685,17 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
      * 語は共有なので、分類できている語は触らない。鍵が無い・自信が低いときは
      * 「その他」のまま。
      */
+    // 例文の自然さを **Jev で影に記録**（待たない・画面は変えない）。
+    if (card.example_sentence) {
+      const sentence = card.example_sentence;
+      void import("./jev-tasks.server").then(({ recordExampleShadow }) =>
+        recordExampleShadow(context.supabase as never, {
+          userId: context.userId,
+          headword: resolvedHead,
+          sentence,
+        }),
+      );
+    }
     let categoryKey = normalizeCategory(resolvedHead, card.category_key);
     if (categoryKey === "other") {
       const { categoryFallback } = await import("./jev-tasks.server");
