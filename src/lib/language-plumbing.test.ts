@@ -4901,8 +4901,10 @@ describe("ホームは今日の誌面", () => {
     );
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
-    // 先頭は何も打たずに開いた人が最初に見る面。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
+    // （2026-09-22 の記憶のグラフ）。ホームも同じ PR で直したので帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-curve"/);
+    expect(list).toMatch(/\{ scene: "memory-overall"/);
   });
 });
 
@@ -5312,5 +5314,52 @@ describe("ホームの表紙に語の総数と横線を出さない", () => {
     expect(mast).not.toMatch(/day-masthead__rail|day-masthead__count|day-masthead__rule-line/);
     expect(mast).not.toMatch(/total\?: number/);
     expect(read("styles.css")).not.toMatch(/\.day-masthead__(rail|count|rule-line) \{/);
+  });
+});
+
+describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラフが見づらい」）", () => {
+  const chart = codeOnly(read("components/ForgettingCurveChart.tsx"));
+  const review = codeOnly(read("routes/_authenticated/review.tsx"));
+
+  it("**復習した回数は履歴の行数**（SM-2 の「続けて正解した回数」ではない）", () => {
+    // 「復習5回となってるのに5回復習したあとない」— 数と点が別の物を数えていた。
+    expect(review).toMatch(/const reviewCount = data \? data\.history\.length : word\.repetitions/);
+    expect(review).toMatch(/<b className="text-foreground">\{reviewCount\}<\/b>/);
+    expect(review).not.toMatch(/<b className="text-foreground">\{word\.repetitions\}<\/b>/);
+  });
+
+  it("**曲線を45日で切らない・日単位に丸めない**（古い復習と同じ日の復習が消えていた）", () => {
+    expect(review).not.toMatch(/Math\.max\(-45/);
+    expect(review).not.toMatch(/revDays\.includes/);
+    expect(review).toMatch(/memoryCurveFrom\(/);
+    expect(review).toMatch(/<MemoryCurveChart/);
+  });
+
+  it("**点線は「復習しなかったら」の1本だけ**（補助線・格子の点線をやめた）", () => {
+    const body = chart.slice(chart.indexOf("export function MemoryCurveChart"));
+    const lines = body.slice(body.indexOf("<LineChart"), body.indexOf("</LineChart>"));
+    expect(lines.match(/strokeDasharray=/g)?.length).toBe(1);
+    expect(lines).not.toMatch(/ReferenceLine/);
+    expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
+    // 全体のグラフも同じ。
+    const mini = review.slice(review.indexOf("export function MiniRetentionGraph"));
+    const miniLines = mini.slice(mini.indexOf("<LineChart"), mini.indexOf("</LineChart>"));
+    expect(miniLines.match(/strokeDasharray=/g)?.length).toBe(1);
+    expect(miniLines).not.toMatch(/ReferenceLine/);
+  });
+
+  it("**今日に点**、線は**縦軸の値で塗り分け**、目盛りは明確な日だけ", () => {
+    expect(chart).toMatch(/<ReferenceDot\s+x=\{0\}\s+y=\{curve\.todayR\}/);
+    expect(chart).toMatch(/levelGradient\(\s*`mc-past-/);
+    expect(chart).toMatch(/levelGradient\(\s*`mc-future-/);
+    expect(chart).toMatch(/ticks=\{curve\.ticks\.map/);
+    // 同じ日の複数回は ×N を添える（重なって数が減って見えないように）。
+    expect(chart).toMatch(/groupReviews\(curve\.reviews\)/);
+  });
+
+  it("**復習どきを言葉で言い、来ていれば復習へ進める**", () => {
+    expect(chart).toMatch(/t\("curve\.reviewNow"\)/);
+    expect(chart).toMatch(/t\("curve\.reviewOn"/);
+    expect(chart).toMatch(/to="\/review"\s+search=\{\{ sticker: stickerId \}\}/);
   });
 });

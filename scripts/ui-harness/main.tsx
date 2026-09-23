@@ -89,6 +89,8 @@ import {
   ReviewSayScene,
   ReviewMemoryScene,
   ReviewMemoryListScene,
+  MemoryCurveScene,
+  MemoryOverallScene,
 } from "./scenes/review";
 import {
   ChunksScene,
@@ -187,6 +189,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
   "review-memory-list": ReviewMemoryListScene,
+  "memory-curve": MemoryCurveScene,
+  "memory-overall": MemoryOverallScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -296,6 +300,10 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
+  { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },
+  { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
+  { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
+  { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
   { scene: "home", label: "ホーム（壁に貼った誌面・テープと四隅）" },
   { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
   { scene: "gallery", label: "図鑑（右上の記憶の色と %）" },
@@ -384,11 +392,13 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        const on = r.scene === wanted;
+        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
+        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
+        const on = r.scene === here;
         return (
           <a
             key={r.scene}
-            href={`?scene=${encodeURIComponent(r.scene)}&review=1`}
+            href={`?scene=${r.scene}&review=1`}
             style={{
               padding: "6px 10px",
               borderRadius: 999,

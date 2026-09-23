@@ -5,7 +5,7 @@ import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session"
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
@@ -27,6 +27,12 @@ import {
   getReviewCapState,
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
+import { levelOfR } from "@/lib/memory-curve";
+import {
+  levelGradient,
+  memoryCurveFrom,
+  MemoryCurveChart,
+} from "@/components/ForgettingCurveChart";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
@@ -786,7 +792,7 @@ export function MemoryOverviewPanel({
   );
 }
 
-function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: () => void }) {
+export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: () => void }) {
   const histFn = useServerFn(getStickerMemoryHistory);
   const { data } = useQuery({
     queryKey: ["sticker-memory", word.sticker_id],
@@ -806,95 +812,40 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
    * 差し変わる**。録画のコマで確認した（-25d から単調に落ちる線 →
    * -44d と -28d に立ち上がりのある線）。
    *
-   * **一度も復習していない語は待つ必要が無い**（履歴が空なのが正しい姿）。
-   * 待つのは `repetitions > 0` の語だけ。ふつうは一瞬で届く。
+   * **履歴は必ず待つ。** 以前は `repetitions > 0` の語だけ待っていたが、
+   * `repetitions` は「続けて正解した回数」で、**一度間違えると 0 に戻る**。
+   * 履歴があるのに待たずに「未復習」の線を出してしまう語が残っていた。
+   * 問い合わせはふつう一瞬で届き、その間は同じ高さの面を出しておく。
    */
-  const needsHistory = word.repetitions > 0;
-  const ready = !needsHistory || data != null;
+  const ready = data != null;
 
   /**
-   * 記憶保持率のモデル(Ebbinghaus × SM-2):
-   *   R(t) = exp(-t / S)      S = 安定度(日) = interval_days × ease
-   * 復習した瞬間に R は 100% へ垂直回復し、正解ほど S が伸びる(坂が緩む)。
-   * **復習履歴が無くても** 「出会った日(taken_at)」を起点に実線を描く —
-   * これが「まだテストしてないのに線が出ない」問題の原因だった。
+   * 曲線の形は `memoryCurveFrom`（図鑑の詳細と同じ関数）。
+   * 以前はここに別の計算があり、**直近45日で切って日単位に丸めていた**
+   * ので、「復習5回なのに点が2つ」になっていた（オーナー指摘 2026-09-22）。
    */
-  const { series, reviewDays, forgetDay, bestDay } = useMemo(() => {
-    const nowMs = Date.now();
-    const day = 86400_000;
-    // 安定度の式は src/lib/srs.ts のもの**だけ**を使う。
-    // ここには同じ式が写してあった。いまは同じでも、どちらかを直した
-    // ときにもう片方が取り残されて、**同じ画面の中でグラフと定着度の
-    // 数字が食い違う**(隣に並んでいるので、見た人はどちらが本当か
-    // 分からなくなる)。
-
-    const hist = (data?.history ?? [])
-      .slice()
-      .sort((a, b) => new Date(a.reviewed_at).getTime() - new Date(b.reviewed_at).getTime());
-    const cur = data?.current;
-
-    // 記憶イベント列: 復習履歴があればそれ、無ければ「出会った日」1点。
-    const events: Array<{ t: number; stability: number }> = hist.map((h) => ({
-      t: new Date(h.reviewed_at).getTime(),
-      stability: stabilityOf(h.interval_days_after, h.ease_after),
-    }));
-    if (events.length === 0) {
-      const anchorIso = cur?.last_reviewed_at ?? data?.taken_at ?? word.anchor_at;
-      if (anchorIso) {
-        events.push({
-          t: new Date(anchorIso).getTime(),
-          stability: word.stability_days || stabilityOf(word.interval_days, word.ease),
-        });
-      }
-    }
-    if (events.length === 0) {
-      return { series: [], reviewDays: [], forgetDay: null, bestDay: null } as {
-        series: Array<{ d: number; r: number | null }>;
-        reviewDays: number[];
-        forgetDay: number | null;
-        bestDay: number | null;
-      };
-    }
-
-    const revDays = events.map((e) => Math.round((e.t - nowMs) / day));
-    const firstD = Math.max(-45, Math.min(0, revDays[0]));
-    const out: Array<{ d: number; r: number | null }> = [];
-    let forget: number | null = null;
-    for (let d = firstD; d <= 45; d++) {
-      const at = nowMs + d * day;
-      let last: { t: number; stability: number } | null = null;
-      for (const e of events) if (e.t <= at) last = e;
-      if (!last) {
-        out.push({ d, r: null });
-        continue;
-      }
-      const dt = Math.max(0, (at - last.t) / day);
-      const r = Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-dt / last.stability))));
-      out.push({ d, r: revDays.includes(d) ? 100 : r });
-      if (forget == null && d >= 0 && r < 50) forget = d;
-    }
-
-    // 最適な復習日 = 保持率 ≒ 85%(想起にひと手間かかるが失敗しない)。
-    // 「思い出す努力」が最大の定着を生む desirable difficulty の狙い目。
-    const lastEvent = events[events.length - 1];
-    const targetDay = Math.round(
-      (lastEvent.t - nowMs) / day + lastEvent.stability * Math.log(1 / 0.85),
-    );
-    return { series: out, reviewDays: revDays, forgetDay: forget, bestDay: targetDay };
-  }, [data, word]);
-
-  const dueLocale = localeOf(useUiLang());
-  const dueAt = word.due_at ?? data?.current?.due_at ?? null;
-  const dueLabel = dueAt
-    ? new Date(dueAt).toLocaleDateString(dueLocale, { month: "short", day: "numeric" })
-    : "—";
-  const daysUntilForgot = word.days_until_forgot ?? forgetDay;
-  const bestLabel =
-    bestDay == null
-      ? null
-      : bestDay <= 0
-        ? t("memory.today")
-        : `${bestDay}${t("memory.daysLater")}`;
+  const nowMs = useMemo(() => Date.now(), []);
+  const curve = useMemo(
+    () =>
+      memoryCurveFrom(
+        {
+          history: data?.history ?? [],
+          takenAt: data?.taken_at ?? null,
+          lastReviewedAt: data?.current?.last_reviewed_at ?? null,
+          currentEase: data?.current?.ease ?? word.ease,
+          currentIntervalDays: data?.current?.interval_days ?? word.interval_days,
+          stabilityDays: word.stability_days,
+        },
+        nowMs,
+      ),
+    [data, word, nowMs],
+  );
+  /**
+   * 「復習 N 回」は**実際に復習した回数**（履歴の行数）。
+   * 以前は SM-2 の `repetitions`（**続けて正解した**回数）を出していたので、
+   * 一度間違えると数が戻り、グラフの点の数と合わなかった。
+   */
+  const reviewCount = data ? data.history.length : word.repetitions;
 
   return (
     <div
@@ -927,7 +878,7 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
             {t(lv.labelKey)} · {strength}%
           </span>
           <span className="text-muted-foreground">
-            {t("memory.reviews")} <b className="text-foreground">{word.repetitions}</b>{" "}
+            {t("memory.reviews")} <b className="text-foreground">{reviewCount}</b>{" "}
             {t("memory.times")}
           </span>
         </div>
@@ -936,98 +887,22 @@ function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: ()
           // 待っている間。**間違った形の線を出すくらいなら、線を出さない。**
           // 枠の高さは同じにして、届いた時に面が跳ねないようにする。
           <div
-            className="h-44 w-full animate-pulse rounded-xl bg-secondary/60"
+            className="h-72 w-full animate-pulse rounded-xl bg-secondary/60"
             role="status"
             aria-label={t("common.loading")}
           />
-        ) : series.length > 0 ? (
-          <div className="h-44 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series} margin={{ top: 6, right: 8, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
-                <XAxis
-                  dataKey="d"
-                  tickFormatter={(v: number) =>
-                    v === 0 ? t("rv.today") : v > 0 ? `+${v}d` : `${v}d`
-                  }
-                  stroke="#64748b"
-                  fontSize={10}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                  stroke="#64748b"
-                  fontSize={10}
-                />
-                <Tooltip
-                  formatter={(v: number) => [`${v}%`, t("rv.retention")]}
-                  labelFormatter={(l: number) =>
-                    l === 0
-                      ? t("rv.today")
-                      : l > 0
-                        ? t("rv.daysLater", { n: l })
-                        : t("rv.daysAgo", { n: -l })
-                  }
-                  contentStyle={{
-                    background: "rgba(255,255,255,0.96)",
-                    border: "1px solid rgba(120,130,150,0.28)",
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                />
-                {/* 忘却ライン(50%)と、最適な復習ゾーン(85%) */}
-                <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" />
-                <ReferenceLine y={85} stroke="#10b981" strokeDasharray="2 4" />
-                <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="2 4" />
-                {bestDay != null && bestDay >= 0 && bestDay <= 45 && (
-                  <ReferenceLine x={bestDay} stroke="#10b981" strokeWidth={1.5} />
-                )}
-                {reviewDays.map((d) => (
-                  <ReferenceDot key={d} x={d} y={100} r={3.5} fill="#2563eb" stroke="#fff" />
-                ))}
-                <Line
-                  type="monotone"
-                  dataKey="r"
-                  stroke="#2563eb"
-                  strokeWidth={2.4}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        ) : curve ? (
+          <MemoryCurveChart
+            curve={curve}
+            nowMs={nowMs}
+            stickerId={word.sticker_id}
+            onReview={onClose}
+          />
         ) : (
           <p className="py-8 text-center text-footnote text-muted-foreground">
             {t("review.memoryLoading")}
           </p>
         )}
-
-        {/* 数字で読める予測 */}
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-caption text-muted-foreground">{t("memory.bestReview")}</div>
-            <div className="text-body font-bold text-ok-ink">{bestLabel ?? "—"}</div>
-          </div>
-          <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-caption text-muted-foreground">{t("memory.forgetIn")}</div>
-            <div
-              className={`text-body font-bold ${daysUntilForgot != null && daysUntilForgot <= 2 ? "text-bad-ink" : ""}`}
-            >
-              {daysUntilForgot != null ? `${daysUntilForgot}${t("memory.daysLater")}` : "—"}
-            </div>
-          </div>
-          <div className="rounded-xl bg-secondary/60 p-2">
-            <div className="text-caption text-muted-foreground">{t("memory.nextDue")}</div>
-            <div className="text-body font-bold">{dueLabel}</div>
-          </div>
-        </div>
-
-        <p className="mt-2 text-caption leading-relaxed text-muted-foreground">
-          {t("rv.formula1")}
-          {t("rv.formula2")} <b className="text-ok-ink">{t("rv.greenLine")}</b>
-          {t("rv.formula3")}
-        </p>
       </div>
     </div>
   );
@@ -2394,9 +2269,7 @@ import {
   Line,
   XAxis,
   YAxis,
-  Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
   ReferenceDot,
   CartesianGrid,
 } from "recharts";
@@ -2410,47 +2283,102 @@ import {
  *
  * その日に**まだ無かった**語しか無い日は `null` が来る — 0% ではないので、
  * 線をそこで切る(`connectNulls` を付けない)。
+ *
+ * 見た目は1語の曲線（`MemoryCurveChart`）とそろえる（オーナー指摘
+ * 2026-09-22「記憶のグラフが見づらい」）: 今日に点、線は値で塗り分け、
+ * これまでは実線・これからは点線、日付は両端と今日だけ。
  */
-function MiniRetentionGraph({
+export function MiniRetentionGraph({
   series,
 }: {
   series: Array<{ day_offset: number; avg_retention: number | null; counted?: number }>;
 }) {
   const t = useT();
+  const locale = localeOf(useUiLang());
+  const uid = useId().replace(/:/g, "");
+  const nowMs = useMemo(() => Date.now(), []);
+  const pts = series.map((p) => ({ d: p.day_offset, r: p.avg_retention }));
+  const past = pts.filter((p) => p.d <= 0);
+  const future = pts.filter((p) => p.d >= 0);
+  const values = (xs: typeof pts) => xs.flatMap((p) => (p.r == null ? [] : [p.r]));
+  const pastG = levelGradient(`mr-past-${uid}`, values(past));
+  const futureG = levelGradient(`mr-future-${uid}`, values(future));
+  const today = pts.find((p) => p.d === 0)?.r ?? null;
+  const lo = Math.min(0, ...pts.map((p) => p.d));
+  const hi = Math.max(0, ...pts.map((p) => p.d));
+  const dateOf = (d: number) =>
+    new Date(nowMs + d * 86_400_000).toLocaleDateString(locale, {
+      month: "numeric",
+      day: "numeric",
+    });
   return (
-    <div className="h-32 w-full">
+    <div className="h-36 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,130,150,0.28)" />
+        <LineChart margin={{ top: 20, right: 14, bottom: 0, left: -18 }}>
+          <defs>
+            {pastG.def}
+            {futureG.def}
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis
-            dataKey="day_offset"
-            tickFormatter={(v) => (v === 0 ? t("rv.today") : `${v > 0 ? "+" : ""}${v}d`)}
-            stroke="#64748b"
-            fontSize={10}
+            type="number"
+            dataKey="d"
+            domain={[lo, hi]}
+            ticks={[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i)}
+            interval={0}
+            tickLine={false}
+            axisLine={{ stroke: "var(--border)" }}
+            tickFormatter={(v: number) => (v === 0 ? t("rv.today") : dateOf(v))}
+            stroke="var(--muted-foreground)"
+            fontSize={11}
           />
-          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={10} />
-          <Tooltip
-            formatter={(v) => [v == null ? "—" : `${v}%`, t("rv.avgRetention")]}
-            labelFormatter={(l) =>
-              l === 0 ? t("rv.today") : t("rv.dayN", { n: `${l > 0 ? "+" : ""}${l}` })
-            }
-            contentStyle={{
-              background: "rgba(255,255,255,0.96)",
-              border: "1px solid rgba(120,130,150,0.28)",
-              borderRadius: 12,
-              fontSize: 12,
-            }}
+          <YAxis
+            domain={[0, 100]}
+            ticks={[0, 50, 100]}
+            tickFormatter={(v) => `${v}%`}
+            tickLine={false}
+            axisLine={false}
+            stroke="var(--muted-foreground)"
+            fontSize={11}
           />
-          <ReferenceLine x={0} stroke="#2563eb" strokeDasharray="4 4" />
-          <ReferenceLine y={80} stroke="#64748b" strokeDasharray="2 4" />
           <Line
-            type="monotone"
-            dataKey="avg_retention"
-            stroke="#2563eb"
-            strokeWidth={2.4}
+            data={future}
+            dataKey="r"
+            type="linear"
+            stroke={futureG.stroke}
+            strokeWidth={2.5}
+            strokeDasharray="6 5"
+            strokeLinecap="round"
             dot={false}
             isAnimationActive={false}
           />
+          <Line
+            data={past}
+            dataKey="r"
+            type="linear"
+            stroke={pastG.stroke}
+            strokeWidth={3}
+            strokeLinejoin="round"
+            dot={false}
+            isAnimationActive={false}
+          />
+          {today != null && (
+            <ReferenceDot
+              x={0}
+              y={today}
+              r={6}
+              fill={`var(--mem-${levelOfR(today)})`}
+              stroke="var(--card)"
+              strokeWidth={3}
+              label={{
+                value: t("curve.todayPct", { pct: today }),
+                position: "top",
+                fill: "var(--foreground)",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

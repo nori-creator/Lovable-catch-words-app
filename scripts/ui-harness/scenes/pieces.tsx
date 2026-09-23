@@ -363,9 +363,11 @@ export function CurveScene() {
           ease_after: 2.4,
         },
       ]}
-      currentEase={2.3}
-      currentIntervalDays={6}
+      currentEase={2.4}
+      currentIntervalDays={12}
       lastReviewedAt={new Date(now - 4 * day).toISOString()}
+      takenAt={new Date(now - 24 * day).toISOString()}
+      stickerId="s1"
     />
   );
 }
