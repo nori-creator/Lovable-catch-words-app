@@ -69,6 +69,8 @@ import {
   entryOpinion,
   intervalDaysFrom,
   intervalQuestion,
+  pickInterval,
+  scheduleQuestion,
 } from "./jev-tasks";
 
 describe("辞書の点検の第二の目", () => {
@@ -105,15 +107,51 @@ describe("辞書の点検の第二の目", () => {
   });
 });
 
-describe("復習の間隔（影）", () => {
+describe("復習の間隔（Jev が決める。オーナー指示 2026-09-23）", () => {
+  const ans = (x: number) =>
+    ({ type: "score", score: x, confidence: 0.5, probabilities: { "0": 1 } }) as JevAnswer;
+
   it("段の期待値から日数へ", () => {
     expect(intervalQuestion().type).toBe("score");
-    const ans = (s: number) =>
-      ({ type: "score", score: s, confidence: 0.5, probabilities: { "0": 1 } }) as JevAnswer;
     expect(intervalDaysFrom(ans(0))).toBe(1);
     expect(intervalDaysFrom(ans(2))).toBe(7);
     expect(intervalDaysFrom(ans(2.5))).toBe(11);
-    expect(intervalDaysFrom(ans(9))).toBe(60);
+    expect(intervalDaysFrom(ans(9))).toBe(120);
+    expect(intervalDaysFrom(ans(Number.NaN))).toBeNull();
     expect(intervalDaysFrom(undefined)).toBeNull();
+  });
+
+  it("間隔の問いには**この復習の結果**を見せる", () => {
+    const q = scheduleQuestion({
+      headword: "捷運",
+      daysSinceLastReview: 3,
+      intervalDaysBefore: 3,
+      ease: 2.5,
+      repetitionsBefore: 2,
+      recalled: true,
+      score: 5,
+      responseSeconds: 2.1,
+    });
+    expect(Object.keys(q.questions)).toEqual(["interval"]);
+    expect(JSON.stringify(q.state)).toMatch(/"recalled":true/);
+  });
+
+  it("思い出せなかった語は明日（Jev が延ばしても使わない）", () => {
+    expect(pickInterval(1, 30, 1)).toEqual({ days: 1, source: "srs" });
+    expect(pickInterval(1, 30, 2)).toEqual({ days: 1, source: "srs" });
+  });
+
+  it("Jev の答えが無ければ SM-2 のまま", () => {
+    expect(pickInterval(8, null, 5)).toEqual({ days: 8, source: "srs" });
+  });
+
+  it("Jev の日数を使う。ただし SM-2 の半分〜2倍に収める", () => {
+    expect(pickInterval(8, 11, 5)).toEqual({ days: 11, source: "jev" });
+    expect(pickInterval(8, 60, 5)).toEqual({ days: 16, source: "jev" });
+    expect(pickInterval(8, 1, 5)).toEqual({ days: 4, source: "jev" });
+    // 下限 1日・上限 365日。
+    expect(pickInterval(1, 1, 5)).toEqual({ days: 1, source: "jev" });
+    expect(pickInterval(300, 120, 5).days).toBe(150);
+    expect(pickInterval(300, 999, 5).days).toBe(365);
   });
 });

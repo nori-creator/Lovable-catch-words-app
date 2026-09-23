@@ -6,12 +6,13 @@ import {
   entryOpinion,
   exampleQuestion,
   intervalDaysFrom,
-  intervalQuestion,
   recallQuestion,
+  scheduleQuestion,
   speakingQuestion,
   type EntryFields,
   type EntryOpinion,
   type RecallState,
+  type ScheduleState,
 } from "./jev-tasks";
 
 /**
@@ -24,13 +25,95 @@ type Db = {
   from: (t: string) => any;
 };
 
+/** 本人の札の語を引く（Jev に語そのものの難しさも見せるため）。 */
+async function headwordOf(
+  db: Db,
+  userId: string,
+  stickerId: string,
+): Promise<{ headword: string; meaning: string | null } | null> {
+  const { data } = await db
+    .from("stickers")
+    .select("words(headword, meaning_ja)")
+    .eq("id", stickerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const w = (data as { words?: { headword?: string; meaning_ja?: string } } | null)?.words;
+  return w?.headword ? { headword: w.headword, meaning: w.meaning_ja ?? null } : null;
+}
+
 /**
- * 記憶の**影の実行**。予定（復習の日）は一切動かさない。
+ * **次の復習の日を Jev に聞く。**（オーナー指示 2026-09-23「jevにすぐに
+ * 切り替えて」）
+ *
+ * 返すのは Jev の日数（柵に収める前）。鍵が無い・時間切れ・答えの形が
+ * 違う・語が引けないときは `null` — 呼ぶ側は SM-2 の日数を使う
+ * （`pickInterval`）。**失敗を投げない。**
+ *
+ * 復習の返事はこれを待つので、時間切れは短くしてある（2.5秒）。
+ * 画面の側は採点の返事を待たずに次の札へ進む（`review.tsx`）。
+ */
+export async function jevScheduleDays(
+  db: Db,
+  args: { userId: string; stickerId: string; state: ScheduleState },
+): Promise<{ days: number; model: string; confidence: number } | null> {
+  if (!jevAvailable()) return null;
+  try {
+    let state = args.state;
+    if (!state.headword) {
+      const w = await headwordOf(db, args.userId, args.stickerId);
+      if (!w) return null;
+      state = { ...state, headword: w.headword, meaning: w.meaning };
+    }
+    const q = scheduleQuestion(state);
+    const res = await askJev(q.state, q.questions, { timeoutMs: 2500 });
+    const iv = res?.answers.interval;
+    const days = intervalDaysFrom(iv);
+    if (!res || days == null || !iv || iv.type !== "score") return null;
+    return { days, model: res.model, confidence: Math.max(0, Math.min(1, iv.confidence)) };
+  } catch (e) {
+    console.warn("[jev] schedule skipped:", (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+/**
+ * 決めた間隔を**記録に残す**（後で当たり方を確かめるため）。
+ * 結果（次の復習で思い出せたか）はこの時点では分からないので空。
+ */
+export async function logScheduleDecision(
+  db: Db,
+  args: {
+    userId: string;
+    stickerId: string;
+    model: string;
+    confidence: number;
+    jevDays: number;
+    srsDays: number;
+    usedDays: number;
+  },
+): Promise<void> {
+  try {
+    await db.from("model_shadow_predictions").insert({
+      user_id: args.userId,
+      sticker_id: args.stickerId,
+      task: "interval",
+      model: args.model,
+      // 間隔は確率ではないので、Jev の自信を入れ、日数は meta に置く。
+      predicted: args.confidence,
+      outcome: null,
+      meta: { jev_days: args.jevDays, srs_days: args.srsDays, used_days: args.usedDays },
+    });
+  } catch (e) {
+    console.warn("[jev] schedule log skipped:", (e as Error)?.message ?? e);
+  }
+}
+
+/**
+ * 記憶の見込みの**記録**（較正を見るため）。予定はここでは動かさない。
  *
  * 復習の答えを受けた後で、**答える前の状態だけ**を Jev に見せて「いま
- * 思い出せるか」を聞き、このアプリの式の見込み・実際の正誤と並べて記録する。
- * 後で両者の当たり方（較正）を比べ、良ければ予定に使うかを決める
- * （ROADMAP 6）。
+ * 思い出せるか」を聞き、このアプリの式の見込み・実際の正誤と並べて残す。
+ * 後で両者の当たり方（較正）を比べる。
  *
  * 鍵が無ければ何もしない（問い合わせも DB も触らない）。
  */
@@ -42,40 +125,14 @@ export async function recordRecallShadow(
   try {
     let state = args.state;
     if (!state.headword) {
-      // 語そのものの難しさも効くので、語を引いてから聞く（本人の札だけ）。
-      const { data } = await db
-        .from("stickers")
-        .select("words(headword, meaning_ja)")
-        .eq("id", args.stickerId)
-        .eq("user_id", args.userId)
-        .maybeSingle();
-      const w = (data as { words?: { headword?: string; meaning_ja?: string } } | null)?.words;
-      if (!w?.headword) return;
-      state = { ...state, headword: w.headword, meaning: w.meaning_ja ?? null };
+      const w = await headwordOf(db, args.userId, args.stickerId);
+      if (!w) return;
+      state = { ...state, headword: w.headword, meaning: w.meaning };
     }
     const q = recallQuestion(state);
-    // 同じ呼び出しで「次はいつ見せるのがよいか」（復習のタイミング）も聞く。
-    const res = await askJev(
-      q.state,
-      { ...q.questions, interval: intervalQuestion() },
-      { timeoutMs: 4000 },
-    );
+    const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
     const a = res?.answers.recall;
     if (!res || !a || a.type !== "noul") return;
-    const iv = res.answers.interval;
-    const days = intervalDaysFrom(iv);
-    if (days != null && iv && iv.type === "score") {
-      await db.from("model_shadow_predictions").insert({
-        user_id: args.userId,
-        sticker_id: args.stickerId,
-        task: "interval",
-        model: res.model,
-        // 間隔は確率ではないので、Jev の自信を入れ、日数は meta に置く。
-        predicted: Math.max(0, Math.min(1, iv.confidence)),
-        outcome: args.outcome,
-        meta: { jev_days: days, srs_days_before: state.intervalDays },
-      });
-    }
     await db.from("model_shadow_predictions").insert({
       user_id: args.userId,
       sticker_id: args.stickerId,

@@ -10,6 +10,7 @@ import { z } from "zod";
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
 import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
+import { pickInterval } from "@/lib/jev-tasks";
 import {
   buildRetentionSeries,
   type RetentionCard,
@@ -935,11 +936,47 @@ export const gradeReview = createServerFn({ method: "POST" })
     }
     score = Math.max(0, Math.min(5, score));
 
-    const next = nextSrs(
+    const srs = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
       score,
     );
-    const dueAt = new Date(Date.now() + next.interval_days * 86400 * 1000).toISOString();
+
+    /**
+     * **次の復習の日は Jev が決める。**（オーナー指示 2026-09-23「jevに
+     * すぐに切り替えて」— それまでは影で記録するだけだった）
+     *
+     * SM-2 の日数を基準にして、Jev の日数を柵の中に収める（`pickInterval`）:
+     * 思い出せなかった語は明日のまま、Jev の答えが無ければ SM-2 のまま、
+     * Jev の日数は SM-2 の半分〜2倍まで。ease と連続回数は SM-2 のまま
+     * （次の SM-2 の基準になるので）。
+     */
+    const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+    const now = Date.now();
+    const daysSince = lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10;
+    const recalled = score >= LAPSE_SCORE;
+    const { jevScheduleDays, logScheduleDecision, recordRecallShadow } =
+      await import("./jev-tasks.server");
+    const jev =
+      score >= LAPSE_SCORE
+        ? await jevScheduleDays(supabase as never, {
+            userId,
+            stickerId: row.sticker_id,
+            state: {
+              headword: "",
+              daysSinceLastReview: daysSince,
+              intervalDaysBefore: row.interval_days,
+              ease: row.ease,
+              repetitionsBefore: row.repetitions,
+              recalled,
+              score,
+              responseSeconds:
+                data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
+            },
+          })
+        : null;
+    const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
+    const next = { ...srs, interval_days: picked.days };
+    const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
 
     const { error: upErr } = await supabase
       .from("reviews")
@@ -971,32 +1008,38 @@ export const gradeReview = createServerFn({ method: "POST" })
     });
 
     /**
-     * **Jev の影の実行**（記録だけ。上で決めた予定は変えない）。
-     * 答える**前**の状態だけを見せて「いま思い出せるか」を聞き、このアプリの
-     * 式の見込み・実際の正誤と並べて残す（`jev-tasks.server.ts`）。
-     * 待たない — 復習の返事を遅らせない。鍵が無ければ何もしない。
+     * **記録**（待たない — 復習の返事を遅らせない）。
+     *  ・決めた間隔（Jev の日数・SM-2 の日数・使った日数）
+     *  ・答える**前**の状態だけで Jev が出した「いま思い出せるか」と、
+     *    このアプリの式の見込み・実際の正誤（較正を見るため）
+     * 鍵が無ければ何もしない。
      */
+    if (jev) {
+      void logScheduleDecision(supabase as never, {
+        userId,
+        stickerId: row.sticker_id,
+        model: jev.model,
+        confidence: jev.confidence,
+        jevDays: jev.days,
+        srsDays: srs.interval_days,
+        usedDays: next.interval_days,
+      });
+    }
     {
-      const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
-      const now = Date.now();
       const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
-      const recalled = score >= 3;
-      void import("./jev-tasks.server").then(({ recordRecallShadow }) =>
-        recordRecallShadow(supabase as never, {
-          userId,
-          stickerId: row.sticker_id,
-          outcome: recalled,
-          state: {
-            headword: "",
-            daysSinceLastReview:
-              lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10,
-            intervalDays: row.interval_days,
-            ease: row.ease,
-            repetitions: row.repetitions,
-            baselineRecall: Math.max(0, Math.min(1, baseline)),
-          },
-        }),
-      );
+      void recordRecallShadow(supabase as never, {
+        userId,
+        stickerId: row.sticker_id,
+        outcome: recalled,
+        state: {
+          headword: "",
+          daysSinceLastReview: daysSince,
+          intervalDays: row.interval_days,
+          ease: row.ease,
+          repetitions: row.repetitions,
+          baselineRecall: Math.max(0, Math.min(1, baseline)),
+        },
+      });
     }
 
     return { score, next_due_at: dueAt, interval_days: next.interval_days };
