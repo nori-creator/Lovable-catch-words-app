@@ -7749,8 +7749,8 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 .dex-pin {
   position: absolute;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   transform: translate(-50%, -50%);
   z-index: 1;
   transition:
@@ -7794,6 +7794,25 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 html[data-motion="reduce"] .dex-pin {
   transition: none;
+}
+/* 浮いたピンに添える撮った時刻。ピンごと 1.45 倍になるので、字は逆に縮めて
+   ふつうの大きさに見せる。 */
+.dex-pin__time {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 3px);
+  transform: translateX(-50%) scale(0.69);
+  transform-origin: 50% 0;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
 }
 
 /* 画鋲（コルクの壁の留め方）。丸い頭に光の点、下に落ちる短い影。

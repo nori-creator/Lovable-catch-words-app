@@ -5817,3 +5817,19 @@ describe("スキャンの「検出に失敗」（オーナー報告 2026-09-23�
     );
   });
 });
+
+describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-23 の3回目）", () => {
+  const dm = codeOnly(read("components/DexDayMap.tsx"));
+  it("その日の全部ではなく、選んだ所の近く（3km）だけを収める", () => {
+    expect(dm).toMatch(/const near = nearbyStops\(stopsRef\.current, anchorId\);/);
+    expect(dm).not.toMatch(/pts\.forEach\(\(p\) => b\.extend\(p\)\)/);
+  });
+  it("見えている所に入っていれば地図を動かさない。外なら、その近くへ寄せ直す", () => {
+    expect(dm).toMatch(/if \(inView\(s\)\) return;\s*frame\(s\.id\);/);
+  });
+  it("写真が主役の地図の色（お店・駅の印を消す）。浮いたピンに時刻", () => {
+    expect(dm).toMatch(/styles: dark \? MAP_STYLE_DARK : MAP_STYLE_LIGHT/);
+    expect(dm).toMatch(/featureType: "poi", stylers: \[\{ visibility: "off" \}\]/);
+    expect(dm).toMatch(/className="dex-pin__time"/);
+  });
+});
