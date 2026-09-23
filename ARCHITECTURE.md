@@ -43,6 +43,9 @@ Speech service interface should support provider routing and fallback.
 Cache key must be pronunciation-safe and versioned.
 Do not share user-specific/private speech output as a global cache. Canonical headword pronunciation may be shared when appropriate.
 
+Provider routing (2026-09-23): the developer picks a provider/voice/model per target language in Settings → developer section (`app_config.key='tts_voice'`, keys stay in env: `AZURE_SPEECH_KEY`+`AZURE_SPEECH_REGION`, `ELEVENLABS_API_KEY`, `MINIMAX_API_KEY`). Providers are called directly, not via OpenRouter (latency). VoAI and ATEN are listed but not connected until their official API specs are available.
+The voice tag (`voiceTag`) is part of every audio cache key (Storage path and on-device IndexedDB key), so switching voices never replays the old voice; no choice = legacy tag `alloy`. On provider failure the request falls back to the legacy voice and caches it under the legacy path only.
+
 ## Memory
 Separate:
 1. scheduling state;

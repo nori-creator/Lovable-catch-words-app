@@ -4909,7 +4909,10 @@ describe("ホームは今日の誌面", () => {
     // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
     // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    // 2026-09-23 の3回目の依頼（単語を押すとピンが浮く地図が先頭）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map&at=2"/);
+    expect(list).toMatch(/\{ scene: "tts-voices"/);
+    expect(list).toMatch(/\{ scene: "dex-cards&n=150"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "wallpapers"/);
     expect(list).toMatch(/\{ scene: "review-memory-list"/);

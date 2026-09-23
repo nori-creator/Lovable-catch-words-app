@@ -40,6 +40,7 @@ import { ScanBottomScene } from "./scenes/scan-bottom";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
+import { TtsVoicesScene } from "./scenes/tts-voices";
 import { AiModelsScene } from "./scenes/ai-models";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
@@ -158,6 +159,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "dex-calendar": DexCalendarScene,
   "dex-cards": DexCardsScene,
   "ai-models": AiModelsScene,
+  "tts-voices": TtsVoicesScene,
   "dex-map": DexMapScene,
   wallpapers: WallpaperPickerScene,
   "scan-nothing": ScanNothingScene,
@@ -304,6 +306,17 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-09-23 の3回目の依頼（10項目）で触った面（上から順に見る）。
+  {
+    scene: "dex-map&at=2",
+    label: "図鑑の地図（単語を押すとピンが浮く・時間軸と地図が両方見える）",
+  },
+  { scene: "scan-found", label: "スキャンの後（語が切れない・図鑑に追加・払って1つずつ送る）" },
+  { scene: "dex-cards&n=150", label: "図鑑のカード（150枚でも引っかからない）" },
+  { scene: "home", label: "ホーム（日付をアルバムの上に大きく・一言と枚数なし）" },
+  { scene: "memory-curve", label: "記憶のグラフ（点線を端から端まで）" },
+  { scene: "settings-polish", label: "設定（保存ボタンなし・変えたらすぐ反映）" },
+  { scene: "tts-voices", label: "開発者: 発音の声の会社を選ぶ" },
   // 2026-09-23 の20項目の依頼で触った面（上から順に見る）。
   { scene: "dex-map", label: "図鑑の地図（全画面・下の日付の帯）" },
   { scene: "dex-map&variant=open", label: "図鑑の地図（帯を押して時間軸・写真の横に一言）" },

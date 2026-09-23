@@ -602,10 +602,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
         if (s.path && s.signedUrl && !s.error) cutoutUrlByPath.set(s.path, s.signedUrl);
       }
     }
+    // 置き場所は**いまの声の札**で引く（開発者が声を変えたら、新しい声の音を探す）。
+    const { currentVoiceTag } = await import("./tts-provider.server");
+    const voice = await currentVoiceTag(DEFAULT_TARGET_LANGUAGE);
     const audioPaths = await Promise.all(
-      rows.map((r) =>
-        ttsObjectPath(DEFAULT_TARGET_LANGUAGE, TTS_VOICE_DEFAULT, r.stickers!.words!.headword),
-      ),
+      rows.map((r) => ttsObjectPath(DEFAULT_TARGET_LANGUAGE, voice, r.stickers!.words!.headword)),
     );
     const audioUrlByPath = new Map<string, string>();
     {

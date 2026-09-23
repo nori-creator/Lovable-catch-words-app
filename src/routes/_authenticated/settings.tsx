@@ -28,6 +28,8 @@ import {
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
+import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
+import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1530,6 +1532,7 @@ function AdminOnlySection() {
           名前は「画面の明るさ」と区別できる「配色デザイン」のまま。 */}
       <UiThemePicker />
       <AiModelPanel />
+      <TtsVoicePanel />
     </div>
   );
 }
@@ -1598,6 +1601,38 @@ function UiThemePicker() {
 }
 
 /** AIモデルの切替。鍵は環境変数のまま、モデル名と提供元だけを差し替える。 */
+/**
+ * **発音の声を出す会社を選ぶ**（開発者だけ。オーナー指示 2026-09-23「台湾華語の
+ * 発音が機械音で気に入らないから…開発者の私だけ、apiを設定できるようにして」）。
+ *
+ * 学習言語ごとに「会社・声・モデル」を選び、**その場で鳴らして届くまでの時間を
+ * 見てから**切り替える（「速さと正確性が命」）。鍵はここでは入れない — 環境変数
+ * （Lovable の Secrets）に置き、ここには揃っているかだけを出す。
+ */
+function TtsVoicePanel() {
+  const t = useT();
+  const getFn = useServerFn(getTtsVoiceAdmin);
+  const setFn = useServerFn(setTtsVoiceAdmin);
+  const tryFn = useServerFn(previewTtsVoice);
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["tts-voice-admin"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+  });
+  return (
+    <TtsVoiceForm
+      data={data}
+      onTry={(language, text, choice) => tryFn({ data: { language, text, choice } })}
+      onSave={async (languages) => {
+        await setFn({ data: { config: { languages } } });
+        await qc.invalidateQueries({ queryKey: ["tts-voice-admin"] });
+        toast.success(t("settings.ttsSaved"));
+      }}
+    />
+  );
+}
+
 function AiModelPanel() {
   const t = useT();
   const getFn = useServerFn(getAiModelConfig);
