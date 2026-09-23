@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -40,13 +40,16 @@ export function DexCoverFlow({
   memory?: Map<string, MemoryBadgeInfo>;
 }) {
   const t = useT();
-  const locale = localeOf(useUiLang());
   const fetched = useMemoryBadges();
   const memoryById = memory ?? fetched;
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const frame = useRef(0);
   const [center, setCenter] = useState(0);
+  const centerRef = useRef(0);
+  centerRef.current = center;
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
 
   /**
    * **滑らかさのために、測るのは1回・書くのは変わった札だけ。**（オーナー報告
@@ -119,7 +122,7 @@ export function DexCoverFlow({
     scrollerRef.current?.scrollTo({ left: 0 });
   }, [stickers.length]);
 
-  const bringToCenter = (i: number) => {
+  const bringToCenter = useCallback((i: number) => {
     const sc = scrollerRef.current;
     const el = cardRefs.current[i];
     if (!sc || !el) return;
@@ -127,7 +130,16 @@ export function DexCoverFlow({
       left: el.offsetLeft + el.offsetWidth / 2 - sc.clientWidth / 2,
       behavior: motionReducedNow() ? "auto" : "smooth",
     });
-  };
+  }, []);
+  // 札に渡す関数は作り直さない（作り直すと、真ん中が1枚動くたびに全部の札を
+  // 描き直すことになり、送りの途中で引っかかる）。
+  const pressCard = useCallback(
+    (i: number, id: string) => (i === centerRef.current ? onOpenRef.current(id) : bringToCenter(i)),
+    [bringToCenter],
+  );
+  const setCardRef = useCallback((i: number, el: HTMLDivElement | null) => {
+    cardRefs.current[i] = el;
+  }, []);
 
   const current = stickers[center];
   return (
@@ -137,76 +149,17 @@ export function DexCoverFlow({
         onScroll={onScroll}
         className="dex-cf__scroller flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pb-6 pt-6"
       >
-        {stickers.map((s, i) => {
-          const photo = stickerPhotoUrl(s);
-          const mem = memoryById.get(s.id);
-          const cat = asCategoryKey(s.word.category_key);
-          const reading = s.word.reading_zhuyin || s.word.pinyin;
-          const date = new Date(s.taken_at);
-          return (
-            <div
-              key={s.id}
-              ref={(el) => {
-                cardRefs.current[i] = el;
-              }}
-              className="dex-cf__slot shrink-0 snap-center"
-            >
-              <button
-                type="button"
-                onClick={() => (i === center ? onOpen(s.id) : bringToCenter(i))}
-                aria-label={`${s.word.headword} ${s.word.meaning_ja}`}
-                aria-current={i === center || undefined}
-                className="dex-cf__card flex h-full w-full flex-col overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-border"
-              >
-                <span className="relative block h-[64%] w-full overflow-hidden bg-secondary">
-                  {photo ? (
-                    <CachedImg
-                      src={photo}
-                      alt=""
-                      loading={i < 4 ? "eager" : "lazy"}
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Zh className="grid h-full w-full place-items-center text-hero font-bold text-muted-foreground">
-                      {s.word.headword}
-                    </Zh>
-                  )}
-                  <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-caption font-semibold text-white">
-                    {categoryEmoji(cat)} {t(`cat.${cat}`)}
-                  </span>
-                  {mem && <MemoryBadge info={mem} className="absolute right-2 top-2" />}
-                </span>
-                <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
-                  <span className="block min-w-0">
-                    <Zh className="block truncate text-title font-bold leading-tight">
-                      {s.word.headword}
-                    </Zh>
-                    {reading && (
-                      <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
-                        {reading}
-                      </span>
-                    )}
-                    <span className="mt-1 block truncate text-body">{s.word.meaning_ja}</span>
-                  </span>
-                  <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
-                    <span className="shrink-0 tabular-nums">
-                      {Number.isNaN(date.getTime())
-                        ? ""
-                        : date.toLocaleDateString(locale, { month: "short", day: "numeric" })}
-                    </span>
-                    {s.location_name && (
-                      <>
-                        <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                        <span className="truncate">{s.location_name}</span>
-                      </>
-                    )}
-                  </span>
-                </span>
-              </button>
-            </div>
-          );
-        })}
+        {stickers.map((s, i) => (
+          <CoverCard
+            key={s.id}
+            sticker={s}
+            index={i}
+            isCenter={i === center}
+            mem={memoryById.get(s.id)}
+            onPress={pressCard}
+            setRef={setCardRef}
+          />
+        ))}
       </div>
       {/* **青い点**（オーナー指示 2026-09-23）。いまの1枚のまわりだけ出す
           （`dotWindow`）。押すとその札へ送る。数は読み上げにだけ言う。 */}
@@ -233,3 +186,85 @@ export function DexCoverFlow({
     </section>
   );
 }
+
+/**
+ * 1枚のカード。**真ん中が動いても、変わるのは前後の2枚だけ**になるよう
+ * `memo` で包む（何百枚あっても、送りの途中で全部を描き直さない）。
+ */
+const CoverCard = memo(function CoverCard({
+  sticker: s,
+  index: i,
+  isCenter,
+  mem,
+  onPress,
+  setRef,
+}: {
+  sticker: StickerWithWord;
+  index: number;
+  isCenter: boolean;
+  mem: MemoryBadgeInfo | undefined;
+  onPress: (i: number, id: string) => void;
+  setRef: (i: number, el: HTMLDivElement | null) => void;
+}) {
+  const t = useT();
+  const locale = localeOf(useUiLang());
+  const photo = stickerPhotoUrl(s);
+  const cat = asCategoryKey(s.word.category_key);
+  const reading = s.word.reading_zhuyin || s.word.pinyin;
+  const date = new Date(s.taken_at);
+  return (
+    <div ref={(el) => setRef(i, el)} className="dex-cf__slot shrink-0 snap-center">
+      <button
+        type="button"
+        onClick={() => onPress(i, s.id)}
+        aria-label={`${s.word.headword} ${s.word.meaning_ja}`}
+        aria-current={isCenter || undefined}
+        className="dex-cf__card flex h-full w-full flex-col overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-border"
+      >
+        <span className="relative block h-[64%] w-full overflow-hidden bg-secondary">
+          {photo ? (
+            <CachedImg
+              src={photo}
+              alt=""
+              loading={i < 4 ? "eager" : "lazy"}
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Zh className="grid h-full w-full place-items-center text-hero font-bold text-muted-foreground">
+              {s.word.headword}
+            </Zh>
+          )}
+          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-caption font-semibold text-white">
+            {categoryEmoji(cat)} {t(`cat.${cat}`)}
+          </span>
+          {mem && <MemoryBadge info={mem} className="absolute right-2 top-2" />}
+        </span>
+        <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
+          <span className="block min-w-0">
+            <Zh className="block truncate text-title font-bold leading-tight">{s.word.headword}</Zh>
+            {reading && (
+              <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
+                {reading}
+              </span>
+            )}
+            <span className="mt-1 block truncate text-body">{s.word.meaning_ja}</span>
+          </span>
+          <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
+            <span className="shrink-0 tabular-nums">
+              {Number.isNaN(date.getTime())
+                ? ""
+                : date.toLocaleDateString(locale, { month: "short", day: "numeric" })}
+            </span>
+            {s.location_name && (
+              <>
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{s.location_name}</span>
+              </>
+            )}
+          </span>
+        </span>
+      </button>
+    </div>
+  );
+});

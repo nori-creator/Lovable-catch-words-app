@@ -3,6 +3,7 @@
  *
  * 絵のある札・字だけの札・場所のある札・記憶の印のある札を混ぜる。
  * `?at=N` で N 枚目を真ん中に送った形（送った途中の傾きも見るため）。
+ * `?n=N` で札を N 枚に増やす（何百枚でも送りが引っかからないかを見るため）。
  */
 import { useEffect } from "react";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
@@ -10,7 +11,10 @@ import { memoryBadgeMap } from "@/lib/memory-badge";
 import { FIXTURES, makeSticker } from "./home";
 
 export function DexCardsScene({ q }: { q: URLSearchParams }) {
-  const items = FIXTURES.map((f, i) => makeSticker(f, i, i));
+  const n = Math.max(FIXTURES.length, Number(q.get("n") ?? 0));
+  const items = Array.from({ length: n }, (_, i) =>
+    makeSticker(FIXTURES[i % FIXTURES.length], i, i),
+  );
   const memory = memoryBadgeMap(
     items.slice(0, 4).map((s, i) => ({
       sticker_id: s.id,

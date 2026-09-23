@@ -5514,7 +5514,9 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
     expect(cf).toMatch(/coverFlowPose\(/);
     expect(cf).toMatch(/frame\.current = requestAnimationFrame\(layout\)/);
-    expect(cf).toMatch(/i === center \? onOpen\(s\.id\) : bringToCenter\(i\)/);
+    expect(cf).toMatch(/i === centerRef\.current \? onOpenRef\.current\(id\) : bringToCenter\(i\)/);
+    // 真ん中が動いても全部の札を描き直さない（2026-09-23「最大まで滑らかに」）。
+    expect(cf).toMatch(/const CoverCard = memo\(function CoverCard/);
   });
 
   it("別の日にも出会った語は、詳細のいちばん上の写真を横に送れる", () => {
