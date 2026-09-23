@@ -574,6 +574,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.allCategories": { ja: "すべて", en: "All", "zh-TW": "全部" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar", "zh-TW": "行事曆" },
+  "dex.cards": { ja: "カード", en: "Cards", "zh-TW": "卡片" },
   "dex.calendarEmpty": {
     ja: "まだ写真がありません。撮るとその日のマスに入ります。",
     en: "No photos yet. Each one lands on the day you took it.",

@@ -4902,9 +4902,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-23 の単語の詳細8項目）。図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
+    // （2026-09-23 の図鑑のカード表示）。単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
     // 同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards"/);
+    expect(list).toMatch(/\{ scene: "word-card"/);
     expect(list).toMatch(/\{ scene: "dex-calendar/);
     expect(list).toMatch(/\{ scene: "scan-found"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
@@ -5470,5 +5471,27 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
     expect(ai).toMatch(
       /stripUnrequested\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), data\.sections\)/,
     );
+  });
+});
+
+describe("図鑑のカード表示と、詳細の写真の横送り（オーナー指示 2026-09-22）", () => {
+  const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+  const cf = codeOnly(read("components/DexCoverFlow.tsx"));
+  const sheet = codeOnly(read("components/StickerSheet.tsx"));
+
+  it("図鑑の表示に「カード」があり、絞り込んだ後の札を受け取る", () => {
+    expect(dex).toMatch(/\["cards", GalleryHorizontal, t\("dex\.cards"\)\]/);
+    expect(dex).toMatch(/<DexCoverFlow stickers=\{filtered\} onOpen=\{setOpenId\} \/>/);
+  });
+
+  it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
+    expect(cf).toMatch(/coverFlowPose\(/);
+    expect(cf).toMatch(/frame\.current = requestAnimationFrame\(layout\)/);
+    expect(cf).toMatch(/i === center \? onOpen\(s\.id\) : bringToCenter\(i\)/);
+  });
+
+  it("別の日にも出会った語は、詳細のいちばん上の写真を横に送れる", () => {
+    expect(sheet).toMatch(/photos\.some\(\(p\) => !p\.first\) \? \(/);
+    expect(sheet).toMatch(/<HeroPhotoSlides/);
   });
 });

@@ -7399,3 +7399,50 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
 html[data-motion="reduce"] .dex-day__card {
   animation: none;
 }
+
+/* 図鑑のカード表示（`DexCoverFlow`）。カードは送った位置に応じて毎フレーム
+   傾く（JS が transform を書く）。ここは寸法・奥行き・影・床への映り込み。
+   札どうしを少し重ねて、カバーフローの「並んだ束」に見せる。 */
+.dex-cf__scroller {
+  --cf-w: min(62vw, 250px);
+  perspective: 1100px;
+  padding-inline: calc(50% - var(--cf-w) / 2);
+  scrollbar-width: none;
+}
+.dex-cf__scroller::-webkit-scrollbar {
+  display: none;
+}
+.dex-cf__slot {
+  width: var(--cf-w);
+  height: calc(var(--cf-w) * 1.48);
+  margin-inline: calc(var(--cf-w) * -0.19);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+/* 端のカードは重ねる相手が片側にしか無い。負の余白を付けたままだと
+   真ん中からずれて、止まっている時も傾いて見えた（実測）。 */
+.dex-cf__slot:first-child {
+  margin-left: 0;
+}
+.dex-cf__slot:last-child {
+  margin-right: 0;
+}
+.dex-cf__card {
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.08),
+    0 22px 40px -18px rgb(0 0 0 / 0.45);
+  -webkit-box-reflect: below 10px linear-gradient(transparent 76%, rgb(255 255 255 / 0.2));
+}
+html[data-motion="reduce"] .dex-cf__slot {
+  will-change: auto;
+}
+
+/* 単語の詳細の写真を横に送る箱（`HeroPhotoSlides`）。指で送るだけなので
+   スクロールバーは出さない。 */
+.hero-slides {
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+}
+.hero-slides::-webkit-scrollbar {
+  display: none;
+}

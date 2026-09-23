@@ -39,6 +39,7 @@ import {
 import { ScanBottomScene } from "./scenes/scan-bottom";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
+import { DexCardsScene } from "./scenes/dex-cards";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import {
   WordbookShelfScene,
@@ -152,6 +153,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-chip": ScanChipScene,
   "scan-found": ScanResultScene,
   "dex-calendar": DexCalendarScene,
+  "dex-cards": DexCardsScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -297,6 +299,7 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
+  { scene: "dex-cards", label: "図鑑のカード表示（横に送る）" },
   { scene: "word-card", label: "単語の詳細（既定の8項目）" },
   { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
   { scene: "dex-calendar", label: "図鑑カレンダー（月）" },

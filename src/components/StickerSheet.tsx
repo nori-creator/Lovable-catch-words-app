@@ -45,6 +45,7 @@ import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { HeroPhotoSlides } from "@/components/HeroPhotoSlides";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
@@ -1025,7 +1026,21 @@ export function StickerSheetBody({
           >
             {/* どの絵を出すかは `sticker-photo.ts` が1箇所で決める。
                 ネット画像だけは**出典を添える**必要があるので役を見る。 */}
-            {hero && hero.role !== "placeholder" ? (
+            {hero && hero.role !== "placeholder" && photos.some((p) => !p.first) ? (
+              // 別の日にも出会った語は、**横に送って**その日の写真を見る
+              // （オーナー指示 2026-09-22）。1枚目はこれまでの表の絵。
+              <HeroPhotoSlides
+                heroUrl={hero.url}
+                heroAlt={
+                  hero.role === "cutout"
+                    ? s.word.headword
+                    : t("common.photoOf", { word: s.word.headword })
+                }
+                photos={photos}
+                dateLocale={localeOf(uiLang)}
+                className="hero-pop"
+              />
+            ) : hero && hero.role !== "placeholder" ? (
               <CachedImg
                 src={hero.url}
                 alt={

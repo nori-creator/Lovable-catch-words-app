@@ -17,6 +17,7 @@ import {
   List,
   Map as MapIcon,
   CalendarDays,
+  GalleryHorizontal,
   Search,
   X,
   Volume2,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/dex-filter";
 import { FilterMenu } from "@/components/FilterMenu";
 import { DexCalendar } from "@/components/DexCalendar";
+import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
@@ -77,7 +79,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "shelf" | "gallery" | "list" | "map" | "calendar";
+type ViewMode = "shelf" | "gallery" | "cards" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -222,7 +224,13 @@ function DexPage() {
   useEffect(() => {
     if (justCaught) return; // Arrival must not restore a previous category/view filter.
     const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (saved === "list" || saved === "gallery" || saved === "map" || saved === "calendar")
+    if (
+      saved === "list" ||
+      saved === "gallery" ||
+      saved === "cards" ||
+      saved === "map" ||
+      saved === "calendar"
+    )
       setView(saved);
     else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
@@ -378,6 +386,8 @@ function DexPage() {
         />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
+      ) : view === "cards" ? (
+        <DexCoverFlow stickers={filtered} onOpen={setOpenId} />
       ) : DEX_SHELF_ENABLED && view === "shelf" ? (
         <DexShelf
           stickers={filtered}
@@ -1212,6 +1222,8 @@ export function DexHeader({
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
             ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            // カード表示（カバーフロー）。オーナー指示 2026-09-22。
+            ["cards", GalleryHorizontal, t("dex.cards")] as const,
             ["list", List, t("dex.list")] as const,
             ["map", MapIcon, t("dex.map")] as const,
             ["calendar", CalendarDays, t("dex.calendar")] as const,
