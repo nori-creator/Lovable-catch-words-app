@@ -25,7 +25,13 @@ import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 export type { GeneratedCard };
 import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
-import { REGEN_SECTIONS, sectionHasContent, type RegenSection } from "./card-sections";
+import {
+  REGEN_SECTIONS,
+  sectionHasContent,
+  type RegenSection,
+  type SectionId,
+} from "./card-sections";
+import { stripUnrequested, wantsSection } from "./card-request";
 import {
   dictionaryFixPatch,
   shouldApplyCorrection,
@@ -198,6 +204,12 @@ const CardInput = z.object({
   headword: z.string().min(1),
   targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
   hintCategory: z.string().optional(),
+  /**
+   * 画面でいま見えている節（`lib/card-prefs.ts`）。見えない節の欄は
+   * 書かせない — 返事が短くなり、詳細が早くそろう（`lib/card-request.ts`）。
+   * 渡さない呼び出しは、これまでどおり全部を書かせる。
+   */
+  sections: z.array(z.string().max(40)).max(40).optional(),
 });
 
 // extras の形は src/lib/extras.ts が唯一の定義(共有)。
@@ -363,6 +375,9 @@ export const generateCard = createServerFn({ method: "POST" })
     // **保存する形をそのまま並べる**(`TOCFL-1` / `A1`)。名前(`1` / `A1`)を
     // 並べると、AI が `1` と答えて `parseLevelStep` の外に落ちる。
     const levelNames = LEVEL_INDEXES.map((n) => cardProfile.levels.toStored(n)).join(" / ");
+    // 見えない節の欄は頼まない（`lib/card-request.ts`）。
+    const want = (id: SectionId) => wantsSection(data.sections, id);
+    const noteSection: SectionId = cardProfile.capture.noteField;
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
@@ -401,17 +416,25 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 「${data.headword}」自体は必ずどれかのパーツとして含める。
 
-- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
+${
+  want("usage_chunks")
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:短い説明(${NL})}。
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
   そのまま声に出せる形にする。「${data.headword}」自体を必ずどれかのパーツに含める。
   ${cardProfile.chunkPrompt.styleRule}
   **${learnerL1}が崩しやすい型を優先する**。該当する型があれば ja に「母語だとこう言いたくなるが${cardProfile.promptName}ではこの形」と一言添える。
-${l1Gram}
+${l1Gram}`
+    : ""
+}
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
-- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
-  ${worldExampleRule(NL)}
+${
+  want("examples_extra")
+    ? `- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+  ${worldExampleRule(NL)}`
+    : ""
+}
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
@@ -441,14 +464,18 @@ ${l1Gram}
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない
-- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ
-- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く
-- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）
-- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("measure_words") ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
+${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
+${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}
+${
+  want("etymology")
+    ? `- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
 ${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
-- radicals: ${cardProfile.capture.radicalsRule}
-- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}
+- radicals: ${cardProfile.capture.radicalsRule}`
+    : ""
+}
+${want("mnemonic") ? `- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}` : ""}
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
@@ -469,13 +496,25 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / new_shelf / example_sentence / example_translation / ` +
-      `extras{ usage_chunks[{parts:[{text,pos}],ja}], example_chunks[{text,pos}], ` +
-      `examples_extra[{zh,ja,scene,chunks:[{text,pos}]}], usage_context, ` +
-      `frequency_level, register_tag, register_scale, encounter_labels[{kind,label}], ` +
-      `scene_weights, season_months, region_scope, region_scope_kind, ` +
-      `related_words[{word,kind,note}], ` +
-      `measure_words[{word,zhuyin,pinyin,note}], ` +
-      `pronunciation_tips, ${cardProfile.capture.noteField}, etymology, radicals, mnemonic }。` +
+      `extras{ ` +
+      [
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos}],ja}]",
+        "example_chunks[{text,pos}]",
+        want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
+        "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
+        "scene_weights, season_months, region_scope, region_scope_kind",
+        want("related_words") && "related_words[{word,kind,note}]",
+        want("measure_words") && "measure_words[{word,zhuyin,pinyin,note}]",
+        want("pronunciation_tips") && "pronunciation_tips",
+        want(noteSection) && cardProfile.capture.noteField,
+        want("etymology") && "etymology, radicals",
+        want("mnemonic") && "mnemonic",
+      ]
+        .filter(Boolean)
+        .join(", ") +
+      ` }。` +
+      // 頼んでいない欄は**キーごと書かない**（空で上書きしないため）。
+      (data.sections ? `上に挙げていない extras のキーは出力しない。` : "") +
       `extras の各項目は空文字・空配列にせず、必ず具体的な内容を入れる。` +
       // **「必ず埋めろ」が限定の誤りを作っていた**(オーナー指摘 2026-08-28 ②
       // 「立扇という単語の時に台湾限定と出た」)。本番で `region_scope` の
@@ -567,8 +606,18 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 1回だけ、空を明確に禁止して作り直す。
       try {
         const retry = await genOnce(
-          `\n\n前回 extras が空で不十分でした。今回は usage_chunks / usage_context / ` +
-            `related_words / pronunciation_tips / ${cardProfile.capture.noteField} / examples_extra を含め、` +
+          `\n\n前回 extras が空で不十分でした。今回は ` +
+            [
+              want("usage_chunks") && "usage_chunks",
+              "usage_context",
+              want("related_words") && "related_words",
+              want("pronunciation_tips") && "pronunciation_tips",
+              want(noteSection) && cardProfile.capture.noteField,
+              want("examples_extra") && "examples_extra",
+            ]
+              .filter(Boolean)
+              .join(" / ") +
+            ` を含め、` +
             `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
         );
         if (!extrasLookEmpty(retry)) card = retry;
@@ -644,7 +693,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 台湾華語になってる」)。プロンプトで言うだけでは 0 にならないので、
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
-        ...scrubForeignNotes(card.extras ?? {}, explainLang),
+        // 頼まなかった節の欄は落とす（空の欄で共有の語を上書きしない）。
+        ...stripUnrequested(scrubForeignNotes(card.extras ?? {}, explainLang), data.sections),
         // **辞書の事実で上書きする。** AI が書いた物より後に置く。
         exam_tags: examTags,
         explain_lang: explainLang,

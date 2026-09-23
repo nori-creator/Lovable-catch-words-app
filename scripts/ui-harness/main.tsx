@@ -296,7 +296,8 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
+  // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
+  { scene: "word-card", label: "単語の詳細（既定の8項目）" },
   { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
   { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
   { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
@@ -312,7 +313,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
   { scene: "auth", label: "ログインの画面" },
   { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
-  { scene: "word-card", label: "単語カード" },
   { scene: "review-memory", label: "復習の記憶の帯" },
   { scene: "capture-object", label: "カメラの画面" },
   { scene: "tabbar", label: "下の帯" },

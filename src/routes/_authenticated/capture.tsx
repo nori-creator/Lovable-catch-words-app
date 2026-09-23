@@ -1,4 +1,5 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { cardSectionsNow } from "@/lib/card-prefs";
 import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -846,6 +847,7 @@ function CapturePage() {
             headword: head,
             targetLanguage: targetLanguage,
             hintCategory: hint.category_key,
+            sections: cardSectionsNow(),
           },
         })
           .then((c) => {
@@ -856,7 +858,7 @@ function CapturePage() {
           .catch(() => {});
       } else {
         const c = await cardFn({
-          data: { headword: head, targetLanguage: targetLanguage },
+          data: { headword: head, targetLanguage: targetLanguage, sections: cardSectionsNow() },
         });
         if (runTokenRef.current !== token) return;
         setCard(c);

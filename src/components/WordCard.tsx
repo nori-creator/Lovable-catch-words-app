@@ -66,6 +66,7 @@ import {
   type RegenSection,
   type SectionId,
 } from "@/lib/card-sections";
+import { CARD_PREF_EVENT, CARD_PREF_KEY, readCardPrefs, type CardPrefs } from "@/lib/card-prefs";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import {
   LONG_PRESS_MS,
@@ -151,28 +152,26 @@ const ALL_SECTIONS: { id: SectionId }[] = (() => {
   return base.map((id) => ({ id }));
 })();
 
-const PREF_KEY = "wordcard-prefs-v4";
-const PREF_EVENT = "wordcard-prefs-changed";
+/**
+ * 保存の形・既定（8項目）・前の版からの引き継ぎは `lib/card-prefs.ts`。
+ * 生成を頼む側も同じ所から「いま見えている節」を読む。
+ */
+const PREF_KEY = CARD_PREF_KEY;
+const PREF_EVENT = CARD_PREF_EVENT;
 
-type Prefs = { order: SectionId[]; hidden: SectionId[] };
+type Prefs = CardPrefs;
 
 function loadPrefs(): Prefs {
-  if (typeof window === "undefined") return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
+  let storage: Storage | null = null;
   try {
-    const raw = localStorage.getItem(PREF_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Prefs;
-      const valid = (id: SectionId) => ALL_SECTIONS.some((s) => s.id === id);
-      const missing = ALL_SECTIONS.map((s) => s.id).filter((id) => !p.order.includes(id));
-      return {
-        order: [...p.order.filter(valid), ...missing],
-        hidden: (p.hidden ?? []).filter(valid),
-      };
-    }
+    storage = typeof window === "undefined" ? null : window.localStorage;
   } catch {
-    /* noop */
+    storage = null;
   }
-  return { order: ALL_SECTIONS.map((s) => s.id), hidden: [] };
+  return readCardPrefs(
+    ALL_SECTIONS.map((s) => s.id),
+    storage,
+  );
 }
 
 function savePrefs(p: Prefs) {

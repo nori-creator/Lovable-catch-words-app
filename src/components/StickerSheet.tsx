@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { cardSectionsNow } from "@/lib/card-prefs";
 import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -614,8 +615,14 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
     setEnrichError(null);
     (async () => {
       try {
+        // 見えている節だけ書かせる（既定8項目・`lib/card-request.ts`）。
+        // 下の Pro の「作り直す」は全部を作り直す約束なので渡さない。
         const card = await enrichWord({
-          data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
+          data: {
+            headword: s.word.headword,
+            targetLanguage: s.word.language ?? undefined,
+            sections: cardSectionsNow(),
+          },
         });
         await saveExtras({
           data: {

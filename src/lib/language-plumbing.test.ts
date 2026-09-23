@@ -4902,9 +4902,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-22 の図鑑カレンダー）。スキャンの後・記憶のグラフ・ホームも
+    // （2026-09-23 の単語の詳細8項目）。図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
     // 同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-calendar/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
+    expect(list).toMatch(/\{ scene: "dex-calendar/);
     expect(list).toMatch(/\{ scene: "scan-found"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "memory-overall"/);
@@ -5438,5 +5439,36 @@ describe("図鑑のカレンダー（オーナー指示 2026-09-22）", () => {
   it("週の帯で隣の日へ移れる（カレンダーへ戻らずに）", () => {
     expect(cal).toMatch(/weekOf\(day\)\.map/);
     expect(cal).toMatch(/onClick=\{\(\) => onDay\(k\)\}/);
+  });
+});
+
+describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）", () => {
+  const ai = codeOnly(read("lib/ai.functions.ts"));
+  const card = codeOnly(read("components/WordCard.tsx"));
+
+  it("画面の好みは `lib/card-prefs.ts` の1か所から読む（既定の8項目もそこ）", () => {
+    expect(card).toMatch(/readCardPrefs\(/);
+    expect(card).not.toMatch(/"wordcard-prefs-v4"/);
+  });
+
+  it("**見えている節だけ書かせる**: 自動で詳細を作る4か所が `sections` を渡す", () => {
+    for (const f of [
+      "routes/_authenticated/capture.tsx",
+      "routes/_authenticated/scan.tsx",
+      "components/InputCatchSheet.tsx",
+      "components/StickerSheet.tsx",
+    ]) {
+      expect([f, /sections: cardSectionsNow\(\)/.test(codeOnly(read(f)))]).toEqual([f, true]);
+    }
+  });
+
+  it("生成側は頼まれない節の欄をプロンプトから外し、返事からも落とす", () => {
+    expect(ai).toMatch(/const want = \(id: SectionId\) => wantsSection\(data\.sections, id\)/);
+    for (const id of ["etymology", "mnemonic", "examples_extra", "pronunciation_tips"]) {
+      expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
+    }
+    expect(ai).toMatch(
+      /stripUnrequested\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), data\.sections\)/,
+    );
   });
 });

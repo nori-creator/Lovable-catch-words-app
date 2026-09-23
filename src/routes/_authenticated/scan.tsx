@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { cardSectionsNow } from "@/lib/card-prefs";
 import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
 import {
@@ -207,7 +208,9 @@ function ScanPage() {
       const hit = cache.get(headword);
       if (hit) return hit;
       const t0 = performance.now();
-      const p = cardFn({ data: { headword, targetLanguage: targetLanguage } });
+      const p = cardFn({
+        data: { headword, targetLanguage: targetLanguage, sections: cardSectionsNow() },
+      });
       cache.set(headword, p);
       p.then(() => {
         prefetchTimingRef.current.set(headword, Math.round(performance.now() - t0));
