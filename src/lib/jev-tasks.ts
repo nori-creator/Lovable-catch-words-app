@@ -47,8 +47,40 @@ export function candidateQuestion(items: CandidateInput[]): {
         "Which one word is this learner most likely trying to look up right now? Prefer the main subject of the photo and words they do not own yet.",
         criteria,
       ),
+      // **同じ1回の問い合わせで、台湾の言い方かも確かめる**（待ち時間は増えない）。
+      // オーナー指示 2026-09-23 の3回目「Jev をこのアプリで活用して、速さと
+      // 正確性を両立させて」。大陸だけの言い方（出租车 → 計程車 など）を学ばせない。
+      ...Object.fromEntries(
+        items.map((it, i) => [
+          `tw${i}`,
+          noul(
+            `Is "${it.headword}"${it.meaning ? ` (${it.meaning})` : ""} the standard word people in Taiwan use for this, written in Traditional Chinese — not a mainland-China-only term or a simplified form?`,
+            {
+              true: "standard in Taiwan",
+              false: "mainland-only, simplified, or not used in Taiwan",
+            },
+          ),
+        ]),
+      ),
     },
   };
+}
+
+/**
+ * 台湾の言い方として**はっきり疑わしい**候補の番号。Jev が「台湾の標準」と
+ * 言う確率が `max` 未満のものだけ（迷うものは疑わない — 正しい語を下げない）。
+ */
+export function doubtfulTaiwanTerms(
+  count: number,
+  answers: Record<string, JevAnswer | undefined> | undefined,
+  max = 0.15,
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = answers?.[`tw${i}`];
+    if (a && a.type === "noul" && a.noul < max) out.push(i);
+  }
+  return out;
 }
 
 /**

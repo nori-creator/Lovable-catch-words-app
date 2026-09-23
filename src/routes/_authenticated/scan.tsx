@@ -245,6 +245,9 @@ function ScanPage() {
    * 押した後に並びが動くと、押そうとした行が逃げる。
    */
   const [rankOrder, setRankOrder] = useState<string[] | null>(null);
+  // 1回のスキャンで1回だけ聞く（疑わしい候補の確かさを下げると `items` が
+  // 替わり、この効果がもう一度走るため）。
+  const rankAsked = useRef(false);
   const touchedRef = useRef(false);
   const [entries, setEntries] = useState<Record<string, DictionaryEntry>>({});
   const [chip, setChip] = useState<ChipState | null>(null);
@@ -458,6 +461,7 @@ function ScanPage() {
     setChip(null);
     setItems(null);
     setRankOrder(null);
+    rankAsked.current = false;
     touchedRef.current = false;
     setEntries({});
     setDetectMs(null);
@@ -709,6 +713,7 @@ function ScanPage() {
     setSnapshot(null);
     setActiveId(null);
     setRankOrder(null);
+    rankAsked.current = false;
     touchedRef.current = false;
     setChip(null);
     setEntries({});
@@ -770,9 +775,10 @@ function ScanPage() {
    */
   const rankFn = useServerFn(rankScanCandidates);
   useEffect(() => {
-    if (scanning || !items || rankOrder) return;
+    if (scanning || !items || rankOrder || rankAsked.current) return;
     const list = items.filter(isTarget);
     if (list.length < 2) return;
+    rankAsked.current = true;
     let cancelled = false;
     void rankFn({
       data: {
@@ -786,8 +792,33 @@ function ScanPage() {
       },
     })
       .then((r) => {
-        if (cancelled || touchedRef.current || !r.order) return;
-        setRankOrder(r.order.map((i) => list[i].id));
+        if (cancelled) return;
+        /**
+         * **台湾の言い方として疑わしい候補**（Jev、同じ1回の問い合わせ）は、
+         * 確かさを下げて「?」を付け、並びの後ろへ回す。消しはしない（本人が
+         * 写した物の名前かもしれない）。
+         */
+        const doubt = new Set((r.doubtful ?? []).map((i) => list[i]?.id).filter(Boolean));
+        if (doubt.size > 0) {
+          setItems((cur) =>
+            cur
+              ? cur.map((it) =>
+                  doubt.has(it.id) ? { ...it, confidence: Math.min(it.confidence, 0.5) } : it,
+                )
+              : cur,
+          );
+        }
+        if (touchedRef.current) return;
+        const order = r.order
+          ? r.order.map((i) => list[i].id)
+          : doubt.size > 0
+            ? list.map((it) => it.id)
+            : null;
+        if (!order) return;
+        setRankOrder([
+          ...order.filter((id) => !doubt.has(id)),
+          ...order.filter((id) => doubt.has(id)),
+        ]);
         // 先頭が替わるので、光らせる候補も先頭へ（箱が選び直す）。
         setActiveId(null);
       })
