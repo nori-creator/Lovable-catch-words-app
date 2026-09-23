@@ -1,4 +1,4 @@
-import { REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
+import { REVIEW_MODE_CHOICE_ENABLED, REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 /**
  * 設定画面の場面。**ルートに書かれている本物の部品を、本物の文言で描く。**
@@ -64,7 +64,7 @@ export function SettingsChoicesScene() {
             (検査の絵で気づいた)。選択肢を手で写している限り、
             実物が変わっても絵は変わらない — このハーネスが避けようとして
             いる形そのものなので、写しは増やさず本物と同じ並びを保つ。 */}
-        {REVIEW_PRACTICE_ENABLED && (
+        {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
           <ChoiceRow
             cols={3}
             label={t("settings.reviewMode")}
@@ -164,6 +164,17 @@ export function SettingsSelectsScene() {
   return (
     <SettingsCard title={t("settings.language")}>
       <div className="space-y-3">
+        {/* 母語がいちばん上（実物と同じ。オーナー指示 2026-09-23）。 */}
+        {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
+            設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
+            (実際そうなって、検査はそれでも合格していた)。 */}
+        <PickerRow
+          id="lang-ui"
+          label={t("settings.uiLang")}
+          value={ui}
+          onChange={setUi}
+          options={UI_LANGS.map((code) => ({ value: code, label: t(UI_LANG_LABEL_KEYS[code]) }))}
+        />
         <PickerRow
           id="lang-target"
           label={t("settings.targetLang")}
@@ -191,16 +202,6 @@ export function SettingsSelectsScene() {
         {/* **本物と同じく学習言語を渡す。** ここだけ渡さないと、
             英語を選んだ絵にも注音・拼音が写る(実物と違う絵を検査する)。 */}
         <PhoneticRow lang={target} />
-        {/* **母語の行は本物と一緒に消した。** ここに写しを残すと、
-            設定から消したのに絵にだけ残り、翻訳キーが生のまま写る
-            (実際そうなって、検査はそれでも合格していた)。 */}
-        <PickerRow
-          id="lang-ui"
-          label={t("settings.uiLang")}
-          value={ui}
-          onChange={setUi}
-          options={UI_LANGS.map((code) => ({ value: code, label: t(UI_LANG_LABEL_KEYS[code]) }))}
-        />
       </div>
     </SettingsCard>
   );
@@ -288,8 +289,16 @@ export function SettingsPolishScene() {
         </Button>
       </div>
       <SettingsSelectsScene />
-      <SettingsCard title={t("settings.selfieMode")}>
-        <ToggleRow label={t("settings.selfieMode")} value={selfie} onChange={setSelfie} />
+      <SettingsCard title={t("settings.study")}>
+        {/* 名前を直して一言の説明を付けた3つ（オーナー指示 2026-09-23）。 */}
+        <ToggleRow
+          label={t("settings.selfieMode")}
+          description={t("settings.selfieModeDesc")}
+          value={selfie}
+          onChange={setSelfie}
+        />
+        <PhotoLibrarySyncToggle />
+        <PlaceReminderToggle />
       </SettingsCard>
       <SettingsChoicesScene />
     </div>

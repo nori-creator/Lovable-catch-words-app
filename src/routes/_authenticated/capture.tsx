@@ -326,6 +326,8 @@ function CapturePage() {
   // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
   // a fast double-tap would otherwise record two encounters (double SRS grade).
   const reencSubmittingRef = useRef(false);
+  /** 再会の記録（写真の保存を含む）。剥がして図鑑へ飛ばす演出の関所に使う。 */
+  const reencPromiseRef = useRef<Promise<boolean> | null>(null);
   /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
   const savedRef = useRef(false);
   // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
@@ -873,7 +875,7 @@ function CapturePage() {
         // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
         // その単語の写真として足す。待つのは画面を出したあとなので、
         // 学習者は演出を見ている間に終わる。
-        void cutoutPromise.then((cut) => recordReencounter(owned, photo, cut));
+        reencPromiseRef.current = cutoutPromise.then((cut) => recordReencounter(owned, photo, cut));
         return;
       }
     } catch {
@@ -1286,8 +1288,8 @@ function CapturePage() {
     owned: OwnedWord,
     objectImg: string | null,
     cutoutImg: string | null,
-  ) {
-    if (reencSubmittingRef.current) return;
+  ): Promise<boolean> {
+    if (reencSubmittingRef.current) return false;
     setReencFailed(false);
     reencSubmittingRef.current = true;
     try {
@@ -1335,13 +1337,51 @@ function CapturePage() {
       await queryClient.invalidateQueries({ queryKey: ["stickers"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
       await queryClient.invalidateQueries({ queryKey: ["sticker", owned.sticker_id] });
+      return true;
     } catch (e) {
       console.error(e);
       setReencFailed(true);
       toast.error(t("cap.recordFailed"));
+      return false;
     } finally {
       reencSubmittingRef.current = false;
     }
+  }
+
+  /**
+   * **再会でも、剥がして図鑑へ飛ばす。**（オーナー指示 2026-09-23「再度同じ
+   * 画像を撮った時も、ステッカーを剥がし、図鑑に追加するアニメーション入れて」）
+   *
+   * 新しく捕まえたときと同じ演出（`runCatchLanding`）。着地先は**その語の
+   * 図鑑の枠**（元の札）。関所は再会の記録 — 記録に失敗したら祝わずに畳む。
+   */
+  function landReencounter() {
+    if (!reenc || landing) return;
+    const owned = reenc;
+    setSelectedHead(owned.headword);
+    setLanding(true);
+    const gate = (reencPromiseRef.current ?? Promise.resolve(false)).then((ok) => {
+      if (!ok) throw new Error("re-encounter not recorded");
+    });
+    void gate.catch(() => setLanding(false));
+    const done = runCatchLanding({
+      startEl: heroBoxRef.current,
+      fly: flyRef,
+      speakLine: () => pronounce(owned.headword, true),
+      getDestinationId: () => owned.sticker_id,
+      openDex: () => navigate({ to: "/dex", search: { justCaught: owned.sticker_id } }),
+      gate,
+    });
+    void done
+      .then(() => {
+        if (window.location.pathname !== "/dex") {
+          navigate({ to: "/dex", search: { justCaught: owned.sticker_id } });
+        }
+      })
+      .catch((e) => {
+        console.warn("re-encounter landing failed", e);
+        setLanding(false);
+      });
   }
 
   function syncPhotoToDevice(dataUrl: string) {
@@ -1467,6 +1507,9 @@ function CapturePage() {
         <ReencounterPanel
           reenc={reenc}
           photo={objectImg}
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          onPeel={landReencounter}
           failed={reencFailed}
           onRetry={() => void recordReencounter(reenc, objectImg, null)}
           reencResult={reencResult}
@@ -1574,7 +1617,16 @@ export function ReencounterPanel({
   photo,
   failed = false,
   onRetry,
+  heroBoxRef,
+  landing = false,
+  onPeel,
 }: {
+  /** 剥がす札の枠。演出はここから飛び立つ（`runCatchLanding` の startEl）。 */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消す。 */
+  landing?: boolean;
+  /** 剥がしたとき（図鑑へ飛ばす）。渡さなければ写真だけ出す（見本用）。 */
+  onPeel?: () => void;
   reenc: OwnedWord;
   reencResult: { encounter_count: number; photo_saved?: boolean } | null;
   dateLocale: string;
@@ -1590,7 +1642,29 @@ export function ReencounterPanel({
   return (
     <div className="mx-auto max-w-md space-y-5">
       <div className="overflow-hidden rounded-[32px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
-        {image && (
+        {image && onPeel ? (
+          /* **新しく捕まえたときと同じ、剥がす札**（オーナー指示 2026-09-23）。
+             剥がすと図鑑のその語の枠へ飛んで着地する。 */
+          <div className="relative p-3">
+            <div
+              ref={heroBoxRef}
+              className={`mx-auto grid aspect-square w-full max-w-xs place-items-center ${landing ? "opacity-0" : ""}`}
+            >
+              <PeelSticker
+                photoUrl={image}
+                cutoutUrl={null}
+                label={reenc.headword}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={landing || failed}
+                onPeel={onPeel}
+              />
+            </div>
+            <span className="absolute left-6 top-6 rounded-full bg-card/95 px-4 py-2 text-footnote font-semibold text-primary-ink shadow-sm">
+              {t("capture.reunion")}
+            </span>
+          </div>
+        ) : image ? (
           <div className="relative p-3">
             <img
               src={image}
@@ -1601,7 +1675,7 @@ export function ReencounterPanel({
               {t("capture.reunion")}
             </span>
           </div>
-        )}
+        ) : null}
         <div className="space-y-3 px-6 pb-6 pt-3">
           <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
             {reenc.headword}

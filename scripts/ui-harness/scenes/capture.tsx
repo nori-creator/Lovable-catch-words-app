@@ -95,6 +95,8 @@ export function CaptureReunionScene({ q }: { q: URLSearchParams }) {
   return (
     <ReencounterPanel
       photo={photo}
+      // 実物と同じく剥がす札で出す（オーナー指示 2026-09-23）。
+      onPeel={() => {}}
       failed={q.get("variant") === "error"}
       onRetry={() => {}}
       dateLocale="ja-JP"

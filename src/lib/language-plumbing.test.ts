@@ -4912,7 +4912,9 @@ describe("ホームは今日の誌面", () => {
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
     // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-curve"/);
+    // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "wallpapers"/);
     expect(list).toMatch(/\{ scene: "review-memory-list"/);
     expect(list).toMatch(/\{ scene: "dex-map"/);

@@ -44,6 +44,7 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BookText, Camera, Check, Trash2, WifiOff } from "lucide-react";
 import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
+import { baseStickerId, isEncounterAlbumId, mergeAlbumEncounters } from "@/lib/album-encounters";
 import {
   readWallpaper,
   wallClass,
@@ -277,8 +278,16 @@ function HomePage() {
    * 今日の1冊は**必ず日で切る**。今日は「今日」であって週でも月でもない。
    * 束ね方が効くのは、下に続く「これまでのページ」のほう。
    */
+  /**
+   * アルバムに貼る物 = 札 ＋ **再会の写真**（オーナー指示 2026-09-23、
+   * `lib/album-encounters.ts`）。再会の写真はその日の札の写しとして並ぶ。
+   */
+  const albumItems = useMemo(
+    () => mergeAlbumEncounters(stickers?.items ?? [], stickers?.albumEncounters),
+    [stickers],
+  );
   const byDay = useMemo(
-    () => groupBySpan(stickers?.items ?? [], (s) => new Date(s.created_at), "day"),
+    () => groupBySpan(albumItems, (s) => new Date(s.created_at), "day"),
     [stickers],
   );
   const todayStickers = byDay.find(([k]) => k === todayKey)?.[1] ?? [];
@@ -301,12 +310,12 @@ function HomePage() {
    * 束ね方(日/週/月)の切替も、端末に覚えさせる仕掛けも消した。
    */
   const pastGroups = useMemo(() => {
-    const past = (stickers?.items ?? []).filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
+    const past = albumItems.filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
     return groupBySpan(past, (s) => new Date(s.created_at), "day").map(([key, items]) => ({
       key,
       items,
     }));
-  }, [stickers, todayKey]);
+  }, [albumItems, todayKey]);
 
   /*
    * **ホームに日記は出さない**（オーナー指示 2026-09-22「ホームの日記は
@@ -330,7 +339,7 @@ function HomePage() {
         <HomeEmptyState
           surface={surfaceClass}
           date={today}
-          message={homeBlankText(stickers?.items ?? [], total, today, t)}
+          message={homeBlankText(albumItems, total, today, t)}
         />
       ) : (
         <>
@@ -342,11 +351,11 @@ function HomePage() {
             heading={<DiaryDate date={today} tagline={dayTagline(todayStickers, t)} />}
             opening
             onOpen={(id, from) => {
-              setOpenId(id);
+              setOpenId(baseStickerId(id));
               setOpenFrom(from ?? null);
             }}
             onLongPress={(id) => {
-              setOpenId(id);
+              setOpenId(baseStickerId(id));
               setOpenFrom(null);
               setOpenPhotoPicker(true);
             }}
@@ -375,11 +384,11 @@ function HomePage() {
           surface={surfaceClass}
           days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
           onOpen={(id, from) => {
-            setOpenId(id);
+            setOpenId(baseStickerId(id));
             setOpenFrom(from ?? null);
           }}
           onLongPress={(id) => {
-            setOpenId(id);
+            setOpenId(baseStickerId(id));
             setOpenFrom(null);
             setOpenPhotoPicker(true);
           }}
@@ -1165,24 +1174,30 @@ export function DayCollage({
   const boardH = useMemo(() => boardHeight(items), [items]);
 
   function layoutPayload(next = ordered) {
-    return next.map((s, order) => {
-      const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
-      const p = placementFrom(
-        { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-        autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
-      );
-      return {
-        sticker_id: s.id,
-        order,
-        // 升目はもう画面では見ていないが、**縦横の比の出どころ**なので
-        // 一緒に送る。消すと、次に開いたとき比が分からなくなる。
-        size,
-        x: p.x,
-        y: p.y,
-        scale: p.scale,
-        rot: p.rot,
-      };
-    });
+    return (
+      next
+        .map((s, order) => {
+          const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
+          const p = placementFrom(
+            { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
+            autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
+          );
+          return {
+            sticker_id: s.id,
+            order,
+            // 升目はもう画面では見ていないが、**縦横の比の出どころ**なので
+            // 一緒に送る。消すと、次に開いたとき比が分からなくなる。
+            size,
+            x: p.x,
+            y: p.y,
+            scale: p.scale,
+            rot: p.rot,
+          };
+        })
+        // **再会の写真の写しは書かない**（置き方の列は `stickers` の行にしか無い。
+        // `lib/album-encounters.ts`）。
+        .filter((it) => !isEncounterAlbumId(it.sticker_id))
+    );
   }
   function finishEditing() {
     setEditing(false);
