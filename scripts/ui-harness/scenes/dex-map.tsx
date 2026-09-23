@@ -8,7 +8,8 @@
  */
 import { useEffect } from "react";
 import { DexDayMap } from "@/components/DexDayMap";
-import { stickerDayKey } from "@/lib/dex-filter";
+import { DexHeader, DexOverlay } from "@/routes/_authenticated/dex";
+import { NO_FILTER, stickerDayKey } from "@/lib/dex-filter";
 import { FIXTURES, makeSticker } from "./home";
 
 const ROUTE: Array<[number, number, string]> = [
@@ -35,6 +36,8 @@ export function DexMapScene({ q }: { q: URLSearchParams }) {
     }),
   );
   const at = Number(q.get("at") ?? 0);
+  // `?variant=open` で時間軸を開いた形（帯を押した後）。
+  const open = q.get("variant") === "open" || at > 0;
   useEffect(() => {
     if (!at) return;
     const id = window.setTimeout(() => {
@@ -45,10 +48,24 @@ export function DexMapScene({ q }: { q: URLSearchParams }) {
   }, [at]);
   return (
     <div className="px-4">
+      {/* 実物と同じく、絞り込みと検索を地図の上に重ねる（全画面）。 */}
+      <DexOverlay>
+        <DexHeader
+          found={today.length + past.length}
+          caught={today.length + past.length}
+          view="map"
+          onView={() => {}}
+          filter={NO_FILTER}
+          onFilter={() => {}}
+          categories={[]}
+          days={[]}
+        />
+      </DexOverlay>
       <DexDayMap
         stickers={[...today, ...past]}
         onOpen={() => {}}
         initialDay={stickerDayKey(new Date().toISOString())}
+        initialOpen={open}
         forceFallback
       />
     </div>

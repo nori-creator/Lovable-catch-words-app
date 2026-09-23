@@ -7555,7 +7555,9 @@ html[data-motion="reduce"] .dex-day__card {
    傾く（JS が transform を書く）。ここは寸法・奥行き・影・床への映り込み。
    札どうしを少し重ねて、カバーフローの「並んだ束」に見せる。 */
 .dex-cf__scroller {
-  --cf-w: min(62vw, 250px);
+  /* 図鑑を全画面にした分、カードも大きく（オーナー指示 2026-09-23）。
+     高さは画面に収まるよう、縦の余白からも上限を取る。 */
+  --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
   perspective: 1100px;
   padding-inline: calc(50% - var(--cf-w) / 2);
   scrollbar-width: none;
@@ -7579,10 +7581,51 @@ html[data-motion="reduce"] .dex-day__card {
   margin-right: 0;
 }
 .dex-cf__card {
+  /* 鏡映り（`-webkit-box-reflect`）はやめた — 傾きが変わるたびに映りごと
+     描き直すので、送る動きがカクついた（オーナー報告 2026-09-23）。 */
   box-shadow:
     0 2px 6px rgb(0 0 0 / 0.08),
     0 22px 40px -18px rgb(0 0 0 / 0.45);
-  -webkit-box-reflect: below 10px linear-gradient(transparent 76%, rgb(255 255 255 / 0.2));
+  backface-visibility: hidden;
+}
+/* カードの下の青い点（`dotWindow`）。いまの1枚は主色の丸、ほかは薄い丸、
+   続きのある端は小さく。押せる所は 24px（点の間を指で狙う物ではないので、
+   44px の下限は送る動きそのもの・カードの押下が受け持つ）。 */
+.dex-cf__dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+}
+.dex-cf__dot-hit {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.dex-cf__dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  transition:
+    background-color 0.2s var(--ease-ios),
+    scale 0.2s var(--ease-ios);
+}
+.dex-cf__dot[data-size="2"] {
+  background: var(--primary);
+  scale: 1.25;
+}
+.dex-cf__dot[data-size="0"] {
+  scale: 0.6;
+}
+html[data-motion="reduce"] .dex-cf__dot {
+  transition: none;
 }
 html[data-motion="reduce"] .dex-cf__slot {
   will-change: auto;
@@ -7600,9 +7643,79 @@ html[data-motion="reduce"] .dex-cf__slot {
 
 /* 図鑑の地図（`DexDayMap`）。上に地図が貼り付き、下の時間軸を送ると
    読んでいる立ち寄りのピンが**ポンと浮き上がる**（オーナー指示 2026-09-23）。 */
+/* 地図は画面いっぱい（下のバーの裏まで）。オーナー指示 2026-09-23。 */
 .dex-daymap__map {
-  height: min(44vh, 380px);
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   background: var(--secondary);
+}
+/* ピンを置く範囲。上の絞り込み（`--dex-overlay-h`）と下の日付の帯を避ける。 */
+.dex-daymap__plane-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--dex-overlay-h, 8rem);
+  bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+}
+/* 一番下の日付の帯と、その上に開く時間軸。下のバーのすぐ上に浮かせる。 */
+.dex-daymap__dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 25;
+  display: grid;
+  gap: 0.5rem;
+  width: min(100%, 48rem);
+  margin-inline: auto;
+  padding-inline: 0.75rem;
+  pointer-events: none;
+}
+.dex-daymap__dock > * {
+  pointer-events: auto;
+}
+.dex-daymap__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+.dex-daymap__timeline {
+  max-height: min(50dvh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem 1rem 0.5rem 1.25rem;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.4);
+  animation: dex-timeline-in 0.28s var(--ease-ios) both;
+}
+@keyframes dex-timeline-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+html[data-motion="reduce"] .dex-daymap__timeline {
+  animation: reduced-fade-in 0.15s ease both;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .dex-daymap__bar,
+  .dex-daymap__timeline {
+    background: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 /* 地図が読めないときの簡易の面。紙の地図のような薄い方眼。 */
 .dex-daymap__plane {

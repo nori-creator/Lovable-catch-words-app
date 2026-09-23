@@ -4266,7 +4266,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("撮る画面とスキャン画面は、上の帯を出さない", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     expect(shell).toMatch(/bare\?: boolean;/);
-    expect(shell).toMatch(/\{!bare && \(/);
+    expect(shell).toMatch(/\{!bare && !immersive && \(/);
     expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
       // main で自撮りの面も全画面になったので `|| step === "selfie"` が付いた。
       /bare=\{step === "object"( \|\| step === "selfie")?\}/,
@@ -5641,16 +5641,19 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
     expect(dex).toMatch(/view === "map" \?[\s\S]{0,300}<DexDayMap stickers=\{filtered\}/);
   });
 
-  it("日付の横送り・前後の撮った日・暦から選ぶ", () => {
-    expect(dm).toMatch(/className="dex-daymap__days/);
+  it("一番下の日付の帯: 前後の撮った日・暦から選ぶ・押すと時間軸（2026-09-23 改）", () => {
+    // 日付を全部並べる横送りと、その日の数（枚・か所・時間帯）はやめた。
+    expect(dm).not.toMatch(/dex-daymap__days/);
+    expect(dm).not.toMatch(/dex\.dayPhotos|dex\.dayPlaces|dex\.dayHours/);
+    expect(dm).toMatch(/className="dex-daymap__bar"/);
+    expect(dm).toMatch(/aria-expanded=\{open\}/);
     expect(dm).toMatch(/neighborDay\(days, current, -1\)/);
     expect(dm).toMatch(/onPickDay=\{\(k\) => \{/);
   });
 
   it("時間軸を送ると、読んでいる行の立ち寄りのピンが浮き上がる", () => {
-    expect(dm).toMatch(
-      /document\.addEventListener\("scroll", onScroll, \{ capture: true, passive: true \}\)/,
-    );
+    // 時間軸は帯の上に開く板の中で送る。
+    expect(dm).toMatch(/onScroll=\{onListScroll\}/);
     expect(dm).toMatch(/data-active=\{active \|\| undefined\}/);
     expect(css).toMatch(/\.dex-pin\[data-active\] \{[^}]*translateY\(-10px\) scale\(1\.45\)/);
     expect(css).toMatch(/html\[data-motion="reduce"\] \.dex-pin \{\s*transition: none;/);
@@ -5663,6 +5666,19 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
 
   it("**歩いた道のりの線と距離は出さない**（GPS をずっと使わないため・2026-09-23）", () => {
     expect(dm).not.toMatch(/Polyline|polyline|routeKm|dex\.dayKm/);
+  });
+
+  it("**地図は画面いっぱい、写真の横に一言**（オーナー指示 2026-09-23）", () => {
+    const mapCss = css.slice(css.indexOf(".dex-daymap__map {"));
+    expect(mapCss.slice(0, mapCss.indexOf("\n}"))).toMatch(/position: fixed;\s*inset: 0;/);
+    expect(dm).toMatch(/it\.s\.caption \?/);
+    // 図鑑は全画面（上の帯なし）で、絞り込みと検索を上に重ねる。
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    expect(dex).toMatch(/<AppShell title=\{t\("title\.dex"\)\} immersive>/);
+    expect(dex).toMatch(/<DexOverlay>/);
+    // 並びは 箱 → カード → 地図 → 段。
+    const order = [...dex.matchAll(/\["(gallery|cards|map|list)", /g)].map((m) => m[1]);
+    expect(order).toEqual(["gallery", "cards", "map", "list"]);
   });
 });
 

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps の型は実行時に読み込む（型定義を入れていない） */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronLeft, ChevronRight, MapPin, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronUp, MapPin, X } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { photoCandidates, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { stickerDayKey } from "@/lib/dex-filter";
@@ -24,33 +24,36 @@ type Item = {
 /**
  * 図鑑の**地図**（地図とカレンダーを1つにした表示）。
  *
- * （オーナー指示 2026-09-23「図鑑の種類に、地図とカレンダーを統合し、画面を
- *  開いたら地図が表示され、下で日付を横にスクロールでき、カレンダーを開いて
- *  特定の日付をタップすることもできる。ある日付を指定したらその日何時に
- *  どこで何を撮ったかがタイムラインで辿れて、時間を移動するとその都度その時
- *  撮った画像が地図上でポンと少しほかのポップより浮き上がる」— 参考は RONDO）
+ * （オーナー指示 2026-09-23 ①「図鑑の種類に、地図とカレンダーを統合し…」
+ *  ②「地図は地図を下のバーを含む全画面に展開し、上に地図と被るように
+ *  カテゴリーなどの検索できるようにし、一番下に日付のバーを追加し、タップ
+ *  したら、タイムラインが見れるよう変更して。その日撮った枚数や場所、時刻の
+ *  幅の情報は要らない。また日付けも全て表示するのではなく、進めたり戻る
+ *  ボタンを画像のようにして。またタイムラインの写真の横に撮った時の一言を
+ *  追加して。」— 参考は RONDO）
  *
- *  ・上に地図（画面に貼り付く）。その日の立ち寄りを丸い写真のピンで置く。
- *    **歩いた道のりの線と距離は出さない**（オーナー指示 2026-09-23「GPS を
- *    ずっと ON にしないといけないから付けなくていい」— 撮った所しか
- *    分からないので、線を引くと歩いていない直線を描くことになる）。
- *  ・下に日付（‹ › で前後の撮った日へ・📅 で月の暦から選ぶ）、日付の横送り、
- *    その日の数（枚・場所・時間帯）、そして時間軸。
- *  ・時間軸を送ると、**読んでいる行の立ち寄り**のピンが大きく浮き上がり、
- *    地図がそこへ寄る。行やピンを押しても同じ。写真を押すと詳細。
- *  ・地図が読めないとき（鍵が無い・圏外・見本）は、同じピンを簡易の面に
- *    描く — 押したときの動きは同じ。
+ *  ・地図は**画面いっぱい**（下のバーの裏まで）。上の絞り込みと検索は図鑑の
+ *    側が地図の上に重ねる。
+ *  ・一番下（下のバーのすぐ上）に**日付の帯**: ⌃ ・日付 ・📅 ・‹ ›。
+ *    帯を押すと**時間軸**が下から開く。日付を全部並べる横送りと、その日の数
+ *    （枚・か所・時間帯）はやめた。
+ *  ・時間軸の写真の横に、撮ったときの**一言**。
+ *  ・時間軸を送ると、読んでいる行の立ち寄りのピンが浮き上がり、地図が寄る。
+ *  ・歩いた道のりの線と距離は出さない（オーナー指示 2026-09-23）。
  */
 export function DexDayMap({
   stickers,
   onOpen,
   initialDay,
+  initialOpen = false,
   forceFallback = false,
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
   /** 最初に開く日（見本用）。ふだんは一番新しい撮った日。 */
   initialDay?: string;
+  /** 時間軸を開いた形で始める（見本用）。 */
+  initialOpen?: boolean;
   /** 見本で地図を読みに行かない。 */
   forceFallback?: boolean;
 }) {
@@ -86,53 +89,40 @@ export function DexDayMap({
   useEffect(() => setActiveId(null), [current]);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
 
   // ---- 時間軸を送ると、読んでいる行の立ち寄りへ -----------------------------
-  const mapBoxRef = useRef<HTMLDivElement | null>(null);
-  const listRef = useRef<HTMLOListElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const programmatic = useRef(0);
-  useEffect(() => {
-    let frame = 0;
-    const onScroll = () => {
-      if (performance.now() < programmatic.current) return;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const list = listRef.current;
-        const box = mapBoxRef.current;
-        if (!list || !box) return;
-        const line = box.getBoundingClientRect().bottom + 56;
-        let pick: string | null = null;
-        for (const li of Array.from(list.querySelectorAll<HTMLElement>("[data-stop-row]"))) {
-          if (li.getBoundingClientRect().top <= line) pick = li.dataset.stopRow ?? pick;
-        }
-        const first = list.querySelector<HTMLElement>("[data-stop-row]")?.dataset.stopRow ?? null;
-        setActiveId(pick ?? first);
-      });
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      cancelAnimationFrame(frame);
-    };
-  }, []);
+  const onListScroll = () => {
+    if (performance.now() < programmatic.current) return;
+    const list = listRef.current;
+    if (!list) return;
+    const line = list.getBoundingClientRect().top + 40;
+    let pick: string | null = null;
+    for (const li of Array.from(list.querySelectorAll<HTMLElement>("[data-stop-row]"))) {
+      if (li.getBoundingClientRect().top <= line) pick = li.dataset.stopRow ?? pick;
+    }
+    const first = list.querySelector<HTMLElement>("[data-stop-row]")?.dataset.stopRow ?? null;
+    const next = pick ?? first;
+    setActiveId((c) => (c === next ? c : next));
+  };
 
   const focusStop = (id: string) => {
     setActiveId(id);
-    const row = listRef.current?.querySelector<HTMLElement>(`[data-stop-row="${id}"]`);
-    const box = mapBoxRef.current;
-    if (!row || !box) return;
-    const target =
-      window.scrollY + row.getBoundingClientRect().top - box.getBoundingClientRect().bottom - 16;
-    programmatic.current = performance.now() + 700;
-    window.scrollTo({ top: target, behavior: motionReducedNow() ? "auto" : "smooth" });
+    setOpen(true);
+    // 開いたあとで行へ送る（閉じていた回は、開ききってから）。
+    window.setTimeout(() => {
+      const list = listRef.current;
+      const row = list?.querySelector<HTMLElement>(`[data-stop-row="${id}"]`);
+      if (!list || !row) return;
+      programmatic.current = performance.now() + 700;
+      list.scrollTo({
+        top: row.offsetTop - 8,
+        behavior: motionReducedNow() ? "auto" : "smooth",
+      });
+    }, 30);
   };
-
-  // ---- 日付の横送り: 選んだ日を見える所へ -----------------------------------
-  const stripRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = stripRef.current?.querySelector<HTMLElement>(`[data-day="${current}"]`);
-    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" });
-  }, [current]);
 
   if (!current) {
     return (
@@ -141,8 +131,6 @@ export function DexDayMap({
   }
 
   const date = new Date(`${current}T00:00:00`);
-  const photos = byDay.get(current)?.length ?? 0;
-  const places = stops.filter((s) => s.lat != null).length;
   const hhmm = (iso: string) =>
     new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const prev = neighborDay(days, current, -1);
@@ -150,11 +138,8 @@ export function DexDayMap({
 
   return (
     <section className="dex-daymap" aria-label={t("dex.map")}>
-      <div
-        ref={mapBoxRef}
-        className="dex-daymap__map sticky z-20 -mx-4 overflow-hidden"
-        style={{ top: "calc(var(--app-header-h) + env(safe-area-inset-top))" }}
-      >
+      {/* 地図は画面いっぱい（下のバーの裏まで）。上の操作は図鑑が重ねる。 */}
+      <div className="dex-daymap__map">
         <DayMapCanvas
           stops={stops}
           activeId={active}
@@ -163,154 +148,145 @@ export function DexDayMap({
         />
       </div>
 
-      <div className="relative z-10 bg-background px-1 pt-4">
-        {/* 日付。‹ › で前後の撮った日、📅 で月の暦から選ぶ。 */}
-        <div className="flex items-end justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-caption text-muted-foreground">
-              {date.toLocaleDateString(locale, { year: "numeric" })}
-            </p>
-            <h2 className="text-title font-bold leading-tight">
-              {date.toLocaleDateString(locale, { month: "long", day: "numeric", weekday: "short" })}
-            </h2>
-          </div>
-          <div className="flex shrink-0 gap-1.5">
-            <button
-              onClick={() => setCalendarOpen(true)}
-              aria-label={t("dex.calendar")}
-              className="press-in grid h-11 w-11 place-items-center rounded-full bg-secondary"
-            >
-              <CalendarDays className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => prev && setDay(prev)}
-              disabled={!prev}
-              aria-label={t("dex.prevDay")}
-              className="press-in grid h-11 w-11 place-items-center rounded-full bg-secondary disabled:opacity-40"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => next && setDay(next)}
-              disabled={!next}
-              aria-label={t("dex.nextDay")}
-              className="press-in grid h-11 w-11 place-items-center rounded-full bg-secondary disabled:opacity-40"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* 撮った日の横送り。 */}
-        <div
-          ref={stripRef}
-          className="dex-daymap__days -mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1"
-          role="tablist"
-        >
-          {days.map((k) => {
-            const d = new Date(`${k}T00:00:00`);
-            const on = k === current;
-            return (
-              <button
-                key={k}
-                data-day={k}
-                role="tab"
-                aria-selected={on}
-                onClick={() => setDay(k)}
-                className={`flex min-h-14 w-12 shrink-0 flex-col items-center justify-center rounded-2xl ${
-                  on ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary"
-                }`}
-              >
-                <span className="text-caption">
-                  {d.toLocaleDateString(locale, { month: "numeric" })}
-                </span>
-                <span className="text-body font-bold tabular-nums">{d.getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* その日の数。 */}
-        <dl className="mt-3 grid grid-cols-[1fr_1fr_1.7fr] gap-1 text-center">
-          {[
-            [photos, t("dex.dayPhotos")],
-            [places, t("dex.dayPlaces")],
-            [
-              stops.length ? `${hhmm(stops[0].start)}–${hhmm(stops[stops.length - 1].end)}` : "—",
-              t("dex.dayHours"),
-            ],
-          ].map(([v, label], i) => (
-            <div key={i} className="rounded-xl bg-secondary/60 px-1 py-1.5">
-              <dd className="truncate text-body font-bold tabular-nums">{v}</dd>
-              <dt className="text-caption text-muted-foreground">{label}</dt>
-            </div>
-          ))}
-        </dl>
-
-        {/* 時間軸。読んでいる行の立ち寄りが地図で浮く。 */}
-        <ol ref={listRef} className="relative mt-4 border-l-2 border-border pb-[40vh] pl-5">
-          {stops.map((st) => {
-            const on = st.id === active;
-            return (
-              <li
-                key={st.id}
-                data-stop-row={st.id}
-                className="relative pb-5"
-                onClick={() => focusStop(st.id)}
-              >
-                <span
-                  aria-hidden
-                  className={`absolute -left-[1.72rem] top-1 h-3.5 w-3.5 rounded-full border-2 border-background transition-transform ${
-                    on ? "scale-125 bg-primary" : "bg-muted-foreground/50"
-                  }`}
-                />
-                <p className="flex items-baseline gap-2">
-                  <span
-                    className={`text-body font-bold tabular-nums ${on ? "text-primary-ink" : ""}`}
+      {/* 一番下の日付の帯と、押すと開く時間軸。 */}
+      <div className="dex-daymap__dock" data-open={open || undefined}>
+        {open && (
+          <div
+            ref={listRef}
+            onScroll={onListScroll}
+            className="dex-daymap__timeline"
+            role="region"
+            aria-label={t("dex.timeline")}
+          >
+            <ol className="relative border-l-2 border-border pl-5">
+              {stops.map((st) => {
+                const on = st.id === active;
+                return (
+                  <li
+                    key={st.id}
+                    data-stop-row={st.id}
+                    className="relative pb-4"
+                    onClick={() => setActiveId(st.id)}
                   >
-                    {hhmm(st.start)}
-                    {st.end !== st.start ? `–${hhmm(st.end)}` : ""}
-                  </span>
-                  {st.place && (
-                    <span className="flex min-w-0 items-center gap-1 truncate text-footnote text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                      <span className="truncate">{st.place}</span>
-                    </span>
-                  )}
-                </p>
-                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                  {st.items.map((it) => {
-                    const photo = stickerPhotoUrl(it.s, { thumb: true });
-                    return (
-                      <button
-                        key={it.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpen(it.id);
-                        }}
-                        className="press-in w-24 shrink-0 text-left"
+                    <span
+                      aria-hidden
+                      className={`absolute -left-[1.72rem] top-1 h-3.5 w-3.5 rounded-full border-2 border-background transition-transform ${
+                        on ? "scale-125 bg-primary" : "bg-muted-foreground/50"
+                      }`}
+                    />
+                    <p className="flex items-baseline gap-2">
+                      <span
+                        className={`text-body font-bold tabular-nums ${on ? "text-primary-ink" : ""}`}
                       >
-                        <span className="block aspect-square overflow-hidden rounded-xl bg-secondary shadow-sm">
-                          {photo ? (
-                            <CachedImg src={photo} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <Zh className="grid h-full place-items-center text-body font-semibold">
-                              {it.s.word.headword}
-                            </Zh>
-                          )}
+                        {hhmm(st.start)}
+                        {st.end !== st.start ? `–${hhmm(st.end)}` : ""}
+                      </span>
+                      {st.place && (
+                        <span className="flex min-w-0 items-center gap-1 truncate text-footnote text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                          <span className="truncate">{st.place}</span>
                         </span>
-                        <Zh className="mt-1 block truncate text-footnote font-semibold">
-                          {it.s.word.headword}
-                        </Zh>
-                      </button>
-                    );
-                  })}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                      )}
+                    </p>
+                    {/* 写真の**横に一言**（オーナー指示 2026-09-23）。 */}
+                    <div className="mt-2 grid gap-2">
+                      {st.items.map((it) => {
+                        const photo = stickerPhotoUrl(it.s, { thumb: true });
+                        return (
+                          <button
+                            key={it.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpen(it.id);
+                            }}
+                            className="press-in flex min-h-11 items-center gap-3 text-left"
+                          >
+                            <span className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-secondary shadow-sm">
+                              {photo ? (
+                                <CachedImg
+                                  src={photo}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Zh className="grid h-full place-items-center text-body font-semibold">
+                                  {it.s.word.headword}
+                                </Zh>
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <Zh className="block truncate text-body font-semibold">
+                                {it.s.word.headword}
+                              </Zh>
+                              {it.s.caption ? (
+                                <span className="handwritten-ja line-clamp-2 block text-footnote text-muted-foreground">
+                                  {it.s.caption}
+                                </span>
+                              ) : (
+                                <span className="block truncate text-footnote text-muted-foreground">
+                                  {it.s.word.meaning_ja}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+
+        {/* 日付の帯（参考: RONDO の「⌃ 日付 ↺ ‹ ›」）。 */}
+        <div className="dex-daymap__bar">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={open ? t("dex.closeTimeline") : t("dex.openTimeline")}
+            className="press-in flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-left"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-foreground text-background">
+              <ChevronUp
+                className={`h-5 w-5 transition-transform ${open ? "rotate-180" : ""}`}
+                aria-hidden
+              />
+            </span>
+            <span className="min-w-0 truncate text-headline font-bold">
+              {date.toLocaleDateString(locale, {
+                month: "long",
+                day: "numeric",
+                weekday: "short",
+              })}
+            </span>
+          </button>
+          <button
+            onClick={() => setCalendarOpen(true)}
+            aria-label={t("dex.calendar")}
+            className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary"
+          >
+            <CalendarDays className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => prev && setDay(prev)}
+            disabled={!prev}
+            aria-label={t("dex.prevDay")}
+            className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary disabled:opacity-40"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => next && setDay(next)}
+            disabled={!next}
+            aria-label={t("dex.nextDay")}
+            className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary disabled:opacity-40"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {calendarOpen && (
@@ -445,20 +421,24 @@ function FallbackDayMap({
   }, []);
   const pos = projectStops(stops, box, 44);
   return (
-    <div ref={ref} className="dex-daymap__plane relative h-full w-full">
-      {stops.map((s) => {
-        const p = pos.get(s.id);
-        if (!p) return null;
-        return (
-          <StopPin
-            key={s.id}
-            stop={s}
-            active={s.id === activeId}
-            onPin={onPin}
-            style={{ left: p.x, top: p.y }}
-          />
-        );
-      })}
+    // 方眼は画面いっぱい。ピンを置く範囲だけ、上の操作と下の日付の帯を避ける
+    // （`.dex-daymap__plane-area`）。
+    <div className="dex-daymap__plane relative h-full w-full">
+      <div ref={ref} className="dex-daymap__plane-area">
+        {stops.map((s) => {
+          const p = pos.get(s.id);
+          if (!p) return null;
+          return (
+            <StopPin
+              key={s.id}
+              stop={s}
+              active={s.id === activeId}
+              onPin={onPin}
+              style={{ left: p.x, top: p.y }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -563,7 +543,8 @@ function GoogleDayMap({
     } else if (pts.length > 1) {
       const b = new g.LatLngBounds();
       pts.forEach((p) => b.extend(p));
-      m.fitBounds(b, 56);
+      // 上の操作と下の日付の帯の裏にピンを置かない。
+      m.fitBounds(b, { top: 150, bottom: 200, left: 48, right: 48 });
     }
   }, [g, stops]);
 

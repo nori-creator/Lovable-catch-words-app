@@ -598,6 +598,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't load the OpenRouter list ({e}). Type a model name instead.",
     "zh-TW": "無法取得 OpenRouter 的清單（{e}）。請手動輸入模型名稱。",
   },
+  "dex.timeline": {
+    ja: "その日のタイムライン",
+    en: "Timeline of the day",
+    "zh-TW": "當天的時間軸",
+  },
+  "dex.openTimeline": { ja: "タイムラインを開く", en: "Open timeline", "zh-TW": "打開時間軸" },
+  "dex.closeTimeline": { ja: "タイムラインを閉じる", en: "Close timeline", "zh-TW": "關閉時間軸" },
   "dex.prevDay": { ja: "前の撮った日", en: "Previous day", "zh-TW": "上一個拍攝日" },
   "dex.nextDay": { ja: "次の撮った日", en: "Next day", "zh-TW": "下一個拍攝日" },
   "dex.dayPhotos": { ja: "枚", en: "photos", "zh-TW": "張" },
