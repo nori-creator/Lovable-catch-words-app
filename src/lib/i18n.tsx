@@ -1283,9 +1283,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "等待分析的照片",
   },
   "home.bgPaper": { ja: "紙", en: "Paper", "zh-TW": "紙" },
-  "home.bgFrame": { ja: "額", en: "Frame", "zh-TW": "相框" },
+  "home.bgFrame": { ja: "額縁", en: "Picture frame", "zh-TW": "畫框" },
   "home.bgNotebook": { ja: "ノート", en: "Notebook", "zh-TW": "筆記本" },
-  "home.bgCork": { ja: "コルク", en: "Cork", "zh-TW": "軟木板" },
+  "home.bgCork": { ja: "コルクと画鋲", en: "Corkboard", "zh-TW": "軟木板與圖釘" },
+  "home.bgWall": { ja: "壁", en: "Wall", "zh-TW": "牆面" },
   "user.profile": { ja: "プロフィール", en: "Profile", "zh-TW": "個人檔案" },
   "user.loading": { ja: "読み込み中…", en: "Loading…", "zh-TW": "載入中…" },
   "user.loadFailed": {
@@ -2142,7 +2143,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "home.memories": { ja: "枚の思い出", en: "memories caught", "zh-TW": "張回憶" },
   "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet", "zh-TW": "還沒有照片" },
-  "home.background": { ja: "背景", en: "Background", "zh-TW": "背景" },
+  "home.background": { ja: "ホームの壁紙", en: "Home wallpaper", "zh-TW": "首頁桌布" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
   // ヘッダーのアイコンを押すと出る、自分の記録。

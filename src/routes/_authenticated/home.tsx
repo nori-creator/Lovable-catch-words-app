@@ -42,7 +42,14 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookText, Check, Image as ImageIcon, Trash2, WifiOff } from "lucide-react";
+import { BookText, Check, Trash2, WifiOff } from "lucide-react";
+import {
+  readWallpaper,
+  wallClass,
+  wallFromClass,
+  WALLPAPER_EVENT,
+  type WallId,
+} from "@/lib/wallpaper";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
@@ -210,15 +217,6 @@ export function PendingCapturesCard({
   );
 }
 
-const BG_OPTIONS = [
-  { id: "paper", labelKey: "home.bgPaper", className: "album-bg-paper" },
-  { id: "frame", labelKey: "home.bgFrame", className: "album-bg-frame" },
-  { id: "notebook", labelKey: "home.bgNotebook", className: "album-bg-notebook" },
-  { id: "cork", labelKey: "home.bgCork", className: "album-bg-cork" },
-] as const;
-
-type BgId = (typeof BG_OPTIONS)[number]["id"];
-
 function HomePage() {
   const t = useT();
   const navigate = useNavigate();
@@ -249,16 +247,23 @@ function HomePage() {
   const [openFrom, setOpenFrom] = useState<FlightOrigin | null>(null);
   /** 長押しで開いたときは、写真を選ぶ面から始める(オーナー指摘 2026-08-20)。 */
   const [openPhotoPicker, setOpenPhotoPicker] = useState(false);
-  const [bg, setBg] = useState<BgId>("paper");
+  /**
+   * 壁紙。**選ぶ所は設定**（オーナー指示 2026-09-23「ホームの上に丸で表示
+   * するのはダサいからやめて」）。ここは読むだけで、設定で変えたら
+   * 知らせを受けて貼り替える（`lib/wallpaper.ts`）。
+   */
+  const [wall, setWall] = useState<WallId>("paper");
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("album-bg") : null;
-    if (saved && BG_OPTIONS.some((o) => o.id === saved)) setBg(saved as BgId);
+    setWall(readWallpaper());
+    const h = () => setWall(readWallpaper());
+    window.addEventListener(WALLPAPER_EVENT, h);
+    window.addEventListener("storage", h);
+    return () => {
+      window.removeEventListener(WALLPAPER_EVENT, h);
+      window.removeEventListener("storage", h);
+    };
   }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("album-bg", bg);
-  }, [bg]);
-  /** 壁の地。前に選んだ地があればそれ、無ければ紙。 */
-  const surfaceClass = BG_OPTIONS.find((o) => o.id === bg)?.className ?? "album-bg-paper";
+  const surfaceClass = wallClass(wall);
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
@@ -516,35 +521,6 @@ export function PastDays({
         </div>
       ))}
     </section>
-  );
-}
-
-export function BackgroundPicker({
-  current,
-  onChange,
-}: {
-  current: BgId;
-  onChange: (b: BgId) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="mb-3 flex items-center justify-end">
-      <ImageIcon aria-hidden className="mr-1 h-3 w-3 text-muted-foreground" />
-      {/* §11: keep the swatch small but pad the tap target to the 44px floor. */}
-      {BG_OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          aria-label={`${t("home.background")}: ${t(o.labelKey)}`}
-          aria-pressed={current === o.id}
-          className="press-in grid h-11 w-11 place-items-center rounded-full"
-        >
-          <span
-            className={`block h-7 w-7 overflow-hidden rounded-full border ${o.className} ${current === o.id ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
-          />
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -818,8 +794,18 @@ const PLAIN_WORD_PX = 32;
 const MIN_TAP_PX = 44;
 
 /** 写真を壁に留める物（`lib/collage-decor.ts`）。 */
-function CollageFasteners({ id }: { id: string }) {
-  const d = decorFor(id);
+function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
+  const d = decorFor(id, wall);
+  if (d.kind === "pin") {
+    // コルクの壁は**画鋲**。頭の色は4色、位置は上の辺の真ん中あたり。
+    return (
+      <span
+        aria-hidden="true"
+        className={`collage-pin collage-pin--${d.color}`}
+        style={{ left: `${d.x}%` }}
+      />
+    );
+  }
   if (d.kind === "corners") {
     return (
       <>
@@ -1653,7 +1639,7 @@ export function DayCollage({
 
               {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
                   紙に直に書いた物なので留めない。 */}
-              {heroUrl && <CollageFasteners id={s.id} />}
+              {heroUrl && <CollageFasteners id={s.id} wall={wallFromClass(surface)} />}
               {/**
                * 写真の下に付く字。**枠の外に出す**ので、置き方の計算には
                * `extra` として高さを渡してある（渡さないと次の札が乗る）。

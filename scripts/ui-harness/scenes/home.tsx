@@ -12,7 +12,6 @@ import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
-  BackgroundPicker,
   DayHeader,
   DayMasthead,
   dayTagline,
@@ -29,6 +28,8 @@ import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
+import { parseWallpaper, wallClass } from "@/lib/wallpaper";
+import { WallpaperPicker } from "@/components/WallpaperPicker";
 
 const svg = (w: number, h: number, color: string) =>
   "data:image/svg+xml;utf8," +
@@ -133,12 +134,23 @@ export function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number
 const today = FIXTURES.map((f, i) => makeSticker(f, i, 0));
 
 /** 今日のアルバム。**普通の日にいちばん長く見ている面。** */
-export function HomeScene() {
+export function HomeScene({ q }: { q: URLSearchParams }) {
+  // `?wall=cork` などで壁紙を替えて撮る（オーナー指示 2026-09-23）。
+  const wall = parseWallpaper(q.get("wall"));
   return (
     <>
       <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
-      <DayCollage stickers={today} opening onOpen={() => {}} />
+      <DayCollage stickers={today} opening onOpen={() => {}} surface={wallClass(wall)} />
     </>
+  );
+}
+
+/** 設定の「ホームの壁紙」。5つの見本の札（実物と同じ留め方）。 */
+export function WallpaperPickerScene() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <WallpaperPicker value="cork" />
+    </div>
   );
 }
 

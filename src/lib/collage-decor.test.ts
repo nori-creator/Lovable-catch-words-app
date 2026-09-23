@@ -27,3 +27,23 @@ describe("写真を壁にどう留めるか", () => {
     }
   });
 });
+
+describe("留め方は壁に合わせる（オーナー指示 2026-09-23）", () => {
+  const ids = Array.from({ length: 60 }, (_, i) => `s-${i}`);
+  it("コルクの壁は全部画鋲。上の辺の真ん中あたり", () => {
+    for (const id of ids) {
+      const d = decorFor(id, "cork");
+      expect(d.kind).toBe("pin");
+      if (d.kind === "pin") {
+        expect(d.x).toBeGreaterThanOrEqual(42);
+        expect(d.x).toBeLessThanOrEqual(58);
+      }
+    }
+  });
+  it("実際の壁に四隅の三角は付かない（テープだけ）", () => {
+    expect(ids.every((id) => decorFor(id, "wall").kind === "tape")).toBe(true);
+  });
+  it("紙は前と同じ（壁を渡さなくても同じ）", () => {
+    for (const id of ids) expect(decorFor(id, "paper")).toEqual(decorFor(id));
+  });
+});

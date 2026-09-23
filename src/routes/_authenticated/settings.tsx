@@ -64,6 +64,7 @@ import {
 } from "@/lib/place-reminder";
 import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
 import { ModelPicker } from "@/components/ModelPicker";
+import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Trash2, User } from "lucide-react";
@@ -843,6 +844,12 @@ function SettingsPage() {
               ]}
             />
             <MotionChoiceRow />
+            {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
+                オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
+            <div>
+              <p className="mb-2 text-footnote font-medium">{t("home.background")}</p>
+              <WallpaperPicker />
+            </div>
           </div>
         </SettingsCard>
 

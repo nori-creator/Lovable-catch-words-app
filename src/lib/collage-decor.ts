@@ -13,9 +13,15 @@
 export type TapeSpot = "top" | "corner-tl" | "corner-tr";
 export type TapeColor = "iris" | "sage" | "rose" | "cream";
 
+export type PinColor = "red" | "blue" | "yellow" | "green";
+
 export type CollageDecor =
   | { kind: "tape"; tapes: Array<{ spot: TapeSpot; rot: number; color: TapeColor }> }
-  | { kind: "corners" };
+  | { kind: "corners" }
+  /** コルクの壁は**画鋲**（上の辺の真ん中あたりに1本）。 */
+  | { kind: "pin"; color: PinColor; x: number };
+
+const PIN_COLORS: readonly PinColor[] = ["red", "blue", "yellow", "green"];
 
 const COLORS: readonly TapeColor[] = ["iris", "sage", "rose", "cream"];
 
@@ -32,8 +38,21 @@ function seed(id: string, salt: number): number {
   return (h >>> 0) / 4294967296;
 }
 
-export function decorFor(id: string): CollageDecor {
-  if (seed(id, 31) >= 0.6) return { kind: "corners" };
+export function decorFor(
+  id: string,
+  /** 壁の種類（`wallpaper.ts`）。留め方が壁で変わる。 */
+  wall: "paper" | "notebook" | "wall" | "frame" | "cork" = "paper",
+): CollageDecor {
+  if (wall === "cork") {
+    return {
+      kind: "pin",
+      color: PIN_COLORS[Math.floor(seed(id, 59) * PIN_COLORS.length) % PIN_COLORS.length],
+      // 真ん中から少しずらす（全部ど真ん中だと機械で打ったように見える）。
+      x: 42 + seed(id, 61) * 16,
+    };
+  }
+  // 実際の壁に四隅の三角は付かない。テープだけ。
+  if (wall !== "wall" && seed(id, 31) >= 0.6) return { kind: "corners" };
   const color = COLORS[Math.floor(seed(id, 37) * COLORS.length) % COLORS.length];
   const shape = seed(id, 41);
   if (shape < 0.5) {

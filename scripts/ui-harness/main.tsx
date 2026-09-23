@@ -56,6 +56,7 @@ import {
   HomePastScene,
   HomePendingScene,
   HomeScene,
+  WallpaperPickerScene,
   HomeTapScene,
   HomeWritingScene,
 } from "./scenes/home";
@@ -158,6 +159,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "dex-cards": DexCardsScene,
   "ai-models": AiModelsScene,
   "dex-map": DexMapScene,
+  wallpapers: WallpaperPickerScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -303,6 +305,11 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
+  { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
+  { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
+  { scene: "home&wall=wall", label: "ホーム（壁）" },
+  { scene: "home&wall=frame", label: "ホーム（額縁）" },
+  { scene: "home&wall=notebook", label: "ホーム（ノート）" },
   { scene: "dex-map", label: "図鑑の地図（カレンダーと統合・時間軸でピンが浮く）" },
   { scene: "dex-map&at=3", label: "図鑑の地図（時間を進めた形）" },
   { scene: "dex-cards", label: "図鑑のカード表示（横に送る）" },

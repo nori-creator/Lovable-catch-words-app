@@ -4580,7 +4580,10 @@ describe("ホームは今日の誌面", () => {
     expect(cl).toMatch(/surface = "album-bg-paper"/);
     expect(cl).toMatch(/className=\{`collage collage-board relative \$\{surface\}/);
     // 写真はテープか四隅で留める（字だけの札は留めない）。
-    expect(cl).toMatch(/\{heroUrl && <CollageFasteners id=\{s\.id\} \/>\}/);
+    // 留め方は壁に合わせる（コルクは画鋲・2026-09-23）。
+    expect(cl).toMatch(
+      /\{heroUrl && <CollageFasteners id=\{s\.id\} wall=\{wallFromClass\(surface\)\} \/>\}/,
+    );
     // 壁の中の字は紙用の色に固定（暗いテーマでも明るい紙の上）。
     const board = cssBlock(".collage-board {", "\n}");
     expect(board).toMatch(/--foreground: var\(--album-ink\);/);
@@ -4805,7 +4808,7 @@ describe("ホームは今日の誌面", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     const past = home.slice(
       home.indexOf("export function PastDays("),
-      home.indexOf("export function BackgroundPicker("),
+      home.indexOf("export function DayHeader("),
     );
     expect(past).toMatch(/<DayCollage/);
     // 縦一列の道は消した（同じ形が2つ在ると、直したほうが出ない）。
@@ -4902,9 +4905,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-23 の図鑑の地図）。図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
+    // （2026-09-23 のホームの壁紙）。図鑑の地図・図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
     // 同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "wallpapers"/);
+    expect(list).toMatch(/\{ scene: "dex-map"/);
     expect(list).toMatch(/\{ scene: "dex-cards"/);
     expect(list).toMatch(/\{ scene: "word-card"/);
     expect(list).toMatch(/\{ scene: "dex-calendar/);
@@ -5607,5 +5611,27 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
 
   it("**歩いた道のりの線と距離は出さない**（GPS をずっと使わないため・2026-09-23）", () => {
     expect(dm).not.toMatch(/Polyline|polyline|routeKm|dex\.dayKm/);
+  });
+});
+
+describe("ホームの壁紙（オーナー指示 2026-09-23）", () => {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+  const css = read("styles.css");
+
+  it("**ホームの上に丸の選択肢を置かない**。選ぶ所は設定の見本の札", () => {
+    expect(home).not.toMatch(/BackgroundPicker|BG_OPTIONS/);
+    expect(settings).toMatch(/<WallpaperPicker \/>/);
+  });
+
+  it("紙・ノート・実際の壁・額縁・コルク（画鋲）の5つ。留め方も壁に合わせる", () => {
+    expect(css).toMatch(/^\.album-bg-wall \{/m);
+    expect(css).toMatch(/^\.collage-board\.album-bg-frame \{/m);
+    expect(css).toMatch(/^\.collage-pin \{/m);
+    expect(home).toMatch(/<CollageFasteners id=\{s\.id\} wall=\{wallFromClass\(surface\)\} \/>/);
+  });
+
+  it("設定で変えたら、ホームは知らせを受けて貼り替える", () => {
+    expect(home).toMatch(/window\.addEventListener\(WALLPAPER_EVENT, h\)/);
   });
 });
