@@ -4793,6 +4793,9 @@ describe("ホームは今日の誌面", () => {
     const css = read("styles.css");
     const line = css.slice(css.indexOf(".diary-date__line {"));
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/font-family: var\(--font-display\)/);
+    // iPhone のカレンダーの組み方: 曜日・大きな日にち・年月、中央揃え（2026-09-23 の3回目）。
+    expect(line.slice(0, line.indexOf("\n}"))).toMatch(/align-items: center;/);
+    expect(diary).toMatch(/<span className="diary-date__day" aria-hidden>\s*\{date\.getDate\(\)\}/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
