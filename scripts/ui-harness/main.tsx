@@ -304,6 +304,10 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-09-23「単語の数値は1つに統一」: 右上・一覧・グラフが同じ数（いま思い出せる確率）。
+  { scene: "memory-curve", label: "記憶のグラフ（右上の％と縦軸が同じ数）" },
+  { scene: "review-memory-list", label: "記憶の一覧（同じ％・段の新しい名前）" },
+  { scene: "gallery", label: "図鑑（写真の右上の％）" },
   // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
   { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
   { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
@@ -319,13 +323,11 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
   { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
   { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
-  { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },
   { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
   { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
   { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
   { scene: "home", label: "ホーム（壁に貼った誌面・テープと四隅）" },
   { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
-  { scene: "gallery", label: "図鑑（右上の記憶の色と %）" },
   { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
   { scene: "auth", label: "ログインの画面" },
@@ -336,7 +338,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
   { scene: "settings-polish", label: "設定・言語選択" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },
-  { scene: "review-memory-list", label: "記憶の一覧" },
 ];
 
 const explicitScene = q.get("scene");

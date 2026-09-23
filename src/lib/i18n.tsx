@@ -503,16 +503,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "整體記憶率（前後兩週）",
   },
   /**
-   * **％の意味を書いておく。**（2026-09-16 に「いまの定着度」から
-   * 「記憶の強さ」へ変えたため）
-   *
-   * 曲線の画面には「記憶率」という別の数字が出る。同じ画面で2つの％が
-   * 並ぶので、一覧の％が何なのかを言わないと読み比べられない。
+   * **％の意味を書いておく。** 語に出す数は1つだけ — いま思い出せる確率
+   * （オーナー指示 2026-09-23「単語の数値は1つに統一したい」）。
    */
   "rv.strengthNote": {
-    ja: "％は「記憶の強さ」＝ いま思い出せるか × どれだけ長くもつか。下へ行くほど強い語です。",
-    en: "% is memory strength = how likely you'd recall it now × how long it lasts. Stronger words sit further down.",
-    "zh-TW": "％是「記憶強度」＝ 現在想得起來的機率 × 能維持多久。越往下的字越牢固。",
+    ja: "％は「いま思い出せる確率」。下へ行くほど覚えている語です。",
+    en: "% is the chance you can recall the word right now. Words further down are the ones you remember best.",
+    "zh-TW": "％是「現在想得起來的機率」。越往下的字記得越清楚。",
   },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
@@ -1631,9 +1628,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "還沒有複習資料。複習之後，遺忘曲線就會顯示在這裡。",
   },
   "curve.axisNote": {
-    ja: "縦軸＝いま思い出せる見込み",
-    en: "Vertical axis = chance you can recall it now",
-    "zh-TW": "縱軸＝現在想得起來的機率",
+    ja: "縦軸＝いま思い出せる確率（写真の右上の％と同じ）",
+    en: "Vertical axis = chance you can recall it now (the same % as on the photo)",
+    "zh-TW": "縱軸＝現在想得起來的機率（和照片右上的％相同）",
   },
   "curve.legendPast": { ja: "これまで", en: "So far", "zh-TW": "到目前為止" },
   "curve.legendFuture": { ja: "復習しなかったら", en: "If not reviewed", "zh-TW": "如果不複習" },
@@ -1926,9 +1923,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "memory.level0": { ja: "忘れかけ", en: "Fading", "zh-TW": "快忘了" },
   "memory.level1": { ja: "あやうい", en: "Shaky", "zh-TW": "有點危險" },
   "memory.level2": { ja: "うろ覚え", en: "Fuzzy", "zh-TW": "記得模糊" },
-  "memory.level3": { ja: "定着中", en: "Settling", "zh-TW": "正在扎根" },
-  "memory.level4": { ja: "覚えた", en: "Learned", "zh-TW": "記住了" },
-  "memory.level5": { ja: "長期記憶", en: "Long-term", "zh-TW": "長期記憶" },
+  "memory.level3": { ja: "薄れぎみ", en: "Slipping", "zh-TW": "開始變淡" },
+  "memory.level4": { ja: "覚えている", en: "Remembered", "zh-TW": "記得" },
+  "memory.level5": { ja: "はっきり", en: "Clear", "zh-TW": "很清楚" },
   "memory.reviews": { ja: "復習", en: "Reviews", "zh-TW": "複習" },
   "memory.times": { ja: "回", en: "×", "zh-TW": "次" },
   // --- word card sections ---

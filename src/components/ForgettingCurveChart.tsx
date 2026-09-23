@@ -79,7 +79,7 @@ export function memoryCurveFrom(
  * 1語の忘却曲線。（オーナー指摘 2026-09-22「記憶のグラフが見づらい」）
  *
  *  ・**今日**に大きな点と「今日 N%」。
- *  ・線の色は**縦軸の値で塗り分ける**（高い所は長期記憶の色、低い所は
+ *  ・線の色は**縦軸の値で塗り分ける**（高い所は「はっきり」の色、低い所は
  *    忘れかけの色）。段の境目は一覧・バッジと同じ。
  *  ・これまでは**実線**、復習しなかった場合の予測だけ**点線**。補助線の
  *    点線（50% / 85% / 今日の縦線 / 格子）はやめた — 点線が何本もあると、
@@ -120,9 +120,8 @@ export function MemoryCurveChart({
 
   return (
     <div>
-      {/* 縦軸が何の % かを言う。上の段の % は「記憶の強さ」（長くもつかも
-          含めた値）で、ここは「いま思い出せる見込み」— 同じ画面に2つの %
-          が並ぶので、黙っていると食い違って見える。 */}
+      {/* 縦軸が何の % かを言う。写真の右上・一覧の % と**同じ数**
+          （いま思い出せる確率。`memory.ts` の `memoryOf`）。 */}
       <p className="mb-1 text-caption text-muted-foreground">{t("curve.axisNote")}</p>
       <div
         className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground"

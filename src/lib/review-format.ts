@@ -1,4 +1,4 @@
-import { memoryOf } from "./memory";
+import { maturityLevel } from "./memory";
 
 /**
  * 「その1枚を、いまどの形で出すか」を決める所。
@@ -23,8 +23,14 @@ import { memoryOf } from "./memory";
  * 出す形と、すぐ隣に出ているバッジが**別の数字**を根拠にしていたら、
  * 人からは気分で変わっているようにしか見えない。
  *
- * だから `memoryOf({retention, interval_days})`(バッジと同じ関数)
- * から決める。**画面が見せている段階と、出す形が必ず一致する。**
+ * だから記憶の数から決める。ただし**画面の %（いま思い出せる確率）
+ * そのものではなく、それに「どれだけ長くもつか」を掛けた育ち具合**
+ * （`memory.ts` の `maturityLevel`）。画面の % は復習の直後にどの語も
+ * 100% になるので、そのまま使うと今日キャッチした語にいきなり作文が来る
+ * （オーナー指示 2026-09-23 で画面の数を1つにしたときに分けた）。
+ *
+ * 育ち具合は画面の % 以下にしかならない（掛ける数が 1 以下）。だから
+ * **バッジより難しい形は来ない** — 赤い札には必ず4択が来る。
  *
  * ## 人が明示的に選んだ物は動かさない
  * 設定で「いつも4択」「いつも発話」を選んでいる人の画面を、
@@ -64,10 +70,10 @@ export function normalizeReviewMode(raw: unknown): ReviewModePref {
  * | レベル | 名前 | 形 | なぜ |
  * |---|---|---|---|
  * | 0-1 | 忘れかけ・あやうい | `choice` | 思い出せない物に「言え」は罰でしかない。見て選んで、まず再会させる |
- * | 2-3 | うろ覚え・定着中 | `say` | 意味は出るが口が回らない段。語そのものを声に出す |
- * | 4-5 | 覚えた・長期記憶 | `compose` | 単体では言える。使える所まで持っていく |
+ * | 2-3 | うろ覚え・薄れぎみ | `say` | 意味は出るが口が回らない段。語そのものを声に出す |
+ * | 4-5 | 覚えている・はっきり | `compose` | 単体では言える。使える所まで持っていく |
  *
- * 撮った直後の語は `memoryOf` の側（記憶の強さの「熟し」）で抑えられている
+ * 撮った直後の語は育ち具合（`maturityLevel` の「熟し」）で抑えられている
  * (記憶率が高くても復習回数が2回以下なら4以上にしない)ので、
  * **一度も復習していない語に作文発話が来ることはない**。
  * 段の下限はあちらが持っている — ここで二重に持たない。
@@ -102,11 +108,11 @@ export function reviewFormatFor(input: ReviewFormatInput): ReviewFormat {
   if (pref === "choice") return "choice";
   if (pref === "speaking") return "compose";
 
-  // `memoryOf` が返すのは段の**情報**。形を決めるのはその番号(0〜5)。
-  const { level } = memoryOf({
+  // 形は**育ち具合**の段(0〜5)で決める。画面の % の段ではない（下の注）。
+  const level = maturityLevel({
     retention: input.retention,
     interval_days: input.intervalDays,
-  }).level;
+  });
   const format = formatForLevel(level);
   if (format === "say" && input.entryType === "phrase") return "compose";
   return format;

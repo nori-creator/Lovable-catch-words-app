@@ -94,7 +94,7 @@ export function acceptCategory(answer: JevAnswer | undefined, minConfidence = 0.
   return answer.choice;
 }
 
-// --- 3) 記憶: いま思い出せるか（**影の実行**・予定は動かさない） ------------
+// --- 3) 記憶: いま思い出せるか（**記録して較正を見る**。予定は 5) が決める）
 
 export type RecallState = {
   headword: string;
@@ -186,14 +186,23 @@ export function allowDismiss(llmConfidence: number, jev: EntryOpinion): boolean 
   return jev == null || jev.pCurrent >= 0.6;
 }
 
-// --- 5) 復習のタイミング（**影の実行**）--------------------------------------
+// --- 5) 復習のタイミング（**Jev が決める**。オーナー指示 2026-09-23）-------
 
-/** 次の復習までの間隔の段（日）。記憶の問いと同じ呼び出しで聞く。 */
-export const INTERVAL_BUCKETS = [1, 3, 7, 14, 30, 60] as const;
+/**
+ * 次の復習までの間隔の段（日）。
+ *
+ * （オーナー指示 2026-09-23「jevにすぐに切り替えて」— 以前は影で記録する
+ *  だけだった。`ARCHITECTURE.md`「Memory」に指示の日付と理由を残した）
+ */
+export const INTERVAL_BUCKETS = [1, 3, 7, 14, 30, 60, 120] as const;
 
+/**
+ * 「次はいつ見せるか」の問い。狙いはこのアプリの狙いの定着度（90%）に
+ * そろえる — 画面の「復習どき」と、Jev が決める日が同じ意味になるように。
+ */
 export function intervalQuestion(): JevQuestion {
   return score(
-    "After this review, how many days until this learner should see the word again so that they are just about to forget it?",
+    "After this review, how many days from now should the learner see this word again so that they still have about a 90% chance of recalling it?",
     INTERVAL_BUCKETS.map((d) => `${d} days`),
   );
 }
@@ -201,12 +210,85 @@ export function intervalQuestion(): JevQuestion {
 /** 段の期待値から日数へ（段の間は線形に）。 */
 export function intervalDaysFrom(answer: JevAnswer | undefined): number | null {
   if (!answer || answer.type !== "score") return null;
+  if (!Number.isFinite(answer.score)) return null;
   const x = Math.max(0, Math.min(INTERVAL_BUCKETS.length - 1, answer.score));
   const lo = Math.floor(x);
   const hi = Math.min(INTERVAL_BUCKETS.length - 1, lo + 1);
   return Math.round(
     INTERVAL_BUCKETS[lo] + (INTERVAL_BUCKETS[hi] - INTERVAL_BUCKETS[lo]) * (x - lo),
   );
+}
+
+export type ScheduleState = {
+  headword: string;
+  meaning?: string | null;
+  /** 答える**前**の状態。 */
+  daysSinceLastReview: number | null;
+  intervalDaysBefore: number;
+  ease: number;
+  repetitionsBefore: number;
+  /** **この復習の結果**。間隔はこれを見て決める。 */
+  recalled: boolean;
+  /** 採点 0〜5（5 = すぐ正解、2 = ヒントを見た、1 = 間違い）。 */
+  score: number;
+  responseSeconds: number | null;
+};
+
+/**
+ * 間隔を決める問い。記憶の問い（`recallQuestion`）と違い、**この復習の
+ * 結果を見せる** — 結果を知らずに次の日を決めることはできない。だから
+ * 記憶の問いとは**別の呼び出し**にする（同じ state に入れると、記憶の
+ * 予測に答えが漏れる）。
+ */
+export function scheduleQuestion(s: ScheduleState): {
+  state: JevEntry;
+  questions: Record<string, JevQuestion>;
+} {
+  return {
+    state: {
+      word: s.headword,
+      meaning: s.meaning ?? null,
+      days_since_previous_review: s.daysSinceLastReview,
+      previous_interval_days: s.intervalDaysBefore,
+      ease_factor: Math.round(s.ease * 100) / 100,
+      consecutive_correct_before: s.repetitionsBefore,
+      this_review: {
+        recalled: s.recalled,
+        grade_0_to_5: s.score,
+        response_seconds: s.responseSeconds,
+      },
+    },
+    questions: { interval: intervalQuestion() },
+  };
+}
+
+/**
+ * **実際に使う間隔**を決める。Jev の日数を、SM-2 の日数を基準にした柵の中に
+ * 収める。
+ *
+ *  ・**思い出せなかった語は明日**（SM-2 のまま）。忘れた語を Jev の判断で
+ *    先へ延ばさない — いちばん取り返しがつかない間違いなので。
+ *  ・Jev の答えが無い（鍵が無い・時間切れ・形が違う）ときは SM-2 のまま。
+ *  ・Jev の日数は **SM-2 の半分〜2倍**に収める（下限 1日・上限 365日）。
+ *    まだ実データで当たり方を確かめていないモデルなので、1回の答えで
+ *    予定が極端に動かないようにする柵。当たり方が確かめられたら広げる。
+ */
+export const JEV_INTERVAL_MIN_RATIO = 0.5;
+export const JEV_INTERVAL_MAX_RATIO = 2;
+
+export function pickInterval(
+  srsDays: number,
+  jevDays: number | null,
+  score: number,
+  lapseScore = 3,
+): { days: number; source: "jev" | "srs" } {
+  const base = Math.max(1, Math.round(srsDays));
+  if (score < lapseScore || jevDays == null || !Number.isFinite(jevDays)) {
+    return { days: base, source: "srs" };
+  }
+  const lo = Math.max(1, Math.floor(base * JEV_INTERVAL_MIN_RATIO));
+  const hi = Math.min(365, Math.max(lo, Math.ceil(base * JEV_INTERVAL_MAX_RATIO)));
+  return { days: Math.max(lo, Math.min(hi, Math.round(jevDays))), source: "jev" };
 }
 
 // --- 6) 話す練習の判定（**影の実行**）・7) 例文の自然さ（**影の実行**）------

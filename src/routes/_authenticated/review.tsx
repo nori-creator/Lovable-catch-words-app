@@ -682,11 +682,11 @@ export function MemoryLevelSummary({
 /** 出題カード右上の記憶バッジ — この単語の今の状態がパッと見え、タップで曲線へ。 */
 export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?: () => void }) {
   const t = useT();
-  const { level: lv, strength } = memoryOf(card);
+  const { level: lv, percent } = memoryOf(card);
   return (
     <button
       onClick={onOpen}
-      aria-label={`${t(lv.labelKey)} ${strength}%`}
+      aria-label={`${t(lv.labelKey)} ${percent}%`}
       // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
       // すると主役の写真より重くなる)。**当たり判定だけ広げる。**
       // 実寸は 82x19 で、指の下限を割っていた。
@@ -697,7 +697,7 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
           状態はその色と数字だけでいい」）。図鑑の印と同じ形・同じ数
           （`MemoryBadge` / `memoryOf`）。段の名前は読み上げにだけ残す
           （上の `aria-label`）。 */}
-      <span className="tabular-nums">{strength}%</span>
+      <span className="tabular-nums">{percent}%</span>
     </button>
   );
 }
@@ -735,8 +735,6 @@ export function MemoryOverviewPanel({
        * 数えている「長期記憶」だけが、一覧から抜け落ちる並びだった。
        * バーと一覧は同じ `words` を見るのだから、数が食い違ってはいけない。
        */}
-      {/* **％が何の数字かを書く。** 曲線の画面には「記憶率」という別の数字が
-          出るので、言わないと読み比べられない（`lib/memory.ts` の注）。 */}
 
       <ul className="mt-1 max-h-80 space-y-1.5 overflow-y-auto">
         {/* **並べ替えはここで1回だけ**（`lib/memory.ts` の `compareByMemory`）。
@@ -744,11 +742,10 @@ export function MemoryOverviewPanel({
         {[...overview.words].sort(compareByMemory).map((w) => {
           /**
            * **バーも数字も段も、同じ1つの数から出す**（`lib/memory.ts` の
-           * `memoryOf`）。以前はバーと数字が「いまの定着度」、段が別の条件
-           * だったので、**長期記憶 82% が 覚えた 95% より上**に並んでいた
-           * （オーナー報告 2026-09-16）。
+           * `memoryOf` ＝ いま思い出せる確率）。写真の右上・忘却曲線の縦軸と
+           * 同じ数（オーナー指示 2026-09-23「単語の数値は1つに統一したい」）。
            */
-          const { level: lv, strength } = memoryOf(w);
+          const { level: lv, percent } = memoryOf(w);
           return (
             <li key={w.sticker_id}>
               <button
@@ -771,11 +768,11 @@ export function MemoryOverviewPanel({
                 <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                   <span
                     className={`absolute inset-y-0 left-0 ${lv.bar}`}
-                    style={{ width: `${strength}%` }}
+                    style={{ width: `${percent}%` }}
                   />
                 </span>
                 <span className={`w-9 shrink-0 text-right text-caption font-semibold ${lv.text}`}>
-                  {strength}%
+                  {percent}%
                 </span>
                 <span
                   className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-caption font-medium ${lv.chip}`}
@@ -800,7 +797,7 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
     staleTime: 60_000,
   });
   const t = useT();
-  const { level: lv, strength } = memoryOf(word);
+  const { level: lv, percent } = memoryOf(word);
 
   /**
    * **履歴が要る語は、届くまで線を引かない。**（オーナー指摘 2026-09-15
@@ -875,7 +872,7 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${lv.chip}`}
           >
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${lv.bar}`} />
-            {t(lv.labelKey)} · {strength}%
+            {t(lv.labelKey)} · {percent}%
           </span>
           <span className="text-muted-foreground">
             {t("memory.reviews")} <b className="text-foreground">{reviewCount}</b>{" "}
@@ -1174,24 +1171,27 @@ export function SpeakingCard({
      * ここに書くと、記憶の状態のグラフが読む `correct` と食い違う。
      */
     const result = speakingResult({ kind, objectiveOk, failedAttempts });
-    try {
-      await grade({
-        data: {
-          review_id: card.review_id,
-          // グラフが読む値も同じ所から出す。`result === "success"` と
-          // 別々に書くと、SRS は失念として扱うのにグラフだけが正解と
-          // 数える、が起きる。
-          correct: countsAsRemembered(result),
-          blur_seen: false,
-          response_ms: Date.now() - startedAt.current,
-          result,
-        },
-      });
-    } catch {
+    /**
+     * **採点の返事を待たずに次へ進む**（4択と同じ）。採点の中で Jev に
+     * 次の復習の日を聞くので、返事まで最大 2.5 秒かかることがある
+     * （オーナー指示 2026-09-23「jevにすぐに切り替えて」）。
+     */
+    void grade({
+      data: {
+        review_id: card.review_id,
+        // グラフが読む値も同じ所から出す。`result === "success"` と
+        // 別々に書くと、SRS は失念として扱うのにグラフだけが正解と
+        // 数える、が起きる。
+        correct: countsAsRemembered(result),
+        blur_seen: false,
+        response_ms: Date.now() - startedAt.current,
+        result,
+      },
+    }).catch(() => {
       // Keep the session flowing, but don't let the user believe it was saved —
       // an unrecorded review simply comes up again next time.
       toast.error(t("review.gradeFailed"));
-    }
+    });
     onNext(countsAsRemembered(result));
   }
 

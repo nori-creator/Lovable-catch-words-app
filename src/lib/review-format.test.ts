@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memoryOf } from "./memory";
+import { maturityLevel } from "./memory";
 import {
   formatForLevel,
   normalizeReviewMode,
@@ -131,14 +131,15 @@ describe("reviewFormatFor", () => {
   });
 
   /**
-   * **バッジと出題形式が同じ数字から来ていることを縛る。**
-   * どちらかを後から触ったときに、静かにずれるのを止める門。
+   * **出題の形は育ち具合（`maturityLevel`）から決まる。**
+   * 画面の % は復習の直後にどの語も 100% になるので、形には使わない
+   * （オーナー指示 2026-09-23 で画面の数を1つにしたとき）。
    */
-  it("画面のバッジと同じ記憶レベルから決まっている", () => {
+  it("育ち具合の段から決まっている", () => {
     for (const retention of [0, 10, 29, 30, 49, 50, 69, 70, 84, 85, 100]) {
       for (const intervalDays of [1, 7, 29, 30, 90]) {
         for (const repetitions of [0, 2, 3, 10]) {
-          const lv = memoryOf({ retention, interval_days: intervalDays }).level.level;
+          const lv = maturityLevel({ retention, interval_days: intervalDays });
           expect(reviewFormatFor({ pref: "hybrid", retention, intervalDays, repetitions })).toBe(
             formatForLevel(lv),
           );

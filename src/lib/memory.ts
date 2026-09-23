@@ -11,7 +11,7 @@ const DEFAULT_EASE = 2.5;
  */
 
 export type MemoryLevelInfo = {
-  /** 0(忘れかけ)〜5(長期記憶) */
+  /** 0(忘れかけ)〜5(はっきり) */
   level: 0 | 1 | 2 | 3 | 4 | 5;
   /** 既定(日本語)のラベル。表示は i18n の memory.level<N> を優先する。 */
   label: string;
@@ -68,7 +68,7 @@ const LEVELS: MemoryLevelInfo[] = [
   },
   {
     level: 3,
-    label: "定着中",
+    label: "薄れぎみ",
     labelKey: "memory.level3",
     bar: "mem-lv-3 mem-bar",
     text: "mem-lv-3 mem-text",
@@ -77,7 +77,7 @@ const LEVELS: MemoryLevelInfo[] = [
   },
   {
     level: 4,
-    label: "覚えた",
+    label: "覚えている",
     labelKey: "memory.level4",
     bar: "mem-lv-4 mem-bar",
     text: "mem-lv-4 mem-text",
@@ -86,7 +86,7 @@ const LEVELS: MemoryLevelInfo[] = [
   },
   {
     level: 5,
-    label: "長期記憶",
+    label: "はっきり",
     labelKey: "memory.level5",
     bar: "mem-lv-5 mem-bar",
     text: "mem-lv-5 mem-text",
@@ -96,79 +96,51 @@ const LEVELS: MemoryLevelInfo[] = [
 ];
 
 /**
- * **記憶の強さ (0〜100)。画面に出る「%」はこれ。**
+ * **画面に出る数は1つだけ: 「いま思い出せる確率」(0〜100%)。**
  *
- * ## なぜ「いまの定着度」をそのまま出さないのか
- * （オーナー報告 2026-09-16「SRSは長期記憶なのに、%が覚えたの状態より
- *  低いのが変。一番下に行けば行くほど、記憶の状態がより高く % も高くして」）
+ * （オーナー指示 2026-09-23「ユーザーが混乱しないように、単語の数値は
+ *  1つに統一したい」／`PRODUCT.md`「語に出す数は、いま思い出せる確率。
+ *  あいまいな熟練度の % ではない」）
  *
- * 定着度 `retention` は「**いまこの瞬間**思い出せる見込み」で、復習した
- * 直後はどの語も 100% になる。**今日キャッチしたばかりの語も 100%**。
- * だから定着度だけで並べると、何も知らない語が一覧のいちばん下（＝
- * いちばん覚えている側）に来る。
+ * 以前は2つの % があった:
+ *  ・バッジ・一覧 … **記憶の強さ**（定着度 × 熟し。2026-09-16〜）
+ *  ・忘却曲線の縦軸 … **いま思い出せる見込み**（定着度）
+ * 同じ語なのに、右上は 70%、グラフの今日の点は 97%、と食い違っていた。
  *
- * 逆に、間隔が伸びた語は出題日が近いので定着度が下がっている。その結果
- * **「長期記憶 82%」が「覚えた 95%」より上に並ぶ**、という食い違いが出ていた。
+ * いまは**どこでも定着度そのもの**を出す。段（色と名前）も同じ数から
+ * 決めるので、**段が上がれば % も必ず上がる**（2026-09-16 の約束は残る）。
  *
- * ## 何を掛けるか
- * もう一つの軸が**安定度**（次に忘れるまでの長さ）。明日忘れる 100% と
- * 半年もつ 100% は同じではない。この2つを1つの数にまとめる:
+ * 「どれだけ長くもつか」は % にしない。次の復習の日（Jev が決める間隔）
+ * として別に出す。2つ目の % を作らないため。
  *
- * ```
- *   熟し   = 安定度 / (安定度 + RIPE_HALF)      … 0〜1。長くもつほど 1 へ
- *   強さ   = 定着度 × (RIPE_FLOOR + (1−RIPE_FLOOR) × 熟し)
- * ```
- *
- * `RIPE_FLOOR` は「熟していなくても定着度ぶんは認める」割合。0 にすると
- * キャッチ直後の語が 10% 台になって、覚えたのに忘れたように見える。
- *
- * ## これで何が保証されるか
- * 段（`memoryLevel`）を**この数だけ**から決めるので、
- * **段が上がれば % も必ず上がる**。一覧は強さ順に並ぶ＝下へ行くほど
- * 段も % も高い、というオーナーの求める形になる（`compareByMemory`）。
- *
- * ## 目安（実測）
- * | 語 | 安定度 | 定着度 | 強さ | 段 |
- * |---|---|---|---|---|
- * | 今日キャッチ（未復習） | 9.5日 | 100% | 65 | うろ覚え |
- * | 2回目・間隔3日・昨日正解 | 28.5日 | 97% | 70 | 定着中 |
- * | 間隔30日・昨日正解 | 285日 | 100% | 93 | 覚えた |
- * | 間隔30日・今日が出題日 | 285日 | 90% | 84 | 定着中 |
- * | 間隔90日・昨日正解 | 854日 | 100% | 97 | 長期記憶 |
+ * | 語 | 定着度 = 画面の % | 段 |
+ * |---|---|---|
+ * | 復習した直後（どの語も） | 100% | はっきり |
+ * | 出題日（狙いどおり） | 90% | 覚えている |
+ * | 出題日を大きく過ぎた | 60% | うろ覚え |
  */
-const RIPE_HALF = 60;
-const RIPE_FLOOR = 0.6;
-
-export function memoryStrength(retention: number, stabilityDays: number): number {
-  const s = Math.max(0, stabilityDays);
-  const ripe = s / (s + RIPE_HALF);
-  const v = retention * (RIPE_FLOOR + (1 - RIPE_FLOOR) * ripe);
-  return Math.max(0, Math.min(100, Math.round(v)));
+export function memoryPercent(retention: number): number {
+  if (!Number.isFinite(retention)) return 0;
+  return Math.max(0, Math.min(100, Math.round(retention)));
 }
 
 /**
- * 記憶の強さ（`memoryStrength`）から段を決める。
+ * 段は**画面の % だけ**から決める。境目は重ならない。
  *
- * **段の境目は重ならない。** 以前は
- *   ・長期記憶 … 間隔30日以上 かつ 定着度80%以上
- *   ・覚えた   … 定着度85%以上 かつ 復習3回以上
- * と条件の軸が違い、**長期記憶(80%)のほうが覚えた(85%)より低い**という
- * 逆転が起きていた（オーナー報告 2026-09-16）。いまは1本の数を6つに
- * 区切るだけなので、逆転のしようがない。
- *
- * 「間隔が短い語を上限で抑える」役目は、強さの中の**熟し**が引き継いだ。
- * 条件を足すのではなく、1つの数に織り込む。
+ * 以前は「長期記憶 … 間隔30日以上 かつ 定着度80%以上」のように条件の軸が
+ * 段ごとに違い、**長期記憶(80%)が覚えた(85%)より低い**逆転が起きていた
+ * （オーナー報告 2026-09-16）。1本の数を6つに区切るだけなので、逆転しない。
  */
-export function memoryLevel(strength: number): MemoryLevelInfo {
-  if (strength < 30) return LEVELS[0];
-  if (strength < 50) return LEVELS[1];
-  if (strength < 70) return LEVELS[2];
-  if (strength < 85) return LEVELS[3];
-  if (strength < 95) return LEVELS[4];
+export function memoryLevel(percent: number): MemoryLevelInfo {
+  if (percent < 30) return LEVELS[0];
+  if (percent < 50) return LEVELS[1];
+  if (percent < 70) return LEVELS[2];
+  if (percent < 85) return LEVELS[3];
+  if (percent < 95) return LEVELS[4];
   return LEVELS[5];
 }
 
-/** 段と強さを一度に出すのに要る最小限。画面ごとに持っている型が違う。 */
+/** 段と % を出すのに要る最小限。画面ごとに持っている型が違う。 */
 export type MemoryInput = {
   /** いまの定着度 0〜100。 */
   retention: number;
@@ -180,15 +152,43 @@ export type MemoryInput = {
 };
 
 /**
- * **段と % を1か所で出す。**
- *
- * 画面ごとに `memoryStrength` と `memoryLevel` を別々に呼ぶと、片方だけ
- * 直した時に**バッジと数字が食い違う**。入口を1つにしておく。
+ * **段と % を1か所で出す。** バッジ・一覧・忘却曲線が全部ここを通る。
+ * 画面ごとに計算すると、片方だけ直した時に食い違う。
  */
-export function memoryOf(w: MemoryInput): { strength: number; level: MemoryLevelInfo } {
-  const stability = w.stability_days ?? stabilityOf(w.interval_days, w.ease ?? DEFAULT_EASE);
-  const strength = memoryStrength(w.retention, stability);
-  return { strength, level: memoryLevel(strength) };
+export function memoryOf(w: MemoryInput): { percent: number; level: MemoryLevelInfo } {
+  const percent = memoryPercent(w.retention);
+  return { percent, level: memoryLevel(percent) };
+}
+
+const stabilityFor = (w: MemoryInput) =>
+  w.stability_days ?? stabilityOf(w.interval_days, w.ease ?? DEFAULT_EASE);
+
+/**
+ * **出題の形を選ぶためだけの、内部の「育ち具合」。画面には出さない。**
+ *
+ * 画面の % は復習の直後にどの語も 100% になる。その数で出題の形
+ * （4択 → 発音 → 作文）を決めると、**今日キャッチした語にいきなり作文**が
+ * 来る。形は「どれだけ長くもつ語か」も見て決めたいので、定着度に
+ * 熟し（安定度）を掛けた数を使う（2026-09-16 の「記憶の強さ」と同じ式）。
+ *
+ * ```
+ *   熟し     = 安定度 / (安定度 + RIPE_HALF)
+ *   育ち具合 = 定着度 × (RIPE_FLOOR + (1−RIPE_FLOOR) × 熟し)
+ * ```
+ */
+const RIPE_HALF = 60;
+const RIPE_FLOOR = 0.6;
+
+export function maturityScore(retention: number, stabilityDays: number): number {
+  const s = Math.max(0, stabilityDays);
+  const ripe = s / (s + RIPE_HALF);
+  const v = retention * (RIPE_FLOOR + (1 - RIPE_FLOOR) * ripe);
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+
+/** 出題の形に使う段（0〜5）。**バッジの段とは別**（上の注）。 */
+export function maturityLevel(w: MemoryInput): number {
+  return memoryLevel(maturityScore(w.retention, stabilityFor(w))).level;
 }
 
 export const MEMORY_LEVELS = LEVELS;
@@ -200,25 +200,22 @@ export type MemorySortable = MemoryInput & {
 };
 
 /**
- * **記憶が弱いものを上、強いものを下に並べる。**（オーナー指示 2026-09-15
- * 「記憶の状態が表示されるのがバラバラになってる…より記憶してるものを
- * 下に整頓させて」／2026-09-16「一番下に行けば行くほど、記憶の状態が
- * より高く % も高くして」）
+ * **思い出せる確率が低いものを上、高いものを下に並べる。**（オーナー指示
+ * 2026-09-15「より記憶してるものを下に整頓させて」／2026-09-16「一番下に
+ * 行けば行くほど、記憶の状態がより高く % も高くして」）
  *
- * ## 何で決めるか
- * **記憶の強さ（`memoryStrength`）だけ**。段もこの数から出しているので、
- * 下へ行くほど段が上がり、同時に % も上がる。**逆転が起きない。**
+ * 段も % から出しているので、下へ行くほど段も % も上がる。**逆転しない。**
  *
- * 以前はここで「段 → 定着度 → 安定度 → 見出し語」と4段に分けて見ていた。
- * 段と定着度が別々の軸だったため、段が上がっても % は下がる、という並びが
- * できてしまっていた（オーナー報告 2026-09-16）。軸を1本にすればその
- * 継ぎ足しは要らない — 安定度は強さの中にもう入っている。
- *
- * 同じ強さのときだけ見出し語で決める（開くたびに順が変わらないように）。
+ * 同じ % のときは**もちが短い語を上**に置く。復習の直後はどの語も 100% に
+ * なるので、今日キャッチした語と半年もつ語が並ぶ — 先に忘れるのは前者。
+ * それでも同じなら見出し語で決める（開くたびに順が変わらないように）。
  */
 export function compareByMemory(a: MemorySortable, b: MemorySortable): number {
-  const sa = memoryOf(a).strength;
-  const sb = memoryOf(b).strength;
+  const pa = memoryOf(a).percent;
+  const pb = memoryOf(b).percent;
+  if (pa !== pb) return pa - pb;
+  const sa = stabilityFor(a);
+  const sb = stabilityFor(b);
   if (sa !== sb) return sa - sb;
   return (a.headword ?? "").localeCompare(b.headword ?? "");
 }

@@ -4383,20 +4383,20 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    *   ・覚えた   … 定着度85%以上 かつ 復習3回以上
    * 条件が重なっていたので「長期記憶 82%」が「覚えた 95%」より上に並んだ。
    *
-   * いまは `memoryStrength`（定着度 × 熟し）という1本の数を6つに区切る。
-   * **段が上がれば % も必ず上がる。**
+   * いまは画面の % （いま思い出せる確率。オーナー指示 2026-09-23 で1つに
+   * 統一）という1本の数を6つに区切る。**段が上がれば % も必ず上がる。**
    */
-  it("記憶の段は「強さ」1つだけから決まる（条件を継ぎ足さない）", () => {
+  it("記憶の段は画面の % 1つだけから決まる（条件を継ぎ足さない）", () => {
     const mem = codeOnly(read("lib/memory.ts"));
     // 段を決める関数が受けるのは数1つ。
-    expect(mem).toMatch(/export function memoryLevel\(strength: number\): MemoryLevelInfo/);
+    expect(mem).toMatch(/export function memoryLevel\(percent: number\): MemoryLevelInfo/);
     // 境目は重ならない（下から順に1本の物差し）。
     for (const line of [
-      "if (strength < 30) return LEVELS[0];",
-      "if (strength < 50) return LEVELS[1];",
-      "if (strength < 70) return LEVELS[2];",
-      "if (strength < 85) return LEVELS[3];",
-      "if (strength < 95) return LEVELS[4];",
+      "if (percent < 30) return LEVELS[0];",
+      "if (percent < 50) return LEVELS[1];",
+      "if (percent < 70) return LEVELS[2];",
+      "if (percent < 85) return LEVELS[3];",
+      "if (percent < 95) return LEVELS[4];",
     ]) {
       expect([line, mem.includes(line)]).toEqual([line, true]);
     }
@@ -4404,12 +4404,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(mem).not.toMatch(/intervalDays >= 30 && retention >= 80/);
     expect(mem).not.toMatch(/repetitions >= 3/);
     // 並べ替えも同じ数だけを見る。
-    expect(mem).toMatch(/const sa = memoryOf\(a\)\.strength;/);
-    expect(mem).toMatch(/const sb = memoryOf\(b\)\.strength;/);
-    // 画面は `retention` ではなく強さを出す（バーも数字も）。
+    expect(mem).toMatch(/const pa = memoryOf\(a\)\.percent;/);
+    expect(mem).toMatch(/const pb = memoryOf\(b\)\.percent;/);
+    // 画面は `memoryOf` を通した数を出す（バーも数字も）。
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
-    expect(rv).toMatch(/const \{ level: lv, strength \} = memoryOf\(w\);/);
-    expect(rv).toMatch(/style=\{\{ width: `\$\{strength\}%` \}\}/);
+    expect(rv).toMatch(/const \{ level: lv, percent \} = memoryOf\(w\);/);
+    expect(rv).toMatch(/style=\{\{ width: `\$\{percent\}%` \}\}/);
     expect(rv).not.toMatch(/\{w\.retention\}%/);
   });
 
@@ -4905,9 +4905,11 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-23 のホームの壁紙）。図鑑の地図・図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・記憶のグラフ・ホームも
-    // 同じ PR で直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "wallpapers"/);
+    // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
+    // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-curve"/);
+    expect(list).toMatch(/\{ scene: "wallpapers"/);
+    expect(list).toMatch(/\{ scene: "review-memory-list"/);
     expect(list).toMatch(/\{ scene: "dex-map"/);
     expect(list).toMatch(/\{ scene: "dex-cards"/);
     expect(list).toMatch(/\{ scene: "word-card"/);
@@ -5296,12 +5298,10 @@ describe("画像の右上の記憶の印", () => {
 
   it("**色と数だけ**（オーナー指示 2026-09-22「その色と数字だけでいい」）", () => {
     const badge = codeOnly(read("components/MemoryBadge.tsx"));
-    expect(badge).toMatch(/className="shrink-0 tabular-nums">\s*\{info\.strength\}%/);
+    expect(badge).toMatch(/className="shrink-0 tabular-nums">\s*\{info\.percent\}%/);
     // 段の名前は画面に出さない（読み上げにだけ残す）。
     expect(badge).not.toMatch(/>\s*\{label\}\s*</);
-    expect(badge).toMatch(
-      /aria-label=\{t\("memory\.badgeAria", \{ label, n: info\.strength \}\)\}/,
-    );
+    expect(badge).toMatch(/aria-label=\{t\("memory\.badgeAria", \{ label, n: info\.percent \}\)\}/);
     // 色は段の色。
     expect(badge).toMatch(/\$\{info\.level\.chip\}/);
   });
@@ -5309,8 +5309,8 @@ describe("画像の右上の記憶の印", () => {
   it("**復習の出題カードの右上も、段の色と % だけ**", () => {
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
     const b = rv.slice(rv.indexOf("export function CardMemoryBadge("));
-    expect(b.slice(0, 1800)).toMatch(/<span className="tabular-nums">\{strength\}%<\/span>/);
-    expect(b.slice(0, 1800)).not.toMatch(/\{t\(lv\.labelKey\)\} \{strength\}%/);
+    expect(b.slice(0, 1800)).toMatch(/<span className="tabular-nums">\{percent\}%<\/span>/);
+    expect(b.slice(0, 1800)).not.toMatch(/\{t\(lv\.labelKey\)\} \{percent\}%/);
   });
 });
 
@@ -5526,22 +5526,69 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
   });
 });
 
-describe("Jev の使い方の約束（ARCHITECTURE: 実験的な予測は影で走らせてから）", () => {
+describe("Jev の使い方の約束（予定は Jev が決める: オーナー指示 2026-09-23）", () => {
   const reviews = codeOnly(read("lib/reviews.functions.ts"));
   const ai = codeOnly(read("lib/ai.functions.ts"));
   const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
 
-  it("**記憶の見込みは記録だけ**: 復習の予定を決めた後に、待たずに影で記録する", () => {
+  /**
+   * （オーナー指示 2026-09-23「jevにすぐに切り替えて」）以前は影で記録する
+   * だけだった。いまは Jev の日数で予定を決めるが、**柵の中だけ**:
+   * 思い出せなかった語は明日・Jev が落ちたら SM-2・SM-2 の半分〜2倍。
+   */
+  it("**次の復習の日は Jev が決める**（SM-2 を基準に柵の中で）", () => {
     const grade = reviews.slice(reviews.indexOf("export const gradeReview"));
     const body = grade.slice(0, grade.indexOf("export const", 10));
-    const scheduled = body.indexOf("const next = nextSrs(");
-    const shadow = body.indexOf('void import("./jev-tasks.server")');
-    expect(scheduled).toBeGreaterThan(0);
-    expect(shadow).toBeGreaterThan(scheduled);
-    // 影の表を読んで判断を変える所はどこにも無い。
+    const srs = body.indexOf("const srs = nextSrs(");
+    const ask = body.indexOf("await jevScheduleDays(");
+    const pick = body.indexOf("pickInterval(srs.interval_days, jev?.days ?? null, score");
+    expect(srs).toBeGreaterThan(0);
+    expect(ask).toBeGreaterThan(srs);
+    expect(pick).toBeGreaterThan(ask);
+    // 保存する予定は柵を通した値。
+    expect(body).toMatch(/const next = \{ \.\.\.srs, interval_days: picked\.days \};/);
+    expect(body).toMatch(/interval_days: next\.interval_days,/);
+    // 思い出せなかった語には聞かない（明日のまま）。
+    expect(body).toMatch(/score >= LAPSE_SCORE\s*\?\s*await jevScheduleDays\(/);
+  });
+
+  it("**記録は待たない**（復習の返事を遅らせない）", () => {
+    const grade = reviews.slice(reviews.indexOf("export const gradeReview"));
+    const body = grade.slice(0, grade.indexOf("export const", 10));
+    expect(body).toMatch(/void logScheduleDecision\(/);
+    expect(body).toMatch(/void recordRecallShadow\(/);
+    // 記録の表を読んで判断を変える所はどこにも無い。
     for (const f of ["lib/reviews.functions.ts", "lib/ai.functions.ts", "lib/srs.ts"]) {
       expect([f, /model_shadow_predictions/.test(codeOnly(read(f)))]).toEqual([f, false]);
     }
+  });
+
+  it("**Jev の答えは失敗を投げない**（時間切れは短く）", () => {
+    const srv = codeOnly(read("lib/jev-tasks.server.ts"));
+    const fn = srv.slice(srv.indexOf("export async function jevScheduleDays("));
+    expect(fn.slice(0, 1400)).toMatch(/timeoutMs: 2500/);
+    expect(fn.slice(0, 1400)).toMatch(/catch \(e\) \{/);
+  });
+
+  it("**写真の右上・一覧・忘却曲線は同じ1つの数**（オーナー指示 2026-09-23）", () => {
+    const mem = codeOnly(read("lib/memory.ts"));
+    expect(mem).toMatch(/const percent = memoryPercent\(w\.retention\);/);
+    // 曲線の色も同じ物差し（段の境目を別に持たない）。
+    const curve = codeOnly(read("lib/memory-curve.ts"));
+    expect(curve).toMatch(/return memoryLevel\(r\)\.level;/);
+    // 2つ目の % を画面に出さない（育ち具合は出題の形だけに使う）。
+    for (const f of [
+      "components/MemoryBadge.tsx",
+      "routes/_authenticated/review.tsx",
+      "components/ForgettingCurveChart.tsx",
+    ]) {
+      expect([f, /maturity/.test(codeOnly(read(f)))]).toEqual([f, false]);
+    }
+  });
+
+  it("**話す練習も採点の返事を待たずに次へ**（Jev を待たせない）", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).not.toMatch(/await grade\(/);
   });
 
   it("**棚は「その他」のときだけ** Jev に聞く（共有の語の分類を上書きしない）", () => {
