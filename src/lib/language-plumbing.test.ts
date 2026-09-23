@@ -5637,7 +5637,11 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
   });
 
   it("**候補の並びは後から**、本人が押した後は変えない", () => {
-    expect(scan).toMatch(/if \(cancelled \|\| touchedRef\.current \|\| !r\.order\) return;/);
+    expect(scan).toMatch(/if \(cancelled\) return;/);
+    // 疑わしい候補の「?」は付けるが、本人が押した後は並びを変えない。
+    expect(scan).toMatch(/if \(touchedRef\.current\) return;\s*const order = r\.order/);
+    // 1回のスキャンで1回だけ聞く。
+    expect(scan).toMatch(/rankAsked\.current = true;/);
   });
 });
 
