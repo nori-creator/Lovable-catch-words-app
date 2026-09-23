@@ -51,7 +51,7 @@ const svg = (w: number, h: number, color: string) =>
  * 作り物では「朝から夜へ辿る」という肝心の所が一度も撮れない。
  * 1言の無い札・場所の無い札も混ぜる — 無い日に空の紙が挟まらないかを見る。
  */
-const FIXTURES: Array<{
+export const FIXTURES: Array<{
   head: string;
   gloss?: string;
   selfie?: string;
@@ -91,7 +91,7 @@ const FIXTURES: Array<{
   { head: "獎學金", gloss: "奨学金", net: svg(160, 160, "#2f8f5b"), at: [21, 30] },
 ];
 
-function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
+export function makeSticker(f: (typeof FIXTURES)[number], i: number, day: number): StickerWithWord {
   const d = new Date(Date.now() - day * 24 * 60 * 60 * 1000);
   d.setHours(f.at[0], f.at[1], 0, 0);
   const at = d.toISOString();

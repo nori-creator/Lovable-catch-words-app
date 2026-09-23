@@ -7327,3 +7327,80 @@ html[data-motion="reduce"] .scan-dot__core {
 html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
   animation: none;
 }
+
+/* 図鑑のカレンダー（`DexCalendar`）。升はやや縦長の角丸で、写真の日は
+   写真で埋め、下に薄い影を敷いて日付を白で読ませる。 */
+.dex-cal__cell {
+  aspect-ratio: 4 / 5;
+}
+.dex-cal__cell--photo {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 4px 10px -4px rgb(0 0 0 / 0.25);
+}
+.dex-cal__shade {
+  position: absolute;
+  inset: 45% 0 0 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), transparent);
+  pointer-events: none;
+}
+
+/* その日のタイムライン。左に時刻、縦の線、線の上の点、右に**少し浮いた**札
+   （オーナー指示「その時間に撮った写真が少し浮き上がるように」）。
+   札は開いたときに下から順に浮き上がり、写真は札から少しはみ出して
+   影を落とす。 */
+.dex-day__axis {
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: calc(3rem + 0.3rem);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+}
+.dex-day__tick {
+  transform: translateY(-50%);
+}
+.dex-day__node {
+  position: relative;
+  z-index: 1;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: -0.05rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--background);
+}
+.dex-day__card {
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.06),
+    0 12px 24px -10px rgb(0 0 0 / 0.3);
+  transform: translateY(-3px) rotate(var(--tilt, 0deg));
+  animation: dex-day-rise 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.dex-day__card--l {
+  --tilt: -0.6deg;
+}
+.dex-day__card--r {
+  --tilt: 0.6deg;
+}
+.dex-day__photo {
+  margin-top: -14px;
+  box-shadow: 0 8px 16px -6px rgb(0 0 0 / 0.4);
+  transform: rotate(calc(var(--tilt, 0deg) * -3));
+}
+@keyframes dex-day-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-3px) rotate(var(--tilt, 0deg));
+  }
+}
+html[data-motion="reduce"] .dex-day__card {
+  animation: none;
+}

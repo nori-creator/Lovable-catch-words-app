@@ -17,8 +17,6 @@ import {
   List,
   Map as MapIcon,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Search,
   X,
   Volume2,
@@ -38,19 +36,18 @@ import {
   categoryOptions,
   dayOptions,
   isFiltering,
-  stickerDayKey,
   pruneFilter,
   type DexFilter,
   type FilterOption,
 } from "@/lib/dex-filter";
 import { FilterMenu } from "@/components/FilterMenu";
+import { DexCalendar } from "@/components/DexCalendar";
 import { DexShelf } from "@/components/DexShelf";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
-import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
 /**
@@ -879,208 +876,6 @@ export function PackGallery({
         );
       })}
     </div>
-  );
-}
-
-/**
- * カレンダー表示: その日に撮った写真が、その日のマスに入る。
- * 「いつ何を集めたか」が一目で分かる — 日記としての図鑑。
- */
-function DexCalendar({
-  stickers,
-  onOpen,
-}: {
-  stickers: StickerWithWord[];
-  onOpen: (id: string) => void;
-}) {
-  const t = useT();
-  // 写真がある日だけをまとめる。
-  const byDay = useMemo(() => {
-    const m = new Map<string, typeof stickers>();
-    for (const s of stickers) {
-      const k = stickerDayKey(s.created_at);
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(s);
-    }
-    return m;
-  }, [stickers]);
-
-  // 最初に開く月は「一番新しい写真の月」。空の今月を見せても意味がない。
-  const newest = useMemo(() => {
-    let best: string | null = null;
-    for (const k of byDay.keys()) if (!best || k > best) best = k;
-    return best;
-  }, [byDay]);
-  const [cursor, setCursor] = useState<{ y: number; m: number }>(() => {
-    const d = newest ? new Date(`${newest}T00:00:00`) : new Date();
-    return { y: d.getFullYear(), m: d.getMonth() };
-  });
-  useEffect(() => {
-    if (!newest) return;
-    const d = new Date(`${newest}T00:00:00`);
-    setCursor({ y: d.getFullYear(), m: d.getMonth() });
-  }, [newest]);
-
-  const first = new Date(cursor.y, cursor.m, 1);
-  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
-  const leading = first.getDay(); // 0=日
-  const cells: (number | null)[] = [
-    ...Array.from({ length: leading }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  const [openDay, setOpenDay] = useState<string | null>(null);
-  const dayItems = useMemo(
-    () =>
-      openDay
-        ? [...(byDay.get(openDay) ?? [])].sort(
-            (a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime(),
-          )
-        : [],
-    [byDay, openDay],
-  );
-  useSwipeBack({ enabled: !!openDay, onBack: () => setOpenDay(null) });
-  useEffect(() => {
-    if (!openDay) return;
-    document.documentElement.dataset.swipeSubview = "calendar-day";
-    return () => {
-      if (document.documentElement.dataset.swipeSubview === "calendar-day") {
-        delete document.documentElement.dataset.swipeSubview;
-      }
-    };
-  }, [openDay]);
-
-  const monthLabel = first.toLocaleDateString(undefined, { year: "numeric", month: "long" });
-
-  if (openDay) {
-    return (
-      <section className="min-h-[60dvh]" aria-label={t("dex.timelineTitle")}>
-        <button
-          type="button"
-          onClick={() => setOpenDay(null)}
-          className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-body font-semibold text-primary-ink"
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden />
-          {t("dex.timelineBack")}
-        </button>
-        <div className="mb-5">
-          <h2 className="text-title font-semibold">{openDay}</h2>
-          <p className="text-footnote text-muted-foreground">{t("dex.timelineTitle")}</p>
-        </div>
-        <ol className="relative ml-5 border-l border-border pl-6">
-          {dayItems.map((s) => {
-            const photo = stickerPhotoUrl(s, { thumb: true });
-            const taken = new Date(s.taken_at);
-            const time = Number.isNaN(taken.getTime())
-              ? ""
-              : taken.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-            return (
-              <li key={s.id} className="relative pb-5 last:pb-0">
-                <span className="absolute -left-[1.8rem] top-5 h-3 w-3 rounded-full border-2 border-background bg-primary" />
-                <button
-                  type="button"
-                  onClick={() => onOpen(s.id)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-card p-2 text-left shadow-sm ring-1 ring-border"
-                >
-                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
-                    {photo ? (
-                      <CachedImg src={photo} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <Zh className="text-body font-semibold">{s.word.headword}</Zh>
-                    )}
-                  </div>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-mono text-footnote text-primary-ink">{time}</span>
-                    <Zh className="mt-1 block truncate text-body font-semibold">
-                      {s.word.headword}
-                    </Zh>
-                    <span className="block truncate text-footnote text-muted-foreground">
-                      {s.word.meaning_ja}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      {/* 月送りの帯。**カテゴリーの帯の直下にくっつく(NORI指定)。**
-          上の余白は上の帯が持たない側に寄せてあるので、ここでは足さない。 */}
-      <div className="mb-2 flex items-center justify-between pt-1">
-        <button
-          onClick={() =>
-            setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))
-          }
-          aria-label={t("dex.prevMonth")}
-          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <p className="text-body font-semibold">{monthLabel}</p>
-        <button
-          onClick={() =>
-            setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { ...c, m: c.m + 1 }))
-          }
-          aria-label={t("dex.nextMonth")}
-          className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) => {
-          if (day == null) return <div key={`x${i}`} />;
-          const key = `${cursor.y}-${`${cursor.m + 1}`.padStart(2, "0")}-${`${day}`.padStart(2, "0")}`;
-          const items = byDay.get(key) ?? [];
-          const thumb = stickerPhotoUrl(items[0], { thumb: true });
-          const has = items.length > 0;
-          return (
-            <button
-              key={key}
-              onClick={() => has && setOpenDay(openDay === key ? null : key)}
-              disabled={!has}
-              aria-pressed={openDay === key}
-              aria-label={`${day}${t("dex.dayUnit")}${has ? ` — ${items.length}` : ""}`}
-              className={`relative aspect-square overflow-hidden rounded-lg border text-left ${
-                openDay === key ? "border-primary ring-2 ring-primary/40" : "border-border"
-              } ${has ? "bg-secondary" : "bg-card opacity-50"}`}
-            >
-              {thumb && (
-                <CachedImg
-                  src={thumb}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-              )}
-              <span
-                className={`absolute left-0.5 top-0.5 rounded px-1 text-caption font-semibold ${
-                  thumb ? "bg-black/55 text-white" : "text-muted-foreground"
-                }`}
-              >
-                {day}
-              </span>
-              {items.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 px-1 text-caption font-bold text-white">
-                  {items.length}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {byDay.size === 0 && (
-        <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
-      )}
-    </section>
   );
 }
 

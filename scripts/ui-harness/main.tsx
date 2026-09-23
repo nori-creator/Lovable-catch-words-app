@@ -38,6 +38,7 @@ import {
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
 import { ScanResultScene } from "./scenes/scan-result";
+import { DexCalendarScene } from "./scenes/dex-calendar";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import {
   WordbookShelfScene,
@@ -150,6 +151,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "capture-reunion": CaptureReunionScene,
   "scan-chip": ScanChipScene,
   "scan-found": ScanResultScene,
+  "dex-calendar": DexCalendarScene,
   "scan-nothing": ScanNothingScene,
   "scan-dots": ScanDotsScene,
   "capture-offline": CaptureOfflineScene,
@@ -295,6 +297,8 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-22 の2回目の依頼で触った面（上から順に見る）。
+  { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
+  { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
   { scene: "scan-found", label: "スキャンの後（候補の1行・光が揺れる）" },
   { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
   { scene: "memory-curve", label: "記憶のグラフ（1語・復習どきが先）" },

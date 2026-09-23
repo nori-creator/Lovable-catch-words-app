@@ -4902,9 +4902,10 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-22 のスキャンの後の面）。記憶のグラフ・ホームも同じ PR で
-    // 直したので帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "scan-found"/);
+    // （2026-09-22 の図鑑カレンダー）。スキャンの後・記憶のグラフ・ホームも
+    // 同じ PR で直したので帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-calendar/);
+    expect(list).toMatch(/\{ scene: "scan-found"/);
     expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "memory-overall"/);
   });
@@ -5405,5 +5406,36 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
 
   it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {
     expect(scan).toMatch(/if \(performance\.now\(\) < programmaticUntil\.current\) return;/);
+  });
+});
+
+describe("図鑑のカレンダー（オーナー指示 2026-09-22）", () => {
+  const cal = codeOnly(read("components/DexCalendar.tsx"));
+  const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+  const css = read("styles.css");
+
+  it("図鑑はカレンダーを部品から描く（雛形と同じ物を見る）", () => {
+    expect(dex).toMatch(/<DexCalendar stickers=\{filtered\} onOpen=\{setOpenId\} \/>/);
+    expect(dex).not.toMatch(/function DexCalendar/);
+  });
+
+  it("**曜日の見出し**があり、今日に印が付く", () => {
+    expect(cal).toMatch(/weekday: "narrow"/);
+    expect(cal).toMatch(/const isToday = key === today/);
+  });
+
+  it("日付を押すと**縦の時間軸**: 時刻の間が空くほど縦も空き、札が浮き上がる", () => {
+    expect(cal).toMatch(/layoutTimeline\(/);
+    expect(cal).toMatch(/minutesOfDay\(s\.taken_at\)/);
+    expect(cal).toMatch(/className="dex-day__axis"/);
+    expect(css).toMatch(
+      /\.dex-day__card \{[^}]*transform: translateY\(-3px\)[^}]*animation: dex-day-rise/,
+    );
+    expect(css).toMatch(/html\[data-motion="reduce"\] \.dex-day__card \{\s*animation: none;/);
+  });
+
+  it("週の帯で隣の日へ移れる（カレンダーへ戻らずに）", () => {
+    expect(cal).toMatch(/weekOf\(day\)\.map/);
+    expect(cal).toMatch(/onClick=\{\(\) => onDay\(k\)\}/);
   });
 });

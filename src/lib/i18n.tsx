@@ -2765,6 +2765,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Added to your collection, but the photo could not be saved to this phone. Check device permissions.",
     "zh-TW": "已加入圖鑑，但無法將照片儲存到手機。請檢查裝置權限。",
   },
+  "dex.calMonthSummary": {
+    ja: "{n}枚・{d}日",
+    en: "{n} photos · {d} days",
+    "zh-TW": "{n} 張・{d} 天",
+  },
+  "dex.calPhotos": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
