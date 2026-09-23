@@ -1,11 +1,12 @@
 import {
+  REVIEW_MODE_CHOICE_ENABLED,
   REVIEW_PRACTICE_ENABLED,
   selfieCaptureEnabled,
   setSelfieCaptureEnabled,
 } from "@/lib/product-features";
 import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useMotion } from "@/components/motion-provider";
-import { motionDiagnosisKey, parseMotionChoice } from "@/lib/motion-pref";
+import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -671,6 +672,26 @@ function SettingsPage() {
 
         <SettingsCard title={t("settings.language")}>
           <div className="space-y-3">
+            {/* **母語がいちばん上**（オーナー指示 2026-09-23「設定の母語は
+                学習言語のうえに配置して」）。画面の言葉そのものが変わる選択
+                なので、先に決めてから学ぶ言語を選ぶ順にする。 */}
+            {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
+                日本語、英語、台湾華語にして」。ほとんどの人にとって
+                「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
+                発音のコツをどの母語向けに書くかは `reader-language.ts` が
+                表示言語から決める。DB の `native_language` の列は残す。 */}
+            <PickerRow
+              id="lang-ui"
+              label={t("settings.uiLang")}
+              value={uiLanguage}
+              onChange={pickUiLanguage}
+              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
+              // ここを直し忘れると、訳したのに選べない状態になる。
+              options={UI_LANGS.map((code) => ({
+                value: code,
+                label: t(UI_LANG_LABEL_KEYS[code]),
+              }))}
+            />
             <PickerRow
               id="lang-target"
               label={t("settings.targetLang")}
@@ -706,23 +727,6 @@ function SettingsPage() {
                 (オーナー指摘「学習言語が英語のときピンイン・注音の設定を
                 消して」)。英語では米式/英式の IPA の選択になる。 */}
             <PhoneticRow lang={targetLanguage} />
-            {/* **母語の行は消した。** オーナー指示「母語と表示言語を統合して、
-                日本語、英語、台湾華語にして」。ほとんどの人にとって
-                「画面を読む言語」と「母語」は同じ物で、2つ選ばせる理由が無い。
-                発音のコツをどの母語向けに書くかは `reader-language.ts` が
-                表示言語から決める。DB の `native_language` の列は残す。 */}
-            <PickerRow
-              id="lang-ui"
-              label={t("settings.uiLang")}
-              value={uiLanguage}
-              onChange={pickUiLanguage}
-              // **一覧を書き並べない。** `UI_LANGS` を回す — 言語を足したときに
-              // ここを直し忘れると、訳したのに選べない状態になる。
-              options={UI_LANGS.map((code) => ({
-                value: code,
-                label: t(UI_LANG_LABEL_KEYS[code]),
-              }))}
-            />
           </div>
         </SettingsCard>
 
@@ -730,7 +734,7 @@ function SettingsPage() {
           <div className="space-y-3">
             {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
                 既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
-            {REVIEW_PRACTICE_ENABLED && (
+            {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
               <ChoiceRow
                 cols={3}
                 label={t("settings.reviewMode")}
@@ -819,6 +823,7 @@ function SettingsPage() {
           <div className="mt-4 border-t border-border pt-3">
             <ToggleRow
               label={t("settings.selfieMode")}
+              description={t("settings.selfieModeDesc")}
               value={selfieMode}
               onChange={(v) => {
                 setSelfieMode(v);
@@ -843,6 +848,10 @@ function SettingsPage() {
                 { value: "system", label: t("settings.system") },
               ]}
             />
+            {/* **開発者だけの配色デザインは、明るさのすぐ下**（オーナー指示
+                2026-09-23）。名前は「画面の明るさ」と「配色デザイン」に分けた —
+                どちらも「テーマ」だと、どちらを触ればいいか分からない。 */}
+            <AdminOnlyUiTheme />
             <MotionChoiceRow />
             {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
                 オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
@@ -1255,7 +1264,8 @@ export function AvatarRow() {
  */
 export function MotionChoiceRow() {
   const t = useT();
-  const { choice, osReduces, setChoice } = useMotion();
+  // 下の説明文は消した（オーナー指示 2026-09-23「アニメーションの下の説明文消して」）。
+  const { choice, setChoice } = useMotion();
   return (
     <div>
       <ChoiceRow
@@ -1269,9 +1279,6 @@ export function MotionChoiceRow() {
           { value: "reduce", label: t("settings.motionReduce") },
         ]}
       />
-      <p className="mt-1.5 text-caption text-muted-foreground">
-        {t(motionDiagnosisKey(choice, osReduces))}
-      </p>
     </div>
   );
 }
@@ -1284,6 +1291,7 @@ export function PhotoLibrarySyncToggle() {
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
         label={t("settings.photoLibrarySync")}
+        description={t("settings.photoLibrarySyncDesc")}
         value={on}
         onChange={(next) => {
           setOn(next);
@@ -1331,9 +1339,10 @@ export function PlaceReminderToggle() {
   return (
     <div className="mt-4 border-t border-border pt-3">
       <ToggleRow
-        // **解説は消した**(オーナー指示「設定のボタンの下の解説を全部消す」)。
         // 確認中は札そのものを変えて知らせる — 下に一行足すのではなく。
+        // 何をする設定かの一言は戻した（オーナー指示 2026-09-23）。
         label={busy ? t("set.placeChecking") : t("set.placeLabel")}
+        description={t("set.placeDesc")}
         value={on}
         onChange={(v) => void toggle(v)}
       />
@@ -1417,15 +1426,24 @@ export function ToggleRow({
   label,
   value,
   onChange,
+  description,
 }: {
   label: string;
   value: boolean;
   onChange: (v: boolean) => void;
+  /**
+   * 何が変わるかの一言（オーナー指示 2026-09-23「内容が分かるように小さく
+   * 説明文を書きたして」）。名前だけでは中身が伝わらない行にだけ付ける。
+   */
+  description?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="text-body font-medium">{label}</div>
+        {description && (
+          <p className="mt-0.5 text-caption leading-snug text-muted-foreground">{description}</p>
+        )}
       </div>
       {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
       <button
@@ -1480,10 +1498,22 @@ function AdminOnlySection() {
       {/* **「見た目を比べる」と「エフェクトラボ」は消した**(オーナー指示
           2026-08-26)。どちらも作っている最中の道具で、
           設定に置いておく理由がもう無い。 */}
-      <UiThemePicker />
+      {/* 配色デザインは「見た目」の束へ移した（`AdminOnlyUiTheme`）。 */}
       <AiModelPanel />
     </div>
   );
+}
+
+/** 配色デザインの選択。開発者（admin）にだけ出す。 */
+function AdminOnlyUiTheme() {
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: adm } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => adminFn(),
+    staleTime: 300_000,
+  });
+  if (!adm?.isAdmin) return null;
+  return <UiThemePicker />;
 }
 
 /**

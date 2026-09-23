@@ -1,4 +1,4 @@
-import { useId, useMemo, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   LineChart,
@@ -7,11 +7,13 @@ import {
   YAxis,
   ResponsiveContainer,
   CartesianGrid,
+  Customized,
   ReferenceDot,
 } from "recharts";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import {
   buildMemoryCurve,
+  curveValueAt,
   gradientStops,
   groupReviews,
   levelOfR,
@@ -117,6 +119,19 @@ export function MemoryCurveChart({
   const [lo, hi] = curve.domain;
   const due = curve.bestDay <= 0;
   const bestIn = Math.max(1, Math.round(curve.bestDay));
+  /**
+   * **指で辿っている所**（今日からの日数）。null なら辿っていない。
+   * （オーナー指示 2026-09-23「過去のグラフの時の記憶の状態が何 % だったか
+   *  辿れるようにして…縦軸と横軸が点線で表示されるようにして」）
+   */
+  const [scrubD, setScrubD] = useState<number | null>(null);
+  const scrubR = scrubD == null ? null : curveValueAt(curve, scrubD);
+  const whenLabel = (d: number) => {
+    const n = Math.round(Math.abs(d));
+    if (n === 0) return t("rv.today");
+    return d < 0 ? t("curve.daysAgo", { n }) : t("curve.daysLater", { n });
+  };
+  const drop = curve.nextDrop;
 
   return (
     <div>
@@ -201,9 +216,10 @@ export function MemoryCurveChart({
                 />
               )}
             />
+            {/* 25% と 75% の線も引く（オーナー指示 2026-09-23）。 */}
             <YAxis
               domain={[0, 100]}
-              ticks={[0, 50, 100]}
+              ticks={[0, 25, 50, 75, 100]}
               tickFormatter={(v) => `${v}%`}
               tickLine={false}
               axisLine={false}
@@ -270,13 +286,31 @@ export function MemoryCurveChart({
               fill={color(curve.todayR)}
               stroke="var(--card)"
               strokeWidth={3}
-              label={{
-                value: t("curve.todayPct", { pct: curve.todayR }),
-                position: "top",
-                fill: "var(--foreground)",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
+              label={
+                // 辿っている間は、辿った所の札だけを出す（札が2つ重なると読めない）。
+                scrubD == null
+                  ? {
+                      value: t("curve.todayPct", { pct: curve.todayR }),
+                      position: "top",
+                      fill: "var(--foreground)",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }
+                  : undefined
+              }
+            />
+            <Customized
+              component={(props: ScrubLayerProps) => (
+                <ScrubLayer
+                  {...props}
+                  domain={curve.domain}
+                  d={scrubD}
+                  r={scrubR}
+                  color={scrubR == null ? "" : color(scrubR)}
+                  whenLabel={whenLabel}
+                  onScrub={setScrubD}
+                />
+              )}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -291,6 +325,19 @@ export function MemoryCurveChart({
             ? t("curve.reviewNow")
             : t("curve.reviewOn", { date: dateOf(curve.bestDay), n: bestIn })}
         </p>
+        {/* **次に段が変わる日を1つ**（オーナー指示 2026-09-23「忘れる予測は
+            何日後に状態が変わるのか具体的に日付を1つ書いて」）。 */}
+        {drop && (
+          <p className="mt-0.5 text-footnote font-medium text-foreground">
+            {calendarDaysUntil(nowMs, drop.d) === 0
+              ? t("curve.nextDropToday", { level: t(`memory.level${drop.level}`) })
+              : t("curve.nextDrop", {
+                  date: dateOf(drop.d),
+                  n: calendarDaysUntil(nowMs, drop.d),
+                  level: t(`memory.level${drop.level}`),
+                })}
+          </p>
+        )}
         <p className="mt-0.5 text-footnote text-muted-foreground">
           {due ? t("curve.reviewNowHint") : t("curve.reviewOnHint")}
         </p>
@@ -306,6 +353,145 @@ export function MemoryCurveChart({
         )}
       </div>
     </div>
+  );
+}
+
+type AxisScale = { scale: ((v: number) => number) & { invert?: (px: number) => number } };
+type ScrubLayerProps = {
+  xAxisMap?: Record<string, AxisScale>;
+  yAxisMap?: Record<string, AxisScale>;
+  offset?: { left: number; top: number; width: number; height: number };
+};
+
+/**
+ * 指で辿る層。グラフの描く面の上に透明な板を敷き、指の位置を日数に直す。
+ * 辿った所に点を置き、**縦軸へ横の点線・横軸へ縦の点線**を引いて、
+ * 軸の上に「N日前」「N%」の札を出す。
+ */
+function ScrubLayer({
+  xAxisMap,
+  yAxisMap,
+  offset,
+  domain,
+  d,
+  r,
+  color,
+  whenLabel,
+  onScrub,
+}: ScrubLayerProps & {
+  domain: [number, number];
+  d: number | null;
+  r: number | null;
+  color: string;
+  whenLabel: (d: number) => string;
+  onScrub: (d: number | null) => void;
+}) {
+  const xa = xAxisMap ? Object.values(xAxisMap)[0] : undefined;
+  const ya = yAxisMap ? Object.values(yAxisMap)[0] : undefined;
+  if (!xa || !ya || !offset) return null;
+  const toD = (clientX: number, svg: SVGSVGElement | null) => {
+    if (!svg || !xa.scale.invert) return null;
+    const box = svg.getBoundingClientRect();
+    const px = Math.min(offset.left + offset.width, Math.max(offset.left, clientX - box.left));
+    const v = xa.scale.invert(px);
+    return Math.min(domain[1], Math.max(domain[0], Math.round(v * 10) / 10));
+  };
+  const move = (e: React.PointerEvent<SVGRectElement>) => {
+    const next = toD(e.clientX, e.currentTarget.ownerSVGElement);
+    if (next != null) onScrub(next);
+  };
+  const x = d == null ? 0 : xa.scale(d);
+  const y = r == null ? 0 : ya.scale(r);
+  const bottom = offset.top + offset.height;
+  return (
+    <g className="memory-scrub">
+      {d != null && r != null && (
+        <g pointerEvents="none">
+          <line
+            x1={offset.left}
+            x2={x}
+            y1={y}
+            y2={y}
+            stroke="var(--foreground)"
+            strokeOpacity={0.55}
+            strokeWidth={1.25}
+            strokeDasharray="3 3"
+          />
+          <line
+            x1={x}
+            x2={x}
+            y1={y}
+            y2={bottom}
+            stroke="var(--foreground)"
+            strokeOpacity={0.55}
+            strokeWidth={1.25}
+            strokeDasharray="3 3"
+          />
+          <circle cx={x} cy={y} r={6} fill={color} stroke="var(--card)" strokeWidth={2.5} />
+          {/* 縦軸の上に %、横軸の上に「N日前」。 */}
+          <ScrubTag x={offset.left} y={y} text={`${r}%`} anchor="end" />
+          <ScrubTag x={x} y={bottom} text={whenLabel(d)} anchor="middle" below />
+        </g>
+      )}
+      <rect
+        x={offset.left}
+        y={offset.top}
+        width={offset.width}
+        height={offset.height}
+        fill="transparent"
+        style={{ touchAction: "pan-y", cursor: "crosshair" }}
+        onPointerDown={(e) => {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            /* 取れなくても、面の上なら動く */
+          }
+          move(e);
+        }}
+        onPointerMove={(e) => {
+          // 押している間だけ辿る（マウスを乗せただけでは動かさない）。
+          if (e.buttons === 0 && e.pointerType === "mouse") return;
+          if (e.pointerType !== "mouse" && e.pressure === 0) return;
+          move(e);
+        }}
+      />
+    </g>
+  );
+}
+
+/** 軸の上の小さな札（辿った所の値）。 */
+function ScrubTag({
+  x,
+  y,
+  text,
+  anchor,
+  below = false,
+}: {
+  x: number;
+  y: number;
+  text: string;
+  anchor: "end" | "middle";
+  below?: boolean;
+}) {
+  const w = Math.max(28, text.length * 7 + 12);
+  const h = 18;
+  const left = anchor === "end" ? x - w - 2 : x - w / 2;
+  const top = below ? y + 2 : y - h / 2;
+  return (
+    <g>
+      <rect x={left} y={top} width={w} height={h} rx={9} fill="var(--foreground)" />
+      <text
+        x={left + w / 2}
+        y={top + h / 2}
+        dy="0.35em"
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={700}
+        fill="var(--background)"
+      >
+        {text}
+      </text>
+    </g>
   );
 }
 
@@ -331,6 +517,18 @@ export function levelGradient(id: string, values: number[]): { def: ReactNode; s
     ),
     stroke: `url(#${id})`,
   };
+}
+
+/**
+ * 今日から何日目の暦の日か（0 = 今日のうち）。「0.4日後」を「1日後」と
+ * 言わないため — 日付と日数が食い違う（9/23 なのに 1日後）。
+ */
+export function calendarDaysUntil(nowMs: number, d: number): number {
+  const a = new Date(nowMs);
+  const b = new Date(nowMs + d * DAY);
+  const da = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const db = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((db - da) / DAY);
 }
 
 /** 予測線の上の、ある日の値（点を線の上にぴったり置くため）。 */

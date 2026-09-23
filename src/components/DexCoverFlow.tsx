@@ -9,7 +9,7 @@ import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
-import { coverFlowPose, poseTransform } from "@/lib/cover-flow";
+import { coverFlowPose, dotWindow, poseTransform } from "@/lib/cover-flow";
 import { focusedIndex } from "@/lib/scan-layout";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
@@ -48,21 +48,44 @@ export function DexCoverFlow({
   const frame = useRef(0);
   const [center, setCenter] = useState(0);
 
+  /**
+   * **滑らかさのために、測るのは1回・書くのは変わった札だけ。**（オーナー報告
+   * 2026-09-23「カクカクしてるからもっと滑らかにスライドできるように」）
+   *
+   * 前は1コマごとに**全部の札**の `offsetLeft` を読み、その合間に傾きを
+   * 書いていた。書いた直後に読むと、ブラウザは毎回レイアウトをやり直す
+   * （札の数だけ）。さらに全部の札に鏡映り（`-webkit-box-reflect`）が付いて
+   * いて、傾きが変わるたびに描き直していた。
+   *  ・位置と幅は**大きさが変わった時だけ**測る（`measure`）。傾きは
+   *    `offsetLeft` を変えないので、送っている間は測り直さなくてよい。
+   *  ・傾きの文字列が前と同じ札には書かない（4枚より先はずっと同じ）。
+   *  ・鏡映りはやめた（styles.css の `.dex-cf__card`）。
+   */
+  const boxes = useRef<Array<{ left: number; width: number }>>([]);
+  const written = useRef<string[]>([]);
+  const measure = useCallback(() => {
+    boxes.current = cardRefs.current.map((el) =>
+      el ? { left: el.offsetLeft, width: el.offsetWidth || 1 } : { left: 0, width: 1 },
+    );
+    written.current = [];
+  }, []);
   const layout = useCallback(() => {
     const sc = scrollerRef.current;
     if (!sc) return;
     const reduced = motionReducedNow();
     const mid = sc.scrollLeft + sc.clientWidth / 2;
-    const boxes: Array<{ left: number; width: number }> = [];
-    cardRefs.current.forEach((el) => {
-      if (!el) return;
-      const w = el.offsetWidth || 1;
-      boxes.push({ left: el.offsetLeft, width: w });
-      const pose = coverFlowPose((el.offsetLeft + w / 2 - mid) / (w * 0.62), reduced);
+    const bx = boxes.current;
+    cardRefs.current.forEach((el, i) => {
+      const b = bx[i];
+      if (!el || !b) return;
+      const pose = coverFlowPose((b.left + b.width / 2 - mid) / (b.width * 0.62), reduced);
+      const key = `${poseTransform(pose)}|${pose.zIndex}`;
+      if (written.current[i] === key) return;
+      written.current[i] = key;
       el.style.transform = poseTransform(pose);
       el.style.zIndex = String(pose.zIndex);
     });
-    const i = focusedIndex(boxes, {
+    const i = focusedIndex(bx, {
       scrollLeft: sc.scrollLeft,
       width: sc.clientWidth,
       scrollWidth: sc.scrollWidth,
@@ -75,16 +98,22 @@ export function DexCoverFlow({
     frame.current = requestAnimationFrame(layout);
   };
   useLayoutEffect(() => {
+    // 絞り込みで札が減ったとき、前の札の控えを残さない。
+    cardRefs.current.length = stickers.length;
+    measure();
     layout();
-  }, [layout, stickers]);
+  }, [measure, layout, stickers]);
   useEffect(() => {
-    const h = () => layout();
+    const h = () => {
+      measure();
+      layout();
+    };
     window.addEventListener("resize", h);
     return () => {
       window.removeEventListener("resize", h);
       cancelAnimationFrame(frame.current);
     };
-  }, [layout]);
+  }, [measure, layout]);
   // 絞り込みを変えたら先頭へ戻す（前の位置のままだと、無いカードの位置で止まる）。
   useEffect(() => {
     scrollerRef.current?.scrollTo({ left: 0 });
@@ -106,7 +135,7 @@ export function DexCoverFlow({
       <div
         ref={scrollerRef}
         onScroll={onScroll}
-        className="dex-cf__scroller flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pb-12 pt-6"
+        className="dex-cf__scroller flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pb-6 pt-6"
       >
         {stickers.map((s, i) => {
           const photo = stickerPhotoUrl(s);
@@ -179,11 +208,25 @@ export function DexCoverFlow({
           );
         })}
       </div>
+      {/* **青い点**（オーナー指示 2026-09-23）。いまの1枚のまわりだけ出す
+          （`dotWindow`）。押すとその札へ送る。数は読み上げにだけ言う。 */}
       {current && (
-        <p
-          className="text-center text-footnote tabular-nums text-muted-foreground"
-          aria-live="polite"
-        >
+        <div className="dex-cf__dots" aria-hidden="true">
+          {dotWindow(stickers.length, center).map((d) => (
+            <button
+              key={d.i}
+              type="button"
+              tabIndex={-1}
+              onClick={() => bringToCenter(d.i)}
+              className="dex-cf__dot-hit"
+            >
+              <span className="dex-cf__dot" data-size={d.size} />
+            </button>
+          ))}
+        </div>
+      )}
+      {current && (
+        <p className="sr-only" aria-live="polite">
           {center + 1} / {stickers.length}
         </p>
       )}

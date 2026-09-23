@@ -31,12 +31,26 @@ export const DEFAULT_VISIBLE: readonly SectionId[] = [
 
 export type CardPrefs = { order: SectionId[]; hidden: SectionId[] };
 
-export const CARD_PREF_KEY = "wordcard-prefs-v5";
+/**
+ * v6（2026-09-23）: **既定で見せる項目を一覧のいちばん上へ**（オーナー指示
+ * 「デフォルトの5つは一番上に並べて」）。v5 以前の並びは、既定の項目を上へ
+ * 寄せてから引き継ぐ（それぞれの中の順は崩さない）。隠す／見せるはそのまま。
+ */
+export const CARD_PREF_KEY = "wordcard-prefs-v6";
+const V5_KEY = "wordcard-prefs-v5";
 const LEGACY_KEY = "wordcard-prefs-v4";
 export const CARD_PREF_EVENT = "wordcard-prefs-changed";
 
 export function defaultHidden(all: readonly SectionId[]): SectionId[] {
   return all.filter((id) => !DEFAULT_VISIBLE.includes(id));
+}
+
+/** 既定で見せる項目を先に（それぞれの中の順は渡された順のまま）。 */
+export function defaultsFirst(order: readonly SectionId[]): SectionId[] {
+  return [
+    ...order.filter((id) => DEFAULT_VISIBLE.includes(id)),
+    ...order.filter((id) => !DEFAULT_VISIBLE.includes(id)),
+  ];
 }
 
 /**
@@ -47,7 +61,7 @@ export function readCardPrefs(
   all: readonly SectionId[],
   storage: Pick<Storage, "getItem"> | null,
 ): CardPrefs {
-  const fallback = { order: [...all], hidden: defaultHidden(all) };
+  const fallback = { order: defaultsFirst(all), hidden: defaultHidden(all) };
   if (!storage) return fallback;
   const valid = (id: SectionId) => all.includes(id);
   const tidy = (p: Partial<CardPrefs>, hidden: SectionId[]): CardPrefs => {
@@ -63,11 +77,18 @@ export function readCardPrefs(
       const p = JSON.parse(raw) as Partial<CardPrefs>;
       return tidy(p, p.hidden ?? []);
     }
+    const v5 = storage.getItem(V5_KEY);
+    if (v5) {
+      const p = JSON.parse(v5) as Partial<CardPrefs>;
+      const t = tidy(p, p.hidden ?? []);
+      return { ...t, order: defaultsFirst(t.order) };
+    }
     const legacy = storage.getItem(LEGACY_KEY);
     if (legacy) {
       const p = JSON.parse(legacy) as Partial<CardPrefs>;
       const chose = (p.hidden ?? []).length > 0;
-      return tidy(p, chose ? (p.hidden ?? []) : defaultHidden(all));
+      const t = tidy(p, chose ? (p.hidden ?? []) : defaultHidden(all));
+      return { ...t, order: defaultsFirst(t.order) };
     }
   } catch {
     /* 壊れた値は既定へ */

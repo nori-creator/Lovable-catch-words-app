@@ -36,3 +36,31 @@ describe("coverFlowPose", () => {
     expect(poseTransform(coverFlowPose(0))).toBe("translateZ(0.0px) rotateY(0.00deg) scale(1.000)");
   });
 });
+
+import { dotWindow } from "./cover-flow";
+
+describe("カードの下の点（オーナー指示 2026-09-23）", () => {
+  it("少なければ全部。いまの1枚が大", () => {
+    expect(dotWindow(4, 1)).toEqual([
+      { i: 0, size: 1 },
+      { i: 1, size: 2 },
+      { i: 2, size: 1 },
+      { i: 3, size: 1 },
+    ]);
+  });
+  it("多ければ7つだけ。続きのある端は小", () => {
+    const d = dotWindow(100, 50);
+    expect(d).toHaveLength(7);
+    expect(d[3]).toEqual({ i: 50, size: 2 });
+    expect(d[0].size).toBe(0);
+    expect(d[6].size).toBe(0);
+  });
+  it("先頭と末尾では窓が端に寄る", () => {
+    expect(dotWindow(100, 0)[0]).toEqual({ i: 0, size: 2 });
+    expect(dotWindow(100, 0)[6].size).toBe(0);
+    expect(dotWindow(100, 99)[6]).toEqual({ i: 99, size: 2 });
+  });
+  it("空なら何も出さない", () => {
+    expect(dotWindow(0, 0)).toEqual([]);
+  });
+});

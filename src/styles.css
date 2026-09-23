@@ -2956,17 +2956,51 @@ html[data-motion="reduce"] {
  * **ここも一緒に動かすこと** — 2026-09-16 に余白を詰めたとき、ここを
  * 忘れて 22px ずれた。
  */
-.camera-launch__shutter {
+/**
+ * **下の帯のカメラの丸 → シャッター。**（オーナー指示 2026-09-23）
+ *
+ * 始まりは帯の丸と同じ（48px・青・白い絵、中心は画面下から 56px ＋ 安全域）。
+ * 終わりは本物のシャッター（`.camera-shutter`）と同じ: 中の丸 60px、
+ * 白い環 3px を 5px 離して外径 76px、下端は画面下から 80px ＋ 安全域。
+ * 中の丸の下端はそこから 8px 上。**シャッターの大きさや下の余白を変えたら
+ * ここも動かすこと**（`.camera-launch__lens` の注と同じ）。
+ */
+.camera-launch__morph {
   position: absolute;
   left: 50%;
-  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
-  width: 76px;
-  height: 76px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
-  background: #fff;
+  background: var(--cam-accent);
+  color: #fff;
   translate: -50% 0;
-  opacity: 0;
-  animation: camera-parts 720ms ease-out both;
+  animation: camera-morph 720ms cubic-bezier(0.22, 0.86, 0.26, 1) both;
+}
+.camera-launch__morph svg {
+  width: 24px;
+  height: 24px;
+}
+@keyframes camera-morph {
+  0% {
+    width: 48px;
+    height: 48px;
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    outline: 3px solid transparent;
+    outline-offset: 5px;
+    box-shadow: 0 10px 28px color-mix(in oklab, var(--cam-accent) 45%, transparent);
+  }
+  100% {
+    width: 60px;
+    height: 60px;
+    bottom: calc(5rem + 8px + env(safe-area-inset-bottom, 0px));
+    outline: 3px solid var(--cam-paper);
+    outline-offset: 5px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  }
+}
+html[data-motion="reduce"] .camera-launch__morph {
+  display: none;
 }
 @keyframes camera-parts {
   0%,
@@ -3296,6 +3330,22 @@ html[data-motion="reduce"] {
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   font-weight: 600;
+}
+/* 頻度の星（オーナー指示 2026-09-23）。点いた星は主色で塗り、消えた星は輪郭だけ。 */
+.freq-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.freq-stars__star {
+  width: 16px;
+  height: 16px;
+  color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  fill: none;
+}
+.freq-stars__star--on {
+  color: var(--primary);
+  fill: var(--primary);
 }
 .usage-meter__instrument {
   display: flex;
@@ -6178,13 +6228,16 @@ html[data-motion="reduce"] .camera-modes__item {
  * シャッター。**白い丸に青い環**（参考画像）。
  * 環は縁で描き、内側の丸との間を空ける — 影で描くと、間の隙間が作れない。
  */
+/* **鮮やかな青の丸に白い絵、外に白い環**（オーナー指示 2026-09-23「単語の
+   詳細の発音ボタンのように鮮やかな青色に変更して。中のアイコン自体は白色で」）。
+   発音ボタン（`PronounceButton` の hero）と同じ主色。 */
 .camera-shutter {
   display: grid;
   place-items: center;
   width: 76px;
   height: 76px;
   padding: 0;
-  border: 3px solid var(--cam-accent);
+  border: 3px solid var(--cam-paper);
   border-radius: 9999px;
   background: transparent;
   transition: transform 100ms ease-out;
@@ -6196,8 +6249,9 @@ html[data-motion="reduce"] .camera-modes__item {
   width: 60px;
   height: 60px;
   border-radius: 9999px;
-  background: var(--cam-paper);
-  color: var(--cam-body);
+  background: var(--cam-accent);
+  color: #fff;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--cam-accent) 40%, transparent);
 }
 
 .camera-shutter:active {
@@ -6421,6 +6475,58 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    上は今日の日付を書いて」）。前は小さく日付、その下に大きく「今日の1
    ページ」と2段あり、**写真が始まるまでに縦を 2段ぶん使っていた**。
    日付を題そのものに上げて、空いた1段を写真に回す。 */
+/* ── 壁紙に直に書く日付（オーナー指示 2026-09-23「日記のように」）────────
+   書体は手書き1つだけ（日付・曜日・一言）。下線は引かない。字の色は板の
+   インク（`--album-ink`）なので、どの壁紙でも読める濃さが保たれる。 */
+.collage-heading {
+  position: relative;
+  z-index: 3;
+  margin: 0 0.25rem 0.6rem;
+}
+.diary-date__line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+  font-weight: 400;
+  color: var(--album-ink);
+}
+.diary-date__day {
+  font-size: var(--text-hero);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+.diary-date__weekday {
+  font-size: var(--text-body);
+  color: var(--album-ink-dim);
+}
+.diary-date__note {
+  margin-top: 0.2rem;
+  font-size: var(--text-footnote);
+  line-height: 1.45;
+  color: var(--album-ink-dim);
+  word-break: auto-phrase;
+}
+.diary-date--compact .diary-date__day {
+  font-size: var(--text-title);
+}
+/* 白紙の日の一言とボタン。 */
+.home-blank {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2.5rem 0.5rem 2rem;
+  text-align: center;
+}
+.home-blank__msg {
+  font-size: var(--text-title);
+  line-height: 1.4;
+  color: var(--album-ink);
+  word-break: auto-phrase;
+  text-wrap: balance;
+}
+
 .day-masthead {
   margin-bottom: 0.7rem;
 }
@@ -6731,21 +6837,35 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .collage__cap-row {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.3rem;
   min-width: 0;
 }
 /* 右の列は、時刻と語の並びも鏡にする（外側から内へ読む）。 */
 [data-col="r"] .collage__cap-row {
   flex-direction: row-reverse;
 }
+/* **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23）。隣の列に潜る
+   ときだけ外側へ寄せる（`captionAlign`、属性 `data-cap`）。 */
+[data-cap="c"] .collage__cap {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  text-align: center;
+}
+[data-cap="c"] .collage__cap-row {
+  flex-direction: row;
+  justify-content: center;
+}
 /* 撮った時刻。小さく、控えめに。 */
 .collage__time {
   flex: none;
-  font-size: var(--text-caption);
+  /* 語を大きくした分（2026-09-23）、時刻は一段小さく・字間を詰めて、
+     4文字の語が字の上限（`COLLAGE_CAP_W`）の中で切れずに並ぶようにする。 */
+  font-size: 0.6875rem;
   line-height: 1;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: var(--muted-foreground);
 }
 /**
@@ -6754,15 +6874,18 @@ html[data-motion="reduce"] .tabbar__lens--gone {
  */
 .collage__slip {
   min-width: 0;
-  padding: 0.15rem 0.45rem;
+  padding: 0.15rem 0.35rem;
   border-radius: 3px;
   background: var(--card);
   box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 14%, transparent);
   color: var(--foreground);
-  font-size: var(--text-headline);
+  /* 19px（前は 17px。オーナー指示 2026-09-23「写真の下の単語の文字もう少し大きくして」）。
+     20px だと 360px 幅の画面で4文字の語が切れた（実測）。
+     `home.tsx` の `CAP_ROW_PX` と対。 */
+  font-size: 1.1875rem;
   font-weight: 700;
   line-height: 1.2;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7432,7 +7555,9 @@ html[data-motion="reduce"] .dex-day__card {
    傾く（JS が transform を書く）。ここは寸法・奥行き・影・床への映り込み。
    札どうしを少し重ねて、カバーフローの「並んだ束」に見せる。 */
 .dex-cf__scroller {
-  --cf-w: min(62vw, 250px);
+  /* 図鑑を全画面にした分、カードも大きく（オーナー指示 2026-09-23）。
+     高さは画面に収まるよう、縦の余白からも上限を取る。 */
+  --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
   perspective: 1100px;
   padding-inline: calc(50% - var(--cf-w) / 2);
   scrollbar-width: none;
@@ -7456,10 +7581,51 @@ html[data-motion="reduce"] .dex-day__card {
   margin-right: 0;
 }
 .dex-cf__card {
+  /* 鏡映り（`-webkit-box-reflect`）はやめた — 傾きが変わるたびに映りごと
+     描き直すので、送る動きがカクついた（オーナー報告 2026-09-23）。 */
   box-shadow:
     0 2px 6px rgb(0 0 0 / 0.08),
     0 22px 40px -18px rgb(0 0 0 / 0.45);
-  -webkit-box-reflect: below 10px linear-gradient(transparent 76%, rgb(255 255 255 / 0.2));
+  backface-visibility: hidden;
+}
+/* カードの下の青い点（`dotWindow`）。いまの1枚は主色の丸、ほかは薄い丸、
+   続きのある端は小さく。押せる所は 24px（点の間を指で狙う物ではないので、
+   44px の下限は送る動きそのもの・カードの押下が受け持つ）。 */
+.dex-cf__dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+}
+.dex-cf__dot-hit {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.dex-cf__dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  transition:
+    background-color 0.2s var(--ease-ios),
+    scale 0.2s var(--ease-ios);
+}
+.dex-cf__dot[data-size="2"] {
+  background: var(--primary);
+  scale: 1.25;
+}
+.dex-cf__dot[data-size="0"] {
+  scale: 0.6;
+}
+html[data-motion="reduce"] .dex-cf__dot {
+  transition: none;
 }
 html[data-motion="reduce"] .dex-cf__slot {
   will-change: auto;
@@ -7477,9 +7643,79 @@ html[data-motion="reduce"] .dex-cf__slot {
 
 /* 図鑑の地図（`DexDayMap`）。上に地図が貼り付き、下の時間軸を送ると
    読んでいる立ち寄りのピンが**ポンと浮き上がる**（オーナー指示 2026-09-23）。 */
+/* 地図は画面いっぱい（下のバーの裏まで）。オーナー指示 2026-09-23。 */
 .dex-daymap__map {
-  height: min(44vh, 380px);
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   background: var(--secondary);
+}
+/* ピンを置く範囲。上の絞り込み（`--dex-overlay-h`）と下の日付の帯を避ける。 */
+.dex-daymap__plane-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--dex-overlay-h, 8rem);
+  bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+}
+/* 一番下の日付の帯と、その上に開く時間軸。下のバーのすぐ上に浮かせる。 */
+.dex-daymap__dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 25;
+  display: grid;
+  gap: 0.5rem;
+  width: min(100%, 48rem);
+  margin-inline: auto;
+  padding-inline: 0.75rem;
+  pointer-events: none;
+}
+.dex-daymap__dock > * {
+  pointer-events: auto;
+}
+.dex-daymap__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+.dex-daymap__timeline {
+  max-height: min(50dvh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem 1rem 0.5rem 1.25rem;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.4);
+  animation: dex-timeline-in 0.28s var(--ease-ios) both;
+}
+@keyframes dex-timeline-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+html[data-motion="reduce"] .dex-daymap__timeline {
+  animation: reduced-fade-in 0.15s ease both;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .dex-daymap__bar,
+  .dex-daymap__timeline {
+    background: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 /* 地図が読めないときの簡易の面。紙の地図のような薄い方眼。 */
 .dex-daymap__plane {

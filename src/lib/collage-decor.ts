@@ -19,7 +19,9 @@ export type CollageDecor =
   | { kind: "tape"; tapes: Array<{ spot: TapeSpot; rot: number; color: TapeColor }> }
   | { kind: "corners" }
   /** コルクの壁は**画鋲**（上の辺の真ん中あたりに1本）。 */
-  | { kind: "pin"; color: PinColor; x: number };
+  | { kind: "pin"; color: PinColor; x: number }
+  /** 額縁は**何も付けない**（オーナー指示 2026-09-23「額縁の壁紙のときは付箋デザインいらない」）。 */
+  | { kind: "none" };
 
 const PIN_COLORS: readonly PinColor[] = ["red", "blue", "yellow", "green"];
 
@@ -43,6 +45,8 @@ export function decorFor(
   /** 壁の種類（`wallpaper.ts`）。留め方が壁で変わる。 */
   wall: "paper" | "notebook" | "wall" | "frame" | "cork" = "paper",
 ): CollageDecor {
+  // 額縁の中の絵にテープや角は要らない。
+  if (wall === "frame") return { kind: "none" };
   if (wall === "cork") {
     return {
       kind: "pin",

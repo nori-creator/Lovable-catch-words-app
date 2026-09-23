@@ -43,6 +43,9 @@ describe("留め方は壁に合わせる（オーナー指示 2026-09-23）", ()
   it("実際の壁に四隅の三角は付かない（テープだけ）", () => {
     expect(ids.every((id) => decorFor(id, "wall").kind === "tape")).toBe(true);
   });
+  it("額縁には何も付けない（オーナー指示 2026-09-23）", () => {
+    expect(ids.every((id) => decorFor(id, "frame").kind === "none")).toBe(true);
+  });
   it("紙は前と同じ（壁を渡さなくても同じ）", () => {
     for (const id of ids) expect(decorFor(id, "paper")).toEqual(decorFor(id));
   });

@@ -61,7 +61,7 @@ export function WallpaperPicker({
               {/* 見本の写真1枚。実物と同じ留め方で貼る。 */}
               <span className="wall-swatch__photo absolute left-1/2 top-[22%] block h-[46%] w-[58%] -translate-x-1/2 -rotate-3">
                 <span className="block h-full w-full rounded-[3px] bg-[#9fb8c8]" />
-                {d.kind === "pin" ? (
+                {d.kind === "none" ? null : d.kind === "pin" ? (
                   <span
                     className={`collage-pin collage-pin--${d.color}`}
                     style={{ left: `${d.x}%` }}

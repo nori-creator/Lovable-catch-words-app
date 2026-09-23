@@ -304,21 +304,30 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-09-23 の20項目の依頼で触った面（上から順に見る）。
+  { scene: "dex-map", label: "図鑑の地図（全画面・下の日付の帯）" },
+  { scene: "dex-map&variant=open", label: "図鑑の地図（帯を押して時間軸・写真の横に一言）" },
+  { scene: "dex-cards", label: "図鑑のカード（大きく・青い点・滑らか）" },
+  { scene: "home", label: "ホーム（日付を壁紙に手書き・語は写真の真ん中下）" },
+  { scene: "home-empty", label: "ホーム（白紙の日の一言・今日の一枚を撮る）" },
+  { scene: "home&wall=frame", label: "ホーム（額縁はテープなし）" },
+  { scene: "memory-curve", label: "記憶のグラフ（指で辿る・25/75%・次に変わる日）" },
+  { scene: "capture-reunion", label: "もう一度撮った語（剥がして図鑑へ）" },
+  { scene: "capture-object", label: "カメラ（青いシャッター・倍率に×）" },
+  { scene: "capture-pick", label: "語を選ぶ（ステップ3を消した・4択と同じ字）" },
+  { scene: "word-card", label: "単語の詳細（頻度を星で）" },
+  { scene: "sections-panel", label: "単語の項目の並べ替え（指で動く・既定を上に）" },
+  { scene: "settings-polish", label: "設定（母語が上・名前と説明・画面の明るさ）" },
   // 2026-09-23「単語の数値は1つに統一」: 右上・一覧・グラフが同じ数（いま思い出せる確率）。
-  { scene: "memory-curve", label: "記憶のグラフ（右上の％と縦軸が同じ数）" },
   { scene: "review-memory-list", label: "記憶の一覧（同じ％・段の新しい名前）" },
   { scene: "gallery", label: "図鑑（写真の右上の％）" },
-  // 2026-09-22〜23 の依頼で触った面（上から順に見る）。
+  // 2026-09-22〜23 の依頼で触った面。
   { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
   { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
   { scene: "home&wall=wall", label: "ホーム（壁）" },
-  { scene: "home&wall=frame", label: "ホーム（額縁）" },
   { scene: "home&wall=notebook", label: "ホーム（ノート）" },
-  { scene: "dex-map", label: "図鑑の地図（カレンダーと統合・時間軸でピンが浮く）" },
   { scene: "dex-map&at=3", label: "図鑑の地図（時間を進めた形）" },
-  { scene: "dex-cards", label: "図鑑のカード表示（横に送る）" },
   { scene: "ai-models", label: "開発者: 機能ごとのAI（OpenRouter）" },
-  { scene: "word-card", label: "単語の詳細（既定の8項目）" },
   { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
   { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
   { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
@@ -326,17 +335,13 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
   { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
   { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
-  { scene: "home", label: "ホーム（壁に貼った誌面・テープと四隅）" },
   { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
   { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
   { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
   { scene: "auth", label: "ログインの画面" },
-  { scene: "home-empty", label: "ホーム（まだ1枚も無い日）" },
   { scene: "review-memory", label: "復習の記憶の帯" },
-  { scene: "capture-object", label: "カメラの画面" },
   { scene: "tabbar", label: "下の帯" },
   { scene: "sticker-peel", label: "ピール・キャッチ演出" },
-  { scene: "settings-polish", label: "設定・言語選択" },
   { scene: "scan-camera", label: "小数点の倍率メーター" },
 ];
 

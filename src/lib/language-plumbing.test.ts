@@ -4184,12 +4184,15 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 中身はカメラの縮図（覗き窓とシャッター）。
     const lib = codeOnly(read("lib/camera-launch.ts"));
     expect(lib).toMatch(/camera-launch__eye/);
-    expect(lib).toMatch(/camera-launch__shutter/);
-    // 中のシャッターの着地点は px で持つ（親の大きさが動くので割合にしない）。
-    const sh = css.slice(css.indexOf(".camera-launch__shutter {"));
-    const shBody = sh.slice(0, sh.indexOf("\n}"));
-    expect(shBody).toMatch(/bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    expect(shBody).toMatch(/width: 76px/);
+    // 下の帯の丸がそのままシャッターになる（オーナー指示 2026-09-23）。
+    // 板の外に置く（板は傾いて伸びるので、中に置くと一緒に歪む）。
+    expect(lib).toMatch(/camera-launch__morph/);
+    expect(lib).toMatch(/el\.appendChild\(morph\)/);
+    // 着地点は px で持つ（本物のシャッターの中の丸と同じ所・同じ大きさ）。
+    const mk = css.slice(css.indexOf("@keyframes camera-morph {"));
+    const end = mk.slice(mk.indexOf("100% {"), mk.indexOf("\n}"));
+    expect(end).toMatch(/bottom: calc\(5rem \+ 8px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(end).toMatch(/width: 60px/);
   });
 
   /**
@@ -4263,7 +4266,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("撮る画面とスキャン画面は、上の帯を出さない", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     expect(shell).toMatch(/bare\?: boolean;/);
-    expect(shell).toMatch(/\{!bare && \(/);
+    expect(shell).toMatch(/\{!bare && !immersive && \(/);
     expect(codeOnly(read("routes/_authenticated/capture.tsx"))).toMatch(
       // main で自撮りの面も全画面になったので `|| step === "selfie"` が付いた。
       /bare=\{step === "object"( \|\| step === "selfie")?\}/,
@@ -4485,9 +4488,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(
       /bottom-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]/,
     );
-    const landing = css.slice(css.indexOf(".camera-launch__shutter {"));
-    expect(landing.slice(0, 400)).toMatch(
-      /bottom: calc\(5rem \+ env\(safe-area-inset-bottom, 0px\)\)/,
+    const landing = css.slice(css.indexOf("@keyframes camera-morph {"));
+    expect(landing.slice(0, 900)).toMatch(
+      /bottom: calc\(5rem \+ 8px \+ env\(safe-area-inset-bottom, 0px\)\)/,
     );
     // シャッターの大きさと、下の行の余白（上の計算の元になる2つ）。
     const sh = css.slice(css.indexOf(".camera-shutter {"), css.indexOf(".camera-shutter__core"));
@@ -4737,7 +4740,8 @@ describe("ホームは今日の誌面", () => {
     // （360px 以上では偶然足りていた）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
-    expect(home).toMatch(/const CAP_ROW_PX = 29;/);
+    // 語を 19px にした（オーナー指示 2026-09-23）ので 32px。
+    expect(home).toMatch(/const CAP_ROW_PX = 32;/);
     expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
     // 台紙の幅で割って、`packCollage` が積む割合に直す。
     expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);
@@ -4769,26 +4773,27 @@ describe("ホームは今日の誌面", () => {
     expect(frame.slice(0, 600)).toMatch(/collage__plain-word/);
   });
 
-  it("**題はその日の日付そのもの**（オーナー指示 2026-09-22）", () => {
-    // > 「今日のページではなく、上は今日の日付を書いて。」
-    // 前は小さく日付、その下に大きく「今日の1ページ」と2段あり、題が
-    // 日付を言い直しているだけで**写真が始まるまでに縦を2段ぶん使って
-    // いた**。日付を題に上げて、空いた1段を写真に回す。
+  it("**日付は壁紙に直に、手書き1つで書く**（オーナー指示 2026-09-22 / 09-23）", () => {
+    // > 09-22「今日のページではなく、上は今日の日付を書いて。」
+    // > 09-23「ホーム画面の日付は背景の壁紙に直接書いて。日記のように。
+    // >        日付の字体を統一して。また文字の下の青い波線いらない。」
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/<AppShell>\s*<DayMasthead date=\{today\}/);
-    const mast = home.slice(
-      home.indexOf("export function DayMasthead("),
-      home.indexOf("function takenAt("),
+    // 上の見出しの帯は使わず、今日の誌面の板の中に書く。
+    expect(home).not.toMatch(/<AppShell>\s*<DayMasthead/);
+    expect(home).toMatch(
+      /heading=\{<DiaryDate date=\{today\} tagline=\{dayTagline\(todayStickers, t\)\} \/>\}/,
     );
-    expect(mast).toMatch(/weekday: "long" \}/);
-    expect(mast).toMatch(/month: "long", day: "numeric" \}/);
-    // 明朝の見出しは**日付**。前の「今日の1ページ」は出さない。
-    expect(mast).toMatch(/day-masthead__title font-serif-ja">\{monthDay\}/);
-    expect(mast).not.toMatch(/home\.todayPage/);
-    // 曜日は題の上に小さく残る（「9月17日木曜日」と続けない）。
-    expect(mast).toMatch(/day-masthead__date">\{weekday\}/);
-    // **誌名をここに書かない。** 上の帯が 40px 上で同じ語を出している。
-    expect(mast).not.toMatch(/day-masthead__brand/);
+    expect(home).toMatch(/heading=\{<DiaryDate date=\{keyToDate\(k\)\} compact \/>\}/);
+    const diary = home.slice(
+      home.indexOf("export function DiaryDate("),
+      home.indexOf("export function JournalLink("),
+    );
+    // 書体は手書き1つ（日付・曜日・一言が同じ箱の中）。波線（svg）は引かない。
+    expect(diary).toMatch(/className=\{`diary-date handwritten-ja/);
+    expect(diary).not.toMatch(/<svg/);
+    expect(diary).not.toMatch(/font-serif-ja/);
+    expect(diary).toMatch(/weekday: "long" \}/);
+    expect(diary).toMatch(/month: "long", day: "numeric" \}/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4907,7 +4912,9 @@ describe("ホームは今日の誌面", () => {
     // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
     // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
     // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-curve"/);
+    // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-map"/);
+    expect(list).toMatch(/\{ scene: "memory-curve"/);
     expect(list).toMatch(/\{ scene: "wallpapers"/);
     expect(list).toMatch(/\{ scene: "review-memory-list"/);
     expect(list).toMatch(/\{ scene: "dex-map"/);
@@ -5636,16 +5643,19 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
     expect(dex).toMatch(/view === "map" \?[\s\S]{0,300}<DexDayMap stickers=\{filtered\}/);
   });
 
-  it("日付の横送り・前後の撮った日・暦から選ぶ", () => {
-    expect(dm).toMatch(/className="dex-daymap__days/);
+  it("一番下の日付の帯: 前後の撮った日・暦から選ぶ・押すと時間軸（2026-09-23 改）", () => {
+    // 日付を全部並べる横送りと、その日の数（枚・か所・時間帯）はやめた。
+    expect(dm).not.toMatch(/dex-daymap__days/);
+    expect(dm).not.toMatch(/dex\.dayPhotos|dex\.dayPlaces|dex\.dayHours/);
+    expect(dm).toMatch(/className="dex-daymap__bar"/);
+    expect(dm).toMatch(/aria-expanded=\{open\}/);
     expect(dm).toMatch(/neighborDay\(days, current, -1\)/);
     expect(dm).toMatch(/onPickDay=\{\(k\) => \{/);
   });
 
   it("時間軸を送ると、読んでいる行の立ち寄りのピンが浮き上がる", () => {
-    expect(dm).toMatch(
-      /document\.addEventListener\("scroll", onScroll, \{ capture: true, passive: true \}\)/,
-    );
+    // 時間軸は帯の上に開く板の中で送る。
+    expect(dm).toMatch(/onScroll=\{onListScroll\}/);
     expect(dm).toMatch(/data-active=\{active \|\| undefined\}/);
     expect(css).toMatch(/\.dex-pin\[data-active\] \{[^}]*translateY\(-10px\) scale\(1\.45\)/);
     expect(css).toMatch(/html\[data-motion="reduce"\] \.dex-pin \{\s*transition: none;/);
@@ -5658,6 +5668,19 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
 
   it("**歩いた道のりの線と距離は出さない**（GPS をずっと使わないため・2026-09-23）", () => {
     expect(dm).not.toMatch(/Polyline|polyline|routeKm|dex\.dayKm/);
+  });
+
+  it("**地図は画面いっぱい、写真の横に一言**（オーナー指示 2026-09-23）", () => {
+    const mapCss = css.slice(css.indexOf(".dex-daymap__map {"));
+    expect(mapCss.slice(0, mapCss.indexOf("\n}"))).toMatch(/position: fixed;\s*inset: 0;/);
+    expect(dm).toMatch(/it\.s\.caption \?/);
+    // 図鑑は全画面（上の帯なし）で、絞り込みと検索を上に重ねる。
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    expect(dex).toMatch(/<AppShell title=\{t\("title\.dex"\)\} immersive>/);
+    expect(dex).toMatch(/<DexOverlay>/);
+    // 並びは 箱 → カード → 地図 → 段。
+    const order = [...dex.matchAll(/\["(gallery|cards|map|list)", /g)].map((m) => m[1]);
+    expect(order).toEqual(["gallery", "cards", "map", "list"]);
   });
 });
 
@@ -5701,6 +5724,21 @@ describe("Jev を広げる（オーナー指示 2026-09-23）— 共有の辞書
     // 記録は待たない（返事を遅らせない）。
     expect(reviews).toMatch(
       /void import\("\.\/jev-tasks\.server"\)\.then\(\(\{ recordSpeakingShadow \}\)/,
+    );
+  });
+});
+
+describe("単語の項目を指で並べ替えられる（オーナー報告 2026-09-23・通算5度目）", () => {
+  it("並べ替えの板の上では、面を引いて閉じる操作が指を奪わない", () => {
+    const hook = codeOnly(read("hooks/use-drag-dismiss.tsx"));
+    expect(hook).toMatch(/closest\?\.\("\[data-sheet-no-drag\]"\)\) return false;/);
+    expect(codeOnly(read("components/SectionsPanel.tsx"))).toMatch(/data-sheet-no-drag/);
+  });
+  it("取っ手は押した瞬間に掴む（長押しは行の地だけ）", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    const down = card.slice(card.indexOf("const onPointerDown = (id: SectionId)"));
+    expect(down.slice(0, 1200)).toMatch(
+      /if \(hit\.closest\("\[data-drag-handle\]"\)\) \{\s*draggingRef\.current = true;\s*setDragId\(id\);/,
     );
   });
 });

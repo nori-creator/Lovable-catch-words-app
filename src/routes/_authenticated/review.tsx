@@ -1,4 +1,8 @@
-import { REVIEW_PRACTICE_ENABLED, WORDBOOKS_ENABLED } from "@/lib/product-features";
+import {
+  REVIEW_MODE_CHOICE_ENABLED,
+  REVIEW_PRACTICE_ENABLED,
+  WORDBOOKS_ENABLED,
+} from "@/lib/product-features";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
@@ -2128,7 +2132,11 @@ export function LightModeCard({
                   ${picked && !isPicked && !isAnswer ? "border-border/60" : ""}`}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-body font-medium">{c}</span>
+                    {/* **その語の字で組む**（`Term`）。候補の画面と同じ書体になる
+                        — 以前は画面の言語（日本語）の書体で繁体字を出していた。 */}
+                    <Term lang={card.language} className="block truncate text-body font-medium">
+                      {c}
+                    </Term>
                     {/* 注音は**装飾ではなく学習対象そのもの**。台湾華語で
                         日本語話者がいちばん間違えるのは声調で、その記号
                         (ˇ ˊ)は 11px の最も薄い階調では判読の瀬戸際だった
@@ -2543,7 +2551,8 @@ export function ReviewHeader({
           {/* いま選ばれている形を**名前で**出す。印だけにすると、
               押すまで何が選ばれているのか分からない。
               当たり判定は 44px（`::before` ではなく箱そのもの）。 */}
-          {REVIEW_PRACTICE_ENABLED && (
+          {/* 形を選ぶ所は止めてある（`REVIEW_MODE_CHOICE_ENABLED` の注）。 */}
+          {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
             <button
               onClick={() => setModeOpen((v) => !v)}
               aria-expanded={modeOpen}
@@ -2573,7 +2582,7 @@ export function ReviewHeader({
           一致させる。2つ用の `w-1/2` のまま3つ目を足すと、
           丸が最後の札の半分しか覆わない。 */}
       <div
-        hidden={!REVIEW_PRACTICE_ENABLED || !modeOpen}
+        hidden={!REVIEW_PRACTICE_ENABLED || !REVIEW_MODE_CHOICE_ENABLED || !modeOpen}
         className="relative mt-2 flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
         role="tablist"
         aria-label={t("rv.modeAria")}

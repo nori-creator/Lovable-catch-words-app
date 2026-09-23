@@ -10,7 +10,14 @@ import { useMemoryBadges } from "@/lib/use-memory-map";
 import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
-import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   Library,
   LayoutGrid,
@@ -290,48 +297,55 @@ function DexPage() {
   }, [filtered]);
 
   return (
-    <AppShell title={t("title.dex")}>
-      <DexHeader
-        found={captured.length}
-        caught={
-          captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
-            .length
-        }
-        view={view}
-        onView={setView}
-        filter={filter}
-        onFilter={setFilter}
-        categories={catOptions}
-        days={dOptions}
-      />
+    // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
+    // 表示し、上のカテゴリー選択や日付選択検索はその画面の上に来るようにして」）。
+    // 上の帯は出さず、絞り込みと検索を画面の上に重ねる（`DexOverlay`）。
+    <AppShell title={t("title.dex")} immersive>
+      <DexOverlay>
+        <DexHeader
+          found={captured.length}
+          caught={
+            captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
+              .length
+          }
+          view={view}
+          onView={setView}
+          filter={filter}
+          onFilter={setFilter}
+          categories={catOptions}
+          days={dOptions}
+        />
 
-      {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
+        {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
           地図表示のときも出す。 */}
-      {
-        <div className="relative mb-4">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("dex.search")}
-            aria-label={t("dex.searchAria")}
-            className="rounded-full pl-9 pr-11"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              aria-label={t("dex.clearSearch")}
-              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      }
+        {
+          <div className="relative mt-2">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("dex.search")}
+              aria-label={t("dex.searchAria")}
+              className="rounded-full pl-9 pr-11"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label={t("dex.clearSearch")}
+                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        }
+      </DexOverlay>
+      {/* 重ねた操作の高さぶん、中身を下げる（地図は画面に貼り付くので関係ない）。 */}
+      <div aria-hidden style={{ height: "var(--dex-overlay-h, 9rem)" }} />
 
       {/* カテゴリーの実名で絞り込む(NORI指定: 「カテゴリー/品詞」の切替ボタンは
           廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
@@ -912,14 +926,15 @@ export function DexHeader({
 }) {
   const t = useT();
   return (
-    <section className="mb-3 rounded-2xl border border-border bg-card p-3">
+    <section>
       {/* 見出しと数は**1行を丸ごと使う**。表示の切替(丸5つ=228px)を
           同じ行の右に置いていたら、390px の画面で「あなたの図/鑑」と
           2行に割れていた。数の検査は割れを見ないので、絵で見つけた。 */}
       <div className="flex items-baseline justify-between gap-2">
         <div className="pl-1">
           {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
-          <h1 className="text-body font-semibold tracking-tight">{t("dex.yours")}</h1>
+          {/* 見出しは読み上げにだけ（全画面にした分、字は地図や写真に譲る）。 */}
+          <h1 className="sr-only">{t("dex.yours")}</h1>
         </div>
       </div>
 
@@ -928,7 +943,7 @@ export function DexHeader({
           入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
           `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
       {/* 外側の余白と安全領域は main 側（Lovable）の直しを採る。 */}
-      <div className="-ml-1 mt-2 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto border-t border-border pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-ml-1 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* 中の隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
             4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
             隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
@@ -936,12 +951,15 @@ export function DexHeader({
         <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1">
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+            // **並びは 箱 → カード → 地図 → 段**（オーナー指示 2026-09-23「図鑑の
+            // 種類は左からボックスのように表示されるもの、またカードのように横に
+            // スライドできるもの、そしてマップ、そして一番右に縦から段のように
+            // 並ぶやつに順番を変更して」）。
             ["gallery", LayoutGrid, t("dex.gallery")] as const,
-            // カード表示（カバーフロー）。オーナー指示 2026-09-22。
             ["cards", GalleryHorizontal, t("dex.cards")] as const,
-            ["list", List, t("dex.list")] as const,
             // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
+            ["list", List, t("dex.list")] as const,
           ].map(([v, Icon, label]) => (
             <button
               key={v}
@@ -1001,6 +1019,36 @@ export function DexHeader({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * 図鑑の上に**重ねる**操作の板（表示の切替・カテゴリー・日付・検索）。
+ * 高さを `--dex-overlay-h` に書き出し、中身（と地図のピンを置く範囲）が
+ * その下から始まるようにする。
+ */
+export function DexOverlay({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const put = () => root.style.setProperty("--dex-overlay-h", `${el.offsetHeight}px`);
+    put();
+    const ro = new ResizeObserver(put);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--dex-overlay-h");
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="dex-overlay fixed inset-x-0 top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+    >
+      <div className="mx-auto max-w-3xl px-4 pb-2 pt-2">{children}</div>
+    </div>
   );
 }
 

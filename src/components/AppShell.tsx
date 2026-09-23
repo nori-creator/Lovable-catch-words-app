@@ -210,6 +210,7 @@ export function AppShell({
   title,
   fixedViewport = false,
   bare = false,
+  immersive = false,
 }: {
   children: ReactNode;
   title?: string;
@@ -224,6 +225,14 @@ export function AppShell({
    * すでに言っている。下のタブ帯は残す — カメラから出る道が要る。
    */
   bare?: boolean;
+  /**
+   * **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む
+   * 全画面で表示し、上のカテゴリー選択や日付選択検索はその画面の上に来るように」）。
+   *
+   * 上の帯を出さず、中身は画面の上端から下のバーの裏まで使う。上の操作は
+   * 画面側が自分で重ねる（図鑑の `DexOverlay`）。下のバーは残す。
+   */
+  immersive?: boolean;
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
@@ -337,7 +346,7 @@ export function AppShell({
       {/* Top chrome — a translucent material the content scrolls under (§12).
           区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
           縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
-      {!bare && (
+      {!bare && !immersive && (
         <header
           data-scrolled={scrolled ? "true" : undefined}
           className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
@@ -373,9 +382,11 @@ export function AppShell({
         className={
           bare
             ? "h-dvh"
-            : fixedViewport
-              ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
-              : "mx-auto max-w-3xl px-4 py-4"
+            : immersive
+              ? "mx-auto max-w-3xl px-4"
+              : fixedViewport
+                ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
+                : "mx-auto max-w-3xl px-4 py-4"
         }
       >
         {children}

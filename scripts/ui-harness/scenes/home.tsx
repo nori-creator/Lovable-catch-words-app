@@ -12,8 +12,7 @@ import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
-  DayHeader,
-  DayMasthead,
+  DiaryDate,
   dayTagline,
   HomeEmptyState,
   HomeLoading,
@@ -139,8 +138,13 @@ export function HomeScene({ q }: { q: URLSearchParams }) {
   const wall = parseWallpaper(q.get("wall"));
   return (
     <>
-      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
-      <DayCollage stickers={today} opening onOpen={() => {}} surface={wallClass(wall)} />
+      <DayCollage
+        stickers={today}
+        opening
+        onOpen={() => {}}
+        surface={wallClass(wall)}
+        heading={<DiaryDate date={new Date()} tagline={dayTagline(today, tStatic)} />}
+      />
     </>
   );
 }
@@ -163,8 +167,7 @@ export function WallpaperPickerScene() {
 export function HomeEmptyScene() {
   return (
     <>
-      <DayMasthead date={new Date()} />
-      <HomeEmptyState />
+      <HomeEmptyState message={tStatic("home.blankStreak", { n: 3 })} />
     </>
   );
 }
@@ -176,7 +179,7 @@ export function HomeEmptyScene() {
 export function HomeLoadingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} />
+      <DiaryDate date={new Date()} />
       <HomeLoading />
     </>
   );
@@ -243,8 +246,12 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
 export function HomeWritingScene() {
   return (
     <>
-      <DayMasthead date={new Date()} tagline={dayTagline(today, tStatic)} />
-      <DayCollage stickers={today} opening onOpen={() => {}} />
+      <DayCollage
+        stickers={today}
+        opening
+        onOpen={() => {}}
+        heading={<DiaryDate date={new Date()} tagline={dayTagline(today, tStatic)} />}
+      />
       <JournalWritingPage onClose={() => {}}>
         <JournalComposer showHeading={false} />
       </JournalWritingPage>
