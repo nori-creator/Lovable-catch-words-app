@@ -276,11 +276,13 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     // 級の段々と品詞の札も出さない。「訳」でも「発音」でもない。
     // **同じ行に並べた**ので(オーナー報告 2026-08-26、3度目「CEFR の欄と
     // 品詞の大きさを揃えて、横に並べて」)、伏せる条件も1つに畳んである。
-    expect(src).toMatch(/\{!minimal && \(word\.part_of_speech \|\| word\.level\) && \(/);
-    const row = src.slice(src.indexOf("{!minimal && (word.part_of_speech"));
+    expect(src).toMatch(/\{!minimal &&\s*\(word\.part_of_speech \|\| word\.level \|\|/);
+    const row = src.slice(src.search(/\{!minimal &&\s*\(word\.part_of_speech/));
     expect(row.slice(0, row.indexOf("</div>"))).toMatch(/<TocflLadder/);
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
+    // 見出し横の頻度の星も、撮った直後は出さない。
+    expect(src).toMatch(/!minimal && !editingHead && \(word\.extras\?\.frequency_level/);
     // 見出しの行は `minimal` を受け取り続けること（引数が増えたので
     // 1行の写しでは見ない）。
     const header = src.slice(src.indexOf("<HeaderRow"));
@@ -353,7 +355,9 @@ describe("第2段: 消したものが戻ってこない", () => {
     // オーナーが「質の高いカテゴリーを作って」と言っている当のもの。
     // 2026-08-27 ⑤ で浮いて跳ねる札になった(`SceneBubbles`)。
     expect(fs.existsSync(path.join(root, "components/SceneBubbles.tsx"))).toBe(true);
-    expect(read("components/WordCard.tsx")).toContain("<SceneBubbles");
+    // 2026-09-24「頻度、使う場面の項目を削除…カテゴリーは削除していい」で、単語の
+    // 詳細からは外した（部品は残す）。
+    expect(read("components/WordCard.tsx")).not.toContain("<SceneBubbles");
   });
 
   it("頻度の実測(`corpus_stats`)は残っている", () => {
@@ -2251,10 +2255,12 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(read("lib/ai.functions.ts")).toMatch(/region_scope_kind/);
   });
 
-  it("**札で言えるときは文章を出さない**(欄が2倍の高さにならない)", () => {
+  it("**頻度・使う場面の項目は無い**（2026-09-24）。星は見出しの横、言葉の性質は級の横に言葉だけ", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
-    expect(card).toMatch(/bubbleCount === 0 && text && <Prose/);
-    expect(card).toMatch(/const bubbleCount = sceneBubbles\(\{/);
+    expect(card).not.toMatch(/case "usage_context"/);
+    expect(card).toMatch(/<FrequencyMeter level=\{word\.extras!\.frequency_level!\} \/>/);
+    expect(card).toMatch(/\{t\(registerLabelKey\(registerScaleOf\(word\.extras \?\? \{\}\)!\)\)\}/);
+    expect(card).not.toMatch(/<RegisterMeter/);
   });
 
   it("動きを止めたい人には押下の変形も止めて出す", () => {
@@ -4913,7 +4919,8 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
+    expect(list).toMatch(/\{ scene: "home"/);
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
     expect(list).not.toMatch(/scene: "first-catch"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);

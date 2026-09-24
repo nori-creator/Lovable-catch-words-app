@@ -955,12 +955,34 @@ function HeaderRow({
                 {word.headword}
               </Term>
             )}
+            {/* **頻度の星は見出しの語の横**（オーナー指示 2026-09-24「頻度、使う場面の
+                項目を削除して、頻度の星は見出しの単語の横に書いて」）。 */}
+            {!minimal && !editingHead && (word.extras?.frequency_level ?? 0) > 0 && (
+              <FrequencyMeter level={word.extras!.frequency_level!} />
+            )}
+            {/* 発音ボタンと鉛筆は**右端**へ寄せる（同じ指示「発音ボタンは一番右に移動」）。 */}
+            <span className="ml-auto" aria-hidden />
             {/* 40px だった。この画面でいちばん押されるボタンなので、
                 当たり判定を広げるのではなく**見た目ごと 44px** にする。
 
                 **鳴らせるようになってから出る**(オーナー指摘 2026-08-26
                 「発音がでるようになってから発音ボタンを表示して」)。
                 支度中は同じ大きさの空きが立つので、出ても行がずれない。 */}
+            {/* **鉛筆は渡された画面にだけ出す。** 直す口を持たない画面
+                （撮った直後の面など）で出しても、押して何も起きない。 */}
+            {!minimal && onEditHeadword && !editingHead && (
+              <button
+                onClick={() => {
+                  setHeadDraft(word.headword);
+                  setEditingHead(true);
+                }}
+                aria-label={t("card.editHead")}
+                title={t("card.editHead")}
+                className="lift-soft inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
             {editingHead ? (
               <button
                 onClick={() => void saveHead()}
@@ -976,21 +998,6 @@ function HeaderRow({
                 tone="hero"
                 label={t("card.playPron")}
               />
-            )}
-            {/* **鉛筆は渡された画面にだけ出す。** 直す口を持たない画面
-                （撮った直後の面など）で出しても、押して何も起きない。 */}
-            {!minimal && onEditHeadword && !editingHead && (
-              <button
-                onClick={() => {
-                  setHeadDraft(word.headword);
-                  setEditingHead(true);
-                }}
-                aria-label={t("card.editHead")}
-                title={t("card.editHead")}
-                className="lift-soft inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
             )}
           </div>
           <div className="mt-1 text-body text-muted-foreground">
@@ -1020,15 +1027,23 @@ function HeaderRow({
            * 級を開くと段々が縦に伸びるので、`items-start` で上端を揃える
            * — `items-center` だと開いた瞬間に品詞の札が下へ落ちる。
            */}
-          {!minimal && (word.part_of_speech || word.level) && (
-            <div className="mt-2 flex flex-wrap items-start gap-1.5">
-              {word.part_of_speech && (
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
-                  {posDisplay(word.part_of_speech)}
-                </span>
-              )}
-              <TocflLadder level={word.level} scale={targetProfile(word.language).levels} />
-              {/* **級外の語には、級の代わりに分かっていることを出す**
+          {!minimal &&
+            (word.part_of_speech || word.level || registerScaleOf(word.extras ?? {}) !== null) && (
+              <div className="mt-2 flex flex-wrap items-start gap-1.5">
+                {word.part_of_speech && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
+                    {posDisplay(word.part_of_speech)}
+                  </span>
+                )}
+                <TocflLadder level={word.level} scale={targetProfile(word.language).levels} />
+                {/* **言葉の性質は言葉だけ、級の横に**（オーナー指示 2026-09-24「言葉の
+                  性質は（言葉だけでいい、メーターいらない）検定のレベルの横に」）。 */}
+                {registerScaleOf(word.extras ?? {}) !== null && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
+                    {t(registerLabelKey(registerScaleOf(word.extras ?? {})!))}
+                  </span>
+                )}
+                {/* **級外の語には、級の代わりに分かっていることを出す**
                   (オーナー指摘 2026-08-27 ⑭「TOCFL の外の単語の場合
                    どのように分類表示するか考えて」)。
 
@@ -1038,24 +1053,24 @@ function HeaderRow({
                   「級外」としか出ないのは、嘘ではないが役に立たない。
                   どの試験に出るかは辞書の行に入っている**事実**なので、
                   そちらを出す。 */}
-              {parseLevelStep(word.level) === LEVEL_OUT &&
-                examTagLabels(word.extras?.exam_tags).map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground ring-1 ring-border"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              {!guided && (
-                <ReportButton
-                  wordId={wordId}
-                  items={reportItems}
-                  language={word.language ?? null}
-                />
-              )}
-            </div>
-          )}
+                {parseLevelStep(word.level) === LEVEL_OUT &&
+                  examTagLabels(word.extras?.exam_tags).map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground ring-1 ring-border"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                {!guided && (
+                  <ReportButton
+                    wordId={wordId}
+                    items={reportItems}
+                    language={word.language ?? null}
+                  />
+                )}
+              </div>
+            )}
         </div>
       </div>
     </div>
@@ -1443,49 +1458,6 @@ function Body({
       // **太字にしない**(オーナー指摘 2026-08-21「日本語の意味の文字が
       // 太すぎる」)。大きさで着地点は作れているので、太さは足さない。
       return <p className="text-title leading-snug text-foreground">{word.meaning_ja}</p>;
-
-    case "usage_context": {
-      // 統合表示: 頻度メーター + 口語⇄書面のメーター + どこで見て使うかの説明。
-      const text =
-        ex.usage_context || [ex.register_note, ex.common_situation].filter(Boolean).join(" ");
-      // 札が1つでも作れたかどうかで、文章を出すかを決める。
-      // **数える所と描く所を同じ関数にする** — 別々に書くと、札も文章も
-      // 出ない/両方出る、がどちらも起きる。
-      const bubbleCount = sceneBubbles({
-        extras: ex,
-        limitedTo: (place) => t("card.limitedTo", { place }),
-        seasonName: (key) => t(`card.season.${key}`),
-      }).length;
-      const registerScale = registerScaleOf(ex);
-      const frequencyLevel = ex.frequency_level ?? 0;
-      const hasFreq = frequencyLevel > 0;
-      return (
-        <div className="usage-context">
-          {/* 頻度と文体は同じ計器盤の中で、別々の目盛りとして読む。 */}
-          {(hasFreq || registerScale !== null) && (
-            <div className="usage-context__metrics">
-              {hasFreq && (
-                <span className="usage-metric">
-                  <span className="usage-metric__label">{t("card.frequency")}</span>
-                  <FrequencyMeter level={frequencyLevel} />
-                </span>
-              )}
-              {registerScale !== null && <RegisterMeter scale={registerScale} compact />}
-            </div>
-          )}
-          {/* **どこで・いつ出会うかを、軸ごとに束ねた札で出す**
-              (オーナー指示 2026-08-27 ⑤ / 2026-08-28 ①②)。
-              札は**整列**させ、浮遊感は影・奥行き・押した時の弾みで出す。
-              束の作り方と限定の判定は `scene-bubbles.ts`、
-              揺れの値は `bubble-float.ts`。 */}
-          <SceneBubbles extras={ex} />
-          {/* **札で言えないときだけ文章。**「それでもバブルそのカテゴリー
-              として説明できない時だけ文章で書いて」。札が出ているのに
-              同じことを文章でもう一度書くと、欄が2倍の高さになる。 */}
-          {bubbleCount === 0 && text && <Prose lang={word.language} text={text} />}
-        </div>
-      );
-    }
 
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。

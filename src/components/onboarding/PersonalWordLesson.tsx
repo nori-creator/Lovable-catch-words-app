@@ -56,14 +56,26 @@ export function PersonalWordLesson({
       const preferences = learningPreferencesOf(session?.user.user_metadata?.learning_preferences);
       setSaved(session && preferences ? { id: session.user.id, preferences } : null);
     };
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => sync(data.session))
-      .catch(() => {});
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => sync(session));
+    /*
+     * **ログインの仕組みに繋がらない所でも、単語の詳細ごと落とさない。**
+     * Supabase の設定が無い所（Netlify の確認用ページ）では `supabase.auth` に
+     * 触れた瞬間に投げる。ここは「あなたの場面で使ってみよう」の欄を足すだけ
+     * なので、繋がらなければ欄を出さずに進む — 前はこの一行で単語の詳細の
+     * 画面全体が真っ白になっていた（2026-09-24 に確認用ページで見つけた）。
+     */
+    let data: { subscription: { unsubscribe: () => void } } | null = null;
+    try {
+      void supabase.auth
+        .getSession()
+        .then(({ data }) => sync(data.session))
+        .catch(() => {});
+      data = supabase.auth.onAuthStateChange((_event, session) => sync(session)).data;
+    } catch {
+      sync(null);
+    }
     return () => {
       active = false;
-      data.subscription.unsubscribe();
+      data?.subscription.unsubscribe();
     };
   }, [!!context]);
   const source = context ?? saved;

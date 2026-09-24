@@ -1047,15 +1047,6 @@ async function runSectionRegen(
           .min(1),
       }),
     },
-    usage_context: {
-      prompt: `${base}\n{"usage_context":"ネイティブがどこで見て使うか(スーパー/夜市/ニュース/SNS/新聞など具体的に)+頻度感を1〜2文","frequency_level":1〜5の整数,"register_tag":"口語/書面/口語・書面","register_scale":-2〜+2の整数(-2=完全に口語 / 0=中立 / +2=完全に書面)}`,
-      schema: z.object({
-        usage_context: z.string(),
-        frequency_level: z.number().int().min(1).max(5).catch(3),
-        register_tag: z.string().catch(""),
-        register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
-      }),
-    },
     example: {
       prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({

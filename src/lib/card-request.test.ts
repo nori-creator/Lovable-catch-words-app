@@ -18,10 +18,9 @@ describe("カードを作るときに頼む節", () => {
     }
   });
 
-  it("意味・例文・使う場面は、見えていなくても常に頼む（ほかの機能が使う）", () => {
+  it("意味・例文は、見えていなくても常に頼む（ほかの機能が使う）", () => {
     expect(wantsSection([], "meaning")).toBe(true);
     expect(wantsSection([], "example")).toBe(true);
-    expect(wantsSection([], "usage_context")).toBe(true);
   });
 
   it("節の一覧を渡さない古い呼び出しは、これまでどおり全部", () => {

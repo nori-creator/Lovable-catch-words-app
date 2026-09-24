@@ -314,6 +314,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-24 の5回目の依頼で触った面だけ（オーナー指示「過去のものが多すぎで
   // 画面で確認できないから、過去のものは全て削除して」）。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない。
+  { scene: "word-card", label: "単語の詳細（星は見出しの横・性質は級の横）" },
   { scene: "home", label: "ホーム（日付は A・下のバー）" },
   { scene: "review-choice&photo=1", label: "復習の4択（写真を大きく）" },
   { scene: "dex-map&at=2", label: "地図（元の色）" },
