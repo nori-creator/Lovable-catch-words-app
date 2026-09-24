@@ -561,32 +561,12 @@ function useGoogleMaps(enabled: boolean): any | null {
 }
 
 /** 上に重ねた絞り込みの板の高さ（`--dex-overlay-h`、図鑑が書き出す）。 */
-/**
- * 地図の色（Google Maps の `styles`）。写真の丸と道筋が主役になるよう、
- * 地面は淡く、お店・駅・道路番号の印は消す。暗い画面では暗い地図。
+/*
+ * **地図の色は Google の元の配色のまま**（オーナー指示 2026-09-24「マップが
+ * カラフルでなくて白黒になってるからカラフルなマップを使いたい。元の google
+ * map や apple のマップなど」）。前は `styles` で地面を淡い灰に塗り、お店・駅の
+ * 印も消していた — 写真を主役にするつもりが、白黒の地図に見えていた。
  */
-const MAP_STYLE_LIGHT = [
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ color: "#eef1f4" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e3efe4" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bfe0f5" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fdfdfd" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
-];
-const MAP_STYLE_DARK = [
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ color: "#1b1f27" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e2a3f" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a303b" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#9aa4b2" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1b1f27" }] },
-];
 
 function overlayTop(): number {
   if (typeof document === "undefined") return 0;
@@ -629,17 +609,13 @@ function GoogleDayMap({
    */
   useEffect(() => {
     if (!el.current) return;
-    const dark = document.documentElement.classList.contains("dark");
     map.current ??= new g.Map(el.current, {
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 14,
       disableDefaultUI: true,
       clickableIcons: false,
       gestureHandling: "greedy",
-      // 写真が主役の地図（オーナー指示 2026-09-23「マップのデザイン向上」）。
-      // 色を落とし、お店・駅の印を消して、写真の丸と道筋だけが目に入るように。
-      styles: dark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT,
-      backgroundColor: dark ? "#1b1f27" : "#eef1f4",
+      // 配色は Google の既定（上の注記）。`styles` を渡さない。
     });
     // ピンは地図の上に**ふつうの HTML** として置く（写真の丸・浮き上がりを CSS で描く）。
     class PinLayer extends g.OverlayView {

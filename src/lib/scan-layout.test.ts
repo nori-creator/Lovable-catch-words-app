@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampToVisible, coverPoint, focusedIndex } from "./scan-layout";
+import { clampToVisible, containPoint, coverPoint, focusedIndex, zoomCrop } from "./scan-layout";
 
 describe("coverPoint", () => {
   it("縦横比が同じなら、そのまま比例", () => {
@@ -65,5 +65,23 @@ describe("focusedIndex", () => {
   });
   it("空なら -1", () => {
     expect(focusedIndex([], { scrollLeft: 0, width: 300, scrollWidth: 300 })).toBe(-1);
+  });
+});
+
+describe("containPoint / zoomCrop（撮る時と撮った後の倍率を同じに 2026-09-24）", () => {
+  it("縦長の画面に 3:4 の写真を全部入れる: 左右は切れず、上下に余白", () => {
+    const box = { w: 390, h: 844 };
+    const img = { w: 960, h: 1280 };
+    expect(containPoint([0, 500], img, box).left).toBeCloseTo(0);
+    expect(containPoint([1000, 500], img, box).left).toBeCloseTo(390);
+    const top = containPoint([500, 0], img, box).top;
+    const bottom = containPoint([500, 1000], img, box).top;
+    expect(bottom - top).toBeCloseTo(520);
+    expect(top).toBeCloseTo((844 - 520) / 2);
+  });
+  it("CSS で2倍に拡大して見せていたら、撮った絵も真ん中の半分を切り出す", () => {
+    expect(zoomCrop(1000, 800, 2)).toEqual({ sx: 250, sy: 200, sw: 500, sh: 400 });
+    expect(zoomCrop(1000, 800, 1)).toEqual({ sx: 0, sy: 0, sw: 1000, sh: 800 });
+    expect(zoomCrop(1000, 800, Number.NaN)).toEqual({ sx: 0, sy: 0, sw: 1000, sh: 800 });
   });
 });

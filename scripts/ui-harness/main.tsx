@@ -1,4 +1,5 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import { DateStylesScene } from "./scenes/date-styles";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
@@ -132,6 +133,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
   "first-catch": FirstCatchScene,
+  "date-styles": DateStylesScene,
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
@@ -311,7 +313,13 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 初回体験（PR #106）。何も打たずに開くとここから。
+  // 2026-09-24 の5回目の依頼（6項目）。何も打たずに開くとここから。
+  { scene: "date-styles", label: "ホームの日付の組み方 A〜D を見比べる（押すと選べる）" },
+  { scene: "home", label: "ホーム（選んだ日付の形・下のバーがスクロールで隠れない）" },
+  { scene: "review-choice&photo=1", label: "復習の4択（下の余りを写真に回す）" },
+  { scene: "dex-map&at=2", label: "図鑑の地図（Google の元の色）" },
+  { scene: "scan-found", label: "スキャンの後（撮る時と同じ倍率・全体を見せる）" },
+  // 初回体験（PR #106）。
   { scene: "first-catch", label: "初回体験 → 図鑑へ追加 → 登録" },
   // 2026-09-23 の4回目の依頼（12項目）で触った面（上から順に見る）。
   { scene: "home", label: "ホームの日付（iPhone のカレンダーの組み方・中央）" },

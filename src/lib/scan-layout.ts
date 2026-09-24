@@ -32,6 +32,56 @@ export function coverPoint(
 }
 
 /**
+ * **写真の縦の置き場所**（0 = 上端、1 = 下端）。映像と撮った写真は、縦横比を
+ * 保ったまま**全部見える大きさ**（`object-contain`）で、この位置に置く。
+ * **真ん中**にする: ハードウェアの倍率が無い端末は映像を CSS で拡大して
+ * 見せるので、拡大の中心（要素の真ん中）と枠の真ん中が一致していないと、
+ * 撮った絵の切り出し（`zoomCrop`、真ん中から切る）と見えていた範囲がずれる。
+ */
+export const SCAN_FRAME_Y = 0.5;
+
+/**
+ * `object-contain` で箱の中に**全部**入れた写真の上の、ある点の位置（px）。
+ *
+ * （オーナー報告 2026-09-24「スキャンのカメラ画面を向けるとすごい寄っていて
+ * 撮りづらい。取った画像を見ると引きになっている。撮る時と撮った後の倍率を
+ * 同じにして」）。前は映像を画面いっぱいに切り落として（`object-cover`）
+ * 見せていたので、縦長の画面では映像の左右が大きく切れ、**覗いている絵は
+ * 実際に撮れる絵より寄って**いた。撮った写真は切り落とさずに保存されるので、
+ * 後で見ると引きに見えた。いまは覗く時も撮った後も、撮れる範囲を全部見せる
+ * （iPhone のカメラが 4:3 の枠で見せるのと同じ）。
+ */
+export function containPoint(
+  [x, y]: NormPoint,
+  img: { w: number; h: number },
+  box: { w: number; h: number },
+  posY = SCAN_FRAME_Y,
+): { left: number; top: number } {
+  if (img.w <= 0 || img.h <= 0 || box.w <= 0 || box.h <= 0) {
+    return { left: (x / 1000) * box.w, top: (y / 1000) * box.h };
+  }
+  const s = Math.min(box.w / img.w, box.h / img.h);
+  const ox = (box.w - img.w * s) / 2;
+  const oy = (box.h - img.h * s) * posY;
+  return { left: ox + (x / 1000) * img.w * s, top: oy + (y / 1000) * img.h * s };
+}
+
+/**
+ * CSS で拡大して見せていた分（ハードウェアの倍率が無い端末）だけ、撮った絵の
+ * 真ん中を切り出す範囲。倍率 1 以下なら全体。**見えていた範囲 = 撮れる範囲**。
+ */
+export function zoomCrop(
+  w: number,
+  h: number,
+  zoom: number,
+): { sx: number; sy: number; sw: number; sh: number } {
+  const z = Number.isFinite(zoom) && zoom > 1 ? zoom : 1;
+  const sw = w / z;
+  const sh = h / z;
+  return { sx: (w - sw) / 2, sy: (h - sh) / 2, sw, sh };
+}
+
+/**
  * 点を**押せる範囲**に収める。下は操作シートの上端より上（点の下に付く
  * 語の札の分も空ける）、左右と上は端から少し内側。
  *

@@ -4795,7 +4795,11 @@ describe("ホームは今日の誌面", () => {
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/font-family: var\(--font-display\)/);
     // iPhone のカレンダーの組み方: 曜日・大きな日にち・年月、中央揃え（2026-09-23 の3回目）。
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/align-items: center;/);
-    expect(diary).toMatch(/<span className="diary-date__day" aria-hidden>\s*\{date\.getDate\(\)\}/);
+    // 2026-09-24「9月21日のように。デザインを複数、開発者の私だけ比較」:
+    // 既定（A）は月と日を一緒に書く。前の形（数字だけ）は見比べ用に残す。
+    expect(diary).toMatch(/<span className="diary-date__md">\{monthDay\}<\/span>/);
+    expect(diary).toMatch(/<span className="diary-date__day">\{date\.getDate\(\)\}<\/span>/);
+    expect(read("lib/date-style.ts")).toMatch(/DEFAULT_DATE_STYLE: DateStyle = "a"/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4910,7 +4914,9 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/\{ scene: "auth"/);
     // 先頭は何も打たずに開いた人が最初に見る面 = 初回体験（PR #106）。
     // 4回目の依頼の面（ホームの日付ほか）は、その次から帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    // 2026-09-24 の5回目の依頼: 日付の組み方の見比べが先頭。初回体験も帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "date-styles"/);
+    expect(list).toMatch(/\{ scene: "first-catch"/);
     expect(list).toMatch(/\{ scene: "home", label: "ホームの日付/);
     expect(list).toMatch(/scene: "dex-map&at=2"/);
     expect(list).toMatch(/\{ scene: "tts-voices"/);
@@ -5387,13 +5393,13 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
   const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
   const css = read("styles.css");
 
-  it("**写真は画面いっぱい**で止める（短い箱に押し込むと下に黒い地が出て、点もずれる）", () => {
+  it("**写真は覗いていた映像と同じ見え方**で止める（2026-09-24 から撮れる範囲を全部見せる contain）", () => {
     expect(scan).toMatch(
-      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-cover"/,
+      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
     );
     expect(scan).not.toMatch(/calc\(100% - \$\{sheetSize\.h \+ 24\}px\)/);
     // 点は写真と同じ切り落としで置く。
-    expect(scan).toMatch(/coverPoint\(it\.point, snapshotSize, boxSize\)/);
+    expect(scan).toMatch(/containPoint\(it\.point, snapshotSize, boxSize\)/);
   });
 
   it("**撮った後も `<video>` を外さない**（外すと「もう一度」で真っ黒・再スキャンが必ず失敗）", () => {
@@ -5826,9 +5832,9 @@ describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-2
   it("見えている所に入っていれば地図を動かさない。外なら、その近くへ寄せ直す", () => {
     expect(dm).toMatch(/if \(inView\(s\)\) return;\s*frame\(s\.id\);/);
   });
-  it("写真が主役の地図の色（お店・駅の印を消す）。浮いたピンに時刻", () => {
-    expect(dm).toMatch(/styles: dark \? MAP_STYLE_DARK : MAP_STYLE_LIGHT/);
-    expect(dm).toMatch(/featureType: "poi", stylers: \[\{ visibility: "off" \}\]/);
+  it("地図の色は Google の元の配色（2026-09-24「白黒ではなくカラフルに」）。浮いたピンに時刻", () => {
+    expect(dm).not.toMatch(/styles:/);
+    expect(dm).not.toMatch(/MAP_STYLE_/);
     expect(dm).toMatch(/className="dex-pin__time"/);
   });
 });
