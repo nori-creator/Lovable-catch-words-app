@@ -1375,7 +1375,7 @@ describe("2026-08-26 の3度目の報告", () => {
     // 2026-08-27 ④ で「ネットの画像は届いてから」が加わったので、
     // 条件は `canShow` に名前が付いた。中身は同じ — 行に中身が在るか、
     // ネットの画像なら1枚でも届いたか。
-    expect(src).toMatch(/order\.filter\(\(id\) => isVisible\(id\) && canShow\(id\)\)/);
+    expect(src).toMatch(/order\.filter\([\s\S]*?isVisible\(id\) && canShow\(id\)/);
     expect(src).toMatch(/: hasContent\(id\)/);
     // 「まだ作られていません」の枠そのものが残っていないこと。
     expect(src).not.toMatch(/EmptySection/);
@@ -4870,23 +4870,20 @@ describe("ホームは今日の誌面", () => {
     expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
   });
 
-  it("**迎える面は、角の丸い写真を傾けて重ねる**（ステッカーではない）", () => {
+  it("初回登録の背景は、今日の写真を持つ実物のホームと同じ部品", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
-    expect(auth).toMatch(/auth-photo auth-photo--/);
-    expect(cssBlock(".auth-photo {", ".auth-photo img")).toMatch(/border-radius: 1\.125rem/);
-    // 3枚とも違う傾き（揃えると貼った物に見えない）。
-    const rot = [
-      ...read("styles.css").matchAll(/\.auth-photo--[abc] \{[\s\S]*?rotate: (-?[\d.]+)deg/g),
-    ].map((m) => m[1]);
-    expect(new Set(rot).size).toBe(3);
-  });
-
-  it("**写真が無くても壊れない**（`public/welcome/` は任意）", () => {
-    // 手元に写真を持っていないので、**無い物を描かない**。読めなければ
-    // その1枚を隠して、淡い地のまま出す。
-    const auth = codeOnly(read("routes/auth.tsx"));
-    expect(auth).toMatch(/onError=\{\(e\) => \{/);
-    expect(auth).toMatch(/e\.currentTarget\.style\.display = "none"/);
+    const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
+    expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
+    // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
+    expect(home).not.toMatch(/<DayMasthead /);
+    expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
+    expect(home).toMatch(/heading=\{<DiaryDate /);
+    expect(home).toMatch(/first-catch-cafe\.webp/);
+    expect(home).toMatch(/first-catch-flower\.webp/);
+    expect(home).toMatch(/first-catch-cat\.webp/);
+    expect(home).not.toMatch(/<HomeEmptyState \/>/);
+    // 画像の装飾3枚を登録背景の代わりにしない。
+    expect(auth).not.toMatch(/auth-photo auth-photo--/);
   });
 
   it("**面と通信を分けてある**（雛形から迎える面を描ける）", () => {
@@ -4911,13 +4908,10 @@ describe("ホームは今日の誌面", () => {
     );
     expect(list).toMatch(/\{ scene: "home"/);
     expect(list).toMatch(/\{ scene: "auth"/);
-    // 先頭は何も打たずに開いた人が最初に見る面 = いちばん新しく直した面
-    // （2026-09-23 の「単語の数値は1つに統一」= 記憶のグラフ）。壁紙・図鑑の地図・
-    // 図鑑のカード表示・単語の詳細8項目・図鑑カレンダー・スキャンの後・ホームも帯に残す。
-    // 2026-09-23 の20項目の依頼（図鑑の全画面の地図が先頭）。
-    // 2026-09-23「祝福に映画のような BGM」（聴き比べが先頭）。3回目の依頼の地図も帯に残す。
-    // 2026-09-23 の4回目の依頼（ホームの日付が先頭）。祝福の音も帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    // 先頭は何も打たずに開いた人が最初に見る面 = 初回体験（PR #106）。
+    // 4回目の依頼の面（ホームの日付ほか）は、その次から帯に残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    expect(list).toMatch(/\{ scene: "home", label: "ホームの日付/);
     expect(list).toMatch(/scene: "dex-map&at=2"/);
     expect(list).toMatch(/\{ scene: "tts-voices"/);
     expect(list).toMatch(/\{ scene: "catch-sound"/);

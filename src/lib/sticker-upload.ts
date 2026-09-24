@@ -30,6 +30,8 @@ export async function uploadStickerImage(opts: {
   kind: string;
   /** 同じ回のアップロードで揃える時刻。省略すると now。 */
   ts?: number;
+  /** First-Catch retry at its stable, caller-owned path. Never overwrite. */
+  allowExisting?: boolean;
 }): Promise<string | null> {
   const { userId, dataUrl, kind } = opts;
   if (!dataUrl) return null;
@@ -42,7 +44,15 @@ export async function uploadStickerImage(opts: {
     contentType: blob.type,
     upsert: false,
   });
-  if (error) throw error;
+  if (
+    error &&
+    !(
+      opts.allowExisting &&
+      (String((error as { statusCode?: string }).statusCode) === "409" ||
+        /already exists|duplicate/i.test(error.message))
+    )
+  )
+    throw error;
   const thumb = await thumbPromise;
   if (thumb) {
     await supabase.storage

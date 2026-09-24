@@ -46,7 +46,8 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error: caught, reset }: { error: unknown; reset: () => void }) {
+  const error = caught instanceof Error ? caught : new Error(String(caught));
   const t = useT();
   console.error(error);
   const router = useRouter();

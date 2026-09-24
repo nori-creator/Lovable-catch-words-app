@@ -9,6 +9,10 @@ import {
 } from "react";
 import { useReadableError } from "@/lib/errors";
 import { SceneBubbles } from "@/components/SceneBubbles";
+import {
+  PersonalWordLesson,
+  type PersonalLessonContext,
+} from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
 import { examTagLabels } from "@/lib/exam-tags";
@@ -525,6 +529,9 @@ export const WordCard = forwardRef<
      * 図鑑の詳細では使わない — そちらは全部出るのが正しい。
      */
     minimal?: boolean;
+    /** Show the details during the first guided catch without exit links or report actions. */
+    guided?: boolean;
+    personalContext?: PersonalLessonContext;
   }
 >(function WordCard(
   {
@@ -535,6 +542,8 @@ export const WordCard = forwardRef<
     onPickImage,
     onEditHeadword,
     minimal = false,
+    guided = false,
+    personalContext,
   },
   ref,
 ) {
@@ -668,7 +677,10 @@ export const WordCard = forwardRef<
     id === "web_images" ? webImages.candidates.length > 0 : hasContent(id);
   const shown = minimal
     ? order.filter((id) => MINIMAL_SECTIONS.includes(id) && isVisible(id) && canShow(id))
-    : order.filter((id) => isVisible(id) && canShow(id));
+    : order.filter(
+        (id) =>
+          isVisible(id) && canShow(id) && (!guided || !["web_images", "real_usage"].includes(id)),
+      );
 
   return (
     <div className="space-y-3">
@@ -676,11 +688,20 @@ export const WordCard = forwardRef<
         word={word}
         autoplay={autoplay}
         minimal={minimal}
+        guided={guided}
         onEditHeadword={onEditHeadword}
         wordId={wordId}
         reportItems={reportItemsFor(shown)}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
+      {!minimal && (
+        <PersonalWordLesson
+          headword={word.headword}
+          meaning={word.meaning_ja}
+          language={word.language}
+          context={personalContext}
+        />
+      )}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard
@@ -839,6 +860,7 @@ function HeaderRow({
   word,
   autoplay,
   minimal = false,
+  guided = false,
   onEditHeadword,
   wordId,
   reportItems = [],
@@ -857,6 +879,7 @@ function HeaderRow({
    * (絵の3枚目で TOCFL の段々が画面の1/4を占めていた)。
    */
   minimal?: boolean;
+  guided?: boolean;
 }) {
   const t = useT();
   const autoplayedRef = useRef(false);
@@ -1024,7 +1047,13 @@ function HeaderRow({
                     {tag}
                   </span>
                 ))}
-              <ReportButton wordId={wordId} items={reportItems} language={word.language ?? null} />
+              {!guided && (
+                <ReportButton
+                  wordId={wordId}
+                  items={reportItems}
+                  language={word.language ?? null}
+                />
+              )}
             </div>
           )}
         </div>

@@ -573,6 +573,7 @@ const FOCUS_MIN_RATIO = 3;
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
 const BARE_SCENES = new Set([
+  "first-catch",
   // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
   "auth",
   // 剥がして捕まえる演出（main 2026-09-19）も全画面。

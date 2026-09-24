@@ -1,3 +1,4 @@
+import { FirstCatchScene } from "./scenes/first-catch";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
@@ -130,6 +131,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   gallery: GalleryScene,
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
+  "first-catch": FirstCatchScene,
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
@@ -274,6 +276,7 @@ function Frame({ children }: { children: ReactNode }) {
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 const BARE = new Set([
+  "first-catch",
   "auth",
   "sticker-peel",
   "onboarding",
@@ -308,6 +311,8 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 初回体験（PR #106）。何も打たずに開くとここから。
+  { scene: "first-catch", label: "初回体験 → 図鑑へ追加 → 登録" },
   // 2026-09-23 の4回目の依頼（12項目）で触った面（上から順に見る）。
   { scene: "home", label: "ホームの日付（iPhone のカレンダーの組み方・中央）" },
   { scene: "dex-cards&n=150", label: "図鑑のカード（指で送る・ばね・読みは設定の表記）" },
@@ -377,7 +382,8 @@ const explicitScene = q.get("scene");
  * 必ず名指しで開くので、帯が写り込んで**実物に無い物を測る**ことになる。
  * 何も付けずに開いた回（＝人が Deploy Preview を見に来た回）だけ出す。
  */
-const showReviewBar = !explicitScene || q.get("review") === "1";
+// The phone review should open as the product, without the developer scene menu.
+const showReviewBar = q.get("review") === "1";
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
 
 /**

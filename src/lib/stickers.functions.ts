@@ -689,6 +689,7 @@ export const getSticker = createServerFn({ method: "GET" })
   });
 
 const SaveStickerInput = z.object({
+  client_catch_id: z.string().uuid().optional(),
   word: z.object({
     headword: z.string().min(1),
     reading_zhuyin: z.string().optional().default(""),
@@ -917,6 +918,17 @@ export const saveSticker = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 
+    // Stable ID makes first-Catch transfer safe after OAuth reload / retries.
+    if (data.client_catch_id) {
+      const { data: existing, error } = await supabase
+        .from("stickers")
+        .select("id, word_id")
+        .eq("id", data.client_catch_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
+    }
     /**
      * 語の登録と棚の用意は**互いを待たない**ので並べて走らせる
      * （オーナー報告 2026-09-22「祝福の演出が…4秒位停止してる」— 演出は
@@ -941,6 +953,7 @@ export const saveSticker = createServerFn({ method: "POST" })
     // regenerations don't reshuffle already-unlocked branches.
     const branchPlan = buildBranchPlan(data.word.extras);
     const baseRow = {
+      ...(data.client_catch_id ? { id: data.client_catch_id } : {}),
       user_id: userId,
       word_id: wordId,
       language: data.language,
@@ -976,6 +989,15 @@ export const saveSticker = createServerFn({ method: "POST" })
         .insert(withoutShelf as never)
         .select("id")
         .single();
+    }
+    if (res.error?.code === "23505" && data.client_catch_id) {
+      const { data: existing } = await supabase
+        .from("stickers")
+        .select("id, word_id")
+        .eq("id", data.client_catch_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
     }
     if (res.error) throw new Error(res.error.message);
 
