@@ -3946,7 +3946,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(line.indexOf("<PronounceButton")).toBeLessThan(line.indexOf("<ChunkPills"));
     expect(line.indexOf("<ChunkPills")).toBeLessThan(line.indexOf("chunk-line__translation"));
     // 本番の案は1つだけ（2つの画面が同じ値を読む）。
-    expect(read("lib/chunk-design.ts")).toMatch(/export const CHUNK_DESIGN: ChunkDesign = "float";/);
+    expect(read("lib/chunk-design.ts")).toMatch(
+      /export const CHUNK_DESIGN: ChunkDesign = "float";/,
+    );
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
