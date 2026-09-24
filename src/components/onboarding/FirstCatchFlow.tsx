@@ -1,8 +1,10 @@
+import { FirstCatchDex, FirstCatchReview } from "./FirstCatchPractice";
+import { preloadFirstCatchImages } from "@/lib/first-catch-images";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, Loader2, CalendarCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { getUiLang, useT } from "@/lib/i18n";
@@ -14,11 +16,7 @@ import { firstCatchAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
-import {
-  ensureFirstCatchSession,
-  firstCatchPhoto,
-  applyFirstCatchLanguage,
-} from "@/lib/first-catch-services";
+import { firstCatchPhoto, applyFirstCatchLanguage } from "@/lib/first-catch-services";
 import {
   readFirstCatch,
   writeFirstCatch,
@@ -28,10 +26,10 @@ import {
 } from "@/lib/first-catch";
 import { CaptureObjectPanel, PickWordPanel } from "@/routes/_authenticated/capture";
 import { DexAlbumGrid } from "@/routes/_authenticated/dex";
-import { EmptyState } from "@/components/EmptyState";
+
 import { PeelSticker } from "@/components/PeelSticker";
 import { WordCard } from "@/components/WordCard";
-import { FirstCatchHome, FirstCatchSampleDex, FirstCatchShell } from "./FirstCatchHome";
+import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
 import "./first-catch.css";
 
@@ -48,7 +46,10 @@ export function FirstCatchEntry() {
   const navigate = useNavigate();
   return (
     <FirstCatchFlow
-      services={createFirstCatchServices((data) => ai({ data }), ensureFirstCatchSession)}
+      services={createFirstCatchServices(
+        (data) => ai({ data }),
+        async () => {},
+      )}
       onAccount={() => {
         void navigate({ to: "/auth", search: { next: "" } });
       }}
@@ -85,6 +86,7 @@ export function FirstCatchFlow({
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   useEffect(() => {
+    preloadFirstCatchImages();
     mounted.current = true;
     if (initialDraft) applyFirstCatchLanguage(initialDraft);
     if (!initialDraft)
@@ -247,7 +249,7 @@ export function FirstCatchFlow({
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
   if (draft.stage === "intro")
-    return <FirstCatchIntro busy={!!busy} onStart={() => move("questions")} />;
+    return <FirstCatchIntro draft={draft} busy={!!busy} onStart={() => move("questions")} />;
   if (draft.stage === "questions")
     return (
       <FirstCatchQuestions
@@ -297,23 +299,41 @@ export function FirstCatchFlow({
       {draft.stage === "home" && <FirstCatchHome draft={draft} animated />}
       {draft.stage === "dex" && (
         <FirstCatchShell tab={1}>
-          <h1 className="text-title font-bold mb-6">{t("nav.dex")}</h1>
-          <section data-tour="dex">
-            <FirstCatchSampleDex draft={draft} />
-          </section>
+          <FirstCatchDex draft={draft} onOpen={() => move("explore")} />
         </FirstCatchShell>
       )}
       {draft.stage === "review" && (
         <FirstCatchShell tab={3}>
-          <h1 className="text-title font-bold mb-6">{t("nav.review")}</h1>
-          <section data-tour="review">
-            <EmptyState
-              icon={CalendarCheck}
-              title={t("review.empty")}
-              hint={t("review.emptyHint")}
-            />
-          </section>
+          <FirstCatchReview
+            draft={draft}
+            onComplete={() =>
+              void action(() => commit({ ...draft, stage: "complete", reviewCompleted: true }))
+            }
+          />
         </FirstCatchShell>
+      )}
+      {draft.stage === "complete" && (
+        <div className="first-standalone first-ready">
+          <div className="first-ready-heading">
+            <h1>{t("first.completeTitle")}</h1>
+            <p>{t("first.completeHint")}</p>
+          </div>
+          <div className="first-ready-art">
+            <div className="first-confetti">
+              {Array.from({ length: 12 }, (_, i) => (
+                <i key={i} />
+              ))}
+            </div>
+            <img src={draft.photo!} alt="" className="first-complete-photo" />
+          </div>
+          <footer className="first-standalone-footer">
+            <button className="first-primary" disabled={!!busy} onClick={account}>
+              {t("first.keep")}
+              <ArrowRight size={18} />
+            </button>
+            {errors}
+          </footer>
+        </div>
       )}
       {draft.stage === "camera" && (
         <FirstCatchShell tab={2} camera={!suggestions.length && !error}>
@@ -391,8 +411,9 @@ export function FirstCatchFlow({
             <DexAlbumGrid
               items={[sticker]}
               justCaught={sticker.id}
+              memory={new Map()}
               onOpen={() => {
-                if (!landing && !busy) move("explore");
+                if (!landing && !busy) move("dex");
               }}
             />
           </section>
@@ -404,9 +425,9 @@ export function FirstCatchFlow({
           <button
             className="first-primary first-added-cta"
             disabled={landing || !!busy}
-            onClick={() => move("explore")}
+            onClick={() => move("dex")}
           >
-            {t("first.openWord")}
+            {t("first.dexTitle")}
             <ArrowRight size={18} />
           </button>
           {errors}
@@ -438,23 +459,21 @@ export function FirstCatchFlow({
           />
           {errors}
           <div className="first-detail-footer">
-            <button className="first-primary" disabled={!!busy} onClick={account}>
-              {t("first.keep")}
+            <button className="first-primary" disabled={!!busy} onClick={() => move("review")}>
+              {t("first.tryReview")}
               <ArrowRight size={18} />
             </button>
           </div>
         </FirstCatchShell>
       )}
-      {!error && !landing && ["home", "dex", "review"].includes(draft.stage) && (
+      {!error && !landing && draft.stage === "home" && (
         <Spotlight
-          target={`[data-tour="${draft.stage}"]`}
-          title={t(`first.${draft.stage}Title`)}
-          text={t(`first.${draft.stage}`)}
-          step={`${["home", "dex", "review"].indexOf(draft.stage) + 1} / 3`}
-          nextLabel={t(draft.stage === "review" ? "first.shootCta" : "first.next")}
-          onNext={() =>
-            move(draft.stage === "home" ? "dex" : draft.stage === "dex" ? "review" : "camera")
-          }
+          target='[data-tour="home"]'
+          title={t("first.homeTitle")}
+          text={t("first.home")}
+          step="1 / 5"
+          nextLabel={t("first.shootCta")}
+          onNext={() => move("camera")}
         />
       )}
       {!error && !landing && draft.stage === "camera" && !draft.photo && (

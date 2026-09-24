@@ -321,8 +321,35 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.start": { ja: "体験をはじめる", en: "Try your first Catch", "zh-TW": "開始體驗" },
   "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
   "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
+  "first.sampleSea": { ja: "海", en: "sea", "zh-TW": "海" },
+  "first.dexSwipe": {
+    ja: "写真を横にスライド。見つけた場面から、ことばを思い出せます。",
+    en: "Swipe the photos sideways. Recall each word through the moment you found it.",
+    "zh-TW": "左右滑動照片，從當時的場景想起單字。",
+  },
+  "first.dexTypes": {
+    ja: "左上の四角いアイコンをタップ。写真を並べて探す表示にも切り替えられます。",
+    en: "Tap the grid icon at the top left to browse your photos together.",
+    "zh-TW": "點左上的方格圖示，也可以用照片一覽尋找單字。",
+  },
+  "first.dexOpen": {
+    ja: "追加した単語を開いて、意味や使い方を見てみましょう。",
+    en: "Open your new word to explore its meanings and uses.",
+    "zh-TW": "打開剛加入的單字，看看意思和用法。",
+  },
+  "first.tryReview": { ja: "復習してみる", en: "Try a review", "zh-TW": "試著複習" },
+  "first.completeTitle": {
+    ja: "最初のキャッチ、完了！",
+    en: "Your first Catch is complete!",
+    "zh-TW": "完成第一次 Catch！",
+  },
+  "first.completeHint": {
+    ja: "撮って、意味を知って、思い出す。\n身のまわりから、ことばを増やしていこう。",
+    en: "Capture it. Understand it. Recall it.\nBuild your vocabulary from everyday life.",
+    "zh-TW": "拍下來、了解意思、再想起來。\n從生活中累積你的單字。",
+  },
   "first.home": {
-    ja: "撮った写真とことばが、その日のアルバムになります。",
+    ja: "撮った写真が、そのまま単語帳に。いつ、何を見つけたかを写真から振り返れます。",
     en: "Your photos and words become an album of the day.",
     "zh-TW": "拍下的照片和單字，會成為當天的相簿。",
   },
@@ -332,7 +359,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "收集的單字會和照片一起保存。",
   },
   "first.review": {
-    ja: "短いクイズで、忘れる前に思い出します。",
+    ja: "写真を見て、ことばを選びましょう。自分の体験と一緒に覚えるから、思い出しやすくなります。",
     en: "Short quizzes bring words back before you forget.",
     "zh-TW": "用簡短的測驗，在忘記前再想起來。",
   },
@@ -367,7 +394,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Your first word is now on this device.",
     "zh-TW": "第一個單字已儲存在這個裝置上。",
   },
-  "first.keep": { ja: "このことばを保存する", en: "Keep this word", "zh-TW": "保存這個單字" },
+  "first.keep": {
+    ja: "登録して続ける",
+    en: "Create an account to continue",
+    "zh-TW": "註冊並繼續",
+  },
   "first.account": {
     ja: "最初のことばを、\nあなたのものに。",
     en: "Make your first word\ntruly yours.",

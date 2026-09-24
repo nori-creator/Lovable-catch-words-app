@@ -3469,10 +3469,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("カメラの機械の中では、丸をやめて帯ごと暗いガラスにする", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     // 居ないときはこれまでどおり主色の丸。
-    expect(shell).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
+    const content = codeOnly(read("components/AppTabContent.tsx"));
+    expect(shell).toMatch(/<AppTabContent /);
+    expect(content).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
     // 居るときは丸を出さず、ふつうの絵を主色で出す。
-    expect(shell).toMatch(/\{isScan && !isCurrent \? \(/);
-    expect(shell).toMatch(/isScan && isCurrent \? "text-primary" : ""/);
+    expect(content).toMatch(/camera && !current/);
+    expect(content).toMatch(/camera && current \? "text-primary" : ""/);
     // 帯そのものに印を渡す。
     expect(shell).toMatch(/onCamera=\{onCameraScreen\}/);
     expect(codeOnly(read("components/TabBar.tsx"))).toMatch(
@@ -4919,10 +4921,10 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "home"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    expect(list).toMatch(/step=home/);
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
-    expect(list).not.toMatch(/scene: "first-catch"/);
+    expect(list).toMatch(/scene: "first-catch"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
@@ -5287,7 +5289,7 @@ describe("画像の右上の記憶の印", () => {
       dex.indexOf("export function DexAlbumGrid("),
       dex.indexOf("export function PackGallery("),
     );
-    expect(grid).toMatch(/const fetched = useMemoryBadges\(\);/);
+    expect(grid).toMatch(/const fetched = useMemoryBadges\(memory === undefined\);/);
     expect(grid).toMatch(
       /<MemoryBadge\s+info=\{memoryById\.get\(s\.id\)!\}\s+className="absolute right-1 top-1/,
     );

@@ -4,10 +4,11 @@ import type { FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
 import "./first-catch.css";
 
-const photos = [
+export const FIRST_CATCH_PHOTOS = [
   { src: "/first-catch-cafe.webp", word: "coffee" },
   { src: "/first-catch-flower.webp", word: "花" },
   { src: "/first-catch-cat.webp", word: "cat" },
+  { src: "/first-catch-ready.webp", word: "sea" },
 ];
 
 function PrimaryAction({
@@ -27,7 +28,15 @@ function PrimaryAction({
   );
 }
 
-export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () => void }) {
+export function FirstCatchIntro({
+  draft,
+  busy,
+  onStart,
+}: {
+  draft: FirstCatch;
+  busy: boolean;
+  onStart: () => void;
+}) {
   const t = useT();
   return (
     <div className="first-run">
@@ -43,10 +52,19 @@ export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () 
             手書きの一言と4つの点は外した — 一言は見出しの言い直しで、
             点は横に送れない画面を送れるように見せていた。 */}
         <div className="first-polaroids" aria-hidden="true">
-          {photos.map(({ src, word }, i) => (
+          {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
             <div key={src} className={`first-polaroid first-polaroid-${i}`}>
-              <img src={src} alt="" />
-              <span>{word}</span>
+              <img src={src} alt="" loading="eager" fetchPriority="high" />
+              <span>
+                {
+                  [
+                    t("first.sampleCoffee"),
+                    t("first.sampleFlower"),
+                    t("first.sampleCat"),
+                    t("first.sampleSea"),
+                  ][i]
+                }
+              </span>
             </div>
           ))}
         </div>
@@ -108,7 +126,6 @@ export function FirstCatchNotifications({
         </header>
         <div className="first-question-heading">
           <h1>{t("first.notificationsTitle")}</h1>
-          <p className="first-sub">{t("first.notificationsHint")}</p>
         </div>
         <div className="first-reminders">
           {items.map(({ key, Icon, time }) => (

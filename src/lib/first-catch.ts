@@ -33,6 +33,7 @@ export const FirstCatchSchema = z.object({
     "card",
     "added",
     "explore",
+    "complete",
     "account",
     "done",
   ]),
@@ -41,6 +42,7 @@ export const FirstCatchSchema = z.object({
   lesson: PersonalLessonSchema.optional(),
   reminders: z.object({ morning: z.boolean(), evening: z.boolean() }).optional(),
   capturedAt: z.string().datetime().nullable(),
+  reviewCompleted: z.boolean().optional(),
   importedUserId: z.string().uuid().optional(),
 });
 export type FirstCatch = z.infer<typeof FirstCatchSchema>;
@@ -79,7 +81,8 @@ export async function writeFirstCatch(draft: FirstCatch): Promise<void> {
 }
 export function canRequestAccount(draft: FirstCatch): boolean {
   return (
-    ["explore", "account"].includes(draft.stage) &&
+    ["complete", "account"].includes(draft.stage) &&
+    draft.reviewCompleted === true &&
     !!draft.photo &&
     !!draft.card &&
     !!draft.capturedAt

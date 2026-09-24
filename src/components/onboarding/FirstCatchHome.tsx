@@ -1,3 +1,4 @@
+import { AppTabContent } from "../AppTabContent";
 import type { ReactNode } from "react";
 import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
@@ -8,7 +9,7 @@ import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
 
-function sampleStickers(
+export function sampleStickers(
   draft: FirstCatch | null,
   t: ReturnType<typeof useT>,
   target: ReturnType<typeof useTargetLang>,
@@ -36,25 +37,35 @@ function sampleStickers(
       meaning: t("first.sampleCat"),
       category: "animal",
     },
-  ].map(
-    ({ id, photo, word, meaning, category }) =>
-      firstCatchSticker({
-        version: 1,
-        id,
-        uiLanguage: draft?.uiLanguage ?? "ja",
-        targetLanguage: selected,
-        dailyMinutes: 10,
-        stage: "home",
-        photo,
-        capturedAt: "2026-09-23T09:00:00.000Z",
-        card: CardSchema.parse({
-          headword_zh: word,
-          meaning_ja: meaning,
-          category_key: category,
-          level: "",
-        }),
-      })!,
-  );
+    {
+      id: "00000000-0000-4000-8000-000000000004",
+      photo: "/first-catch-ready.webp",
+      word: selected === "en" ? "sea" : "海",
+      meaning: t("first.sampleSea"),
+      category: "nature",
+    },
+  ].map(({ id, photo, word, meaning, category }, i) => ({
+    ...firstCatchSticker({
+      version: 1,
+      id,
+      uiLanguage: draft?.uiLanguage ?? "ja",
+      targetLanguage: selected,
+      dailyMinutes: 10,
+      stage: "home",
+      photo,
+      capturedAt: "2026-09-23T09:00:00.000Z",
+      card: CardSchema.parse({
+        headword_zh: word,
+        meaning_ja: meaning,
+        category_key: category,
+        level: "",
+      }),
+    })!,
+    album_x: i % 2 === 0 ? 0.25 : 0.75,
+    album_y: 0.3 + Math.floor(i / 2) * 0.68,
+    album_scale: 1.35,
+    album_rot: 0,
+  }));
 }
 
 export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
@@ -63,7 +74,6 @@ export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
   const samples = sampleStickers(draft, t, target);
   return (
     <div className="first-sample-dex">
-      <p className="first-sample-label">{t("first.sampleDex")}</p>
       <DexAlbumGrid items={samples} onOpen={() => {}} />
     </div>
   );
@@ -90,13 +100,15 @@ export function FirstCatchShell({
             <button
               type="button"
               disabled
-              className="tabbar__cell w-full"
+              className={`tabbar__cell group w-full rounded-full text-caption ${i === tab ? "text-primary-ink" : "text-muted-foreground"}`}
               aria-current={i === tab ? "page" : undefined}
             >
-              <Icon className="h-5 w-5" />
-              <span>
-                {t(["nav.home", "nav.dex", "nav.camera", "nav.review", "nav.settings"][i])}
-              </span>
+              <AppTabContent
+                icon={Icon}
+                camera={i === 2}
+                current={i === tab}
+                label={t(["nav.home", "nav.dex", "nav.camera", "nav.review", "nav.settings"][i])}
+              />
             </button>
           </li>
         ))}
@@ -119,12 +131,11 @@ export function FirstCatchHome({
   return (
     <FirstCatchShell>
       <section data-tour="home">
-        {!sticker && <p className="first-sample-label">{t("first.sampleAlbum")}</p>}
         <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
           {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}
           <DayCollage
             stickers={sticker ? [sticker] : samples}
-            heading={<DiaryDate date={new Date(draft?.capturedAt ?? Date.now())} />}
+            heading={<DiaryDate date={new Date(draft?.capturedAt ?? "2026-09-23T09:00:00.000Z")} />}
             opening={animated && !sticker}
             onOpen={() => {}}
           />

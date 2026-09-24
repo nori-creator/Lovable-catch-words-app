@@ -15,14 +15,10 @@ import { TARGET_LANGUAGES } from "@/lib/target-lang";
 import { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS, type FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
 
-/**
- * 言語の印は**国旗ではなく、その言語の字**。国旗は国を指し、言語を指さない
- * （英語は米国だけの言語ではない。Apple の HIG も言語の選択に国旗を使わない）。
- */
 const GLYPHS = {
-  ja: "あ",
-  en: "A",
-  "zh-TW": "繁",
+  ja: "🇯🇵",
+  en: "🇺🇸",
+  "zh-TW": "🇹🇼",
 };
 const NATIVE = {
   ja: "日本語",
@@ -83,7 +79,6 @@ export function FirstCatchQuestions({
         </header>
         <div className="first-question-heading">
           <h1>{t(`first.${title}`)}</h1>
-          <p className="first-sub">{t(`first.${title}Hint`)}</p>
         </div>
         {step < 2 && (
           <div className="first-choices" role="radiogroup" aria-label={t(`first.${title}`)}>
@@ -147,7 +142,6 @@ export function FirstCatchQuestions({
                 </button>
               ))}
             </div>
-            <p className="first-soft-note">{t("first.timeNote")}</p>
           </>
         )}
         {step === 3 && (

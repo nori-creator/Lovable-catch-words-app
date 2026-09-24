@@ -36,6 +36,7 @@ export function DexCoverFlow({
   onOpen,
   memory,
   initialIndex = 0,
+  onBrowse,
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
@@ -43,13 +44,17 @@ export function DexCoverFlow({
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
   initialIndex?: number;
+  onBrowse?: () => void;
 }) {
   const t = useT();
-  const fetched = useMemoryBadges();
+  const fetched = useMemoryBadges(memory === undefined);
   const memoryById = memory ?? fetched;
   const stageRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [center, setCenter] = useState(0);
+  useEffect(() => {
+    if (center > 0) onBrowse?.();
+  }, [center, onBrowse]);
   const centerRef = useRef(0);
   centerRef.current = center;
   const onOpenRef = useRef(onOpen);
