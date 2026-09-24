@@ -722,7 +722,7 @@ export function DexAlbumGrid({
   memory?: Map<string, MemoryBadgeInfo>;
 }) {
   const t = useT();
-  const fetched = useMemoryBadges();
+  const fetched = useMemoryBadges(memory === undefined);
   const memoryById = memory ?? fetched;
   return (
     <div className="grid grid-cols-3 gap-2.5">
@@ -796,11 +796,7 @@ export function DexAlbumGrid({
                   className="absolute right-1 top-1 max-w-[calc(100%-0.5rem)]"
                 />
               )}
-              {!hasImage && s.encounter_count > 0 && (
-                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-amber-400/95 px-1.5 py-0.5 text-caption font-bold text-amber-950 shadow">
-                  ×{s.encounter_count}
-                </span>
-              )}
+
               {/* 下端の帯。**絵がある札だけ。** 絵が無い札は上のプレース
                   ホルダが既に語を大きく出しているので、ここにも出すと
                   **同じ語が1枚の札に2回**並ぶ(実際そうなっていた)。
@@ -825,11 +821,6 @@ export function DexAlbumGrid({
                     >
                       {s.word.headword}
                     </div>
-                    {s.encounter_count > 0 && (
-                      <span className="shrink-0 rounded-full bg-amber-400/95 px-1.5 text-caption font-bold text-amber-950">
-                        ×{s.encounter_count}
-                      </span>
-                    )}
                   </div>
                 </div>
               )}
@@ -888,7 +879,6 @@ export function PackGallery({
                   {s.word.headword.slice(0, 2)}
                 </span>
               )}
-              {s.encounter_count > 0 && <span className="pk-tile-badge">×{s.encounter_count}</span>}
             </span>
             <span className="pk-tile-body">
               <span lang="zh-Hant" className="pk-tile-word">
@@ -914,7 +904,9 @@ export function DexHeader({
   onFilter,
   categories,
   days,
+  allowedViews,
 }: {
+  allowedViews?: ViewMode[];
   found: number;
   caught: number;
   view: ViewMode;
@@ -960,24 +952,26 @@ export function DexHeader({
             // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
             ["list", List, t("dex.list")] as const,
-          ].map(([v, Icon, label]) => (
-            <button
-              key={v}
-              onClick={() => onView(v)}
-              aria-label={label}
-              aria-pressed={view === v}
-              // 見た目は 36px のまま、**指が当たる範囲だけ 44px** に広げる
-              // (`-inset-1` = 上下左右 4px → 44px 四方)。絵の検査は
-              // `getBoundingClientRect()` ではなく `elementFromPoint` で
-              // 実際の当たり判定を見るので、これが正しいやり方
-              // (`scripts/ui-audit.mjs` の注)。
-              className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition before:absolute before:-inset-1 before:content-[''] ${
-                view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-[18px] w-[18px]" />
-            </button>
-          ))}
+          ]
+            .filter(([v]) => !allowedViews || allowedViews.includes(v))
+            .map(([v, Icon, label]) => (
+              <button
+                key={v}
+                onClick={() => onView(v)}
+                aria-label={label}
+                aria-pressed={view === v}
+                // 見た目は 36px のまま、**指が当たる範囲だけ 44px** に広げる
+                // (`-inset-1` = 上下左右 4px → 44px 四方)。絵の検査は
+                // `getBoundingClientRect()` ではなく `elementFromPoint` で
+                // 実際の当たり判定を見るので、これが正しいやり方
+                // (`scripts/ui-audit.mjs` の注)。
+                className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition before:absolute before:-inset-1 before:content-[''] ${
+                  view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            ))}
         </div>
 
         {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と

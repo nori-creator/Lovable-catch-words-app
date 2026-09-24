@@ -41,11 +41,14 @@ describe("first Catch before signup", () => {
     "camera",
     "card",
     "added",
+    "explore",
   ] as const)("never requests signup at %s, even when a card exists", (stage) => {
     expect(canRequestAccount({ ...draft, stage })).toBe(false);
   });
   it("requires the captured photo, word and addition, not merely pressing the shutter", () => {
-    expect(canRequestAccount({ ...draft, stage: "explore" })).toBe(true);
+    expect(canRequestAccount({ ...draft, stage: "complete" })).toBe(false);
+    expect(canRequestAccount({ ...draft, stage: "complete", reviewCompleted: true })).toBe(true);
+    expect(canRequestAccount({ ...draft, stage: "account", reviewCompleted: false })).toBe(false);
     expect(canRequestAccount({ ...draft, photo: null })).toBe(false);
     expect(canRequestAccount({ ...draft, card: null })).toBe(false);
   });
@@ -75,7 +78,7 @@ describe("first Catch before signup", () => {
   });
 });
 describe("signup transfer", () => {
-  const ready = { ...draft, stage: "explore" as const };
+  const ready = { ...draft, stage: "complete" as const, reviewCompleted: true };
   const ports = () => ({
     upload: vi.fn(async () => `${userId}/first.jpg`),
     save: vi.fn(async (_draft: FirstCatch, _path: string | null) => ({ id: draft.id })),

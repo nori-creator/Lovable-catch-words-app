@@ -1934,10 +1934,13 @@ export function LightModeCard({
   card,
   onNext,
   onOpenMemory,
+  practice = false,
 }: {
   card: DueReviewCard;
   onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
+  /** Local first-run exercise: never writes a scheduled review. */
+  practice?: boolean;
 }) {
   const grade = useServerFn(gradeReview);
   const t = useT();
@@ -1987,6 +1990,7 @@ export function LightModeCard({
     if (picked) return;
     setPicked(pickedValue);
     void pronounce(card.headword);
+    if (practice) return;
     void grade({
       data: {
         review_id: card.review_id,
@@ -2015,7 +2019,7 @@ export function LightModeCard({
             <BadgeIcon name={BADGE_ICON_NAME.quiz} size="sm" />
             {t("review.quizTag")}
           </span>
-          <CardMemoryBadge card={card} onOpen={onOpenMemory} />
+          {!practice && <CardMemoryBadge card={card} onOpen={onOpenMemory} />}
         </div>
         {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
           画面高に連動させ(最大32vh)、小さい端末でも選択肢が隠れない。 */}

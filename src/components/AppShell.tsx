@@ -1,3 +1,4 @@
+import { AppTabContent } from "./AppTabContent";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -506,55 +507,7 @@ export function AppShell({
                     : undefined
                 }
               >
-                {isScan && !isCurrent ? (
-                  /**
-                   * **カメラは印で囲わない。中の色が変わる。**
-                   * （オーナー指示 2026-09-15「カメラのアイコンの色を変化して
-                   * 欲しいんじゃなくて、…青いバブルで囲うのではなく、カメラの
-                   * アイコンの中の色を変えてほしい」）
-                   *
-                   * 前の版は丸の白さを 70% → 100% に上げるだけだった。
-                   * **同じ白の濃淡は「色が変わった」と読まれない** — 並べて
-                   * 撮ると差が分からない。丸の**中身を入れ替える**:
-                   *   ・居ないとき … 主色の丸 ＋ 白い絵
-                   *   ・居るとき   … 白い丸 ＋ 主色の絵（＋主色の輪）
-                   * 見分けは色そのもので付き、字とのコントラストは
-                   * 入れ替えても同じ比のまま落ちない。
-                   */
-                  <span className="tabbar__lens-slot">
-                    {/*
-                      **カメラの画面に居る間、この丸は下に居ない。**
-                      （オーナー指示 2026-09-16「下のカメラのアイコンが
-                       そのままシャッターボタンになるようにして。つまり
-                       下のカメラのアイコンが上に移動し下にはカメラの
-                       アイコンなくなる」）
-
-                      丸はシャッターへ移った、という筋を通す。両方に在ると
-                      「同じ物が2つある」ことになり、上へ動いた意味が消える。
-                      押す所そのものは升目が持っているので、カメラから
-                      出られなくなることはない。
-                    */}
-                    <span className="tabbar__lens bg-primary text-primary-foreground shadow-lg shadow-primary/40">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                  </span>
-                ) : (
-                  /**
-                   * カメラの機械に居る間、この升目は**ふつうの絵に戻る**
-                   * （オーナー指示 2026-09-16、参考画像のとおり）。
-                   *
-                   * 丸はシャッターへ移っているので、下に丸は要らない。
-                   * ただし**絵まで消すと、どこに居るかが帯から読めない** —
-                   * 前の版は丸ごと隠していて、カメラの升目だけ空白だった。
-                   * 選ばれている升目として、主色の絵と字を出す。
-                   */
-                  <Icon
-                    className={`h-5 w-5 transition-transform duration-150 group-active:scale-90 ${
-                      isScan && isCurrent ? "text-primary" : ""
-                    }`}
-                  />
-                )}
-                <span>{label}</span>
+                <AppTabContent icon={Icon} label={label} camera={isScan} current={isCurrent} />
               </Link>
             </li>
           );

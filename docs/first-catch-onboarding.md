@@ -31,3 +31,8 @@ Before merging/releasing:
 If anonymous access is unavailable, the captured photo remains local and a retry message is shown. The app does not jump to signup early or fabricate an AI result.
 
 Anonymous sessions hold AI usage/profile preferences only. Photos/catches remain local until permanent signup; sign-in to an existing account imports under that authenticated account, preserving its existing profile preferences. Anonymous-session cleanup is an operational requirement.
+
+## 2026-09-24 owner revision
+The guided path is Home → actual camera/photo AI → durable local Catch + landing animation → real Collection cover flow swipe and gallery view → own word detail → two local photo-review questions → congratulations → signup/signin. Account transfer is allowed only after review completion. Registration is not required to operate the camera or view the tutorial. Generated sample photos are preloaded and shown on welcome, Home, Collection and review; they never stand in for AI candidates from the learner's actual camera photo.
+
+The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to reserve atomic budget slots in the existing `app_config` table (12 requests per originating address/day and 200 globally/day). No personal photo or word enters that table. Calls fail closed if reservation or provider fails. Confirm runtime environment and a real device capture in the PR Deploy Preview and the eventual Lovable deployment.

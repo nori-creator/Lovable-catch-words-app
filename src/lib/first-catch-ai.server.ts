@@ -34,6 +34,11 @@ export async function executeFirstCatchAI(
     .from("usage_events")
     .insert({ user_id: context.userId, kind: "first_catch_ai" });
   if (reserved.error) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
+  return generateFirstCatchAI(data);
+}
+
+export async function generateFirstCatchAI(raw: unknown) {
+  const data = FirstCatchAIInput.parse(raw);
   const ai = await getAiFor(data.action === "suggest" ? "scan" : "card");
   const target = targetProfile(data.targetLanguage);
   const explanation = {

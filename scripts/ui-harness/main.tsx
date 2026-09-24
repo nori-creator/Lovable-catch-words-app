@@ -311,14 +311,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-24 の5回目の依頼で触った面だけ（オーナー指示「過去のものが多すぎで
-  // 画面で確認できないから、過去のものは全て削除して」）。**毎回ここを入れ替える**
-  // — 前の依頼の面は残さない。
-  { scene: "word-card", label: "単語の詳細（星は見出しの横・性質は級の横）" },
-  { scene: "home", label: "ホーム（日付は A・下のバー）" },
-  { scene: "review-choice&photo=1", label: "復習の4択（写真を大きく）" },
-  { scene: "dex-map&at=2", label: "地図（元の色）" },
-  { scene: "scan-found", label: "スキャンの後（倍率）" },
+  { scene: "first-catch", label: "初回体験をはじめる" },
+  { scene: "first-catch&step=home", label: "ホーム" },
+  { scene: "first-catch&step=dex", label: "図鑑をスライド" },
+  { scene: "first-catch&step=explore", label: "単語の詳細" },
+  { scene: "first-catch&step=review", label: "復習を体験" },
+  { scene: "first-catch&step=complete", label: "完了・登録" },
 ];
 
 const explicitScene = q.get("scene");

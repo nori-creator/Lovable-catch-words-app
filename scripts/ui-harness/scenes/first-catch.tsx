@@ -4,19 +4,15 @@ import { AuthView } from "@/routes/auth";
 import { getUiLang, useT } from "@/lib/i18n";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
-import { supabase } from "@/integrations/supabase/client";
-import { ensureFirstCatchSession } from "@/lib/first-catch-services";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { FirstCatchSchema, type FirstCatch } from "@/lib/first-catch";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 
 async function previewRequest(data: FirstCatchAIRequest): Promise<unknown> {
-  const { data: session } = await supabase.auth.getSession();
   const response = await fetch("/api/first-catch", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${session.session?.access_token ?? ""}`,
     },
     body: JSON.stringify(data),
     signal: AbortSignal.timeout(55_000),
@@ -29,7 +25,6 @@ async function preparePreview() {
   const response = await fetch("/api/first-catch", { signal: AbortSignal.timeout(8000) });
   if (!response.ok || !(await response.json()).available)
     throw new Error("FIRST_CATCH_PREVIEW_UNAVAILABLE");
-  await ensureFirstCatchSession();
 }
 // Explicit direct-link visual samples only. NEVER returned from a photo analysis.
 function sampleCard(target: FirstCatch["targetLanguage"], ui: FirstCatch["uiLanguage"]) {
@@ -109,7 +104,9 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
     const targetLanguage =
       q.get("target") === "en" ? "en" : q.get("target") === "zh-TW" ? "zh-TW" : getTargetLang();
     const uiLanguage = getUiLang();
-    const sample = ["card", "added", "explore", "account"].includes(stage);
+    const sample = ["card", "added", "dex", "explore", "review", "complete", "account"].includes(
+      stage,
+    );
     return {
       version: 1,
       id: crypto.randomUUID(),
@@ -120,6 +117,7 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
       interests: stage === "explore" ? ["food"] : [],
       questionIndex: Math.max(0, Math.min(4, Number(q.get("question")) || 0)),
       stage,
+      reviewCompleted: ["complete", "account"].includes(stage),
       photo: sample ? "/first-catch-cafe.webp" : null,
       card: sample ? sampleCard(targetLanguage, uiLanguage) : null,
       lesson: stage === "explore" ? sampleLesson(targetLanguage, uiLanguage) : undefined,
