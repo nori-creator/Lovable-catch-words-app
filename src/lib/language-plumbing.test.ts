@@ -4797,9 +4797,10 @@ describe("ホームは今日の誌面", () => {
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/align-items: center;/);
     // 2026-09-24「9月21日のように。デザインを複数、開発者の私だけ比較」:
     // 既定（A）は月と日を一緒に書く。前の形（数字だけ）は見比べ用に残す。
-    expect(diary).toMatch(/<span className="diary-date__md">\{monthDay\}<\/span>/);
-    expect(diary).toMatch(/<span className="diary-date__day">\{date\.getDate\(\)\}<\/span>/);
-    expect(read("lib/date-style.ts")).toMatch(/DEFAULT_DATE_STYLE: DateStyle = "a"/);
+    expect(diary).toMatch(/<span className="diary-date__md" aria-hidden>\s*\{monthDay\}/);
+    // A 案に決定（見比べの部品は外した）。前の「日にちの数字だけ大きく」は無い。
+    expect(diary).not.toMatch(/diary-date__day/);
+    expect(diary).not.toMatch(/useDateStyle/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4910,28 +4911,14 @@ describe("ホームは今日の誌面", () => {
       main.indexOf("const REVIEW_SCENES"),
       main.indexOf("const explicitScene"),
     );
-    expect(list).toMatch(/\{ scene: "home"/);
-    expect(list).toMatch(/\{ scene: "auth"/);
-    // 先頭は何も打たずに開いた人が最初に見る面 = 初回体験（PR #106）。
-    // 4回目の依頼の面（ホームの日付ほか）は、その次から帯に残す。
-    // 2026-09-24 の5回目の依頼: 日付の組み方の見比べが先頭。初回体験も帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "date-styles"/);
-    expect(list).toMatch(/\{ scene: "first-catch"/);
-    expect(list).toMatch(/\{ scene: "home", label: "ホームの日付/);
-    expect(list).toMatch(/scene: "dex-map&at=2"/);
-    expect(list).toMatch(/\{ scene: "tts-voices"/);
-    expect(list).toMatch(/\{ scene: "catch-sound"/);
-    expect(list).toMatch(/\{ scene: "dex-cards&n=150"/);
-    expect(list).toMatch(/\{ scene: "memory-curve"/);
-    expect(list).toMatch(/\{ scene: "wallpapers"/);
-    expect(list).toMatch(/\{ scene: "review-memory-list"/);
-    expect(list).toMatch(/\{ scene: "dex-map"/);
-    expect(list).toMatch(/\{ scene: "dex-cards"/);
-    expect(list).toMatch(/\{ scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "dex-calendar/);
-    expect(list).toMatch(/\{ scene: "scan-found"/);
-    expect(list).toMatch(/\{ scene: "memory-curve"/);
-    expect(list).toMatch(/\{ scene: "memory-overall"/);
+    // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
+    // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home"/);
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
+    expect(list).not.toMatch(/scene: "first-catch"/);
+    expect(list).not.toMatch(/scene: "tts-voices"/);
+    // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
+    expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
   });
 });
 

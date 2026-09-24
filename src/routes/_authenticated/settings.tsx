@@ -18,7 +18,6 @@ import {
 } from "@/lib/review-mode-pref";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { DateStylePicker } from "@/components/DateStylePicker";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import {
@@ -1065,13 +1064,7 @@ function AdminOnlyDeveloperPanel() {
     staleTime: 300_000,
   });
   if (!adm?.isAdmin) return null;
-  return (
-    <>
-      {/* 2026-09-24「ホームの日付…デザインを複数提示して。比較したい。開発者の私だけ」 */}
-      <DateStylePicker />
-      <DeveloperPanel />
-    </>
-  );
+  return <DeveloperPanel />;
 }
 
 /**

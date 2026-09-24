@@ -53,7 +53,6 @@ import {
   type WallId,
 } from "@/lib/wallpaper";
 import { localeOf, useT } from "@/lib/i18n";
-import { monthDayParts, useDateStyle, type DateStyle } from "@/lib/date-style";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
@@ -493,103 +492,36 @@ export function DiaryDate({
   date,
   tagline,
   compact = false,
-  style: forced,
-  preview = false,
 }: {
-  /** 見本として並べるとき（見出しにしない）。 */
-  preview?: boolean;
   date: Date;
   tagline?: string;
   compact?: boolean;
-  /** 見比べ用に組み方を決め打ちする（開発者の設定・確認画面）。無ければ選んだもの。 */
-  style?: DateStyle;
 }) {
   const locale = localeOf(useUiLang());
-  const chosen = useDateStyle();
-  const style = forced ?? chosen;
   /**
-   * **「9月21日」のように月と日を一緒に書く**（オーナー指示 2026-09-24）。
-   * 組み方は開発者が設定で見比べて選ぶ（`lib/date-style.ts`）。書体はどれも
-   * 端末の公式書体（`--font-display` = SF Pro / ヒラギノ）、中央揃え。
+   * **「9月21日」のように月と日を一緒に大きく**、曜日はその上に小さく青で
+   * （オーナー指示 2026-09-24「9月21日のように。デザインを複数提示して」→
+   * 見比べた4案から **A** に決定）。書体は端末の公式書体（`--font-display` =
+   * SF Pro / ヒラギノ）、中央揃え。前は日にちの数字だけを大きくし、月は下に
+   * 小さく書いていた — 何月か一目で分からなかった。
    */
   const weekday = date.toLocaleDateString(locale, { weekday: "long" });
-  const weekdayShort = date.toLocaleDateString(locale, { weekday: "short" });
   const monthDay = date.toLocaleDateString(locale, { month: "long", day: "numeric" });
-  const year = date.toLocaleDateString(locale, { year: "numeric" });
-  const monthYear = date.toLocaleDateString(locale, { year: "numeric", month: "long" });
   const full = date.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "long",
   });
-  const Tag = preview ? "div" : compact ? "h2" : "h1";
-  let body: React.ReactNode;
-  if (style === "b") {
-    body = (
-      <>
-        <span className="diary-date__md">
-          {monthDay}
-          <span className="diary-date__wd-inline">
-            {locale.startsWith("en") ? ` (${weekdayShort})` : `（${weekdayShort}）`}
-          </span>
-        </span>
-        <span className="diary-date__month">{year}</span>
-      </>
-    );
-  } else if (style === "c") {
-    const p = monthDayParts(date, locale);
-    const m = <span className="diary-date__m-thin">{p.month}</span>;
-    const d = <span className="diary-date__d-bold">{p.day}</span>;
-    body = (
-      <>
-        <span className="diary-date__md diary-date__md--split">
-          {p.order === "month-first" ? (
-            <>
-              {m}
-              {d}
-            </>
-          ) : (
-            <>
-              {d}
-              {m}
-            </>
-          )}
-        </span>
-        <span className="diary-date__month">{weekday}</span>
-      </>
-    );
-  } else if (style === "d") {
-    body = (
-      <span className="diary-date__md diary-date__md--quiet">
-        {monthDay}
-        <span className="diary-date__wd-quiet">{weekday}</span>
-      </span>
-    );
-  } else if (style === "current") {
-    body = (
-      <>
-        <span className="diary-date__weekday">{weekday}</span>
-        <span className="diary-date__day">{date.getDate()}</span>
-        <span className="diary-date__month">{monthYear}</span>
-      </>
-    );
-  } else {
-    body = (
-      <>
-        <span className="diary-date__weekday">{weekday}</span>
-        <span className="diary-date__md">{monthDay}</span>
-      </>
-    );
-  }
+  const Tag = compact ? "h2" : "h1";
   return (
-    <div
-      className={`diary-date diary-date--${style} ${compact ? "diary-date--compact" : ""}`}
-      data-date-style={style}
-    >
+    <div className={`diary-date ${compact ? "diary-date--compact" : ""}`}>
       <Tag className="diary-date__line" aria-label={full}>
-        <span aria-hidden className="contents">
-          {body}
+        <span className="diary-date__weekday" aria-hidden>
+          {weekday}
+        </span>
+        <span className="diary-date__md" aria-hidden>
+          {monthDay}
         </span>
       </Tag>
       {tagline && <p className="diary-date__note">{tagline}</p>}

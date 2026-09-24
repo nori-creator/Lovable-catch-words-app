@@ -6511,26 +6511,13 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   letter-spacing: 0.02em;
   color: var(--primary);
 }
-.diary-date__day {
-  font-size: clamp(3.75rem, 19vw, 5.25rem);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.035em;
-  font-variant-numeric: tabular-nums;
-}
-.diary-date__month {
-  margin-top: 0.15rem;
-  font-size: var(--text-footnote);
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
 .diary-date__note {
   margin-top: 0.35rem;
   font-size: var(--text-footnote);
   line-height: 1.45;
   color: var(--muted-foreground);
 }
-/* 「9月21日」の組み方（開発者が見比べて選ぶ。`lib/date-style.ts`）。 */
+/* 「9月21日」（2026-09-24 に A 案で決定）。 */
 .diary-date__md {
   font-size: clamp(2.25rem, 11vw, 3rem);
   font-weight: 700;
@@ -6538,43 +6525,8 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   letter-spacing: -0.025em;
   font-variant-numeric: tabular-nums;
 }
-.diary-date__wd-inline {
-  font-size: 0.5em;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--muted-foreground);
-}
-.diary-date__md--split {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.1em;
-}
-.diary-date__m-thin {
-  font-size: 0.62em;
-  font-weight: 400;
-  color: var(--muted-foreground);
-}
-.diary-date__d-bold {
-  font-size: 1.25em;
-  font-weight: 800;
-}
-.diary-date__md--quiet {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.4em;
-  font-size: clamp(1.5rem, 7vw, 1.875rem);
-}
-.diary-date__wd-quiet {
-  font-size: 0.6em;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  letter-spacing: 0;
-}
 .diary-date--compact .diary-date__md {
   font-size: var(--text-title, 1.75rem);
-}
-.diary-date--compact .diary-date__day {
-  font-size: var(--text-hero);
 }
 /* 白紙の日の一言とボタン。 */
 .home-blank {
