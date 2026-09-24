@@ -54,7 +54,13 @@ import { haptic } from "@/lib/haptics";
 import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
-import { clampToVisible, coverPoint, focusedIndex } from "@/lib/scan-layout";
+import {
+  clampToVisible,
+  containPoint,
+  focusedIndex,
+  SCAN_FRAME_Y,
+  zoomCrop,
+} from "@/lib/scan-layout";
 import { rankScanCandidates } from "@/lib/jev.functions";
 import { putScanHandoff } from "@/lib/scan-handoff";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
@@ -441,18 +447,23 @@ function ScanPage() {
   const grabFrame = useCallback((): string | null => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return null;
-    const longest = Math.max(v.videoWidth, v.videoHeight);
+    // ハードウェアの倍率が無い端末は、映像を CSS で拡大して見せている。
+    // その分を撮った絵からも切り出す — **見えていた範囲 = 撮れる範囲**。
+    const crop = zoomCapsRef.current
+      ? zoomCrop(v.videoWidth, v.videoHeight, 1)
+      : zoomCrop(v.videoWidth, v.videoHeight, zoom);
+    const longest = Math.max(crop.sw, crop.sh);
     const scale = Math.min(1, 1024 / longest);
-    const w = Math.round(v.videoWidth * scale);
-    const h = Math.round(v.videoHeight * scale);
+    const w = Math.round(crop.sw * scale);
+    const h = Math.round(crop.sh * scale);
     const c = document.createElement("canvas");
     c.width = w;
     c.height = h;
     const ctx = c.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(v, 0, 0, w, h);
+    ctx.drawImage(v, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
     return c.toDataURL("image/jpeg", 0.82);
-  }, []);
+  }, [zoom]);
 
   const doScan = useCallback(async () => {
     if (scanning) return;
@@ -731,14 +742,14 @@ function ScanPage() {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const sheetSize = useBoxSize(sheetRef);
   /**
-   * 光の点の位置。写真は画面いっぱいの `object-cover`（覗いていた映像と
-   * 同じ見え方）なので、点も同じ切り落としで置く（`lib/scan-layout.ts`）。
+   * 光の点の位置。写真は覗いていた映像と同じ `object-contain`（撮れる範囲を
+   * 全部見せる）なので、点も同じ置き方で置く（`lib/scan-layout.ts`）。
    * そのうえで、下の操作シートの裏に入る点はシートの上へ持ち上げる —
    * 隠れた点は押せず、候補を選んだときの動きも見えない。
    */
   const dotStyle = useCallback(
     (it: DetectedItem): React.CSSProperties => {
-      const p = coverPoint(it.point, snapshotSize, boxSize);
+      const p = containPoint(it.point, snapshotSize, boxSize);
       if (!snapshot) return p;
       const sheetTop = sheetRef.current?.getBoundingClientRect().top ?? boxSize.h;
       return clampToVisible(p, { w: boxSize.w, bottom: sheetTop });
@@ -855,12 +866,18 @@ function ScanPage() {
             ref={videoRef}
             playsInline
             muted
-            className="absolute inset-0 h-full w-full object-cover"
+            // **撮れる範囲を全部見せる**（`object-contain`、`lib/scan-layout.ts` の
+            // `containPoint`）。画面いっぱいに切り落とすと、覗く絵が撮れる絵より
+            // 寄って見えていた（オーナー報告 2026-09-24）。
+            className="absolute inset-0 h-full w-full object-contain"
             // **前面でも鏡像にしない。** 自撮りの見慣れた向きは鏡像だが、
             // ここは見つけた物の上に印を落とす画面で、印の座標は
             // 撮った絵のままの向きで来る。鏡にすると印と物がずれる。
             // ハードウェアズーム非対応の端末では見た目を拡大して代用する。
-            style={zoomCapsRef.current ? undefined : { transform: `scale(${zoom})` }}
+            style={{
+              objectPosition: `50% ${SCAN_FRAME_Y * 100}%`,
+              ...(zoomCapsRef.current ? {} : { transform: `scale(${zoom})` }),
+            }}
           />
           {/* frozen snapshot after scan */}
           {snapshot && (
@@ -870,7 +887,8 @@ function ScanPage() {
             <img
               src={snapshot}
               alt=""
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain"
+              style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
               onLoad={(e) =>
                 setSnapshotSize({
                   w: e.currentTarget.naturalWidth,

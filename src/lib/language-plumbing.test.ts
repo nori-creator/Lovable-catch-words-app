@@ -276,11 +276,13 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     // 級の段々と品詞の札も出さない。「訳」でも「発音」でもない。
     // **同じ行に並べた**ので(オーナー報告 2026-08-26、3度目「CEFR の欄と
     // 品詞の大きさを揃えて、横に並べて」)、伏せる条件も1つに畳んである。
-    expect(src).toMatch(/\{!minimal && \(word\.part_of_speech \|\| word\.level\) && \(/);
-    const row = src.slice(src.indexOf("{!minimal && (word.part_of_speech"));
+    expect(src).toMatch(/\{!minimal &&\s*\(word\.part_of_speech \|\| word\.level \|\|/);
+    const row = src.slice(src.search(/\{!minimal &&\s*\(word\.part_of_speech/));
     expect(row.slice(0, row.indexOf("</div>"))).toMatch(/<TocflLadder/);
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
+    // 見出し横の頻度の星も、撮った直後は出さない。
+    expect(src).toMatch(/!minimal && !editingHead && \(word\.extras\?\.frequency_level/);
     // 見出しの行は `minimal` を受け取り続けること（引数が増えたので
     // 1行の写しでは見ない）。
     const header = src.slice(src.indexOf("<HeaderRow"));
@@ -353,7 +355,9 @@ describe("第2段: 消したものが戻ってこない", () => {
     // オーナーが「質の高いカテゴリーを作って」と言っている当のもの。
     // 2026-08-27 ⑤ で浮いて跳ねる札になった(`SceneBubbles`)。
     expect(fs.existsSync(path.join(root, "components/SceneBubbles.tsx"))).toBe(true);
-    expect(read("components/WordCard.tsx")).toContain("<SceneBubbles");
+    // 2026-09-24「頻度、使う場面の項目を削除…カテゴリーは削除していい」で、単語の
+    // 詳細からは外した（部品は残す）。
+    expect(read("components/WordCard.tsx")).not.toContain("<SceneBubbles");
   });
 
   it("頻度の実測(`corpus_stats`)は残っている", () => {
@@ -2251,10 +2255,12 @@ describe("どこで出会うかは、整列した札で出す", () => {
     expect(read("lib/ai.functions.ts")).toMatch(/region_scope_kind/);
   });
 
-  it("**札で言えるときは文章を出さない**(欄が2倍の高さにならない)", () => {
+  it("**頻度・使う場面の項目は無い**（2026-09-24）。星は見出しの横、言葉の性質は級の横に言葉だけ", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
-    expect(card).toMatch(/bubbleCount === 0 && text && <Prose/);
-    expect(card).toMatch(/const bubbleCount = sceneBubbles\(\{/);
+    expect(card).not.toMatch(/case "usage_context"/);
+    expect(card).toMatch(/<FrequencyMeter level=\{word\.extras!\.frequency_level!\} \/>/);
+    expect(card).toMatch(/\{t\(registerLabelKey\(registerScaleOf\(word\.extras \?\? \{\}\)!\)\)\}/);
+    expect(card).not.toMatch(/<RegisterMeter/);
   });
 
   it("動きを止めたい人には押下の変形も止めて出す", () => {
@@ -4795,7 +4801,12 @@ describe("ホームは今日の誌面", () => {
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/font-family: var\(--font-display\)/);
     // iPhone のカレンダーの組み方: 曜日・大きな日にち・年月、中央揃え（2026-09-23 の3回目）。
     expect(line.slice(0, line.indexOf("\n}"))).toMatch(/align-items: center;/);
-    expect(diary).toMatch(/<span className="diary-date__day" aria-hidden>\s*\{date\.getDate\(\)\}/);
+    // 2026-09-24「9月21日のように。デザインを複数、開発者の私だけ比較」:
+    // 既定（A）は月と日を一緒に書く。前の形（数字だけ）は見比べ用に残す。
+    expect(diary).toMatch(/<span className="diary-date__md" aria-hidden>\s*\{monthDay\}/);
+    // A 案に決定（見比べの部品は外した）。前の「日にちの数字だけ大きく」は無い。
+    expect(diary).not.toMatch(/diary-date__day/);
+    expect(diary).not.toMatch(/useDateStyle/);
   });
 
   it("**手書きの一言は、手元に在る事実だけで書く**", () => {
@@ -4906,26 +4917,15 @@ describe("ホームは今日の誌面", () => {
       main.indexOf("const REVIEW_SCENES"),
       main.indexOf("const explicitScene"),
     );
+    // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
+    // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
     expect(list).toMatch(/\{ scene: "home"/);
-    expect(list).toMatch(/\{ scene: "auth"/);
-    // 先頭は何も打たずに開いた人が最初に見る面 = 初回体験（PR #106）。
-    // 4回目の依頼の面（ホームの日付ほか）は、その次から帯に残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
-    expect(list).toMatch(/\{ scene: "home", label: "ホームの日付/);
-    expect(list).toMatch(/scene: "dex-map&at=2"/);
-    expect(list).toMatch(/\{ scene: "tts-voices"/);
-    expect(list).toMatch(/\{ scene: "catch-sound"/);
-    expect(list).toMatch(/\{ scene: "dex-cards&n=150"/);
-    expect(list).toMatch(/\{ scene: "memory-curve"/);
-    expect(list).toMatch(/\{ scene: "wallpapers"/);
-    expect(list).toMatch(/\{ scene: "review-memory-list"/);
-    expect(list).toMatch(/\{ scene: "dex-map"/);
-    expect(list).toMatch(/\{ scene: "dex-cards"/);
-    expect(list).toMatch(/\{ scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "dex-calendar/);
-    expect(list).toMatch(/\{ scene: "scan-found"/);
-    expect(list).toMatch(/\{ scene: "memory-curve"/);
-    expect(list).toMatch(/\{ scene: "memory-overall"/);
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
+    expect(list).not.toMatch(/scene: "first-catch"/);
+    expect(list).not.toMatch(/scene: "tts-voices"/);
+    // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
+    expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
   });
 });
 
@@ -5387,13 +5387,13 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
   const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
   const css = read("styles.css");
 
-  it("**写真は画面いっぱい**で止める（短い箱に押し込むと下に黒い地が出て、点もずれる）", () => {
+  it("**写真は覗いていた映像と同じ見え方**で止める（2026-09-24 から撮れる範囲を全部見せる contain）", () => {
     expect(scan).toMatch(
-      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-cover"/,
+      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
     );
     expect(scan).not.toMatch(/calc\(100% - \$\{sheetSize\.h \+ 24\}px\)/);
     // 点は写真と同じ切り落としで置く。
-    expect(scan).toMatch(/coverPoint\(it\.point, snapshotSize, boxSize\)/);
+    expect(scan).toMatch(/containPoint\(it\.point, snapshotSize, boxSize\)/);
   });
 
   it("**撮った後も `<video>` を外さない**（外すと「もう一度」で真っ黒・再スキャンが必ず失敗）", () => {
@@ -5826,9 +5826,9 @@ describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-2
   it("見えている所に入っていれば地図を動かさない。外なら、その近くへ寄せ直す", () => {
     expect(dm).toMatch(/if \(inView\(s\)\) return;\s*frame\(s\.id\);/);
   });
-  it("写真が主役の地図の色（お店・駅の印を消す）。浮いたピンに時刻", () => {
-    expect(dm).toMatch(/styles: dark \? MAP_STYLE_DARK : MAP_STYLE_LIGHT/);
-    expect(dm).toMatch(/featureType: "poi", stylers: \[\{ visibility: "off" \}\]/);
+  it("地図の色は Google の元の配色（2026-09-24「白黒ではなくカラフルに」）。浮いたピンに時刻", () => {
+    expect(dm).not.toMatch(/styles:/);
+    expect(dm).not.toMatch(/MAP_STYLE_/);
     expect(dm).toMatch(/className="dex-pin__time"/);
   });
 });

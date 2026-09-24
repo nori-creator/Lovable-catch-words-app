@@ -1446,7 +1446,10 @@ function CapturePage() {
           {objectImg && (
             <img src={objectImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           )}
-          <ScanEffect stage={waitKind === "cutout" ? "matching" : "reading"} />
+          <ScanEffect
+            stage={waitKind === "cutout" ? "matching" : "reading"}
+            cutout={waitKind === "cutout"}
+          />
           {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
               戻るも無く、処理が返ってこないとアプリを強制終了するしか
               逃げ道が無かった(§16 Freedom & Recovery)。 */}

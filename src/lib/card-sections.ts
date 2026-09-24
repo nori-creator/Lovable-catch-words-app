@@ -33,7 +33,6 @@ export const SECTION_IDS = [
   // --- どの言語のカードにも出る -------------------------------------------
   "meaning",
   "web_images",
-  "usage_context",
   "example",
   "examples_extra",
   "usage_chunks",
@@ -88,7 +87,6 @@ type _SectionNamesMatch = Assert<Same<SectionId, ProfileSection>>;
  */
 export const REGEN_SECTIONS = [
   "meaning",
-  "usage_context",
   "example",
   "examples_extra",
   "usage_chunks",
@@ -167,14 +165,6 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
   switch (id) {
     case "meaning":
       return !!input.meaning_ja;
-    case "usage_context":
-      return !!(
-        ex.usage_context ||
-        ex.register_note ||
-        ex.common_situation ||
-        ex.frequency_level ||
-        registerScaleOf(ex) !== null
-      );
     case "example":
       // **学習言語で書かれていない文は「無い」。** 描く側と同じ判定
       // (`WordCard.tsx` の `case "example"`)。片方だけに入れると

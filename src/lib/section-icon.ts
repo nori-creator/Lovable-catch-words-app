@@ -65,7 +65,6 @@ export type SectionIconName =
 export const SECTION_ICON_NAME: Record<SectionId, SectionIconName> = {
   meaning: "BookOpen",
   web_images: "Images",
-  usage_context: "ChartColumn",
   example: "MessageSquareQuote",
   examples_extra: "ListPlus",
   usage_chunks: "Blocks",

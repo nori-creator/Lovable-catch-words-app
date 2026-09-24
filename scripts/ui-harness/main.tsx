@@ -311,67 +311,14 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 初回体験（PR #106）。何も打たずに開くとここから。
-  { scene: "first-catch", label: "初回体験 → 図鑑へ追加 → 登録" },
-  // 2026-09-23 の4回目の依頼（12項目）で触った面（上から順に見る）。
-  { scene: "home", label: "ホームの日付（iPhone のカレンダーの組み方・中央）" },
-  { scene: "dex-cards&n=150", label: "図鑑のカード（指で送る・ばね・読みは設定の表記）" },
-  { scene: "dex-map&at=2", label: "図鑑の地図（近くに寄せる・地図の色・浮いたピンに時刻）" },
-  { scene: "word-card", label: "単語の詳細のチャンク（右は訳だけ・左に音声）" },
-  { scene: "settings-polish", label: "設定（自撮りモード・カメラロールに保存・場所でリマインド）" },
-  { scene: "scan-found&lang=en", label: "英語の画面（日本語が混ざらない）" },
-  // 2026-09-23「キャッチの祝福に映画のクライマックスのような BGM」— 聴き比べ。
-  { scene: "catch-sound", label: "キャッチの祝福の音（新しい BGM とこれまでを聴き比べ）" },
-  // 2026-09-23 の3回目の依頼（10項目）で触った面（上から順に見る）。
-  {
-    scene: "dex-map&at=2",
-    label: "図鑑の地図（単語を押すとピンが浮く・時間軸と地図が両方見える）",
-  },
-  { scene: "scan-found", label: "スキャンの後（語が切れない・図鑑に追加・払って1つずつ送る）" },
-  { scene: "dex-cards&n=150", label: "図鑑のカード（150枚でも引っかからない）" },
-  { scene: "home", label: "ホーム（日付をアルバムの上に大きく・一言と枚数なし）" },
-  { scene: "memory-curve", label: "記憶のグラフ（点線を端から端まで）" },
-  { scene: "settings-polish", label: "設定（保存ボタンなし・変えたらすぐ反映）" },
-  { scene: "tts-voices", label: "開発者: 発音の声の会社を選ぶ" },
-  // 2026-09-23 の20項目の依頼で触った面（上から順に見る）。
-  { scene: "dex-map", label: "図鑑の地図（全画面・下の日付の帯）" },
-  { scene: "dex-map&variant=open", label: "図鑑の地図（帯を押して時間軸・写真の横に一言）" },
-  { scene: "dex-cards", label: "図鑑のカード（大きく・青い点・滑らか）" },
-  { scene: "home", label: "ホーム（日付を壁紙に手書き・語は写真の真ん中下）" },
-  { scene: "home-empty", label: "ホーム（白紙の日の一言・今日の一枚を撮る）" },
-  { scene: "home&wall=frame", label: "ホーム（額縁はテープなし）" },
-  { scene: "memory-curve", label: "記憶のグラフ（指で辿る・25/75%・次に変わる日）" },
-  { scene: "capture-reunion", label: "もう一度撮った語（剥がして図鑑へ）" },
-  { scene: "capture-object", label: "カメラ（青いシャッター・倍率に×）" },
-  { scene: "capture-pick", label: "語を選ぶ（ステップ3を消した・4択と同じ字）" },
-  { scene: "word-card", label: "単語の詳細（頻度を星で）" },
-  { scene: "sections-panel", label: "単語の項目の並べ替え（指で動く・既定を上に）" },
-  { scene: "settings-polish", label: "設定（母語が上・名前と説明・画面の明るさ）" },
-  // 2026-09-23「単語の数値は1つに統一」: 右上・一覧・グラフが同じ数（いま思い出せる確率）。
-  { scene: "review-memory-list", label: "記憶の一覧（同じ％・段の新しい名前）" },
-  { scene: "gallery", label: "図鑑（写真の右上の％）" },
-  // 2026-09-22〜23 の依頼で触った面。
-  { scene: "wallpapers", label: "設定: ホームの壁紙を選ぶ" },
-  { scene: "home&wall=cork", label: "ホーム（コルクと画鋲）" },
-  { scene: "home&wall=wall", label: "ホーム（壁）" },
-  { scene: "home&wall=notebook", label: "ホーム（ノート）" },
-  { scene: "dex-map&at=3", label: "図鑑の地図（時間を進めた形）" },
-  { scene: "ai-models", label: "開発者: 機能ごとのAI（OpenRouter）" },
-  { scene: "dex-calendar&variant=day", label: "図鑑カレンダー（日付を押した後のタイムライン）" },
-  { scene: "dex-calendar", label: "図鑑カレンダー（月）" },
-  { scene: "scan-found", label: "スキャンの後（下の箱で縦に送る・光が揺れる）" },
-  { scene: "scan-found&variant=nothing", label: "スキャンの後（何も見つからない）" },
-  { scene: "memory-curve&variant=due", label: "記憶のグラフ（復習どきが来ている）" },
-  { scene: "memory-overall", label: "全体の記憶率（前後2週間）" },
-  { scene: "curve", label: "図鑑の詳細の記憶のグラフ" },
-  { scene: "home-past", label: "ホームの下（過去の日も壁・日記なし）" },
-  { scene: "sticker-sheet", label: "単語の詳細（帯を消した・項目ごとの報告）" },
-  { scene: "home-album", label: "今日の誌面だけ（重なりと字の位置）" },
-  { scene: "auth", label: "ログインの画面" },
-  { scene: "review-memory", label: "復習の記憶の帯" },
-  { scene: "tabbar", label: "下の帯" },
-  { scene: "sticker-peel", label: "ピール・キャッチ演出" },
-  { scene: "scan-camera", label: "小数点の倍率メーター" },
+  // 2026-09-24 の5回目の依頼で触った面だけ（オーナー指示「過去のものが多すぎで
+  // 画面で確認できないから、過去のものは全て削除して」）。**毎回ここを入れ替える**
+  // — 前の依頼の面は残さない。
+  { scene: "word-card", label: "単語の詳細（星は見出しの横・性質は級の横）" },
+  { scene: "home", label: "ホーム（日付は A・下のバー）" },
+  { scene: "review-choice&photo=1", label: "復習の4択（写真を大きく）" },
+  { scene: "dex-map&at=2", label: "地図（元の色）" },
+  { scene: "scan-found", label: "スキャンの後（倍率）" },
 ];
 
 const explicitScene = q.get("scene");
@@ -382,8 +329,10 @@ const explicitScene = q.get("scene");
  * 必ず名指しで開くので、帯が写り込んで**実物に無い物を測る**ことになる。
  * 何も付けずに開いた回（＝人が Deploy Preview を見に来た回）だけ出す。
  */
-// The phone review should open as the product, without the developer scene menu.
-const showReviewBar = q.get("review") === "1";
+// **何も付けずに開いた人（Deploy Preview を見に来た人）には帯を出す** —
+// 帯が無いと先頭の1画面しか見られない（オーナー報告 2026-09-24「netlify が
+// 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
+const showReviewBar = q.get("review") === "1" || !explicitScene;
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
 
 /**
@@ -436,7 +385,10 @@ function ReviewBar() {
         top: 0,
         zIndex: 100,
         display: "flex",
-        flexWrap: "wrap",
+        // 1行で横に送る。折り返すと、項目が多い回は帯が画面を覆う。
+        flexWrap: "nowrap",
+        overflowX: "auto",
+        whiteSpace: "nowrap",
         gap: 6,
         padding: "8px 10px",
         background: "#0b1020",

@@ -14,7 +14,13 @@ import { useT } from "@/lib/i18n";
 
 type Stage = "sensing" | "reading" | "matching";
 
-export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
+export function ScanAnalyzing_v0cutout({
+  stage,
+  cutout = false,
+}: {
+  stage: Stage;
+  cutout?: boolean;
+}) {
   // ここは**既定の待ち画面**(effect-lab の scanAnalyzing 既定が v0cutout)。
   // 文言が日本語で直書きされていたので、英語のユーザーはアプリの見せ場で
   // 突然日本語を見ていた。過去の版だから訳さなくていい、とはならない。
@@ -22,7 +28,10 @@ export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage }) {
   // 当時は候補出しと切り抜きが同時に走っていたので文言は1つだけだった。
   // いまは候補をタップしてから切り抜くので、そこだけ「切り抜き中」に分ける
   // — 見た目は当時のまま、言っていることは実際の処理と合わせる。
-  const label = stage === "matching" ? t("scan.cuttingOut") : t("scan.analyzing");
+  // 段階（stage）では決めない — スキャンも3段目（matching）まで進むので、前は
+  // スキャンの途中で「切り抜き中」と出ていた。切り抜きかどうかは呼ぶ側が言う。
+  void stage;
+  const label = cutout ? t("scan.cuttingOut") : t("scan.analyzing");
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0 bg-black/25" />

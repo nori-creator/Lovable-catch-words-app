@@ -47,7 +47,6 @@ export type ProfileSection =
   // 両方にある
   | "meaning"
   | "web_images"
-  | "usage_context"
   | "example"
   | "examples_extra"
   | "usage_chunks"
@@ -287,7 +286,6 @@ export const ZH_TW_PROFILE: TargetProfile = {
   sections: [
     "meaning",
     "web_images",
-    "usage_context",
     "example",
     "examples_extra",
     "usage_chunks",
@@ -410,7 +408,6 @@ export const EN_PROFILE: TargetProfile = {
   sections: [
     "meaning",
     "web_images",
-    "usage_context",
     "example",
     "examples_extra",
     "usage_chunks",

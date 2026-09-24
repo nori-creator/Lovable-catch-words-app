@@ -21,7 +21,7 @@ type Stage = "sensing" | "reading" | "matching";
 
 const SLOT: EffectSlot = "scanAnalyzing";
 
-const VARIANTS: Record<string, (p: { stage: Stage }) => ReactElement> = {
+const VARIANTS: Record<string, (p: { stage: Stage; cutout?: boolean }) => ReactElement> = {
   v0cutout: ScanAnalyzing_v0cutout,
   v1probe: ScanAnalyzing_v1probe,
   v2liquid: ScanAnalyzing_v2liquid,
@@ -49,10 +49,21 @@ export function useEffectVariant(slot: EffectSlot): string {
   return id;
 }
 
-export function ScanEffect({ stage }: { stage: Stage }) {
+export function ScanEffect({
+  stage,
+  cutout = false,
+}: {
+  stage: Stage;
+  /**
+   * 本当に写真を切り抜いているときだけ `true`（撮影モードで語を選んだ後）。
+   * スキャンは語を探しているだけなので「切り抜き中」と出さない（オーナー
+   * 報告 2026-09-24「スキャンの時に AI が切り抜き中とでる」）。
+   */
+  cutout?: boolean;
+}) {
   const id = useEffectVariant(SLOT);
   const Chosen = VARIANTS[id] ?? ScanAnalyzing_v0cutout;
-  return <Chosen stage={stage} />;
+  return <Chosen stage={stage} cutout={cutout} />;
 }
 
 /** ラボのプレビュー用: variant を直接指定して描画する。 */

@@ -166,15 +166,6 @@ describe("sectionHasContent — 埋まった節", () => {
     expect(sectionHasContent("example", input({ example_sentence: "我帶了雨傘。" }))).toBe(true);
   });
 
-  it("頻度・使う場面は、メーターだけでも中身あり", () => {
-    expect(sectionHasContent("usage_context", input({ extras: ex({ frequency_level: 4 }) }))).toBe(
-      true,
-    );
-    expect(sectionHasContent("usage_context", input({ extras: ex({ register_scale: 0 }) }))).toBe(
-      true,
-    );
-  });
-
   it("**量詞と丸ごと重なるだけの型は中身に数えない**(見出しだけの節が出る)", () => {
     const echo = ex({
       usage_chunks: [{ parts: [{ text: "一把", pos: "M" }], ja: "1本" }],

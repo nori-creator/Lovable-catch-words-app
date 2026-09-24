@@ -21,7 +21,6 @@ import { SECTION_IDS, type SectionId } from "./card-sections";
  */
 export const DEFAULT_VISIBLE: readonly SectionId[] = [
   "meaning",
-  "usage_context",
   "example",
   "usage_chunks",
   "measure_words",

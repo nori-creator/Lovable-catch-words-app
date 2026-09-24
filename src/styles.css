@@ -3989,7 +3989,15 @@ html[data-motion="reduce"] {
   /* **左右に余白を入れない。** 帯の幅は画面幅に対する割合（下）で決めて
      いるので、ここでも詰めると二重に細くなる（実測 0.804 — 参照 0.876 に
      対して 28px 細かった）。下だけ空ける。 */
-  padding: 0 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  /* **スクロールしても隠れないように**（オーナー報告 2026-09-24「ホームで上に
+     スクロールした時、下のアイコンバーが隠れる」）。Android の Chrome は
+     135 から画面の下端（ジェスチャーの帯）まで描く。スクロールで下の
+     「あご」が引っ込むと、下端に固定した物は帯の裏に潜る。今の値
+     （`safe-area-inset-bottom`）だけだと切り替わりの間に遅れて潜るので、
+     **最大値（`safe-area-max-inset-bottom`）と大きい方**を取って、帯の上に
+     必ず置く。対応していない端末では 0 になり、前と同じ。 */
+  padding: 0 0
+    calc(0.5rem + max(env(safe-area-inset-bottom, 0px), env(safe-area-max-inset-bottom, 0px)));
 }
 .tabbar {
   pointer-events: auto;
@@ -6399,11 +6407,14 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 /**
  * 復習の4択の上に出る写真。**余りを受け取る側**（`routes/…/review.tsx` の注）。
  *
- * 上限を置くのは、背の高い端末で写真だけが伸びて選択肢が下に押し込まれる
- * のを止めるため。
+ * **上限は置かない**（オーナー指示 2026-09-24「復習の4択の下まだスペースが
+ * あるから、その分画像を大きくして」）。前は 14rem で止めていたので、選択肢が
+ * 上限（1つ 4.25rem）まで伸びた後の余りが、いちばん下に空きとして残っていた。
+ * 選択肢は格子の上限で止まるので、写真だけが伸びて選択肢を押し出すことは
+ * 無い — 余りは全部写真に回る。
  */
 .quiz-photo {
-  max-height: 14rem;
+  max-height: none;
 }
 
 /**
@@ -6500,27 +6511,22 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   letter-spacing: 0.02em;
   color: var(--primary);
 }
-.diary-date__day {
-  font-size: clamp(3.75rem, 19vw, 5.25rem);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.035em;
-  font-variant-numeric: tabular-nums;
-}
-.diary-date__month {
-  margin-top: 0.15rem;
-  font-size: var(--text-footnote);
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
 .diary-date__note {
   margin-top: 0.35rem;
   font-size: var(--text-footnote);
   line-height: 1.45;
   color: var(--muted-foreground);
 }
-.diary-date--compact .diary-date__day {
-  font-size: var(--text-hero);
+/* 「9月21日」（2026-09-24 に A 案で決定）。 */
+.diary-date__md {
+  font-size: clamp(2.25rem, 11vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+.diary-date--compact .diary-date__md {
+  font-size: var(--text-title, 1.75rem);
 }
 /* 白紙の日の一言とボタン。 */
 .home-blank {
