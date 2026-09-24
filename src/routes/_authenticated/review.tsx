@@ -51,7 +51,8 @@ import {
   saidTarget,
   type ReviewModePref,
 } from "@/lib/review-format";
-import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
+import { chunkSpeechText, chunkTranslation } from "@/lib/extras";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
@@ -1843,11 +1844,15 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
         <section className="rounded-xl bg-secondary/60 px-3 py-2">
           <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
           <div className="mt-1.5 space-y-1.5">
+            {/* 単語の詳細のチャンクと**同じ部品**（`ChunkLine`、オーナー指示 2026-09-24）。 */}
             {chunks.map((c, i) => (
-              <div key={i}>
-                <ChunkPills parts={c.parts} size="md" lang={card.language} />
-                {c.ja && <p className="mt-0.5 text-caption text-muted-foreground">{c.ja}</p>}
-              </div>
+              <ChunkLine
+                key={i}
+                parts={c.parts}
+                translation={chunkTranslation(c.ja)}
+                lang={card.language}
+                speakText={chunkSpeechText(c, card.language)}
+              />
             ))}
           </div>
           <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />

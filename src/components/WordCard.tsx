@@ -24,7 +24,6 @@ import { SectionIcon } from "@/components/SectionIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Star,
   Volume2,
   Eye,
   EyeOff,
@@ -83,7 +82,7 @@ import {
   type RowBox,
 } from "@/lib/reorder";
 import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
-import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
 // 後方互換の別名(以前この型はここで定義されていた)。
@@ -955,11 +954,6 @@ function HeaderRow({
                 {word.headword}
               </Term>
             )}
-            {/* **頻度の星は見出しの語の横**（オーナー指示 2026-09-24「頻度、使う場面の
-                項目を削除して、頻度の星は見出しの単語の横に書いて」）。 */}
-            {!minimal && !editingHead && (word.extras?.frequency_level ?? 0) > 0 && (
-              <FrequencyMeter level={word.extras!.frequency_level!} />
-            )}
             {/* 発音ボタンと鉛筆は**右端**へ寄せる（同じ指示「発音ボタンは一番右に移動」）。 */}
             <span className="ml-auto" aria-hidden />
             {/* 40px だった。この画面でいちばん押されるボタンなので、
@@ -1274,29 +1268,6 @@ function SectionCard({
  * 空の節はもう並ばない（`shown` を「中身が在る節だけ」にした）ので、
  * この枠が描かれる道はどこにも無い。到達しない道は置かない。
  */
-
-/**
- * 頻度(1〜5)。**星で出す**（オーナー指示 2026-09-23「単語の頻度は画像のように
- * 星で表示して」— 参考は「頻度 ★★★★★」の札）。
- *
- * 点いた星は主色、消えた星は薄い輪郭。**色だけに頼らない** — 消えた星は
- * 塗らないので、形でも数が読める。数は読み上げ（`aria-label`）にも渡す。
- */
-function FrequencyMeter({ level }: { level: number }) {
-  const t = useT();
-  return (
-    <span className="freq-stars" role="img" aria-label={t("card.freqAria", { n: level })}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          aria-hidden
-          className={`freq-stars__star ${i <= level ? "freq-stars__star--on" : ""}`}
-          strokeWidth={1.8}
-        />
-      ))}
-    </span>
-  );
-}
 
 /**
  * 話し言葉 ⇄ 書き言葉のメーター。
@@ -1941,44 +1912,17 @@ function RelatedWordRow({
  */
 function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
   const pronounce = usePronounce(language ?? undefined);
-  const whole = chunkSpeechText(chunk, language);
-  const translation = chunkTranslation(chunk.ja);
   return (
     <div className="usage-chunk-row">
-      <div className="usage-chunk-row__main">
-        {/* **型ぜんぶをひと息で鳴らす**（オーナー指示 2026-09-23「チャンクの音声
-            ボタンを追加して」）。前は右端に置いて訳を痩せさせたので、**左端**に
-            小さく置く（見た目 36px・当たり判定は 48px）。 */}
-        <PronounceButton
-          text={whole}
-          language={language ?? undefined}
-          size="sm"
-          tone="quiet"
-          stopPropagation
-        />
-        <div className="usage-chunk-row__words">
-          <ChunkPills
-            parts={chunk.parts}
-            size="sm"
-            appearance="text"
-            lang={language}
-            onSpeak={(text) => void pronounce(text)}
-          />
-        </div>
-        {/**
-         * **右に出すのは日本語訳だけ。**（オーナー指示 2026-09-15
-         * 「単語の詳細のチャンクの右側に表示するのは日本語訳だけでいい」）
-         *
-         * ここには型ぜんぶをひと息で鳴らすボタンも並んでいた
-         * （2026-08-27 ⑧ の指示で足したもの）。3列（語・訳・ボタン）は
-         * 幅 390px の画面では訳の取り分が 4.5rem まで痩せ、2行3行に折れる。
-         *
-         * **鳴らす道は消えていない。** 札そのものが押せば鳴る
-         * （`ChunkPills` の `onSpeak`）ので、聞きたい所だけを聞ける。
-         * 続けて言えない所はたいてい繋ぎ目なので、札ごとのほうが役に立つ。
-         */}
-        {translation && <p className="usage-chunk-row__meaning">{translation}</p>}
-      </div>
+      {/* 左に型ぜんぶの音声、札（品詞ごとの丸）、その下に訳を小さく薄く
+          （`ChunkPills.tsx` の `ChunkLine`。復習の解説と同じ部品）。 */}
+      <ChunkLine
+        parts={chunk.parts}
+        translation={chunkTranslation(chunk.ja)}
+        lang={language}
+        speakText={chunkSpeechText(chunk, language)}
+        onSpeak={(text) => void pronounce(text)}
+      />
     </div>
   );
 }

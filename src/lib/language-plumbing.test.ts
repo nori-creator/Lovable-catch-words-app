@@ -282,7 +282,8 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
     // 見出し横の頻度の星も、撮った直後は出さない。
-    expect(src).toMatch(/!minimal && !editingHead && \(word\.extras\?\.frequency_level/);
+    // 頻度の星は 2026-09-24 に取り下げた（「単語の頻度の星は消して。やっぱり」）。
+    expect(src).not.toMatch(/frequency_level/);
     // 見出しの行は `minimal` を受け取り続けること（引数が増えたので
     // 1行の写しでは見ない）。
     const header = src.slice(src.indexOf("<HeaderRow"));
@@ -2258,7 +2259,7 @@ describe("どこで出会うかは、整列した札で出す", () => {
   it("**頻度・使う場面の項目は無い**（2026-09-24）。星は見出しの横、言葉の性質は級の横に言葉だけ", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
     expect(card).not.toMatch(/case "usage_context"/);
-    expect(card).toMatch(/<FrequencyMeter level=\{word\.extras!\.frequency_level!\} \/>/);
+    expect(card).not.toMatch(/FrequencyMeter/);
     expect(card).toMatch(/\{t\(registerLabelKey\(registerScaleOf\(word\.extras \?\? \{\}\)!\)\)\}/);
     expect(card).not.toMatch(/<RegisterMeter/);
   });
@@ -3928,16 +3929,24 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * **かたまりの右は、日本語の訳だけ。**（オーナー指示 2026-09-15）
    * 音の釦と原文の繰り返しを並べると、読む所が3つになって訳が沈む。
    */
-  it("単語の詳細のかたまり行は、右に訳だけを出す", () => {
+  it("単語の詳細のかたまり行は、訳を**下に小さく**出し、復習の解説と同じ部品を使う", () => {
+    // 2026-09-24「チャンクの訳も例文のように下に薄く小さく書いて」
+    // 「単語の詳細のチャンクと復習の解説の欄のチャンクは同じデザインに統一して」。
     const src = codeOnly(read("components/WordCard.tsx"));
     const at = src.indexOf("function ChunkRow");
     expect(at).toBeGreaterThanOrEqual(0);
-    const row = src.slice(at, at + 2000);
-    expect(row).toMatch(/usage-chunk-row__meaning/);
-    // 右は訳だけ（説明を落とす）。音声は**左端**に小さく（2026-09-23 の指示で復活。
-    // 右端に置くと訳が痩せるので、訳より前に置く）。
-    expect(row).toMatch(/const translation = chunkTranslation\(chunk\.ja\);/);
-    expect(row.indexOf("<PronounceButton")).toBeLessThan(row.indexOf("usage-chunk-row__meaning"));
+    const row = src.slice(at, at + 1200);
+    expect(row).toMatch(/<ChunkLine/);
+    expect(row).toMatch(/translation=\{chunkTranslation\(chunk\.ja\)\}/);
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).toMatch(/<ChunkLine/);
+    const pills = codeOnly(read("components/ChunkPills.tsx"));
+    // 音声 → 札 → その下に訳、の順。
+    const line = pills.slice(pills.indexOf("export function ChunkLine"));
+    expect(line.indexOf("<PronounceButton")).toBeLessThan(line.indexOf("<ChunkPills"));
+    expect(line.indexOf("<ChunkPills")).toBeLessThan(line.indexOf("chunk-line__translation"));
+    // 本番の案は1つだけ（2つの画面が同じ値を読む）。
+    expect(read("lib/chunk-design.ts")).toMatch(/export const CHUNK_DESIGN: ChunkDesign = "float";/);
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
@@ -4919,8 +4928,8 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "home"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "chunk-designs"/);
+    expect(list).toMatch(/\{ scene: "word-card"/);
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
     expect(list).not.toMatch(/scene: "first-catch"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
