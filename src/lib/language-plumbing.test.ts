@@ -1939,7 +1939,8 @@ describe("関連語は読めて・鳴らせて・読みやすい", () => {
   it("例文・型・関連語のどれからも鳴らせる", () => {
     const src = codeOnly(read("components/WordCard.tsx"));
     expect((src.match(/<PronounceButton/g) ?? []).length).toBeGreaterThanOrEqual(5);
-    expect(src).toMatch(/onSpeak=\{\(text\) => void pronounce\(text\)\}/);
+    // 札を押すと鳴る仕組みは `ChunkLine` が持つ（下の「かたまり行」の門で見る）。
+    expect(src).toMatch(/<ChunkLine/);
   });
 });
 
@@ -3640,7 +3641,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(src).toMatch(/aria-labelledby=\{`\$\{id\}-sheet-label`\}/);
     // 指の下限。**`.picker-row__head` はもう誰も使っていない**ので、
     // 生きている方（trigger の `min-h-14` = 56px）を見る。
-    expect(src).toMatch(/className="mt-2 flex min-h-14 w-full/);
+    expect(src).toMatch(/className="picker-field mt-2 flex min-h-14 w-full/);
   });
 
   /**
@@ -3941,14 +3942,36 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
     expect(rv).toMatch(/<ChunkLine/);
     const pills = codeOnly(read("components/ChunkPills.tsx"));
-    // 音声 → 札 → その下に訳、の順。
+    // 札 → その下に訳 → **右端に型ぜんぶの音声**（2026-09-25「チャンクの右端に
+    // ある発音ボタンを押すと、チャンクの全ての音声が聞けるように」）。
     const line = pills.slice(pills.indexOf("export function ChunkLine"));
-    expect(line.indexOf("<PronounceButton")).toBeLessThan(line.indexOf("<ChunkPills"));
     expect(line.indexOf("<ChunkPills")).toBeLessThan(line.indexOf("chunk-line__translation"));
-    // 本番の案は1つだけ（2つの画面が同じ値を読む）。
+    expect(line.indexOf("chunk-line__translation")).toBeLessThan(line.indexOf("<PronounceButton"));
+    // 札を1つ押すとその語が鳴る — 呼び出し側が渡さなくても、ここが鳴らす
+    // （復習の解説は渡していなかったので、押しても鳴らなかった）。
+    expect(line).toMatch(/onSpeak=\{onSpeak \?\? \(\(text\) => void pronounce\(text\)\)\}/);
+    // 本番の案は1つだけ（2つの画面が同じ値を読む）。質感はガラス（2026-09-25）。
     expect(read("lib/chunk-design.ts")).toMatch(
-      /export const CHUNK_DESIGN: ChunkDesign = "float";/,
+      /export const CHUNK_DESIGN: ChunkDesign = "glass";/,
     );
+  });
+
+  it("発音ボタンは**全部、見出しと同じ青**（大きさだけが違う）", () => {
+    // 2026-09-25「単語の詳細を含む発音ボタンはすべて単語の見出しの横の鮮やかな青色に統一して」
+    const btn = codeOnly(read("components/PronounceButton.tsx"));
+    expect(btn).toMatch(/const skin = `speak-button/);
+    expect(btn).not.toMatch(/bg-secondary text-primary/);
+    expect(btn).not.toMatch(/bg-primary\/12/);
+    for (const f of [
+      "components/JournalScaffold.tsx",
+      "components/InputCatchSheet.tsx",
+      "routes/_authenticated/scan.tsx",
+    ]) {
+      expect(codeOnly(read(f))).toMatch(/speak-button/);
+    }
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).not.toMatch(/bg-sky-500\/10 text-sky-700/);
+    expect(read("styles.css")).toMatch(/\.speak-button \{\s*background: var\(--primary\);/);
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
@@ -4929,11 +4952,13 @@ describe("ホームは今日の誌面", () => {
       main.indexOf("const explicitScene"),
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
-    // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
+    // 削除して」: 帯には**今回の依頼の面だけ**。
+    // 2026-09-25 の回: チャンクの形・発音ボタン・登録前の見本・ガラスの試作4面。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "chunk-designs"/);
     expect(list).toMatch(/\{ scene: "word-card"/);
-    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
-    expect(list).not.toMatch(/scene: "first-catch"/);
+    expect(list).toMatch(/\{ scene: "first-catch&step=camera&fail=guest"/);
+    expect((list.match(/scene: "[\w-]+&glass=1"/g) ?? []).length).toBe(4);
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(8);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);

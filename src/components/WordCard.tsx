@@ -1537,7 +1537,7 @@ function Body({
         return (
           <div className="usage-chunks">
             {chunks.map((c, i) => (
-              <ChunkRow key={i} chunk={c} language={word.language} />
+              <ChunkRow key={i} chunk={c} language={word.language} headword={word.headword} />
             ))}
             {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
                 同じ丸が何度も並ぶ。 */}
@@ -1910,18 +1910,26 @@ function RelatedWordRow({
  * 英語は札を空白で継ぐ。継がずに読ませると `put onsocks` になる
  * (`chunkText` と同じ理由)。
  */
-function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
-  const pronounce = usePronounce(language ?? undefined);
+function ChunkRow({
+  chunk,
+  language,
+  headword,
+}: {
+  chunk: UsageChunk;
+  language?: string | null;
+  headword?: string | null;
+}) {
   return (
     <div className="usage-chunk-row">
-      {/* 左に型ぜんぶの音声、札（品詞ごとの丸）、その下に訳を小さく薄く
-          （`ChunkPills.tsx` の `ChunkLine`。復習の解説と同じ部品）。 */}
+      {/* 札（品詞ごとの丸）、その下に訳を小さく薄く、右端に型ぜんぶの音声
+          （`ChunkPills.tsx` の `ChunkLine`。復習の解説と同じ部品）。
+          札を1つ押すとその語が鳴る。 */}
       <ChunkLine
         parts={chunk.parts}
         translation={chunkTranslation(chunk.ja)}
         lang={language}
         speakText={chunkSpeechText(chunk, language)}
-        onSpeak={(text) => void pronounce(text)}
+        headword={headword}
       />
     </div>
   );

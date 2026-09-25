@@ -15,6 +15,8 @@ import { SectionsPanel } from "@/components/SectionsPanel";
  * 機械の目から丸ごと消える。
  */
 readySpeech(["珍珠奶茶", "腳踏車", "一杯", "一張", "奶茶", "飲料"]);
+// チャンクの右端の「型ぜんぶ」の音声ボタン（2026-09-25）。
+readySpeech(["喝珍珠奶茶", "點一杯", "喝", "點"]);
 readySpeech(["umbrella", "bicycle"], "en");
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";

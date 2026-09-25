@@ -1243,7 +1243,7 @@ export function ScanChip({
         <button
           onClick={onPlay}
           aria-label={t("scan.playPron")}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 motion-reduce:active:scale-100"
+          className="speak-button lift grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
         >
           <Volume2 className="h-5 w-5" />
         </button>

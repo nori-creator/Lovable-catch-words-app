@@ -313,11 +313,18 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-24 の依頼（チャンクと例文）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-25 の依頼で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "chunk-designs", label: "チャンクのデザイン案 A〜D" },
-  { scene: "word-card", label: "単語の詳細（星なし・訳は下）" },
-  { scene: "review-explain", label: "復習の解説（同じチャンク）" },
+  { scene: "chunk-designs", label: "チャンクの形 A〜F" },
+  { scene: "word-card", label: "単語の詳細（青い発音）" },
+  { scene: "review-explain", label: "復習の解説" },
+  { scene: "first-catch&step=camera&fail=guest", label: "登録前の体験（見本で続ける）" },
+  // ガラスの試作。`&glass=1` で `html[data-glass="on"]` になる。帯の右端の
+  // 「ガラス案」で同じ画面の今の形と見比べられる。
+  { scene: "tabbar&glass=1", label: "ガラス案: 下のバー" },
+  { scene: "settings-polish&glass=1", label: "ガラス案: 設定" },
+  { scene: "capture-object&glass=1", label: "ガラス案: カメラ" },
+  { scene: "review-choice&glass=1", label: "ガラス案: 復習の4択" },
 ];
 
 const explicitScene = q.get("scene");
@@ -350,6 +357,8 @@ const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
     }
   }
 }
+// ガラスの試作（2026-09-25）。本番には無い印。
+if (q.get("glass") === "1") document.documentElement.dataset.glass = "on";
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
@@ -397,9 +406,10 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
-        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
-        const on = r.scene === here;
+        // 場面は `scene&step=…&glass=1` のように条件付きで並べる。いま開いている
+        // 場面の名前と、ガラスの有無が同じものを「選ばれている」とする。
+        const [name] = r.scene.split("&");
+        const on = name === wanted && r.scene.includes("glass=1") === (q.get("glass") === "1");
         return (
           <a
             key={r.scene}
@@ -417,6 +427,26 @@ function ReviewBar() {
           </a>
         );
       })}
+      <a
+        href={(() => {
+          const next = new URLSearchParams(location.search);
+          if (next.get("glass") === "1") next.delete("glass");
+          else next.set("glass", "1");
+          next.set("review", "1");
+          if (!next.get("scene")) next.set("scene", wanted);
+          return `?${next.toString()}`;
+        })()}
+        style={{
+          padding: "6px 10px",
+          borderRadius: 999,
+          background: q.get("glass") === "1" ? "#0ea5e9" : "rgba(255,255,255,0.12)",
+          color: "#fff",
+          textDecoration: "none",
+          fontWeight: 700,
+        }}
+      >
+        {q.get("glass") === "1" ? "ガラス案 ON（押すと今の形）" : "ガラス案 OFF（押すとガラス）"}
+      </a>
     </div>
   );
 }

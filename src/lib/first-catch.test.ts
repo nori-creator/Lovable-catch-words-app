@@ -119,6 +119,14 @@ describe("signup transfer", () => {
     await transferFirstCatch(ready, userId, p);
     expect(p.save.mock.calls.map((call) => call[0].id)).toEqual([draft.id, draft.id]);
   });
+  it("a sample walkthrough (AI unavailable before signup) carries answers only, never the sample word", async () => {
+    const p = ports();
+    await transferFirstCatch({ ...ready, sample: true }, userId, p);
+    expect(p.upload).not.toHaveBeenCalled();
+    expect(p.save).not.toHaveBeenCalled();
+    expect(p.preferences).toHaveBeenCalledTimes(1);
+    expect(await readFirstCatch()).toMatchObject({ stage: "done", photo: null, card: null });
+  });
 });
 describe("photographed candidates and learning context", () => {
   const ready: FirstCatch = { ...draft, stage: "camera", goals: ["travel"], interests: ["food"] };

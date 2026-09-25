@@ -421,8 +421,8 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
-  **どの語と一緒に、どの形で使うか**が分かる型にする${cardProfile.code.startsWith("zh") ? "（例: 吵架 → 跟男朋友吵架 / 動不動就吵架、牽 → 牽著他的手、珍珠奶茶 → 點一杯珍珠奶茶 / 珍珠奶茶半糖少冰）" : "（例: argue → argue with my boyfriend、hold → hold his hand）"}。人・物が入る所は**いちばん典型的な具体語で埋める**（空欄や記号を置かない — そのまま声に出せる形）。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+  ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
@@ -502,7 +502,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -874,6 +874,34 @@ function chunkRule(language: string | null | undefined): string {
  * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
  * **両方**を置くのは、指示文が守られない回が実際に在るから。
  */
+/**
+ * **チャンクは公式・定理の形で**（オーナー指示 2026-09-25「チャンクは公式、
+ * 定理のように、またネイティブが最も頻繁に使うカタチにして…跟＋人＋見面の
+ * ようにする」）。
+ *
+ * 入れ替えて使う所は、具体語（男朋友）ではなく**いちばん広い言い方**
+ * （人・事・東西・地方 / someone・something）にして `slot: true` を付ける。
+ * 画面ではそこを点線の枠で描ける。型ぜんぶを読み上げても自然な文になる
+ * （「跟人吵架」「argue with someone」）。
+ *
+ * 2026-09-24 は「典型的な具体語で埋める」と頼んでいた。オーナーが公式の形を
+ * 選んだので置き換えた。具体的な場面は例文の欄が受け持つ。
+ */
+function formulaChunkRule(code: string): string {
+  const zh = code.startsWith("zh");
+  return (
+    `**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
+    `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
+    (zh
+      ? `（例: 見面 → 跟＋人＋見面、吵架 → 跟＋人＋吵架 / 動不動就＋吵架、牽 → 牽著＋人＋的手、珍珠奶茶 → 點一杯＋珍珠奶茶 / 珍珠奶茶＋半糖少冰）。`
+      : `（例: meet → meet up with + someone、argue → argue with + someone、hold → hold + someone's hand）。`) +
+    `\n入れ替えて使う所は具体語で埋めず、いちばん広い言い方` +
+    (zh ? `（人・事・東西・地方・時間）` : `（someone・something・somewhere）`) +
+    `を1パーツにして slot: true を付ける。決まった語のパーツは slot を付けない。` +
+    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
+  );
+}
+
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
     `**どの語にも付く組み合わせを書かない。**\n` +
@@ -1074,12 +1102,18 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n**どの語と一緒に、どの形で使うか**が分かる型にする${regenProfile.code.startsWith("zh") ? "（例: 吵架 → 跟男朋友吵架、牽 → 牽著他的手、珍珠奶茶 → 點一杯珍珠奶茶）" : "（例: argue → argue with my boyfriend、hold → hold his hand）"}。人・物が入る所はいちばん典型的な具体語で埋める（空欄や記号を置かない）。\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
             z.object({
-              parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+              parts: z.array(
+                z.object({
+                  text: z.string(),
+                  pos: z.string().catch(""),
+                  slot: z.boolean().optional().catch(undefined),
+                }),
+              ),
               ja: z.string().catch(""),
             }),
           )

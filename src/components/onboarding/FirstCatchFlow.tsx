@@ -12,6 +12,7 @@ import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
+import { sampleCard, sampleLesson, SAMPLE_PHOTO } from "@/lib/first-catch-sample";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
@@ -73,6 +74,8 @@ export function FirstCatchFlow({
   draftRef.current = draft;
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // AI is unreachable before signup (anonymous sign-in off, or a preview without AI).
+  const [aiBlocked, setAiBlocked] = useState(false);
   const retry = useRef<() => void>(() => {});
   const lock = useRef(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -123,6 +126,7 @@ export function FirstCatchFlow({
     if (lock.current) return;
     lock.current = true;
     setError(null);
+    setAiBlocked(false);
     setBusy(kind);
     retry.current = () => {
       void action(fn, kind);
@@ -130,16 +134,21 @@ export function FirstCatchFlow({
     try {
       await fn();
     } catch (e) {
-      if (mounted.current)
+      const code = e instanceof Error ? e.message : "";
+      const blocked =
+        code === "FIRST_CATCH_GUEST_UNAVAILABLE" || code === "FIRST_CATCH_PREVIEW_UNAVAILABLE";
+      if (mounted.current) {
+        setAiBlocked(blocked);
         setError(
           t(
-            e instanceof Error && e.message === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
+            code === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
               ? "first.previewUnavailable"
-              : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
+              : code === "FIRST_CATCH_GUEST_UNAVAILABLE"
                 ? "first.guestUnavailable"
                 : "first.failed",
           ),
         );
+      }
     } finally {
       lock.current = false;
       if (mounted.current) setBusy(null);
@@ -185,6 +194,23 @@ export function FirstCatchFlow({
       setDetailSeen(false);
     }, "card");
   }
+  /** AIが使えないときだけ: 見本の写真と単語で、はがす所から先を体験する。 */
+  function continueWithSample() {
+    if (!draft) return;
+    void action(async () => {
+      await commit({
+        ...draft,
+        sample: true,
+        photo: SAMPLE_PHOTO,
+        capturedAt: new Date().toISOString(),
+        card: sampleCard(draft.targetLanguage, draft.uiLanguage),
+        lesson: sampleLesson(draft.targetLanguage, draft.uiLanguage),
+        stage: "card",
+      });
+      setSuggestions([]);
+      setDetailSeen(false);
+    });
+  }
   function catchWord() {
     if (!draft?.card || !draft.photo || lock.current) return;
     pronounce.prepare();
@@ -226,10 +252,21 @@ export function FirstCatchFlow({
   const errors = error && (
     <div role="alert" className="first-error">
       <p>{error}</p>
-      <button className="first-primary" onClick={() => retry.current()} disabled={!!busy}>
-        {t("first.retry")}
-      </button>
-      {draft?.photo && !canRequestAccount(draft) && (
+      {aiBlocked ? (
+        <>
+          <button className="first-primary" onClick={continueWithSample} disabled={!!busy}>
+            {t("first.useSample")}
+          </button>
+          <button className="first-secondary" onClick={() => retry.current()} disabled={!!busy}>
+            {t("first.retry")}
+          </button>
+        </>
+      ) : (
+        <button className="first-primary" onClick={() => retry.current()} disabled={!!busy}>
+          {t("first.retry")}
+        </button>
+      )}
+      {!aiBlocked && draft?.photo && !canRequestAccount(draft) && (
         <button
           className="first-secondary"
           onClick={() => {
@@ -294,6 +331,11 @@ export function FirstCatchFlow({
   const sticker = firstCatchSticker(draft);
   return (
     <div className="first-run" data-first-stage={draft.stage}>
+      {draft.sample && ["card", "added", "explore"].includes(draft.stage) && (
+        <p className="first-sample-note" role="note">
+          {t("first.sampleNote")}
+        </p>
+      )}
       {draft.stage === "home" && <FirstCatchHome draft={draft} animated />}
       {draft.stage === "dex" && (
         <FirstCatchShell tab={1}>
