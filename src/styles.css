@@ -3331,22 +3331,6 @@ html[data-motion="reduce"] {
   line-height: var(--text-caption--line-height);
   font-weight: 600;
 }
-/* 頻度の星（オーナー指示 2026-09-23）。点いた星は主色で塗り、消えた星は輪郭だけ。 */
-.freq-stars {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.freq-stars__star {
-  width: 16px;
-  height: 16px;
-  color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
-  fill: none;
-}
-.freq-stars__star--on {
-  color: var(--primary);
-  fill: var(--primary);
-}
 .usage-meter__instrument {
   display: flex;
   align-items: end;
@@ -4537,25 +4521,6 @@ html[data-motion="reduce"] {
   padding: 0.3rem 0;
   box-shadow: none;
 }
-.usage-chunk-row__main {
-  display: grid;
-  /* 語と訳の2列。**右端のボタンを外した**（`WordCard` の `ChunkRow` の注）
-     ので、痩せていた訳の取り分が戻る。 */
-  /* 音声・語・訳の3列。音声は左端に小さく（訳の取り分を削らない）。 */
-  grid-template-columns: auto minmax(0, 1fr) minmax(6.5rem, 0.8fr);
-  align-items: center;
-  gap: 0.5rem;
-}
-.usage-chunk-row__words {
-  min-width: 0;
-}
-.usage-chunk-row__meaning {
-  margin: 0;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
-  text-align: right;
-}
 /* 例文の中の語。**品詞の色そのままでは本文の下限(4.5:1)を割る**
    （実測 3.69〜4.03）。上の `.chunk-pill` と同じく、塗りの色を前景へ
    寄せた「字のための色」にする — 色相は残るので品詞は見分けられる。 */
@@ -4575,12 +4540,6 @@ html[data-motion="reduce"] {
 .chunk-word-button:active {
   transform: translateY(1px) scale(0.95);
 }
-@media (max-width: 360px) {
-  .usage-chunk-row__main {
-    grid-template-columns: auto minmax(0, 1fr) minmax(5.5rem, 0.75fr);
-    gap: 0.375rem;
-  }
-}
 .chunk-pill:active {
   transform: translateY(1px) scale(0.95);
   box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
@@ -4599,6 +4558,159 @@ html[data-motion="reduce"] {
     transform: none;
   }
 }
+/* ── チャンクの1行（`ChunkLine`）。単語の詳細と復習の解説で同じ形 ──
+   左に音声、札の並び、その下に訳を小さく薄く（オーナー指示 2026-09-24）。 */
+.chunk-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.chunk-line__body {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.2rem;
+}
+.chunk-line__translation {
+  margin: 0;
+  font-size: var(--text-footnote);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ── チャンクの札（バブル）。品詞ごとの丸 ──
+   色は**もう少し鮮やかに**: 札の中だけ、機能語の淡い色も彩度を上げる
+   （本文の色分けの約束 — 内容語を鮮やかに、機能語を淡く — は札の外で守る）。
+   質感は**色付きのガラス**、押すと沈んで弾む（オーナー指示 2026-09-25）。
+   形の案は `lib/chunk-design.ts`。 */
+.chunk-set {
+  --pos-adv: oklch(0.66 0.16 85);
+  --pos-m: oklch(0.64 0.16 215);
+  --pos-conj: oklch(0.66 0.16 55);
+  --pos-det: oklch(0.64 0.14 180);
+  --pos-vaux: oklch(0.6 0.18 295);
+  --pos-prep: oklch(0.62 0.19 335);
+  --pos-ptc: oklch(0.6 0.1 260);
+  --pos-vs: oklch(0.62 0.19 150);
+  --pos-v: oklch(0.62 0.23 25);
+  gap: 0.5rem;
+}
+.chunk-bubble {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.8rem;
+  letter-spacing: 0.01em;
+  /* ガラス: 色の透けた丸に、上の縁の光と、色の影。 */
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--pos) 34%, white),
+    color-mix(in oklab, var(--pos) 12%, white)
+  );
+  color: color-mix(in oklab, var(--pos) 62%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--pos) 30%, white);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 8px 16px -10px color-mix(in oklab, var(--pos) 75%, transparent);
+  /* 押して離すと、ばねで少し行き過ぎて戻る（弾む）。 */
+  transition: transform 0.35s var(--spring-bounce);
+}
+.dark .chunk-bubble {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--pos) 38%, var(--card)),
+    color-mix(in oklab, var(--pos) 16%, var(--card))
+  );
+  color: color-mix(in oklab, var(--pos) 70%, white);
+  border-color: color-mix(in oklab, var(--pos) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 8px 16px -10px color-mix(in oklab, var(--pos) 60%, transparent);
+}
+/* 押し込む: 沈んで縮む。押している間は速く、離すとばねで戻る。 */
+.chunk-set .chunk-pill:active {
+  transform: translateY(2px) scale(0.9);
+  transition-duration: 0.08s;
+}
+/* 丸で囲わない語（案 C/D/E）。品詞の色の字だけ。押せば同じく弾む。 */
+.chunk-plain {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.15rem;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  transition: transform 0.35s var(--spring-bounce);
+}
+/* 案 B パズル: 札の間を詰め、右の出っ張り（凸）を次の札へかませて、
+   1つの塊に見せる。端だけ丸い。 */
+.chunk-set--puzzle {
+  gap: 0;
+  row-gap: 0.5rem;
+}
+.chunk-set--puzzle .chunk-bubble {
+  position: relative;
+  border-radius: 0.55rem;
+  border: 0;
+  padding-inline: 0.95rem;
+}
+.chunk-set--puzzle .chunk-bubble:first-child {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+.chunk-set--puzzle .chunk-bubble:last-child {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+.chunk-set--puzzle .chunk-bubble:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: -0.45rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  translate: 0 -50%;
+  background: color-mix(in oklab, var(--pos) 24%, white);
+}
+.dark .chunk-set--puzzle .chunk-bubble:not(:last-child)::after {
+  background: color-mix(in oklab, var(--pos) 28%, var(--card));
+}
+/* 案 F 公式: 決まった語は丸、入れ替える所（人・事）は点線の枠、間に「＋」。 */
+.chunk-set--formula {
+  gap: 0.3rem;
+}
+.chunk-plus {
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+.chunk-slot {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.6rem;
+  padding-inline: 0.7rem;
+  border: 1.5px dashed color-mix(in oklab, var(--foreground) 35%, transparent);
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
+  color: var(--muted-foreground);
+  box-shadow: none;
+  transition: transform 0.35s var(--spring-bounce);
+}
+html[data-motion="reduce"] .chunk-set .chunk-pill:active {
+  transform: none;
+}
+
+/* ── 発音ボタンは**1つの青**（オーナー指示 2026-09-25「発音ボタンはすべて
+   単語の見出しの横の鮮やかな青色に統一して」）。大きさだけが違う。 ── */
+.speak-button {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 6px 14px -6px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+.chunk-line__speak {
+  margin-top: 0.25rem;
+}
+
 /* 凡例の丸。 */
 .pos-dot {
   background: var(--pos);
@@ -7863,4 +7975,152 @@ html[data-motion="reduce"] .dex-pin {
   width: 12px;
   height: 12px;
   top: -5px;
+}
+
+/* ── ガラスの試作（オーナー指示 2026-09-25「チャンクのガラスのデザイン、
+   このアプリのどこに適用できるか全て調べて…実際に試作してみて」）──
+
+   チャンクの札と同じ作り方: **色の透けた面 ＋ 上の縁の光 ＋ 色の影**、
+   押すと沈んでばねで弾む。`html[data-glass="on"]` の間だけ効く
+   （確認用ページの「ガラス案」の切り替え）。本番には何も起きない。
+
+   Apple の指針（Liquid Glass）どおり、**ガラスにするのは押す物・浮いている
+   物だけ**。本文・写真・カードの地はガラスにしない — 全部がガラスだと、
+   どれが押せるのかが分からなくなる。 */
+html[data-glass="on"] {
+  --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.85);
+  --glass-press: translateY(1px) scale(0.96);
+}
+html[data-glass="on"].dark {
+  --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.16);
+}
+/* 1. 下のバー: 選ばれている印を、色の透けたガラスの丸に。 */
+html[data-glass="on"] .tabbar .sliding-indicator {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 30%, white),
+    color-mix(in oklab, var(--primary) 10%, white)
+  );
+  border: 1px solid color-mix(in oklab, var(--primary) 26%, white);
+  box-shadow:
+    var(--glass-hi),
+    0 8px 16px -10px color-mix(in oklab, var(--primary) 70%, transparent);
+}
+html[data-glass="on"].dark .tabbar .sliding-indicator {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 40%, var(--card)),
+    color-mix(in oklab, var(--primary) 16%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+}
+/* 2. 設定: 選ばれている丸は濃いガラス（白い字が乗るので色は濃いまま）、
+      選ばれていない丸と選び欄は、うっすら色の付いたガラス。 */
+html[data-glass="on"] [role="radiogroup"] .sliding-indicator:not(.tabbar *):not(.camera-modes *) {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 88%, white),
+    color-mix(in oklab, var(--primary) 92%, black)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 10px 18px -10px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+html[data-glass="on"] .seg-option,
+html[data-glass="on"] .picker-field {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 7%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 18%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 6px 14px -10px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+html[data-glass="on"] .seg-option[aria-checked="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+/* 3. カメラ: 撮り方の印と、左右の箱を、暗い景色の上の白いガラスに。 */
+html[data-glass="on"] .camera-modes .sliding-indicator {
+  /* アプリの青を透かす（前の印が紺の丸だったので、色味はそれに合わせる）。 */
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--cam-accent) 55%, rgb(255 255 255 / 0.3)),
+    color-mix(in oklab, var(--cam-accent) 30%, transparent)
+  );
+  border: 1px solid rgb(255 255 255 / 0.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 10px 20px -12px rgb(0 0 0 / 0.6);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+html[data-glass="on"] .camera-side__box {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.24), rgb(255 255 255 / 0.08));
+  border-color: rgb(255 255 255 / 0.32);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
+}
+/* 4. 復習: 4択の答えと、上の切り替え（自動・話す・4択）の印。 */
+html[data-glass="on"] .quiz-choice:not(:disabled) {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 8%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 8px 18px -12px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+html[data-glass="on"] .mode-thumb {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 22%, white),
+    color-mix(in oklab, var(--primary) 6%, white)
+  );
+  box-shadow:
+    var(--glass-hi),
+    0 6px 12px -8px color-mix(in oklab, var(--primary) 60%, transparent);
+}
+/* どれも、押すと沈んでばねで弾む（チャンクの札と同じ手応え）。 */
+html[data-glass="on"]
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ) {
+  transition-property: transform, color, background-color, border-color;
+  transition-duration: 0.35s;
+  transition-timing-function: var(--spring-bounce);
+}
+html[data-glass="on"]
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ):active:not(:disabled) {
+  transform: var(--glass-press);
+  transition-duration: 0.08s;
+}
+html[data-glass="on"][data-motion="reduce"]
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ):active {
+  transform: none;
 }

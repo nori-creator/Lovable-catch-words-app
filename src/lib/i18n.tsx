@@ -401,9 +401,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.retry": { ja: "もう一度試す", en: "Try again", "zh-TW": "再試一次" },
   "first.retake": { ja: "撮り直す", en: "Retake photo", "zh-TW": "重新拍照" },
   "first.guestUnavailable": {
-    ja: "現在、登録前の撮影体験を利用できません。写真はこの端末に残っています。時間をおいて再試行してください。",
-    en: "The pre-signup experience is currently unavailable. Your photo is kept on this device. Please try again later.",
-    "zh-TW": "目前無法使用註冊前的拍照體驗。照片已保留在這個裝置上，請稍後再試。",
+    ja: "登録する前は、写真をAIで分析できません。見本の写真で、このあとの流れを体験できます。",
+    en: "Photo analysis isn't available before you sign up. You can try the rest with a sample photo.",
+    "zh-TW": "註冊前無法用 AI 分析照片。可以用範例照片體驗接下來的流程。",
+  },
+  "first.useSample": {
+    ja: "見本で体験を続ける",
+    en: "Continue with a sample",
+    "zh-TW": "用範例繼續體驗",
+  },
+  "first.sampleNote": {
+    ja: "見本の写真と単語です。登録すると、自分の写真で使えます。",
+    en: "Sample photo and word. Sign up to use your own photos.",
+    "zh-TW": "這是範例照片與單字。註冊後就能用自己的照片。",
   },
   "first.importing": {
     ja: "最初のことばを引き継いでいます",

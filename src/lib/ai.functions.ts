@@ -409,7 +409,7 @@ ${cardProfile.capture.readingRule}
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
-- example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（${cardProfile.promptName}）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
+- example_sentence: ネイティブが「${data.headword}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う一文（${cardProfile.promptName}）。辞書的な作文・説明文にしない。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える（上のレベルほど、その場面らしい言い回しを使ってよい）
   ${worldExampleRule(NL)}
 - example_translation: 例文の訳(${NL})
 
@@ -421,7 +421,8 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+  ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
@@ -467,7 +468,7 @@ ${
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${cardProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管・手搖飲）" : "（例: bubble tea → sweetness level, ice, straw）"}。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${want("measure_words") ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}
@@ -501,7 +502,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -873,6 +874,34 @@ function chunkRule(language: string | null | undefined): string {
  * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
  * **両方**を置くのは、指示文が守られない回が実際に在るから。
  */
+/**
+ * **チャンクは公式・定理の形で**（オーナー指示 2026-09-25「チャンクは公式、
+ * 定理のように、またネイティブが最も頻繁に使うカタチにして…跟＋人＋見面の
+ * ようにする」）。
+ *
+ * 入れ替えて使う所は、具体語（男朋友）ではなく**いちばん広い言い方**
+ * （人・事・東西・地方 / someone・something）にして `slot: true` を付ける。
+ * 画面ではそこを点線の枠で描ける。型ぜんぶを読み上げても自然な文になる
+ * （「跟人吵架」「argue with someone」）。
+ *
+ * 2026-09-24 は「典型的な具体語で埋める」と頼んでいた。オーナーが公式の形を
+ * 選んだので置き換えた。具体的な場面は例文の欄が受け持つ。
+ */
+function formulaChunkRule(code: string): string {
+  const zh = code.startsWith("zh");
+  return (
+    `**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
+    `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
+    (zh
+      ? `（例: 見面 → 跟＋人＋見面、吵架 → 跟＋人＋吵架 / 動不動就＋吵架、牽 → 牽著＋人＋的手、珍珠奶茶 → 點一杯＋珍珠奶茶 / 珍珠奶茶＋半糖少冰）。`
+      : `（例: meet → meet up with + someone、argue → argue with + someone、hold → hold + someone's hand）。`) +
+    `\n入れ替えて使う所は具体語で埋めず、いちばん広い言い方` +
+    (zh ? `（人・事・東西・地方・時間）` : `（someone・something・somewhere）`) +
+    `を1パーツにして slot: true を付ける。決まった語のパーツは slot を付けない。` +
+    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
+  );
+}
+
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
     `**どの語にも付く組み合わせを書かない。**\n` +
@@ -1048,7 +1077,7 @@ async function runSectionRegen(
       }),
     },
     example: {
-      prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({
         example_sentence: z.string().min(1),
         example_translation: z.string().catch(""),
@@ -1073,12 +1102,18 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
             z.object({
-              parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+              parts: z.array(
+                z.object({
+                  text: z.string(),
+                  pos: z.string().catch(""),
+                  slot: z.boolean().optional().catch(undefined),
+                }),
+              ),
               ja: z.string().catch(""),
             }),
           )
@@ -1086,7 +1121,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${regenProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管）" : "（例: bubble tea → sweetness level, ice, straw）"}。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(

@@ -51,7 +51,8 @@ import {
   saidTarget,
   type ReviewModePref,
 } from "@/lib/review-format";
-import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
+import { chunkSpeechText, chunkTranslation } from "@/lib/extras";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
@@ -1327,7 +1328,7 @@ export function SpeakingCard({
               <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
               <button
                 onClick={() => void pronounce(scaffold.question_zh)}
-                className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-700"
+                className="speak-button relative mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
                 aria-label={t("rv.readQuestion")}
               >
                 <Volume2 className="h-3 w-3" />
@@ -1352,7 +1353,7 @@ export function SpeakingCard({
                     </span>
                     <button
                       onClick={() => void pronounce(p.zh)}
-                      className="ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-500/10 text-sky-700 active:scale-95"
+                      className="speak-button relative ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
                       aria-label={t("review.playHint")}
                     >
                       <Volume2 className="h-3.5 w-3.5" />
@@ -1843,11 +1844,16 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
         <section className="rounded-xl bg-secondary/60 px-3 py-2">
           <ExplainLabel>{t("rv.topChunk")}</ExplainLabel>
           <div className="mt-1.5 space-y-1.5">
+            {/* 単語の詳細のチャンクと**同じ部品**（`ChunkLine`、オーナー指示 2026-09-24）。 */}
             {chunks.map((c, i) => (
-              <div key={i}>
-                <ChunkPills parts={c.parts} size="md" lang={card.language} />
-                {c.ja && <p className="mt-0.5 text-caption text-muted-foreground">{c.ja}</p>}
-              </div>
+              <ChunkLine
+                key={i}
+                parts={c.parts}
+                translation={chunkTranslation(c.ja)}
+                lang={card.language}
+                speakText={chunkSpeechText(c, card.language)}
+                headword={card.headword}
+              />
             ))}
           </div>
           <ChunkLegend parts={chunks.flatMap((c) => c.parts)} />
@@ -2119,7 +2125,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
+                  className={`quiz-choice flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2590,7 +2596,7 @@ export function ReviewHeader({
       >
         <span
           aria-hidden
-          className="absolute inset-y-0.5 left-0.5 rounded-full bg-background shadow transition-transform duration-200"
+          className="mode-thumb absolute inset-y-0.5 left-0.5 rounded-full bg-background shadow transition-transform duration-200"
           style={{
             width: `calc((100% - 0.25rem) / ${MODE_TABS.length})`,
             transform: `translateX(${MODE_TABS.findIndex((m) => m.id === mode) * 100}%)`,
@@ -2610,7 +2616,7 @@ export function ReviewHeader({
               setModeOpen(false);
             }}
             title={m.titleKey ? t(m.titleKey) : undefined}
-            className={`relative z-10 min-h-11 flex-1 rounded-full px-1 text-center leading-tight transition-colors ${mode === m.id ? "text-foreground" : "text-muted-foreground"}`}
+            className={`mode-tab relative z-10 min-h-11 flex-1 rounded-full px-1 text-center leading-tight transition-colors ${mode === m.id ? "text-foreground" : "text-muted-foreground"}`}
           >
             {t(m.labelKey)}
           </button>
