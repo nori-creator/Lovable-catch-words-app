@@ -24,6 +24,7 @@ import {
   PickWordPanel,
   ReencounterPanel,
 } from "@/routes/_authenticated/capture";
+import { CameraModeStrip, CameraShutter } from "@/components/CameraChrome";
 
 const shot = (w: number, h: number, c: string) =>
   "data:image/svg+xml;utf8," +
@@ -143,19 +144,95 @@ export function CaptureOfflineScene({ q }: { q: URLSearchParams }) {
  * - `typed` … 打ち込んだ状態(調べるボタンが効く形になっているか)
  * - `retake` … 復習の「もう一度撮ってみる?」から来たとき
  */
+/**
+ * **確認用ページのカメラに、決まった景色を流す**（2026-09-27 の画角の直し）。
+ * 本物のカメラは使わない — 誰が開いても同じ絵で、枠に映像が「全部」入って
+ * いるか（切れていないか）を見比べられる。縦 3:4（多くの端末のカメラ）で描く。
+ */
+let fakeCameraOn = false;
+function useFakeCamera() {
+  useState(() => {
+    const md = navigator.mediaDevices;
+    if (fakeCameraOn || !md || typeof HTMLCanvasElement.prototype.captureStream !== "function")
+      return;
+    fakeCameraOn = true;
+    md.getUserMedia = async () => {
+      const c = document.createElement("canvas");
+      c.width = 1440;
+      c.height = 1920;
+      const img = new Image();
+      img.src = photo;
+      await img.decode().catch(() => {});
+      const ctx = c.getContext("2d")!;
+      const draw = () => {
+        const s = Math.max(c.width / (img.width || 1), c.height / (img.height || 1));
+        const w = (img.width || 1) * s;
+        const h = (img.height || 1) * s;
+        ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+      };
+      draw();
+      window.setInterval(draw, 500);
+      return c.captureStream(2);
+    };
+    return true;
+  });
+}
+
 export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  useFakeCamera();
+  /**
+   * **払って「スキャン」へ行けること**を確認用ページでも見せる（オーナー指摘
+   * 2026-09-27「カメラはスキャンにスライドできない」）。本物はスキャンの画面
+   * （別の道筋）へ渡すが、ここには道筋が無いので、同じ帯を持つ暗い面に
+   * 切り替える。戻る向きに払うと撮る画面に帰る。
+   */
+  const [scan, setScan] = useState(false);
+  const [back, setBack] = useState<"photo" | "search">(
+    q.get("mode") === "search" ? "search" : "photo",
+  );
+  if (scan) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          height: "100vh",
+          background: "#111318",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: "0 20px 120px",
+          gap: 12,
+        }}
+      >
+        <CameraModeStrip
+          mode="scan"
+          onChange={(m) => {
+            setBack(m === "search" ? "search" : "photo");
+            setScan(false);
+          }}
+        />
+        <div className="capture-actions">
+          <span />
+          <CameraShutter mode="scan" label="スキャン" onPress={() => {}} />
+          <span />
+        </div>
+      </div>
+    );
+  }
   return (
     <CaptureObjectPanel
+      key={back}
+      initialMode={back}
       retakeWord={v === "retake" ? "珍珠奶茶" : null}
       cameraInputRef={cameraInputRef}
       onObjectFile={() => {}}
       typedWord={typedWord}
       setTypedWord={setTypedWord}
       onSearch={() => {}}
-      onOpenScan={() => {}}
+      onOpenScan={() => setScan(true)}
       onOpenLibrary={() => {}}
       error={v === "error" ? "写真を読み込めませんでした" : null}
     />
@@ -166,6 +243,16 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
  * 生成が終わったカードの面。**撮るたびに必ず通る。**
  * 表(切り抜き)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
  */
+/**
+ * 物が写真の下と右で切れている切り抜き（透明な地に、縁まで続く茶色の杯）。
+ * `variant=clipped` で「シールでも切れます」の知らせを見る（2026-09-27）。
+ */
+const CLIPPED_CUTOUT =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><path d="M150 60 L400 90 L400 400 L190 400 Z" fill="#b07a4a"/><ellipse cx="275" cy="75" rx="130" ry="26" fill="#e8d5b5"/></svg>`,
+  );
+
 export function CaptureCardScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
@@ -190,7 +277,7 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
         } as never
       }
       selectedHead="珍珠奶茶"
-      cutoutImg={shot(400, 400, "#b07a4a")}
+      cutoutImg={v === "clipped" ? CLIPPED_CUTOUT : shot(400, 400, "#b07a4a")}
       objectImg={shot(400, 400, "#8a7f6a")}
       selfieImg={v === "noselfie" ? null : shot(400, 400, "#4a90d9")}
       flipped={flipped}

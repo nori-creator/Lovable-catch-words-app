@@ -35,7 +35,7 @@ export function PickerRow({
         <DialogTrigger asChild>
           <button
             type="button"
-            className="mt-2 flex min-h-14 w-full items-center justify-between rounded-[20px] border border-border bg-card px-4 text-left text-foreground shadow-sm"
+            className="picker-field mt-2 flex min-h-14 w-full items-center justify-between rounded-[20px] border border-border bg-card px-4 text-left text-foreground shadow-sm"
             aria-label={label}
           >
             <span>{options.find((o) => o.value === value)?.label}</span>

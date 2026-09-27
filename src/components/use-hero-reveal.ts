@@ -81,9 +81,41 @@ const SQUEEZE = 0.92;
 const POP = { damping: 0.54, response: 0.4 } as const;
 /** 居場所は行き過ぎ無しで詰める。 */
 const GLIDE = { damping: 1, response: 0.4 } as const;
+/** 案 C の大きさ。持ち上げてから置くので、跳ねは A より控えめ。 */
+const LIFT = { damping: 0.7, response: 0.45 } as const;
 
 /** 動きを減らす設定のときの長さ(ms)。位置は変えず、濃さだけ。 */
 const REDUCED_MS = 160;
+
+/**
+ * **開き方の案**（オーナー指示 2026-09-27「ホームの画像から単語の詳細への
+ * アニメーションの案を複数出して。角は丸いままにして」）。
+ *
+ *  ・`pop`   … A キュッと縮んでから、ぱっと広がる（いまの形）
+ *  ・`glide` … B 縮まず、行き過ぎもせず、滑らかに広がる
+ *  ・`lift`  … C 持ち上がる — 広がりながら影が深くなり、置かれると影が戻る
+ *  ・`fade`  … D 広がりながら、薄い所から濃くなる（写真が浮かび上がる）
+ *
+ * 確認用ページで選んだ案は端末に覚える（`hero-reveal-style`）。本番の既定は A。
+ */
+export type HeroRevealStyle = "pop" | "glide" | "lift" | "fade";
+export const HERO_REVEAL_STYLES: readonly HeroRevealStyle[] = ["pop", "glide", "lift", "fade"];
+const STYLE_KEY = "hero-reveal-style";
+export function heroRevealStyle(): HeroRevealStyle {
+  try {
+    const v = localStorage.getItem(STYLE_KEY) as HeroRevealStyle | null;
+    return v && HERO_REVEAL_STYLES.includes(v) ? v : "pop";
+  } catch {
+    return "pop";
+  }
+}
+export function setHeroRevealStyle(v: HeroRevealStyle) {
+  try {
+    localStorage.setItem(STYLE_KEY, v);
+  } catch {
+    /* 覚えられない端末では既定のまま */
+  }
+}
 
 /**
  * 見出しの箱に付ける。`origin` が来た回だけ動く。
@@ -121,6 +153,8 @@ export function useHeroReveal(origin: HeroOrigin | null, key: string | null, onD
     if (last.width < 1 || last.height < 1) return;
 
     const finish = () => {
+      el.style.boxShadow = "";
+      el.style.opacity = "";
       el.style.transformOrigin = "";
       el.style.translate = "";
       el.style.scale = "";
@@ -166,22 +200,63 @@ export function useHeroReveal(origin: HeroOrigin | null, key: string | null, onD
      *
      * だから**幅と高さを px で**動かし、倍率はそこから割り算で出す。
      */
-    const w0 = origin.w * SQUEEZE;
-    const h0 = origin.h * SQUEEZE;
+    const style = heroRevealStyle();
+    const squeeze = style === "pop" || style === "lift" ? SQUEEZE : 1;
+    const sizeSpring = style === "pop" ? POP : style === "lift" ? LIFT : GLIDE;
+    const w0 = origin.w * squeeze;
+    const h0 = origin.h * squeeze;
     const x0 = origin.x + (origin.w - w0) / 2 - last.left;
     const y0 = origin.y + (origin.h - h0) / 2 - last.top;
-    const endRadius = parseFloat(getComputedStyle(el).borderRadius) || 0;
+    /**
+     * 着く先の角の丸み。**箱そのものが丸くない**ことがある（丸いのは中の写真の
+     * 枠）。箱だけを測ると 0 になり、飛んでいる間に角が四角へ縮み、着いた
+     * 瞬間に中身の丸い枠が現れて**丸に戻る**（オーナー報告 2026-09-27
+     * 「角が四角になってまた丸くなる」の正体）。箱と、その中の浅い所の
+     * いちばん大きい丸みを採る。
+     */
+    const radiusOf = (node: Element) => parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0;
+    let endRadius = radiusOf(el);
+    if (endRadius < 1) {
+      // 子と孫まで（浅い所だけ。写しは作らず、測るだけ）。
+      for (const child of Array.from(el.children).slice(0, 6)) {
+        endRadius = Math.max(endRadius, radiusOf(child));
+        for (const grand of Array.from(child.children).slice(0, 6)) {
+          endRadius = Math.max(endRadius, radiusOf(grand));
+        }
+      }
+    }
 
+    /** 行きの道のり（0 = 押した札、1 = 見出し）。影と濃さの案に使う。 */
+    const progress = () => {
+      const span = last.width - w0;
+      return span ? Math.max(0, Math.min(1, (pw.value() - w0) / span)) : 1;
+    };
     const paint = () => {
+      const sx = pw.value() / last.width;
+      const sy = ph.value() / last.height;
       el.style.translate = `${px.value()}px ${py.value()}px`;
-      el.style.scale = `${pw.value() / last.width} ${ph.value() / last.height}`;
-      el.style.borderRadius = `${pr.value()}px`;
+      el.style.scale = `${sx} ${sy}`;
+      /**
+       * **角は、見えている丸みで決める**（同日「角が四角になってまた丸くなる」）。
+       * 箱を `scale` で縮めているので、半径を px のまま渡すと**縮めたぶんだけ
+       * 角も小さく**見え、札の大きさでは四角に見えていた。縦と横で縮み方が
+       * 違うと楕円にも歪む。縮めた倍率で割り戻して、見た目の丸みを保つ。
+       */
+      const r = Math.max(0, pr.value());
+      el.style.borderRadius = `${r / Math.max(sx, 0.01)}px / ${r / Math.max(sy, 0.01)}px`;
+      if (style === "lift") {
+        // 道のりの真ん中でいちばん高く（影が深く）、着いたら戻る。
+        const lift = Math.sin(progress() * Math.PI);
+        el.style.boxShadow = `0 ${Math.round(6 + 30 * lift)}px ${Math.round(14 + 50 * lift)}px -${Math.round(8 + 10 * lift)}px rgb(0 0 0 / ${(0.18 + 0.3 * lift).toFixed(2)})`;
+      } else if (style === "fade") {
+        el.style.opacity = String(0.35 + 0.65 * progress());
+      }
     };
 
     const px = createSpring(x0, paint, GLIDE);
     const py = createSpring(y0, paint, GLIDE);
-    const pw = createSpring(w0, paint, POP);
-    const ph = createSpring(h0, paint, POP);
+    const pw = createSpring(w0, paint, sizeSpring);
+    const ph = createSpring(h0, paint, sizeSpring);
     const pr = createSpring(origin.radius, paint, GLIDE);
     const all = [px, py, pw, ph, pr];
     paint();

@@ -14,6 +14,18 @@ export async function transferFirstCatch(
 ): Promise<void> {
   if (draft.stage === "done" && draft.importedUserId === userId) return;
   if (!canRequestAccount(draft)) throw new Error("Catch has not been added");
+  // The sample photo/word is not the user's catch: carry over their answers only.
+  if (draft.sample) {
+    await ports.preferences(draft);
+    await ports.persist({
+      ...draft,
+      stage: "done",
+      importedUserId: userId,
+      photo: null,
+      card: null,
+    });
+    return;
+  }
   const path = await ports.upload(draft);
   if (!path) throw new Error("Photo was not uploaded");
   const saved = await ports.save(draft, path);

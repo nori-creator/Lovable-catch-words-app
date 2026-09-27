@@ -1,3 +1,4 @@
+import { tStatic } from "@/lib/i18n";
 import { canRequestAccount, readFirstCatch, type FirstCatch } from "@/lib/first-catch";
 import { FirstCatchTransfer } from "@/components/onboarding/FirstCatchTransfer";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
@@ -79,7 +80,11 @@ function AuthenticatedLayout() {
 
   if (state === "checking") {
     return (
-      <div className="grid min-h-screen place-items-center" role="status" aria-label="読み込み中">
+      <div
+        className="grid min-h-screen place-items-center"
+        role="status"
+        aria-label={tStatic("common.loading")}
+      >
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );

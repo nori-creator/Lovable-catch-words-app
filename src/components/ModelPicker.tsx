@@ -95,6 +95,7 @@ export function ModelPicker({
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("set.orSearch")}
             aria-label={t("set.orSearch")}
+            className="search-field"
           />
           {visionOnly && (
             <p className="mt-1 text-caption text-muted-foreground">{t("set.orVisionOnly")}</p>

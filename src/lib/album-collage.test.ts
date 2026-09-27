@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   packCollage,
   collageRatio,
+  COLLAGE_CAP_MIN,
   COLLAGE_CAP_W,
   COLLAGE_COL_W,
+  COLLAGE_GUTTER,
   COLLAGE_HERO_W,
   COLLAGE_RATIO_MAX,
   COLLAGE_RATIO_MIN,
@@ -36,10 +39,40 @@ describe("誌面の自動配置", () => {
     expect(out[1].x).toBeGreaterThan(0.5);
   });
 
-  it("**必ず少し重なる**（2列の幅の合計が台紙より広い）", () => {
-    // 「有機的に重なり合って1つの作品に」（オーナー指示 2026-09-22）。
-    // 字のほうは外側の端へ逃がしてあるので、重ねても読めなくならない。
-    expect(COLLAGE_COL_W * 2).toBeGreaterThan(1);
+  it("**初めから重ならない**（写真も字も。傾けたぶんの角のはみ出しも数える）", () => {
+    // オーナー指示 2026-09-27「デフォルトでは画像や文字が重ならないようにして」。
+    // 札1枚の場所 ＝ 写真 ＋ 下の字（字の幅は下限まで広がる）。傾けた角が
+    // はみ出すぶん（高さ × sin 傾き）だけ左右に広げて、どの2枚も交わらないこと。
+    const ratios = [1, 1.15, 0.66, 0.9, 1.1, 0.7, 1, 0.8, 1.15, 0.75, 1, 0.9];
+    const list = ratios.map((ratio, i) => ({
+      id: `p${i}`,
+      ratio,
+      extra: i % 3 === 0 ? 0.2 : 0.08,
+    }));
+    for (const n of [2, 3, 5, 8, 12]) {
+      const sub = list.slice(0, n);
+      const out = packCollage(sub);
+      const box = out.map((p, i) => {
+        const w = wOf(p);
+        const h = w * sub[i].ratio;
+        const tilt = (h * Math.abs(Math.sin((p.rot * Math.PI) / 180))) / 2;
+        const capW = Math.max(w, COLLAGE_CAP_MIN);
+        const left = p.x < 0.5 ? p.x - w / 2 : p.x + w / 2 - capW;
+        const right = p.x < 0.5 ? p.x - w / 2 + capW : p.x + w / 2;
+        return {
+          l: Math.min(left, p.x - w / 2) - tilt,
+          r: Math.max(right, p.x + w / 2) + tilt,
+          t: p.y - h / 2,
+          b: p.y + h / 2 + sub[i].extra,
+        };
+      });
+      for (let a = 0; a < box.length; a++)
+        for (let b = a + 1; b < box.length; b++) {
+          const x = Math.min(box[a].r, box[b].r) - Math.max(box[a].l, box[b].l);
+          const y = Math.min(box[a].b, box[b].b) - Math.max(box[a].t, box[b].t);
+          expect(x <= 0 || y <= 0, `${n}枚の日の ${a} と ${b} が重なる`).toBe(true);
+        }
+    }
   });
 
   it("**右の列は最初から下げる**（段が揃わない）", () => {
@@ -76,27 +109,25 @@ describe("誌面の自動配置", () => {
     expect(Math.abs(bottomOf(0) - bottomOf(1))).toBeLessThan(COLLAGE_COL_W * COLLAGE_RATIO_MAX);
   });
 
-  it("**字の幅は、重なりの外側に収まる**（これが「重なっても読める」の根拠）", () => {
-    // 右の列の札の左端は `1 - COLLAGE_COL_W`。左の字がそこへ届かなければ、
-    // どれだけ重ねても字は隠れない。広げるときは必ず両方を見ること。
-    expect(COLLAGE_CAP_W).toBeLessThanOrEqual(1 - COLLAGE_COL_W);
-    // 1枚目（大きい札）も同じ約束の中に居る。触られて最前面に来ても、
-    // 反対の列の字に届かない。
-    expect(COLLAGE_HERO_W).toBeLessThanOrEqual(1 - COLLAGE_CAP_W);
+  it("**字は潰さない**（写真を小さくしても、字の欄は下限の幅を保つ）", () => {
+    // オーナー指示 2026-09-27「画像を小さくしても文字は潰れたり隠れたりしないようにして」。
+    // 下限は列の中に収まり、1枚目の横の細い列にも収まること。
+    expect(COLLAGE_CAP_MIN).toBeLessThanOrEqual(COLLAGE_COL_W);
+    expect(COLLAGE_CAP_MIN).toBeLessThanOrEqual(1 - COLLAGE_HERO_W - COLLAGE_GUTTER);
+    const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    // 上限は1枚目の幅まで（1枚目の語が「…」で切れない）。
+    expect(COLLAGE_CAP_W).toBeGreaterThanOrEqual(COLLAGE_HERO_W);
+    expect(css).toMatch(/\.collage__plain \{[\s\S]*?width: max\(100%, var\(--cap-min/);
+    expect(css).toMatch(/\.collage__cap \{[\s\S]*?min-width: var\(--cap-min/);
   });
 
   it("縦長の写真でも、その高さぶんだけ下がる（升目の決め打ちに引きずられない）", () => {
-    const tall = packCollage([
-      { id: "a", ratio: 1.6 },
-      { id: "b", ratio: 1 },
-      { id: "c", ratio: 1 },
-    ]);
-    const flat = packCollage([
-      { id: "a", ratio: 0.6 },
-      { id: "b", ratio: 1 },
-      { id: "c", ratio: 1 },
-    ]);
-    expect(tall[2].y).toBeGreaterThan(flat[2].y);
+    const rest = ["b", "c", "d", "e", "f"].map((id) => ({ id, ratio: 1 }));
+    const tall = packCollage([{ id: "a", ratio: 1.6 }, ...rest]);
+    const flat = packCollage([{ id: "a", ratio: 0.6 }, ...rest]);
+    // 1枚目の下（左の列）に最初に置かれる札が、1枚目の高さぶん下がっている。
+    const underHero = (out: Placement[]) => out.slice(1).find((p) => colOf(p) === 0)!;
+    expect(underHero(tall).y).toBeGreaterThan(underHero(flat).y);
   });
 
   it("**何度描いても同じ**（乱数を使わない）", () => {
@@ -161,8 +192,8 @@ describe("その日の1枚目", () => {
     const out = packCollage(items(4));
     expect(colOf(out[1])).toBe(1);
     expect(topOf(out[1])).toBeLessThan(botOf(out[0]));
-    // 横に並ぶので、**左右で必ず重なる**。
-    expect(COLLAGE_HERO_W + wOf(out[1])).toBeGreaterThan(1);
+    // 横に並ぶが、**重ならない**（2026-09-27）。
+    expect(COLLAGE_HERO_W + wOf(out[1]) + COLLAGE_GUTTER).toBeLessThanOrEqual(1 + 1e-9);
   });
 
   it("**2枚の日は大きくしない**（残り1枚が取り残される）", () => {

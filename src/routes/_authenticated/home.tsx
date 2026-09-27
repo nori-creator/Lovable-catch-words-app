@@ -3,6 +3,7 @@ import { decorFor } from "@/lib/collage-decor";
 import {
   applyDelta,
   boardHeight,
+  COLLAGE_CAP_MIN,
   COLLAGE_CAP_W,
   captionAlign,
   COLLAGE_COL_W,
@@ -709,7 +710,10 @@ function flightFrom(button: HTMLElement): FlightOrigin | null {
   // 飛ばす写しは**通信も復号もせずに**最初の1枚から出る。
   const url = img.currentSrc || img.src;
   if (!url) return null;
-  return { x: r.left, y: r.top, w: r.width, h: r.height, url, radius: 2 };
+  // 札の**実際の**角の丸み。見出しまで丸いまま広がるよう、四角（2px）から
+  // 始めない（2026-09-27「角が四角になってまた丸くなる」）。
+  const radius = Math.max(parseFloat(getComputedStyle(img).borderRadius) || 0, 8);
+  return { x: r.left, y: r.top, w: r.width, h: r.height, url, radius };
 }
 
 /**
@@ -1108,7 +1112,12 @@ export function DayCollage({
     const narrowest = Math.max(board.w * COLLAGE_COL_W * 0.78, 1);
     return (id: string) => {
       if (heroById.get(id)) return collageRatio(photoRatio[id] ?? PLACEHOLDER_RATIO);
-      const px = Math.max(PLAIN_WORD_PX + (hasNote.get(id) ? CAP_NOTE_PX : 0), MIN_TAP_PX);
+      // 細い画面では時刻が語の下の行へ回る（`.collage__plain` の注）ぶんを足す。
+      const timeLine = narrowest < 130 ? 14 : 0;
+      const px = Math.max(
+        PLAIN_WORD_PX + timeLine + (hasNote.get(id) ? CAP_NOTE_PX : 0),
+        MIN_TAP_PX,
+      );
       // 台紙をまだ測れていない最初の1枚は、ほどほどの比で場所を取っておく。
       return board.w ? px / narrowest : 0.3;
     };
@@ -1508,6 +1517,8 @@ export function DayCollage({
                * から（札ごとに幅が違うので、揃った線にならない）。
                */
               "--cap-w": board.w ? `${Math.round(board.w * COLLAGE_CAP_W)}px` : undefined,
+              /** 字の欄の下限（写真を小さくしても語が切れない幅。2026-09-27）。 */
+              "--cap-min": board.w ? `${Math.round(board.w * COLLAGE_CAP_MIN)}px` : undefined,
             } as React.CSSProperties
           }
         >

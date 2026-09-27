@@ -1,3 +1,4 @@
+import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
@@ -1202,6 +1203,8 @@ export function StickerSheetBody({
           )}
         </div>
         {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。 */}
+        {s.is_owner && <StickerCategoryChip sticker={s} />}
       </section>
 
       {/* 同じものに何度も出会った記録。

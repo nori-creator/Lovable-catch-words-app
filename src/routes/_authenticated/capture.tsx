@@ -1,13 +1,15 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { takeScanHandoff } from "@/lib/scan-handoff";
-import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
+import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing";
+import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -19,7 +21,7 @@ import {
   Camera,
   Volume2,
   Loader2,
-  Mic,
+  Image as ImageIcon,
   RotateCcw,
   Sparkles,
   Check,
@@ -53,7 +55,6 @@ import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
-import { useVoiceInput } from "@/lib/use-voice-input";
 import {
   CameraFlipButton,
   CameraLibraryButton,
@@ -207,7 +208,10 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
     const ctx = canvas.getContext("2d");
     if (!ctx) return dataUrl;
     ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", quality);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    // 絵の板はすぐ手放す（iPhone の Safari は板の合計に上限がある）。
+    canvas.width = canvas.height = 0;
+    return out;
   } catch {
     return dataUrl;
   }
@@ -320,6 +324,8 @@ function CapturePage() {
   // 直前に setPendingId しても runAi の中からは古い値(null)しか見えない。
   // 「これは復元されたキャプチャか」は失敗時の分岐に効くので ref で持つ。
   const pendingIdRef = useRef<string | null>(null);
+  /** 撮った写真を端末に預けている途中の約束。AI が失敗したときだけ待つ。 */
+  const queueingRef = useRef<Promise<unknown> | null>(null);
   // 解析に失敗して端末に預けたときの**実際の理由**。
   // これを出さないと、401 や壊れた画像のような二度と直らない失敗まで
   // 「写真は預かりました(あとで続きができます)」と出て、
@@ -582,19 +588,28 @@ function CapturePage() {
       objectImageRef.current = compressed;
       setObjectImg(compressed);
       if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
-      const queued = await enqueueCapture({
+      // **AI を先に走らせる。端末に預けるのを待たない**（オーナー報告
+      // 2026-09-27「iPhone で撮影後に AI 分析が進まない」）。
+      //
+      // 前は預け終わってから AI を呼んでいた。iPhone の Safari では
+      // IndexedDB を開く所が返ってこないことがあり、その回は分析が
+      // 1度も始まらずに「分析中」のまま止まっていた。預けるのは
+      // 失敗したときの保険なので、並べて走らせる。
+      queueingRef.current = enqueueCapture({
         object_img: compressed,
         selfie_img: selfieImageRef.current,
         lat: null,
         lng: null,
         location_name: null,
+      }).then((queued) => {
+        if (queued) {
+          setPendingId(queued.id);
+          pendingIdRef.current = queued.id;
+          if (selfieImageRef.current)
+            void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
+        }
+        return queued;
       });
-      if (queued) {
-        setPendingId(queued.id);
-        pendingIdRef.current = queued.id;
-        if (selfieImageRef.current)
-          void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
-      }
       void runAi(analysisImage ?? compressed);
     } catch (e) {
       console.error(e);
@@ -675,6 +690,9 @@ function CapturePage() {
       // ただし**この写真がキューから復元されたものなら、預け直さない**。
       // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
+      // 撮った直後に預け始めた分が済むのを待つ（上限つき — `offline-queue.ts`）。
+      // 待たないと、同じ写真をもう1枚預けてしまう。
+      if (queueingRef.current) await queueingRef.current.catch(() => null);
       const here = await resolveLocation();
       const saved = pendingIdRef.current
         ? await updatePendingCapture(pendingIdRef.current, {
@@ -1643,6 +1661,8 @@ export function ReencounterPanel({
 }) {
   const t = useT();
   const language = useTargetLang();
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const reencUnits = useZhuyinUnits(language, reenc.headword, reenc.reading_zhuyin);
   const image = photo || reenc.cutout_url;
   return (
     <div className="mx-auto max-w-md space-y-5">
@@ -1682,15 +1702,26 @@ export function ReencounterPanel({
           </div>
         ) : null}
         <div className="space-y-3 px-6 pb-6 pt-3">
-          <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
-            {reenc.headword}
-          </Term>
-          <Reading
-            lang={language}
-            zhuyin={reenc.reading_zhuyin}
-            pinyin={reenc.pinyin}
-            className="block text-footnote text-muted-foreground"
-          />
+          {reencUnits ? (
+            <ZhuyinWord
+              as="h1"
+              units={reencUnits}
+              lang={language}
+              className="text-hero font-bold tracking-tight"
+            />
+          ) : (
+            <>
+              <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
+                {reenc.headword}
+              </Term>
+              <Reading
+                lang={language}
+                zhuyin={reenc.reading_zhuyin}
+                pinyin={reenc.pinyin}
+                className="block text-footnote text-muted-foreground"
+              />
+            </>
+          )}
           <p className="text-title font-medium">{reenc.meaning_ja}</p>
           <p className="text-footnote text-muted-foreground">
             {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
@@ -1828,6 +1859,7 @@ export function PickWordPanel({
             onChange={(e) => setManualWord(e.target.value)}
             placeholder={t("cap.wordPlaceholder")}
             enterKeyHint="search"
+            className="search-field"
           />
           <Button type="submit" disabled={!manualWord.trim()} className="gap-1.5">
             <Search className="h-4 w-4" />
@@ -1955,6 +1987,8 @@ export function CaptureCardPanel({
   saving?: boolean;
 }) {
   const t = useT();
+  /** 物が写真の縁で切れていたら、剥がす前に知らせる（`useCutoutClipped`）。 */
+  const clipped = useCutoutClipped(cutoutImg && cutoutImg !== objectImg ? cutoutImg : null);
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
@@ -1986,6 +2020,14 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
+      {clipped && !saving && !landing && (
+        <div role="status" className="capture-clip-warning">
+          <p>{t("capture.clipped")}</p>
+          <Button variant="outline" size="sm" onClick={onRedo}>
+            {t("capture.retake")}
+          </Button>
+        </div>
+      )}
       <div className="flex gap-2">
         <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
           {t("capture.redo")}
@@ -2127,6 +2169,8 @@ export function CaptureObjectPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
+  const [camAspect, setCamAspect] = useState(3 / 4);
   /**
    * 前後の切り替え(オーナー指示 2026-09-15「インカメラも付けて」)。
    * スキャン画面には前からあったが、撮る画面には無かった — **同じ操作が
@@ -2137,12 +2181,9 @@ export function CaptureObjectPanel({
     setFacing(selfieMode ? "user" : "environment");
     setCameraReady(false);
   }, [selfieMode]);
-  /** 声で打ち込む（`lib/use-voice-input.ts`）。聞こえた語を欄へ流し込む。 */
-  const voice = useVoiceInput({
-    lang: "cmn-Hant-TW",
-    onText: setTypedWord,
-    onUnavailable: () => toast.error(t("scan.noVoice")),
-  });
+  /** カメラロールから選ぶ口（撮る口と違い `capture` を付けない — 付けると
+      カメラしか開かない端末がある）。 */
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
   /** 倍率。端末が本当に出せる範囲は `zoomCaps` に入る(出せなければ null)。 */
   const [zoom, setZoom] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
@@ -2167,8 +2208,14 @@ export function CaptureObjectPanel({
       .getUserMedia({
         video: {
           facingMode: { ideal: facing },
-          width: { ideal: 1280 },
-          height: { ideal: 1280 },
+          /**
+           * **センサーの全部を使う 4:3 を頼む**（2026-09-27「寄りすぎ」）。
+           * 16:9 を返す設定の多くはセンサーの上下を捨てているので、同じ
+           * 位置から撮っても写る範囲が狭い。端末の向きに合わせて縦横は
+           * ブラウザが入れ替える。
+           */
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
         },
         audio: false,
       })
@@ -2182,6 +2229,8 @@ export function CaptureObjectPanel({
         if (!video) return;
         video.srcObject = stream;
         await video.play().catch(() => {});
+        if (video.videoWidth && video.videoHeight)
+          setCamAspect(video.videoWidth / video.videoHeight);
         setCameraReady(true);
         /**
          * **倍率を持っているかは端末に聞く。**（持っていない端末に
@@ -2243,12 +2292,17 @@ export function CaptureObjectPanel({
     const video = videoRef.current;
     if (cameraReady && video?.videoWidth) {
       const canvas = document.createElement("canvas");
-      const viewport = video.parentElement!.getBoundingClientRect();
+      /**
+       * **撮るのは映像のすべて**（倍率ぶんだけ真ん中を切る）。枠は映像と同じ
+       * 縦横比で、映像は枠に収めて見せているので、覗いた絵と撮れる写真が
+       * 一致する（前は画面いっぱいに覆って見えている所だけを切り出していた）。
+       */
+      const frame = video.parentElement!.getBoundingClientRect();
       const crop = viewfinderCrop(
         video.videoWidth,
         video.videoHeight,
-        viewport.width,
-        viewport.height,
+        video.videoWidth,
+        video.videoHeight,
         shownZoom,
       );
       canvas.width = Math.round(crop.sw);
@@ -2271,22 +2325,31 @@ export function CaptureObjectPanel({
         const focus = video.parentElement!.querySelector(".capture-focus")?.getBoundingClientRect();
         let analysisImage: string | undefined;
         if (focus && !selfieMode) {
+          // 枠の中で絵が実際に描かれている四角（帯を除く）から、案内の枠の位置を出す。
+          const shown = containRect(video.videoWidth, video.videoHeight, frame.width, frame.height);
+          const fx = (focus.left - frame.left - shown.x) / shown.w;
+          const fy = (focus.top - frame.top - shown.y) / shown.h;
           const ai = document.createElement("canvas");
           ai.width = 768;
           ai.height = Math.round((768 * focus.height) / focus.width);
           ai.getContext("2d")?.drawImage(
             canvas,
-            ((focus.left - viewport.left) / viewport.width) * canvas.width,
-            ((focus.top - viewport.top) / viewport.height) * canvas.height,
-            (focus.width / viewport.width) * canvas.width,
-            (focus.height / viewport.height) * canvas.height,
+            fx * canvas.width,
+            fy * canvas.height,
+            (focus.width / shown.w) * canvas.width,
+            (focus.height / shown.h) * canvas.height,
             0,
             0,
             ai.width,
             ai.height,
           );
           analysisImage = ai.toDataURL("image/jpeg", 0.85);
+          ai.width = ai.height = 0;
         }
+        // **使い終わった絵の板をすぐ手放す。** iPhone の Safari は絵の板の
+        // 合計に上限があり、撮るたびに 1920×1440 の板が残ると、何枚か目で
+        // 板が作れなくなる（`getContext` が null を返し、撮れなくなる）。
+        canvas.width = canvas.height = 0;
         const bytes = Uint8Array.from(atob(full.split(",")[1]), (c) => c.charCodeAt(0));
         onObjectFile(new File([bytes], "capture.jpg", { type: "image/jpeg" }), analysisImage);
         return;
@@ -2315,20 +2378,6 @@ export function CaptureObjectPanel({
         撮り方を選べる。
       */}
       <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
-      {!onNativeCapture && (
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          className="absolute inset-0 h-full w-full object-cover"
-          aria-hidden="true"
-          // 倍率を持たない端末では、見た目だけを拡大して代用する
-          // (スキャン画面と同じ扱い)。
-          // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
-          // `shownZoom` が 1 になるので、ここでは何も起きない。
-          style={{ scale: String(shownZoom) }}
-        />
-      )}
 
       {/*
         **アプリの名前を映像の上に出す**（参考画像のとおり）。帯は作らない —
@@ -2355,14 +2404,46 @@ export function CaptureObjectPanel({
         合わせられるわけではないので、**動いているのに触れない物**だった。
         四隅の枠だけで「この中へ」は伝わる。
       */}
-      {!selfieMode && (
-        <div className="capture-focus" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
+      {/*
+        **映像は枠に収めて、全部を見せる。**（オーナー指示 2026-09-27「カメラを
+        全画面に表示しているのが原因なら全画面表示は辞めて」）
+
+        前は画面いっぱいに覆っていたので、横長の映像の3分の1ほどしか見えず、
+        撮る写真もそこだけだった。枠は映像と同じ縦横比（`--cam-aspect`）。
+        四隅の案内（シールに収まる範囲）も枠の中に置く。
+      */}
+      <div className="capture-frame" style={{ "--cam-aspect": String(camAspect) } as CSSProperties}>
+        {!onNativeCapture && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="capture-frame__video"
+            aria-hidden="true"
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            onResize={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            // 倍率を持たない端末では、見た目だけを拡大して代用する
+            // (スキャン画面と同じ扱い)。
+            // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
+            // `shownZoom` が 1 になるので、ここでは何も起きない。
+            style={{ scale: String(shownZoom) }}
+          />
+        )}
+        {!selfieMode && (
+          <div className="capture-focus" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
+      </div>
       {selfieMode && (
         <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
           <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>
@@ -2407,27 +2488,25 @@ export function CaptureObjectPanel({
                 aria-label={t("capture.typeWord")}
                 enterKeyHint="search"
                 disabled={searching}
-                className="h-11 rounded-xl border-background/15 bg-background pl-9 text-foreground"
+                className="search-field h-11 rounded-xl pl-9 text-foreground"
               />
             </div>
             {/*
-              **声で調べる道はここにある。**（2026-09-16 にスキャン画面の
-              検索欄を畳んだとき、そこにしか無かったので移した。）
-              使えない端末には出さない — 押しても何も起きない釦を置かない。
+              **カメラロールの画像で調べる**（オーナー指示 2026-09-27「検索モードの
+              マイクを消して、カメラロールから画像で検索するボタンを追加して」）。
+              選んだ写真は撮った写真と同じ道（AI が写っている物の語を出す）を通る。
             */}
-            {voice.available && (
-              <Button
-                type="button"
-                size="icon"
-                variant={voice.listening ? "destructive" : "secondary"}
-                onClick={voice.toggle}
-                aria-label={t("scan.voiceLabel")}
-                aria-pressed={voice.listening}
-                className={voice.listening ? "animate-pulse" : undefined}
-              >
-                <Mic />
-              </Button>
-            )}
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              onClick={() => libraryInputRef.current?.click()}
+              aria-label={t("capture.searchByImage")}
+              title={t("capture.searchByImage")}
+              disabled={searching}
+            >
+              <ImageIcon />
+            </Button>
             <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
               {searching ? <Loader2 className="animate-spin" /> : <Search />}
             </Button>
@@ -2506,6 +2585,20 @@ export function CaptureObjectPanel({
           tabIndex={-1}
           aria-hidden="true"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
+        />
+        <input
+          ref={libraryInputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // 同じ写真をもう一度選んでも走るように、値を空に戻す。
+            e.target.value = "";
+            if (file) onObjectFile(file);
+          }}
         />
       </div>
     </div>

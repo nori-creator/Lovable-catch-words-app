@@ -42,6 +42,8 @@ export const FirstCatchSchema = z.object({
   reminders: z.object({ morning: z.boolean(), evening: z.boolean() }).optional(),
   capturedAt: z.string().datetime().nullable(),
   importedUserId: z.string().uuid().optional(),
+  /** 登録前にAIを使えず、見本の写真と単語で体験した下書き。登録後に写真と単語は引き継がない。 */
+  sample: z.boolean().optional(),
 });
 export type FirstCatch = z.infer<typeof FirstCatchSchema>;
 

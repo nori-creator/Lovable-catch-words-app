@@ -54,27 +54,27 @@ export function poseTransform(p: CoverPose): string {
 
 /**
  * カードの下の**青い点**（オーナー指示 2026-09-23「図鑑のスライドするやつは
- * 下に青いドットのデザインを加えて」— 参考はコレクションのカードの下の点）。
+ * 下に青いドットのデザインを加えて」）。
  *
- * 語が何百あっても点を何百も並べない。iPhone のページの点と同じく、**いまの
- * 1枚のまわりの `max` 個だけ**を出し、端に近い点は小さくして「まだ続く」を
- * 示す。`size` は 2 = 大（いま）、1 = 中、0 = 小（続きがある端）。
+ * ## 点は「どこまで来たか」を指す（オーナー指示 2026-09-27）
+ * > 「ドットがずっと真ん中のままで意味がない。進むにつれて右に移動するように」
+ *
+ * 前はいまの1枚を**窓の真ん中**に置いて窓ごと動かしていたので、送っても
+ * 青い点は真ん中から動かなかった。いまは点の数を決め（最大 `max`）、
+ * **全体のうちどこに居るか**で青い点を選ぶ。先頭なら左端、末尾なら右端、
+ * 半分まで来たら真ん中。少ない日は1枚に1つ。押すと、その点が指す所へ送る。
  */
-export function dotWindow(
+export function progressDots(
   count: number,
   index: number,
   max = 7,
-): Array<{ i: number; size: 0 | 1 | 2 }> {
+): Array<{ i: number; active: boolean }> {
   if (count <= 0) return [];
-  const n = Math.min(count, max);
   const cur = Math.max(0, Math.min(count - 1, index));
-  const start = Math.max(0, Math.min(count - n, cur - Math.floor(n / 2)));
-  const out: Array<{ i: number; size: 0 | 1 | 2 }> = [];
-  for (let k = 0; k < n; k++) {
-    const i = start + k;
-    const moreLeft = k === 0 && start > 0;
-    const moreRight = k === n - 1 && start + n < count;
-    out.push({ i, size: i === cur ? 2 : moreLeft || moreRight ? 0 : 1 });
-  }
-  return out;
+  if (count <= max) return Array.from({ length: count }, (_, i) => ({ i, active: i === cur }));
+  const on = Math.round((cur / (count - 1)) * (max - 1));
+  return Array.from({ length: max }, (_, k) => ({
+    i: Math.round((k / (max - 1)) * (count - 1)),
+    active: k === on,
+  }));
 }

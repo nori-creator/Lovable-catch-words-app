@@ -1,4 +1,5 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
@@ -38,6 +39,13 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
+import { GlassSurfacesScene } from "./scenes/glass-surfaces";
+import { CategorySheetScene } from "./scenes/category-sheet";
+import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { CandidateDesignsScene } from "./scenes/candidate-designs";
+import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
+import { PageFlipScene } from "./scenes/page-flip";
+import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
@@ -54,6 +62,7 @@ import {
 import { AuthScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
+  HomeInkScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -132,9 +141,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
   "first-catch": FirstCatchScene,
+  "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
+  "home-ink": HomeInkScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -153,6 +164,13 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
+  "glass-surfaces": GlassSurfacesScene,
+  "category-sheet": CategorySheetScene,
+  "place-notify-designs": PlaceNotifyDesignsScene,
+  "candidate-designs": CandidateDesignsScene,
+  "analyzing-designs": AnalyzingDesignsScene,
+  "page-flip": PageFlipScene,
+  "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
   "capture-pick": CapturePickScene,
@@ -222,7 +240,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  */
 function Frame({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    // 実物の `AppShell` と同じ印（図鑑のスライドが地を透かす目印）。
+    <div data-app-shell="" className="min-h-screen bg-background">
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
@@ -311,14 +330,33 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-24 の5回目の依頼で触った面だけ（オーナー指示「過去のものが多すぎで
-  // 画面で確認できないから、過去のものは全て削除して」）。**毎回ここを入れ替える**
-  // — 前の依頼の面は残さない。
-  { scene: "word-card", label: "単語の詳細（星は見出しの横・性質は級の横）" },
-  { scene: "home", label: "ホーム（日付は A・下のバー）" },
-  { scene: "review-choice&photo=1", label: "復習の4択（写真を大きく）" },
-  { scene: "dex-map&at=2", label: "地図（元の色）" },
-  { scene: "scan-found", label: "スキャンの後（倍率）" },
+  // 2026-09-27 の依頼で触った面だけ。**毎回ここを入れ替える**
+  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
+  { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
+  // ガラスは本番に全部当てた（同日「すべてに適用して」）。
+  { scene: "tabbar", label: "下のバー（ガラス・アイコン）" },
+  { scene: "capture-object", label: "カメラ（枠・払ってスキャンへ）" },
+  { scene: "scan-bottom", label: "スキャン（上下の余白）" },
+  { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
+  { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
+  { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
+  { scene: "home-album", label: "アルバム（重ならない配置）" },
+  { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
+  { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
+  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },
+  { scene: "home-tap", label: "写真→詳細の開き方 A/B/C/D（角は丸いまま）" },
+  { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
+  { scene: "settings-polish", label: "設定（ガラス）" },
+  { scene: "review-choice", label: "復習の4択（ガラス）" },
+  { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
+  { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
+  { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
+  { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
+  { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
+  { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
+  { scene: "home-ink", label: "試作: アルバムに書き込む（ペン・ラベル・形・色）" },
+  { scene: "page-flip", label: "試作: ページめくり（スマホ／折りたたみの見開き）" },
+  { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
 const explicitScene = q.get("scene");
@@ -346,6 +384,20 @@ const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
   if (lang) {
     try {
       localStorage.setItem("ui-lang-v1", lang);
+    } catch {
+      /* 使えない環境では既定のまま */
+    }
+  }
+}
+/**
+ * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
+ * 節の並びと表示は localStorage から読むので、これも React の前に書く。
+ */
+{
+  const show = q.get("show");
+  if (show) {
+    try {
+      localStorage.setItem("wordcard-prefs-v6", JSON.stringify({ order: [show], hidden: [] }));
     } catch {
       /* 使えない環境では既定のまま */
     }
@@ -398,9 +450,9 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
-        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
-        const on = r.scene === here;
+        // 場面は `scene&step=…` のように条件付きで並べる。名前で選ばれているかを決める。
+        const [name] = r.scene.split("&");
+        const on = name === wanted;
         return (
           <a
             key={r.scene}

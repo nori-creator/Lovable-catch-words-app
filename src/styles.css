@@ -104,6 +104,12 @@
    いるのと**同じ122枚の切り分け**をそのまま貰う。`unicode-range` が付いて
    いるので、browser は**その画面に出ている字が入っている枚だけ**を取る。
 
+   **`font-display: block`**（オーナー報告 2026-09-27「ホームの白紙のアルバムの
+   文字の字体が、ページを開くと変わる」）。`swap` だと、手書きの字が届くまで
+   ゴシックで描いてから差し替えるので、開くたびに字体が目の前で入れ替わって
+   いた。手書きは飾りではなく「あなたの字」という合図なので、**一瞬待って
+   から正しい字体で出す**ほうがよい（端末内の配布なので、待ちは短い）。
+
    取り直すときは `node scripts/fetch-jp-fonts.mjs`。
    ライセンスは SIL OFL 1.1（`public/fonts/zen-kurenaido/OFL.txt`）。
    ─────────────────────────────────────────────────────────────── */
@@ -111,7 +117,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-2.woff2) format("woff2");
   unicode-range:
     U+ffd7, U+ffda-ffdc, U+ffe0-ffe2, U+ffe4, U+ffe6, U+ffe8-ffee, U+1f100-1f10c, U+1f110-1f16c,
@@ -121,7 +127,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-3.woff2) format("woff2");
   unicode-range:
     U+fa10, U+fa12-fa6d, U+fb00-fb04, U+fe10-fe19, U+fe30-fe42, U+fe44-fe52, U+fe54-fe66,
@@ -132,7 +138,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-4.woff2) format("woff2");
   unicode-range: U+f92d-f959, U+f95b-f9f2, U+f9f4-fa0b, U+fa0e-fa0f;
 }
@@ -140,7 +146,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-5.woff2) format("woff2");
   unicode-range:
     U+9e8b-9e8c, U+9e8e-9e8f, U+9e91-9e92, U+9e95-9e96, U+9e98, U+9e9b, U+9e9d-9e9e, U+9ea4-9ea5,
@@ -156,7 +162,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-6.woff2) format("woff2");
   unicode-range:
     U+9c3e, U+9c41, U+9c43-9c4a, U+9c4e-9c50, U+9c52-9c54, U+9c56, U+9c58, U+9c5a-9c61, U+9c63,
@@ -175,7 +181,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-7.woff2) format("woff2");
   unicode-range:
     U+9ae5-9ae7, U+9ae9, U+9aeb-9aec, U+9aee-9aef, U+9af1-9af5, U+9af7, U+9af9-9afb, U+9afd,
@@ -193,7 +199,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-8.woff2) format("woff2");
   unicode-range:
     U+98eb, U+98ed-98ee, U+98f0-98f1, U+98f3, U+98f6, U+9902, U+9907-9909, U+9911-9912, U+9914-9918,
@@ -212,7 +218,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-9.woff2) format("woff2");
   unicode-range:
     U+971d, U+9721-9724, U+9728, U+972a, U+9730-9731, U+9733, U+9736, U+9738-9739, U+973b,
@@ -232,7 +238,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-10.woff2) format("woff2");
   unicode-range:
     U+944a, U+944c, U+9452-9453, U+9455, U+9459-945c, U+945e-9463, U+9468, U+946a-946b, U+946d-9472,
@@ -252,7 +258,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-11.woff2) format("woff2");
   unicode-range:
     U+92bc-92bd, U+92bf-92c3, U+92c5-92c8, U+92cb-92d0, U+92d2-92d3, U+92d5, U+92d7-92d9,
@@ -271,7 +277,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-12.woff2) format("woff2");
   unicode-range:
     U+9143, U+9146-914c, U+914f, U+9153, U+9156-915b, U+9161, U+9163-9165, U+9167, U+9169, U+916d,
@@ -289,7 +295,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-13.woff2) format("woff2");
   unicode-range:
     U+8f52-8f55, U+8f57-8f58, U+8f5c-8f5e, U+8f61-8f66, U+8f9c-8f9d, U+8f9f-8fa2, U+8fa4-8fa8,
@@ -309,7 +315,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-14.woff2) format("woff2");
   unicode-range:
     U+8dc0, U+8dc2, U+8dc5-8dc8, U+8dca-8dcc, U+8dce-8dcf, U+8dd1, U+8dd4-8dd7, U+8dd9-8ddb, U+8ddf,
@@ -328,7 +334,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-15.woff2) format("woff2");
   unicode-range:
     U+8b2d, U+8b30, U+8b37, U+8b3c, U+8b3e, U+8b41-8b46, U+8b48-8b49, U+8b4c-8b4f, U+8b51-8b54,
@@ -349,7 +355,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-16.woff2) format("woff2");
   unicode-range:
     U+8973-8975, U+8977, U+897a-897e, U+8980, U+8983, U+8988-898a, U+898d, U+8990, U+8993-8995,
@@ -370,7 +376,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-17.woff2) format("woff2");
   unicode-range:
     U+87e2-87e6, U+87ea-87ed, U+87ef, U+87f1, U+87f3, U+87f5-87f8, U+87fa-87fb, U+87fe-87ff, U+8801,
@@ -390,7 +396,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-18.woff2) format("woff2");
   unicode-range:
     U+8655-8659, U+865b, U+865d-8664, U+8667, U+8669, U+866c, U+866f, U+8671, U+8675-8677,
@@ -410,7 +416,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-19.woff2) format("woff2");
   unicode-range:
     U+84b4, U+84b9-84bb, U+84bd-84c2, U+84c6-84ca, U+84cc-84d1, U+84d3, U+84d6, U+84d9-84da, U+84dc,
@@ -430,7 +436,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-20.woff2) format("woff2");
   unicode-range:
     U+82e8, U+82ea, U+82ed, U+82ef, U+82f3-82f4, U+82f6-82f7, U+82f9, U+82fb, U+82fd-82fe,
@@ -450,7 +456,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-21.woff2) format("woff2");
   unicode-range:
     U+814a, U+814c, U+8151-8153, U+8157, U+815f-8161, U+8165-8169, U+816d-816f, U+8171, U+8173-8174,
@@ -470,7 +476,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-22.woff2) format("woff2");
   unicode-range:
     U+7f77-7f79, U+7f7d-7f80, U+7f82-7f83, U+7f86-7f88, U+7f8b-7f8d, U+7f8f-7f91, U+7f94,
@@ -491,7 +497,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-23.woff2) format("woff2");
   unicode-range:
     U+7d57, U+7d59-7d5d, U+7d63, U+7d65, U+7d67, U+7d6a, U+7d6e, U+7d70, U+7d72-7d73, U+7d78,
@@ -510,7 +516,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-24.woff2) format("woff2");
   unicode-range:
     U+7bc8, U+7bca-7bcc, U+7bcf, U+7bd4, U+7bd6-7bd7, U+7bd9-7bdb, U+7bdd, U+7be5-7be6, U+7be8-7bea,
@@ -530,7 +536,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-25.woff2) format("woff2");
   unicode-range:
     U+7a17-7a19, U+7a1b, U+7a1e-7a21, U+7a27, U+7a2b, U+7a2d, U+7a2f-7a31, U+7a34-7a35, U+7a37-7a3b,
@@ -550,7 +556,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-26.woff2) format("woff2");
   unicode-range:
     U+7851-7852, U+785c, U+785e, U+7860-7861, U+7863-7864, U+7868, U+786a, U+786e-786f, U+7872,
@@ -570,7 +576,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-27.woff2) format("woff2");
   unicode-range:
     U+768c-768e, U+7690, U+7693, U+7695-7696, U+7699-76a8, U+76aa, U+76ad, U+76af-76b0, U+76b4,
@@ -591,7 +597,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-28.woff2) format("woff2");
   unicode-range:
     U+7511-7513, U+7515-7517, U+751c, U+751e, U+7520-7522, U+7524, U+7526-7527, U+7529-752c, U+752f,
@@ -609,7 +615,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-29.woff2) format("woff2");
   unicode-range:
     U+736c, U+736e-7371, U+7375, U+7377-737c, U+7380-7381, U+7383, U+7385-7386, U+738a, U+738e,
@@ -629,7 +635,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-30.woff2) format("woff2");
   unicode-range:
     U+7166, U+7168, U+716c, U+7179, U+7180, U+7184-7185, U+7187-7188, U+718c, U+718f, U+7192,
@@ -651,7 +657,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-31.woff2) format("woff2");
   unicode-range:
     U+6f58-6f5b, U+6f5d-6f5e, U+6f60-6f62, U+6f66, U+6f68, U+6f6c-6f6d, U+6f6f, U+6f74, U+6f78,
@@ -673,7 +679,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-32.woff2) format("woff2");
   unicode-range:
     U+6d7c, U+6d80-6d82, U+6d85, U+6d87, U+6d89-6d8a, U+6d8c-6d8e, U+6d91-6d98, U+6d9c, U+6daa-6dac,
@@ -694,7 +700,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-33.woff2) format("woff2");
   unicode-range:
     U+6b85, U+6b89, U+6b8d, U+6b95, U+6b97-6b98, U+6b9b, U+6b9e-6ba0, U+6ba2-6ba4, U+6ba8-6bb3,
@@ -715,7 +721,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-34.woff2) format("woff2");
   unicode-range:
     U+69dd-69de, U+69e2-69e3, U+69e5, U+69e7-69eb, U+69ed-69ef, U+69f1-69f6, U+69f9, U+69fe-6a01,
@@ -736,7 +742,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-35.woff2) format("woff2");
   unicode-range:
     U+6855, U+6857-6859, U+685b, U+685d, U+685f, U+6863, U+6867, U+686b, U+686e-6872, U+6874-6875,
@@ -756,7 +762,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-36.woff2) format("woff2");
   unicode-range:
     U+667e-6680, U+6683-6684, U+6688, U+668b-668e, U+6690, U+6692, U+6698-669d, U+669f-66a0, U+66a2,
@@ -777,7 +783,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-37.woff2) format("woff2");
   unicode-range:
     U+64d2, U+64d4-64d5, U+64d7-64d8, U+64da, U+64e0-64e1, U+64e3-64e5, U+64e7, U+64e9-64ea, U+64ed,
@@ -798,7 +804,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-38.woff2) format("woff2");
   unicode-range:
     U+62cf, U+62d1, U+62d4-62d6, U+62da, U+62dc, U+62ea, U+62ee-62ef, U+62f1-62f2, U+62f4-62f5,
@@ -819,7 +825,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-39.woff2) format("woff2");
   unicode-range:
     U+6117, U+6119, U+611c, U+611e, U+6120-6122, U+6127-6128, U+612a-612c, U+6130-6131, U+6134-6137,
@@ -839,7 +845,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-40.woff2) format("woff2");
   unicode-range:
     U+5f6c-5f6d, U+5f6f, U+5f72-5f75, U+5f78, U+5f7a, U+5f7d-5f7f, U+5f82-5f83, U+5f87-5f89, U+5f8d,
@@ -859,7 +865,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-41.woff2) format("woff2");
   unicode-range:
     U+5d9b, U+5d9d, U+5d9f-5da0, U+5da2, U+5da4, U+5da7, U+5dab-5dac, U+5dae, U+5db0, U+5db2,
@@ -880,7 +886,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-42.woff2) format("woff2");
   unicode-range:
     U+5bbc, U+5bc0-5bc1, U+5bc3, U+5bc7, U+5bc9, U+5bcd-5bd0, U+5bd3-5bd4, U+5bd6-5bda, U+5bde,
@@ -901,7 +907,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-43.woff2) format("woff2");
   unicode-range:
     U+598b-598e, U+5992, U+5995, U+5997, U+599b, U+599d, U+599f, U+59a3-59a4, U+59a7, U+59ad-59b0,
@@ -925,7 +931,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-44.woff2) format("woff2");
   unicode-range:
     U+57b3, U+57b8, U+57bd, U+57c0, U+57c3, U+57c6-57c8, U+57cc, U+57cf, U+57d2-57d7, U+57dc-57de,
@@ -946,7 +952,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-45.woff2) format("woff2");
   unicode-range:
     U+5616-5617, U+5619, U+561b, U+5620, U+5628, U+562c, U+562f-5639, U+563b-563d, U+563f-5641,
@@ -966,7 +972,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-46.woff2) format("woff2");
   unicode-range:
     U+543f-5440, U+5443-5444, U+5447, U+544c-544f, U+5455, U+545e, U+5462, U+5464, U+5466-5467,
@@ -986,7 +992,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-47.woff2) format("woff2");
   unicode-range:
     U+528d, U+5291-5298, U+529a, U+529c, U+52a4-52a7, U+52ab-52ad, U+52af-52b0, U+52b5-52b8,
@@ -1006,7 +1012,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-48.woff2) format("woff2");
   unicode-range:
     U+50dd-50df, U+50e1-50e6, U+50e8-50e9, U+50ed-50f6, U+50f9-50fb, U+50fe, U+5101-5103,
@@ -1026,7 +1032,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-49.woff2) format("woff2");
   unicode-range:
     U+4f57-4f58, U+4f5a-4f5b, U+4f5d-4f5f, U+4f63-4f64, U+4f69-4f6a, U+4f6c, U+4f6e-4f71,
@@ -1045,7 +1051,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-50.woff2) format("woff2");
   unicode-range:
     U+4093, U+4103, U+4105, U+4148, U+414f, U+4163, U+41b4, U+41bf, U+41e6, U+41ee, U+41f3, U+4207,
@@ -1069,7 +1075,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-51.woff2) format("woff2");
   unicode-range:
     U+3395-339b, U+339e-33a0, U+33a2-33ff, U+3402, U+3405-3406, U+3427, U+342c, U+342e, U+3468,
@@ -1088,7 +1094,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-52.woff2) format("woff2");
   unicode-range: U+32b5-332b, U+332d-3394;
 }
@@ -1096,7 +1102,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-53.woff2) format("woff2");
   unicode-range: U+31c8-31e3, U+31f0-321e, U+3220-3230, U+3232-32b4;
 }
@@ -1104,7 +1110,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-54.woff2) format("woff2");
   unicode-range:
     U+3028-303f, U+3094-3096, U+309f-30a0, U+30ee, U+30f7-30fa, U+30ff, U+3105-312f, U+3131-3163,
@@ -1114,7 +1120,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-55.woff2) format("woff2");
   unicode-range: U+2f14-2fd5, U+2ff0-2ffb, U+3004, U+3013, U+3016-301b, U+301e, U+3020-3027;
 }
@@ -1122,7 +1128,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-56.woff2) format("woff2");
   unicode-range:
     U+25e4-25e6, U+2601-2603, U+2609, U+260e-260f, U+2616-2617, U+261c-261f, U+262f, U+2641, U+2660,
@@ -1134,7 +1140,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-57.woff2) format("woff2");
   unicode-range:
     U+24d1-24ff, U+2503-2513, U+2515-2516, U+2518-251b, U+251d-2522, U+2524-259f, U+25a2-25ab,
@@ -1144,7 +1150,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-58.woff2) format("woff2");
   unicode-range:
     U+2105, U+2109-210a, U+210f, U+2116, U+2121, U+2126-2127, U+212b, U+212e, U+2135, U+213b,
@@ -1159,7 +1165,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-59.woff2) format("woff2");
   unicode-range:
     U+a1-a4, U+a6-a7, U+aa, U+ac-ad, U+b5-b6, U+b8-ba, U+bc-c8, U+ca-cc, U+ce-d5, U+d9-db, U+dd-df,
@@ -1173,7 +1179,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-60.woff2) format("woff2");
   unicode-range:
     U+2227, U+26a0, U+2713, U+301f, U+4ff8, U+5239, U+526a, U+54fa, U+5740, U+5937, U+5993, U+59fb,
@@ -1186,7 +1192,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-61.woff2) format("woff2");
   unicode-range:
     U+a8, U+2032, U+2261, U+2282, U+3090, U+30f1, U+339c, U+535c, U+53d9, U+56a2, U+56c1, U+5806,
@@ -1199,7 +1205,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-62.woff2) format("woff2");
   unicode-range:
     U+2d9, U+21d4, U+301d, U+515c, U+52fe, U+5420, U+5750, U+5766, U+5954, U+5b95, U+5f8a, U+5f98,
@@ -1212,7 +1218,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-63.woff2) format("woff2");
   unicode-range:
     U+2ca-2cb, U+2229, U+2468, U+2669, U+266f, U+273f, U+4ec0, U+4f60, U+4fb6, U+5347, U+540e,
@@ -1225,7 +1231,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-64.woff2) format("woff2");
   unicode-range:
     U+2467, U+4ece, U+4ed4, U+4f91, U+4fae, U+534d, U+53c9, U+54b3, U+586b, U+5944, U+5b78, U+5df7,
@@ -1238,7 +1244,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-65.woff2) format("woff2");
   unicode-range:
     U+b1, U+309b, U+4e5e, U+51f1, U+5506, U+55c5, U+58cc, U+59d1, U+5c51, U+5ef7, U+6284, U+62d7,
@@ -1251,7 +1257,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-66.woff2) format("woff2");
   unicode-range:
     U+2020, U+3003, U+3231, U+4e9b, U+4f3d, U+4f47, U+51b6, U+51dc, U+53e1, U+5bc5, U+602f, U+60bc,
@@ -1264,7 +1270,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-67.woff2) format("woff2");
   unicode-range:
     U+2466, U+2600, U+4eab, U+4fe3, U+4ff5, U+51a5, U+51f0, U+536f, U+53d4, U+53f1, U+54a5, U+559d,
@@ -1277,7 +1283,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-68.woff2) format("woff2");
   unicode-range:
     U+251c, U+2523, U+4e14, U+545f, U+54bd, U+553e, U+55dc, U+56da, U+589c, U+5b55, U+5bb5, U+5ce1,
@@ -1290,7 +1296,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-69.woff2) format("woff2");
   unicode-range:
     U+2003, U+2312, U+266c, U+4f86, U+51ea, U+5243, U+5256, U+541f, U+5841, U+59dc, U+5df3, U+601c,
@@ -1303,7 +1309,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-70.woff2) format("woff2");
   unicode-range:
     U+266b, U+3006, U+5176, U+5197, U+51a8, U+51c6, U+52f2, U+5614, U+5875, U+5a2f, U+5b54, U+5ce0,
@@ -1316,7 +1322,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-71.woff2) format("woff2");
   unicode-range:
     U+af, U+2465, U+2517, U+33a1, U+4f10, U+50c5, U+51b4, U+5384, U+5606, U+5bb0, U+5cac, U+5ee3,
@@ -1329,7 +1335,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-72.woff2) format("woff2");
   unicode-range:
     U+4e91, U+508d, U+50e7, U+514e, U+51f6, U+5446, U+5504, U+584a, U+59a8, U+59d3, U+5a46, U+5ac9,
@@ -1342,7 +1348,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-73.woff2) format("woff2");
   unicode-range:
     U+221e, U+2514, U+51f9, U+5270, U+5449, U+5824, U+59a5, U+5a29, U+5d07, U+5e16, U+60e3, U+614c,
@@ -1355,7 +1361,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-74.woff2) format("woff2");
   unicode-range:
     U+2002, U+2025, U+4f8d, U+51e1, U+51f8, U+5507, U+5598, U+58f1, U+5983, U+59ac, U+5c3c, U+5de7,
@@ -1368,7 +1374,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-75.woff2) format("woff2");
   unicode-range:
     U+2464, U+2501, U+2640, U+2642, U+339d, U+4f0e, U+5091, U+50b5, U+5132, U+51cc, U+558b, U+55aa,
@@ -1381,7 +1387,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-76.woff2) format("woff2");
   unicode-range:
     U+2266-2267, U+4f2f, U+5208, U+5451, U+546a, U+5589, U+576a, U+5815, U+5a9a, U+5b9b, U+5c3a,
@@ -1394,7 +1400,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-77.woff2) format("woff2");
   unicode-range:
     U+2207, U+25ef, U+309c, U+4e4f, U+5146, U+51dd, U+5351, U+540a, U+5629, U+5eb5, U+5f04, U+5f13,
@@ -1407,7 +1413,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-78.woff2) format("woff2");
   unicode-range:
     U+4e32, U+51db, U+53a8, U+53ea, U+5609, U+5674, U+5a92, U+5e7e, U+6115, U+611a, U+62cc, U+62ed,
@@ -1420,7 +1426,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-79.woff2) format("woff2");
   unicode-range:
     U+25b3, U+30f5, U+4eae, U+4f46, U+4f51, U+5203, U+52ff, U+55a7, U+564c, U+565b, U+57f9, U+5805,
@@ -1433,7 +1439,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-80.woff2) format("woff2");
   unicode-range:
     U+2463, U+25a1, U+4ef0, U+5076, U+5098, U+51fd, U+5302, U+5448, U+54c9, U+570b, U+583a, U+5893,
@@ -1446,7 +1452,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-81.woff2) format("woff2");
   unicode-range:
     U+2010, U+2502, U+25b6, U+4f3a, U+514b, U+5265, U+52c3, U+5339, U+53ec, U+54c0, U+55b0, U+5854,
@@ -1459,7 +1465,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-82.woff2) format("woff2");
   unicode-range:
     U+2103, U+5049, U+52b1, U+5320, U+5553, U+572d, U+58c7, U+5b5d, U+5bc2, U+5de3, U+5e61, U+5f80,
@@ -1472,7 +1478,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-83.woff2) format("woff2");
   unicode-range:
     U+2500, U+3008-3009, U+4ead, U+4f0f, U+4fca, U+53eb, U+543e, U+57a2, U+5cf0, U+5e8f, U+5fe0,
@@ -1485,7 +1491,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-84.woff2) format("woff2");
   unicode-range:
     U+3014-3015, U+4e3c, U+5036, U+5075, U+533f, U+53e9, U+5531, U+5642, U+5984, U+59e6, U+5a01,
@@ -1498,7 +1504,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-85.woff2) format("woff2");
   unicode-range:
     U+25c7, U+3007, U+504f, U+507d, U+51a0, U+52a3, U+5410, U+5510, U+559a, U+5782, U+582a, U+5c0a,
@@ -1511,7 +1517,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-86.woff2) format("woff2");
   unicode-range:
     U+24, U+2022, U+2212, U+221f, U+2665, U+4ecf, U+5100, U+51cd, U+52d8, U+5378, U+53f6, U+574a,
@@ -1523,7 +1529,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-87.woff2) format("woff2");
   unicode-range:
     U+b0, U+226a, U+2462, U+4e39, U+4fc3, U+4fd7, U+50be, U+50da, U+5200, U+5211, U+54f2, U+5618,
@@ -1536,7 +1542,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-88.woff2) format("woff2");
   unicode-range:
     U+25bd, U+4e59, U+4ec1, U+4ff3, U+515a, U+518a, U+525b, U+5375, U+552f, U+57a3, U+5b9c, U+5c3d,
@@ -1549,7 +1555,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-89.woff2) format("woff2");
   unicode-range:
     U+a5, U+4e80, U+4f34, U+4f73, U+4f75, U+511f, U+5192, U+52aa, U+53c8, U+570f, U+57cb, U+596e,
@@ -1562,7 +1568,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-90.woff2) format("woff2");
   unicode-range:
     U+4e18, U+4fb5, U+5104, U+52c7, U+5353, U+5374, U+53e5, U+587e, U+594f, U+5a20, U+5de1, U+5f18,
@@ -1575,7 +1581,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-91.woff2) format("woff2");
   unicode-range:
     U+60, U+2200, U+226b, U+2461, U+517c, U+526f, U+5800, U+5b97, U+5bf8, U+5c01, U+5d29, U+5e4c,
@@ -1588,7 +1594,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-92.woff2) format("woff2");
   unicode-range:
     U+2460, U+4e5f, U+4e7e, U+4ed9, U+501f, U+502b, U+5968, U+5974, U+5ac1, U+5b99, U+5ba3, U+5be7,
@@ -1601,7 +1607,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-93.woff2) format("woff2");
   unicode-range:
     U+21d2, U+25ce, U+300a-300b, U+4e89, U+4e9c, U+4ea1, U+5263, U+53cc, U+5426, U+5869, U+5947,
@@ -1614,7 +1620,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-94.woff2) format("woff2");
   unicode-range:
     U+2015, U+2190, U+4e43, U+5019, U+5247, U+52e7, U+5438, U+54b2, U+55ab, U+57f7, U+5bd2, U+5e8a,
@@ -1627,7 +1633,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-95.woff2) format("woff2");
   unicode-range:
     U+2193, U+25b2, U+4e4b, U+516d, U+51c4, U+529f, U+52c9, U+5360, U+5442, U+5857, U+5915, U+59eb,
@@ -1640,7 +1646,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-96.woff2) format("woff2");
   unicode-range:
     U+4e03, U+4f38, U+50b7, U+5264, U+5348, U+5371, U+585a, U+58ca, U+5951, U+59b9, U+59d4, U+5b98,
@@ -1653,7 +1659,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-97.woff2) format("woff2");
   unicode-range:
     U+7e, U+b4, U+25c6, U+2661, U+4e92, U+4eee, U+4ffa, U+5144, U+5237, U+5287, U+52b4, U+58c1,
@@ -1666,7 +1672,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-98.woff2) format("woff2");
   unicode-range:
     U+25cb, U+4e71, U+4f59, U+50d5, U+520a, U+5217, U+5230, U+523a-523b, U+541b, U+5439, U+5747,
@@ -1679,7 +1685,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-99.woff2) format("woff2");
   unicode-range:
     U+2191, U+505c, U+52e4, U+5305, U+535a, U+56e0, U+59bb, U+5acc, U+5b09, U+5b87, U+5c90, U+5df1,
@@ -1692,7 +1698,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-100.woff2) format("woff2");
   unicode-range:
     U+4e08, U+4f9d, U+5012, U+514d, U+51b7, U+5275, U+53ca, U+53f8, U+5584, U+57fc, U+5b9d, U+5bfa,
@@ -1705,7 +1711,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-101.woff2) format("woff2");
   unicode-range:
     U+25bc, U+3012, U+4ef2, U+4f0a, U+516b, U+5373, U+539a, U+53b3, U+559c, U+56f0, U+5727, U+5742,
@@ -1718,7 +1724,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-102.woff2) format("woff2");
   unicode-range:
     U+3d, U+5e, U+25cf, U+4e0e, U+4e5d, U+4e73, U+4e94, U+4f3c, U+5009, U+5145, U+51ac, U+5238,
@@ -1731,7 +1737,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-103.woff2) format("woff2");
   unicode-range:
     U+500d, U+5074, U+50cd, U+5175, U+52e2, U+5352, U+5354, U+53f2, U+5409, U+56fa, U+5a18, U+5b88,
@@ -1744,7 +1750,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-104.woff2) format("woff2");
   unicode-range:
     U+4e01, U+4e21, U+4e38, U+52a9, U+547d, U+592e, U+5931, U+5b63, U+5c40, U+5dde, U+5e78, U+5efa,
@@ -1757,7 +1763,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-105.woff2) format("woff2");
   unicode-range:
     U+25, U+25a0, U+4e26, U+4f4e, U+5341, U+56f2, U+5bbf, U+5c45, U+5c55, U+5c5e, U+5dee, U+5e9c,
@@ -1770,7 +1776,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-106.woff2) format("woff2");
   unicode-range:
     U+30f6, U+50ac, U+5178, U+51e6, U+5224, U+52dd, U+5883, U+5897, U+590f, U+5a5a, U+5bb3, U+5c65,
@@ -1783,7 +1789,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-107.woff2) format("woff2");
   unicode-range:
     U+23, U+3c, U+2192, U+4e45, U+4efb, U+4f50, U+4f8b, U+4fc2, U+5024, U+5150, U+5272, U+5370,
@@ -1796,7 +1802,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-108.woff2) format("woff2");
   unicode-range:
     U+2605-2606, U+301c, U+4e57, U+4fee, U+5065, U+52df, U+533b, U+5357, U+57df, U+58eb, U+58f0,
@@ -1809,7 +1815,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-109.woff2) format("woff2");
   unicode-range:
     U+266a, U+4f11, U+533a, U+5343, U+534a, U+53cd, U+5404, U+56f3, U+5b57-5b58, U+5bae, U+5c4a,
@@ -1822,7 +1828,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-110.woff2) format("woff2");
   unicode-range:
     U+40, U+4e86, U+4e95, U+4f01, U+4f1d, U+4fbf, U+5099, U+5171, U+5177, U+53cb, U+53ce, U+53f0,
@@ -1835,7 +1841,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-111.woff2) format("woff2");
   unicode-range:
     U+2b, U+d7, U+300e-300f, U+4e07, U+4e8c, U+512a, U+5149, U+518d, U+5236, U+52b9, U+52d9, U+5468,
@@ -1848,7 +1854,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-112.woff2) format("woff2");
   unicode-range:
     U+4e16, U+4e3b, U+4ea4, U+4ee4, U+4f4d, U+4f4f, U+4f55, U+4f9b, U+5317, U+5358, U+53c2, U+53e4,
@@ -1861,7 +1867,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-113.woff2) format("woff2");
   unicode-range:
     U+26, U+5f, U+2026, U+203b, U+4e09, U+4eac, U+4ed5, U+4fa1, U+5143, U+5199, U+5207, U+539f,
@@ -1874,7 +1880,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-114.woff2) format("woff2");
   unicode-range:
     U+3e, U+3005, U+4e0d, U+4e88, U+4ecb, U+4ee3, U+4ef6, U+4fdd, U+4fe1, U+500b, U+50cf, U+5186,
@@ -1887,7 +1893,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-115.woff2) format("woff2");
   unicode-range:
     U+7c, U+3080, U+4ee5, U+5148, U+516c, U+521d, U+5225, U+529b, U+52a0, U+53ef, U+56de, U+56fd,
@@ -1900,7 +1906,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-116.woff2) format("woff2");
   unicode-range:
     U+a9, U+3010-3011, U+30e2, U+4e0b, U+4eca, U+4ed6, U+4ed8, U+4f53, U+4f5c, U+4f7f, U+53d6,
@@ -1913,7 +1919,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-117.woff2) format("woff2");
   unicode-range:
     U+4e, U+a0, U+3000, U+300c-300d, U+4e00, U+4e0a, U+4e2d, U+4e8b, U+4eba, U+4f1a, U+5165, U+5168,
@@ -1926,7 +1932,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-118.woff2) format("woff2");
   unicode-range:
     U+21-22, U+27-2a, U+2c-3b, U+3f, U+41-4d, U+4f-5d, U+61-7b, U+7d, U+ab, U+ae, U+b2-b3, U+b7,
@@ -1938,7 +1944,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-119.woff2) format("woff2");
   unicode-range:
     U+20, U+2027, U+3001-3002, U+3041-307f, U+3081-308f, U+3091-3093, U+3099-309a, U+309d-309e,
@@ -1948,7 +1954,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-x118.woff2) format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
@@ -1956,7 +1962,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-x119.woff2) format("woff2");
   unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
 }
@@ -1964,7 +1970,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-x120.woff2) format("woff2");
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
@@ -1975,7 +1981,7 @@
   font-family: "Zen Kurenaido";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/zen-kurenaido/zk-x121.woff2) format("woff2");
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
@@ -3097,13 +3103,71 @@ html[data-motion="reduce"] .camera-launch__morph {
   );
   background-size: 7px 7px;
 }
+/**
+ * **映像の枠。画面いっぱいにしない**（オーナー指示 2026-09-27「カメラモードと
+ * 自撮りモードの画面が寄りすぎ…全画面表示は辞めて」）。
+ *
+ * 枠は映像と同じ縦横比（`--cam-aspect`、多くの端末で縦 3:4）。幅は画面の幅、
+ * ただし下の操作（撮り方の帯・シャッター・下のバー）のぶんは空けて、それより
+ * 高くなるなら幅を詰める。映像は `contain` で**切らずに全部**見せる。
+ * 倍率の粒は枠の下端に少し重なってよい（iPhone のカメラと同じ）。
+ */
+.capture-frame {
+  --cam-top: calc(env(safe-area-inset-top, 0px) + 2.75rem);
+  --cam-reserve: calc(14rem + env(safe-area-inset-bottom, 0px));
+  position: absolute;
+  inset-inline: 0;
+  top: var(--cam-top);
+  margin-inline: auto;
+  width: min(100%, calc((100dvh - var(--cam-top) - var(--cam-reserve)) * var(--cam-aspect, 0.75)));
+  aspect-ratio: var(--cam-aspect, 0.75);
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: #000;
+}
+.capture-frame__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/**
+ * **シールに収まる範囲の案内**（同日「普通に撮った写真がシールの中に収まる
+ * ようにして。剥がす時に初めて収まってないと気付く」）。
+ *
+ * 枠の縁から 1 割ずつ内側。この中に物が入っていれば、切り抜いたときに
+ * 写真の縁で切れない。AI に見せる範囲もここ。
+ */
+/* スキャンの映像の箱。撮る画面の枠と同じ上端・角の丸み（下端はシートの
+   高さで決まるので、呼ぶ側が `bottom` を渡す）。 */
+.scan-frame {
+  inset-inline: 0;
+  top: calc(env(safe-area-inset-top, 0px) + 2.75rem);
+  border-radius: 1.25rem;
+  background: #000;
+}
 .capture-focus {
   position: absolute;
-  left: 50%;
-  top: 48%;
-  width: min(58vw, 15rem);
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
+  inset: 10%;
+  pointer-events: none;
+  /* 明るい景色の上でも四隅が見えるよう、薄い影を敷く。 */
+  filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.55));
+}
+/* 物が写真の縁で切れているときの知らせ。黄色は「気を付けて」、赤ほど強くない。 */
+.capture-clip-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--warning, #f59e0b) 45%, var(--border));
+  background: color-mix(in oklab, var(--warning, #f59e0b) 12%, var(--card));
+  font-size: var(--text-footnote);
+  line-height: 1.45;
+}
+.capture-clip-warning p {
+  flex: 1;
 }
 .capture-focus span {
   position: absolute;
@@ -3330,22 +3394,6 @@ html[data-motion="reduce"] {
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   font-weight: 600;
-}
-/* 頻度の星（オーナー指示 2026-09-23）。点いた星は主色で塗り、消えた星は輪郭だけ。 */
-.freq-stars {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.freq-stars__star {
-  width: 16px;
-  height: 16px;
-  color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
-  fill: none;
-}
-.freq-stars__star--on {
-  color: var(--primary);
-  fill: var(--primary);
 }
 .usage-meter__instrument {
   display: flex;
@@ -4537,25 +4585,6 @@ html[data-motion="reduce"] {
   padding: 0.3rem 0;
   box-shadow: none;
 }
-.usage-chunk-row__main {
-  display: grid;
-  /* 語と訳の2列。**右端のボタンを外した**（`WordCard` の `ChunkRow` の注）
-     ので、痩せていた訳の取り分が戻る。 */
-  /* 音声・語・訳の3列。音声は左端に小さく（訳の取り分を削らない）。 */
-  grid-template-columns: auto minmax(0, 1fr) minmax(6.5rem, 0.8fr);
-  align-items: center;
-  gap: 0.5rem;
-}
-.usage-chunk-row__words {
-  min-width: 0;
-}
-.usage-chunk-row__meaning {
-  margin: 0;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
-  text-align: right;
-}
 /* 例文の中の語。**品詞の色そのままでは本文の下限(4.5:1)を割る**
    （実測 3.69〜4.03）。上の `.chunk-pill` と同じく、塗りの色を前景へ
    寄せた「字のための色」にする — 色相は残るので品詞は見分けられる。 */
@@ -4575,12 +4604,6 @@ html[data-motion="reduce"] {
 .chunk-word-button:active {
   transform: translateY(1px) scale(0.95);
 }
-@media (max-width: 360px) {
-  .usage-chunk-row__main {
-    grid-template-columns: auto minmax(0, 1fr) minmax(5.5rem, 0.75fr);
-    gap: 0.375rem;
-  }
-}
 .chunk-pill:active {
   transform: translateY(1px) scale(0.95);
   box-shadow: 0 1px 2px color-mix(in oklab, var(--pos) 20%, transparent);
@@ -4599,6 +4622,115 @@ html[data-motion="reduce"] {
     transform: none;
   }
 }
+/* ── チャンクの1行（`ChunkLine`）。単語の詳細と復習の解説で同じ形 ──
+   左に音声、札の並び、その下に訳を小さく薄く（オーナー指示 2026-09-24）。 */
+.chunk-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.chunk-line__body {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.2rem;
+}
+.chunk-line__translation {
+  margin: 0;
+  font-size: var(--text-footnote);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ── チャンクの札（バブル）。品詞ごとの丸 ──
+   色は**もう少し鮮やかに**: 札の中だけ、機能語の淡い色も彩度を上げる
+   （本文の色分けの約束 — 内容語を鮮やかに、機能語を淡く — は札の外で守る）。
+   質感は**色付きのガラス**、押すと沈んで弾む（オーナー指示 2026-09-25）。
+   形の案は `lib/chunk-design.ts`。 */
+.chunk-set {
+  --pos-adv: oklch(0.66 0.16 85);
+  --pos-m: oklch(0.64 0.16 215);
+  --pos-conj: oklch(0.66 0.16 55);
+  --pos-det: oklch(0.64 0.14 180);
+  --pos-vaux: oklch(0.6 0.18 295);
+  --pos-prep: oklch(0.62 0.19 335);
+  --pos-ptc: oklch(0.6 0.1 260);
+  --pos-vs: oklch(0.62 0.19 150);
+  --pos-v: oklch(0.62 0.23 25);
+  gap: 0.5rem;
+}
+.chunk-bubble {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.8rem;
+  letter-spacing: 0.01em;
+  /* ガラス: 色の透けた丸に、上の縁の光と、色の影。 */
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--pos) 34%, white),
+    color-mix(in oklab, var(--pos) 12%, white)
+  );
+  color: color-mix(in oklab, var(--pos) 62%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--pos) 30%, white);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 8px 16px -10px color-mix(in oklab, var(--pos) 75%, transparent);
+  /* 押して離すと、ばねで少し行き過ぎて戻る（弾む）。 */
+  transition: transform 0.35s var(--spring-bounce);
+}
+.dark .chunk-bubble {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--pos) 38%, var(--card)),
+    color-mix(in oklab, var(--pos) 16%, var(--card))
+  );
+  color: color-mix(in oklab, var(--pos) 70%, white);
+  border-color: color-mix(in oklab, var(--pos) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 8px 16px -10px color-mix(in oklab, var(--pos) 60%, transparent);
+}
+/* 押し込む: 沈んで縮む。押している間は速く、離すとばねで戻る。 */
+.chunk-set .chunk-pill:active {
+  transform: translateY(2px) scale(0.9);
+  transition-duration: 0.08s;
+}
+/* 公式の形（オーナー決定 2026-09-27）: 決まった語はガラスの丸、入れ替える所は
+   点線の枠（中はいちばんよく入る具体語）、間に「＋」。 */
+.chunk-set--formula {
+  gap: 0.3rem;
+}
+.chunk-plus {
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+.chunk-slot {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.6rem;
+  padding-inline: 0.7rem;
+  border: 1.5px dashed color-mix(in oklab, var(--pos, var(--foreground)) 55%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 6%, var(--card));
+  color: color-mix(in oklab, var(--pos, var(--foreground)) 68%, var(--foreground));
+  box-shadow: none;
+  transition: transform 0.35s var(--spring-bounce);
+}
+html[data-motion="reduce"] .chunk-set .chunk-pill:active {
+  transform: none;
+}
+
+/* ── 発音ボタンは**1つの青**（オーナー指示 2026-09-25「発音ボタンはすべて
+   単語の見出しの横の鮮やかな青色に統一して」）。大きさだけが違う。 ── */
+.speak-button {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 6px 14px -6px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+.chunk-line__speak {
+  margin-top: 0.25rem;
+}
+
 /* 凡例の丸。 */
 .pos-dot {
   background: var(--pos);
@@ -6255,8 +6387,10 @@ html[data-motion="reduce"] .camera-modes__item {
 .camera-shutter__core {
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
+  /* **白い輪と青の間に隙間を作らない**（オーナー指示 2026-09-27）。輪の内側
+     いっぱい（76 − 3×2 = 70px）を青で埋める。 */
+  width: 70px;
+  height: 70px;
   border-radius: 9999px;
   background: var(--cam-accent);
   color: #fff;
@@ -6796,8 +6930,10 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   flex-direction: column;
   gap: 0.15rem;
   height: 100%;
-  width: 100%;
-  /* 写真と同じ約束（`.collage__cap` の注）。字だけの札も外半分に収める。 */
+  /* **字だけの札も細くしすぎない**（2026-09-27「文字が潰れないように」）。
+     枠が細い回に「腳/踏/車」と1字ずつ縦に折れていた。字の下限まで枠の外へ
+     広げる（右の列は左へ — 下の `margin-left` で右端を揃える）。 */
+  width: max(100%, var(--cap-min, 0px));
   max-width: var(--cap-w, 100%);
   /* **枠の上端から書く。** 写真の札と同じに字を枠の外へ出すと、枠のぶんの
      空白が字の上に残り、時刻が語から1行離れて別々の物に見えた。
@@ -6810,10 +6946,20 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 [data-col="r"] .collage__plain {
   align-items: flex-end;
   text-align: right;
-  margin-left: auto;
+  /* 枠より広げたぶんだけ左へ出す（右端を枠の右端に揃える）。 */
+  margin-left: calc(100% - max(100%, var(--cap-min, 0px)));
+}
+/* 語は1行のまま、狭いときは**時刻のほうを次の行へ**送る（2026-09-27、
+   320px の画面で「腳踏/車」と語が折れていた）。語そのものが欄より長い
+   ときだけ、欄の中で折る。 */
+.collage__plain .collage__cap-row {
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
 }
 .collage__plain-word {
-  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
+  word-break: keep-all;
   font-size: var(--text-title);
   font-weight: 700;
   line-height: 1.15;
@@ -6834,6 +6980,11 @@ html[data-motion="reduce"] .tabbar__lens--gone {
      潜って読めなくなる。台紙の幅から出した px を `--cap-w` で受け取る
      （% にすると札の幅に対する割合になってしまい、札ごとに幅が違う）。 */
   max-width: var(--cap-w, 100%);
+  /* **字の欄は細くしすぎない**（オーナー指示 2026-09-27「画像を小さくしても
+     文字は潰れたり隠れたりしないようにして」）。写真を指で小さくしても、
+     字はこの幅まで写真の外（外側の端から内へ）へ出て、語が「…」で切れない。
+     置き方の計算（`COLLAGE_CAP_MIN`）も同じ幅で場所を取ってある。 */
+  min-width: var(--cap-min, 0px);
 }
 /**
  * **字は紙の外側の端に寄せる。**
@@ -6864,9 +7015,12 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 /* **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23）。隣の列に潜る
    ときだけ外側へ寄せる（`captionAlign`、属性 `data-cap`）。 */
 [data-cap="c"] .collage__cap {
-  left: 0;
-  right: 0;
-  margin-inline: auto;
+  /* 真ん中に揃える。写真より字の下限が広いときも、写真の真ん中から左右へ
+     同じだけ出す（`left/right: 0` のままだと右へだけ伸びる）。 */
+  left: 50%;
+  right: auto;
+  width: 100%;
+  translate: -50% 0;
   text-align: center;
 }
 [data-cap="c"] .collage__cap-row {
@@ -7576,7 +7730,8 @@ html[data-motion="reduce"] .dex-day__card {
      高さは画面に収まるよう、縦の余白からも上限を取る。 */
   --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
   position: relative;
-  height: calc(var(--cf-w) * 1.48 + 3rem);
+  /* 下に円の舞台（`.dex-cf__floor`）が覗くぶん、少し高く取る。 */
+  height: calc(var(--cf-w) * 1.48 + 4.25rem);
   perspective: 1100px;
   overflow: hidden;
   /* 横の送りはこちらが受け持つ（`DexCoverFlow` のばね）。縦は画面に譲る。 */
@@ -7600,6 +7755,8 @@ html[data-motion="reduce"] .dex-day__card {
   pointer-events: none;
 }
 .dex-cf__card {
+  /* 暗い部屋の中でも、カードの字はカードの色で（部屋の白い字を継がない）。 */
+  color: var(--card-foreground, var(--foreground));
   /* 鏡映り（`-webkit-box-reflect`）はやめた — 傾きが変わるたびに映りごと
      描き直すので、送る動きがカクついた（オーナー報告 2026-09-23）。 */
   box-shadow:
@@ -7636,12 +7793,232 @@ html[data-motion="reduce"] .dex-day__card {
     background-color 0.2s var(--ease-ios),
     scale 0.2s var(--ease-ios);
 }
-.dex-cf__dot[data-size="2"] {
+.dex-cf__dot[data-on] {
   background: var(--primary);
-  scale: 1.25;
+  scale: 1.35;
 }
-.dex-cf__dot[data-size="0"] {
-  scale: 0.6;
+/* ── 暗い部屋と円の舞台（オーナー指示 2026-09-27「黒系の背景、奥行き、中央に
+   ステージや円」）。部屋は画面いっぱいに敷き、カードの列だけが光る。 ── */
+.dex-cf {
+  --cf-accent: #4ea8ff;
+  /* **積み重ねの文脈を作らない。** 作ると、画面いっぱいの部屋（`z-index: -1`）が
+     この中で一番下になり、**前に描かれた物（上の操作の板）を覆う**。
+     文脈の外に出せば、部屋は画面の一番奥に沈む。 */
+  position: relative;
+}
+/* 図鑑のスライドを見ている間は、アプリの地を透かして暗い部屋を見せる
+   （`DexCoverFlow` が `html[data-dex-stage]` を立てる）。 */
+html[data-dex-stage] {
+  background: #05070b;
+}
+html[data-dex-stage] body,
+html[data-dex-stage] [data-app-shell] {
+  background: transparent;
+}
+.dex-cf__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(120% 70% at 50% 38%, #1c2333 0%, #0c0f17 55%, #05070b 100%);
+  overflow: hidden;
+}
+.dex-cf__floor {
+  position: absolute;
+  left: 50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 - 2rem);
+  width: calc(var(--cf-w) * 1.35);
+  height: 4.5rem;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0.22),
+    rgb(255 255 255 / 0.06) 62%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 0 60px 10px rgb(255 255 255 / 0.05);
+  pointer-events: none;
+}
+/* 上から当たる光（真ん中のカードに向かう円錐）。 */
+.dex-cf__stage::before {
+  content: "";
+  position: absolute;
+  inset: -2rem 0 0;
+  background: radial-gradient(38% 60% at 50% 30%, rgb(255 255 255 / 0.1), transparent 70%);
+  pointer-events: none;
+}
+.dex-cf .dex-cf__dot {
+  background: rgb(255 255 255 / 0.28);
+}
+.dex-cf .dex-cf__dot[data-on] {
+  background: var(--primary);
+}
+/* 下の写真の列。いまの1枚は主色の枠。 */
+.dex-cf__thumbs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.6rem 1rem 0.4rem;
+  scrollbar-width: none;
+  scroll-padding-inline: 1rem;
+}
+.dex-cf__thumbs::-webkit-scrollbar {
+  display: none;
+}
+.dex-cf__thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+  background: rgb(255 255 255 / 0.08);
+  opacity: 0.6;
+  transition:
+    opacity 0.2s var(--ease-ios),
+    transform 0.2s var(--ease-ios),
+    border-color 0.2s var(--ease-ios);
+}
+.dex-cf__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dex-cf__thumb[aria-current] {
+  opacity: 1;
+  border-color: var(--primary);
+  transform: translateY(-3px);
+}
+.dex-cf__thumb-word {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+html[data-motion="reduce"] .dex-cf__thumb {
+  transition: none;
+}
+
+/* 案 B/C: 分類の色。舞台の光と部屋の奥が、真ん中のカードの分類の色になる。 */
+.dex-cf:is([data-theme="category"], [data-theme="motion"]) .dex-cf__backdrop {
+  background: radial-gradient(
+    90% 55% at 50% 40%,
+    color-mix(in oklab, var(--cf-accent) 34%, #0c0f17) 0%,
+    #0a0d14 60%,
+    #05070b 100%
+  );
+  transition: background 0.6s var(--ease-ios);
+}
+.dex-cf:is([data-theme="category"], [data-theme="motion"]) .dex-cf__floor {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--cf-accent) 60%, transparent),
+    color-mix(in oklab, var(--cf-accent) 14%, transparent) 62%,
+    transparent 100%
+  );
+  box-shadow: 0 0 70px 12px color-mix(in oklab, var(--cf-accent) 30%, transparent);
+}
+/* 案 C: 分類ごとの小さな動き。食べ物は湯気が上り、自然は葉が落ち、
+   町は光の粒が流れる（ほかの部屋は光の粒）。 */
+.dex-cf__motes {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(
+      3px 3px at 20% 30%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2px 2px at 70% 60%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2.5px 2.5px at 40% 80%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2px 2px at 85% 20%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    );
+  background-size: 180px 220px;
+  opacity: 0.55;
+  animation: cf-motes-drift 14s linear infinite;
+}
+.dex-cf[data-room="eat"] .dex-cf__motes {
+  /* 湯気: 下から上へ、ぼかした白い帯。 */
+  background-image:
+    radial-gradient(18px 40px at 30% 80%, rgb(255 255 255 / 0.16), transparent 70%),
+    radial-gradient(14px 34px at 62% 85%, rgb(255 255 255 / 0.12), transparent 70%),
+    radial-gradient(16px 38px at 80% 75%, rgb(255 255 255 / 0.14), transparent 70%);
+  background-size: 220px 260px;
+  animation: cf-steam 7s ease-in-out infinite;
+}
+.dex-cf[data-room="nature"] .dex-cf__motes {
+  animation: cf-leaves 11s linear infinite;
+}
+@keyframes cf-motes-drift {
+  to {
+    background-position:
+      180px -220px,
+      -180px 220px,
+      180px 220px,
+      -180px -220px;
+  }
+}
+@keyframes cf-steam {
+  0% {
+    background-position: 0 40px;
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.8;
+  }
+  100% {
+    background-position: 0 -120px;
+    opacity: 0;
+  }
+}
+@keyframes cf-leaves {
+  to {
+    background-position:
+      60px 440px,
+      -40px 440px,
+      30px 440px,
+      -60px 440px;
+  }
+}
+html[data-motion="reduce"] .dex-cf__motes {
+  animation: none;
+}
+/* 案 D: 美術館。暗い壁と上からの細い光、カードの下に作品名の札。 */
+.dex-cf[data-theme="museum"] .dex-cf__backdrop {
+  background:
+    radial-gradient(28% 60% at 50% 0%, rgb(255 244 214 / 0.2), transparent 70%),
+    linear-gradient(180deg, #1b1a19, #0f0e0d);
+}
+.dex-cf[data-theme="museum"] .dex-cf__floor {
+  background: radial-gradient(closest-side, rgb(255 236 200 / 0.18), transparent 100%);
+  box-shadow: none;
+}
+.dex-cf__plaque {
+  margin: 0.35rem auto 0;
+  width: fit-content;
+  max-width: 80%;
+  padding: 0.35rem 0.8rem;
+  border-radius: 4px;
+  background: #f4efe6;
+  color: #2a2521;
+  font-size: var(--text-footnote);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.4);
 }
 html[data-motion="reduce"] .dex-cf__dot {
   transition: none;
@@ -7706,6 +8083,10 @@ html[data-motion="reduce"] .dex-cf__slot {
   backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+/* 時間軸の下の送り代。欄の高さの半分ほど — 最後の写真も読む線まで来る。 */
+.dex-daymap__timeline-tail {
+  height: calc(min(32dvh, 17rem) * 0.5);
 }
 .dex-daymap__timeline {
   /* **地図のピンと両方見える高さに抑える**（オーナー指示 2026-09-23
@@ -7794,9 +8175,10 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 .dex-pin[data-active] .dex-pin__face {
   border-color: var(--primary);
-  box-shadow:
-    0 0 0 3px white,
-    0 14px 24px -6px rgb(0 0 0 / 0.45);
+  /* **青い枠が一番外**（オーナー指示 2026-09-27「マップのバブルの青枠の外に
+     白を付けない」）。前は外に 3px の白い輪を重ねていて、青が内側の線に
+     見えていた。影だけ残す。 */
+  box-shadow: 0 14px 24px -6px rgb(0 0 0 / 0.45);
 }
 html[data-motion="reduce"] .dex-pin {
   transition: none;
@@ -7863,4 +8245,742 @@ html[data-motion="reduce"] .dex-pin {
   width: 12px;
   height: 12px;
   top: -5px;
+}
+
+/* ── ガラス（オーナー指示 2026-09-25 で試作、2026-09-27「すべてに適用して」で本番）──
+
+   チャンクの札と同じ作り方: **色の透けた面 ＋ 上の縁の光 ＋ 色の影**、
+   押すと沈んでばねで弾む。
+
+   Apple の指針（Liquid Glass）どおり、**ガラスにするのは押す物・浮いている
+   物だけ**。本文・写真・カードの地はガラスにしない — 全部がガラスだと、
+   どれが押せるのかが分からなくなる（本文・写真・カードの地に当てた案は
+   確認用ページで別に見せる）。 */
+:root {
+  --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.85);
+  --glass-press: translateY(1px) scale(0.96);
+}
+html.dark {
+  --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.16);
+}
+/* 1. 下のバー: 選ばれている印を、色の透けたガラスの丸に。 */
+html .tabbar .sliding-indicator {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 30%, white),
+    color-mix(in oklab, var(--primary) 10%, white)
+  );
+  border: 1px solid color-mix(in oklab, var(--primary) 26%, white);
+  box-shadow:
+    var(--glass-hi),
+    0 8px 16px -10px color-mix(in oklab, var(--primary) 70%, transparent);
+}
+html.dark .tabbar .sliding-indicator {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 40%, var(--card)),
+    color-mix(in oklab, var(--primary) 16%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+}
+/* **アイコンと字を印の上に出す**（オーナー指摘 2026-09-27「下のバーは
+   アイコンのところにするとアイコンが潰れてる」）。印は絶対配置なので、
+   位置を持たない升目より**後から**描かれ、ガラスの地がアイコンと字を
+   塗りつぶしていた。升目を積み重ねの上の段に上げる。 */
+.tabbar__cell {
+  position: relative;
+  z-index: 1;
+}
+/* 2. 設定: 選ばれている丸は濃いガラス（白い字が乗るので色は濃いまま）、
+      選ばれていない丸と選び欄は、うっすら色の付いたガラス。 */
+html [role="radiogroup"] .sliding-indicator:not(.tabbar *):not(.camera-modes *) {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 88%, white),
+    color-mix(in oklab, var(--primary) 92%, black)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 10px 18px -10px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+html .seg-option,
+html .picker-field {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 7%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 18%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 6px 14px -10px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+html .seg-option[aria-checked="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+/* 3. カメラ: 撮り方の印と、左右の箱を、暗い景色の上の白いガラスに。 */
+html .camera-modes .sliding-indicator {
+  /* アプリの青を透かす（前の印が紺の丸だったので、色味はそれに合わせる）。 */
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--cam-accent) 55%, rgb(255 255 255 / 0.3)),
+    color-mix(in oklab, var(--cam-accent) 30%, transparent)
+  );
+  border: 1px solid rgb(255 255 255 / 0.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 10px 20px -12px rgb(0 0 0 / 0.6);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+html .camera-side__box {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.24), rgb(255 255 255 / 0.08));
+  border-color: rgb(255 255 255 / 0.32);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
+}
+/* 4. 復習: 4択の答えと、上の切り替え（自動・話す・4択）の印。 */
+html .quiz-choice:not(:disabled) {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 8%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 8px 18px -12px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+html .mode-thumb {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 22%, white),
+    color-mix(in oklab, var(--primary) 6%, white)
+  );
+  box-shadow:
+    var(--glass-hi),
+    0 6px 12px -8px color-mix(in oklab, var(--primary) 60%, transparent);
+}
+/* 5. 検索欄（図鑑・カメラの検索・候補に無い語）: 押せる物と同じ薄いガラス。
+      字を打つ欄なので、地は透かしすぎず読める濃さを保つ。 */
+.search-field {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 7%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 6px 14px -10px color-mix(in oklab, var(--primary) 50%, transparent);
+}
+.search-field:focus-visible {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+}
+/* どれも、押すと沈んでばねで弾む（チャンクの札と同じ手応え）。 */
+html
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ) {
+  transition-property: transform, color, background-color, border-color;
+  transition-duration: 0.35s;
+  transition-timing-function: var(--spring-bounce);
+}
+html
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ):active:not(:disabled) {
+  transform: var(--glass-press);
+  transition-duration: 0.08s;
+}
+html[data-motion="reduce"]
+  :is(
+    .tabbar__cell,
+    .seg-option,
+    .picker-field,
+    .quiz-choice,
+    .mode-tab,
+    .camera-modes__item,
+    .camera-side
+  ):active {
+  transform: none;
+}
+
+/* ── 試作: 本文・写真・カードの地にもガラス（確認用ページだけ）──
+   オーナー指示 2026-09-27「本文や写真、カードの背景にも適用するを見てみたい」。
+   `.glass-trial` は確認用ページの場面（`glass-surfaces`）にしか無いので、
+   本番の画面には何も起きない。
+
+   ガラスは**後ろに何かがある時だけ**ガラスに見える。白い地の上では「薄い白」
+   にしかならないので、B 以降は写真をぼかして画面の後ろに敷く。 */
+.glass-trial {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+}
+.glass-trial:not([data-v="a"])::before {
+  content: "";
+  position: fixed;
+  inset: -40px;
+  z-index: -1;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--background) 30%, transparent),
+      color-mix(in oklab, var(--background) 55%, transparent)
+    ),
+    var(--glass-photo) center / cover;
+  filter: blur(28px) saturate(150%);
+}
+.glass-trial:not([data-v="a"]) :is(div, section, details).border.bg-card {
+  background: color-mix(in oklab, var(--card) 52%, transparent);
+  border-color: rgb(255 255 255 / 0.55);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 14px 30px -18px rgb(0 0 0 / 0.35);
+}
+.dark .glass-trial:not([data-v="a"]) :is(div, section, details).border.bg-card {
+  border-color: rgb(255 255 255 / 0.14);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 14px 30px -18px rgb(0 0 0 / 0.7);
+}
+/* C: 写真の縁。縁の光（内側の白い線）と、左上から右下へ走る反射の筋。 */
+.glass-trial:is([data-v="c"], [data-v="d"]) .card-flip {
+  box-shadow:
+    inset 0 0 0 1.5px rgb(255 255 255 / 0.55),
+    0 24px 40px -22px rgb(0 0 0 / 0.55);
+}
+.glass-trial:is([data-v="c"], [data-v="d"]) .card-flip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 6px solid rgb(255 255 255 / 0.22);
+  background: linear-gradient(
+    125deg,
+    rgb(255 255 255 / 0.38) 0%,
+    rgb(255 255 255 / 0.08) 28%,
+    transparent 42%,
+    transparent 70%,
+    rgb(255 255 255 / 0.12) 100%
+  );
+  -webkit-backdrop-filter: saturate(115%);
+  backdrop-filter: saturate(115%);
+}
+/* D: カードの地は消して（縁だけ残す）、**字の1行ずつ**が曇りガラスの帯に
+   乗る。字は濃く、少し太く（ガラスの上の字の決まり）。 */
+.glass-trial[data-v="d"] :is(div, section, details).border.bg-card {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+.glass-trial[data-v="d"] :is(div, section, details).border.bg-card :is(p, h1, h2, h3, li) {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.12em 0.5em;
+  border-radius: 0.6em;
+  background: rgb(255 255 255 / 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 4px 10px -6px rgb(0 0 0 / 0.3);
+  font-weight: 600;
+}
+.dark .glass-trial[data-v="d"] :is(div, section, details).border.bg-card :is(p, h1, h2, h3, li) {
+  background: rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+/* 写真のカテゴリーの札（詳細）と、カテゴリーの一覧の行（2026-09-27）。
+   押せる物なので、押す物のガラスと同じ作り。 */
+.category-chip {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 9%, var(--card))
+  );
+  border: 1px solid color-mix(in oklab, var(--primary) 22%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 6px 14px -10px color-mix(in oklab, var(--primary) 50%, transparent);
+  color: var(--foreground);
+}
+.category-row[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+}
+.category-row:not(:disabled):active {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * 注音を字の右に縦に（オーナー指示 2026-09-27、`ZhuyinWord`）。
+ * 大きさは字から決まる（em）。小さい字でも読めるよう 11px を下限にする。
+ * ------------------------------------------------------------------------- */
+.zy-word {
+  display: inline-block;
+  max-width: 100%;
+}
+.zy-word__row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.1em;
+}
+.zy-unit {
+  display: inline-flex;
+  align-items: center;
+}
+.zy-char {
+  line-height: 1.15;
+}
+.zy-col {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.06em;
+  /* 右に声調の印が入る分をあけておく */
+  margin-right: 0.26em;
+  font-size: max(0.36em, 11px);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.02;
+  color: color-mix(in oklab, currentColor 78%, transparent);
+}
+.zy-sym {
+  position: relative;
+  display: block;
+}
+.zy-tone {
+  position: absolute;
+  left: 100%;
+  top: -0.3em;
+  margin-left: 0.05em;
+}
+.zy-neutral {
+  display: block;
+  line-height: 0.7;
+}
+
+/* ---------------------------------------------------------------------------
+ * AI 分析中の案 B〜E（`effects/scan-analyzing/v9_proposals.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.an-trace__base {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.22);
+  stroke-width: 1;
+}
+.an-trace__path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 24 76;
+  filter: drop-shadow(0 0 3px var(--primary)) drop-shadow(0 0 8px var(--primary));
+  animation: an-trace 1.8s linear infinite;
+}
+@keyframes an-trace {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.an-glyph {
+  opacity: 0;
+  text-shadow: 0 0 10px var(--primary);
+  animation: an-glyph 2.4s ease-out infinite;
+}
+@keyframes an-glyph {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  30% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-36px) scale(1.05);
+  }
+}
+
+.an-lens {
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 999px;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  box-shadow:
+    0 0 0 6px rgb(255 255 255 / 0.12),
+    0 0 24px color-mix(in oklab, var(--primary) 70%, transparent),
+    inset 0 0 18px rgb(255 255 255 / 0.35);
+  -webkit-backdrop-filter: saturate(1.5) brightness(1.18) contrast(1.05);
+  backdrop-filter: saturate(1.5) brightness(1.18) contrast(1.05);
+  animation: an-lens 5.6s ease-in-out infinite;
+}
+@keyframes an-lens {
+  0%,
+  100% {
+    transform: translate(-22vw, -8vh);
+  }
+  25% {
+    transform: translate(18vw, -14vh);
+  }
+  50% {
+    transform: translate(22vw, 10vh);
+  }
+  75% {
+    transform: translate(-16vw, 12vh);
+  }
+}
+
+.an-step {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+.an-step--on {
+  animation: an-step 1.2s ease-in-out infinite;
+}
+@keyframes an-step {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--primary) 30%, transparent);
+  }
+}
+
+html[data-motion="reduce"] .an-trace__path,
+html[data-motion="reduce"] .an-lens,
+html[data-motion="reduce"] .an-step--on {
+  animation: none;
+}
+html[data-motion="reduce"] .an-glyph {
+  animation: none;
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------------------------
+ * キャッチの祝福の「はじけ」案（`effects/CelebrationBurst.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.burst--ring > span {
+  position: absolute;
+  left: -60px;
+  top: -60px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  border: 3px solid color-mix(in oklab, var(--primary) 80%, white);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--primary) 60%, transparent);
+  opacity: 0;
+  animation: burst-ring 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.burst--ring > span:nth-child(2) {
+  animation-delay: 0.12s;
+  border-width: 2px;
+}
+@keyframes burst-ring {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+.burst--confetti > span {
+  position: absolute;
+  left: -4px;
+  top: -7px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  animation: burst-confetti 1.3s cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+@keyframes burst-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), calc(var(--dy) + 90px)) rotate(calc(var(--rot) * 2));
+  }
+}
+.burst--stars > span {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--primary) 70%, white));
+  opacity: 0;
+  animation: burst-star 0.95s ease-out forwards;
+}
+@keyframes burst-star {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.2);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(90deg);
+  }
+}
+html[data-motion="reduce"] .burst {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * アルバムに書き込む（試作、`AlbumInk.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.album-ink {
+  position: absolute;
+  inset: 0;
+  /* 写真（重ね順を持つ）より上に描く */
+  z-index: 40;
+}
+.album-ink__board {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+.album-ink__label {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(-3deg);
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.album-ink__label[style*="#ffffff"] {
+  color: #1c1c1e;
+}
+.album-ink__bar {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 4px 6px;
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--card) 80%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.18);
+}
+.album-ink__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--foreground);
+}
+.album-ink__btn[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.album-ink__btn:disabled {
+  opacity: 0.35;
+}
+.album-ink__swatch {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin: 0 3px;
+  border-radius: 999px;
+  border: 2px solid rgb(0 0 0 / 0.12);
+}
+.album-ink__swatch[aria-pressed="true"] {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+.album-ink__sep {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  flex: none;
+  background: var(--border);
+}
+
+/* ---------------------------------------------------------------------------
+ * ページめくりの試作（確認用ページ `page-flip` だけで使う、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.flip-book {
+  position: relative;
+  height: 540px;
+  perspective: 1800px;
+  touch-action: pan-y;
+  user-select: none;
+}
+.flip-book__under {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.flip-book--spread .flip-book__under {
+  grid-template-columns: 1fr 1fr;
+}
+.flip-page__paper {
+  position: relative;
+  height: 100%;
+  padding: 18px 8px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 30px rgb(0 0 0 / 0.12);
+  color: #1c1c1e;
+  overflow: hidden;
+}
+.flip-page__photo {
+  background: #fff;
+  padding: 6px 6px 4px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.14);
+}
+.flip-page__num {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.5;
+}
+.flip-book__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 28px;
+  margin-left: -14px;
+  background: linear-gradient(90deg, transparent, rgb(0 0 0 / 0.14) 45%, rgb(0 0 0 / 0.14) 55%, transparent);
+  pointer-events: none;
+}
+.flip-leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  z-index: 2;
+}
+.flip-leaf--next {
+  animation: flip-next 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
+}
+.flip-leaf--prev {
+  animation: flip-prev 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
+}
+.flip-leaf__front,
+.flip-leaf__back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-leaf__back {
+  transform: rotateY(180deg);
+}
+.flip-leaf__front::after,
+.flip-leaf__back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgb(0 0 0 / 0.18), transparent 35%);
+  pointer-events: none;
+}
+@keyframes flip-next {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-180deg);
+  }
+}
+@keyframes flip-prev {
+  from {
+    transform: rotateY(-180deg);
+  }
+  to {
+    transform: rotateY(0deg);
+  }
+}
+.flip-book__nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -56px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+.flip-book__nav button {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 24px;
+  line-height: 1;
+}
+.flip-book__nav button:disabled {
+  opacity: 0.35;
+}
+html[data-motion="reduce"] .flip-leaf {
+  animation-duration: 0.01s;
 }

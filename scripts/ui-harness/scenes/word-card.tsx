@@ -15,6 +15,8 @@ import { SectionsPanel } from "@/components/SectionsPanel";
  * 機械の目から丸ごと消える。
  */
 readySpeech(["珍珠奶茶", "腳踏車", "一杯", "一張", "奶茶", "飲料"]);
+// チャンクの右端の「型ぜんぶ」の音声ボタン（2026-09-25）。
+readySpeech(["喝珍珠奶茶", "點一杯", "喝", "點"]);
 readySpeech(["umbrella", "bicycle"], "en");
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
 import { TocflLadder } from "@/components/TocflLadder";
@@ -311,6 +313,8 @@ const shot = (w: number, h: number, c: string) =>
 
 const STICKER = {
   id: "s1",
+  // 自分の札として開く（カテゴリーを変える札が出る。2026-09-27）。
+  is_owner: true,
   word_id: "w1",
   created_at: "2026-08-01T12:30:00Z",
   taken_at: "2026-08-01T12:30:00Z",
@@ -346,12 +350,12 @@ const NOW = Date.UTC(2026, 7, 19, 3, 0, 0);
  * **開いた側は撮らない。** 開いた中身は `word-card` の場面が受け持つ。
  * ここで開くと、また「既定では見えない面」を既定として採点することになる。
  */
-export function StickerDetailScene() {
+export function StickerDetailScene({ objectUrl }: { q?: URLSearchParams; objectUrl?: string }) {
   return (
     <>
       <BackToDexLink />
       <StickerDetailBody
-        sticker={STICKER}
+        sticker={objectUrl ? ({ ...(STICKER as object), object_url: objectUrl } as never) : STICKER}
         dateLocale="ja-JP"
         photos={[
           {

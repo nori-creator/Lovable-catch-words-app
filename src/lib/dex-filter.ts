@@ -20,7 +20,7 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
-import { asCategoryKey } from "./category";
+import { stickerCategoryKey } from "./user-category";
 import { localDayKey } from "./album-span";
 
 /** 絞り込みの状態。どちらも `null` は「すべて」。 */
@@ -38,6 +38,8 @@ export type FilterOption = { key: string; count: number };
 /** 札が持つ、絞り込みに要る所だけ。 */
 export type FilterableSticker = {
   created_at: string;
+  /** その人が写真ごとに移したカテゴリー（無ければ語の既定）。 */
+  shelf_key?: string | null;
   word: { category_key?: string | null };
 };
 
@@ -60,7 +62,7 @@ export function stickerDayKey(iso: string): string {
 export function categoryOptions(stickers: readonly FilterableSticker[]): FilterOption[] {
   const map = new Map<string, number>();
   for (const s of stickers) {
-    const k = asCategoryKey(s.word.category_key);
+    const k = stickerCategoryKey(s);
     map.set(k, (map.get(k) ?? 0) + 1);
   }
   return (
@@ -91,7 +93,7 @@ export function applyDexFilter<T extends FilterableSticker>(
 ): T[] {
   return stickers.filter(
     (s) =>
-      (!filter.category || asCategoryKey(s.word.category_key) === filter.category) &&
+      (!filter.category || stickerCategoryKey(s) === filter.category) &&
       (!filter.day || stickerDayKey(s.created_at) === filter.day),
   );
 }

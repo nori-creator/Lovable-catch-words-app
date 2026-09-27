@@ -18,13 +18,8 @@
  * 4. 中身のある部屋と棚だけを返す。
  */
 
-import {
-  ROOM_CATEGORIES,
-  ROOM_KEYS,
-  asCategoryKey,
-  categoryEmoji,
-  type RoomKey,
-} from "@/lib/category";
+import { ROOM_CATEGORIES, ROOM_KEYS, categoryEmoji, type RoomKey } from "@/lib/category";
+import { isBuiltinCategory, stickerCategoryKey } from "@/lib/user-category";
 
 /** その人だけの棚(DB の user_shelves 1行)。 */
 export type UserShelf = {
@@ -61,11 +56,10 @@ export type PlannedRoom<T> = {
 
 /** 1枚が載る棚の鍵。**上書きが在ればそれ、無ければ語の分類。** */
 export function shelfKeyOf(item: ShelvedItem, known: ReadonlySet<string>): string {
-  const override = (item.shelf_key ?? "").trim();
   // 消えた棚を指している行は、黙って語の既定へ戻す。棚を消したときに
   // 写真まで消えないように外部キーを張っていないので、ここで受ける。
-  if (override && known.has(override)) return override;
-  return asCategoryKey(item.word.category_key);
+  // 既定の54棚へ移した写真（2026-09-27 からできる）は常に効く。
+  return stickerCategoryKey(item, known);
 }
 
 /**
@@ -112,10 +106,12 @@ export function buildShelfPlan<T extends ShelvedItem>({
     for (const cat of ROOM_CATEGORIES[room]) {
       const list = take(cat);
       if (list.length) {
+        // 名前を付け直した既定の棚は、その名前で出す（棚の場所は変えない）。
+        const renamed = byKey.get(cat);
         shelves.push({
           key: cat,
-          label: labelForCategory(cat),
-          emoji: categoryEmoji(cat),
+          label: renamed?.label || labelForCategory(cat),
+          emoji: renamed?.emoji || categoryEmoji(cat),
           custom: false,
           items: list,
         });
@@ -123,7 +119,7 @@ export function buildShelfPlan<T extends ShelvedItem>({
     }
     // その人の棚のうち、この既定の部屋に置くと言っているもの。
     for (const s of userShelves) {
-      if (s.room_key !== room) continue;
+      if (s.room_key !== room || isBuiltinCategory(s.key)) continue;
       const list = take(s.key);
       if (list.length) {
         shelves.push({ key: s.key, label: s.label, emoji: s.emoji, custom: true, items: list });
@@ -138,11 +134,11 @@ export function buildShelfPlan<T extends ShelvedItem>({
   const builtinRooms = new Set<string>(ROOM_KEYS);
   const seen = new Set<string>();
   for (const s of userShelves) {
-    if (builtinRooms.has(s.room_key) || seen.has(s.room_key)) continue;
+    if (isBuiltinCategory(s.key) || builtinRooms.has(s.room_key) || seen.has(s.room_key)) continue;
     seen.add(s.room_key);
     const shelves: PlannedShelf<T>[] = [];
     for (const t of userShelves) {
-      if (t.room_key !== s.room_key) continue;
+      if (t.room_key !== s.room_key || isBuiltinCategory(t.key)) continue;
       const list = take(t.key);
       if (list.length) {
         shelves.push({ key: t.key, label: t.label, emoji: t.emoji, custom: true, items: list });

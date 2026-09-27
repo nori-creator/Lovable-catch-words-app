@@ -1,3 +1,4 @@
+import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useReadableError } from "@/lib/errors";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -513,6 +514,13 @@ export function StickerDetailHero({
           <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
             {s.word.part_of_speech}
           </span>
+        )}
+        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。
+            持ち主にだけ出す（友だちの投稿から開いた札は変えられない）。 */}
+        {s.is_owner && (
+          <div>
+            <StickerCategoryChip sticker={s} />
+          </div>
         )}
       </section>
     </>

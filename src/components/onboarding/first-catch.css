@@ -305,3 +305,4 @@
 @media (max-height: 650px) { .first-reminders { margin: 18px 0 10px; } }
 @media (prefers-reduced-motion: reduce) { .first-standalone *, .first-notifications * { animation: none !important; transition: none !important; } }
 @media (prefers-reduced-motion: reduce) { .tour-ring, .tour-block, .tour-coach { transition: none !important; animation: none !important; } }
+.first-sample-note { position: sticky; top: 0; z-index: 30; margin: 0; padding: calc(env(safe-area-inset-top) + 8px) 16px 8px; text-align: center; font-size: 12px; font-weight: 600; color: #0b5c99; background: color-mix(in oklab, #e6f3ff 88%, transparent); backdrop-filter: blur(12px); }

@@ -156,6 +156,11 @@ export type TargetProfile = {
      * 料理名・服の形の名前を、その言語の実際の語で並べる。
      */
     namingExamples: string;
+    /**
+     * **並び順の例**（オーナー指示 2026-09-27「ネイティブが一般的によく使う
+     * 呼び方を上に。正確な名前・固有名詞は下に置くが消さない。具体性は失わない」）。
+     */
+    commonFirstExamples: string;
     /** 読みの欄の指示（注音・拼音 / 米式・英式の IPA）。 */
     readingRule: string;
     /**
@@ -318,6 +323,10 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "  服なら形の名前（短袖・洋裝・外套）であって、上位の分類（衣服・服裝）ではない。\n" +
       "- **上位の分類語に逃げない。** 「衣服」「食物」「飲料」「動物」は、\n" +
       "  それ以上細かく呼べない写真のときだけ。",
+    commonFirstExamples:
+      "柚子（文旦ではなく、台湾の人がふだん呼ぶ柚子を上に。文旦は下に残す）、" +
+      "奇岩・岩（女王頭は固有名詞なので下に残す）。" +
+      "卡車帽・焗烤通心粉のように、あまり口にしない名前は下に置く",
     posRule:
       "台湾の詞類表の記号で: N/V/Vi/V-sep/Vs/Vst/Vs-attr/Vs-pred/Vs-sep/Vaux/Vp/Vpt/Vp-sep/Adv/Conj/Prep/M/Ptc/Det のどれか。\n" +
       "  V=及物動作動詞(買/做)、Vi=不及物(跑/坐)、Vs=状態動詞・形容詞(冷/漂亮)、Vst=及物状態(喜歡)、Vaux=助動詞(會/能)、Vp=変化動詞(破/感冒)、M=量詞、Ptc=助詞。",
@@ -447,6 +456,8 @@ export const EN_PROFILE: TargetProfile = {
       "  服なら形の名前（hoodie・blazer・cardigan）であって、上位の分類（clothes・clothing）ではない。\n" +
       "- **上位の分類語に逃げない。** 「clothes」「food」「drink」「animal」は、\n" +
       "  それ以上細かく呼べない写真のときだけ。",
+    commonFirstExamples:
+      "cap（trucker cap は下に残す）、rock / rock formation（Queen's Head のような固有名詞は下に残す）",
     posRule:
       "英語の品詞で: noun/verb/adjective/adverb/preposition/conjunction/pronoun/determiner/interjection のどれか。\n" +
       "  句動詞は verb、複合名詞は noun。",

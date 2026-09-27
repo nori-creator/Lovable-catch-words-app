@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withDeadline } from "./deadline";
 import { useServerFn } from "@tanstack/react-start";
 import { geocodeLocation } from "@/lib/geocode.functions";
 import { shouldGeocode } from "@/lib/geo-warm";
@@ -133,17 +134,21 @@ export function useCatchLocation() {
       lng = warm.lng;
       name = warm.name;
     } else if (typeof navigator !== "undefined" && "geolocation" in navigator) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+      // 取れなくてもキャッチは続ける。上限は約束の外でも数える
+      // （iPhone は許可を聞く間 `timeout` を数えない — `deadline.ts`）。
+      const pos = await withDeadline(
+        new Promise<GeolocationPosition>((res, rej) => {
           navigator.geolocation.getCurrentPosition(res, rej, {
             timeout: WAIT_MS,
             maximumAge: 120_000,
           });
-        });
+        }),
+        WAIT_MS,
+        null,
+      );
+      if (pos) {
         lat = pos.coords.latitude;
         lng = pos.coords.longitude;
-      } catch {
-        /* 取れなくてもキャッチは続ける */
       }
     }
     if (lat == null || lng == null) {

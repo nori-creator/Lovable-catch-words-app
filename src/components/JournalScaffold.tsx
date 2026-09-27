@@ -63,7 +63,7 @@ export function JournalScaffold({
                 <button
                   onClick={() => speak(p.question_zh, targetLanguage)}
                   aria-label={t("card.playPron")}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                  className="speak-button grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
                 >
                   <Volume2 className="h-4 w-4" />
                 </button>

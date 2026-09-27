@@ -347,6 +347,7 @@ export function AppShell({
 
   return (
     <div
+      data-app-shell=""
       className={
         fixedViewport
           ? "h-dvh overflow-hidden bg-background"

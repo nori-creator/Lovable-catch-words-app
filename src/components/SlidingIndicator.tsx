@@ -330,6 +330,10 @@ export function SlidingIndicator({
   }, [index, reduced, lead, trail, persistKey]);
 
   return (
-    <span ref={ref} aria-hidden className={`pointer-events-none absolute ${className ?? ""}`} />
+    <span
+      ref={ref}
+      aria-hidden
+      className={`sliding-indicator pointer-events-none absolute ${className ?? ""}`}
+    />
   );
 }

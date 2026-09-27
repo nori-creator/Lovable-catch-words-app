@@ -282,7 +282,8 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
     // 見出し横の頻度の星も、撮った直後は出さない。
-    expect(src).toMatch(/!minimal && !editingHead && \(word\.extras\?\.frequency_level/);
+    // 頻度の星は 2026-09-24 に取り下げた（「単語の頻度の星は消して。やっぱり」）。
+    expect(src).not.toMatch(/frequency_level/);
     // 見出しの行は `minimal` を受け取り続けること（引数が増えたので
     // 1行の写しでは見ない）。
     const header = src.slice(src.indexOf("<HeaderRow"));
@@ -1412,7 +1413,7 @@ describe("2026-08-26 の3度目の報告", () => {
     }
     const rev = codeOnly(read("lib/reviews.functions.ts"));
     expect(rev).toMatch(/topChunkOf\(w\.extras, w\.headword, w\.language\)/);
-    expect(rev).toMatch(/explainOf\(w\.extras, w\.headword, w\.language\)/);
+    expect(rev).toMatch(/explainOf\(w\.extras, w\.headword, w\.language[,)]/);
   });
 
   it("型を作らせる言い方が**言語ごと**にある", () => {
@@ -1938,7 +1939,8 @@ describe("関連語は読めて・鳴らせて・読みやすい", () => {
   it("例文・型・関連語のどれからも鳴らせる", () => {
     const src = codeOnly(read("components/WordCard.tsx"));
     expect((src.match(/<PronounceButton/g) ?? []).length).toBeGreaterThanOrEqual(5);
-    expect(src).toMatch(/onSpeak=\{\(text\) => void pronounce\(text\)\}/);
+    // 札を押すと鳴る仕組みは `ChunkLine` が持つ（下の「かたまり行」の門で見る）。
+    expect(src).toMatch(/<ChunkLine/);
   });
 });
 
@@ -2258,7 +2260,7 @@ describe("どこで出会うかは、整列した札で出す", () => {
   it("**頻度・使う場面の項目は無い**（2026-09-24）。星は見出しの横、言葉の性質は級の横に言葉だけ", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
     expect(card).not.toMatch(/case "usage_context"/);
-    expect(card).toMatch(/<FrequencyMeter level=\{word\.extras!\.frequency_level!\} \/>/);
+    expect(card).not.toMatch(/FrequencyMeter/);
     expect(card).toMatch(/\{t\(registerLabelKey\(registerScaleOf\(word\.extras \?\? \{\}\)!\)\)\}/);
     expect(card).not.toMatch(/<RegisterMeter/);
   });
@@ -3558,7 +3560,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 位置2本・大きさ2本・角の丸み1本。
     expect((src.match(/createSpring\(/g) ?? []).length).toBe(5);
     // 幅・高さは px の値から始めて px の値へ。
-    expect(src).toMatch(/const pw = createSpring\(w0, paint, POP\)/);
+    // 2026-09-27 から開き方の案（A〜D）で大きさのばねを選ぶ。既定の A は POP。
+    expect(src).toMatch(/const pw = createSpring\(w0, paint, sizeSpring\)/);
+    expect(src).toMatch(/const sizeSpring = style === "pop" \? POP/);
     expect(src).toMatch(/pw\.to\(last\.width\)/);
     // 倍率はそこから割り算で出す（ばねには入れない）。
     expect(src).toMatch(/pw\.value\(\) \/ last\.width/);
@@ -3639,7 +3643,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(src).toMatch(/aria-labelledby=\{`\$\{id\}-sheet-label`\}/);
     // 指の下限。**`.picker-row__head` はもう誰も使っていない**ので、
     // 生きている方（trigger の `min-h-14` = 56px）を見る。
-    expect(src).toMatch(/className="mt-2 flex min-h-14 w-full/);
+    expect(src).toMatch(/className="picker-field mt-2 flex min-h-14 w-full/);
   });
 
   /**
@@ -3928,16 +3932,51 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * **かたまりの右は、日本語の訳だけ。**（オーナー指示 2026-09-15）
    * 音の釦と原文の繰り返しを並べると、読む所が3つになって訳が沈む。
    */
-  it("単語の詳細のかたまり行は、右に訳だけを出す", () => {
+  it("単語の詳細のかたまり行は、訳を**下に小さく**出し、復習の解説と同じ部品を使う", () => {
+    // 2026-09-24「チャンクの訳も例文のように下に薄く小さく書いて」
+    // 「単語の詳細のチャンクと復習の解説の欄のチャンクは同じデザインに統一して」。
     const src = codeOnly(read("components/WordCard.tsx"));
     const at = src.indexOf("function ChunkRow");
     expect(at).toBeGreaterThanOrEqual(0);
-    const row = src.slice(at, at + 2000);
-    expect(row).toMatch(/usage-chunk-row__meaning/);
-    // 右は訳だけ（説明を落とす）。音声は**左端**に小さく（2026-09-23 の指示で復活。
-    // 右端に置くと訳が痩せるので、訳より前に置く）。
-    expect(row).toMatch(/const translation = chunkTranslation\(chunk\.ja\);/);
-    expect(row.indexOf("<PronounceButton")).toBeLessThan(row.indexOf("usage-chunk-row__meaning"));
+    const row = src.slice(at, at + 1200);
+    expect(row).toMatch(/<ChunkLine/);
+    expect(row).toMatch(/translation=\{chunkTranslation\(chunk\.ja\)\}/);
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).toMatch(/<ChunkLine/);
+    const pills = codeOnly(read("components/ChunkPills.tsx"));
+    // 札 → その下に訳 → **右端に型ぜんぶの音声**（2026-09-25「チャンクの右端に
+    // ある発音ボタンを押すと、チャンクの全ての音声が聞けるように」）。
+    const line = pills.slice(pills.indexOf("export function ChunkLine"));
+    expect(line.indexOf("<ChunkPills")).toBeLessThan(line.indexOf("chunk-line__translation"));
+    expect(line.indexOf("chunk-line__translation")).toBeLessThan(line.indexOf("<PronounceButton"));
+    // 札を1つ押すとその語が鳴る — 呼び出し側が渡さなくても、ここが鳴らす
+    // （復習の解説は渡していなかったので、押しても鳴らなかった）。
+    expect(line).toMatch(/onSpeak=\{onSpeak \?\? \(\(text\) => void pronounce\(text\)\)\}/);
+    // 形は公式の1つだけ（2026-09-27「F にして」）。案を切り替える仕組みは残さない。
+    expect(fs.existsSync(path.join(root, "lib/chunk-design.ts"))).toBe(false);
+    expect(pills).toMatch(/chunk-set chunk-set--formula/);
+    expect(pills).toMatch(/chunk-slot/);
+    // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    expect(ai).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
+  });
+
+  it("発音ボタンは**全部、見出しと同じ青**（大きさだけが違う）", () => {
+    // 2026-09-25「単語の詳細を含む発音ボタンはすべて単語の見出しの横の鮮やかな青色に統一して」
+    const btn = codeOnly(read("components/PronounceButton.tsx"));
+    expect(btn).toMatch(/const skin = `speak-button/);
+    expect(btn).not.toMatch(/bg-secondary text-primary/);
+    expect(btn).not.toMatch(/bg-primary\/12/);
+    for (const f of [
+      "components/JournalScaffold.tsx",
+      "components/InputCatchSheet.tsx",
+      "routes/_authenticated/scan.tsx",
+    ]) {
+      expect(codeOnly(read(f))).toMatch(/speak-button/);
+    }
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(rv).not.toMatch(/bg-sky-500\/10 text-sky-700/);
+    expect(read("styles.css")).toMatch(/\.speak-button \{\s*background: var\(--primary\);/);
   });
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
@@ -4310,16 +4349,18 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * **機能が1つ黙って無くなる**ところだった。部品にして撮り方の「検索」へ
    * 移した。欄を消しただけで機能が減るのは、直したい形ではない。
    */
-  it("声で調べる道は、部品として残り「検索」から使える", () => {
+  it("声で調べる部品は残す。ただし「検索」の欄にはマイクを置かず、写真で調べる釦を置く", () => {
     const hook = codeOnly(read("lib/use-voice-input.ts"));
     expect(hook).toMatch(/export function useVoiceInput/);
     // 使えない端末に、押しても何も起きない釦を置かないための問い合わせ。
     expect(hook).toMatch(/export function voiceInputAvailable/);
     // 画面を離れたら必ず止める（マイクが開いたままにならない）。
     expect(hook).toMatch(/useEffect\(\(\) => \(\) => recRef\.current\?\.stop\(\), \[\]\)/);
+    // 2026-09-27「検索モードのマイクを消して、カメラロールから画像で検索するボタンを追加して」。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    expect(cap).toMatch(/useVoiceInput\(\{/);
-    expect(cap).toMatch(/voice\.available && \(/);
+    expect(cap).not.toMatch(/useVoiceInput\(\{/);
+    expect(cap).toMatch(/onClick=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/);
+    expect(cap).toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
   });
 
   /**
@@ -4529,9 +4570,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("routes/_authenticated/scan.tsx"));
     // 呼ぶ側が場所を渡す（部品が勝手に画面の下端に付かない）。
     expect(src).toMatch(/zoomBottom\?: string;/);
+    // 2026-09-27 から映像の箱そのものがシートのすぐ上で終わる（上下の余白を
+    // 詰めた）。粒は箱の下端に付くので、同じくシートの上に来る。
     expect(src).toMatch(
-      /zoomBottom=\{`calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`\}/,
+      /bottom: `calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
     );
+    expect(src).toMatch(/zoomBottom="0\.5rem"/);
     // 画面の下端に貼り付ける書き方が残っていないこと。
     expect(src).not.toMatch(/className="absolute inset-x-0 bottom-4 z-10 flex justify-center"/);
   });
@@ -4739,8 +4783,9 @@ describe("ホームは今日の誌面", () => {
     // 実測 170x35 だった（`ui-audit`）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).toMatch(/const MIN_TAP_PX = 44;/);
+    // 2026-09-27: 細い画面で時刻が次の行へ回るぶん（`timeLine`）も足す。
     expect(home).toMatch(
-      /Math\.max\(PLAIN_WORD_PX \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\), MIN_TAP_PX\)/,
+      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
     );
     expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
     expect(cssBlock("[data-plain] {", "\n}")).toMatch(/min-height: 2\.75rem/);
@@ -4918,11 +4963,15 @@ describe("ホームは今日の誌面", () => {
       main.indexOf("const explicitScene"),
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
-    // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "home"/);
-    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
-    expect(list).not.toMatch(/scene: "first-catch"/);
+    // 削除して」: 帯には**今回の依頼の面だけ**。
+    // 2026-09-27 の回: チャンクの形とガラスの本番化（試作の切り替えは外した）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "chunk-designs"/);
+    expect(list).toMatch(/\{ scene: "capture-object"/);
+    expect(list).not.toMatch(/glass=1/);
+    expect(main).not.toMatch(/dataset\.glass/);
+    expect(read("styles.css")).not.toMatch(/data-glass/);
+    // 2026-09-27 の回は依頼が33項目あるので、その回の面に限って 8 を超えてよい。
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(40);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
@@ -5106,8 +5155,8 @@ describe("覗いている絵と撮れる写真の倍率", () => {
     expect(cap).toMatch(/const shownZoom = residualZoom\(zoom, hwZoom\);/);
     // 覗く側。
     expect(cap).toMatch(/style=\{\{ scale: String\(shownZoom\) \}\}/);
-    // 撮る側。
-    expect(cap).toMatch(/viewport\.height,\n\s*shownZoom,/);
+    // 撮る側（2026-09-27 から映像のすべてを倍率ぶんだけ真ん中で切る）。
+    expect(cap).toMatch(/video\.videoHeight,\n\s*shownZoom,/);
     // 「持っていると言った」だけで手を引かない。
     expect(cap).not.toMatch(/zoomCaps \? 1 : zoom/);
     expect(cap).not.toMatch(/zoomCaps \? undefined : \{ scale/);
@@ -5356,9 +5405,11 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
 
   it("**点線は「復習しなかったら」の1本だけ**（補助線・格子の点線をやめた）", () => {
     const body = chart.slice(chart.indexOf("export function MemoryCurveChart"));
-    const lines = body.slice(body.indexOf("<LineChart"), body.indexOf("</LineChart>"));
+    const lines = body.slice(body.indexOf("<ComposedChart"), body.indexOf("</ComposedChart>"));
     expect(lines.match(/strokeDasharray=/g)?.length).toBe(1);
-    expect(lines).not.toMatch(/ReferenceLine/);
+    // 引く縦線は**復習で100%へ戻る所だけ**（実線・灰色、2026-09-27）。補助線ではない。
+    expect(lines.match(/<ReferenceLine/g)?.length ?? 0).toBe(1);
+    expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
     expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
     // 全体のグラフも同じ。
     const mini = review.slice(review.indexOf("export function MiniRetentionGraph"));
@@ -5713,7 +5764,8 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
     expect(dex).toMatch(/<DexOverlay>/);
     // 並びは 箱 → カード → 地図 → 段。
     const order = [...dex.matchAll(/\["(gallery|cards|map|list)", /g)].map((m) => m[1]);
-    expect(order).toEqual(["gallery", "cards", "map", "list"]);
+    // 2026-09-27「スライド、マップ、写真が多いもの、縦に並ぶものの順に」。
+    expect(order).toEqual(["cards", "map", "gallery", "list"]);
   });
 });
 
