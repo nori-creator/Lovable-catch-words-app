@@ -5405,9 +5405,11 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
 
   it("**点線は「復習しなかったら」の1本だけ**（補助線・格子の点線をやめた）", () => {
     const body = chart.slice(chart.indexOf("export function MemoryCurveChart"));
-    const lines = body.slice(body.indexOf("<LineChart"), body.indexOf("</LineChart>"));
+    const lines = body.slice(body.indexOf("<ComposedChart"), body.indexOf("</ComposedChart>"));
     expect(lines.match(/strokeDasharray=/g)?.length).toBe(1);
-    expect(lines).not.toMatch(/ReferenceLine/);
+    // 引く縦線は**復習で100%へ戻る所だけ**（実線・灰色、2026-09-27）。補助線ではない。
+    expect(lines.match(/<ReferenceLine/g)?.length ?? 0).toBe(1);
+    expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
     expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
     // 全体のグラフも同じ。
     const mini = review.slice(review.indexOf("export function MiniRetentionGraph"));

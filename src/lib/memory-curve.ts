@@ -71,10 +71,20 @@ const retention = (dtDays: number, stability: number) =>
   clamp(100 * Math.exp(-Math.max(0, dtDays) / Math.max(0.1, stability)), 0, 100);
 /** 表示は整数（記憶率は推定値なので小数は偽りの精度）。日は 0.01 日まで。 */
 const r0 = (v: number) => Math.round(v);
+/**
+ * **線を描く点だけは 0.1 まで持つ**（オーナー指示 2026-09-27「記憶のグラフを
+ * より細かく」）。整数に丸めた点を結ぶと、なだらかな所が階段に見える。
+ * 文字で出す値（今日の % など）は今までどおり整数。
+ */
+const r1 = (v: number) => Math.round(v * 10) / 10;
 const d2 = (v: number) => Math.round(v * 100) / 100;
 
-/** 1区間を何点で描くか。指数の坂が滑らかに見える最小限。 */
-const SEG_STEPS = 16;
+/**
+ * 1区間を何点で描くか。**頭に寄せて置く** — 忘れ方は復習の直後が一番
+ * 急なので、等間隔だと最初の曲がり角が折れ線に見えていた。
+ */
+const SEG_STEPS = 32;
+const ease = (k: number) => Math.pow(k / SEG_STEPS, 1.6);
 
 export function buildMemoryCurve(
   events: CurveEvent[],
@@ -108,16 +118,16 @@ export function buildMemoryCurve(
     if (i > 0) {
       // 復習の直前の値 → 100 へ垂直に戻る。
       const prev = ev[i - 1];
-      past.push({ d: d2(startD), r: r0(retention((e.t - prev.t) / DAY, prev.stability)) });
+      past.push({ d: d2(startD), r: r1(retention((e.t - prev.t) / DAY, prev.stability)) });
     }
     past.push({ d: d2(startD), r: 100 });
     const endMs = i + 1 < ev.length ? ev[i + 1].t : nowMs;
     for (let k = 1; k <= SEG_STEPS; k++) {
-      const ms = e.t + ((endMs - e.t) * k) / SEG_STEPS;
+      const ms = e.t + (endMs - e.t) * ease(k);
       if (ms <= e.t) break;
       // 次の復習の瞬間の点は、次の区間の先頭が置く（二重に置かない）。
       if (i + 1 < ev.length && k === SEG_STEPS) break;
-      past.push({ d: d2(dOf(ms)), r: r0(retention((ms - e.t) / DAY, e.stability)) });
+      past.push({ d: d2(dOf(ms)), r: r1(retention((ms - e.t) / DAY, e.stability)) });
     }
   }
 
@@ -126,6 +136,8 @@ export function buildMemoryCurve(
   const todayR = r0(retention(sinceLast, last.stability));
   // 今日の点は必ず線の終わりに置く（今日キャッチした語でも線が1点で終わらない）。
   if (past.length === 0 || past[past.length - 1].d !== 0) past.push({ d: 0, r: todayR });
+  // 線の終わりは**今日の点と同じ値**（点は整数、線は 0.1 刻みなので揃える）。
+  else past[past.length - 1] = { d: 0, r: todayR };
 
   // ---- 復習どき ----
   const bestDay = d2(dOf(last.t) + last.stability * Math.log(100 / BEST_R));
@@ -145,7 +157,7 @@ export function buildMemoryCurve(
   const future: CurvePoint[] = [{ d: 0, r: todayR }];
   for (let k = 1; k <= SEG_STEPS * 2; k++) {
     const d = (end * k) / (SEG_STEPS * 2);
-    future.push({ d: d2(d), r: r0(retention(sinceLast + d, last.stability)) });
+    future.push({ d: d2(d), r: r1(retention(sinceLast + d, last.stability)) });
   }
 
   const reviewDays = revs.map((e) => d2(dOf(e.t)));

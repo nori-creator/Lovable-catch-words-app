@@ -345,6 +345,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
   { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
   { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
+  { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
