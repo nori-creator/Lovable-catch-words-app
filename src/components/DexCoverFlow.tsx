@@ -15,6 +15,7 @@ import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import {
   COVER_STEP,
   coverFlowPose,
+  galleryPose,
   poseTransform,
   progressDots,
   settleIndex,
@@ -43,7 +44,7 @@ export function DexCoverFlow({
   onOpen,
   memory,
   initialIndex = 0,
-  theme = "stage",
+  theme = "gallery",
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
@@ -54,14 +55,17 @@ export function DexCoverFlow({
    *  ・`category` … 舞台の光と背景の色が、真ん中のカードの分類の色になる
    *  ・`motion`   … `category` に、分類ごとの小さな動き（湯気・葉・雨…）
    *  ・`museum`   … 美術館。暗い壁、上からの光、カードの下に小さな札
+   *  ・`gallery`  … **白い展示室（既定、2026-09-27）**。作品は奥の台座の上、
+   *                  左右の作品は壁ぞいに奥へ。下にオークションの札（番号・名・日・所）
    */
-  theme?: "stage" | "category" | "motion" | "museum";
+  theme?: "stage" | "category" | "motion" | "museum" | "gallery";
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
   initialIndex?: number;
 }) {
   const t = useT();
+  const locale = localeOf(useUiLang());
   const fetched = useMemoryBadges();
   const memoryById = memory ?? fetched;
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +75,8 @@ export function DexCoverFlow({
   centerRef.current = center;
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const countRef = useRef(stickers.length);
   countRef.current = stickers.length;
 
@@ -109,9 +115,11 @@ export function DexCoverFlow({
         hidden.current[i] = false;
         el.style.visibility = "";
       }
-      const pose = coverFlowPose(rel, reduced);
+      const pose =
+        themeRef.current === "gallery" ? galleryPose(rel, reduced) : coverFlowPose(rel, reduced);
       el.style.transform = `translate3d(${(i * s - x).toFixed(2)}px,0,0) ${poseTransform(pose)}`;
       el.style.zIndex = String(pose.zIndex);
+      el.style.opacity = "opacity" in pose ? (pose.opacity as number).toFixed(3) : "";
     });
     const c = Math.max(0, Math.min(countRef.current - 1, Math.round(x / s)));
     setCenter((prev) => (prev === c ? prev : c));
@@ -253,11 +261,11 @@ export function DexCoverFlow({
    */
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.dexStage = "";
+    root.dataset.dexStage = theme === "gallery" ? "gallery" : "";
     return () => {
       delete root.dataset.dexStage;
     };
-  }, []);
+  }, [theme]);
 
   const current = stickers[center];
   const room: RoomKey = current
@@ -291,8 +299,16 @@ export function DexCoverFlow({
         tabIndex={0}
         className="dex-cf__stage"
       >
-        {/* 真ん中のカードが立つ円の舞台。 */}
-        <span className="dex-cf__floor" aria-hidden="true" />
+        {/* 真ん中のカードが立つ円の舞台（展示室では台座と壁の光）。 */}
+        {theme === "gallery" ? (
+          <>
+            <span className="dex-cf__gallery-floor" aria-hidden="true" />
+            <span className="dex-cf__wall-light" aria-hidden="true" />
+            <span className="dex-cf__plinth" aria-hidden="true" />
+          </>
+        ) : (
+          <span className="dex-cf__floor" aria-hidden="true" />
+        )}
         {stickers.map((s, i) => (
           <CoverCard
             key={s.id}
@@ -305,6 +321,18 @@ export function DexCoverFlow({
           />
         ))}
       </div>
+      {theme === "gallery" && current && (
+        // オークションの作品札: 番号・作品名（語と意味）・いつ・どこで。
+        <div className="dex-cf__lot">
+          <span className="dex-cf__lot-no">LOT {String(center + 1).padStart(3, "0")}</span>
+          <Zh className="dex-cf__lot-title">{current.word.headword}</Zh>
+          <span className="dex-cf__lot-sub">{current.word.meaning_ja}</span>
+          <span className="dex-cf__lot-meta">
+            {lotDate(current.taken_at, locale)}
+            {current.location_name ? ` · ${current.location_name}` : ""}
+          </span>
+        </div>
+      )}
       {theme === "museum" && current && (
         <p className="dex-cf__plaque">
           <Zh className="font-semibold">{current.word.headword}</Zh>
@@ -496,3 +524,11 @@ const CoverCard = memo(function CoverCard({
     </div>
   );
 });
+
+/** 作品札の日付（年月日）。 */
+function lotDate(iso: string, locale: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+}

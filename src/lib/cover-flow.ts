@@ -48,6 +48,27 @@ export function coverFlowPose(offset: number, reduced = false): CoverPose {
   };
 }
 
+/**
+ * **展示室の置き方**（オーナー指示 2026-09-27「画像が手前すぎ → 奥に舞台を
+ * 設定し、奥でカードがスライド。空間の真ん中に作品、オークションで1つの
+ * 作品を鑑賞するように」）。
+ *
+ * 真ん中の1枚も**奥に置く**（手前に飛び出さない）。左右は傾きを浅く、
+ * さらに奥へ下がって薄くなる — 展示室の壁ぞいに並んだ作品のように。
+ */
+export function galleryPose(offset: number, reduced = false): CoverPose & { opacity: number } {
+  const o = Math.max(-3, Math.min(3, offset));
+  const a = Math.abs(o);
+  const near = Math.min(1, a);
+  return {
+    rotateY: reduced ? 0 : -Math.sign(o) * near * 32,
+    translateZ: -160 - a * 150,
+    scale: 1 - Math.min(a, 2) * 0.06,
+    zIndex: 100 - Math.round(Math.min(4, a) * 10),
+    opacity: Math.max(0, 1 - Math.max(0, a - 0.4) * 0.32),
+  };
+}
+
 export function poseTransform(p: CoverPose): string {
   return `translateZ(${p.translateZ.toFixed(1)}px) rotateY(${p.rotateY.toFixed(2)}deg) scale(${p.scale.toFixed(3)})`;
 }

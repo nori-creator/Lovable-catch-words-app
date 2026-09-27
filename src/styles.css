@@ -9060,3 +9060,118 @@ html[data-motion="reduce"] .magic-wait::after {
 .story-ink__bg-icon[data-bg="soft"] {
   background: rgb(255 255 255 / 0.45);
 }
+
+/* ---------------------------------------------------------------------------
+ * 図鑑のスライド — 白い展示室（`DexCoverFlow` の `gallery`、2026-09-27）。
+ * オーナー指示「画像が手前すぎ→奥に舞台を設定し、奥でカードがスライド。
+ * 空間の真ん中に作品、オークションで1つの作品を鑑賞するように。背景は白
+ * （他ページとの色差が大きすぎる）」。
+ * 壁と床の境目（奥行きの手がかり）、真ん中の作品に上から落ちる光、白い台座。
+ * ------------------------------------------------------------------------- */
+html[data-dex-stage="gallery"] {
+  background: #f5f4f1;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__backdrop {
+  /* 壁（天井ぎわがわずかに暗い）。床は舞台の中で、台座の足元から敷く。 */
+  background: radial-gradient(120% 70% at 50% 30%, #ffffff 0%, #f6f5f2 55%, #ebe8e2 100%);
+}
+.dex-cf__gallery-floor {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86 + 3.2rem);
+  bottom: 0;
+  /* 床は手前へ向かって部屋の地に溶ける（舞台の下端で線が出ない）。 */
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 0.07), transparent 8px),
+    linear-gradient(180deg, #e4e0d8, rgb(236 233 227 / 0.6) 55%, transparent 100%);
+  pointer-events: none;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__stage {
+  --cf-w: min(50vw, 220px, calc((100dvh - 21rem) / 1.48));
+  perspective: 900px;
+  perspective-origin: 50% 42%;
+  height: calc(var(--cf-w) * 1.48 + 5.5rem);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__stage::before {
+  display: none;
+}
+.dex-cf__wall-light {
+  /* 真ん中の作品の後ろの壁に落ちる、上からの光の輪。 */
+  position: absolute;
+  left: 50%;
+  top: -1rem;
+  width: calc(var(--cf-w) * 1.9);
+  height: calc(var(--cf-w) * 1.8);
+  translate: -50% 0;
+  background: radial-gradient(
+    50% 55% at 50% 40%,
+    rgb(255 248 232 / 0.95),
+    rgb(255 244 222 / 0.35) 55%,
+    transparent 75%
+  );
+  pointer-events: none;
+}
+.dex-cf__plinth {
+  /* 作品の下の白い台座（奥にあるので小さく、上面が明るい）。 */
+  position: absolute;
+  left: 50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86);
+  width: calc(var(--cf-w) * 0.78);
+  height: 3.2rem;
+  translate: -50% 0;
+  background: linear-gradient(180deg, #ffffff 0 18%, #eeebe6 18%, #e2ded7 100%);
+  box-shadow:
+    0 14px 22px -10px rgb(0 0 0 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.05);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 0;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__card {
+  /* 額装: 白いマットと細い縁。角は小さく（作品らしく）。 */
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 6px #fff,
+    0 0 0 7px rgb(0 0 0 / 0.08),
+    0 26px 40px -22px rgb(0 0 0 / 0.45);
+}
+.dex-cf__lot {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  margin: 0.1rem auto 0.2rem;
+  text-align: center;
+  color: #2b2724;
+}
+.dex-cf__lot-no {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #8c857b;
+  font-variant-numeric: tabular-nums;
+}
+.dex-cf__lot-title {
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.dex-cf__lot-sub {
+  font-size: var(--text-footnote);
+  color: #57514a;
+}
+.dex-cf__lot-meta {
+  font-size: 11px;
+  color: #8c857b;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__dot {
+  background: rgb(0 0 0 / 0.18);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__dot[data-on] {
+  background: var(--primary);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__thumb {
+  background: rgb(0 0 0 / 0.05);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__thumb-word {
+  color: #2b2724;
+}

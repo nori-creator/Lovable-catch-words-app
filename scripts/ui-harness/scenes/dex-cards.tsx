@@ -25,7 +25,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
   );
   const at = Number(q.get("at") ?? 0);
   const [theme, setTheme] = useState<Theme>(
-    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "stage",
+    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "gallery",
   );
   return (
     <div className="px-4">
@@ -47,9 +47,9 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
               minHeight: 44,
               padding: "0 12px",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.25)",
-              background: theme === o.key ? "#0a84ff" : "rgba(255,255,255,0.1)",
-              color: "#fff",
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: theme === o.key ? "#0a84ff" : "rgba(255,255,255,0.8)",
+              color: theme === o.key ? "#fff" : "#111",
               fontWeight: 600,
             }}
           >
@@ -69,6 +69,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
 }
 
 const THEMES = [
+  { key: "gallery", label: "白い展示室（既定）" },
   { key: "stage", label: "A 暗い舞台" },
   { key: "category", label: "B 分類の色" },
   { key: "motion", label: "C 分類の動き" },
