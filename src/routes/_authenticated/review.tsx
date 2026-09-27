@@ -47,7 +47,7 @@ import {
 } from "@/components/ForgettingCurveChart";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
-import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
+import { usePhoneticPref, pickReadingOf, Reading, neutralReadings } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { ZhuyinWord } from "@/components/ZhuyinWord";
 import { pairZhuyin } from "@/lib/zhuyin-layout";
@@ -2123,9 +2123,13 @@ export function LightModeCard({
             // **学習言語に在る表記だけ**(オーナー報告 2026-08-26)。
             // `pickReading` は台湾華語の決め打ちだったので、英語の4択にも
             // 注音・拼音が出ていた。
+            // 選択肢の読みは「読み1・読み2」の2列で来る（英語なら米・英の IPA）。
+            // 学習言語の表記へ割り当ててから選ぶ — 注音の鍵のまま渡すと、
+            // 英語の語の IPA が「注音」として扱われていた。
             const reading = pickReadingOf(targetProfile(card.language), phonetic, {
               zhuyin: info.zhuyin,
               pinyin: info.pinyin,
+              ...neutralReadings(card.language, info.zhuyin, info.pinyin),
             });
             // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
             const units = zhuyinBeside ? pairZhuyin(c, info.zhuyin) : null;
