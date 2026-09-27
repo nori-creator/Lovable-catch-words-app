@@ -1,10 +1,9 @@
 import { Fragment, type CSSProperties } from "react";
-import { chunkStyle, chunkLegendFor, posGroup } from "@/lib/pos";
+import { chunkStyle, chunkLegendFor } from "@/lib/pos";
 import { usePronounce } from "@/lib/use-pronounce";
 import { Term } from "@/components/Term";
 import { PronounceButton } from "@/components/PronounceButton";
 import type { ChunkPart } from "@/lib/extras";
-import { CHUNK_DESIGN, type ChunkDesign } from "@/lib/chunk-design";
 
 /**
  * 文のパーツ(チャンク)を品詞色分けの札で並べる共通コンポーネント。
@@ -13,6 +12,11 @@ import { CHUNK_DESIGN, type ChunkDesign } from "@/lib/chunk-design";
  *
  * 札は**浮いている(NORI指定)** — 薄い地・同色の縁・下に落ちる影。
  * 押すと沈んで跳ね返る(`.chunk-pill`)。触れる物だと分かる手応えを返す。
+ *
+ * **形は公式（オーナー決定 2026-09-27「F にして」）。** 決まった語は色付きの
+ * ガラスの丸、入れ替えて使う所（`slot`）は点線の枠、間に「＋」を置く
+ * （例: 跟 ＋ [男朋友] ＋ 吵架）。入れ替える所にも「人」ではなく、ネイティブが
+ * いちばんよく入れる具体語が入る（同日の指示）。
  */
 export function ChunkPills({
   parts,
@@ -20,16 +24,7 @@ export function ChunkPills({
   appearance = "pill",
   lang,
   onSpeak,
-  design = CHUNK_DESIGN,
-  headword,
 }: {
-  /** その単語（案 D「その単語だけ丸」で、どの札を囲うかを決める）。 */
-  headword?: string | null;
-  /**
-   * 札の見た目の案（`lib/chunk-design.ts`）。`appearance="pill"` のときだけ効く。
-   * 既定は本番の案 — 単語の詳細と復習の解説が同じ値を読むので必ず揃う。
-   */
-  design?: ChunkDesign;
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
   /** 単語詳細では札を外し、品詞色を文字そのものに使う。 */
@@ -56,33 +51,12 @@ export function ChunkPills({
           ? "px-3 py-2 text-headline leading-snug tracking-wide"
           : "px-2.5 py-1.5 text-body";
   const pill = appearance === "pill";
-  const head = (headword ?? "").trim();
-  /**
-   * どの札を丸で囲うか（形の案 — `lib/chunk-design.ts`）。囲わない札は
-   * 品詞の色の字だけにする。**押せば鳴るのはどちらも同じ。**
-   */
-  const bubbled = (c: ChunkPart): boolean => {
-    if (!pill) return false;
-    switch (design) {
-      case "content":
-        return ["n", "v", "vs"].includes(posGroup(c.pos));
-      case "headword":
-        return !!head && !!c.text && (c.text.includes(head) || head.includes(c.text));
-      case "color":
-        return false;
-      case "formula":
-        return !c.slot;
-      default:
-        return true;
-    }
-  };
-  const formula = pill && design === "formula";
   return (
     // 影が落ちるぶん、札どうしの間合いを少し広げる。詰めると影が隣に重なって
     // 濁り、浮いているのではなく汚れているように見える。
     <div
       className={`flex flex-wrap ${
-        pill ? `chunk-set chunk-set--${design} items-center` : "gap-x-1.5 gap-y-1"
+        pill ? "chunk-set chunk-set--formula items-center" : "gap-x-1.5 gap-y-1"
       }`}
     >
       {parts.map((c, i) => {
@@ -94,17 +68,15 @@ export function ChunkPills({
         // 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
         // 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。
         const body = <Term lang={lang}>{c.text}</Term>;
-        const round = bubbled(c);
-        const skin =
-          formula && c.slot
-            ? `chunk-slot font-semibold ${pad}`
-            : round
-              ? `chunk-bubble rounded-full font-semibold ${pad} ${st.pill}`
-              : `chunk-word font-semibold ${pill ? `chunk-plain ${pad}` : pad} ${st.dot.replace("pos-dot ", "")}`;
-        // 札ごとに位相をずらす変数（パズルの端の判定にも使う）。
+        const posClass = st.dot.replace("pos-dot ", "");
+        const skin = !pill
+          ? `chunk-word font-semibold ${pad} ${posClass}`
+          : c.slot
+            ? `chunk-slot font-semibold ${pad} ${posClass}`
+            : `chunk-bubble rounded-full font-semibold ${pad} ${st.pill}`;
         const style = { "--i": i } as CSSProperties;
         const joint =
-          formula && i > 0 ? (
+          pill && i > 0 ? (
             <span aria-hidden className="chunk-plus">
               ＋
             </span>
@@ -189,8 +161,6 @@ export function ChunkLine({
   lang,
   speakText,
   onSpeak,
-  design,
-  headword,
 }: {
   parts: ChunkPart[];
   translation?: string | null;
@@ -199,8 +169,6 @@ export function ChunkLine({
   speakText?: string;
   /** 札を1つずつ鳴らす。渡さなければ、その言語の声でここが鳴らす。 */
   onSpeak?: (text: string) => void;
-  design?: ChunkDesign;
-  headword?: string | null;
 }) {
   const pronounce = usePronounce(lang ?? undefined);
   if (!parts.length) return null;
@@ -212,8 +180,6 @@ export function ChunkLine({
           size="md"
           lang={lang}
           onSpeak={onSpeak ?? ((text) => void pronounce(text))}
-          design={design}
-          headword={headword}
         />
         {translation ? <p className="chunk-line__translation">{translation}</p> : null}
       </div>

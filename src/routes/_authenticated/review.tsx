@@ -1852,7 +1852,6 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
                 translation={chunkTranslation(c.ja)}
                 lang={card.language}
                 speakText={chunkSpeechText(c, card.language)}
-                headword={card.headword}
               />
             ))}
           </div>

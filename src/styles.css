@@ -4632,52 +4632,8 @@ html[data-motion="reduce"] {
   transform: translateY(2px) scale(0.9);
   transition-duration: 0.08s;
 }
-/* 丸で囲わない語（案 C/D/E）。品詞の色の字だけ。押せば同じく弾む。 */
-.chunk-plain {
-  display: inline-flex;
-  align-items: center;
-  padding-inline: 0.15rem;
-  background: none;
-  border: 0;
-  box-shadow: none;
-  transition: transform 0.35s var(--spring-bounce);
-}
-/* 案 B パズル: 札の間を詰め、右の出っ張り（凸）を次の札へかませて、
-   1つの塊に見せる。端だけ丸い。 */
-.chunk-set--puzzle {
-  gap: 0;
-  row-gap: 0.5rem;
-}
-.chunk-set--puzzle .chunk-bubble {
-  position: relative;
-  border-radius: 0.55rem;
-  border: 0;
-  padding-inline: 0.95rem;
-}
-.chunk-set--puzzle .chunk-bubble:first-child {
-  border-top-left-radius: 999px;
-  border-bottom-left-radius: 999px;
-}
-.chunk-set--puzzle .chunk-bubble:last-child {
-  border-top-right-radius: 999px;
-  border-bottom-right-radius: 999px;
-}
-.chunk-set--puzzle .chunk-bubble:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  right: -0.45rem;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 50%;
-  translate: 0 -50%;
-  background: color-mix(in oklab, var(--pos) 24%, white);
-}
-.dark .chunk-set--puzzle .chunk-bubble:not(:last-child)::after {
-  background: color-mix(in oklab, var(--pos) 28%, var(--card));
-}
-/* 案 F 公式: 決まった語は丸、入れ替える所（人・事）は点線の枠、間に「＋」。 */
+/* 公式の形（オーナー決定 2026-09-27）: 決まった語はガラスの丸、入れ替える所は
+   点線の枠（中はいちばんよく入る具体語）、間に「＋」。 */
 .chunk-set--formula {
   gap: 0.3rem;
 }
@@ -4690,9 +4646,9 @@ html[data-motion="reduce"] {
   align-items: center;
   border-radius: 0.6rem;
   padding-inline: 0.7rem;
-  border: 1.5px dashed color-mix(in oklab, var(--foreground) 35%, transparent);
-  background: color-mix(in oklab, var(--foreground) 4%, transparent);
-  color: var(--muted-foreground);
+  border: 1.5px dashed color-mix(in oklab, var(--pos, var(--foreground)) 55%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 6%, var(--card));
+  color: color-mix(in oklab, var(--pos, var(--foreground)) 68%, var(--foreground));
   box-shadow: none;
   transition: transform 0.35s var(--spring-bounce);
 }

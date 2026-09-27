@@ -315,7 +315,7 @@ const q = new URLSearchParams(location.search);
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-25 の依頼で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "chunk-designs", label: "チャンクの形 A〜F" },
+  { scene: "chunk-designs", label: "チャンク（公式の形）" },
   { scene: "word-card", label: "単語の詳細（青い発音）" },
   { scene: "review-explain", label: "復習の解説" },
   { scene: "first-catch&step=camera&fail=guest", label: "登録前の体験（見本で続ける）" },

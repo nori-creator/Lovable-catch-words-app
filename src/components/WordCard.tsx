@@ -1537,7 +1537,7 @@ function Body({
         return (
           <div className="usage-chunks">
             {chunks.map((c, i) => (
-              <ChunkRow key={i} chunk={c} language={word.language} headword={word.headword} />
+              <ChunkRow key={i} chunk={c} language={word.language} />
             ))}
             {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
                 同じ丸が何度も並ぶ。 */}
@@ -1910,15 +1910,7 @@ function RelatedWordRow({
  * 英語は札を空白で継ぐ。継がずに読ませると `put onsocks` になる
  * (`chunkText` と同じ理由)。
  */
-function ChunkRow({
-  chunk,
-  language,
-  headword,
-}: {
-  chunk: UsageChunk;
-  language?: string | null;
-  headword?: string | null;
-}) {
+function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
   return (
     <div className="usage-chunk-row">
       {/* 札（品詞ごとの丸）、その下に訳を小さく薄く、右端に型ぜんぶの音声
@@ -1929,7 +1921,6 @@ function ChunkRow({
         translation={chunkTranslation(chunk.ja)}
         lang={language}
         speakText={chunkSpeechText(chunk, language)}
-        headword={headword}
       />
     </div>
   );

@@ -3950,10 +3950,13 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 札を1つ押すとその語が鳴る — 呼び出し側が渡さなくても、ここが鳴らす
     // （復習の解説は渡していなかったので、押しても鳴らなかった）。
     expect(line).toMatch(/onSpeak=\{onSpeak \?\? \(\(text\) => void pronounce\(text\)\)\}/);
-    // 本番の案は1つだけ（2つの画面が同じ値を読む）。質感はガラス（2026-09-25）。
-    expect(read("lib/chunk-design.ts")).toMatch(
-      /export const CHUNK_DESIGN: ChunkDesign = "glass";/,
-    );
+    // 形は公式の1つだけ（2026-09-27「F にして」）。案を切り替える仕組みは残さない。
+    expect(fs.existsSync(path.join(root, "lib/chunk-design.ts"))).toBe(false);
+    expect(pills).toMatch(/chunk-set chunk-set--formula/);
+    expect(pills).toMatch(/chunk-slot/);
+    // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    expect(ai).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
   });
 
   it("発音ボタンは**全部、見出しと同じ青**（大きさだけが違う）", () => {

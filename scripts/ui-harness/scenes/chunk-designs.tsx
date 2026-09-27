@@ -1,14 +1,11 @@
-import { useState } from "react";
 import { ChunkLine, ChunkLegend } from "@/components/ChunkPills";
-import { CHUNK_DESIGNS, CHUNK_DESIGN_LABEL, type ChunkDesign } from "@/lib/chunk-design";
 import type { ChunkPart } from "@/lib/extras";
 import { readySpeech } from "../speech";
 
 /**
- * チャンクの札の**形**の案 A〜F を見比べる（2026-09-25）。
- * 質感はどれも「色付きのガラス・押すと弾む」（前回オーナーが選んだ形）。
- * 上の A〜F を押すと、下の「単語の詳細」と「復習の解説」が同じ案で変わる —
- * 2つの画面が同じ部品（`ChunkLine`）を使っていることも一緒に確かめられる。
+ * チャンクの公式の形（F、オーナー決定 2026-09-27）。入れ替える所（点線の枠）
+ * にも、いちばんよく入る具体語が入る。「単語の詳細」と「復習の解説」が
+ * 同じ部品（`ChunkLine`）を使っていることも一緒に確かめられる。
  *
  * 札を押すとその語、右端の青いボタンで型ぜんぶが鳴る（確認用ページには
  * 音声の仕組みが無いので、ボタンは出すが音は鳴らない）。
@@ -19,18 +16,18 @@ const WORD_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "跟", pos: "Prep" },
-      { text: "人", pos: "N", slot: true },
+      { text: "男朋友", pos: "N", slot: true },
       { text: "吵架", pos: "V-sep" },
     ],
-    ja: "（人）と喧嘩する",
+    ja: "彼氏と喧嘩する",
   },
   {
     parts: [
       { text: "為了", pos: "Prep" },
-      { text: "事", pos: "N", slot: true },
+      { text: "錢", pos: "N", slot: true },
       { text: "吵架", pos: "V-sep" },
     ],
-    ja: "（事）のことで喧嘩する",
+    ja: "お金のことで喧嘩する",
   },
   {
     parts: [
@@ -54,7 +51,7 @@ const REVIEW_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "點", pos: "V" },
-      { text: "一杯", pos: "M" },
+      { text: "一杯", pos: "M", slot: true },
       { text: "珍珠奶茶", pos: "N" },
     ],
     ja: "タピオカミルクティーを1杯頼む",
@@ -71,31 +68,9 @@ const REVIEW_CHUNKS: Sample[] = [
 const speech = (c: Sample) => c.parts.map((p) => p.text).join("");
 readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS].map(speech));
 
-export function ChunkDesignsScene({ q }: { q: URLSearchParams }) {
-  const asked = q.get("d") ?? "";
-  const initial: ChunkDesign = (CHUNK_DESIGNS as readonly string[]).includes(asked)
-    ? (asked as ChunkDesign)
-    : "glass";
-  const [design, setDesign] = useState<ChunkDesign>(initial);
+export function ChunkDesignsScene() {
   return (
     <div style={{ padding: "12px 16px 96px", display: "grid", gap: 16 }}>
-      <div role="radiogroup" aria-label="チャンクの形の案" style={{ display: "grid", gap: 6 }}>
-        {CHUNK_DESIGNS.map((d) => (
-          <button
-            key={d}
-            type="button"
-            role="radio"
-            aria-checked={design === d}
-            onClick={() => setDesign(d)}
-            className={`rounded-2xl border px-3 py-2 text-left text-footnote font-semibold ${
-              design === d ? "border-primary bg-primary/10 text-primary" : "border-border bg-card"
-            }`}
-          >
-            {CHUNK_DESIGN_LABEL[d]}
-          </button>
-        ))}
-      </div>
-
       <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
         <h3 className="mb-2 text-body font-semibold">単語の詳細: 使い方チャンク（{WORD}）</h3>
         <div className="usage-chunks">
@@ -107,8 +82,6 @@ export function ChunkDesignsScene({ q }: { q: URLSearchParams }) {
                 lang="zh-TW"
                 speakText={speech(c)}
                 onSpeak={() => {}}
-                design={design}
-                headword={WORD}
               />
             </div>
           ))}
@@ -129,8 +102,6 @@ export function ChunkDesignsScene({ q }: { q: URLSearchParams }) {
               lang="zh-TW"
               speakText={speech(c)}
               onSpeak={() => {}}
-              design={design}
-              headword={REVIEW_WORD}
             />
           ))}
         </div>
