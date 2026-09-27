@@ -226,3 +226,34 @@ export function CachedImg({
     />
   );
 }
+
+/**
+ * **まだ画面に出ていない写真も、先に端末へ入れる**（オーナー指示 2026-09-27
+ * 「アプリ内の発音、写真、復習の写真と発音は全て保存し、一度使ったものは
+ * 瞬間的に出る。毎回決して読み込まない」）。
+ *
+ * `CachedImg` は描いたときに貯めるので、復習の2枚目以降の写真は、その問題に
+ * 来てから落とし始めていた。束が届いた時点でまとめて落としておけば、
+ * どの問題に来ても端末から出る。既に在る物は触らない。同時に3本まで。
+ */
+export async function warmCachedImages(
+  urls: ReadonlyArray<string | null | undefined>,
+): Promise<void> {
+  const todo = [...new Set(urls.filter((u): u is string => !!u))];
+  const run = async (url: string) => {
+    const path = pathFromSignedUrl(url);
+    if (!path) return;
+    if (await getCachedImage(path)) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      await putCachedImage(path, await res.blob());
+    } catch {
+      /* 落とせなくても、描くときに取りに行く道は残っている */
+    }
+  };
+  const lanes = Array.from({ length: Math.min(3, todo.length) }, async () => {
+    for (let u = todo.shift(); u; u = todo.shift()) await run(u);
+  });
+  await Promise.all(lanes);
+}

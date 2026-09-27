@@ -13,13 +13,16 @@ import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import type { PhotoRole } from "@/lib/sticker-photo";
-import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
+/** グラフは開いたときに読み込む（起動時の束に recharts を入れない）。 */
+const ForgettingCurveChart = lazy(() =>
+  import("@/components/ForgettingCurveChart").then((m) => ({ default: m.ForgettingCurveChart })),
+);
 import { getSticker, setStickerHeroRole } from "@/lib/stickers.functions";
 import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { localeOf, useT } from "@/lib/i18n";
@@ -221,14 +224,16 @@ export function StickerDetailBody({
             </div>
           )}
         </div>
-        <ForgettingCurveChart
-          history={mem?.history ?? []}
-          currentEase={mem?.current?.ease ?? 2.5}
-          currentIntervalDays={mem?.current?.interval_days ?? 1}
-          lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
-          takenAt={mem?.taken_at ?? null}
-          stickerId={s.id}
-        />
+        <Suspense fallback={<div className="h-52 w-full" />}>
+          <ForgettingCurveChart
+            history={mem?.history ?? []}
+            currentEase={mem?.current?.ease ?? 2.5}
+            currentIntervalDays={mem?.current?.interval_days ?? 1}
+            lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
+            takenAt={mem?.taken_at ?? null}
+            stickerId={s.id}
+          />
+        </Suspense>
       </section>
 
       {/* **一番下の地図は消した**(オーナー指示)。上の「撮った所」に

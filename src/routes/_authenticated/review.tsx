@@ -12,6 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
+import { warmCachedImages } from "@/lib/image-cache";
 /**
  * 外したときに開く単語の詳細（オーナー指示 2026-09-27「復習で不正解の場合、
  * 単語の詳細に飛べるボタン」）。**画面を移らずに上に重ねる** — 移ると
@@ -40,11 +41,17 @@ import {
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
 import { levelOfR } from "@/lib/memory-curve";
-import {
-  levelGradient,
-  memoryCurveFrom,
-  MemoryCurveChart,
-} from "@/components/ForgettingCurveChart";
+import { memoryCurveFrom } from "@/lib/memory-curve-from";
+/**
+ * **グラフは押したときに読み込む**（recharts・lodash・d3 で起動時の JS の約4割。
+ * オーナー指示 2026-09-27「アプリを開いてからホームやカメラが出るまでを限界まで速く」）。
+ */
+const MemoryCurveChart = lazy(() =>
+  import("@/components/ForgettingCurveChart").then((m) => ({ default: m.MemoryCurveChart })),
+);
+const MiniRetentionGraph = lazy(() =>
+  import("@/components/MiniRetentionGraph").then((m) => ({ default: m.MiniRetentionGraph })),
+);
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading, neutralReadings } from "@/lib/phonetic";
@@ -402,6 +409,57 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
+   * 音は下の `usePrefetchSpeech` が同じことをしている。
+   */
+  useEffect(() => {
+    if (!cards?.length) return;
+    void warmCachedImages(
+      cards.flatMap((c) => [
+        stickerPhotoUrl(c, { prefer: "cutout" }),
+        stickerPhotoUrl(c, { prefer: "photo" }),
+      ]),
+    );
+  }, [cards]);
+
+  /**
+   * **束を終えたら、次の束をすぐ裏で用意して端末に書き留める**（オーナー指示
+   * 2026-09-27「復習のラグを無くす。復習が終わるたびに次の問題を自動保存し、
+   * アプリを閉じてもすぐ表示」）。
+   *
+   * 最後の採点が書き込まれるのを少し待ってから読む（待たないと、いま答えた
+   * 札がまた出る）。届いた束は `localStorage` に書き、写真も端末へ落とす。
+   * 「もう一度」を押したときは読み直さずにこれを出す — 待ち時間 0。
+   * アプリを閉じて次に開いたときも、この束から始まる。
+   */
+  const nextBatch = useRef<DueReviewCard[] | null>(null);
+  useEffect(() => {
+    if (!done || wantedSticker) return;
+    let off = false;
+    const timer = window.setTimeout(() => {
+      void fetchDue()
+        .then((next) => {
+          if (off || !next?.length) return;
+          nextBatch.current = next;
+          try {
+            const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+            const packed = uid ? packBatch(next, uid, null, Date.now()) : null;
+            if (packed) localStorage.setItem(REVIEW_CACHE_KEY, JSON.stringify(packed));
+          } catch {
+            /* 書けなくても「もう一度」で読み直すだけ */
+          }
+          void warmCachedImages(next.flatMap((c) => [stickerPhotoUrl(c, { prefer: "cutout" })]));
+        })
+        .catch(() => undefined);
+    }, 1500);
+    return () => {
+      off = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, wantedSticker]);
+
+  /**
    * 4択で見える可能性がある音を、束が届いた時点で端末へ入れる。
    * 各ボタンも自分の音を確認するが、ここでまとめて始めれば問題を読む間に
    * IndexedDB まで届く。同じ語は `ensureAudio` の inflight と cache が束ねる。
@@ -497,7 +555,11 @@ function ReviewPage() {
                   <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
                     {t("rv.overallTitle")}
                   </p>
-                  {memStats && <MiniRetentionGraph series={memStats.series} />}
+                  {memStats && (
+                    <Suspense fallback={<div className="h-36 w-full" />}>
+                      <MiniRetentionGraph series={memStats.series} />
+                    </Suspense>
+                  )}
                 </div>
               </div>
             )}
@@ -529,6 +591,13 @@ function ReviewPage() {
             restoredFor.current = null;
             setIdx(0);
             setTally({ answered: 0, correct: 0 });
+            // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
+            const next = nextBatch.current;
+            nextBatch.current = null;
+            if (next?.length) {
+              qc.setQueryData(["reviews-due", null], next);
+              return;
+            }
             replacing.current = true;
             void refetch();
           }}
@@ -905,12 +974,16 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
             aria-label={t("common.loading")}
           />
         ) : curve ? (
-          <MemoryCurveChart
-            curve={curve}
-            nowMs={nowMs}
-            stickerId={word.sticker_id}
-            onReview={onClose}
-          />
+          <Suspense
+            fallback={<div className="h-72 w-full animate-pulse rounded-xl bg-secondary/60" />}
+          >
+            <MemoryCurveChart
+              curve={curve}
+              nowMs={nowMs}
+              stickerId={word.sticker_id}
+              onReview={onClose}
+            />
+          </Suspense>
         ) : (
           <p className="py-8 text-center text-footnote text-muted-foreground">
             {t("review.memoryLoading")}
@@ -2357,126 +2430,6 @@ export function LightModeCard({
 }
 
 // ============================================================================
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-  ReferenceDot,
-  CartesianGrid,
-} from "recharts";
-
-/**
- * 全体の記憶率(前後2週間)。
- *
- * **過去は記録から作った実際の値**で、未来だけが予測。
- * 以前はここが「いまの状態を過去へ投げ返した線」だったので、
- * 復習した瞬間に過去14日が全部 100% に跳ね上がっていた。
- *
- * その日に**まだ無かった**語しか無い日は `null` が来る — 0% ではないので、
- * 線をそこで切る(`connectNulls` を付けない)。
- *
- * 見た目は1語の曲線（`MemoryCurveChart`）とそろえる（オーナー指摘
- * 2026-09-22「記憶のグラフが見づらい」）: 今日に点、線は値で塗り分け、
- * これまでは実線・これからは点線、日付は両端と今日だけ。
- */
-export function MiniRetentionGraph({
-  series,
-}: {
-  series: Array<{ day_offset: number; avg_retention: number | null; counted?: number }>;
-}) {
-  const t = useT();
-  const locale = localeOf(useUiLang());
-  const uid = useId().replace(/:/g, "");
-  const nowMs = useMemo(() => Date.now(), []);
-  const pts = series.map((p) => ({ d: p.day_offset, r: p.avg_retention }));
-  const past = pts.filter((p) => p.d <= 0);
-  const future = pts.filter((p) => p.d >= 0);
-  const values = (xs: typeof pts) => xs.flatMap((p) => (p.r == null ? [] : [p.r]));
-  const pastG = levelGradient(`mr-past-${uid}`, values(past));
-  const futureG = levelGradient(`mr-future-${uid}`, values(future));
-  const today = pts.find((p) => p.d === 0)?.r ?? null;
-  const lo = Math.min(0, ...pts.map((p) => p.d));
-  const hi = Math.max(0, ...pts.map((p) => p.d));
-  const dateOf = (d: number) =>
-    new Date(nowMs + d * 86_400_000).toLocaleDateString(locale, {
-      month: "numeric",
-      day: "numeric",
-    });
-  return (
-    <div className="h-36 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart margin={{ top: 20, right: 14, bottom: 0, left: -18 }}>
-          <defs>
-            {pastG.def}
-            {futureG.def}
-          </defs>
-          <CartesianGrid vertical={false} stroke="var(--border)" />
-          <XAxis
-            type="number"
-            dataKey="d"
-            domain={[lo, hi]}
-            ticks={[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i)}
-            interval={0}
-            tickLine={false}
-            axisLine={{ stroke: "var(--border)" }}
-            tickFormatter={(v: number) => (v === 0 ? t("rv.today") : dateOf(v))}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-          />
-          <YAxis
-            domain={[0, 100]}
-            ticks={[0, 50, 100]}
-            tickFormatter={(v) => `${v}%`}
-            tickLine={false}
-            axisLine={false}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-          />
-          <Line
-            data={future}
-            dataKey="r"
-            type="linear"
-            stroke={futureG.stroke}
-            strokeWidth={2.5}
-            strokeDasharray="6 5"
-            strokeLinecap="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          <Line
-            data={past}
-            dataKey="r"
-            type="linear"
-            stroke={pastG.stroke}
-            strokeWidth={3}
-            strokeLinejoin="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          {today != null && (
-            <ReferenceDot
-              x={0}
-              y={today}
-              r={6}
-              fill={`var(--mem-${levelOfR(today)})`}
-              stroke="var(--card)"
-              strokeWidth={3}
-              label={{
-                value: t("curve.todayPct", { pct: today }),
-                position: "top",
-                fill: "var(--foreground)",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 /**
  * 出す語が無いときの画面。

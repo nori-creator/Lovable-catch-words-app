@@ -4511,7 +4511,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 写しが残っていないこと。
     for (const file of [
       "routes/_authenticated/review.tsx",
-      "components/ForgettingCurveChart.tsx",
+      // 計算はグラフの部品から分けた（起動時に recharts を読まないため）。
+      "lib/memory-curve-from.ts",
     ]) {
       const src = codeOnly(read(file));
       expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
@@ -5412,7 +5413,9 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
     expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
     // 全体のグラフも同じ。
-    const mini = review.slice(review.indexOf("export function MiniRetentionGraph"));
+    // 全体のグラフは部品に分けた（押すまで読み込まない。2026-09-27）。
+    const miniSrc = read("components/MiniRetentionGraph.tsx");
+    const mini = miniSrc.slice(miniSrc.indexOf("export function MiniRetentionGraph"));
     const miniLines = mini.slice(mini.indexOf("<LineChart"), mini.indexOf("</LineChart>"));
     expect(miniLines.match(/strokeDasharray=/g)?.length).toBe(1);
     expect(miniLines).not.toMatch(/ReferenceLine/);
