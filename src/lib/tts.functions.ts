@@ -137,17 +137,17 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     // Cache writes go through the service role: the shared tts cache must not
     // be client-writable (audio poisoning would corrupt pronunciations for
     // everyone), and the user role has read-only storage access to this bucket.
+    //
+    // **作った音はそのまま返す**（オーナー指示 2026-09-27「音声は速さ最優先」）。
+    // 前は 保存 → 署名付きの URL を作る → 端末がその URL からもう一度落とす、
+    // の3往復を待ってから鳴っていた。音は手元にあるので、保存が済んだら
+    // そのまま渡す（署名とダウンロードの2往復が消える）。次からは保存した
+    // 物が上の「貯めてある」道で返る。
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: upErr } = await supabaseAdmin.storage.from("tts").upload(path, buf, {
+    await supabaseAdmin.storage.from("tts").upload(path, buf, {
       contentType: "audio/mpeg",
       upsert: true,
     });
-    if (!upErr) {
-      const { data: signed } = await supabase.storage
-        .from("tts")
-        .createSignedUrl(path, SIGNED_URL_TTL);
-      if (signed?.signedUrl) return { audio_url: signed.signedUrl };
-    }
 
     let binary = "";
     for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
