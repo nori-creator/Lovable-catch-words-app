@@ -4956,11 +4956,12 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-25 の回: チャンクの形・発音ボタン・登録前の見本・ガラスの試作4面。
+    // 2026-09-27 の回: チャンクの形とガラスの本番化（試作の切り替えは外した）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "chunk-designs"/);
-    expect(list).toMatch(/\{ scene: "word-card"/);
-    expect(list).toMatch(/\{ scene: "first-catch&step=camera&fail=guest"/);
-    expect((list.match(/scene: "[\w-]+&glass=1"/g) ?? []).length).toBe(4);
+    expect(list).toMatch(/\{ scene: "capture-object"/);
+    expect(list).not.toMatch(/glass=1/);
+    expect(main).not.toMatch(/dataset\.glass/);
+    expect(read("styles.css")).not.toMatch(/data-glass/);
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(8);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。

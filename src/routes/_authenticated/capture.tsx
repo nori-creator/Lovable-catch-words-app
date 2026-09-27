@@ -1828,6 +1828,7 @@ export function PickWordPanel({
             onChange={(e) => setManualWord(e.target.value)}
             placeholder={t("cap.wordPlaceholder")}
             enterKeyHint="search"
+            className="search-field"
           />
           <Button type="submit" disabled={!manualWord.trim()} className="gap-1.5">
             <Search className="h-4 w-4" />
@@ -2407,7 +2408,7 @@ export function CaptureObjectPanel({
                 aria-label={t("capture.typeWord")}
                 enterKeyHint="search"
                 disabled={searching}
-                className="h-11 rounded-xl border-background/15 bg-background pl-9 text-foreground"
+                className="search-field h-11 rounded-xl pl-9 text-foreground"
               />
             </div>
             {/*

@@ -330,7 +330,7 @@ function DexPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("dex.search")}
               aria-label={t("dex.searchAria")}
-              className="rounded-full pl-9 pr-11"
+              className="search-field rounded-full pl-9 pr-11"
             />
             {search && (
               <button

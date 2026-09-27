@@ -7933,25 +7933,24 @@ html[data-motion="reduce"] .dex-pin {
   top: -5px;
 }
 
-/* ── ガラスの試作（オーナー指示 2026-09-25「チャンクのガラスのデザイン、
-   このアプリのどこに適用できるか全て調べて…実際に試作してみて」）──
+/* ── ガラス（オーナー指示 2026-09-25 で試作、2026-09-27「すべてに適用して」で本番）──
 
    チャンクの札と同じ作り方: **色の透けた面 ＋ 上の縁の光 ＋ 色の影**、
-   押すと沈んでばねで弾む。`html[data-glass="on"]` の間だけ効く
-   （確認用ページの「ガラス案」の切り替え）。本番には何も起きない。
+   押すと沈んでばねで弾む。
 
    Apple の指針（Liquid Glass）どおり、**ガラスにするのは押す物・浮いている
    物だけ**。本文・写真・カードの地はガラスにしない — 全部がガラスだと、
-   どれが押せるのかが分からなくなる。 */
-html[data-glass="on"] {
+   どれが押せるのかが分からなくなる（本文・写真・カードの地に当てた案は
+   確認用ページで別に見せる）。 */
+:root {
   --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.85);
   --glass-press: translateY(1px) scale(0.96);
 }
-html[data-glass="on"].dark {
+html.dark {
   --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.16);
 }
 /* 1. 下のバー: 選ばれている印を、色の透けたガラスの丸に。 */
-html[data-glass="on"] .tabbar .sliding-indicator {
+html .tabbar .sliding-indicator {
   background: linear-gradient(
     160deg,
     color-mix(in oklab, var(--primary) 30%, white),
@@ -7962,7 +7961,7 @@ html[data-glass="on"] .tabbar .sliding-indicator {
     var(--glass-hi),
     0 8px 16px -10px color-mix(in oklab, var(--primary) 70%, transparent);
 }
-html[data-glass="on"].dark .tabbar .sliding-indicator {
+html.dark .tabbar .sliding-indicator {
   background: linear-gradient(
     160deg,
     color-mix(in oklab, var(--primary) 40%, var(--card)),
@@ -7970,9 +7969,17 @@ html[data-glass="on"].dark .tabbar .sliding-indicator {
   );
   border-color: color-mix(in oklab, var(--primary) 40%, transparent);
 }
+/* **アイコンと字を印の上に出す**（オーナー指摘 2026-09-27「下のバーは
+   アイコンのところにするとアイコンが潰れてる」）。印は絶対配置なので、
+   位置を持たない升目より**後から**描かれ、ガラスの地がアイコンと字を
+   塗りつぶしていた。升目を積み重ねの上の段に上げる。 */
+.tabbar__cell {
+  position: relative;
+  z-index: 1;
+}
 /* 2. 設定: 選ばれている丸は濃いガラス（白い字が乗るので色は濃いまま）、
       選ばれていない丸と選び欄は、うっすら色の付いたガラス。 */
-html[data-glass="on"] [role="radiogroup"] .sliding-indicator:not(.tabbar *):not(.camera-modes *) {
+html [role="radiogroup"] .sliding-indicator:not(.tabbar *):not(.camera-modes *) {
   background: linear-gradient(
     160deg,
     color-mix(in oklab, var(--primary) 88%, white),
@@ -7982,8 +7989,8 @@ html[data-glass="on"] [role="radiogroup"] .sliding-indicator:not(.tabbar *):not(
     inset 0 1px 0 rgb(255 255 255 / 0.45),
     0 10px 18px -10px color-mix(in oklab, var(--primary) 80%, transparent);
 }
-html[data-glass="on"] .seg-option,
-html[data-glass="on"] .picker-field {
+html .seg-option,
+html .picker-field {
   background: linear-gradient(
     160deg,
     var(--card),
@@ -7994,12 +8001,12 @@ html[data-glass="on"] .picker-field {
     var(--glass-hi),
     0 6px 14px -10px color-mix(in oklab, var(--primary) 45%, transparent);
 }
-html[data-glass="on"] .seg-option[aria-checked="true"] {
+html .seg-option[aria-checked="true"] {
   background: transparent;
   box-shadow: none;
 }
 /* 3. カメラ: 撮り方の印と、左右の箱を、暗い景色の上の白いガラスに。 */
-html[data-glass="on"] .camera-modes .sliding-indicator {
+html .camera-modes .sliding-indicator {
   /* アプリの青を透かす（前の印が紺の丸だったので、色味はそれに合わせる）。 */
   background: linear-gradient(
     160deg,
@@ -8013,13 +8020,13 @@ html[data-glass="on"] .camera-modes .sliding-indicator {
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   backdrop-filter: blur(14px) saturate(160%);
 }
-html[data-glass="on"] .camera-side__box {
+html .camera-side__box {
   background: linear-gradient(160deg, rgb(255 255 255 / 0.24), rgb(255 255 255 / 0.08));
   border-color: rgb(255 255 255 / 0.32);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
 }
 /* 4. 復習: 4択の答えと、上の切り替え（自動・話す・4択）の印。 */
-html[data-glass="on"] .quiz-choice:not(:disabled) {
+html .quiz-choice:not(:disabled) {
   background: linear-gradient(
     160deg,
     var(--card),
@@ -8030,7 +8037,7 @@ html[data-glass="on"] .quiz-choice:not(:disabled) {
     var(--glass-hi),
     0 8px 18px -12px color-mix(in oklab, var(--primary) 55%, transparent);
 }
-html[data-glass="on"] .mode-thumb {
+html .mode-thumb {
   background: linear-gradient(
     160deg,
     color-mix(in oklab, var(--primary) 22%, white),
@@ -8040,8 +8047,24 @@ html[data-glass="on"] .mode-thumb {
     var(--glass-hi),
     0 6px 12px -8px color-mix(in oklab, var(--primary) 60%, transparent);
 }
+/* 5. 検索欄（図鑑・カメラの検索・候補に無い語）: 押せる物と同じ薄いガラス。
+      字を打つ欄なので、地は透かしすぎず読める濃さを保つ。 */
+.search-field {
+  background: linear-gradient(
+    160deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 7%, var(--card))
+  );
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+  box-shadow:
+    var(--glass-hi),
+    0 6px 14px -10px color-mix(in oklab, var(--primary) 50%, transparent);
+}
+.search-field:focus-visible {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+}
 /* どれも、押すと沈んでばねで弾む（チャンクの札と同じ手応え）。 */
-html[data-glass="on"]
+html
   :is(
     .tabbar__cell,
     .seg-option,
@@ -8055,7 +8078,7 @@ html[data-glass="on"]
   transition-duration: 0.35s;
   transition-timing-function: var(--spring-bounce);
 }
-html[data-glass="on"]
+html
   :is(
     .tabbar__cell,
     .seg-option,
@@ -8068,7 +8091,7 @@ html[data-glass="on"]
   transform: var(--glass-press);
   transition-duration: 0.08s;
 }
-html[data-glass="on"][data-motion="reduce"]
+html[data-motion="reduce"]
   :is(
     .tabbar__cell,
     .seg-option,

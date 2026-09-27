@@ -24,6 +24,7 @@ import {
   PickWordPanel,
   ReencounterPanel,
 } from "@/routes/_authenticated/capture";
+import { CameraModeStrip, CameraShutter } from "@/components/CameraChrome";
 
 const shot = (w: number, h: number, c: string) =>
   "data:image/svg+xml;utf8," +
@@ -147,15 +148,56 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * **払って「スキャン」へ行けること**を確認用ページでも見せる（オーナー指摘
+   * 2026-09-27「カメラはスキャンにスライドできない」）。本物はスキャンの画面
+   * （別の道筋）へ渡すが、ここには道筋が無いので、同じ帯を持つ暗い面に
+   * 切り替える。戻る向きに払うと撮る画面に帰る。
+   */
+  const [scan, setScan] = useState(false);
+  const [back, setBack] = useState<"photo" | "search">(
+    q.get("mode") === "search" ? "search" : "photo",
+  );
+  if (scan) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          height: "100vh",
+          background: "#111318",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: "0 20px 120px",
+          gap: 12,
+        }}
+      >
+        <CameraModeStrip
+          mode="scan"
+          onChange={(m) => {
+            setBack(m === "search" ? "search" : "photo");
+            setScan(false);
+          }}
+        />
+        <div className="capture-actions">
+          <span />
+          <CameraShutter mode="scan" label="スキャン" onPress={() => {}} />
+          <span />
+        </div>
+      </div>
+    );
+  }
   return (
     <CaptureObjectPanel
+      key={back}
+      initialMode={back}
       retakeWord={v === "retake" ? "珍珠奶茶" : null}
       cameraInputRef={cameraInputRef}
       onObjectFile={() => {}}
       typedWord={typedWord}
       setTypedWord={setTypedWord}
       onSearch={() => {}}
-      onOpenScan={() => {}}
+      onOpenScan={() => setScan(true)}
       onOpenLibrary={() => {}}
       error={v === "error" ? "写真を読み込めませんでした" : null}
     />
