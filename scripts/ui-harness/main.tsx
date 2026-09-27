@@ -44,6 +44,7 @@ import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
+import { PageFlipScene } from "./scenes/page-flip";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -168,6 +169,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "place-notify-designs": PlaceNotifyDesignsScene,
   "candidate-designs": CandidateDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,
+  "page-flip": PageFlipScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -353,6 +355,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
   { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
   { scene: "home-ink", label: "試作: アルバムに書き込む（ペン・ラベル・形・色）" },
+  { scene: "page-flip", label: "試作: ページめくり（スマホ／折りたたみの見開き）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
