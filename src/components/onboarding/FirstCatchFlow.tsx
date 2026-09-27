@@ -501,7 +501,7 @@ export function FirstCatchFlow({
       )}
       {!error && !landing && draft.stage === "home" && (
         <Spotlight
-          target={homeGuide === "album" ? '[data-tour="home"]' : '[data-tour="tab-camera"] .tabbar__lens'}
+          target={homeGuide === "album" ? '[data-tour="home"] .collage-board' : '[data-tour="tab-camera"] .tabbar__lens'}
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
           step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
