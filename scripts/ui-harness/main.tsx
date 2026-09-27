@@ -42,6 +42,7 @@ import { ScanBottomScene } from "./scenes/scan-bottom";
 import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
@@ -161,6 +162,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "glass-surfaces": GlassSurfacesScene,
   "category-sheet": CategorySheetScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
+  "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
   "capture-pick": CapturePickScene,
@@ -331,6 +333,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
   { scene: "home-album", label: "アルバム（重ならない配置）" },
   { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
+  { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
