@@ -11,6 +11,7 @@ import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
 import {
+  useCallback,
   useMemo,
   useState,
   useEffect,
@@ -28,6 +29,7 @@ import {
   X,
   Volume2,
   MapPin,
+  Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
@@ -51,6 +53,9 @@ import { FilterMenu } from "@/components/FilterMenu";
 import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
+import { CategorySheet } from "@/components/CategorySheet";
+import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
+import { useCategories } from "@/lib/use-categories";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
@@ -127,6 +132,18 @@ function DexPage() {
     gcTime: 30 * 60 * 1000,
   });
   const shelves = useMemo(() => shelfData?.shelves ?? [], [shelfData]);
+  /**
+   * カテゴリーの見出し・絞り込み・検索は、**その人が移した先と付け直した名前**
+   * で組む（オーナー指示 2026-09-27「カテゴリーの名前を変更したり、作成したり、
+   * 写真のカテゴリーを移動したり」）。
+   */
+  const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
+  const displayOf = useCallback(
+    (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`)),
+    [shelves, t],
+  );
+  const cats = useCategories();
+  const [manageCats, setManageCats] = useState(false);
   // Memoize so the reference is stable across renders — otherwise `filtered`
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
@@ -273,8 +290,8 @@ function DexPage() {
       // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
       // category_key は "kitchenware" のような英語キーなので、それだけでは
       // 「調理器具」と打っても引っかからなかった。
-      const catKey = (w.category_key ?? "").toString();
-      const catLabel = t(categoryLabelKey(catKey));
+      const catKey = stickerCategoryKey(s, userCatKeys);
+      const catLabel = displayOf(catKey).label;
       return (
         w.headword?.toLowerCase().includes(q) ||
         w.reading_zhuyin?.toLowerCase().includes(q) ||
@@ -284,17 +301,17 @@ function DexPage() {
         catLabel.toLowerCase().includes(q)
       );
     });
-  }, [captured, search, filter, t]);
+  }, [captured, search, filter, userCatKeys, displayOf]);
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const s of filtered) {
-      const k = asCategoryKey(s.word.category_key);
+      const k = stickerCategoryKey(s, userCatKeys);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
-  }, [filtered]);
+  }, [filtered, userCatKeys]);
 
   return (
     // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
@@ -314,6 +331,11 @@ function DexPage() {
           onFilter={setFilter}
           categories={catOptions}
           days={dOptions}
+          categoryLabel={(k) => {
+            const d = displayOf(k);
+            return `${d.emoji} ${d.label}`;
+          }}
+          onManageCategories={() => setManageCats(true)}
         />
 
         {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
@@ -419,7 +441,7 @@ function DexPage() {
               <h3 className="text-body font-semibold tracking-tight">
                 {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
-                {categoryEmoji(key)} {t(categoryLabelKey(key))}
+                {displayOf(key).emoji} {displayOf(key).label}
               </h3>
               <span className="text-footnote text-muted-foreground">{items.length}</span>
             </div>
@@ -516,6 +538,15 @@ function DexPage() {
         ))
       )}
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      {manageCats && (
+        <CategorySheet
+          usedKeys={catOptions.map((o) => o.key)}
+          userCategories={cats.categories}
+          onSave={cats.save}
+          onDelete={cats.remove}
+          onClose={() => setManageCats(false)}
+        />
+      )}
       <style>{`
         /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
            「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
@@ -914,6 +945,8 @@ export function DexHeader({
   onFilter,
   categories,
   days,
+  categoryLabel,
+  onManageCategories,
 }: {
   found: number;
   caught: number;
@@ -923,6 +956,10 @@ export function DexHeader({
   onFilter: (f: DexFilter) => void;
   categories: readonly FilterOption[];
   days: readonly FilterOption[];
+  /** カテゴリーの見出し（その人が付け直した名前を含む）。無ければ既定の名前。 */
+  categoryLabel?: (key: string) => string;
+  /** カテゴリーの一覧と編集を開く（2026-09-27）。 */
+  onManageCategories?: () => void;
 }) {
   const t = useT();
   return (
@@ -989,7 +1026,9 @@ export function DexHeader({
               value={filter.category}
               options={categories}
               allLabel={t("dex.allCategories")}
-              labelOf={(k) => `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`}
+              labelOf={(k) =>
+                categoryLabel ? categoryLabel(k) : `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`
+              }
               onChange={(category) => onFilter({ ...filter, category })}
             />
             <FilterMenu
@@ -1005,6 +1044,18 @@ export function DexHeader({
                 **字ではなく×だけ**にする — 文字で置くと2つのボタンと
                 並びきらず、欄の中で4行目に折り返していた(絵で見つけた)。
                 読み上げには `aria-label` で同じことを言う。 */}
+            {/* カテゴリーを作る・名前を変える（オーナー指示 2026-09-27）。 */}
+            {onManageCategories && (
+              <button
+                type="button"
+                onClick={onManageCategories}
+                aria-label={t("catEdit.manage")}
+                title={t("catEdit.manage")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+              >
+                <Pencil className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             {isFiltering(filter) && (
               <button
                 onClick={() => onFilter(NO_FILTER)}

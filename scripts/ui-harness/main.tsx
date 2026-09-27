@@ -40,6 +40,7 @@ import {
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
 import { GlassSurfacesScene } from "./scenes/glass-surfaces";
+import { CategorySheetScene } from "./scenes/category-sheet";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
@@ -157,6 +158,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
   "glass-surfaces": GlassSurfacesScene,
+  "category-sheet": CategorySheetScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
   "capture-pick": CapturePickScene,
@@ -323,6 +325,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "capture-object", label: "カメラ（枠・払ってスキャンへ）" },
   { scene: "scan-bottom", label: "スキャン（上下の余白）" },
   { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
+  { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },

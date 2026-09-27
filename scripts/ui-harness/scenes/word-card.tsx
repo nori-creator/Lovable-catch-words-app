@@ -313,6 +313,8 @@ const shot = (w: number, h: number, c: string) =>
 
 const STICKER = {
   id: "s1",
+  // 自分の札として開く（カテゴリーを変える札が出る。2026-09-27）。
+  is_owner: true,
   word_id: "w1",
   created_at: "2026-08-01T12:30:00Z",
   taken_at: "2026-08-01T12:30:00Z",
