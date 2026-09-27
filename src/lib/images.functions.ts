@@ -3,6 +3,12 @@ import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { commonsCandidates, commonsSearchUrl, type CommonsResponse } from "./commons-images";
+import {
+  DEFAULT_LOVABLE_IMAGE_MODEL,
+  imagePrompt,
+  pickOpenRouterImage,
+  readImageConfig,
+} from "./image-provider";
 
 export type ImageCandidate = {
   url: string;
@@ -26,6 +32,14 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ candidates: ImageCandidate[] }> => {
     const key = process.env.UNSPLASH_ACCESS_KEY;
     const candidates: ImageCandidate[] = [];
+    const imageConfig = readImageConfig(process.env);
+
+    // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
+    // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
+    if (imageConfig.mode === "ai-first") {
+      const ai = await generateOneAiImage(data.query);
+      if (ai) candidates.push(ai);
+    }
 
     if (key) {
       try {
@@ -70,7 +84,7 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
      * コモンズは鍵が要らず、素性のはっきりした自由利用の画像がある。
      * 街で見かける具体的な物には特に強い。読み替えは `commons-images.ts`。
      */
-    if (candidates.length === 0) {
+    if (candidates.every((c) => c.source === "ai")) {
       try {
         const res = await fetch(commonsSearchUrl(data.query), {
           // コモンズは名乗らない相手を弾くことがある。
@@ -96,7 +110,60 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
     return { candidates: candidates.slice(0, 6) };
   });
 
-async function generateOneAiImage(prompt: string): Promise<ImageCandidate | null> {
+/**
+ * AI で1枚作る。**どこで作るかは設定で切り替える**（`image-provider.ts`）。
+ * どこで失敗しても `null` — 画面は写真の候補だけで続ける。
+ */
+async function generateOneAiImage(query: string): Promise<ImageCandidate | null> {
+  const config = readImageConfig(process.env);
+  if (config.provider === "off") return null;
+  if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
+  return generateWithLovable(query);
+}
+
+async function generateWithOpenRouter(
+  query: string,
+  model: string,
+): Promise<ImageCandidate | null> {
+  const { findKey } = await import("./ai-provider.server");
+  const key = findKey("openrouter")?.value;
+  if (!key) return null;
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const prompt = imagePrompt(query);
+  try {
+    // Seedream のような絵だけの型は**専用の口**でしか受けない。
+    let res = await fetch("https://openrouter.ai/api/v1/images", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model, prompt }),
+      signal: AbortSignal.timeout(40_000),
+    });
+    // 専用の口が無い型（会話で絵も返す型）は、会話の口で頼み直す。
+    if (!res.ok && res.status >= 400 && res.status < 500) {
+      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          modalities: ["image", "text"],
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: AbortSignal.timeout(40_000),
+      });
+    }
+    if (!res.ok) {
+      console.warn("openrouter image failed", res.status);
+      return null;
+    }
+    const url = pickOpenRouterImage(await res.json());
+    return url ? { url, thumb: url, source: "ai" } : null;
+  } catch (e) {
+    console.warn("openrouter image failed", e);
+    return null;
+  }
+}
+
+async function generateWithLovable(prompt: string): Promise<ImageCandidate | null> {
   const lovableKey = process.env.LOVABLE_API_KEY;
   if (!lovableKey) return null;
   try {
@@ -107,8 +174,8 @@ async function generateOneAiImage(prompt: string): Promise<ImageCandidate | null
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-image-1-mini",
-        prompt: `A clear, minimalistic photo-realistic image representing: ${prompt}. Plain background, centered subject.`,
+        model: DEFAULT_LOVABLE_IMAGE_MODEL,
+        prompt: imagePrompt(prompt),
         quality: "low",
         size: "1024x1024",
       }),
