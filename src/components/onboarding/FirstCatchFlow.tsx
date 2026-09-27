@@ -13,7 +13,7 @@ import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
-import { firstCatchAI } from "@/lib/first-catch-ai.functions";
+import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
@@ -43,12 +43,18 @@ export type FirstCatchServices = {
 };
 
 export function FirstCatchEntry() {
-  const ai = useServerFn(firstCatchAI);
+  const guestAI = useServerFn(firstCatchAI);
+  const memberAI = useServerFn(firstCatchMemberAI);
   const navigate = useNavigate();
   return (
     <FirstCatchFlow
       services={createFirstCatchServices(
-        (data) => ai({ data }),
+        async (data) => {
+          const { data: auth } = await supabase.auth.getUser();
+          return auth.user && !auth.user.is_anonymous
+            ? memberAI({ data })
+            : guestAI({ data });
+        },
         async () => {},
       )}
       onAccount={() => {

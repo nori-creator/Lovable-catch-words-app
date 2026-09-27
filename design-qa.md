@@ -1,26 +1,21 @@
-# First-run design QA
+# First-run design QA — PR #114
 
-final result: passed
+## Review target
 
-## Comparison
+[Deploy Preview](https://deploy-preview-114--catchwords.netlify.app/) opens the first-run flow. The top review strip links directly to questions, Home, Dex, review, and the full-screen account page; it is present only in the harness, not in the app. The user-supplied September 2026 welcome, question, notification, ready and tutorial screenshots guided the typography, spacing and photo direction. The blue mascot, streaks and unsupported Spanish option were excluded.
 
-- Source: the user-supplied screenshots `01-1000039657.png` (intro), `02-1000039658.png` (notifications), and `03-1000039659.png` (ready). The source images include simulated iOS chrome, a blue character, and controls for features this Web app does not currently deliver.
-- Rendered: [PR #106 Deploy Preview](https://deploy-preview-106--catchwords.netlify.app/), with direct fixtures `/?step=notifications`, `/?step=ready`, `/?step=home`, and `/?step=dex`. The implementation was visually captured as a 460 × 900 CSS pixel center crop; the source is a higher density phone mockup. The comparisons use the content inside the screen, excluding device chrome and preview labels.
+## Findings and changes
 
-## Findings and iteration
+- The former `/onboarding` scan instruction was still reached when a direct signup produced a profile with `onboarded=false`. The authenticated layout now routes that profile to `/welcome`, while an already completed first Catch transfers before Home. The legacy URL redirects and no longer renders its old card.
+- A signup with email confirmation pending now enters the questions without waiting for the email link. A signed-in direct signup completes the same tutorial and transfers its photographed word without a second signup. Authenticated tutorial AI requests use the per-account metered route; signed-out requests use the capped guest route.
+- Welcome uses four generated photographs also present in the sample Home album, with varied sizes, angles and staggered entry. The account screen uses the same assets in a full-screen layout.
+- Questions retain their flags and animated selection. The real Home, capture panel, Dex cover/gallery/map/list components, word card and four-choice review are reused. A short unobscured preview precedes each spotlight. The transformed shell had displaced the real fixed tab bar; its entrance motion is now applied to the main content instead.
+- The album sample is populated before capture, and the first photo is added to the local Dex before review and account creation. Preview fixtures are visual examples; they do not replace AI analysis of a live photograph.
 
-- **P2, intro photo balance — fixed.** The first rendered 3-photo group was too small and the cat card obscured the coffee label. Increased the group height and moved the smaller cat card beneath the coffee card. The final preview shows all three images and readable labels above the CTA.
-- **P2, copy/feature promise — fixed.** The notifications page could imply scheduled delivery already existed. The final copy says preferences are saved on sign-up and scheduled reminders are in preparation.
-- **P3, accepted differences.** The exact cafe, flowers, cat, and seaside photo subjects differ from the reference; each is an individually generated photograph with the same bright lifestyle direction. The existing square app icon is used for brand consistency. The blue character and weekly report have been omitted as requested or unsupported. The preview alone shows a sample-state banner above the app.
+## Verification
 
-## Fidelity checks
+- TypeScript, production build, harness build, i18n check and all 2,213 unit tests passed locally.
+- The published preview was inspected for welcome collage, flagged questions, Home album and full-screen account layout. The final navigation and tab-bar refinements require the next preview refresh.
+- A real email/OAuth signup, camera permission and AI image analysis were not executed against a production account. They depend on the deployment's Supabase and AI configuration and must be exercised with a genuine new account before merge.
 
-| Surface | Result |
-| --- | --- |
-| Typography | Dark navy Japanese headings, restrained gray descriptions, and blue CTAs preserve the mockup hierarchy; line breaks stay readable in the narrow screen. |
-| Layout and spacing | Intro photos now have a balanced overlapping arrangement. Notification choices have consistent left icons and right toggles; the ready photo is centered with space for the bottom CTA. |
-| Color and tokens | White and pale-blue background, bright blue emphasis, subtle card outlines and shadows match the supplied direction. |
-| Imagery | Generated photo assets load sharply in the introduction, ready screen, Home album, and sample Dex. Actual captures replace the sample content after the first Catch. |
-| Copy and behavior | Japanese text explains each step in ordinary terms; sample albums are labeled. Intro → five questions → notifications → ready → guided Home and Dex was exercised in the Deploy Preview. The user cannot enter account creation before the real first word is saved to the Dex. |
-
-No remaining P0/P1/P2 design findings in the compared states. Scheduled reminder delivery and device notification permissions are separate future product work; this page stores preferences only.
+Do not merge PR #114 before the owner visually approves the Deploy Preview, per `AGENTS.md`.

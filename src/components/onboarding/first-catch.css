@@ -378,7 +378,7 @@
   min-height: 100dvh;
   padding-bottom: 110px;
 }
-.first-run[data-first-stage] > .first-shell {
+.first-run[data-first-stage] > .first-shell > main {
   animation: first-stage-enter 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes first-stage-enter {
@@ -827,8 +827,8 @@
   font-weight: 750;
   align-self: flex-start;
 }
-.first-polaroid-0 { left: 2%; top: 3%; width: 53%; height: 47%; rotate: -7deg; z-index: 2; }
-.first-polaroid-1 { right: 2%; top: 11%; width: 48%; height: 43%; rotate: 8deg; z-index: 1; }
+.first-polaroid-0 { left: 0; top: 3%; width: 50%; height: 47%; rotate: -7deg; z-index: 2; }
+.first-polaroid-1 { right: 0; top: 11%; width: 44%; height: 43%; rotate: 8deg; z-index: 1; }
 .first-polaroid-2 { left: 8%; bottom: 3%; width: 45%; height: 43%; rotate: 5deg; z-index: 4; }
 .first-polaroid-3 { right: 4%; bottom: 2%; width: 53%; height: 44%; rotate: -6deg; z-index: 3; }
 

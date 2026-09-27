@@ -315,9 +315,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "first-catch&step=questions", label: "質問" },
   { scene: "first-catch&step=home", label: "ホーム" },
   { scene: "first-catch&step=dex", label: "図鑑をスライド" },
-  { scene: "first-catch&step=explore", label: "単語の詳細" },
   { scene: "first-catch&step=review", label: "復習を体験" },
-  { scene: "first-catch&step=complete", label: "完了・登録" },
   { scene: "first-catch&step=account", label: "登録・ログイン" },
 ];
 
