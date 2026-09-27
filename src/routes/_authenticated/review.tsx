@@ -9,9 +9,17 @@ import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session"
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
+/**
+ * 外したときに開く単語の詳細（オーナー指示 2026-09-27「復習で不正解の場合、
+ * 単語の詳細に飛べるボタン」）。**画面を移らずに上に重ねる** — 移ると
+ * 今日の復習の途中から外れる。重い部品なので、押すまで読み込まない。
+ */
+const StickerSheet = lazy(() =>
+  import("@/components/StickerSheet").then((m) => ({ default: m.StickerSheet })),
+);
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
 import { PronounceButton } from "@/components/PronounceButton";
 import { BadgeIcon } from "@/components/SectionIcon";
@@ -1966,6 +1974,7 @@ export function LightModeCard({
   /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
   const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
   const [picked, setPicked] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const startedAt = useRef<number>(Date.now());
   /**
    * 答え合わせの面が覆う高さ。**測った値を使う。**
@@ -2304,17 +2313,38 @@ export function LightModeCard({
 
                 <AnswerExplain card={card} />
 
-                <button
-                  // **`onClick={onNext}` と書かない。** クリックの event が
-                  // 第1引数に渡り、`correct` として truthy に見えるので、
-                  // 不正解も正解として数えられてしまう。
-                  onClick={() => onNext(correct)}
-                  className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
-                >
-                  {t("review.next")}
-                </button>
+                <div className="mt-2 flex gap-2">
+                  {/* 外したときだけ、詳細へ（上に重ねて開く。閉じればここに戻る）。 */}
+                  {!correct && (
+                    <button
+                      type="button"
+                      onClick={() => setDetailOpen(true)}
+                      className="min-h-11 flex-1 rounded-xl border border-border bg-card py-3 text-body font-semibold text-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                    >
+                      {t("review.openDetail")}
+                    </button>
+                  )}
+                  <button
+                    // **`onClick={onNext}` と書かない。** クリックの event が
+                    // 第1引数に渡り、`correct` として truthy に見えるので、
+                    // 不正解も正解として数えられてしまう。
+                    onClick={() => onNext(correct)}
+                    className="min-h-11 flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                  >
+                    {t("review.next")}
+                  </button>
+                </div>
               </div>
             </div>,
+            document.body,
+          )}
+        {/* 答え合わせの面と同じ理由で `document.body` へ出す（`SwipeCard` の
+            `will-change: transform` の中では全画面に広がらない）。 */}
+        {detailOpen &&
+          createPortal(
+            <Suspense fallback={null}>
+              <StickerSheet stickerId={card.sticker_id} onClose={() => setDetailOpen(false)} />
+            </Suspense>,
             document.body,
           )}
       </article>
