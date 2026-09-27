@@ -2588,20 +2588,22 @@
    このアプリで何度もやっている「同じ所を2箇所に書いて片方だけ直す」形。
    粒はこちらに畳み込み、あちらは消した。 */
 .album-bg-paper {
-  /* **本物の紙の凹凸**（オーナー指示 2026-09-27「設定の紙は、添付したバッグの
-     画像の紙の本物の質を再現し、アルバムの紙にもその紙質を使う」）。
-     参考の絵は白い水彩紙（コールドプレス）で、細かい凹凸に左上から光が
-     当たっている。乱れ模様を**高さ**として使い、光を当てて陰影を作る
-     （`feDiffuseLighting`）。色を塗った斑ではなく、紙の起伏そのもの。
-     端はつなぎ目が出ないよう `stitchTiles` で継ぐ。 */
-  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='p' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.11' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeDiffuseLighting surfaceScale='1.8' lighting-color='%23fff' diffuseConstant='1'%3E%3CfeDistantLight azimuth='225' elevation='55'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.42' intercept='0.585'/%3E%3CfeFuncG type='linear' slope='0.42' intercept='0.585'/%3E%3CfeFuncB type='linear' slope='0.42' intercept='0.58'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23p)'/%3E%3C/svg%3E");
+  /* **本物のノートの紙**（オーナー指示 2026-09-27「この紙ダサいからやっぱり
+     やめて。本物のノートブックのような紙の質にして」）。
+     水彩紙の凹凸（光を当てた起伏）はやめた。手帳の紙（ほぼ日・モレスキン）は
+     **滑らかで、わずかに温かい生成り色**、近くで見ると細かい粒と、漉いた方向に
+     流れる薄い繊維が見えるだけ。凹凸は付けない。 */
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.36 0 0 0 0 0.26 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)'/%3E%3C/svg%3E");
+  --paper-fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='f' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.18' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.39 0 0 0 0 0.29 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23f)'/%3E%3C/svg%3E");
   background:
     var(--paper-texture),
-    /* 光の当たり方のわずかなムラ（左上が明るい）。 */
-    radial-gradient(circle at 20% 10%, rgb(255 255 255 / 0.35), transparent 60%);
-  background-color: #f1f0ee;
+    var(--paper-fiber),
+    /* 光の当たり方のごく薄いムラ（左上がわずかに明るい）。 */
+    radial-gradient(130% 90% at 18% 8%, #fffdf8 0%, #fbf8f1 55%, #f5f1e7 100%);
+  background-color: #faf7f0;
   background-size:
-    256px 256px,
+    220px 220px,
+    360px 360px,
     auto;
 }
 /* 額縁。**絵画の額**（オーナー指示 2026-09-23）: 木の縁（外側が濃く、
