@@ -53,16 +53,36 @@ export function ZhuyinWord({
           <span key={i} className="zy-unit">
             <span className="zy-char">{u.char}</span>
             {u.zhuyin && (
+              /* 記号は左の列に縦に、声調は**右の列**に置く（2026-09-27、
+                 オーナー報告「注音や声調と漢字が被ってる」）。前は声調を
+                 最後の記号から絶対配置ではみ出させていたので、幅に数えられず
+                 次の字に重なっていた。列にすれば幅として確保される。 */
               <span className="zy-col" data-neutral={u.zhuyin.neutral ? "" : undefined}>
-                {u.zhuyin.neutral && <span className="zy-neutral">˙</span>}
-                {[...u.zhuyin.body].map((s, j, all) => (
-                  <span key={j} className="zy-sym">
+                {u.zhuyin.neutral && (
+                  <span className="zy-neutral" style={{ gridColumn: 1, gridRow: 1 }}>
+                    ˙
+                  </span>
+                )}
+                {[...u.zhuyin.body].map((s, j) => (
+                  <span
+                    key={j}
+                    className="zy-sym"
+                    style={{ gridColumn: 1, gridRow: j + 1 + (u.zhuyin!.neutral ? 1 : 0) }}
+                  >
                     {s}
-                    {j === all.length - 1 && u.zhuyin!.tone && (
-                      <span className="zy-tone">{u.zhuyin!.tone}</span>
-                    )}
                   </span>
                 ))}
+                {u.zhuyin.tone && (
+                  <span
+                    className="zy-tone"
+                    style={{
+                      gridColumn: 2,
+                      gridRow: u.zhuyin.body.length + (u.zhuyin.neutral ? 1 : 0),
+                    }}
+                  >
+                    {u.zhuyin.tone}
+                  </span>
+                )}
               </span>
             )}
           </span>
