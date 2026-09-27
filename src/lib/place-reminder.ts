@@ -22,6 +22,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { getUiLang, localeOf, tStatic } from "@/lib/i18n";
+import { fitsReaderLanguage } from "@/lib/meaning-language";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -277,7 +278,13 @@ export function buildMessage(m: NearbyMemoryLike): { title: string; body: string
   //
   // 母語が分からない札では問いを立てられないので、そのときだけ
   // 見出し語のまま出す(何も知らせないよりはよい)。
-  const ask = (m.meaning_ja ?? "").trim() || tStatic("place.thisWord");
+  //
+  // ## 「」の中も**表示言語**で（オーナー報告 2026-09-27「表示言語が英語の
+  // とき、通知の中の単語が日本語のまま」）。意味は作った日の表示言語で
+  // 保存されているので、合わなければ「この言葉」で問う（サーバの
+  // `nearby.functions.ts` が辞書から表示言語の意味を探してから渡す）。
+  const own = (m.meaning_ja ?? "").trim();
+  const ask = own && fitsReaderLanguage(own, getUiLang()) ? own : tStatic("place.thisWord");
 
   // ## 場所は**地名**で言う(オーナー指摘)
   // 「ここで撮った」では、通知を見た人がどこの話か分からない。

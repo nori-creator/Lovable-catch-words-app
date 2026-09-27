@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { fitsReaderLanguage } from "./meaning-language";
 
 /**
  * 「いまいる場所で撮った言葉」を探す。
@@ -66,7 +67,7 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
     const { data: rows, error } = await supabase
       .from("stickers")
       .select(
-        "id, lat, lng, location_name, created_at, object_image_url, cutout_image_url, placeholder_image_url, words(headword, meaning_ja)",
+        "id, lat, lng, location_name, created_at, object_image_url, cutout_image_url, placeholder_image_url, words(headword, language, meaning_ja)",
       )
       .eq("user_id", userId)
       .not("lat", "is", null)
@@ -87,7 +88,7 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
       object_image_url: string | null;
       cutout_image_url: string | null;
       placeholder_image_url: string | null;
-      words: { headword: string; meaning_ja: string | null } | null;
+      words: { headword: string; language: string | null; meaning_ja: string | null } | null;
     };
 
     const now = Date.now();
@@ -96,6 +97,7 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
       .map((r) => ({
         sticker_id: r.id,
         headword: r.words!.headword,
+        language: r.words!.language,
         meaning_ja: r.words!.meaning_ja,
         location_name: r.location_name,
         days_ago: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
@@ -121,12 +123,66 @@ export const getNearbyMemories = createServerFn({ method: "POST" })
     // 表示されてない」の正体がこれで、場所のバナーの写真も同じ理由で
     // ずっと出ていなかった(印のアイコンに落ちていた)。
     const { signUrlMap } = await import("./stickers.functions");
-    const urlMap = await signUrlMap(
-      supabase,
-      near.map((m) => m.image_url),
-    );
-    return near.map((m) => ({
+    const [urlMap, meaningOf] = await Promise.all([
+      signUrlMap(
+        supabase,
+        near.map((m) => m.image_url),
+      ),
+      readerMeanings(userId, near),
+    ]);
+    return near.map(({ language: _language, ...m }) => ({
       ...m,
+      meaning_ja: meaningOf(m),
       image_url: m.image_url ? (urlMap.get(m.image_url) ?? null) : null,
     }));
   });
+
+/**
+ * 通知の「」に入れる意味を**表示言語で**揃える（オーナー報告 2026-09-27
+ * 「表示言語が英語のとき、通知の中の単語が日本語のまま」）。
+ *
+ * 語の意味（`words.meaning_ja`）は**作った日の表示言語**で保存されている。
+ * 日本語で集めてから英語に切り替えた人には、通知の文だけ英語で、
+ * 「」の中が日本語になる。
+ *
+ * 1. 保存された意味が表示言語で書かれていれば、それを使う
+ * 2. 違えば、辞書（`dictionary_entries.meanings`）の表示言語の意味を使う
+ * 3. それも無ければ `null` — 通知は「この言葉」（表示言語）で問う
+ *
+ * **別の言語の意味をそのまま出すことはしない。**
+ */
+async function readerMeanings(
+  userId: string,
+  items: ReadonlyArray<{ headword: string; language: string | null; meaning_ja: string | null }>,
+): Promise<(m: { headword: string; meaning_ja: string | null }) => string | null> {
+  const { getExplanationLanguage } = await import("./ai-provider.server");
+  const reader = await getExplanationLanguage(userId);
+  const misfit = items.filter((m) => !fitsReaderLanguage(m.meaning_ja, reader));
+  const fromDictionary = new Map<string, string>();
+  if (misfit.length > 0) {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data } = await supabaseAdmin
+        .from("dictionary_entries")
+        .select("headword, meanings")
+        .in(
+          "headword",
+          misfit.map((m) => m.headword),
+        );
+      for (const row of (data ?? []) as Array<{
+        headword: string;
+        meanings: Record<string, string> | null;
+      }>) {
+        const v = (row.meanings?.[reader] ?? "").trim();
+        if (v && fitsReaderLanguage(v, reader)) fromDictionary.set(row.headword, v);
+      }
+    } catch {
+      /* 辞書が読めなければ「この言葉」で問う */
+    }
+  }
+  return (m) => {
+    const own = (m.meaning_ja ?? "").trim();
+    if (own && fitsReaderLanguage(own, reader)) return own;
+    return fromDictionary.get(m.headword) ?? null;
+  };
+}

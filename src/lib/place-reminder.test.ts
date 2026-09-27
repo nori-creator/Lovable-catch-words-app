@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   buildMessage,
   takenDateLabel,
@@ -44,6 +44,32 @@ describe("buildMessage — 答えを書かない", () => {
   it("母語が無ければ答えを明かさず汎用の問いを出す", () => {
     expect(buildMessage({ ...base, meaning_ja: null }).title).toContain("この言葉");
     expect(buildMessage({ ...base, meaning_ja: "   " }).title).not.toContain("珍珠奶茶");
+  });
+});
+
+/**
+ * オーナー報告 2026-09-27「表示言語が英語のとき、通知の中の単語が日本語の
+ * まま」。意味は作った日の表示言語で保存されているので、合わなければ
+ * 「この言葉」を表示言語で出す。
+ */
+describe("buildMessage — 「」の中も表示言語", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const asEnglish = () => {
+    const store = new Map([["ui-lang-v1", "en"]]);
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null });
+  };
+
+  it("英語の画面に日本語の意味を出さない", () => {
+    asEnglish();
+    const { title } = buildMessage(base);
+    expect(title).not.toContain("タピオカミルクティー");
+    expect(title).toContain("this word");
+  });
+
+  it("英語の意味なら英語の画面にそのまま出す", () => {
+    asEnglish();
+    expect(buildMessage({ ...base, meaning_ja: "bubble tea" }).title).toContain("bubble tea");
   });
 });
 
