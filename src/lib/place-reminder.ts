@@ -23,6 +23,7 @@
 import { Capacitor } from "@capacitor/core";
 import { getUiLang, localeOf, tStatic } from "@/lib/i18n";
 import { fitsReaderLanguage } from "@/lib/meaning-language";
+import { withDeadline } from "@/lib/deadline";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -205,13 +206,18 @@ export async function getCurrentPosition(): Promise<{ lat: number; lng: number }
       return { lat: pos.coords.latitude, lng: pos.coords.longitude };
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) return null;
-    return await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        () => resolve(null),
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 120_000 },
-      );
-    });
+    // 上限は約束の外でも数える（iPhone は許可を聞く間 `timeout` を数えない）。
+    return await withDeadline(
+      new Promise<{ lat: number; lng: number } | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 120_000 },
+        );
+      }),
+      8000,
+      null,
+    );
   } catch {
     return null;
   }
