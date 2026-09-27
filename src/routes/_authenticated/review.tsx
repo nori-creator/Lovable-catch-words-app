@@ -2247,10 +2247,15 @@ export function LightModeCard({
                     {/* **その語の字で組む**（`Term`）。候補の画面と同じ書体になる
                         — 以前は画面の言語（日本語）の書体で繁体字を出していた。 */}
                     {units ? (
+                      // **字と注音の大きさの比は、単語の詳細の見出しと同じ**（オーナー指示
+                      // 2026-09-27、絵つき）。見出しは 32px の字に 0.36 倍の注音。4択も
+                      // 同じ 32px（長い語は 26px）にして、注音の下限（11px）を外し、比を揃える。
                       <ZhuyinWord
                         units={units}
                         lang={card.language}
-                        className="block text-title font-semibold"
+                        className={`zy-word--balanced block font-semibold ${
+                          units.length > 4 ? "text-[26px]" : "text-hero"
+                        }`}
                       />
                     ) : (
                       <Term

@@ -8532,6 +8532,10 @@ html[data-motion="reduce"]
 .zy-sym {
   display: block;
 }
+/* 見出しと同じ比（字の 0.36 倍）。下限を置かない — 字が大きい所でだけ使う。 */
+.zy-word--balanced .zy-col {
+  font-size: 0.36em;
+}
 .zy-tone {
   /* 声調は最後の記号の横、やや上（台湾の教科書の置き方）。 */
   align-self: start;
