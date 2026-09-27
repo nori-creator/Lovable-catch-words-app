@@ -109,7 +109,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "twitter:description",
         content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
       },
-      { name: "theme-color", content: "#ff6f61" },
+      // **上の帯（端末の状態バー）の色は画面の地と同じに**（オーナー報告
+      // 2026-09-27「アプリの上部のオレンジ色おかしい」）。前は昔の
+      // ブランド色（#ff6f61）が残っていた。実際の色は下の `syncThemeColor` が
+      // 画面の地から毎回写す。ここは最初の一瞬のための値。
+      { name: "theme-color", content: "#f8fbfe" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Catchwords" },
@@ -225,6 +229,31 @@ function RootComponent() {
     initUiTheme();
     initUiPack();
   }, []);
+
+  /**
+   * 状態バーの色（`theme-color`）を**いまの画面の地**に合わせる。
+   * 明暗・UIテーマ・画面（図鑑の展示室など）で地が変わるので、html の
+   * 印（class / data-*）が変わるたびと、画面を移るたびに写し直す。
+   */
+  useEffect(() => {
+    const sync = () => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (!meta) return;
+      const pick = (el: Element | null) => (el ? getComputedStyle(el).backgroundColor : "");
+      const clear = (c: string) => !c || c === "transparent" || c === "rgba(0, 0, 0, 0)";
+      let c = pick(document.body);
+      if (clear(c)) c = pick(document.documentElement);
+      if (!clear(c)) meta.content = c;
+    };
+    sync();
+    const mo = new MutationObserver(() => requestAnimationFrame(sync));
+    mo.observe(document.documentElement, { attributes: true });
+    const off = router.subscribe("onResolved", () => requestAnimationFrame(sync));
+    return () => {
+      mo.disconnect();
+      off();
+    };
+  }, [router]);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
