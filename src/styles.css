@@ -6922,8 +6922,10 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   flex-direction: column;
   gap: 0.15rem;
   height: 100%;
-  width: 100%;
-  /* 写真と同じ約束（`.collage__cap` の注）。字だけの札も外半分に収める。 */
+  /* **字だけの札も細くしすぎない**（2026-09-27「文字が潰れないように」）。
+     枠が細い回に「腳/踏/車」と1字ずつ縦に折れていた。字の下限まで枠の外へ
+     広げる（右の列は左へ — 下の `margin-left` で右端を揃える）。 */
+  width: max(100%, var(--cap-min, 0px));
   max-width: var(--cap-w, 100%);
   /* **枠の上端から書く。** 写真の札と同じに字を枠の外へ出すと、枠のぶんの
      空白が字の上に残り、時刻が語から1行離れて別々の物に見えた。
@@ -6936,10 +6938,20 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 [data-col="r"] .collage__plain {
   align-items: flex-end;
   text-align: right;
-  margin-left: auto;
+  /* 枠より広げたぶんだけ左へ出す（右端を枠の右端に揃える）。 */
+  margin-left: calc(100% - max(100%, var(--cap-min, 0px)));
+}
+/* 語は1行のまま、狭いときは**時刻のほうを次の行へ**送る（2026-09-27、
+   320px の画面で「腳踏/車」と語が折れていた）。語そのものが欄より長い
+   ときだけ、欄の中で折る。 */
+.collage__plain .collage__cap-row {
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
 }
 .collage__plain-word {
-  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
+  word-break: keep-all;
   font-size: var(--text-title);
   font-weight: 700;
   line-height: 1.15;
@@ -6960,6 +6972,11 @@ html[data-motion="reduce"] .tabbar__lens--gone {
      潜って読めなくなる。台紙の幅から出した px を `--cap-w` で受け取る
      （% にすると札の幅に対する割合になってしまい、札ごとに幅が違う）。 */
   max-width: var(--cap-w, 100%);
+  /* **字の欄は細くしすぎない**（オーナー指示 2026-09-27「画像を小さくしても
+     文字は潰れたり隠れたりしないようにして」）。写真を指で小さくしても、
+     字はこの幅まで写真の外（外側の端から内へ）へ出て、語が「…」で切れない。
+     置き方の計算（`COLLAGE_CAP_MIN`）も同じ幅で場所を取ってある。 */
+  min-width: var(--cap-min, 0px);
 }
 /**
  * **字は紙の外側の端に寄せる。**
@@ -6990,9 +7007,12 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 /* **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23）。隣の列に潜る
    ときだけ外側へ寄せる（`captionAlign`、属性 `data-cap`）。 */
 [data-cap="c"] .collage__cap {
-  left: 0;
-  right: 0;
-  margin-inline: auto;
+  /* 真ん中に揃える。写真より字の下限が広いときも、写真の真ん中から左右へ
+     同じだけ出す（`left/right: 0` のままだと右へだけ伸びる）。 */
+  left: 50%;
+  right: auto;
+  width: 100%;
+  translate: -50% 0;
   text-align: center;
 }
 [data-cap="c"] .collage__cap-row {
