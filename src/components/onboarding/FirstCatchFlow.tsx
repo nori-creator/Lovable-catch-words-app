@@ -1,6 +1,7 @@
 import { FirstCatchDex, FirstCatchReview } from "./FirstCatchPractice";
 import { preloadFirstCatchImages } from "@/lib/first-catch-images";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { ScanEffect } from "@/components/ScanEffect";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
@@ -308,11 +309,19 @@ export function FirstCatchFlow({
     );
   if (busy && busy !== "save")
     return (
-      <FirstCatchShell>
+      <FirstCatchShell tab={busy === "photo" ? 2 : 1} camera={busy === "photo"}>
+        {busy === "photo" && draft.photo ? (
+          <div className="first-analysis-screen">
+            <img src={draft.photo} alt="" />
+            <ScanEffect stage="reading" />
+            <p role="status">{t("first.analyzing")}</p>
+          </div>
+        ) : (
         <div className="first-busy" role="status">
           <Loader2 className="animate-spin mx-auto" />
           {t(busy === "photo" ? "first.analyzing" : "first.preparing")}
         </div>
+        )}
       </FirstCatchShell>
     );
   const sticker = firstCatchSticker(draft);

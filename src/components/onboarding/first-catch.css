@@ -419,6 +419,9 @@
   min-height: 55dvh;
   text-align: center;
 }
+.first-analysis-screen { position: fixed; inset: 0; z-index: 50; background: #07152b; overflow: hidden; }
+.first-analysis-screen > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.first-analysis-screen > p { position: absolute; left: 16px; right: 16px; bottom: max(36px, env(safe-area-inset-bottom)); color: white; text-align: center; font-weight: 700; text-shadow: 0 2px 8px #001a3b; }
 .tour-layer {
   position: fixed;
   inset: 0;
