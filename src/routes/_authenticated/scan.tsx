@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { withDeadline } from "@/lib/deadline";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
@@ -514,17 +515,22 @@ function ScanPage() {
         lat = warm.lat;
         lng = warm.lng;
       } else {
-        try {
-          const pos = await new Promise<GeolocationPosition>((res, rej) => {
+        // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
+        // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
+        // スキャンが「分析中」のまま進まなかった。
+        const pos = await withDeadline(
+          new Promise<GeolocationPosition>((res, rej) => {
             navigator.geolocation.getCurrentPosition(res, rej, {
               timeout: 5000,
               maximumAge: 120_000,
             });
-          });
+          }),
+          5000,
+          null,
+        );
+        if (pos) {
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
-        } catch {
-          /* ignore */
         }
       }
       setScanLoc({ lat, lng, name: null });

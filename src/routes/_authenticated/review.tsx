@@ -1038,7 +1038,10 @@ export function SpeakingCard({
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        // **録れた形のまま名札を付ける。** iPhone の Safari は webm ではなく
+        // mp4 で録るので、決め打ちの "video/webm" を付けると再生できなかった。
+        const type = rec.mimeType || chunksRef.current[0]?.type || "video/mp4";
+        const blob = new Blob(chunksRef.current, { type });
         setVideoUrl(URL.createObjectURL(blob));
       };
       rec.start();
@@ -1410,7 +1413,12 @@ export function SpeakingCard({
           />
         )}
         {videoUrl && !listening && (
-          <video src={videoUrl} controls className="mx-auto mb-3 h-32 rounded-xl bg-black" />
+          <video
+            src={videoUrl}
+            controls
+            playsInline
+            className="mx-auto mb-3 h-32 rounded-xl bg-black"
+          />
         )}
 
         {/* Recording controls */}

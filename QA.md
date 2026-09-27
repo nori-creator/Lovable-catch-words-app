@@ -37,6 +37,22 @@ For user-visible design, interaction or animation changes:
 - user performs real-device comparison;
 - merge after approval.
 
+## iPhone (Safari / home-screen app) device checks
+Automated checks here run in Chromium only; WebKit is not available in the preview pipeline, so these must be confirmed on a real iPhone before release.
+Known WebKit traps the code already guards against (keep the guards):
+- `indexedDB.open` can never settle → queueing a capture must not block AI analysis (`offline-queue.ts` open timeout; `capture.tsx` runs AI first).
+- Geolocation `timeout` is not counted while the permission prompt is open → every location wait uses `withDeadline` (`deadline.ts`).
+- Total canvas memory is capped → release canvases after encoding (`width = height = 0`).
+- `MediaRecorder` records MP4, not WebM → label blobs with `rec.mimeType`.
+- `<video>` needs `playsInline` (and `muted` for camera streams) or it goes full screen.
+Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
+1. Take a photo → candidates appear (or the "saved for later" state) within ~20 s; never an endless "analyzing".
+2. Same with location permission prompt left unanswered.
+3. Scan mode: frame → detected words.
+4. Five photos in a row without reloading.
+5. Review: speaking video records and plays back inline.
+6. Place reminder permission flow (home-screen app only; Safari tabs cannot receive web notifications).
+
 ## Performance checks
 For Catch path track p50/p90/p99 where possible:
 - capture → candidate response;

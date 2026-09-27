@@ -207,7 +207,10 @@ async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): 
     const ctx = canvas.getContext("2d");
     if (!ctx) return dataUrl;
     ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", quality);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    // 絵の板はすぐ手放す（iPhone の Safari は板の合計に上限がある）。
+    canvas.width = canvas.height = 0;
+    return out;
   } catch {
     return dataUrl;
   }
@@ -320,6 +323,8 @@ function CapturePage() {
   // 直前に setPendingId しても runAi の中からは古い値(null)しか見えない。
   // 「これは復元されたキャプチャか」は失敗時の分岐に効くので ref で持つ。
   const pendingIdRef = useRef<string | null>(null);
+  /** 撮った写真を端末に預けている途中の約束。AI が失敗したときだけ待つ。 */
+  const queueingRef = useRef<Promise<unknown> | null>(null);
   // 解析に失敗して端末に預けたときの**実際の理由**。
   // これを出さないと、401 や壊れた画像のような二度と直らない失敗まで
   // 「写真は預かりました(あとで続きができます)」と出て、
@@ -582,19 +587,28 @@ function CapturePage() {
       objectImageRef.current = compressed;
       setObjectImg(compressed);
       if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
-      const queued = await enqueueCapture({
+      // **AI を先に走らせる。端末に預けるのを待たない**（オーナー報告
+      // 2026-09-27「iPhone で撮影後に AI 分析が進まない」）。
+      //
+      // 前は預け終わってから AI を呼んでいた。iPhone の Safari では
+      // IndexedDB を開く所が返ってこないことがあり、その回は分析が
+      // 1度も始まらずに「分析中」のまま止まっていた。預けるのは
+      // 失敗したときの保険なので、並べて走らせる。
+      queueingRef.current = enqueueCapture({
         object_img: compressed,
         selfie_img: selfieImageRef.current,
         lat: null,
         lng: null,
         location_name: null,
+      }).then((queued) => {
+        if (queued) {
+          setPendingId(queued.id);
+          pendingIdRef.current = queued.id;
+          if (selfieImageRef.current)
+            void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
+        }
+        return queued;
       });
-      if (queued) {
-        setPendingId(queued.id);
-        pendingIdRef.current = queued.id;
-        if (selfieImageRef.current)
-          void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
-      }
       void runAi(analysisImage ?? compressed);
     } catch (e) {
       console.error(e);
@@ -675,6 +689,9 @@ function CapturePage() {
       // ただし**この写真がキューから復元されたものなら、預け直さない**。
       // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
+      // 撮った直後に預け始めた分が済むのを待つ（上限つき — `offline-queue.ts`）。
+      // 待たないと、同じ写真をもう1枚預けてしまう。
+      if (queueingRef.current) await queueingRef.current.catch(() => null);
       const here = await resolveLocation();
       const saved = pendingIdRef.current
         ? await updatePendingCapture(pendingIdRef.current, {
@@ -2313,7 +2330,12 @@ export function CaptureObjectPanel({
             ai.height,
           );
           analysisImage = ai.toDataURL("image/jpeg", 0.85);
+          ai.width = ai.height = 0;
         }
+        // **使い終わった絵の板をすぐ手放す。** iPhone の Safari は絵の板の
+        // 合計に上限があり、撮るたびに 1920×1440 の板が残ると、何枚か目で
+        // 板が作れなくなる（`getContext` が null を返し、撮れなくなる）。
+        canvas.width = canvas.height = 0;
         const bytes = Uint8Array.from(atob(full.split(",")[1]), (c) => c.charCodeAt(0));
         onObjectFile(new File([bytes], "capture.jpg", { type: "image/jpeg" }), analysisImage);
         return;
