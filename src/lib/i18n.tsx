@@ -2574,6 +2574,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "me.doneToday": { ja: "今日やった復習", en: "Reviewed today", "zh-TW": "今天做的複習" },
   "me.due": { ja: "待っている復習", en: "Waiting", "zh-TW": "等著複習的" },
   "common.loading": { ja: "読み込み中", en: "Loading", "zh-TW": "載入中" },
+  // 規約・プライバシーの繁體中文版はまだ無い（法的な文なので機械訳しない）。
+  "legal.onlyJaEn": {
+    ja: "この文書は日本語版と英語版のみです。",
+    en: "This document is available in Japanese and English only.",
+    "zh-TW": "本文件目前僅提供日文版與英文版，以下為英文版。",
+  },
   // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
   // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
   "scan.stageSensing": {
