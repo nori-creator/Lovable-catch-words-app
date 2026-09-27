@@ -5760,7 +5760,8 @@ describe("図鑑の地図とカレンダーを1つに（オーナー指示 2026-
     expect(dex).toMatch(/<DexOverlay>/);
     // 並びは 箱 → カード → 地図 → 段。
     const order = [...dex.matchAll(/\["(gallery|cards|map|list)", /g)].map((m) => m[1]);
-    expect(order).toEqual(["gallery", "cards", "map", "list"]);
+    // 2026-09-27「スライド、マップ、写真が多いもの、縦に並ぶものの順に」。
+    expect(order).toEqual(["cards", "map", "gallery", "list"]);
   });
 });
 

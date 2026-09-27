@@ -992,10 +992,12 @@ export function DexHeader({
             // 種類は左からボックスのように表示されるもの、またカードのように横に
             // スライドできるもの、そしてマップ、そして一番右に縦から段のように
             // 並ぶやつに順番を変更して」）。
-            ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            // **2026-09-27 に並べ替え**（オーナー指示「スライド、マップ、写真が
+            // 多いもの、縦に並ぶものの順に」）。
             ["cards", GalleryHorizontal, t("dex.cards")] as const,
             // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
+            ["gallery", LayoutGrid, t("dex.gallery")] as const,
             ["list", List, t("dex.list")] as const,
           ].map(([v, Icon, label]) => (
             <button
