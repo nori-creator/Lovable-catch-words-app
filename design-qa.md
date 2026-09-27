@@ -12,6 +12,7 @@
 - Questions retain their flags and animated selection. The real Home, capture panel, Dex cover/gallery/map/list components, word card and four-choice review are reused. A short unobscured preview precedes each spotlight. The transformed shell had displaced the real fixed tab bar; its entrance motion is now applied to the main content instead.
 - The album sample is populated before capture, and the first photo is added to the local Dex before review and account creation. Preview fixtures are visual examples; they do not replace AI analysis of a live photograph.
 - Clicking the actual Dex gallery control exposed a shifted spotlight: a parent transform changed the coordinate system for its fixed overlay. The entrance motion now changes opacity only, preserving the viewport coordinates of the real tab bar, Dex map and spotlight.
+- The Dex guide keeps its sequence: swipe the real cover first, then change view. The tutorial map opens the application's timeline by default so generated sample photos remain visible without inventing map coordinates.
 
 ## Verification
 

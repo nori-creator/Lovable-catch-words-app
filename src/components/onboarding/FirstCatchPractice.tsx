@@ -34,6 +34,7 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
           caught={items.length}
           view={view}
           onView={(v) => {
+            if (!browsed) return;
             if (v === "cards" || v === "gallery" || v === "map" || v === "list") {
               setView(v);
               if (v !== "cards") setChanged(true);
@@ -58,7 +59,7 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
             onOpen={openWord}
           />
         ) : view === "map" ? (
-          <DexDayMap stickers={items} onOpen={openWord} forceFallback />
+          <DexDayMap stickers={items} onOpen={openWord} initialOpen forceFallback />
         ) : (
           <DexList items={items} onOpen={openWord} />
         )}
@@ -68,6 +69,7 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
         title={t("first.dexTitle")}
         text={t(!browsed ? "first.dexSwipe" : !changed ? "first.dexTypes" : "first.dexOpen")}
         interactive
+        allowSelector={!browsed ? ".dex-cf__stage, .dex-cf__stage *" : undefined}
         step="3 / 5"
         nextLabel={t("first.openWord")}
         onNext={browsed && changed ? onOpen : undefined}
