@@ -232,7 +232,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  */
 function Frame({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    // 実物の `AppShell` と同じ印（図鑑のスライドが地を透かす目印）。
+    <div data-app-shell="" className="min-h-screen bg-background">
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
@@ -334,6 +335,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "home-album", label: "アルバム（重ならない配置）" },
   { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
   { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
+  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },

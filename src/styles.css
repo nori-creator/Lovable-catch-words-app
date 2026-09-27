@@ -7730,7 +7730,8 @@ html[data-motion="reduce"] .dex-day__card {
      高さは画面に収まるよう、縦の余白からも上限を取る。 */
   --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
   position: relative;
-  height: calc(var(--cf-w) * 1.48 + 3rem);
+  /* 下に円の舞台（`.dex-cf__floor`）が覗くぶん、少し高く取る。 */
+  height: calc(var(--cf-w) * 1.48 + 4.25rem);
   perspective: 1100px;
   overflow: hidden;
   /* 横の送りはこちらが受け持つ（`DexCoverFlow` のばね）。縦は画面に譲る。 */
@@ -7754,6 +7755,8 @@ html[data-motion="reduce"] .dex-day__card {
   pointer-events: none;
 }
 .dex-cf__card {
+  /* 暗い部屋の中でも、カードの字はカードの色で（部屋の白い字を継がない）。 */
+  color: var(--card-foreground, var(--foreground));
   /* 鏡映り（`-webkit-box-reflect`）はやめた — 傾きが変わるたびに映りごと
      描き直すので、送る動きがカクついた（オーナー報告 2026-09-23）。 */
   box-shadow:
@@ -7790,12 +7793,232 @@ html[data-motion="reduce"] .dex-day__card {
     background-color 0.2s var(--ease-ios),
     scale 0.2s var(--ease-ios);
 }
-.dex-cf__dot[data-size="2"] {
+.dex-cf__dot[data-on] {
   background: var(--primary);
-  scale: 1.25;
+  scale: 1.35;
 }
-.dex-cf__dot[data-size="0"] {
-  scale: 0.6;
+/* ── 暗い部屋と円の舞台（オーナー指示 2026-09-27「黒系の背景、奥行き、中央に
+   ステージや円」）。部屋は画面いっぱいに敷き、カードの列だけが光る。 ── */
+.dex-cf {
+  --cf-accent: #4ea8ff;
+  /* **積み重ねの文脈を作らない。** 作ると、画面いっぱいの部屋（`z-index: -1`）が
+     この中で一番下になり、**前に描かれた物（上の操作の板）を覆う**。
+     文脈の外に出せば、部屋は画面の一番奥に沈む。 */
+  position: relative;
+}
+/* 図鑑のスライドを見ている間は、アプリの地を透かして暗い部屋を見せる
+   （`DexCoverFlow` が `html[data-dex-stage]` を立てる）。 */
+html[data-dex-stage] {
+  background: #05070b;
+}
+html[data-dex-stage] body,
+html[data-dex-stage] [data-app-shell] {
+  background: transparent;
+}
+.dex-cf__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(120% 70% at 50% 38%, #1c2333 0%, #0c0f17 55%, #05070b 100%);
+  overflow: hidden;
+}
+.dex-cf__floor {
+  position: absolute;
+  left: 50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 - 2rem);
+  width: calc(var(--cf-w) * 1.35);
+  height: 4.5rem;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0.22),
+    rgb(255 255 255 / 0.06) 62%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 0 60px 10px rgb(255 255 255 / 0.05);
+  pointer-events: none;
+}
+/* 上から当たる光（真ん中のカードに向かう円錐）。 */
+.dex-cf__stage::before {
+  content: "";
+  position: absolute;
+  inset: -2rem 0 0;
+  background: radial-gradient(38% 60% at 50% 30%, rgb(255 255 255 / 0.1), transparent 70%);
+  pointer-events: none;
+}
+.dex-cf .dex-cf__dot {
+  background: rgb(255 255 255 / 0.28);
+}
+.dex-cf .dex-cf__dot[data-on] {
+  background: var(--primary);
+}
+/* 下の写真の列。いまの1枚は主色の枠。 */
+.dex-cf__thumbs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.6rem 1rem 0.4rem;
+  scrollbar-width: none;
+  scroll-padding-inline: 1rem;
+}
+.dex-cf__thumbs::-webkit-scrollbar {
+  display: none;
+}
+.dex-cf__thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+  background: rgb(255 255 255 / 0.08);
+  opacity: 0.6;
+  transition:
+    opacity 0.2s var(--ease-ios),
+    transform 0.2s var(--ease-ios),
+    border-color 0.2s var(--ease-ios);
+}
+.dex-cf__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dex-cf__thumb[aria-current] {
+  opacity: 1;
+  border-color: var(--primary);
+  transform: translateY(-3px);
+}
+.dex-cf__thumb-word {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+html[data-motion="reduce"] .dex-cf__thumb {
+  transition: none;
+}
+
+/* 案 B/C: 分類の色。舞台の光と部屋の奥が、真ん中のカードの分類の色になる。 */
+.dex-cf:is([data-theme="category"], [data-theme="motion"]) .dex-cf__backdrop {
+  background: radial-gradient(
+    90% 55% at 50% 40%,
+    color-mix(in oklab, var(--cf-accent) 34%, #0c0f17) 0%,
+    #0a0d14 60%,
+    #05070b 100%
+  );
+  transition: background 0.6s var(--ease-ios);
+}
+.dex-cf:is([data-theme="category"], [data-theme="motion"]) .dex-cf__floor {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--cf-accent) 60%, transparent),
+    color-mix(in oklab, var(--cf-accent) 14%, transparent) 62%,
+    transparent 100%
+  );
+  box-shadow: 0 0 70px 12px color-mix(in oklab, var(--cf-accent) 30%, transparent);
+}
+/* 案 C: 分類ごとの小さな動き。食べ物は湯気が上り、自然は葉が落ち、
+   町は光の粒が流れる（ほかの部屋は光の粒）。 */
+.dex-cf__motes {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(
+      3px 3px at 20% 30%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2px 2px at 70% 60%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2.5px 2.5px at 40% 80%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    ),
+    radial-gradient(
+      2px 2px at 85% 20%,
+      color-mix(in oklab, var(--cf-accent) 80%, white) 50%,
+      transparent 51%
+    );
+  background-size: 180px 220px;
+  opacity: 0.55;
+  animation: cf-motes-drift 14s linear infinite;
+}
+.dex-cf[data-room="eat"] .dex-cf__motes {
+  /* 湯気: 下から上へ、ぼかした白い帯。 */
+  background-image:
+    radial-gradient(18px 40px at 30% 80%, rgb(255 255 255 / 0.16), transparent 70%),
+    radial-gradient(14px 34px at 62% 85%, rgb(255 255 255 / 0.12), transparent 70%),
+    radial-gradient(16px 38px at 80% 75%, rgb(255 255 255 / 0.14), transparent 70%);
+  background-size: 220px 260px;
+  animation: cf-steam 7s ease-in-out infinite;
+}
+.dex-cf[data-room="nature"] .dex-cf__motes {
+  animation: cf-leaves 11s linear infinite;
+}
+@keyframes cf-motes-drift {
+  to {
+    background-position:
+      180px -220px,
+      -180px 220px,
+      180px 220px,
+      -180px -220px;
+  }
+}
+@keyframes cf-steam {
+  0% {
+    background-position: 0 40px;
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.8;
+  }
+  100% {
+    background-position: 0 -120px;
+    opacity: 0;
+  }
+}
+@keyframes cf-leaves {
+  to {
+    background-position:
+      60px 440px,
+      -40px 440px,
+      30px 440px,
+      -60px 440px;
+  }
+}
+html[data-motion="reduce"] .dex-cf__motes {
+  animation: none;
+}
+/* 案 D: 美術館。暗い壁と上からの細い光、カードの下に作品名の札。 */
+.dex-cf[data-theme="museum"] .dex-cf__backdrop {
+  background:
+    radial-gradient(28% 60% at 50% 0%, rgb(255 244 214 / 0.2), transparent 70%),
+    linear-gradient(180deg, #1b1a19, #0f0e0d);
+}
+.dex-cf[data-theme="museum"] .dex-cf__floor {
+  background: radial-gradient(closest-side, rgb(255 236 200 / 0.18), transparent 100%);
+  box-shadow: none;
+}
+.dex-cf__plaque {
+  margin: 0.35rem auto 0;
+  width: fit-content;
+  max-width: 80%;
+  padding: 0.35rem 0.8rem;
+  border-radius: 4px;
+  background: #f4efe6;
+  color: #2a2521;
+  font-size: var(--text-footnote);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.4);
 }
 html[data-motion="reduce"] .dex-cf__dot {
   transition: none;
