@@ -79,7 +79,7 @@ import {
   moveItem,
   type RowBox,
 } from "@/lib/reorder";
-import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
+import { nextAutoFillQueue, MAX_AUTO_FILL } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -729,14 +729,15 @@ export const WordCard = forwardRef<
  * 押さない人のカードは意味だけのまま残る。**待たせない代わりに、押させない。**
  * 失敗したときだけボタンに戻す — 押しても直らない物を黙って再試行し続けない。
  *
- * ## 1節ずつ、順番どおりに
- * 1節できるたびに札を読み直すので、**上の項目から順に現れる**。
- * まとめて作って一度に出すと、順番は見えないし、途中で失敗したら
- * 全部が無くなる。
+ * ## 全部同時に作り、そろってから一度に出す（2026-09-27 に変更）
+ * 前は1節ずつ順に作って1つずつ現れていた。オーナー指示で、並べて同時に
+ * 作り、全部そろったら1度に出す形にした（下の効果の中の説明）。
+ * 途中で一部が失敗しても、できた分はまとめて出る。
  *
  * ## 暴走させない蓋
- * 節ごとに1回 AI を呼ぶので、上限(`MAX_AUTO_FILL`)と連続失敗の打ち切り
- * (`MAX_FAILURES`)を `src/lib/auto-fill.ts` に置いてテストしてある。
+ * 節ごとに1回 AI を呼ぶので、1回開いたときの上限(`MAX_AUTO_FILL`)を
+ * `src/lib/auto-fill.ts` に置いてテストしてある。全部失敗したら
+ * ボタンに戻し、黙って叩き続けない。
  */
 function AutoFillSections({
   wordId,
@@ -784,33 +785,38 @@ function AutoFillSections({
     const planned = nextAutoFillQueue(missingRef.current, attempted, budget).length;
     if (planned === 0) return;
 
+    /**
+     * **全部を同時に作り、全部そろってから1度に出す**（オーナー指示
+     * 2026-09-27「意味と発音を先に出し、その後の詳細解説が項目1つずつ
+     * 生成される → 6つ全てを一気にパッと表示するに直して」）。
+     *
+     * 前は1節ずつ順に作り、1節できるたびに札を読み直していたので、
+     * 項目が1つずつ現れた。いまは:
+     *   ・AI への問い合わせを**並べて同時に**投げる（待ち時間は一番遅い
+     *     1本ぶん。順に待つと6本ぶん）
+     *   ・札の読み直しは**全部が終わってから1回だけ** → 全項目が同時に出る
+     * 同時に書き込んでも項目が消えないよう、server は書く直前に読み直して
+     * 重ねる（`runSectionRegen`）。
+     */
     void (async () => {
-      let failures = 0;
-      let done = 0;
-      setState({ done: 0, total: planned, failed: false });
-      while (!cancelled) {
-        const left = MAX_AUTO_FILL - attempted.size;
-        const [section] = nextAutoFillQueue(missingRef.current, attempted, Math.max(0, left));
-        if (!section) break;
-        attempted.add(section);
-        try {
-          await fillFn({ data: { word_id: wordId, section, only_if_empty: true } });
-          failures = 0;
-          // できた節をすぐ出す。ここで読み直すから「上から順に現れる」。
-          await qc.invalidateQueries({ queryKey: ["sticker"] });
-          await qc.invalidateQueries({ queryKey: ["stickers"] });
-        } catch {
-          failures += 1;
-          // **同じ失敗を繰り返さない。** 上限に当たった / 鍵が無い、のような
-          // 直らない失敗で AI を叩き続けない。
-          if (failures >= MAX_FAILURES) {
-            if (!cancelled) setState({ done, total: planned, failed: true });
-            return;
-          }
-        }
-        done += 1;
-        if (!cancelled) setState({ done, total: planned, failed: false });
+      const queue = nextAutoFillQueue(missingRef.current, attempted, budget);
+      for (const section of queue) attempted.add(section);
+      setState({ done: 0, total: queue.length, failed: false });
+      const results = await Promise.allSettled(
+        queue.map((section) => fillFn({ data: { word_id: wordId, section, only_if_empty: true } })),
+      );
+      if (cancelled) return;
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      // 1つでもできていれば、できた分を**まとめて**出す。
+      if (ok > 0) {
+        await qc.invalidateQueries({ queryKey: ["sticker"] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
       }
+      if (cancelled) return;
+      // **全部だめだった時だけ**ボタンに戻す（上限・鍵なしのような、
+      // 待っても直らない失敗で AI を叩き続けない）。
+      const failed = queue.length > 0 && ok === 0;
+      setState({ done: queue.length, total: queue.length, failed });
     })();
 
     return () => {

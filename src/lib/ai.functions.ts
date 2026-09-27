@@ -1281,9 +1281,30 @@ async function runSectionRegen(
       },
     };
   }
+  /**
+   * **書く直前に extras を読み直してから重ねる**（2026-09-27）。
+   *
+   * 撮った後の項目は**並べて同時に**作るようにした（オーナー指示
+   * 「6つ全てを一気にパッと表示」）。AI を待つ数秒のあいだに別の項目が
+   * 書き込まれるので、最初に読んだ extras に重ねると**先に書かれた項目を
+   * 消してしまう**。読み直せば、ぶつかる幅は AI の数秒から読み書きの
+   * 一瞬に縮む。万一消えた項目は「まだ無い」に戻るだけで、次に開いたとき
+   * 裏でもう一度作られる（壊れた中身は残らない）。
+   */
+  const { data: fresh } = await supabaseAdmin
+    .from("words")
+    .select("extras")
+    .eq("id", data.word_id)
+    .maybeSingle();
+  const latest = fresh
+    ? mergeExtras(
+        ((fresh as { extras?: unknown }).extras ?? null) as Parameters<typeof mergeExtras>[0],
+        extrasPatch as Parameters<typeof mergeExtras>[1],
+      )
+    : merged;
   const { error: upErr } = await supabaseAdmin
     .from("words")
-    .update({ ...baseUpdate, extras: merged as never } as never)
+    .update({ ...baseUpdate, extras: latest as never } as never)
     .eq("id", data.word_id);
   if (upErr) throw new Error(upErr.message);
 
