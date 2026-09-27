@@ -39,6 +39,7 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
+import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
@@ -155,6 +156,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
+  "glass-surfaces": GlassSurfacesScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
   "capture-pick": CapturePickScene,
@@ -322,6 +324,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
+  { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
 ];
 
 const explicitScene = q.get("scene");

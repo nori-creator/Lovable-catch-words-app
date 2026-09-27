@@ -348,12 +348,12 @@ const NOW = Date.UTC(2026, 7, 19, 3, 0, 0);
  * **開いた側は撮らない。** 開いた中身は `word-card` の場面が受け持つ。
  * ここで開くと、また「既定では見えない面」を既定として採点することになる。
  */
-export function StickerDetailScene() {
+export function StickerDetailScene({ objectUrl }: { q?: URLSearchParams; objectUrl?: string }) {
   return (
     <>
       <BackToDexLink />
       <StickerDetailBody
-        sticker={STICKER}
+        sticker={objectUrl ? ({ ...(STICKER as object), object_url: objectUrl } as never) : STICKER}
         dateLocale="ja-JP"
         photos={[
           {
