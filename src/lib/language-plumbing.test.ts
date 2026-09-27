@@ -4566,9 +4566,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     const src = codeOnly(read("routes/_authenticated/scan.tsx"));
     // 呼ぶ側が場所を渡す（部品が勝手に画面の下端に付かない）。
     expect(src).toMatch(/zoomBottom\?: string;/);
+    // 2026-09-27 から映像の箱そのものがシートのすぐ上で終わる（上下の余白を
+    // 詰めた）。粒は箱の下端に付くので、同じくシートの上に来る。
     expect(src).toMatch(
-      /zoomBottom=\{`calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`\}/,
+      /bottom: `calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
     );
+    expect(src).toMatch(/zoomBottom="0\.5rem"/);
     // 画面の下端に貼り付ける書き方が残っていないこと。
     expect(src).not.toMatch(/className="absolute inset-x-0 bottom-4 z-10 flex justify-center"/);
   });
@@ -4962,7 +4965,8 @@ describe("ホームは今日の誌面", () => {
     expect(list).not.toMatch(/glass=1/);
     expect(main).not.toMatch(/dataset\.glass/);
     expect(read("styles.css")).not.toMatch(/data-glass/);
-    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(8);
+    // 2026-09-27 の回は依頼が33項目あるので、その回の面に限って 8 を超えてよい。
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(40);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
@@ -5146,8 +5150,8 @@ describe("覗いている絵と撮れる写真の倍率", () => {
     expect(cap).toMatch(/const shownZoom = residualZoom\(zoom, hwZoom\);/);
     // 覗く側。
     expect(cap).toMatch(/style=\{\{ scale: String\(shownZoom\) \}\}/);
-    // 撮る側。
-    expect(cap).toMatch(/viewport\.height,\n\s*shownZoom,/);
+    // 撮る側（2026-09-27 から映像のすべてを倍率ぶんだけ真ん中で切る）。
+    expect(cap).toMatch(/video\.videoHeight,\n\s*shownZoom,/);
     // 「持っていると言った」だけで手を引かない。
     expect(cap).not.toMatch(/zoomCaps \? 1 : zoom/);
     expect(cap).not.toMatch(/zoomCaps \? undefined : \{ scale/);

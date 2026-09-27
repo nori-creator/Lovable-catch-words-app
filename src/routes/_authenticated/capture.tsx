@@ -2,12 +2,13 @@ import { selfieCaptureEnabled } from "@/lib/product-features";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { takeScanHandoff } from "@/lib/scan-handoff";
-import { residualZoom, viewfinderCrop } from "@/lib/capture-framing";
+import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing";
+import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { WordCandidateRow } from "@/components/WordCandidateRow";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -1956,6 +1957,8 @@ export function CaptureCardPanel({
   saving?: boolean;
 }) {
   const t = useT();
+  /** 物が写真の縁で切れていたら、剥がす前に知らせる（`useCutoutClipped`）。 */
+  const clipped = useCutoutClipped(cutoutImg && cutoutImg !== objectImg ? cutoutImg : null);
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
@@ -1987,6 +1990,14 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
+      {clipped && !saving && !landing && (
+        <div role="status" className="capture-clip-warning">
+          <p>{t("capture.clipped")}</p>
+          <Button variant="outline" size="sm" onClick={onRedo}>
+            {t("capture.retake")}
+          </Button>
+        </div>
+      )}
       <div className="flex gap-2">
         <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
           {t("capture.redo")}
@@ -2128,6 +2139,8 @@ export function CaptureObjectPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
+  const [camAspect, setCamAspect] = useState(3 / 4);
   /**
    * 前後の切り替え(オーナー指示 2026-09-15「インカメラも付けて」)。
    * スキャン画面には前からあったが、撮る画面には無かった — **同じ操作が
@@ -2168,8 +2181,14 @@ export function CaptureObjectPanel({
       .getUserMedia({
         video: {
           facingMode: { ideal: facing },
-          width: { ideal: 1280 },
-          height: { ideal: 1280 },
+          /**
+           * **センサーの全部を使う 4:3 を頼む**（2026-09-27「寄りすぎ」）。
+           * 16:9 を返す設定の多くはセンサーの上下を捨てているので、同じ
+           * 位置から撮っても写る範囲が狭い。端末の向きに合わせて縦横は
+           * ブラウザが入れ替える。
+           */
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
         },
         audio: false,
       })
@@ -2183,6 +2202,8 @@ export function CaptureObjectPanel({
         if (!video) return;
         video.srcObject = stream;
         await video.play().catch(() => {});
+        if (video.videoWidth && video.videoHeight)
+          setCamAspect(video.videoWidth / video.videoHeight);
         setCameraReady(true);
         /**
          * **倍率を持っているかは端末に聞く。**（持っていない端末に
@@ -2244,12 +2265,17 @@ export function CaptureObjectPanel({
     const video = videoRef.current;
     if (cameraReady && video?.videoWidth) {
       const canvas = document.createElement("canvas");
-      const viewport = video.parentElement!.getBoundingClientRect();
+      /**
+       * **撮るのは映像のすべて**（倍率ぶんだけ真ん中を切る）。枠は映像と同じ
+       * 縦横比で、映像は枠に収めて見せているので、覗いた絵と撮れる写真が
+       * 一致する（前は画面いっぱいに覆って見えている所だけを切り出していた）。
+       */
+      const frame = video.parentElement!.getBoundingClientRect();
       const crop = viewfinderCrop(
         video.videoWidth,
         video.videoHeight,
-        viewport.width,
-        viewport.height,
+        video.videoWidth,
+        video.videoHeight,
         shownZoom,
       );
       canvas.width = Math.round(crop.sw);
@@ -2272,15 +2298,19 @@ export function CaptureObjectPanel({
         const focus = video.parentElement!.querySelector(".capture-focus")?.getBoundingClientRect();
         let analysisImage: string | undefined;
         if (focus && !selfieMode) {
+          // 枠の中で絵が実際に描かれている四角（帯を除く）から、案内の枠の位置を出す。
+          const shown = containRect(video.videoWidth, video.videoHeight, frame.width, frame.height);
+          const fx = (focus.left - frame.left - shown.x) / shown.w;
+          const fy = (focus.top - frame.top - shown.y) / shown.h;
           const ai = document.createElement("canvas");
           ai.width = 768;
           ai.height = Math.round((768 * focus.height) / focus.width);
           ai.getContext("2d")?.drawImage(
             canvas,
-            ((focus.left - viewport.left) / viewport.width) * canvas.width,
-            ((focus.top - viewport.top) / viewport.height) * canvas.height,
-            (focus.width / viewport.width) * canvas.width,
-            (focus.height / viewport.height) * canvas.height,
+            fx * canvas.width,
+            fy * canvas.height,
+            (focus.width / shown.w) * canvas.width,
+            (focus.height / shown.h) * canvas.height,
             0,
             0,
             ai.width,
@@ -2316,20 +2346,6 @@ export function CaptureObjectPanel({
         撮り方を選べる。
       */}
       <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
-      {!onNativeCapture && (
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          className="absolute inset-0 h-full w-full object-cover"
-          aria-hidden="true"
-          // 倍率を持たない端末では、見た目だけを拡大して代用する
-          // (スキャン画面と同じ扱い)。
-          // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
-          // `shownZoom` が 1 になるので、ここでは何も起きない。
-          style={{ scale: String(shownZoom) }}
-        />
-      )}
 
       {/*
         **アプリの名前を映像の上に出す**（参考画像のとおり）。帯は作らない —
@@ -2356,14 +2372,46 @@ export function CaptureObjectPanel({
         合わせられるわけではないので、**動いているのに触れない物**だった。
         四隅の枠だけで「この中へ」は伝わる。
       */}
-      {!selfieMode && (
-        <div className="capture-focus" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
+      {/*
+        **映像は枠に収めて、全部を見せる。**（オーナー指示 2026-09-27「カメラを
+        全画面に表示しているのが原因なら全画面表示は辞めて」）
+
+        前は画面いっぱいに覆っていたので、横長の映像の3分の1ほどしか見えず、
+        撮る写真もそこだけだった。枠は映像と同じ縦横比（`--cam-aspect`）。
+        四隅の案内（シールに収まる範囲）も枠の中に置く。
+      */}
+      <div className="capture-frame" style={{ "--cam-aspect": String(camAspect) } as CSSProperties}>
+        {!onNativeCapture && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="capture-frame__video"
+            aria-hidden="true"
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            onResize={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            // 倍率を持たない端末では、見た目だけを拡大して代用する
+            // (スキャン画面と同じ扱い)。
+            // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
+            // `shownZoom` が 1 になるので、ここでは何も起きない。
+            style={{ scale: String(shownZoom) }}
+          />
+        )}
+        {!selfieMode && (
+          <div className="capture-focus" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
+      </div>
       {selfieMode && (
         <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
           <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>

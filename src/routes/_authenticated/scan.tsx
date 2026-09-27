@@ -337,8 +337,9 @@ function ScanPage() {
             // 背面しか無い端末で `OverconstrainedError` になり、
             // 切り替えたとたんカメラが真っ黒になる。
             facingMode: { ideal: facing },
-            width: { ideal: 1280 },
-            height: { ideal: 1280 },
+            // センサーの全部を使う 4:3（撮る画面と同じ。2026-09-27「寄りすぎ」）。
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
           },
           audio: false,
         });
@@ -850,9 +851,22 @@ function ScanPage() {
           小さな窓では出ない — 上下のUIだけをオーバーレイで重ねる。
           スクロールを持つ候補リストは、この下の通常フローに残す。
         */}
+        {/*
+          **映像の箱は、上の名前の下から操作シートの上まで**（オーナー指摘
+          2026-09-27「スキャンモードは上下の余白が多すぎてダサい」）。
+
+          前は画面いっぱいの黒い箱に映像を「収めて」いたので、縦長の画面では
+          映像の上下に黒い帯が大きく残り、下の帯はシートの裏に隠れていた。
+          箱を「見えている所」だけにすると、映像はその中いっぱいに収まる。
+          箱の外は撮る画面と同じカメラの地。
+        */}
+        <div className="capture-viewfinder__light fixed inset-0 z-20" aria-hidden="true" />
         <div
           ref={boxRef}
-          className="fixed inset-0 z-20 overflow-hidden bg-black"
+          className="scan-frame fixed z-20 overflow-hidden"
+          style={{
+            bottom: `calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`,
+          }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
@@ -923,7 +937,8 @@ function ScanPage() {
             onZoom={applyZoom}
             // シートの上端のすぐ上。シートは `4.25rem + 安全域` の上に
             // 立っているので、その高さを足した所が上端になる。
-            zoomBottom={`calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`}
+            // 箱の下端がシートのすぐ上になったので、粒は箱の下端に付ける。
+            zoomBottom="0.5rem"
           />
 
           {/* compact metrics badge (always visible after a scan) */}

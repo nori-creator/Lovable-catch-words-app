@@ -3473,6 +3473,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.addSelfie": { ja: "自撮りを追加", en: "Add a selfie", "zh-TW": "加上自拍" },
   "capture.skipNext": { ja: "スキップして次へ", en: "Skip for now", "zh-TW": "跳過，進下一步" },
   "capture.redo": { ja: "やり直す", en: "Start over", "zh-TW": "重來" },
+  "capture.clipped": {
+    ja: "物が写真の端で切れています。シールでもここで切れるので、少し離れて撮り直すと全部収まります。",
+    en: "The object is cut off at the edge of the photo, so the sticker will be cut too. Step back a little and retake to fit it all.",
+    "zh-TW": "物品在照片邊緣被切到了，貼紙也會被切掉。稍微退後重拍，就能完整收進去。",
+  },
+  "capture.retake": { ja: "撮り直す", en: "Retake", "zh-TW": "重拍" },
   "capture.pickTitle": {
     ja: "ステップ 3: 単語を選ぶ",
     en: "Step 3: Pick a word",

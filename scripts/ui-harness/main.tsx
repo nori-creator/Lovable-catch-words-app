@@ -320,7 +320,9 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
   // ガラスは本番に全部当てた（同日「すべてに適用して」）。
   { scene: "tabbar", label: "下のバー（ガラス・アイコン）" },
-  { scene: "capture-object", label: "カメラ（払ってスキャンへ）" },
+  { scene: "capture-object", label: "カメラ（枠・払ってスキャンへ）" },
+  { scene: "scan-bottom", label: "スキャン（上下の余白）" },
+  { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
