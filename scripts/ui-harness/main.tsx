@@ -330,6 +330,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
   { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
   { scene: "home-album", label: "アルバム（重ならない配置）" },
+  { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
