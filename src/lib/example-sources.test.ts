@@ -37,6 +37,24 @@ describe("worldExampleRule", () => {
     expect(r).toContain("日本語");
   });
 
+  it("最重要はネイティブの自然さ。レベル・場面・生きた話題の順（2026-09-27）", () => {
+    const r = worldExampleRule("日本語");
+    const i1 = r.indexOf("最も自然");
+    const i2 = r.indexOf("レベル");
+    const i3 = r.indexOf("場面・状況・気持ち");
+    const i4 = r.indexOf("生きた話題");
+    expect(i1).toBeGreaterThan(-1);
+    expect(i1).toBeLessThan(i2);
+    expect(i2).toBeLessThan(i3);
+    expect(i3).toBeLessThan(i4);
+  });
+
+  it("英語を学ぶ人には台湾の話題を押し付けない。季節は今の月", () => {
+    const r = worldExampleRule("日本語", "en", new Date(2026, 8, 27));
+    expect(r).not.toContain("台湾");
+    expect(r).toContain("2026年9月");
+  });
+
   it("教科書的な無名の文を名指しで禁じる", () => {
     expect(worldExampleRule("日本語")).toContain("我是學生");
   });
