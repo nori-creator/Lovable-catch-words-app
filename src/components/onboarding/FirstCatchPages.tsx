@@ -54,6 +54,11 @@ export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () 
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.introStart")}
           </PrimaryAction>
+          {/* 再訪した人（期限切れ・別端末）は最初の画面からログインへ行ける。
+              前は質問の1枚目まで進まないと入口が無かった。 */}
+          <a className="first-secondary text-center" href="/auth">
+            {t("first.signin")}
+          </a>
         </footer>
       </div>
     </div>
