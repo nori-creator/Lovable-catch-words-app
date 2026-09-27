@@ -9,6 +9,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
+import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
 import { scrubForeignNotes } from "./note-language";
 import {
@@ -89,6 +90,12 @@ const SuggestionSchema = z.object({
         // **5件まとめて**落ちて「AI did not return structured suggestions」
         // しか残らない。棚は後から直せるので、ここで語を捨てない。
         category_key: z.enum(CATEGORY_KEYS).catch("other"),
+        /**
+         * その呼び方の**ふだん度**（2026-09-27）。`common` = ネイティブが日常で
+         * いちばんよく口にする呼び方、`specific` = 正確・専門的な名前、
+         * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
+         */
+        register: z.enum(["common", "specific", "proper"]).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
@@ -145,6 +152,13 @@ ${langRule}
 - **確からしい順に並べる。** 1つ目が「これは何か」への答え。
   自信の無いものを上に置かない。
 
+**同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
+- ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
+  固有名詞は**下に置くが、消さない**（register で印を付ける）。
+  例: ${profile.capture.commonFirstExamples}
+- ただし**具体性は失わない**。「三杯雞」を「雞肉」に、「短袖」を「衣服」にしない —
+  ふだん使う呼び方と、上位の分類語は別物。
+
 **カテゴリ分類ルール（厳守）:**
 - 手・足・顔・目・耳・鼻・口・髪・指・肩・膝など人体部位 → "body"
 - マウス・キーボード・PC・スマホ・タブレット・ヘッドホンなど電子機器 → "tech"
@@ -170,7 +184,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
@@ -188,7 +202,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
       return {
-        suggestions: parsed.suggestions.map((s) => ({
+        suggestions: orderByRegister(parsed.suggestions).map((s) => ({
           ...s,
           category_key: normalizeCategory(s.headword, s.category_key),
         })),

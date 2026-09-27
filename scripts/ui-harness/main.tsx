@@ -42,6 +42,7 @@ import { ScanBottomScene } from "./scenes/scan-bottom";
 import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -162,6 +163,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "glass-surfaces": GlassSurfacesScene,
   "category-sheet": CategorySheetScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
+  "candidate-designs": CandidateDesignsScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -341,6 +343,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
   { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
+  { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
 const explicitScene = q.get("scene");
