@@ -2588,15 +2588,21 @@
    このアプリで何度もやっている「同じ所を2箇所に書いて片方だけ直す」形。
    粒はこちらに畳み込み、あちらは消した。 */
 .album-bg-paper {
+  /* **本物の紙の凹凸**（オーナー指示 2026-09-27「設定の紙は、添付したバッグの
+     画像の紙の本物の質を再現し、アルバムの紙にもその紙質を使う」）。
+     参考の絵は白い水彩紙（コールドプレス）で、細かい凹凸に左上から光が
+     当たっている。乱れ模様を**高さ**として使い、光を当てて陰影を作る
+     （`feDiffuseLighting`）。色を塗った斑ではなく、紙の起伏そのもの。
+     端はつなぎ目が出ないよう `stitchTiles` で継ぐ。 */
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='p' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.11' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeDiffuseLighting surfaceScale='1.8' lighting-color='%23fff' diffuseConstant='1'%3E%3CfeDistantLight azimuth='225' elevation='55'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.42' intercept='0.585'/%3E%3CfeFuncG type='linear' slope='0.42' intercept='0.585'/%3E%3CfeFuncB type='linear' slope='0.42' intercept='0.58'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23p)'/%3E%3C/svg%3E");
   background:
-    /* 紙の粒（近く）。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.4 0 0 0 0 0.33 0 0 0 0 0.22 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23f)'/%3E%3C/svg%3E"),
-    /* 漉きムラ（離れて見たときの斑）。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='380' height='380'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.37 0 0 0 0 0.25 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='380' height='380' filter='url(%23m)'/%3E%3C/svg%3E"),
-    /* **筋は入れない。** 規則正しい周期の筋は、紙ではなく縞模様の壁紙に
-       見える（実測の絵で確認）。不規則なノイズ2枚だけで作る。 */
-    /* 端がわずかに焼けた地。 */
-    radial-gradient(circle at 22% 12%, #fffefb 0%, #fbf8f1 58%, #f3eee2 100%);
+    var(--paper-texture),
+    /* 光の当たり方のわずかなムラ（左上が明るい）。 */
+    radial-gradient(circle at 20% 10%, rgb(255 255 255 / 0.35), transparent 60%);
+  background-color: #f1f0ee;
+  background-size:
+    256px 256px,
+    auto;
 }
 /* 額縁。**絵画の額**（オーナー指示 2026-09-23）: 木の縁（外側が濃く、
    内側に金の細い線）＋白いマット。角は丸めない — 額は四角い。 */
@@ -8939,4 +8945,96 @@ html[data-motion="reduce"] .flip-leaf {
 html[data-motion="reduce"] .magic-wait::after {
   animation: none;
   background: color-mix(in oklab, var(--primary) 6%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * 本のようにめくるアルバム（`PageCurlBook`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.page-curl {
+  position: relative;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  border-radius: 4px 10px 10px 4px;
+  /* 紙の束の厚み（右の小口に重なる紙の線）。 */
+  box-shadow:
+    1px 0 0 #e9e6df,
+    2px 1px 0 #f6f4ef,
+    3px 1px 0 #e3e0d8,
+    4px 2px 0 #f4f2ec,
+    5px 2px 0 #dcd8cf,
+    0 18px 30px -18px rgb(0 0 0 / 0.45);
+}
+.page-curl--spread {
+  overflow: visible;
+  border-radius: 10px;
+}
+.page-curl__slot,
+.page-curl__leaf {
+  position: absolute;
+  top: 0;
+}
+.page-curl__leaf {
+  transform-origin: center;
+}
+.page-curl__layer {
+  position: absolute;
+  inset: 0;
+}
+.page-curl__shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.page-curl__flap-wrap,
+.page-curl__ghost-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* めくれた紙が下の紙に落とす影（切り抜きの外形に沿う）。 */
+  filter: drop-shadow(-3px 2px 6px rgb(0 0 0 / 0.22));
+}
+.page-curl__ghost-wrap {
+  filter: none;
+}
+.page-curl__flap,
+.page-curl__ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+.page-curl__ghost {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+.page-curl__paper {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.04);
+}
+/* 裏から見た紙: 表の絵が左右逆に、ごく薄く透ける。 */
+.page-curl__backside .page-curl__bleed {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  filter: grayscale(1) blur(0.4px);
+}
+.page-curl__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  margin-left: -14px;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(0 0 0 / 0.08) 40%,
+    rgb(0 0 0 / 0.2) 50%,
+    rgb(0 0 0 / 0.08) 60%,
+    transparent
+  );
 }
