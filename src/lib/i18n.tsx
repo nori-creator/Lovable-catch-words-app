@@ -1339,6 +1339,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save", "zh-TW": "儲存失敗" },
   "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that", "zh-TW": "紀錄失敗" },
   "cap.photoTaken": { ja: "撮った写真", en: "The photo you took", "zh-TW": "拍下的照片" },
+  // 撮った後の候補（2段、オーナー指示 2026-09-27）。
+  "cap.otherObjects": { ja: "ほかに写っている物", en: "Also in the photo", "zh-TW": "照片裡還有" },
+  "cap.pickThis": { ja: "この語で図鑑に入れる", en: "Add this word", "zh-TW": "用這個詞加入圖鑑" },
+  "cap.otherNames": { ja: "ほかの言い方", en: "Other ways to say it", "zh-TW": "其他說法" },
+  "cap.otherNamesN": { ja: "ほかの言い方 {n}", en: "{n} other names", "zh-TW": "其他說法 {n}" },
+  "cap.regSpecific": { ja: "くわしい名前", en: "Specific name", "zh-TW": "具體名稱" },
+  "cap.regProper": { ja: "固有名詞", en: "Proper noun", "zh-TW": "專有名詞" },
   "cap.photoCutout": { ja: "切り抜いた写真", en: "Cut-out photo", "zh-TW": "去背後的照片" },
   "cap.selfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "cap.wordPlaceholder": { ja: "例: 椅子", en: "e.g. 椅子", "zh-TW": "例：椅子" },

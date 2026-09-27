@@ -36,9 +36,74 @@ const shot = (w: number, h: number, c: string) =>
  * 語を選ぶ面。**使い分けの一言が出る候補と、出ない候補を混ぜる** —
  * AIが書けなかった回は空で来るので、そのとき行がどう詰まるかも見る。
  */
-export function CapturePickScene() {
+export function CapturePickScene({ q }: { q: URLSearchParams }) {
   const [manual, setManual] = useState("");
-  const suggestions = [
+  const [picked, setPicked] = useState<string | null>(null);
+  /**
+   * 既定は**写真に物が3つ写った回**（オーナー指示 2026-09-27 の2段の選び方）。
+   * 柚子はほかの言い方が2つ（押すと2段目）、桌子は1つだけ（押すとそのまま進む）。
+   * `?set=tissue` は番号の無い古い返事（今までどおりの1列）。
+   */
+  const grouped = [
+    {
+      headword: "文旦",
+      reading_zhuyin: "ㄨㄣˊ ㄉㄢˋ",
+      pinyin: "wén dàn",
+      meaning_ja: "文旦（品種の名前）",
+      distinction: "中秋節の贈り物の箱に書かれる名前",
+      category_key: "fruit",
+      register: "specific" as const,
+      group: 0,
+    },
+    {
+      headword: "柚子",
+      reading_zhuyin: "ㄧㄡˋ ㄗ˙",
+      pinyin: "yòu zi",
+      meaning_ja:
+        "ぶんたん・ザボン。台湾では中秋節に食べる大きな柑橘で、皮で帽子を作って子どもにかぶせる習慣もある",
+      category_key: "fruit",
+      register: "common" as const,
+      group: 0,
+    },
+    {
+      headword: "桌子",
+      reading_zhuyin: "ㄓㄨㄛ ㄗ˙",
+      pinyin: "zhuō zi",
+      meaning_ja: "机・テーブル",
+      category_key: "furniture",
+      register: "common" as const,
+      group: 1,
+    },
+    {
+      headword: "麻豆文旦",
+      reading_zhuyin: "ㄇㄚˊ ㄉㄡˋ ㄨㄣˊ ㄉㄢˋ",
+      pinyin: "má dòu wén dàn",
+      meaning_ja: "麻豆産の文旦",
+      category_key: "fruit",
+      register: "proper" as const,
+      group: 0,
+    },
+    {
+      headword: "盤子",
+      reading_zhuyin: "ㄆㄢˊ ㄗ˙",
+      pinyin: "pán zi",
+      meaning_ja: "皿",
+      category_key: "daily",
+      register: "common" as const,
+      group: 2,
+    },
+    {
+      headword: "瓷盤",
+      reading_zhuyin: "ㄘˊ ㄆㄢˊ",
+      pinyin: "cí pán",
+      meaning_ja: "陶磁器の皿",
+      distinction: "焼き物だと分かる時",
+      category_key: "daily",
+      register: "specific" as const,
+      group: 2,
+    },
+  ];
+  const tissue = [
     {
       headword: "衛生紙",
       reading_zhuyin: "ㄨㄟˋ ㄕㄥ ㄓˇ",
@@ -73,16 +138,26 @@ export function CapturePickScene() {
       category_key: "daily",
     },
   ];
+  const suggestions = q.get("set") === "tissue" ? tissue : grouped;
+  // 発音の丸は**鳴らせるようになってから出る**。確認用ページでは音を先に用意する。
+  readySpeech(suggestions.map((s) => s.headword));
   return (
-    <PickWordPanel
-      targetLanguage="zh-TW"
-      objectImg={shot(400, 400, "#8a7f6a")}
-      suggestions={suggestions}
-      manualWord={manual}
-      setManualWord={setManual}
-      onPick={() => {}}
-      onManual={() => {}}
-    />
+    <>
+      <PickWordPanel
+        targetLanguage="zh-TW"
+        objectImg={shot(400, 400, "#8a7f6a")}
+        suggestions={suggestions}
+        manualWord={manual}
+        setManualWord={setManual}
+        onPick={(s) => setPicked(s.headword)}
+        onManual={() => {}}
+      />
+      {picked && (
+        <p role="status" className="mt-3 text-footnote text-muted-foreground">
+          選んだ語: {picked}
+        </p>
+      )}
+    </>
   );
 }
 

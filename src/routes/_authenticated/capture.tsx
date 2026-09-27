@@ -8,7 +8,7 @@ import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
-import { WordCandidateRow } from "@/components/WordCandidateRow";
+import { CandidatePicker } from "@/components/CandidatePicker";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -138,6 +138,10 @@ type Suggestion = {
   /** 他の候補との**使い分け**を一言。出ない回もあるので任意。 */
   distinction?: string;
   category_key: string;
+  /** ふだん度（並べ替えと2段目の札に使う）。 */
+  register?: "common" | "specific" | "proper" | null;
+  /** 写真のどの物か（同じ物の別の呼び方は同じ番号）。無ければ1語で1つ。 */
+  group?: number | null;
 };
 
 type CardData = {
@@ -1797,7 +1801,10 @@ export function PickWordPanel({
 }) {
   const t = useT();
   return (
-    <div className="space-y-4">
+    // **横には動かさない**（オーナー指示 2026-09-27「撮影後の単語候補画面を
+    // 横スライドできないよう固定」）。はみ出す物があっても横に送れないよう、
+    // この面は縦だけに動く。
+    <div className="space-y-4 overflow-x-hidden overscroll-x-none [touch-action:pan-y]">
       {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
       {objectImg && (
         <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg">
@@ -1814,24 +1821,9 @@ export function PickWordPanel({
       {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
           「ステップ3の単語を選ぶの小さな文細かいは消して」）。
           候補が並んでいれば、選ぶ所であることは見れば分かる。 */}
-      <div className="grid gap-2">
-        {/* 札の中身は `WordCandidateRow` に1つだけ置いてある。
-            打ち込んだ語の候補と**同じ役目・同じ見た目**で、
-            以前はここに写しがあったせいで見出し語の大きさが違い、
-            **表記の設定(注音/拼音)もこちら側だけ読んでいなかった**。 */}
-        {suggestions.map((s) => (
-          <WordCandidateRow
-            key={s.headword}
-            headword={s.headword}
-            zhuyin={s.reading_zhuyin}
-            pinyin={s.pinyin}
-            meaning={s.meaning_ja}
-            distinction={s.distinction}
-            onPick={() => onPick(s)}
-            language={targetLanguage}
-          />
-        ))}
-      </div>
+      {/* **物ごとに1語 → 押した物のほかの言い方**の2段（`CandidatePicker`、
+          オーナー指示 2026-09-27）。横には動かず、長い訳は折り返す。 */}
+      <CandidatePicker suggestions={suggestions} language={targetLanguage} onPick={onPick} />
       {/*
         候補に無かったとき。**見出しは右端、決めるのは検索の釦**
         （オーナー指示 2026-09-15「ステップ3の違う単語を入力するのは

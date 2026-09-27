@@ -96,11 +96,18 @@ const SuggestionSchema = z.object({
          * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
          */
         register: z.enum(["common", "specific", "proper"]).optional().catch(undefined),
+        /**
+         * **写真のどの物か**の番号（2026-09-27）。写っている別々の物に 0,1,2…、
+         * 同じ物の別の呼び方には同じ番号。画面はこれで1段目（物ごとに1語）と
+         * 2段目（その物のほかの言い方）に分ける（`groupCandidates`）。
+         */
+        group: z.number().int().min(0).max(20).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
+    // 物ごとに別の言い方も返すので、上限は 12。
     .min(1)
-    .max(8),
+    .max(12),
 });
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -152,6 +159,12 @@ ${langRule}
 - **確からしい順に並べる。** 1つ目が「これは何か」への答え。
   自信の無いものを上に置かない。
 
+**写っている物ごとに分ける（group）:**
+- 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
+- 同じ物に別の呼び方（正確な名前・固有名詞など）があれば、**同じ group の番号で**続けて出す。
+  別の呼び方が無い物は1つだけでよい。無理に作らない。
+- 物は最大5つ、1つの物の呼び方は最大3つ。
+
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
   固有名詞は**下に置くが、消さない**（register で印を付ける）。
@@ -184,7 +197,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
