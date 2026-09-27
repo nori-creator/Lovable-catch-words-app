@@ -41,7 +41,7 @@ export function GlassSurfacesScene({ q }: { q: URLSearchParams }) {
           display: "flex",
           gap: 6,
           padding: "8px 0 10px",
-          overflowX: "auto",
+          flexWrap: "wrap",
         }}
       >
         {VARIANTS.map((o) => (

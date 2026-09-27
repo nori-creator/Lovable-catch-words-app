@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildMessage, takenDateLabel, type NearbyMemoryLike } from "./place-reminder";
+import {
+  buildMessage,
+  takenDateLabel,
+  type NearbyMemoryLike,
+  mayNotifyAt,
+  placeCellKey,
+  recordNotificationAt,
+  PER_DAY_TOTAL,
+} from "./place-reminder";
 
 /**
  * 場所の知らせの文面。**答えを書かない**ことがこの機能の全部なので、
@@ -73,5 +81,29 @@ describe("takenDateLabel", () => {
     expect(takenDateLabel(null)).toBe("");
     expect(takenDateLabel(undefined)).toBe("");
     expect(takenDateLabel("いつか")).toBe("");
+  });
+});
+
+describe("同じ場所では1日1回まで（2026-09-27「家にいると延々と通知が来る」）", () => {
+  const home = placeCellKey({ lat: 25.0339, lng: 121.5645 });
+  const at = (h: number, day = 27) => new Date(2026, 8, day, h, 0, 0);
+  it("家の中で少し動いても同じ場所として数える", () => {
+    expect(placeCellKey({ lat: 25.0341, lng: 121.5646 })).toBe(home);
+  });
+  it("同じ場所で2回目は鳴らさない。翌日はまた鳴らせる", () => {
+    const log = recordNotificationAt(home, at(9), null);
+    expect(mayNotifyAt(home, at(21), log)).toBe(false);
+    expect(mayNotifyAt(home, at(8, 28), log)).toBe(true);
+  });
+  it("違う場所なら鳴らせる。ただし1日の合計は上限まで", () => {
+    let log = recordNotificationAt(home, at(9), null);
+    const a = placeCellKey({ lat: 25.05, lng: 121.52 });
+    const b = placeCellKey({ lat: 25.08, lng: 121.55 });
+    const c = placeCellKey({ lat: 25.1, lng: 121.6 });
+    expect(mayNotifyAt(a, at(12), log)).toBe(true);
+    log = recordNotificationAt(a, at(12), log);
+    log = recordNotificationAt(b, at(15), log);
+    expect(log.total).toBe(PER_DAY_TOTAL);
+    expect(mayNotifyAt(c, at(18), log)).toBe(false);
   });
 });

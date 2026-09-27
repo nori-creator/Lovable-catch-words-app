@@ -14,6 +14,9 @@
  * ## 設計のねらい
  * - 撮った当日に「覚えてる?」と聞いても意味がないので、**1日以上経ったもの**だけ
  * - 同じ場所で何度も鳴ると鬱陶しいので、**1つの言葉につき12時間は再通知しない**
+ * - **同じ場所では1日1回まで、1日の合計も3回まで**（オーナー報告 2026-09-27
+ *   「家にいると延々と通知が来る」）。言葉ごとの冷却だけだと、家で撮った言葉が
+ *   10個あれば、アプリを開くたびに次の言葉が鳴っていた
  * - 位置情報は**設定でONにした人だけ**取りに行く。既定はOFF
  */
 
@@ -24,6 +27,73 @@ const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
 /** 同じ言葉を再び知らせるまでの間隔。 */
 const COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const PLACE_LOG_KEY = "place-reminder-places-v1";
+/** 1つの場所で1日に鳴らす回数。 */
+export const PER_PLACE_PER_DAY = 1;
+/** 1日に鳴らす合計の回数（場所が違っても）。 */
+export const PER_DAY_TOTAL = 3;
+
+/**
+ * 「同じ場所」の鍵。緯度経度を 0.002 度（およそ 200m）の升目に丸める。
+ * 家の中を歩き回っても、隣の部屋へ移っても同じ升目に入る大きさ。
+ */
+export function placeCellKey(pos: { lat: number; lng: number }): string {
+  const cell = (v: number) => Math.round(v / 0.002);
+  return `${cell(pos.lat)}:${cell(pos.lng)}`;
+}
+
+/** その日の鍵（端末の地方時。夜中に日付が変わったら数え直す）。 */
+export function localDay(now: Date): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** その日に鳴らした記録: { day, places: { [升目]: 回数 }, total }。 */
+export type PlaceLog = { day: string; places: Record<string, number>; total: number };
+
+/**
+ * **いま、この場所で鳴らしてよいか。** 日が変わっていれば記録は空とみなす。
+ */
+export function mayNotifyAt(
+  cell: string,
+  now: Date,
+  log: PlaceLog | null,
+  limits = { perPlace: PER_PLACE_PER_DAY, perDay: PER_DAY_TOTAL },
+): boolean {
+  const today = localDay(now);
+  if (!log || log.day !== today) return limits.perPlace > 0 && limits.perDay > 0;
+  return (log.places[cell] ?? 0) < limits.perPlace && log.total < limits.perDay;
+}
+
+/** 鳴らしたことを記録した、新しい記録を返す。 */
+export function recordNotificationAt(cell: string, now: Date, log: PlaceLog | null): PlaceLog {
+  const today = localDay(now);
+  const base = log && log.day === today ? log : { day: today, places: {}, total: 0 };
+  return {
+    day: today,
+    places: { ...base.places, [cell]: (base.places[cell] ?? 0) + 1 },
+    total: base.total + 1,
+  };
+}
+
+export function readPlaceLog(): PlaceLog | null {
+  try {
+    const raw = localStorage.getItem(PLACE_LOG_KEY);
+    return raw ? (JSON.parse(raw) as PlaceLog) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePlaceLog(log: PlaceLog) {
+  try {
+    localStorage.setItem(PLACE_LOG_KEY, JSON.stringify(log));
+  } catch {
+    /* 使えない端末では、言葉ごとの冷却だけが効く */
+  }
+}
 
 export type NearbyMemoryLike = {
   sticker_id: string;
