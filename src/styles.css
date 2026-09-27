@@ -6387,8 +6387,10 @@ html[data-motion="reduce"] .camera-modes__item {
 .camera-shutter__core {
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
+  /* **白い輪と青の間に隙間を作らない**（オーナー指示 2026-09-27）。輪の内側
+     いっぱい（76 − 3×2 = 70px）を青で埋める。 */
+  width: 70px;
+  height: 70px;
   border-radius: 9999px;
   background: var(--cam-accent);
   color: #fff;
@@ -7950,9 +7952,10 @@ html[data-motion="reduce"] .dex-daymap__timeline {
 }
 .dex-pin[data-active] .dex-pin__face {
   border-color: var(--primary);
-  box-shadow:
-    0 0 0 3px white,
-    0 14px 24px -6px rgb(0 0 0 / 0.45);
+  /* **青い枠が一番外**（オーナー指示 2026-09-27「マップのバブルの青枠の外に
+     白を付けない」）。前は外に 3px の白い輪を重ねていて、青が内側の線に
+     見えていた。影だけ残す。 */
+  box-shadow: 0 14px 24px -6px rgb(0 0 0 / 0.45);
 }
 html[data-motion="reduce"] .dex-pin {
   transition: none;
