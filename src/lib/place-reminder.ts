@@ -24,6 +24,7 @@ import { Capacitor } from "@capacitor/core";
 import { getUiLang, localeOf, tStatic } from "@/lib/i18n";
 import { fitsReaderLanguage } from "@/lib/meaning-language";
 import { withDeadline } from "@/lib/deadline";
+import { resolveWordLanguage } from "@/lib/word-language";
 
 const ENABLED_KEY = "place-reminder-enabled";
 const SEEN_KEY = "place-reminder-seen-v1";
@@ -298,6 +299,18 @@ export function buildMessage(m: NearbyMemoryLike): { title: string; body: string
   // 日付と地名を両方出せるときは両方出す。
   const date = takenDateLabel(m.taken_at);
   const place = (m.location_name ?? "").trim();
+  const lang = learningLanguageName(m.headword);
+  // ## B「写真を大きく」（オーナー決定 2026-09-27）
+  // 写真が付く時は、**写真そのものを問いにする**。題は「ここで撮った、これ。
+  // 台湾華語で言える？」、本文は「地名 · 日付」だけ。写真が無い語（文字から
+  // 作った語）は手がかりが無いので、母語で問う形（前の A）に落ちる。
+  if (m.image_url) {
+    const meta = [place, date].filter(Boolean).join(" · ");
+    return {
+      title: tStatic("place.sayItIn", { lang }),
+      body: meta || tStatic("place.caughtHereShort"),
+    };
+  }
   const body =
     date && place
       ? tStatic("place.caughtOnAt", { date, name: place })
@@ -307,9 +320,19 @@ export function buildMessage(m: NearbyMemoryLike): { title: string; body: string
           ? tStatic("place.caughtAt", { name: place })
           : tStatic("place.caughtHereShort");
   return {
-    title: tStatic("place.rememberBefore") + ask + tStatic("place.rememberAfter"),
+    title: tStatic("place.rememberBefore") + ask + tStatic("place.rememberAfter", { lang }),
     body,
   };
+}
+
+/**
+ * 通知に書く**学習言語の名前**（台湾華語 / 英語 …、表示言語で）。
+ * 札は言語を持って来ないので、見出し語の字から決める（`resolveWordLanguage`）。
+ */
+export function learningLanguageName(headword: string | null | undefined): string {
+  return resolveWordLanguage(null, headword) === "en"
+    ? tStatic("place.langEn")
+    : tStatic("place.langZh");
 }
 
 /** 実際に通知を出す。 */

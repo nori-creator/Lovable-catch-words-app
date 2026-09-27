@@ -1868,11 +1868,25 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 押した先の問題は「写真+日本語 → 台湾華語を4択」なので、通知に
   // 台湾華語を出すと**開いた瞬間に答えが分かる**。
   "place.rememberBefore": { ja: "「", en: "Remember “", "zh-TW": "「" },
+  // 言語の名前は**学習言語から**入れる（`{lang}` = `place.lang*`）。前は
+  // 「中文」と決め打ちで、英語を学ぶ人にも中文と出ていた。
+  // 名前はオーナー指示 2026-09-27「『中国語』ではなく『台湾華語』、英語では Mandarin」。
   "place.rememberAfter": {
-    ja: "」は中文で？",
-    en: "” in Mandarin?",
-    "zh-TW": "」中文怎麼說？",
+    ja: "」は{lang}で？",
+    en: "” in {lang}?",
+    "zh-TW": "」用{lang}怎麼說？",
   },
+  "place.langZh": { ja: "台湾華語", en: "Mandarin", "zh-TW": "華語" },
+  "place.langEn": { ja: "英語", en: "English", "zh-TW": "英文" },
+  // B「写真を大きく」（オーナー決定 2026-09-27）。写真が手がかりなので、題は短く問うだけ。
+  "place.sayItIn": {
+    ja: "ここで撮った、これ。{lang}で言える？",
+    en: "You caught this here. Can you say it in {lang}?",
+    "zh-TW": "在這裡拍到的這個，用{lang}怎麼說？",
+  },
+  // 「思い出す」ではなく「復習する」（オーナー指示 2026-09-27）。
+  "place.review": { ja: "復習する", en: "Review", "zh-TW": "複習" },
+  "place.later": { ja: "あとで", en: "Later", "zh-TW": "稍後" },
   // --- 場所の思い出し・共通 ---
   // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
   // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
