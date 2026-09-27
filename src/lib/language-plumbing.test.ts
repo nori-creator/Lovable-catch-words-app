@@ -1413,7 +1413,7 @@ describe("2026-08-26 の3度目の報告", () => {
     }
     const rev = codeOnly(read("lib/reviews.functions.ts"));
     expect(rev).toMatch(/topChunkOf\(w\.extras, w\.headword, w\.language\)/);
-    expect(rev).toMatch(/explainOf\(w\.extras, w\.headword, w\.language\)/);
+    expect(rev).toMatch(/explainOf\(w\.extras, w\.headword, w\.language[,)]/);
   });
 
   it("型を作らせる言い方が**言語ごと**にある", () => {

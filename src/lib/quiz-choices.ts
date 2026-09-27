@@ -1,3 +1,5 @@
+import type { UiLang } from "./i18n";
+
 /**
  * 4択の選択肢を組む所。
  *
@@ -21,6 +23,17 @@ export const FALLBACK_MEANINGS: readonly string[] = [
   "人物の役職",
   "時間の言い方",
 ];
+
+/**
+ * 受け皿を**読み手の言語ごと**に持つ（オーナー報告 2026-09-27「復習の4択に
+ * 別の言語が混ざる」）。日本語の1組しか無かったので、英語で読む人が
+ * 撮った語の少ないうちは、4択の3つが日本語になっていた。
+ */
+export const FALLBACK_MEANINGS_BY_LANG: Readonly<Record<UiLang, readonly string[]>> = {
+  ja: FALLBACK_MEANINGS,
+  en: ["another object", "a place name", "a job title", "a way to say a time"],
+  "zh-TW": ["別的東西", "地方的名字", "職稱", "時間的說法"],
+};
 
 /**
  * 同じく、見出し語の側の受け皿。台湾で日常的に見る語を選ぶ

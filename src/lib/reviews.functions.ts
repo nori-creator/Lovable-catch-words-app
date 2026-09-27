@@ -19,7 +19,13 @@ import {
 } from "@/lib/retention-series";
 export { nextSrs } from "@/lib/srs";
 // 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
-import { FALLBACK_MEANINGS, buildChoices, shuffle } from "@/lib/quiz-choices";
+import { FALLBACK_MEANINGS_BY_LANG, buildChoices, shuffle } from "@/lib/quiz-choices";
+import {
+  fitsReaderLanguage,
+  keepReaderLanguage,
+  quizMeaningLanguage,
+} from "@/lib/meaning-language";
+import type { UiLang } from "@/lib/i18n";
 import {
   assertWithinDailyCap,
   generateStructured,
@@ -160,23 +166,31 @@ function explainOf(
   rawExtras: unknown,
   headword: string,
   language?: string | null,
+  /**
+   * 読み手の言語。**合わない訳・注記は落とす**（オーナー報告 2026-09-27
+   * 「解説に別の言語が混ざる」）。表示言語を変える前に作った語は、
+   * 訳と注記が前の言語のまま残っている。
+   */
+  reader?: UiLang,
 ): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
+  const fit = (s: string | null | undefined) =>
+    reader ? keepReaderLanguage(s, reader) : (s ?? "");
   // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
   const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword, language)
     .filter((c) => (c.parts?.length ?? 0) > 0)
     .slice(0, 3)
-    .map((c) => ({ parts: c.parts, ja: c.ja ?? "" }));
+    .map((c) => ({ parts: c.parts, ja: fit(c.ja) }));
   const related = (ex.related_words ?? [])
     .filter((r) => !!r.word?.trim())
     .slice(0, 4)
-    .map((r) => ({ word: r.word, kind: r.kind, note: r.note ?? "" }));
+    .map((r) => ({ word: r.word, kind: r.kind, note: fit(r.note) }));
   const measures = (ex.measure_words ?? [])
     .filter((m) => !!m.word?.trim())
     .slice(0, 2)
-    .map((m) => ({ word: m.word, note: m.note ?? "" }));
-  const note = (ex.taiwan_note || ex.usage_context || "").trim();
+    .map((m) => ({ word: m.word, note: fit(m.note) }));
+  const note = fit((ex.taiwan_note || ex.usage_context || "").trim());
   if (!chunks.length && !related.length && !measures.length && !note) return null;
   return { chunks, related, measures, note };
 }
@@ -324,7 +338,11 @@ export const getDueReviews = createServerFn({ method: "GET" })
      * PostgREST の形は `stickers.words.or=(…)` で、**通らない prefix は
      * 400 を返す**ので、下で拾って絞りを外す(空の復習を出さない)。
      */
-    const targetLanguage = await getUserTargetLanguage(userId);
+    const [targetLanguage, reader] = await Promise.all([
+      getUserTargetLanguage(userId),
+      // 4択の意味と解説を読む人の言語（表示言語）。
+      getExplanationLanguage(userId),
+    ]);
     const langFilter = wordLanguageFilter(targetLanguage);
     // 4択の受け皿は**その言語のもの**(`target-profile.ts` が持つ)。
     const quizFallback = {
@@ -629,11 +647,16 @@ export const getDueReviews = createServerFn({ method: "GET" })
 
       // 池は「その学習者の頭の中で実際に混ざる誤答」から先に。
       // 最後は必ず受け皿 — 撮った語がまだ1つでも、選択肢は4つ出す。
+      // **4つを同じ言語で揃える**（オーナー報告 2026-09-27「復習の4択に別の
+      // 言語が混ざる」）。池の中身は作った日の表示言語で保存されているので、
+      // 読み手の言語（正解が古い別の言語なら、その言語）に合う物だけを使う。
+      const quizLang = quizMeaningLanguage(w.meaning_ja, reader);
+      const sameLang = (xs: readonly string[]) => xs.filter((x) => fitsReaderLanguage(x, quizLang));
       const meaningChoices = buildChoices(w.meaning_ja, [
-        sameCat.map((d) => d.meaning_ja),
-        cached.get(w.id) ?? [],
-        otherCat.map((d) => d.meaning_ja),
-        FALLBACK_MEANINGS,
+        sameLang(sameCat.map((d) => d.meaning_ja)),
+        sameLang(cached.get(w.id) ?? []),
+        sameLang(otherCat.map((d) => d.meaning_ja)),
+        FALLBACK_MEANINGS_BY_LANG[quizLang],
       ]);
       const headwordChoices = buildChoices(w.headword, [
         sameCat.map((d) => d.headword),
@@ -693,7 +716,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
         // 4択の答え合わせで見せるのは長い例文ではなく「一番よく一緒に使う形」。
         // extras.usage_chunks の先頭(=最頻の型)をその場で読める短い1行にする。
         top_chunk: topChunkOf(w.extras, w.headword, w.language),
-        explain: explainOf(w.extras, w.headword, w.language),
+        explain: explainOf(w.extras, w.headword, w.language, reader),
         category_key: w.category_key,
         entry_type: w.entry_type ?? "word",
         cutout_url: cutoutPath ? (cutoutUrlByPath.get(cutoutPath) ?? null) : null,
