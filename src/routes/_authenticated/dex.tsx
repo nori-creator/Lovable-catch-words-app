@@ -438,79 +438,7 @@ function DexPage() {
               // 表示される3列グリッド+下端のグラデーションに単語名。
               <DexAlbumGrid items={items} justCaught={justCaught} onOpen={setOpenId} />
             ) : (
-              <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-                {items.map((s, i) => (
-                  <li
-                    key={s.id}
-                    className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
-                  >
-                    <button
-                      onClick={() => setOpenId(s.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
-                    >
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
-                        {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
-                        {(s.object_thumb_url ?? s.object_url) ? (
-                          <CachedImg
-                            src={(s.object_thumb_url ?? s.object_url)!}
-                            alt={t("common.photoOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : s.cutout_url ? (
-                          <CachedImg
-                            src={s.cutout_thumb_url ?? s.cutout_url}
-                            alt={t("common.stickerOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-contain p-1"
-                          />
-                        ) : s.placeholder_url ? (
-                          <CachedImg
-                            src={s.placeholder_url}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span
-                            lang="zh-Hant"
-                            className="px-1 text-center text-caption font-semibold text-muted-foreground"
-                          >
-                            {s.word.headword}
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2">
-                          <span lang="zh-Hant" className="text-body font-semibold">
-                            {s.word.headword}
-                          </span>
-                          {s.word.reading_zhuyin && (
-                            <span
-                              lang="zh-Hant"
-                              className="truncate text-footnote text-muted-foreground"
-                            >
-                              {s.word.reading_zhuyin}
-                            </span>
-                          )}
-                        </div>
-                        <div className="truncate text-body text-muted-foreground">
-                          {s.word.meaning_ja}
-                        </div>
-                      </div>
-                    </button>
-                    {/* 発音ボタンは右側に (縦並びリスト) */}
-                    <PronounceButton
-                      text={s.word.headword}
-                      language={s.word.language ?? undefined}
-                      tone="hero"
-                    />
-                  </li>
-                ))}
-              </ul>
+              <DexList items={items} onOpen={setOpenId} />
             )}
           </section>
         ))
@@ -892,6 +820,87 @@ export function PackGallery({
         );
       })}
     </div>
+  );
+}
+
+
+/** The same compact list used in the app and first-run Dex. */
+export function DexList({ items, onOpen }: { items: StickerWithWord[]; onOpen: (id: string) => void }) {
+  const t = useT();
+  return (
+              <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+                {items.map((s, i) => (
+                  <li
+                    key={s.id}
+                    className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
+                  >
+                    <button
+                      onClick={() => onOpen(s.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
+                    >
+                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                        {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
+                        {(s.object_thumb_url ?? s.object_url) ? (
+                          <CachedImg
+                            src={(s.object_thumb_url ?? s.object_url)!}
+                            alt={t("common.photoOf", { word: s.word.headword })}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : s.cutout_url ? (
+                          <CachedImg
+                            src={s.cutout_thumb_url ?? s.cutout_url}
+                            alt={t("common.stickerOf", { word: s.word.headword })}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-contain p-1"
+                          />
+                        ) : s.placeholder_url ? (
+                          <CachedImg
+                            src={s.placeholder_url}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span
+                            lang="zh-Hant"
+                            className="px-1 text-center text-caption font-semibold text-muted-foreground"
+                          >
+                            {s.word.headword}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span lang="zh-Hant" className="text-body font-semibold">
+                            {s.word.headword}
+                          </span>
+                          {s.word.reading_zhuyin && (
+                            <span
+                              lang="zh-Hant"
+                              className="truncate text-footnote text-muted-foreground"
+                            >
+                              {s.word.reading_zhuyin}
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-body text-muted-foreground">
+                          {s.word.meaning_ja}
+                        </div>
+                      </div>
+                    </button>
+                    {/* 発音ボタンは右側に (縦並びリスト) */}
+                    <PronounceButton
+                      text={s.word.headword}
+                      language={s.word.language ?? undefined}
+                      tone="hero"
+                    />
+                  </li>
+                ))}
+              </ul>
   );
 }
 

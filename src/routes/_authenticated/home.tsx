@@ -35,7 +35,6 @@ import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { CachedImg } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
-import { getMyProfile } from "@/lib/profile.functions";
 import {
   listPendingCaptures,
   removePendingCapture,
@@ -223,8 +222,6 @@ function HomePage() {
   const t = useT();
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
-  const fetchProfile = useServerFn(getMyProfile);
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const {
     data: stickers,
     isLoading,
@@ -266,10 +263,6 @@ function HomePage() {
     };
   }, []);
   const surfaceClass = wallClass(wall);
-
-  useEffect(() => {
-    if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
-  }, [profile, navigate]);
 
   const today = new Date();
   const todayKey = dayKey(today);

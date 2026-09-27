@@ -1,11 +1,11 @@
 .first-run {
-  min-height: 100dvh;
+  min-height: var(--first-viewport-height, 100dvh);
   background: #f4faff;
   color: #10213d;
 }
 .first-questions {
   max-width: 460px;
-  min-height: 100dvh;
+  min-height: var(--first-viewport-height, 100dvh);
   margin: auto;
   padding: max(18px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   display: flex;
@@ -427,12 +427,15 @@
   z-index: 150;
   pointer-events: none;
 }
+.tour-preview-lock { position: fixed; inset: 0; z-index: 149; touch-action: none; }
 .tour-block {
   position: absolute;
   background: rgb(11 24 42 / 0.57);
   pointer-events: auto;
   touch-action: none;
+  animation: tour-dim-in .55s ease-out both;
 }
+@keyframes tour-dim-in { from { opacity: 0; } to { opacity: 1; } }
 .tour-ring {
   position: absolute;
   border: 2px solid #65c7ff;
@@ -440,6 +443,11 @@
   box-shadow:
     0 0 0 4px #cceaff38,
     0 0 24px #6acbff7a;
+  animation: tour-focus-in .55s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes tour-focus-in {
+  from { opacity: 0; scale: 1.04; }
+  to { opacity: 1; scale: 1; }
 }
 /* 案内が次の物へ移るとき、暗幕の穴と輪は**跳ばずに滑って**移る
    （どこからどこへ目を移すのかが分かる）。曲線は iOS のシートと同じ。 */
@@ -559,6 +567,61 @@
 .first-account-sheet .auth-card {
   margin: 0;
 }
+.first-auth {
+  --card: #fff;
+  --foreground: #10213d;
+  --border: #e1e9f0;
+  --muted-foreground: #65778c;
+  --primary-ink: #0073d2;
+  min-height: var(--first-viewport-height, 100dvh);
+  background: linear-gradient(180deg, #fff 0%, #f1faff 100%);
+}
+.first-auth-page {
+  width: min(100%, 480px);
+  min-height: var(--first-viewport-height, 100dvh);
+  margin: auto;
+  padding: max(22px, env(safe-area-inset-top)) 22px max(26px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  color: #10213d;
+}
+.first-auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 21px;
+  font-weight: 780;
+  letter-spacing: -.035em;
+}
+.first-auth-brand img { width: 42px; height: 42px; border-radius: 11px; }
+.first-auth-photos {
+  position: relative;
+  height: clamp(174px, 25dvh, 235px);
+  width: min(100%, 356px);
+  flex: none;
+  margin: 22px auto 12px;
+}
+.first-auth-photo {
+  position: absolute;
+  width: 40%;
+  height: 64%;
+  object-fit: cover;
+  border: 5px solid white;
+  border-bottom-width: 12px;
+  border-radius: 13px;
+  box-shadow: 0 9px 25px #15456624;
+  animation: first-photo-enter .56s cubic-bezier(.22,1,.36,1) backwards;
+}
+.first-auth-photo-0 { left: 5%; top: 2%; rotate: -9deg; z-index: 2; }
+.first-auth-photo-1 { right: 4%; top: 1%; rotate: 8deg; z-index: 1; animation-delay: .08s; }
+.first-auth-photo-2 { left: 25%; bottom: 0; rotate: 5deg; z-index: 4; animation-delay: .16s; }
+.first-auth-photo-3 { right: 13%; bottom: 3%; rotate: -7deg; z-index: 3; animation-delay: .24s; }
+.first-auth-content { width: 100%; margin: auto 0; text-align: center; }
+.first-auth-content h1 { font-size: clamp(25px, 7vw, 30px); font-weight: 780; line-height: 1.3; }
+.first-auth-content > .first-sub { margin: 9px 0 20px; }
+.first-auth-content .auth-card { margin: 0; text-align: left; }
+.first-auth-content .auth-legal { margin-top: 18px; }
 .first-added {
   margin: 24px auto;
   max-width: 400px;
@@ -689,7 +752,7 @@
 /* First-run pages use the same narrow white canvas and blue accent as the questions. */
 .first-standalone {
   width: min(100%, 460px);
-  min-height: 100dvh;
+  min-height: var(--first-viewport-height, 100dvh);
   margin: auto;
   padding: max(28px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
   display: flex;
@@ -725,32 +788,32 @@
 /* 残りの高さぜんぶを写真の束に使い、束の中は箱の高さ（cqh）で大きさを決める。
    背の低い画面でも「はじめる」に重ならず、画面の外へも落ちない。 */
 .first-intro {
-  min-height: 100dvh;
+  min-height: var(--first-viewport-height, 100dvh);
   height: auto;
 }
 .first-polaroids {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  position: relative;
   width: 100%;
-  max-width: 350px;
-  margin: 22px auto;
-  align-content: center;
+  max-width: 365px;
+  height: clamp(290px, 51dvh, 420px);
+  margin: 20px auto 14px;
   flex: 1;
-  min-height: 0;
+  min-height: 290px;
 }
 .first-polaroid {
-  position: relative;
-  min-width: 0;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
   padding: 6px 6px 9px;
   background: white;
   border-radius: 13px;
-  box-shadow: 0 8px 22px #25608b18;
-  animation: first-photo-enter 0.5s ease-out backwards;
+  box-shadow: 0 13px 30px #25608b26;
+  animation: first-photo-enter .65s cubic-bezier(.22,1,.36,1) backwards;
 }
 .first-polaroid img {
   width: 100%;
-  aspect-ratio: 1.35;
+  flex: 1;
+  min-height: 0;
   object-fit: cover;
   border-radius: 8px;
 }
@@ -762,7 +825,12 @@
   background: #eff8ff;
   font-size: 14px;
   font-weight: 750;
+  align-self: flex-start;
 }
+.first-polaroid-0 { left: 2%; top: 3%; width: 53%; height: 47%; rotate: -7deg; z-index: 2; }
+.first-polaroid-1 { right: 2%; top: 11%; width: 48%; height: 43%; rotate: 8deg; z-index: 1; }
+.first-polaroid-2 { left: 8%; bottom: 3%; width: 45%; height: 43%; rotate: 5deg; z-index: 4; }
+.first-polaroid-3 { right: 4%; bottom: 2%; width: 53%; height: 44%; rotate: -6deg; z-index: 3; }
 
 .first-standalone-footer {
   margin-top: auto;
@@ -1129,9 +1197,10 @@
     font-size: 15px;
   }
   .first-polaroids {
-    gap: 10px;
-    margin: 16px auto;
-    max-width: 290px;
+    margin: 12px auto;
+    max-width: 315px;
+    min-height: 260px;
+    height: 44dvh;
   }
   .first-standalone {
     padding-block: 18px;

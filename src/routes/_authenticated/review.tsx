@@ -2019,7 +2019,7 @@ export function LightModeCard({
             <BadgeIcon name={BADGE_ICON_NAME.quiz} size="sm" />
             {t("review.quizTag")}
           </span>
-          {!practice && <CardMemoryBadge card={card} onOpen={onOpenMemory} />}
+          <CardMemoryBadge card={card} onOpen={onOpenMemory} />
         </div>
         {/* 画像は大きく見せたい / でも4択はスクロールなしで見せたい。
           画面高に連動させ(最大32vh)、小さい端末でも選択肢が隠れない。 */}

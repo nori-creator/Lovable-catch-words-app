@@ -328,9 +328,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "左右滑動照片，從當時的場景想起單字。",
   },
   "first.dexTypes": {
-    ja: "左上の四角いアイコンをタップ。写真を並べて探す表示にも切り替えられます。",
-    en: "Tap the grid icon at the top left to browse your photos together.",
-    "zh-TW": "點左上的方格圖示，也可以用照片一覽尋找單字。",
+    ja: "上のアイコンで、写真一覧・地図・リストへ切り替えられます。探し方も自分に合わせて。",
+    en: "Use the icons above to switch between photos, the map, and a list.",
+    "zh-TW": "點上方圖示，切換照片、地圖和清單，用喜歡的方式尋找。",
   },
   "first.dexOpen": {
     ja: "追加した単語を開いて、意味や使い方を見てみましょう。",
@@ -349,9 +349,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "拍下來、了解意思、再想起來。\n從生活中累積你的單字。",
   },
   "first.home": {
-    ja: "撮った写真が、そのまま単語帳に。いつ、何を見つけたかを写真から振り返れます。",
-    en: "Your photos and words become an album of the day.",
-    "zh-TW": "拍下的照片和單字，會成為當天的相簿。",
+    ja: "単語をメモし直す手間なく、撮った写真が今日のアルバムになります。",
+    en: "Skip copying words into a notebook. Your photos become today's album.",
+    "zh-TW": "不用再抄單字，拍下的照片就會成為今天的相簿。",
   },
   "first.dex": {
     ja: "集めたことばが、撮った写真と一緒に並びます。",
@@ -359,20 +359,20 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "收集的單字會和照片一起保存。",
   },
   "first.review": {
-    ja: "写真を見て、ことばを選びましょう。自分の体験と一緒に覚えるから、思い出しやすくなります。",
-    en: "Short quizzes bring words back before you forget.",
-    "zh-TW": "用簡短的測驗，在忘記前再想起來。",
+    ja: "撮った場面を見ながら4択で思い出します。意味だけを丸暗記する必要はありません。",
+    en: "Choose from four answers while viewing your photo. Recall the moment, not just a definition.",
+    "zh-TW": "看著自己拍的照片做四選一，從當時的場景想起單字。",
   },
   "first.shoot": {
-    ja: "目の前にある物を、何でも1枚。",
-    en: "Anything in front of you will do.",
-    "zh-TW": "拍下眼前的任何東西都可以。",
+    ja: "名前を調べる前に、目の前のものを1枚。AIが写真からことばを探します。",
+    en: "Take a photo before searching a dictionary. AI finds words in it.",
+    "zh-TW": "不用先查字典，拍下眼前的東西，AI 會從照片找出單字。",
   },
   "first.shootCta": { ja: "1枚撮ってみる", en: "Take your first photo", "zh-TW": "拍下第一張照片" },
   "first.pick": {
-    ja: "写真の中から見つかったことばです。",
-    en: "These are the words found in your photo.",
-    "zh-TW": "這些是從照片中找到的單字。",
+    ja: "写真から見つけた候補です。残したいことばを選んでください。",
+    en: "Here are words found in your photo. Pick the one you want to keep.",
+    "zh-TW": "這些是照片中找到的候選單字，選一個想留下的吧。",
   },
   "first.detail": {
     ja: "スピーカーを押すと、発音を聞けます。",

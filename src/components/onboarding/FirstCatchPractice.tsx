@@ -4,7 +4,8 @@ import { useTargetLang } from "@/lib/target-lang-pref";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
 import { sampleStickers } from "./FirstCatchHome";
 import { DexCoverFlow } from "../DexCoverFlow";
-import { DexAlbumGrid, DexHeader } from "@/routes/_authenticated/dex";
+import { DexAlbumGrid, DexHeader, DexList } from "@/routes/_authenticated/dex";
+import { DexDayMap } from "@/components/DexDayMap";
 import { LightModeCard } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { Spotlight } from "./Spotlight";
@@ -12,14 +13,19 @@ import { Spotlight } from "./Spotlight";
 export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: () => void }) {
   const t = useT();
   const lang = useTargetLang();
-  const [view, setView] = useState<"cards" | "gallery">("cards");
+  const [view, setView] = useState<"cards" | "gallery" | "map" | "list">("cards");
   const [browsed, setBrowsed] = useState(false);
   const [changed, setChanged] = useState(false);
   const memory = useMemo(() => new Map(), []);
   const items = useMemo(() => {
     const own = firstCatchSticker(draft);
-    return [...(own ? [own] : []), ...sampleStickers(draft, t, lang)];
+    return [...(own ? [own] : []), ...sampleStickers(draft, t, lang).filter((sample) =>
+      sample.word.headword !== own?.word.headword && sample.object_url !== own?.object_url,
+    )];
   }, [draft, t, lang]);
+  const openWord = (id: string) => {
+    if (id === draft.id && browsed && changed) onOpen();
+  };
   return (
     <div className="first-dex-stage">
       <section data-tour="dex">
@@ -28,12 +34,11 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
           caught={items.length}
           view={view}
           onView={(v) => {
-            if (v === "cards" || v === "gallery") {
+            if (v === "cards" || v === "gallery" || v === "map" || v === "list") {
               setView(v);
-              if (v === "gallery") setChanged(true);
+              if (v !== "cards") setChanged(true);
             }
           }}
-          allowedViews={["gallery", "cards"]}
           filter={{ category: null, day: null }}
           onFilter={() => {}}
           categories={[]}
@@ -44,18 +49,18 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
             stickers={items}
             memory={memory}
             onBrowse={() => setBrowsed(true)}
-            onOpen={(id) => {
-              if (id === draft.id && browsed && changed) onOpen();
-            }}
+            onOpen={openWord}
           />
-        ) : (
+        ) : view === "gallery" ? (
           <DexAlbumGrid
             items={items}
             memory={memory}
-            onOpen={(id) => {
-              if (id === draft.id && browsed && changed) onOpen();
-            }}
+            onOpen={openWord}
           />
+        ) : view === "map" ? (
+          <DexDayMap stickers={items} onOpen={openWord} forceFallback />
+        ) : (
+          <DexList items={items} onOpen={openWord} />
         )}
       </section>
       <Spotlight

@@ -312,11 +312,13 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "first-catch", label: "初回体験をはじめる" },
+  { scene: "first-catch&step=questions", label: "質問" },
   { scene: "first-catch&step=home", label: "ホーム" },
   { scene: "first-catch&step=dex", label: "図鑑をスライド" },
   { scene: "first-catch&step=explore", label: "単語の詳細" },
   { scene: "first-catch&step=review", label: "復習を体験" },
   { scene: "first-catch&step=complete", label: "完了・登録" },
+  { scene: "first-catch&step=account", label: "登録・ログイン" },
 ];
 
 const explicitScene = q.get("scene");
@@ -332,6 +334,10 @@ const explicitScene = q.get("scene");
 // 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
 const showReviewBar = q.get("review") === "1" || !explicitScene;
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
+document.documentElement.style.setProperty(
+  "--first-viewport-height",
+  showReviewBar ? "calc(100dvh - 42px)" : "100dvh",
+);
 
 /**
  * 表示言語を切り替えて撮る(`?lang=zh-TW`)。

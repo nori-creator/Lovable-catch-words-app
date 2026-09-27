@@ -4883,10 +4883,17 @@ describe("ホームは今日の誌面", () => {
     expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
   });
 
-  it("初回登録の背景は、今日の写真を持つ実物のホームと同じ部品", () => {
+  it("初回登録の全画面にはホームと同じ生成写真を使う", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
-    expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    expect(auth).toMatch(/FIRST_CATCH_PHOTOS\.map/);
+    expect(auth).toMatch(/className="first-run first-auth"/);
+    expect(auth).not.toMatch(/aria-modal="true"/);
+    for (const photo of ["cafe", "flower", "cat", "ready"]) {
+      expect(pages).toMatch(new RegExp(`first-catch-${photo}\\.webp`));
+      expect(home).toMatch(new RegExp(`first-catch-${photo}\\.webp`));
+    }
     // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
     expect(home).not.toMatch(/<DayMasthead /);
     expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
@@ -4895,7 +4902,7 @@ describe("ホームは今日の誌面", () => {
     expect(home).toMatch(/first-catch-flower\.webp/);
     expect(home).toMatch(/first-catch-cat\.webp/);
     expect(home).not.toMatch(/<HomeEmptyState \/>/);
-    // 画像の装飾3枚を登録背景の代わりにしない。
+    // 登録画面だけ別の写真や別のアルバムにしない。
     expect(auth).not.toMatch(/auth-photo auth-photo--/);
   });
 

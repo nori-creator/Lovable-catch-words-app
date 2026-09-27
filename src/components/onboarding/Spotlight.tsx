@@ -25,11 +25,29 @@ export function Spotlight({
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [coachH, setCoachH] = useState(0);
+  const [revealed, setRevealed] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setRevealed(false);
+    const timer = window.setTimeout(() => setRevealed(true), 850);
+    return () => window.clearTimeout(timer);
+  }, [target]);
+  useEffect(() => {
+    if (revealed) return;
+    const block = (e: KeyboardEvent) => {
+      if (["Tab", "Enter", " ", "Escape"].includes(e.key)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    document.addEventListener("keydown", block, true);
+    return () => document.removeEventListener("keydown", block, true);
+  }, [revealed]);
   useLayoutEffect(() => {
     if (panel.current) setCoachH(panel.current.offsetHeight);
-  }, [title, text, nextLabel]);
+  }, [title, text, nextLabel, revealed]);
   useEffect(() => {
+    if (!revealed) return;
     const node = document.querySelector<HTMLElement>(target);
     if (!node) return;
     node.scrollIntoView({ block: "start", behavior: "instant" });
@@ -99,7 +117,10 @@ export function Spotlight({
       document.removeEventListener("focusin", focus, true);
       document.removeEventListener("keydown", keys, true);
     };
-  }, [target, interactive, allowSelector]);
+  }, [target, interactive, allowSelector, revealed]);
+  // Let the actual screen appear intact first. The invisible lock keeps a tap
+  // during the short preview from skipping the guided control.
+  if (!revealed) return <div className="tour-preview-lock" aria-hidden="true" />;
   const top = rect ? Math.max(8, rect.top - 6) : 0;
   const place = coachPlacement(rect, coachH);
   const bottom = rect ? Math.min(window.innerHeight, rect.bottom + 6) : 0;

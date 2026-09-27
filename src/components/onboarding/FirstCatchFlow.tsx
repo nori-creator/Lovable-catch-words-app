@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { getUiLang, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
@@ -51,7 +52,11 @@ export function FirstCatchEntry() {
         async () => {},
       )}
       onAccount={() => {
-        void navigate({ to: "/auth", search: { next: "" } });
+        void supabase.auth.getUser().then(({ data }) => {
+          void navigate(data.user && !data.user.is_anonymous
+            ? { to: "/home" }
+            : { to: "/auth", search: { next: "" } });
+        });
       }}
     />
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FirstCatchFlow } from "@/components/onboarding/FirstCatchFlow";
 import { AuthView } from "@/routes/auth";
-import { getUiLang, useT } from "@/lib/i18n";
+import { getUiLang } from "@/lib/i18n";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
@@ -97,7 +97,6 @@ function sampleLesson(
   };
 }
 export function FirstCatchScene({ q }: { q: URLSearchParams }) {
-  const t = useT();
   const [draft, setDraft] = useState<FirstCatch>(() => {
     const step = FirstCatchSchema.shape.stage.safeParse(q.get("step"));
     const stage = step.success ? step.data : "intro";
@@ -132,11 +131,6 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
   const services = createFirstCatchServices(previewRequest, preparePreview);
   return (
     <>
-      {q.has("step") && (
-        <div className="first-sample-label" role="note">
-          {t("first.visualSample")}
-        </div>
-      )}
       {account ? (
         <AuthView
           draft={draft}
