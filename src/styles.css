@@ -8687,229 +8687,6 @@ html[data-motion="reduce"] .burst {
 }
 
 /* ---------------------------------------------------------------------------
- * アルバムに書き込む（試作、`AlbumInk.tsx`、2026-09-27）。
- * ------------------------------------------------------------------------- */
-.album-ink {
-  position: absolute;
-  inset: 0;
-  /* 写真（重ね順を持つ）より上に描く */
-  z-index: 40;
-}
-.album-ink__board {
-  position: absolute;
-  inset: 0;
-  touch-action: none;
-  cursor: crosshair;
-}
-.album-ink__label {
-  position: absolute;
-  transform: translate(-50%, -50%) rotate(-3deg);
-  padding: 4px 10px;
-  border-radius: 6px;
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
-  white-space: nowrap;
-  pointer-events: none;
-}
-.album-ink__label[style*="#ffffff"] {
-  color: #1c1c1e;
-}
-.album-ink__bar {
-  position: fixed;
-  z-index: 60;
-  left: 50%;
-  bottom: calc(96px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: max-content;
-  max-width: calc(100% - 16px);
-  padding: 4px 6px;
-  border-radius: 26px;
-  background: color-mix(in oklab, var(--card) 80%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow: 0 8px 30px rgb(0 0 0 / 0.18);
-}
-.album-ink__btn {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  flex: none;
-  border-radius: 999px;
-  color: var(--foreground);
-}
-.album-ink__btn[aria-pressed="true"] {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-.album-ink__btn:disabled {
-  opacity: 0.35;
-}
-.album-ink__swatch {
-  width: 26px;
-  height: 26px;
-  flex: none;
-  margin: 0 3px;
-  border-radius: 999px;
-  border: 2px solid rgb(0 0 0 / 0.12);
-}
-.album-ink__swatch[aria-pressed="true"] {
-  outline: 3px solid var(--primary);
-  outline-offset: 2px;
-}
-.album-ink__sep {
-  width: 1px;
-  height: 24px;
-  margin: 0 4px;
-  flex: none;
-  background: var(--border);
-}
-
-/* ---------------------------------------------------------------------------
- * ページめくりの試作（確認用ページ `page-flip` だけで使う、2026-09-27）。
- * ------------------------------------------------------------------------- */
-.flip-book {
-  position: relative;
-  height: 540px;
-  perspective: 1800px;
-  touch-action: pan-y;
-  user-select: none;
-}
-.flip-book__under {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-}
-.flip-book--spread .flip-book__under {
-  grid-template-columns: 1fr 1fr;
-}
-.flip-page__paper {
-  position: relative;
-  height: 100%;
-  padding: 18px 8px;
-  border-radius: 10px;
-  box-shadow:
-    inset 0 0 0 1px rgb(0 0 0 / 0.06),
-    0 10px 30px rgb(0 0 0 / 0.12);
-  color: #1c1c1e;
-  overflow: hidden;
-}
-.flip-page__photo {
-  background: #fff;
-  padding: 6px 6px 4px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.14);
-}
-.flip-page__num {
-  position: absolute;
-  bottom: 8px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 12px;
-  opacity: 0.5;
-}
-.flip-book__spine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 28px;
-  margin-left: -14px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(0 0 0 / 0.14) 45%,
-    rgb(0 0 0 / 0.14) 55%,
-    transparent
-  );
-  pointer-events: none;
-}
-.flip-leaf {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  transform-origin: left center;
-  transform-style: preserve-3d;
-  z-index: 2;
-}
-.flip-leaf--next {
-  animation: flip-next 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
-}
-.flip-leaf--prev {
-  animation: flip-prev 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
-}
-.flip-leaf__front,
-.flip-leaf__back {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-.flip-leaf__back {
-  transform: rotateY(180deg);
-}
-.flip-leaf__front::after,
-.flip-leaf__back::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  background: linear-gradient(90deg, rgb(0 0 0 / 0.18), transparent 35%);
-  pointer-events: none;
-}
-@keyframes flip-next {
-  from {
-    transform: rotateY(0deg);
-  }
-  to {
-    transform: rotateY(-180deg);
-  }
-}
-@keyframes flip-prev {
-  from {
-    transform: rotateY(-180deg);
-  }
-  to {
-    transform: rotateY(0deg);
-  }
-}
-.flip-book__nav {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -56px;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-}
-.flip-book__nav button {
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  font-size: 24px;
-  line-height: 1;
-}
-.flip-book__nav button:disabled {
-  opacity: 0.35;
-}
-html[data-motion="reduce"] .flip-leaf {
-  animation-duration: 0.01s;
-}
-
-/* ---------------------------------------------------------------------------
  * 解説の作り直し — 待っている間の光の筋（`magic-swap.ts`、2026-09-27）。
  * 古い解説は**そのまま読める**。上を細い光が左から右へ流れるだけ。
  * ------------------------------------------------------------------------- */
@@ -9037,4 +8814,249 @@ html[data-motion="reduce"] .magic-wait::after {
     rgb(0 0 0 / 0.08) 60%,
     transparent
   );
+}
+
+/* ---------------------------------------------------------------------------
+ * アルバムに書き込む — ストーリー風（`StoryInk.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.story-ink {
+  position: relative;
+}
+.story-ink__bar {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.story-ink__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  padding: 0 12px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgb(28 28 30 / 0.78);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  backdrop-filter: blur(14px);
+}
+.story-ink__tool:disabled {
+  opacity: 0.4;
+}
+.story-ink__board {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  touch-action: none;
+  transition: aspect-ratio 0.35s var(--spring-smooth, ease);
+  box-shadow: 0 16px 30px -20px rgb(0 0 0 / 0.5);
+}
+.story-ink__item {
+  position: absolute;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  transition:
+    filter 0.2s,
+    opacity 0.2s;
+}
+.story-ink__item.is-dragging {
+  filter: drop-shadow(0 12px 16px rgb(0 0 0 / 0.28));
+  cursor: grabbing;
+}
+.story-ink__item.is-trash {
+  opacity: 0.35;
+}
+.story-ink__photo {
+  background: #fff;
+  padding: 6px 6px 8px;
+  box-shadow: 0 8px 16px -10px rgb(0 0 0 / 0.5);
+}
+.story-ink__photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  pointer-events: none;
+}
+.story-ink__photo figcaption {
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+  margin-top: 2px;
+}
+.story-ink__text {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.18em 0.45em;
+  border-radius: 0.35em;
+  font-size: 24px;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.story-ink__trash {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  z-index: 9999;
+  transition:
+    transform 0.2s var(--spring-bounce, ease),
+    background 0.2s;
+  pointer-events: none;
+}
+.story-ink__trash.is-over {
+  transform: scale(1.25);
+  background: #ff375f;
+}
+.story-ink__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom));
+  background: rgb(10 10 12 / 0.82);
+  backdrop-filter: blur(10px);
+  color: #fff;
+}
+.story-ink__overlay-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.story-ink__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  font-weight: 700;
+}
+.story-ink__pill.is-primary {
+  background: #fff;
+  color: #111;
+}
+.story-ink__hint {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.story-ink__pad {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 20px;
+  background: #fffdf8;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+}
+.story-ink__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.story-ink__swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+.story-ink__swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px #111,
+    0 0 0 5px #fff;
+}
+.story-ink__width {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.12);
+}
+.story-ink__width[aria-pressed="true"] {
+  background: rgb(255 255 255 / 0.35);
+}
+.story-ink__width span {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+}
+.story-ink__sep {
+  width: 1px;
+  height: 28px;
+  background: rgb(255 255 255 / 0.3);
+}
+.story-ink__text-stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+.story-ink__textarea {
+  width: 90%;
+  text-align: center;
+  border: 0;
+  outline: none;
+  resize: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.story-ink__textarea::placeholder {
+  color: rgb(255 255 255 / 0.5);
+}
+.story-ink__fonts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  overflow-x: auto;
+}
+.story-ink__font {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgb(255 255 255 / 0.35);
+  color: #fff;
+}
+.story-ink__font[aria-pressed="true"] {
+  background: #fff;
+  color: #111;
+}
+.story-ink__bg-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-weight: 800;
+  border: 1.5px solid #fff;
+}
+.story-ink__bg-icon[data-bg="solid"] {
+  background: #fff;
+  color: #111;
+}
+.story-ink__bg-icon[data-bg="soft"] {
+  background: rgb(255 255 255 / 0.45);
 }
