@@ -2140,7 +2140,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`quiz-choice flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
+                  className={`quiz-choice relative flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border-[1.5px] px-[3.75rem] py-2 text-center transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2153,17 +2153,24 @@ export function LightModeCard({
                   }
                   ${picked && !isPicked && !isAnswer ? "border-border/60" : ""}`}
                 >
-                  <span className="min-w-0">
+                  {/* **語は箱の真ん中に**（オーナー指示 2026-09-27「4択の単語は
+                      中央揃え」）。右の発音ボタンと同じ幅を左にも空けて
+                      （`px-[3.75rem]`）、見た目の中心と箱の中心を合わせる。
+                      正誤の印は左の空きに置く。 */}
+                  <span className="flex min-w-0 flex-col items-center">
                     {/* **その語の字で組む**（`Term`）。候補の画面と同じ書体になる
                         — 以前は画面の言語（日本語）の書体で繁体字を出していた。 */}
                     {units ? (
                       <ZhuyinWord
                         units={units}
                         lang={card.language}
-                        className="block text-body font-medium"
+                        className="block text-title font-semibold"
                       />
                     ) : (
-                      <Term lang={card.language} className="block truncate text-body font-medium">
+                      <Term
+                        lang={card.language}
+                        className="block max-w-full truncate text-title font-semibold"
+                      >
                         {c}
                       </Term>
                     )}
@@ -2180,8 +2187,12 @@ export function LightModeCard({
                       </span>
                     )}
                   </span>
-                  {showGreen && <Check className="h-4 w-4 shrink-0 text-ok" />}
-                  {showRed && <X className="h-4 w-4 shrink-0 text-bad" />}
+                  {showGreen && (
+                    <Check className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ok" />
+                  )}
+                  {showRed && (
+                    <X className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-bad" />
+                  )}
                 </button>
                 {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
                     4つ並ぶので、押しても鳴らないボタンが並ぶと
