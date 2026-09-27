@@ -8,6 +8,35 @@ import { Zh } from "@/components/Zh";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { dayKeyOf, layoutTimeline, minutesOfDay, monthCells, weekOf } from "@/lib/day-timeline";
+import { CATEGORY_META, ROOM_ACCENT, asCategoryKey } from "@/lib/category";
+
+/**
+ * **月ごとの色**（オーナー指示 2026-09-27「地図は A、もう少しカラフルに
+ * デザイン向上」）。季節の色を月の見出しと升の地に薄く敷く。
+ * 並びは1月から: 冬の藍 → 梅 → 若葉 → 桜 → 新緑 → 紫陽花 → 海 → 向日葵 →
+ * 金木犀 → 紅葉 → 柿 → 柊。
+ */
+const MONTH_HUE = [
+  "#3b6fd8",
+  "#e0569a",
+  "#43b36b",
+  "#f08bb0",
+  "#2fa66a",
+  "#7b6cf0",
+  "#1aa6d9",
+  "#f2a516",
+  "#f08a24",
+  "#e0552f",
+  "#d9772b",
+  "#2b8a6e",
+];
+
+/** その日の1枚目の分類の色（写真の縁と枚数の丸に使う）。 */
+function dayAccent(items: StickerWithWord[]): string {
+  const first = items[0];
+  if (!first) return "var(--primary)";
+  return ROOM_ACCENT[CATEGORY_META[asCategoryKey(first.word.category_key)].room];
+}
 
 /**
  * 図鑑のカレンダー。**その日に撮った写真が、その日の升に入る。**
@@ -146,17 +175,22 @@ export function DexCalendar({
   }
 
   return (
-    <section className="dex-cal" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <section
+      className="dex-cal"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={{ "--month-hue": MONTH_HUE[cursor.m] } as CSSProperties}
+    >
       <div className="mb-3 flex items-end justify-between pt-1">
         <div>
           <p className="text-caption font-medium text-muted-foreground">
             {first.toLocaleDateString(locale, { year: "numeric" })}
           </p>
-          <h2 className="text-title font-bold leading-tight">
+          <h2 className="dex-cal__month text-title font-bold leading-tight">
             {first.toLocaleDateString(locale, { month: "long" })}
           </h2>
           {monthPhotos > 0 && (
-            <p className="mt-0.5 text-footnote text-muted-foreground">
+            <p className="dex-cal__summary mt-1 text-footnote font-semibold">
               {t("dex.calMonthSummary", { n: monthPhotos, d: monthDays })}
             </p>
           )}
@@ -181,7 +215,8 @@ export function DexCalendar({
 
       <div className="mb-1.5 grid grid-cols-7 text-center text-caption font-semibold text-muted-foreground">
         {weekdays.map((w, i) => (
-          <span key={i} aria-hidden>
+          // 日曜は赤、土曜は青（日本・台湾の暦と同じ）。
+          <span key={i} aria-hidden data-wd={i === 0 ? "sun" : i === 6 ? "sat" : undefined}>
             {w}
           </span>
         ))}
@@ -197,14 +232,13 @@ export function DexCalendar({
             return (
               <div
                 key={key}
-                className="dex-cal__cell grid place-items-center rounded-2xl"
+                className="dex-cal__cell dex-cal__cell--empty grid place-items-center rounded-2xl"
                 aria-label={`${day}${t("dex.dayUnit")}`}
+                data-wd={i % 7 === 0 ? "sun" : i % 7 === 6 ? "sat" : undefined}
               >
                 <span
                   className={`grid h-8 w-8 place-items-center rounded-full text-footnote tabular-nums ${
-                    isToday
-                      ? "bg-primary font-bold text-primary-foreground"
-                      : "text-muted-foreground"
+                    isToday ? "dex-cal__today font-bold text-white" : "dex-cal__num"
                   }`}
                 >
                   {day}
@@ -219,8 +253,9 @@ export function DexCalendar({
               onClick={() => (onPickDay ? onPickDay(key) : setOpenDay(key))}
               aria-label={`${day}${t("dex.dayUnit")} — ${t("dex.calPhotos", { n: items.length })}`}
               className={`dex-cal__cell dex-cal__cell--photo press-in relative overflow-hidden rounded-[10px] bg-secondary ${
-                isToday ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+                isToday ? "is-today" : ""
               }`}
+              style={{ "--day-accent": dayAccent(items) } as CSSProperties}
             >
               {thumb ? (
                 <CachedImg
@@ -240,7 +275,7 @@ export function DexCalendar({
                 {day}
               </span>
               {items.length > 1 && (
-                <span className="absolute right-1 top-1 rounded-full bg-black/55 px-1.5 text-caption font-bold tabular-nums text-white">
+                <span className="dex-cal__count absolute right-1 top-1 rounded-full px-1.5 text-caption font-bold tabular-nums text-white">
                   {items.length}
                 </span>
               )}

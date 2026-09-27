@@ -30,7 +30,7 @@ const DAYS: Array<[number, number[]]> = [
   [41, [4]],
 ];
 const VARIANTS = [
-  { key: "a", label: "A 今の形" },
+  { key: "a", label: "A 決定（カラフル）" },
   { key: "b", label: "B 週の帯" },
   { key: "c", label: "C 丸い写真" },
   { key: "d", label: "D 1年の点" },
@@ -87,7 +87,7 @@ function FakeMap() {
 }
 
 export function MapCalendarDesignsScene({ q }: { q: URLSearchParams }) {
-  const [v, setV] = useState<Key>(VARIANTS.find((o) => o.key === q.get("v"))?.key ?? "b");
+  const [v, setV] = useState<Key>(VARIANTS.find((o) => o.key === q.get("v"))?.key ?? "a");
   const stickers = useMemo(
     () =>
       DAYS.flatMap(([day, idx]) =>

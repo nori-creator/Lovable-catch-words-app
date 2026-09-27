@@ -9,7 +9,13 @@ import { Zh } from "@/components/Zh";
 import { MemoryBadge } from "@/components/MemoryBadge";
 import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
-import { CATEGORY_META, asCategoryKey, categoryEmoji, type RoomKey } from "@/lib/category";
+import {
+  CATEGORY_META,
+  ROOM_ACCENT,
+  asCategoryKey,
+  categoryEmoji,
+  type RoomKey,
+} from "@/lib/category";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import {
@@ -367,18 +373,6 @@ export function DexCoverFlow({
     </section>
   );
 }
-
-/** 分類の部屋ごとの色（`category` / `motion` の案で、舞台の光と背景に使う）。 */
-const ROOM_ACCENT: Record<RoomKey, string> = {
-  eat: "#ff9f43",
-  town: "#4ea8ff",
-  house: "#d9b38c",
-  wear: "#ff7eb6",
-  play: "#a78bfa",
-  nature: "#4ade80",
-  people: "#fbbf24",
-  marks: "#94a3b8",
-};
 
 /** 下の写真の列。**いまの1枚が見える所まで、列を自分で送る。** */
 function ThumbStrip({
