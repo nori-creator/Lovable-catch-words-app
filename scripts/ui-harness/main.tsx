@@ -340,7 +340,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
   { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
   { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
-  { scene: "home-album", label: "アルバム（重ならない配置）" },
+  { scene: "home-album", label: "アルバム（写真と語を1枚の印画紙に）" },
   { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
   { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
   { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },

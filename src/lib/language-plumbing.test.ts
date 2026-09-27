@@ -4711,7 +4711,7 @@ describe("ホームは今日の誌面", () => {
     // 桁が揃わないと、誌面の中で時刻が列に見えない。
     expect(cssBlock(".collage__time {", "\n}")).toMatch(/font-variant-numeric: tabular-nums/);
     // **写真の札も字だけの札も、同じ1つの値を書く。**
-    expect(cl.match(/collage__time">\{time\}/g) ?? []).toHaveLength(2);
+    expect(cl.match(/collage__time[^"]*">\{time\}/g) ?? []).toHaveLength(2);
   });
 
   it("**撮ったときに書いた1言を出す**", () => {
@@ -4799,8 +4799,9 @@ describe("ホームは今日の誌面", () => {
     // （360px 以上では偶然足りていた）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
-    // 語を 19px にした（オーナー指示 2026-09-23）ので 32px。
-    expect(home).toMatch(/const CAP_ROW_PX = 32;/);
+    // 語と時刻は写真の下の白い余白（34px）に書く（オーナー指示 2026-09-27）ので、
+    // 余白 ＋ 一言との間 4px で 38px。
+    expect(home).toMatch(/const CAP_ROW_PX = 38;/);
     expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
     // 台紙の幅で割って、`packCollage` が積む割合に直す。
     expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);

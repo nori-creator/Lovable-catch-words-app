@@ -877,13 +877,14 @@ const PLACEHOLDER_RATIO = 1.2;
  * 下 16px に次の写真が乗った。360px 以上では偶然足りていた。
  *
  * 数え方（`styles.css` の `.collage__cap` 系と対で決まる）:
- *   `CAP_ROW_PX`  … 語の白い札 19px × 1.2 ＋ 上下の詰め 5px ＋ 写真との間 4px
- *                   （語を大きくした: オーナー指示 2026-09-23）
+ *   `CAP_ROW_PX`  … 写真の下の白い余白（`--pol-strip` 34px）＋ 一言との間 4px。
+ *                   語と時刻はこの余白の中に書く（写真と語を1枚に:
+ *                   オーナー指示 2026-09-27）。一言が無くても余白は要る。
  *   `CAP_NOTE_PX` … 手書きの一言 13px × 1.35 × **3行**（`-webkit-line-clamp`）
  *                   ＋ 上の間 3px。行数の上限が CSS 側に在るので、
  *                   どれだけ長い一言でもここを越えない。
  */
-const CAP_ROW_PX = 32;
+const CAP_ROW_PX = 38;
 const CAP_NOTE_PX = 56;
 
 /**
@@ -1734,21 +1735,35 @@ export function DayCollage({
                  */}
                 {heroUrl ? (
                   <span className="collage__photo">
-                    <CachedImg
-                      onLoad={(e) => {
-                        // 写真そのものの比を控える。**枠の形をこれに合わせる**
-                        // ので、上下も左右も切られなくなる。
-                        const img = e.currentTarget;
-                        if (!img.naturalWidth || !img.naturalHeight) return;
-                        const r = img.naturalHeight / img.naturalWidth;
-                        setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
-                      }}
-                      src={heroUrl}
-                      alt={t("common.memoryOf", { word: s.word.headword })}
-                      loading="lazy"
-                      decoding="async"
-                      className="block h-full w-full object-cover"
-                    />
+                    <span className="collage__print">
+                      <CachedImg
+                        onLoad={(e) => {
+                          // 写真そのものの比を控える。**枠の形をこれに合わせる**
+                          // ので、上下も左右も切られなくなる。
+                          const img = e.currentTarget;
+                          if (!img.naturalWidth || !img.naturalHeight) return;
+                          const r = img.naturalHeight / img.naturalWidth;
+                          setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
+                        }}
+                        src={heroUrl}
+                        alt={t("common.memoryOf", { word: s.word.headword })}
+                        loading="lazy"
+                        decoding="async"
+                        className="block h-full w-full object-cover"
+                      />
+                    </span>
+                    {/**
+                     * **語は写真の下の白い余白に書く。**（オーナー指示 2026-09-27
+                     * 「画像と単語を一枚の写真として統合して。写真の下の余白に
+                     * 単語の文字を表示する」）インスタントカメラの写真と同じく、
+                     * 下の縁だけ広く取り、そこに時刻と語を書く。
+                     */}
+                    <span className="collage__margin">
+                      <Term lang={s.word.language} className="collage__margin-word">
+                        {s.word.headword}
+                      </Term>
+                      <span className="collage__time collage__margin-time">{time}</span>
+                    </span>
                   </span>
                 ) : (
                   /**
@@ -1776,30 +1791,13 @@ export function DayCollage({
                 {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
                   紙に直に書いた物なので留めない。 */}
                 {heroUrl && <CollageFasteners id={s.id} wall={wallFromClass(surface)} />}
-                {/**
-                 * 写真の下に付く字。**枠の外に出す**ので、置き方の計算には
-                 * `extra` として高さを渡してある（渡さないと次の札が乗る）。
-                 *
-                 * 参考の誌面と同じ並び:
-                 *   時刻 ＋ 語の白い札 → 手書きの一言
-                 */}
-                {heroUrl && (
+                {/* 撮ったときに書いた一言。**人が書いた字は手書き**
+                  （ゴシックはアプリが書く字、という約束）。語と時刻は写真の
+                  白い余白の中（上）に在るので、ここは一言だけ。置き方の計算には
+                  `extra` として高さを渡してある（渡さないと次の札が乗る）。 */}
+                {heroUrl && s.caption && (
                   <span className="collage__cap">
-                    <span className="collage__cap-row">
-                      {/* 撮った時刻（オーナー指示 2026-09-22「また撮った時刻付きで」）。
-                       **順番は時刻が語る**ので、置き方は自由に崩してよくなる。 */}
-                      <span className="collage__time">{time}</span>
-                      {/* 語は**白い紙の札**。写真の上に直に置くと明るい写真で
-                        読めなくなるし、参考の誌面でも札は紙の上に貼ってある。 */}
-                      <Term lang={s.word.language} className="collage__slip">
-                        {s.word.headword}
-                      </Term>
-                    </span>
-                    {/* 撮ったときに書いた一言。**人が書いた字は手書き**
-                      （ゴシックはアプリが書く字、という約束）。 */}
-                    {s.caption && (
-                      <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
-                    )}
+                    <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
                   </span>
                 )}
               </button>

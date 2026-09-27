@@ -6807,19 +6807,60 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    紙の縁は 6px、中の絵は 3px。 */
 .collage__photo {
   position: relative;
-  display: block;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* **写真と語を1枚の印画紙に。**（オーナー指示 2026-09-27「画像と単語を一枚の
+     写真として統合して。写真の下の余白に単語の文字を表示する」）
+     札の箱は写真の比のままにして（切れない）、紙だけを下へ `--pol-strip`
+     ぶん伸ばす。伸びたぶんは置き方の計算で `extra`（`CAP_ROW_PX`）として
+     場所を取ってある。 */
+  height: calc(100% + var(--pol-strip));
   width: 100%;
   overflow: hidden;
   border-radius: 6px;
-  padding: 5px;
+  padding: 5px 5px 0;
   background: oklch(0.995 0.004 85);
+  container-type: inline-size;
   box-shadow:
     0 1px 2px rgba(60, 42, 18, 0.14),
     0 12px 22px -12px rgba(60, 42, 18, 0.38);
 }
-.collage__photo img {
+[data-album-sticker] {
+  --pol-strip: 34px;
+}
+.collage__print {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 3px;
+}
+/* 下の白い余白。語を真ん中に、時刻を小さく添える。 */
+.collage__margin {
+  flex: none;
+  display: flex;
+  height: var(--pol-strip);
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0 0.25rem;
+}
+.collage__margin-word {
+  min-width: 0;
+  /* 写真を小さくしても語が「…」で切れにくいよう、紙の幅に合わせて縮める
+     （上限は前の白い札と同じ 19px）。 */
+  font-size: clamp(0.8125rem, 13cqi, 1.1875rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: oklch(0.28 0.02 60);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collage__margin > .collage__margin-time {
+  color: oklch(0.55 0.02 60);
 }
 
 /* ── 留め具 ───────────────────────────────────────────────────────
@@ -6911,12 +6952,12 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   clip-path: polygon(0 0, 100% 0, 100% 100%);
 }
 .collage-corner--bl {
-  bottom: -2px;
+  bottom: calc(-2px - var(--pol-strip, 0px));
   left: -2px;
   clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 .collage-corner--br {
-  bottom: -2px;
+  bottom: calc(-2px - var(--pol-strip, 0px));
   right: -2px;
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
@@ -6981,7 +7022,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 0.22rem);
+  top: calc(100% + var(--pol-strip, 0px) + 0.22rem);
   display: block;
   /* **字は自分の側の外半分から出さない。**（`COLLAGE_CAP_W`）
      写真は真ん中を越えて重なるので、字まで一緒に広げると隣の列の写真に
