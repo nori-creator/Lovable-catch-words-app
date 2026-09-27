@@ -79,11 +79,11 @@ export const SCORE = {
 // ---- 音の部品 ------------------------------------------------------------
 
 type Held = { osc: OscillatorNode; g: GainNode };
-type Bus = { c: AudioContext; gain: GainNode; held: Held[] };
+export type Bus = { c: AudioContext; gain: GainNode; held: Held[] };
 let bus: Bus | null = null;
 
 /** この祝福の間だけの音の通り道（下げる・止めるをまとめて効かせる）。 */
-function open(): Bus | null {
+export function open(): Bus | null {
   const a = audioOut();
   if (!a) return null;
   if (bus && bus.c === a.c) return bus;
@@ -101,7 +101,7 @@ function open(): Bus | null {
   return bus;
 }
 
-function voice(
+export function voice(
   b: Bus,
   hz: number,
   at: number,
@@ -147,7 +147,7 @@ function voice(
   } else osc.stop(at + dur + 0.05);
 }
 
-function noise(
+export function noise(
   b: Bus,
   at: number,
   dur: number,
@@ -224,7 +224,7 @@ function brass(b: Bus, notes: readonly number[], at: number, dur: number, gain: 
 }
 
 /** 鐘のような高い音（三角波＋倍音のサイン波）。 */
-function bell(b: Bus, n: number, at: number, dur: number, gain: number) {
+export function bell(b: Bus, n: number, at: number, dur: number, gain: number) {
   voice(b, midiHz(n), at, dur, { type: "triangle", gain });
   voice(b, midiHz(n) * 2, at, dur * 0.6, { type: "sine", gain: gain * 0.25 });
 }

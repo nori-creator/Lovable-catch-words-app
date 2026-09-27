@@ -349,6 +349,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
   { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
   { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
+  { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
