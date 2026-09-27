@@ -343,6 +343,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
   { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
+  { scene: "word-card&show=real_usage", label: "実際の使われ方（説明文を削除）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 
@@ -371,6 +372,20 @@ const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
   if (lang) {
     try {
       localStorage.setItem("ui-lang-v1", lang);
+    } catch {
+      /* 使えない環境では既定のまま */
+    }
+  }
+}
+/**
+ * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
+ * 節の並びと表示は localStorage から読むので、これも React の前に書く。
+ */
+{
+  const show = q.get("show");
+  if (show) {
+    try {
+      localStorage.setItem("wordcard-prefs-v6", JSON.stringify({ order: [show], hidden: [] }));
     } catch {
       /* 使えない環境では既定のまま */
     }

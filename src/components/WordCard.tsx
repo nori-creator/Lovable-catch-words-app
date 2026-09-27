@@ -2122,12 +2122,9 @@ function RealUsageBody({ headword, language }: { headword: string; language?: st
             className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
             <span className="text-body">{l.emoji}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">{t(l.labelKey)}</span>
-              <span className="block truncate text-caption text-muted-foreground">
-                {t(l.hintKey)}
-              </span>
-            </span>
+            {/* **行き先の名前だけ**（オーナー指示 2026-09-27「実際の使われ方の
+                小さい説明文を削除して」）。下にあった一言の説明は消した。 */}
+            <span className="min-w-0 flex-1 font-medium">{t(l.labelKey)}</span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>
         </li>
