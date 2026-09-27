@@ -4781,8 +4781,9 @@ describe("ホームは今日の誌面", () => {
     // 実測 170x35 だった（`ui-audit`）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).toMatch(/const MIN_TAP_PX = 44;/);
+    // 2026-09-27: 細い画面で時刻が次の行へ回るぶん（`timeLine`）も足す。
     expect(home).toMatch(
-      /Math\.max\(PLAIN_WORD_PX \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\), MIN_TAP_PX\)/,
+      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
     );
     expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
     expect(cssBlock("[data-plain] {", "\n}")).toMatch(/min-height: 2\.75rem/);
