@@ -96,7 +96,9 @@ const REDUCED_MS = 160;
  *  ・`lift`  … C 持ち上がる — 広がりながら影が深くなり、置かれると影が戻る
  *  ・`fade`  … D 広がりながら、薄い所から濃くなる（写真が浮かび上がる）
  *
- * 確認用ページで選んだ案は端末に覚える（`hero-reveal-style`）。本番の既定は A。
+ * **D「浮かび上がる」に決定**（オーナー指示 2026-09-27「写真→詳細の飛び方は
+ * 『浮かび上がる』に」）。既定は D。他の案は比べ直せるよう残す
+ * （端末に `hero-reveal-style` がある時だけ効く）。
  */
 export type HeroRevealStyle = "pop" | "glide" | "lift" | "fade";
 export const HERO_REVEAL_STYLES: readonly HeroRevealStyle[] = ["pop", "glide", "lift", "fade"];
@@ -104,9 +106,9 @@ const STYLE_KEY = "hero-reveal-style";
 export function heroRevealStyle(): HeroRevealStyle {
   try {
     const v = localStorage.getItem(STYLE_KEY) as HeroRevealStyle | null;
-    return v && HERO_REVEAL_STYLES.includes(v) ? v : "pop";
+    return v && HERO_REVEAL_STYLES.includes(v) ? v : "fade";
   } catch {
-    return "pop";
+    return "fade";
   }
 }
 export function setHeroRevealStyle(v: HeroRevealStyle) {

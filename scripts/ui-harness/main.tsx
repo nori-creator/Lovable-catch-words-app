@@ -39,7 +39,6 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
-import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
@@ -164,7 +163,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
-  "glass-surfaces": GlassSurfacesScene,
   "category-sheet": CategorySheetScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
   "candidate-designs": CandidateDesignsScene,
@@ -348,7 +346,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
-  { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
   { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
   { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
   { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
