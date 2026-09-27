@@ -2575,6 +2575,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "me.due": { ja: "待っている復習", en: "Waiting", "zh-TW": "等著複習的" },
   "common.loading": { ja: "読み込み中", en: "Loading", "zh-TW": "載入中" },
   // 規約・プライバシーの繁體中文版はまだ無い（法的な文なので機械訳しない）。
+  // アルバムに書き込む（試作、`AlbumInk`）。
+  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "畫筆" },
+  "ink.label": { ja: "ラベル", en: "Label", "zh-TW": "標籤" },
+  "ink.circle": { ja: "丸", en: "Circle", "zh-TW": "圓形" },
+  "ink.rect": { ja: "四角", en: "Box", "zh-TW": "方框" },
+  "ink.arrow": { ja: "矢印", en: "Arrow", "zh-TW": "箭頭" },
+  "ink.undo": { ja: "1つ戻す", en: "Undo", "zh-TW": "復原" },
+  "ink.clear": { ja: "全部消す", en: "Clear all", "zh-TW": "全部清除" },
+  "ink.labelPrompt": { ja: "ラベルに書く言葉", en: "Label text", "zh-TW": "標籤文字" },
   "legal.onlyJaEn": {
     ja: "この文書は日本語版と英語版のみです。",
     en: "This document is available in Japanese and English only.",

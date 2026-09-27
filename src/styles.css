@@ -8769,3 +8769,89 @@ html[data-motion="reduce"] .an-glyph {
 html[data-motion="reduce"] .burst {
   display: none;
 }
+
+/* ---------------------------------------------------------------------------
+ * アルバムに書き込む（試作、`AlbumInk.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.album-ink {
+  position: absolute;
+  inset: 0;
+  /* 写真（重ね順を持つ）より上に描く */
+  z-index: 40;
+}
+.album-ink__board {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+.album-ink__label {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(-3deg);
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.album-ink__label[style*="#ffffff"] {
+  color: #1c1c1e;
+}
+.album-ink__bar {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 4px 6px;
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--card) 80%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.18);
+}
+.album-ink__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--foreground);
+}
+.album-ink__btn[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.album-ink__btn:disabled {
+  opacity: 0.35;
+}
+.album-ink__swatch {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin: 0 3px;
+  border-radius: 999px;
+  border: 2px solid rgb(0 0 0 / 0.12);
+}
+.album-ink__swatch[aria-pressed="true"] {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+.album-ink__sep {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  flex: none;
+  background: var(--border);
+}

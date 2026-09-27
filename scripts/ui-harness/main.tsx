@@ -61,6 +61,7 @@ import {
 import { AuthScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
+  HomeInkScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -143,6 +144,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
+  "home-ink": HomeInkScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -350,6 +352,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
   { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
   { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
+  { scene: "home-ink", label: "試作: アルバムに書き込む（ペン・ラベル・形・色）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 

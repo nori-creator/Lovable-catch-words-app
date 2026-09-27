@@ -32,6 +32,7 @@ import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
+import { AlbumInk, type InkItem } from "@/components/AlbumInk";
 import { parseWallpaper, wallClass } from "@/lib/wallpaper";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 
@@ -382,5 +383,24 @@ export function HomeTapScene() {
         }}
       />
     </>
+  );
+}
+
+/**
+ * **アルバムに書き込む**（試作、オーナー指示 2026-09-27）。今日のページの上に
+ * 透明な紙を重ね、ペン・ラベル・丸・四角・矢印を6色で描ける。保存はしない。
+ * 最初の絵が分かるよう、見本の書き込みを3つ置いておく（1つ戻す・全部消すで消せる）。
+ */
+export function HomeInkScene() {
+  const [items, setItems] = useState<InkItem[]>([
+    { kind: "label", color: "#ff375f", x: 0.3, y: 0.18, text: "初めての夜市!" },
+    { kind: "circle", color: "#0a84ff", x1: 0.52, y1: 0.3, x2: 0.92, y2: 0.52 },
+    { kind: "arrow", color: "#ff9f0a", x1: 0.3, y1: 0.62, x2: 0.5, y2: 0.46 },
+  ]);
+  return (
+    <div className="relative">
+      <DayCollage stickers={today} onOpen={() => {}} />
+      <AlbumInk items={items} onChange={setItems} />
+    </div>
   );
 }
