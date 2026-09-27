@@ -8902,3 +8902,41 @@ html[data-motion="reduce"] .burst {
 html[data-motion="reduce"] .flip-leaf {
   animation-duration: 0.01s;
 }
+
+/* ---------------------------------------------------------------------------
+ * 解説の作り直し — 待っている間の光の筋（`magic-swap.ts`、2026-09-27）。
+ * 古い解説は**そのまま読める**。上を細い光が左から右へ流れるだけ。
+ * ------------------------------------------------------------------------- */
+.magic-wait {
+  position: relative;
+}
+.magic-wait::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--primary) 22%, transparent) 45%,
+    rgb(255 255 255 / 0.55) 50%,
+    color-mix(in oklab, var(--primary) 22%, transparent) 55%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  mix-blend-mode: soft-light;
+  animation: magic-sheen 1.6s linear infinite;
+}
+@keyframes magic-sheen {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+html[data-motion="reduce"] .magic-wait::after {
+  animation: none;
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+}

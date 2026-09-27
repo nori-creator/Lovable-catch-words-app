@@ -41,6 +41,7 @@ import {
 import { ScanBottomScene } from "./scenes/scan-bottom";
 import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { RegenMagicScene } from "./scenes/regen-magic";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { PageFlipScene } from "./scenes/page-flip";
@@ -132,6 +133,7 @@ import "@/pack-styles.css";
 // 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
+  "regen-magic": RegenMagicScene,
   // `auth` は下の `AuthScene`（作り直した迎える面まるごと）。main に在った
   // 「ボタン2つだけ」の場面は、同じ鍵で実物より狭い面を撮ることになるので外した。
   "sticker-peel": PeelStickerScene,

@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useReadableError } from "@/lib/errors";
+import { playMagicSwap, snapshotForSwap } from "@/lib/magic-swap";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import type { PersonalLessonContext } from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
@@ -683,7 +684,7 @@ export const WordCard = forwardRef<
       );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-word-card>
       <HeaderRow
         word={word}
         autoplay={autoplay}
@@ -1113,6 +1114,7 @@ function ReportButton({
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const selfRef = useRef<HTMLSpanElement>(null);
   if (!wordId) return null;
   const labelOf = (item: ReportItem) =>
     item === "pronunciation"
@@ -1124,10 +1126,20 @@ function ReportButton({
     setOpen(false);
     setBusy(true);
     try {
-      const res = await fixFn({ data: { word_id: wordId!, item } });
+      // 直す項目の中身（同じカードの中だけを探す）。直している間は光の筋を流す。
+      const target =
+        selfRef.current
+          ?.closest("[data-word-card]")
+          ?.querySelector<HTMLElement>(`[data-magic="${item}"]`) ?? null;
+      target?.classList.add("magic-wait");
+      const res = await fixFn({ data: { word_id: wordId!, item } }).finally(() =>
+        target?.classList.remove("magic-wait"),
+      );
       if (res.fixed) {
-        await qc.invalidateQueries({ queryKey: ["sticker"] });
-        await qc.invalidateQueries({ queryKey: ["stickers"] });
+        await swapWithMagic(target, async () => {
+          await qc.invalidateQueries({ queryKey: ["sticker"] });
+          await qc.invalidateQueries({ queryKey: ["stickers"] });
+        });
         toast.success(t("card.reportFixed", { item: labelOf(item) }));
       } else {
         toast(t("card.reportQueued"));
@@ -1139,7 +1151,7 @@ function ReportButton({
     }
   }
   return (
-    <span className="relative ml-auto">
+    <span ref={selfRef} className="relative ml-auto">
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
@@ -1203,15 +1215,20 @@ function SectionCard({
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
   const canRegen = !!wordId && !!isPro && isRegenSection(id);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Pro: この項目だけをワンタッチで作り直す。
+  // **古い解説は残したまま待ち、届いたら魔法のように入れ替える**
+  // （`magic-swap.ts`、オーナー指示 2026-09-27）。
   async function regen() {
     if (!wordId || regenerating) return;
     setRegenerating(true);
     try {
       await regenFn({ data: { word_id: wordId!, section: id as RegenSection } });
-      await qc.invalidateQueries({ queryKey: ["sticker"] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      await swapWithMagic(bodyRef.current, async () => {
+        await qc.invalidateQueries({ queryKey: ["sticker"] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+      });
     } catch (e) {
       console.warn("Section regen failed", e);
     } finally {
@@ -1267,9 +1284,29 @@ function SectionCard({
           </button>
         )}
       </div>
-      <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+      <div
+        ref={bodyRef}
+        data-magic={id}
+        className={regenerating ? "magic-wait" : undefined}
+        aria-busy={regenerating || undefined}
+      >
+        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+      </div>
     </section>
   );
+}
+
+/**
+ * 古い姿を写してから `work`（読み直し）を待ち、描き直された新しい姿へ
+ * 魔法のように入れ替える。`el` は読み直しの後も**同じ要素**である前提
+ * （節の中身の包み）。
+ */
+async function swapWithMagic(el: HTMLElement | null, work: () => Promise<void>) {
+  const ghost = snapshotForSwap(el);
+  await work();
+  // 読み直しが描かれるのを2コマ待つ。
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+  if (el?.isConnected) void playMagicSwap(el, ghost);
 }
 
 /**
