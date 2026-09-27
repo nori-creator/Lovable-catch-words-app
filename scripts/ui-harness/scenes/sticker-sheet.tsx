@@ -138,8 +138,6 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           enrichError={variant === "failed" ? "AIの生成に失敗しました" : null}
           setEnrichError={() => {}}
           onEnrichRetry={() => {}}
-          regenerating={false}
-          regenerate={() => {}}
           // ネット画像の候補は、自分の写真が無いときだけ出る。
           webCandidates={variant === "candidates" ? CANDIDATES : []}
           swapping={null}

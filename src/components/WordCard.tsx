@@ -9,10 +9,7 @@ import {
 } from "react";
 import { useReadableError } from "@/lib/errors";
 import { SceneBubbles } from "@/components/SceneBubbles";
-import {
-  PersonalWordLesson,
-  type PersonalLessonContext,
-} from "@/components/onboarding/PersonalWordLesson";
+import type { PersonalLessonContext } from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
 import { examTagLabels } from "@/lib/exam-tags";
@@ -531,6 +528,10 @@ export const WordCard = forwardRef<
     minimal?: boolean;
     /** Show the details during the first guided catch without exit links or report actions. */
     guided?: boolean;
+    /**
+     * 「あなたの場面で使ってみよう」の材料。**その欄は消した**（オーナー指示
+     * 2026-09-27）ので読まない。呼ぶ側の形を崩さないために型だけ残す。
+     */
     personalContext?: PersonalLessonContext;
   }
 >(function WordCard(
@@ -543,7 +544,6 @@ export const WordCard = forwardRef<
     onEditHeadword,
     minimal = false,
     guided = false,
-    personalContext,
   },
   ref,
 ) {
@@ -694,14 +694,6 @@ export const WordCard = forwardRef<
         reportItems={reportItemsFor(shown)}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
-      {!minimal && (
-        <PersonalWordLesson
-          headword={word.headword}
-          meaning={word.meaning_ja}
-          language={word.language}
-          context={personalContext}
-        />
-      )}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard

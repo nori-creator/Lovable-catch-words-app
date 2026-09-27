@@ -1,4 +1,3 @@
-import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
@@ -251,7 +250,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
 
   /**
@@ -411,39 +409,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   function heroPressEnd() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
-  }
-
-  // A9: Pro限定の手動再生成。auto-enrichのenrichedRefガードを無視して
-  // generateCard→updateWordExtrasを強制実行し、詳細を作り直す。
-  async function regenerate() {
-    if (!s || regenerating) return;
-    setRegenerating(true);
-    try {
-      const card = await enrichWord({
-        data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
-      });
-      await saveExtras({
-        data: {
-          word_id: s.word_id,
-          extras: card.extras,
-          patch: {
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            meaning_ja: card.meaning_ja,
-          },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-    } catch (e) {
-      console.warn("Regenerate failed", e);
-    } finally {
-      setRegenerating(false);
-    }
   }
 
   // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
@@ -798,8 +763,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
               enrichedRef.current.clear();
               void qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
             }}
-            regenerating={regenerating}
-            regenerate={regenerate}
             webCandidates={webCandidates}
             swapping={swapping}
             swapWebImage={swapWebImage}
@@ -877,8 +840,6 @@ export function StickerSheetBody({
   enrichError,
   setEnrichError,
   onEnrichRetry,
-  regenerating,
-  regenerate,
   webCandidates,
   swapping,
   swapWebImage,
@@ -918,8 +879,6 @@ export function StickerSheetBody({
   setEnrichError: Dispatch<SetStateAction<string | null>>;
   /** 「もう一度作る」。印を消して問い合わせをやり直す。 */
   onEnrichRetry: () => void;
-  regenerating: boolean;
-  regenerate: () => void;
   webCandidates: Array<{ url: string; credit?: { name?: string; link?: string }; source: string }>;
   swapping: string | null;
   swapWebImage: (cand: {
@@ -1203,8 +1162,6 @@ export function StickerSheetBody({
           )}
         </div>
         {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
-        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。 */}
-        {s.is_owner && <StickerCategoryChip sticker={s} />}
       </section>
 
       {/* 同じものに何度も出会った記録。
@@ -1272,27 +1229,8 @@ export function StickerSheetBody({
         </div>
       )}
 
-      {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
-      {!enriching &&
-        (isPro ? (
-          <button
-            onClick={regenerate}
-            disabled={regenerating}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl min-h-11 border border-primary/30 bg-primary/5 py-3 text-footnote font-semibold text-primary-ink disabled:border-border disabled:bg-secondary disabled:text-muted-foreground"
-          >
-            {regenerating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {regenerating ? t("card.regenerating") : t("card.regenAll")}
-          </button>
-        ) : (
-          <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-footnote text-muted-foreground">
-            <Lock className="h-3.5 w-3.5" />
-            {t("card.regenPro")}
-          </div>
-        ))}
+      {/* **一番下の「解説を再生成」の帯は消した**（オーナー指示 2026-09-27）。
+          作り直しは項目ごとの ↻ と、見出しの行の「報告」から行う。 */}
 
       {/* **「意味や発音が変？報告してAIに直させる」の帯は消した**
           （オーナー指示 2026-09-22）。押すと**全部の解説を作り直して**
