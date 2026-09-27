@@ -43,6 +43,7 @@ import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { CategorySheetScene } from "./scenes/category-sheet";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
+import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -164,6 +165,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "category-sheet": CategorySheetScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
   "candidate-designs": CandidateDesignsScene,
+  "analyzing-designs": AnalyzingDesignsScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -346,6 +348,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
   { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
   { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
+  { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 

@@ -8582,3 +8582,99 @@ html[data-motion="reduce"]
   display: block;
   line-height: 0.7;
 }
+
+/* ---------------------------------------------------------------------------
+ * AI 分析中の案 B〜E（`effects/scan-analyzing/v9_proposals.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.an-trace__base {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.22);
+  stroke-width: 1;
+}
+.an-trace__path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 24 76;
+  filter: drop-shadow(0 0 3px var(--primary)) drop-shadow(0 0 8px var(--primary));
+  animation: an-trace 1.8s linear infinite;
+}
+@keyframes an-trace {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.an-glyph {
+  opacity: 0;
+  text-shadow: 0 0 10px var(--primary);
+  animation: an-glyph 2.4s ease-out infinite;
+}
+@keyframes an-glyph {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  30% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-36px) scale(1.05);
+  }
+}
+
+.an-lens {
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 999px;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  box-shadow:
+    0 0 0 6px rgb(255 255 255 / 0.12),
+    0 0 24px color-mix(in oklab, var(--primary) 70%, transparent),
+    inset 0 0 18px rgb(255 255 255 / 0.35);
+  -webkit-backdrop-filter: saturate(1.5) brightness(1.18) contrast(1.05);
+  backdrop-filter: saturate(1.5) brightness(1.18) contrast(1.05);
+  animation: an-lens 5.6s ease-in-out infinite;
+}
+@keyframes an-lens {
+  0%,
+  100% {
+    transform: translate(-22vw, -8vh);
+  }
+  25% {
+    transform: translate(18vw, -14vh);
+  }
+  50% {
+    transform: translate(22vw, 10vh);
+  }
+  75% {
+    transform: translate(-16vw, 12vh);
+  }
+}
+
+.an-step {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+.an-step--on {
+  animation: an-step 1.2s ease-in-out infinite;
+}
+@keyframes an-step {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--primary) 30%, transparent);
+  }
+}
+
+html[data-motion="reduce"] .an-trace__path,
+html[data-motion="reduce"] .an-lens,
+html[data-motion="reduce"] .an-step--on {
+  animation: none;
+}
+html[data-motion="reduce"] .an-glyph {
+  animation: none;
+  opacity: 0.6;
+}

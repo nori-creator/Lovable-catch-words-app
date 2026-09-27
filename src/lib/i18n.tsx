@@ -2189,6 +2189,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.addShort": { ja: "追加", en: "Add", "zh-TW": "加入" },
   "scan.nextCandidate": { ja: "次の候補", en: "Next candidate", "zh-TW": "下一個候選" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…", "zh-TW": "AI 分析中…" },
+  // AI 分析中の案 E（3つの段）。見る → 読む → 選ぶ。
+  "analyze.stepLook": { ja: "見る", en: "Look", "zh-TW": "看" },
+  "analyze.stepRead": { ja: "読む", en: "Read", "zh-TW": "讀" },
+  "analyze.stepPick": { ja: "選ぶ", en: "Pick", "zh-TW": "選" },
   "scan.zoom": { ja: "ズーム", en: "Zoom", "zh-TW": "縮放" },
   "scan.flipCamera": {
     ja: "カメラを前後で切り替える",

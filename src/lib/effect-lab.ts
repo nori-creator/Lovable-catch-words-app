@@ -85,6 +85,31 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       date: "07-28",
       note: "いちばん新しい版(青染め＋細い進行バー)",
     },
+    // 2026-09-27 の案 B〜E（オーナー指示「AI分析中のアニメーション案を複数」）。
+    {
+      id: "v9trace",
+      label: "B 輪郭をなぞる",
+      date: "09-27",
+      note: "光が物の輪郭を1周ずつなぞる。シールの形を作っている、と見える",
+    },
+    {
+      id: "v10glyphs",
+      label: "C 文字が浮かぶ",
+      date: "09-27",
+      note: "学習言語の文字（注音・アルファベット）が写真から浮かんで消える",
+    },
+    {
+      id: "v11lens",
+      label: "D レンズで探す",
+      date: "09-27",
+      note: "ガラスのレンズが写真の上をゆっくり探して回る",
+    },
+    {
+      id: "v12steps",
+      label: "E 3つの段",
+      date: "09-27",
+      note: "見る → 読む → 選ぶ の段が順に進む。いま何をしているかが言葉で分かる",
+    },
   ],
   catchLanding: [
     {
