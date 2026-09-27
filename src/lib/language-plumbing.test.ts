@@ -3560,7 +3560,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 位置2本・大きさ2本・角の丸み1本。
     expect((src.match(/createSpring\(/g) ?? []).length).toBe(5);
     // 幅・高さは px の値から始めて px の値へ。
-    expect(src).toMatch(/const pw = createSpring\(w0, paint, POP\)/);
+    // 2026-09-27 から開き方の案（A〜D）で大きさのばねを選ぶ。既定の A は POP。
+    expect(src).toMatch(/const pw = createSpring\(w0, paint, sizeSpring\)/);
+    expect(src).toMatch(/const sizeSpring = style === "pop" \? POP/);
     expect(src).toMatch(/pw\.to\(last\.width\)/);
     // 倍率はそこから割り算で出す（ばねには入れない）。
     expect(src).toMatch(/pw\.value\(\) \/ last\.width/);

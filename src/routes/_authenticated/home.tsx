@@ -710,7 +710,10 @@ function flightFrom(button: HTMLElement): FlightOrigin | null {
   // 飛ばす写しは**通信も復号もせずに**最初の1枚から出る。
   const url = img.currentSrc || img.src;
   if (!url) return null;
-  return { x: r.left, y: r.top, w: r.width, h: r.height, url, radius: 2 };
+  // 札の**実際の**角の丸み。見出しまで丸いまま広がるよう、四角（2px）から
+  // 始めない（2026-09-27「角が四角になってまた丸くなる」）。
+  const radius = Math.max(parseFloat(getComputedStyle(img).borderRadius) || 0, 8);
+  return { x: r.left, y: r.top, w: r.width, h: r.height, url, radius };
 }
 
 /**

@@ -336,6 +336,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
   { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
   { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },
+  { scene: "home-tap", label: "写真→詳細の開き方 A/B/C/D（角は丸いまま）" },
   { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },

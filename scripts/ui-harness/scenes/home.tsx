@@ -9,7 +9,12 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { StickerSheet } from "@/components/StickerSheet";
-import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
+import {
+  heroRevealStyle,
+  setHeroRevealStyle,
+  type HeroOrigin as FlightOrigin,
+  type HeroRevealStyle,
+} from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   DiaryDate,
@@ -294,8 +299,46 @@ export function HomeTapScene() {
   if (!qc.getQueryData(["stickers", "harness"])) {
     qc.setQueryData(["stickers", "harness"], { items: today });
   }
+  // 開き方の案（2026-09-27）。選んだ案は端末に覚え、次に押したときから効く。
+  const [style, setStyle] = useState<HeroRevealStyle>(heroRevealStyle());
   return (
     <>
+      <div
+        role="radiogroup"
+        aria-label="開き方の案"
+        style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}
+      >
+        {(
+          [
+            ["pop", "A キュッ→ぱっ"],
+            ["glide", "B 滑らかに"],
+            ["lift", "C 持ち上がる"],
+            ["fade", "D 浮かび上がる"],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={style === k}
+            onClick={() => {
+              setHeroRevealStyle(k);
+              setStyle(k);
+            }}
+            style={{
+              minHeight: 44,
+              padding: "0 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: style === k ? "#0a84ff" : "#fff",
+              color: style === k ? "#fff" : "#111",
+              fontWeight: 600,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <p
         data-flight-origin={got}
         style={{
