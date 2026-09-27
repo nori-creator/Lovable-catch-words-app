@@ -1,4 +1,5 @@
 import { PeelSticker } from "@/components/PeelSticker";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { cutoutAtCatch, getCatchSpeed } from "@/lib/catch-speed";
 import { useEffect, useRef, useState } from "react";
@@ -99,6 +100,8 @@ export function ScanCatchSheet({
     zhuyin: dict?.zhuyin || item.zhuyin,
     pinyin: dict?.pinyin || item.pinyin,
   });
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const zhuyinUnits = useZhuyinUnits(targetLanguage, headword, dict?.zhuyin || item.zhuyin);
   // 仮置きの品詞は**学習言語の体系**から作る(`InputCatchSheet` と同じ理由)。
   const profile = targetProfile(targetLanguage);
   /**
@@ -584,9 +587,18 @@ export function ScanCatchSheet({
           <div className="flex items-baseline gap-2">
             {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
                 決め打ちだと、英語の見出し語に中国語のフォントが当たる。 */}
-            <Term as="h2" lang={targetLanguage} className="text-title font-bold tracking-tight">
-              {headword}
-            </Term>
+            {zhuyinUnits ? (
+              <ZhuyinWord
+                as="h2"
+                units={zhuyinUnits}
+                lang={targetLanguage}
+                className="text-title font-bold tracking-tight"
+              />
+            ) : (
+              <Term as="h2" lang={targetLanguage} className="text-title font-bold tracking-tight">
+                {headword}
+              </Term>
+            )}
             {/* **辞書に行があること = 確認済み、ではない。**
                 `lookupHeadwords` は AI が作った未検証の行も返すので、
                 直前のスキャン画面で「AI・未検証」と黄色く出ていた語が、
@@ -607,12 +619,14 @@ export function ScanCatchSheet({
               「学習言語英語のとき、注音やピンインを決して表示しないで」)。
               ここは注音と拼音を**両方とも直に**描いていたので、英語の語にも
               中国語の読みが並んでいた。 */}
-          <Reading
-            lang={targetLanguage}
-            zhuyin={dict?.zhuyin || item.zhuyin}
-            pinyin={dict?.pinyin || item.pinyin}
-            className="mt-0.5 block text-footnote text-muted-foreground"
-          />
+          {!zhuyinUnits && (
+            <Reading
+              lang={targetLanguage}
+              zhuyin={dict?.zhuyin || item.zhuyin}
+              pinyin={dict?.pinyin || item.pinyin}
+              className="mt-0.5 block text-footnote text-muted-foreground"
+            />
+          )}
           <p className="mt-2 text-body font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">

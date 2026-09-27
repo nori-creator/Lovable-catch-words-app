@@ -41,6 +41,8 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
+import { ZhuyinWord } from "@/components/ZhuyinWord";
+import { pairZhuyin } from "@/lib/zhuyin-layout";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -1955,6 +1957,10 @@ export function LightModeCard({
   const grade = useServerFn(gradeReview);
   const t = useT();
   const phonetic = usePhoneticPref();
+  /** 注音を字の右に縦に組むか（注音を選んでいて、学習言語に注音があるとき）。 */
+  const zhuyinBeside =
+    phonetic === "zhuyin" && targetProfile(card.language).readings.includes("zhuyin");
+  const answerUnits = zhuyinBeside ? pairZhuyin(card.headword, card.reading_zhuyin) : null;
   const pronounce = usePronounce(card.language ?? undefined);
   const photoPref = usePhotoPref();
   /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
@@ -2112,6 +2118,8 @@ export function LightModeCard({
               zhuyin: info.zhuyin,
               pinyin: info.pinyin,
             });
+            // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
+            const units = zhuyinBeside ? pairZhuyin(c, info.zhuyin) : null;
             // `scroll-mb-56` — 答え合わせの面は画面下端に貼り付くので、
             // 鍵盤で送ってきた焦点がその**裏に入る**。ブラウザは焦点を
             // 「画面の中」には入れるが、貼り付いた面をよけてはくれない。
@@ -2148,14 +2156,22 @@ export function LightModeCard({
                   <span className="min-w-0">
                     {/* **その語の字で組む**（`Term`）。候補の画面と同じ書体になる
                         — 以前は画面の言語（日本語）の書体で繁体字を出していた。 */}
-                    <Term lang={card.language} className="block truncate text-body font-medium">
-                      {c}
-                    </Term>
+                    {units ? (
+                      <ZhuyinWord
+                        units={units}
+                        lang={card.language}
+                        className="block text-body font-medium"
+                      />
+                    ) : (
+                      <Term lang={card.language} className="block truncate text-body font-medium">
+                        {c}
+                      </Term>
+                    )}
                     {/* 注音は**装飾ではなく学習対象そのもの**。台湾華語で
                         日本語話者がいちばん間違えるのは声調で、その記号
                         (ˇ ˊ)は 11px の最も薄い階調では判読の瀬戸際だった
                         (独立監査)。一段大きく、一段濃くする。 */}
-                    {reading && (
+                    {reading && !units && (
                       <span
                         lang="zh-Hant"
                         className="block truncate text-footnote text-foreground/70"
@@ -2245,24 +2261,34 @@ export function LightModeCard({
                     **語が「珍珠奶 / 茶」と割れて**いた。中国語を教える画面で
                     語を割るのはいちばんやってはいけない。 */}
                 <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5">
-                  <Term
-                    lang={card.language}
-                    className="min-w-0 break-keep text-title font-bold tracking-tight"
-                  >
-                    {card.headword}
-                  </Term>
+                  {answerUnits ? (
+                    <ZhuyinWord
+                      units={answerUnits}
+                      lang={card.language}
+                      className="min-w-0 text-title font-bold tracking-tight"
+                    />
+                  ) : (
+                    <Term
+                      lang={card.language}
+                      className="min-w-0 break-keep text-title font-bold tracking-tight"
+                    >
+                      {card.headword}
+                    </Term>
+                  )}
                   <PronounceButton
                     text={card.headword}
                     language={card.language ?? undefined}
                     className="row-span-2"
                     label={t("card.playPron")}
                   />
-                  <Reading
-                    lang={card.language ?? undefined}
-                    zhuyin={card.reading_zhuyin}
-                    pinyin={card.pinyin}
-                    className="min-w-0 text-footnote leading-snug text-foreground/70"
-                  />
+                  {!answerUnits && (
+                    <Reading
+                      lang={card.language ?? undefined}
+                      zhuyin={card.reading_zhuyin}
+                      pinyin={card.pinyin}
+                      className="min-w-0 text-footnote leading-snug text-foreground/70"
+                    />
+                  )}
                 </div>
 
                 <AnswerExplain card={card} />

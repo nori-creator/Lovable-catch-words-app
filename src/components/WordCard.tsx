@@ -52,6 +52,7 @@ import {
   type UsageChunk,
 } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { Term } from "@/components/Term";
 import { realUsageLinks } from "@/lib/real-usage-links";
 import { targetProfile } from "@/lib/target-profile";
@@ -893,6 +894,8 @@ function HeaderRow({
    * その字が見えている所で書き換えるのが素直。
    */
   const [editingHead, setEditingHead] = useState(false);
+  /** 注音を字の右に縦に組めるなら、その組（組めなければ読みは下の行）。 */
+  const zhuyinUnits = useZhuyinUnits(word.language, word.headword, word.reading_zhuyin);
   const [headDraft, setHeadDraft] = useState(word.headword);
   const [savingHead, setSavingHead] = useState(false);
   async function saveHead() {
@@ -949,6 +952,13 @@ function HeaderRow({
                 lang={targetProfile(word.language).scriptLang}
                 className="min-w-0 flex-1 rounded-xl border border-primary bg-background px-2 py-1 text-hero font-bold tracking-tight outline-none"
               />
+            ) : zhuyinUnits ? (
+              <ZhuyinWord
+                as="h1"
+                units={zhuyinUnits}
+                lang={word.language}
+                className="text-hero font-bold tracking-tight"
+              />
             ) : (
               <Term as="h1" lang={word.language} className="text-hero font-bold tracking-tight">
                 {word.headword}
@@ -994,18 +1004,21 @@ function HeaderRow({
               />
             )}
           </div>
-          <div className="mt-1 text-body text-muted-foreground">
-            {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
+          {/* 注音を字の右に組んだときは、下の行に読みを重ねて出さない。 */}
+          {!zhuyinUnits && (
+            <div className="mt-1 text-body text-muted-foreground">
+              {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
                 プロフィールで考えるので、英語の語に注音/拼音を探しに行き、
                 IPA を持っていても読みが空になる。 */}
-            <Reading
-              lang={word.language ?? undefined}
-              zhuyin={word.reading_zhuyin}
-              pinyin={word.pinyin}
-              ipaUs={word.reading_primary}
-              ipaUk={word.reading_alt}
-            />
-          </div>
+              <Reading
+                lang={word.language ?? undefined}
+                zhuyin={word.reading_zhuyin}
+                pinyin={word.pinyin}
+                ipaUs={word.reading_primary}
+                ipaUk={word.reading_alt}
+              />
+            </div>
+          )}
           {/**
            * 品詞と級を**同じ行に、同じ大きさで**並べる(オーナー報告
            * 2026-08-26、3度目「単語の欄の CEFR の欄が大きくて、品詞の

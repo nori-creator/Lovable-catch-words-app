@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import type React from "react";
 import { MapPin } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -426,6 +427,8 @@ const CoverCard = memo(function CoverCard({
     s.word.language,
     neutralReadings(s.word.language, s.word.reading_zhuyin, s.word.pinyin),
   );
+  // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
+  const zhuyinUnits = useZhuyinUnits(s.word.language, s.word.headword, s.word.reading_zhuyin);
   const date = new Date(s.taken_at);
   return (
     <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
@@ -457,8 +460,18 @@ const CoverCard = memo(function CoverCard({
         </span>
         <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
           <span className="block min-w-0">
-            <Zh className="block truncate text-title font-bold leading-tight">{s.word.headword}</Zh>
-            {reading && (
+            {zhuyinUnits ? (
+              <ZhuyinWord
+                units={zhuyinUnits}
+                lang={s.word.language}
+                className="block text-title font-bold leading-tight"
+              />
+            ) : (
+              <Zh className="block truncate text-title font-bold leading-tight">
+                {s.word.headword}
+              </Zh>
+            )}
+            {reading && !zhuyinUnits && (
               <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
                 {reading}
               </span>

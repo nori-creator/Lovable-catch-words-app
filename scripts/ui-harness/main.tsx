@@ -343,7 +343,8 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "settings-polish", label: "設定（ガラス）" },
   { scene: "review-choice", label: "復習の4択（ガラス）" },
   { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
-  { scene: "word-card&show=real_usage", label: "実際の使われ方（説明文を削除）" },
+  { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
+  { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
   { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
 ];
 

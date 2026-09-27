@@ -8531,3 +8531,54 @@ html[data-motion="reduce"]
 .category-row:not(:disabled):active {
   background: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
+
+/* ---------------------------------------------------------------------------
+ * 注音を字の右に縦に（オーナー指示 2026-09-27、`ZhuyinWord`）。
+ * 大きさは字から決まる（em）。小さい字でも読めるよう 11px を下限にする。
+ * ------------------------------------------------------------------------- */
+.zy-word {
+  display: inline-block;
+  max-width: 100%;
+}
+.zy-word__row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.1em;
+}
+.zy-unit {
+  display: inline-flex;
+  align-items: center;
+}
+.zy-char {
+  line-height: 1.15;
+}
+.zy-col {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.06em;
+  /* 右に声調の印が入る分をあけておく */
+  margin-right: 0.26em;
+  font-size: max(0.36em, 11px);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.02;
+  color: color-mix(in oklab, currentColor 78%, transparent);
+}
+.zy-sym {
+  position: relative;
+  display: block;
+}
+.zy-tone {
+  position: absolute;
+  left: 100%;
+  top: -0.3em;
+  margin-left: 0.05em;
+}
+.zy-neutral {
+  display: block;
+  line-height: 0.7;
+}

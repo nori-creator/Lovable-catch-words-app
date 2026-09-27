@@ -1,4 +1,5 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { takeScanHandoff } from "@/lib/scan-handoff";
@@ -1660,6 +1661,8 @@ export function ReencounterPanel({
 }) {
   const t = useT();
   const language = useTargetLang();
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const reencUnits = useZhuyinUnits(language, reenc.headword, reenc.reading_zhuyin);
   const image = photo || reenc.cutout_url;
   return (
     <div className="mx-auto max-w-md space-y-5">
@@ -1699,15 +1702,26 @@ export function ReencounterPanel({
           </div>
         ) : null}
         <div className="space-y-3 px-6 pb-6 pt-3">
-          <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
-            {reenc.headword}
-          </Term>
-          <Reading
-            lang={language}
-            zhuyin={reenc.reading_zhuyin}
-            pinyin={reenc.pinyin}
-            className="block text-footnote text-muted-foreground"
-          />
+          {reencUnits ? (
+            <ZhuyinWord
+              as="h1"
+              units={reencUnits}
+              lang={language}
+              className="text-hero font-bold tracking-tight"
+            />
+          ) : (
+            <>
+              <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
+                {reenc.headword}
+              </Term>
+              <Reading
+                lang={language}
+                zhuyin={reenc.reading_zhuyin}
+                pinyin={reenc.pinyin}
+                className="block text-footnote text-muted-foreground"
+              />
+            </>
+          )}
           <p className="text-title font-medium">{reenc.meaning_ja}</p>
           <p className="text-footnote text-muted-foreground">
             {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
