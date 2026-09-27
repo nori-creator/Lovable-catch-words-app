@@ -54,7 +54,7 @@ export function FirstCatchQuestions({
   };
   return (
     <div className="first-run">
-      <div className="first-questions" key={step}>
+      <div className={`first-questions ${step >= 3 ? "first-questions--dense" : ""}`} key={step}>
         <header className="first-question-nav">
           <button
             type="button"

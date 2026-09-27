@@ -257,9 +257,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "用照片和單字留下今天 · 示範",
   },
   "first.previewUnavailable": {
-    ja: "このプレビューは、まだ写真を解析するAIに接続されていません。写真はそのまま残っています。",
-    en: "Photo analysis is not connected in this preview yet. Your photo is kept.",
-    "zh-TW": "這個預覽尚未連接照片分析 AI，照片仍保留著。",
+    ja: "この画面確認用プレビューではAI解析を利用できません。写真は端末に残っています。",
+    en: "AI analysis is unavailable in this visual preview. Your photo is still on your device.",
+    "zh-TW": "這個畫面預覽無法使用 AI 分析。照片仍保留在裝置上。",
+  },
+  "first.photoUnsupported": {
+    ja: "この写真を読み込めませんでした。iPhoneのカメラで撮り直すか、JPEGの写真を選んでください。",
+    en: "We couldn't read this photo. Retake it with the camera or select a JPEG image.",
+    "zh-TW": "無法讀取這張照片。請用相機重拍，或選擇 JPEG 照片。",
+  },
+  "first.analysisTimeout": {
+    ja: "写真の解析に時間がかかっています。写真は残っています。もう一度試してください。",
+    en: "Photo analysis is taking too long. Your photo is safe; please retry.",
+    "zh-TW": "照片分析花了太久時間。照片仍在，可以再試一次。",
   },
   "first.personalTitle": {
     ja: "あなたの場面で使ってみよう",
@@ -349,9 +359,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "拍下來、了解意思、再想起來。\n從生活中累積你的單字。",
   },
   "first.home": {
-    ja: "単語をメモし直す手間なく、撮った写真が今日のアルバムになります。",
-    en: "Skip copying words into a notebook. Your photos become today's album.",
-    "zh-TW": "不用再抄單字，拍下的照片就會成為今天的相簿。",
+    ja: "見つけた場面ごと、今日のアルバムに。単語帳へ書き写す手間がなくなります。",
+    en: "Keep the moment with the word in today's album. No copying it into a notebook.",
+    "zh-TW": "單字和發現它的時刻，一起留在今天的相簿。不用再抄進筆記本。",
+  },
+  "first.tapCamera": {
+    ja: "下のカメラを押して、気になるものを撮ってみましょう。名前を知らなくても大丈夫。",
+    en: "Tap the camera below and photograph anything that catches your eye. You don't need its name yet.",
+    "zh-TW": "點下方的相機，拍下感興趣的東西。不知道它叫什麼也沒關係。",
   },
   "first.dex": {
     ja: "集めたことばが、撮った写真と一緒に並びます。",
@@ -359,14 +374,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "收集的單字會和照片一起保存。",
   },
   "first.review": {
-    ja: "撮った場面を見ながら4択で思い出します。意味だけを丸暗記する必要はありません。",
-    en: "Choose from four answers while viewing your photo. Recall the moment, not just a definition.",
-    "zh-TW": "看著自己拍的照片做四選一，從當時的場景想起單字。",
+    ja: "自分の写真を手がかりに4択で思い出す。単語だけの暗記より、出会った場面から思い出せます。",
+    en: "Use your photo as a clue in a four-choice review. Recall the moment behind the word.",
+    "zh-TW": "看自己的照片做四選一，從相遇的場景想起單字，不用死背字表。",
   },
   "first.shoot": {
-    ja: "名前を調べる前に、目の前のものを1枚。AIが写真からことばを探します。",
-    en: "Take a photo before searching a dictionary. AI finds words in it.",
-    "zh-TW": "不用先查字典，拍下眼前的東西，AI 會從照片找出單字。",
+    ja: "知らないものも、撮るだけ。AIが写真の中から学べることばを提案します。",
+    en: "Just take a photo, even when you don't know its name. AI suggests words from what it sees.",
+    "zh-TW": "不知道名稱也能先拍下來，AI 會從照片裡找出值得學的單字。",
   },
   "first.shootCta": { ja: "1枚撮ってみる", en: "Take your first photo", "zh-TW": "拍下第一張照片" },
   "first.pick": {

@@ -17,7 +17,9 @@
 ## Verification
 
 - TypeScript, production build, harness build, i18n check and all 2,213 unit tests passed locally.
-- The published preview was inspected for welcome collage, flagged questions, Home album, full-screen account layout and actual Dex gallery switching. The final spotlight coordinate correction requires the next preview refresh.
+- The published preview was inspected for welcome collage, flagged questions, Home album, full-screen account layout, Dex card swipe/gallery/list/map, and an answered four-choice review. The spotlight alignment was refreshed and visually verified.
+- The welcome collage now uses the Home album's generated-photo word labels; its sea label sits above the adjacent photo. Home stays unobscured for 700ms, the focus ring expands, and the explanation appears after the ring. The camera tab is the actual next control. The goals and interests screens keep Next visible while the options scroll independently.
+- iPhone camera failure: the visual Netlify Deploy Preview is static and has no `/api/first-catch` analysis handler, so it cannot analyze an actual captured photo. The application photo path now handles Safari's rejected `Image.decode()` by waiting for `load`, reports unsupported formats, and gives a bounded AI wait with a retry while retaining the image. Two focused tests cover loaded HEIC-like input and unsupported input. A physical iPhone plus a backend-enabled deployment remains required to confirm end-to-end AI analysis.
 - A real email/OAuth signup, camera permission and AI image analysis were not executed against a production account. They depend on the deployment's Supabase and AI configuration and must be exercised with a genuine new account before merge.
 
 Do not merge PR #114 before the owner visually approves the Deploy Preview, per `AGENTS.md`.

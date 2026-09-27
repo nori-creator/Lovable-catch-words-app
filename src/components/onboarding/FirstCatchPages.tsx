@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Bell, Moon } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
+import { sampleStickers } from "./FirstCatchHome";
 import "./first-catch.css";
 
 export const FIRST_CATCH_PHOTOS = [
@@ -38,13 +39,13 @@ export function FirstCatchIntro({
   onStart: () => void;
 }) {
   const t = useT();
+  const labels = sampleStickers(draft, t, draft.targetLanguage).map((sample) => sample.word.headword);
   return (
     <div className="first-run">
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">
           <img src="/icon-192.png" alt="" className="first-intro-logo" />
           <h1>Catchwords</h1>
-          <p>{t("first.introTagline")}</p>
         </header>
         {/* 写真の束は、残りの高さに収まる大きさで描く（`container-type: size`）。
             前は高さを固定していたので、背の低い画面では「はじめる」の上に
@@ -55,16 +56,7 @@ export function FirstCatchIntro({
           {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
             <div key={src} className={`first-polaroid first-polaroid-${i}`}>
               <img src={src} alt="" loading="eager" fetchPriority="high" />
-              <span>
-                {
-                  [
-                    t("first.sampleCoffee"),
-                    t("first.sampleFlower"),
-                    t("first.sampleCat"),
-                    t("first.sampleSea"),
-                  ][i]
-                }
-              </span>
+              <span className="collage__slip">{labels[i]}</span>
             </div>
           ))}
         </div>
@@ -206,7 +198,6 @@ export function FirstCatchReady({
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.readyStart")}
           </PrimaryAction>
-          <p className="first-ready-footnote">{t("first.readyFootnote")}</p>
         </footer>
       </div>
     </div>

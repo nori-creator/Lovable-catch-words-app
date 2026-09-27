@@ -90,6 +90,7 @@ export function FirstCatchFlow({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [manual, setManual] = useState("");
   const [detailSeen, setDetailSeen] = useState(false);
+  const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
   const hero = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
@@ -148,6 +149,10 @@ export function FirstCatchFlow({
           t(
             e instanceof Error && e.message === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
               ? "first.previewUnavailable"
+              : e instanceof Error && e.message === "FIRST_CATCH_PHOTO_UNSUPPORTED"
+                ? "first.photoUnsupported"
+                : e instanceof Error && e.message === "FIRST_CATCH_ANALYSIS_TIMEOUT"
+                  ? "first.analysisTimeout"
               : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
                 ? "first.guestUnavailable"
                 : "first.failed",
@@ -164,7 +169,13 @@ export function FirstCatchFlow({
   }
   async function analyze(next: FirstCatch) {
     await services.prepare(next);
-    const result = await services.suggest(next.photo!, next);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      services.suggest(next.photo!, next),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("FIRST_CATCH_ANALYSIS_TIMEOUT")), 55_000);
+      }),
+    ]).finally(() => clearTimeout(timer));
     if (!result.suggestions.length) throw new Error("No candidates");
     if (mounted.current) setSuggestions(result.suggestions);
   }
@@ -242,7 +253,7 @@ export function FirstCatchFlow({
       <button className="first-primary" onClick={() => retry.current()} disabled={!!busy}>
         {t("first.retry")}
       </button>
-      {draft?.photo && !canRequestAccount(draft) && (
+      {draft?.stage === "camera" && !canRequestAccount(draft) && (
         <button
           className="first-secondary"
           onClick={() => {
@@ -307,7 +318,9 @@ export function FirstCatchFlow({
   const sticker = firstCatchSticker(draft);
   return (
     <div className="first-run" data-first-stage={draft.stage}>
-      {draft.stage === "home" && <FirstCatchHome draft={draft} animated />}
+      {draft.stage === "home" && (
+        <FirstCatchHome draft={draft} animated onCamera={homeGuide === "camera" ? () => move("camera") : undefined} />
+      )}
       {draft.stage === "dex" && (
         <FirstCatchShell tab={1}>
           <FirstCatchDex draft={draft} onOpen={() => move("explore")} />
@@ -479,12 +492,13 @@ export function FirstCatchFlow({
       )}
       {!error && !landing && draft.stage === "home" && (
         <Spotlight
-          target='[data-tour="home"]'
-          title={t("first.homeTitle")}
-          text={t("first.home")}
-          step="1 / 5"
-          nextLabel={t("first.shootCta")}
-          onNext={() => move("camera")}
+          target={homeGuide === "album" ? '[data-tour="home"]' : '[data-tour="tab-camera"]'}
+          title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
+          text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
+          step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
+          nextLabel={t("first.next")}
+          onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
+          interactive={homeGuide === "camera"}
         />
       )}
       {!error && !landing && draft.stage === "camera" && !draft.photo && (

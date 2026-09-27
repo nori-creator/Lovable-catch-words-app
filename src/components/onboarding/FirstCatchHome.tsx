@@ -83,10 +83,12 @@ export function FirstCatchShell({
   children,
   tab = 0,
   camera = false,
+  onTab,
 }: {
   children: ReactNode;
   tab?: number;
   camera?: boolean;
+  onTab?: (index: number) => void;
 }) {
   const t = useT();
   return (
@@ -99,7 +101,9 @@ export function FirstCatchShell({
           <li key={i} className="relative z-10 flex-1">
             <button
               type="button"
-              disabled
+              disabled={!onTab || i !== 2}
+              data-tour={i === 2 ? "tab-camera" : undefined}
+              onClick={() => onTab?.(i)}
               className={`tabbar__cell group w-full rounded-full text-caption ${i === tab ? "text-primary-ink" : "text-muted-foreground"}`}
               aria-current={i === tab ? "page" : undefined}
             >
@@ -120,16 +124,18 @@ export function FirstCatchShell({
 export function FirstCatchHome({
   draft,
   animated = false,
+  onCamera,
 }: {
   draft: FirstCatch | null;
   animated?: boolean;
+  onCamera?: () => void;
 }) {
   const t = useT();
   const target = useTargetLang();
   const sticker = draft && firstCatchSticker(draft);
   const samples = sampleStickers(draft, t, target);
   return (
-    <FirstCatchShell>
+    <FirstCatchShell onTab={onCamera ? () => onCamera() : undefined}>
       <section data-tour="home">
         <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
           {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}

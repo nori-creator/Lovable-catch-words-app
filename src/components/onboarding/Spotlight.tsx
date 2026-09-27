@@ -26,11 +26,17 @@ export function Spotlight({
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [coachH, setCoachH] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [coachReady, setCoachReady] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setRevealed(false);
-    const timer = window.setTimeout(() => setRevealed(true), 850);
-    return () => window.clearTimeout(timer);
+    setCoachReady(false);
+    const ringTimer = window.setTimeout(() => setRevealed(true), 700);
+    const coachTimer = window.setTimeout(() => setCoachReady(true), 1190);
+    return () => {
+      window.clearTimeout(ringTimer);
+      window.clearTimeout(coachTimer);
+    };
   }, [target]);
   useEffect(() => {
     if (revealed) return;
@@ -45,7 +51,7 @@ export function Spotlight({
   }, [revealed]);
   useLayoutEffect(() => {
     if (panel.current) setCoachH(panel.current.offsetHeight);
-  }, [title, text, nextLabel, revealed]);
+  }, [title, text, nextLabel, revealed, coachReady]);
   useEffect(() => {
     if (!revealed) return;
     const node = document.querySelector<HTMLElement>(target);
@@ -150,7 +156,7 @@ export function Spotlight({
           }}
         />
       )}
-      <div
+      {coachReady && <div
         ref={panel}
         key={text}
         role="dialog"
@@ -173,7 +179,7 @@ export function Spotlight({
             {nextLabel}
           </button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

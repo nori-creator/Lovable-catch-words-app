@@ -444,7 +444,7 @@
   animation: tour-focus-in .55s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes tour-focus-in {
-  from { opacity: 0; scale: 1.04; }
+  from { opacity: 0; scale: .76; }
   to { opacity: 1; scale: 1; }
 }
 /* 案内が次の物へ移るとき、暗幕の穴と輪は**跳ばずに滑って**移る
@@ -585,14 +585,15 @@
 }
 .first-auth-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 21px;
+  gap: 6px;
+  font-size: clamp(30px, 7.5vw, 38px);
   font-weight: 780;
   letter-spacing: -.035em;
 }
-.first-auth-brand img { width: 42px; height: 42px; border-radius: 11px; }
+.first-auth-brand img { width: clamp(66px, 10dvh, 88px); height: auto; aspect-ratio: 1; border-radius: 20%; }
 .first-auth-photos {
   position: relative;
   height: clamp(174px, 25dvh, 235px);
@@ -763,14 +764,14 @@
   padding-top: 8px;
 }
 .first-intro-logo {
-  width: clamp(56px, 8.5dvh, 72px);
+  width: clamp(78px, 12dvh, 104px);
   height: auto;
   aspect-ratio: 1;
   margin: 0 auto 12px;
   border-radius: 22%;
 }
 .first-intro-heading h1 {
-  font-size: 31px;
+  font-size: clamp(33px, 8vw, 40px);
   font-weight: 780;
   line-height: 1.2;
   color: #10213d;
@@ -820,15 +821,15 @@
   margin-top: 6px;
   padding: 1px 8px;
   border-radius: 7px;
-  background: #eff8ff;
-  font-size: 14px;
-  font-weight: 750;
+  background: #fff;
+  font-size: 1.1875rem;
+  font-weight: 700;
   align-self: flex-start;
 }
 .first-polaroid-0 { left: 0; top: 3%; width: 50%; height: 47%; rotate: -7deg; z-index: 2; }
 .first-polaroid-1 { right: 0; top: 11%; width: 44%; height: 43%; rotate: 8deg; z-index: 1; }
-.first-polaroid-2 { left: 8%; bottom: 3%; width: 45%; height: 43%; rotate: 5deg; z-index: 4; }
-.first-polaroid-3 { right: 4%; bottom: 2%; width: 53%; height: 44%; rotate: -6deg; z-index: 3; }
+.first-polaroid-2 { left: 4%; bottom: 3%; width: 42%; height: 43%; rotate: 5deg; z-index: 4; }
+.first-polaroid-3 { right: 1%; bottom: 2%; width: 50%; height: 44%; rotate: -6deg; z-index: 5; }
 
 .first-standalone-footer {
   margin-top: auto;
@@ -1187,9 +1188,7 @@
   box-shadow: 0 16px 40px #007ed52b;
 }
 @media (max-height: 700px) {
-  .first-intro-logo {
-    width: 48px;
-  }
+  .first-intro-logo { width: 72px; }
   .first-intro-heading p {
     margin-top: 8px;
     font-size: 15px;
@@ -1217,7 +1216,17 @@
 .first-time-choice[aria-checked="true"] { animation: first-check-pop .38s cubic-bezier(.2,1.45,.35,1) both; }
 .first-primary:not(:disabled):active { transform: scale(.965); }
 .first-sample-album { max-width: min(100%, 43dvh, 460px); margin: 0 auto; }
-.first-polaroid span { font-size: 13px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.first-polaroid span { max-width: 100%; white-space: nowrap; }
+.first-questions--dense { height: var(--first-viewport-height, 100dvh); overflow: hidden; }
+.first-questions--dense .first-question-heading { flex: none; margin-top: 12px; }
+.first-questions--dense h1 { margin-bottom: 6px; }
+.first-questions--dense .first-goals,
+.first-questions--dense .first-interest-grid { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; margin: 8px 0; padding: 4px 2px; align-content: start; }
+.first-questions--dense .first-footer { flex: none; padding: 8px 0; background: #fcfeff; }
+.first-questions--dense .first-goals .first-choice { min-height: 52px; padding-block: 8px; }
+.first-questions--dense .first-interest-grid { gap: 7px; }
+.first-questions--dense .first-interest-photo { aspect-ratio: 1.4; }
+.first-questions--dense .first-interest-label { min-height: 30px; font-size: 12px; }
 .first-dex-stage .dex-cf__card[aria-current="true"] { box-shadow: 0 16px 42px #007dcc27; }
 .first-review-exercise .quiz-photo img { animation: first-photo-reveal .55s ease-out both; }
 @keyframes first-title-in { from { opacity: 0; transform: translateY(15px); filter: blur(4px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }

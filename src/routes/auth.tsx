@@ -249,7 +249,6 @@ export function AuthView({
         </div>
         <div className="first-auth-content">
           <h1 id="first-account-title">{draft ? t("first.account") : t("auth.signin")}</h1>
-          <p className="first-sub">{draft ? t("first.accountHint") : t("auth.tagline")}</p>
           {confirmed && (
             <p role="status" className="first-sub mb-4">
               {t("first.confirm")}
