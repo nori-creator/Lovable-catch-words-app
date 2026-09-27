@@ -1,6 +1,8 @@
-import { Fragment, type CSSProperties } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { ChevronDown } from "lucide-react";
 import { chunkStyle, chunkLegendFor } from "@/lib/pos";
-import { usePronounce } from "@/lib/use-pronounce";
+import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
+import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { Term } from "@/components/Term";
 import { PronounceButton } from "@/components/PronounceButton";
 import type { ChunkPart } from "@/lib/extras";
@@ -24,6 +26,8 @@ export function ChunkPills({
   appearance = "pill",
   lang,
   onSpeak,
+  onSlot,
+  openSlot = null,
 }: {
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
@@ -39,6 +43,13 @@ export function ChunkPills({
    * 意味の無い場所で押せる見た目にしない。
    */
   onSpeak?: (text: string) => void;
+  /**
+   * 入れ替える所（`slot`）で、ほかの具体語（`alts`）が在る札を押したとき。
+   * 渡すと、その札は「鳴らす」ではなく「ほかの語を並べる」札になる（▾ 付き）。
+   */
+  onSlot?: (index: number) => void;
+  /** いま並べている札（▾ を上向きに）。 */
+  openSlot?: number | null;
 }) {
   if (!parts.length) return null;
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
@@ -67,7 +78,18 @@ export function ChunkPills({
         // フォントが当たる(`Term` の注)。
         // 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
         // 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。
-        const body = <Term lang={lang}>{c.text}</Term>;
+        const swappable = !!onSlot && !!c.slot && (c.alts?.length ?? 0) > 0;
+        const body = swappable ? (
+          <>
+            <Term lang={lang}>{c.text}</Term>
+            <ChevronDown
+              aria-hidden
+              className={`chunk-slot__chev h-3.5 w-3.5 ${openSlot === i ? "rotate-180" : ""}`}
+            />
+          </>
+        ) : (
+          <Term lang={lang}>{c.text}</Term>
+        );
         const posClass = st.dot.replace("pos-dot ", "");
         const skin = !pill
           ? `chunk-word font-semibold ${pad} ${posClass}`
@@ -100,8 +122,10 @@ export function ChunkPills({
                 // 札は押せる物の中に入っていることがある(図鑑の一覧)。
                 // ここで止めないと、鳴らすつもりが画面ごと切り替わる。
                 e.stopPropagation();
-                onSpeak(c.text);
+                if (swappable) onSlot!(i);
+                else onSpeak(c.text);
               }}
+              aria-expanded={swappable ? openSlot === i : undefined}
               /**
                * **押せる札は指の大きさにする**(44px)。
                *
@@ -171,21 +195,90 @@ export function ChunkLine({
   onSpeak?: (text: string) => void;
 }) {
   const pronounce = usePronounce(lang ?? undefined);
+  /**
+   * **入れ替える所の語を選ぶ**（オーナー指示 2026-09-27「汎用部分（人・もの）は
+   * タップすると、ネイティブ頻出の具体的単語が出る（跟+男朋友+吵架 → 女朋友・
+   * 朋友などをスクロールで表示）。音声も全部」）。
+   *
+   * 札（▾ 付き）を押すと、下に**横に送れる語の列**が開く。語を押すと型の中の
+   * その札が入れ替わり、**入れ替えた型ぜんぶ**が鳴る。右端のボタンも、いま
+   * 入れ替えている形を読む。
+   */
+  const [open, setOpen] = useState<number | null>(null);
+  const [pick, setPick] = useState<Record<number, number>>({});
+  const sep = normalizeTargetLanguage(lang) === "en" ? " " : "";
+  const shown = useMemo(
+    () =>
+      parts.map((p, i) => {
+        const k = pick[i];
+        const alt = k != null && k >= 0 ? p.alts?.[k] : undefined;
+        return alt ? { ...p, text: alt.text } : p;
+      }),
+    [parts, pick],
+  );
+  const phraseWith = (i: number, text: string) =>
+    shown
+      .map((p, j) => (j === i ? text : p.text).trim())
+      .filter(Boolean)
+      .join(sep);
+  const slot = open != null ? parts[open] : null;
+  const choices = slot ? [{ text: slot.text, ja: "" }, ...(slot.alts ?? [])] : [];
+  // 開いた列の型ぜんぶを先に作っておく（押した瞬間に鳴る）。
+  usePrefetchSpeech(open != null ? choices.map((c) => phraseWith(open, c.text)) : [], {
+    language: lang ?? undefined,
+    enabled: open != null,
+  });
+  const hasPick = Object.keys(pick).length > 0;
   if (!parts.length) return null;
   return (
     <div className="chunk-line">
       <div className="chunk-line__body">
         <ChunkPills
-          parts={parts}
+          parts={shown}
           size="md"
           lang={lang}
           onSpeak={onSpeak ?? ((text) => void pronounce(text))}
+          onSlot={(i) => setOpen((o) => (o === i ? null : i))}
+          openSlot={open}
         />
-        {translation ? <p className="chunk-line__translation">{translation}</p> : null}
+        {translation && !hasPick ? <p className="chunk-line__translation">{translation}</p> : null}
+        {slot && open != null && (
+          <div className="chunk-alts" role="listbox" aria-label={slot.text}>
+            {choices.map((c, k) => {
+              const on = (pick[open] ?? -1) === k - 1;
+              return (
+                <button
+                  key={`${c.text}-${k}`}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPick((p) => ({ ...p, [open]: k - 1 }));
+                    void pronounce(phraseWith(open, c.text));
+                  }}
+                  className="chunk-alts__item press-in"
+                >
+                  <Term lang={lang} className="chunk-alts__word">
+                    {c.text}
+                  </Term>
+                  {c.ja ? <span className="chunk-alts__ja">{c.ja}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       {speakText ? (
         <PronounceButton
-          text={speakText}
+          text={
+            hasPick
+              ? shown
+                  .map((p) => p.text.trim())
+                  .filter(Boolean)
+                  .join(sep)
+              : speakText
+          }
           language={lang ?? undefined}
           size="sm"
           tone="quiet"

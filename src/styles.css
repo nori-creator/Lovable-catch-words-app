@@ -9218,3 +9218,58 @@ html[data-dex-stage="gallery"] {
 .dex-cf[data-theme="gallery"] .dex-cf__thumb-word {
   color: #2b2724;
 }
+
+/* チャンクの入れ替える所 — ほかの語を横に並べる（`ChunkLine`、2026-09-27）。 */
+.chunk-slot__chev {
+  margin-left: 2px;
+  opacity: 0.7;
+  transition: rotate 0.2s var(--ease-ios, ease);
+}
+.chunk-alts {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 8px;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  animation: chunk-alts-in 0.25s var(--ease-ios, ease) both;
+}
+.chunk-alts::-webkit-scrollbar {
+  display: none;
+}
+.chunk-alts__item {
+  flex: none;
+  scroll-snap-align: start;
+  display: grid;
+  justify-items: center;
+  min-height: 44px;
+  min-width: 56px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+.chunk-alts__item[aria-selected="true"] {
+  border-style: solid;
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+}
+.chunk-alts__word {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.chunk-alts__ja {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+@keyframes chunk-alts-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+html[data-motion="reduce"] .chunk-alts {
+  animation: none;
+}

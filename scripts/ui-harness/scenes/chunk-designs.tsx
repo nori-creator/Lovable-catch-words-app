@@ -16,7 +16,18 @@ const WORD_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "跟", pos: "Prep" },
-      { text: "男朋友", pos: "N", slot: true },
+      {
+        text: "男朋友",
+        pos: "N",
+        slot: true,
+        alts: [
+          { text: "女朋友", ja: "彼女" },
+          { text: "朋友", ja: "友だち" },
+          { text: "同事", ja: "同僚" },
+          { text: "爸媽", ja: "両親" },
+          { text: "室友", ja: "ルームメイト" },
+        ],
+      },
       { text: "吵架", pos: "V-sep" },
     ],
     ja: "彼氏と喧嘩する",
@@ -24,7 +35,16 @@ const WORD_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "為了", pos: "Prep" },
-      { text: "錢", pos: "N", slot: true },
+      {
+        text: "錢",
+        pos: "N",
+        slot: true,
+        alts: [
+          { text: "小事", ja: "ささいな事" },
+          { text: "家事", ja: "家事" },
+          { text: "工作", ja: "仕事" },
+        ],
+      },
       { text: "吵架", pos: "V-sep" },
     ],
     ja: "お金のことで喧嘩する",
@@ -51,7 +71,16 @@ const REVIEW_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "點", pos: "V" },
-      { text: "一杯", pos: "M", slot: true },
+      {
+        text: "一杯",
+        pos: "M",
+        slot: true,
+        alts: [
+          { text: "兩杯", ja: "2杯" },
+          { text: "大杯", ja: "Lサイズ" },
+          { text: "中杯", ja: "Mサイズ" },
+        ],
+      },
       { text: "珍珠奶茶", pos: "N" },
     ],
     ja: "タピオカミルクティーを1杯頼む",
