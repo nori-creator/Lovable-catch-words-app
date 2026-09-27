@@ -2615,7 +2615,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Matching Mandarin",
     "zh-TW": "與中文比對",
   },
-  "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…", "zh-TW": "AI 去背中…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment", "zh-TW": "再等一下下喔" },
   "common.cancel": { ja: "キャンセル", en: "Cancel", "zh-TW": "取消" },
   // 見出し語を直す(オーナー指示 2026-08-26「単語のカードの見出しの単語自体を
