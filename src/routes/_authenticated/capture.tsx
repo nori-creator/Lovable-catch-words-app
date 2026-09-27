@@ -20,7 +20,7 @@ import {
   Camera,
   Volume2,
   Loader2,
-  Mic,
+  Image as ImageIcon,
   RotateCcw,
   Sparkles,
   Check,
@@ -54,7 +54,6 @@ import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "
 import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
-import { useVoiceInput } from "@/lib/use-voice-input";
 import {
   CameraFlipButton,
   CameraLibraryButton,
@@ -2151,12 +2150,9 @@ export function CaptureObjectPanel({
     setFacing(selfieMode ? "user" : "environment");
     setCameraReady(false);
   }, [selfieMode]);
-  /** 声で打ち込む（`lib/use-voice-input.ts`）。聞こえた語を欄へ流し込む。 */
-  const voice = useVoiceInput({
-    lang: "cmn-Hant-TW",
-    onText: setTypedWord,
-    onUnavailable: () => toast.error(t("scan.noVoice")),
-  });
+  /** カメラロールから選ぶ口（撮る口と違い `capture` を付けない — 付けると
+      カメラしか開かない端末がある）。 */
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
   /** 倍率。端末が本当に出せる範囲は `zoomCaps` に入る(出せなければ null)。 */
   const [zoom, setZoom] = useState(1);
   const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
@@ -2460,23 +2456,21 @@ export function CaptureObjectPanel({
               />
             </div>
             {/*
-              **声で調べる道はここにある。**（2026-09-16 にスキャン画面の
-              検索欄を畳んだとき、そこにしか無かったので移した。）
-              使えない端末には出さない — 押しても何も起きない釦を置かない。
+              **カメラロールの画像で調べる**（オーナー指示 2026-09-27「検索モードの
+              マイクを消して、カメラロールから画像で検索するボタンを追加して」）。
+              選んだ写真は撮った写真と同じ道（AI が写っている物の語を出す）を通る。
             */}
-            {voice.available && (
-              <Button
-                type="button"
-                size="icon"
-                variant={voice.listening ? "destructive" : "secondary"}
-                onClick={voice.toggle}
-                aria-label={t("scan.voiceLabel")}
-                aria-pressed={voice.listening}
-                className={voice.listening ? "animate-pulse" : undefined}
-              >
-                <Mic />
-              </Button>
-            )}
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              onClick={() => libraryInputRef.current?.click()}
+              aria-label={t("capture.searchByImage")}
+              title={t("capture.searchByImage")}
+              disabled={searching}
+            >
+              <ImageIcon />
+            </Button>
             <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
               {searching ? <Loader2 className="animate-spin" /> : <Search />}
             </Button>
@@ -2555,6 +2549,20 @@ export function CaptureObjectPanel({
           tabIndex={-1}
           aria-hidden="true"
           onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
+        />
+        <input
+          ref={libraryInputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // 同じ写真をもう一度選んでも走るように、値を空に戻す。
+            e.target.value = "";
+            if (file) onObjectFile(file);
+          }}
         />
       </div>
     </div>

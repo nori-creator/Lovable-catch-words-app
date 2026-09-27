@@ -4347,16 +4347,18 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * **機能が1つ黙って無くなる**ところだった。部品にして撮り方の「検索」へ
    * 移した。欄を消しただけで機能が減るのは、直したい形ではない。
    */
-  it("声で調べる道は、部品として残り「検索」から使える", () => {
+  it("声で調べる部品は残す。ただし「検索」の欄にはマイクを置かず、写真で調べる釦を置く", () => {
     const hook = codeOnly(read("lib/use-voice-input.ts"));
     expect(hook).toMatch(/export function useVoiceInput/);
     // 使えない端末に、押しても何も起きない釦を置かないための問い合わせ。
     expect(hook).toMatch(/export function voiceInputAvailable/);
     // 画面を離れたら必ず止める（マイクが開いたままにならない）。
     expect(hook).toMatch(/useEffect\(\(\) => \(\) => recRef\.current\?\.stop\(\), \[\]\)/);
+    // 2026-09-27「検索モードのマイクを消して、カメラロールから画像で検索するボタンを追加して」。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    expect(cap).toMatch(/useVoiceInput\(\{/);
-    expect(cap).toMatch(/voice\.available && \(/);
+    expect(cap).not.toMatch(/useVoiceInput\(\{/);
+    expect(cap).toMatch(/onClick=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/);
+    expect(cap).toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
   });
 
   /**

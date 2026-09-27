@@ -3479,6 +3479,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "物品在照片邊緣被切到了，貼紙也會被切掉。稍微退後重拍，就能完整收進去。",
   },
   "capture.retake": { ja: "撮り直す", en: "Retake", "zh-TW": "重拍" },
+  "capture.searchByImage": {
+    ja: "カメラロールの画像で調べる",
+    en: "Search with a photo from your library",
+    "zh-TW": "用相簿裡的照片查詢",
+  },
   "catEdit.title": { ja: "カテゴリー", en: "Categories", "zh-TW": "分類" },
   "catEdit.moveTitle": {
     ja: "この写真のカテゴリー",
