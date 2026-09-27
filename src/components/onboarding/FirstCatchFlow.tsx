@@ -501,13 +501,14 @@ export function FirstCatchFlow({
       )}
       {!error && !landing && draft.stage === "home" && (
         <Spotlight
-          target={homeGuide === "album" ? '[data-tour="home"]' : '[data-tour="tab-camera"]'}
+          target={homeGuide === "album" ? '[data-tour="home"]' : '[data-tour="tab-camera"] .tabbar__lens'}
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
           step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
           nextLabel={t("first.next")}
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
+          allowSelector={homeGuide === "camera" ? '[data-tour="tab-camera"]' : undefined}
         />
       )}
       {!error && !landing && draft.stage === "camera" && !draft.photo && (

@@ -26,18 +26,31 @@ export function Spotlight({
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [coachH, setCoachH] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [coachReady, setCoachReady] = useState(false);
+  const [targetRadius, setTargetRadius] = useState("0px");
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setRevealed(false);
+    setExpanded(false);
     setCoachReady(false);
-    const ringTimer = window.setTimeout(() => setRevealed(true), 700);
-    const coachTimer = window.setTimeout(() => setCoachReady(true), 1190);
+    const ringTimer = window.setTimeout(() => setRevealed(true), 1250);
+    const coachTimer = window.setTimeout(() => setCoachReady(true), 2150);
     return () => {
       window.clearTimeout(ringTimer);
       window.clearTimeout(coachTimer);
     };
   }, [target]);
+  useEffect(() => {
+    if (!revealed || !rect) return;
+    // Paint the small aperture once before expanding its four edges to the
+    // measured control. Two frames also work reliably on iOS Safari.
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => setExpanded(true));
+    });
+    return () => { cancelAnimationFrame(frame1); cancelAnimationFrame(frame2); };
+  }, [revealed, !!rect]);
   useEffect(() => {
     if (revealed) return;
     const block = (e: KeyboardEvent) => {
@@ -56,10 +69,13 @@ export function Spotlight({
     if (!revealed) return;
     const node = document.querySelector<HTMLElement>(target);
     if (!node) return;
-    node.scrollIntoView({ block: "start", behavior: "instant" });
+    if (!target.includes("tab-camera")) node.scrollIntoView({ block: "start", behavior: "instant" });
     // Leave the bottom of the viewport for the coach, rather than covering the target.
-    if (target !== ".camera-shutter") window.scrollBy(0, -90);
-    const measure = () => setRect(node.getBoundingClientRect());
+    if (target !== ".camera-shutter" && !target.includes("tab-camera")) window.scrollBy(0, -90);
+    const measure = () => {
+      setRect(node.getBoundingClientRect());
+      setTargetRadius(getComputedStyle(node).borderRadius);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
@@ -73,10 +89,10 @@ export function Spotlight({
         e.target.matches('[data-first-stage="camera"] input[type="file"][capture]')) ||
       (e.target instanceof Node &&
         (panel.current?.contains(e.target) ||
-          (interactive &&
-            node.contains(e.target) &&
-            (!allowSelector ||
-              (e.target instanceof Element && !!e.target.closest(allowSelector))))));
+          (interactive && e.target instanceof Element &&
+            (node.contains(e.target) ||
+              (allowSelector ? !!node.closest(allowSelector)?.contains(e.target) : false)) &&
+            (!allowSelector || !!e.target.closest(allowSelector)))));
     const block = (e: Event) => {
       if (!allowed(e)) {
         e.preventDefault();
@@ -96,6 +112,8 @@ export function Spotlight({
         const candidates = [
           ...(interactive ? node.querySelectorAll<HTMLElement>(allowSelector ?? selector) : []),
           ...(interactive && node.matches(selector) ? [node] : []),
+          ...(interactive && allowSelector && node.closest<HTMLElement>(allowSelector)
+            ? [node.closest<HTMLElement>(allowSelector)!] : []),
           ...(panel.current?.querySelectorAll<HTMLElement>(selector) ?? []),
         ].filter((el) => el.getClientRects().length > 0);
         if (!candidates.length) {
@@ -127,11 +145,17 @@ export function Spotlight({
   // Let the actual screen appear intact first. The invisible lock keeps a tap
   // during the short preview from skipping the guided control.
   if (!revealed) return <div className="tour-preview-lock" aria-hidden="true" />;
-  const top = rect ? Math.max(8, rect.top - 6) : 0;
+  const targetTop = rect ? Math.max(4, rect.top - 3) : 0;
   const place = coachPlacement(rect, coachH);
-  const bottom = rect ? Math.min(window.innerHeight, rect.bottom + 6) : 0;
-  const left = rect ? Math.max(6, rect.left - 6) : 0;
-  const right = rect ? Math.min(window.innerWidth - 6, rect.right + 6) : 0;
+  const targetBottom = rect ? Math.min(window.innerHeight - 4, rect.bottom + 3) : 0;
+  const targetLeft = rect ? Math.max(4, rect.left - 3) : 0;
+  const targetRight = rect ? Math.min(window.innerWidth - 4, rect.right + 3) : 0;
+  const centerX = (targetLeft + targetRight) / 2;
+  const centerY = (targetTop + targetBottom) / 2;
+  const top = expanded ? targetTop : centerY - 12;
+  const bottom = expanded ? targetBottom : centerY + 12;
+  const left = expanded ? targetLeft : centerX - 12;
+  const right = expanded ? targetRight : centerX + 12;
   return (
     <div className="tour-layer" data-tour-overlay>
       <div className="tour-block" style={{ inset: `0 0 auto 0`, height: top }} />
@@ -152,6 +176,7 @@ export function Spotlight({
             left,
             width: right - left,
             height: bottom - top,
+            borderRadius: targetRadius,
             pointerEvents: interactive ? "none" : "auto",
           }}
         />
