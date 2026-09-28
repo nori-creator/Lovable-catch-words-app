@@ -35,7 +35,7 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
-import { CachedImg } from "@/lib/image-cache";
+import { CachedImg, warmCachedImages } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
 import { getMyProfile } from "@/lib/profile.functions";
 import {
@@ -1219,6 +1219,11 @@ export function DayCollage({
     }
     return m;
   }, [stickers, surfaceRoles, photoPref]);
+  // 貼る写真を端末から手元へ先に持ってきて読み解く（`warmCachedImages`、2026-09-28
+  // 「画像タイムラグ…瞬間的に表示」）。描き直しや下の日へ転がった時に白い枠を出さない。
+  useEffect(() => {
+    void warmCachedImages([...heroById.values()]);
+  }, [heroById]);
   /**
    * その札の枠の縦横比。**置き方の計算と、描く形で同じ1つの数を使う。**
    *

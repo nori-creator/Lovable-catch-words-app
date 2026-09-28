@@ -1,3 +1,4 @@
+import { stopSpeechBuffer } from "./speech-buffer";
 /**
  * iOS Safari (and some Android browsers) only allow audio playback that
  * starts synchronously inside a user gesture. Our pronunciation buttons all
@@ -35,6 +36,8 @@ export function primeAudio(el: HTMLAudioElement): void {
 let currentAudio: HTMLAudioElement | null = null;
 
 export function stopOtherAudio(except?: HTMLAudioElement): void {
+  // 読み解き済みの発音（Web Audio、`speech-buffer.ts`）も同じ排他に入れる。
+  stopSpeechBuffer();
   if (currentAudio && currentAudio !== except) {
     try {
       currentAudio.pause();

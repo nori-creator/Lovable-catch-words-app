@@ -240,14 +240,39 @@ export async function warmCachedImages(
   urls: ReadonlyArray<string | null | undefined>,
 ): Promise<void> {
   const todo = [...new Set(urls.filter((u): u is string => !!u))];
+  /**
+   * **端末に在る物も、手元（メモリ）まで持ってきて読み解いておく**（オーナー指示
+   * 2026-09-28「ホームアルバムや復習の画像タイムラグ…瞬間的に表示」）。前は端末に
+   * 在れば何もしなかったので、描く時に1枚ずつ IndexedDB を読みに行き、その間
+   * 白い枠が1コマ出ていた。ここで URL を作って覚え（`CachedImg` は最初の描画から
+   * それを使う）、`decode()` で画像の読み解きも先に済ませる。
+   */
+  const toMemory = async (path: string, blob: Blob) => {
+    if (touch(path)) return;
+    const u = URL.createObjectURL(blob);
+    remember(path, u);
+    try {
+      const img = new Image();
+      img.src = u;
+      await img.decode();
+    } catch {
+      /* 読み解けなくても、描く時に読み解かれる */
+    }
+  };
   const run = async (url: string) => {
     const path = pathFromSignedUrl(url);
     if (!path) return;
-    if (await getCachedImage(path)) return;
+    const have = await getCachedImage(path);
+    if (have) {
+      await toMemory(path, have);
+      return;
+    }
     try {
       const res = await fetch(url);
       if (!res.ok) return;
-      await putCachedImage(path, await res.blob());
+      const blob = await res.blob();
+      await putCachedImage(path, blob);
+      await toMemory(path, blob);
     } catch {
       /* 落とせなくても、描くときに取りに行く道は残っている */
     }
