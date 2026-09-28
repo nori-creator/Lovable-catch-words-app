@@ -4966,8 +4966,9 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-27 の回: チャンクの形とガラスの本番化（試作の切り替えは外した）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "chunk-designs"/);
+    // 2026-09-27 の回の最後の依頼: ホーム上の月ごとのアルバムの本棚（試作）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "album-shelf"/);
+    expect(list).toMatch(/\{ scene: "chunk-designs"/);
     expect(list).toMatch(/\{ scene: "capture-object"/);
     expect(list).not.toMatch(/glass=1/);
     expect(main).not.toMatch(/dataset\.glass/);
