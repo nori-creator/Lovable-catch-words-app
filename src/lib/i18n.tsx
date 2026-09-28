@@ -3295,6 +3295,51 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Ad settings saved",
     "zh-TW": "已儲存廣告設定",
   },
+  "imageTest.title": {
+    ja: "画像生成のテスト",
+    en: "Image generation test",
+    "zh-TW": "圖片生成測試",
+  },
+  "imageTest.desc": {
+    ja: "文字検索で使う AI の絵を、今の設定で実際に1枚作ります（生成の料金がかかります）。",
+    en: "Generates one real image with the current settings used by text search (billed).",
+    "zh-TW": "用文字搜尋目前的設定實際生成一張圖（會產生費用）。",
+  },
+  "imageTest.run": {
+    ja: "1枚作って試す",
+    en: "Generate one",
+    "zh-TW": "生成一張試試",
+  },
+  "imageTest.running": {
+    ja: "作っています…",
+    en: "Generating…",
+    "zh-TW": "生成中…",
+  },
+  "imageTest.provider": {
+    ja: "作る所",
+    en: "Provider",
+    "zh-TW": "生成來源",
+  },
+  "imageTest.key": {
+    ja: "見つかった鍵の名前",
+    en: "Key found as",
+    "zh-TW": "找到的金鑰名稱",
+  },
+  "imageTest.noKey": {
+    ja: "なし",
+    en: "none",
+    "zh-TW": "無",
+  },
+  "imageTest.ok": {
+    ja: "成功",
+    en: "Success",
+    "zh-TW": "成功",
+  },
+  "imageTest.fail": {
+    ja: "失敗",
+    en: "Failed",
+    "zh-TW": "失敗",
+  },
   "settings.usersLink": {
     ja: "利用者ごとの情報（開発者だけ）",
     en: "Per-user details (developer only)",

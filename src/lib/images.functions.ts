@@ -118,8 +118,96 @@ async function generateOneAiImage(query: string): Promise<ImageCandidate | null>
   const config = readImageConfig(process.env);
   if (config.provider === "off") return null;
   if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
+  if (config.provider === "higgsfield") {
+    const r = await generateWithHiggsfield(query, config.model);
+    if (r.ok) return r.candidate;
+    console.warn("higgsfield image failed", r.reason);
+    // Higgsfield が駄目でも、Lovable の口で1枚は作る（画面を空にしない）。
+    return generateWithLovable(query);
+  }
   return generateWithLovable(query);
 }
+
+/**
+ * **Higgsfield で1枚作る**。返ってくるのは Higgsfield の置き場の URL なので、
+ * **サーバで取りに行って data URL にして返す**（Lovable の口と同じ形）。
+ * こうすると保存の時にネットの画像の許可リスト（SSRF 除け）を広げなくて済む。
+ */
+async function generateWithHiggsfield(
+  query: string,
+  model: string,
+): Promise<
+  { ok: true; candidate: ImageCandidate; ms: number } | { ok: false; reason: string; ms: number }
+> {
+  const { runHiggsfield } = await import("./higgsfield.server");
+  const r = await runHiggsfield(
+    model,
+    { prompt: imagePrompt(query), aspect_ratio: "1:1" },
+    { timeoutMs: 45_000 },
+  );
+  if (!r.ok) return { ok: false, reason: r.reason, ms: r.ms };
+  try {
+    const img = await fetch(r.url, { signal: AbortSignal.timeout(20_000) });
+    const ct = (img.headers.get("content-type") ?? "image/png").split(";")[0].trim();
+    if (!img.ok || !ALLOWED_IMAGE_MIME.test(ct))
+      return { ok: false, reason: "絵を受け取れませんでした", ms: r.ms };
+    const b64 = Buffer.from(new Uint8Array(await img.arrayBuffer())).toString("base64");
+    const url = `data:${ct};base64,${b64}`;
+    return { ok: true, candidate: { url, thumb: url, source: "ai" }, ms: r.ms };
+  } catch {
+    return { ok: false, reason: "絵を受け取れませんでした", ms: r.ms };
+  }
+}
+
+/**
+ * **画像生成を実際に1回試す（開発者だけ）**（オーナー指示 2026-09-28「HIGGSFIELD の
+ * api を lovable で設定したから実際に検査して」）。
+ *
+ * 設定の開発者欄のボタンから呼ぶ。**本当に1枚作る**（Higgsfield の残高を使う）。
+ * 返すのは: どこで作ったか・鍵を見つけた名前（値は返さない）・結果・かかった時間。
+ */
+export const testImageGeneration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ query: z.string().min(1).max(60).default("柚子") }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden: admin role required");
+    const config = readImageConfig(process.env);
+    const { higgsfieldCredentialSource } = await import("./higgsfield.server");
+    const credentialName = higgsfieldCredentialSource();
+    const started = Date.now();
+    if (config.provider === "higgsfield") {
+      const r = await generateWithHiggsfield(data.query, config.model);
+      return {
+        provider: config.provider,
+        model: config.model,
+        credentialName,
+        ok: r.ok,
+        image: r.ok ? r.candidate.url : null,
+        reason: r.ok ? null : r.reason,
+        ms: Date.now() - started,
+      };
+    }
+    const one = await generateOneAiImage(data.query);
+    return {
+      provider: config.provider,
+      model: config.model,
+      credentialName,
+      ok: !!one,
+      image: one?.url ?? null,
+      reason: one
+        ? null
+        : config.provider === "off"
+          ? "IMAGE_PROVIDER=off"
+          : "生成できませんでした",
+      ms: Date.now() - started,
+    };
+  });
 
 async function generateWithOpenRouter(
   query: string,
@@ -206,7 +294,15 @@ const FetchInput = z.object({ url: z.string().url().max(2000) });
 // Allowlist of external image hosts we're willing to proxy. Keeps this
 // endpoint from being abused as an SSRF gadget against internal/metadata
 // endpoints (e.g. 169.254.169.254) or arbitrary internal services.
-const ALLOWED_IMAGE_HOSTS = new Set<string>(["images.unsplash.com", "plus.unsplash.com"]);
+//
+// **コモンズの置き場も許す**（2026-09-28 の点検で発見）。候補にコモンズの写真
+// （`upload.wikimedia.org`）を出しているのに、ここで断っていたので**選んでも保存
+// できなかった**。置き場は固定の1つなので、許可を1つ足すだけで SSRF 除けは保てる。
+const ALLOWED_IMAGE_HOSTS = new Set<string>([
+  "images.unsplash.com",
+  "plus.unsplash.com",
+  "upload.wikimedia.org",
+]);
 
 const ALLOWED_IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|avif)$/i;
 

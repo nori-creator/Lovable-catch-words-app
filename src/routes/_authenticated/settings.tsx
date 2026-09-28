@@ -29,6 +29,7 @@ import {
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
 import { checkIsAdmin } from "@/lib/admin.functions";
+import { testImageGeneration } from "@/lib/images.functions";
 import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
 import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
@@ -1710,8 +1711,87 @@ function AdminOnlySection() {
       <UiThemePicker />
       <AiModelPanel />
       <TtsVoicePanel />
+      <ImageGenTestPanel />
       <AdsPanel />
     </div>
+  );
+}
+
+/**
+ * **画像生成を実際に1枚作って確かめる（開発者だけ）**（オーナー指示 2026-09-28
+ * 「HIGGSFIELD の api を lovable で設定したから実際に検査して」）。
+ * どこで作ったか・鍵が見つかった名前（値は出さない）・結果の絵・かかった秒を出す。
+ */
+function ImageGenTestPanel() {
+  const t = useT();
+  const testFn = useServerFn(testImageGeneration);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof testImageGeneration>> | null>(
+    null,
+  );
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setErr(null);
+    setResult(null);
+    try {
+      setResult(await testFn({ data: {} }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
+        {t("imageTest.title")}
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("imageTest.desc")}</p>
+        <Button
+          type="button"
+          onClick={() => void run()}
+          disabled={busy}
+          className="min-h-11 w-full"
+        >
+          {busy ? t("imageTest.running") : t("imageTest.run")}
+        </Button>
+        {result && (
+          <div
+            className="space-y-2 text-footnote"
+            data-image-test-result={result.ok ? "ok" : "fail"}
+          >
+            <p
+              className={
+                result.ok ? "font-semibold text-primary" : "font-semibold text-destructive"
+              }
+            >
+              {result.ok ? t("imageTest.ok") : t("imageTest.fail")}
+              <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+                {(result.ms / 1000).toFixed(1)}s
+              </span>
+            </p>
+            <p>
+              {t("imageTest.provider")}: <code>{result.provider}</code> ·{" "}
+              <code>{result.model}</code>
+            </p>
+            <p>
+              {t("imageTest.key")}: <code>{result.credentialName ?? t("imageTest.noKey")}</code>
+            </p>
+            {result.reason && <p className="text-destructive">{result.reason}</p>}
+            {result.image && (
+              <img
+                src={result.image}
+                alt=""
+                className="aspect-square w-40 rounded-xl object-cover"
+              />
+            )}
+          </div>
+        )}
+        {err && <p className="text-footnote text-destructive">{err}</p>}
+      </div>
+    </details>
   );
 }
 
