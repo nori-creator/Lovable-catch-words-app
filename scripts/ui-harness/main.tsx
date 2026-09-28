@@ -57,6 +57,7 @@ import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
+import { WordDetailRefineScene } from "./scenes/word-detail-refine";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -198,6 +199,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "monetization-designs": MonetizationDesignsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
+  "word-detail-refine": WordDetailRefineScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
