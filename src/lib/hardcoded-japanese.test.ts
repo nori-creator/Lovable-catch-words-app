@@ -27,6 +27,8 @@ const KNOWN: Record<string, number> = {
   // 利用者ごとの情報（開発者だけ、2026-09-27）。全体のグラフと比較を足した（2026-09-28）。
   "src/routes/_authenticated/admin.users.tsx": 66,
   "src/routes/_authenticated/scan.tsx": 4,
+  // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
+  "src/routes/_authenticated/settings.tsx": 13,
   // 利用状況の閲覧・決済・広告の条項を足した（2026-09-28。日本語版そのもの）。
   "src/routes/privacy.tsx": 32,
   "src/routes/terms.tsx": 16,

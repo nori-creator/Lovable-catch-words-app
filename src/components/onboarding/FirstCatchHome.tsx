@@ -1,6 +1,6 @@
+import { AppShellFrame } from "../AppShell";
+import { AppNavigation } from "../AppNavigation";
 import type { ReactNode } from "react";
-import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
-import { TabBar } from "@/components/TabBar";
 import { DiaryDate, DayCollage } from "@/routes/_authenticated/home";
 import { DexAlbumGrid } from "@/routes/_authenticated/dex";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
 
-function sampleStickers(
+export function sampleStickers(
   draft: FirstCatch | null,
   t: ReturnType<typeof useT>,
   target: ReturnType<typeof useTargetLang>,
@@ -36,25 +36,35 @@ function sampleStickers(
       meaning: t("first.sampleCat"),
       category: "animal",
     },
-  ].map(
-    ({ id, photo, word, meaning, category }) =>
-      firstCatchSticker({
-        version: 1,
-        id,
-        uiLanguage: draft?.uiLanguage ?? "ja",
-        targetLanguage: selected,
-        dailyMinutes: 10,
-        stage: "home",
-        photo,
-        capturedAt: "2026-09-23T09:00:00.000Z",
-        card: CardSchema.parse({
-          headword_zh: word,
-          meaning_ja: meaning,
-          category_key: category,
-          level: "",
-        }),
-      })!,
-  );
+    {
+      id: "00000000-0000-4000-8000-000000000004",
+      photo: "/first-catch-ready.webp",
+      word: selected === "en" ? "sea" : "海",
+      meaning: t("first.sampleSea"),
+      category: "nature",
+    },
+  ].map(({ id, photo, word, meaning, category }, i) => ({
+    ...firstCatchSticker({
+      version: 1,
+      id,
+      uiLanguage: draft?.uiLanguage ?? "ja",
+      targetLanguage: selected,
+      dailyMinutes: 10,
+      stage: "home",
+      photo,
+      capturedAt: "2026-09-23T09:00:00.000Z",
+      card: CardSchema.parse({
+        headword_zh: word,
+        meaning_ja: meaning,
+        category_key: category,
+        level: "",
+      }),
+    })!,
+    album_x: i % 2 === 0 ? 0.25 : 0.75,
+    album_y: 0.3 + Math.floor(i / 2) * 0.68,
+    album_scale: 1.35,
+    album_rot: 0,
+  }));
 }
 
 export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
@@ -63,7 +73,6 @@ export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
   const samples = sampleStickers(draft, t, target);
   return (
     <div className="first-sample-dex">
-      <p className="first-sample-label">{t("first.sampleDex")}</p>
       <DexAlbumGrid items={samples} onOpen={() => {}} />
     </div>
   );
@@ -73,58 +82,60 @@ export function FirstCatchShell({
   children,
   tab = 0,
   camera = false,
+  fixedViewport = tab === 3,
+  onTab,
 }: {
   children: ReactNode;
   tab?: number;
   camera?: boolean;
+  fixedViewport?: boolean;
+  onTab?: (index: number) => void;
 }) {
-  const t = useT();
   return (
-    <div className="first-shell">
-      {/* 上にアプリ名の帯は置かない — 実物のアプリにも無い（案内の途中で
-          見た目が変わると、どれが本物の画面か分からなくなる）。 */}
-      <main className={camera ? "" : "first-content"}>{children}</main>
-      <TabBar cursor={tab} onCamera={camera} indicatorOpacity={camera ? 0 : 1}>
-        {[Home, BookOpen, Camera, Sparkles, Settings].map((Icon, i) => (
-          <li key={i} className="relative z-10 flex-1">
-            <button
-              type="button"
-              disabled
-              className="tabbar__cell w-full"
-              aria-current={i === tab ? "page" : undefined}
-            >
-              <Icon className="h-5 w-5" />
-              <span>
-                {t(["nav.home", "nav.dex", "nav.camera", "nav.review", "nav.settings"][i])}
-              </span>
-            </button>
-          </li>
-        ))}
-      </TabBar>
-    </div>
+    <AppShellFrame
+      bare={camera}
+      immersive={tab === 1}
+      headerless={tab === 3}
+      fixedViewport={fixedViewport}
+      navigation={
+        <div inert={!onTab}>
+          <AppNavigation
+            cursor={tab}
+            onCamera={camera}
+            indicatorOpacity={camera ? 0 : 1}
+            renderLink={(_item, index, props) => (
+              <button type="button" {...props} onClick={() => onTab?.(index)} />
+            )}
+          />
+        </div>
+      }
+    >
+      {children}
+    </AppShellFrame>
   );
 }
 /** The exact components used by Home, with the actual captured photo. */
 export function FirstCatchHome({
   draft,
   animated = false,
+  onCamera,
 }: {
   draft: FirstCatch | null;
   animated?: boolean;
+  onCamera?: () => void;
 }) {
   const t = useT();
   const target = useTargetLang();
   const sticker = draft && firstCatchSticker(draft);
   const samples = sampleStickers(draft, t, target);
   return (
-    <FirstCatchShell>
+    <FirstCatchShell onTab={onCamera ? () => onCamera() : undefined}>
       <section data-tour="home">
-        {!sticker && <p className="first-sample-label">{t("first.sampleAlbum")}</p>}
-        <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
+        <div inert={!sticker}>
           {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}
           <DayCollage
             stickers={sticker ? [sticker] : samples}
-            heading={<DiaryDate date={new Date(draft?.capturedAt ?? Date.now())} />}
+            heading={<DiaryDate date={new Date(draft?.capturedAt ?? "2026-09-23T09:00:00.000Z")} />}
             opening={animated && !sticker}
             onOpen={() => {}}
           />

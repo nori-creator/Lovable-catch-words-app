@@ -524,49 +524,26 @@ function ReviewPage() {
         !isError
       }
     >
-      <section className={`${format === "choice" && !memListOpen ? "mb-2" : "mb-4"} shrink-0`}>
-        <ReviewHeader
-          answered={REVIEW_PRACTICE_ENABLED && cards ? Math.min(idx, cards.length) : null}
-          total={REVIEW_PRACTICE_ENABLED ? (cards?.length ?? null) : null}
-          progress={REVIEW_PRACTICE_ENABLED ? progress : 0}
-          mode={mode}
-          onMode={setMode}
-          reviewStreak={myStats?.review_streak ?? null}
-        />
-        {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
-            バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。
-            帯自体は28pxしかないので、見た目は変えずに before で指の当たり判定
-            だけを上下に広げ、44pxの下限を満たす。 */}
-        {memOverview && memOverview.words.length > 0 && (
-          <>
-            <button
-              onClick={() => {
-                if (!memListOpen) refreshMemory();
-                setMemListOpen((v) => !v);
-              }}
-              aria-expanded={memListOpen}
-              className="relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
-            >
-              <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
-            </button>
-            {(memListOpen || !REVIEW_PRACTICE_ENABLED) && (
-              <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
-                <MemoryOverviewPanel overview={memOverview} onOpenWord={(w) => setMemModal(w)} />
-                <div className="mt-3 border-t border-border pt-2">
-                  <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
-                    {t("rv.overallTitle")}
-                  </p>
-                  {memStats && (
-                    <Suspense fallback={<div className="h-36 w-full" />}>
-                      <MiniRetentionGraph series={memStats.series} />
-                    </Suspense>
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </section>
+      <ReviewSessionHeader
+        compact={format === "choice" && !memListOpen}
+        header={{
+          answered: REVIEW_PRACTICE_ENABLED && cards ? Math.min(idx, cards.length) : null,
+          total: REVIEW_PRACTICE_ENABLED ? (cards?.length ?? null) : null,
+          progress: REVIEW_PRACTICE_ENABLED ? progress : 0,
+          mode,
+          onMode: setMode,
+          reviewStreak: myStats?.review_streak ?? null,
+        }}
+        memOverview={memOverview}
+        memListOpen={memListOpen}
+        onToggle={() => {
+          if (!memListOpen) refreshMemory();
+          setMemListOpen((v) => !v);
+        }}
+        onOpenWord={setMemModal}
+        series={memStats?.series}
+        practiceEnabled={REVIEW_PRACTICE_ENABLED}
+      />
 
       {!REVIEW_PRACTICE_ENABLED ? null : isLoading ? (
         <ReviewPreparing />
@@ -620,22 +597,11 @@ function ReviewPage() {
         <ReviewPreparing />
       ) : current ? (
         <>
-          {format === "choice" ? (
-            <LightModeCard
-              key={current.review_id}
-              card={current}
-              onNext={advance}
-              onOpenMemory={() => setMemModal(memWordOf(current))}
-            />
-          ) : (
-            <SpeakingCard
-              key={current.review_id}
-              card={current}
-              format={format === "say" ? "say" : "compose"}
-              onNext={advance}
-              onOpenMemory={() => setMemModal(memWordOf(current))}
-            />
-          )}
+          <ReviewQuestion
+            card={current}
+            format={format === "choice" ? "choice" : format === "say" ? "say" : "compose"}
+            onNext={advance}
+          />
         </>
       ) : null}
 
@@ -644,10 +610,115 @@ function ReviewPage() {
   );
 }
 
+/** Shared review header, progress, memory overview and expanded list. */
+export function ReviewSessionHeader({
+  header,
+  memOverview,
+  memListOpen,
+  onToggle,
+  onOpenWord,
+  series,
+  compact,
+  practiceEnabled = true,
+  lockMode = false,
+}: {
+  header: React.ComponentProps<typeof ReviewHeader>;
+  memOverview?: React.ComponentProps<typeof MemoryOverviewPanel>["overview"];
+  memListOpen: boolean;
+  onToggle: () => void;
+  onOpenWord: (word: MemoryWord) => void;
+  series?: React.ComponentProps<typeof MiniRetentionGraph>["series"];
+  compact: boolean;
+  practiceEnabled?: boolean;
+  lockMode?: boolean;
+}) {
+  const t = useT();
+  return (
+    <section className={`${compact ? "mb-2" : "mb-4"} shrink-0`}>
+      <div inert={lockMode}>
+        <ReviewHeader {...header} />
+      </div>
+      {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
+            バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。
+            帯自体は28pxしかないので、見た目は変えずに before で指の当たり判定
+            だけを上下に広げ、44pxの下限を満たす。 */}
+      {memOverview && memOverview.words.length > 0 && (
+        <>
+          <button
+            onClick={onToggle}
+            aria-expanded={memListOpen}
+            className="relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+          >
+            <MemoryLevelSummary words={memOverview.words} expanded={memListOpen} />
+          </button>
+          {(memListOpen || !practiceEnabled) && (
+            <div className="mt-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
+              <MemoryOverviewPanel overview={memOverview} onOpenWord={onOpenWord} />
+              <div className="mt-3 border-t border-border pt-2">
+                <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
+                  {t("rv.overallTitle")}
+                </p>
+                {series && (
+                  <Suspense fallback={<div className="h-36 w-full" />}>
+                    <MiniRetentionGraph series={series} />
+                  </Suspense>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** One question and memory-detail interaction, shared with local first-catch data. */
+export function ReviewQuestion({
+  card,
+  format,
+  onNext,
+  practice = false,
+}: {
+  card: DueReviewCard;
+  format: "choice" | "say" | "compose";
+  onNext: (correct?: boolean) => void;
+  practice?: boolean;
+}) {
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  return (
+    <>
+      {format === "choice" ? (
+        <LightModeCard
+          key={card.review_id}
+          card={card}
+          onNext={onNext}
+          onOpenMemory={() => setMemoryOpen(true)}
+          practice={practice}
+        />
+      ) : (
+        <SpeakingCard
+          key={card.review_id}
+          card={card}
+          format={format}
+          onNext={onNext}
+          onOpenMemory={() => setMemoryOpen(true)}
+        />
+      )}
+      {memoryOpen && (
+        <ForgettingCurveModal
+          word={memWordOf(card)}
+          local={practice}
+          onClose={() => setMemoryOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---- 記憶ビジュアライズ(6段階レベル: src/lib/memory.ts) ----------------------
 
 /** 出題中カードから忘却曲線モーダル用の MemoryWord を組み立てる。 */
-function memWordOf(card: DueReviewCard): MemoryWord {
+export function memWordOf(card: DueReviewCard): MemoryWord {
   return {
     sticker_id: card.sticker_id,
     headword: card.headword,
@@ -875,11 +946,20 @@ export function MemoryOverviewPanel({
   );
 }
 
-export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onClose: () => void }) {
+export function ForgettingCurveModal({
+  word,
+  onClose,
+  local = false,
+}: {
+  word: MemoryWord;
+  onClose: () => void;
+  local?: boolean;
+}) {
   const histFn = useServerFn(getStickerMemoryHistory);
   const { data } = useQuery({
     queryKey: ["sticker-memory", word.sticker_id],
     queryFn: () => histFn({ data: { sticker_id: word.sticker_id } }),
+    enabled: !local,
     staleTime: 60_000,
   });
   const t = useT();
@@ -900,7 +980,7 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
    * 履歴があるのに待たずに「未復習」の線を出してしまう語が残っていた。
    * 問い合わせはふつう一瞬で届き、その間は同じ高さの面を出しておく。
    */
-  const ready = data != null;
+  const ready = local || data != null;
 
   /**
    * 曲線の形は `memoryCurveFrom`（図鑑の詳細と同じ関数）。
@@ -913,7 +993,7 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
       memoryCurveFrom(
         {
           history: data?.history ?? [],
-          takenAt: data?.taken_at ?? null,
+          takenAt: data?.taken_at ?? (local ? word.anchor_at : null),
           lastReviewedAt: data?.current?.last_reviewed_at ?? null,
           currentEase: data?.current?.ease ?? word.ease,
           currentIntervalDays: data?.current?.interval_days ?? word.interval_days,
@@ -921,7 +1001,7 @@ export function ForgettingCurveModal({ word, onClose }: { word: MemoryWord; onCl
         },
         nowMs,
       ),
-    [data, word, nowMs],
+    [data, word, nowMs, local],
   );
   /**
    * 「復習 N 回」は**実際に復習した回数**（履歴の行数）。
@@ -2031,10 +2111,13 @@ export function LightModeCard({
   card,
   onNext,
   onOpenMemory,
+  practice = false,
 }: {
   card: DueReviewCard;
   onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
+  /** Local first-run exercise: never writes a scheduled review. */
+  practice?: boolean;
 }) {
   const grade = useServerFn(gradeReview);
   const t = useT();
@@ -2089,6 +2172,7 @@ export function LightModeCard({
     if (picked) return;
     setPicked(pickedValue);
     void pronounce(card.headword);
+    if (practice) return;
     void grade({
       data: {
         review_id: card.review_id,

@@ -8,6 +8,7 @@ import {
   imagePrompt,
   pickOpenRouterImage,
   readImageConfig,
+  resolveImageConfig,
 } from "./image-provider";
 
 export type ImageCandidate = {
@@ -20,6 +21,7 @@ export type ImageCandidate = {
 const SearchInput = z.object({
   query: z.string().min(1).max(120),
   language: z.string().default(DEFAULT_TARGET_LANGUAGE),
+  purpose: z.enum(["text-catch", "candidates"]).default("candidates"),
 });
 
 /**
@@ -30,6 +32,11 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SearchInput.parse(input))
   .handler(async ({ data }): Promise<{ candidates: ImageCandidate[] }> => {
+    // Typed catches use an original generated illustration, never stock photos.
+    if (data.purpose === "text-catch") {
+      const ai = await generateOneAiImage(data.query);
+      return { candidates: ai ? [ai] : [] };
+    }
     const key = process.env.UNSPLASH_ACCESS_KEY;
     const candidates: ImageCandidate[] = [];
     const imageConfig = readImageConfig(process.env);
@@ -115,7 +122,19 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
  * どこで失敗しても `null` — 画面は写真の候補だけで続ける。
  */
 async function generateOneAiImage(query: string): Promise<ImageCandidate | null> {
-  const config = readImageConfig(process.env);
+  let override: { provider?: string; model?: string } | null = null;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("app_config")
+      .select("value")
+      .eq("key", "image_generation")
+      .maybeSingle();
+    override = (data as { value?: typeof override } | null)?.value ?? null;
+  } catch (error) {
+    console.warn("image config unavailable; using environment default", error);
+  }
+  const config = resolveImageConfig(process.env, override);
   if (config.provider === "off") return null;
   if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
   if (config.provider === "higgsfield") {
@@ -123,9 +142,75 @@ async function generateOneAiImage(query: string): Promise<ImageCandidate | null>
     if (r.ok) return r.candidate;
     console.warn("higgsfield image failed", r.reason);
     // Higgsfield が駄目でも、Lovable の口で1枚は作る（画面を空にしない）。
-    return generateWithLovable(query);
+    return generateWithLovable(query, DEFAULT_LOVABLE_IMAGE_MODEL);
   }
-  return generateWithLovable(query);
+  if (config.provider === "google") return generateWithGoogle(query, config.model);
+  if (config.provider === "openai") return generateWithOpenAI(query, config.model);
+  return generateWithLovable(query, config.model);
+}
+
+async function generateWithGoogle(query: string, model: string): Promise<ImageCandidate | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: imagePrompt(query) }] }],
+          generationConfig: { responseModalities: ["IMAGE"] },
+        }),
+        signal: AbortSignal.timeout(40_000),
+      },
+    );
+    if (!res.ok) {
+      console.warn("google image failed", res.status);
+      return null;
+    }
+    const json = (await res.json()) as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> };
+      }>;
+    };
+    const part = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
+    if (!part?.data) return null;
+    const url = `data:${part.mimeType || "image/png"};base64,${part.data}`;
+    return { url, thumb: url, source: "ai" };
+  } catch (error) {
+    console.warn("google image failed", error);
+    return null;
+  }
+}
+
+async function generateWithOpenAI(query: string, model: string): Promise<ImageCandidate | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        prompt: imagePrompt(query),
+        size: "1024x1024",
+        quality: "low",
+      }),
+      signal: AbortSignal.timeout(40_000),
+    });
+    if (!res.ok) {
+      console.warn("openai image failed", res.status);
+      return null;
+    }
+    const json = (await res.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
+    const first = json.data?.[0];
+    const url = first?.b64_json ? `data:image/png;base64,${first.b64_json}` : first?.url;
+    return url ? { url, thumb: url, source: "ai" } : null;
+  } catch (error) {
+    console.warn("openai image failed", error);
+    return null;
+  }
 }
 
 /**
@@ -251,7 +336,10 @@ async function generateWithOpenRouter(
   }
 }
 
-async function generateWithLovable(prompt: string): Promise<ImageCandidate | null> {
+async function generateWithLovable(
+  prompt: string,
+  model = DEFAULT_LOVABLE_IMAGE_MODEL,
+): Promise<ImageCandidate | null> {
   const lovableKey = process.env.LOVABLE_API_KEY;
   if (!lovableKey) return null;
   try {
@@ -262,11 +350,12 @@ async function generateWithLovable(prompt: string): Promise<ImageCandidate | nul
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: DEFAULT_LOVABLE_IMAGE_MODEL,
+        model,
         prompt: imagePrompt(prompt),
         quality: "low",
         size: "1024x1024",
       }),
+      signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { data?: Array<{ b64_json?: string; url?: string }> };

@@ -12,10 +12,11 @@ import { useMemo } from "react";
  * 読み直し（`review.tsx` が同じ鍵を invalidate する）も図鑑に届く。
  * 読めなくても図鑑は出す — 印が出ないだけ。
  */
-export function useMemoryBadges() {
+export function useMemoryBadges(enabled = true) {
   const fetchOverview = useServerFn(getMemoryOverview);
   const { data } = useQuery({
     queryKey: ["memory-overview"],
+    enabled,
     queryFn: () => fetchOverview(),
     staleTime: 60_000,
     retry: false,

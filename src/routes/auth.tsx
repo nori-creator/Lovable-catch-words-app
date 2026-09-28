@@ -1,4 +1,4 @@
-import { FirstCatchHome } from "@/components/onboarding/FirstCatchHome";
+import { FIRST_CATCH_PHOTOS } from "@/components/onboarding/FirstCatchPages";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { readFirstCatch, canRequestAccount, type FirstCatch } from "@/lib/first-catch";
 import "@/components/onboarding/first-catch.css";
@@ -128,6 +128,9 @@ function AuthPage() {
         if (error) throw error;
         setConfirmed(true);
         toast.success(t("auth.confirmSent"));
+        // With email confirmation enabled there is no session yet. Let a new
+        // learner answer the questions now; their draft survives confirmation.
+        if (!draft && !nextPath) void navigate({ to: "/welcome", replace: true });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -201,7 +204,7 @@ function AuthPage() {
   );
 }
 
-/** Account sheet over the real Home components; no illustrative marketing hero. */
+/** Full-screen account page, using the same generated photographs as Home. */
 export function AuthView({
   mode,
   setMode,
@@ -233,19 +236,25 @@ export function AuthView({
   /** メールの欄は**押すまで出さない**（見本の絵と同じ。既定は2つのボタン）。 */
   const [showEmail, setShowEmail] = useState(false);
   return (
-    <div className="first-run">
-      <div inert aria-hidden="true">
-        <FirstCatchHome draft={draft} />
-      </div>
-      <div className="first-account">
-        <div
-          className="first-account-sheet"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="first-account-title"
-        >
+    <div className="first-run first-auth">
+      <main className="first-auth-page" aria-labelledby="first-account-title">
+        <div className="first-auth-brand">
+          <img src="/icon-192.png" alt="" />
+          <strong>Catchwords</strong>
+        </div>
+        <div className="first-auth-photos" aria-hidden="true">
+          {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
+            <img
+              key={src}
+              src={src}
+              alt=""
+              loading="eager"
+              className={`first-auth-photo first-auth-photo-${i}`}
+            />
+          ))}
+        </div>
+        <div className="first-auth-content">
           <h1 id="first-account-title">{draft ? t("first.account") : t("auth.signin")}</h1>
-          <p className="first-sub">{draft ? t("first.accountHint") : t("auth.tagline")}</p>
           {confirmed && (
             <p role="status" className="first-sub mb-4">
               {t("first.confirm")}
@@ -356,7 +365,7 @@ export function AuthView({
             <a href="/privacy">{t("auth.privacy")}</a>
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

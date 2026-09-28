@@ -102,9 +102,12 @@ function srAvailable(): boolean {
 }
 
 /** Heuristic default: long input or sentence punctuation reads as a phrase. */
-function guessIsPhrase(text: string): boolean {
+export function guessIsPhrase(text: string): boolean {
   const t = text.trim();
-  return t.length >= 5 || /[、。！？!?,]/.test(t);
+  // A long single English/Japanese word is still a word (coffee, シャーペン).
+  // The old length-only check silently sent those to the phrase path, where
+  // neither the word card nor its generated image was created.
+  return /[\s、。！？!?,]/u.test(t) || (t.length >= 5 && /[\u4e00-\u9fff]/u.test(t));
 }
 
 export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose }: Props) {
@@ -141,6 +144,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    * 画面は先に出す(速さの取り分はそこ)が、保存の直前だけは待つ。
    */
   const cardPromiseRef = useRef<Promise<GeneratedCard | null> | null>(null);
+  const imagePromiseRef = useRef<Promise<ImageCandidate[]> | null>(null);
   const realCardRef = useRef<GeneratedCard | null>(null);
   const [listening, setListening] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -151,6 +155,7 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
   // 添付する(タップでワンタッチ変更可)。B2で一度廃止したがNORI指定で復活。
   const [attachedDataUrl, setAttachedDataUrl] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<ImageCandidate[]>([]);
+  const [imageLoading, setImageLoading] = useState(false);
   const [picked, setPicked] = useState(0);
   const [landing, setLanding] = useState(false);
   const landingSourceRef = useRef<HTMLButtonElement | null>(null);
@@ -327,6 +332,9 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
    */
   async function buildCard(headword: string, seed?: CandidateSeed) {
     const token = ++runTokenRef.current;
+    imagePromiseRef.current = null;
+    setCandidates([]);
+    setImageLoading(false);
     const startedAt = Date.now();
     setErr(null);
     setStep("loading");
@@ -409,15 +417,27 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
           .catch(() => {});
         setCard(c);
         if (resolved !== headword) setText(resolved);
-        // 仮画像候補をWeb検索(失敗しても保存は続行できる)。
-        void searchImagesFn({
-          data: { query: heroSearchQuery({ headword: resolved, meaning: c.meaning_ja }) },
+        // 文字検索は AI 生成のみ。旧回の画像が遅れて届いても混ぜない。
+        setImageLoading(true);
+        const imagePromise = searchImagesFn({
+          data: {
+            query: heroSearchQuery({ headword: resolved, meaning: c.meaning_ja }),
+            purpose: initialMode === "text" ? "text-catch" : "candidates",
+          },
         })
           .then(({ candidates: cands }) => {
-            setCandidates(cands);
-            setPicked(0);
+            if (runTokenRef.current === token) {
+              setCandidates(cands);
+              setPicked(0);
+              setImageLoading(false);
+            }
+            return cands;
           })
-          .catch(() => {});
+          .catch(() => {
+            if (runTokenRef.current === token) setImageLoading(false);
+            return [] as ImageCandidate[];
+          });
+        imagePromiseRef.current = imagePromise;
       }
       setStep("preview");
       if (!seed) {
@@ -489,10 +509,13 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         } catch {
           /* 画像なしでも保存は続行 */
         }
-      } else if (!isPhrase && candidates[picked]) {
+      } else if (!isPhrase) {
         // 仮画像: サーバー経由で取得(CORS回避)→自分のフォルダにアップロード。
         try {
-          const cand = candidates[picked];
+          // 保存を急いでも作成中の画像を待ち、詳細と復習へ確実に紐づける。
+          const ready = imagePromiseRef.current ? await imagePromiseRef.current : candidates;
+          const cand = ready[picked];
+          if (!cand) throw new Error("image unavailable");
           // ネットの画像はサーバ経由、AIの生成画像はそのまま。
           // その判断は toImageDataUrl が1箇所で持つ。
           const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
@@ -788,9 +811,15 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             <p className="text-center text-caption text-muted-foreground">
               {attachedDataUrl
                 ? t("input.attachChange")
-                : candidates.length > 0
-                  ? t("input.autoImage")
-                  : t("input.noImageOk")}
+                : initialMode === "text" && !isPhrase && imageLoading
+                  ? t("input.aiImageLoading")
+                  : candidates.length > 0
+                    ? initialMode === "text" && !isPhrase
+                      ? t("input.aiImageSaved")
+                      : t("input.autoImage")
+                    : initialMode === "text" && !isPhrase
+                      ? t("input.aiImageFailed")
+                      : t("input.noImageOk")}
             </p>
             {!attachedDataUrl && candidates.length > 1 && (
               <div className="flex justify-center gap-2">

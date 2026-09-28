@@ -581,9 +581,7 @@ export function boxOf(p: Placement, ratio: number, extra = 0): AlbumBox {
 }
 
 export function boxesOverlap(a: AlbumBox, b: AlbumBox, pad = COLLAGE_GAP / 2): boolean {
-  return (
-    Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pad && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pad
-  );
+  return Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pad && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pad;
 }
 
 /**

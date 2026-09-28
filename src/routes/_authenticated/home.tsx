@@ -37,9 +37,9 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
+import { getMyProfile } from "@/lib/profile.functions";
 import { CachedImg, warmCachedImages } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
-import { getMyProfile } from "@/lib/profile.functions";
 import {
   listPendingCaptures,
   removePendingCapture,
@@ -318,10 +318,6 @@ function HomePage() {
     };
   }, []);
   const surfaceClass = wallClass(wall);
-
-  useEffect(() => {
-    if (profile && !profile.onboarded) navigate({ to: "/onboarding", replace: true });
-  }, [profile, navigate]);
 
   const today = new Date();
   const todayKey = dayKey(today);

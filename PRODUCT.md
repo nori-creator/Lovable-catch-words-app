@@ -24,10 +24,10 @@ Account creation must not be the first experience.
 1. Introduce the app with generated everyday photos, then choose display language and learning language.
 2. Ask desired daily study amount, learning goals and interests (owner revision, 2026-09-23). Goals and interests are multi-select and tailor the learner's private example situations and explanations, never the shared dictionary meaning or which objects vision sees.
 3. Offer an optional notification-preference page, then a ready screen that starts the interactive tour. Store the preference, but do not imply scheduled delivery on unsupported Web devices.
-4. Interactive tutorial explains pains solved by CatchWords by letting the user operate the real product. Home and Collection start with explicitly marked generated-photo examples, so neither tour screen has a blank-state message. The generated album photo layout is shared with the account screen.
-5. User takes one real photo and completes one Catch.
-6. After the landing animation, let the user open the added word and read multiple real meanings, examples and usage. Only when the learner chooses to finish that view should they create/sign in to an account to save the collection.
-Guest progress must survive registration. The first photo/word must be durably added to the local Collection and its landing completed **before** the registration screen appears. Reuse actual Home components behind registration; do not promise a different illustrated home.
+4. The tutorial uses the actual app components, a preloaded album of generated everyday photos and the actual bottom navigation. Home introduces the day album; the learner then takes one real photo with the camera and chooses a word from the photo AI candidates.
+5. The Catch peel/landing animation durably adds the real photo and word locally. The learner swipes the real Collection cards, switches between cards and gallery, then opens their own word detail with contextual meanings, examples and pronunciation.
+6. A two-question, local practice review includes the photographed word and one generated-photo example. Once the learner answers, show congratulations; only then invite account creation/sign-in to synchronize the Catch. Practice grading never creates a server review for an unauthenticated user.
+Guest progress survives registration. The first photo and word are durably added to the local Collection before registration. Generated sample photos appear in both the welcome screen and the real Home album layout. Trial AI calls need a strictly bounded, server-side quota; they cannot depend on Supabase anonymous sign-in being enabled.
 
 ## Catch
 - Image analysis normally returns roughly 3–5 useful candidate words depending on the image.

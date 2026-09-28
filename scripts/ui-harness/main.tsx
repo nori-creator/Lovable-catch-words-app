@@ -28,6 +28,7 @@ import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { CandidatePickerScene } from "./scenes/candidate-picker";
 import { InputCatchScene } from "./scenes/input-catch";
+import { ImageSettingsScene } from "./scenes/image-settings";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { CameraStripScene } from "./scenes/camera-strip";
 import { RewardCatchScene } from "./scenes/reward-catch";
@@ -243,6 +244,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-candidate": WordCandidateScene,
   "candidate-picker": CandidatePickerScene,
   "input-catch": InputCatchScene,
+  "image-settings": ImageSettingsScene,
   "hero-picker": HeroPickerScene,
   "reward-catch": RewardCatchScene,
   "word-card-empty": WordCardEmptyScene,
@@ -376,40 +378,30 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-27 の依頼（10回目）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-28 の依頼（R12・R13）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（ホームの本棚）。
-  {
-    scene: "album-shelf",
-    label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
-  },
-  { scene: "home-album", label: "ホームのアルバム（写真と語を1枚の印画紙に）" },
-  { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
-  { scene: "word-detail-designs", label: "案: 単語の詳細を1から A/B/C/D（根拠つき）" },
-  { scene: "fx-lab", label: "試作: 分析中・キャッチの演出を GPU で描く" },
-  { scene: "settings-notify", label: "設定: 通知（オフ / 自動 / 時刻を指定・場所）" },
-  { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
-  { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
-  { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
-  { scene: "monetization-designs", label: "案: サブスク（無料と Pro）と広告の出る所" },
-  {
-    scene: "admin-users",
-    label: "開発者: 利用者の全体グラフ・比較（見本の数字。?view=user でひとり）",
-  },
-  { scene: "ai-models", label: "開発者: AI の使い分け（機能ごと・説明つき）" },
-  { scene: "word-card", label: "単語の詳細（注音が重ならない・不要な項目を削除）" },
-  { scene: "regen-magic", label: "解説の作り直し（古いまま待ち、魔法のように入れ替わる）" },
-  { scene: "chunks", label: "チャンク（型の中の語を押して切り替え・音声）" },
-  { scene: "capture-pick", label: "撮った後の候補（写真の中の物ごと → 別の言い方）" },
-  { scene: "word-candidate", label: "候補の注音（字の右に・薄い色）" },
-  { scene: "review-choice", label: "復習の4択（太く・中央・注音の大きさ・外れたら詳細へ）" },
-  { scene: "memory-curve", label: "記憶のグラフ（点を持って滑らかに辿る）" },
-  { scene: "page-flip", label: "ページめくり（どこからでも・表紙 A〜D・ノートの紙）" },
-  { scene: "home-ink", label: "アルバムに書き込む（ストーリー風・大きな書く欄）" },
-  { scene: "place-memory", label: "場所の通知 B（写真を大きく・台湾華語で言える？）" },
-  { scene: "map-calendar-designs", label: "地図の暦 A（カラフルに）" },
-  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（奥の舞台・白い背景）" },
-  { scene: "home-tap", label: "写真→詳細の開き方（浮かび上がる）" },
+  // 先頭は最後に頼まれた物（Pro の 3D でキャッチ）。
+  { scene: "object-3d", label: "試作: Pro 撮った物を 3D で手に入れる（360度回せる）" },
+  { scene: "scan-found", label: "スキャン結果（黒い隙間なし・右上に撮り直し・各行に追加）" },
+  { scene: "motion-compare", label: "案: 動き 今の形 / ① 白黒の1つの形 / ② ガラス" },
+  { scene: "diary-pencil", label: "試作: 日記を鉛筆でゆっくり書く（3D）" },
+  { scene: "launch-intro", label: "案: アプリを開くときの動き A〜D" },
+  { scene: "voice-face", label: "試作: 自分の声と顔（同意→録音→写真→切替→全部消す）" },
+  { scene: "three-fx", label: "3D の演出（分析中・紙吹雪・図鑑・物の表示）＋効果音" },
+  { scene: "analyzing-designs", label: "分析中の演出（3D の奥行き版が既定）" },
+  { scene: "reward-catch", label: "キャッチの着地（効果音・3D 紙吹雪）" },
+  { scene: "home-memorial", label: "記念アルバム（祝福の音・3D 紙吹雪）" },
+  { scene: "shelf-3d", label: "本棚 → 開くと左に今日のアルバム・右に日記" },
+  { scene: "home-album", label: "ホームのアルバム（重ならない配置・赤バツで外す）" },
+  { scene: "home-ink", label: "落書き（ペン・マーカー・ネオン・消しゴム・太さ）" },
+  { scene: "category-members", label: "図鑑のカテゴリーに単語を足す・外す" },
+  { scene: "dex-calendar", label: "図鑑のカレンダー（月の色・日の点・今日は青）" },
+  { scene: "memory-curve", label: "記憶のグラフ（押したまま横に滑らせても引っかからない）" },
+  { scene: "review-choice", label: "復習の4択（正解・不正解から図鑑の単語へ）" },
+  { scene: "word-card", label: "単語の詳細（例文を自然な言い方に）" },
+  { scene: "settings-notify", label: "設定: 通知（チュートリアルと同じ選択肢）" },
+  { scene: "first-catch&step=notifications", label: "初回体験: 通知の選び方（設定と同じ）" },
+  { scene: "image-settings", label: "画像生成の設定" },
 ];
 
 const explicitScene = q.get("scene");
@@ -425,6 +417,10 @@ const explicitScene = q.get("scene");
 // 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
 const showReviewBar = q.get("review") === "1" || !explicitScene;
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
+document.documentElement.style.setProperty(
+  "--first-viewport-height",
+  showReviewBar ? "calc(100dvh - 42px)" : "100dvh",
+);
 
 /**
  * 表示言語を切り替えて撮る(`?lang=zh-TW`)。

@@ -3471,10 +3471,13 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("カメラの機械の中では、丸をやめて帯ごと暗いガラスにする", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
     // 居ないときはこれまでどおり主色の丸。
-    expect(shell).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
+    const content = codeOnly(read("components/AppTabContent.tsx"));
+    expect(shell).toMatch(/<AppNavigation/);
+    expect(codeOnly(read("components/AppNavigation.tsx"))).toMatch(/<AppTabContent/);
+    expect(content).toMatch(/tabbar__lens bg-primary text-primary-foreground/);
     // 居るときは丸を出さず、ふつうの絵を主色で出す。
-    expect(shell).toMatch(/\{isScan && !isCurrent \? \(/);
-    expect(shell).toMatch(/isScan && isCurrent \? "text-primary" : ""/);
+    expect(content).toMatch(/camera && !current/);
+    expect(content).toMatch(/camera && current \? "text-primary" : ""/);
     // 帯そのものに印を渡す。
     expect(shell).toMatch(/onCamera=\{onCameraScreen\}/);
     expect(codeOnly(read("components/TabBar.tsx"))).toMatch(
@@ -4937,10 +4940,17 @@ describe("ホームは今日の誌面", () => {
     expect(dict).not.toMatch(/街で出会う言葉を、ステッカーに。/);
   });
 
-  it("初回登録の背景は、今日の写真を持つ実物のホームと同じ部品", () => {
+  it("初回登録の全画面にはホームと同じ生成写真を使う", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
-    expect(auth).toMatch(/<FirstCatchHome draft=\{draft\}/);
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    expect(auth).toMatch(/FIRST_CATCH_PHOTOS\.map/);
+    expect(auth).toMatch(/className="first-run first-auth"/);
+    expect(auth).not.toMatch(/aria-modal="true"/);
+    for (const photo of ["cafe", "flower", "cat", "ready"]) {
+      expect(pages).toMatch(new RegExp(`first-catch-${photo}\\.webp`));
+      expect(home).toMatch(new RegExp(`first-catch-${photo}\\.webp`));
+    }
     // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
     expect(home).not.toMatch(/<DayMasthead /);
     expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
@@ -4949,7 +4959,7 @@ describe("ホームは今日の誌面", () => {
     expect(home).toMatch(/first-catch-flower\.webp/);
     expect(home).toMatch(/first-catch-cat\.webp/);
     expect(home).not.toMatch(/<HomeEmptyState \/>/);
-    // 画像の装飾3枚を登録背景の代わりにしない。
+    // 登録画面だけ別の写真や別のアルバムにしない。
     expect(auth).not.toMatch(/auth-photo auth-photo--/);
   });
 
@@ -4975,15 +4985,17 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-27 の回の最後の依頼: ホーム上の月ごとのアルバムの本棚（試作）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "album-shelf"/);
-    // 10回目の面（本棚・候補の選び方・通知・ウィジェット ほか）。前の回の面は残さない。
-    expect(list).toMatch(/\{ scene: "scan-pick-designs"/);
-    expect(list).not.toMatch(/\{ scene: "capture-object"/);
+    // 2026-09-28 の回の最後の依頼: Pro の「撮った物を 3D で手に入れる」試作。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "object-3d"/);
+    expect(list).toMatch(/\{ scene: "scan-found"/);
+    expect(list).toMatch(/\{ scene: "motion-compare"/);
+    expect(list).toMatch(/\{ scene: "launch-intro"/);
+    // 前の回の面は残さない。
+    expect(list).not.toMatch(/\{ scene: "album-shelf"/);
+    expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
     expect(list).not.toMatch(/glass=1/);
     expect(main).not.toMatch(/dataset\.glass/);
     expect(read("styles.css")).not.toMatch(/data-glass/);
-    // 2026-09-27 の回は依頼が33項目あるので、その回の面に限って 8 を超えてよい。
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(40);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
@@ -5354,7 +5366,7 @@ describe("画像の右上の記憶の印", () => {
       dex.indexOf("export function DexAlbumGrid("),
       dex.indexOf("export function PackGallery("),
     );
-    expect(grid).toMatch(/const fetched = useMemoryBadges\(\);/);
+    expect(grid).toMatch(/const fetched = useMemoryBadges\(memory === undefined\);/);
     expect(grid).toMatch(
       /<MemoryBadge\s+info=\{memoryById\.get\(s\.id\)!\}\s+className="absolute right-1 top-1/,
     );
@@ -5603,7 +5615,7 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
 
   it("図鑑の表示に「カード」があり、絞り込んだ後の札を受け取る", () => {
     expect(dex).toMatch(/\["cards", GalleryHorizontal, t\("dex\.cards"\)\]/);
-    expect(dex).toMatch(/<DexCoverFlow stickers=\{filtered\} onOpen=\{setOpenId\} \/>/);
+    expect(dex).toMatch(/<DexCoverFlow[\s\S]*?stickers=\{filtered\}[\s\S]*?onOpen=\{setOpenId\}/);
   });
 
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {

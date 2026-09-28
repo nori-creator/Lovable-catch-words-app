@@ -33,6 +33,7 @@ export const FirstCatchSchema = z.object({
     "card",
     "added",
     "explore",
+    "complete",
     "account",
     "done",
   ]),
@@ -54,6 +55,7 @@ export const FirstCatchSchema = z.object({
     ])
     .optional(),
   capturedAt: z.string().datetime().nullable(),
+  reviewCompleted: z.boolean().optional(),
   importedUserId: z.string().uuid().optional(),
   /** 登録前にAIを使えず、見本の写真と単語で体験した下書き。登録後に写真と単語は引き継がない。 */
   sample: z.boolean().optional(),
@@ -94,7 +96,8 @@ export async function writeFirstCatch(draft: FirstCatch): Promise<void> {
 }
 export function canRequestAccount(draft: FirstCatch): boolean {
   return (
-    ["explore", "account"].includes(draft.stage) &&
+    ["complete", "account"].includes(draft.stage) &&
+    draft.reviewCompleted === true &&
     !!draft.photo &&
     !!draft.card &&
     !!draft.capturedAt

@@ -235,9 +235,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "一個單字，\n更多發現。",
   },
   "first.exploreHint": {
-    ja: "意味・例文・使い方を確認できます。読み終えたら、登録して保存しましょう。",
-    en: "Explore the meanings, examples and usage. When you’re ready, sign up to keep your word.",
-    "zh-TW": "查看意思、例句與用法。看完後，註冊保存這個單字。",
+    ja: "意味も使い方も、この写真から。例文を確認したら、復習を試してみましょう。",
+    en: "Discover meanings and examples alongside your photo. Then try recalling the word in a review.",
+    "zh-TW": "從這張照片了解意思和用法。看完例句後，試著複習這個單字。",
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {
@@ -246,9 +246,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "用照片和單字留下今天 · 示範",
   },
   "first.previewUnavailable": {
-    ja: "このプレビューは、まだ写真を解析するAIに接続されていません。写真はそのまま残っています。",
-    en: "Photo analysis is not connected in this preview yet. Your photo is kept.",
-    "zh-TW": "這個預覽尚未連接照片分析 AI，照片仍保留著。",
+    ja: "この画面確認用プレビューではAI解析を利用できません。写真は端末に残っています。",
+    en: "AI analysis is unavailable in this visual preview. Your photo is still on your device.",
+    "zh-TW": "這個畫面預覽無法使用 AI 分析。照片仍保留在裝置上。",
+  },
+  "first.photoUnsupported": {
+    ja: "この写真を読み込めませんでした。iPhoneのカメラで撮り直すか、JPEGの写真を選んでください。",
+    en: "We couldn't read this photo. Retake it with the camera or select a JPEG image.",
+    "zh-TW": "無法讀取這張照片。請用相機重拍，或選擇 JPEG 照片。",
+  },
+  "first.analysisTimeout": {
+    ja: "写真の解析に時間がかかっています。写真は残っています。もう一度試してください。",
+    en: "Photo analysis is taking too long. Your photo is safe; please retry.",
+    "zh-TW": "照片分析花了太久時間。照片仍在，可以再試一次。",
   },
   "first.personalTitle": {
     ja: "あなたの場面で使ってみよう",
@@ -310,10 +320,42 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.start": { ja: "体験をはじめる", en: "Try your first Catch", "zh-TW": "開始體驗" },
   "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
   "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
+  "first.sampleSea": { ja: "海", en: "sea", "zh-TW": "海" },
+  "first.dexSwipe": {
+    ja: "写真を横にスライド。見つけた場面から、ことばを思い出せます。",
+    en: "Swipe the photos sideways. Recall each word through the moment you found it.",
+    "zh-TW": "左右滑動照片，從當時的場景想起單字。",
+  },
+  "first.dexTypes": {
+    ja: "上のアイコンで、写真一覧・地図・リストへ切り替えられます。探し方も自分に合わせて。",
+    en: "Use the icons above to switch between photos, the map, and a list.",
+    "zh-TW": "點上方圖示，切換照片、地圖和清單，用喜歡的方式尋找。",
+  },
+  "first.dexOpen": {
+    ja: "追加した単語を開いて、意味や使い方を見てみましょう。",
+    en: "Open your new word to explore its meanings and uses.",
+    "zh-TW": "打開剛加入的單字，看看意思和用法。",
+  },
+  "first.tryReview": { ja: "復習してみる", en: "Try a review", "zh-TW": "試著複習" },
+  "first.completeTitle": {
+    ja: "最初のキャッチ、完了！",
+    en: "Your first Catch is complete!",
+    "zh-TW": "完成第一次 Catch！",
+  },
+  "first.completeHint": {
+    ja: "撮って、意味を知って、思い出す。\n身のまわりから、ことばを増やしていこう。",
+    en: "Capture it. Understand it. Recall it.\nBuild your vocabulary from everyday life.",
+    "zh-TW": "拍下來、了解意思、再想起來。\n從生活中累積你的單字。",
+  },
   "first.home": {
-    ja: "撮った写真とことばが、その日のアルバムになります。",
-    en: "Your photos and words become an album of the day.",
-    "zh-TW": "拍下的照片和單字，會成為當天的相簿。",
+    ja: "見つけた場面ごと、今日のアルバムに。単語帳へ書き写す手間がなくなります。",
+    en: "Keep the moment with the word in today's album. No copying it into a notebook.",
+    "zh-TW": "單字和發現它的時刻，一起留在今天的相簿。不用再抄進筆記本。",
+  },
+  "first.tapCamera": {
+    ja: "下のカメラを押して、気になるものを撮ってみましょう。名前を知らなくても大丈夫。",
+    en: "Tap the camera below and photograph anything that catches your eye. You don't need its name yet.",
+    "zh-TW": "點下方的相機，拍下感興趣的東西。不知道它叫什麼也沒關係。",
   },
   "first.dex": {
     ja: "集めたことばが、撮った写真と一緒に並びます。",
@@ -321,20 +363,20 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "收集的單字會和照片一起保存。",
   },
   "first.review": {
-    ja: "短いクイズで、忘れる前に思い出します。",
-    en: "Short quizzes bring words back before you forget.",
-    "zh-TW": "用簡短的測驗，在忘記前再想起來。",
+    ja: "自分の写真を手がかりに4択で思い出す。単語だけの暗記より、出会った場面から思い出せます。",
+    en: "Use your photo as a clue in a four-choice review. Recall the moment behind the word.",
+    "zh-TW": "看自己的照片做四選一，從相遇的場景想起單字，不用死背字表。",
   },
   "first.shoot": {
-    ja: "目の前にある物を、何でも1枚。",
-    en: "Anything in front of you will do.",
-    "zh-TW": "拍下眼前的任何東西都可以。",
+    ja: "知らないものも、撮るだけ。AIが写真の中から学べることばを提案します。",
+    en: "Just take a photo, even when you don't know its name. AI suggests words from what it sees.",
+    "zh-TW": "不知道名稱也能先拍下來，AI 會從照片裡找出值得學的單字。",
   },
   "first.shootCta": { ja: "1枚撮ってみる", en: "Take your first photo", "zh-TW": "拍下第一張照片" },
   "first.pick": {
-    ja: "写真の中から見つかったことばです。",
-    en: "These are the words found in your photo.",
-    "zh-TW": "這些是從照片中找到的單字。",
+    ja: "写真から見つけた候補です。残したいことばを選んでください。",
+    en: "Here are words found in your photo. Pick the one you want to keep.",
+    "zh-TW": "這些是照片中找到的候選單字，選一個想留下的吧。",
   },
   "first.detail": {
     ja: "スピーカーを押すと、発音を聞けます。",
@@ -356,7 +398,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Your first word is now on this device.",
     "zh-TW": "第一個單字已儲存在這個裝置上。",
   },
-  "first.keep": { ja: "このことばを保存する", en: "Keep this word", "zh-TW": "保存這個單字" },
+  "first.keep": {
+    ja: "登録して続ける",
+    en: "Create an account to continue",
+    "zh-TW": "註冊並繼續",
+  },
   "first.account": {
     ja: "最初のことばを、\nあなたのものに。",
     en: "Make your first word\ntruly yours.",
@@ -2961,6 +3007,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "画像なしでもOK。あとから詳細画面で選び直せます",
     en: "No image is fine — you can pick one later from the card",
     "zh-TW": "沒有圖片也可以，之後在詳細畫面還能重選。",
+  },
+  "input.aiImageLoading": {
+    ja: "この単語の画像を生成しています…",
+    en: "Creating an image for this word…",
+    "zh-TW": "正在為這個詞生成圖片…",
+  },
+  "input.aiImageSaved": {
+    ja: "AI画像は単語の詳細と復習に保存されます",
+    en: "AI image for the word · saved to the card and review",
+    "zh-TW": "AI 圖片會保存到單詞詳情與複習",
+  },
+  "input.aiImageFailed": {
+    ja: "画像を生成できませんでした。単語は保存できます。",
+    en: "Image unavailable. The word can still be saved.",
+    "zh-TW": "無法生成圖片，但仍可保存單詞。",
   },
   "input.save": { ja: "図鑑に入れる", en: "Add to the dex", "zh-TW": "收進圖鑑" },
   "input.saveHint": {

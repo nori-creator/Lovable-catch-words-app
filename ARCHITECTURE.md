@@ -92,3 +92,19 @@ Track AI/TTS cost per operation and aggregate per active user without exposing u
 AI may diagnose and prepare fixes automatically.
 Production mutation must be gated by reproducible tests and risk classification.
 Never auto-promote changes to authentication, authorization/RLS, billing, DB migrations, memory scheduling or other high-risk domains without human approval.
+
+## First-catch tutorial: one rendering source (2026-09-27)
+
+The tutorial is a controller over production presentation components, not a second UI.
+
+- `AppShellFrame` and `AppNavigation` own the frame, spacing, tab order, icons and labels for both entry paths.
+- Home uses production `DayCollage` / `DiaryDate`; collection uses `DexSurface` (including search, filters, view dispatch, category grouping and landing styles).
+- Camera, candidates and the pre-save card use `CaptureObjectPanel`, `PickWordPanel` and `CaptureCardPanel`.
+- Detail uses `StickerSheet`, including its real photo header, sections and `WordCard`. Its `local` data source disables authenticated queries and mutations for an unsaved catch; it does not select a different detail layout.
+- Review uses `ReviewSessionHeader` and `ReviewQuestion`, including the real choice feedback and memory modal. Local exercises do not create scheduled-review records. The guide constrains the exercise to four choices; mode selection is inert during this exercise.
+- `Spotlight` only measures existing DOM anchors and overlays guidance. It must not render copies of the highlighted controls or resize/redecorate app components.
+- First-run data, local persistence, guest AI transport, allowed interactions and progression are adapters. Sample photos are data, never substitutes for analyzing a learner's photo.
+
+Changes to shared presentation components therefore affect the app and tutorial in the same build. New features still need intentional tutorial copy/step decisions; this mechanism does not generate explanations automatically. Keep semantic `data-tour` anchors with the production controls when moving them.
+
+`onboarding-shared-surfaces.test.ts` guards the rendering boundary and rejects tutorial-specific replacements/size overrides. Visual review must exercise the same production components with deterministic local data, and live capture/AI must also be tested on a backend-enabled deployment before release.
