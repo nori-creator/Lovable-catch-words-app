@@ -11,9 +11,11 @@
  *
  * 押した時の行き先は `src/lib/deep-link.ts` の `WIDGET_LINKS`（アプリ側は受け取れる）。
  */
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Camera, Flame, Image as ImageIcon, ScanText, Search, Sparkles } from "lucide-react";
 import { photo } from "./peel-sticker";
+import type { StoryItem } from "@/components/StoryInk";
+import { WIDGET_MEDIUM, drawAlbumSnapshot } from "@/lib/widget-snapshot";
 
 const tile = (hue: number) =>
   "data:image/svg+xml;utf8," +
@@ -163,6 +165,146 @@ function AlbumWidget({ os, empty = false }: { os: OS; empty?: boolean }) {
           </div>
         )}
       </div>
+    </Box>
+  );
+}
+
+/**
+ * ②' **今日のアルバム — 書き込み・ひとこと・落書き入り**（オーナー指示 2026-09-28
+ * 「ウィジェットの今日のアルバムを表示はユーザーの書き込みやひとこと、落書きも表示して」）。
+ *
+ * 見本の絵ではなく、**本番で使う描き方そのもの**（`src/lib/widget-snapshot.ts`）で
+ * 今日のページを1枚の絵に焼いている。ウィジェットはこの絵を出すだけなので、
+ * アプリで書いた物がそのまま出る。
+ */
+const INK_TODAY: StoryItem[] = [
+  {
+    id: "p1",
+    kind: "photo",
+    src: photo,
+    caption: "珍珠奶茶",
+    x: 0.24,
+    y: 0.36,
+    w: 0.36,
+    rot: -6,
+    z: 1,
+  },
+  {
+    id: "p2",
+    kind: "photo",
+    src: tile(20),
+    caption: "夜市",
+    x: 0.56,
+    y: 0.42,
+    w: 0.3,
+    rot: 4,
+    z: 2,
+  },
+  {
+    id: "p3",
+    kind: "photo",
+    src: tile(200),
+    caption: "捷運",
+    x: 0.84,
+    y: 0.34,
+    w: 0.26,
+    rot: -3,
+    z: 3,
+  },
+  {
+    id: "t1",
+    kind: "text",
+    text: "初めての夜市!",
+    font: "signature",
+    color: "#ff375f",
+    bg: "soft",
+    x: 0.5,
+    y: 0.1,
+    w: 0.5,
+    rot: -4,
+    z: 5,
+  },
+  {
+    // 落書き: ハートと矢印（指で書いた線と同じ形で持つ）。
+    id: "s1",
+    kind: "sketch",
+    strokes: [
+      {
+        color: "#ff375f",
+        width: 14,
+        pts: [
+          [100, 60],
+          [70, 20],
+          [30, 30],
+          [25, 80],
+          [100, 150],
+          [175, 80],
+          [170, 30],
+          [130, 20],
+          [100, 60],
+        ],
+      },
+      {
+        color: "#0a84ff",
+        width: 10,
+        pts: [
+          [220, 140],
+          [300, 110],
+          [380, 70],
+        ],
+      },
+      {
+        color: "#0a84ff",
+        width: 10,
+        pts: [
+          [340, 60],
+          [380, 70],
+          [365, 108],
+        ],
+      },
+    ],
+    box: [10, 5, 385, 160],
+    x: 0.74,
+    y: 0.7,
+    w: 0.34,
+    rot: 0,
+    z: 6,
+  },
+];
+
+function InkAlbumWidget({ os }: { os: OS }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const { w, h } = WIDGET_MEDIUM;
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const images = new Map<string, CanvasImageSource>();
+    const paint = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawAlbumSnapshot(ctx, { items: INK_TODAY, images, title: "9月28日", subtitle: "3枚" });
+    };
+    for (const it of INK_TODAY) {
+      if (it.kind !== "photo" || images.has(it.src)) continue;
+      const img = new Image();
+      img.onload = () => {
+        images.set(it.src, img);
+        paint();
+      };
+      img.src = it.src;
+    }
+    paint();
+  }, []);
+  return (
+    <Box w={w} h={h} os={os} bg="#faf7f0" label="今日のアルバム（中・書き込み入り）">
+      <canvas
+        ref={ref}
+        width={w * 3}
+        height={h * 3}
+        style={{ ...full, width: w, height: h }}
+        aria-label="今日のアルバム"
+      />
     </Box>
   );
 }
@@ -351,6 +493,7 @@ export function WidgetDesignsScene({ q }: { q: URLSearchParams }) {
         }}
       >
         {os === "ios" && <LockCircle />}
+        <InkAlbumWidget os={os} />
         <AlbumWidget os={os} />
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
           <CameraWidget os={os} />

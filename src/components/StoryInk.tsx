@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Check, Expand, PenLine, Trash2, Type, Undo2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { FONTS, isLight, smoothPath, type FontId } from "@/lib/story-ink-draw";
 
 /**
  * **アルバムに書き込む — ストーリー風**（オーナー指示 2026-09-27、Instagram の
@@ -52,25 +53,10 @@ type NewItem = StoryItem extends infer T
     : never
   : never;
 type Stroke = { color: string; width: number; pts: Array<[number, number]> };
-type FontId = "modern" | "classic" | "signature" | "type";
 type BgMode = "none" | "solid" | "soft";
 
 const COLORS = ["#1c1c1e", "#ffffff", "#ff375f", "#ff9f0a", "#30d158", "#0a84ff", "#bf5af2"];
 const WIDTHS = [4, 8, 14];
-const FONTS: Array<{ id: FontId; key: string; css: string }> = [
-  {
-    id: "modern",
-    key: "ink.fontModern",
-    css: "800 1em system-ui, -apple-system, 'Hiragino Sans', sans-serif",
-  },
-  { id: "classic", key: "ink.fontClassic", css: "700 1em 'Hiragino Mincho ProN', Georgia, serif" },
-  {
-    id: "signature",
-    key: "ink.fontSignature",
-    css: "400 1.1em 'Segoe Script', 'Bradley Hand', 'Snell Roundhand', cursive",
-  },
-  { id: "type", key: "ink.fontType", css: "600 0.95em ui-monospace, 'Courier New', monospace" },
-];
 
 let uid = 0;
 const newId = () => `ink-${Date.now().toString(36)}-${++uid}`;
@@ -411,29 +397,6 @@ function ItemBody({ it }: { it: StoryItem }) {
       {it.text}
     </div>
   );
-}
-
-/** 点列を、中点を通る2次曲線でなめらかに（指の震えを抑える）。 */
-function smoothPath(pts: Array<[number, number]>): string {
-  if (pts.length === 0) return "";
-  if (pts.length < 3)
-    return `M${pts[0][0]} ${pts[0][1]} L${pts.map((p) => p.join(" ")).join(" L")}`;
-  let d = `M${pts[0][0]} ${pts[0][1]}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const [x, y] = pts[i];
-    const [nx, ny] = pts[i + 1];
-    d += ` Q${x} ${y} ${(x + nx) / 2} ${(y + ny) / 2}`;
-  }
-  const last = pts[pts.length - 1];
-  return `${d} L${last[0]} ${last[1]}`;
-}
-
-function isLight(hex: string): boolean {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b > 170;
 }
 
 /** 大きな書く欄。書いた線は、書いた範囲（外枠）ごと渡す。 */
