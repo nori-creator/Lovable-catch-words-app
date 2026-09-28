@@ -1886,6 +1886,23 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "place.langZh": { ja: "台湾華語", en: "Mandarin", "zh-TW": "華語" },
   "place.langEn": { ja: "英語", en: "English", "zh-TW": "英文" },
   // B「写真を大きく」（オーナー決定 2026-09-27）。写真が手がかりなので、題は短く問うだけ。
+  // 報告: AIに間違っている所を見つけてもらう（オーナー指示 2026-09-27）。
+  "card.reportAuto": {
+    ja: "AIに見つけてもらう",
+    en: "Let AI find it",
+    "zh-TW": "讓 AI 找出來",
+  },
+  "card.reportAutoHint": {
+    ja: "どこが変か一言（空でも送れます）",
+    en: "What looks wrong? (optional)",
+    "zh-TW": "哪裡怪怪的？（可以不填）",
+  },
+  "card.reportAutoSend": { ja: "直してもらう", en: "Fix it", "zh-TW": "請 AI 修正" },
+  "card.reportNotFound": {
+    ja: "AIは間違いを見つけられませんでした。報告として残しました",
+    en: "AI couldn't find the mistake. Your report was saved",
+    "zh-TW": "AI 沒有找到錯誤。已保留你的回報",
+  },
   // 節目の日の記念アルバム（オーナー指示 2026-09-27）。`milestone-album.ts`。
   "memorial.title": {
     ja: "使い始めて{n}日の記念アルバム",

@@ -8,6 +8,7 @@ import { LEVEL_INDEXES } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
+import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
@@ -1366,15 +1367,29 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
  * **全員**。直すのはその項目1つだけで、全部の作り直しは Pro のまま
  * （`regenerateCardSection`）。1日の上限は作り直しと同じ枠を使う。
  */
+const ReportItemSchema = z.union([
+  z.enum(REGEN_SECTIONS),
+  z.literal("pronunciation"),
+  z.literal("pos"),
+]);
+type ReportItemId = z.infer<typeof ReportItemSchema>;
 const ReportFixInput = z.object({
   word_id: z.string().uuid(),
-  item: z.union([z.enum(REGEN_SECTIONS), z.literal("pronunciation"), z.literal("pos")]),
+  /**
+   * `auto` … 利用者は項目を選ばない。AI が語の中身と一言から間違っている
+   * 項目を1つ見つける（オーナー指示 2026-09-27、`lib/report-locate.ts`）。
+   */
+  item: z.union([ReportItemSchema, z.literal("auto")]),
+  /** `auto` のとき、見つける範囲（画面に出ている項目）。 */
+  candidates: z.array(ReportItemSchema).max(24).optional(),
   note: z.string().max(500).optional().default(""),
 });
 
 export type ReportFixResult = {
   /** 直して語に書いたか。 */
   fixed: boolean;
+  /** 直した（または見つけた）項目。`auto` で見つからなければ null。 */
+  item?: ReportItemId | null;
   /** 誰が確かめたか（`dictionary` は辞書と照らした）。 */
   by: "dictionary" | "jev" | "llm" | "none";
 };
@@ -1410,20 +1425,51 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       part_of_speech: string | null;
     };
 
+    // 0. 項目を選ばずに報告された（`auto`）なら、AI に間違っている項目を1つ探させる。
+    let item: ReportItemId;
+    if (data.item === "auto") {
+      const candidates = (
+        data.candidates?.length ? data.candidates : ["meaning"]
+      ) as ReportItemId[];
+      const found = await locateReportedItem(
+        data.word_id,
+        w.headword,
+        w.language,
+        data.note,
+        candidates,
+      );
+      if (!found) {
+        // 見つからなかった。報告だけ残し、人が後で確かめる。
+        await supabase
+          .from("entry_reports")
+          .insert({
+            user_id: userId,
+            headword: w.headword,
+            kind: "other",
+            note: `[item:auto] ${data.note}`.trim(),
+          })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
+        return { fixed: false, by: "none", item: null };
+      }
+      item = found;
+    } else {
+      item = data.item;
+    }
+
     // 1. 報告を残す。**直せても直せなくても残す** — 人が後で確かめられる。
     //    種類の列は4つしか取れない（`entry_reports` の制約）ので、
     //    どの項目かは本文の頭に書く。
-    const kind =
-      data.item === "pronunciation" || data.item === "pos" || data.item === "meaning"
-        ? data.item
-        : "other";
+    const kind = item === "pronunciation" || item === "pos" || item === "meaning" ? item : "other";
     const { data: reportRow } = await supabase
       .from("entry_reports")
       .insert({
         user_id: userId,
         headword: w.headword,
         kind,
-        note: `[item:${data.item}] ${data.note}`.trim(),
+        note: `[item:${item}] ${data.note}`.trim(),
       })
       .select("id")
       .maybeSingle()
@@ -1446,7 +1492,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
     };
 
     // 2a. 発音・品詞 … 辞書と照らす。
-    if (data.item === "pronunciation" || data.item === "pos") {
+    if (item === "pronunciation" || item === "pos") {
       const { data: rows } = await supabaseAdmin
         .from("dictionary_entries")
         .select(DICTIONARY_SELECT)
@@ -1457,7 +1503,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       const row = rows?.[0] ?? null;
       const f = row ? resolveDictionaryFields(row, "ja") : null;
       const patch = dictionaryFixPatch(
-        data.item,
+        item,
         w,
         row && f
           ? { source: row.source, reading: f.reading, readingAlt: f.readingAlt, pos: row.pos }
@@ -1470,60 +1516,60 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
           .eq("id", data.word_id);
         if (error) throw new Error(error.message);
         await markResolved();
-        return { fixed: true, by: "dictionary" };
+        return { fixed: true, by: "dictionary", item };
       }
       // 確かな辞書の行があって今の値と同じなら、今の値が正しい（直さない）。
       const licensed = row && row.source && row.source !== "ai";
-      if (licensed) return { fixed: false, by: "dictionary" };
+      if (licensed) return { fixed: false, by: "dictionary", item };
 
       // **確かな辞書に無い語**: 2つの別の AI の答えが一致し、さらに Jev が
       // 「直した方が正しい」と言えたときだけ直す（`consensusFixPatch` の注）。
       const answers = await askReadingTwice(w.headword, w.language);
       const cPatch = consensusFixPatch(
-        data.item,
+        item,
         { ...w, source: (word as { source: string | null }).source },
         answers,
       );
-      if (!cPatch) return { fixed: false, by: "none" };
+      if (!cPatch) return { fixed: false, by: "none", item };
       const cVerdict = await judgeCorrection({
         headword: w.headword,
         language: w.language,
-        item: data.item,
+        item: item,
         before: Object.fromEntries(
           Object.keys(cPatch).map((k) => [k, (w as Record<string, unknown>)[k] ?? ""]),
         ),
         after: cPatch,
         note: data.note,
       });
-      if (!shouldApplyCorrection(cVerdict)) return { fixed: false, by: cVerdict.by };
+      if (!shouldApplyCorrection(cVerdict)) return { fixed: false, by: cVerdict.by, item };
       const { error: cErr } = await supabaseAdmin
         .from("words")
         .update(cPatch as never)
         .eq("id", data.word_id);
       if (cErr) throw new Error(cErr.message);
       await markResolved();
-      return { fixed: true, by: cVerdict.by };
+      return { fixed: true, by: cVerdict.by, item };
     }
 
     // 2b. それ以外 … その項目だけの案を作る（まだ書かない）。
     const r = await runSectionRegen(
       context,
-      { word_id: data.word_id, section: data.item, only_if_empty: false },
+      { word_id: data.word_id, section: item, only_if_empty: false },
       "propose",
     );
     const proposal = r.proposal;
-    if (!proposal) return { fixed: false, by: "none" };
+    if (!proposal) return { fixed: false, by: "none", item };
 
     // 3. 別の目で確かめる。
     const verdict = await judgeCorrection({
       headword: proposal.headword,
       language: proposal.language,
-      item: data.item,
+      item: item,
       before: proposal.before,
       after: proposal.after,
       note: data.note,
     });
-    if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by };
+    if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by, item };
 
     const { error: upErr } = await supabaseAdmin
       .from("words")
@@ -1531,8 +1577,45 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       .eq("id", data.word_id);
     if (upErr) throw new Error(upErr.message);
     await markResolved();
-    return { fixed: true, by: verdict.by };
+    return { fixed: true, by: verdict.by, item };
   });
+
+/**
+ * **報告された語で、間違っている項目を1つ探す**（`auto`）。
+ * 見せる範囲は画面に出ている項目だけ。答えは `pickReportedItem` を通し、
+ * 範囲の外の名前や「なし」は null（直さない側）。
+ */
+async function locateReportedItem(
+  wordId: string,
+  headword: string,
+  language: string | null,
+  note: string,
+  candidates: ReportItemId[],
+): Promise<ReportItemId | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: full } = await supabaseAdmin
+      .from("words")
+      .select("*")
+      .eq("id", wordId)
+      .maybeSingle();
+    if (!full) return null;
+    const ai = await getAiFor("audit");
+    const prompt =
+      `語学カードについて、学習者から「どこかが間違っている」と報告がありました。\n` +
+      `語: ${headword}（${language ?? ""}）\n報告の一言: ${note || "(なし)"}\n` +
+      `カードの項目（[項目名] 内容）:\n${reportContext(candidates, full as Record<string, unknown>)}\n\n` +
+      `報告の一言とカードの内容から、**間違っている可能性がいちばん高い項目を1つ**選んでください。` +
+      `一言が無ければ、事実として誤っている・不自然な項目を探してください。どれも正しければ none。\n` +
+      `出力はJSONだけ: {"item":"${candidates.join('"|"')}"|"none","reason":"短く"}`;
+    const res = await withModelFallback(ai, ai.modelRich, (m) =>
+      generateText({ model: ai.gateway(m), prompt }),
+    );
+    return pickReportedItem(parseJsonFromAiText(res.text), candidates);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 読み・品詞を**2つの別の AI に独立に**聞く（`consensusFixPatch` が突き合わせる）。

@@ -1114,6 +1114,9 @@ function ReportButton({
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** 「AIに見つけてもらう」の一言の欄を開いているか。 */
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState("");
   const selfRef = useRef<HTMLSpanElement>(null);
   if (!wordId) return null;
   const labelOf = (item: ReportItem) =>
@@ -1122,25 +1125,35 @@ function ReportButton({
       : item === "pos"
         ? t("card.posLabel")
         : t(sectionTitleKey(item, language));
-  async function send(item: ReportItem) {
+  const cardEl = () => selfRef.current?.closest("[data-word-card]") ?? null;
+  const sectionEl = (item: ReportItem) =>
+    cardEl()?.querySelector<HTMLElement>(`[data-magic="${item}"]`) ?? null;
+  async function send(item: ReportItem | "auto", text = "") {
     setOpen(false);
+    setAsking(false);
     setBusy(true);
+    // 直す項目の中身（同じカードの中だけを探す）。直している間は光の筋を流す。
+    // **AIに見つけてもらう**ときは、どこか分からないのでカード全体に流す。
+    const waiting = item === "auto" ? (cardEl() as HTMLElement | null) : sectionEl(item);
     try {
-      // 直す項目の中身（同じカードの中だけを探す）。直している間は光の筋を流す。
-      const target =
-        selfRef.current
-          ?.closest("[data-word-card]")
-          ?.querySelector<HTMLElement>(`[data-magic="${item}"]`) ?? null;
-      target?.classList.add("magic-wait");
-      const res = await fixFn({ data: { word_id: wordId!, item } }).finally(() =>
-        target?.classList.remove("magic-wait"),
-      );
-      if (res.fixed) {
-        await swapWithMagic(target, async () => {
+      waiting?.classList.add("magic-wait");
+      const res = await fixFn({
+        data: {
+          word_id: wordId!,
+          item,
+          note: text,
+          ...(item === "auto" ? { candidates: items } : {}),
+        },
+      }).finally(() => waiting?.classList.remove("magic-wait"));
+      const done = (res.item ?? (item === "auto" ? null : item)) as ReportItem | null;
+      if (res.fixed && done) {
+        await swapWithMagic(sectionEl(done), async () => {
           await qc.invalidateQueries({ queryKey: ["sticker"] });
           await qc.invalidateQueries({ queryKey: ["stickers"] });
         });
-        toast.success(t("card.reportFixed", { item: labelOf(item) }));
+        toast.success(t("card.reportFixed", { item: labelOf(done) }));
+      } else if (item === "auto" && !done) {
+        toast(t("card.reportNotFound"));
       } else {
         toast(t("card.reportQueued"));
       }
@@ -1166,7 +1179,34 @@ function ReportButton({
         {busy ? t("card.reportFixing") : t("card.report")}
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 max-h-72 w-48 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+        <div className="absolute right-0 top-7 z-20 max-h-80 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+          {/* いちばん上は「AIに見つけてもらう」（どこが違うか分からない人のため）。
+              押すと一言の欄が開く（空でも送れる）。 */}
+          {asking ? (
+            <div className="space-y-1.5 p-1">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value.slice(0, 500))}
+                rows={2}
+                autoFocus
+                placeholder={t("card.reportAutoHint")}
+                className="w-full resize-none rounded-lg border border-input bg-background p-2 text-footnote"
+              />
+              <button
+                onClick={() => send("auto", note.trim())}
+                className="block min-h-11 w-full rounded-lg bg-primary px-2 text-footnote font-semibold text-primary-foreground"
+              >
+                {t("card.reportAutoSend")}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAsking(true)}
+              className="block min-h-11 w-full rounded-lg px-2 py-1.5 text-left text-footnote font-semibold text-primary hover:bg-secondary"
+            >
+              {t("card.reportAuto")}
+            </button>
+          )}
           <p className="px-2 py-1 text-caption text-muted-foreground">{t("card.reportWhat")}</p>
           {items.map((item) => (
             <button

@@ -5292,7 +5292,10 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
       card.indexOf("function SectionCard("),
     );
     expect(rb).toMatch(/useServerFn\(reportAndFixSection\)/);
-    expect(rb).toMatch(/fixFn\(\{ data: \{ word_id: wordId!, item \} \}\)/);
+    expect(rb).toMatch(/fixFn\(\{\s*data: \{\s*word_id: wordId!,\s*item,/);
+    // 項目が分からない人は「AIに見つけてもらう」（2026-09-27）。範囲は画面に出ている項目。
+    expect(rb).toMatch(/send\("auto", note\.trim\(\)\)/);
+    expect(rb).toMatch(/item === "auto" \? \{ candidates: items \} : \{\}/);
     // 記録だけの古い通報には戻さない。
     expect(card).not.toMatch(/reportEntry/);
     // 画面に出ている節から選ぶ（発音と品詞を先頭に）。
@@ -5309,8 +5312,10 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
     );
     expect(fn).toMatch(/runSectionRegen\(\s*context,[\s\S]*?"propose",\s*\)/);
     expect(fn).toMatch(
-      /if \(!shouldApplyCorrection\(verdict\)\) return \{ fixed: false, by: verdict\.by \};/,
+      /if \(!shouldApplyCorrection\(verdict\)\) return \{ fixed: false, by: verdict\.by, item \};/,
     );
+    // AI が見つけた項目は、画面に出ている範囲の名前だけを採る（`pickReportedItem`）。
+    expect(ai).toMatch(/return pickReportedItem\(parseJsonFromAiText\(res\.text\), candidates\);/);
     // 発音・品詞は AI に作らせず、辞書と照らす。
     expect(fn).toMatch(/dictionaryFixPatch\(/);
     // 報告は直せても直せなくても残す。
