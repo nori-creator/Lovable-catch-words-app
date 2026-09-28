@@ -73,7 +73,8 @@ export default function DexCityMap3D({
         canvasContextAttributes: { antialias: true },
         attributionControl: { compact: true },
       });
-    } catch {
+    } catch (error) {
+      console.warn("Dex 3D map could not initialize", error);
       available.current();
       return;
     }
@@ -130,7 +131,10 @@ export default function DexCityMap3D({
     });
     m.on("error", (event) => {
       // Transient individual tile errors are tolerable. A failed style is not.
-      if (!loaded && /style|source/i.test(String(event.error?.message ?? ""))) available.current();
+      if (!loaded && /style|source/i.test(String(event.error?.message ?? ""))) {
+        console.warn("Dex 3D map style could not load", event.error);
+        available.current();
+      }
     });
     return () => {
       window.clearTimeout(timeout);
