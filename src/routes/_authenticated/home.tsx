@@ -1,3 +1,4 @@
+import { MemorialReveal } from "@/components/MemorialReveal";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
 import { decorFor } from "@/lib/collage-decor";
 import {
@@ -1986,6 +1987,15 @@ export function MemorialAlbum({
   onClose: () => void;
 }) {
   const t = useT();
+  // 開いた瞬間は、まず祝う（`MemorialReveal`）。幕が上がってから誌面。
+  const [revealed, setRevealed] = useState(false);
+  const photos = useMemo(
+    () =>
+      picks
+        .map((s) => stickerPhotoUrl(s, { prefer: s.hero_role ?? undefined, thumb: true }))
+        .filter((u): u is string => !!u),
+    [picks],
+  );
   return (
     <div
       role="dialog"
@@ -1993,6 +2003,9 @@ export function MemorialAlbum({
       aria-label={t("memorial.title", { n })}
       className="fixed inset-0 z-[60] overflow-y-auto bg-background px-4 pb-28 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
     >
+      {!revealed && (
+        <MemorialReveal n={n} words={words} photos={photos} onDone={() => setRevealed(true)} />
+      )}
       <div className="mx-auto max-w-3xl">
         <div className="mb-2 flex justify-end">
           <button
@@ -2004,24 +2017,26 @@ export function MemorialAlbum({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <DayCollage
-          stickers={picks}
-          surface={surface}
-          editable={false}
-          stamp="date"
-          opening
-          onOpen={onOpen}
-          heading={
-            <div className="px-2 pb-2 pt-1 text-center">
-              <h2 className="text-title font-extrabold tracking-tight">
-                {t("memorial.title", { n })}
-              </h2>
-              <p className="mt-1 text-footnote text-muted-foreground">
-                {t("memorial.sub", { n, count: words, photos: picks.length })}
-              </p>
-            </div>
-          }
-        />
+        {revealed && (
+          <DayCollage
+            stickers={picks}
+            surface={surface}
+            editable={false}
+            stamp="date"
+            opening
+            onOpen={onOpen}
+            heading={
+              <div className="px-2 pb-2 pt-1 text-center">
+                <h2 className="text-title font-extrabold tracking-tight">
+                  {t("memorial.title", { n })}
+                </h2>
+                <p className="mt-1 text-footnote text-muted-foreground">
+                  {t("memorial.sub", { n, count: words, photos: picks.length })}
+                </p>
+              </div>
+            }
+          />
+        )}
       </div>
     </div>
   );

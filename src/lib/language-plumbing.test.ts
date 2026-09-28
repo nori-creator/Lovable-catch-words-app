@@ -5924,3 +5924,24 @@ describe("復習の通知の設定は3つだけ", () => {
     expect(sched).toMatch(/sticker_id: it\.stickerId/);
   });
 });
+
+describe("記念アルバムは開いた瞬間に祝う", () => {
+  it("誌面の前に `MemorialReveal`（数え上げ・紙吹雪・音・触覚）を出し、幕が上がってから誌面", () => {
+    // 2026-09-28「記念アルバムはただのアルバムではなく、特別感のあるアルバムで、
+    // アニメーションやセレブレーション、ユーザーの快感を刺激する演出を入れて」。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const album = home.slice(home.indexOf("export function MemorialAlbum"));
+    expect(album.indexOf("<MemorialReveal")).toBeGreaterThan(0);
+    expect(album.indexOf("<MemorialReveal")).toBeLessThan(album.indexOf("<DayCollage"));
+    expect(album).toMatch(/\{revealed && \(\s*<DayCollage/);
+    const reveal = codeOnly(read("components/MemorialReveal.tsx"));
+    // 絵・音・手応えを同じ瞬間に。
+    const burst = reveal.slice(
+      reveal.indexOf('haptic("success")'),
+      reveal.indexOf("runConfetti(confetti"),
+    );
+    expect(burst).toMatch(/playCelebrate\(\)/);
+    // 動きを減らす設定では最後の絵を静かに出すだけ。
+    expect(reveal).toMatch(/dataset\.motion === "reduce"/);
+  });
+});

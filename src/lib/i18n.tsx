@@ -1915,6 +1915,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "{n} 天收集了 {count} 個單字，精選 {photos} 張回憶",
   },
   "memorial.open": { ja: "開く", en: "Open", "zh-TW": "打開" },
+  // 記念アルバムを開く瞬間の演出（`MemorialReveal`、2026-09-28）。
+  "memorial.kicker": { ja: "おめでとう", en: "Congratulations", "zh-TW": "恭喜" },
+  "memorial.daysUnit": { ja: "日", en: "days", "zh-TW": "天" },
+  "memorial.wordsCaught": {
+    ja: "{count}語を集めました",
+    en: "{count} words caught",
+    "zh-TW": "收集了 {count} 個單字",
+  },
+  "memorial.openAlbum": { ja: "アルバムを開く", en: "Open the album", "zh-TW": "打開相簿" },
   "memorial.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
   "memorial.notifyTitle": {
     ja: "{n}日目の記念アルバムができました",
