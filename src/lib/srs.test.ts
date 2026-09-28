@@ -202,3 +202,20 @@ describe("SM-2 の原典との一致（動かしてはいけない所）", () =>
     expect(Math.round(r(3.0))).toBe(92);
   });
 });
+
+describe("遅れて思い出せた分を数える（2026-09-28 再点検）", () => {
+  const prev = { ease: 2.5, interval_days: 10, repetitions: 3 };
+  it("予定どおり（遅れなし）は今まで通り", () => {
+    expect(nextSrs(prev, 5, { elapsedDays: 10 }).interval_days).toBe(25);
+    expect(nextSrs(prev, 5).interval_days).toBe(25);
+  });
+  it("10日遅れて採点 5 なら遅れを全部、4 なら半分、3 なら足さない", () => {
+    expect(nextSrs(prev, 5, { elapsedDays: 20 }).interval_days).toBe(50);
+    expect(nextSrs(prev, 4, { elapsedDays: 20 }).interval_days).toBe(38);
+    expect(nextSrs(prev, 3, { elapsedDays: 20 }).interval_days).toBe(25);
+  });
+  it("早く復習した時・思い出せなかった時は遅れを足さない", () => {
+    expect(nextSrs(prev, 5, { elapsedDays: 4 }).interval_days).toBe(25);
+    expect(nextSrs(prev, 1, { elapsedDays: 40 }).interval_days).toBe(1);
+  });
+});

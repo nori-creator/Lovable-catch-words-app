@@ -960,9 +960,13 @@ export const gradeReview = createServerFn({ method: "POST" })
     }
     score = Math.max(0, Math.min(5, score));
 
+    const elapsedDays = row.last_reviewed_at
+      ? (Date.now() - new Date(row.last_reviewed_at).getTime()) / 86400_000
+      : null;
     const srs = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
       score,
+      { elapsedDays },
     );
 
     /**
