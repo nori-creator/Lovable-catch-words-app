@@ -3,6 +3,13 @@
  * 「課金ユーザーの機能として、カメラモードで撮ったものがステッカーではなく3Dの360度回転して
  * リアルなものをゲットできる機能を作りたい。試作品を実装して」）。
  *
+ * **既定は Tripo3D**（オーナー添付の GitHub「Camera to 3D」ahujasid 作・MIT と同じ作り）:
+ *   写真 → Tripo に上げる → 2つの仕事を同時に頼む
+ *     ・下書き（色なし・1万面・速い 20〜40 秒）… 点が集まって形になる演出に使う
+ *     ・仕上げ（色と質感つき・30〜50 秒）… 出来たら下書きと入れ替える
+ *   → 進み具合を数秒ごとに聞く → GLB の場所を受け取る。
+ *   鍵は Lovable の Secrets に `TRIPO_API_KEY`（サーバだけが読む）。
+ *
  * 写真1枚から 3D の形（glTF/GLB = 3D の絵の標準の入れ物）を作る AI は、2026 年時点で
  * 公開の物がいくつもある（Microsoft TRELLIS.2、Tencent Hunyuan3D 2.1、Meta SAM 3D Objects
  * など）。どれも**GPU（画像用の計算機）の上で動かす**もので、このアプリの中では動かない。
@@ -13,7 +20,7 @@
  *   OBJECT3D_API_KEY   窓口の鍵（サーバだけが読む。画面にも記録にも出さない）
  *   OBJECT3D_PROVIDER  表示用の名前（trellis2 / hunyuan3d / sam3d / custom）
  */
-export type Object3dProvider = "trellis2" | "hunyuan3d" | "sam3d" | "custom";
+export type Object3dProvider = "tripo" | "trellis2" | "hunyuan3d" | "sam3d" | "custom";
 
 export type Object3dConfig = {
   endpoint: string | null;
@@ -22,7 +29,7 @@ export type Object3dConfig = {
   hasKey: boolean;
 };
 
-const PROVIDERS: Object3dProvider[] = ["trellis2", "hunyuan3d", "sam3d", "custom"];
+const PROVIDERS: Object3dProvider[] = ["tripo", "trellis2", "hunyuan3d", "sam3d", "custom"];
 
 export function readObject3dConfig(env: Record<string, string | undefined>): Object3dConfig {
   const raw = env.OBJECT3D_ENDPOINT?.trim();
@@ -85,8 +92,69 @@ export function pickGlbUrl(json: unknown): string | null {
 
 /** 表示用の名前（開発者の画面・案内で使う）。 */
 export const OBJECT3D_PROVIDER_LABEL: Record<Object3dProvider, string> = {
+  tripo: "Tripo3D",
   trellis2: "Microsoft TRELLIS.2",
   hunyuan3d: "Tencent Hunyuan3D 2.1",
   sam3d: "Meta SAM 3D Objects",
   custom: "独自の窓口",
 };
+
+// ---- Tripo3D ---------------------------------------------------------------------------
+
+export const TRIPO_BASE_URL = "https://api.tripo3d.ai/v2/openapi";
+
+/** Tripo に頼む仕事の中身。下書き（速い・色なし）と仕上げ（色と質感）。 */
+export function tripoTaskBody(imageToken: string, kind: "preview" | "final") {
+  const file = { type: "png", file_token: imageToken };
+  return kind === "preview"
+    ? {
+        type: "image_to_model",
+        file,
+        model_version: "v3.0-20250812",
+        texture: false,
+        pbr: false,
+        export_uv: false,
+        face_limit: 10000,
+      }
+    : { type: "image_to_model", file, model_version: "v3.1-20260211", texture: true, pbr: true };
+}
+
+export type Object3dTaskState =
+  | { status: "running"; progress: number }
+  | { status: "success"; progress: 100; modelUrl: string }
+  | { status: "failed"; progress: number };
+
+/** Tripo の「仕事の様子」の返事を読む。 */
+export function readTripoTask(json: unknown): Object3dTaskState {
+  const o = (json ?? {}) as { code?: number; data?: Record<string, unknown> };
+  if (o.code !== 0 || !o.data) return { status: "failed", progress: 0 };
+  const d = o.data;
+  const progress = Math.max(0, Math.min(100, Number(d.progress) || 0));
+  const st = String(d.status ?? "");
+  if (st === "success") {
+    const out = (d.output ?? {}) as Record<string, unknown>;
+    const url = [out.pbr_model, out.model, out.base_model].find(
+      (u): u is string => typeof u === "string" && u.startsWith("https://"),
+    );
+    return url
+      ? { status: "success", progress: 100, modelUrl: url }
+      : { status: "failed", progress };
+  }
+  if (["failed", "banned", "expired", "cancelled", "unknown"].includes(st))
+    return { status: "failed", progress };
+  return { status: "running", progress };
+}
+
+/**
+ * 3D の形を画面へ中継してよい場所か（Tripo の配信先だけ）。どこでも中継すると、
+ * このアプリのサーバが誰かの踏み台になる（任意の URL を取りに行かせる攻撃）。
+ */
+export function isAllowedModelUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return false;
+    return /(^|\.)tripo3d\.(ai|com)$/i.test(u.hostname);
+  } catch {
+    return false;
+  }
+}

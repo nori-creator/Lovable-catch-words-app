@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { object3dAllowed, pickGlbUrl, readObject3dConfig } from "./object3d";
+import {
+  isAllowedModelUrl,
+  object3dAllowed,
+  pickGlbUrl,
+  readObject3dConfig,
+  readTripoTask,
+  tripoTaskBody,
+} from "./object3d";
 
 /** 2026-09-28 R13「撮ったものが3Dの360度回転してリアルなものをゲットできる機能」。 */
 describe("撮った物を 3D で手に入れる（Pro）", () => {
@@ -42,5 +49,41 @@ describe("撮った物を 3D で手に入れる（Pro）", () => {
     expect(pickGlbUrl({ url: "http://cdn.x/a.glb" })).toBeNull();
     expect(pickGlbUrl({ url: "https://cdn.x/a.png" })).toBeNull();
     expect(pickGlbUrl(null)).toBeNull();
+  });
+
+  it("Tripo: 下書きは色なし・1万面、仕上げは色と質感つき（添付の GitHub と同じ頼み方）", () => {
+    expect(tripoTaskBody("tok", "preview")).toMatchObject({
+      type: "image_to_model",
+      texture: false,
+      face_limit: 10000,
+      file: { file_token: "tok" },
+    });
+    expect(tripoTaskBody("tok", "final")).toMatchObject({ texture: true, pbr: true });
+  });
+
+  it("Tripo の進み具合を読む", () => {
+    expect(readTripoTask({ code: 0, data: { status: "running", progress: 42 } })).toEqual({
+      status: "running",
+      progress: 42,
+    });
+    expect(
+      readTripoTask({
+        code: 0,
+        data: { status: "success", output: { pbr_model: "https://tripo-data.x/m.glb" } },
+      }),
+    ).toEqual({ status: "success", progress: 100, modelUrl: "https://tripo-data.x/m.glb" });
+    expect(readTripoTask({ code: 0, data: { status: "failed", progress: 10 } }).status).toBe(
+      "failed",
+    );
+    expect(readTripoTask({ code: 1003 }).status).toBe("failed");
+  });
+
+  it("中継するのは Tripo の配信先だけ（踏み台にされない）", () => {
+    expect(isAllowedModelUrl("https://tripo-data.rg1.data.tripo3d.com/a/m.glb")).toBe(true);
+    expect(isAllowedModelUrl("https://api.tripo3d.ai/x.glb")).toBe(true);
+    expect(isAllowedModelUrl("https://evil.example.com/m.glb")).toBe(false);
+    expect(isAllowedModelUrl("http://tripo3d.ai/m.glb")).toBe(false);
+    expect(isAllowedModelUrl("https://tripo3d.ai.evil.com/m.glb")).toBe(false);
+    expect(isAllowedModelUrl("https://tripo-data.evil.com/m.glb")).toBe(false);
   });
 });

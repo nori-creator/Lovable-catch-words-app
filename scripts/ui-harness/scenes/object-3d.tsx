@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, Sparkles } from "lucide-react";
+import { Box } from "lucide-react";
 import { createObjectViewer, demoBubbleTea } from "@/components/three/object-viewer";
 
 /**
  * **Pro: 撮った物を 360 度回せる 3D で手に入れる**（オーナー指示 2026-09-28 R13）。
  *
- * 流れ: いつものステッカー → 「3Dで手に入れる」（Pro）→ 作っている間の待ち →
- * 台の上に 3D の物が置かれる → 指で横に払うと 360 度回る（離すと勢いで回って止まり、
- * しばらくすると自分でゆっくり回る）。
+ * 流れ: いつものステッカー → 「3Dで手に入れる」（Pro）→ **点の雲が集まって形になり、
+ * 線の骨組みが光って、本物の面が現れる**（オーナー添付の動画と GitHub「Camera to 3D」の
+ * 見せ方）→ 指で横に払うと 360 度回る（離すと勢いで回って止まり、しばらくすると自分で
+ * ゆっくり回る）。本番の生成は Tripo3D（`object3d.functions.ts` の start / check）。
  *
- * ここの 3D は**見本の形**（本番では写真から AI が作った GLB を読む。`object3d.functions.ts`）。
- * `?pro=0` で無料の人の見え方（Pro の案内）。
+ * ここの 3D は**見本の形**（本番では写真から AI が作った GLB を読む）。
+ * `?pro=0` で無料の人の見え方（Pro の案内）。`?step=ready` で出来上がった所から。
  */
 type Step = "sticker" | "making" | "ready";
 
@@ -23,33 +24,55 @@ const STICKER =
 export function Object3DScene({ q }: { q: URLSearchParams }) {
   const pro = q.get("pro") !== "0";
   const [step, setStep] = useState<Step>(q.get("step") === "ready" ? "ready" : "sticker");
+  const [pct, setPct] = useState(0);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const started = step !== "sticker";
   useEffect(() => {
-    if (step !== "making") return;
-    const id = window.setTimeout(() => setStep("ready"), 2400);
-    return () => window.clearTimeout(id);
-  }, [step]);
+    if (!started || !canvas.current) return;
+    const v = createObjectViewer(
+      canvas.current,
+      { demo: demoBubbleTea },
+      { materialize: step === "making" },
+    );
+    // 本番は Tripo の進み具合。見本では組み上がる演出の長さ（3.8 秒）に合わせて進める。
+    const t0 = performance.now();
+    const id = window.setInterval(() => {
+      const p = Math.min(100, ((performance.now() - t0) / 3800) * 100);
+      setPct(p);
+      if (p >= 100) window.clearInterval(id);
+    }, 100);
+    return () => {
+      window.clearInterval(id);
+      v?.dispose();
+    };
+    // 作り始めた時に1回だけ（ready に移っても同じ 3D を使い続ける）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started]);
   useEffect(() => {
-    if (step !== "ready" || !canvas.current) return;
-    const v = createObjectViewer(canvas.current, { demo: demoBubbleTea });
-    return () => v?.dispose();
-  }, [step]);
+    if (step === "making" && pct >= 100) setStep("ready");
+  }, [step, pct]);
 
+  const dark = started;
   return (
     <div
       className="fixed inset-0 flex flex-col items-center"
-      style={{ background: "radial-gradient(ellipse at 50% 35%, #ffffff, #e9edf3 70%)" }}
+      style={{
+        background: dark
+          ? "radial-gradient(ellipse at 50% 40%, #1c1f26, #07080b 75%)"
+          : "radial-gradient(ellipse at 50% 35%, #ffffff, #e9edf3 70%)",
+        color: dark ? "#fff" : undefined,
+      }}
     >
       <div className="mt-16 text-center">
         <div lang="zh-Hant" className="text-title1 font-bold">
           珍珠奶茶
         </div>
-        <div className="text-footnote text-muted-foreground">
+        <div className={`text-footnote ${dark ? "text-white/70" : "text-muted-foreground"}`}>
           ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ · タピオカミルクティー
         </div>
       </div>
       <div className="relative mt-4 w-full flex-1">
-        {step === "ready" ? (
+        {started ? (
           <canvas
             ref={canvas}
             className="absolute inset-0 h-full w-full"
@@ -57,22 +80,7 @@ export function Object3DScene({ q }: { q: URLSearchParams }) {
           />
         ) : (
           <div className="absolute inset-0 grid place-items-center">
-            <img
-              src={STICKER}
-              alt=""
-              className="h-56 w-56 drop-shadow-xl"
-              style={
-                step === "making"
-                  ? { animation: "obj3d-lift 2.4s cubic-bezier(.3,.7,.2,1) forwards" }
-                  : undefined
-              }
-            />
-            {step === "making" && (
-              <div className="absolute bottom-10 flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-footnote font-semibold text-white">
-                <Sparkles className="h-4 w-4 animate-pulse" aria-hidden />
-                3Dにしています…
-              </div>
-            )}
+            <img src={STICKER} alt="" className="h-56 w-56 drop-shadow-xl" />
           </div>
         )}
       </div>
@@ -98,13 +106,29 @@ export function Object3DScene({ q }: { q: URLSearchParams }) {
               </button>
             </div>
           ))}
+        {step === "making" && (
+          <div aria-live="polite">
+            {/* 区切りの入った進み具合（参考動画と同じ形）。 */}
+            <div className="flex gap-1" role="progressbar" aria-valuenow={Math.round(pct)}>
+              {Array.from({ length: 20 }, (_, i) => (
+                <span
+                  key={i}
+                  className="h-3 flex-1 rounded-[2px]"
+                  style={{
+                    background: i < (pct / 100) * 20 ? "#fff" : "rgba(255,255,255,0.18)",
+                  }}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-center text-footnote tabular-nums text-white/70">
+              3Dにしています… {Math.round(pct)}%
+            </p>
+          </div>
+        )}
         {step === "ready" && (
-          <p className="text-center text-footnote text-muted-foreground">
-            横に払うと 360 度回ります
-          </p>
+          <p className="text-center text-footnote text-white/70">横に払うと 360 度回ります</p>
         )}
       </div>
-      <style>{`@keyframes obj3d-lift{0%{transform:none;filter:none}60%{transform:translateY(-18px) rotateY(160deg) scale(.9);filter:blur(0)}100%{transform:translateY(-10px) rotateY(360deg) scale(.6);filter:blur(6px);opacity:.2}}`}</style>
     </div>
   );
 }

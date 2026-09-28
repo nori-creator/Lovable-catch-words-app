@@ -120,6 +120,14 @@ declare module "three" {
   export const SkinnedMesh: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type ConeGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const ConeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type LineSegments = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const LineSegments: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type WireframeGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const WireframeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type LineBasicMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const LineBasicMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Material = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Material: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
   export const GLTFLoader: any; // eslint-disable-line @typescript-eslint/no-explicit-any
