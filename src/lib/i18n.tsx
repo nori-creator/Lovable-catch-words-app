@@ -1930,49 +1930,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "settings.notifications": { ja: "通知", en: "Notifications", "zh-TW": "通知" },
   "remind.label": { ja: "復習の通知", en: "Review reminders", "zh-TW": "複習提醒" },
   "remind.off": { ja: "オフ", en: "Off", "zh-TW": "關閉" },
-  "remind.custom": { ja: "時刻を決める", en: "Set times", "zh-TW": "自訂時間" },
-  "remind.ai": { ja: "おまかせ", en: "Smart", "zh-TW": "智慧安排" },
+  "remind.custom": { ja: "時刻を指定", en: "Set times", "zh-TW": "自訂時間" },
+  "remind.ai": { ja: "自動", en: "Auto", "zh-TW": "自動" },
   "remind.addTime": { ja: "時刻を追加", en: "Add a time", "zh-TW": "新增時間" },
   "remind.removeTime": { ja: "この時刻を消す", en: "Remove this time", "zh-TW": "刪除這個時間" },
-  "remind.aiSrs": { ja: "復習がたまる時刻", en: "When reviews pile up", "zh-TW": "複習累積時" },
-  "remind.aiSrsDesc": {
-    ja: "忘れかけた単語が5語そろう頃に1回",
-    en: "Once, when about 5 words start to fade",
-    "zh-TW": "快忘記的單字累積到約 5 個時提醒一次",
-  },
-  "remind.aiHabit": {
-    ja: "昨日アプリを開いた時刻",
-    en: "The time you opened the app yesterday",
-    "zh-TW": "昨天打開 App 的時間",
-  },
-  "remind.aiHabitDesc": {
-    ja: "いつもの空き時間に合わせます",
-    en: "Fits your usual free time",
-    "zh-TW": "配合你平常的空檔",
-  },
-  "remind.next": { ja: "次の通知: {when}", en: "Next: {when}", "zh-TW": "下次提醒：{when}" },
-  "remind.nextNone": {
-    ja: "いまは鳴らす予定がありません",
-    en: "No reminder planned for now",
-    "zh-TW": "目前沒有預定的提醒",
-  },
-  "remind.today": { ja: "今日 {time}", en: "Today {time}", "zh-TW": "今天 {time}" },
-  "remind.tomorrow": { ja: "明日 {time}", en: "Tomorrow {time}", "zh-TW": "明天 {time}" },
-  "remind.reasonSrs": {
-    ja: "（復習がたまる時刻）",
-    en: " (reviews piling up)",
-    "zh-TW": "（複習累積時）",
-  },
-  "remind.reasonHabit": {
-    ja: "（昨日開いた時刻）",
-    en: " (when you opened it yesterday)",
-    "zh-TW": "（昨天打開的時間）",
-  },
-  "remind.quiet": {
-    ja: "22:00〜8:00 は鳴らしません",
-    en: "No reminders between 22:00 and 8:00",
-    "zh-TW": "22:00～8:00 不會提醒",
-  },
   "remind.webOnly": {
     ja: "ブラウザでは、アプリを開いている間だけ鳴ります。",
     en: "In the browser, reminders only work while the app is open.",
@@ -1984,6 +1945,22 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "通知未被允許。請在裝置設定中開啟 CatchWords 的通知。",
   },
   "remind.title": { ja: "復習の時間です", en: "Time to review", "zh-TW": "該複習了" },
+  // 通知は**写真つきの1問**（オーナー指示 2026-09-28）。写真があれば写真そのものを問う。
+  "remind.quizPhoto": {
+    ja: "これ、{lang}で言える？",
+    en: "Can you say this in {lang}?",
+    "zh-TW": "這個用{lang}怎麼說？",
+  },
+  "remind.quizWord": {
+    ja: "「{meaning}」、{lang}で言える？",
+    en: "How do you say \u201c{meaning}\u201d in {lang}?",
+    "zh-TW": "「{meaning}」用{lang}怎麼說？",
+  },
+  "remind.quizBody": {
+    ja: "押すと1問だけ出ます",
+    en: "Tap for one quick question",
+    "zh-TW": "點一下，只考一題",
+  },
   "remind.body": {
     ja: "復習する単語が{n}語あります",
     en: "You have {n} words to review",

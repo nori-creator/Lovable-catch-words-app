@@ -5906,3 +5906,21 @@ describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-2
     expect(dm).toMatch(/className="dex-pin__time"/);
   });
 });
+
+describe("復習の通知の設定は3つだけ", () => {
+  it("オフ / 自動 / 時刻を指定。自動の細かい項目と「次の通知」の行は出さない", () => {
+    // 2026-09-28「オフ、自動、またユーザーが時刻を設定できるようにの3つにして。
+    // 復習がたまる時刻、昨日のアプリを開いたとか、次の項目とかの項目は消して」。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    const at = src.indexOf("export function ReviewReminderSettings");
+    const body = src.slice(at, src.indexOf("export function PlaceReminderToggle"));
+    const values = [...body.matchAll(/\{ value: "(\w+)", label: t\("remind\.\w+"\) \}/g)].map(
+      (m) => m[1],
+    );
+    expect(values).toEqual(["off", "ai", "custom"]);
+    expect(body).not.toMatch(/remind\.aiSrs|remind\.aiHabit|remind\.next|remind\.quiet/);
+    // 通知を押すと、その1語から復習が始まる。
+    const sched = codeOnly(read("lib/review-reminder-schedule.ts"));
+    expect(sched).toMatch(/sticker_id: it\.stickerId/);
+  });
+});

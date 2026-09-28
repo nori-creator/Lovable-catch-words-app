@@ -1699,5 +1699,77 @@ export const getUpcomingDueTimes = createServerFn({ method: "GET" })
         .limit(200);
     }
     const rows = (res.error ? [] : (res.data ?? [])) as Array<{ due_at: string | null }>;
-    return { dueTimes: rows.map((r) => r.due_at).filter((v): v is string => !!v) };
+    return {
+      dueTimes: rows.map((r) => r.due_at).filter((v): v is string => !!v),
+      quiz: await reminderQuiz(db, userId, horizon, langFilter),
+    };
   });
+
+/**
+ * **通知の1問**（オーナー指示 2026-09-28「通知は写真付きで1問だけのタイプにする」）。
+ *
+ * これから24時間で時が来る語のうち、**いちばん早い・写真のある**1語。写真の
+ * ある語が無ければ、いちばん早い語（文字から作った語 — 意味で問う）。
+ * 通知を押すと `/review?sticker=…` でこの語から始まる（`deep-link.ts`）。
+ *
+ * 写真は非公開の保存場所なので**署名した URL**（6時間で切れる。切れても通知の
+ * 文は出る）。読めない・列が無いときは `null`（通知は語数だけの文に戻る）。
+ */
+export type ReminderQuiz = {
+  sticker_id: string;
+  headword: string;
+  meaning_ja: string | null;
+  image_url: string | null;
+};
+async function reminderQuiz(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  userId: string,
+  horizon: string,
+  langFilter: string,
+): Promise<ReminderQuiz | null> {
+  try {
+    const { data, error } = await db
+      .from("reviews")
+      .select(
+        "sticker_id, due_at, stickers!inner(object_image_url, cutout_image_url, placeholder_image_url, words!inner(headword, language, meaning_ja))",
+      )
+      .eq("user_id", userId)
+      .lte("due_at", horizon)
+      .or(langFilter, { referencedTable: "stickers.words" })
+      .order("due_at", { ascending: true })
+      .limit(20);
+    if (error || !data?.length) return null;
+    type Row = {
+      sticker_id: string;
+      stickers: {
+        object_image_url: string | null;
+        cutout_image_url: string | null;
+        placeholder_image_url: string | null;
+        words: { headword: string; meaning_ja: string | null } | null;
+      } | null;
+    };
+    const rows = (data as Row[]).filter((r) => r.stickers?.words?.headword);
+    const photoOf = (r: Row) =>
+      r.stickers?.object_image_url ??
+      r.stickers?.cutout_image_url ??
+      r.stickers?.placeholder_image_url ??
+      null;
+    const pick = rows.find((r) => photoOf(r)) ?? rows[0];
+    if (!pick) return null;
+    const path = photoOf(pick);
+    let image_url: string | null = null;
+    if (path) {
+      const { signUrlMap } = await import("./stickers.functions");
+      image_url = (await signUrlMap(db, [path])).get(path) ?? null;
+    }
+    return {
+      sticker_id: pick.sticker_id,
+      headword: pick.stickers!.words!.headword,
+      meaning_ja: pick.stickers!.words!.meaning_ja,
+      image_url,
+    };
+  } catch {
+    return null;
+  }
+}

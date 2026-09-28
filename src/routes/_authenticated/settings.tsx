@@ -73,14 +73,11 @@ import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
 import type { AdConfig } from "@/lib/ad-policy";
 import {
   MAX_CUSTOM_TIMES,
-  planReminders,
-  readAppOpens,
   writeLocalReminderPrefs,
   type ReminderMode,
   type ReminderPrefs,
 } from "@/lib/review-reminder";
 import { loadReminderPrefs } from "@/components/ReviewReminderWatcher";
-import { getUpcomingDueTimes } from "@/lib/reviews.functions";
 import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
@@ -1362,26 +1359,24 @@ export function PhotoLibrarySyncToggle() {
 }
 
 /**
- * **復習の通知の時刻。**（`review-reminder.ts`）
+ * **復習の通知。**（`review-reminder.ts`）
  *
- * - オフ / 時刻を決める（3つまで）/ おまかせ（復習がたまる時刻・昨日開いた時刻）。
+ * **オフ / 自動 / 時刻を指定 の3つだけ**（オーナー指示 2026-09-28「復習の通知の設定は
+ * もっとシンプルに、オフ、自動、またユーザーが時刻を設定できるようにの3つにして。
+ * 復習がたまる時刻、昨日のアプリを開いたとか、次の項目とかの項目は消して」）。
+ *
+ * - 「自動」の中身（復習がたまる時刻・昨日開いた時刻）は**両方いつも使う**。選ばせない。
  * - 選んだその場で保存（アカウントと端末の写し）し、予約を置き直す。
- * - オフから入れたときに通知の許可を求め、断られたらオフに戻して理由を出す
+ * - オフから入れたときに通知の許可を求め、断られたらオフのまま理由を出す
  *   （「オンなのに鳴らない」を作らない。場所の通知と同じ考え）。
- * - 次にいつ鳴るかを1行で見せる（おまかせが何をするのか分かるように）。
  */
 export function ReviewReminderSettings() {
   const t = useT();
-  const fetchDue = useServerFn(getUpcomingDueTimes);
   const [prefs, setPrefs] = useState<ReminderPrefs | null>(null);
   const [denied, setDenied] = useState(false);
-  const [dueTimes, setDueTimes] = useState<Date[]>([]);
   useEffect(() => {
     void loadReminderPrefs().then(setPrefs);
-    fetchDue()
-      .then((r) => setDueTimes(r.dueTimes.map((d) => new Date(d))))
-      .catch(() => {});
-  }, [fetchDue]);
+  }, []);
   if (!prefs) return null;
 
   const save = async (next: ReminderPrefs) => {
@@ -1392,33 +1387,15 @@ export function ReviewReminderSettings() {
         return;
       }
     }
+    // 自動の手がかりは両方使う（前に片方を切っていた人も、ここで戻る）。
+    const fixed: ReminderPrefs = { ...next, ai: { srs: true, habit: true } };
     setDenied(false);
-    setPrefs(next);
-    writeLocalReminderPrefs(next);
+    setPrefs(fixed);
+    writeLocalReminderPrefs(fixed);
     window.dispatchEvent(new Event("review-reminder-changed"));
     // アカウントにも残す（機種変更しても同じ時刻で鳴るように）。失敗しても端末では効く。
-    void supabase.auth.updateUser({ data: { notification_preferences: next } }).catch(() => {});
+    void supabase.auth.updateUser({ data: { notification_preferences: fixed } }).catch(() => {});
   };
-
-  const plan = planReminders(prefs, { dueTimes, opens: readAppOpens() }, new Date());
-  const first = plan[0];
-  const when = (() => {
-    if (!first) return null;
-    const time = first.at.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const today = first.at.toDateString() === new Date().toDateString();
-    const label = t(today ? "remind.today" : "remind.tomorrow", { time });
-    const why =
-      first.reason === "srs"
-        ? t("remind.reasonSrs")
-        : first.reason === "habit"
-          ? t("remind.reasonHabit")
-          : "";
-    return label + why;
-  })();
 
   return (
     <div className="space-y-3">
@@ -1429,8 +1406,8 @@ export function ReviewReminderSettings() {
         onChange={(mode) => void save({ ...prefs, mode })}
         options={[
           { value: "off", label: t("remind.off") },
-          { value: "custom", label: t("remind.custom") },
           { value: "ai", label: t("remind.ai") },
+          { value: "custom", label: t("remind.custom") },
         ]}
       />
       {prefs.mode === "custom" && (
@@ -1475,30 +1452,10 @@ export function ReviewReminderSettings() {
           )}
         </div>
       )}
-      {prefs.mode === "ai" && (
-        <div className="space-y-2">
-          <ToggleRow
-            label={t("remind.aiSrs")}
-            description={t("remind.aiSrsDesc")}
-            value={prefs.ai.srs}
-            onChange={(v) => void save({ ...prefs, ai: { ...prefs.ai, srs: v } })}
-          />
-          <ToggleRow
-            label={t("remind.aiHabit")}
-            description={t("remind.aiHabitDesc")}
-            value={prefs.ai.habit}
-            onChange={(v) => void save({ ...prefs, ai: { ...prefs.ai, habit: v } })}
-          />
-        </div>
-      )}
-      {prefs.mode !== "off" && (
-        <div className="space-y-0.5 text-caption leading-relaxed text-muted-foreground">
-          <p className="font-semibold text-foreground">
-            {when ? t("remind.next", { when }) : t("remind.nextNone")}
-          </p>
-          <p>{t("remind.quiet")}</p>
-          {!Capacitor.isNativePlatform() && <p>{t("remind.webOnly")}</p>}
-        </div>
+      {/* ブラウザ版の限り（閉じている間は鳴らせない）だけは黙らない — 「オンなのに
+          鳴らない」を作らないため。スマホのアプリでは出さない。 */}
+      {prefs.mode !== "off" && !Capacitor.isNativePlatform() && (
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("remind.webOnly")}</p>
       )}
       {denied && (
         <p className="rounded-xl bg-amber-50 p-2 text-caption leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">

@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { getUpcomingDueTimes } from "@/lib/reviews.functions";
+import { getUpcomingDueTimes, type ReminderQuiz } from "@/lib/reviews.functions";
 import {
   normalizeReminderPrefs,
   planReminders,
@@ -48,16 +48,18 @@ export function ReviewReminderWatcher() {
       recordAppOpen();
       const prefs = await loadReminderPrefs();
       let dueTimes: Date[] = [];
+      let quiz: ReminderQuiz | null = null;
       if (prefs.mode === "ai" || prefs.mode === "custom") {
         try {
           const res = await fetchDue();
           dueTimes = res.dueTimes.map((s) => new Date(s));
+          quiz = res.quiz ?? null;
         } catch {
           /* 通信できないときは語数なしの文面で予約する */
         }
       }
       const plan = planReminders(prefs, { dueTimes, opens: readAppOpens() }, new Date());
-      await applyReminderSchedule(plan, dueTimes);
+      await applyReminderSchedule(plan, dueTimes, quiz);
     },
     [fetchDue],
   );

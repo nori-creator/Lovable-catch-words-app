@@ -371,7 +371,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
   { scene: "word-detail-designs", label: "案: 単語の詳細を1から A/B/C/D（根拠つき）" },
   { scene: "fx-lab", label: "試作: 分析中・キャッチの演出を GPU で描く" },
-  { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },
+  { scene: "settings-notify", label: "設定: 通知（オフ / 自動 / 時刻を指定・場所）" },
   { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
   { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
   { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
