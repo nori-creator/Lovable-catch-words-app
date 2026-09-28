@@ -49,6 +49,15 @@ describe("worldExampleRule", () => {
     expect(i3).toBeLessThan(i4);
   });
 
+  it("**固有名詞を無理に入れない**。いちばん大事なのは最も自然で頻繁に使う文（2026-09-28）", () => {
+    const r = worldExampleRule("日本語");
+    expect(r).toContain("最も頻繁に口にする一文");
+    expect(r).toContain("固有名詞を無理に入れない");
+    expect(r).toContain("自然に合う時だけ");
+    // 生きた話題は「必ず現実から作る」ではなくなった。
+    expect(r).not.toContain("例文は**現実から作る**");
+  });
+
   it("英語を学ぶ人には台湾の話題を押し付けない。季節は今の月", () => {
     const r = worldExampleRule("日本語", "en", new Date(2026, 8, 27));
     expect(r).not.toContain("台湾");
