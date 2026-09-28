@@ -49,6 +49,7 @@ import { AlbumShelfScene } from "./scenes/album-shelf";
 import { Shelf3DScene } from "./scenes/shelf-3d";
 import { StickerHoloScene } from "./scenes/sticker-holo";
 import { CinemaFxScene } from "./scenes/cinema-fx";
+import { PromoFilmScene } from "./scenes/promo-film";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { WidgetDesignsScene } from "./scenes/widget-designs";
@@ -189,6 +190,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "shelf-3d": Shelf3DScene,
   "sticker-holo": StickerHoloScene,
   "cinema-fx": CinemaFxScene,
+  "promo-film": PromoFilmScene,
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
   "widget-designs": WidgetDesignsScene,

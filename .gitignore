@@ -33,3 +33,4 @@ dist-ssr
 
 # 画面の検査ハーネスの組み立て結果
 .ui-harness/
+.promo-frames/
