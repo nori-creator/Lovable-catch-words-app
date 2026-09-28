@@ -99,6 +99,7 @@ import {
   MapPin,
   CalendarCheck,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 
@@ -2396,16 +2397,18 @@ export function LightModeCard({
                 <AnswerExplain card={card} />
 
                 <div className="mt-2 flex gap-2">
-                  {/* 外したときだけ、詳細へ（上に重ねて開く。閉じればここに戻る）。 */}
-                  {!correct && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailOpen(true)}
-                      className="min-h-11 flex-1 rounded-xl border border-border bg-card py-3 text-body font-semibold text-foreground active:scale-[0.98] motion-reduce:active:scale-100"
-                    >
-                      {t("review.openDetail")}
-                    </button>
-                  )}
+                  {/* **図鑑のその語へ**（オーナー指示 2026-09-28「復習の4択の正解、不正解の欄に
+                      図鑑の該当の単語に飛べるボタンをつける」）。前は外したときだけ出していた。
+                      当てたときも見返したい語はある。図鑑の詳細を上に重ねて開くので、閉じれば
+                      ここ（次へ）に戻る — 復習の流れは切らない。 */}
+                  <button
+                    type="button"
+                    onClick={() => setDetailOpen(true)}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3 text-body font-semibold text-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                  >
+                    <BookOpen className="h-4 w-4 text-primary" aria-hidden />
+                    {t("review.openInDex")}
+                  </button>
                   <button
                     // **`onClick={onNext}` と書かない。** クリックの event が
                     // 第1引数に渡り、`correct` として truthy に見えるので、

@@ -2439,7 +2439,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "review.tryAgain": { ja: "もう一度覚えよう", en: "Let's learn it again", "zh-TW": "再記一次吧" },
   "review.next": { ja: "次へ", en: "Next", "zh-TW": "下一題" },
-  "review.openDetail": { ja: "単語の詳細", en: "Word details", "zh-TW": "單字詳情" },
+  "review.openInDex": { ja: "図鑑で見る", en: "Open in Dex", "zh-TW": "在圖鑑查看" },
   "review.speakTag": { ja: "はなす", en: "Speak", "zh-TW": "開口說" },
   "review.roleplayTag": { ja: "ロールプレイ", en: "Role-play", "zh-TW": "角色扮演" },
   "review.hint": { ja: "ヒント", en: "Hint", "zh-TW": "提示" },

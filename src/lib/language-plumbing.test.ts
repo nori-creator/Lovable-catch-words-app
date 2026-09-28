@@ -6072,3 +6072,11 @@ describe("単語の詳細が開いた直後に別の文へ入れ替わらない�
     expect(sheet).toMatch(/extras: keepShownFields\(/);
   });
 });
+
+describe("復習4択の答え合わせに「図鑑で見る」（正解・不正解どちらも、2026-09-28）", () => {
+  const review = codeOnly(read("routes/_authenticated/review.tsx"));
+  it("当てたときも外したときも出す", () => {
+    expect(review).toMatch(/\{t\("review\.openInDex"\)\}/);
+    expect(review).not.toMatch(/\{!correct && \(\s*<button[\s\S]{0,200}setDetailOpen\(true\)/);
+  });
+});
