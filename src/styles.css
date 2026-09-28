@@ -9191,6 +9191,68 @@ html[data-motion="reduce"] .magic-wait::after {
   font-size: 13px;
   opacity: 0.75;
 }
+.story-ink__tools {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.story-ink__toolbtn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+.story-ink__toolbtn[aria-checked="true"] {
+  background: #fff;
+  color: #111;
+  transform: scale(1.06);
+}
+.story-ink__padrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.story-ink__padrow .story-ink__pad {
+  flex: 1;
+  min-width: 0;
+}
+/* 太さ: 縦のスライダー（Instagram のストーリーと同じ置き方）。 */
+.story-ink__size {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex: none;
+  align-self: stretch;
+}
+.story-ink__size input {
+  /* 中身の高さで行を押し広げないよう、枠に合わせて置く（行の高さは書く欄が決める）。 */
+  position: absolute;
+  inset: 0;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 32px;
+  height: 100%;
+  margin: 0;
+  accent-color: #fff;
+}
+.story-ink__size-dot {
+  position: absolute;
+  left: 38px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+}
 .story-ink__pad {
   width: 100%;
   aspect-ratio: 4 / 3;

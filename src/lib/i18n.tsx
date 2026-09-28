@@ -2714,6 +2714,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "ink.write": { ja: "手書き", en: "Draw", "zh-TW": "手寫" },
   "ink.expand": { ja: "広げる", en: "Extend", "zh-TW": "加長" },
   "ink.undo": { ja: "1つ戻す", en: "Undo", "zh-TW": "復原" },
+  "ink.tool": { ja: "書く道具", en: "Brush", "zh-TW": "畫筆" },
+  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "筆" },
+  "ink.marker": { ja: "マーカー", en: "Marker", "zh-TW": "螢光筆" },
+  "ink.neon": { ja: "ネオン", en: "Neon", "zh-TW": "霓虹" },
+  "ink.eraser": { ja: "消しゴム", en: "Eraser", "zh-TW": "橡皮擦" },
+  "ink.size": { ja: "太さ", en: "Size", "zh-TW": "粗細" },
   "ink.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
   "ink.trash": { ja: "ここに運ぶと消えます", en: "Drop here to delete", "zh-TW": "拖到這裡刪除" },
   "ink.padHint": {

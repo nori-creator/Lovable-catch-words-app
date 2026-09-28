@@ -1,14 +1,35 @@
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { Check, Expand, PenLine, Trash2, Type, Undo2 } from "lucide-react";
+import {
+  Check,
+  Eraser,
+  Expand,
+  Highlighter,
+  PenLine,
+  Sparkles,
+  Trash2,
+  Type,
+  Undo2,
+} from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { FONTS, isLight, smoothPath, type FontId } from "@/lib/story-ink-draw";
+import {
+  FONTS,
+  INK_MAX_WIDTH,
+  INK_MIN_WIDTH,
+  eraseAt,
+  isLight,
+  smoothPath,
+  strokeStyle,
+  type FontId,
+  type InkTool,
+} from "@/lib/story-ink-draw";
 
 /**
  * **アルバムに書き込む — ストーリー風**（オーナー指示 2026-09-27、Instagram の
@@ -52,11 +73,10 @@ type NewItem = StoryItem extends infer T
     ? Omit<T, "id" | "z">
     : never
   : never;
-type Stroke = { color: string; width: number; pts: Array<[number, number]> };
+type Stroke = { color: string; width: number; pts: Array<[number, number]>; tool?: InkTool };
 type BgMode = "none" | "solid" | "soft";
 
 const COLORS = ["#1c1c1e", "#ffffff", "#ff375f", "#ff9f0a", "#30d158", "#0a84ff", "#bf5af2"];
-const WIDTHS = [4, 8, 14];
 
 let uid = 0;
 const newId = () => `ink-${Date.now().toString(36)}-${++uid}`;
@@ -367,15 +387,7 @@ function ItemBody({ it }: { it: StoryItem }) {
     return (
       <svg viewBox={`${x} ${y} ${w} ${h}`} className="block w-full" style={{ overflow: "visible" }}>
         {it.strokes.map((s, i) => (
-          <path
-            key={i}
-            d={smoothPath(s.pts)}
-            fill="none"
-            stroke={s.color}
-            strokeWidth={s.width}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <InkPath key={i} s={s} />
         ))}
       </svg>
     );
@@ -399,7 +411,65 @@ function ItemBody({ it }: { it: StoryItem }) {
   );
 }
 
-/** 大きな書く欄。書いた線は、書いた範囲（外枠）ごと渡す。 */
+/** 1本の線を、道具ごとの見た目で描く（書く欄とアルバムの上で同じ見た目）。 */
+function InkPath({ s }: { s: Stroke }) {
+  const glowId = useId();
+  const st = strokeStyle(s.tool, s.color, s.width);
+  const d = smoothPath(s.pts.length === 1 ? [s.pts[0], s.pts[0]] : s.pts);
+  const core = (
+    <path
+      d={d}
+      fill="none"
+      stroke={st.stroke}
+      strokeWidth={st.strokeWidth}
+      strokeOpacity={st.strokeOpacity}
+      strokeLinecap={st.strokeLinecap}
+      strokeLinejoin="round"
+    />
+  );
+  if (!("glow" in st)) return core;
+  // ネオン: 色の太い線をぼかして光にし、その上に白い芯（SVG のぼかし。CSS の filter は
+  // SVG の線に効かないブラウザがある）。
+  const id = `ink-glow-${glowId.replace(/:/g, "")}`;
+  return (
+    <g>
+      <defs>
+        <filter id={id} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={s.width * 0.45} />
+        </filter>
+      </defs>
+      <path
+        d={d}
+        fill="none"
+        stroke={st.glow}
+        strokeWidth={s.width * 1.6}
+        strokeOpacity={0.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        filter={`url(#${id})`}
+      />
+      <path
+        d={d}
+        fill="none"
+        stroke={st.glow}
+        strokeWidth={s.width}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {core}
+    </g>
+  );
+}
+
+/**
+ * 大きな書く欄。書いた線は、書いた範囲（外枠）ごと渡す。
+ *
+ * Instagram のストーリーのお絵かきを参考に（オーナー指示 2026-09-28 R11「アルバムの落書き
+ * 機能をIG等を参考に使いやすく」）:
+ *  - 道具は **ペン / マーカー（半透明・重ねると濃い）/ ネオン（光る）/ 消しゴム**
+ *  - 太さは左の**縦のスライダー**で自由に（3段の丸ではなく）。指で上下するだけ
+ *  - 途中で指が画面の端などに取られても、書いた線を捨てない（pointercancel でも残す）
+ */
 function SketchPad({
   onCancel,
   onDone,
@@ -410,7 +480,8 @@ function SketchPad({
   const t = useT();
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [color, setColor] = useState(COLORS[0]);
-  const [width, setWidth] = useState(WIDTHS[1]);
+  const [width, setWidth] = useState(14);
+  const [tool, setTool] = useState<InkTool | "eraser">("pen");
   const cur = useRef<Stroke | null>(null);
   const [, force] = useState(0);
   const area = useRef<SVGSVGElement>(null);
@@ -421,16 +492,29 @@ function SketchPad({
       Math.round(((e.clientY - r.top) / r.width) * 1000),
     ];
   };
+  const finish = () => {
+    const s = cur.current;
+    cur.current = null;
+    if (s && s.pts.length > 0) setStrokes((all) => [...all, s]);
+    force((n) => n + 1);
+  };
   const done = () => {
     const all = strokes.flatMap((s) => s.pts);
     if (all.length === 0) return onDone([], [0, 0, 1, 1]);
-    const pad = Math.max(...strokes.map((s) => s.width)) + 6;
+    const pad =
+      Math.max(...strokes.map((s) => strokeStyle(s.tool, s.color, s.width).strokeWidth)) + 12;
     const xs = all.map((p) => p[0]);
     const ys = all.map((p) => p[1]);
     const x0 = Math.min(...xs) - pad;
     const y0 = Math.min(...ys) - pad;
     onDone(strokes, [x0, y0, Math.max(...xs) + pad - x0, Math.max(...ys) + pad - y0]);
   };
+  const TOOLS: Array<{ key: InkTool | "eraser"; icon: typeof PenLine; label: string }> = [
+    { key: "pen", icon: PenLine, label: t("ink.pen") },
+    { key: "marker", icon: Highlighter, label: t("ink.marker") },
+    { key: "neon", icon: Sparkles, label: t("ink.neon") },
+    { key: "eraser", icon: Eraser, label: t("ink.eraser") },
+  ];
   return (
     <div className="story-ink__overlay" role="dialog" aria-modal>
       <div className="story-ink__overlay-bar">
@@ -450,60 +534,86 @@ function SketchPad({
           {t("ink.done")}
         </button>
       </div>
-      <p className="story-ink__hint">{t("ink.padHint")}</p>
-      <svg
-        ref={area}
-        viewBox="0 0 1000 750"
-        className="story-ink__pad"
-        onPointerDown={(e) => {
-          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-          cur.current = { color, width: width * 2.2, pts: [pt(e)] };
-          force((n) => n + 1);
-        }}
-        onPointerMove={(e) => {
-          if (!cur.current) return;
-          cur.current.pts.push(pt(e));
-          force((n) => n + 1);
-        }}
-        onPointerUp={() => {
-          const s = cur.current;
-          cur.current = null;
-          if (s && s.pts.length > 0) setStrokes((all) => [...all, s]);
-        }}
-      >
-        {[...strokes, ...(cur.current ? [cur.current] : [])].map((s, i) => (
-          <path
-            key={i}
-            d={smoothPath(s.pts.length === 1 ? [s.pts[0], s.pts[0]] : s.pts)}
-            fill="none"
-            stroke={s.color}
-            strokeWidth={s.width}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
-      </svg>
-      <div className="story-ink__swatches">
-        {WIDTHS.map((w) => (
+      <div className="story-ink__tools" role="radiogroup" aria-label={t("ink.tool")}>
+        {TOOLS.map(({ key, icon: Icon, label }) => (
           <button
-            key={w}
+            key={key}
             type="button"
-            aria-pressed={width === w}
-            aria-label={`${w}px`}
-            onClick={() => setWidth(w)}
-            className="story-ink__width"
+            role="radio"
+            aria-checked={tool === key}
+            aria-label={label}
+            onClick={() => setTool(key)}
+            className="story-ink__toolbtn"
           >
-            <span style={{ width: w + 4, height: w + 4, background: color }} />
+            <Icon className="h-5 w-5" />
           </button>
         ))}
-        <span className="story-ink__sep" />
+      </div>
+      <div className="story-ink__padrow">
+        {/* 太さ: 縦のスライダー（上ほど太い）。いまの太さの丸を横に出す。 */}
+        <label className="story-ink__size">
+          <span className="sr-only">{t("ink.size")}</span>
+          <input
+            type="range"
+            min={INK_MIN_WIDTH}
+            max={INK_MAX_WIDTH}
+            value={width}
+            onChange={(e) => setWidth(Number(e.target.value))}
+            aria-label={t("ink.size")}
+          />
+          <span
+            aria-hidden
+            className="story-ink__size-dot"
+            style={{
+              width: Math.max(6, width * 0.6),
+              height: Math.max(6, width * 0.6),
+              background: tool === "eraser" ? "transparent" : color,
+              border: tool === "eraser" ? "2px solid #fff" : undefined,
+            }}
+          />
+        </label>
+        <svg
+          ref={area}
+          viewBox="0 0 1000 750"
+          className="story-ink__pad"
+          onPointerDown={(e) => {
+            if (cur.current) return; // 2本目の指（手のひら）は無視する
+            (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+            if (tool === "eraser") {
+              setStrokes((all) => eraseAt(all, pt(e), width));
+              return;
+            }
+            cur.current = { color, width, tool, pts: [pt(e)] };
+            force((n) => n + 1);
+          }}
+          onPointerMove={(e) => {
+            if (tool === "eraser") {
+              if (e.buttons) setStrokes((all) => eraseAt(all, pt(e), width));
+              return;
+            }
+            if (!cur.current) return;
+            cur.current.pts.push(pt(e));
+            force((n) => n + 1);
+          }}
+          onPointerUp={finish}
+          onPointerCancel={finish}
+        >
+          {[...strokes, ...(cur.current ? [cur.current] : [])].map((s, i) => (
+            <InkPath key={i} s={s} />
+          ))}
+        </svg>
+      </div>
+      <div className="story-ink__swatches">
         {COLORS.map((c) => (
           <button
             key={c}
             type="button"
             aria-pressed={color === c}
             aria-label={c}
-            onClick={() => setColor(c)}
+            onClick={() => {
+              setColor(c);
+              if (tool === "eraser") setTool("pen");
+            }}
             className="story-ink__swatch"
             style={{ background: c }}
           />
