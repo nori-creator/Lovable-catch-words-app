@@ -1,3 +1,4 @@
+import { wasFlown } from "@/lib/catch-flight";
 import { useMemo } from "react";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -238,7 +239,8 @@ export function DexShelf({
                                 key={s.id}
                                 sticker={s}
                                 onOpen={onOpen}
-                                landing={s.id === justCaught}
+                                // 飛んで着いた札は棚の側で落とし直さない（`catch-flight.ts`）。
+                                landing={s.id === justCaught && !wasFlown(s.id)}
                               />
                             ))}
                           </div>

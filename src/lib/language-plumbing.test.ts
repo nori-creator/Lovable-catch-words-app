@@ -6080,3 +6080,14 @@ describe("復習4択の答え合わせに「図鑑で見る」（正解・不正
     expect(review).not.toMatch(/\{!correct && \(\s*<button[\s\S]{0,200}setDetailOpen\(true\)/);
   });
 });
+
+describe("図鑑に追加する動きは一連（着地＝追加、本物の札がつぶれて戻る。2026-09-28）", () => {
+  const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+  it("着いた瞬間に本物の札を見せ、その札が跳ねる。図鑑の側では落とし直さない", () => {
+    expect(reward).toMatch(/if \(targetId\) markFlown\(targetId\)/);
+    expect(reward).toMatch(/target\.style\.visibility = "";\s*hiddenCell = null;/);
+    expect(reward).toMatch(/await target\.animate\(/);
+    expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
+    expect(codeOnly(read("components/DexShelf.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
+  });
+});

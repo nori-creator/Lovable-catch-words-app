@@ -54,6 +54,7 @@ import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { CategorySheet } from "@/components/CategorySheet";
+import { wasFlown } from "@/lib/catch-flight";
 import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
 import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
 import { useCategories } from "@/lib/use-categories";
@@ -172,7 +173,8 @@ function DexPage() {
     if (!captured.some((item) => item.id === justCaught)) return;
     if (landingStartedRef.current === justCaught) return;
     landingStartedRef.current = justCaught;
-    if (document.documentElement.dataset.rewardFlight) {
+    // 飛んで着いた札は、着地の音と振動も飛行の側が鳴らした（二度鳴らさない）。
+    if (document.documentElement.dataset.rewardFlight || wasFlown(justCaught)) {
       const t = setTimeout(() => {
         void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
       }, 6000);
@@ -783,7 +785,8 @@ export function DexAlbumGrid({
         const hasImage = Boolean(photo || s.cutout_url || s.placeholder_url);
         const sharedFlightActive =
           typeof document !== "undefined" && Boolean(document.documentElement.dataset.rewardFlight);
-        const slam = s.id === justCaught && !sharedFlightActive;
+        // 飛んで着いた札は、図鑑の側で落とし直さない（`catch-flight.ts`）。
+        const slam = s.id === justCaught && !sharedFlightActive && !wasFlown(s.id);
         return (
           <button
             key={s.id}
