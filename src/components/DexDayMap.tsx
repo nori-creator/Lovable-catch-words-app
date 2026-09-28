@@ -427,6 +427,20 @@ export function DexDayMap({
 
 export type MapStop = Stop<Item>;
 const DexCityMap3D = lazy(() => import("./DexCityMap3D"));
+const GoogleCityMap3D = lazy(() => import("./GoogleCityMap3D"));
+const RasterDayMap = lazy(() => import("./RasterDayMap"));
+
+function supportsWebGL2() {
+  try {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2");
+    const available = !!context;
+    context?.getExtension("WEBGL_lose_context")?.loseContext();
+    return available;
+  } catch {
+    return false;
+  }
+}
 
 function DayMapCanvas({
   stops,
@@ -444,8 +458,34 @@ function DayMapCanvas({
   bottomInset: number;
 }) {
   const [cityFailed, setCityFailed] = useState(false);
-  const g = useGoogleMaps(!forceFallback && cityFailed);
-  if (!forceFallback && !cityFailed)
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [webgl] = useState(supportsWebGL2);
+  const g = useGoogleMaps(!forceFallback);
+  const key =
+    import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ??
+    import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+  const renderPin = (s: MapStop) => (
+    <StopPin
+      stop={s}
+      active={s.id === activeId}
+      faceItemId={s.id === activeId ? faceItemId : null}
+      onPin={onPin}
+    />
+  );
+  if (!forceFallback && key && g && webgl && !photoFailed)
+    return (
+      <Suspense fallback={<div className="dex-city-map__loading h-full w-full" />}>
+        <GoogleCityMap3D
+          g={g}
+          stops={stops}
+          activeId={activeId}
+          bottomInset={bottomInset}
+          renderPin={renderPin}
+          onUnavailable={() => setPhotoFailed(true)}
+        />
+      </Suspense>
+    );
+  if (!forceFallback && !key && webgl && !cityFailed)
     return (
       <Suspense fallback={<div className="dex-city-map__loading h-full w-full" />}>
         <DexCityMap3D
@@ -453,14 +493,7 @@ function DayMapCanvas({
           activeId={activeId}
           bottomInset={bottomInset}
           onUnavailable={() => setCityFailed(true)}
-          renderPin={(s) => (
-            <StopPin
-              stop={s}
-              active={s.id === activeId}
-              faceItemId={s.id === activeId ? faceItemId : null}
-              onPin={onPin}
-            />
-          )}
+          renderPin={renderPin}
         />
       </Suspense>
     );
@@ -474,6 +507,17 @@ function DayMapCanvas({
         onPin={onPin}
         bottomInset={bottomInset}
       />
+    );
+  if (!forceFallback && (!key || !g))
+    return (
+      <Suspense fallback={<div className="dex-city-map__loading h-full w-full" />}>
+        <RasterDayMap
+          stops={stops}
+          activeId={activeId}
+          renderPin={renderPin}
+          bottomInset={bottomInset}
+        />
+      </Suspense>
     );
   return <FallbackDayMap stops={stops} activeId={activeId} faceItemId={faceItemId} onPin={onPin} />;
 }
@@ -680,7 +724,8 @@ function GoogleDayMap({
       disableDefaultUI: true,
       clickableIcons: false,
       gestureHandling: "greedy",
-      // 配色は Google の既定（上の注記）。`styles` を渡さない。
+      mapTypeId: "hybrid",
+      renderingType: g.RenderingType?.RASTER ?? "RASTER",
     });
     // ピンは地図の上に**ふつうの HTML** として置く（写真の丸・浮き上がりを CSS で描く）。
     class PinLayer extends g.OverlayView {
