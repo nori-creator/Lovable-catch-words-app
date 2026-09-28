@@ -15,10 +15,15 @@ import type { ChunkPart } from "@/lib/extras";
  * 札は**浮いている(NORI指定)** — 薄い地・同色の縁・下に落ちる影。
  * 押すと沈んで跳ね返る(`.chunk-pill`)。触れる物だと分かる手応えを返す。
  *
- * **形は公式（オーナー決定 2026-09-27「F にして」）。** 決まった語は色付きの
- * ガラスの丸、入れ替えて使う所（`slot`）は点線の枠、間に「＋」を置く
- * （例: 跟 ＋ [男朋友] ＋ 吵架）。入れ替える所にも「人」ではなく、ネイティブが
- * いちばんよく入れる具体語が入る（同日の指示）。
+ * **形は公式（オーナー決定 2026-09-27「F にして」）。** 入れ替えて使う所（`slot`）
+ * にも「人」ではなく、ネイティブがいちばんよく入れる具体語が入る（同日の指示）。
+ *
+ * **1本のカプセルに語を継ぐ**（オーナー指示 2026-09-28「チャンクの単語と単語の
+ * 一体感がなく、それぞれの単語が独立してるように見える」）。原因は、語ごとに
+ * 縁と影を持つ丸を、隙間と「＋」で離して並べていたこと — 人の目は**隙間
+ * （近接）と囲い（共通領域）**で「どれが1つか」を決めるので、丸が5つ＝物が5つに
+ * 見えていた。いまは外枠と影を**型に1つだけ**持たせ、語は中で品詞の色に塗り分け、
+ * 継ぎ目は細い線（`.chunk-joint`）。入れ替える所は点線の下線と ▾ で分かる。
  */
 export function ChunkPills({
   parts,
@@ -63,13 +68,8 @@ export function ChunkPills({
           : "px-2.5 py-1.5 text-body";
   const pill = appearance === "pill";
   return (
-    // 影が落ちるぶん、札どうしの間合いを少し広げる。詰めると影が隣に重なって
-    // 濁り、浮いているのではなく汚れているように見える。
-    <div
-      className={`flex flex-wrap ${
-        pill ? "chunk-set chunk-set--formula items-center" : "gap-x-1.5 gap-y-1"
-      }`}
-    >
+    // 札の型は**1本のカプセル**（外枠と影は型に1つ）。本文の型は字だけで並べる。
+    <div className={pill ? "chunk-set chunk-set--formula" : "flex flex-wrap gap-x-1.5 gap-y-1"}>
       {parts.map((c, i) => {
         const st = chunkStyle(c.pos);
         // チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は解説語なので、
@@ -95,14 +95,9 @@ export function ChunkPills({
           ? `chunk-word font-semibold ${pad} ${posClass}`
           : c.slot
             ? `chunk-slot font-semibold ${pad} ${posClass}`
-            : `chunk-bubble rounded-full font-semibold ${pad} ${st.pill}`;
+            : `chunk-bubble font-semibold ${pad} ${st.pill}`;
         const style = { "--i": i } as CSSProperties;
-        const joint =
-          pill && i > 0 ? (
-            <span aria-hidden className="chunk-plus">
-              ＋
-            </span>
-          ) : null;
+        const joint = pill && i > 0 ? <span aria-hidden className="chunk-joint" /> : null;
         if (!onSpeak) {
           return (
             <Fragment key={i}>
