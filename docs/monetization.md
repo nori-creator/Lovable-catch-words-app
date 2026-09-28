@@ -130,6 +130,11 @@ Checkout（チェックアウト）= Stripe が用意する支払いの画面。
 2. Stripe の管理画面（テスト用）→ 開発者 → API キー で **秘密鍵**（`sk_test_…`）を表示する。
    **チャットには貼らない。** Lovable → Cloud → Secrets に `STRIPE_SECRET_KEY` として入れる。
 3. 値段の番号（`price_…`）を `STRIPE_PRICE_MONTHLY` と `STRIPE_PRICE_YEARLY` に入れる。
+   テスト用に作成済み（2026-09-28、**仮の値段**。本番の値段は決まってから作り直す）:
+   - 商品「CatchWords Pro」: `prod_VLEc6kjSGnRaVA`
+   - 月ごと ¥980: `price_1UKY9JRszMlm94QVvug234a7`（→ `STRIPE_PRICE_MONTHLY`）
+   - 年ごと ¥7,800: `price_1UKY9PRszMlm94QVAFM9rvrs`（→ `STRIPE_PRICE_YEARLY`）
+   値段の番号は秘密ではない（知られても支払いはできない）ので、ここに書いておく。
 4. Stripe → 開発者 → Webhook →「エンドポイントを追加」: 住所は
    `https://<アプリの住所>/api/stripe-webhook`、知らせは `checkout.session.completed` と
    `customer.subscription.created` / `updated` / `deleted`。表示された署名の鍵（`whsec_…`）を
