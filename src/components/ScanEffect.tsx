@@ -16,13 +16,15 @@ import {
   ScanAnalyzing_v11lens,
   ScanAnalyzing_v12steps,
 } from "./effects/scan-analyzing/v9_proposals";
+import { ScanAnalyzing_v13depth } from "./effects/scan-analyzing/v13_depth";
 
 /**
  * スキャン中(AI分析中)の演出。
  *
  * 中身は歴代の演出をそのまま variant として残してあり、開発者は設定の
  * 「エフェクト・ラボ」で見比べて選べる(src/lib/effect-lab.ts)。
- * 既定はカメラ期(v0cutout)。新しい版も残してあるのでラボで戻せる。
+ * 既定は 3D で測る版(v13depth、2026-09-28)。WebGL が無い端末・動きを減らす設定では
+ * カメラ期(v0cutout)に落ちる。古い版も残してあるのでラボで戻せる。
  */
 type Stage = "sensing" | "reading" | "matching";
 
@@ -42,6 +44,7 @@ const VARIANTS: Record<string, (p: { stage: Stage; cutout?: boolean }) => ReactE
   v10glyphs: ScanAnalyzing_v10glyphs,
   v11lens: ScanAnalyzing_v11lens,
   v12steps: ScanAnalyzing_v12steps,
+  v13depth: ScanAnalyzing_v13depth,
 };
 
 /** ラボでの選択に追従する(選んだ瞬間に反映される)。 */

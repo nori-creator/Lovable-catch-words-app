@@ -84,6 +84,7 @@ declare module "three" {
   export const DataTexture: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const SRGBColorSpace: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const ACESFilmicToneMapping: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const NeutralToneMapping: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const AgXToneMapping: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const PCFSoftShadowMap: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const VSMShadowMap: any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -105,6 +106,10 @@ declare module "three" {
   export type Sphere = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const Sphere: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const Float32BufferAttribute: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type TorusGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const TorusGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Fog = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Fog: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
   export const GLTFLoader: any; // eslint-disable-line @typescript-eslint/no-explicit-any

@@ -110,6 +110,13 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
       date: "09-27",
       note: "見る → 読む → 選ぶ の段が順に進む。いま何をしているかが言葉で分かる",
     },
+    // 2026-09-28「three.js など最新の3Dモデルを使用し、リアルで現実的なアニメーション」。
+    {
+      id: "v13depth",
+      label: "F 立体で測る(3D)",
+      date: "09-28",
+      note: "写真の上の点が光の帯で手前に浮き、ガラスのレンズが漂う(three.js)",
+    },
   ],
   catchLanding: [
     {
@@ -160,7 +167,9 @@ export const EFFECT_VARIANTS: Record<EffectSlot, VariantMeta[]> = {
  * 新しい版も古い版もラボに残してあるので、いつでも戻せる。
  */
 export const DEFAULT_VARIANT: Record<EffectSlot, string> = {
-  scanAnalyzing: "v0cutout",
+  // 2026-09-28 オーナー指示「AIの分析中のアニメーション…3Dモデルを使用し、リアルで
+  // 現実的なアニメーションを実装して」で 3D の版に。WebGL が無い端末では v0cutout に落ちる。
+  scanAnalyzing: "v13depth",
   // **既定は main の選択(v5reward)をそのまま残す。**
   // 同じ日に2つの版が別々に作られた。マージは合流であって選び直しではないので、
   // ここで黙って裏返さない。見比べは演出ラボから(両方とも残してある)。

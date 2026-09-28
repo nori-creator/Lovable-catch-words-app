@@ -64,11 +64,34 @@ export function MemorialReveal({
   // **段階が変わっても止めない**（紙吹雪と数え上げは弾けた1回だけ走り切る。
   // 段階ごとに片付けると、次の段階に移った瞬間に紙が空中で固まる）。
   const burst = phase !== "count";
+  // 3D の紙吹雪（`components/three/confetti3d.ts`）は開いた時に読み始め、弾ける時には
+  // 手元に在るようにする。WebGL の無い端末では今まで通りの 2D の紙吹雪。
+  const confetti3d = useRef<Promise<typeof import("@/components/three/confetti3d")> | null>(null);
+  useEffect(() => {
+    if (!reduce) confetti3d.current = import("@/components/three/confetti3d");
+  }, [reduce]);
   useEffect(() => {
     if (!burst || reduce) return;
     haptic("success");
     playCelebrate();
-    const stop = confetti.current ? runConfetti(confetti.current) : () => {};
+    const canvas = confetti.current;
+    let stop: () => void = () => {};
+    let gone = false;
+    if (canvas) {
+      const flat = () => {
+        if (!gone) stop = runConfetti(canvas);
+      };
+      if (confetti3d.current) {
+        void confetti3d.current
+          .then(({ runConfetti3d }) => {
+            if (gone) return;
+            const s = runConfetti3d(canvas, { from: "corners", count: 220 });
+            if (s) stop = s;
+            else flat();
+          })
+          .catch(flat);
+      } else flat();
+    }
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
@@ -78,6 +101,7 @@ export function MemorialReveal({
     };
     raf = requestAnimationFrame(tick);
     return () => {
+      gone = true;
       cancelAnimationFrame(raf);
       stop();
     };

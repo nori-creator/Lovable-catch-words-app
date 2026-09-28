@@ -49,6 +49,7 @@ import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { PageFlipScene } from "./scenes/page-flip";
 import { AlbumShelfScene } from "./scenes/album-shelf";
 import { Shelf3DScene } from "./scenes/shelf-3d";
+import { ThreeFxScene } from "./scenes/three-fx";
 import { StickerHoloScene } from "./scenes/sticker-holo";
 import { CinemaFxScene } from "./scenes/cinema-fx";
 import { PromoFilmScene } from "./scenes/promo-film";
@@ -192,6 +193,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "page-flip": PageFlipScene,
   "album-shelf": AlbumShelfScene,
   "shelf-3d": Shelf3DScene,
+  "three-fx": ThreeFxScene,
   "sticker-holo": StickerHoloScene,
   "cinema-fx": CinemaFxScene,
   "promo-film": PromoFilmScene,
