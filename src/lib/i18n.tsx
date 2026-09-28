@@ -2348,6 +2348,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Some settings couldn't be saved ({fields}). The table may not be ready yet.",
     "zh-TW": "有一部分沒有存到（{fields}）。資料表可能還沒準備好。",
   },
+  // アルバムから外す・戻す（2026-09-28。図鑑からは消えない）
+  "album.hide": {
+    ja: "「{word}」をアルバムから外す",
+    en: 'Remove "{word}" from the album',
+    "zh-TW": "把「{word}」從相簿移除",
+  },
+  "album.hidden": {
+    ja: "「{word}」をアルバムから外しました（図鑑には残っています）",
+    en: '"{word}" removed from the album (still in your Dex)',
+    "zh-TW": "已把「{word}」從相簿移除（圖鑑裡還在）",
+  },
+  "album.undo": { ja: "元に戻す", en: "Undo", "zh-TW": "復原" },
+  "album.hiddenCount": {
+    ja: "外した写真（{n}）",
+    en: "Removed photos ({n})",
+    "zh-TW": "已移除的照片（{n}）",
+  },
+  "album.restore": {
+    ja: "「{word}」をアルバムに戻す",
+    en: 'Put "{word}" back in the album',
+    "zh-TW": "把「{word}」放回相簿",
+  },
+  "album.restoreShort": { ja: "戻す", en: "Restore", "zh-TW": "放回" },
   "album.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
   "review.cappedTitle": {
     ja: "今日の分は終わりです",

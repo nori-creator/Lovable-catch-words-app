@@ -6047,3 +6047,17 @@ describe("図鑑のカテゴリーに単語を入れる・外す（2026-09-28）
     expect(fns).toMatch(/\.eq\("user_id", userId\)\s*\.in\("id", ids\)/);
   });
 });
+
+describe("ホームのアルバムの赤いバツ＝アルバムからだけ外す（2026-09-28）", () => {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const fns = codeOnly(read("lib/album-hidden.functions.ts"));
+  it("並べ替え中に赤いバツ。外した物は貼らず、下の「外した写真」から戻せる。図鑑の札は消さない", () => {
+    expect(home).toMatch(/className="album-remove"/);
+    expect(home).toMatch(/allStickers\.filter\(\(s\) => !albumHidden\.hidden\.has\(s\.id\)\)/);
+    expect(home).toMatch(/className="album-hidden-tray"/);
+    expect(home).toMatch(/onClick=\{\(\) => restoreToAlbum\(s\.id\)\}/);
+    // 札は消さない: 印を書き換えるだけ（delete しない）。
+    expect(fns).toMatch(/\.update\(\{ album_hidden: data\.hidden \}\)/);
+    expect(fns).not.toMatch(/\.delete\(\)/);
+  });
+});
