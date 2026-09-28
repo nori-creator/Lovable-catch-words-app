@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { Check, Expand, PenLine, Trash2, Type, Undo2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
@@ -77,14 +78,27 @@ const newId = () => `ink-${Date.now().toString(36)}-${++uid}`;
 export function StoryInk({
   initial,
   onChange,
+  aspect,
+  paperClass = "album-bg-paper",
+  background,
 }: {
   initial: StoryItem[];
   onChange?: (items: StoryItem[]) => void;
+  /**
+   * 紙の縦（幅に対する割合）を固定する。**本の表紙**に書くときに使う
+   * （表紙は伸ばせないので「ページを広げる」を出さない）。
+   */
+  aspect?: number;
+  /** 紙の地の class（表紙なら布や革の地に替える）。 */
+  paperClass?: string;
+  /** 書いた物の下に敷く絵（表紙の題字など）。指は通さない。 */
+  background?: ReactNode;
 }) {
   const t = useT();
   const board = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<StoryItem[]>(initial);
-  const [height, setHeight] = useState(1.35); // 紙の縦（幅に対する割合）
+  const [grown, setHeight] = useState(1.35); // 紙の縦（幅に対する割合）
+  const height = aspect ?? grown;
   const [pad, setPad] = useState(false);
   const [textEdit, setTextEdit] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -232,14 +246,16 @@ export function StoryInk({
           <Type className="h-5 w-5" />
           <span>Aa</span>
         </button>
-        <button
-          type="button"
-          onClick={() => setHeight((h) => Math.min(4, h + 0.5))}
-          className="story-ink__tool"
-        >
-          <Expand className="h-5 w-5" />
-          <span>{t("ink.expand")}</span>
-        </button>
+        {aspect === undefined && (
+          <button
+            type="button"
+            onClick={() => setHeight((h) => Math.min(4, h + 0.5))}
+            className="story-ink__tool"
+          >
+            <Expand className="h-5 w-5" />
+            <span>{t("ink.expand")}</span>
+          </button>
+        )}
         <button
           type="button"
           aria-label={t("ink.undo")}
@@ -256,13 +272,14 @@ export function StoryInk({
 
       <div
         ref={board}
-        className="story-ink__board album-bg-paper"
+        className={`story-ink__board ${paperClass}`}
         style={{ aspectRatio: `1 / ${height}` }}
         onPointerDown={onBoardDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
       >
+        {background && <div className="story-ink__under">{background}</div>}
         {[...items]
           .sort((a, b) => a.z - b.z)
           .map((it) => (
@@ -317,6 +334,35 @@ export function StoryInk({
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * **書いた物を見るだけの面。**（表紙・本棚の背など、触らない所に描く）
+ * 位置は `StoryInk` と同じく紙の幅に対する割合なので、どの大きさに
+ * 縮めても同じ絵になる（`cqw` = この箱の幅の 1%）。
+ */
+export function StoryInkView({ items }: { items: StoryItem[] }) {
+  return (
+    <div className="story-ink__view" aria-hidden="true">
+      {[...items]
+        .sort((a, b) => a.z - b.z)
+        .map((it) => (
+          <div
+            key={it.id}
+            className="story-ink__view-item"
+            style={{
+              left: `${it.x * 100}%`,
+              top: `${it.y * 100}cqw`,
+              width: `${it.w * 100}%`,
+              transform: `translate(-50%, -50%) rotate(${it.rot}deg)`,
+              zIndex: it.z,
+            }}
+          >
+            <ItemBody it={it} />
+          </div>
+        ))}
     </div>
   );
 }

@@ -8944,10 +8944,30 @@ html[data-motion="reduce"] .magic-wait::after {
   position: relative;
   width: 100%;
   overflow: hidden;
+  /* 字の大きさを紙の幅に対する割合で決める（`cqw`）。表紙を本棚の背や
+     ページの大きさに縮めても、書いたときと同じ釣り合いで見える。 */
+  container-type: inline-size;
   border-radius: 18px;
   touch-action: none;
   transition: aspect-ratio 0.35s var(--spring-smooth, ease);
   box-shadow: 0 16px 30px -20px rgb(0 0 0 / 0.5);
+}
+/* 書いた物の下に敷く絵（表紙の題字など）。 */
+.story-ink__under {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* 見るだけの面（表紙・背）。字の大きさも紙の幅に合わせて縮む。 */
+.story-ink__view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: inline-size;
+}
+.story-ink__view-item {
+  position: absolute;
 }
 .story-ink__item {
   position: absolute;
@@ -8981,7 +9001,7 @@ html[data-motion="reduce"] .magic-wait::after {
 .story-ink__photo figcaption {
   text-align: center;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 5cqw;
   margin-top: 2px;
 }
 .story-ink__text {
@@ -8989,7 +9009,8 @@ html[data-motion="reduce"] .magic-wait::after {
   max-width: 100%;
   padding: 0.18em 0.45em;
   border-radius: 0.35em;
-  font-size: 24px;
+  /* 紙の幅 358px で 24px（前の固定値）と同じ大きさ。 */
+  font-size: 6.7cqw;
   line-height: 1.25;
   white-space: pre-wrap;
   word-break: break-word;
