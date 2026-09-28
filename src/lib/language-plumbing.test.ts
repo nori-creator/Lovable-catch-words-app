@@ -5630,8 +5630,15 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
   });
 
   it("設定の機能ごとの欄は一覧から選ぶ。スキャンは画像を読めるモデルだけ", () => {
-    expect(settings).toMatch(/<ModelPicker/);
-    expect(settings).toMatch(/visionOnly=\{id === "scan"\}/);
+    // 2026-09-28「複雑すぎる。直感的に」: OpenRouter の数百の一覧から、**鍵のある会社 →
+    // その会社に聞いたモデルの一覧**の2段に変えた。手で名前を打たない・スキャンは画像を
+    // 読めるモデルだけ、の2つの約束はそのまま。
+    expect(settings).toMatch(/listProviderModels/);
+    expect(settings).toMatch(/id !== "scan" \|\| supportsVision\(c, m\)/);
+    const fn = admin.slice(admin.indexOf("export const listProviderModels"));
+    expect(fn).toMatch(/if \(!isAdmin\) throw new Error\("管理者のみ"\)/);
+    // 鍵の値は返さない（入っているかどうかだけ）。
+    expect(fn).not.toMatch(/key: key\.value|value: key/);
   });
 });
 

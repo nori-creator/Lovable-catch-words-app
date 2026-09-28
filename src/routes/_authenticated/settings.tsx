@@ -67,8 +67,8 @@ import {
   setPlaceReminderEnabled,
   requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
-import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
-import { ModelPicker } from "@/components/ModelPicker";
+import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
+import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
 import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
 import { billingSurface } from "@/lib/stripe-billing";
@@ -2028,10 +2028,10 @@ function AiModelPanel() {
   const [premium, setPremium] = useState("");
   const [features, setFeatures] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const orFn = useServerFn(listOpenRouterModels);
-  const { data: orData } = useQuery({
-    queryKey: ["openrouter-models"],
-    queryFn: () => orFn(),
+  const pmFn = useServerFn(listProviderModels);
+  const { data: companies } = useQuery({
+    queryKey: ["provider-models"],
+    queryFn: () => pmFn(),
     staleTime: 60 * 60_000,
   });
 
@@ -2088,47 +2088,83 @@ function AiModelPanel() {
 
       {/* ② 機能ごと。何に使うかを1行添え、空なら既定のまま。 */}
       <div className="mt-3 space-y-3">
-        {orData && !orData.keyFound && (
-          <p className="text-caption text-muted-foreground">{t("set.orNoKey")}</p>
-        )}
-        {orData?.error && (
-          <p className="text-caption text-destructive-ink">
-            {t("set.orLoadFailed", { e: orData.error })}
-          </p>
-        )}
-        {FEATURE_ORDER.filter((id) => (data?.features ?? []).some((f) => f.id === id)).map((id) => (
-          <div key={id} className="rounded-xl border border-border p-2.5">
-            <div>
-              <ModelPicker
-                label={t(`settings.aiFeature.${id}`)}
-                value={features[id] ?? ""}
-                onChange={(v) => setFeatures((prev) => ({ ...prev, [id]: v }))}
-                models={orData?.models ?? []}
-                // スキャンは写真を読む。画像を読めないモデルを選ぶと、スキャンが丸ごと止まる。
-                visionOnly={id === "scan"}
-                unavailable={!orData || orData.models.length === 0}
-              />
+        {/* ② 機能ごと: ①会社 → ②モデル の2つを選ぶだけ（2026-09-28「複雑すぎる。直感的に」）。
+            会社は Secrets に鍵が入っている所だけ選べる。モデルはその会社に「いま使える物」を
+            聞いた一覧（手で名前を打たない — 綴り違い・古い名前で機能が止まるのを防ぐ）。 */}
+        <p className="rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
+          {t("set.aiHowTo")}
+        </p>
+        {FEATURE_ORDER.filter((id) => (data?.features ?? []).some((f) => f.id === id)).map((id) => {
+          const cur = splitSpec(features[id]);
+          const company = (companies ?? []).find((c) => c.id === cur.provider);
+          const want = recommendedKind(id);
+          // スキャンは写真を読む。**画像を読めるモデルだけ**を並べる（2026-09-22 の約束）。
+          const usable = (c: string, m: string) => id !== "scan" || supportsVision(c, m);
+          const models = [...(company?.models ?? [])]
+            .filter((m) => usable(cur.provider, m.id))
+            .sort((a, b) => Number(b.kind === want) - Number(a.kind === want));
+          const setSpec = (provider: string, model: string) =>
+            setFeatures((prev) => {
+              const next = { ...prev };
+              if (!provider) delete next[id];
+              else next[id] = `${provider}:${model}`;
+              return next;
+            });
+          return (
+            <div key={id} className="rounded-xl border border-border p-2.5">
+              <p className="text-footnote font-semibold">{t(`settings.aiFeature.${id}`)}</p>
+              <p className="mt-0.5 text-caption leading-snug text-muted-foreground">
+                {t(`settings.aiFeatureDesc.${id}`)}
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <select
+                  aria-label={t("set.aiCompany")}
+                  value={cur.provider}
+                  onChange={(e) => {
+                    const p = e.target.value;
+                    const list = (companies ?? [])
+                      .find((c) => c.id === p)
+                      ?.models.filter((m) => usable(p, m.id));
+                    setSpec(p, (list?.find((m) => m.kind === want) ?? list?.[0])?.id ?? "");
+                  }}
+                  className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+                >
+                  <option value="">{t("set.aiDefault")}</option>
+                  {(companies ?? []).map((c) => (
+                    <option key={c.id} value={c.id} disabled={!c.keyFound}>
+                      {c.label}
+                      {c.keyFound ? "" : ` — ${t("set.aiNoKey")}`}
+                    </option>
+                  ))}
+                </select>
+                {cur.provider && (
+                  <select
+                    aria-label={t("set.aiModel")}
+                    value={cur.model}
+                    onChange={(e) => setSpec(cur.provider, e.target.value)}
+                    className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+                  >
+                    {cur.model && !models.some((m) => m.id === cur.model) && (
+                      <option value={cur.model}>{cur.model}</option>
+                    )}
+                    {models.map((m, i) => (
+                      <option key={m.id} value={m.id}>
+                        {m.kind === "fast" ? "⚡ " : "🧠 "}
+                        {m.label}
+                        {i === 0 && m.kind === want ? ` — ${t("set.aiRecommended")}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {company?.error && (
+                <p className="mt-1 text-caption text-destructive-ink">
+                  {t("set.aiListFailed", { p: company.label, e: company.error })}
+                </p>
+              )}
             </div>
-            <p className="mt-1 px-1 text-caption leading-snug text-muted-foreground">
-              {t(`settings.aiFeatureDesc.${id}`)}
-            </p>
-            {features[id] && (
-              <button
-                type="button"
-                onClick={() =>
-                  setFeatures((prev) => {
-                    const next = { ...prev };
-                    delete next[id];
-                    return next;
-                  })
-                }
-                className="mt-1 inline-flex min-h-11 items-center text-caption font-semibold text-primary"
-              >
-                {t("settings.aiReset")}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
         <p className="text-caption text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
       </div>
 

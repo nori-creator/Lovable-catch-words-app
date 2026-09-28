@@ -3273,6 +3273,23 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 広告の場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。
   "ads.places": { ja: "広告を出す場所", en: "Where ads appear", "zh-TW": "廣告位置" },
+  // AI の切り替え: 会社 → モデル の2つだけ（2026-09-28「複雑すぎる。直感的に」）。
+  "set.aiHowTo": {
+    ja: "使いたい会社の鍵を Lovable の Cloud → Secrets に入れると、ここでその会社が選べるようになります。機能ごとに「会社」と「モデル」を選んで「適用」を押すだけです。⚡は速い・安い、🧠は賢い。空のままなら、いつもの AI を使います。",
+    en: "Add a company's API key in Lovable (Cloud → Secrets) and it becomes selectable here. For each feature, pick a company and a model, then Apply. ⚡ = fast and cheap, 🧠 = smarter. Leave blank to use the default AI.",
+    "zh-TW":
+      "在 Lovable 的 Cloud → Secrets 放入該公司的金鑰後，這裡就能選擇那家公司。每個功能只要選「公司」和「模型」再按「套用」。⚡快又便宜，🧠比較聰明。留空則使用預設的 AI。",
+  },
+  "set.aiCompany": { ja: "AI の会社", en: "AI company", "zh-TW": "AI 公司" },
+  "set.aiModel": { ja: "モデル", en: "Model", "zh-TW": "模型" },
+  "set.aiDefault": { ja: "いつもの（既定）", en: "Default", "zh-TW": "預設" },
+  "set.aiNoKey": { ja: "鍵が未設定", en: "no key", "zh-TW": "未設定金鑰" },
+  "set.aiRecommended": { ja: "おすすめ", en: "recommended", "zh-TW": "推薦" },
+  "set.aiListFailed": {
+    ja: "{p} のモデル一覧を読めませんでした（{e}）。鍵が正しいか確かめてください",
+    en: "Couldn't load {p} models ({e}). Check the key",
+    "zh-TW": "無法讀取 {p} 的模型清單（{e}）。請確認金鑰是否正確",
+  },
   "ads.reviewEnd": {
     ja: "復習の区切り（全画面）",
     en: "After review sets (full-screen)",
