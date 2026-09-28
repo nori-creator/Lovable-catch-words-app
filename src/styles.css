@@ -7822,7 +7822,7 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
     0 0 0 2.5px var(--day-accent, var(--primary)),
     0 4px 12px -4px color-mix(in oklab, var(--day-accent, #000) 55%, transparent);
 }
-/* 月の色（`MONTH_HUE`）: 見出しの字、枚数の札、空の升の地。 */
+/* 月の色（その月にいちばん多く撮った**分類の色**。`monthAccent`）: 見出しの字、枚数の札、空の升の地。 */
 .dex-cal__month {
   color: var(--month-hue);
 }
@@ -7847,18 +7847,31 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
 .dex-cal [data-wd="sat"] .dex-cal__num {
   color: #2f7ff5;
 }
-/* 今日: 虹色の輪（写真の日は外側に、空の日は丸の地に）。 */
+/* 今日: アプリの青（虹色は意味を持たないのでやめた。R11「色の哲学に沿って」）。 */
 .dex-cal__today {
-  background: conic-gradient(from 200deg, #ff5f6d, #ffc371, #4ade80, #4ea8ff, #a78bfa, #ff5f6d);
-  box-shadow: 0 3px 8px -3px rgb(0 0 0 / 0.35);
+  background: var(--primary);
+  box-shadow: 0 3px 8px -3px color-mix(in oklab, var(--primary) 60%, transparent);
 }
 .dex-cal__cell--photo.is-today {
   outline: 3px solid transparent;
   box-shadow:
     0 0 0 2.5px #fff,
-    0 0 0 5px #ff5f6d,
-    0 0 0 7px #4ea8ff,
+    0 0 0 5px var(--primary),
     0 6px 14px -4px rgb(0 0 0 / 0.35);
+}
+/* その日に撮った分類の色の粒（2つ以上の分類がある日だけ）。 */
+.dex-cal__cats {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  display: flex;
+  gap: 2px;
+}
+.dex-cal__cats i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px #fff;
 }
 .dex-cal__count {
   background: var(--day-accent, rgb(0 0 0 / 0.55));

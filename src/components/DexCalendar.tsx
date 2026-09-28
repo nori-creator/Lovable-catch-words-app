@@ -16,20 +16,38 @@ import { CATEGORY_META, ROOM_ACCENT, asCategoryKey } from "@/lib/category";
  * 並びは1月から: 冬の藍 → 梅 → 若葉 → 桜 → 新緑 → 紫陽花 → 海 → 向日葵 →
  * 金木犀 → 紅葉 → 柿 → 柊。
  */
-const MONTH_HUE = [
-  "#3b6fd8",
-  "#e0569a",
-  "#43b36b",
-  "#f08bb0",
-  "#2fa66a",
-  "#7b6cf0",
-  "#1aa6d9",
-  "#f2a516",
-  "#f08a24",
-  "#e0552f",
-  "#d9772b",
-  "#2b8a6e",
-];
+/**
+ * **色は意味で塗る**（オーナー指示 2026-09-28 R11「カレンダーをアプリの色の哲学に沿って
+ * カラフルに」）。このアプリの色は飾りではなく**分類の色**（食べ物は橙、町は青…
+ * `ROOM_ACCENT`）とアプリの青だけ。前は月ごとに決め打ちの12色を塗っていたが、その色は
+ * 何も表していなかった。いまは:
+ *  - 月の見出しと枚数の札 = **その月にいちばん多く撮った分類の色**
+ *  - 写真の日の縁 = その日の1枚目の分類の色、右上に**その日の分類の色の粒**（最大3つ）
+ *  - 今日 = アプリの青
+ */
+function monthAccent(days: Array<StickerWithWord[] | undefined>): string {
+  const count = new Map<string, number>();
+  for (const items of days)
+    for (const s of items ?? []) {
+      const room = CATEGORY_META[asCategoryKey(s.word.category_key)].room;
+      count.set(room, (count.get(room) ?? 0) + 1);
+    }
+  let best: string | null = null;
+  let n = 0;
+  for (const [room, c] of count) if (c > n) [best, n] = [room, c];
+  return best ? ROOM_ACCENT[best as keyof typeof ROOM_ACCENT] : "var(--primary)";
+}
+
+/** その日に撮った分類の色（重ならない順に、最大3つ）。 */
+function dayColors(items: StickerWithWord[]): string[] {
+  const out: string[] = [];
+  for (const s of items) {
+    const c = ROOM_ACCENT[CATEGORY_META[asCategoryKey(s.word.category_key)].room];
+    if (!out.includes(c)) out.push(c);
+    if (out.length === 3) break;
+  }
+  return out;
+}
 
 /** その日の1枚目の分類の色（写真の縁と枚数の丸に使う）。 */
 function dayAccent(items: StickerWithWord[]): string {
@@ -179,7 +197,13 @@ export function DexCalendar({
       className="dex-cal"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      style={{ "--month-hue": MONTH_HUE[cursor.m] } as CSSProperties}
+      style={
+        {
+          "--month-hue": monthAccent(
+            cells.map((d) => (d == null ? undefined : byDay.get(dayKeyOf(cursor.y, cursor.m, d)))),
+          ),
+        } as CSSProperties
+      }
     >
       <div className="mb-3 flex items-end justify-between pt-1">
         <div>
@@ -277,6 +301,13 @@ export function DexCalendar({
               {items.length > 1 && (
                 <span className="dex-cal__count absolute right-1 top-1 rounded-full px-1.5 text-caption font-bold tabular-nums text-white">
                   {items.length}
+                </span>
+              )}
+              {dayColors(items).length > 1 && (
+                <span className="dex-cal__cats" aria-hidden>
+                  {dayColors(items).map((c) => (
+                    <i key={c} style={{ background: c }} />
+                  ))}
                 </span>
               )}
             </button>
