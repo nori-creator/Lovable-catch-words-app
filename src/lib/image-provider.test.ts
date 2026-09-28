@@ -3,6 +3,7 @@ import {
   DEFAULT_OPENROUTER_IMAGE_MODEL,
   pickOpenRouterImage,
   readImageConfig,
+  resolveImageConfig,
 } from "./image-provider";
 
 describe("readImageConfig", () => {
@@ -36,6 +37,24 @@ describe("readImageConfig", () => {
 
   it("off で作らない", () => {
     expect(readImageConfig({ IMAGE_PROVIDER: "off" }).provider).toBe("off");
+  });
+
+  it("Google と OpenAI は専用のモデルを使う", () => {
+    expect(readImageConfig({ IMAGE_PROVIDER: "google" }).model).toBe("gemini-2.5-flash-image");
+    expect(readImageConfig({ IMAGE_PROVIDER: "openai" }).model).toBe("gpt-image-1-mini");
+  });
+
+  it("開発者設定が環境の既定より優先され、別の提供元のモデルは引き継がない", () => {
+    expect(
+      resolveImageConfig(
+        { IMAGE_PROVIDER: "openrouter", IMAGE_MODEL: "old/model" },
+        { provider: "google" },
+      ),
+    ).toMatchObject({ provider: "google", model: "gemini-2.5-flash-image" });
+    expect(resolveImageConfig({}, { provider: "openai", model: "gpt-image-1" })).toMatchObject({
+      provider: "openai",
+      model: "gpt-image-1",
+    });
   });
 });
 

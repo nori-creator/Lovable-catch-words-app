@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { internalFailure } from "./safe-error";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { partitionByLanguage, type DictionaryImportRow as ImportRow } from "./dictionary-import";
@@ -156,6 +157,64 @@ export const searchDictionaryEntries = createServerFn({ method: "GET" })
   });
 
 // --- AIモデルの実行時切替 (2026-07-27) --------------------------------------
+
+/** 画像生成専用の切替。キーそのものはサーバの Secrets にだけ置く。 */
+const ImageSettingsInput = z.object({
+  provider: z.enum(["lovable", "openrouter", "google", "openai", "off"]),
+  model: z
+    .string()
+    .trim()
+    .max(120)
+    .regex(/^[a-zA-Z0-9._/:-]*$/),
+});
+
+export const getImageGenerationSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("管理者のみ");
+    const { data, error } = await context.supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", "image_generation")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const { resolveImageConfig } = await import("./image-provider");
+    const override = (data as { value?: { provider?: string; model?: string } } | null)?.value;
+    return {
+      override: override ?? null,
+      effective: resolveImageConfig(process.env, override),
+      keys: {
+        lovable: Boolean(process.env.LOVABLE_API_KEY),
+        openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+        google: Boolean(process.env.GEMINI_API_KEY),
+        openai: Boolean(process.env.OPENAI_API_KEY),
+      },
+    };
+  });
+
+export const setImageGenerationSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ImageSettingsInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("管理者のみ");
+    const { error } = await context.supabase.from("app_config").upsert({
+      key: "image_generation",
+      value: { provider: data.provider, model: data.model },
+      updated_at: new Date().toISOString(),
+      updated_by: context.userId,
+    });
+    if (error) throw internalFailure("admin", error, "画像生成の設定を保存できませんでした");
+    return { ok: true };
+  });
+
 // app_config.key='ai_models' を読み書きする。鍵そのものはDBに置かず、
 // 環境変数名(api_key_env)で参照する — 漏洩面を増やさないため。
 
