@@ -6,11 +6,14 @@ import { ChevronLeft, Search, ShieldCheck, Users } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { checkIsAdmin } from "@/lib/admin.functions";
 import {
+  getAdminOverview,
   getAdminUserDetail,
   listAdminUsers,
+  type AdminOverview,
   type AdminUserDetail,
   type AdminUserRow,
 } from "@/lib/admin-users.functions";
+import { CompareRow, DayBars, Kpi, Ring, SplitBars } from "@/components/AdminCharts";
 
 /**
  * **開発者だけ: 利用者ごとの詳しい情報**（オーナー指示 2026-09-27）。
@@ -87,6 +90,8 @@ function UserList() {
         </Link>
       </div>
       <Privacy />
+      <OverviewSection />
+      <h2 className="pt-2 text-headline font-bold">ひとりずつ</h2>
       <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
@@ -128,14 +133,80 @@ function UserList() {
   );
 }
 
+function OverviewSection() {
+  const fn = useServerFn(getAdminOverview);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: () => fn(),
+    staleTime: 60_000,
+  });
+  if (isLoading) return <div className="h-72 animate-pulse rounded-2xl bg-secondary" />;
+  if (error) return <p className="text-footnote text-destructive-ink">{String(error)}</p>;
+  return data ? <AdminOverviewView o={data} /> : null;
+}
+
+/**
+ * **全体の数字**（オーナー指示 2026-09-28「グラフや図チャート、ほかのユーザーとの比較、
+ * ユーザー全体の情報など、もっと分析しやすいように」）。上から:
+ * いまの規模（KPI）→ 30日の動き（棒）→ 続けて使う割合（輪）→ 内訳（横棒）。
+ */
+export function AdminOverviewView({ o }: { o: AdminOverview }) {
+  const t = o.totals;
+  const r = o.retention;
+  return (
+    <section className="space-y-3">
+      <h2 className="text-headline font-bold">全体</h2>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Kpi label="利用者" value={t.users} sub={`この7日で +${t.new7}`} />
+        <Kpi label="今日使った人" value={t.active1} sub={`7日 ${t.active7} · 30日 ${t.active30}`} />
+        <Kpi
+          label="Pro"
+          value={t.pro}
+          sub={t.users ? `${Math.round((100 * t.pro) / t.users)}%` : "—"}
+        />
+        <Kpi label="撮った語（全体）" value={t.catches} sub={`復習 30日 ${t.reviews30}回`} />
+      </div>
+      <Card title="30日の動き">
+        <div className="grid gap-4">
+          <DayBars data={o.series.active} label="使った人（日ごと）" unit="人" />
+          <DayBars data={o.series.catches} label="撮った語（日ごと）" unit="語" />
+          <DayBars data={o.series.signups} label="新しく登録した人" unit="人" height={48} />
+        </div>
+      </Card>
+      <Card title="続けて使っている割合（登録から N 日後にも使った人）">
+        <div className="grid grid-cols-3 gap-2">
+          <Ring pct={r.d1.rate} label="翌日" sub={`${r.d1.eligible}人中`} />
+          <Ring pct={r.d7.rate} label="7日後" sub={`${r.d7.eligible}人中`} />
+          <Ring pct={r.d30.rate} label="30日後" sub={`${r.d30.eligible}人中`} />
+        </div>
+      </Card>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card title="1人あたりの撮った語（分布）">
+          <SplitBars rows={o.catchesBuckets.map((b) => [`${b.bucket}語`, b.n])} />
+          <p className="mt-2 text-caption text-muted-foreground">
+            中央値: 撮った語 {o.medians.catches ?? "—"} · 復習(30日) {o.medians.reviews30 ?? "—"}回
+            · 開いた日(30日) {o.medians.open30 ?? "—"}日
+          </p>
+        </Card>
+        <Card title="学習言語 · プラン">
+          <SplitBars rows={o.languages} />
+          <div className="mt-3">
+            <SplitBars rows={o.plans} />
+          </div>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
 function Privacy() {
   return (
     <p className="flex gap-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed text-muted-foreground">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
       <span>
         見せるのは改善に要る数字だけです。メールアドレス、正確な位置（緯度経度）、写真、
-        日記や一言の本文は出しません。この画面を公開前に使うときは、プライバシーポリシーに
-        「運営者がサービス改善のために利用状況を閲覧する」旨を書いてください。
+        日記や一言の本文は出しません。プライバシーポリシー（2026-09-28 改定）の「利用目的」に、
+        運営者がサービス改善のために利用状況の数値を閲覧・分析することを書いてあります。
       </span>
     </p>
   );
@@ -218,6 +289,19 @@ export function AdminUserDetailView({ d }: { d: AdminUserDetail }) {
       <h1 className="text-title font-bold">{String(p.display_name ?? "（名前なし）")}</h1>
       <p className="-mt-2 text-caption text-muted-foreground">{String(p.id)}</p>
 
+      {d.compare && d.compare.length > 0 && (
+        <Card title={`ほかの利用者と比べて（${d.compareBase ?? 0}人の中）`}>
+          <div className="grid gap-3">
+            {d.compare.map((c) => (
+              <CompareRow key={c.label} {...c} />
+            ))}
+          </div>
+          <p className="mt-2 text-caption text-muted-foreground">
+            丸がこの人、縦の線が全体の真ん中（中央値）。ほかの人の中身は出しません。
+          </p>
+        </Card>
+      )}
+
       <Card title="設定">
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-footnote">
           {Object.entries(PROFILE_LABEL).map(([k, label]) => (
@@ -254,16 +338,12 @@ export function AdminUserDetailView({ d }: { d: AdminUserDetail }) {
         <p className="text-footnote">
           {d.catches.topPlaces.map(([name, n]) => `${name}（${n}）`).join("、") || "—"}
         </p>
-        <h3 className="mt-3 text-caption font-semibold">日ごとの枚数（新しい順・30日）</h3>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {d.catches.byDay.map(([day, n]) => (
-            <span
-              key={day}
-              className="rounded-md bg-secondary px-1.5 py-0.5 text-caption tabular-nums"
-            >
-              {day.slice(5)} · {n}
-            </span>
-          ))}
+        <div className="mt-3">
+          <DayBars
+            data={[...d.catches.byDay].reverse().map(([day, n]) => ({ day, n }))}
+            label="撮った日と枚数（撮った日だけ・古い順）"
+            unit="語"
+          />
         </div>
         <h3 className="mt-3 text-caption font-semibold">最近の語</h3>
         <p lang="zh-Hant" className="text-footnote">
@@ -291,6 +371,9 @@ export function AdminUserDetailView({ d }: { d: AdminUserDetail }) {
       </Card>
 
       <Card title="復習">
+        <div className="mb-2 flex justify-center">
+          <Ring pct={d.review.correctPct} label="正答率" sub={`直近180日 ${d.review.total180}回`} />
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <Stat
             label="この30日"

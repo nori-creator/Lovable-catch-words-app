@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { aiCostEstimate, median, screenOf, sessionMinutes, streaks } from "./admin-user-stats";
+import {
+  aiCostEstimate,
+  dailyCounts,
+  median,
+  percentileRank,
+  retention,
+  screenOf,
+  sessionMinutes,
+  streaks,
+} from "./admin-user-stats";
 
 describe("開発者だけ: 利用者ごとの数字", () => {
   it("続けた日: 今日か昨日で終わっていれば続いている", () => {
@@ -45,5 +54,33 @@ describe("開発者だけ: 利用者ごとの数字", () => {
     const c = aiCostEstimate({ card: 10, removebg: 1, app_open: 50 });
     expect(c.byKind.map((x) => x.kind)).toEqual(["card", "removebg"]);
     expect(c.usd).toBeCloseTo(0.06, 3);
+  });
+});
+
+/** 2026-09-28「グラフや図チャート、ほかのユーザーとの比較、ユーザー全体の情報」。 */
+describe("開発者だけ: 全体の数字と比較", () => {
+  it("全体の中での位置（同じ値は半分と数える）", () => {
+    expect(percentileRank([1, 2, 3, 4], 3)).toBe(63);
+    expect(percentileRank([5, 5, 5, 5], 5)).toBe(50);
+    expect(percentileRank([], 1)).toBeNull();
+  });
+
+  it("日ごとの数は古い順・無い日は0", () => {
+    expect(dailyCounts(["2026-09-27", "2026-09-27", "2026-09-25"], "2026-09-28", 4)).toEqual([
+      { day: "2026-09-25", n: 1 },
+      { day: "2026-09-26", n: 0 },
+      { day: "2026-09-27", n: 2 },
+      { day: "2026-09-28", n: 0 },
+    ]);
+  });
+
+  it("続けて使っている割合: まだ N 日経っていない人は数えない", () => {
+    const users = [
+      { signup: "2026-09-01", activeDays: ["2026-09-01", "2026-09-09"] },
+      { signup: "2026-09-01", activeDays: ["2026-09-01"] },
+      { signup: "2026-09-25", activeDays: ["2026-09-25"] },
+    ];
+    expect(retention(users, 7, "2026-09-28")).toEqual({ rate: 50, eligible: 2 });
+    expect(retention(users, 30, "2026-09-28")).toEqual({ rate: null, eligible: 0 });
   });
 });

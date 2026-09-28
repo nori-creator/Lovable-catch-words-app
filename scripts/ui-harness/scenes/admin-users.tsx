@@ -2,8 +2,8 @@
  * 開発者だけ: 利用者ごとの情報（オーナー指示 2026-09-27）。本物の画面の中身
  * （`AdminUserDetailView`）に、決まった見本の数字を渡して描く（通信・ログイン不要）。
  */
-import { AdminUserDetailView } from "@/routes/_authenticated/admin.users";
-import type { AdminUserDetail } from "@/lib/admin-users.functions";
+import { AdminOverviewView, AdminUserDetailView } from "@/routes/_authenticated/admin.users";
+import type { AdminOverview, AdminUserDetail } from "@/lib/admin-users.functions";
 import { aiCostEstimate } from "@/lib/admin-user-stats";
 
 const hours = Array.from({ length: 24 }, (_, h) =>
@@ -96,12 +96,62 @@ const FIXTURE = {
     tokensIn: 0,
     tokensOut: 0,
   },
+  compare: [
+    { label: "撮った語（合計）", value: 86, median: 24, pct: 88 },
+    { label: "撮った語（30日）", value: 86, median: 11, pct: 93 },
+    { label: "復習（30日）", value: 910, median: 140, pct: 95 },
+    { label: "開いた日（30日）", value: 27, median: 9, pct: 90 },
+  ],
+  compareBase: 214,
 } as unknown as AdminUserDetail;
 
-export function AdminUsersScene() {
+/** 全体の見本（決まった数。本物の画面の部品 `AdminOverviewView` に渡す）。 */
+const series = (base: number, amp: number, seed: number) =>
+  Array.from({ length: 30 }, (_, i) => ({
+    day: new Date(Date.UTC(2026, 7, 30 + i)).toISOString().slice(0, 10),
+    n: Math.max(0, Math.round(base + amp * Math.sin((i + seed) / 3) + i * 0.4)),
+  }));
+const OVERVIEW = {
+  totals: {
+    users: 214,
+    pro: 9,
+    new7: 23,
+    active1: 41,
+    active7: 96,
+    active30: 158,
+    catches: 6120,
+    reviews30: 18400,
+  },
+  series: { active: series(38, 8, 1), catches: series(160, 40, 4), signups: series(3, 2, 2) },
+  retention: {
+    d1: { rate: 58, eligible: 205 },
+    d7: { rate: 34, eligible: 180 },
+    d30: { rate: 19, eligible: 96 },
+  },
+  languages: [
+    ["zh-TW", 171],
+    ["en", 43],
+  ],
+  plans: [
+    ["free", 205],
+    ["pro", 9],
+  ],
+  catchesBuckets: [
+    { bucket: "0", n: 31 },
+    { bucket: "1–9", n: 58 },
+    { bucket: "10–49", n: 74 },
+    { bucket: "50–199", n: 42 },
+    { bucket: "200+", n: 9 },
+  ],
+  medians: { catches: 24, reviews30: 140, open30: 9 },
+} as unknown as AdminOverview;
+
+export function AdminUsersScene({ q }: { q: URLSearchParams }) {
+  // 既定は「全体」。?view=user でひとりの画面。
+  const user = q.get("view") === "user";
   return (
     <div className="space-y-3 pb-24">
-      <AdminUserDetailView d={FIXTURE} />
+      {user ? <AdminUserDetailView d={FIXTURE} /> : <AdminOverviewView o={OVERVIEW} />}
     </div>
   );
 }

@@ -41,7 +41,7 @@ function PrivacyJa() {
   return (
     <>
       <h1 className="mt-4 text-hero font-bold tracking-tight">プライバシーポリシー</h1>
-      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年6月22日</p>
+      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年9月28日</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. 取得する情報</h2>
         <ul>
@@ -49,6 +49,14 @@ function PrivacyJa() {
           <li>ユーザーが撮影した写真および自撮り画像</li>
           <li>位置情報(撮影時、ユーザーが許可した場合のみ)</li>
           <li>学習履歴・復習スコア・ストリーク等の利用統計</li>
+          <li>
+            アプリの利用状況(開いた日時、使った画面、撮影・スキャン・復習の回数とかかった時間)
+          </li>
+          <li>
+            有料プランのお支払いに関する情報(決済は Stripe
+            が行い、カード番号を当社が受け取ることはありません)
+          </li>
+          <li>広告を表示する場合、広告の配信に必要な端末の情報(広告IDなど)</li>
         </ul>
 
         <h2>2. 利用目的</h2>
@@ -57,6 +65,13 @@ function PrivacyJa() {
           <li>AIによる単語カード・クイズの自動生成</li>
           <li>マップ・図鑑等の機能提供</li>
           <li>不正利用の防止</li>
+          <li>
+            運営者が、サービスの改善・不具合の調査・不正利用の防止のために、利用者ごとの利用状況の数値(撮影や復習の回数、利用した日、画面ごとの利用など)を閲覧・分析すること。このとき、メールアドレス、正確な位置(緯度経度)、写真、日記やひとことの本文は閲覧の対象に含めません
+          </li>
+          <li>
+            利用者全体の統計(利用者数・継続して使う人の割合など)の作成。統計は個人を特定できない形で扱います
+          </li>
+          <li>有料プランの提供と、お支払いの管理</li>
         </ul>
 
         <h2>3. 第三者提供</h2>
@@ -67,6 +82,8 @@ function PrivacyJa() {
           <li>Supabase(データベース・認証)</li>
           <li>Google Maps(地図表示・位置情報の逆ジオコーディング)</li>
           <li>Google Gemini(AI生成・Lovable AI Gateway経由)</li>
+          <li>Stripe(有料プランの決済)</li>
+          <li>Google AdMob(広告を表示する場合の広告配信)</li>
         </ul>
 
         <h2>5. 位置情報の取り扱い</h2>
@@ -84,6 +101,11 @@ function PrivacyJa() {
 
         <h2>8. お問い合わせ</h2>
         <p>本ポリシーに関するご質問は、アプリ内サポートよりご連絡ください。</p>
+
+        <h2>9. 本ポリシーの変更</h2>
+        <p>
+          本ポリシーを変更する場合は、アプリ内でお知らせします。利用目的を追加する重要な変更は、変更後に本サービスを利用する前に改めて同意をいただきます。
+        </p>
       </section>
     </>
   );
@@ -93,7 +115,7 @@ function PrivacyEn() {
   return (
     <>
       <h1 className="mt-4 text-hero font-bold tracking-tight">Privacy Policy</h1>
-      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 22 June 2026</p>
+      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 28 September 2026</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. Information we collect</h2>
         <ul>
@@ -101,6 +123,17 @@ function PrivacyEn() {
           <li>Photos and selfies you take</li>
           <li>Location (recorded at capture time, only if you allow it)</li>
           <li>Usage data such as study history, review scores and streaks</li>
+          <li>
+            How you use the app (when you open it, which screens you use, and how many captures,
+            scans and reviews you do and how long they take)
+          </li>
+          <li>
+            Payment information for paid plans (payments are processed by Stripe; we never receive
+            your card number)
+          </li>
+          <li>
+            If ads are shown, device information needed to serve them (such as the advertising ID)
+          </li>
         </ul>
 
         <h2>2. How we use it</h2>
@@ -109,6 +142,17 @@ function PrivacyEn() {
           <li>To generate word cards and quizzes with AI</li>
           <li>To provide features such as the map and the dex</li>
           <li>To prevent abuse</li>
+          <li>
+            For the operator to view and analyse per-user usage figures (such as the number of
+            captures and reviews, active days and screen usage) to improve the service, investigate
+            bugs and prevent abuse. Your email address, exact location (coordinates), photos and the
+            text of your journal entries and notes are not included
+          </li>
+          <li>
+            To produce overall statistics (such as the number of users and how many keep using the
+            app), handled in a form that does not identify individuals
+          </li>
+          <li>To provide paid plans and manage payments</li>
         </ul>
 
         <h2>3. Sharing with third parties</h2>
@@ -122,6 +166,8 @@ function PrivacyEn() {
           <li>Supabase (database and authentication)</li>
           <li>Google Maps (map display and reverse geocoding of locations)</li>
           <li>Google Gemini (AI generation, via the Lovable AI Gateway)</li>
+          <li>Stripe (payments for paid plans)</li>
+          <li>Google AdMob (ad delivery, if ads are shown)</li>
         </ul>
 
         <h2>5. How location is handled</h2>
@@ -142,6 +188,12 @@ function PrivacyEn() {
 
         <h2>8. Contact</h2>
         <p>For questions about this policy, please contact us through in-app support.</p>
+
+        <h2>9. Changes to this policy</h2>
+        <p>
+          We will announce changes to this policy in the app. For significant changes that add new
+          purposes of use, we will ask for your consent again before you continue using the service.
+        </p>
       </section>
     </>
   );

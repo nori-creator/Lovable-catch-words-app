@@ -34,6 +34,60 @@ export function streaks(days: string[], today: string): { current: number; best:
   return { current: cur, best };
 }
 
+/**
+ * **全体の中での位置**（オーナー指示 2026-09-28「ほかのユーザーとの比較」）。
+ * `v` より小さい人の割合（0〜100、同じ値は半分と数える）。比べる相手がいなければ null。
+ */
+export function percentileRank(all: number[], v: number): number | null {
+  const xs = all.filter((n) => Number.isFinite(n));
+  if (!xs.length) return null;
+  const below = xs.filter((n) => n < v).length;
+  const same = xs.filter((n) => n === v).length;
+  return Math.round((100 * (below + same / 2)) / xs.length);
+}
+
+/** 日ごとの数（古い順、`days` 日ぶん。無い日は 0）。日付は "YYYY-MM-DD"。 */
+export function dailyCounts(
+  keys: string[],
+  today: string,
+  days: number,
+): Array<{ day: string; n: number }> {
+  const m = new Map<string, number>();
+  for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
+  const out: Array<{ day: string; n: number }> = [];
+  const base = new Date(`${today}T12:00:00Z`);
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(base);
+    d.setUTCDate(d.getUTCDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    out.push({ day: key, n: m.get(key) ?? 0 });
+  }
+  return out;
+}
+
+/**
+ * **続けて使っている割合**（登録から N 日後に開いた人の割合）。
+ * 登録から N 日経っていない人は数に入れない（まだ判断できないため）。
+ */
+export function retention(
+  users: Array<{ signup: string; activeDays: string[] }>,
+  n: number,
+  today: string,
+): { rate: number | null; eligible: number } {
+  const add = (d: string, k: number) => {
+    const x = new Date(`${d}T12:00:00Z`);
+    x.setUTCDate(x.getUTCDate() + k);
+    return x.toISOString().slice(0, 10);
+  };
+  const eligible = users.filter((u) => add(u.signup, n) <= today);
+  if (!eligible.length) return { rate: null, eligible: 0 };
+  const kept = eligible.filter((u) => {
+    const target = add(u.signup, n);
+    return u.activeDays.some((d) => d >= target);
+  }).length;
+  return { rate: Math.round((100 * kept) / eligible.length), eligible: eligible.length };
+}
+
 export function median(nums: Array<number | null | undefined>): number | null {
   const v = nums
     .filter((n): n is number => typeof n === "number" && Number.isFinite(n))

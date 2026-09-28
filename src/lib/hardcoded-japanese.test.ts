@@ -24,10 +24,11 @@ const KANA = /[ぁ-ゟァ-ヺ]/;
 const KNOWN: Record<string, number> = {
   "src/routes/_authenticated/admin.dictionary.tsx": 23,
   "src/routes/_authenticated/admin.metrics.tsx": 36,
-  // 利用者ごとの情報（開発者だけ、2026-09-27）。
-  "src/routes/_authenticated/admin.users.tsx": 51,
+  // 利用者ごとの情報（開発者だけ、2026-09-27）。全体のグラフと比較を足した（2026-09-28）。
+  "src/routes/_authenticated/admin.users.tsx": 66,
   "src/routes/_authenticated/scan.tsx": 4,
-  "src/routes/privacy.tsx": 21,
+  // 利用状況の閲覧・決済・広告の条項を足した（2026-09-28。日本語版そのもの）。
+  "src/routes/privacy.tsx": 32,
   "src/routes/terms.tsx": 16,
 };
 

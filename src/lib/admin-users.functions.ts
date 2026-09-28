@@ -1,7 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { aiCostEstimate, median, sessionMinutes, streaks } from "@/lib/admin-user-stats";
+import {
+  aiCostEstimate,
+  dailyCounts,
+  median,
+  percentileRank,
+  retention,
+  sessionMinutes,
+  streaks,
+} from "@/lib/admin-user-stats";
 
 /**
  * **開発者だけ: 利用者ごとの詳しい情報**（オーナー指示 2026-09-27）。
@@ -75,7 +83,17 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     }));
   });
 
-export type AdminUserDetail = Awaited<ReturnType<typeof buildDetail>>;
+export type CompareRow = {
+  label: string;
+  value: number;
+  median: number | null;
+  /** 全体の中での位置（0〜100）。 */
+  pct: number | null;
+};
+export type AdminUserDetail = Awaited<ReturnType<typeof buildDetail>> & {
+  compare?: CompareRow[];
+  compareBase?: number;
+};
 
 async function buildDetail(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -251,5 +269,174 @@ export const getAdminUserDetail = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ userId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     await requireAdmin(context);
-    return buildDetail(data.userId);
+    const [detail, pop] = await Promise.all([buildDetail(data.userId), population()]);
+    // **ほかの利用者との比較**（2026-09-28）。数字だけを比べる（ほかの人の中身は見せない）。
+    const me = pop.perUser.get(data.userId) ?? {
+      catches: 0,
+      catches30: 0,
+      reviews30: 0,
+      open30: 0,
+    };
+    const all = [...pop.perUser.values()];
+    const row = (label: string, k: keyof typeof me) => {
+      const xs = all.map((u) => u[k]);
+      return { label, value: me[k], median: median(xs), pct: percentileRank(xs, me[k]) };
+    };
+    return {
+      ...detail,
+      compare: [
+        row("撮った語（合計）", "catches"),
+        row("撮った語（30日）", "catches30"),
+        row("復習（30日）", "reviews30"),
+        row("開いた日（30日）", "open30"),
+      ],
+      compareBase: all.length,
+    };
+  });
+
+/**
+ * **全体の数字を集めるための読み込み**（利用者ごとの数だけを作る。中身は読まない）。
+ * 大きくなったら集計用の表（夜に1回まとめる）に移す。いまは上限つきで直接数える。
+ */
+async function population() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any;
+  const since30 = new Date(Date.now() - 31 * 86400 * 1000).toISOString();
+  const [profiles, stickers, history, opens] = await Promise.all([
+    db
+      .from("profiles")
+      .select("id, created_at, plan, target_language")
+      .order("created_at", { ascending: false })
+      .limit(5000),
+    db.from("stickers").select("user_id, created_at").limit(100000),
+    db
+      .from("review_history")
+      .select("user_id, reviewed_at")
+      .gte("reviewed_at", since30)
+      .limit(100000),
+    db
+      .from("usage_events")
+      .select("user_id, created_at")
+      .in("kind", ["app_open", "session_start"])
+      .gte("created_at", new Date(Date.now() - 400 * 86400 * 1000).toISOString())
+      .limit(100000),
+  ]);
+  type P = { id: string; created_at: string; plan: string | null; target_language: string | null };
+  const ps = (profiles.data ?? []) as P[];
+  const st = (stickers.data ?? []) as Array<{ user_id: string; created_at: string }>;
+  const rh = (history.data ?? []) as Array<{ user_id: string; reviewed_at: string }>;
+  const op = (opens.data ?? []) as Array<{ user_id: string; created_at: string }>;
+  const t30 = Date.parse(since30);
+  const perUser = new Map<
+    string,
+    { catches: number; catches30: number; reviews30: number; open30: number }
+  >();
+  for (const p of ps) perUser.set(p.id, { catches: 0, catches30: 0, reviews30: 0, open30: 0 });
+  for (const s of st) {
+    const u = perUser.get(s.user_id);
+    if (!u) continue;
+    u.catches++;
+    if (Date.parse(s.created_at) >= t30) u.catches30++;
+  }
+  for (const r of rh) {
+    const u = perUser.get(r.user_id);
+    if (u) u.reviews30++;
+  }
+  const activeDays = new Map<string, Set<string>>();
+  const mark = (uid: string, iso: string) => {
+    if (!activeDays.has(uid)) activeDays.set(uid, new Set());
+    activeDays.get(uid)!.add(dayKey(iso));
+  };
+  for (const o of op) mark(o.user_id, o.created_at);
+  for (const s of st) mark(s.user_id, s.created_at);
+  for (const [uid, days] of activeDays) {
+    const u = perUser.get(uid);
+    if (!u) continue;
+    u.open30 = [...days].filter((d) => Date.parse(`${d}T12:00:00Z`) >= t30).length;
+  }
+  return { ps, st, op, rh, perUser, activeDays };
+}
+
+export type AdminOverview = Awaited<ReturnType<typeof buildOverview>>;
+
+async function buildOverview() {
+  const { ps, st, op, rh, perUser, activeDays } = await population();
+  const today = dayKey(new Date().toISOString());
+  const dayUsers = new Map<string, Set<string>>();
+  for (const o of op) {
+    const d = dayKey(o.created_at);
+    if (!dayUsers.has(d)) dayUsers.set(d, new Set());
+    dayUsers.get(d)!.add(o.user_id);
+  }
+  const active = (n: number) => {
+    const from = dailyCounts([], today, n).map((x) => x.day);
+    const set = new Set<string>();
+    for (const d of from) for (const u of dayUsers.get(d) ?? []) set.add(u);
+    return set.size;
+  };
+  const count = <T extends string>(xs: T[]) => {
+    const m: Record<string, number> = {};
+    for (const x of xs) m[x] = (m[x] ?? 0) + 1;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  };
+  const users = ps.map((p) => ({
+    signup: dayKey(p.created_at),
+    activeDays: [...(activeDays.get(p.id) ?? [])],
+  }));
+  const catchesPerUser = [...perUser.values()].map((u) => u.catches);
+  const bucket = (n: number) =>
+    n === 0 ? "0" : n < 10 ? "1–9" : n < 50 ? "10–49" : n < 200 ? "50–199" : "200+";
+  return {
+    totals: {
+      users: ps.length,
+      pro: ps.filter((p) => p.plan === "pro").length,
+      new7: ps.filter((p) => Date.now() - Date.parse(p.created_at) < 7 * 86400 * 1000).length,
+      active1: active(1),
+      active7: active(7),
+      active30: active(30),
+      catches: st.length,
+      reviews30: rh.length,
+    },
+    series: {
+      signups: dailyCounts(
+        ps.map((p) => dayKey(p.created_at)),
+        today,
+        30,
+      ),
+      active: dailyCounts([], today, 30).map((x) => ({
+        day: x.day,
+        n: dayUsers.get(x.day)?.size ?? 0,
+      })),
+      catches: dailyCounts(
+        st.map((s) => dayKey(s.created_at)),
+        today,
+        30,
+      ),
+    },
+    retention: {
+      d1: retention(users, 1, today),
+      d7: retention(users, 7, today),
+      d30: retention(users, 30, today),
+    },
+    languages: count(ps.map((p) => p.target_language ?? "—")),
+    plans: count(ps.map((p) => p.plan ?? "free")),
+    catchesBuckets: ["0", "1–9", "10–49", "50–199", "200+"].map((b) => ({
+      bucket: b,
+      n: catchesPerUser.filter((n) => bucket(n) === b).length,
+    })),
+    medians: {
+      catches: median(catchesPerUser),
+      reviews30: median([...perUser.values()].map((u) => u.reviews30)),
+      open30: median([...perUser.values()].map((u) => u.open30)),
+    },
+  };
+}
+
+/** **全体の数字**（オーナー指示 2026-09-28「ユーザー全体の情報など、もっと分析しやすいように」）。 */
+export const getAdminOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context);
+    return buildOverview();
   });
