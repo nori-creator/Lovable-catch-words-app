@@ -10,14 +10,15 @@
  *   catchwords://capture?mode=search   … 撮る画面（検索 / 写真）
  *   catchwords://scan                  … スキャン
  *   catchwords://review?sticker=<id>   … 復習（その語から）
- *   catchwords://home  /  catchwords://dex
+ *   catchwords://home?memorial=30      … ホーム（節目の記念アルバムを開く）
+ *   catchwords://dex
  * `https://<このアプリ>/…` の同じ道も受ける（Android の App Links 用）。
  */
 export type DeepLink =
   | { to: "/capture"; search: { mode?: "search" | "photo" } }
   | { to: "/scan"; search: Record<string, never> }
   | { to: "/review"; search: { sticker?: string } }
-  | { to: "/home"; search: Record<string, never> }
+  | { to: "/home"; search: { memorial?: number } }
   | { to: "/dex"; search: Record<string, never> };
 
 export const DEEP_LINK_SCHEME = "catchwords";
@@ -61,8 +62,13 @@ export function routeFromUrl(raw: string): DeepLink | null {
       return { to: "/review", search: sticker && ID.test(sticker) ? { sticker } : {} };
     }
     case "home":
-    case "":
-      return { to: "/home", search: {} };
+    case "": {
+      const m = Number(u.searchParams.get("memorial"));
+      return {
+        to: "/home",
+        search: Number.isInteger(m) && m > 0 && m < 100000 ? { memorial: m } : {},
+      };
+    }
     case "dex":
       return { to: "/dex", search: {} };
     default:

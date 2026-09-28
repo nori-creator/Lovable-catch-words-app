@@ -1886,6 +1886,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "place.langZh": { ja: "台湾華語", en: "Mandarin", "zh-TW": "華語" },
   "place.langEn": { ja: "英語", en: "English", "zh-TW": "英文" },
   // B「写真を大きく」（オーナー決定 2026-09-27）。写真が手がかりなので、題は短く問うだけ。
+  // 節目の日の記念アルバム（オーナー指示 2026-09-27）。`milestone-album.ts`。
+  "memorial.title": {
+    ja: "使い始めて{n}日の記念アルバム",
+    en: "Your {n}-day album",
+    "zh-TW": "使用第 {n} 天的紀念相簿",
+  },
+  "memorial.sub": {
+    ja: "{n}日間で{count}語。思い出の{photos}枚をまとめました",
+    en: "{count} words in {n} days. {photos} moments in one page",
+    "zh-TW": "{n} 天收集了 {count} 個單字，精選 {photos} 張回憶",
+  },
+  "memorial.open": { ja: "開く", en: "Open", "zh-TW": "打開" },
+  "memorial.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
+  "memorial.notifyTitle": {
+    ja: "{n}日目の記念アルバムができました",
+    en: "Your {n}-day album is ready",
+    "zh-TW": "第 {n} 天的紀念相簿完成了",
+  },
+  "memorial.notifyBody": {
+    ja: "使い始めて{n}日。これまでの思い出を1冊にまとめました",
+    en: "{n} days in. Your favourite moments, in one album",
+    "zh-TW": "使用第 {n} 天，把回憶整理成一本相簿",
+  },
   // 復習の通知の時刻（オーナー指示 2026-09-27）。`review-reminder.ts`。
   "settings.notifications": { ja: "通知", en: "Notifications", "zh-TW": "通知" },
   "remind.label": { ja: "復習の通知", en: "Review reminders", "zh-TW": "複習提醒" },

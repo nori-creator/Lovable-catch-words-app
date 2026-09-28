@@ -12,6 +12,14 @@ describe("外から開かれたときの行き先", () => {
     expect(routeFromUrl(WIDGET_LINKS.review)).toEqual({ to: "/review", search: {} });
   });
 
+  it("節目の通知はホームの記念アルバムへ", () => {
+    expect(routeFromNotificationExtra({ route: "/home?memorial=30" })).toEqual({
+      to: "/home",
+      search: { memorial: 30 },
+    });
+    expect(routeFromUrl("catchwords://home?memorial=abc")).toEqual({ to: "/home", search: {} });
+  });
+
   it("https の同じ道も受ける", () => {
     expect(routeFromUrl("https://example.app/review?sticker=abc-123")).toEqual({
       to: "/review",

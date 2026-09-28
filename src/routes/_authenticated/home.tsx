@@ -43,7 +43,14 @@ import {
   type PendingCapture,
 } from "@/lib/offline-queue";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookText, Camera, Check, Trash2, WifiOff } from "lucide-react";
+import {
+  dismissMemorial,
+  milestoneToday,
+  pickHighlights,
+  wasMemorialDismissed,
+} from "@/lib/milestone-album";
+import { scheduleMilestoneNotification } from "@/lib/milestone-schedule";
+import { BookText, Camera, Check, Trash2, WifiOff, X } from "lucide-react";
 import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
 import { baseStickerId, isEncounterAlbumId, mergeAlbumEncounters } from "@/lib/album-encounters";
 import {
@@ -65,6 +72,14 @@ export const Route = createFileRoute("/_authenticated/home")({
       { name: "description", content: "今日キャッチした言葉を一冊のスクラップアルバムに。" },
     ],
   }),
+  /**
+   * `?memorial=30`: 節目の通知から来た時、その記念アルバムを開く
+   * （`lib/milestone-album.ts`、`lib/deep-link.ts`）。
+   */
+  validateSearch: (search: Record<string, unknown>): { memorial?: number } => {
+    const m = Number(search.memorial);
+    return Number.isInteger(m) && m > 0 && m < 100000 ? { memorial: m } : {};
+  },
   component: HomePage,
 });
 
@@ -242,6 +257,38 @@ function HomePage() {
   });
   const [openId, setOpenId] = useState<string | null>(null);
   /**
+   * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
+   * 使い始めた日（アカウントを作った日）から数えて節目なら、今日の誌面の上に
+   * 入口を出す。節目の通知から来た時（`?memorial=30`）はそのまま開く。
+   */
+  const { memorial: memorialParam } = Route.useSearch();
+  const startedAt = profile?.created_at ? new Date(profile.created_at) : null;
+  const memorialToday = startedAt ? milestoneToday(startedAt, new Date()) : null;
+  const [memorialOpen, setMemorialOpen] = useState<number | null>(memorialParam ?? null);
+  const [memorialHidden, setMemorialHidden] = useState(false);
+  useEffect(() => {
+    if (memorialParam) setMemorialOpen(memorialParam);
+  }, [memorialParam]);
+  useEffect(() => {
+    if (profile?.created_at) void scheduleMilestoneNotification(new Date(profile.created_at));
+  }, [profile?.created_at]);
+  const memorialPicks = useMemo(
+    () =>
+      pickHighlights(
+        (stickers?.items ?? []).map((s) => ({
+          ...s,
+          hasPhoto: !!stickerPhotoUrl(s),
+          // 記念の1枚は自動で並べ直す（元の日に指で置いた位置は使わない）。
+          album_x: null,
+          album_y: null,
+          album_scale: null,
+          album_rot: null,
+          album_order: null,
+        })),
+      ),
+    [stickers],
+  );
+  /**
    * 押した札の場所と絵。ここから詳細の見出しへ**絵が飛ぶ**
    * （オーナー指示 2026-09-15「軌跡アニメーション」／`components/use-hero-reveal.ts`）。
    * 長押しで開いた時は空にする — 長押しは「この札の写真を選び直す」であって、
@@ -329,6 +376,21 @@ function HomePage() {
           背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
           今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
       <PendingCapturesBanner />
+      {memorialToday &&
+        !memorialHidden &&
+        memorialPicks.length > 0 &&
+        !wasMemorialDismissed(memorialToday) && (
+          <MemorialEntry
+            n={memorialToday}
+            words={total}
+            picks={memorialPicks}
+            onOpen={() => setMemorialOpen(memorialToday)}
+            onDismiss={() => {
+              dismissMemorial(memorialToday);
+              setMemorialHidden(true);
+            }}
+          />
+        )}
 
       {isLoading ? (
         <HomeLoading />
@@ -396,6 +458,24 @@ function HomePage() {
           truncated={truncated}
           shown={shown}
           total={total}
+        />
+      )}
+      {memorialOpen !== null && memorialPicks.length > 0 && (
+        <MemorialAlbum
+          n={memorialOpen}
+          words={total}
+          picks={memorialPicks}
+          surface={surfaceClass}
+          onOpen={(id, from) => {
+            setOpenId(baseStickerId(id));
+            setOpenFrom(from ?? null);
+          }}
+          onClose={() => {
+            dismissMemorial(memorialOpen);
+            setMemorialHidden(true);
+            setMemorialOpen(null);
+            if (memorialParam) void navigate({ to: "/home", search: {}, replace: true });
+          }}
         />
       )}
       <StickerSheet
@@ -947,7 +1027,16 @@ export function DayCollage({
   opening,
   surface = "album-bg-paper",
   heading,
+  editable = true,
+  stamp = "time",
 }: {
+  /** 札に添える印。1日の誌面は時刻、日をまたぐ記念アルバムは日付。 */
+  stamp?: "time" | "date";
+  /**
+   * 長押しで置き方を変えられるか。**記念アルバムでは変えない**（札の置き方は
+   * 元の日の誌面のもので、ここで動かすと元の日の置き方が書き換わる）。
+   */
+  editable?: boolean;
   /** 板の上に直に書く日付（`DiaryDate`）。オーナー指示 2026-09-23。 */
   heading?: React.ReactNode;
   /**
@@ -1353,6 +1442,7 @@ export function DayCollage({
     place: Placement,
   ) {
     longPressFired.current = false;
+    if (!editable) return;
     pressOrigin.current = at;
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
@@ -1543,11 +1633,15 @@ export function DayCollage({
             // ある物 → 札の共通の選択(`hero_role`) → 設定 → 画面の意図。
             const heroUrl = heroById.get(s.id) ?? null;
             /** 撮った時刻。**24時制**（桁が揃うので、誌面の中で列に見える）。 */
-            const time = takenAt(s).toLocaleTimeString(locale, {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            });
+            // 記念アルバムは日をまたぐので、時刻ではなく日付を書く（`stamp="date"`）。
+            const time =
+              stamp === "date"
+                ? takenAt(s).toLocaleDateString(locale, { month: "numeric", day: "numeric" })
+                : takenAt(s).toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  });
 
             return (
               <button
@@ -1809,5 +1903,126 @@ export function DayCollage({
           いうやつ消して」）。数は図鑑に在り、ここは写真が主役。 */}
       </div>
     </>
+  );
+}
+
+/**
+ * 節目の日の入口（今日の誌面の上）。写真を3枚重ねた小さな束と題。
+ * 閉じたらその節目の間は出さない（`dismissMemorial`）。
+ */
+export function MemorialEntry({
+  n,
+  words,
+  picks,
+  onOpen,
+  onDismiss,
+}: {
+  n: number;
+  words: number;
+  picks: StickerWithWord[];
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useT();
+  const thumbs = picks.slice(-3);
+  return (
+    <div className="relative mb-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-sm">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="press-in flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span className="relative h-16 w-16 shrink-0" aria-hidden>
+          {thumbs.map((s, i) => {
+            const url = stickerPhotoUrl(s, { prefer: s.hero_role ?? undefined, thumb: true });
+            return (
+              <span
+                key={s.id}
+                className="absolute inset-0 overflow-hidden rounded-md bg-white p-0.5 shadow"
+                style={{ rotate: `${(i - 1) * 8}deg`, zIndex: i }}
+              >
+                {url && (
+                  <CachedImg src={url} alt="" className="h-full w-full rounded-sm object-cover" />
+                )}
+              </span>
+            );
+          })}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-headline font-bold leading-tight">
+            {t("memorial.title", { n })}
+          </span>
+          <span className="mt-0.5 block text-caption text-muted-foreground">
+            {t("memorial.sub", { n, count: words, photos: picks.length })}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label={t("memorial.close")}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/** 記念アルバム本体。画面いっぱいの1枚の誌面（ホームと同じ貼り方）。 */
+export function MemorialAlbum({
+  n,
+  words,
+  picks,
+  surface,
+  onOpen,
+  onClose,
+}: {
+  n: number;
+  words: number;
+  picks: StickerWithWord[];
+  surface: string;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("memorial.title", { n })}
+      className="fixed inset-0 z-[60] overflow-y-auto bg-background px-4 pb-28 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
+    >
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("memorial.close")}
+            className="grid h-11 w-11 place-items-center rounded-full bg-card shadow-sm"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <DayCollage
+          stickers={picks}
+          surface={surface}
+          editable={false}
+          stamp="date"
+          opening
+          onOpen={onOpen}
+          heading={
+            <div className="px-2 pb-2 pt-1 text-center">
+              <h2 className="text-title font-extrabold tracking-tight">
+                {t("memorial.title", { n })}
+              </h2>
+              <p className="mt-1 text-footnote text-muted-foreground">
+                {t("memorial.sub", { n, count: words, photos: picks.length })}
+              </p>
+            </div>
+          }
+        />
+      </div>
+    </div>
   );
 }

@@ -67,6 +67,7 @@ import { AuthScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
   HomeInkScene,
+  HomeMemorialScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -152,6 +153,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   home: HomeScene,
   "home-album": HomeAlbumScene,
   "home-ink": HomeInkScene,
+  "home-memorial": HomeMemorialScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -346,6 +348,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
   { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
   { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
   { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },

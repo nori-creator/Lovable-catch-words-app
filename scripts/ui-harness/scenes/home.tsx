@@ -25,6 +25,8 @@ import {
   PastDays,
   PendingCapturesCard,
   DayCollage,
+  MemorialAlbum,
+  MemorialEntry,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { JournalComposer } from "@/components/JournalComposer";
@@ -436,4 +438,38 @@ export function HomeInkScene() {
     },
   ];
   return <StoryInk initial={initial} />;
+}
+
+/**
+ * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
+ * 上: 節目の日にホームの上に出る入口。下: 押して開いた1枚（`?open=1` で開いた所から）。
+ * 30日ぶんの札から、日をまたいで8枚を選んだ形。
+ */
+export function HomeMemorialScene({ q }: { q: URLSearchParams }) {
+  const [open, setOpen] = useState(q.get("open") === "1");
+  const picks = [0, 3, 7, 11, 15, 19, 24, 29].map((d, i) =>
+    makeSticker(FIXTURES[i % FIXTURES.length], i, d),
+  );
+  return (
+    <>
+      <MemorialEntry
+        n={30}
+        words={86}
+        picks={picks}
+        onOpen={() => setOpen(true)}
+        onDismiss={() => {}}
+      />
+      <DayCollage stickers={today} onOpen={() => {}} heading={<DiaryDate date={new Date()} />} />
+      {open && (
+        <MemorialAlbum
+          n={30}
+          words={86}
+          picks={picks}
+          surface={wallClass("paper")}
+          onOpen={() => {}}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
 }
