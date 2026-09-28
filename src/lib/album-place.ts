@@ -563,3 +563,60 @@ export function packCollage(
     };
   });
 }
+
+/**
+ * 紙の上の1枚が占める箱（中心と幅・高さ。台紙の幅に対する割合）。傾けたぶん角が
+ * 外へ出るので、その出っ張りも含める。写真の下の字（`extra`）は箱の下に足す。
+ */
+export type AlbumBox = { x: number; y: number; w: number; h: number };
+
+export function boxOf(p: Placement, ratio: number, extra = 0): AlbumBox {
+  const w = p.scale * BASE_WIDTH;
+  const h = w * (Number.isFinite(ratio) && ratio > 0 ? ratio : 1);
+  const t = (Math.abs(p.rot) * Math.PI) / 180;
+  // 傾けた長方形を包む箱（小さい角度なので素直に計算する）。
+  const bw = w * Math.cos(t) + h * Math.sin(t);
+  const bh = w * Math.sin(t) + h * Math.cos(t);
+  return { x: p.x, y: p.y + extra / 2, w: bw, h: bh + extra };
+}
+
+export function boxesOverlap(a: AlbumBox, b: AlbumBox, pad = COLLAGE_GAP / 2): boolean {
+  return (
+    Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pad && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pad
+  );
+}
+
+/**
+ * **自分で置いた写真を避けて、自動の写真を置き直す**（オーナー指示 2026-09-28「ホームの
+ * アルバムデフォルトで画像を配置するとき、ほかの画像と被らないように角度や大小を
+ * 調整して、美しいバランスで配置して」）。
+ *
+ * 自動の置き方（`packCollage`）は**自分で動かして保存した写真を知らない**。一度でも
+ * 並べ替えて保存した日に新しく撮ると、新しい1枚は台紙の上から積まれ、保存した写真の
+ * 真上に重なっていた — 「デフォルトで被る」の正体。
+ *
+ * 自動の写真を順に見て、既に在る箱（保存した写真と、先に置いた自動の写真）に
+ * かかる間は、かかった箱の下端の下まで下げる。横位置・大きさ・傾きは自動のまま
+ * （律動と左右の釣り合いは崩さない）。並びだけで決まるので、何度描いても同じ。
+ */
+export function avoidFixed(
+  autos: ReadonlyArray<{ place: Placement; ratio: number; extra?: number }>,
+  fixed: ReadonlyArray<AlbumBox>,
+): Placement[] {
+  const taken: AlbumBox[] = [...fixed];
+  return autos.map(({ place, ratio, extra = 0 }) => {
+    let p = place;
+    let b = boxOf(p, ratio, extra);
+    for (let guard = 0; guard < 200; guard++) {
+      const hits = taken.filter((o) => boxesOverlap(b, o));
+      if (hits.length === 0) break;
+      const floor = Math.max(...hits.map((o) => o.y + o.h / 2));
+      // 箱の上端を、かかった箱の下端 + 余白へ。
+      const dy = floor + COLLAGE_GAP - (b.y - b.h / 2);
+      p = { ...p, y: p.y + Math.max(dy, 0.001) };
+      b = boxOf(p, ratio, extra);
+    }
+    taken.push(b);
+    return p;
+  });
+}

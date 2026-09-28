@@ -8,6 +8,8 @@ import {
   COLLAGE_CAP_W,
   captionAlign,
   COLLAGE_COL_W,
+  avoidFixed,
+  boxOf,
   collageRatio,
   gestureDelta,
   packCollage,
@@ -1294,8 +1296,36 @@ export function DayCollage({
             : 0,
       })),
     );
+    /**
+     * **自分で置いて保存した写真を避ける**（`avoidFixed`、オーナー指示 2026-09-28
+     * 「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。自動の
+     * 置き方は保存した写真を知らないので、並べ替えた日に新しく撮ると、その1枚が
+     * 保存した写真の真上に積まれていた。
+     */
+    const extraOf = (s: StickerWithWord) =>
+      heroById.get(s.id) && board.w ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w : 0;
+    const saved = (s: StickerWithWord) => s.album_x != null && s.album_y != null;
+    const fixed = base.filter(saved).map((s) => {
+      const p = placementFrom(
+        { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
+        places[base.indexOf(s)],
+      );
+      return boxOf(p, frameRatio(s.id), extraOf(s));
+    });
+    const autos = base.filter((s) => !saved(s));
+    const settled = fixed.length
+      ? avoidFixed(
+          autos.map((s) => ({
+            place: places[base.indexOf(s)],
+            ratio: frameRatio(s.id),
+            extra: extraOf(s),
+          })),
+          fixed,
+        )
+      : autos.map((s) => places[base.indexOf(s)]);
     const map = new Map<string, Placement>();
     base.forEach((s, i) => map.set(s.id, places[i]));
+    autos.forEach((s, i) => map.set(s.id, settled[i]));
     return map;
   }, [stickers, frameRatio, heroById, board.w]);
   const items = useMemo(

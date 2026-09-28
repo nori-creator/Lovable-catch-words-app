@@ -221,8 +221,23 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
  * ホームそのもの（`HomeScene`）は表紙も過去の日も付くので、
  * 置き方・重なり・時刻の出方だけを見たいときはこちらを開く。
  */
-export function HomeAlbumScene() {
-  return <DayCollage stickers={today} onOpen={() => {}} />;
+export function HomeAlbumScene({ q }: { q?: URLSearchParams }) {
+  /**
+   * `?saved=1`: 並べ替えて保存した写真（2枚）の日に、新しく撮った写真が来た形
+   * （2026-09-28「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。
+   * 前は新しい写真が保存した写真の真上に積まれていた。
+   */
+  const stickers =
+    q?.get("saved") === "1"
+      ? today.map((s, i) =>
+          i === 3
+            ? { ...s, album_x: 0.3, album_y: 0.32, album_scale: 1.7, album_rot: -3 }
+            : i === 4
+              ? { ...s, album_x: 0.72, album_y: 0.25, album_scale: 1.2, album_rot: 4 }
+              : s,
+        )
+      : today;
+  return <DayCollage stickers={stickers} onOpen={() => {}} />;
 }
 
 /** 圏外で撮って預かっている写真の帯。**オフラインでしか出ない面。** */
