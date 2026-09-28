@@ -46,6 +46,7 @@ import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { PageFlipScene } from "./scenes/page-flip";
 import { AlbumShelfScene } from "./scenes/album-shelf";
+import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -172,6 +173,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "analyzing-designs": AnalyzingDesignsScene,
   "page-flip": PageFlipScene,
   "album-shelf": AlbumShelfScene,
+  "scan-pick-designs": ScanPickDesignsScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -338,6 +340,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
   { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
   // ガラスは本番に全部当てた（同日「すべてに適用して」）。
   { scene: "tabbar", label: "下のバー（ガラス・アイコン）" },
