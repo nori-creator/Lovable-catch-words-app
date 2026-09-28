@@ -13,6 +13,7 @@
  *    指に 1:1 で付いてきて、離すと速さを引き継いで最後まで行く（または戻る）。
  */
 import * as THREE from "three";
+import { playSfx, preloadSfx } from "@/lib/sfx-files";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
@@ -684,6 +685,7 @@ export class ShelfWorld {
 
   openBook(b: Book) {
     if (this.active) return;
+    void preloadSfx(["book-open"]);
     this.paintInside(b);
     this.active = b;
     this.page = 0;
@@ -695,6 +697,8 @@ export class ShelfWorld {
       () => {
         if (this.active === b) {
           this.open.target = 1;
+          // 表紙が開く瞬間に、録った「表紙のきしみ→紙をめくる」を鳴らす。
+          playSfx("book-open");
           this.kick();
           // いちばん新しい日の見開きまで、1枚ずつ続けてめくる（ぱらぱら）。
           const last = b.days.length;

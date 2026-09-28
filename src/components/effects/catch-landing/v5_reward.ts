@@ -1,5 +1,6 @@
 import { markFlown } from "@/lib/catch-flight";
 import { Sound } from "@/lib/sound-engine";
+import { playSfx, preloadSfx } from "@/lib/sfx-files";
 import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
 import type { LandingRunner } from "./types";
@@ -102,6 +103,8 @@ export const v5reward: LandingRunner = async ({
   // 0–120ms release; 120–600ms entrance + signature; 600ms name/voice;
   // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
+  // 着地の音（録った「シュッ→ドン」）を先に読み解いておく。着地まで2秒以上ある。
+  void preloadSfx(["catch-impact"]);
   Sound.rewardGrip();
   haptic("selection");
   await fly.animate(
@@ -282,7 +285,11 @@ export const v5reward: LandingRunner = async ({
       ).finished,
       ...backgroundMotion,
     ]);
-    Sound.itemDrop();
+    // 落ち始めに録った「シュッ→ドン」を鳴らす — 素材の山（ドン）は頭から 0.25 秒、
+    // 落ちる動きは 0.24 秒なので、**着いた絵と同じ瞬間に音が着く**。読めていなければ
+    // 今まで通り合成の音。
+    const recordedImpact = playSfx("catch-impact");
+    if (!recordedImpact) Sound.itemDrop();
     await handoffImage.animate(
       [
         { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
@@ -292,7 +299,7 @@ export const v5reward: LandingRunner = async ({
     ).finished;
 
     handoff.dataset.stage = "impact";
-    Sound.shelfLand();
+    if (!recordedImpact) Sound.shelfLand();
     Score.land();
     haptic("heavy");
     /**

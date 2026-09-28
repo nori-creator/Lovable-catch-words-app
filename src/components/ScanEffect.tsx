@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { EFFECT_LAB_EVENT, getVariant, type EffectSlot } from "@/lib/effect-lab";
+import { loopSfx } from "@/lib/sfx-files";
 import { ScanAnalyzing_v0cutout } from "./effects/scan-analyzing/v0_cutout";
 import { ScanAnalyzing_v1probe } from "./effects/scan-analyzing/v1_probe";
 import { ScanAnalyzing_v2liquid } from "./effects/scan-analyzing/v2_liquid";
@@ -73,6 +74,10 @@ export function ScanEffect({
 }) {
   const id = useEffectVariant(SLOT);
   const Chosen = VARIANTS[id] ?? ScanAnalyzing_v0cutout;
+  // 待っている間ずっと、静かなきらめきの音を敷く（`public/sfx/el-analyze-loop.mp3`、
+  // オーナー指示 2026-09-28「AIの分析中のアニメーション…本物の映画の効果音の
+  // クオリティ」）。画面が消えたら 0.25 秒で消える。音の設定がオフなら鳴らない。
+  useEffect(() => loopSfx("analyze-loop"), []);
   return <Chosen stage={stage} cutout={cutout} />;
 }
 

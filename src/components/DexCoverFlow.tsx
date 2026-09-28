@@ -28,6 +28,7 @@ import {
 } from "@/lib/cover-flow";
 import { APPLE_SPRING, createSpring, rubberband, velocityFrom, type Spring } from "@/lib/spring";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import { playSfx, preloadSfx } from "@/lib/sfx-files";
 
 /**
  * 図鑑の**カード表示**。1語1枚のカードを横に送る（カバーフロー）。
@@ -272,6 +273,27 @@ export function DexCoverFlow({
       delete root.dataset.dexStage;
     };
   }, [theme]);
+
+  /**
+   * 札が真ん中に来るたび、録った短い「スッ」を鳴らす（`el-gallery-slide.mp3`、オーナー指示
+   * 2026-09-28「図鑑のスライド…本物の映画の効果音のクオリティ」）。開いた最初の1枚では
+   * 鳴らさない。勢いよく払って何枚も通過する時は詰まって聞こえないよう 70ms 空ける。
+   */
+  const slideSound = useRef({ first: true, at: 0 });
+  useEffect(() => {
+    void preloadSfx(["gallery-slide"]);
+  }, []);
+  useEffect(() => {
+    const s = slideSound.current;
+    if (s.first) {
+      s.first = false;
+      return;
+    }
+    const now = performance.now();
+    if (now - s.at < 70) return;
+    s.at = now;
+    playSfx("gallery-slide", { gain: 0.8 });
+  }, [center]);
 
   const current = stickers[center];
   const room: RoomKey = current

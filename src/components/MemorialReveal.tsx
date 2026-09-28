@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useT } from "@/lib/i18n";
 import { haptic } from "@/lib/haptics";
-import { audioOut } from "@/lib/sound-engine";
+import { playSfx, preloadSfx } from "@/lib/sfx-files";
 
 /**
  * **記念アルバムを開く瞬間の演出**（オーナー指示 2026-09-28「記念アルバムはただの
@@ -170,20 +170,13 @@ export function MemorialReveal({
   );
 }
 
-/** 祝福の音（ElevenLabs で作ったハープ、`public/sfx`）。音量の設定に従う（オフなら鳴らない）。 */
+/**
+ * 祝福の音（ElevenLabs Music で作った5秒の弦とハープ、`public/sfx/el-celebrate-sting.mp3`）。
+ * 音量の設定に従う（オフなら鳴らない）。まだ読み解けていなければ読み終わり次第鳴らす。
+ */
 function playCelebrate() {
-  const io = audioOut();
-  if (!io) return;
-  void fetch("/sfx/celebrate-harp.mp3")
-    .then((r) => r.arrayBuffer())
-    .then((b) => io.c.decodeAudioData(b))
-    .then((buf) => {
-      const src = io.c.createBufferSource();
-      src.buffer = buf;
-      src.connect(io.out);
-      src.start();
-    })
-    .catch(() => {});
+  if (playSfx("celebrate-sting")) return;
+  void preloadSfx(["celebrate-sting"]).then(() => playSfx("celebrate-sting"));
 }
 
 /**
