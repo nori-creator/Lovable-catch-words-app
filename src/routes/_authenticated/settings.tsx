@@ -68,6 +68,8 @@ import {
 } from "@/lib/place-reminder";
 import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
 import { ModelPicker } from "@/components/ModelPicker";
+import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
+import type { AdConfig } from "@/lib/ad-policy";
 import {
   MAX_CUSTOM_TIMES,
   planReminders,
@@ -1708,7 +1710,77 @@ function AdminOnlySection() {
       <UiThemePicker />
       <AiModelPanel />
       <TtsVoicePanel />
+      <AdsPanel />
     </div>
+  );
+}
+
+/**
+ * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
+ * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
+ * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
+ */
+function AdsPanel() {
+  const t = useT();
+  const getFn = useServerFn(getAdConfig);
+  const setFn = useServerFn(setAdConfig);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["ad-config"], queryFn: () => getFn(), staleTime: 30_000 });
+  const [draft, setDraft] = useState<AdConfig | null>(null);
+  useEffect(() => {
+    if (data) setDraft(data);
+  }, [data]);
+  if (!draft) return null;
+  const save = async (next: AdConfig) => {
+    setDraft(next);
+    try {
+      await setFn({ data: { ads: next } });
+      await qc.invalidateQueries({ queryKey: ["ad-config"] });
+      toast.success(t("ads.saved"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+    }
+  };
+  const num = (k: keyof AdConfig, label: string, min: number, max: number) => (
+    <label className="flex min-h-11 items-center justify-between gap-3 text-footnote">
+      <span>{label}</span>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={String(draft[k])}
+        onChange={(e) => setDraft({ ...draft, [k]: Number(e.target.value) })}
+        onBlur={() => void save(draft)}
+        className="h-11 w-20 text-right tabular-nums"
+      />
+    </label>
+  );
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
+        {t("settings.ads")}
+      </summary>
+      <div className="mt-3 space-y-2">
+        <ToggleRow
+          label={t("ads.enabled")}
+          description={t("ads.enabledDesc")}
+          value={draft.enabled}
+          onChange={(v) => void save({ ...draft, enabled: v })}
+        />
+        {num("graceDays", t("ads.grace"), 0, 60)}
+        {num("batchesPerInterstitial", t("ads.batches"), 1, 20)}
+        {num("minGapMin", t("ads.gap"), 0, 240)}
+        {num("maxPerDay", t("ads.maxDay"), 0, 20)}
+        {num("nativeEvery", t("ads.native"), 4, 100)}
+        <ToggleRow
+          label={t("ads.rewarded")}
+          value={draft.rewardedEnabled}
+          onChange={(v) => void save({ ...draft, rewardedEnabled: v })}
+        />
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("ads.note")}</p>
+      </div>
+    </details>
   );
 }
 

@@ -3243,6 +3243,58 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Self-improvement audit",
     "zh-TW": "自我改善的檢查",
   },
+  // 広告（開発者だけ、オーナー指示 2026-09-27）。`ad-policy.ts`。
+  "settings.ads": {
+    ja: "広告（開発者だけ）",
+    en: "Ads (developer only)",
+    "zh-TW": "廣告（僅開發者）",
+  },
+  "ads.enabled": { ja: "広告を出す", en: "Show ads", "zh-TW": "顯示廣告" },
+  "ads.enabledDesc": {
+    ja: "無料の人だけ。撮る・スキャン・保存の最中や、開いた瞬間には出しません",
+    en: "Free users only. Never during capture, scan or saving, or at launch",
+    "zh-TW": "只對免費使用者。拍照、掃描、儲存時與剛打開時不會顯示",
+  },
+  "ads.grace": {
+    ja: "使い始めてから出さない日数",
+    en: "Days without ads after sign-up",
+    "zh-TW": "開始使用後不顯示廣告的天數",
+  },
+  "ads.batches": {
+    ja: "全画面広告: 復習を何回終えるごとに1回",
+    en: "Full-screen ad: once every N review sets",
+    "zh-TW": "全螢幕廣告：每完成幾次複習顯示一次",
+  },
+  "ads.gap": {
+    ja: "全画面広告の間隔（分以上）",
+    en: "Minimum minutes between full-screen ads",
+    "zh-TW": "全螢幕廣告的最短間隔（分鐘）",
+  },
+  "ads.maxDay": {
+    ja: "全画面広告の1日の上限",
+    en: "Full-screen ads per day (max)",
+    "zh-TW": "每天全螢幕廣告的上限",
+  },
+  "ads.native": {
+    ja: "図鑑の一覧: 何枚ごとに広告1枠",
+    en: "Dex list: one ad slot every N cards",
+    "zh-TW": "圖鑑列表：每幾張卡片放一個廣告",
+  },
+  "ads.rewarded": {
+    ja: "ごほうび広告（見たら作り直しが1回増える）",
+    en: "Rewarded ad (watch to get one more rewrite)",
+    "zh-TW": "獎勵廣告（看完可多重做一次）",
+  },
+  "ads.note": {
+    ja: "オンにしても、AdMob（広告の部品）をアプリに入れるまでは実際の広告は出ません。手順は docs/monetization.md。",
+    en: "Real ads appear only after AdMob is added to the app. Steps: docs/monetization.md.",
+    "zh-TW": "即使打開，在 App 加入 AdMob 之前也不會出現真正的廣告。步驟見 docs/monetization.md。",
+  },
+  "ads.saved": {
+    ja: "広告の設定を保存しました",
+    en: "Ad settings saved",
+    "zh-TW": "已儲存廣告設定",
+  },
   "settings.usersLink": {
     ja: "利用者ごとの情報（開発者だけ）",
     en: "Per-user details (developer only)",
