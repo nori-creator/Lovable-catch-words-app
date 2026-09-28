@@ -116,6 +116,10 @@ declare module "three" {
   export const Box3: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type LatheGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const LatheGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type SkinnedMesh = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const SkinnedMesh: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type ConeGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const ConeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
   export const GLTFLoader: any; // eslint-disable-line @typescript-eslint/no-explicit-any
