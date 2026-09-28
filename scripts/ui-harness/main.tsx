@@ -350,46 +350,37 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-27 の依頼で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-27 の依頼（10回目）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
+  // 先頭は最後に頼まれた物（ホームの本棚）。
   {
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "home-album", label: "ホームのアルバム（写真と語を1枚の印画紙に）" },
+  { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
   { scene: "word-detail-designs", label: "案: 単語の詳細を1から A/B/C/D（根拠つき）" },
   { scene: "fx-lab", label: "試作: 分析中・キャッチの演出を GPU で描く" },
+  { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },
+  { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
+  { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
+  { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
   { scene: "monetization-designs", label: "案: サブスク（無料と Pro）と広告の出る所" },
   { scene: "admin-users", label: "開発者: 利用者ごとの情報（見本の数字）" },
   { scene: "ai-models", label: "開発者: AI の使い分け（機能ごと・説明つき）" },
-  { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
-  { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
-  { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
-  { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },
-  { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
-  { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
-  // ガラスは本番に全部当てた（同日「すべてに適用して」）。
-  { scene: "tabbar", label: "下のバー（ガラス・アイコン）" },
-  { scene: "capture-object", label: "カメラ（枠・払ってスキャンへ）" },
-  { scene: "scan-bottom", label: "スキャン（上下の余白）" },
-  { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
-  { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
-  { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
-  { scene: "home-album", label: "アルバム（写真と語を1枚の印画紙に）" },
-  { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
-  { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
-  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },
-  { scene: "home-tap", label: "写真→詳細の開き方 A/B/C/D（角は丸いまま）" },
-  { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
-  { scene: "settings-polish", label: "設定（ガラス）" },
-  { scene: "review-choice", label: "復習の4択（ガラス）" },
-  { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
-  { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
-  { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
-  { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
-  { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
-  { scene: "home-ink", label: "試作: アルバムに書き込む（ペン・ラベル・形・色）" },
-  { scene: "page-flip", label: "試作: ページめくり（スマホ／折りたたみの見開き）" },
-  { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
+  { scene: "word-card", label: "単語の詳細（注音が重ならない・不要な項目を削除）" },
+  { scene: "regen-magic", label: "解説の作り直し（古いまま待ち、魔法のように入れ替わる）" },
+  { scene: "chunks", label: "チャンク（型の中の語を押して切り替え・音声）" },
+  { scene: "capture-pick", label: "撮った後の候補（写真の中の物ごと → 別の言い方）" },
+  { scene: "word-candidate", label: "候補の注音（字の右に・薄い色）" },
+  { scene: "review-choice", label: "復習の4択（太く・中央・注音の大きさ・外れたら詳細へ）" },
+  { scene: "memory-curve", label: "記憶のグラフ（点を持って滑らかに辿る）" },
+  { scene: "page-flip", label: "ページめくり（どこからでも・表紙 A〜D・ノートの紙）" },
+  { scene: "home-ink", label: "アルバムに書き込む（ストーリー風・大きな書く欄）" },
+  { scene: "place-memory", label: "場所の通知 B（写真を大きく・台湾華語で言える？）" },
+  { scene: "map-calendar-designs", label: "地図の暦 A（カラフルに）" },
+  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（奥の舞台・白い背景）" },
+  { scene: "home-tap", label: "写真→詳細の開き方（浮かび上がる）" },
 ];
 
 const explicitScene = q.get("scene");

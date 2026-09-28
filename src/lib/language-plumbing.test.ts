@@ -4968,8 +4968,9 @@ describe("ホームは今日の誌面", () => {
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-09-27 の回の最後の依頼: ホーム上の月ごとのアルバムの本棚（試作）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "album-shelf"/);
-    expect(list).toMatch(/\{ scene: "chunk-designs"/);
-    expect(list).toMatch(/\{ scene: "capture-object"/);
+    // 10回目の面（本棚・候補の選び方・通知・ウィジェット ほか）。前の回の面は残さない。
+    expect(list).toMatch(/\{ scene: "scan-pick-designs"/);
+    expect(list).not.toMatch(/\{ scene: "capture-object"/);
     expect(list).not.toMatch(/glass=1/);
     expect(main).not.toMatch(/dataset\.glass/);
     expect(read("styles.css")).not.toMatch(/data-glass/);
