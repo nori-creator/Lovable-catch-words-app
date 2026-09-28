@@ -9,9 +9,25 @@
  *
  * 操作: 本を押す → 手元に寄って表紙が開く。右半分を押す／左へ払う＝次のページ。
  * 左半分を押す／右へ払う＝前のページ。「棚に戻す」で閉じて戻る。
+ *
+ * **1日＝1見開き**（オーナー指示 2026-09-28「本棚のアルバムをタップしたら左側に今日撮った
+ * 画像のアルバム（ユーザーの一言や落書きなども含む）右側に今日の日記を表示される。日記は
+ * ユーザーがタイプしたものが、本物の手書きのような字体含む日記の字体ユーザーが選べて」）。
+ * 本を開くと**いちばん新しい日の見開き**までめくれて止まる。下の字体を押すと右のページが
+ * その字体で書き直され、「日記を書く」で打った文がそのまま右のページに載る。
  */
 import { useEffect, useRef, useState } from "react";
 import { ShelfWorld, type MonthBook } from "./shelf3d/engine";
+import type { DaySpread } from "./shelf3d/textures";
+import {
+  DIARY_FONTS,
+  diaryFont,
+  getDiaryFont,
+  loadDiaryFont,
+  setDiaryFont,
+  type DiaryFontId,
+} from "@/lib/diary-fonts";
+import { useT } from "@/lib/i18n";
 
 const COLORS = [
   "#23365e",
@@ -40,6 +56,65 @@ const PHOTOS = [
   "/first-catch-ready.webp",
 ];
 
+/** 今月（最後の本）の4日ぶん。写真・一言・落書き・日記（日本語と台湾華語の混ざり）。 */
+const NOTES = [
+  "並んでも飲みたかった！",
+  "猫が店番してた",
+  "名前わからなかった花",
+  "本屋さんで見つけた",
+  "明日も来たい",
+];
+const DIARIES = [
+  "今日は士林夜市へ。珍珠奶茶を頼むとき「半糖少冰」と言えた。\n店員さんに通じてうれしかった。",
+  "雨の日。捷運で隣の人が読んでいた本のタイトルが気になって、写真を撮った。\n今天下雨，可是心情很好。",
+  "",
+  "朝ごはんに蛋餅。お店のおばさんが「要不要加辣？」と聞いてくれた。\n辣は「からい」。やっと聞き取れた！\n\n夜は友だちと火鍋。",
+];
+const HEART: Array<[number, number]> = Array.from({ length: 28 }, (_, i) => {
+  const t = (i / 27) * Math.PI * 2;
+  return [
+    0.82 + 0.035 * 16 * Math.sin(t) ** 3 * 0.12,
+    0.13 - 0.035 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t)) * 0.12,
+  ];
+});
+
+function fixtureDays(b: MonthBook, imgs: Array<HTMLImageElement | null>): DaySpread[] {
+  const current = b === MONTHS[MONTHS.length - 1];
+  const n = current ? 4 : 3;
+  const startDay = current ? 25 : 8;
+  return Array.from({ length: n }, (_, i) => {
+    const k = (b.m + i) % imgs.length;
+    const photos = Array.from({ length: (i % 3) + 1 + (i === n - 1 ? 1 : 0) }, (_, j) => ({
+      img: imgs[(k + j) % imgs.length],
+      word: ["珍珠奶茶", "貓", "花", "書店", "蛋餅", "火鍋"][(i + j) % 6],
+      note: j === 0 ? NOTES[(i + b.m) % NOTES.length] : undefined,
+    }));
+    return {
+      y: b.y,
+      m: b.m,
+      d: startDay + i,
+      photos,
+      doodles:
+        i % 2 === 1
+          ? [{ color: "#e0564c", width: 5, pts: HEART }]
+          : [
+              {
+                color: "#2f6fd6",
+                width: 4,
+                pts: [
+                  [0.1, 0.93],
+                  [0.2, 0.9],
+                  [0.3, 0.94],
+                  [0.4, 0.9],
+                  [0.5, 0.93],
+                ],
+              },
+            ],
+      diary: current ? DIARIES[i % DIARIES.length] : "",
+    };
+  });
+}
+
 export function Shelf3DScene({ q }: { q: URLSearchParams }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const world = useRef<ShelfWorld | null>(null);
@@ -50,19 +125,47 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
   });
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const t = useT();
+  const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
+  const fontRef = useRef(font);
+  const imgs = useRef<Array<HTMLImageElement | null>>([]);
+  const [writing, setWriting] = useState<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     let w: ShelfWorld;
     try {
-      w = new ShelfWorld(el, MONTHS, { onState: setState });
+      w = new ShelfWorld(el, MONTHS, {
+        onState: setState,
+        days: (b) => fixtureDays(b, imgs.current),
+        diaryFont: () => fontRef.current,
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       return;
     }
     world.current = w;
-    w.load(PHOTOS)
+    // 見開きに貼る写真と、日記・一言の字体を先に揃える（canvas は字体が届く前に
+    // 描くと代わりの字で焼き付く）。
+    const preload = Promise.all([
+      Promise.all(
+        PHOTOS.map(
+          (src) =>
+            new Promise<HTMLImageElement | null>((ok) => {
+              const im = new Image();
+              im.onload = () => ok(im);
+              im.onerror = () => ok(null);
+              im.src = src;
+            }),
+        ),
+      ).then((list) => {
+        imgs.current = list;
+      }),
+      loadDiaryFont(fontRef.current, DIARIES.join("")),
+      loadDiaryFont("hand", NOTES.join("") + "月日（）火水木金土0123456789年見開きぶん"),
+    ]);
+    Promise.all([w.load(PHOTOS), preload])
       .then(() => {
         setReady(true);
         const n = Number(q.get("open"));
@@ -96,6 +199,27 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const days = world.current?.openDays ?? [];
+  const dayIndex = state.open ? state.page - 1 : -1;
+  const day = dayIndex >= 0 ? days[dayIndex] : undefined;
+
+  const chooseFont = async (id: DiaryFontId) => {
+    setFont(id);
+    fontRef.current = id;
+    setDiaryFont(id);
+    await loadDiaryFont(id, days.map((d) => d.diary).join(""));
+    world.current?.repaintDiary();
+  };
+
+  const saveDiary = async () => {
+    if (!day || writing === null) return;
+    // 本番は `saveMyDiary`（journal.functions.ts）で保存する。ここは見本なのでその場だけ。
+    day.diary = writing;
+    await loadDiaryFont(fontRef.current, writing);
+    world.current?.repaintDiary(dayIndex);
+    setWriting(null);
+  };
 
   const btn: React.CSSProperties = {
     minHeight: 44,
@@ -169,8 +293,119 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
               棚に戻す
             </button>
             <span style={{ ...btn, display: "inline-flex", alignItems: "center" }}>
-              {state.open.y}年{state.open.m}月 · {state.page * 2 + 1}/{state.pages * 2 + 1}
+              {state.open.y}年{state.open.m}月{day ? ` · ${day.d}日` : ""}
             </span>
+          </div>
+        )}
+        {state.open && day && (
+          <div
+            style={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              bottom: 10,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {/* 日記の字体（押すと右のページがその字体で書き直される） */}
+            <div role="radiogroup" aria-label="日記の字体" style={{ display: "flex", gap: 5 }}>
+              {DIARY_FONTS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={font === f.id}
+                  onClick={() => void chooseFont(f.id)}
+                  style={{
+                    ...btn,
+                    flex: "1 1 0",
+                    minWidth: 0,
+                    padding: "0 4px",
+                    whiteSpace: "nowrap",
+                    fontFamily: f.family,
+                    fontWeight: 400,
+                    fontSize: 14,
+                    background: font === f.id ? "rgb(255 255 255 / .92)" : btn.background,
+                    color: font === f.id ? "#1d1a16" : "#fff",
+                  }}
+                >
+                  {t(f.key)}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setWriting(day.diary)}
+              style={{ ...btn, background: "rgb(47 111 214 / .92)", border: "none" }}
+            >
+              {day.diary.trim() ? "日記を書き直す" : "日記を書く"}
+            </button>
+          </div>
+        )}
+        {writing !== null && day && (
+          <div
+            role="dialog"
+            aria-label="日記を書く"
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgb(20 16 12 / .55)",
+              display: "flex",
+              alignItems: "flex-end",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                background: "#f7f2e6",
+                borderRadius: "20px 20px 0 0",
+                padding: 16,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              <div style={{ fontFamily: diaryFont("hand").family, fontSize: 20, color: "#3a3128" }}>
+                {day.m}月{day.d}日の日記
+              </div>
+              <textarea
+                autoFocus
+                value={writing}
+                onChange={(e) => setWriting(e.target.value)}
+                rows={7}
+                style={{
+                  width: "100%",
+                  resize: "none",
+                  border: "1px solid rgb(90 120 170 / .3)",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  background:
+                    "repeating-linear-gradient(#f7f2e6 0 34px, rgb(90 120 170 / .22) 34px 35px)",
+                  lineHeight: "35px",
+                  fontFamily: diaryFont(font).family,
+                  fontSize: 20,
+                  color: "#23304a",
+                }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setWriting(null)}
+                  style={{ ...btn, flex: 1, background: "rgb(58 49 40 / .8)" }}
+                >
+                  やめる
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveDiary()}
+                  style={{ ...btn, flex: 2, background: "#2f6fd6", border: "none" }}
+                >
+                  ページに書く
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

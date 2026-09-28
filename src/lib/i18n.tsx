@@ -2714,6 +2714,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "ink.fontClassic": { ja: "クラシック", en: "Classic", "zh-TW": "經典" },
   "ink.fontSignature": { ja: "サイン", en: "Signature", "zh-TW": "簽名" },
   "ink.fontType": { ja: "タイプ", en: "Typewriter", "zh-TW": "打字機" },
+  // 日記の字体（`diary-fonts.ts`。2026-09-28「本物の手書きのような字体…選べて」）
+  "diary.fontHand": { ja: "手書き", en: "Handwritten", "zh-TW": "手寫" },
+  "diary.fontPencil": { ja: "えんぴつ", en: "Pencil", "zh-TW": "鉛筆" },
+  "diary.fontCasual": { ja: "ゆるい", en: "Casual", "zh-TW": "隨手寫" },
+  "diary.fontBrush": { ja: "楷書", en: "Brush", "zh-TW": "楷書" },
+  "diary.fontPlain": { ja: "ふつう", en: "Plain", "zh-TW": "一般" },
   "ink.bg": { ja: "文字の地", en: "Text background", "zh-TW": "文字底色" },
   "legal.onlyJaEn": {
     ja: "この文書は日本語版と英語版のみです。",

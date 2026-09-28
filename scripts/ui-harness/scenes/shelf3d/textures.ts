@@ -11,6 +11,8 @@
  * 凹凸は「高さの絵」を描いてから法線の絵に変える（heightToNormal）。
  */
 
+import { diaryFont, wrapDiaryLines, type DiaryFontId } from "@/lib/diary-fonts";
+
 export type Canvas = HTMLCanvasElement;
 
 export function canvas(w: number, h: number): Canvas {
@@ -459,5 +461,263 @@ export function paintEndpaper(color: string): Canvas {
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  return c;
+}
+
+// ── 1日の見開き（オーナー指示 2026-09-28「本棚のアルバムをタップしたら左側に今日撮った
+//    画像のアルバム（ユーザーの一言や落書きなども含む）右側に今日の日記を表示」） ──
+
+/** 見開き1つ＝1日。左に写真・一言・落書き、右に本人が打った日記。 */
+export type DaySpread = {
+  y: number;
+  m: number;
+  d: number;
+  /** その日の写真（最大4枚）と、その下に書く語。 */
+  photos: Array<{ img: HTMLImageElement | null; word: string; note?: string }>;
+  /** 落書き（ページの 0〜1 の座標の点列）。 */
+  doodles?: Array<{ color: string; width: number; pts: Array<[number, number]> }>;
+  /** 本人が打った日記（無ければ白紙）。 */
+  diary: string;
+};
+
+const HAND = `"Zen Kurenaido", cursive`;
+const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
+
+function paper(ctx: CanvasRenderingContext2D, w: number, h: number, side: "left" | "right") {
+  ctx.fillStyle = "#f7f2e6";
+  ctx.fillRect(0, 0, w, h);
+  const gutter = ctx.createLinearGradient(
+    side === "right" ? 0 : w,
+    0,
+    side === "right" ? 90 : w - 90,
+    0,
+  );
+  gutter.addColorStop(0, "rgba(90,70,40,0.22)");
+  gutter.addColorStop(1, "rgba(90,70,40,0)");
+  ctx.fillStyle = gutter;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function fibers(ctx: CanvasRenderingContext2D, w: number, h: number, seed: number) {
+  const r = rand(seed);
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = `rgba(120,100,70,${r() * 0.05})`;
+    ctx.fillRect(r() * w, r() * h, 1 + r() * 3, 1);
+  }
+}
+
+/** 細い手書きの字を、3D の光の下でもインクの濃さに見せる（縁を少し足して描く）。 */
+function inkText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, px: number) {
+  ctx.strokeStyle = ctx.fillStyle as string;
+  ctx.lineWidth = Math.max(1, px * 0.045);
+  ctx.lineJoin = "round";
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+}
+
+function dateLabel(s: DaySpread) {
+  const wd = WEEK_JA[new Date(s.y, s.m - 1, s.d).getDay()];
+  return `${s.m}月${s.d}日（${wd}）`;
+}
+
+/**
+ * **左のページ: その日のアルバム。** 写真は重ならない位置に少し傾けて貼り（マスキング
+ * テープ付き）、下に語、横に本人の一言を手書きで。落書きはその上に重ねる。
+ */
+export function paintAlbumDay(s: DaySpread): Canvas {
+  const w = 720;
+  const h = 1024;
+  const c = canvas(w, h);
+  const ctx = c.getContext("2d")!;
+  paper(ctx, w, h, "left");
+  ctx.fillStyle = "#2a231c";
+  ctx.font = `400 54px ${HAND}`;
+  ctx.textAlign = "left";
+  inkText(ctx, dateLabel(s), 70, 112, 54);
+  // 置き場（写真の枚数ごとに、重ならない配置を決めておく）
+  const LAYOUTS: Record<number, Array<{ x: number; y: number; s: number; rot: number }>> = {
+    1: [{ x: 360, y: 470, s: 400, rot: -0.03 }],
+    2: [
+      { x: 245, y: 305, s: 260, rot: -0.05 },
+      { x: 480, y: 735, s: 260, rot: 0.04 },
+    ],
+    3: [
+      { x: 215, y: 300, s: 230, rot: -0.05 },
+      { x: 500, y: 440, s: 220, rot: 0.05 },
+      { x: 265, y: 730, s: 220, rot: 0.02 },
+    ],
+    4: [
+      { x: 205, y: 290, s: 200, rot: -0.05 },
+      { x: 505, y: 320, s: 195, rot: 0.04 },
+      { x: 225, y: 680, s: 195, rot: 0.03 },
+      { x: 505, y: 715, s: 200, rot: -0.04 },
+    ],
+  };
+  const list = s.photos.slice(0, 4);
+  const slots = LAYOUTS[Math.max(1, list.length)] ?? LAYOUTS[1];
+  list.forEach((p, i) => {
+    const b = slots[i];
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    ctx.shadowColor = "rgba(40,30,20,0.32)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = "#fcfbf7";
+    ctx.fillRect(-b.s / 2 - 12, -b.s / 2 - 12, b.s + 24, b.s + 70);
+    ctx.shadowColor = "transparent";
+    if (p.img) {
+      const iw = p.img.naturalWidth || p.img.width;
+      const ih = p.img.naturalHeight || p.img.height;
+      const k = Math.max(b.s / iw, b.s / ih);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-b.s / 2, -b.s / 2, b.s, b.s);
+      ctx.clip();
+      ctx.drawImage(p.img, (-iw * k) / 2, (-ih * k) / 2, iw * k, ih * k);
+      ctx.restore();
+    }
+    // マスキングテープ
+    ctx.fillStyle = "rgba(214,190,140,0.62)";
+    ctx.save();
+    ctx.translate(0, -b.s / 2 - 10);
+    ctx.rotate(-0.08);
+    ctx.fillRect(-46, -14, 92, 28);
+    ctx.restore();
+    ctx.fillStyle = "#2b2520";
+    ctx.font = `700 ${Math.round(b.s * 0.12)}px "Noto Sans TC", "PingFang TC", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(p.word, 0, b.s / 2 + 44);
+    ctx.restore();
+    // 本人の一言（語の下に手書きで。写真の外にはみ出さない幅で折る）
+    if (p.note) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.fillStyle = "#7a4e2a";
+      ctx.font = `400 ${Math.round(Math.max(26, b.s * 0.11))}px ${HAND}`;
+      ctx.textAlign = "center";
+      const lh = Math.round(Math.max(26, b.s * 0.11) * 1.25);
+      wrapCanvas(ctx, p.note, b.s + 10)
+        .slice(0, 2)
+        .forEach((ln, k) =>
+          inkText(ctx, ln, 0, b.s / 2 + 44 + lh * (k + 1), Math.max(26, b.s * 0.11)),
+        );
+      ctx.restore();
+    }
+  });
+  // 落書き
+  for (const d of s.doodles ?? []) {
+    if (d.pts.length < 2) continue;
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = d.width;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    const P = d.pts.map(([x, y]) => [x * w, y * h] as const);
+    ctx.moveTo(P[0][0], P[0][1]);
+    for (let i = 1; i < P.length - 1; i++) {
+      ctx.quadraticCurveTo(
+        P[i][0],
+        P[i][1],
+        (P[i][0] + P[i + 1][0]) / 2,
+        (P[i][1] + P[i + 1][1]) / 2,
+      );
+    }
+    ctx.lineTo(P[P.length - 1][0], P[P.length - 1][1]);
+    ctx.stroke();
+  }
+  fibers(ctx, w, h, s.d * 7 + s.m);
+  return c;
+}
+
+function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, maxW: number) {
+  return wrapDiaryLines(text, maxW, (t) => ctx.measureText(t).width);
+}
+
+/**
+ * **右のページ: その日の日記。** 罫線の日記帳に、本人が打った文を本人が選んだ字体で。
+ * 行は罫線に乗せる（手書きの日記帳と同じ）。長い日は字を少し小さくして1ページに収める。
+ */
+export function paintDiary(s: DaySpread, font: DiaryFontId): Canvas {
+  const w = 720;
+  const h = 1024;
+  const c = canvas(w, h);
+  const ctx = c.getContext("2d")!;
+  paper(ctx, w, h, "right");
+  const f = diaryFont(font);
+  const left = 96;
+  const right = w - 70;
+  const top = 190;
+  // 字の大きさ: 1ページに収まるまで小さく（下限あり）
+  let px = 46;
+  let lines: string[] = [];
+  for (; px >= 28; px -= 2) {
+    ctx.font = `400 ${px}px ${f.family}`;
+    lines = wrapCanvas(ctx, s.diary, right - left);
+    if (top + lines.length * px * f.leading < h - 80) break;
+  }
+  const lh = Math.round(px * f.leading);
+  // 罫線と余白の線
+  ctx.strokeStyle = "rgba(90,120,170,0.22)";
+  ctx.lineWidth = 2;
+  for (let y = top + lh * 0.28; y < h - 50; y += lh) {
+    ctx.beginPath();
+    ctx.moveTo(50, y);
+    ctx.lineTo(w - 40, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(200,80,80,0.28)";
+  ctx.beginPath();
+  ctx.moveTo(78, 60);
+  ctx.lineTo(78, h - 40);
+  ctx.stroke();
+  // 日付（左の写真のページと同じ手書き）
+  ctx.fillStyle = "#3a3128";
+  ctx.font = `400 42px ${HAND}`;
+  ctx.textAlign = "left";
+  inkText(ctx, dateLabel(s), left, 124, 42);
+  // 本文
+  ctx.fillStyle = "#1c2640";
+  ctx.font = `400 ${px}px ${f.family}`;
+  if (s.diary.trim()) {
+    // 3D の光（トーンマッピング）で細い字は灰色に浮く。ペンの太さぶん縁を足して、
+    // 紙に書いたインクの濃さにする。
+    ctx.strokeStyle = "#1c2640";
+    ctx.lineWidth = Math.max(1, px * 0.045);
+    ctx.lineJoin = "round";
+    lines.forEach((ln, i) => {
+      ctx.strokeText(ln, left, top + i * lh);
+      ctx.fillText(ln, left, top + i * lh);
+    });
+  }
+  fibers(ctx, w, h, s.d * 13 + s.m);
+  return c;
+}
+
+/** 扉（表紙を開いて最初の右ページ）: その月の題を手書きで。 */
+export function paintTitlePage(title: string, subtitle: string): Canvas {
+  const w = 720;
+  const h = 1024;
+  const c = canvas(w, h);
+  const ctx = c.getContext("2d")!;
+  paper(ctx, w, h, "right");
+  ctx.fillStyle = "#3a3128";
+  ctx.textAlign = "center";
+  ctx.font = `400 64px ${HAND}`;
+  ctx.fillText(title, w / 2, h * 0.44);
+  ctx.fillStyle = "rgba(58,49,40,0.55)";
+  ctx.font = `400 30px ${HAND}`;
+  ctx.fillText(subtitle, w / 2, h * 0.44 + 64);
+  fibers(ctx, w, h, 3);
+  return c;
+}
+
+/** まだ何も無いページ（紙だけ）。 */
+export function paintBlank(side: "left" | "right"): Canvas {
+  const c = canvas(720, 1024);
+  const ctx = c.getContext("2d")!;
+  paper(ctx, 720, 1024, side);
+  fibers(ctx, 720, 1024, side === "left" ? 11 : 17);
   return c;
 }

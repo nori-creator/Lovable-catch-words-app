@@ -5976,3 +5976,30 @@ describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
     expect(codeOnly(read("lib/ai.functions.ts"))).toMatch(/distinction は15文字以内/);
   });
 });
+
+describe("本棚の本を開くと、1日＝1見開き（左＝その日のアルバム、右＝日記）（2026-09-28）", () => {
+  const engine = read("../scripts/ui-harness/scenes/shelf3d/engine.ts");
+  const tex = read("../scripts/ui-harness/scenes/shelf3d/textures.ts");
+  const journal = codeOnly(read("lib/journal.functions.ts"));
+
+  it("左のページはその日の写真・一言・落書き、右のページは本人が打った日記を選んだ字体で", () => {
+    expect(tex).toMatch(/export function paintAlbumDay\(s: DaySpread\)/);
+    expect(tex).toMatch(/export function paintDiary\(s: DaySpread, font: DiaryFontId\)/);
+    expect(tex).toMatch(/for \(const d of s\.doodles \?\? \[\]\)/);
+    expect(tex).toMatch(/wrapDiaryLines\(text, maxW/);
+    expect(engine).toMatch(/return day \? paintAlbumDay\(day\)/);
+    expect(engine).toMatch(/return day \? paintDiary\(day, font\)/);
+  });
+
+  it("開くといちばん新しい日の見開きまでめくれる。字体を変えると右のページを描き直す", () => {
+    expect(engine).toMatch(/const last = b\.days\.length;/);
+    expect(engine).toMatch(/repaintDiary\(dayIndex\?: number\)/);
+  });
+
+  it("打った日記は AI を通さずそのまま保存（添削の列には触らない）", () => {
+    expect(journal).toMatch(/export const saveMyDiary = createServerFn\(\{ method: "POST" \}\)/);
+    expect(journal).toMatch(
+      /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null \}/,
+    );
+  });
+});

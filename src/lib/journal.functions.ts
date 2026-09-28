@@ -202,6 +202,39 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     return inserted as JournalEntry;
   });
 
+/**
+ * **打った日記をそのまま保存する**（オーナー指示 2026-09-28「日記はユーザーが
+ * タイプしたものが…表示される」）。添削（`correctMyJournal`）とは別の口 — AI を
+ * 通さず、本人の文を本人の字体で見せるための保存。添削済みの列には触らない
+ * （`upsert` は渡した列だけを書き換える）。
+ *
+ * 日付は本棚の本の「その日」。未来の日には書けない（台湾時間の今日まで）。
+ */
+const DiaryInput = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  text: z.string().max(4000),
+});
+
+export const saveMyDiary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => DiaryInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+    if (data.date > today) throw new Error("未来の日の日記は書けません");
+    const text = data.text.trim();
+    const { data: row, error } = await supabase
+      .from("journal_entries")
+      .upsert(
+        { user_id: userId, entry_date: data.date, user_draft: text || null },
+        { onConflict: "user_id,entry_date" },
+      )
+      .select("*")
+      .single();
+    if (error) throw internalFailure("journal", error, "日記を保存できませんでした");
+    return toJournalEntry(row);
+  });
+
 // ============================================================================
 // 書く「前」の足場(要望 #88)
 // ============================================================================

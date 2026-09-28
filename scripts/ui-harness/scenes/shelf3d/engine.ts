@@ -16,15 +16,21 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
+  paintAlbumDay,
+  paintBlank,
   paintCover,
+  paintDiary,
   paintEndpaper,
   paintPage,
   paintPageEdge,
   paintPlaster,
   paintSpine,
+  paintTitlePage,
   type Canvas,
+  type DaySpread,
   type Painted,
 } from "./textures";
+import type { DiaryFontId } from "@/lib/diary-fonts";
 
 // Blender の寸法（book_and_shelf.py と同じ値）。three.js では y が高さ、z が手前。
 const H = 0.21;
@@ -94,7 +100,16 @@ function mirror(c: Canvas): Canvas {
 type Book = {
   group: THREE.Group;
   front: THREE.Object3D;
-  leaves: Array<{ group: THREE.Group; geo: THREE.BufferGeometry; base: Float32Array; p: Spring }>;
+  leaves: Array<{
+    group: THREE.Group;
+    geo: THREE.BufferGeometry;
+    base: Float32Array;
+    p: Spring;
+    front: THREE.MeshStandardMaterial;
+    back: THREE.MeshStandardMaterial;
+  }>;
+  /** その本の見開き（1日＝1見開き）。`days` が渡された時だけ。 */
+  days: DaySpread[];
   data: MonthBook;
   shelfPos: THREE.Vector3;
   painted: boolean;
@@ -102,6 +117,14 @@ type Book = {
 
 export type ShelfEvents = {
   onState?: (s: { open: MonthBook | null; page: number; pages: number }) => void;
+  /**
+   * その月の見開き（1日＝1見開き。左＝その日のアルバム、右＝その日の日記）。
+   * 渡すと、本を開いた時に**いちばん新しい日の見開きまで**めくって見せる
+   * （オーナー指示 2026-09-28「タップしたら左側に今日…右側に今日の日記」）。
+   */
+  days?: (b: MonthBook) => DaySpread[];
+  /** 日記を描く字体（本人が選んだ物）。 */
+  diaryFont?: () => DiaryFontId;
 };
 
 export class ShelfWorld {
@@ -305,7 +328,7 @@ export class ShelfWorld {
       // 少しだけ傾いた本・奥に引っ込んだ本（本物の棚は揃いすぎていない）
       group.position.z -= (i * 37) % 5 === 0 ? 0.004 : 0;
       this.scene.add(group);
-      this.books.push({ group, front, leaves: [], data, shelfPos, painted: false });
+      this.books.push({ group, front, leaves: [], days: [], data, shelfPos, painted: false });
     });
     // 本立て（真鍮の L 字）
     const brass = new THREE.MeshStandardMaterial({
@@ -405,6 +428,11 @@ export class ShelfWorld {
     end.receiveShadow = true;
     b.front.add(end);
     // 紙（めくれる葉）
+    //
+    // **1日＝1見開き**（`events.days` があるとき）。表紙を開いた最初の右ページは
+    // 扉（その月の題）。葉 i の裏（左）＝ i 日目のアルバム、葉 i+1 の表（右）＝
+    // i 日目の日記。だから見開き k（k 枚めくった所）は「k 日目の左と右」。
+    b.days = this.events.days?.(d).slice(0, LEAVES - 1) ?? [];
     const words = [
       "珍珠奶茶",
       "夜市",
@@ -426,36 +454,36 @@ export class ShelfWorld {
       const base = Float32Array.from(geo.attributes.position.array as ArrayLike<number>);
       const photo = (k: number) =>
         this.photos[(i * 2 + k) % Math.max(1, this.photos.length)] ?? null;
-      const recto = paintPage({
-        day: i * 4 + 2,
-        month: d.m,
-        photos: [photo(0), photo(1)],
-        words: [words[(i * 2) % words.length], words[(i * 2 + 1) % words.length]],
-        side: "right",
+      const recto =
+        this.paintRecto(b, i) ??
+        paintPage({
+          day: i * 4 + 2,
+          month: d.m,
+          photos: [photo(0), photo(1)],
+          words: [words[(i * 2) % words.length], words[(i * 2 + 1) % words.length]],
+          side: "right",
+        });
+      const verso =
+        this.paintVerso(b, i) ??
+        paintPage({
+          day: i * 4 + 4,
+          month: d.m,
+          photos: [photo(2), photo(3)],
+          words: [words[(i * 2 + 2) % words.length], words[(i * 2 + 3) % words.length]],
+          side: "left",
+        });
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: tex(recto, true),
+        roughness: 0.9,
+        side: THREE.FrontSide,
       });
-      const verso = paintPage({
-        day: i * 4 + 4,
-        month: d.m,
-        photos: [photo(2), photo(3)],
-        words: [words[(i * 2 + 2) % words.length], words[(i * 2 + 3) % words.length]],
-        side: "left",
+      const backMat = new THREE.MeshStandardMaterial({
+        map: tex(mirror(verso), true),
+        roughness: 0.9,
+        side: THREE.BackSide,
       });
-      const front = new THREE.Mesh(
-        geo,
-        new THREE.MeshStandardMaterial({
-          map: tex(recto, true),
-          roughness: 0.9,
-          side: THREE.FrontSide,
-        }),
-      );
-      const back = new THREE.Mesh(
-        geo,
-        new THREE.MeshStandardMaterial({
-          map: tex(mirror(verso), true),
-          roughness: 0.9,
-          side: THREE.BackSide,
-        }),
-      );
+      const front = new THREE.Mesh(geo, frontMat);
+      const back = new THREE.Mesh(geo, backMat);
       for (const m of [front, back]) {
         m.castShadow = true;
         m.receiveShadow = true;
@@ -464,7 +492,7 @@ export class ShelfWorld {
       group.add(front, back);
       group.position.set(0.0015 + JOINT - 0.0015, 0, zTop + (LEAVES - i) * 0.00035);
       b.group.children[0].add(group);
-      b.leaves.push({ group, geo, base, p: spring(0.5, 0.9) });
+      b.leaves.push({ group, geo, base, p: spring(0.5, 0.9), front: frontMat, back: backMat });
     }
   }
 
@@ -611,6 +639,49 @@ export class ShelfWorld {
     this.kick();
   }
 
+  /** 葉 i の表（右ページ）。0 枚目は扉、ほかは (i-1) 日目の日記。日が無ければ null。 */
+  private paintRecto(b: Book, i: number): Canvas | null {
+    if (!b.days.length) return null;
+    const font = this.events.diaryFont?.() ?? "hand";
+    if (i === 0)
+      return paintTitlePage(`${b.data.y}年${b.data.m}月`, `${b.days.length}日ぶんの見開き`);
+    const day = b.days[i - 1];
+    return day ? paintDiary(day, font) : paintBlank("right");
+  }
+
+  /** 葉 i の裏（左ページ）＝ i 日目のアルバム。 */
+  private paintVerso(b: Book, i: number): Canvas | null {
+    if (!b.days.length) return null;
+    const day = b.days[i];
+    return day ? paintAlbumDay(day) : paintBlank("left");
+  }
+
+  /** 日記の字体を変えた・日記を書いた → 開いている本の右ページを描き直す。 */
+  repaintDiary(dayIndex?: number) {
+    const b = this.active;
+    if (!b || !b.days.length) return;
+    b.leaves.forEach((leaf, i) => {
+      if (i === 0) return;
+      if (dayIndex !== undefined && i - 1 !== dayIndex) return;
+      const c = this.paintRecto(b, i);
+      if (!c) return;
+      leaf.front.map?.dispose();
+      leaf.front.map = tex(c, true);
+      leaf.front.needsUpdate = true;
+    });
+    this.kick();
+  }
+
+  /** いま見開いている日（0 始まり）。扉なら -1。 */
+  get openDay(): number {
+    return this.active && this.active.days.length ? this.page - 1 : -1;
+  }
+
+  /** 開いている本の見開きの中身（書き換えは repaintDiary で反映）。 */
+  get openDays(): DaySpread[] {
+    return this.active?.days ?? [];
+  }
+
   openBook(b: Book) {
     if (this.active) return;
     this.paintInside(b);
@@ -625,6 +696,16 @@ export class ShelfWorld {
         if (this.active === b) {
           this.open.target = 1;
           this.kick();
+          // いちばん新しい日の見開きまで、1枚ずつ続けてめくる（ぱらぱら）。
+          const last = b.days.length;
+          for (let k = 0; k < last; k++) {
+            window.setTimeout(
+              () => {
+                if (this.active === b && this.page === k) this.flip(1);
+              },
+              this.reduce ? 0 : 650 + k * 140,
+            );
+          }
         }
       },
       this.reduce ? 0 : 520,
