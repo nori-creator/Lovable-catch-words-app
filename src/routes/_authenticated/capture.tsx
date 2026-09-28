@@ -1181,6 +1181,8 @@ function CapturePage() {
       try {
         const res = await doSave(card, selectedHead);
         savedRef.current = true;
+        // 捕まえた手応え（写真の経路は `v5_reward` の着地が鳴らす）。
+        haptic("success");
         navigate({ to: "/dex", search: { justCaught: res.id } });
       } catch (e) {
         console.error(e);

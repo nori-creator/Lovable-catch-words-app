@@ -81,6 +81,59 @@ async function nativeHaptic(kind: Kind) {
   }
 }
 
+/**
+ * **iPhone の Safari で震わせる**（オーナー指示 2026-09-28「単語をキャッチしたときに
+ * スマホのバイブレーションを振動させる」）。
+ *
+ * Safari は振動の API（`navigator.vibrate`）を持たない — キャッチの演出は前から
+ * 何度も `haptic()` を呼んでいたが、iPhone のブラウザでは**1度も震えていなかった**。
+ * iOS 18 からの Safari は `<input type="checkbox" switch>` を切り替えると本体の
+ * 触覚を鳴らすので、見えない切り替えを置き、札（label）を押して切り替える
+ * （切り替えそのものを押しても鳴らない。label 越しに押すのが要点）。
+ * 公開の報告では iOS 17.4〜26.4 で効き、26.5 で塞がれた — 効かない端末では何も起きない
+ * だけで、画面は壊れない。アプリ（Capacitor）は本物の触覚 API を使うので関係ない。
+ */
+const IOS_TAPS: Record<Kind, number[]> = {
+  light: [0],
+  selection: [0],
+  medium: [0],
+  heavy: [0, 40],
+  success: [0, 90],
+  warning: [0, 120],
+  heartbeat: [0, 270, 540],
+};
+
+let iosSwitch: { label: HTMLLabelElement } | null = null;
+
+function isIosWeb(): boolean {
+  if (typeof navigator === "undefined" || typeof document === "undefined") return false;
+  const ua = navigator.userAgent;
+  const iPadOS = /Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1;
+  return /iPhone|iPad|iPod/.test(ua) || iPadOS;
+}
+
+function iosTap() {
+  try {
+    if (!iosSwitch || !iosSwitch.label.isConnected) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.setAttribute("switch", "");
+      input.tabIndex = -1;
+      input.setAttribute("aria-hidden", "true");
+      label.setAttribute("aria-hidden", "true");
+      label.style.cssText =
+        "position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:-9999px;top:0";
+      label.appendChild(input);
+      document.body.appendChild(label);
+      iosSwitch = { label };
+    }
+    iosSwitch.label.click();
+  } catch {
+    /* 効かない端末では何もしない */
+  }
+}
+
 export function haptic(kind: Kind = "light") {
   if (!enabled) return;
   if (isNative()) {
@@ -91,7 +144,15 @@ export function haptic(kind: Kind = "light") {
   }
   if (typeof navigator === "undefined") return;
   const nav = navigator as Navigator & { vibrate?: (p: number | number[]) => boolean };
-  if (typeof nav.vibrate !== "function") return;
+  if (typeof nav.vibrate !== "function") {
+    if (isIosWeb()) {
+      for (const at of IOS_TAPS[kind]) {
+        if (at === 0) iosTap();
+        else setTimeout(iosTap, at);
+      }
+    }
+    return;
+  }
   try {
     nav.vibrate(PATTERNS[kind]);
   } catch {
