@@ -41,6 +41,7 @@ import {
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
 import { CategorySheetScene } from "./scenes/category-sheet";
+import { CategoryMembersScene } from "./scenes/category-members";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { RegenMagicScene } from "./scenes/regen-magic";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
@@ -184,6 +185,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
   "category-sheet": CategorySheetScene,
+  "category-members": CategoryMembersScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
   "candidate-designs": CandidateDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,

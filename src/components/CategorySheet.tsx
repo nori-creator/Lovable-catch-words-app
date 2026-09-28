@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronDown, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
+import { Check, ChevronDown, ListChecks, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
 import { CATEGORY_META, type CategoryKey } from "@/lib/category";
 import {
   categoryDisplay,
@@ -32,6 +32,7 @@ export function CategorySheet({
   onMove,
   onSave,
   onDelete,
+  onEditMembers,
   onClose,
 }: {
   /** 写真を移すときの、いまのカテゴリー。無ければ編集だけ。 */
@@ -43,6 +44,8 @@ export function CategorySheet({
   /** 作る（`key` 無し）か、名前と絵文字を変える。作った鍵を返す。 */
   onSave: (input: { key?: string; label: string; emoji: string }) => Promise<string>;
   onDelete: (key: string) => Promise<void>;
+  /** カテゴリーの側から、入れる単語を選ぶ面を開く（図鑑から開いた時だけ）。 */
+  onEditMembers?: (key: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -150,8 +153,10 @@ export function CategorySheet({
           type="button"
           className="category-row press-in flex min-h-12 flex-1 items-center gap-3 rounded-2xl px-3 text-start"
           aria-pressed={onMove ? on : undefined}
-          disabled={busy || !onMove}
-          onClick={() => onMove && void run(() => onMove(key))}
+          disabled={busy || (!onMove && !onEditMembers)}
+          onClick={() =>
+            onMove ? void run(() => onMove(key)) : onEditMembers && onEditMembers(key)
+          }
         >
           <span aria-hidden className="text-title3">
             {d.emoji}
@@ -159,6 +164,17 @@ export function CategorySheet({
           <span className="flex-1 text-body font-medium">{d.label}</span>
           {on && <Check aria-hidden className="h-5 w-5 text-primary" />}
         </button>
+        {onEditMembers && (
+          <button
+            type="button"
+            className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground"
+            aria-label={t("catEdit.members", { name: d.label })}
+            disabled={busy}
+            onClick={() => onEditMembers(key)}
+          >
+            <ListChecks className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground"

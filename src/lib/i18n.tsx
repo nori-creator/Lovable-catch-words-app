@@ -3917,6 +3917,30 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "catEdit.roomMine": { ja: "マイカテゴリー", en: "My categories", "zh-TW": "我的分類" },
   "catEdit.manage": { ja: "カテゴリーを編集", en: "Edit categories", "zh-TW": "編輯分類" },
   "catEdit.change": { ja: "カテゴリーを変える", en: "Change category", "zh-TW": "變更分類" },
+  // カテゴリーの側から単語を入れる・外す（2026-09-28）
+  "catEdit.members": {
+    ja: "「{name}」の単語を選ぶ",
+    en: 'Choose words for "{name}"',
+    "zh-TW": "選擇「{name}」的單字",
+  },
+  "catEdit.membersShort": { ja: "単語を選ぶ", en: "Choose words", "zh-TW": "選擇單字" },
+  "catEdit.membersCount": {
+    ja: "{n}語が入っています",
+    en: "{n} words in this category",
+    "zh-TW": "目前有 {n} 個單字",
+  },
+  "catEdit.membersSearch": { ja: "単語をさがす", en: "Find a word", "zh-TW": "搜尋單字" },
+  "catEdit.membersFrom": { ja: "いま: {name}", en: "Now: {name}", "zh-TW": "目前：{name}" },
+  "catEdit.membersApply": {
+    ja: "{n}件を変更",
+    en: "Apply {n} changes",
+    "zh-TW": "變更 {n} 項",
+  },
+  "catEdit.membersNoRemove": {
+    ja: "「その他」からは外せません。ほかのカテゴリーへ入れてください。",
+    en: 'Words can\'t be removed from "Other" — add them to another category instead.',
+    "zh-TW": "無法從「其他」移出，請把單字加入別的分類。",
+  },
   "capture.pickTitle": {
     ja: "ステップ 3: 単語を選ぶ",
     en: "Step 3: Pick a word",

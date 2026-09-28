@@ -54,6 +54,7 @@ import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { CategorySheet } from "@/components/CategorySheet";
+import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
 import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
 import { useCategories } from "@/lib/use-categories";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -144,6 +145,8 @@ function DexPage() {
   );
   const cats = useCategories();
   const [manageCats, setManageCats] = useState(false);
+  /** カテゴリーの側から単語を入れる・外す面（2026-09-28）。 */
+  const [membersKey, setMembersKey] = useState<string | null>(null);
   // Memoize so the reference is stable across renders — otherwise `filtered`
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
@@ -544,7 +547,24 @@ function DexPage() {
           userCategories={cats.categories}
           onSave={cats.save}
           onDelete={cats.remove}
+          onEditMembers={(key) => setMembersKey(key)}
           onClose={() => setManageCats(false)}
+        />
+      )}
+      {membersKey && (
+        <CategoryMembersSheet
+          categoryKey={membersKey}
+          userCategories={cats.categories}
+          items={captured.map((s) => ({
+            id: s.id,
+            shelf_key: s.shelf_key,
+            word: s.word,
+            headword: s.word.headword,
+            meaning: s.word.meaning_ja,
+            thumb: s.cutout_thumb_url ?? s.cutout_url ?? s.object_thumb_url ?? s.object_url,
+          }))}
+          onApply={cats.setMembers}
+          onClose={() => setMembersKey(null)}
         />
       )}
       <style>{`

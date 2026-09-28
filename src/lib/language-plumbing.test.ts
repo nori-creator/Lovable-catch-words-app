@@ -6029,3 +6029,21 @@ describe("指の端末ではページ全体を巻き取らず、殻だけを巻�
     expect(read("router.tsx")).toMatch(/scrollToTopSelectors: \["\[data-app-shell\]"\]/);
   });
 });
+
+describe("図鑑のカテゴリーに単語を入れる・外す（2026-09-28）", () => {
+  const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+  const sheet = codeOnly(read("components/CategorySheet.tsx"));
+  const fns = codeOnly(read("lib/categories.functions.ts"));
+
+  it("図鑑のカテゴリー編集から、そのカテゴリーの単語選びを開ける", () => {
+    expect(sheet).toMatch(/onEditMembers\?: \(key: string\) => void/);
+    expect(dex).toMatch(/onEditMembers=\{\(key\) => setMembersKey\(key\)\}/);
+    expect(dex).toMatch(/<CategoryMembersSheet/);
+    expect(dex).toMatch(/onApply=\{cats\.setMembers\}/);
+  });
+
+  it("まとめて書く口は自分の札だけを触る", () => {
+    expect(fns).toMatch(/export const setStickersCategory = createServerFn/);
+    expect(fns).toMatch(/\.eq\("user_id", userId\)\s*\.in\("id", ids\)/);
+  });
+});
