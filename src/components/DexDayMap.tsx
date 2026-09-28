@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps の型は実行時に読み込む（型定義を入れていない） */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronUp, MapPin, X } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -198,7 +198,18 @@ export function DexDayMap({
 
   if (!current) {
     return (
-      <p className="mt-6 text-center text-body text-muted-foreground">{t("dex.calendarEmpty")}</p>
+      <section className="dex-daymap" aria-label={t("dex.map")}>
+        <div className="dex-daymap__map">
+          <DayMapCanvas
+            stops={[]}
+            activeId={null}
+            faceItemId={null}
+            onPin={onPin}
+            forceFallback={forceFallback}
+            bottomInset={dockH}
+          />
+        </div>
+      </section>
     );
   }
 
@@ -414,7 +425,8 @@ export function DexDayMap({
 // 地図の面。Google の地図が読めればその上に、読めなければ簡易の面に描く。
 // ---------------------------------------------------------------------------
 
-type MapStop = Stop<Item>;
+export type MapStop = Stop<Item>;
+const DexCityMap3D = lazy(() => import("./DexCityMap3D"));
 
 function DayMapCanvas({
   stops,
@@ -431,8 +443,28 @@ function DayMapCanvas({
   forceFallback: boolean;
   bottomInset: number;
 }) {
-  const g = useGoogleMaps(!forceFallback);
-  if (g)
+  const [cityFailed, setCityFailed] = useState(false);
+  const g = useGoogleMaps(!forceFallback && cityFailed);
+  if (!forceFallback && !cityFailed)
+    return (
+      <Suspense fallback={<div className="dex-city-map__loading h-full w-full" />}>
+        <DexCityMap3D
+          stops={stops}
+          activeId={activeId}
+          bottomInset={bottomInset}
+          onUnavailable={() => setCityFailed(true)}
+          renderPin={(s) => (
+            <StopPin
+              stop={s}
+              active={s.id === activeId}
+              faceItemId={s.id === activeId ? faceItemId : null}
+              onPin={onPin}
+            />
+          )}
+        />
+      </Suspense>
+    );
+  if (g && !forceFallback)
     return (
       <GoogleDayMap
         g={g}

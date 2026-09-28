@@ -8046,6 +8046,90 @@ html[data-motion="reduce"] .dex-cf__slot {
   z-index: 0;
   background: var(--secondary);
 }
+.dex-city-map {
+  position: relative;
+  isolation: isolate;
+  background: #eaf2f6;
+}
+.dex-city-map .maplibregl-canvas {
+  outline: none;
+}
+.dex-city-map .maplibregl-control-container .maplibregl-ctrl-bottom-right {
+  bottom: calc(var(--dex-dock-h, 10rem) + 5.5rem);
+}
+.dex-city-map .maplibregl-ctrl-attrib {
+  font-size: 9px;
+  opacity: 0.8;
+}
+.dex-city-map__marker {
+  width: 48px;
+  height: 48px;
+}
+.dex-city-map__marker .dex-pin {
+  position: relative;
+  transform: none;
+}
+.dex-city-map__marker .dex-pin[data-active] {
+  transform: translateY(-10px) scale(1.45);
+}
+.dex-city-map__controls {
+  position: absolute;
+  right: 12px;
+  top: calc(var(--dex-overlay-h, 8rem) + 16px);
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+}
+.dex-city-map__control {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 9px;
+  border: 1px solid rgb(224 232 240 / 0.8);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.92);
+  color: #173c70;
+  font-size: 12px;
+  font-weight: 750;
+  box-shadow: 0 6px 18px rgb(44 77 114 / 0.15);
+  backdrop-filter: blur(12px);
+}
+.dex-city-map__loading {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, #eaf3f8 20%, #f7fbff 45%, #eaf3f8 70%);
+  background-size: 200% 100%;
+  animation: dex-city-loading 1.7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes dex-city-loading {
+  to {
+    background-position-x: -200%;
+  }
+}
+.dex-city-map__empty {
+  position: absolute;
+  left: 16px;
+  right: 76px;
+  top: calc(var(--dex-overlay-h, 8rem) + 16px);
+  max-width: 270px;
+  padding: 12px 15px;
+  border-radius: 17px;
+  background: rgb(255 255 255 / 0.94);
+  color: #173c70;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+  box-shadow: 0 6px 18px rgb(44 77 114 / 0.15);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dex-city-map__loading {
+    animation: none;
+  }
+}
 /* ピンを置く範囲。上の絞り込み（`--dex-overlay-h`）と下の日付の帯を避ける。 */
 .dex-daymap__plane-area {
   position: absolute;
@@ -8880,7 +8964,9 @@ html[data-motion="reduce"] .burst {
   height: 100%;
   padding: 18px 8px;
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 30px rgb(0 0 0 / 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.06),
+    0 10px 30px rgb(0 0 0 / 0.12);
   color: #1c1c1e;
   overflow: hidden;
 }
@@ -8906,7 +8992,13 @@ html[data-motion="reduce"] .burst {
   left: 50%;
   width: 28px;
   margin-left: -14px;
-  background: linear-gradient(90deg, transparent, rgb(0 0 0 / 0.14) 45%, rgb(0 0 0 / 0.14) 55%, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(0 0 0 / 0.14) 45%,
+    rgb(0 0 0 / 0.14) 55%,
+    transparent
+  );
   pointer-events: none;
 }
 .flip-leaf {

@@ -1,8 +1,8 @@
 /**
  * 図鑑の地図（地図とカレンダーを1つにした表示）。（オーナー指示 2026-09-23）
  *
- * 見本は地図を読みに行かない（`forceFallback`）— 鍵も通信も無いので、
- * 同じピンと線を簡易の面に描く。実物では Google の地図の上に同じピンが乗る。
+ * 見本も本番と同じ MapLibre の3D地図と写真ピンを使う。
+ * `?flat=1` のときだけ通信不要の簡易面にする。
  * 1日の中で場所を移り、同じ場所で続けて撮った写真はまとまる形を入れる。
  * `?at=N` で時間軸を N 行目まで送った形（その立ち寄りのピンが浮く）。
  */
@@ -66,7 +66,7 @@ export function DexMapScene({ q }: { q: URLSearchParams }) {
         onOpen={() => {}}
         initialDay={stickerDayKey(new Date().toISOString())}
         initialOpen={open}
-        forceFallback
+        forceFallback={q.get("flat") === "1"}
       />
     </div>
   );

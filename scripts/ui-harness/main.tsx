@@ -332,6 +332,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "dex-map", label: "図鑑の3D地図" },
+  { scene: "dex-map&variant=open", label: "3D地図と時間軸" },
+  { scene: "dex-map&flat=1", label: "地図の代替表示" },
   { scene: "image-settings", label: "画像生成の設定" },
   { scene: "input-catch&variant=typed", label: "文字検索" },
   { scene: "home-album", label: "ホームのアルバム" },
