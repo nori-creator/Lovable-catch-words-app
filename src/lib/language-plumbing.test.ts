@@ -6061,3 +6061,14 @@ describe("ホームのアルバムの赤いバツ＝アルバムからだけ外�
     expect(fns).not.toMatch(/\.delete\(\)/);
   });
 });
+
+describe("単語の詳細が開いた直後に別の文へ入れ替わらない（2026-09-28）", () => {
+  const sheet = codeOnly(read("components/StickerSheet.tsx"));
+  it("解説は端末に覚えた物を先に出し、返事待ちの間は古い共有解説を出さない。埋め直しは見えている項目を残す", () => {
+    expect(sheet).toMatch(/initialData: cachedExplanation/);
+    expect(sheet).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
+    expect(sheet).toMatch(/explanationPending=\{explanation === undefined\}/);
+    expect(sheet).toMatch(/extras: explanationPending \? null : s\.word\.extras/);
+    expect(sheet).toMatch(/extras: keepShownFields\(/);
+  });
+});

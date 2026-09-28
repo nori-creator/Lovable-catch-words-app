@@ -34,7 +34,13 @@ import { resolveSurfaceRole, setSurfaceRole, useSurfaceRole } from "@/lib/photo-
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { getWordExplanation } from "@/lib/word-explanation.functions";
+import { getWordExplanation, type WordExplanationResult } from "@/lib/word-explanation.functions";
+import {
+  explanationCacheKey,
+  keepShownFields,
+  readCachedExplanation,
+  writeCachedExplanation,
+} from "@/lib/explanation-cache";
 import {
   explanationKey,
   needsGeneration,
@@ -237,14 +243,35 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 下の `useEffect` が回り続ける。
    */
   const wantKey = useMemo(() => explanationKey(uiLang, nativeLang), [uiLang, nativeLang]);
+  /**
+   * **端末に覚えた解説を先に出す**（オーナー報告 2026-09-28「開いたときに表示された
+   * ものが、ぱっと消えて新しいものが表示されるバグ」）。前は解説の返事を待つ間、
+   * 古い共有の列（`words.extras`）を出しておき、返事が来たらその人向けの解説に
+   * **差し替えて**いた — それが「ぱっと消えて入れ替わる」の正体。
+   * 覚えた物があれば最初からそれを出し（`initialData`）、裏で確かめ直す。
+   */
+  const cacheKey = s?.word_id
+    ? explanationCacheKey(s.word_id, wantKey.explainLang, wantKey.l1)
+    : null;
+  const cachedExplanation = useMemo(
+    () => (cacheKey ? readCachedExplanation<WordExplanationResult>(cacheKey) : undefined),
+    [cacheKey],
+  );
   const { data: explanation } = useQuery({
     queryKey: ["word-explanation", s?.word_id ?? null, wantKey.explainLang, wantKey.l1],
-    queryFn: () =>
-      fetchExplanation({
+    queryFn: async () => {
+      const r = await fetchExplanation({
         data: { word_id: s!.word_id, explain_lang: wantKey.explainLang, l1: wantKey.l1 },
-      }),
+      });
+      if (cacheKey && !r.unavailable && r.picked) writeCachedExplanation(cacheKey, r);
+      return r;
+    },
     enabled: !!s?.word_id,
+    initialData: cachedExplanation,
+    // 覚えた物は「少し古い」扱いにして、開くたびに裏で確かめ直す。
+    initialDataUpdatedAt: cachedExplanation ? 0 : undefined,
     staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -593,10 +620,20 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
             sections: cardSectionsNow(),
           },
         });
+        // いま画面に出ている項目は残し、空だった項目だけ埋める（`keepShownFields`）。
+        const shownExtras =
+          explanation.picked &&
+          explanation.picked.explain_lang === wantKey.explainLang &&
+          explanation.picked.l1 === wantKey.l1
+            ? explanation.picked.extras
+            : null;
         await saveExtras({
           data: {
             word_id: s.word_id,
-            extras: card.extras,
+            extras: keepShownFields(
+              shownExtras as Record<string, unknown> | null,
+              card.extras as Record<string, unknown>,
+            ) as typeof card.extras,
             patch: !sharedMissing
               ? undefined
               : {
@@ -741,6 +778,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
             uiLang={uiLang}
             // その人向けの解説(共有キャッシュ)。無ければ古い列に落ちる。
             explanation={explanation?.picked ?? null}
+            // 返事がまだ（端末にも無い）間は、古い解説を出さない。後から差し替わるので。
+            explanationPending={explanation === undefined}
             isPro={isPro}
             flipped={flipped}
             setFlipped={setFlipped}
@@ -822,6 +861,7 @@ export function StickerSheetBody({
   sticker: s,
   uiLang,
   explanation,
+  explanationPending = false,
   isPro,
   flipped,
   setFlipped,
@@ -856,6 +896,8 @@ export function StickerSheetBody({
    * キャッシュにまだ無い語でも、いままでどおり出る。
    */
   explanation: ExplanationRow | null;
+  /** その人向けの解説の返事を待っている間（古い解説を出さない）。 */
+  explanationPending?: boolean;
   isPro: boolean;
   /** 写真の裏(自撮り)を見ているか。 */
   flipped: boolean;
@@ -931,7 +973,8 @@ export function StickerSheetBody({
     {
       meaning: s.word.meaning_ja,
       exampleTranslation: s.word.example_translation,
-      extras: s.word.extras,
+      // 返事を待つ間は古い解説を出さない — 出すと、届いた瞬間に別の文へ入れ替わる。
+      extras: explanationPending ? null : s.word.extras,
     },
     explanation,
     uiLang,
