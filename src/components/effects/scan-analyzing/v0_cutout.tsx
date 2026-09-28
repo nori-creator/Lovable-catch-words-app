@@ -6,32 +6,23 @@ import { useT } from "@/lib/i18n";
  *
  * まだ「スキャン」ではなく**カメラ**だった頃のもの。探査点(光の点)も、
  * 全画面の青染めも、段階表示もない。撮った写真の上を光の帯が一度なでて、
- * 下に「AIが切り抜き中...」と出るだけ。背景を本当に切り抜いていた時代の
- * 文言なので、ここは「分析中」ではなく**切り抜き中**のままにしてある。
+ * 下に「AIが分析中」と出るだけ（「切り抜き中」は 2026-09-27 に消した）。
  *
  * 呼び出し側が写真を敷く前提で、この層は帯と文言だけを描く。
  */
 
 type Stage = "sensing" | "reading" | "matching";
 
-export function ScanAnalyzing_v0cutout({
-  stage,
-  cutout = false,
-}: {
-  stage: Stage;
-  cutout?: boolean;
-}) {
+export function ScanAnalyzing_v0cutout({ stage }: { stage: Stage; cutout?: boolean }) {
   // ここは**既定の待ち画面**(effect-lab の scanAnalyzing 既定が v0cutout)。
   // 文言が日本語で直書きされていたので、英語のユーザーはアプリの見せ場で
   // 突然日本語を見ていた。過去の版だから訳さなくていい、とはならない。
   const t = useT();
-  // 当時は候補出しと切り抜きが同時に走っていたので文言は1つだけだった。
-  // いまは候補をタップしてから切り抜くので、そこだけ「切り抜き中」に分ける
-  // — 見た目は当時のまま、言っていることは実際の処理と合わせる。
-  // 段階（stage）では決めない — スキャンも3段目（matching）まで進むので、前は
-  // スキャンの途中で「切り抜き中」と出ていた。切り抜きかどうかは呼ぶ側が言う。
+  // **「切り抜き中」は出さない**（オーナー指示 2026-09-27「AI分析中に、AIが
+  // 切り抜き中とでた。切り抜き中の文字は消して」）。語を選んだ後に写真を
+  // 切り抜いている間も、見る人にとっては同じ「AIの待ち」なので1つの言葉で通す。
   void stage;
-  const label = cutout ? t("scan.cuttingOut") : t("scan.analyzing");
+  const label = t("scan.analyzing");
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0 bg-black/25" />

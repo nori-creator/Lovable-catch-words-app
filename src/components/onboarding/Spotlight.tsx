@@ -1,3 +1,4 @@
+import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Overlay blocks pointer input outside the target; capture listeners also block
@@ -23,36 +24,27 @@ export function Spotlight({
   interactive?: boolean;
   allowSelector?: string;
 }) {
+  const reduced = usePrefersReducedMotion();
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [coachH, setCoachH] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [coachReady, setCoachReady] = useState(false);
   const [targetRadius, setTargetRadius] = useState("0px");
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setRevealed(false);
-    setExpanded(false);
+    setRect(null);
     setCoachReady(false);
-    const ringTimer = window.setTimeout(() => setRevealed(true), 1250);
-    const coachTimer = window.setTimeout(() => setCoachReady(true), 2150);
+    const ringTimer = window.setTimeout(() => setRevealed(true), 1600);
     return () => {
       window.clearTimeout(ringTimer);
-      window.clearTimeout(coachTimer);
     };
   }, [target]);
   useEffect(() => {
-    if (!revealed || !rect) return;
-    // Paint the small aperture once before expanding its four edges to the
-    // measured control. Two frames also work reliably on iOS Safari.
-    let frame2 = 0;
-    const frame1 = requestAnimationFrame(() => {
-      frame2 = requestAnimationFrame(() => setExpanded(true));
-    });
-    return () => { cancelAnimationFrame(frame1); cancelAnimationFrame(frame2); };
-  }, [revealed, !!rect]);
+    if (revealed && rect && reduced) setCoachReady(true);
+  }, [revealed, !!rect, reduced]);
   useEffect(() => {
-    if (revealed) return;
+    if (coachReady) return;
     const block = (e: KeyboardEvent) => {
       if (["Tab", "Enter", " ", "Escape"].includes(e.key)) {
         e.preventDefault();
@@ -61,7 +53,10 @@ export function Spotlight({
     };
     document.addEventListener("keydown", block, true);
     return () => document.removeEventListener("keydown", block, true);
-  }, [revealed]);
+  }, [coachReady]);
+  useEffect(() => {
+    if (coachReady) panel.current?.focus();
+  }, [coachReady]);
   useLayoutEffect(() => {
     if (panel.current) setCoachH(panel.current.offsetHeight);
   }, [title, text, nextLabel, revealed, coachReady]);
@@ -69,7 +64,8 @@ export function Spotlight({
     if (!revealed) return;
     const node = document.querySelector<HTMLElement>(target);
     if (!node) return;
-    if (!target.includes("tab-camera")) node.scrollIntoView({ block: "start", behavior: "instant" });
+    if (!target.includes("tab-camera"))
+      node.scrollIntoView({ block: "start", behavior: "instant" });
     // Leave the bottom of the viewport for the coach, rather than covering the target.
     if (target !== ".camera-shutter" && !target.includes("tab-camera")) window.scrollBy(0, -90);
     const measure = () => {
@@ -89,7 +85,8 @@ export function Spotlight({
         e.target.matches('[data-first-stage="camera"] input[type="file"][capture]')) ||
       (e.target instanceof Node &&
         (panel.current?.contains(e.target) ||
-          (interactive && e.target instanceof Element &&
+          (interactive &&
+            e.target instanceof Element &&
             (node.contains(e.target) ||
               (allowSelector ? !!node.closest(allowSelector)?.contains(e.target) : false)) &&
             (!allowSelector || !!e.target.closest(allowSelector)))));
@@ -113,7 +110,8 @@ export function Spotlight({
           ...(interactive ? node.querySelectorAll<HTMLElement>(allowSelector ?? selector) : []),
           ...(interactive && node.matches(selector) ? [node] : []),
           ...(interactive && allowSelector && node.closest<HTMLElement>(allowSelector)
-            ? [node.closest<HTMLElement>(allowSelector)!] : []),
+            ? [node.closest<HTMLElement>(allowSelector)!]
+            : []),
           ...(panel.current?.querySelectorAll<HTMLElement>(selector) ?? []),
         ].filter((el) => el.getClientRects().length > 0);
         if (!candidates.length) {
@@ -150,14 +148,13 @@ export function Spotlight({
   const targetBottom = rect ? Math.min(window.innerHeight - 4, rect.bottom + 3) : 0;
   const targetLeft = rect ? Math.max(4, rect.left - 3) : 0;
   const targetRight = rect ? Math.min(window.innerWidth - 4, rect.right + 3) : 0;
-  const centerX = (targetLeft + targetRight) / 2;
-  const centerY = (targetTop + targetBottom) / 2;
-  const top = expanded ? targetTop : centerY - 12;
-  const bottom = expanded ? targetBottom : centerY + 12;
-  const left = expanded ? targetLeft : centerX - 12;
-  const right = expanded ? targetRight : centerX + 12;
+  const top = targetTop;
+  const bottom = targetBottom;
+  const left = targetLeft;
+  const right = targetRight;
   return (
     <div className="tour-layer" data-tour-overlay>
+      {!coachReady && <div className="tour-animation-lock" aria-hidden="true" />}
       <div className="tour-block" style={{ inset: `0 0 auto 0`, height: top }} />
       <div
         className="tour-block"
@@ -170,7 +167,11 @@ export function Spotlight({
       <div className="tour-block" style={{ top: bottom, bottom: 0, left: 0, right: 0 }} />
       {rect && (
         <div
+          key={target}
           className="tour-ring"
+          onAnimationEnd={(event) => {
+            if (event.animationName === "tour-focus-expand") setCoachReady(true);
+          }}
           style={{
             top,
             left,
@@ -181,30 +182,32 @@ export function Spotlight({
           }}
         />
       )}
-      {coachReady && <div
-        ref={panel}
-        key={text}
-        role="dialog"
-        aria-label={title ?? text}
-        aria-describedby={title ? "tour-coach-text" : undefined}
-        tabIndex={-1}
-        className="tour-coach"
-        data-side={place.side}
-        style={place.style}
-      >
-        {(title || step) && (
-          <div className="tour-coach__head">
-            {title && <h2>{title}</h2>}
-            {step && <span className="tour-coach__step">{step}</span>}
-          </div>
-        )}
-        <p id="tour-coach-text">{text}</p>
-        {onNext && (
-          <button className="tour-coach__next" onClick={onNext}>
-            {nextLabel}
-          </button>
-        )}
-      </div>}
+      {coachReady && (
+        <div
+          ref={panel}
+          key={text}
+          role="dialog"
+          aria-label={title ?? text}
+          aria-describedby={title ? "tour-coach-text" : undefined}
+          tabIndex={-1}
+          className="tour-coach"
+          data-side={place.side}
+          style={place.style}
+        >
+          {(title || step) && (
+            <div className="tour-coach__head">
+              {title && <h2>{title}</h2>}
+              {step && <span className="tour-coach__step">{step}</span>}
+            </div>
+          )}
+          <p id="tour-coach-text">{text}</p>
+          {onNext && (
+            <button className="tour-coach__next" onClick={onNext}>
+              {nextLabel}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

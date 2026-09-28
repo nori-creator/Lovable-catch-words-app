@@ -1,4 +1,5 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
@@ -38,6 +39,13 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
+import { GlassSurfacesScene } from "./scenes/glass-surfaces";
+import { CategorySheetScene } from "./scenes/category-sheet";
+import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { CandidateDesignsScene } from "./scenes/candidate-designs";
+import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
+import { PageFlipScene } from "./scenes/page-flip";
+import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
@@ -54,6 +62,7 @@ import {
 import { AuthScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
+  HomeInkScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -132,9 +141,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   tabbar: TabBarScene,
   onboarding: OnboardingScene,
   "first-catch": FirstCatchScene,
+  "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   home: HomeScene,
   "home-album": HomeAlbumScene,
+  "home-ink": HomeInkScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -153,6 +164,13 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
+  "glass-surfaces": GlassSurfacesScene,
+  "category-sheet": CategorySheetScene,
+  "place-notify-designs": PlaceNotifyDesignsScene,
+  "candidate-designs": CandidateDesignsScene,
+  "analyzing-designs": AnalyzingDesignsScene,
+  "page-flip": PageFlipScene,
+  "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
   "capture-pick": CapturePickScene,
@@ -222,7 +240,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  */
 function Frame({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    // 実物の `AppShell` と同じ印（図鑑のスライドが地を透かす目印）。
+    <div data-app-shell="" className="min-h-screen bg-background">
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
@@ -353,6 +372,20 @@ document.documentElement.style.setProperty(
     }
   }
 }
+/**
+ * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
+ * 節の並びと表示は localStorage から読むので、これも React の前に書く。
+ */
+{
+  const show = q.get("show");
+  if (show) {
+    try {
+      localStorage.setItem("wordcard-prefs-v6", JSON.stringify({ order: [show], hidden: [] }));
+    } catch {
+      /* 使えない環境では既定のまま */
+    }
+  }
+}
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
@@ -400,9 +433,9 @@ function ReviewBar() {
       }}
     >
       {REVIEW_SCENES.map((r) => {
-        // 同じ場面の別の形は `scene&variant=…` で並べる（例: 記憶のグラフ）。
-        const here = q.get("variant") ? `${wanted}&variant=${q.get("variant")}` : wanted;
-        const on = r.scene === here;
+        // 場面は `scene&step=…` のように条件付きで並べる。名前で選ばれているかを決める。
+        const [name] = r.scene.split("&");
+        const on = name === wanted;
         return (
           <a
             key={r.scene}

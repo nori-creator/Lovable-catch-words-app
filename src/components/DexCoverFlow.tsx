@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import type React from "react";
 import { MapPin } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -8,10 +9,16 @@ import { Zh } from "@/components/Zh";
 import { MemoryBadge } from "@/components/MemoryBadge";
 import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
-import { asCategoryKey, categoryEmoji } from "@/lib/category";
+import { CATEGORY_META, asCategoryKey, categoryEmoji, type RoomKey } from "@/lib/category";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { neutralReadings, useReadingText } from "@/lib/phonetic";
-import { COVER_STEP, coverFlowPose, dotWindow, poseTransform, settleIndex } from "@/lib/cover-flow";
+import {
+  COVER_STEP,
+  coverFlowPose,
+  poseTransform,
+  progressDots,
+  settleIndex,
+} from "@/lib/cover-flow";
 import { APPLE_SPRING, createSpring, rubberband, velocityFrom, type Spring } from "@/lib/spring";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 
@@ -37,9 +44,19 @@ export function DexCoverFlow({
   memory,
   initialIndex = 0,
   onBrowse,
+  theme = "stage",
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
+  /**
+   * 背景の見せ方（オーナー指示 2026-09-27「黒系の背景・奥行き・真ん中に
+   * ステージ／円。カテゴリー別の背景やアニメの案を複数」）。
+   *  ・`stage`    … 暗い部屋に、真ん中のカードだけ光る円の舞台（既定）
+   *  ・`category` … 舞台の光と背景の色が、真ん中のカードの分類の色になる
+   *  ・`motion`   … `category` に、分類ごとの小さな動き（湯気・葉・雨…）
+   *  ・`museum`   … 美術館。暗い壁、上からの光、カードの下に小さな札
+   */
+  theme?: "stage" | "category" | "motion" | "museum";
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
@@ -235,9 +252,34 @@ export function DexCoverFlow({
     cardRefs.current[i] = el;
   }, []);
 
+  /**
+   * 暗い部屋は**画面の地そのもの**にする。アプリの地（`bg-background`）が
+   * 上に塗られていると部屋が隠れるので、この表示の間だけ地を透かす。
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.dexStage = "";
+    return () => {
+      delete root.dataset.dexStage;
+    };
+  }, []);
+
   const current = stickers[center];
+  const room: RoomKey = current
+    ? CATEGORY_META[asCategoryKey(current.word.category_key)].room
+    : "town";
   return (
-    <section aria-label={t("dex.cards")} className="dex-cf -mx-4">
+    <section
+      aria-label={t("dex.cards")}
+      className="dex-cf -mx-4"
+      data-theme={theme}
+      data-room={room}
+      style={{ "--cf-accent": ROOM_ACCENT[room] } as React.CSSProperties}
+    >
+      {/* 暗い部屋（画面いっぱい）。分類の色・動きは `data-room` で変わる。 */}
+      <div className="dex-cf__backdrop" aria-hidden="true">
+        {theme === "motion" && <span className="dex-cf__motes" />}
+      </div>
       <div
         ref={stageRef}
         onPointerDown={onPointerDown}
@@ -254,6 +296,8 @@ export function DexCoverFlow({
         tabIndex={0}
         className="dex-cf__stage"
       >
+        {/* 真ん中のカードが立つ円の舞台。 */}
+        <span className="dex-cf__floor" aria-hidden="true" />
         {stickers.map((s, i) => (
           <CoverCard
             key={s.id}
@@ -266,11 +310,17 @@ export function DexCoverFlow({
           />
         ))}
       </div>
-      {/* **青い点**（オーナー指示 2026-09-23）。いまの1枚のまわりだけ出す
-          （`dotWindow`）。押すとその札へ送る。数は読み上げにだけ言う。 */}
+      {theme === "museum" && current && (
+        <p className="dex-cf__plaque">
+          <Zh className="font-semibold">{current.word.headword}</Zh>
+          <span> — {current.word.meaning_ja}</span>
+        </p>
+      )}
+      {/* **青い点は、どこまで来たかを指す**（2026-09-27「真ん中のままで意味が
+          ない」）。押すとその点が指す所へ送る。数は読み上げにだけ言う。 */}
       {current && (
         <div className="dex-cf__dots" aria-hidden="true">
-          {dotWindow(stickers.length, center).map((d) => (
+          {progressDots(stickers.length, center).map((d) => (
             <button
               key={d.i}
               type="button"
@@ -278,17 +328,78 @@ export function DexCoverFlow({
               onClick={() => bringToCenter(d.i)}
               className="dex-cf__dot-hit"
             >
-              <span className="dex-cf__dot" data-size={d.size} />
+              <span className="dex-cf__dot" data-on={d.active || undefined} />
             </button>
           ))}
         </div>
       )}
+      {/* **下の余白を、全部の写真の列に**（同日「下の余白が多い。サムネイルを
+          並べて、押したらそのカードへ」）。いまの1枚は枠で示し、真ん中へ送る。 */}
+      <ThumbStrip stickers={stickers} center={center} onPick={bringToCenter} />
       {current && (
         <p className="sr-only" aria-live="polite">
           {center + 1} / {stickers.length}
         </p>
       )}
     </section>
+  );
+}
+
+/** 分類の部屋ごとの色（`category` / `motion` の案で、舞台の光と背景に使う）。 */
+const ROOM_ACCENT: Record<RoomKey, string> = {
+  eat: "#ff9f43",
+  town: "#4ea8ff",
+  house: "#d9b38c",
+  wear: "#ff7eb6",
+  play: "#a78bfa",
+  nature: "#4ade80",
+  people: "#fbbf24",
+  marks: "#94a3b8",
+};
+
+/** 下の写真の列。**いまの1枚が見える所まで、列を自分で送る。** */
+function ThumbStrip({
+  stickers,
+  center,
+  onPick,
+}: {
+  stickers: StickerWithWord[];
+  center: number;
+  onPick: (i: number) => void;
+}) {
+  const t = useT();
+  const row = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = row.current?.children[center] as HTMLElement | undefined;
+    const box = row.current;
+    if (!el || !box) return;
+    const left = el.offsetLeft - (box.clientWidth - el.offsetWidth) / 2;
+    box.scrollTo({ left, behavior: motionReducedNow() ? "auto" : "smooth" });
+  }, [center]);
+  if (stickers.length < 2) return null;
+  return (
+    <div ref={row} className="dex-cf__thumbs" role="list" aria-label={t("dex.cards")}>
+      {stickers.map((s, i) => {
+        const photo = stickerPhotoUrl(s, { thumb: true });
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="listitem"
+            aria-label={s.word.headword}
+            aria-current={i === center || undefined}
+            onClick={() => onPick(i)}
+            className="dex-cf__thumb"
+          >
+            {photo ? (
+              <CachedImg src={photo} alt="" loading="lazy" decoding="async" />
+            ) : (
+              <Zh className="dex-cf__thumb-word">{s.word.headword}</Zh>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -321,6 +432,8 @@ const CoverCard = memo(function CoverCard({
     s.word.language,
     neutralReadings(s.word.language, s.word.reading_zhuyin, s.word.pinyin),
   );
+  // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
+  const zhuyinUnits = useZhuyinUnits(s.word.language, s.word.headword, s.word.reading_zhuyin);
   const date = new Date(s.taken_at);
   return (
     <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
@@ -352,8 +465,18 @@ const CoverCard = memo(function CoverCard({
         </span>
         <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
           <span className="block min-w-0">
-            <Zh className="block truncate text-title font-bold leading-tight">{s.word.headword}</Zh>
-            {reading && (
+            {zhuyinUnits ? (
+              <ZhuyinWord
+                units={zhuyinUnits}
+                lang={s.word.language}
+                className="block text-title font-bold leading-tight"
+              />
+            ) : (
+              <Zh className="block truncate text-title font-bold leading-tight">
+                {s.word.headword}
+              </Zh>
+            )}
+            {reading && !zhuyinUnits && (
               <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
                 {reading}
               </span>

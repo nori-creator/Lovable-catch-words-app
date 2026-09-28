@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useT } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
 import { PronounceButton } from "@/components/PronounceButton";
@@ -39,6 +40,8 @@ export function WordbookReviewCard({
   const t = useT();
   const [picked, setPicked] = useState<string | null>(null);
   const correct = picked === card.headword;
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const zhuyinUnits = useZhuyinUnits(language, card.headword, card.reading_zhuyin);
 
   return (
     <article className="rounded-3xl border border-border bg-card p-4 shadow-sm">
@@ -80,14 +83,20 @@ export function WordbookReviewCard({
       {picked && (
         <div className="mt-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-headline font-bold">
-              <Zh>{card.headword}</Zh>
-            </span>
-            <Reading
-              zhuyin={card.reading_zhuyin ?? undefined}
-              pinyin={card.pinyin ?? undefined}
-              className="text-body text-muted-foreground"
-            />
+            {zhuyinUnits ? (
+              <ZhuyinWord units={zhuyinUnits} lang={language} className="text-headline font-bold" />
+            ) : (
+              <>
+                <span className="text-headline font-bold">
+                  <Zh>{card.headword}</Zh>
+                </span>
+                <Reading
+                  zhuyin={card.reading_zhuyin ?? undefined}
+                  pinyin={card.pinyin ?? undefined}
+                  className="text-body text-muted-foreground"
+                />
+              </>
+            )}
             {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
             <PronounceButton
               text={card.headword}

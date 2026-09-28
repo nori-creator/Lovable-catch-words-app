@@ -69,6 +69,8 @@ export type StickerWithWord = {
    * 列がまだ無い環境では undefined のまま来る。
    */
   shelf_key?: string | null;
+  /** 自分の札か（詳細だけが入れる。カテゴリーを変える道を持ち主にだけ出す）。 */
+  is_owner?: boolean;
   /** Signed URL of the temporary stand-in image for ghosts. */
   placeholder_url: string | null;
   placeholder_credit: PlaceholderCredit | null;
@@ -530,13 +532,15 @@ export const getSticker = createServerFn({ method: "GET" })
     // すると、動画の移行だけ当たっていない環境で主役やネット画像まで
     // 丸ごと落ちる。無い列だけを諦める。
     const cols = (withGhost: boolean, withHero: boolean, withVoice: boolean) =>
-      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withVoice ? ", voice_video_url" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
+      `id, user_id, word_id, caption, location_name, lat, lng, taken_at, created_at, object_image_url, cutout_image_url, selfie_image_url${withHero ? ", hero_role" : ""}${withVoice ? ", voice_video_url" : ""}${shelfCol ? ", shelf_key" : ""}${withGhost ? ", capture_type, placeholder_image_url, placeholder_credit, branch_plan" : ""}, words(headword, language, reading_zhuyin, pinyin, meaning_ja, part_of_speech, example_sentence, example_translation, level, category_key, silhouette_emoji, extras)`;
 
     // Try to read as owner first (RLS-scoped); retry without ghost columns
     // when the migration hasn't been applied.
     let heroCols = true;
     let ghostCols = true;
     let voiceCols = true;
+    // 写真ごとのカテゴリー（2026-09-27 から詳細で変えられる）。これも**別の段**。
+    let shelfCol = true;
     const read = () =>
       supabase
         .from("stickers")
@@ -545,6 +549,10 @@ export const getSticker = createServerFn({ method: "GET" })
         .eq("user_id", userId)
         .maybeSingle();
     let { data: row, error } = await read();
+    if (error && /shelf_key/.test(error.message)) {
+      shelfCol = false;
+      ({ data: row, error } = await read());
+    }
     // **無い列だけを諦める。** 列が無いときは `data: null` ではなく
     // **error** が返る(以前ここを `!row` で判定して外した)。
     if (error && /hero_role/.test(error.message)) {
@@ -598,6 +606,8 @@ export const getSticker = createServerFn({ method: "GET" })
       id: string;
       /** 主役の絵。移行が当たっていない環境では届かない。 */
       hero_role?: string | null;
+      /** 写真ごとに移したカテゴリー。 */
+      shelf_key?: string | null;
       /** 一言の自撮り動画の場所。移行が当たっていない環境では届かない。 */
       voice_video_url?: string | null;
       user_id: string;
@@ -674,6 +684,9 @@ export const getSticker = createServerFn({ method: "GET" })
       /** null なら設定に従う。**知らない値も素通しでよい** —
           `pickStickerPhoto` の `prefer` が既定の順に落としてくれる。 */
       hero_role: r.hero_role ?? null,
+      shelf_key: isOwner ? (r.shelf_key ?? null) : null,
+      /** 自分の札か（カテゴリーを変える道は持ち主にだけ出す）。 */
+      is_owner: isOwner,
       placeholder_url: r.placeholder_image_url
         ? (urlMap.get(r.placeholder_image_url) ?? null)
         : null,

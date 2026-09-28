@@ -9,6 +9,12 @@ import { ScanAnalyzing_v5optionb } from "./effects/scan-analyzing/v5_optionb";
 import { ScanAnalyzing_v6minimal } from "./effects/scan-analyzing/v6_minimal";
 import { ScanAnalyzing_v7fullscreen } from "./effects/scan-analyzing/v7_fullscreen";
 import { ScanAnalyzing_v8current } from "./effects/scan-analyzing/v8_current";
+import {
+  ScanAnalyzing_v9trace,
+  ScanAnalyzing_v10glyphs,
+  ScanAnalyzing_v11lens,
+  ScanAnalyzing_v12steps,
+} from "./effects/scan-analyzing/v9_proposals";
 
 /**
  * スキャン中(AI分析中)の演出。
@@ -31,6 +37,10 @@ const VARIANTS: Record<string, (p: { stage: Stage; cutout?: boolean }) => ReactE
   v6minimal: ScanAnalyzing_v6minimal,
   v7fullscreen: ScanAnalyzing_v7fullscreen,
   v8current: ScanAnalyzing_v8current,
+  v9trace: ScanAnalyzing_v9trace,
+  v10glyphs: ScanAnalyzing_v10glyphs,
+  v11lens: ScanAnalyzing_v11lens,
+  v12steps: ScanAnalyzing_v12steps,
 };
 
 /** ラボでの選択に追従する(選んだ瞬間に反映される)。 */

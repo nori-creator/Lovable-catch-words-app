@@ -209,7 +209,7 @@ export function ChoiceRow<T extends string | number>({
             // **地の色は自分では塗らない。** 選ばれている印は上の
             // `SlidingIndicator` が滑ってくるので、ここで塗ると印の下に
             // もう1枚同じ色の面ができて、滑って見えなくなる。
-            className={`relative z-10 min-h-11 truncate rounded-full border px-1 py-2.5 text-body transition-colors duration-200 ${
+            className={`seg-option relative z-10 min-h-11 truncate rounded-full border px-1 py-2.5 text-body transition-colors duration-200 ${
               value === o.value
                 ? "border-primary font-semibold text-primary-foreground"
                 : "border-border bg-background"

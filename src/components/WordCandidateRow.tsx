@@ -1,5 +1,6 @@
 import { PronounceButton } from "@/components/PronounceButton";
 import { Term } from "@/components/Term";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useT } from "@/lib/i18n";
 import { Reading } from "@/lib/phonetic";
 
@@ -64,6 +65,8 @@ export function WordCandidateRow({
   language?: string;
 }) {
   const t = useT();
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const zhuyinUnits = useZhuyinUnits(language, headword, zhuyin);
   return (
     /**
      * **昔の色に戻す**(オーナー指示 2026-08-26「デザインは昔の色、変更して。
@@ -100,9 +103,17 @@ export function WordCandidateRow({
               字体デザインは、復習の四択と同じデザインにして。字体の大きさ
               そのままでいい」）— 太さ `font-medium`・字間は詰めない。
               大きさだけ `title` のまま。 */}
-          <Term lang={language} className="min-w-0 text-title font-medium leading-tight">
-            {headword}
-          </Term>
+          {zhuyinUnits ? (
+            <ZhuyinWord
+              units={zhuyinUnits}
+              lang={language}
+              className="min-w-0 text-title font-medium leading-tight"
+            />
+          ) : (
+            <Term lang={language} className="min-w-0 text-title font-medium leading-tight">
+              {headword}
+            </Term>
+          )}
           {/* 訳は右端へ。溢れるときは訳のほうを詰める。 */}
           <span className="min-w-0 flex-1 basis-24 truncate text-right text-footnote text-muted-foreground">
             {meaning}
@@ -114,14 +125,16 @@ export function WordCandidateRow({
             プロフィールで決め打ち(`phonetic.tsx` の `ZH_TW_PROFILE`)。
             だから英語の候補にも注音・拼音が出ていた。
             `Reading` は学習言語の `readings` に**在る表記しか返さない**。 */}
-        <Reading
-          lang={language}
-          zhuyin={zhuyin}
-          pinyin={pinyin}
-          ipaUs={ipaUs}
-          ipaUk={ipaUk}
-          className="mt-0.5 block text-footnote text-muted-foreground"
-        />
+        {!zhuyinUnits && (
+          <Reading
+            lang={language}
+            zhuyin={zhuyin}
+            pinyin={pinyin}
+            ipaUs={ipaUs}
+            ipaUk={ipaUk}
+            className="mt-0.5 block text-footnote text-muted-foreground"
+          />
+        )}
         {/* 使い分けは**札にする**。地の文で書くと訳と見分けが付かない。
             書かれるのは「母語では1語なのに台湾華語では割れる」語だけ
             (`ai.functions.ts` の指示)。 */}

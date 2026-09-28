@@ -24,7 +24,6 @@ import { SectionIcon } from "@/components/SectionIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Star,
   Volume2,
   Eye,
   EyeOff,
@@ -53,6 +52,7 @@ import {
   type UsageChunk,
 } from "@/lib/extras";
 import { splitAroundTerm } from "@/lib/mark-term";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { Term } from "@/components/Term";
 import { realUsageLinks } from "@/lib/real-usage-links";
 import { targetProfile } from "@/lib/target-profile";
@@ -83,7 +83,7 @@ import {
   type RowBox,
 } from "@/lib/reorder";
 import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
-import { ChunkPills, ChunkLegend } from "@/components/ChunkPills";
+import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
 // 後方互換の別名(以前この型はここで定義されていた)。
@@ -894,6 +894,8 @@ function HeaderRow({
    * その字が見えている所で書き換えるのが素直。
    */
   const [editingHead, setEditingHead] = useState(false);
+  /** 注音を字の右に縦に組めるなら、その組（組めなければ読みは下の行）。 */
+  const zhuyinUnits = useZhuyinUnits(word.language, word.headword, word.reading_zhuyin);
   const [headDraft, setHeadDraft] = useState(word.headword);
   const [savingHead, setSavingHead] = useState(false);
   async function saveHead() {
@@ -950,15 +952,17 @@ function HeaderRow({
                 lang={targetProfile(word.language).scriptLang}
                 className="min-w-0 flex-1 rounded-xl border border-primary bg-background px-2 py-1 text-hero font-bold tracking-tight outline-none"
               />
+            ) : zhuyinUnits ? (
+              <ZhuyinWord
+                as="h1"
+                units={zhuyinUnits}
+                lang={word.language}
+                className="text-hero font-bold tracking-tight"
+              />
             ) : (
               <Term as="h1" lang={word.language} className="text-hero font-bold tracking-tight">
                 {word.headword}
               </Term>
-            )}
-            {/* **頻度の星は見出しの語の横**（オーナー指示 2026-09-24「頻度、使う場面の
-                項目を削除して、頻度の星は見出しの単語の横に書いて」）。 */}
-            {!minimal && !editingHead && (word.extras?.frequency_level ?? 0) > 0 && (
-              <FrequencyMeter level={word.extras!.frequency_level!} />
             )}
             {/* 発音ボタンと鉛筆は**右端**へ寄せる（同じ指示「発音ボタンは一番右に移動」）。 */}
             <span className="ml-auto" aria-hidden />
@@ -1000,18 +1004,21 @@ function HeaderRow({
               />
             )}
           </div>
-          <div className="mt-1 text-body text-muted-foreground">
-            {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
+          {/* 注音を字の右に組んだときは、下の行に読みを重ねて出さない。 */}
+          {!zhuyinUnits && (
+            <div className="mt-1 text-body text-muted-foreground">
+              {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
                 プロフィールで考えるので、英語の語に注音/拼音を探しに行き、
                 IPA を持っていても読みが空になる。 */}
-            <Reading
-              lang={word.language ?? undefined}
-              zhuyin={word.reading_zhuyin}
-              pinyin={word.pinyin}
-              ipaUs={word.reading_primary}
-              ipaUk={word.reading_alt}
-            />
-          </div>
+              <Reading
+                lang={word.language ?? undefined}
+                zhuyin={word.reading_zhuyin}
+                pinyin={word.pinyin}
+                ipaUs={word.reading_primary}
+                ipaUk={word.reading_alt}
+              />
+            </div>
+          )}
           {/**
            * 品詞と級を**同じ行に、同じ大きさで**並べる(オーナー報告
            * 2026-08-26、3度目「単語の欄の CEFR の欄が大きくて、品詞の
@@ -1274,29 +1281,6 @@ function SectionCard({
  * 空の節はもう並ばない（`shown` を「中身が在る節だけ」にした）ので、
  * この枠が描かれる道はどこにも無い。到達しない道は置かない。
  */
-
-/**
- * 頻度(1〜5)。**星で出す**（オーナー指示 2026-09-23「単語の頻度は画像のように
- * 星で表示して」— 参考は「頻度 ★★★★★」の札）。
- *
- * 点いた星は主色、消えた星は薄い輪郭。**色だけに頼らない** — 消えた星は
- * 塗らないので、形でも数が読める。数は読み上げ（`aria-label`）にも渡す。
- */
-function FrequencyMeter({ level }: { level: number }) {
-  const t = useT();
-  return (
-    <span className="freq-stars" role="img" aria-label={t("card.freqAria", { n: level })}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          aria-hidden
-          className={`freq-stars__star ${i <= level ? "freq-stars__star--on" : ""}`}
-          strokeWidth={1.8}
-        />
-      ))}
-    </span>
-  );
-}
 
 /**
  * 話し言葉 ⇄ 書き言葉のメーター。
@@ -1940,45 +1924,17 @@ function RelatedWordRow({
  * (`chunkText` と同じ理由)。
  */
 function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
-  const pronounce = usePronounce(language ?? undefined);
-  const whole = chunkSpeechText(chunk, language);
-  const translation = chunkTranslation(chunk.ja);
   return (
     <div className="usage-chunk-row">
-      <div className="usage-chunk-row__main">
-        {/* **型ぜんぶをひと息で鳴らす**（オーナー指示 2026-09-23「チャンクの音声
-            ボタンを追加して」）。前は右端に置いて訳を痩せさせたので、**左端**に
-            小さく置く（見た目 36px・当たり判定は 48px）。 */}
-        <PronounceButton
-          text={whole}
-          language={language ?? undefined}
-          size="sm"
-          tone="quiet"
-          stopPropagation
-        />
-        <div className="usage-chunk-row__words">
-          <ChunkPills
-            parts={chunk.parts}
-            size="sm"
-            appearance="text"
-            lang={language}
-            onSpeak={(text) => void pronounce(text)}
-          />
-        </div>
-        {/**
-         * **右に出すのは日本語訳だけ。**（オーナー指示 2026-09-15
-         * 「単語の詳細のチャンクの右側に表示するのは日本語訳だけでいい」）
-         *
-         * ここには型ぜんぶをひと息で鳴らすボタンも並んでいた
-         * （2026-08-27 ⑧ の指示で足したもの）。3列（語・訳・ボタン）は
-         * 幅 390px の画面では訳の取り分が 4.5rem まで痩せ、2行3行に折れる。
-         *
-         * **鳴らす道は消えていない。** 札そのものが押せば鳴る
-         * （`ChunkPills` の `onSpeak`）ので、聞きたい所だけを聞ける。
-         * 続けて言えない所はたいてい繋ぎ目なので、札ごとのほうが役に立つ。
-         */}
-        {translation && <p className="usage-chunk-row__meaning">{translation}</p>}
-      </div>
+      {/* 札（品詞ごとの丸）、その下に訳を小さく薄く、右端に型ぜんぶの音声
+          （`ChunkPills.tsx` の `ChunkLine`。復習の解説と同じ部品）。
+          札を1つ押すとその語が鳴る。 */}
+      <ChunkLine
+        parts={chunk.parts}
+        translation={chunkTranslation(chunk.ja)}
+        lang={language}
+        speakText={chunkSpeechText(chunk, language)}
+      />
     </div>
   );
 }
@@ -2179,12 +2135,9 @@ function RealUsageBody({ headword, language }: { headword: string; language?: st
             className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
             <span className="text-body">{l.emoji}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">{t(l.labelKey)}</span>
-              <span className="block truncate text-caption text-muted-foreground">
-                {t(l.hintKey)}
-              </span>
-            </span>
+            {/* **行き先の名前だけ**（オーナー指示 2026-09-27「実際の使われ方の
+                小さい説明文を削除して」）。下にあった一言の説明は消した。 */}
+            <span className="min-w-0 flex-1 font-medium">{t(l.labelKey)}</span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </a>
         </li>

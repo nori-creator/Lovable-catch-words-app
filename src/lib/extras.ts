@@ -16,6 +16,11 @@ export const ChunkPartSchema = z.object({
   text: z.string(),
   // 役割ラベル: S/V/V1/V2/O/M/C/Ptc など(復習の添削と同じ色体系で描画)
   pos: z.string().catch(""),
+  /**
+   * 入れ替えて使う所（公式の「人」「事」「someone」）。オーナー指示 2026-09-25
+   * 「チャンクは公式、定理のように…跟＋人＋見面」。古いカードには無い。
+   */
+  slot: z.boolean().optional().catch(undefined),
 });
 export type ChunkPart = z.infer<typeof ChunkPartSchema>;
 

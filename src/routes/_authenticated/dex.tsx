@@ -11,6 +11,7 @@ import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
 import {
+  useCallback,
   useMemo,
   useState,
   useEffect,
@@ -28,6 +29,7 @@ import {
   X,
   Volume2,
   MapPin,
+  Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
@@ -51,6 +53,9 @@ import { FilterMenu } from "@/components/FilterMenu";
 import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
+import { CategorySheet } from "@/components/CategorySheet";
+import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
+import { useCategories } from "@/lib/use-categories";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
@@ -85,7 +90,7 @@ export const Route = createFileRoute("/_authenticated/dex")({
   component: DexPage,
 });
 
-type ViewMode = "shelf" | "gallery" | "cards" | "list" | "map" | "calendar";
+export type ViewMode = "shelf" | "gallery" | "cards" | "list" | "map" | "calendar";
 
 declare global {
   interface Window {
@@ -127,6 +132,18 @@ function DexPage() {
     gcTime: 30 * 60 * 1000,
   });
   const shelves = useMemo(() => shelfData?.shelves ?? [], [shelfData]);
+  /**
+   * カテゴリーの見出し・絞り込み・検索は、**その人が移した先と付け直した名前**
+   * で組む（オーナー指示 2026-09-27「カテゴリーの名前を変更したり、作成したり、
+   * 写真のカテゴリーを移動したり」）。
+   */
+  const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
+  const displayOf = useCallback(
+    (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`)),
+    [shelves, t],
+  );
+  const cats = useCategories();
+  const [manageCats, setManageCats] = useState(false);
   // Memoize so the reference is stable across renders — otherwise `filtered`
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
@@ -216,7 +233,7 @@ function DexPage() {
   }, [justCaught, captured.length]);
 
   // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
-  const layout = useUiLayout();
+
   /**
    * 絞り込み(カテゴリー・日付)。どちらも `null` は「すべて」。
    *
@@ -264,43 +281,192 @@ function DexPage() {
     setFilter((f) => pruneFilter(f, { categories: catOptions, days: dOptions }));
   }, [catOptions, dOptions]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const byFilter = applyDexFilter(captured, filter);
-    if (!q) return byFilter;
-    return byFilter.filter((s) => {
-      const w = s.word;
-      // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
-      // category_key は "kitchenware" のような英語キーなので、それだけでは
-      // 「調理器具」と打っても引っかからなかった。
-      const catKey = (w.category_key ?? "").toString();
-      const catLabel = t(categoryLabelKey(catKey));
-      return (
-        w.headword?.toLowerCase().includes(q) ||
-        w.reading_zhuyin?.toLowerCase().includes(q) ||
-        w.pinyin?.toLowerCase().includes(q) ||
-        w.meaning_ja?.toLowerCase().includes(q) ||
-        catKey.toLowerCase().includes(q) ||
-        catLabel.toLowerCase().includes(q)
-      );
-    });
-  }, [captured, search, filter, t]);
-
-  const groups = useMemo(() => {
-    const map = new Map<string, typeof filtered>();
-    for (const s of filtered) {
-      const k = asCategoryKey(s.word.category_key);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(s);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
-  }, [filtered]);
+  const filtered = useMemo(
+    () => filterDexStickers(captured, filter, search, t, shelves),
+    [captured, search, filter, t, shelves],
+  );
 
   return (
     // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
     // 表示し、上のカテゴリー選択や日付選択検索はその画面の上に来るようにして」）。
     // 上の帯は出さず、絞り込みと検索を画面の上に重ねる（`DexOverlay`）。
     <AppShell title={t("title.dex")} immersive>
+      <DexSurface
+        captured={captured}
+        filtered={filtered}
+        view={view}
+        onView={setView}
+        filter={filter}
+        onFilter={setFilter}
+        search={search}
+        onSearch={setSearch}
+        categories={catOptions}
+        days={dOptions}
+        onOpen={setOpenId}
+        isError={isError}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        onRetry={() => void refetch()}
+        truncated={truncated}
+        totalCount={totalCount}
+        otherLanguages={stickers?.otherLanguages ?? 0}
+        targetLanguage={stickers?.targetLanguage}
+        activeCategory={activeCategory}
+        justCaught={justCaught}
+        shelves={shelves}
+        onManageCategories={() => setManageCats(true)}
+      />
+      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      {manageCats && (
+        <CategorySheet
+          usedKeys={catOptions.map((o) => o.key)}
+          userCategories={cats.categories}
+          onSave={cats.save}
+          onDelete={cats.remove}
+          onClose={() => setManageCats(false)}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+/**
+ * 図鑑に1枚も無いとき。**始めたばかりの人が最初に見る面**。
+ *
+ * ホームの空の面と同じ型(理由・次の一手・その場の導線)。ルートに
+ * 直書きのままだと `ui-audit` から描けず、機械の目に一度も映らない。
+ */
+
+export function filterDexStickers(
+  captured: StickerWithWord[],
+  filter: DexFilter,
+  search: string,
+  t: ReturnType<typeof useT>,
+  shelves: NonNullable<React.ComponentProps<typeof DexShelf>["userShelves"]> = [],
+) {
+  const q = search.trim().toLowerCase();
+  const byFilter = applyDexFilter(captured, filter);
+  if (!q) return byFilter;
+  return byFilter.filter((s) => {
+    const w = s.word;
+    // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
+    // category_key は "kitchenware" のような英語キーなので、それだけでは
+    // 「調理器具」と打っても引っかからなかった。
+    const catKey = stickerCategoryKey(s, new Set(shelves.map((c) => c.key)));
+    const catLabel = categoryDisplay(catKey, shelves, (k) => t(`cat.${k}`)).label;
+    return (
+      w.headword?.toLowerCase().includes(q) ||
+      w.reading_zhuyin?.toLowerCase().includes(q) ||
+      w.pinyin?.toLowerCase().includes(q) ||
+      w.meaning_ja?.toLowerCase().includes(q) ||
+      catKey.toLowerCase().includes(q) ||
+      catLabel.toLowerCase().includes(q)
+    );
+  });
+}
+
+/** Single rendering source for the real collection and the first-catch tour.
+ * No tutorial layout or view implementation is allowed here; only data differs. */
+export function DexSurface({
+  captured,
+  filtered,
+  view,
+  onView: setView,
+  filter,
+  onFilter: setFilter,
+  search,
+  onSearch: setSearch,
+  categories: catOptions,
+  days: dOptions,
+  onOpen: setOpenId,
+  onBrowse,
+  memory,
+  isError = false,
+  isLoading = false,
+  isFetching = false,
+  onRetry = () => {},
+  truncated = false,
+  totalCount,
+  otherLanguages = 0,
+  targetLanguage,
+  activeCategory = null,
+  justCaught,
+  shelves = [],
+  onManageCategories,
+}: {
+  captured: StickerWithWord[];
+  filtered: StickerWithWord[];
+  view: ViewMode;
+  onView: (view: ViewMode) => void;
+  filter: DexFilter;
+  onFilter: (filter: DexFilter) => void;
+  search: string;
+  onSearch: (search: string) => void;
+  categories: readonly FilterOption[];
+  days: readonly FilterOption[];
+  onOpen: (id: string) => void;
+  onBrowse?: () => void;
+  onManageCategories?: () => void;
+  memory?: Map<string, MemoryBadgeInfo>;
+  isError?: boolean;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRetry?: () => void;
+  truncated?: boolean;
+  totalCount?: number | null;
+  otherLanguages?: number;
+  targetLanguage?: string;
+  activeCategory?: string | null;
+  justCaught?: string;
+  shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
+}) {
+  const t = useT();
+  const layout = useUiLayout();
+  const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
+  const displayOf = (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`));
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const s of filtered) {
+      const k = stickerCategoryKey(s, userCatKeys);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filtered, userCatKeys]);
+  return (
+    <div data-tour="dex">
+      <style>{`
+        /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
+           「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
+           落下 → 着地の潰れ → 跳ね返り → 収まる、の順。 */
+        @keyframes slamIn {
+          0%   { transform: translateY(-115vh) scaleX(0.92) scaleY(1.12); opacity: 0; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          8%   { opacity: 1; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          52%  { transform: translateY(0) scaleX(1.16) scaleY(0.82); animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1); }
+          68%  { transform: translateY(-22%) scaleX(0.95) scaleY(1.07); }
+          84%  { transform: translateY(0) scaleX(1.05) scaleY(0.96); }
+          100% { transform: translateY(0) scale(1); }
+        }
+        .slam-in { animation: slamIn 880ms linear 120ms both; position: relative; z-index: 10; transform-origin: 50% 100%; }
+        /* 着地の衝撃。セルの足元から輪が広がる。 */
+        @keyframes slamShock {
+          0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+          52%  { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
+        }
+        .slam-shock { animation: slamShock 900ms cubic-bezier(0.15, 0.6, 0.3, 1) 120ms both; }
+        @keyframes slamFlash {
+          0%   { opacity: 0; }
+          40%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 760ms ease-out 520ms both; }
+        html[data-motion="reduce"] {
+          .slam-in { animation: none; }
+          .slam-shock { animation: none; }
+          .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
+        }
+      `}</style>
       <DexOverlay>
         <DexHeader
           found={captured.length}
@@ -314,6 +480,11 @@ function DexPage() {
           onFilter={setFilter}
           categories={catOptions}
           days={dOptions}
+          categoryLabel={(k) => {
+            const d = displayOf(k);
+            return `${d.emoji} ${d.label}`;
+          }}
+          onManageCategories={onManageCategories}
         />
 
         {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
@@ -330,7 +501,7 @@ function DexPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("dex.search")}
               aria-label={t("dex.searchAria")}
-              className="rounded-full pl-9 pr-11"
+              className="search-field rounded-full pl-9 pr-11"
             />
             {search && (
               <button
@@ -377,7 +548,7 @@ function DexPage() {
           描き、再試行の手段も出ないままだった(§8)。 */}
       {isError && captured.length === 0 ? (
         // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatDex")} />
+        <LoadFailed onRetry={onRetry} retrying={isFetching} what={t("err.whatDex")} />
       ) : isLoading && captured.length === 0 ? (
         // §8: show the shape of the content while it loads — never flash the
         // "empty" state before the first fetch resolves.
@@ -396,14 +567,11 @@ function DexPage() {
         // 前に「カレンダー」を選んでいた人も、同じ地図へ。
         <DexDayMap stickers={filtered} onOpen={setOpenId} />
       ) : captured.length === 0 ? (
-        <DexEmptyState
-          otherLanguages={stickers?.otherLanguages ?? 0}
-          targetLanguage={stickers?.targetLanguage}
-        />
+        <DexEmptyState otherLanguages={otherLanguages} targetLanguage={targetLanguage} />
       ) : filtered.length === 0 ? (
         <DexNoMatch search={search} onClear={() => setSearch("")} />
       ) : view === "cards" ? (
-        <DexCoverFlow stickers={filtered} onOpen={setOpenId} />
+        <DexCoverFlow stickers={filtered} memory={memory} onBrowse={onBrowse} onOpen={setOpenId} />
       ) : DEX_SHELF_ENABLED && view === "shelf" ? (
         <DexShelf
           stickers={filtered}
@@ -419,7 +587,7 @@ function DexPage() {
               <h3 className="text-body font-semibold tracking-tight">
                 {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
-                {categoryEmoji(key)} {t(categoryLabelKey(key))}
+                {displayOf(key).emoji} {displayOf(key).label}
               </h3>
               <span className="text-footnote text-muted-foreground">{items.length}</span>
             </div>
@@ -436,56 +604,22 @@ function DexPage() {
             ) : view === "gallery" ? (
               // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
               // 表示される3列グリッド+下端のグラデーションに単語名。
-              <DexAlbumGrid items={items} justCaught={justCaught} onOpen={setOpenId} />
+              <DexAlbumGrid
+                items={items}
+                memory={memory}
+                justCaught={justCaught}
+                onOpen={setOpenId}
+              />
             ) : (
               <DexList items={items} onOpen={setOpenId} />
             )}
           </section>
         ))
       )}
-      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
-      <style>{`
-        /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
-           「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
-           落下 → 着地の潰れ → 跳ね返り → 収まる、の順。 */
-        @keyframes slamIn {
-          0%   { transform: translateY(-115vh) scaleX(0.92) scaleY(1.12); opacity: 0; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
-          8%   { opacity: 1; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
-          52%  { transform: translateY(0) scaleX(1.16) scaleY(0.82); animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1); }
-          68%  { transform: translateY(-22%) scaleX(0.95) scaleY(1.07); }
-          84%  { transform: translateY(0) scaleX(1.05) scaleY(0.96); }
-          100% { transform: translateY(0) scale(1); }
-        }
-        .slam-in { animation: slamIn 880ms linear 120ms both; position: relative; z-index: 10; transform-origin: 50% 100%; }
-        /* 着地の衝撃。セルの足元から輪が広がる。 */
-        @keyframes slamShock {
-          0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
-          52%  { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
-          100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
-        }
-        .slam-shock { animation: slamShock 900ms cubic-bezier(0.15, 0.6, 0.3, 1) 120ms both; }
-        @keyframes slamFlash {
-          0%   { opacity: 0; }
-          40%  { opacity: 1; }
-          100% { opacity: 0; }
-        }
-        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 760ms ease-out 520ms both; }
-        html[data-motion="reduce"] {
-          .slam-in { animation: none; }
-          .slam-shock { animation: none; }
-          .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
-        }
-      `}</style>
-    </AppShell>
+    </div>
   );
 }
 
-/**
- * 図鑑に1枚も無いとき。**始めたばかりの人が最初に見る面**。
- *
- * ホームの空の面と同じ型(理由・次の一手・その場の導線)。ルートに
- * 直書きのままだと `ui-audit` から描けず、機械の目に一度も映らない。
- */
 export function DexEmptyState({
   otherLanguages = 0,
   targetLanguage,
@@ -823,84 +957,84 @@ export function PackGallery({
   );
 }
 
-
 /** The same compact list used in the app and first-run Dex. */
-export function DexList({ items, onOpen }: { items: StickerWithWord[]; onOpen: (id: string) => void }) {
+export function DexList({
+  items,
+  onOpen,
+}: {
+  items: StickerWithWord[];
+  onOpen: (id: string) => void;
+}) {
   const t = useT();
   return (
-              <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-                {items.map((s, i) => (
-                  <li
-                    key={s.id}
-                    className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
-                  >
-                    <button
-                      onClick={() => onOpen(s.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
-                    >
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
-                        {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
-                        {(s.object_thumb_url ?? s.object_url) ? (
-                          <CachedImg
-                            src={(s.object_thumb_url ?? s.object_url)!}
-                            alt={t("common.photoOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : s.cutout_url ? (
-                          <CachedImg
-                            src={s.cutout_thumb_url ?? s.cutout_url}
-                            alt={t("common.stickerOf", { word: s.word.headword })}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-contain p-1"
-                          />
-                        ) : s.placeholder_url ? (
-                          <CachedImg
-                            src={s.placeholder_url}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span
-                            lang="zh-Hant"
-                            className="px-1 text-center text-caption font-semibold text-muted-foreground"
-                          >
-                            {s.word.headword}
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2">
-                          <span lang="zh-Hant" className="text-body font-semibold">
-                            {s.word.headword}
-                          </span>
-                          {s.word.reading_zhuyin && (
-                            <span
-                              lang="zh-Hant"
-                              className="truncate text-footnote text-muted-foreground"
-                            >
-                              {s.word.reading_zhuyin}
-                            </span>
-                          )}
-                        </div>
-                        <div className="truncate text-body text-muted-foreground">
-                          {s.word.meaning_ja}
-                        </div>
-                      </div>
-                    </button>
-                    {/* 発音ボタンは右側に (縦並びリスト) */}
-                    <PronounceButton
-                      text={s.word.headword}
-                      language={s.word.language ?? undefined}
-                      tone="hero"
-                    />
-                  </li>
-                ))}
-              </ul>
+    <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      {items.map((s, i) => (
+        <li
+          key={s.id}
+          className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
+        >
+          <button
+            onClick={() => onOpen(s.id)}
+            className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
+          >
+            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+              {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
+              {(s.object_thumb_url ?? s.object_url) ? (
+                <CachedImg
+                  src={(s.object_thumb_url ?? s.object_url)!}
+                  alt={t("common.photoOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : s.cutout_url ? (
+                <CachedImg
+                  src={s.cutout_thumb_url ?? s.cutout_url}
+                  alt={t("common.stickerOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-contain p-1"
+                />
+              ) : s.placeholder_url ? (
+                <CachedImg
+                  src={s.placeholder_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span
+                  lang="zh-Hant"
+                  className="px-1 text-center text-caption font-semibold text-muted-foreground"
+                >
+                  {s.word.headword}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <span lang="zh-Hant" className="text-body font-semibold">
+                  {s.word.headword}
+                </span>
+                {s.word.reading_zhuyin && (
+                  <span lang="zh-Hant" className="truncate text-footnote text-muted-foreground">
+                    {s.word.reading_zhuyin}
+                  </span>
+                )}
+              </div>
+              <div className="truncate text-body text-muted-foreground">{s.word.meaning_ja}</div>
+            </div>
+          </button>
+          {/* 発音ボタンは右側に (縦並びリスト) */}
+          <PronounceButton
+            text={s.word.headword}
+            language={s.word.language ?? undefined}
+            tone="hero"
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -914,6 +1048,8 @@ export function DexHeader({
   categories,
   days,
   allowedViews,
+  categoryLabel,
+  onManageCategories,
 }: {
   allowedViews?: ViewMode[];
   found: number;
@@ -924,6 +1060,10 @@ export function DexHeader({
   onFilter: (f: DexFilter) => void;
   categories: readonly FilterOption[];
   days: readonly FilterOption[];
+  /** カテゴリーの見出し（その人が付け直した名前を含む）。無ければ既定の名前。 */
+  categoryLabel?: (key: string) => string;
+  /** カテゴリーの一覧と編集を開く（2026-09-27）。 */
+  onManageCategories?: () => void;
 }) {
   const t = useT();
   return (
@@ -956,10 +1096,12 @@ export function DexHeader({
             // 種類は左からボックスのように表示されるもの、またカードのように横に
             // スライドできるもの、そしてマップ、そして一番右に縦から段のように
             // 並ぶやつに順番を変更して」）。
-            ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            // **2026-09-27 に並べ替え**（オーナー指示「スライド、マップ、写真が
+            // 多いもの、縦に並ぶものの順に」）。
             ["cards", GalleryHorizontal, t("dex.cards")] as const,
             // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
             ["map", MapIcon, t("dex.map")] as const,
+            ["gallery", LayoutGrid, t("dex.gallery")] as const,
             ["list", List, t("dex.list")] as const,
           ]
             .filter(([v]) => !allowedViews || allowedViews.includes(v))
@@ -992,7 +1134,9 @@ export function DexHeader({
               value={filter.category}
               options={categories}
               allLabel={t("dex.allCategories")}
-              labelOf={(k) => `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`}
+              labelOf={(k) =>
+                categoryLabel ? categoryLabel(k) : `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`
+              }
               onChange={(category) => onFilter({ ...filter, category })}
             />
             <FilterMenu
@@ -1008,6 +1152,18 @@ export function DexHeader({
                 **字ではなく×だけ**にする — 文字で置くと2つのボタンと
                 並びきらず、欄の中で4行目に折り返していた(絵で見つけた)。
                 読み上げには `aria-label` で同じことを言う。 */}
+            {/* カテゴリーを作る・名前を変える（オーナー指示 2026-09-27）。 */}
+            {onManageCategories && (
+              <button
+                type="button"
+                onClick={onManageCategories}
+                aria-label={t("catEdit.manage")}
+                title={t("catEdit.manage")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+              >
+                <Pencil className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             {isFiltering(filter) && (
               <button
                 onClick={() => onFilter(NO_FILTER)}

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { withDeadline } from "@/lib/deadline";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { saveCaptureToPhotoLibrary } from "@/lib/device-photo-library";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
@@ -337,8 +338,9 @@ function ScanPage() {
             // 背面しか無い端末で `OverconstrainedError` になり、
             // 切り替えたとたんカメラが真っ黒になる。
             facingMode: { ideal: facing },
-            width: { ideal: 1280 },
-            height: { ideal: 1280 },
+            // センサーの全部を使う 4:3（撮る画面と同じ。2026-09-27「寄りすぎ」）。
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
           },
           audio: false,
         });
@@ -513,17 +515,22 @@ function ScanPage() {
         lat = warm.lat;
         lng = warm.lng;
       } else {
-        try {
-          const pos = await new Promise<GeolocationPosition>((res, rej) => {
+        // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
+        // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
+        // スキャンが「分析中」のまま進まなかった。
+        const pos = await withDeadline(
+          new Promise<GeolocationPosition>((res, rej) => {
             navigator.geolocation.getCurrentPosition(res, rej, {
               timeout: 5000,
               maximumAge: 120_000,
             });
-          });
+          }),
+          5000,
+          null,
+        );
+        if (pos) {
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
-        } catch {
-          /* ignore */
         }
       }
       setScanLoc({ lat, lng, name: null });
@@ -850,9 +857,22 @@ function ScanPage() {
           小さな窓では出ない — 上下のUIだけをオーバーレイで重ねる。
           スクロールを持つ候補リストは、この下の通常フローに残す。
         */}
+        {/*
+          **映像の箱は、上の名前の下から操作シートの上まで**（オーナー指摘
+          2026-09-27「スキャンモードは上下の余白が多すぎてダサい」）。
+
+          前は画面いっぱいの黒い箱に映像を「収めて」いたので、縦長の画面では
+          映像の上下に黒い帯が大きく残り、下の帯はシートの裏に隠れていた。
+          箱を「見えている所」だけにすると、映像はその中いっぱいに収まる。
+          箱の外は撮る画面と同じカメラの地。
+        */}
+        <div className="capture-viewfinder__light fixed inset-0 z-20" aria-hidden="true" />
         <div
           ref={boxRef}
-          className="fixed inset-0 z-20 overflow-hidden bg-black"
+          className="scan-frame fixed z-20 overflow-hidden"
+          style={{
+            bottom: `calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`,
+          }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
@@ -923,7 +943,8 @@ function ScanPage() {
             onZoom={applyZoom}
             // シートの上端のすぐ上。シートは `4.25rem + 安全域` の上に
             // 立っているので、その高さを足した所が上端になる。
-            zoomBottom={`calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`}
+            // 箱の下端がシートのすぐ上になったので、粒は箱の下端に付ける。
+            zoomBottom="0.5rem"
           />
 
           {/* compact metrics badge (always visible after a scan) */}
@@ -1243,7 +1264,7 @@ export function ScanChip({
         <button
           onClick={onPlay}
           aria-label={t("scan.playPron")}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 motion-reduce:active:scale-100"
+          className="speak-button lift grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
         >
           <Volume2 className="h-5 w-5" />
         </button>

@@ -1,3 +1,5 @@
+import type { PersonalLessonContext } from "./onboarding/PersonalWordLesson";
+import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
@@ -64,6 +66,11 @@ import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 type Props = {
+  /** Unsaved first-catch data uses the same screen, without authenticated DB writes. */
+  local?: {
+    sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
+    personalContext?: PersonalLessonContext;
+  };
   stickerId: string | null;
   onClose: () => void;
   /**
@@ -78,7 +85,7 @@ type Props = {
   openPhotoPicker?: boolean;
 };
 
-export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Props) {
+export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local }: Props) {
   // 下へ引いて閉じる。動きを減らす設定の人には付けない
   // (掴めるが動かない、より**掴めない**ほうが分かりやすい)。
   const reducedMotionForDrag = usePrefersReducedMotion();
@@ -175,20 +182,21 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   const reveal = flightRef.current.origin;
   const heroRef = useHeroReveal(reveal, stickerId);
   const {
-    data: s,
+    data: remoteSticker,
     isLoading,
     isError,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["sticker", stickerId],
+    queryKey: [local ? "local-sticker" : "sticker", stickerId],
     queryFn: () => fetchSticker({ data: { id: stickerId! } }),
-    enabled: !!stickerId,
+    enabled: !!stickerId && !local,
     staleTime: 5 * 60 * 1000,
     initialData: seed,
     // 種は**古い物として置く**。出しながら裏で取り直す。
     initialDataUpdatedAt: seed ? SEED_UPDATED_AT : undefined,
   });
+  const s = local?.sticker ?? remoteSticker;
   /**
    * 解説の**共有キャッシュ**(2026-08-24)。
    *
@@ -202,6 +210,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
+    enabled: !local,
     staleTime: 60_000,
   });
   /**
@@ -212,7 +221,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   const { data: photoData } = useQuery({
     queryKey: ["sticker-photos", stickerId],
     queryFn: () => fetchPhotos({ data: { sticker_id: stickerId! } }),
-    enabled: !!stickerId,
+    enabled: !!stickerId && !local,
   });
   /**
    * いま何かの写真が載っているか(= 差し替えると失われるものがあるか)。
@@ -243,7 +252,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
       fetchExplanation({
         data: { word_id: s!.word_id, explain_lang: wantKey.explainLang, l1: wantKey.l1 },
       }),
-    enabled: !!s?.word_id,
+    enabled: !!s?.word_id && !local,
     staleTime: 30 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
@@ -260,7 +269,11 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 詳細ページ(`/dex/$stickerId`)でもやる必要があり、ここに直に書いて
    * いたせいで、あちらだけ見出しが空のままだった。
    */
-  const { candidates: webCandidates, swapping, swap: swapWebImage } = useAutoHero(s);
+  const {
+    candidates: webCandidates,
+    swapping,
+    swap: swapWebImage,
+  } = useAutoHero(local ? undefined : s);
   // 「この画像にする」(下の `applyWebImage`)はネット画像を**実写として**
   // 採用するので、仮画像の経路とは別物。取ってくる所だけ共通。
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
@@ -275,6 +288,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * （`setStickerHeadword` の注）。
    */
   async function editHeadword(next: string) {
+    if (local) return;
     if (!stickerId) return;
     try {
       await setHeadwordFn({ data: { sticker_id: stickerId, headword: next } });
@@ -293,6 +307,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   }
 
   async function applyWebImage(url: string) {
+    if (local) return;
     if (!stickerId) return;
     // **必ず訊く。**
     //
@@ -371,6 +386,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 保存できないので、その理由をそのまま出す。
    */
   async function pickHeroRole(surface: PhotoSurface, role: PhotoRole) {
+    if (local) return;
     if (!stickerId) return;
     if (surface === "album") {
       setSurfaceRole("album", stickerId, role);
@@ -415,6 +431,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   // A9: Pro限定の手動再生成。auto-enrichのenrichedRefガードを無視して
   // generateCard→updateWordExtrasを強制実行し、詳細を作り直す。
   async function regenerate() {
+    if (local) return;
     if (!s || regenerating) return;
     setRegenerating(true);
     try {
@@ -447,6 +464,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
 
   // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
   async function handleDelete() {
+    if (local) return;
     if (!stickerId || busy) return;
     if (!deleteArmed) {
       setDeleteArmed(true);
@@ -485,12 +503,13 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
    * 同じ道が無く、そちらから開いた人は足せないまま行き止まりだった
    * （オーナー指示 2026-08-26）。写しを増やさず、両方から同じ道を呼ぶ。
    */
-  const photoAttach = usePhotoAttach(stickerId ?? null, {
+  const photoAttach = usePhotoAttach(local ? null : (stickerId ?? null), {
     onDone: () => closePicker(),
     onError: (e) => toast.error(readable(e, t("card.photoFailed"))),
   });
 
   async function handleImageFile(file: File) {
+    if (local) return;
     if (!stickerId || busy) return;
     setBusy("image");
     try {
@@ -526,7 +545,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
   // Auto-enrich word details (collocations, synonyms, etymology, examples, etc.)
   // the first time a word without extras is opened.
   useEffect(() => {
-    if (!s) return;
+    if (!s || local) return;
     const ex = s.word.extras;
     // 完成判定は**いま生成している項目**で行う。
     // 以前はここが旧スキーマ(collocations / synonyms / trivia / register_note /
@@ -623,6 +642,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
         const card = await enrichWord({
           data: {
             headword: s.word.headword,
+            language: s.word.language,
             targetLanguage: s.word.language ?? undefined,
             sections: cardSectionsNow(),
           },
@@ -658,7 +678,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang, explanation, wantKey]);
+  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang, explanation, wantKey, local]);
 
   // reset flip when sticker changes
   useEffect(() => {
@@ -772,6 +792,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
         ) : (
           <StickerSheetBody
             sticker={s}
+            local={!!local}
+            personalContext={local?.personalContext}
             uiLang={uiLang}
             // その人向けの解説(共有キャッシュ)。無ければ古い列に落ちる。
             explanation={explanation?.picked ?? null}
@@ -856,6 +878,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from }: Prop
  */
 export function StickerSheetBody({
   sticker: s,
+  local = false,
+  personalContext,
   uiLang,
   explanation,
   isPro,
@@ -887,6 +911,8 @@ export function StickerSheetBody({
   heroRef,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
+  local?: boolean;
+  personalContext?: PersonalLessonContext;
   uiLang: UiLang;
   /**
    * その人向けの解説(`word_explanations` の共有キャッシュ)。
@@ -1202,6 +1228,8 @@ export function StickerSheetBody({
           )}
         </div>
         {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。 */}
+        {s.is_owner && <StickerCategoryChip sticker={s} />}
       </section>
 
       {/* 同じものに何度も出会った記録。
@@ -1220,33 +1248,36 @@ export function StickerSheetBody({
           一言は「撮ったその瞬間に思ったこと」なので、撮る画面
           (`VoiceCaptionButton`)で録る。カードは**その記録を聞く所**で
           あって、録り直す所ではない。再生は日付と場所の行の真ん中に在る。 */}
-      <WordCard
-        word={{
-          headword: s.word.headword,
-          reading_zhuyin: s.word.reading_zhuyin,
-          pinyin: s.word.pinyin,
-          part_of_speech: s.word.part_of_speech,
-          level: s.word.level,
-          example_sentence: s.word.example_sentence,
-          // **その人向けの解説を先に見る**(2026-08-24)。
-          //
-          // 意味・例文訳・解説は「読む人の言語と母語」で中身が変わる物なので、
-          // 全ユーザー共有の `words` の列ではなく `word_explanations` が正。
-          // 無ければ古い列に落ちる — 移行が当たる前でも、共有キャッシュに
-          // まだ無い語でも、いままでどおり出る。
-          //
-          // **落とし方は `word-explanation.ts` が持つ。** 3項目それぞれで
-          // `||` と `??` を書き分けることになり、1つ取り違えても誰も
-          // 気づかない(この画面の写真は下半分しか撮れていない)。
-          meaning_ja: display.meaning,
-          example_translation: display.exampleTranslation,
-          extras: display.extras,
-        }}
-        wordId={s.word_id}
-        isPro={isPro}
-        onPickImage={applyWebImage}
-        onEditHeadword={editHeadword}
-      />
+      <section data-tour="word-detail">
+        <WordCard
+          word={{
+            headword: s.word.headword,
+            reading_zhuyin: s.word.reading_zhuyin,
+            pinyin: s.word.pinyin,
+            part_of_speech: s.word.part_of_speech,
+            level: s.word.level,
+            example_sentence: s.word.example_sentence,
+            // **その人向けの解説を先に見る**(2026-08-24)。
+            //
+            // 意味・例文訳・解説は「読む人の言語と母語」で中身が変わる物なので、
+            // 全ユーザー共有の `words` の列ではなく `word_explanations` が正。
+            // 無ければ古い列に落ちる — 移行が当たる前でも、共有キャッシュに
+            // まだ無い語でも、いままでどおり出る。
+            //
+            // **落とし方は `word-explanation.ts` が持つ。** 3項目それぞれで
+            // `||` と `??` を書き分けることになり、1つ取り違えても誰も
+            // 気づかない(この画面の写真は下半分しか撮れていない)。
+            meaning_ja: display.meaning,
+            example_translation: display.exampleTranslation,
+            extras: display.extras,
+          }}
+          wordId={local ? undefined : s.word_id}
+          personalContext={personalContext}
+          isPro={isPro}
+          onPickImage={applyWebImage}
+          onEditHeadword={editHeadword}
+        />
+      </section>
 
       {/* **「詳しい解説をAIが準備中…」の帯は出さない**（オーナー指示
           2026-09-22「※詳しい解説をAIが準備中...のバナー削除して」）。

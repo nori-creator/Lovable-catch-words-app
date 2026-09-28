@@ -1,8 +1,10 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   ResponsiveContainer,
@@ -18,6 +20,7 @@ import {
   groupReviews,
   levelOfR,
   type CurveEvent,
+  type CurvePoint,
   type CurveTick,
   type MemoryCurve,
 } from "@/lib/memory-curve";
@@ -113,6 +116,14 @@ export function MemoryCurveChart({
     `mc-future-${uid}`,
     curve.future.map((p) => p.r),
   );
+  const pastFill = levelFill(`mc-fill-${uid}`);
+  /**
+   * **復習で100%へ戻る所は線を切る**（オーナー指示 2026-09-27「記憶の
+   * グラフをより細かく」）。線は値で塗り分けているので、縦に戻る所が
+   * 赤→黄→緑の縞になり、曲線そのものより目立っていた。戻る所は細い
+   * 灰色の縦線で別に描く（`jumps`）。
+   */
+  const { drawn: pastDrawn, jumps } = useMemo(() => splitJumps(curve.past), [curve.past]);
   const color = (r: number) => `var(--mem-${levelOfR(r)})`;
   const dateOf = (d: number) =>
     new Date(nowMs + d * DAY).toLocaleDateString(locale, { month: "numeric", day: "numeric" });
@@ -185,10 +196,11 @@ export function MemoryCurveChart({
         aria-label={t("curve.aria", { pct: curve.todayR, n: curve.reviews.length })}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart margin={{ top: 22, right: 14, bottom: 0, left: -18 }}>
+          <ComposedChart margin={{ top: 22, right: 14, bottom: 0, left: -18 }}>
             <defs>
               {past.def}
               {future.def}
+              {pastFill.def}
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis
@@ -237,13 +249,39 @@ export function MemoryCurveChart({
               dot={false}
               isAnimationActive={false}
             />
+            {/* 線の下をごく薄く塗る（段の色）。どの段にどれだけ居たかが面で分かる。 */}
+            <Area
+              data={pastDrawn}
+              dataKey="r"
+              type="linear"
+              stroke="none"
+              fill={pastFill.fill}
+              baseValue={0}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+            {jumps.map((j) => (
+              <ReferenceLine
+                key={`jump-${j.d}`}
+                segment={[
+                  { x: j.d, y: j.from },
+                  { x: j.d, y: 100 },
+                ]}
+                stroke="var(--muted-foreground)"
+                strokeOpacity={0.5}
+                strokeWidth={1.5}
+                ifOverflow="visible"
+              />
+            ))}
             <Line
-              data={curve.past}
+              data={pastDrawn}
               dataKey="r"
               type="linear"
               stroke={past.stroke}
               strokeWidth={3}
               strokeLinejoin="round"
+              strokeLinecap="round"
+              connectNulls={false}
               dot={false}
               isAnimationActive={false}
             />
@@ -312,7 +350,7 @@ export function MemoryCurveChart({
                 />
               )}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
@@ -519,6 +557,44 @@ export function levelGradient(id: string, values: number[]): { def: ReactNode; s
     ),
     stroke: `url(#${id})`,
   };
+}
+
+/**
+ * 線の下の面の塗り。**主色を上ほど少し濃く、下へ向けて消す**。
+ * 段の色で塗ると横縞になり、線より面のほうが目立った（試して撮った絵で確認）。
+ */
+export function levelFill(id: string): { def: ReactNode; fill: string } {
+  return {
+    def: (
+      <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={{ stopColor: "var(--primary)", stopOpacity: 0.14 }} />
+        <stop offset="1" style={{ stopColor: "var(--primary)", stopOpacity: 0 }} />
+      </linearGradient>
+    ),
+    fill: `url(#${id})`,
+  };
+}
+
+/**
+ * 復習で上へ戻る所（同じ日に値が上がる2点）で線を切る。
+ * `drawn` は切れ目に `null` を挟んだ点、`jumps` は戻る所の日と戻る前の値。
+ */
+export function splitJumps(points: readonly CurvePoint[]): {
+  drawn: Array<{ d: number; r: number | null }>;
+  jumps: Array<{ d: number; from: number }>;
+} {
+  const drawn: Array<{ d: number; r: number | null }> = [];
+  const jumps: Array<{ d: number; from: number }> = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const prev = points[i - 1];
+    if (prev && prev.d === p.d && p.r > prev.r) {
+      jumps.push({ d: p.d, from: prev.r });
+      drawn.push({ d: p.d, r: null });
+    }
+    drawn.push(p);
+  }
+  return { drawn, jumps };
 }
 
 /**

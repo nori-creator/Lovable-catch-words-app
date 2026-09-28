@@ -1,3 +1,4 @@
+import { categoryOptions, dayOptions, NO_FILTER } from "@/lib/dex-filter";
 import { FirstCatchDex, FirstCatchReview } from "./FirstCatchPractice";
 import { preloadFirstCatchImages } from "@/lib/first-catch-images";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
@@ -5,7 +6,7 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,11 +27,14 @@ import {
   firstCatchSticker,
   type FirstCatch,
 } from "@/lib/first-catch";
-import { CaptureObjectPanel, PickWordPanel } from "@/routes/_authenticated/capture";
-import { DexAlbumGrid } from "@/routes/_authenticated/dex";
+import {
+  CaptureObjectPanel,
+  CaptureCardPanel,
+  PickWordPanel,
+} from "@/routes/_authenticated/capture";
+import { DexSurface } from "@/routes/_authenticated/dex";
 
-import { PeelSticker } from "@/components/PeelSticker";
-import { WordCard } from "@/components/WordCard";
+import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
 import "./first-catch.css";
@@ -52,17 +56,17 @@ export function FirstCatchEntry() {
       services={createFirstCatchServices(
         async (data) => {
           const { data: auth } = await supabase.auth.getUser();
-          return auth.user && !auth.user.is_anonymous
-            ? memberAI({ data })
-            : guestAI({ data });
+          return auth.user && !auth.user.is_anonymous ? memberAI({ data }) : guestAI({ data });
         },
         async () => {},
       )}
       onAccount={() => {
         void supabase.auth.getUser().then(({ data }) => {
-          void navigate(data.user && !data.user.is_anonymous
-            ? { to: "/home" }
-            : { to: "/auth", search: { next: "" } });
+          void navigate(
+            data.user && !data.user.is_anonymous
+              ? { to: "/home" }
+              : { to: "/auth", search: { next: "" } },
+          );
         });
       }}
     />
@@ -90,6 +94,7 @@ export function FirstCatchFlow({
   const lock = useRef(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [manual, setManual] = useState("");
+  const [flipped, setFlipped] = useState(false);
   const [detailSeen, setDetailSeen] = useState(false);
   const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
@@ -154,9 +159,9 @@ export function FirstCatchFlow({
                 ? "first.photoUnsupported"
                 : e instanceof Error && e.message === "FIRST_CATCH_ANALYSIS_TIMEOUT"
                   ? "first.analysisTimeout"
-              : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
-                ? "first.guestUnavailable"
-                : "first.failed",
+                  : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
+                    ? "first.guestUnavailable"
+                    : "first.failed",
           ),
         );
     } finally {
@@ -317,10 +322,10 @@ export function FirstCatchFlow({
             <p role="status">{t("first.analyzing")}</p>
           </div>
         ) : (
-        <div className="first-busy" role="status">
-          <Loader2 className="animate-spin mx-auto" />
-          {t(busy === "photo" ? "first.analyzing" : "first.preparing")}
-        </div>
+          <div className="first-busy" role="status">
+            <Loader2 className="animate-spin mx-auto" />
+            {t(busy === "photo" ? "first.analyzing" : "first.preparing")}
+          </div>
         )}
       </FirstCatchShell>
     );
@@ -328,7 +333,11 @@ export function FirstCatchFlow({
   return (
     <div className="first-run" data-first-stage={draft.stage}>
       {draft.stage === "home" && (
-        <FirstCatchHome draft={draft} animated onCamera={homeGuide === "camera" ? () => move("camera") : undefined} />
+        <FirstCatchHome
+          draft={draft}
+          animated
+          onCamera={homeGuide === "camera" ? () => move("camera") : undefined}
+        />
       )}
       {draft.stage === "dex" && (
         <FirstCatchShell tab={1}>
@@ -336,14 +345,12 @@ export function FirstCatchFlow({
         </FirstCatchShell>
       )}
       {draft.stage === "review" && (
-        <FirstCatchShell tab={3}>
-          <FirstCatchReview
-            draft={draft}
-            onComplete={() =>
-              void action(() => commit({ ...draft, stage: "complete", reviewCompleted: true }))
-            }
-          />
-        </FirstCatchShell>
+        <FirstCatchReview
+          draft={draft}
+          onComplete={() =>
+            void action(() => commit({ ...draft, stage: "complete", reviewCompleted: true }))
+          }
+        />
       )}
       {draft.stage === "complete" && (
         <div className="first-standalone first-ready">
@@ -418,90 +425,96 @@ export function FirstCatchFlow({
       )}
       {draft.stage === "card" && sticker && (
         <FirstCatchShell tab={2}>
-          <div className="first-detail">
-            <section ref={hero} data-tour="peel" className="first-peel">
-              <PeelSticker
-                photoUrl={draft.photo}
-                cutoutUrl={null}
-                label={sticker.word.headword}
-                actionLabel={t("capture.addToDex")}
-                hint={t("capture.peelHint")}
-                disabled={!detailSeen || !!busy || landing}
-                onPeel={catchWord}
-              />
-            </section>
-            <section data-tour="detail">
-              <WordCard word={sticker.word} minimal />
-            </section>
-            {errors}
-          </div>
+          <CaptureCardPanel
+            card={draft.card!}
+            selectedHead={sticker.word.headword}
+            objectImg={draft.photo}
+            cutoutImg={null}
+            selfieImg={null}
+            flipped={flipped}
+            setFlipped={setFlipped}
+            caption=""
+            setCaption={() => {}}
+            voiceNote={null}
+            setVoiceNote={() => {}}
+            placeName={null}
+            onRedo={() => move("camera")}
+            onSave={catchWord}
+            heroBoxRef={hero}
+            saving={!detailSeen || !!busy}
+            landing={landing}
+          />
+          {errors}
         </FirstCatchShell>
       )}
       {(draft.stage === "added" || draft.stage === "account") && sticker && (
         <FirstCatchShell tab={1}>
-          <h1 className="text-title font-bold mb-6">{t("nav.dex")}</h1>
-          <section data-tour="added">
-            <DexAlbumGrid
-              items={[sticker]}
-              justCaught={sticker.id}
-              memory={new Map()}
-              onOpen={() => {
-                if (!landing && !busy) move("dex");
-              }}
+          <DexSurface
+            captured={[sticker]}
+            filtered={[sticker]}
+            view="gallery"
+            onView={() => move("dex")}
+            search=""
+            onSearch={() => move("dex")}
+            filter={NO_FILTER}
+            onFilter={() => move("dex")}
+            categories={categoryOptions([sticker])}
+            days={dayOptions([sticker])}
+            justCaught={sticker.id}
+            memory={new Map()}
+            onOpen={() => move("dex")}
+          />
+          {!landing && !busy && (
+            <Spotlight
+              target={`#dex-cell-${sticker.id}`}
+              title={t("first.added")}
+              text={t("first.dexOpen")}
+              nextLabel={t("first.dexTitle")}
+              onNext={() => move("dex")}
             />
-          </section>
-          <div className="first-added" role="status">
-            <CheckCircle2 className="mx-auto text-primary" size={30} />
-            <h2>{t("first.added")}</h2>
-            <p className="first-sub">{t("first.local")}</p>
-          </div>
-          <button
-            className="first-primary first-added-cta"
-            disabled={landing || !!busy}
-            onClick={() => move("dex")}
-          >
-            {t("first.dexTitle")}
-            <ArrowRight size={18} />
-          </button>
+          )}
           {errors}
         </FirstCatchShell>
       )}
       {draft.stage === "explore" && sticker && (
         <FirstCatchShell tab={1}>
-          <div className="first-explore-heading">
-            <span className="first-eyebrow">{t("first.added")}</span>
-            <h1>{t("first.exploreTitle")}</h1>
-            <p className="first-sub">{t("first.exploreHint")}</p>
-          </div>
-          <img src={draft.photo!} alt="" className="first-word-photo" />
-          <WordCard
-            word={sticker.word}
-            autoplay={false}
-            guided
-            personalContext={{
-              id: draft.id,
-              preferences: LearningPreferencesSchema.parse(draft),
-              initial: draft.lesson,
-              request: services.lesson,
-              onReady: (lesson) => {
-                const current = draftRef.current;
-                if (current && !current.lesson && current.stage === "explore")
-                  void commit({ ...current, lesson }).catch(() => setError(t("first.storage")));
+          <StickerSheet
+            stickerId={sticker.id}
+            onClose={() => move("review")}
+            local={{
+              sticker,
+              personalContext: {
+                id: draft.id,
+                preferences: LearningPreferencesSchema.parse(draft),
+                initial: draft.lesson,
+                request: services.lesson,
+                onReady: (lesson) => {
+                  const current = draftRef.current;
+                  if (current && !current.lesson && current.stage === "explore")
+                    void commit({ ...current, lesson }).catch(() => setError(t("first.storage")));
+                },
               },
             }}
           />
+          <Spotlight
+            target='[data-tour="word-detail"]'
+            title={t("first.detailTitle")}
+            text={t("first.exploreHint")}
+            interactive
+            step="4 / 5"
+            nextLabel={t("first.tryReview")}
+            onNext={() => move("review")}
+          />
           {errors}
-          <div className="first-detail-footer">
-            <button className="first-primary" disabled={!!busy} onClick={() => move("review")}>
-              {t("first.tryReview")}
-              <ArrowRight size={18} />
-            </button>
-          </div>
         </FirstCatchShell>
       )}
       {!error && !landing && draft.stage === "home" && (
         <Spotlight
-          target={homeGuide === "album" ? '[data-tour="home"] .collage-board' : '[data-tour="tab-camera"] .tabbar__lens'}
+          target={
+            homeGuide === "album"
+              ? '[data-tour="home"] .collage-board'
+              : '[data-tour="tab-camera"] .tabbar__lens'
+          }
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
           step={homeGuide === "album" ? "1 / 5" : "2 / 5"}

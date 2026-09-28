@@ -37,6 +37,22 @@ For user-visible design, interaction or animation changes:
 - user performs real-device comparison;
 - merge after approval.
 
+## iPhone (Safari / home-screen app) device checks
+Automated checks here run in Chromium only; WebKit is not available in the preview pipeline, so these must be confirmed on a real iPhone before release.
+Known WebKit traps the code already guards against (keep the guards):
+- `indexedDB.open` can never settle → queueing a capture must not block AI analysis (`offline-queue.ts` open timeout; `capture.tsx` runs AI first).
+- Geolocation `timeout` is not counted while the permission prompt is open → every location wait uses `withDeadline` (`deadline.ts`).
+- Total canvas memory is capped → release canvases after encoding (`width = height = 0`).
+- `MediaRecorder` records MP4, not WebM → label blobs with `rec.mimeType`.
+- `<video>` needs `playsInline` (and `muted` for camera streams) or it goes full screen.
+Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
+1. Take a photo → candidates appear (or the "saved for later" state) within ~20 s; never an endless "analyzing".
+2. Same with location permission prompt left unanswered.
+3. Scan mode: frame → detected words.
+4. Five photos in a row without reloading.
+5. Review: speaking video records and plays back inline.
+6. Place reminder permission flow (home-screen app only; Safari tabs cannot receive web notifications).
+
 ## Performance checks
 For Catch path track p50/p90/p99 where possible:
 - capture → candidate response;
@@ -66,3 +82,11 @@ The minimum review experience should be intentionally small.
 - major privacy/RLS issue;
 - displayed memory probability with misleading/undefined semantics;
 - unbounded collection queries likely to fail at realistic scale.
+
+## Shared tutorial release checks
+- Change a production tab, collection view, card section or review control once; confirm both the normal app and tutorial render that change.
+- Home → actual camera → actual candidate picker → capture card → shared landing animation → collection views → shared detail sheet → real four-choice exercise / memory modal → completion → full-screen auth.
+- Verify the guide allows only the intended controls, including keyboard access; no duplicate UI and no tutorial CSS overriding production card dimensions.
+- Verify guest detail/review never calls authenticated storage or scheduled-review mutations.
+- Normal motion: show the screen for 1.6 seconds, expand the blue 24px frame to the measured target over 850ms, then show the coach. Reduced motion follows the app preference and must still reveal the coach.
+- Repeat with direct signup, refresh/resume, three UI languages, narrow screens and real iOS camera/AI. Static preview data alone is not evidence of live AI or iOS success.

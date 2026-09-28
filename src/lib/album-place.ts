@@ -356,16 +356,31 @@ export function placementFrom(
  * 重ねても字が隠れないのは、**字の幅を `COLLAGE_CAP_W` に抑えてある**
  * から。左の字は 0〜0.42、右の写真は 0.42〜1 に居るので、決して当たらない。
  */
-export const COLLAGE_COL_W = 0.58;
+export const COLLAGE_COL_W = 0.47;
 /**
  * 写真の下に書く字の幅の上限（台紙の幅に対する割合）。
  *
- * 写真は真ん中を越えて重なるが、**字は自分の側の外半分から出ない**。
- * これが「重なっているのに読める」を成り立たせている唯一の約束なので、
- * `COLLAGE_COL_W` を広げるときは必ずこちらも見直すこと
- * （`1 - COLLAGE_COL_W` を越えてはいけない）。
+ * 2026-09-27 から写真は重ねないので、字の欄は**写真の幅**に合わせて伸びる
+ * （下限は `COLLAGE_CAP_MIN`）。ここは1枚目（`COLLAGE_HERO_W`）の字まで
+ * 収まる上限で、列の札（幅 `COLLAGE_COL_W` 以下）の字には効かない。
  */
-export const COLLAGE_CAP_W = 0.42;
+export const COLLAGE_CAP_W = 0.6;
+/**
+ * **字の幅の下限**（台紙の幅に対する割合。オーナー指示 2026-09-27「画像を
+ * 小さくしても文字は潰れたり隠れたりしないようにして」）。
+ *
+ * 字は写真の幅に合わせて書いていたので、指で写真を小さくすると字の欄も
+ * 一緒に細くなり、語が「…」で切れていた。写真がこれより細いときは、字だけ
+ * がこの幅まで写真の外へ出る（写真の外側へ向かって）。4文字の語と時刻が
+ * 1行に並ぶ幅（390px の台紙で 133px）。
+ */
+export const COLLAGE_CAP_MIN = 0.34;
+/**
+ * **初めから重ねない**（オーナー指示 2026-09-27「デフォルトでは画像や文字が
+ * 重ならないようにして」）。左右の列の間に空ける幅。傾けたときに角が
+ * はみ出すぶん（高さ × sin 傾き）も、ここで吸う。
+ */
+export const COLLAGE_GUTTER = 0.04;
 
 /**
  * 写真の下の語を**どこに揃えるか**。基本は真ん中（`c`）— オーナー指示
@@ -380,7 +395,8 @@ export const COLLAGE_CAP_W = 0.42;
 export function captionAlign(xFrac: number, photoWpx: number, boardW: number): "c" | "l" | "r" {
   const side = xFrac < 0.5 ? "l" : "r";
   if (!boardW || !photoWpx) return side;
-  const capW = Math.min(photoWpx, boardW * COLLAGE_CAP_W);
+  // 字の欄の幅は、写真の幅を下限（`COLLAGE_CAP_MIN`）と上限の間に収めた物。
+  const capW = clamp(photoWpx, boardW * COLLAGE_CAP_MIN, boardW * COLLAGE_CAP_W);
   const cx = xFrac * boardW;
   const mid = boardW / 2;
   const slack = boardW * 0.03;
@@ -404,7 +420,7 @@ export function captionAlign(xFrac: number, photoWpx: number, boardW: number): "
  * （`COLLAGE_CAP_W`）を1枚目にもそのまま効かせる**ため。ここだけ広げると、
  * 1枚目が触られて最前面に来た回に、反対の列の字を覆う。
  */
-export const COLLAGE_HERO_W = 0.58;
+export const COLLAGE_HERO_W = 0.6;
 /** 右の列を最初に下げるぶん（台紙の幅に対する割合）。 */
 export const COLLAGE_STAGGER = 0.05;
 /**
@@ -487,6 +503,12 @@ export function packCollage(
    * 3枚以上の日だけ。
    */
   const hero = items.length >= 3;
+  /**
+   * 1枚目が占める所（右の端と、字まで含めた下の端）。右の列の札が
+   * **この高さの間にいるあいだは、1枚目にかからない幅に細める**。
+   */
+  let heroRight = 0;
+  let heroBottom = 0;
   return items.map((it, i) => {
     if (hero && i === 0) {
       const w = COLLAGE_HERO_W;
@@ -495,61 +517,55 @@ export function packCollage(
       const capTop = y + h / 2;
       // 左の列は1枚目の下から。**右の列は上のまま**（横に並ぶ）。
       bottom[0] = capTop + (it.extra ?? 0) + COLLAGE_GAP;
+      heroRight = w;
+      heroBottom = bottom[0];
       return {
         x: clamp(w / 2, 0, 1),
         y,
         scale: w / BASE_WIDTH,
         // 1枚目は**わずかに左へ**。大きい物ほど傾きは小さく見せる
         // （大きく傾けると、それだけで画面が落ち着かなくなる）。
-        rot: -(0.6 + seed(it.id, 13) * 1.4),
+        rot: -(0.6 + seed(it.id, 11) * 1.2),
       };
     }
     /**
      * **空いているほうの列へ置く。**
      *
      * 左右を1枚ずつ交互に振ると、縦長が続いた列だけが先へ伸び、
-     * **もう片方の列に画面まるごとの空白ができる**（実測: 右の列が
-     * 230px ぶん空いたまま、左だけが下へ伸びた）。石積みの定石どおり、
+     * **もう片方の列に画面まるごとの空白ができる**。石積みの定石どおり、
      * そのとき短いほうへ積む。並びだけで決まるので、何度描いても同じ。
      */
     const col = bottom[0] <= bottom[1] ? 0 : 1;
     /**
-     * 幅を揺らす（列の幅の 78〜100%）。大小が混ざるほど誌面らしくなる。
-     *
-     * 真ん中を越えるのは**わざと**で、そこが重なりを作っている。隠れないのは
-     * 字のほうを `COLLAGE_CAP_W` に抑えてあるから — 上限をここで広げると、
-     * 右の札の左端が左の字の側へ食い込んで、時刻と語が読めなくなる。
+     * **大・小・中・小の律動**（オーナー指示 2026-09-22）。列ごとに決まった
+     * 律動を刻み、乱数はわずかな揺らぎ（±3%）だけにする。一番大きい拍でも
+     * 1枚目（`COLLAGE_HERO_W`）より小さい — **主役は1枚**。
      */
-    /**
-     * **大・小・中・小の律動**（オーナー指示 2026-09-22「大小、重ねたり、
-     * バランスをとって毎日の画像を一つの作品にして。いまただ適当に並んでる
-     * だけ」）。前は幅を `id` から乱数で揺らしていたので、大きい物が2枚
-     * 続いたり小さい物が固まったりして、**並びに意図が見えなかった**。
-     * 列ごとに決まった律動を刻み、乱数はわずかな揺らぎ（±3%）だけにする。
-     */
-    // 一番大きい拍でも 1枚目（`COLLAGE_HERO_W`）より小さい — **主役は1枚**。
-    const RHYTHM = [0.94, 0.8, 0.88, 0.76] as const;
+    const RHYTHM = [0.96, 0.8, 0.9, 0.76] as const;
     const beat = RHYTHM[placedIn[col] % RHYTHM.length];
     placedIn[col] += 1;
-    const w = COLLAGE_COL_W * clamp(beat + (seed(it.id, 7) - 0.5) * 0.06, 0.73, 0.97);
+    let w = COLLAGE_COL_W * clamp(beat + (seed(it.id, 7) - 0.5) * 0.06, 0.73, 0.98);
+    // 1枚目の横に並ぶ間は、1枚目にかからない幅まで細める（字の下限も含めて）。
+    const top = bottom[col];
+    if (col === 1 && heroRight > 0 && top < heroBottom) {
+      // 律動（大小）は残す — 細めた幅を上限として、拍の比でさらに縮める。
+      w = Math.min(w, (1 - heroRight - COLLAGE_GUTTER) * (beat / RHYTHM[0]));
+    }
     const h = w * safeRatio(it.ratio);
     // 列の中心。左右の端に寄せる（字は外側に付くので、外側を空けない）。
     const cx = col === 0 ? w / 2 : 1 - w / 2;
-    const y = bottom[col] + h / 2;
+    const y = top + h / 2;
     bottom[col] = y + h / 2 + (it.extra ?? 0) + COLLAGE_GAP;
     return {
       x: clamp(cx, 0, 1),
       y,
       scale: w / BASE_WIDTH,
       /**
-       * **左の列は左へ、右の列は右へ傾ける**（1〜3.5度）。
-       *
-       * 前は −4〜4 度を札ごとにばらばらに振っていた。隣どうしが同じ向きに
-       * 傾くと平行な2枚になり、逆に倒れ合うと喧嘩して、どちらも「適当に
-       * 置いた」に見えた（オーナー報告 2026-09-22）。外側へ開く向きに
-       * 揃えると、左右が1枚の見開きとして釣り合う — 参考の誌面もそう。
+       * **左の列は左へ、右の列は右へ傾ける**（1〜2.5度）。外側へ開く向きに
+       * 揃えると、左右が1枚の見開きとして釣り合う。重ねなくなったぶん
+       * 傾きは控えめにする — 角が隣の列の間（`COLLAGE_GUTTER`）を越えない。
        */
-      rot: (col === 0 ? -1 : 1) * (1 + seed(it.id, 13) * 2.5),
+      rot: (col === 0 ? -1 : 1) * (1 + seed(it.id, 13) * 1.5),
     };
   });
 }

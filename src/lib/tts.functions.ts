@@ -117,37 +117,42 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
     await assertWithinDailyCap(userId, "tts");
     let buf: Uint8Array;
-    if (choice) {
-      try {
-        const { synthesizeWithChoice } = await import("./tts-provider.server");
-        buf = await synthesizeWithChoice(choice, data.text, data.speed, data.language);
-      } catch (e) {
-        // 選んだ会社が駄目なとき（鍵が無い・落ちている）は、黙らせずに
-        // これまでの声で鳴らす。**その音はこれまでの置き場所に貯める** —
-        // 新しい声の置き場所に古い声を入れると、直った後も古い声が鳴り続ける。
-        console.warn("[tts] provider failed, falling back:", (e as Error).message);
+    try {
+      if (choice) {
+        try {
+          const { synthesizeWithChoice } = await import("./tts-provider.server");
+          buf = await synthesizeWithChoice(choice, data.text, data.speed, data.language);
+        } catch (e) {
+          // 選んだ会社が駄目なときは、これまでの声で鳴らし、これまでの置き場所に貯める。
+          console.warn("[tts] provider failed, falling back:", (e as Error).message);
+          buf = await synthesizeMp3(data.text, data.speed, data.language);
+          path = await ttsObjectPath(data.language, keyFor(TTS_VOICE_DEFAULT), data.text);
+        }
+      } else {
         buf = await synthesizeMp3(data.text, data.speed, data.language);
-        path = await ttsObjectPath(data.language, keyFor(TTS_VOICE_DEFAULT), data.text);
       }
-    } else {
-      buf = await synthesizeMp3(data.text, data.speed, data.language);
+    } catch (e) {
+      // 音声AIが使えない（クレジット不足 402 など、再試行しても直らない）ときは
+      // 画面を落とさず null を返す — 呼ぶ側は端末の声で鳴らす。
+      console.error("[tts] synthesis unavailable:", (e as Error).message);
+      return { audio_url: null as string | null };
     }
     await logUsage(supabase, userId, "tts");
 
     // Cache writes go through the service role: the shared tts cache must not
     // be client-writable (audio poisoning would corrupt pronunciations for
     // everyone), and the user role has read-only storage access to this bucket.
+    //
+    // **作った音はそのまま返す**（オーナー指示 2026-09-27「音声は速さ最優先」）。
+    // 前は 保存 → 署名付きの URL を作る → 端末がその URL からもう一度落とす、
+    // の3往復を待ってから鳴っていた。音は手元にあるので、保存が済んだら
+    // そのまま渡す（署名とダウンロードの2往復が消える）。次からは保存した
+    // 物が上の「貯めてある」道で返る。
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: upErr } = await supabaseAdmin.storage.from("tts").upload(path, buf, {
+    await supabaseAdmin.storage.from("tts").upload(path, buf, {
       contentType: "audio/mpeg",
       upsert: true,
     });
-    if (!upErr) {
-      const { data: signed } = await supabase.storage
-        .from("tts")
-        .createSignedUrl(path, SIGNED_URL_TTL);
-      if (signed?.signedUrl) return { audio_url: signed.signedUrl };
-    }
 
     let binary = "";
     for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);

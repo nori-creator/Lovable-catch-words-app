@@ -9,7 +9,12 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { StickerSheet } from "@/components/StickerSheet";
-import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
+import {
+  heroRevealStyle,
+  setHeroRevealStyle,
+  type HeroOrigin as FlightOrigin,
+  type HeroRevealStyle,
+} from "@/components/use-hero-reveal";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   DiaryDate,
@@ -27,6 +32,7 @@ import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
+import { AlbumInk, type InkItem } from "@/components/AlbumInk";
 import { parseWallpaper, wallClass } from "@/lib/wallpaper";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 
@@ -294,8 +300,46 @@ export function HomeTapScene() {
   if (!qc.getQueryData(["stickers", "harness"])) {
     qc.setQueryData(["stickers", "harness"], { items: today });
   }
+  // 開き方の案（2026-09-27）。選んだ案は端末に覚え、次に押したときから効く。
+  const [style, setStyle] = useState<HeroRevealStyle>(heroRevealStyle());
   return (
     <>
+      <div
+        role="radiogroup"
+        aria-label="開き方の案"
+        style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}
+      >
+        {(
+          [
+            ["pop", "A キュッ→ぱっ"],
+            ["glide", "B 滑らかに"],
+            ["lift", "C 持ち上がる"],
+            ["fade", "D 浮かび上がる"],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={style === k}
+            onClick={() => {
+              setHeroRevealStyle(k);
+              setStyle(k);
+            }}
+            style={{
+              minHeight: 44,
+              padding: "0 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: style === k ? "#0a84ff" : "#fff",
+              color: style === k ? "#fff" : "#111",
+              fontWeight: 600,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <p
         data-flight-origin={got}
         style={{
@@ -339,5 +383,24 @@ export function HomeTapScene() {
         }}
       />
     </>
+  );
+}
+
+/**
+ * **アルバムに書き込む**（試作、オーナー指示 2026-09-27）。今日のページの上に
+ * 透明な紙を重ね、ペン・ラベル・丸・四角・矢印を6色で描ける。保存はしない。
+ * 最初の絵が分かるよう、見本の書き込みを3つ置いておく（1つ戻す・全部消すで消せる）。
+ */
+export function HomeInkScene() {
+  const [items, setItems] = useState<InkItem[]>([
+    { kind: "label", color: "#ff375f", x: 0.3, y: 0.18, text: "初めての夜市!" },
+    { kind: "circle", color: "#0a84ff", x1: 0.52, y1: 0.3, x2: 0.92, y2: 0.52 },
+    { kind: "arrow", color: "#ff9f0a", x1: 0.3, y1: 0.62, x2: 0.5, y2: 0.46 },
+  ]);
+  return (
+    <div className="relative">
+      <DayCollage stickers={today} onOpen={() => {}} />
+      <AlbumInk items={items} onChange={setItems} />
+    </div>
   );
 }

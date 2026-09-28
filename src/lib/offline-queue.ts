@@ -21,16 +21,52 @@ function hasIdb(): boolean {
   return typeof indexedDB !== "undefined";
 }
 
+/**
+ * 開くのを待つ上限。**iPhone の Safari では `indexedDB.open` が返って
+ * こないことがある**（成功も失敗も呼ばれない）。撮った直後にここを待って
+ * いたので、その回は AI の分析が始まらず「分析中」のまま止まっていた
+ * （オーナー報告 2026-09-27「iPhone で撮影後に AI 分析が進まない」）。
+ * 待つのはここまでにして、預けられなかった扱いにする。
+ */
+export const OPEN_TIMEOUT_MS = 4000;
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("indexedDB open timed out"));
+    }, OPEN_TIMEOUT_MS);
+    const done = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
+    let req: IDBOpenDBRequest;
+    try {
+      req = indexedDB.open(DB_NAME, 1);
+    } catch (e) {
+      done(() => reject(e));
+      return;
+    }
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(STORE)) {
         req.result.createObjectStore(STORE, { keyPath: "id" });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      if (settled) {
+        // 上限を過ぎてから開いた接続は、使わずに閉じる。
+        req.result.close();
+        return;
+      }
+      done(() => resolve(req.result));
+    };
+    req.onerror = () => done(() => reject(req.error));
+    // 別のタブが古い版を開いたままだと、ここで止まる。待たずに失敗にする。
+    req.onblocked = () => done(() => reject(new Error("indexedDB open blocked")));
   });
 }
 

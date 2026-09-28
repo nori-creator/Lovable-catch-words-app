@@ -23,6 +23,14 @@ import {
   type CameraMode,
 } from "@/components/CameraChrome";
 import { ScanCameraControls } from "@/routes/_authenticated/scan";
+import { photo } from "./peel-sticker";
+
+/** 多くの端末のカメラと同じ縦 3:4 の景色（正方形の絵を切って作る）。 */
+const photo34 =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><svg viewBox="0 0 320 320" width="600" height="800" preserveAspectRatio="xMidYMid slice"><image href="${photo}" width="320" height="320"/></svg></svg>`,
+  );
 
 const ITEMS = [
   { label: "ホーム", icon: Home },
@@ -35,19 +43,31 @@ const ITEMS = [
 export function ScanBottomScene() {
   const [mode, setMode] = useState<CameraMode>("scan");
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-black">
-      <ScanCameraControls
-        hidden={false}
-        facing="environment"
-        onFlip={() => {}}
-        showZoom
-        zoom={2}
-        zoomMin={1}
-        zoomMax={6}
-        onZoom={() => {}}
-        // 実物と同じ式。操作シートの高さを測って、その上に置く。
-        zoomBottom="calc(5rem + env(safe-area-inset-bottom, 0px) + 150px + 0.5rem)"
-      />
+    <div className="fixed inset-0 z-20 overflow-hidden">
+      {/* 2026-09-27: 映像の箱は名前の下からシートの上まで（上下の余白を詰めた）。 */}
+      <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+      <div
+        className="scan-frame fixed z-20 overflow-hidden"
+        style={{ bottom: "calc(5rem + env(safe-area-inset-bottom, 0px) + 150px + 0.5rem)" }}
+      >
+        <img
+          src={photo34}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+          style={{ objectPosition: "50% 50%" }}
+        />
+        <ScanCameraControls
+          hidden={false}
+          facing="environment"
+          onFlip={() => {}}
+          showZoom
+          zoom={2}
+          zoomMin={1}
+          zoomMax={6}
+          onZoom={() => {}}
+          zoomBottom="0.5rem"
+        />
+      </div>
       <div
         data-scan-sheet
         className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"

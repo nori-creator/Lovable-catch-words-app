@@ -1,3 +1,4 @@
+import { CHINESE_EXPLANATION_LANGUAGE } from "@/lib/target-lang";
 import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { tStatic, useUiLang, useT } from "@/lib/i18n";
@@ -162,7 +163,12 @@ function TermsPage() {
       >
         ← {t("common.back")}
       </Link>
-      {lang === "en" ? <TermsEn /> : <TermsJa />}
+      {lang === CHINESE_EXPLANATION_LANGUAGE && (
+        <p className="mt-4 rounded-xl bg-secondary p-3 text-footnote">{t("legal.onlyJaEn")}</p>
+      )}
+      {/* 繁體中文の正式な訳はまだ無い（法的な文なので機械訳しない）。
+          日本語より読める人が多い英語版を出す（オーナー指示 2026-09-27「言語を混ぜない」）。 */}
+      {lang === "ja" ? <TermsJa /> : <TermsEn />}
       <p className="mt-8 text-footnote text-muted-foreground">
         <Link to="/privacy" className="inline-block py-3 -my-3 underline">
           {t("auth.privacy")}

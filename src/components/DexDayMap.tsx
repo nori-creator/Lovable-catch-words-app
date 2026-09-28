@@ -120,19 +120,48 @@ export function DexDayMap({
   // ---- 時間軸を送ると、読んでいる行の立ち寄りへ -----------------------------
   const listRef = useRef<HTMLDivElement | null>(null);
   const programmatic = useRef(0);
+  /**
+   * **送るだけで地図のバブルが応える**（オーナー指示 2026-09-27「タイムラインを
+   * スクロールしたら、タップしなくても自動で地図のバブルが滑らかに反応して」）。
+   *
+   * 前は「立ち寄り」の行の上端だけを見ていたので、①同じ場所の2枚目・3枚目へ
+   * 送っても浮く写真が替わらず、②最後の数行は上端まで届かないので一度も
+   * 選ばれなかった。**読む線（欄の上から 35%）にいちばん近い写真**を選び、
+   * その写真の場所を浮かせて、バブルの顔もその写真にする。下端まで送ったら
+   * 最後の写真。1コマに1回だけ測る。
+   */
+  const scrollFrame = useRef(0);
   const onListScroll = () => {
     if (performance.now() < programmatic.current) return;
-    const list = listRef.current;
-    if (!list) return;
-    const line = list.getBoundingClientRect().top + 40;
-    let pick: string | null = null;
-    for (const li of Array.from(list.querySelectorAll<HTMLElement>("[data-stop-row]"))) {
-      if (li.getBoundingClientRect().top <= line) pick = li.dataset.stopRow ?? pick;
-    }
-    const first = list.querySelector<HTMLElement>("[data-stop-row]")?.dataset.stopRow ?? null;
-    const next = pick ?? first;
-    setActiveId((c) => (c === next ? c : next));
+    if (scrollFrame.current) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = 0;
+      const list = listRef.current;
+      if (!list) return;
+      const rows = Array.from(list.querySelectorAll<HTMLElement>("[data-item-row]"));
+      if (!rows.length) return;
+      const box = list.getBoundingClientRect();
+      const atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
+      let pick = rows[rows.length - 1];
+      if (!atEnd) {
+        const line = box.top + box.height * 0.35;
+        let best = Infinity;
+        for (const r of rows) {
+          const b = r.getBoundingClientRect();
+          const d = Math.abs(b.top + b.height / 2 - line);
+          if (d < best) {
+            best = d;
+            pick = r;
+          }
+        }
+      }
+      const stop = pick.dataset.stopId ?? null;
+      const item = pick.dataset.itemRow ?? null;
+      setActiveId((c) => (c === stop ? c : stop));
+      setActiveItem((c) => (c === item ? c : item));
+    });
   };
+  useEffect(() => () => cancelAnimationFrame(scrollFrame.current), []);
 
   /**
    * **ピンを押したとき。**（オーナー指示 2026-09-23「単語をタップしたら地図上で
@@ -241,6 +270,8 @@ export function DexDayMap({
                           <button
                             key={it.id}
                             type="button"
+                            data-item-row={it.id}
+                            data-stop-id={st.id}
                             /* **押したら地図の上でその写真のピンが浮く。** 詳細は
                                浮いたピンを押して開く（オーナー指示 2026-09-23
                                「この単語を取ったのはどこかで振り返りたい」）。 */
@@ -291,6 +322,8 @@ export function DexDayMap({
                 );
               })}
             </ol>
+            {/* 最後の写真まで読む線に届くよう、下に送る余白を足す。 */}
+            <div aria-hidden className="dex-daymap__timeline-tail" />
           </div>
         )}
 

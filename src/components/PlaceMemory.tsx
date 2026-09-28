@@ -28,7 +28,12 @@ import {
   getCurrentPosition,
   isPlaceReminderEnabled,
   markNotified,
+  mayNotifyAt,
   notifyMemory,
+  placeCellKey,
+  readPlaceLog,
+  recordNotificationAt,
+  writePlaceLog,
   takenDateLabel,
 } from "@/lib/place-reminder";
 import { useT } from "@/lib/i18n";
@@ -42,6 +47,10 @@ export function PlaceMemoryWatcher() {
     if (!isPlaceReminderEnabled()) return;
     const pos = await getCurrentPosition();
     if (!pos) return;
+    // **同じ場所では1日1回まで、1日の合計も上限まで**（2026-09-27「家にいると
+    // 延々と通知が来る」）。問い合わせる前に見る — 鳴らさないなら通信も要らない。
+    const cell = placeCellKey(pos);
+    if (!mayNotifyAt(cell, new Date(), readPlaceLog())) return;
     let found: NearbyMemory[] = [];
     try {
       found = await fetchNearby({ data: { lat: pos.lat, lng: pos.lng, radius_m: 150, limit: 5 } });
@@ -57,6 +66,7 @@ export function PlaceMemoryWatcher() {
     const top = fresh[0];
     await notifyMemory(top);
     markNotified([top]);
+    writePlaceLog(recordNotificationAt(cell, new Date(), readPlaceLog()));
     setHit(top);
   }, [fetchNearby]);
 

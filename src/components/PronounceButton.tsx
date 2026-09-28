@@ -95,12 +95,14 @@ export function PronounceButton({
    */
   const reach =
     size === "sm" ? "relative before:absolute before:-inset-1.5 before:content-['']" : "";
-  const skin =
-    tone === "quiet"
-      ? "bg-secondary text-primary shadow-sm ring-1 ring-border"
-      : tone === "hero"
-        ? "lift bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-        : "bg-primary/12 text-primary-ink";
+  /**
+   * **色は1つ（オーナー指示 2026-09-25「単語の詳細を含む発音ボタンはすべて
+   * 単語の見出しの横の鮮やかな青色に統一して」）。** 前は脇役（関連語・
+   * チャンク）を薄い地にして見出しと描き分けていたが、どれも「押すと鳴る」
+   * 同じ物なので、同じ青に揃える。違いは大きさ（`size`）だけ。
+   * 見出しだけは持ち上げ（`lift`）を残す — その画面でいちばん押される物。
+   */
+  const skin = `speak-button${tone === "hero" ? " lift" : ""}`;
   const icon = tone === "hero" ? "h-5 w-5" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
 
   // 支度中。**押せる物を出さない**が、場所は空けておく。

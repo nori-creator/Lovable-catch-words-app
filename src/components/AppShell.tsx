@@ -1,8 +1,8 @@
-import { AppTabContent } from "./AppTabContent";
+import { appFrameClass, appMainClass } from "./app-frame";
+import { AppNavigation, APP_NAV_ITEMS as items } from "./AppNavigation";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
@@ -15,28 +15,8 @@ import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
-import { TabBar } from "@/components/TabBar";
 import { playCameraLaunch } from "@/lib/camera-launch";
 import { useWarmCamera } from "@/hooks/use-warm-camera";
-
-type Item = {
-  to: "/home" | "/dex" | "/capture" | "/review" | "/settings";
-  labelKey: string;
-  icon: typeof Home;
-};
-
-// 5-item bottom nav (roadmap B5): the center slot is the one big camera
-// entrance.
-// 2026-08-03 NORI指定で**カメラのフロー(/capture)に戻した**。撮る→自撮り→
-// 候補→切り抜き→図鑑にドン、という一本道がこのアプリの体験そのものだから。
-// かざして調べるスキャン(/scan)はカメラ画面の中から開ける。
-const items: Item[] = [
-  { to: "/home", labelKey: "nav.home", icon: Home },
-  { to: "/dex", labelKey: "nav.dex", icon: BookOpen },
-  { to: "/capture", labelKey: "nav.camera", icon: Camera },
-  { to: "/review", labelKey: "nav.review", icon: Sparkles },
-  { to: "/settings", labelKey: "nav.settings", icon: Settings },
-];
 
 /**
  * ヘッダーの丸アイコンそのもの。設定で顔写真を登録していればそれを出す。
@@ -247,7 +227,6 @@ export function AppShell({
 }) {
   const logEvent = useServerFn(logAppEvent);
   const t = useT();
-  const scrolled = useScrolled();
   const navigate = useNavigate();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -347,100 +326,27 @@ export function AppShell({
   }, []);
 
   return (
-    <div
-      className={
-        fixedViewport
-          ? "h-dvh overflow-hidden bg-background"
-          : "min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]"
-      }
-      style={
-        headerless
-          ? ({
-              "--app-header-h": "0px",
-              paddingTop: "env(safe-area-inset-top)",
-            } as React.CSSProperties)
-          : undefined
-      }
-    >
-      {/* Top chrome — a translucent material the content scrolls under (§12).
-          区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
-          縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
-      {!bare && !immersive && !headerless && (
-        <header
-          data-scrolled={scrolled ? "true" : undefined}
-          className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
-        >
-          {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
-            止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
-          {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
-          <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
-                以前はアイコンごと `/home` の Link に入れていたが、
-                押せるものの中に押せるものを入れることになるうえ、
-                アイコンを押した人は必ずホームへ飛ばされていた。
-                行き先は名前のほうが持つ。 */}
-              <BrandMenu />
-              <Link to="/home" className="transition-transform duration-150 active:scale-95">
-                {/* §15: app title is a small headline — tight tracking, no wrapping.
-                  **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
-                  単語カードにはすでに h1 があるので、**全ページが h1 を2つ
-                  持つ**ことになった — 直そうとした階層をむしろ壊していた。
-                  これはどの画面にも出るアプリ名(道標)であって、その画面の
-                  見出しではない。h1 は各画面が自分で持つ。 */}
-                <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
-                  {title ?? "Catchwords"}
-                </span>
-              </Link>
-            </div>
-          </div>
-        </header>
-      )}
-
-      <main
-        className={
-          bare
-            ? "h-dvh"
-            : immersive
-              ? "mx-auto max-w-3xl px-4"
-              : fixedViewport
-                ? "mx-auto flex h-[calc(100dvh-var(--app-header-h)-env(safe-area-inset-top)-6rem-env(safe-area-inset-bottom))] max-w-3xl flex-col overflow-hidden px-4 py-2"
-                : "mx-auto max-w-3xl px-4 py-4"
-        }
-      >
-        {children}
-      </main>
-
-      {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
-          設定でONにした人だけ動く(既定はOFF)。 */}
-      <PlaceMemoryWatcher />
-
-      <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity} onCamera={onCameraScreen}>
-        {items.map(({ to, labelKey, icon: Icon }, i) => {
-          const label = t(labelKey);
-          const isScan = to === "/capture";
-          /**
-           * いま**カメラの機械の中に居るか**。カメラの丸を下から消すのに使う。
-           *
-           * 「このタブの行き先に居るか」ではない。撮る・調べる・読み取るは
-           * 同じ一台の3つのモードで、`/scan` は行き先が別なだけ。行き先で
-           * 判定すると、読み取り中だけ丸が下に戻ってきて**シャッターと
-           * 下の丸が同時に在る**ことになる（オーナー報告 2026-09-16
-           * 「スキャンのとき、検索のときも下のバーのカメラあいこん
-           * ひょうじしなくていい。カメラのとき同じように」）。
-           * 調べるは `/capture?mode=search` なので、道が同じここで一緒に片付く。
-           *
-           * 並びの番号(`tabIndex`)と指で払う順は**5つの行き先のまま**にする。
-           * `/scan` はタブではないので、そこへ混ぜると順が狂う。
-           */
-          const isCurrent = isScan ? onCameraScreen : atPath(to);
-          // 近いほど主色に寄る。指の途中でも色が「移っている」ように見える。
-          const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
-          return (
-            <li key={to} className="flex-1">
+    <AppShellFrame
+      title={title}
+      fixedViewport={fixedViewport}
+      bare={bare}
+      immersive={immersive}
+      headerless={headerless}
+      brandMenu={<BrandMenu />}
+      watchers={<PlaceMemoryWatcher />}
+      navigation={
+        <AppNavigation
+          cursor={cursor}
+          indicatorOpacity={indicatorOpacity}
+          onCamera={onCameraScreen}
+          renderLink={({ to }, _index, props) => {
+            const isScan = to === "/capture";
+            const isCurrent = isScan ? onCameraScreen : atPath(to);
+            return (
               <Link
                 to={to}
                 data-nav={to}
+                {...props}
                 onClick={(event) => {
                   // §13 multimodal feedback on the causal event; the camera
                   // entrance also primes audio for the scan/catch chimes.
@@ -491,31 +397,98 @@ export function AppShell({
                     haptic("selection");
                   }
                 }}
-                // §1 Response: react on press, not release.
-                className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground transition-colors"
-                // **`text-primary` ではなく `text-primary-ink`。**
-                // 11px の字は 4.5:1 が要る。主色そのものは白地の上で
-                // 3.69:1 しか無く、印のカプセルが乗ると 3.18:1 まで落ちた
-                // (絵の検査の実測)。`--primary-ink` は主色に前景色を
-                // 混ぜた「字用の主色」で、この用途のために在る。
-                activeProps={{ className: "text-primary-ink" }}
-                style={
-                  weight > 0 && !isScan
-                    ? {
-                        color: `color-mix(in oklab, var(--primary-ink) ${Math.round(weight * 100)}%, var(--muted-foreground))`,
-                      }
-                    : undefined
-                }
-              >
-                <AppTabContent icon={Icon} label={label} camera={isScan} current={isCurrent} />
-              </Link>
-            </li>
-          );
-        })}
-      </TabBar>
-    </div>
+              />
+            );
+          }}
+        />
+      }
+    >
+      {children}
+    </AppShellFrame>
   );
 }
 
 // Legacy re-export kept so any dead references still compile.
-export { BookOpen };
+export { BookOpen } from "lucide-react";
+
+/** Single app frame for signed-in routes and local first-catch screens. */
+export function AppShellFrame({
+  children,
+  title,
+  fixedViewport = false,
+  bare = false,
+  immersive = false,
+  headerless = false,
+  navigation,
+  brandMenu,
+  watchers,
+}: {
+  children: ReactNode;
+  title?: string;
+  fixedViewport?: boolean;
+  bare?: boolean;
+  immersive?: boolean;
+  headerless?: boolean;
+  navigation: ReactNode;
+  brandMenu?: ReactNode;
+  watchers?: ReactNode;
+}) {
+  const scrolled = useScrolled();
+  return (
+    <div
+      data-app-shell=""
+      className={appFrameClass(fixedViewport)}
+      style={
+        headerless
+          ? ({
+              "--app-header-h": "0px",
+              paddingTop: "env(safe-area-inset-top)",
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {/* Top chrome — a translucent material the content scrolls under (§12).
+          区切り線は常設しない: 中身が実際に下に潜り込んだときだけ、柔らかい
+          縁がふわっと出る。何も潜っていないうちは境目そのものが無い。 */}
+      {!bare && !immersive && !headerless && (
+        <header
+          data-scrolled={scrolled ? "true" : undefined}
+          className="scroll-edge sticky top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+        >
+          {/* 高さは `--app-header-h` に固定する。図鑑の部屋見出しがこの下端で
+            止まる約束になっているので、ここが伸び縮みすると見出しが裏に潜る。 */}
+          {/* `relative` は開いた記録の錨。ヘッダーの行の下にぶら下げる。 */}
+          <div className="relative mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              {/* **アイコンはホームへの近道ではなく、自分の記録の入口。**
+                以前はアイコンごと `/home` の Link に入れていたが、
+                押せるものの中に押せるものを入れることになるうえ、
+                アイコンを押した人は必ずホームへ飛ばされていた。
+                行き先は名前のほうが持つ。 */}
+              {brandMenu ?? <BrandMark />}
+              <Link to="/home" className="transition-transform duration-150 active:scale-95">
+                {/* §15: app title is a small headline — tight tracking, no wrapping.
+                  **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
+                  単語カードにはすでに h1 があるので、**全ページが h1 を2つ
+                  持つ**ことになった — 直そうとした階層をむしろ壊していた。
+                  これはどの画面にも出るアプリ名(道標)であって、その画面の
+                  見出しではない。h1 は各画面が自分で持つ。 */}
+                <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
+                  {title ?? "Catchwords"}
+                </span>
+              </Link>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <main className={appMainClass({ bare, immersive, fixedViewport })}>{children}</main>
+
+      {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
+          設定でONにした人だけ動く(既定はOFF)。 */}
+      {watchers}
+
+      {navigation}
+    </div>
+  );
+}

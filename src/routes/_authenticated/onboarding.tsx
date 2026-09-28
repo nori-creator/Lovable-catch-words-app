@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n";
 import { getMyProfile } from "@/lib/profile.functions";
 
 /** Retired scan-only introduction: old links resolve to the current first-run flow. */
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 
 function LegacyOnboardingRedirect() {
   const navigate = useNavigate();
+  const t = useT();
   const fetchProfile = useServerFn(getMyProfile);
   useEffect(() => {
     let active = true;
@@ -22,5 +24,5 @@ function LegacyOnboardingRedirect() {
       });
     return () => { active = false; };
   }, [navigate, fetchProfile]);
-  return <div className="min-h-screen" role="status" aria-label="読み込み中" />;
+  return <div className="min-h-screen" role="status" aria-label={t("common.loading")} />;
 }

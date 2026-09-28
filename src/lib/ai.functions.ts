@@ -9,6 +9,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
+import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
 import { scrubForeignNotes } from "./note-language";
 import {
@@ -89,6 +90,12 @@ const SuggestionSchema = z.object({
         // **5件まとめて**落ちて「AI did not return structured suggestions」
         // しか残らない。棚は後から直せるので、ここで語を捨てない。
         category_key: z.enum(CATEGORY_KEYS).catch("other"),
+        /**
+         * その呼び方の**ふだん度**（2026-09-27）。`common` = ネイティブが日常で
+         * いちばんよく口にする呼び方、`specific` = 正確・専門的な名前、
+         * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
+         */
+        register: z.enum(["common", "specific", "proper"]).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
@@ -145,6 +152,13 @@ ${langRule}
 - **確からしい順に並べる。** 1つ目が「これは何か」への答え。
   自信の無いものを上に置かない。
 
+**同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
+- ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
+  固有名詞は**下に置くが、消さない**（register で印を付ける）。
+  例: ${profile.capture.commonFirstExamples}
+- ただし**具体性は失わない**。「三杯雞」を「雞肉」に、「短袖」を「衣服」にしない —
+  ふだん使う呼び方と、上位の分類語は別物。
+
 **カテゴリ分類ルール（厳守）:**
 - 手・足・顔・目・耳・鼻・口・髪・指・肩・膝など人体部位 → "body"
 - マウス・キーボード・PC・スマホ・タブレット・ヘッドホンなど電子機器 → "tech"
@@ -170,7 +184,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
@@ -188,7 +202,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
       return {
-        suggestions: parsed.suggestions.map((s) => ({
+        suggestions: orderByRegister(parsed.suggestions).map((s) => ({
           ...s,
           category_key: normalizeCategory(s.headword, s.category_key),
         })),
@@ -409,7 +423,7 @@ ${cardProfile.capture.readingRule}
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
-- example_sentence: ネイティブが「${data.headword}」を最も使う場面・気持ちの例文（${cardProfile.promptName}）。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える
+- example_sentence: ネイティブが「${data.headword}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う一文（${cardProfile.promptName}）。辞書的な作文・説明文にしない。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える（上のレベルほど、その場面らしい言い回しを使ってよい）
   ${worldExampleRule(NL)}
 - example_translation: 例文の訳(${NL})
 
@@ -421,7 +435,8 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+  ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
@@ -467,7 +482,7 @@ ${
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜3 の配列。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${cardProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管・手搖飲）" : "（例: bubble tea → sweetness level, ice, straw）"}。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${want("measure_words") ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}
@@ -501,7 +516,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -873,6 +888,31 @@ function chunkRule(language: string | null | undefined): string {
  * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
  * **両方**を置くのは、指示文が守られない回が実際に在るから。
  */
+/**
+ * **チャンクは公式・定理の形で**（オーナー指示 2026-09-25「チャンクは公式、
+ * 定理のように、またネイティブが最も頻繁に使うカタチにして…跟＋人＋見面の
+ * ようにする」）。
+ *
+ * 入れ替えて使う所には `slot: true` を付け、画面では点線の枠で描く。
+ * 枠の中は「人」「someone」ではなく、**ネイティブがいちばんよく入れる具体語を
+ * 1つ**（2026-09-27「人とかではなく、ネイティブが最も頻繁に使う具体的なものを
+ * 1つ実際に挿入して」）。型ぜんぶを読み上げても自然な文になる（跟男朋友吵架）。
+ */
+function formulaChunkRule(code: string): string {
+  const zh = code.startsWith("zh");
+  return (
+    `**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
+    `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
+    (zh
+      ? `（例: 見面 → 跟＋朋友＋見面、吵架 → 跟＋男朋友＋吵架 / 動不動就＋吵架、牽 → 牽著＋他＋的手、珍珠奶茶 → 點＋一杯＋珍珠奶茶 / 珍珠奶茶＋半糖少冰）。`
+      : `（例: meet → meet up with + a friend、argue → argue with + my boyfriend、hold → hold + his + hand）。`) +
+    `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
+    `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
+    `決まった語のパーツは slot を付けない。` +
+    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
+  );
+}
+
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
     `**どの語にも付く組み合わせを書かない。**\n` +
@@ -1048,7 +1088,7 @@ async function runSectionRegen(
       }),
     },
     example: {
-      prompt: `${base}\nネイティブが「${head}」を最も使う場面・気持ちの例文を1つ。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({
         example_sentence: z.string().min(1),
         example_translation: z.string().catch(""),
@@ -1073,12 +1113,18 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":""}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
             z.object({
-              parts: z.array(z.object({ text: z.string(), pos: z.string().catch("") })),
+              parts: z.array(
+                z.object({
+                  text: z.string(),
+                  pos: z.string().catch(""),
+                  slot: z.boolean().optional().catch(undefined),
+                }),
+              ),
               ja: z.string().catch(""),
             }),
           )
@@ -1086,7 +1132,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜3。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${regenProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管）" : "（例: bubble tea → sweetness level, ice, straw）"}。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(

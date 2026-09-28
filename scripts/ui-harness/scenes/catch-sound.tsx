@@ -10,6 +10,9 @@
  */
 import { useState } from "react";
 import { Score, SCORE } from "@/lib/celebration-score";
+import { playTheme, type ThemeId } from "@/lib/celebration-themes";
+import { CelebrationBurst, type BurstKind } from "@/components/effects/CelebrationBurst";
+import { photo } from "./peel-sticker";
 import { setLevel, Sound, unlockAudio } from "@/lib/sound-engine";
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -98,48 +101,148 @@ if (typeof window !== "undefined") {
   (window as unknown as { __cwScore?: unknown }).__cwScore = { Score, SCORE, Sound, setLevel };
 }
 
-export function CatchSoundScene() {
+/** 別案の音（B〜D）。実物の演出と同じ間で、頂点・二度目の山・着地だけを差し替える。 */
+async function playAlt(id: Exclude<ThemeId, "orchestra">, on: (s: Step) => void) {
+  on("grip");
+  Sound.rewardGrip();
+  await wait(120);
+  on("build");
+  await wait(SCORE.build.hitMs);
+  on("hit");
+  playTheme(id, "hit");
+  await wait(SCORE.speechDelayMs);
+  on("speech");
+  Score.duck(true);
+  await speak();
+  Score.duck(false);
+  on("resolve");
+  playTheme(id, "resolve");
+  await wait(460);
+  on("transfer");
+  await wait(560);
+  on("land");
+  playTheme(id, "land");
+}
+
+const SOUNDS: Array<{ key: string; label: string; note: string }> = [
+  { key: "a", label: "A 映画の山場", note: "今の音。金管の和音と打撃、最後にティンパニ" },
+  { key: "b", label: "B 軽快", note: "ゲームで何かを手に入れたような、明るく短い上り" },
+  { key: "c", label: "C 温かい", note: "木琴のような音で和音をやさしく置く" },
+  { key: "d", label: "D 静か", note: "鐘を1つだけ。人前でも使いやすい" },
+  { key: "e", label: "E これまで", note: "比べる用（前の音）" },
+];
+const BURSTS: Array<{ key: BurstKind | "none"; label: string }> = [
+  { key: "ring", label: "1 光の輪" },
+  { key: "confetti", label: "2 紙吹雪" },
+  { key: "stars", label: "3 星" },
+  { key: "none", label: "4 なし" },
+];
+
+export function CatchSoundScene({ q }: { q?: URLSearchParams }) {
   const [step, setStep] = useState<Step | null>(null);
   const [busy, setBusy] = useState(false);
-  const run = async (which: "new" | "old") => {
+  const [sound, setSound] = useState(q?.get("sound") ?? "a");
+  const [burst, setBurst] = useState<BurstKind | "none">(
+    (BURSTS.find((b) => b.key === q?.get("burst"))?.key ?? "ring") as BurstKind | "none",
+  );
+  const [shot, setShot] = useState(0);
+  const run = async () => {
     if (busy) return;
     setBusy(true);
     setLevel("full");
     unlockAudio();
+    const on = (st: Step) => {
+      setStep(st);
+      if (st === "hit") setShot((n) => n + 1);
+    };
     try {
-      await (which === "new" ? playNew : playOld)(setStep);
+      if (sound === "a") await playNew(on);
+      else if (sound === "e") await playOld(on);
+      else
+        await playAlt(({ b: "pop", c: "warm", d: "chime" } as const)[sound as "b" | "c" | "d"], on);
       await wait(900);
     } finally {
       setStep(null);
       setBusy(false);
     }
   };
+  const pill = (on: boolean) =>
+    `min-h-11 rounded-full px-3 text-footnote font-semibold ${on ? "bg-primary text-primary-foreground" : "border border-border bg-card"}`;
+  const lifted = step != null && step !== "grip" && step !== "transfer" && step !== "land";
   return (
-    <div className="space-y-5 px-4 py-6">
+    <div className="space-y-4 px-4 py-6">
       <div>
-        <h1 className="text-title font-bold">キャッチの祝福の音</h1>
+        <h1 className="text-title font-bold">キャッチの祝福（音と絵）</h1>
         <p className="mt-1 text-footnote text-muted-foreground">
-          押すと、実際の演出と同じ順・同じ間で鳴ります。音を出せる状態で聴いてください。
+          音と「はじけ」を選んで ▶
+          を押すと、実際の演出と同じ順・同じ間で鳴ります。音を出せる状態で聴いてください。
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void run("new")}
-          className="press-in min-h-14 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-50"
-        >
-          ▶ 新しい音（BGM）
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void run("old")}
-          className="press-in min-h-14 rounded-2xl bg-secondary px-4 font-semibold disabled:opacity-50"
-        >
-          ▶ これまでの音
-        </button>
+      <div role="radiogroup" aria-label="音の案" className="flex flex-wrap gap-1.5">
+        {SOUNDS.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            role="radio"
+            aria-checked={sound === o.key}
+            onClick={() => setSound(o.key)}
+            className={pill(sound === o.key)}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
+      <p className="text-caption text-muted-foreground">
+        {SOUNDS.find((o) => o.key === sound)?.note}
+      </p>
+      <div role="radiogroup" aria-label="はじけの案" className="flex flex-wrap gap-1.5">
+        {BURSTS.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            role="radio"
+            aria-checked={burst === o.key}
+            onClick={() => setBurst(o.key)}
+            className={pill(burst === o.key)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div
+        className="relative grid h-72 place-items-center overflow-hidden rounded-3xl"
+        style={{ background: "linear-gradient(#0b2545, #0f172a)" }}
+      >
+        {burst !== "none" && shot > 0 && <CelebrationBurst key={shot} kind={burst} />}
+        <img
+          src={photo}
+          alt=""
+          className="relative h-32 w-32 rounded-2xl object-cover shadow-2xl ring-4 ring-white transition-transform duration-500"
+          style={{
+            transform: lifted
+              ? "scale(1.18) translateY(-6px)"
+              : step === "land"
+                ? "scale(0.6) translateY(120px)"
+                : "none",
+          }}
+        />
+        {(step === "speech" || step === "resolve") && (
+          <span
+            lang="zh-Hant"
+            className="absolute top-4 text-hero font-bold text-white drop-shadow"
+          >
+            珍珠奶茶
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void run()}
+        className="press-in min-h-14 w-full rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-50"
+      >
+        ▶ 鳴らす
+      </button>
       <ol className="space-y-1.5" aria-live="polite">
         {STEPS.map((s) => (
           <li

@@ -246,9 +246,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "一個單字，\n更多發現。",
   },
   "first.exploreHint": {
-    ja: "意味・例文・使い方を確認できます。読み終えたら、登録して保存しましょう。",
-    en: "Explore the meanings, examples and usage. When you’re ready, sign up to keep your word.",
-    "zh-TW": "查看意思、例句與用法。看完後，註冊保存這個單字。",
+    ja: "意味も使い方も、この写真から。例文を確認したら、復習を試してみましょう。",
+    en: "Discover meanings and examples alongside your photo. Then try recalling the word in a review.",
+    "zh-TW": "從這張照片了解意思和用法。看完例句後，試著複習這個單字。",
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {
@@ -447,9 +447,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.retry": { ja: "もう一度試す", en: "Try again", "zh-TW": "再試一次" },
   "first.retake": { ja: "撮り直す", en: "Retake photo", "zh-TW": "重新拍照" },
   "first.guestUnavailable": {
-    ja: "現在、登録前の撮影体験を利用できません。写真はこの端末に残っています。時間をおいて再試行してください。",
-    en: "The pre-signup experience is currently unavailable. Your photo is kept on this device. Please try again later.",
-    "zh-TW": "目前無法使用註冊前的拍照體驗。照片已保留在這個裝置上，請稍後再試。",
+    ja: "登録する前は、写真をAIで分析できません。見本の写真で、このあとの流れを体験できます。",
+    en: "Photo analysis isn't available before you sign up. You can try the rest with a sample photo.",
+    "zh-TW": "註冊前無法用 AI 分析照片。可以用範例照片體驗接下來的流程。",
+  },
+  "first.useSample": {
+    ja: "見本で体験を続ける",
+    en: "Continue with a sample",
+    "zh-TW": "用範例繼續體驗",
+  },
+  "first.sampleNote": {
+    ja: "見本の写真と単語です。登録すると、自分の写真で使えます。",
+    en: "Sample photo and word. Sign up to use your own photos.",
+    "zh-TW": "這是範例照片與單字。註冊後就能用自己的照片。",
   },
   "first.importing": {
     ja: "最初のことばを引き継いでいます",
@@ -2225,6 +2235,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.addShort": { ja: "追加", en: "Add", "zh-TW": "加入" },
   "scan.nextCandidate": { ja: "次の候補", en: "Next candidate", "zh-TW": "下一個候選" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…", "zh-TW": "AI 分析中…" },
+  // AI 分析中の案 E（3つの段）。見る → 読む → 選ぶ。
+  "analyze.stepLook": { ja: "見る", en: "Look", "zh-TW": "看" },
+  "analyze.stepRead": { ja: "読む", en: "Read", "zh-TW": "讀" },
+  "analyze.stepPick": { ja: "選ぶ", en: "Pick", "zh-TW": "選" },
   "scan.zoom": { ja: "ズーム", en: "Zoom", "zh-TW": "縮放" },
   "scan.flipCamera": {
     ja: "カメラを前後で切り替える",
@@ -2606,6 +2620,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "me.doneToday": { ja: "今日やった復習", en: "Reviewed today", "zh-TW": "今天做的複習" },
   "me.due": { ja: "待っている復習", en: "Waiting", "zh-TW": "等著複習的" },
   "common.loading": { ja: "読み込み中", en: "Loading", "zh-TW": "載入中" },
+  // 規約・プライバシーの繁體中文版はまだ無い（法的な文なので機械訳しない）。
+  // アルバムに書き込む（試作、`AlbumInk`）。
+  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "畫筆" },
+  "ink.label": { ja: "ラベル", en: "Label", "zh-TW": "標籤" },
+  "ink.circle": { ja: "丸", en: "Circle", "zh-TW": "圓形" },
+  "ink.rect": { ja: "四角", en: "Box", "zh-TW": "方框" },
+  "ink.arrow": { ja: "矢印", en: "Arrow", "zh-TW": "箭頭" },
+  "ink.undo": { ja: "1つ戻す", en: "Undo", "zh-TW": "復原" },
+  "ink.clear": { ja: "全部消す", en: "Clear all", "zh-TW": "全部清除" },
+  "ink.labelPrompt": { ja: "ラベルに書く言葉", en: "Label text", "zh-TW": "標籤文字" },
+  "legal.onlyJaEn": {
+    ja: "この文書は日本語版と英語版のみです。",
+    en: "This document is available in Japanese and English only.",
+    "zh-TW": "本文件目前僅提供日文版與英文版，以下為英文版。",
+  },
   // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
   // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
   "scan.stageSensing": {
@@ -2651,7 +2680,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Matching Mandarin",
     "zh-TW": "與中文比對",
   },
-  "scan.cuttingOut": { ja: "AIが切り抜き中…", en: "AI is cutting it out…", "zh-TW": "AI 去背中…" },
   "scan.justAMoment": { ja: "少しだけ待ってね", en: "Just a moment", "zh-TW": "再等一下下喔" },
   "common.cancel": { ja: "キャンセル", en: "Cancel", "zh-TW": "取消" },
   // 見出し語を直す(オーナー指示 2026-08-26「単語のカードの見出しの単語自体を
@@ -3510,6 +3538,66 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "capture.addSelfie": { ja: "自撮りを追加", en: "Add a selfie", "zh-TW": "加上自拍" },
   "capture.skipNext": { ja: "スキップして次へ", en: "Skip for now", "zh-TW": "跳過，進下一步" },
   "capture.redo": { ja: "やり直す", en: "Start over", "zh-TW": "重來" },
+  "capture.clipped": {
+    ja: "物が写真の端で切れています。シールでもここで切れるので、少し離れて撮り直すと全部収まります。",
+    en: "The object is cut off at the edge of the photo, so the sticker will be cut too. Step back a little and retake to fit it all.",
+    "zh-TW": "物品在照片邊緣被切到了，貼紙也會被切掉。稍微退後重拍，就能完整收進去。",
+  },
+  "capture.retake": { ja: "撮り直す", en: "Retake", "zh-TW": "重拍" },
+  "capture.searchByImage": {
+    ja: "カメラロールの画像で調べる",
+    en: "Search with a photo from your library",
+    "zh-TW": "用相簿裡的照片查詢",
+  },
+  "catEdit.title": { ja: "カテゴリー", en: "Categories", "zh-TW": "分類" },
+  "catEdit.moveTitle": {
+    ja: "この写真のカテゴリー",
+    en: "Category for this photo",
+    "zh-TW": "這張照片的分類",
+  },
+  "catEdit.yours": { ja: "使っているカテゴリー", en: "Your categories", "zh-TW": "使用中的分類" },
+  "catEdit.others": {
+    ja: "ほかのカテゴリー（{n}）",
+    en: "Other categories ({n})",
+    "zh-TW": "其他分類（{n}）",
+  },
+  "catEdit.create": {
+    ja: "新しいカテゴリーを作る",
+    en: "Create a new category",
+    "zh-TW": "建立新分類",
+  },
+  "catEdit.namePlaceholder": { ja: "カテゴリーの名前", en: "Category name", "zh-TW": "分類名稱" },
+  "catEdit.emoji": { ja: "絵文字", en: "Emoji", "zh-TW": "表情符號" },
+  "catEdit.save": { ja: "保存", en: "Save", "zh-TW": "儲存" },
+  "catEdit.delete": { ja: "削除", en: "Delete", "zh-TW": "刪除" },
+  "catEdit.resetName": {
+    ja: "元の名前に戻す",
+    en: "Restore original name",
+    "zh-TW": "恢復原本名稱",
+  },
+  "catEdit.rename": {
+    ja: "「{name}」の名前を変える",
+    en: 'Rename "{name}"',
+    "zh-TW": "修改「{name}」的名稱",
+  },
+  "catEdit.deleteConfirm": {
+    ja: "「{name}」を削除しますか？中の写真は削除されず、元のカテゴリーに戻ります。",
+    en: 'Delete "{name}"? Its photos stay and go back to their original categories.',
+    "zh-TW": "要刪除「{name}」嗎？裡面的照片不會刪除，會回到原本的分類。",
+  },
+  "catEdit.nameInvalid": {
+    ja: "名前は1〜24文字で入れてください。",
+    en: "Use 1 to 24 characters for the name.",
+    "zh-TW": "名稱請輸入 1～24 個字。",
+  },
+  "catEdit.saveFailed": {
+    ja: "保存できませんでした。もう一度お試しください。",
+    en: "Couldn't save. Please try again.",
+    "zh-TW": "無法儲存，請再試一次。",
+  },
+  "catEdit.roomMine": { ja: "マイカテゴリー", en: "My categories", "zh-TW": "我的分類" },
+  "catEdit.manage": { ja: "カテゴリーを編集", en: "Edit categories", "zh-TW": "編輯分類" },
+  "catEdit.change": { ja: "カテゴリーを変える", en: "Change category", "zh-TW": "變更分類" },
   "capture.pickTitle": {
     ja: "ステップ 3: 単語を選ぶ",
     en: "Step 3: Pick a word",

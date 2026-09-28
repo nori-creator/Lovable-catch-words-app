@@ -37,31 +37,39 @@ describe("coverFlowPose", () => {
   });
 });
 
-import { dotWindow } from "./cover-flow";
+import { progressDots } from "./cover-flow";
 
-describe("カードの下の点（オーナー指示 2026-09-23）", () => {
-  it("少なければ全部。いまの1枚が大", () => {
-    expect(dotWindow(4, 1)).toEqual([
-      { i: 0, size: 1 },
-      { i: 1, size: 2 },
-      { i: 2, size: 1 },
-      { i: 3, size: 1 },
+describe("カードの下の点は、進むにつれて右へ（オーナー指示 2026-09-27）", () => {
+  const on = (d: Array<{ active: boolean }>) => d.findIndex((x) => x.active);
+  it("少なければ1枚に1つ", () => {
+    expect(progressDots(4, 1)).toEqual([
+      { i: 0, active: false },
+      { i: 1, active: true },
+      { i: 2, active: false },
+      { i: 3, active: false },
     ]);
   });
-  it("多ければ7つだけ。続きのある端は小", () => {
-    const d = dotWindow(100, 50);
-    expect(d).toHaveLength(7);
-    expect(d[3]).toEqual({ i: 50, size: 2 });
-    expect(d[0].size).toBe(0);
-    expect(d[6].size).toBe(0);
+  it("多くても7つ。先頭は左端、半分で真ん中、末尾は右端", () => {
+    expect(progressDots(100, 0)).toHaveLength(7);
+    expect(on(progressDots(100, 0))).toBe(0);
+    expect(on(progressDots(100, 50))).toBe(3);
+    expect(on(progressDots(100, 99))).toBe(6);
   });
-  it("先頭と末尾では窓が端に寄る", () => {
-    expect(dotWindow(100, 0)[0]).toEqual({ i: 0, size: 2 });
-    expect(dotWindow(100, 0)[6].size).toBe(0);
-    expect(dotWindow(100, 99)[6]).toEqual({ i: 99, size: 2 });
+  it("送るほど青い点は右へ動き、戻りはしない", () => {
+    let last = 0;
+    for (let i = 0; i < 100; i++) {
+      const k = on(progressDots(100, i));
+      expect(k).toBeGreaterThanOrEqual(last);
+      last = k;
+    }
+  });
+  it("点を押すと、その点が指す所へ（先頭と末尾を含む）", () => {
+    const d = progressDots(100, 0);
+    expect(d[0].i).toBe(0);
+    expect(d[6].i).toBe(99);
   });
   it("空なら何も出さない", () => {
-    expect(dotWindow(0, 0)).toEqual([]);
+    expect(progressDots(0, 0)).toEqual([]);
   });
 });
 

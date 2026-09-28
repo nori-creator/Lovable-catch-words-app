@@ -1,80 +1,84 @@
+import { StickerSheet } from "../StickerSheet";
 import { useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
-import { sampleStickers } from "./FirstCatchHome";
-import { DexCoverFlow } from "../DexCoverFlow";
-import { DexAlbumGrid, DexHeader, DexList } from "@/routes/_authenticated/dex";
-import { DexDayMap } from "@/components/DexDayMap";
-import { LightModeCard } from "@/routes/_authenticated/review";
-import type { DueReviewCard } from "@/lib/reviews.functions";
+import { sampleStickers, FirstCatchShell } from "./FirstCatchHome";
+import { DexSurface, filterDexStickers, type ViewMode } from "@/routes/_authenticated/dex";
+import { NO_FILTER, categoryOptions, dayOptions } from "@/lib/dex-filter";
+import {
+  ReviewQuestion,
+  ReviewSessionHeader,
+  memWordOf,
+  ForgettingCurveModal,
+} from "@/routes/_authenticated/review";
+import type { DueReviewCard, MemoryWord } from "@/lib/reviews.functions";
 import { Spotlight } from "./Spotlight";
 
 export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: () => void }) {
   const t = useT();
   const lang = useTargetLang();
-  const [view, setView] = useState<"cards" | "gallery" | "map" | "list">("cards");
+  const [openedSample, setOpenedSample] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("cards");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState(NO_FILTER);
   const [browsed, setBrowsed] = useState(false);
   const [changed, setChanged] = useState(false);
   const memory = useMemo(() => new Map(), []);
   const items = useMemo(() => {
     const own = firstCatchSticker(draft);
-    return [...(own ? [own] : []), ...sampleStickers(draft, t, lang).filter((sample) =>
-      sample.word.headword !== own?.word.headword && sample.object_url !== own?.object_url,
-    )];
+    return [
+      ...(own ? [own] : []),
+      ...sampleStickers(draft, t, lang).filter(
+        (sample) =>
+          sample.word.headword !== own?.word.headword && sample.object_url !== own?.object_url,
+      ),
+    ];
   }, [draft, t, lang]);
   const openWord = (id: string) => {
-    if (id === draft.id && browsed && changed) onOpen();
+    if (!browsed || !changed) return;
+    if (id === draft.id) onOpen();
+    else setOpenedSample(id);
   };
   return (
-    <div className="first-dex-stage">
-      <section data-tour="dex">
-        <DexHeader
-          found={items.length}
-          caught={items.length}
-          view={view}
-          onView={(v) => {
-            if (!browsed) return;
-            if (v === "cards" || v === "gallery" || v === "map" || v === "list") {
-              setView(v);
-              if (v !== "cards") setChanged(true);
-            }
-          }}
-          filter={{ category: null, day: null }}
-          onFilter={() => {}}
-          categories={[]}
-          days={[]}
-        />
-        {view === "cards" ? (
-          <DexCoverFlow
-            stickers={items}
-            memory={memory}
-            onBrowse={() => setBrowsed(true)}
-            onOpen={openWord}
-          />
-        ) : view === "gallery" ? (
-          <DexAlbumGrid
-            items={items}
-            memory={memory}
-            onOpen={openWord}
-          />
-        ) : view === "map" ? (
-          <DexDayMap stickers={items} onOpen={openWord} initialOpen forceFallback />
-        ) : (
-          <DexList items={items} onOpen={openWord} />
-        )}
-      </section>
-      <Spotlight
-        target='[data-tour="dex"]'
-        title={t("first.dexTitle")}
-        text={t(!browsed ? "first.dexSwipe" : !changed ? "first.dexTypes" : "first.dexOpen")}
-        interactive
-        allowSelector={!browsed ? ".dex-cf__stage, .dex-cf__stage *" : undefined}
-        step="3 / 5"
-        nextLabel={t("first.openWord")}
-        onNext={browsed && changed ? onOpen : undefined}
+    <>
+      <DexSurface
+        captured={items}
+        filtered={filterDexStickers(items, filter, search, t)}
+        view={view}
+        onView={(next) => {
+          setView(next);
+          if (next !== "cards") setChanged(true);
+        }}
+        search={search}
+        onSearch={setSearch}
+        filter={filter}
+        onFilter={setFilter}
+        categories={categoryOptions(items)}
+        days={dayOptions(items)}
+        memory={memory}
+        onBrowse={() => setBrowsed(true)}
+        onOpen={openWord}
       />
-    </div>
+      {openedSample ? (
+        <StickerSheet
+          stickerId={openedSample}
+          local={{ sticker: items.find((item) => item.id === openedSample)! }}
+          onClose={() => setOpenedSample(null)}
+        />
+      ) : (
+        <Spotlight
+          target='[data-tour="dex"]'
+          title={t("first.dexTitle")}
+          text={t(!browsed ? "first.dexSwipe" : !changed ? "first.dexTypes" : "first.dexOpen")}
+          interactive
+          allowSelector={!browsed ? ".dex-cf__stage, .dex-cf__stage *" : undefined}
+          step="3 / 5"
+          nextLabel={t("first.openWord")}
+          onNext={browsed && changed ? onOpen : undefined}
+        />
+      )}
+    </>
   );
 }
 
@@ -137,33 +141,66 @@ export function FirstCatchReview({
   const t = useT();
   const lang = useTargetLang();
   const [index, setIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [memoryWord, setMemoryWord] = useState<MemoryWord | null>(null);
+  const [introduced, setIntroduced] = useState(false);
   const samples = sampleStickers(draft, t, lang);
   const own = firstCatchSticker(draft);
   const sample = samples.find((s) => s.word.headword !== own?.word.headword) ?? samples[0];
   const cards = [own ?? samples[0], sample];
+  const memoryWords = cards.map((card) =>
+    memWordOf(
+      practiceCard(
+        card,
+        samples.map((s) => s.word.headword),
+      ),
+    ),
+  );
   return (
-    <>
-      <h1 className="text-title font-bold">
-        {t("nav.review")}{" "}
-        <span className="text-footnote text-muted-foreground">
-          {index + 1} / {cards.length}
-        </span>
-      </h1>
-      <p className="first-tour-copy">{t("first.review")}</p>
-      <div className="first-review-exercise" data-tour="review">
-        <LightModeCard
+    <FirstCatchShell tab={3} fixedViewport={!expanded}>
+      <ReviewSessionHeader
+        compact={!expanded}
+        lockMode
+        header={{
+          answered: index,
+          total: cards.length,
+          progress: (index / cards.length) * 100,
+          mode: "choice",
+          onMode: () => {},
+        }}
+        memOverview={{ danger: 0, fuzzy: 0, solid: memoryWords.length, words: memoryWords }}
+        memListOpen={expanded}
+        onToggle={() => setExpanded((value) => !value)}
+        onOpenWord={setMemoryWord}
+      />
+      <div data-tour="review-question" className="min-h-0 flex flex-1 flex-col">
+        <ReviewQuestion
           key={index}
           card={practiceCard(
             cards[index],
             samples.map((s) => s.word.headword),
           )}
           practice
+          format="choice"
           onNext={() => {
             if (index + 1 < cards.length) setIndex(index + 1);
             else onComplete();
           }}
         />
       </div>
-    </>
+      {!introduced && (
+        <Spotlight
+          target='[data-tour="review-question"]'
+          title={t("first.reviewTitle")}
+          text={t("first.review")}
+          step="5 / 5"
+          nextLabel={t("first.next")}
+          onNext={() => setIntroduced(true)}
+        />
+      )}
+      {memoryWord && (
+        <ForgettingCurveModal word={memoryWord} local onClose={() => setMemoryWord(null)} />
+      )}
+    </FirstCatchShell>
   );
 }

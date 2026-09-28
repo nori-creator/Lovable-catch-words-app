@@ -1,3 +1,4 @@
+import { useState } from "react";
 /**
  * 図鑑のカード表示（カバーフロー）。（オーナー指示 2026-09-22）
  *
@@ -23,9 +24,54 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
     })),
   );
   const at = Number(q.get("at") ?? 0);
+  const [theme, setTheme] = useState<Theme>(
+    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "stage",
+  );
   return (
     <div className="px-4">
-      <DexCoverFlow stickers={items} onOpen={() => {}} memory={memory} initialIndex={at} />
+      {/* 背景の案（2026-09-27「カテゴリー別の背景やアニメの案を複数」）。
+          A が本番の既定。ほかは押して見比べる。 */}
+      <div
+        role="radiogroup"
+        aria-label="背景の案"
+        style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "4px 0 8px" }}
+      >
+        {THEMES.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            role="radio"
+            aria-checked={theme === o.key}
+            onClick={() => setTheme(o.key)}
+            style={{
+              minHeight: 44,
+              padding: "0 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.25)",
+              background: theme === o.key ? "#0a84ff" : "rgba(255,255,255,0.1)",
+              color: "#fff",
+              fontWeight: 600,
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <DexCoverFlow
+        stickers={items}
+        onOpen={() => {}}
+        memory={memory}
+        initialIndex={at}
+        theme={theme}
+      />
     </div>
   );
 }
+
+const THEMES = [
+  { key: "stage", label: "A 暗い舞台" },
+  { key: "category", label: "B 分類の色" },
+  { key: "motion", label: "C 分類の動き" },
+  { key: "museum", label: "D 美術館" },
+] as const;
+type Theme = (typeof THEMES)[number]["key"];

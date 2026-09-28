@@ -1,7 +1,6 @@
-import { AppTabContent } from "../AppTabContent";
+import { AppShellFrame } from "../AppShell";
+import { AppNavigation } from "../AppNavigation";
 import type { ReactNode } from "react";
-import { Home, BookOpen, Camera, Sparkles, Settings } from "lucide-react";
-import { TabBar } from "@/components/TabBar";
 import { DiaryDate, DayCollage } from "@/routes/_authenticated/home";
 import { DexAlbumGrid } from "@/routes/_authenticated/dex";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
@@ -83,41 +82,36 @@ export function FirstCatchShell({
   children,
   tab = 0,
   camera = false,
+  fixedViewport = tab === 3,
   onTab,
 }: {
   children: ReactNode;
   tab?: number;
   camera?: boolean;
+  fixedViewport?: boolean;
   onTab?: (index: number) => void;
 }) {
-  const t = useT();
   return (
-    <div className="first-shell">
-      {/* 上にアプリ名の帯は置かない — 実物のアプリにも無い（案内の途中で
-          見た目が変わると、どれが本物の画面か分からなくなる）。 */}
-      <main className={camera ? "" : "first-content"}>{children}</main>
-      <TabBar cursor={tab} onCamera={camera} indicatorOpacity={camera ? 0 : 1}>
-        {[Home, BookOpen, Camera, Sparkles, Settings].map((Icon, i) => (
-          <li key={i} className="relative z-10 flex-1">
-            <button
-              type="button"
-              disabled={!onTab || i !== 2}
-              data-tour={i === 2 ? "tab-camera" : undefined}
-              onClick={() => onTab?.(i)}
-              className={`tabbar__cell group w-full rounded-full text-caption ${i === tab ? "text-primary-ink" : "text-muted-foreground"}`}
-              aria-current={i === tab ? "page" : undefined}
-            >
-              <AppTabContent
-                icon={Icon}
-                camera={i === 2}
-                current={i === tab}
-                label={t(["nav.home", "nav.dex", "nav.camera", "nav.review", "nav.settings"][i])}
-              />
-            </button>
-          </li>
-        ))}
-      </TabBar>
-    </div>
+    <AppShellFrame
+      bare={camera}
+      immersive={tab === 1}
+      headerless={tab === 3}
+      fixedViewport={fixedViewport}
+      navigation={
+        <div inert={!onTab}>
+          <AppNavigation
+            cursor={tab}
+            onCamera={camera}
+            indicatorOpacity={camera ? 0 : 1}
+            renderLink={(_item, index, props) => (
+              <button type="button" {...props} onClick={() => onTab?.(index)} />
+            )}
+          />
+        </div>
+      }
+    >
+      {children}
+    </AppShellFrame>
   );
 }
 /** The exact components used by Home, with the actual captured photo. */
@@ -137,7 +131,7 @@ export function FirstCatchHome({
   return (
     <FirstCatchShell onTab={onCamera ? () => onCamera() : undefined}>
       <section data-tour="home">
-        <div className={!sticker ? "first-sample-album" : ""} inert={!sticker}>
+        <div inert={!sticker}>
           {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}
           <DayCollage
             stickers={sticker ? [sticker] : samples}
