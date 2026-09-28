@@ -1,5 +1,75 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AD_CONFIG, decideInterstitial, nativeSlots, normalizeAdConfig } from "./ad-policy";
+import {
+  DEFAULT_AD_CONFIG,
+  decideInterstitial,
+  diarySlots,
+  nativeSlots,
+  normalizeAdConfig,
+  rewardedAvailable,
+} from "./ad-policy";
+
+/** 場所ごとのオン・オフ（オーナー指示 2026-09-28「あとからどこに広告つけるか変更できるように」）。 */
+describe("広告の場所は後から変えられる", () => {
+  const on2 = { ...DEFAULT_AD_CONFIG, enabled: true };
+  const b = {
+    cfg: on2,
+    isPro: false,
+    installedAt: 0,
+    now: 10 * 86400000,
+    history: { lastShownAt: null, shownToday: 0, batchesSinceLast: 2 },
+  };
+
+  it("既定: 復習の区切り・図鑑・日記・ごほうびはオン、捕まえた後はオフ、サブスクはオフ", () => {
+    expect(normalizeAdConfig({ enabled: true })).toMatchObject({
+      reviewEndEnabled: true,
+      dexNativeEnabled: true,
+      diaryNativeEnabled: true,
+      rewardedEnabled: true,
+      afterCatchEnabled: false,
+      subscriptionEnabled: false,
+    });
+    expect(decideInterstitial({ ...b, moment: "catch_done" })).toMatchObject({
+      reason: "never_here",
+    });
+  });
+
+  it("捕まえた後をオンにすると、決めた回数ごとに1回", () => {
+    const cfg = { ...on2, afterCatchEnabled: true, catchesPerInterstitial: 5 };
+    const h = { ...b.history, catchesSinceLast: 4 };
+    expect(decideInterstitial({ ...b, cfg, moment: "catch_done", history: h }).show).toBe(true);
+    expect(
+      decideInterstitial({
+        ...b,
+        cfg,
+        moment: "catch_done",
+        history: { ...h, catchesSinceLast: 2 },
+      }),
+    ).toMatchObject({ reason: "not_yet" });
+  });
+
+  it("復習の区切りを切ると、そこには出ない", () => {
+    expect(
+      decideInterstitial({
+        ...b,
+        cfg: { ...on2, reviewEndEnabled: false },
+        moment: "review_batch_end",
+      }),
+    ).toMatchObject({ reason: "never_here" });
+  });
+
+  it("日記は5日ごと・最初の2日と一番下には置かない", () => {
+    expect(diarySlots(12, on2, false)).toEqual([4, 9]);
+    expect(diarySlots(2, on2, false)).toEqual([]);
+    expect(diarySlots(12, { ...on2, diaryNativeEnabled: false }, false)).toEqual([]);
+    expect(diarySlots(12, on2, true)).toEqual([]);
+  });
+
+  it("図鑑の札の形を切ると一覧に出ない。ごほうびは Pro には出さない", () => {
+    expect(nativeSlots(40, { ...on2, dexNativeEnabled: false }, false)).toEqual([]);
+    expect(rewardedAvailable(on2, false)).toBe(true);
+    expect(rewardedAvailable(on2, true)).toBe(false);
+  });
+});
 
 const on = { ...DEFAULT_AD_CONFIG, enabled: true };
 const day = 86400000;

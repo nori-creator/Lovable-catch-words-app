@@ -43,6 +43,7 @@ import {
   type CorrectionVerdict,
 } from "./correction-judge";
 import { choice as jevChoice, choiceProb } from "./jev";
+import { reportMayRegenerate } from "./plan-limits";
 import {
   DICTIONARY_SELECT,
   resolveDictionaryFields,
@@ -1428,6 +1429,36 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
     };
 
     await logUsage(supabase, userId, "report_fix");
+    /**
+     * **無料の人の報告は記録するだけ**（オーナー決定 2026-09-28「解説の作り直しは
+     * プロユーザーのみで、無料ユーザーはエラーの報告だけ。無料ユーザーがエラーの報告として
+     * 解答を再生成する裏技を避けたい」、`plan-limits.ts` の `reportMayRegenerate`）。
+     * AI に作らせる直しは Pro だけ。確かな辞書と照らすだけの直し（読み・品詞）は全員。
+     * 記録した報告は開発者の確認待ちに残る。
+     */
+    const pro = await isProUser(userId);
+    const recordOnly = async (it: ReportItemId | "auto") => {
+      const kind = it === "pronunciation" || it === "pos" || it === "meaning" ? it : "other";
+      await supabase
+        .from("entry_reports")
+        .insert({
+          user_id: userId,
+          headword: w.headword,
+          kind,
+          note: `[item:${it}] ${data.note}`.trim(),
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+      return { fixed: false, by: "none" as const, item: it === "auto" ? null : it };
+    };
+    if (data.item === "auto" && !pro) return recordOnly("auto");
+    if (
+      data.item !== "auto" &&
+      reportMayRegenerate({ isPro: pro, item: data.item }) === "record_only"
+    )
+      return recordOnly(data.item);
     // 0. 項目を選ばずに報告された（`auto`）なら、AI に間違っている項目を1つ探させる。
     let item: ReportItemId;
     if (data.item === "auto") {
@@ -1524,6 +1555,8 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       // 確かな辞書の行があって今の値と同じなら、今の値が正しい（直さない）。
       const licensed = row && row.source && row.source !== "ai";
       if (licensed) return { fixed: false, by: "dictionary", item };
+      // ここから先は AI に答えさせる直し — Pro だけ（無料の人の報告は確認待ちに残る）。
+      if (!pro) return { fixed: false, by: "none", item };
 
       // **確かな辞書に無い語**: 2つの別の AI の答えが一致し、さらに Jev が
       // 「直した方が正しい」と言えたときだけ直す（`consensusFixPatch` の注）。

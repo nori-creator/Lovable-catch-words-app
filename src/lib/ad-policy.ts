@@ -12,7 +12,22 @@
  *   前回から `minGapMin` 分以上空け、1日 `maxPerDay` 回まで。
  * - 一覧の中の広告（ネイティブ）: 図鑑の一覧で、札 `nativeEvery` 枚ごとに1枠（最初の
  *   `nativeFirst` 枚の中には置かない）。
- * - ごほうび広告（リワード）: 本人が押した時だけ。見終わったら無料の人も解説の作り直しを1回。
+ * - ごほうび広告（リワード）: 本人が押した時だけ。見終わったら**切り抜きを今日1枚追加**
+ *   （2026-09-28 変更。解説の作り直しは Pro だけになったので、ごほうびにしない —
+ *   `plan-limits.ts`）。
+ *
+ * ## 場所は後から変えられる（オーナー指示 2026-09-28「あとからどこに広告つけるか
+ * 変更できるように」）
+ * 出す場所ごとに開発者の設定でオン・オフできる（`AdConfig` の `*Enabled`）。
+ * 既定は分析（`docs/monetization.md` §3）で決めた形:
+ *
+ * | 場所 | 既定 | 理由（短く） |
+ * |---|---|---|
+ * | 復習の束の区切り（全画面） | オン | 作業が終わった自然な切れ目（AdMob の指針） |
+ * | 図鑑の一覧（札の形） | オン | 眺めている時間。邪魔にならない |
+ * | 日記の間（札の形） | オン | 縦に流し読みする所。SNS と同じ置き方 |
+ * | ごほうび（本人が押す） | オン | 見る人が自分で選ぶので不満が出にくい |
+ * | 捕まえた後（全画面） | **オフ** | いちばん嬉しい瞬間。ここを遮ると「終わりの印象」が広告になる（ピーク・エンド） |
  */
 export type AdConfig = {
   enabled: boolean;
@@ -23,6 +38,25 @@ export type AdConfig = {
   nativeEvery: number;
   nativeFirst: number;
   rewardedEnabled: boolean;
+  /** 復習の束の区切りの全画面。 */
+  reviewEndEnabled: boolean;
+  /** 捕まえた演出が終わって図鑑に戻った所の全画面（既定オフ）。 */
+  afterCatchEnabled: boolean;
+  /** 何回捕まえるごとに1回か（`afterCatchEnabled` のとき）。 */
+  catchesPerInterstitial: number;
+  /** 図鑑の一覧の札の形の広告。 */
+  dexNativeEnabled: boolean;
+  /** 日記（1日ずつの誌面）の間の札の形の広告。 */
+  diaryNativeEnabled: boolean;
+  /** 日記の何日ごとに1枠か。 */
+  diaryEvery: number;
+  /** 最初の何日の中には置かないか。 */
+  diaryFirst: number;
+  /**
+   * **サブスク（Pro の購入口）を出すか**（開発者だけが切り替える。既定オフ）。
+   * オフの間は、Pro を買う入口がどこにも出ない（開発者は自分で試せるよう設定に出る）。
+   */
+  subscriptionEnabled: boolean;
 };
 
 export const DEFAULT_AD_CONFIG: AdConfig = {
@@ -34,6 +68,14 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   nativeEvery: 12,
   nativeFirst: 8,
   rewardedEnabled: true,
+  reviewEndEnabled: true,
+  afterCatchEnabled: false,
+  catchesPerInterstitial: 5,
+  dexNativeEnabled: true,
+  diaryNativeEnabled: true,
+  diaryEvery: 5,
+  diaryFirst: 2,
+  subscriptionEnabled: false,
 };
 
 /** 保存されている形を今の形に揃える（範囲の外の数は既定に戻す）。 */
@@ -52,6 +94,14 @@ export function normalizeAdConfig(raw: unknown): AdConfig {
     nativeEvery: int("nativeEvery", 4, 100),
     nativeFirst: int("nativeFirst", 0, 100),
     rewardedEnabled: r.rewardedEnabled !== false,
+    reviewEndEnabled: r.reviewEndEnabled !== false,
+    afterCatchEnabled: r.afterCatchEnabled === true,
+    catchesPerInterstitial: int("catchesPerInterstitial", 1, 50),
+    dexNativeEnabled: r.dexNativeEnabled !== false,
+    diaryNativeEnabled: r.diaryNativeEnabled !== false,
+    diaryEvery: int("diaryEvery", 2, 60),
+    diaryFirst: int("diaryFirst", 0, 60),
+    subscriptionEnabled: r.subscriptionEnabled === true,
   };
 }
 
@@ -61,7 +111,9 @@ export type AdMoment =
   | "onboarding"
   | "capture"
   | "scan"
-  | "catch_saved";
+  | "catch_saved"
+  /** 捕まえた演出が終わり、図鑑に戻った所（`afterCatchEnabled` のときだけ候補）。 */
+  | "catch_done";
 
 export type AdHistory = {
   /** 最後に全画面広告を出した時刻（ms）。 */
@@ -70,6 +122,8 @@ export type AdHistory = {
   shownToday: number;
   /** 前回の広告から後に終えた復習の束の数（今回の束は含まない）。 */
   batchesSinceLast: number;
+  /** 前回の広告から後に捕まえた数（今回は含まない）。 */
+  catchesSinceLast?: number;
 };
 
 export type AdDecision =
@@ -91,9 +145,15 @@ export function decideInterstitial(p: {
   if (!cfg.enabled) return { show: false, reason: "off" };
   if (p.isPro) return { show: false, reason: "pro" };
   if (p.now - p.installedAt < cfg.graceDays * 86400000) return { show: false, reason: "grace" };
-  if (p.moment !== "review_batch_end") return { show: false, reason: "never_here" };
-  if (history.batchesSinceLast + 1 < cfg.batchesPerInterstitial)
-    return { show: false, reason: "not_yet" };
+  if (p.moment === "review_batch_end") {
+    if (!cfg.reviewEndEnabled) return { show: false, reason: "never_here" };
+    if (history.batchesSinceLast + 1 < cfg.batchesPerInterstitial)
+      return { show: false, reason: "not_yet" };
+  } else if (p.moment === "catch_done") {
+    if (!cfg.afterCatchEnabled) return { show: false, reason: "never_here" };
+    if ((history.catchesSinceLast ?? 0) + 1 < cfg.catchesPerInterstitial)
+      return { show: false, reason: "not_yet" };
+  } else return { show: false, reason: "never_here" };
   if (history.lastShownAt !== null && p.now - history.lastShownAt < cfg.minGapMin * 60000)
     return { show: false, reason: "too_soon" };
   if (history.shownToday >= cfg.maxPerDay) return { show: false, reason: "daily_cap" };
@@ -102,9 +162,27 @@ export function decideInterstitial(p: {
 
 /** 図鑑の一覧で、広告の枠を置く位置（札の並びの何番目の後か。0始まり）。 */
 export function nativeSlots(count: number, cfg: AdConfig, isPro: boolean): number[] {
-  if (!cfg.enabled || isPro || count <= cfg.nativeFirst) return [];
+  if (!cfg.enabled || isPro || !cfg.dexNativeEnabled) return [];
+  return feedSlots(count, cfg.nativeEvery, cfg.nativeFirst);
+}
+
+/**
+ * 日記（1日ずつの誌面を縦に並べた所）で、広告の枠を置く位置（何日目の後か。0始まり）。
+ * 一番下には置かない（読み終えた所に広告だけが残らないように）。
+ */
+export function diarySlots(days: number, cfg: AdConfig, isPro: boolean): number[] {
+  if (!cfg.enabled || isPro || !cfg.diaryNativeEnabled) return [];
+  return feedSlots(days, cfg.diaryEvery, cfg.diaryFirst);
+}
+
+function feedSlots(count: number, every: number, first: number): number[] {
+  if (count <= first) return [];
   const out: number[] = [];
-  for (let i = Math.max(cfg.nativeFirst, cfg.nativeEvery) - 1; i < count - 1; i += cfg.nativeEvery)
-    out.push(i);
+  for (let i = Math.max(first, every) - 1; i < count - 1; i += every) out.push(i);
   return out;
+}
+
+/** ごほうび広告（本人が押す）の入口を出すか。 */
+export function rewardedAvailable(cfg: AdConfig, isPro: boolean): boolean {
+  return cfg.enabled && cfg.rewardedEnabled && !isPro;
 }

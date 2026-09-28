@@ -70,6 +70,8 @@ import {
 import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
 import { ModelPicker } from "@/components/ModelPicker";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
+import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
+import { billingSurface } from "@/lib/stripe-billing";
 import type { AdConfig } from "@/lib/ad-policy";
 import {
   MAX_CUSTOM_TIMES,
@@ -917,6 +919,8 @@ function SettingsPage() {
 
         <SoundAndHapticsPanel />
 
+        <ProPlanCard />
+
         <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
 
@@ -1753,6 +1757,65 @@ function ImageGenTestPanel() {
 }
 
 /**
+ * **Pro の購入口**（オーナー指示 2026-09-28「サブスクも開始して。stripe つないで」）。
+ *
+ * - 開発者のスイッチ（`subscriptionEnabled`）がオフの間は、開発者にだけ見える。
+ * - **Web 版だけ**（`billingSurface`）。iPhone・Android のアプリの中で Stripe だけを
+ *   出すとストアの決まりに触れる（`stripe-billing.ts` の注）。
+ * - 押すと Stripe の支払い画面へ移る。払い終えると Stripe の知らせで Pro になる。
+ */
+function ProPlanCard() {
+  const t = useT();
+  const statusFn = useServerFn(getBillingStatus);
+  const checkoutFn = useServerFn(createCheckoutSession);
+  const { data: s } = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: () => statusFn(),
+    staleTime: 60_000,
+  });
+  const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
+  if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  const go = async (period: "monthly" | "yearly") => {
+    setBusy(period);
+    try {
+      const { url } = await checkoutFn({ data: { period } });
+      window.location.assign(url);
+    } catch {
+      toast.error(t("pro.failed"));
+      setBusy(null);
+    }
+  };
+  return (
+    <SettingsCard title={t("pro.title")}>
+      {s.isPro ? (
+        <p className="text-body font-semibold">{t("pro.active")}</p>
+      ) : !s.configured ? (
+        <p className="text-footnote text-muted-foreground">{t("pro.notConfigured")}</p>
+      ) : (
+        <div className="grid gap-2">
+          {s.prices.monthly && (
+            <Button onClick={() => void go("monthly")} disabled={busy !== null} className="h-12">
+              {busy === "monthly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.monthly")}
+            </Button>
+          )}
+          {s.prices.yearly && (
+            <Button
+              variant="outline"
+              onClick={() => void go("yearly")}
+              disabled={busy !== null}
+              className="h-12"
+            >
+              {busy === "yearly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.yearly")}
+            </Button>
+          )}
+        </div>
+      )}
+      {s.isAdmin && <p className="mt-2 text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
+    </SettingsCard>
+  );
+}
+
+/**
  * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
  * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
  * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
@@ -1810,11 +1873,43 @@ function AdsPanel() {
         {num("minGapMin", t("ads.gap"), 0, 240)}
         {num("maxPerDay", t("ads.maxDay"), 0, 20)}
         {num("nativeEvery", t("ads.native"), 4, 100)}
+        {num("diaryEvery", t("ads.diaryEvery"), 2, 60)}
+        {/* 場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。 */}
+        <p className="pt-2 text-footnote font-semibold">{t("ads.places")}</p>
+        <ToggleRow
+          label={t("ads.reviewEnd")}
+          value={draft.reviewEndEnabled}
+          onChange={(v) => void save({ ...draft, reviewEndEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.dexNative")}
+          value={draft.dexNativeEnabled}
+          onChange={(v) => void save({ ...draft, dexNativeEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.diaryNative")}
+          value={draft.diaryNativeEnabled}
+          onChange={(v) => void save({ ...draft, diaryNativeEnabled: v })}
+        />
         <ToggleRow
           label={t("ads.rewarded")}
           value={draft.rewardedEnabled}
           onChange={(v) => void save({ ...draft, rewardedEnabled: v })}
         />
+        <ToggleRow
+          label={t("ads.afterCatch")}
+          value={draft.afterCatchEnabled}
+          onChange={(v) => void save({ ...draft, afterCatchEnabled: v })}
+        />
+        {draft.afterCatchEnabled && num("catchesPerInterstitial", t("ads.catches"), 1, 50)}
+        <div className="border-t border-border pt-2">
+          <ToggleRow
+            label={t("ads.subscription")}
+            description={t("ads.subscriptionDesc")}
+            value={draft.subscriptionEnabled}
+            onChange={(v) => void save({ ...draft, subscriptionEnabled: v })}
+          />
+        </div>
         <p className="text-caption leading-relaxed text-muted-foreground">{t("ads.note")}</p>
       </div>
     </details>

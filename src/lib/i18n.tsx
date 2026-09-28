@@ -3267,9 +3267,71 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "圖鑑列表：每幾張卡片放一個廣告",
   },
   "ads.rewarded": {
-    ja: "ごほうび広告（見たら作り直しが1回増える）",
-    en: "Rewarded ad (watch to get one more rewrite)",
-    "zh-TW": "獎勵廣告（看完可多重做一次）",
+    ja: "ごほうび広告（見たら今日の切り抜きが1枚増える）",
+    en: "Rewarded ad (watch to get one more cutout today)",
+    "zh-TW": "獎勵廣告（看完今天可多去背一張）",
+  },
+  // 広告の場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。
+  "ads.places": { ja: "広告を出す場所", en: "Where ads appear", "zh-TW": "廣告位置" },
+  "ads.reviewEnd": {
+    ja: "復習の区切り（全画面）",
+    en: "After review sets (full-screen)",
+    "zh-TW": "複習告一段落時（全螢幕）",
+  },
+  "ads.afterCatch": {
+    ja: "捕まえた後（全画面）— 既定オフ",
+    en: "After catching (full-screen) — off by default",
+    "zh-TW": "收集之後（全螢幕）— 預設關閉",
+  },
+  "ads.catches": {
+    ja: "捕まえた後: 何回ごとに1回",
+    en: "After catching: once every N catches",
+    "zh-TW": "收集之後：每幾次顯示一次",
+  },
+  "ads.dexNative": {
+    ja: "図鑑の一覧（札の形）",
+    en: "Dex list (card-style)",
+    "zh-TW": "圖鑑列表（卡片形式）",
+  },
+  "ads.diaryNative": {
+    ja: "日記の間（札の形）",
+    en: "Between diary days (card-style)",
+    "zh-TW": "日記之間（卡片形式）",
+  },
+  "ads.diaryEvery": {
+    ja: "日記: 何日ごとに広告1枠",
+    en: "Diary: one ad slot every N days",
+    "zh-TW": "日記：每幾天放一個廣告",
+  },
+  "ads.subscription": {
+    ja: "サブスク（Pro の購入口）を出す",
+    en: "Show the Pro subscription",
+    "zh-TW": "顯示 Pro 訂閱",
+  },
+  "ads.subscriptionDesc": {
+    ja: "オフの間は開発者にだけ見えます。アプリ版（iPhone・Android）ではストアの課金が入るまで出しません",
+    en: "Only developers see it while off. Not shown in the iOS/Android apps until store billing is added",
+    "zh-TW": "關閉時只有開發者看得到。在 iPhone／Android App 加入商店付款前不會顯示",
+  },
+  // Pro の購入口（Web 版）。
+  "pro.title": { ja: "CatchWords Pro", en: "CatchWords Pro", "zh-TW": "CatchWords Pro" },
+  "pro.active": { ja: "Pro をご利用中です", en: "You're on Pro", "zh-TW": "你正在使用 Pro" },
+  "pro.monthly": { ja: "月ごとで始める", en: "Start monthly", "zh-TW": "按月開始" },
+  "pro.yearly": { ja: "年ごとで始める", en: "Start yearly", "zh-TW": "按年開始" },
+  "pro.notConfigured": {
+    ja: "支払いの準備がまだです（開発者: Stripe の鍵と値段を Secrets に入れてください）",
+    en: "Payments aren't set up yet (developer: add the Stripe key and prices to Secrets)",
+    "zh-TW": "付款尚未設定（開發者：請在 Secrets 加入 Stripe 金鑰與價格）",
+  },
+  "pro.failed": {
+    ja: "支払いの画面を開けませんでした。少し待ってからもう一度お試しください",
+    en: "Couldn't open checkout. Please try again shortly",
+    "zh-TW": "無法開啟付款頁面，請稍後再試",
+  },
+  "pro.devOnly": {
+    ja: "開発者にだけ見えています（サブスクはまだオフ）",
+    en: "Visible to developers only (subscription is still off)",
+    "zh-TW": "只有開發者看得到（訂閱尚未開啟）",
   },
   "ads.note": {
     ja: "オンにしても、AdMob（広告の部品）をアプリに入れるまでは実際の広告は出ません。手順は docs/monetization.md。",
