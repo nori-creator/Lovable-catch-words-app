@@ -110,6 +110,12 @@ declare module "three" {
   export const TorusGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type Fog = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const Fog: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type ShadowMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const ShadowMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Box3 = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Box3: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type LatheGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const LatheGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
   export const GLTFLoader: any; // eslint-disable-line @typescript-eslint/no-explicit-any
