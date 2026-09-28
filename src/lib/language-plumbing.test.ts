@@ -5407,6 +5407,11 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
   const chart = codeOnly(read("components/ForgettingCurveChart.tsx"));
   const review = codeOnly(read("routes/_authenticated/review.tsx"));
 
+  it("**横に辿り始めたら縦の巻き取りに指を取られない**（R11「押したまま横に滑らせると引っかかる」）", () => {
+    expect(chart).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
+    expect(chart).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+  });
+
   it("**復習した回数は履歴の行数**（SM-2 の「続けて正解した回数」ではない）", () => {
     // 「復習5回となってるのに5回復習したあとない」— 数と点が別の物を数えていた。
     expect(review).toMatch(/const reviewCount = data \? data\.history\.length : word\.repetitions/);

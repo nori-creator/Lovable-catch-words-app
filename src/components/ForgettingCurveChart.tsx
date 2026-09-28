@@ -551,6 +551,47 @@ function CurveScrubber({
 
   const [shown, setShown] = useState(false);
 
+  /**
+   * **横に辿り始めたら、画面の縦の巻き取りに指を渡さない**（オーナー報告「点を押したまま
+   * 横に滑らせると引っかかる」）。面は `touch-action: pan-y`（縦には画面を巻ける）なので、
+   * 横に辿る途中で指が少し縦にぶれると、ブラウザが巻き取りを始めて指の追跡を取り消していた
+   * （pointercancel → 点が止まる）。指の最初の動きが横なら、その指の間は巻き取りを止める。
+   * 縦に動き出した指はそのまま画面を巻く（グラフの上でも画面は縦に動かせる）。
+   */
+  const hit = useRef<SVGRectElement>(null);
+  useEffect(() => {
+    const el = hit.current;
+    if (!el) return;
+    let x0 = 0;
+    let y0 = 0;
+    let lock: "x" | "y" | null = null;
+    const start = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      x0 = t.clientX;
+      y0 = t.clientY;
+      lock = null;
+    };
+    const move = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      if (!lock) {
+        const dx = Math.abs(t.clientX - x0);
+        const dy = Math.abs(t.clientY - y0);
+        if (dx < 4 && dy < 4) return;
+        lock = dx >= dy ? "x" : "y";
+      }
+      if (lock === "x" && e.cancelable) e.preventDefault();
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    // 巻き取りを止めるには passive: false が要る（既定の passive では preventDefault が効かない）。
+    el.addEventListener("touchmove", move, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+    };
+  }, []);
+
   return (
     <svg ref={svg} className="memory-scrub absolute inset-0 h-full w-full" aria-hidden>
       <g pointerEvents="none" style={{ opacity: shown ? 1 : 0 }}>
@@ -591,6 +632,7 @@ function CurveScrubber({
         </g>
       </g>
       <rect
+        ref={hit}
         x="0"
         y="0"
         width="100%"
