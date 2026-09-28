@@ -1344,6 +1344,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
     const r = await runSectionRegen(context, data, "write");
+    // 作り直しの回数（開発者の利用者ごとの画面。新しく作った解説と分けて数える）。
+    if (!data.only_if_empty) await logUsage(context.supabase, context.userId, "card_regen");
     return { ok: r.ok, section: r.section, filled: r.filled };
   });
 
@@ -1425,6 +1427,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       part_of_speech: string | null;
     };
 
+    await logUsage(supabase, userId, "report_fix");
     // 0. 項目を選ばずに報告された（`auto`）なら、AI に間違っている項目を1つ探させる。
     let item: ReportItemId;
     if (data.item === "auto") {

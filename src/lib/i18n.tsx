@@ -3243,6 +3243,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Self-improvement audit",
     "zh-TW": "自我改善的檢查",
   },
+  "settings.usersLink": {
+    ja: "利用者ごとの情報（開発者だけ）",
+    en: "Per-user details (developer only)",
+    "zh-TW": "各使用者的資訊（僅開發者）",
+  },
   // 開発者の AI 設定を機能ごとに（オーナー指示 2026-09-27）。
   "settings.aiOk": {
     ja: "AI は動いています（提供元: {p}）",

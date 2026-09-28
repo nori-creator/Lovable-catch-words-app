@@ -12,7 +12,22 @@ function dayKey(iso: string): string {
  * the server just accepts a whitelisted kind.
  */
 
-const APP_EVENTS = ["app_open", "onboarding_done", "first_scan", "first_catch"] as const;
+const APP_EVENTS = [
+  "app_open",
+  "onboarding_done",
+  "first_scan",
+  "first_catch",
+  // 滞在時間と、離れる直前の画面（開発者だけの利用者ごとの画面で使う、`admin-user-stats.ts`）。
+  "session_start",
+  "session_end",
+  "leave_home",
+  "leave_dex",
+  "leave_capture",
+  "leave_scan",
+  "leave_review",
+  "leave_settings",
+  "leave_other",
+] as const;
 
 export const logAppEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -24,6 +24,8 @@ const KANA = /[ぁ-ゟァ-ヺ]/;
 const KNOWN: Record<string, number> = {
   "src/routes/_authenticated/admin.dictionary.tsx": 23,
   "src/routes/_authenticated/admin.metrics.tsx": 36,
+  // 利用者ごとの情報（開発者だけ、2026-09-27）。
+  "src/routes/_authenticated/admin.users.tsx": 51,
   "src/routes/_authenticated/scan.tsx": 4,
   "src/routes/privacy.tsx": 21,
   "src/routes/terms.tsx": 16,

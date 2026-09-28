@@ -1190,9 +1190,15 @@ function DeveloperPanel() {
           )}
         </div>
         {adm?.isAdmin && (
-          <Link to="/admin/metrics" className="block text-footnote text-primary underline">
-            {t("settings.kpiLink")}
-          </Link>
+          <>
+            <Link to="/admin/metrics" className="block text-footnote text-primary underline">
+              {t("settings.kpiLink")}
+            </Link>
+            {/* 利用者ごとの詳しい情報（開発者だけ、オーナー指示 2026-09-27）。 */}
+            <Link to="/admin/users" className="block text-footnote text-primary underline">
+              {t("settings.usersLink")}
+            </Link>
+          </>
         )}
       </div>
     </details>

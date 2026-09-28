@@ -14,6 +14,7 @@ import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
 import { ReviewReminderWatcher } from "@/components/ReviewReminderWatcher";
 import { NativeLinkListener } from "@/components/NativeLinkListener";
+import { installSessionTracker } from "@/lib/session-tracker";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 import { TabBar } from "@/components/TabBar";
@@ -332,6 +333,9 @@ export function AppShell({
   // 学習言語を切り替えたら、その言語で絞っている一覧を全部読み直す
   // (アルバム・図鑑・復習・記憶・単語帳)。判断は1箇所。
   useRefreshOnTargetLanguage();
+
+  // 滞在時間と離れる直前の画面（`session-tracker.ts`）。1回だけ仕掛ける。
+  useEffect(() => installSessionTracker(), []);
 
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {

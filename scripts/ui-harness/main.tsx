@@ -49,6 +49,7 @@ import { AlbumShelfScene } from "./scenes/album-shelf";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { WidgetDesignsScene } from "./scenes/widget-designs";
+import { AdminUsersScene } from "./scenes/admin-users";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -182,6 +183,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
   "widget-designs": WidgetDesignsScene,
+  "admin-users": AdminUsersScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -348,6 +350,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "admin-users", label: "開発者: 利用者ごとの情報（見本の数字）" },
   { scene: "ai-models", label: "開発者: AI の使い分け（機能ごと・説明つき）" },
   { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
   { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },

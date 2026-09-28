@@ -37,6 +37,7 @@ import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
 import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
@@ -186,6 +187,11 @@ const AuthenticatedAdminMetricsRoute =
     path: '/admin/metrics',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDexStickerIdRoute =
   AuthenticatedDexStickerIdRouteImport.update({
     id: '/$stickerId',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -297,6 +305,7 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -331,6 +340,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
     | '/admin/metrics'
+    | '/admin/users'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
     | '/admin/metrics'
+    | '/admin/users'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -396,6 +407,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/admin/dictionary'
     | '/_authenticated/admin/metrics'
+    | '/_authenticated/admin/users'
     | '/_authenticated/dex/$stickerId'
     | '/_authenticated/post/$postId'
     | '/_authenticated/u/$userId'
@@ -615,6 +627,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMetricsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dex/$stickerId': {
       id: '/_authenticated/dex/$stickerId'
       path: '/$stickerId'
@@ -666,6 +685,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWordbooksRoute: typeof AuthenticatedWordbooksRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
   AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
@@ -686,6 +706,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWordbooksRoute: AuthenticatedWordbooksRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
   AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
