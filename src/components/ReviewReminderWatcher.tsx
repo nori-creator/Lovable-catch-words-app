@@ -70,12 +70,15 @@ export function ReviewReminderWatcher() {
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+    let cancelled = false;
     if (Capacitor.isNativePlatform()) {
       void import("@capacitor/app").then(({ App }) => {
         const h = App.addListener("appStateChange", ({ isActive }) => {
           if (isActive) void refresh(true);
         });
         cleanup = () => void h.then((x) => x.remove());
+        // 読み込みの途中で外されていたら、ここで外す（残ると画面を移るたびに増える）。
+        if (cancelled) cleanup();
       });
     } else if (typeof document !== "undefined") {
       const onVis = () => {
@@ -84,7 +87,10 @@ export function ReviewReminderWatcher() {
       document.addEventListener("visibilitychange", onVis);
       cleanup = () => document.removeEventListener("visibilitychange", onVis);
     }
-    return () => cleanup?.();
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
   }, [refresh]);
 
   // 設定で変えたらすぐ置き直す（`review-reminder-changed` は設定の画面が出す）。

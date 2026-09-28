@@ -48,6 +48,7 @@ import { PageFlipScene } from "./scenes/page-flip";
 import { AlbumShelfScene } from "./scenes/album-shelf";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
+import { WidgetDesignsScene } from "./scenes/widget-designs";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -178,6 +179,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "album-shelf": AlbumShelfScene,
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
+  "widget-designs": WidgetDesignsScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -344,6 +346,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
   { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },
   { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },
   { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
