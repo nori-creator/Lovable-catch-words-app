@@ -1296,38 +1296,46 @@ export function DayCollage({
             : 0,
       })),
     );
-    /**
-     * **自分で置いて保存した写真を避ける**（`avoidFixed`、オーナー指示 2026-09-28
-     * 「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。自動の
-     * 置き方は保存した写真を知らないので、並べ替えた日に新しく撮ると、その1枚が
-     * 保存した写真の真上に積まれていた。
-     */
+    const map = new Map<string, Placement>();
+    base.forEach((s, i) => map.set(s.id, places[i]));
+    return map;
+  }, [stickers, frameRatio, heroById, board.w]);
+  /**
+   * **自分で置いて保存した写真を避ける**（`avoidFixed`、オーナー指示 2026-09-28
+   * 「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。自動の
+   * 置き方（上の `autoById`）は保存した写真を知らないので、並べ替えた日に新しく
+   * 撮ると、その1枚が保存した写真の真上に積まれていた。
+   */
+  const settledById = useMemo(() => {
     const extraOf = (s: StickerWithWord) =>
       heroById.get(s.id) && board.w ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w : 0;
     const saved = (s: StickerWithWord) => s.album_x != null && s.album_y != null;
-    const fixed = base.filter(saved).map((s) => {
+    const fixed = stickers.filter(saved).map((s) => {
+      const r = frameRatio(s.id);
       const p = placementFrom(
         { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-        places[base.indexOf(s)],
+        autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, "small", s.id),
       );
-      return boxOf(p, frameRatio(s.id), extraOf(s));
+      return boxOf(p, r, extraOf(s));
     });
-    const autos = base.filter((s) => !saved(s));
-    const settled = fixed.length
-      ? avoidFixed(
-          autos.map((s) => ({
-            place: places[base.indexOf(s)],
-            ratio: frameRatio(s.id),
-            extra: extraOf(s),
-          })),
-          fixed,
-        )
-      : autos.map((s) => places[base.indexOf(s)]);
-    const map = new Map<string, Placement>();
-    base.forEach((s, i) => map.set(s.id, places[i]));
+    if (fixed.length === 0) return autoById;
+    const autos = [...stickers]
+      .filter((s) => !saved(s) && autoById.has(s.id))
+      .sort(
+        (a, b) =>
+          (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
+      );
+    const settled = avoidFixed(
+      autos.map((s) => {
+        const r = frameRatio(s.id);
+        return { place: autoById.get(s.id)!, ratio: r, extra: extraOf(s) };
+      }),
+      fixed,
+    );
+    const map = new Map(autoById);
     autos.forEach((s, i) => map.set(s.id, settled[i]));
     return map;
-  }, [stickers, frameRatio, heroById, board.w]);
+  }, [autoById, stickers, frameRatio, heroById, board.w]);
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -1340,7 +1348,7 @@ export function DayCollage({
          */
         place: placementFrom(
           { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-          autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, sizes[i], s.id),
+          settledById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, sizes[i], s.id),
         ),
         /**
          * 縦横の比。**写真が読めていれば写真の比**、まだなら升目の比。
@@ -1356,7 +1364,7 @@ export function DayCollage({
          */
         z: 10 + i,
       })),
-    [ordered, autoById, sizes, frameRatio],
+    [ordered, settledById, sizes, frameRatio],
   );
   /**
    * 台紙の高さ（幅に対する割合）。**中身から決める。**
@@ -1371,7 +1379,8 @@ export function DayCollage({
           const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
           const p = placementFrom(
             { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-            autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
+            // 画面に出していた置き場所（保存した写真を避けた後）をそのまま保存する。
+            settledById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
           );
           return {
             sticker_id: s.id,
