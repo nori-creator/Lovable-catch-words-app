@@ -53,6 +53,7 @@ import { ThreeFxScene } from "./scenes/three-fx";
 import { Object3DScene } from "./scenes/object-3d";
 import { DiaryPencilScene } from "./scenes/diary-pencil";
 import { MotionCompareScene } from "./scenes/motion-compare";
+import { LaunchIntroScene } from "./scenes/launch-intro";
 import { StickerHoloScene } from "./scenes/sticker-holo";
 import { CinemaFxScene } from "./scenes/cinema-fx";
 import { PromoFilmScene } from "./scenes/promo-film";
@@ -200,6 +201,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "object-3d": Object3DScene,
   "diary-pencil": DiaryPencilScene,
   "motion-compare": MotionCompareScene,
+  "launch-intro": LaunchIntroScene,
   "sticker-holo": StickerHoloScene,
   "cinema-fx": CinemaFxScene,
   "promo-film": PromoFilmScene,
