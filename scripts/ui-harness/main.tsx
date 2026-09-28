@@ -348,6 +348,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "ai-models", label: "開発者: AI の使い分け（機能ごと・説明つき）" },
   { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
   { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
   { scene: "notify-bar-designs", label: "案: 通知バー A/B/C/D（ロック画面・使用中・Android）" },

@@ -1847,130 +1847,173 @@ function AiModelPanel() {
     }
   }
 
+  /**
+   * **機能ごとに、何に使う AI かを1行で**（オーナー指示 2026-09-27「開発者の使う AI を
+   * 変更する設定、初心者の私には設定しづらいから、もっと見やすく、簡潔に機能ごとに
+   * どのように AI を使い分けるようにするのか、設定を分かりやすく見やすくして」）。
+   *
+   * 上から: ①動いているか（1行）②機能ごとの AI（説明つき・押して選ぶ）
+   * ③詳しい設定（既定の AI・キーの状況。ふだんは閉じたまま）。
+   */
+  const FEATURE_ORDER = ["scan", "card", "review", "journal", "audit"] as const;
   return (
     <details className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.aiSwitch")}
       </summary>
 
+      {/* ① 動いているか。キーが1つも無いと全部止まる（2026-07-28 の障害）ので最初に言う。 */}
+      <p
+        className={`mt-2 rounded-xl p-2 text-caption font-semibold leading-relaxed ${
+          data?.effective ? "bg-ok/10 text-ok-ink" : "bg-destructive/10 text-destructive-ink"
+        }`}
+      >
+        {data?.effective ? t("settings.aiOk", { p: data.effective.provider }) : t("settings.aiNg")}
+      </p>
       {data?.effective && (
-        <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
-          <div className="font-semibold">{t("settings.aiRunning")}</div>
-          <div className="text-muted-foreground">
-            {t("set.aiEffective", {
-              p: data.effective.provider,
-              f: data.effective.fast,
-              r: data.effective.rich,
-            })}
-            {" / "}Pro {data.effective.rich_premium}
-          </div>
-        </div>
+        <p className="mt-1 text-caption text-muted-foreground">
+          {t("settings.aiDefaultModels", { f: data.effective.fast, r: data.effective.rich })}
+        </p>
       )}
 
-      {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
-          「どのキーが実際に見えているか」を最初に出す。 */}
-      <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
-        <div className="font-semibold">{t("settings.aiKeys")}</div>
-        <ul className="mt-1 space-y-0.5">
-          {(data?.presets ?? []).map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2">
-              <span className="truncate">{p.label}</span>
-              <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
-                {p.key_present
-                  ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
-                  : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
-        {data?.keyError && (
-          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
-            {data.keyError}
+      {/* ② 機能ごと。何に使うかを1行添え、空なら既定のまま。 */}
+      <div className="mt-3 space-y-3">
+        {orData && !orData.keyFound && (
+          <p className="text-caption text-muted-foreground">{t("set.orNoKey")}</p>
+        )}
+        {orData?.error && (
+          <p className="text-caption text-destructive-ink">
+            {t("set.orLoadFailed", { e: orData.error })}
           </p>
         )}
-      </div>
-
-      <div className="mt-3 space-y-2">
-        <div>
-          <Label className="text-footnote">{t("settings.aiProvider")}</Label>
-          <select
-            aria-label={t("set.aiProviderAria")}
-            value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
-          >
-            <option value="">{t("settings.aiEnvDefault")}</option>
-            {(data?.presets ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-                {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiFast")}</Label>
-          <Input
-            value={fast}
-            onChange={(e) => setFast(e.target.value)}
-            placeholder="gemini-2.5-flash"
-          />
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiRich")}</Label>
-          <Input
-            value={rich}
-            onChange={(e) => setRich(e.target.value)}
-            placeholder="gemini-2.5-flash"
-          />
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiPremium")}</Label>
-          <Input
-            value={premium}
-            onChange={(e) => setPremium(e.target.value)}
-            placeholder="gemini-2.5-pro"
-          />
-        </div>
-
-        {/* 機能ごとに別のAI。**OpenRouter の一覧から押して選ぶ**
-            （オーナー指示 2026-09-22「これみたいに簡単に設定したい」）。
-            一覧が取れないときだけ、前と同じ手で打つ欄に落ちる。 */}
-        <div className="rounded-xl border border-border p-2">
-          <div className="text-footnote font-semibold">{t("settings.aiPerFeature")}</div>
-          {orData && !orData.keyFound && (
-            <p className="mt-1 text-caption text-muted-foreground">{t("set.orNoKey")}</p>
-          )}
-          {orData?.error && (
-            <p className="mt-1 text-caption text-destructive-ink">
-              {t("set.orLoadFailed", { e: orData.error })}
-            </p>
-          )}
-          <div className="mt-2 space-y-2">
-            {(data?.features ?? []).map((f) => (
+        {FEATURE_ORDER.filter((id) => (data?.features ?? []).some((f) => f.id === id)).map((id) => (
+          <div key={id} className="rounded-xl border border-border p-2.5">
+            <div>
               <ModelPicker
-                key={f.id}
-                label={t(`settings.aiFeature.${f.id}`)}
-                value={features[f.id] ?? ""}
-                onChange={(v) => setFeatures((prev) => ({ ...prev, [f.id]: v }))}
+                label={t(`settings.aiFeature.${id}`)}
+                value={features[id] ?? ""}
+                onChange={(v) => setFeatures((prev) => ({ ...prev, [id]: v }))}
                 models={orData?.models ?? []}
                 // スキャンは写真を読む。画像を読めないモデルを選ぶと、スキャンが丸ごと止まる。
-                visionOnly={f.id === "scan"}
+                visionOnly={id === "scan"}
                 unavailable={!orData || orData.models.length === 0}
               />
-            ))}
+            </div>
+            <p className="mt-1 px-1 text-caption leading-snug text-muted-foreground">
+              {t(`settings.aiFeatureDesc.${id}`)}
+            </p>
+            {features[id] && (
+              <button
+                type="button"
+                onClick={() =>
+                  setFeatures((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                  })
+                }
+                className="mt-1 inline-flex min-h-11 items-center text-caption font-semibold text-primary"
+              >
+                {t("settings.aiReset")}
+              </button>
+            )}
           </div>
-          <p className="mt-2 text-caption text-muted-foreground">
-            {t("settings.aiPerFeatureHint")}
-          </p>
-        </div>
+        ))}
+        <p className="text-caption text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
+      </div>
 
+      {/* ③ 詳しい設定。既定の AI とキーの状況。 */}
+      <details className="mt-3 rounded-xl border border-border p-2">
+        <summary className="min-h-11 cursor-pointer list-none content-center text-footnote font-semibold [&::-webkit-details-marker]:hidden">
+          {t("settings.aiAdvanced")}
+        </summary>
+        {data?.effective && (
+          <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
+            <div className="font-semibold">{t("settings.aiRunning")}</div>
+            <div className="text-muted-foreground">
+              {t("set.aiEffective", {
+                p: data.effective.provider,
+                f: data.effective.fast,
+                r: data.effective.rich,
+              })}
+              {" / "}Pro {data.effective.rich_premium}
+            </div>
+          </div>
+        )}
+        {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
+            「どのキーが実際に見えているか」を出す。 */}
+        <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
+          <div className="font-semibold">{t("settings.aiKeys")}</div>
+          <ul className="mt-1 space-y-0.5">
+            {(data?.presets ?? []).map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{p.label}</span>
+                <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
+                  {p.key_present
+                    ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
+                    : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
+          {data?.keyError && (
+            <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
+              {data.keyError}
+            </p>
+          )}
+        </div>
+        <div className="mt-3 space-y-2">
+          <div>
+            <Label className="text-footnote">{t("settings.aiProvider")}</Label>
+            <select
+              aria-label={t("set.aiProviderAria")}
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+            >
+              <option value="">{t("settings.aiEnvDefault")}</option>
+              {(data?.presets ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                  {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiFast")}</Label>
+            <Input
+              value={fast}
+              onChange={(e) => setFast(e.target.value)}
+              placeholder="gemini-2.5-flash"
+            />
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiRich")}</Label>
+            <Input
+              value={rich}
+              onChange={(e) => setRich(e.target.value)}
+              placeholder="gemini-2.5-flash"
+            />
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiPremium")}</Label>
+            <Input
+              value={premium}
+              onChange={(e) => setPremium(e.target.value)}
+              placeholder="gemini-2.5-pro"
+            />
+          </div>
+          <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
+        </div>
+      </details>
+
+      <div className="mt-3 space-y-2">
         <Button className="w-full" onClick={save} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.aiApply")}
         </Button>
-        <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
       </div>
     </details>
   );

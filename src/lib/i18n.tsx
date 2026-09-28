@@ -3226,6 +3226,53 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Self-improvement audit",
     "zh-TW": "自我改善的檢查",
   },
+  // 開発者の AI 設定を機能ごとに（オーナー指示 2026-09-27）。
+  "settings.aiOk": {
+    ja: "AI は動いています（提供元: {p}）",
+    en: "AI is running (provider: {p})",
+    "zh-TW": "AI 正在運作（供應商：{p}）",
+  },
+  "settings.aiNg": {
+    ja: "AI が動いていません。下の「詳しい設定」で API キーを確認してください",
+    en: "AI is not running. Check the API keys under “Advanced”",
+    "zh-TW": "AI 沒有在運作。請在下方「進階設定」確認 API 金鑰",
+  },
+  "settings.aiDefaultModels": {
+    ja: "指定しない機能は既定の AI（速い方: {f} / 丁寧な方: {r}）を使います",
+    en: "Features without a choice use the defaults (fast: {f} / careful: {r})",
+    "zh-TW": "沒有指定的功能使用預設 AI（快速：{f}／仔細：{r}）",
+  },
+  "settings.aiReset": { ja: "既定に戻す", en: "Use the default", "zh-TW": "改回預設" },
+  "settings.aiAdvanced": {
+    ja: "詳しい設定（既定の AI・キー。ふだんは触らない）",
+    en: "Advanced (default AI and keys; usually leave as is)",
+    "zh-TW": "進階設定（預設 AI、金鑰，平常不用動）",
+  },
+  "settings.aiFeatureDesc.scan": {
+    ja: "カメラで撮った写真から物・文字を見つけ、単語の候補を出す。速さが一番大事（写真を読めるAIだけ選べます）。",
+    en: "Finds objects and text in the photo and suggests words. Speed matters most (only image-capable AIs).",
+    "zh-TW": "從拍的照片找出物品與文字並提出單字候選。速度最重要（只能選能讀圖片的 AI）。",
+  },
+  "settings.aiFeatureDesc.card": {
+    ja: "単語の詳細（意味・例文・チャンク・使い方など）を作る・作り直す。質が一番大事。",
+    en: "Writes and rewrites word details (meaning, examples, chunks, usage). Quality matters most.",
+    "zh-TW": "產生、重做單字詳情（意思、例句、語塊、用法等）。品質最重要。",
+  },
+  "settings.aiFeatureDesc.review": {
+    ja: "復習の発音・答えの添削とヒント。",
+    en: "Feedback and hints for review answers and pronunciation.",
+    "zh-TW": "複習時的發音、答案修改與提示。",
+  },
+  "settings.aiFeatureDesc.journal": {
+    ja: "日記の添削。",
+    en: "Corrects journal entries.",
+    "zh-TW": "修改日記。",
+  },
+  "settings.aiFeatureDesc.audit": {
+    ja: "裏方: 報告されたエラーや解説の誤りを点検して直す。",
+    en: "Behind the scenes: checks and fixes reported errors in explanations.",
+    "zh-TW": "幕後：檢查並修正被回報的錯誤。",
+  },
   "settings.aiPerFeatureHint": {
     ja: "空欄なら上の既定を使います。「提供元:モデル名」で別のAIに丸ごと振り分けられます(例 openai:gpt-5)。キーが無い提供元を指定しても既定に自動で戻るので、設定ミスで機能は止まりません。",
     en: "Leave blank to use the default above. Use “provider:model” to route a feature to another AI (e.g. openai:gpt-5). If that provider has no key, it falls back to the default — a wrong setting never breaks the feature.",

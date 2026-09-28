@@ -5614,7 +5614,7 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
 
   it("設定の機能ごとの欄は一覧から選ぶ。スキャンは画像を読めるモデルだけ", () => {
     expect(settings).toMatch(/<ModelPicker/);
-    expect(settings).toMatch(/visionOnly=\{f\.id === "scan"\}/);
+    expect(settings).toMatch(/visionOnly=\{id === "scan"\}/);
   });
 });
 
