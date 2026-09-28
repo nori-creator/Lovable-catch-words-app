@@ -18,8 +18,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
-import { ScanCandidateStrip, ScanDots } from "@/routes/_authenticated/scan";
-import { containPoint, SCAN_FRAME_Y } from "@/lib/scan-layout";
+import { ScanCandidateStrip, ScanDots, ScanSnapshotPhoto } from "@/routes/_authenticated/scan";
+import { containPoint } from "@/lib/scan-layout";
 
 const ITEMS = [
   { label: "ホーム", icon: Home },
@@ -94,8 +94,10 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
     const measure = () => {
       const h = el.getBoundingClientRect().height;
       setSheetH(h);
-      const bottom = window.innerHeight - el.getBoundingClientRect().top + 8;
-      setBox({ w: window.innerWidth, h: Math.max(200, window.innerHeight - bottom) });
+      // 本番の `.scan-frame` と同じ: 上は 2.75rem、下はシートの上端 − 0.5rem。
+      const top = 44;
+      const bottom = el.getBoundingClientRect().top - 8;
+      setBox({ w: window.innerWidth, h: Math.max(200, bottom - top) });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -116,19 +118,15 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
     [box],
   );
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-black">
+    <div className="fixed inset-0 z-20 overflow-hidden">
+      <div className="capture-viewfinder__light fixed inset-0" aria-hidden />
       <div
-        className="absolute inset-x-0 top-0 overflow-hidden"
+        className="scan-frame fixed overflow-hidden"
         style={{ height: box.h }}
         data-scan-photo-box
         data-sheet-h={Math.round(sheetH)}
       >
-        <img
-          src={PHOTO}
-          alt=""
-          className="absolute inset-0 h-full w-full object-contain"
-          style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
-        />
+        <ScanSnapshotPhoto src={PHOTO} />
         <ScanDots
           items={items}
           scanCtx={ctx}

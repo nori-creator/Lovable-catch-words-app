@@ -894,21 +894,7 @@ function ScanPage() {
           />
           {/* frozen snapshot after scan */}
           {snapshot && (
-            // **覗いていた映像と同じ見え方**（画面いっぱい）で止める。
-            // 以前は「シートの上まで」の短い箱に押し込んでいたので、箱の下に
-            // カメラの黒い地がむき出しになっていた（「候補の下に黒い余白」）。
-            <img
-              src={snapshot}
-              alt=""
-              className="absolute inset-0 h-full w-full object-contain"
-              style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
-              onLoad={(e) =>
-                setSnapshotSize({
-                  w: e.currentTarget.naturalWidth,
-                  h: e.currentTarget.naturalHeight,
-                })
-              }
-            />
+            <ScanSnapshotPhoto src={snapshot} onSize={(w, h) => setSnapshotSize({ w, h })} />
           )}
 
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
@@ -1147,6 +1133,37 @@ function ScanPage() {
  * scan で映像が要るのは撮る前の1箇所だけで、**撮った後の面は静止画で全部
  * 描ける**(`capture` と同じ構図だった)。
  */
+/**
+ * **撮った写真を止めて見せる面。黒い帯を作らない**（オーナー指示 2026-09-28
+ * 「スキャンの候補を表示する画面、黒い余白は作らないで。変だから」）。
+ *
+ * 写真そのものは覗いていた映像と同じ `object-contain`（撮れる範囲を全部見せる。
+ * 光の点の位置 `containPoint` もこれに合わせてある — 切り落とすと点が物からずれる）。
+ * 箱と写真の縦横比が違うと左右（または上下）に余りが出る。そこを黒い地のままに
+ * せず、**同じ写真をぼかして箱いっぱいに敷く**（写真アプリ・ストーリーの縦横比
+ * 違いと同じ埋め方）。写真の中身は1画素も切らないので、点はずれない。
+ */
+export function ScanSnapshotPhoto({
+  src,
+  onSize,
+}: {
+  src: string;
+  onSize?: (w: number, h: number) => void;
+}) {
+  return (
+    <>
+      <img src={src} alt="" aria-hidden className="scan-frame__fill" />
+      <img
+        src={src}
+        alt=""
+        className="absolute inset-0 h-full w-full object-contain"
+        style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
+        onLoad={(e) => onSize?.(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+      />
+    </>
+  );
+}
+
 export function ScanChip({
   headword,
   zhuyin,
@@ -1419,6 +1436,10 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
  *  ・行を押すと**撮影モードと同じ流れ**で足す（`onOpen`）。
  *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
+const WHEEL_ROW = 52;
+/** 箱の上下の内側の余白（帯の上端と、1行目の上端）。 */
+const WHEEL_PAD = 4;
+
 export function ScanCandidateStrip({
   items,
   scanCtx,
@@ -1452,17 +1473,14 @@ export function ScanCandidateStrip({
     if (!activeId && items[0]) onFocus(items[0].id);
   }, [activeId, items, onFocus]);
 
-  // 点を押して注目が移ったら、箱もその候補を真ん中へ。
+  // 点を押して注目が移ったら、箱もその候補を選択の帯（一番上の行）へ。
   useEffect(() => {
     if (!activeId) return;
     const el = rowRefs.current.get(activeId);
     const sc = scrollerRef.current;
     if (!el || !sc) return;
     const max = sc.scrollHeight - sc.clientHeight;
-    const target = Math.max(
-      0,
-      Math.min(max, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2),
-    );
+    const target = Math.max(0, Math.min(max, el.offsetTop - WHEEL_PAD));
     if (Math.abs(sc.scrollTop - target) < 4) return;
     const reduce = motionReducedNow();
     programmaticUntil.current = performance.now() + (reduce ? 100 : 700);
@@ -1478,8 +1496,13 @@ export function ScanCandidateStrip({
    * は OS の物）＋1行に吸い付く `scroll-snap`。真ん中の帯に来た行が「いま見ている
    * 候補」で、写真の上のその点が光る。真ん中の行を押すと開き、上下の行を押すと
    * その行が真ん中へ転がる（輪と同じ）。
+   *
+   * **選択の帯は一番上の行**（オーナー指示 2026-09-28「バランスよくスクロールする
+   * ところを表示して」）。真ん中に帯を置くと、開いた直後（先頭の候補を選んでいる）は
+   * 帯の上の1行ぶんが**いつも空**で、箱の上3分の1が抜けて見えていた。帯を上に
+   * 置けば、選んだ候補の下に次の候補が並び、箱は候補で埋まる。
    */
-  const ROW = 52;
+  const ROW = WHEEL_ROW;
   const paint = () => {
     const sc = scrollerRef.current;
     if (!sc) return;
@@ -1490,8 +1513,9 @@ export function ScanCandidateStrip({
       if (!el) return;
       const d = i - center;
       const a = Math.min(Math.abs(d), 2);
-      el.style.transform = reduce ? "" : `rotateX(${d * -24}deg) scale(${1 - a * 0.07})`;
-      el.style.opacity = String(Math.max(0.28, 1 - a * 0.42));
+      // 帯が上なので、下の行は輪の奥へ少しだけ倒す（読める角度のまま）。
+      el.style.transform = reduce ? "" : `rotateX(${d * -12}deg) scale(${1 - a * 0.04})`;
+      el.style.opacity = String(Math.max(0.35, 1 - a * 0.3));
     });
   };
   const onScroll = () => {
@@ -1522,7 +1546,7 @@ export function ScanCandidateStrip({
   const rows = Math.min(3, Math.max(1, items.length));
 
   return (
-    <div className="flex items-end gap-2" data-scan-strip>
+    <div className="flex items-center gap-2" data-scan-strip>
       {nothingFound ? (
         <div className="min-w-0 flex-1 rounded-2xl px-3 py-2 shadow-lg material-thick">
           <p className="text-footnote font-medium">{t("scan.nothingFound")}</p>
@@ -1533,12 +1557,19 @@ export function ScanCandidateStrip({
       ) : (
         <div
           className="scan-wheel relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick"
-          style={{ height: ROW * rows + 8 }}
+          style={{ height: ROW * rows + WHEEL_PAD * 2 }}
         >
           {/* 選択の帯。**動かない** — 動くのは行のほう（輪と同じ）。 */}
-          <span className="scan-wheel__band" aria-hidden style={{ height: ROW }} />
+          <span
+            className="scan-wheel__band"
+            aria-hidden
+            style={{ height: ROW, top: WHEEL_PAD, transform: "none" }}
+          />
           {items.length > 1 && (
-            <span className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2 text-caption tabular-nums text-muted-foreground">
+            <span
+              className="pointer-events-none absolute right-3 z-10 -translate-y-1/2 text-caption tabular-nums text-muted-foreground"
+              style={{ top: WHEEL_PAD + ROW / 2 }}
+            >
               {activeIndex + 1}/{items.length}
             </span>
           )}
@@ -1560,7 +1591,7 @@ export function ScanCandidateStrip({
             }}
             className="scan-wheel__scroll"
           >
-            <div aria-hidden style={{ height: rows > 1 ? ROW * ((rows - 1) / 2) + 4 : 4 }} />
+            <div aria-hidden style={{ height: WHEEL_PAD }} />
             {items.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
               const on = it.id === activeId;
@@ -1612,34 +1643,39 @@ export function ScanCandidateStrip({
                 </button>
               );
             })}
-            <div aria-hidden style={{ height: rows > 1 ? ROW * ((rows - 1) / 2) + 4 : 4 }} />
+            <div aria-hidden style={{ height: ROW * (rows - 1) + WHEEL_PAD }} />
           </div>
           <span className="scan-wheel__fade" aria-hidden />
         </div>
       )}
-      {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する
+      {/* 右の釦は**縦に1列**で、候補の箱の高さの真ん中に揃える（オーナー指示
+          2026-09-28「バランスよく」）。前は箱の下端に並べていたので、箱の右上に
+          空いた所ができていた。撮り直しは下（右下の端、2026-09-23）のまま。 */}
+      <div className="flex shrink-0 flex-col items-center gap-2">
+        {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する
           ボタンを追加して」）。いま箱に出ている候補を、撮影モードと同じ流れで足す。 */}
-      {!nothingFound && active && (
-        <button
-          onClick={() => onOpen(active)}
-          aria-label={t("scan.addToDex")}
-          className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-        >
-          <span className="grid place-items-center leading-none">
-            <Plus className="h-5 w-5" aria-hidden />
-            <span className="mt-0.5 text-[10px] font-semibold">{t("scan.addShort")}</span>
-          </span>
-        </button>
-      )}
-      {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
+        {!nothingFound && active && (
+          <button
+            onClick={() => onOpen(active)}
+            aria-label={t("scan.addToDex")}
+            className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+          >
+            <span className="grid place-items-center leading-none">
+              <Plus className="h-5 w-5" aria-hidden />
+              <span className="mt-0.5 text-[10px] font-semibold">{t("scan.addShort")}</span>
+            </span>
+          </button>
+        )}
+        {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
           候補の行を押す指と重ならない。 */}
-      <button
-        onClick={onAgain}
-        aria-label={t("scan.again")}
-        className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
-      >
-        <RotateCcw className="h-5 w-5" />
-      </button>
+        <button
+          onClick={onAgain}
+          aria-label={t("scan.again")}
+          className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
+        >
+          <RotateCcw className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -5459,12 +5459,18 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
   const css = read("styles.css");
 
   it("**写真は覗いていた映像と同じ見え方**で止める（2026-09-24 から撮れる範囲を全部見せる contain）", () => {
+    expect(scan).toMatch(/<ScanSnapshotPhoto\s+src=\{snapshot\}/);
     expect(scan).toMatch(
-      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
+      /src=\{src\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
     );
     expect(scan).not.toMatch(/calc\(100% - \$\{sheetSize\.h \+ 24\}px\)/);
     // 点は写真と同じ切り落としで置く。
     expect(scan).toMatch(/containPoint\(it\.point, snapshotSize, boxSize\)/);
+  });
+
+  it("**黒い帯を作らない**: 写真の縦横比の余りは同じ写真をぼかして敷く（2026-09-28）", () => {
+    expect(scan).toMatch(/<img src=\{src\} alt="" aria-hidden className="scan-frame__fill" \/>/);
+    expect(css).toMatch(/\.scan-frame__fill \{[^}]*object-fit: cover;[^}]*filter: blur\(/);
   });
 
   it("**撮った後も `<video>` を外さない**（外すと「もう一度」で真っ黒・再スキャンが必ず失敗）", () => {
@@ -5478,8 +5484,12 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     // 転がすのはブラウザの巻き取り（慣性・端の返りは OS の物）＋1行に吸い付く。
     expect(scan).toMatch(/className="scan-wheel__scroll"/);
     expect(css).toMatch(/\.scan-wheel__scroll \{[^}]*scroll-snap-type: y mandatory;/);
-    expect(css).toMatch(/\.scan-wheel__item \{[^}]*scroll-snap-align: center;/);
-    // 3行ぶん見せる。真ん中の行を押すと開き、上下の行は真ん中へ転がす。
+    // 選択の帯は一番上の行（2026-09-28「バランスよく」— 真ん中だと開いた直後に上の1行が空く）。
+    expect(css).toMatch(/\.scan-wheel__item \{[^}]*scroll-snap-align: start;/);
+    expect(css).toMatch(/\.scan-wheel__scroll \{[^}]*scroll-padding-top: 4px;/);
+    expect(scan).toMatch(/style=\{\{ height: ROW, top: WHEEL_PAD, transform: "none" \}\}/);
+    expect(scan).toMatch(/<div aria-hidden style=\{\{ height: WHEEL_PAD \}\} \/>/);
+    // 3行ぶん見せる。帯の行を押すと開き、ほかの行は帯へ転がす。
     expect(scan).toMatch(/const rows = Math\.min\(3, Math\.max\(1, items\.length\)\);/);
     expect(scan).toMatch(/onClick=\{\(\) => \(on \? onOpen\(it\) : onFocus\(it\.id\)\)\}/);
     // 追加のボタンはいま出ている候補を図鑑へ。
