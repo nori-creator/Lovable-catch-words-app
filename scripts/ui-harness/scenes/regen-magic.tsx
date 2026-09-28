@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { playMagicSwap, snapshotForSwap } from "@/lib/magic-swap";
 
 /**
@@ -40,13 +41,22 @@ export function RegenMagicScene() {
             例
           </span>
           <h3 className="text-footnote font-semibold">例文</h3>
+          {/* **円形の矢印に戻した**（オーナー指示 2026-09-28「単語の作り直すボタン大きすぎる
+              から、円形の矢印に戻して」）。本番の `WordCard` の節の ↻ と同じ寸法
+              （見た目 32px・当たり 44px）。 */}
           <button
             type="button"
             onClick={regen}
             disabled={waiting}
-            className="ml-auto min-h-11 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground disabled:opacity-60"
+            aria-label="例文: 作り直す"
+            title="作り直す"
+            className="relative ml-auto grid h-8 w-8 place-items-center rounded-full text-muted-foreground/60 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-secondary hover:text-foreground disabled:text-muted-foreground/40"
           >
-            {waiting ? "作り直し中…" : "作り直す"}
+            {waiting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
           </button>
         </div>
         <div ref={body} className={waiting ? "magic-wait" : undefined}>
