@@ -2,12 +2,14 @@ import { ArrowLeft, ArrowRight, Bell, Moon } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
+import { sampleStickers } from "./FirstCatchHome";
 import "./first-catch.css";
 
-const photos = [
+export const FIRST_CATCH_PHOTOS = [
   { src: "/first-catch-cafe.webp", word: "coffee" },
   { src: "/first-catch-flower.webp", word: "花" },
   { src: "/first-catch-cat.webp", word: "cat" },
+  { src: "/first-catch-ready.webp", word: "sea" },
 ];
 
 function PrimaryAction({
@@ -27,15 +29,23 @@ function PrimaryAction({
   );
 }
 
-export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () => void }) {
+export function FirstCatchIntro({
+  draft,
+  busy,
+  onStart,
+}: {
+  draft: FirstCatch;
+  busy: boolean;
+  onStart: () => void;
+}) {
   const t = useT();
+  const labels = sampleStickers(draft, t, draft.targetLanguage).map((sample) => sample.word.headword);
   return (
     <div className="first-run">
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">
           <img src="/icon-192.png" alt="" className="first-intro-logo" />
           <h1>Catchwords</h1>
-          <p>{t("first.introTagline")}</p>
         </header>
         {/* 写真の束は、残りの高さに収まる大きさで描く（`container-type: size`）。
             前は高さを固定していたので、背の低い画面では「はじめる」の上に
@@ -43,10 +53,10 @@ export function FirstCatchIntro({ busy, onStart }: { busy: boolean; onStart: () 
             手書きの一言と4つの点は外した — 一言は見出しの言い直しで、
             点は横に送れない画面を送れるように見せていた。 */}
         <div className="first-polaroids" aria-hidden="true">
-          {photos.map(({ src, word }, i) => (
+          {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
             <div key={src} className={`first-polaroid first-polaroid-${i}`}>
-              <img src={src} alt="" />
-              <span>{word}</span>
+              <img src={src} alt="" loading="eager" fetchPriority="high" />
+              <span className="collage__slip">{labels[i]}</span>
             </div>
           ))}
         </div>
@@ -113,7 +123,6 @@ export function FirstCatchNotifications({
         </header>
         <div className="first-question-heading">
           <h1>{t("first.notificationsTitle")}</h1>
-          <p className="first-sub">{t("first.notificationsHint")}</p>
         </div>
         <div className="first-reminders">
           {items.map(({ key, Icon, time }) => (
@@ -194,7 +203,6 @@ export function FirstCatchReady({
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.readyStart")}
           </PrimaryAction>
-          <p className="first-ready-footnote">{t("first.readyFootnote")}</p>
         </footer>
       </div>
     </div>

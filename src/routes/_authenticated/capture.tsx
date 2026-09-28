@@ -1993,6 +1993,7 @@ export function CaptureCardPanel({
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
         <div
+          data-tour="peel"
           ref={heroBoxRef}
           className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
         >
@@ -2045,22 +2046,24 @@ export function CaptureCardPanel({
         {t("capture.flipHint")}
       </button>
 
-      <WordCard
-        word={{
-          headword: selectedHead,
-          reading_zhuyin: card.reading_zhuyin,
-          pinyin: card.pinyin,
-          meaning_ja: card.meaning_ja,
-          part_of_speech: card.part_of_speech,
-          level: card.level,
-          example_sentence: card.example_sentence,
-          example_translation: card.example_translation,
-          extras: card.extras ?? null,
-        }}
-        // 撮った直後は**意味と発音だけ**。残りは裏の生成が届いた順に現れる
-        // (オーナー指摘 2026-08-21)。
-        minimal
-      />
+      <section data-tour="detail">
+        <WordCard
+          word={{
+            headword: selectedHead,
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            meaning_ja: card.meaning_ja,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+            extras: card.extras ?? null,
+          }}
+          // 撮った直後は**意味と発音だけ**。残りは裏の生成が届いた順に現れる
+          // (オーナー指摘 2026-08-21)。
+          minimal
+        />
+      </section>
 
       <div>
         <Label htmlFor="caption" className="text-footnote text-muted-foreground">

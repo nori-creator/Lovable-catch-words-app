@@ -330,33 +330,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-27 の依頼で触った面だけ。**毎回ここを入れ替える**
-  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
-  // ガラスは本番に全部当てた（同日「すべてに適用して」）。
-  { scene: "tabbar", label: "下のバー（ガラス・アイコン）" },
-  { scene: "capture-object", label: "カメラ（枠・払ってスキャンへ）" },
-  { scene: "scan-bottom", label: "スキャン（上下の余白）" },
-  { scene: "capture-card&variant=clipped", label: "シールで切れる知らせ" },
-  { scene: "category-sheet", label: "カテゴリーの移動・作成・名前変更" },
-  { scene: "place-notify-designs", label: "場所の通知 A/B/C/D" },
-  { scene: "home-album", label: "アルバム（重ならない配置）" },
-  { scene: "dex-map", label: "地図（時間軸を送るとバブルが動く）" },
-  { scene: "map-calendar-designs", label: "地図の暦 A/B/C/D" },
-  { scene: "dex-cards&n=24&at=5", label: "図鑑スライド（暗い舞台・点・写真の列）" },
-  { scene: "home-tap", label: "写真→詳細の開き方 A/B/C/D（角は丸いまま）" },
-  { scene: "capture-object&mode=search", label: "検索欄（ガラス）" },
-  { scene: "settings-polish", label: "設定（ガラス）" },
-  { scene: "review-choice", label: "復習の4択（ガラス）" },
-  { scene: "glass-surfaces", label: "試作: 本文・写真・カードにガラス" },
-  { scene: "word-card&show=real_usage", label: "単語の詳細（注音を字の右に縦に・実際の使われ方）" },
-  { scene: "word-candidate", label: "候補（注音を字の右に縦に）" },
-  { scene: "memory-curve", label: "記憶のグラフ（なめらか・復習の戻りは灰色）" },
-  { scene: "analyzing-designs", label: "AI 分析中の動き A〜E" },
-  { scene: "catch-sound", label: "キャッチの祝福（音 A〜E・はじけ 1〜4）" },
-  { scene: "home-ink", label: "試作: アルバムに書き込む（ペン・ラベル・形・色）" },
-  { scene: "page-flip", label: "試作: ページめくり（スマホ／折りたたみの見開き）" },
-  { scene: "candidate-designs", label: "単語の候補 A/B/C/D（ふだんの言い方を上）" },
+  { scene: "first-catch", label: "初回体験をはじめる" },
+  { scene: "first-catch&step=questions", label: "質問" },
+  { scene: "first-catch&step=home", label: "ホーム" },
+  { scene: "first-catch&step=dex", label: "図鑑をスライド" },
+  { scene: "first-catch&step=review", label: "復習を体験" },
+  { scene: "first-catch&step=account", label: "登録・ログイン" },
 ];
 
 const explicitScene = q.get("scene");
@@ -372,6 +351,10 @@ const explicitScene = q.get("scene");
 // 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
 const showReviewBar = q.get("review") === "1" || !explicitScene;
 const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
+document.documentElement.style.setProperty(
+  "--first-viewport-height",
+  showReviewBar ? "calc(100dvh - 42px)" : "100dvh",
+);
 
 /**
  * 表示言語を切り替えて撮る(`?lang=zh-TW`)。

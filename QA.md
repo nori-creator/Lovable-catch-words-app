@@ -82,3 +82,11 @@ The minimum review experience should be intentionally small.
 - major privacy/RLS issue;
 - displayed memory probability with misleading/undefined semantics;
 - unbounded collection queries likely to fail at realistic scale.
+
+## Shared tutorial release checks
+- Change a production tab, collection view, card section or review control once; confirm both the normal app and tutorial render that change.
+- Home → actual camera → actual candidate picker → capture card → shared landing animation → collection views → shared detail sheet → real four-choice exercise / memory modal → completion → full-screen auth.
+- Verify the guide allows only the intended controls, including keyboard access; no duplicate UI and no tutorial CSS overriding production card dimensions.
+- Verify guest detail/review never calls authenticated storage or scheduled-review mutations.
+- Normal motion: show the screen for 1.6 seconds, expand the blue 24px frame to the measured target over 850ms, then show the coach. Reduced motion follows the app preference and must still reveal the coach.
+- Repeat with direct signup, refresh/resume, three UI languages, narrow screens and real iOS camera/AI. Static preview data alone is not evidence of live AI or iOS success.

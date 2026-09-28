@@ -336,16 +336,6 @@ function ShelfItem({
             {s.word.headword}
           </span>
         )}
-        {/* 再会の回数。ギャラリーには出ていたのに棚では消えていた —
-            何度も出会った語ほど覚える、というこのアプリの芯にある印。 */}
-        {s.encounter_count > 1 && (
-          <span
-            aria-hidden
-            className="absolute -right-1 -top-1 rounded-full bg-warn px-1 text-caption font-bold leading-[1.4] text-warn-foreground shadow"
-          >
-            ×{s.encounter_count}
-          </span>
-        )}
       </span>
     </button>
   );

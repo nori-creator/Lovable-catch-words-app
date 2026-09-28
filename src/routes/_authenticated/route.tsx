@@ -5,6 +5,8 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LoadFailed } from "@/components/LoadFailed";
+import { useServerFn } from "@tanstack/react-start";
+import { getMyProfile } from "@/lib/profile.functions";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -15,6 +17,7 @@ const SESSION_TIMEOUT_MS = 8000;
 
 function AuthenticatedLayout() {
   const navigate = useNavigate();
+  const fetchProfile = useServerFn(getMyProfile);
   const [state, setState] = useState<"checking" | "ready" | "failed">("checking");
   const [attempt, setAttempt] = useState(0);
   const [pending, setPending] = useState<{ draft: FirstCatch; userId: string } | null>(null);
@@ -46,10 +49,23 @@ function AuthenticatedLayout() {
             navigate({ to: "/auth", replace: true, search: { next: "" } });
           else navigate({ to: "/welcome", replace: true });
         } else {
-          // An unavailable guest draft must not lock out an existing account.
+          // Complete the photographed word's transfer before entering the app.
           const draft = await readFirstCatch().catch(() => null);
           if (!active) return;
-          if (draft && canRequestAccount(draft)) setPending({ draft, userId: session.user.id });
+          if (draft && canRequestAccount(draft)) {
+            setPending({ draft, userId: session.user.id });
+            setState("ready");
+            return;
+          }
+          // Direct email/OAuth signup has no local first-catch draft yet. The old
+          // one-screen onboarding skipped the questions and hands-on tutorial.
+          // Use the same first-run flow regardless of which entry created the account.
+          const profile = await fetchProfile();
+          if (!active) return;
+          if (!profile?.onboarded) {
+            void navigate({ to: "/welcome", replace: true });
+            return;
+          }
           setState("ready");
         }
       })
@@ -66,7 +82,7 @@ function AuthenticatedLayout() {
       active = false;
       sub.subscription.unsubscribe();
     };
-  }, [navigate, attempt]);
+  }, [navigate, attempt, fetchProfile]);
 
   if (state === "failed") {
     return (
