@@ -1346,6 +1346,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "cap.otherNamesN": { ja: "ほかの言い方 {n}", en: "{n} other names", "zh-TW": "其他說法 {n}" },
   "cap.regSpecific": { ja: "くわしい名前", en: "Specific name", "zh-TW": "具體名稱" },
   "cap.regProper": { ja: "固有名詞", en: "Proper noun", "zh-TW": "專有名詞" },
+  "cap.regCasual": { ja: "砕けた言い方", en: "Casual", "zh-TW": "口語說法" },
+  "cap.inPhoto": { ja: "写っている物", en: "In the photo", "zh-TW": "照片裡的東西" },
   "cap.photoCutout": { ja: "切り抜いた写真", en: "Cut-out photo", "zh-TW": "去背後的照片" },
   "cap.selfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "cap.wordPlaceholder": { ja: "例: 椅子", en: "e.g. 椅子", "zh-TW": "例：椅子" },

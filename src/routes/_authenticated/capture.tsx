@@ -139,7 +139,7 @@ type Suggestion = {
   distinction?: string;
   category_key: string;
   /** ふだん度（並べ替えと2段目の札に使う）。 */
-  register?: "common" | "specific" | "proper" | null;
+  register?: "common" | "casual" | "specific" | "proper" | null;
   /** 写真のどの物か（同じ物の別の呼び方は同じ番号）。無ければ1語で1つ。 */
   group?: number | null;
 };

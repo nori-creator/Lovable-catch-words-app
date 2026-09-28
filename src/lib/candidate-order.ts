@@ -7,9 +7,14 @@
  * 呼び方ごとに `register` を付けさせ、ここで**ふだんの呼び方 → 正確な名前 →
  * 固有名詞**の順に並べ直す。同じ段の中は AI の順（確からしさ）を保つ。
  */
-export type Register = "common" | "specific" | "proper";
+/**
+ * 呼び方の種類。`casual` は**砕けた言い方**（略語・若者言葉。オーナー指示 2026-09-28
+ * 「ほかの詳しい言い方、専門的な言い方、砕けた言い方、固有名詞などは小さく」）。
+ * 並びは ふだん → 砕けた → くわしい → 固有名詞。
+ */
+export type Register = "common" | "casual" | "specific" | "proper";
 
-const RANK: Record<Register, number> = { common: 0, specific: 1, proper: 2 };
+const RANK: Record<Register, number> = { common: 0, casual: 1, specific: 2, proper: 3 };
 
 export function orderByRegister<T extends { register?: Register | null }>(
   items: readonly T[],

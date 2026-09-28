@@ -97,7 +97,7 @@ const SuggestionSchema = z.object({
          * いちばんよく口にする呼び方、`specific` = 正確・専門的な名前、
          * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
          */
-        register: z.enum(["common", "specific", "proper"]).optional().catch(undefined),
+        register: z.enum(["common", "casual", "specific", "proper"]).optional().catch(undefined),
         /**
          * **写真のどの物か**の番号（2026-09-27）。写っている別々の物に 0,1,2…、
          * 同じ物の別の呼び方には同じ番号。画面はこれで1段目（物ごとに1語）と
@@ -163,7 +163,9 @@ ${langRule}
 
 **写っている物ごとに分ける（group）:**
 - 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
-- 同じ物に別の呼び方（正確な名前・固有名詞など）があれば、**同じ group の番号で**続けて出す。
+- 同じ物に別の呼び方（正確な名前・固有名詞・**砕けた言い方（略語・口語）**など）があれば、
+  **同じ group の番号で**続けて出す。register は ふだん=common / 砕けた=casual /
+  くわしい・専門的=specific / 固有名詞=proper。
   別の呼び方が無い物は1つだけでよい。無理に作らない。
 - 物は最大5つ、1つの物の呼び方は最大3つ。
 
@@ -187,7 +189,10 @@ ${langRule}
 
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
 
-${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
+${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
+- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
+  候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
+  「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
     let content: string;
     try {
@@ -199,7 +204,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`,
               },
               { type: "image", image: data.imageBase64 },
             ],

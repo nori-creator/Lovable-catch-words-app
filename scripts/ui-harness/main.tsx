@@ -26,6 +26,7 @@ import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
+import { CandidatePickerScene } from "./scenes/candidate-picker";
 import { InputCatchScene } from "./scenes/input-catch";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { CameraStripScene } from "./scenes/camera-strip";
@@ -226,6 +227,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
+  "candidate-picker": CandidatePickerScene,
   "input-catch": InputCatchScene,
   "hero-picker": HeroPickerScene,
   "reward-catch": RewardCatchScene,
@@ -376,7 +378,10 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "widget-designs", label: "案: ホーム画面のウィジェット（iPhone / Android）" },
   { scene: "home-memorial", label: "節目の日の記念アルバム（入口 → 開く）" },
   { scene: "monetization-designs", label: "案: サブスク（無料と Pro）と広告の出る所" },
-  { scene: "admin-users", label: "開発者: 利用者の全体グラフ・比較（見本の数字。?view=user でひとり）" },
+  {
+    scene: "admin-users",
+    label: "開発者: 利用者の全体グラフ・比較（見本の数字。?view=user でひとり）",
+  },
   { scene: "ai-models", label: "開発者: AI の使い分け（機能ごと・説明つき）" },
   { scene: "word-card", label: "単語の詳細（注音が重ならない・不要な項目を削除）" },
   { scene: "regen-magic", label: "解説の作り直し（古いまま待ち、魔法のように入れ替わる）" },

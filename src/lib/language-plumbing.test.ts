@@ -5952,3 +5952,17 @@ describe("記念アルバムは開いた瞬間に祝う", () => {
     expect(reveal).toMatch(/dataset\.motion === "reduce"/);
   });
 });
+
+describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
+  it("1段目に大きな札（HeroWord）を置かず、使い分けの一言も出さない。砕けた言い方も並べる", () => {
+    // 2026-09-28「柚子みたいにこれだけ大きく表示したり、単語の解説を長く書くのではなく、
+    // 他にも写ってるものと同じ大きさで表示して」「説明が長すぎる文はなしで」。
+    const src = codeOnly(read("components/CandidatePicker.tsx"));
+    const stage1 = src.slice(src.indexOf('data-stage="1"'), src.indexOf("function HeroWord"));
+    expect(stage1).not.toMatch(/<HeroWord/);
+    expect(stage1).toMatch(/note=\{false\}/);
+    expect(src).toMatch(/line-clamp-2/);
+    expect(codeOnly(read("lib/candidate-order.ts"))).toMatch(/casual: 1/);
+    expect(codeOnly(read("lib/ai.functions.ts"))).toMatch(/distinction は15文字以内/);
+  });
+});
