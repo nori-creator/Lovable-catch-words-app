@@ -95,10 +95,34 @@ declare module "three" {
   export const AdditiveBlending: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const NormalBlending: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const MathUtils: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type InstancedBufferAttribute = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const InstancedBufferAttribute: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Sprite = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Sprite: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type SpriteMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const SpriteMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Object3DEventMap = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Sphere = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Sphere: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Float32BufferAttribute: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
   export const GLTFLoader: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 declare module "three/examples/jsm/environments/RoomEnvironment.js" {
   export const RoomEnvironment: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+declare module "three/examples/jsm/postprocessing/EffectComposer.js" {
+  export type EffectComposer = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const EffectComposer: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+declare module "three/examples/jsm/postprocessing/RenderPass.js" {
+  export const RenderPass: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+declare module "three/examples/jsm/postprocessing/UnrealBloomPass.js" {
+  export type UnrealBloomPass = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const UnrealBloomPass: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+declare module "three/examples/jsm/postprocessing/OutputPass.js" {
+  export const OutputPass: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
