@@ -52,6 +52,7 @@ import { WidgetDesignsScene } from "./scenes/widget-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
 import { FxLabScene } from "./scenes/fx-lab";
+import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
@@ -188,6 +189,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "admin-users": AdminUsersScene,
   "monetization-designs": MonetizationDesignsScene,
   "fx-lab": FxLabScene,
+  "word-detail-designs": WordDetailDesignsScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -354,6 +356,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "word-detail-designs", label: "案: 単語の詳細を1から A/B/C/D（根拠つき）" },
   { scene: "fx-lab", label: "試作: 分析中・キャッチの演出を GPU で描く" },
   { scene: "monetization-designs", label: "案: サブスク（無料と Pro）と広告の出る所" },
   { scene: "admin-users", label: "開発者: 利用者ごとの情報（見本の数字）" },
