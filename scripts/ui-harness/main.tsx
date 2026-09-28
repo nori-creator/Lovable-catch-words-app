@@ -27,6 +27,7 @@ import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { InputCatchScene } from "./scenes/input-catch";
+import { ImageSettingsScene } from "./scenes/image-settings";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { CameraStripScene } from "./scenes/camera-strip";
 import { RewardCatchScene } from "./scenes/reward-catch";
@@ -197,6 +198,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
   "input-catch": InputCatchScene,
+  "image-settings": ImageSettingsScene,
   "hero-picker": HeroPickerScene,
   "reward-catch": RewardCatchScene,
   "word-card-empty": WordCardEmptyScene,
@@ -330,6 +332,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "image-settings", label: "画像生成の設定" },
+  { scene: "input-catch&variant=typed", label: "文字検索" },
+  { scene: "home-album", label: "ホームのアルバム" },
   { scene: "first-catch", label: "初回体験をはじめる" },
   { scene: "first-catch&step=questions", label: "質問" },
   { scene: "first-catch&step=home", label: "ホーム" },

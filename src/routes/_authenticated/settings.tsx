@@ -28,7 +28,11 @@ import {
   updateMyProfile,
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
-import { checkIsAdmin } from "@/lib/admin.functions";
+import {
+  checkIsAdmin,
+  getImageGenerationSettings,
+  setImageGenerationSettings,
+} from "@/lib/admin.functions";
 import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
 import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
@@ -1535,6 +1539,7 @@ function AdminOnlySection() {
           名前は「画面の明るさ」と区別できる「配色デザイン」のまま。 */}
       <UiThemePicker />
       <AiModelPanel />
+      <ImageGenerationPanel />
       <TtsVoicePanel />
     </div>
   );
@@ -1633,6 +1638,134 @@ function TtsVoicePanel() {
         toast.success(t("settings.ttsSaved"));
       }}
     />
+  );
+}
+
+const IMAGE_OPTIONS = [
+  {
+    id: "lovable",
+    label: "Lovable AI",
+    key: "LOVABLE_API_KEY",
+    defaultModel: "openai/gpt-image-1-mini",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    key: "OPENROUTER_API_KEY",
+    defaultModel: "bytedance-seed/seedream-5-0-pro",
+  },
+  {
+    id: "google",
+    label: "Google AI Studio",
+    key: "GEMINI_API_KEY",
+    defaultModel: "gemini-2.5-flash-image",
+  },
+  { id: "openai", label: "OpenAI", key: "OPENAI_API_KEY", defaultModel: "gpt-image-1-mini" },
+  { id: "off", label: "画像生成を停止", key: "", defaultModel: "" },
+] as const;
+type ImageOption = (typeof IMAGE_OPTIONS)[number]["id"];
+
+type ImagePreviewData = {
+  effective: { provider: ImageOption; model: string };
+  keys: Record<Exclude<ImageOption, "off">, boolean>;
+};
+
+export function ImageGenerationPanel({ previewData }: { previewData?: ImagePreviewData } = {}) {
+  const getFn = useServerFn(getImageGenerationSettings);
+  const setFn = useServerFn(setImageGenerationSettings);
+  const qc = useQueryClient();
+  const { data: liveData, error } = useQuery({
+    queryKey: ["image-generation-settings"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+    enabled: !previewData,
+  });
+  const data = previewData ?? liveData;
+  const [provider, setProvider] = useState<ImageOption>("lovable");
+  const [model, setModel] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!data) return;
+    setProvider(data.effective.provider as ImageOption);
+    setModel(data.effective.model);
+  }, [data]);
+  const option = IMAGE_OPTIONS.find((o) => o.id === provider)!;
+  const keyPresent = provider === "off" || Boolean(data?.keys[provider]);
+  async function save() {
+    setSaving(true);
+    try {
+      await setFn({ data: { provider, model: model.trim() } });
+      await qc.invalidateQueries({ queryKey: ["image-generation-settings"] });
+      toast.success("画像生成の設定を保存しました");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "設定を保存できませんでした");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
+        文字検索のAI画像
+      </summary>
+      <div className="mt-4 space-y-3 text-footnote">
+        <p className="text-muted-foreground">
+          文字で見つけた単語の詳細と復習に、AI画像を1枚作ります。ホームのアルバムには表示しません。
+        </p>
+        <p className="rounded-xl bg-secondary/60 p-3">
+          現在:{" "}
+          {data
+            ? `${IMAGE_OPTIONS.find((o) => o.id === data.effective.provider)?.label ?? data.effective.provider} / ${data.effective.model || "停止"}`
+            : error
+              ? "設定を読み込めませんでした"
+              : "読み込み中…"}
+        </p>
+        <Label htmlFor="image-provider">画像を作るサービス</Label>
+        <select
+          id="image-provider"
+          value={provider}
+          onChange={(e) => {
+            const next = e.target.value as ImageOption;
+            setProvider(next);
+            setModel(IMAGE_OPTIONS.find((o) => o.id === next)!.defaultModel);
+          }}
+          className="min-h-11 w-full rounded-xl border border-input bg-background px-3 text-field"
+        >
+          {IMAGE_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {provider !== "off" && (
+          <>
+            <p className={keyPresent ? "text-ok-ink" : "text-destructive-ink"}>
+              {keyPresent
+                ? "✓ サーバにキーがあります"
+                : `キーがありません。Lovable → Cloud → Secrets に ${option.key} を追加してください。`}
+            </p>
+            <Label htmlFor="image-model">画像モデル</Label>
+            <Input
+              id="image-model"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={option.defaultModel}
+              autoComplete="off"
+            />
+            <p className="text-muted-foreground">
+              キーはこの画面に入力しません。各サービスのAPIキーをSecretsへ保存し、ここで提供元を選んでください。
+            </p>
+          </>
+        )}
+        <Button
+          onClick={save}
+          disabled={saving || !data || !keyPresent || Boolean(previewData)}
+          className="w-full"
+        >
+          {saving ? "保存中…" : "画像生成の設定を保存"}
+        </Button>
+      </div>
+    </details>
   );
 }
 
