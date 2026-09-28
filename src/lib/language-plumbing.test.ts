@@ -6003,3 +6003,29 @@ describe("本棚の本を開くと、1日＝1見開き（左＝その日のア�
     );
   });
 });
+
+describe("指の端末ではページ全体を巻き取らず、殻だけを巻き取る（下のバーが隠れる件、2026-09-28）", () => {
+  const css = read("styles.css");
+  const rootSrc = read("routes/__root.tsx");
+  const shell = codeOnly(read("components/AppShell.tsx"));
+
+  it("頭の script が指の端末に印を立て、殻を画面の高さに固定して中だけ巻き取る", () => {
+    expect(rootSrc).toMatch(
+      /matchMedia\("\(pointer: coarse\)"\)\.matches\)document\.documentElement\.dataset\.scrollRoot="shell"/,
+    );
+    expect(css).toMatch(
+      /html\[data-scroll-root="shell"\]:has\(\[data-app-shell\]\) body \{\s*height: 100%;\s*overflow: hidden;/,
+    );
+    expect(css).toMatch(
+      /html\[data-scroll-root="shell"\] \[data-app-shell\]:not\(\.overflow-hidden\) \{\s*height: 100dvh;[^}]*overflow-y: auto;/,
+    );
+    expect(shell).toMatch(/ensureScrollRootMark\(\)/);
+    expect(shell).toMatch(/data-scroll-restoration-id="app-shell"/);
+  });
+
+  it("巻き取りを読む所は殻も見る（上のバーの縁・案内の位置合わせ）", () => {
+    expect(read("hooks/use-scrolled.tsx")).toMatch(/scrollTopNow\(\) > threshold/);
+    expect(read("components/onboarding/Spotlight.tsx")).toMatch(/scrollByY\(-90\)/);
+    expect(read("router.tsx")).toMatch(/scrollToTopSelectors: \["\[data-app-shell\]"\]/);
+  });
+});

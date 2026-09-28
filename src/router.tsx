@@ -26,6 +26,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // 指の端末では殻が巻き取る（`lib/scroll-root.ts`）。別の画面へ移ったら殻も上へ。
+    scrollToTopSelectors: ["[data-app-shell]"],
     defaultPreloadStaleTime: 0,
     /**
      * **押す前に、行き先を取りに行く。**（オーナー報告 2026-09-15

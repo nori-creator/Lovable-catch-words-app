@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { scrollByY } from "@/lib/scroll-root";
 
 /** Overlay blocks pointer input outside the target; capture listeners also block
  * keyboard/assistive clicks and background scroll. No clone of the real control. */
@@ -34,7 +35,7 @@ export function Spotlight({
     if (!node) return;
     node.scrollIntoView({ block: "start", behavior: "instant" });
     // Leave the bottom of the viewport for the coach, rather than covering the target.
-    if (target !== ".camera-shutter") window.scrollBy(0, -90);
+    if (target !== ".camera-shutter") scrollByY(-90);
     const measure = () => setRect(node.getBoundingClientRect());
     measure();
     const observer = new ResizeObserver(measure);

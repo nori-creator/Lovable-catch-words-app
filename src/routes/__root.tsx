@@ -174,7 +174,8 @@ try{
   if(mv!=="full"&&mv!=="reduce"&&mv!=="system")mv=md;
   var osr=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.documentElement.dataset.${MOTION_ATTR}=mv==="system"?(osr?"reduce":"full"):mv;
-}catch(e){document.documentElement.dataset.${MOTION_ATTR}="full"}})()`,
+}catch(e){document.documentElement.dataset.${MOTION_ATTR}="full"}
+try{if(window.matchMedia("(pointer: coarse)").matches)document.documentElement.dataset.scrollRoot="shell"}catch(e){}})()`,
       },
       {
         type: "application/ld+json",

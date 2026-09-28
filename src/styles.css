@@ -4053,6 +4053,30 @@ html[data-motion="reduce"] {
   );
 }
 
+/*
+ * **指の端末ではページ全体を巻き取らない。殻だけを巻き取る**（オーナー報告
+ * 2026-09-28「アプリをしたにスクロールすると下のバーが隠れる」）。
+ *
+ * iOS 26 の Safari は、ページ全体の巻き取りで道具バーが縮む間、下端に固定した物を
+ * 正しい位置に描かない（Apple Developer Forums 801028 / mastodon#36144。上の
+ * `safe-area-max-inset-bottom` の手当ては Android 向けで、これには効かない）。
+ * 殻（`[data-app-shell]`）を画面の高さに固定して中だけを巻き取らせれば、道具バーは
+ * 縮まず、下のバーもずれない。殻の無い画面（ログイン等）と机の上のブラウザは今まで通り。
+ * 印は `__root.tsx` の頭の script（`pointer: coarse`）。`lib/scroll-root.ts` も参照。
+ */
+html[data-scroll-root="shell"]:has([data-app-shell]),
+html[data-scroll-root="shell"]:has([data-app-shell]) body {
+  height: 100%;
+  overflow: hidden;
+}
+/* 画面の高さに収める作りの殻（`fixedViewport` の `overflow-hidden`）はそのまま。 */
+html[data-scroll-root="shell"] [data-app-shell]:not(.overflow-hidden) {
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .tabbar-dock {
   position: fixed;
   inset-inline: 0;

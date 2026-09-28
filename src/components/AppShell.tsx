@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Home, BookOpen, Settings, Sparkles, Camera } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { ensureScrollRootMark } from "@/lib/scroll-root";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { getMyStats, type UserStats } from "@/lib/stats.functions";
@@ -337,6 +338,11 @@ export function AppShell({
   // 滞在時間と離れる直前の画面（`session-tracker.ts`）。1回だけ仕掛ける。
   useEffect(() => installSessionTracker(), []);
 
+  // 指の端末では殻が巻き取り役（iOS 26 Safari の下端固定のずれ対策、`lib/scroll-root.ts`）。
+  useEffect(() => {
+    ensureScrollRootMark();
+  }, []);
+
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {
     try {
@@ -354,6 +360,8 @@ export function AppShell({
   return (
     <div
       data-app-shell=""
+      // 指の端末では殻が巻き取り役（`lib/scroll-root.ts`）。戻った時の位置を覚える。
+      data-scroll-restoration-id="app-shell"
       className={
         fixedViewport
           ? "h-dvh overflow-hidden bg-background"
