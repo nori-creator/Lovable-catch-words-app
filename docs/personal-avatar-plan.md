@@ -5,7 +5,24 @@
 顔・服装などで画像または動画が単語の詳細に表示されるようにしたい。自分自身の顔や声によって
 より記憶に定着しやすく、自分がネイティブのように喋れる時の想像ができて学習効率が高いと思う。」）
 
-**この文書は計画。まだ何も作っていない。** 事実は 2026-09-28 時点で調べた物（下に出典）。
+**2026-09-28 試作を開始**（確認用ページ `?scene=voice-face`）: 同意 → 10秒の録音 → 顔の写真 →
+単語の詳細で「ネイティブ / 自分の声」を切り替え → 全部消す、の流れ。**どこにも送らない**（端末の中だけ）。
+
+### 声: Google Chirp 3: Instant Custom Voice（2026-09-28 調べ）
+
+- **約10秒の録音**から本人の声を作る。中国語（cmn-CN）・日本語（ja-JP）を含む 30 以上の地域に対応。
+- **許可制（allowlist）**: 安全のため、Google の営業窓口に申し込んで許可された利用者だけが使える。
+  声を作る時に、本人が決まった同意の文を読んだ録音（10秒以内）も求められる。
+- 出典: [Chirp 3: Instant Custom Voice（Google Cloud 公式）](https://docs.cloud.google.com/text-to-speech/docs/chirp3-instant-custom-voice)、
+  [Cloud TTS リリースノート](https://docs.cloud.google.com/text-to-speech/docs/release-notes)、
+  [使い方のノートブック（GoogleCloudPlatform/generative-ai）](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/audio/speech/getting-started/get_started_with_chirp3_instant_custom_voice.ipynb)
+- 次の手順: ① Google Cloud で申請（オーナー） ② 許可後、サーバに「声を作る・読む」の窓口を足す。
+  鍵はサーバだけが読む。
+
+### 顔: Seedance / Higgsfield の参照画像つき生成
+- Higgsfield はこの環境から外へ出られず（通信の制限）試せていない（R11-01）。試作では見本の絵に写真を重ねるだけ。
+
+（以下は 2026-09-27 に書いた計画）
 
 ---
 
