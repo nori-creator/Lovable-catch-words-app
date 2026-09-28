@@ -29,7 +29,6 @@ import {
   Sparkles,
   Bug,
   ChevronDown,
-  ChevronsUpDown,
   Search,
   Plus,
 } from "lucide-react";
@@ -55,13 +54,7 @@ import { haptic } from "@/lib/haptics";
 import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
-import {
-  clampToVisible,
-  containPoint,
-  focusedIndex,
-  SCAN_FRAME_Y,
-  zoomCrop,
-} from "@/lib/scan-layout";
+import { clampToVisible, containPoint, SCAN_FRAME_Y, zoomCrop } from "@/lib/scan-layout";
 import { rankScanCandidates } from "@/lib/jev.functions";
 import { putScanHandoff } from "@/lib/scan-handoff";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
@@ -1476,48 +1469,57 @@ export function ScanCandidateStrip({
     sc.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
   }, [activeId]);
 
+  /**
+   * **Apple の選択の輪（UIPickerView）と同じ形**（オーナー指示 2026-09-28
+   * 「縦にスクロールすると候補が選べるようにして。Apple のようなスクロールや選択画面に」）。
+   *
+   * 1行だけの箱は「払った分だけ送る」自前の仕組みだったが、指の慣性が効かず
+   * 硬かった。**3行見せる輪**にして、転がすのはブラウザの巻き取り（慣性・端の返り
+   * は OS の物）＋1行に吸い付く `scroll-snap`。真ん中の帯に来た行が「いま見ている
+   * 候補」で、写真の上のその点が光る。真ん中の行を押すと開き、上下の行を押すと
+   * その行が真ん中へ転がる（輪と同じ）。
+   */
+  const ROW = 52;
+  const paint = () => {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    const center = sc.scrollTop / ROW;
+    const reduce = motionReducedNow();
+    items.forEach((it, i) => {
+      const el = rowRefs.current.get(it.id);
+      if (!el) return;
+      const d = i - center;
+      const a = Math.min(Math.abs(d), 2);
+      el.style.transform = reduce ? "" : `rotateX(${d * -24}deg) scale(${1 - a * 0.07})`;
+      el.style.opacity = String(Math.max(0.28, 1 - a * 0.42));
+    });
+  };
   const onScroll = () => {
+    paint();
     if (performance.now() < programmaticUntil.current) return;
     cancelAnimationFrame(frameRef.current);
     frameRef.current = requestAnimationFrame(() => {
       const sc = scrollerRef.current;
       if (!sc) return;
-      // 横の列と同じ選び方を、縦に読み替えて使う。
-      const boxes = items.map((it) => {
-        const el = rowRefs.current.get(it.id);
-        return { left: el?.offsetTop ?? 0, width: el?.offsetHeight ?? 0 };
-      });
-      const i = focusedIndex(boxes, {
-        scrollLeft: sc.scrollTop,
-        width: sc.clientHeight,
-        scrollWidth: sc.scrollHeight,
-      });
-      if (i >= 0 && items[i].id !== activeId) onFocus(items[i].id);
+      const i = Math.max(0, Math.min(items.length - 1, Math.round(sc.scrollTop / ROW)));
+      if (items[i] && items[i].id !== activeId) {
+        haptic("selection");
+        onFocus(items[i].id);
+      }
     });
   };
   useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
+  useEffect(() => {
+    requestAnimationFrame(paint);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
-  /**
-   * **1行の箱は、払った分だけ1つずつ送る。**（オーナー報告 2026-09-23
-   * 「スキャン後の候補のスクロールがしにくい」）
-   *
-   * 1行ぶんの高さしかない箱をブラウザの巻き取りに任せると、指の動きが
-   * 小さすぎて止まる所が読めない（吸い付く前に戻ってしまう）。時計の
-   * ダイヤルと同じく、**上へ払えば次、下へ払えば前**。大きく払えば
-   * その分だけ進む（32px で1つ）。押しただけなら、その候補を選ぶ。
-   */
   const activeIndex = Math.max(
     0,
     items.findIndex((it) => it.id === activeId),
   );
-  const step = (n: number) => {
-    if (!items.length) return;
-    const j = Math.max(0, Math.min(items.length - 1, activeIndex + n));
-    if (items[j]) onFocus(items[j].id);
-  };
-  const swipe = useRef<{ y: number; id: number; moved: boolean } | null>(null);
-  const swallowClick = useRef(false);
   const active = items[activeIndex];
+  const rows = Math.min(3, Math.max(1, items.length));
 
   return (
     <div className="flex items-end gap-2" data-scan-strip>
@@ -1529,75 +1531,52 @@ export function ScanCandidateStrip({
           </p>
         </div>
       ) : (
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
+        <div
+          className="scan-wheel relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick"
+          style={{ height: ROW * rows + 8 }}
+        >
+          {/* 選択の帯。**動かない** — 動くのは行のほう（輪と同じ）。 */}
+          <span className="scan-wheel__band" aria-hidden style={{ height: ROW }} />
           {items.length > 1 && (
-            // 1行しか見えないので、**まだ下にある**ことを数で言う。押すと次へ
-            // （最後なら先頭へ）。指の当たりは 44px。
-            <button
-              type="button"
-              onClick={() => (activeIndex >= items.length - 1 ? step(-items.length) : step(1))}
-              aria-label={t("scan.nextCandidate")}
-              className="absolute right-1 top-1/2 z-10 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-0.5 rounded-full px-2 text-caption tabular-nums text-muted-foreground"
-            >
+            <span className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2 text-caption tabular-nums text-muted-foreground">
               {activeIndex + 1}/{items.length}
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-            </button>
+            </span>
           )}
           <div
             ref={scrollerRef}
             onScroll={onScroll}
-            onPointerDown={(e) => {
-              // 払った後にブラウザが押しを出さないこともあるので、次の押しで
-              // 必ず解く（残ると、次に本当に押した候補が開かない）。
-              swallowClick.current = false;
-              swipe.current = { y: e.clientY, id: e.pointerId, moved: false };
-            }}
-            onPointerMove={(e) => {
-              const sw = swipe.current;
-              if (sw && sw.id === e.pointerId && Math.abs(e.clientY - sw.y) > 8) sw.moved = true;
-            }}
-            onPointerUp={(e) => {
-              const sw = swipe.current;
-              swipe.current = null;
-              if (!sw || sw.id !== e.pointerId || !sw.moved) return;
-              const dy = e.clientY - sw.y;
-              const n = Math.round(-dy / 32) || -Math.sign(dy);
-              swallowClick.current = true;
-              step(n);
-            }}
-            onPointerCancel={() => {
-              swipe.current = null;
-            }}
-            onWheel={(e) => {
-              if (Math.abs(e.deltaY) < 4) return;
-              step(Math.sign(e.deltaY));
-            }}
             role="listbox"
             aria-label={t("scan.found")}
-            className="scan-box relative touch-none overflow-hidden p-1"
+            aria-activedescendant={active ? `scan-cand-${active.id}` : undefined}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+              e.preventDefault();
+              const j = Math.max(
+                0,
+                Math.min(items.length - 1, activeIndex + (e.key === "ArrowDown" ? 1 : -1)),
+              );
+              if (items[j]) onFocus(items[j].id);
+            }}
+            className="scan-wheel__scroll"
           >
+            <div aria-hidden style={{ height: rows > 1 ? ROW * ((rows - 1) / 2) + 4 : 4 }} />
             {items.map((it) => {
               const st = dotStateFor(it.headword, scanCtx);
               const on = it.id === activeId;
               return (
                 <button
                   key={it.id}
+                  id={`scan-cand-${it.id}`}
                   ref={(el) => {
                     if (el) rowRefs.current.set(it.id, el);
                     else rowRefs.current.delete(it.id);
                   }}
                   role="option"
                   aria-selected={on}
-                  onClick={() => {
-                    if (swallowClick.current) {
-                      swallowClick.current = false;
-                      return;
-                    }
-                    onOpen(it);
-                  }}
-                  className={`press-in flex min-h-12 w-full items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
-                    on ? "bg-card shadow-sm ring-2 ring-primary" : ""
-                  }`}
+                  onClick={() => (on ? onOpen(it) : onFocus(it.id))}
+                  className="scan-wheel__item flex w-full items-center gap-2.5 pl-4 pr-14 text-left"
+                  style={{ height: ROW }}
                 >
                   <span
                     aria-hidden
@@ -1612,7 +1591,6 @@ export function ScanCandidateStrip({
                   <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
                     {it.headword}
                   </span>
-                  {/* 注音は長い語で数の札に潜っていた（360px 実測）。縮めて省く側に回す。 */}
                   {it.zhuyin && (
                     <span className="min-w-0 shrink truncate text-caption text-muted-foreground">
                       {it.zhuyin}
@@ -1634,7 +1612,9 @@ export function ScanCandidateStrip({
                 </button>
               );
             })}
+            <div aria-hidden style={{ height: rows > 1 ? ROW * ((rows - 1) / 2) + 4 : 4 }} />
           </div>
+          <span className="scan-wheel__fade" aria-hidden />
         </div>
       )}
       {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する

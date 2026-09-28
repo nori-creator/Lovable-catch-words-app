@@ -8,7 +8,7 @@
  *
  * 部品だけを撮ると、部品どうしの重なり（写真の下の黒い地・下の帯との
  * 被り）は一度も写らない。実物と同じ3つを同じ座標で置く:
- *   1) 画面いっぱいの写真と光の点（`coverPoint` で写真に合わせる）
+ *   1) 写真と光の点。写真の箱は操作シートの上まで（本番と同じ `containPoint`）
  *   2) 候補の箱（本物の `ScanCandidateStrip`。中だけが縦に動く）
  *   3) 本物の `TabBar`（カメラの中なので暗い）
  *
@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
 import { ScanCandidateStrip, ScanDots } from "@/routes/_authenticated/scan";
-import { clampToVisible, coverPoint } from "@/lib/scan-layout";
+import { containPoint, SCAN_FRAME_Y } from "@/lib/scan-layout";
 
 const ITEMS = [
   { label: "ホーム", icon: Home },
@@ -80,17 +80,31 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
   const nothing = q.get("variant") === "nothing";
   const items = nothing ? [] : FOUND;
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [box, setBox] = useState({ w: 390, h: 844 });
+  /**
+   * **本番と同じ置き方**（2026-09-28）: 写真の箱は上から**操作シートの上まで**。
+   * 候補の輪が写真に重ならない（オーナー指摘「候補の表示が後ろの画面にかぶって、
+   * ものが隠れてる」）。点は写真と同じ `containPoint` で置く。
+   */
+  const [box, setBox] = useState({ w: 390, h: 600 });
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const [sheetTop, setSheetTop] = useState(844);
+  const [sheetH, setSheetH] = useState(160);
   useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
     const measure = () => {
-      setBox({ w: window.innerWidth, h: window.innerHeight });
-      setSheetTop(sheetRef.current?.getBoundingClientRect().top ?? window.innerHeight);
+      const h = el.getBoundingClientRect().height;
+      setSheetH(h);
+      const bottom = window.innerHeight - el.getBoundingClientRect().top + 8;
+      setBox({ w: window.innerWidth, h: Math.max(200, window.innerHeight - bottom) });
     };
     measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
   // 出会い方: 写真あり → 持っている / 写真なし → 再会 / 載っていない → はじめて
   const ctx = {
@@ -98,24 +112,32 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
     tappedSet: new Set<string>(),
   } as never;
   const dotStyle = useCallback(
-    (it: { point: [number, number] }) =>
-      clampToVisible(coverPoint(it.point, { w: 720, h: 1280 }, box), {
-        w: box.w,
-        bottom: sheetTop,
-      }),
-    [box, sheetTop],
+    (it: { point: [number, number] }) => containPoint(it.point, { w: 720, h: 1280 }, box),
+    [box],
   );
   return (
     <div className="fixed inset-0 z-20 overflow-hidden bg-black">
-      <img src={PHOTO} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <ScanDots
-        items={items}
-        scanCtx={ctx}
-        dotStyle={dotStyle as never}
-        onOpen={(it) => setActiveId((it as { id: string }).id)}
-        activeId={activeId}
-        boxWidth={box.w}
-      />
+      <div
+        className="absolute inset-x-0 top-0 overflow-hidden"
+        style={{ height: box.h }}
+        data-scan-photo-box
+        data-sheet-h={Math.round(sheetH)}
+      >
+        <img
+          src={PHOTO}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+          style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
+        />
+        <ScanDots
+          items={items}
+          scanCtx={ctx}
+          dotStyle={dotStyle as never}
+          onOpen={(it) => setActiveId((it as { id: string }).id)}
+          activeId={activeId}
+          boxWidth={box.w}
+        />
+      </div>
       <div
         ref={sheetRef}
         className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"

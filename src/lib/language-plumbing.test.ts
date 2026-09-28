@@ -5462,19 +5462,21 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).not.toMatch(/\{!snapshot && \(\s*<video/);
   });
 
-  it("**候補は下の箱の中で縦に送る。画面は動かない**（2026-09-23 の指示で横送りから変更）", () => {
+  it("**候補は Apple の選択の輪で縦に選ぶ。画面は動かない**（2026-09-28 の指示で1行の箱から変更）", () => {
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
-    // 1行の箱は巻き取りに任せず、払った分だけ1つずつ送る（2026-09-23 の
-    // 4回目の指示「スクロールしにくい」）。画面は動かない。
-    expect(scan).toMatch(/className="scan-box relative touch-none overflow-hidden p-1"/);
-    expect(scan).toMatch(/const n = Math\.round\(-dy \/ 32\) \|\| -Math\.sign\(dy\);/);
-    // 数の札は押せば次の候補へ。追加のボタンはいま出ている候補を図鑑へ。
-    expect(scan).toMatch(/aria-label=\{t\("scan\.nextCandidate"\)\}/);
+    // 転がすのはブラウザの巻き取り（慣性・端の返りは OS の物）＋1行に吸い付く。
+    expect(scan).toMatch(/className="scan-wheel__scroll"/);
+    expect(css).toMatch(/\.scan-wheel__scroll \{[^}]*scroll-snap-type: y mandatory;/);
+    expect(css).toMatch(/\.scan-wheel__item \{[^}]*scroll-snap-align: center;/);
+    // 3行ぶん見せる。真ん中の行を押すと開き、上下の行は真ん中へ転がす。
+    expect(scan).toMatch(/const rows = Math\.min\(3, Math\.max\(1, items\.length\)\);/);
+    expect(scan).toMatch(/onClick=\{\(\) => \(on \? onOpen\(it\) : onFocus\(it\.id\)\)\}/);
+    // 追加のボタンはいま出ている候補を図鑑へ。
     expect(scan).toMatch(/onClick=\{\(\) => onOpen\(active\)\}/);
-    // 一番下の1行ぶん（2026-09-23 の3回目の指示）。
-    expect(css).toMatch(/\.scan-box \{[^}]*max-height: calc\(3rem \+ 0\.5rem\);/);
+    // 1行の箱は消えた。
+    expect(css).not.toMatch(/\.scan-box \{/);
   });
 
   it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {
@@ -5721,7 +5723,7 @@ describe("スキャンの候補を押したら撮影モードと同じ流れ（�
 
   it("撮り直しは右下の端（箱の後ろに置く）", () => {
     const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
-    const box = strip.indexOf('className="scan-box');
+    const box = strip.indexOf('className="scan-wheel__scroll"');
     const again = strip.indexOf('aria-label={t("scan.again")}');
     expect(box).toBeGreaterThan(0);
     expect(again).toBeGreaterThan(box);

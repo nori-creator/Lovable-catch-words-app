@@ -7648,18 +7648,63 @@ html[data-motion="reduce"] .reward-catch__field::after {
   box-shadow: 0 1px 3px #00000059;
 }
 
-/* スキャン後の候補の箱（`ScanCandidateStrip`）。**高さは決めて、中だけが
-   縦に動く**（オーナー指示 2026-09-23「画面は固定し、スクロールすると
-   ボックスのなかの単語の候補が見える」「1番下の1行で縦にスクロール」）。
-   1行ずつ止まる。スクロールバーは出さない。 */
-.scan-box {
-  /* 一番下の1行ぶん（オーナー指示 2026-09-23）。行は 3rem、上下の余白 0.25rem ずつ。 */
-  max-height: calc(3rem + 0.5rem);
+
+/* スキャン後の候補の**選択の輪**（`ScanCandidateStrip`、オーナー指示 2026-09-28
+   「縦にスクロールすると候補が選べるように。Apple のようなスクロールや選択画面」）。
+   設定の輪（`.wheel`）と同じ作り: 転がすのはブラウザ、見た目だけこちら。 */
+.scan-wheel {
+  perspective: 600px;
+}
+.scan-wheel__scroll {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform-style: preserve-3d;
   scrollbar-width: none;
   touch-action: pan-y;
 }
-.scan-box::-webkit-scrollbar {
+.scan-wheel__scroll::-webkit-scrollbar {
   display: none;
+}
+.scan-wheel__scroll:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.scan-wheel__item {
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.scan-wheel__band {
+  position: absolute;
+  left: 0.375rem;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--primary) 70%, transparent),
+    0 2px 8px -4px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
+/* 上下を溶かす（切り落とすと円筒ではなく窓に見える）。 */
+.scan-wheel__fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--background) 55%, transparent) 0%,
+    transparent 34%,
+    transparent 66%,
+    color-mix(in oklab, var(--background) 55%, transparent) 100%
+  );
 }
 
 /* 下の列で注目している候補の光。**大きくなって、揺れる**
