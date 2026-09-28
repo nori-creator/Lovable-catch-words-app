@@ -68,10 +68,21 @@ import {
 } from "@/lib/place-reminder";
 import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
 import { ModelPicker } from "@/components/ModelPicker";
+import {
+  MAX_CUSTOM_TIMES,
+  planReminders,
+  readAppOpens,
+  writeLocalReminderPrefs,
+  type ReminderMode,
+  type ReminderPrefs,
+} from "@/lib/review-reminder";
+import { loadReminderPrefs } from "@/components/ReviewReminderWatcher";
+import { getUpcomingDueTimes } from "@/lib/reviews.functions";
+import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Loader2, Trash2, User } from "lucide-react";
+import { LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 import {
   Sound,
@@ -871,6 +882,13 @@ function SettingsPage() {
             />
           </div>
           <PhotoLibrarySyncToggle />
+        </SettingsCard>
+
+        {/* 通知（オーナー指示 2026-09-27「チュートリアル中に通知の時刻を設定できる
+            ようにしてるんだけど、それを設定の項目に追加して実装して」）。
+            時刻の通知と、場所の通知をここにまとめる。 */}
+        <SettingsCard title={t("settings.notifications")}>
+          <ReviewReminderSettings />
           <PlaceReminderToggle />
         </SettingsCard>
 
@@ -1330,6 +1348,154 @@ export function PhotoLibrarySyncToggle() {
           setPhotoLibrarySyncEnabled(next);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * **復習の通知の時刻。**（`review-reminder.ts`）
+ *
+ * - オフ / 時刻を決める（3つまで）/ おまかせ（復習がたまる時刻・昨日開いた時刻）。
+ * - 選んだその場で保存（アカウントと端末の写し）し、予約を置き直す。
+ * - オフから入れたときに通知の許可を求め、断られたらオフに戻して理由を出す
+ *   （「オンなのに鳴らない」を作らない。場所の通知と同じ考え）。
+ * - 次にいつ鳴るかを1行で見せる（おまかせが何をするのか分かるように）。
+ */
+export function ReviewReminderSettings() {
+  const t = useT();
+  const fetchDue = useServerFn(getUpcomingDueTimes);
+  const [prefs, setPrefs] = useState<ReminderPrefs | null>(null);
+  const [denied, setDenied] = useState(false);
+  const [dueTimes, setDueTimes] = useState<Date[]>([]);
+  useEffect(() => {
+    void loadReminderPrefs().then(setPrefs);
+    fetchDue()
+      .then((r) => setDueTimes(r.dueTimes.map((d) => new Date(d))))
+      .catch(() => {});
+  }, [fetchDue]);
+  if (!prefs) return null;
+
+  const save = async (next: ReminderPrefs) => {
+    if (prefs.mode === "off" && next.mode !== "off") {
+      const res = await requestNotificationPermissionDetailed();
+      if (!res.ok) {
+        setDenied(true);
+        return;
+      }
+    }
+    setDenied(false);
+    setPrefs(next);
+    writeLocalReminderPrefs(next);
+    window.dispatchEvent(new Event("review-reminder-changed"));
+    // アカウントにも残す（機種変更しても同じ時刻で鳴るように）。失敗しても端末では効く。
+    void supabase.auth.updateUser({ data: { notification_preferences: next } }).catch(() => {});
+  };
+
+  const plan = planReminders(prefs, { dueTimes, opens: readAppOpens() }, new Date());
+  const first = plan[0];
+  const when = (() => {
+    if (!first) return null;
+    const time = first.at.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const today = first.at.toDateString() === new Date().toDateString();
+    const label = t(today ? "remind.today" : "remind.tomorrow", { time });
+    const why =
+      first.reason === "srs"
+        ? t("remind.reasonSrs")
+        : first.reason === "habit"
+          ? t("remind.reasonHabit")
+          : "";
+    return label + why;
+  })();
+
+  return (
+    <div className="space-y-3">
+      <ChoiceRow<ReminderMode>
+        cols={3}
+        label={t("remind.label")}
+        value={prefs.mode}
+        onChange={(mode) => void save({ ...prefs, mode })}
+        options={[
+          { value: "off", label: t("remind.off") },
+          { value: "custom", label: t("remind.custom") },
+          { value: "ai", label: t("remind.ai") },
+        ]}
+      />
+      {prefs.mode === "custom" && (
+        <div className="space-y-2">
+          {prefs.times.map((time, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={time}
+                aria-label={t("remind.custom")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{2}:\d{2}$/.test(v)) return;
+                  const times = prefs.times.map((x, j) => (j === i ? v : x));
+                  void save({ ...prefs, times });
+                }}
+                className="h-11 w-32 text-body tabular-nums"
+              />
+              {prefs.times.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={t("remind.removeTime")}
+                  onClick={() =>
+                    void save({ ...prefs, times: prefs.times.filter((_, j) => j !== i) })
+                  }
+                  className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {prefs.times.length < MAX_CUSTOM_TIMES && (
+            <button
+              type="button"
+              onClick={() => void save({ ...prefs, times: [...prefs.times, "20:00"] })}
+              className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-footnote font-semibold text-primary"
+            >
+              <Plus className="h-4 w-4" />
+              {t("remind.addTime")}
+            </button>
+          )}
+        </div>
+      )}
+      {prefs.mode === "ai" && (
+        <div className="space-y-2">
+          <ToggleRow
+            label={t("remind.aiSrs")}
+            description={t("remind.aiSrsDesc")}
+            value={prefs.ai.srs}
+            onChange={(v) => void save({ ...prefs, ai: { ...prefs.ai, srs: v } })}
+          />
+          <ToggleRow
+            label={t("remind.aiHabit")}
+            description={t("remind.aiHabitDesc")}
+            value={prefs.ai.habit}
+            onChange={(v) => void save({ ...prefs, ai: { ...prefs.ai, habit: v } })}
+          />
+        </div>
+      )}
+      {prefs.mode !== "off" && (
+        <div className="space-y-0.5 text-caption leading-relaxed text-muted-foreground">
+          <p className="font-semibold text-foreground">
+            {when ? t("remind.next", { when }) : t("remind.nextNone")}
+          </p>
+          <p>{t("remind.quiet")}</p>
+          {!Capacitor.isNativePlatform() && <p>{t("remind.webOnly")}</p>}
+        </div>
+      )}
+      {denied && (
+        <p className="rounded-xl bg-amber-50 p-2 text-caption leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          {t("remind.denied")}
+        </p>
+      )}
     </div>
   );
 }

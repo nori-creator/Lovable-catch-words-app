@@ -78,6 +78,7 @@ import {
   SettingsPolishScene,
   SettingsChoicesScene,
   SettingsDangerScene,
+  SettingsNotifyScene,
   SettingsSelectsScene,
   SettingsSourcesScene,
   SettingsTogglesScene,
@@ -164,6 +165,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-sources": SettingsSourcesScene,
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
+  "settings-notify": SettingsNotifyScene,
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
@@ -340,6 +342,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "album-shelf",
     label: "試作: ホーム上の月ごとのアルバムの本棚 A/B/C（押すと開く・表紙に描く）",
   },
+  { scene: "settings-notify", label: "設定: 通知（時刻を決める / おまかせ・場所）" },
   { scene: "scan-pick-designs", label: "案: スキャン候補の選び方と「図鑑に追加」A/B/C/D" },
   { scene: "chunk-designs", label: "チャンク（公式の形・具体語）" },
   // ガラスは本番に全部当てた（同日「すべてに適用して」）。

@@ -1667,3 +1667,37 @@ ${l1Order}
 
     return { ...scaffold, caption_seed: captionSeed };
   });
+
+/**
+ * **これから24時間で復習の時が来る語の時刻**（通知の「おまかせ」用。
+ * `review-reminder.ts` の `srsBestTime`）。時が過ぎている語も含む。
+ * 絞りは `getDueReviews` と同じ学習言語（ほかの言語の語で鳴らさない）。
+ */
+export const getUpcomingDueTimes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const horizon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const langFilter = wordLanguageFilter(await getUserTargetLanguage(userId));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    let res = await db
+      .from("reviews")
+      .select("due_at, stickers!inner(words!inner(language))")
+      .eq("user_id", userId)
+      .lte("due_at", horizon)
+      .or(langFilter, { referencedTable: "stickers.words" })
+      .order("due_at", { ascending: true })
+      .limit(200);
+    if (res.error) {
+      res = await db
+        .from("reviews")
+        .select("due_at")
+        .eq("user_id", userId)
+        .lte("due_at", horizon)
+        .order("due_at", { ascending: true })
+        .limit(200);
+    }
+    const rows = (res.error ? [] : (res.data ?? [])) as Array<{ due_at: string | null }>;
+    return { dueTimes: rows.map((r) => r.due_at).filter((v): v is string => !!v) };
+  });

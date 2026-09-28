@@ -1886,6 +1886,79 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "place.langZh": { ja: "台湾華語", en: "Mandarin", "zh-TW": "華語" },
   "place.langEn": { ja: "英語", en: "English", "zh-TW": "英文" },
   // B「写真を大きく」（オーナー決定 2026-09-27）。写真が手がかりなので、題は短く問うだけ。
+  // 復習の通知の時刻（オーナー指示 2026-09-27）。`review-reminder.ts`。
+  "settings.notifications": { ja: "通知", en: "Notifications", "zh-TW": "通知" },
+  "remind.label": { ja: "復習の通知", en: "Review reminders", "zh-TW": "複習提醒" },
+  "remind.off": { ja: "オフ", en: "Off", "zh-TW": "關閉" },
+  "remind.custom": { ja: "時刻を決める", en: "Set times", "zh-TW": "自訂時間" },
+  "remind.ai": { ja: "おまかせ", en: "Smart", "zh-TW": "智慧安排" },
+  "remind.addTime": { ja: "時刻を追加", en: "Add a time", "zh-TW": "新增時間" },
+  "remind.removeTime": { ja: "この時刻を消す", en: "Remove this time", "zh-TW": "刪除這個時間" },
+  "remind.aiSrs": { ja: "復習がたまる時刻", en: "When reviews pile up", "zh-TW": "複習累積時" },
+  "remind.aiSrsDesc": {
+    ja: "忘れかけた単語が5語そろう頃に1回",
+    en: "Once, when about 5 words start to fade",
+    "zh-TW": "快忘記的單字累積到約 5 個時提醒一次",
+  },
+  "remind.aiHabit": {
+    ja: "昨日アプリを開いた時刻",
+    en: "The time you opened the app yesterday",
+    "zh-TW": "昨天打開 App 的時間",
+  },
+  "remind.aiHabitDesc": {
+    ja: "いつもの空き時間に合わせます",
+    en: "Fits your usual free time",
+    "zh-TW": "配合你平常的空檔",
+  },
+  "remind.next": { ja: "次の通知: {when}", en: "Next: {when}", "zh-TW": "下次提醒：{when}" },
+  "remind.nextNone": {
+    ja: "いまは鳴らす予定がありません",
+    en: "No reminder planned for now",
+    "zh-TW": "目前沒有預定的提醒",
+  },
+  "remind.today": { ja: "今日 {time}", en: "Today {time}", "zh-TW": "今天 {time}" },
+  "remind.tomorrow": { ja: "明日 {time}", en: "Tomorrow {time}", "zh-TW": "明天 {time}" },
+  "remind.reasonSrs": {
+    ja: "（復習がたまる時刻）",
+    en: " (reviews piling up)",
+    "zh-TW": "（複習累積時）",
+  },
+  "remind.reasonHabit": {
+    ja: "（昨日開いた時刻）",
+    en: " (when you opened it yesterday)",
+    "zh-TW": "（昨天打開的時間）",
+  },
+  "remind.quiet": {
+    ja: "22:00〜8:00 は鳴らしません",
+    en: "No reminders between 22:00 and 8:00",
+    "zh-TW": "22:00～8:00 不會提醒",
+  },
+  "remind.webOnly": {
+    ja: "ブラウザでは、アプリを開いている間だけ鳴ります。",
+    en: "In the browser, reminders only work while the app is open.",
+    "zh-TW": "在瀏覽器中，只有開著 App 時才會提醒。",
+  },
+  "remind.denied": {
+    ja: "通知が許可されていません。端末の設定で CatchWords の通知をオンにしてください。",
+    en: "Notifications are blocked. Turn them on for CatchWords in your device settings.",
+    "zh-TW": "通知未被允許。請在裝置設定中開啟 CatchWords 的通知。",
+  },
+  "remind.title": { ja: "復習の時間です", en: "Time to review", "zh-TW": "該複習了" },
+  "remind.body": {
+    ja: "復習する単語が{n}語あります",
+    en: "You have {n} words to review",
+    "zh-TW": "有 {n} 個單字要複習",
+  },
+  "remind.bodySrs": {
+    ja: "忘れかけの単語が{n}語。いまがいちばん覚え直しやすい時です",
+    en: "{n} words are fading. Now is the best time to refresh them",
+    "zh-TW": "有 {n} 個單字快忘了，現在複習最有效",
+  },
+  "remind.bodyEmpty": {
+    ja: "撮った単語を見直しましょう",
+    en: "Take another look at the words you caught",
+    "zh-TW": "來看看你收集的單字吧",
+  },
   "place.sayItIn": {
     ja: "ここで撮った、これ。{lang}で言える？",
     en: "You caught this here. Can you say it in {lang}?",

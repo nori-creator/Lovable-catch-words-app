@@ -12,6 +12,7 @@ import { useLanguagePrefsSync, useRefreshOnTargetLanguage } from "@/lib/use-lang
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
+import { ReviewReminderWatcher } from "@/components/ReviewReminderWatcher";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 import { TabBar } from "@/components/TabBar";
@@ -414,6 +415,8 @@ export function AppShell({
       {/* 場所による思い出し。どの画面にいても効くよう、殻の側に置く。
           設定でONにした人だけ動く(既定はOFF)。 */}
       <PlaceMemoryWatcher />
+      {/* 復習の通知の予約（設定で「時刻を決める / おまかせ」にした人だけ鳴る）。 */}
+      <ReviewReminderWatcher />
 
       <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity} onCamera={onCameraScreen}>
         {items.map(({ to, labelKey, icon: Icon }, i) => {
