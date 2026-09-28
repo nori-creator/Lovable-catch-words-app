@@ -18,7 +18,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
-import { ScanCandidateStrip, ScanDots, ScanSnapshotPhoto } from "@/routes/_authenticated/scan";
+import {
+  ScanAgainButton,
+  ScanCandidateStrip,
+  ScanDots,
+  ScanSnapshotPhoto,
+} from "@/routes/_authenticated/scan";
 import { containPoint } from "@/lib/scan-layout";
 
 const ITEMS = [
@@ -94,9 +99,9 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
     const measure = () => {
       const h = el.getBoundingClientRect().height;
       setSheetH(h);
-      // 本番の `.scan-frame` と同じ: 上は 2.75rem、下はシートの上端 − 0.5rem。
+      // 本番の `.scan-frame` と同じ: 上は 2.75rem、下は面の上端 + 1.5rem（面の裏まで）。
       const top = 44;
-      const bottom = el.getBoundingClientRect().top - 8;
+      const bottom = el.getBoundingClientRect().top + 24;
       setBox({ w: window.innerWidth, h: Math.max(200, bottom - top) });
     };
     measure();
@@ -122,7 +127,7 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
       <div className="capture-viewfinder__light fixed inset-0" aria-hidden />
       <div
         className="scan-frame fixed overflow-hidden"
-        style={{ height: box.h }}
+        style={{ height: box.h, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
         data-scan-photo-box
         data-sheet-h={Math.round(sheetH)}
       >
@@ -135,10 +140,11 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
           activeId={activeId}
           boxWidth={box.w}
         />
+        <ScanAgainButton onAgain={() => {}} />
       </div>
       <div
         ref={sheetRef}
-        className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+        className="scan-sheet fixed inset-x-0 bottom-0 z-30 space-y-2 pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-3"
       >
         <ScanCandidateStrip
           items={items}
@@ -146,7 +152,6 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
           activeId={activeId}
           onFocus={setActiveId}
           onOpen={(it) => setActiveId(it.id)}
-          onAgain={() => {}}
           nothingFound={nothing}
         />
       </div>

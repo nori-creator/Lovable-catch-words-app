@@ -4583,7 +4583,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 2026-09-27 から映像の箱そのものがシートのすぐ上で終わる（上下の余白を
     // 詰めた）。粒は箱の下端に付くので、同じくシートの上に来る。
     expect(src).toMatch(
-      /bottom: `calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
+      /`calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
     );
     expect(src).toMatch(/zoomBottom="0\.5rem"/);
     // 画面の下端に貼り付ける書き方が残っていないこと。
@@ -5477,25 +5477,23 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).not.toMatch(/\{!snapshot && \(\s*<video/);
   });
 
-  it("**候補は Apple の選択の輪で縦に選ぶ。画面は動かない**（2026-09-28 の指示で1行の箱から変更）", () => {
+  it("**候補は写真に繋がった1枚の面。行ごとに右端の追加、撮り直しは写真の右上**（R13 2026-09-28）", () => {
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
-    // 転がすのはブラウザの巻き取り（慣性・端の返りは OS の物）＋1行に吸い付く。
-    expect(scan).toMatch(/className="scan-wheel__scroll"/);
-    expect(css).toMatch(/\.scan-wheel__scroll \{[^}]*scroll-snap-type: y mandatory;/);
-    // 選択の帯は一番上の行（2026-09-28「バランスよく」— 真ん中だと開いた直後に上の1行が空く）。
-    expect(css).toMatch(/\.scan-wheel__item \{[^}]*scroll-snap-align: start;/);
-    expect(css).toMatch(/\.scan-wheel__scroll \{[^}]*scroll-padding-top: 4px;/);
-    expect(scan).toMatch(/style=\{\{ height: ROW, top: WHEEL_PAD, transform: "none" \}\}/);
-    expect(scan).toMatch(/<div aria-hidden style=\{\{ height: WHEEL_PAD \}\} \/>/);
-    // 3行ぶん見せる。帯の行を押すと開き、ほかの行は帯へ転がす。
-    expect(scan).toMatch(/const rows = Math\.min\(3, Math\.max\(1, items\.length\)\);/);
-    expect(scan).toMatch(/onClick=\{\(\) => \(on \? onOpen\(it\) : onFocus\(it\.id\)\)\}/);
-    // 追加のボタンはいま出ている候補を図鑑へ。
-    expect(scan).toMatch(/onClick=\{\(\) => onOpen\(active\)\}/);
-    // 1行の箱は消えた。
-    expect(css).not.toMatch(/\.scan-box \{/);
+    expect(scan).not.toMatch(/scan-wheel/);
+    // 面は画面の下端まで届き、写真は面の裏まで伸びる（間に地が覗かない）。
+    expect(scan).toMatch(/"scan-sheet fixed inset-x-0 bottom-0 z-30/);
+    expect(scan).toMatch(/bottom: showList\s*\?\s*`calc\(\$\{sheetSize\.h\}px - 1\.5rem\)`/);
+    expect(css).toMatch(/\.scan-sheet \{[^}]*border-radius: 1\.5rem 1\.5rem 0 0;/);
+    // 行ごとの追加。
+    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
+    expect(strip.slice(0, strip.indexOf("export function ScanAgainButton"))).toMatch(
+      /onClick=\{\(\) => onOpen\(it\)\}/,
+    );
+    // 撮り直しは写真の箱の中（右上）。
+    expect(scan).toMatch(/\{showList && <ScanAgainButton onAgain=\{reset\} \/>\}/);
+    expect(scan).toMatch(/className="scan-again press-in absolute right-2 top-2/);
   });
 
   it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {
@@ -5521,8 +5519,11 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 
-  it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {
-    expect(scan).toMatch(/if \(performance\.now\(\) < programmaticUntil\.current\) return;/);
+  it("**一覧を送っても注目は奪わない**（点を押した候補が送りの途中で別の候補に替わった。R13 からは送り自体が注目を変えない）", () => {
+    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
+    expect(strip.slice(0, strip.indexOf("export function ScanAgainButton"))).not.toMatch(
+      /onScroll=/,
+    );
   });
 });
 
@@ -5745,14 +5746,6 @@ describe("スキャンの候補を押したら撮影モードと同じ流れ（�
     expect(cap).toMatch(/setStep\("select"\);[\s\S]{0,80}void confirmWord\(h\.headword, first\)/);
     // 渡された写真は、同じ描画のうちに ref から読む。
     expect(cap).toMatch(/const photo = objectImageRef\.current \?\? objectImg;/);
-  });
-
-  it("撮り直しは右下の端（箱の後ろに置く）", () => {
-    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
-    const box = strip.indexOf('className="scan-wheel__scroll"');
-    const again = strip.indexOf('aria-label={t("scan.again")}');
-    expect(box).toBeGreaterThan(0);
-    expect(again).toBeGreaterThan(box);
   });
 });
 
