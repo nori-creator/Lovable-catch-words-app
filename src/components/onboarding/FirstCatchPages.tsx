@@ -1,6 +1,7 @@
-import { ArrowLeft, ArrowRight, Bell, Moon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, BellOff, Sparkles } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
+import { normalizeReminderPrefs, type ReminderMode } from "@/lib/review-reminder";
 import type { ReactNode } from "react";
 import "./first-catch.css";
 
@@ -76,15 +77,19 @@ export function FirstCatchNotifications({
   draft: FirstCatch;
   busy: boolean;
   error: ReactNode;
-  onChange: (reminders: { morning: boolean; evening: boolean }) => void;
+  onChange: (reminders: { mode: ReminderMode; times: string[] }) => void;
   onBack: () => void;
   onContinue: () => void;
 }) {
   const t = useT();
-  const reminders = draft.reminders ?? { morning: false, evening: false };
+  // 設定と同じ3つ（オフ / 自動 / 時刻を指定）。古い下書きもここで今の形に揃える。
+  const prefs = normalizeReminderPrefs(draft.reminders ?? null);
+  const mode = draft.reminders ? prefs.mode : "ai";
+  const time = prefs.times[0] ?? "09:00";
   const items = [
-    { key: "morning" as const, Icon: Bell, time: "9:00" },
-    { key: "evening" as const, Icon: Moon, time: "21:00" },
+    { key: "ai" as const, Icon: Sparkles },
+    { key: "custom" as const, Icon: Bell },
+    { key: "off" as const, Icon: BellOff },
   ];
   return (
     <div className="first-run">
@@ -115,31 +120,40 @@ export function FirstCatchNotifications({
           <h1>{t("first.notificationsTitle")}</h1>
           <p className="first-sub">{t("first.notificationsHint")}</p>
         </div>
-        <div className="first-reminders">
-          {items.map(({ key, Icon, time }) => (
+        <div className="first-reminders" role="radiogroup" aria-label={t("remind.label")}>
+          {items.map(({ key, Icon }) => (
             <button
               key={key}
               type="button"
-              role="switch"
-              aria-checked={reminders[key]}
+              role="radio"
+              aria-checked={mode === key}
               disabled={busy}
               className="first-reminder"
-              onClick={() => onChange({ ...reminders, [key]: !reminders[key] })}
+              onClick={() => onChange({ mode: key, times: [time] })}
             >
               <span className="first-reminder-icon">
-                <Icon size={22} fill={key === "morning" ? "currentColor" : "none"} />
+                <Icon size={22} />
               </span>
               <span className="first-reminder-text">
-                <strong>{t(`first.reminder.${key}`)}</strong>
-                <small>{time}</small>
+                <strong>{t(`remind.${key}`)}</strong>
               </span>
-              <span className="first-toggle" aria-hidden="true">
-                <i />
-              </span>
+              <span className="first-radio" aria-hidden="true" />
             </button>
           ))}
+          {mode === "custom" && (
+            <input
+              type="time"
+              value={time}
+              aria-label={t("remind.custom")}
+              disabled={busy}
+              className="first-reminder-time"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^\d{2}:\d{2}$/.test(v)) onChange({ mode: "custom", times: [v] });
+              }}
+            />
+          )}
         </div>
-        <p className="first-notification-note">{t("first.notificationsNote")}</p>
         {error}
         <footer className="first-footer">
           <PrimaryAction onClick={onContinue} disabled={busy}>

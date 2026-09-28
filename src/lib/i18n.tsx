@@ -155,17 +155,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Choose what feels useful. You can change this later.",
     "zh-TW": "只選需要的，之後隨時可以更改。",
   },
-  "first.reminder.morning": {
-    ja: "学習のリマインダー",
-    en: "Learning reminder",
-    "zh-TW": "學習提醒",
-  },
-  "first.reminder.evening": { ja: "夜の振り返り", en: "Evening review", "zh-TW": "晚間複習" },
-  "first.notificationsNote": {
-    ja: "通知の配信は準備中です。選んだ時間は登録時に保存し、配信が始まったら使います。",
-    en: "Reminders aren’t sent yet. Your choice is saved at sign-up and used once they launch.",
-    "zh-TW": "提醒功能仍在準備中。你選的時間會在註冊時保存，上線後就會使用。",
-  },
   "first.readyTitle": { ja: "準備ができました！", en: "You’re all set!", "zh-TW": "準備好了！" },
   "first.readyHint": {
     ja: "まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。",

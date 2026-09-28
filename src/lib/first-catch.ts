@@ -39,7 +39,20 @@ export const FirstCatchSchema = z.object({
   photo: z.string().max(4_000_000).nullable(),
   card: CardSchema.nullable(),
   lesson: PersonalLessonSchema.optional(),
-  reminders: z.object({ morning: z.boolean(), evening: z.boolean() }).optional(),
+  /**
+   * 復習の通知。**設定と同じ3つ**（オフ / 自動 / 時刻を指定。オーナー指示 2026-09-28
+   * 「設定の通知とチュートリアルの通知の整合性とって」）。古い下書きの `{ morning, evening }`
+   * も読める（`normalizeReminderPrefs` が今の形に揃える）。
+   */
+  reminders: z
+    .union([
+      z.object({
+        mode: z.enum(["off", "ai", "custom"]),
+        times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).max(3),
+      }),
+      z.object({ morning: z.boolean(), evening: z.boolean() }),
+    ])
+    .optional(),
   capturedAt: z.string().datetime().nullable(),
   importedUserId: z.string().uuid().optional(),
   /** 登録前にAIを使えず、見本の写真と単語で体験した下書き。登録後に写真と単語は引き継がない。 */

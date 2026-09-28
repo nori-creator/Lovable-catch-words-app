@@ -8,7 +8,7 @@
 .first-count { font-size: 12px; color: #65778c; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .first-question-heading { text-align: center; margin: 36px 0 0; }
 .first-eyebrow { display: block; color: #0083df; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
-.first-questions h1, .first-sub, .first-ready-heading p, .first-notification-note { text-wrap: pretty; word-break: auto-phrase; }
+.first-questions h1, .first-sub, .first-ready-heading p { text-wrap: pretty; word-break: auto-phrase; }
 .first-questions h1 { font-size: clamp(25px, 6.7vw, 30px); font-weight: 750; line-height: 1.45; letter-spacing: -.035em; margin: 14px 0 12px; white-space: pre-line; }
 .first-sub { font-size: 14px; line-height: 1.8; color: #65778c; }
 .first-choices { display: grid; gap: 12px; margin: 30px 0; }
@@ -262,12 +262,11 @@
 .first-reminder-text { display: grid; gap: 3px; flex: 1; }
 .first-reminder-text strong { font-size: 15px; font-weight: 700; }
 .first-reminder-text small { font-size: 13px; color: #75849a; }
-.first-toggle { width: 46px; height: 28px; padding: 3px; border-radius: 20px; background: #d8e1ea; transition: background .2s; }
-.first-toggle i { display: block; width: 22px; height: 22px; border-radius: 50%; background: white; box-shadow: 0 1px 4px #0002; transition: transform .2s; }
-.first-reminder[aria-checked="true"] .first-toggle { background: #008cf3; }
-.first-reminder[aria-checked="true"] .first-toggle i { transform: translateX(18px); }
+.first-reminder[aria-checked="true"] { border-color: #008cf3; box-shadow: 0 0 0 1px #008cf3, 0 7px 24px #0e679a14; }
+.first-radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c9d4e1; flex: none; transition: border-color .18s, border-width .18s; }
+.first-reminder[aria-checked="true"] .first-radio { border: 7px solid #008cf3; }
+.first-reminder-time { justify-self: start; height: 48px; padding: 0 16px; border: 1px solid #e6edf5; border-radius: 16px; background: white; font-size: 17px; font-variant-numeric: tabular-nums; }
 /* 準備中であることは、飾らずに注記として書く（前は光る印つきの箱で、機能の宣伝に見えた）。 */
-.first-notification-note { margin: 4px 4px 0; color: #62768c; font-size: 13px; line-height: 1.65; }
 
 .first-ready { position: relative; align-items: center; height: 100dvh; min-height: 0; overflow: hidden; }
 .first-ready-back { position: absolute; top: max(20px, env(safe-area-inset-top)); left: 20px; }
