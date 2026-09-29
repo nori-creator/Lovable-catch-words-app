@@ -95,14 +95,76 @@ const REVIEW_CHUNKS: Sample[] = [
     ja: "タピオカミルクティー、甘さ半分・氷少なめ",
   },
 ];
+/**
+ * R17 の報告そのもの（オーナーの絵: 「加熱」が点線・「滷味＋入味」に 很 が無い）。AI が返した
+ * ままの形を置き、画面が直して描くことを確かめる: 動詞の 加熱 は点線にならない（slot が
+ * 付いていても）、滷味＋入味 は 滷味＋很＋入味 と描かれ、読み上げも「滷味很入味」。
+ */
+const LUWEI = "滷味";
+const LUWEI_CHUNKS: Sample[] = [
+  {
+    parts: [
+      { text: "買", pos: "V" },
+      {
+        text: "豆干",
+        pos: "N",
+        slot: true,
+        alts: [
+          { text: "海帶", ja: "昆布" },
+          { text: "米血", ja: "米血糕" },
+          { text: "百頁豆腐", ja: "百頁豆腐" },
+        ],
+      },
+      { text: "滷味", pos: "N" },
+    ],
+    ja: "豆干の滷味を買う",
+  },
+  {
+    parts: [
+      {
+        text: "加熱",
+        pos: "V",
+        slot: true,
+        alts: [{ text: "加辣", ja: "辛くする" }],
+      },
+      { text: "滷味", pos: "N" },
+    ],
+    ja: "滷味を温める",
+  },
+  {
+    parts: [
+      { text: "滷味", pos: "N" },
+      { text: "入味", pos: "Vs" },
+    ],
+    ja: "滷味によく味が染みている",
+  },
+];
 const speech = (c: Sample) => c.parts.map((p) => p.text).join("");
-readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS].map(speech));
+readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS, ...LUWEI_CHUNKS].map(speech));
 
 export function ChunkDesignsScene() {
   return (
     <div style={{ padding: "12px 16px 96px", display: "grid", gap: 16 }}>
+      <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+        <h3 className="mb-2 text-body font-semibold">R17: 報告の形（{LUWEI}）</h3>
+        <div className="usage-chunks">
+          {LUWEI_CHUNKS.map((c, i) => (
+            <div key={i} className="usage-chunk-row">
+              <ChunkLine
+                parts={c.parts}
+                translation={c.ja}
+                lang="zh-TW"
+                headword={LUWEI}
+                speakText={speech(c)}
+                onSpeak={() => {}}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
       <p style={{ margin: 0, fontSize: 12, color: "#6e6e73" }}>
-        点線の四角（▾）を押すと、ネイティブがよく入れる語が並び、送って選べます。学ぶ語（{WORD}
+        点線の四角（▾）を押すと、ネイティブがよく入れる語が縦の輪に並び、回して止めた語で型ぜんぶが鳴ります。学ぶ語（
+        {WORD}
         ）は入れ替えません。
       </p>
       <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">

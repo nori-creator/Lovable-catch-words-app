@@ -3052,6 +3052,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "shelf.home.next": { ja: "次のページ", en: "Next page", "zh-TW": "下一頁" },
   "shelf.home.leftPage": { ja: "左のページ", en: "Left page", "zh-TW": "左頁" },
   "shelf.home.rightPage": { ja: "右のページ", en: "Right page", "zh-TW": "右頁" },
+  "shelf.home.cover": { ja: "表紙", en: "Cover", "zh-TW": "封面" },
+  "shelf.home.pencilSkip": {
+    ja: "タップで書き終える",
+    en: "Tap to finish writing",
+    "zh-TW": "點一下寫完",
+  },
   "shelf.home.diaryFont": { ja: "日記の字体", en: "Diary font", "zh-TW": "日記字體" },
   "shelf.home.writeDiary": { ja: "日記を書く", en: "Write a diary", "zh-TW": "寫日記" },
   "shelf.home.rewriteDiary": { ja: "日記を書き直す", en: "Edit the diary", "zh-TW": "修改日記" },

@@ -4998,13 +4998,13 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R16）: 上の帯の本棚・縦の一覧の注音・図鑑スライド。
+    // 2026-09-29 の回（R17）: 部屋に置いた本棚（A〜D）・チャンク・撮る画面の左下の「写真」。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
-    expect(list).toMatch(/scene: "dex-drag&list=1"/);
-    expect(list).toMatch(/scene: "dex-cards/);
+    expect(list).toMatch(/scene: "chunk-designs"/);
+    expect(list).toMatch(/scene: "capture-object&mode=search"/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);
-    expect(list).not.toMatch(/scene: "chunk-designs"/);
+    expect(list).not.toMatch(/scene: "dex-drag&list=1"/);
     expect(list).not.toMatch(/\{ scene: "album-shelf"/);
     expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
     expect(list).not.toMatch(/glass=1/);
@@ -6073,27 +6073,49 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   const home = codeOnly(read("routes/_authenticated/home.tsx"));
   const shelf = codeOnly(read("components/HomeShelf.tsx"));
 
-  it("上の帯の右端（アイコンと同じ行）に小さな棚。本にぴったりの棚で、押すと全画面の棚に広がる", () => {
-    expect(home).toMatch(/headerEnd=\{[\s\S]*?<HomeShelf items=\{albumItems\} \/>/);
+  it("R17: アプリの一番上に、部屋に置いた大きな 3D の棚（撮った月だけ・本の上に少し隙間）", () => {
+    // 上の帯の中ではなく、ホームの中身の一番上（画面の幅いっぱいの帯）。
+    expect(home).not.toMatch(/headerEnd=/);
+    expect(home).toMatch(/<HomeShelf items=\{albumItems\} \/>/);
     expect(home).toMatch(/<PastDays/);
-    expect(read("components/AppShell.tsx")).toMatch(
-      /\{title \?\? "CatchWords"\}[\s\S]*?\{headerEnd\}/,
+    expect(shelf).toMatch(/\{ rows: 1, openAt: "first", room \}/);
+    expect(shelf).toMatch(/const months = useMemo\(\(\) => shelfMonths\(items\), \[items\]\);/);
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    // 本の高さの 1.12 倍の内側（本の上に少し隙間）、8 冊と飾りが並ぶ幅。
+    expect(engine).toMatch(
+      /shelf\.scale\.set\(ROOM_INNER_W \/ SHELF_INNER_W, \(H \* 1\.12\) \/ SHELF_INNER_H, 1\)/,
     );
-    expect(shelf).toMatch(/\{ rows: 1, openAt: "first", tight: true \}/);
-    expect(shelf).toMatch(/onClick=\{expand\}/);
-    expect(shelf).toMatch(/if \(!fullRef\.current\) return;/);
-    expect(codeOnly(read("components/shelf3d/engine.ts"))).toMatch(
-      /shelf\.scale\.set\(inner \/ SHELF_INNER_W, \(H \+ 0\.002\) \/ SHELF_INNER_H, 1\)/,
-    );
+    // 部屋の壁は CSS、3D は透明の上に描く。
+    expect(engine).toMatch(/alpha: !!this\.room/);
+    const css = read("styles.css");
+    for (const r of ["a", "b", "c", "d"])
+      expect(css).toMatch(new RegExp(`\\.home-shelf--room-${r} \\.home-shelf__room \\{`));
   });
 
   it("3D は後から読み込み、その月の写真と日記を揃えてから開く", () => {
     expect(shelf).toMatch(/import\("@\/components\/shelf3d\/engine"\)/);
     expect(shelf).toMatch(/loadRef\.current\.diary\(key\)/);
-    expect(shelf).toMatch(/onPageTap: \(side\) => setView\(side\)/);
+    // 押したページが写っている位置から、片ページへ大きくなる（R17）。
+    expect(shelf).toMatch(/zoomFrom\.current = world\.current\?\.pageRect\(side\) \?\? null;/);
     expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(
       /export const listMyDiaryMonth = createServerFn\(\{ method: "GET" \}\)/,
     );
+  });
+
+  it("R17: 表紙までめくれる・表紙は硬い板としてパタッと倒れる・片ページは払ってめくる", () => {
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    expect(engine).toMatch(/if \(dir === -1 && this\.page === 0 && !this\.coverShut\) \{/);
+    expect(engine).toMatch(/private stepCover\(dt: number\): boolean \{/);
+    // 表紙はばねではなく時間で倒す（ばねの列から外した）
+    expect(engine).toMatch(/const springs = \[this\.pull, this\.present, this\.dim\];/);
+    expect(shelf).toMatch(/onPointerMove=\{onMove\}/);
+    expect(shelf).toMatch(/if \(Math\.abs\(projected\) > 70\) go\(projected < 0 \? 1 : -1\);/);
+  });
+
+  it("R17: 日記を書く・書き直すと鉛筆で書き込む（押せば書き上げて戻る）", () => {
+    expect(shelf).toMatch(/else setPencil\(\{ text: text\.trim\(\), after: commit \}\);/);
+    expect(shelf).toMatch(/import\("@\/components\/diary-pencil\/engine"\)/);
+    expect(codeOnly(read("components/diary-pencil/engine.ts"))).toMatch(/finish\(\) \{/);
   });
 });
 

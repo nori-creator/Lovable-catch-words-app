@@ -126,6 +126,18 @@ declare module "three" {
   export const WireframeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type LineBasicMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const LineBasicMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Light = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Light: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type Shape = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const Shape: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type ShapeGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const ShapeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type CircleGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const CircleGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type CatmullRomCurve3 = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const CatmullRomCurve3: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type TubeGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const TubeGeometry: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type Material = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const Material: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }

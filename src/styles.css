@@ -9978,59 +9978,156 @@ html[data-dex-dragging] {
  * 本棚を一列作って」）。1段の 3D の棚。本を開くと画面いっぱいに広がる。
  * ------------------------------------------------------------------------- */
 .home-shelf {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+  /* 画面の幅いっぱいの帯（R17「3D のリアルな本棚をアプリの上部に設置して」）。 */
+  margin: -1rem -1rem 0.25rem;
 }
 .home-shelf__box {
-  /* 大きさは `HomeShelf` が冊数から決める（本にぴったりの棚の縦横比）。 */
   position: relative;
+  height: clamp(190px, 58vw, 290px);
 }
 .home-shelf__stage {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border-radius: 3px;
-  background: #6b4a2e;
-  touch-action: none;
-  box-shadow:
-    0 1px 1px rgb(0 0 0 / 0.18),
-    0 4px 8px -4px rgb(0 0 0 / 0.35);
-}
-/* 3D が届くまでの仮の棚: 木の枠の中に、月の色の背表紙が隙間なく並ぶ。 */
-.home-shelf__proxy {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  gap: 1px;
-  padding: 3px 3px;
-  background: linear-gradient(#8a6440, #6b4a2e);
-}
-.home-shelf__proxy span {
-  flex: 1;
-  border-radius: 1px;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
-}
-/* 小さな棚の上の押す所（44px の当たり判定）。押すと全画面の棚に広がる。 */
-.home-shelf__open {
-  position: absolute;
-  inset: -4px;
-  min-width: 44px;
-  min-height: 44px;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  width: max(100% + 8px, 44px);
-  height: 44px;
-  border: 0;
-  background: transparent;
+  /* 帯の上では縦に払えばホームが送られる。本を押すのは 3D が受ける。 */
+  touch-action: pan-y;
+  /* 下の端は丸く切って、下のアルバムの紙へ柔らかく続ける（参考画像）。 */
+  border-radius: 0 0 28px 28px;
 }
 .home-shelf__stage[data-full] {
   position: fixed;
   inset: 0;
   z-index: 70;
   border-radius: 0;
-  box-shadow: none;
+  touch-action: none;
+}
+/* 部屋（壁・窓・空）。3D は透明の上に棚だけを描くので、ここが後ろに見える。 */
+.home-shelf__room {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.home-shelf__room::before,
+.home-shelf__room::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+/* A 自然光・旅の雰囲気: 明るい空と、左上から差す昼の光。下は暖かい白い壁。 */
+.home-shelf--room-a .home-shelf__room {
+  background:
+    radial-gradient(90% 70% at 12% 0%, rgb(255 250 235 / 0.95), transparent 60%),
+    linear-gradient(180deg, #cfe6fb 0%, #e9f2fa 38%, #f6efe3 62%, #efe5d6 100%);
+}
+.home-shelf--room-a .home-shelf__room::after {
+  /* 窓から差す光の筋 */
+  background: repeating-linear-gradient(
+    115deg,
+    rgb(255 255 255 / 0) 0 38px,
+    rgb(255 255 255 / 0.22) 38px 70px,
+    rgb(255 255 255 / 0) 70px 120px
+  );
+  mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+/* B 暖かい部屋: 濃い木の壁（縦の羽目板）と、真ん中に落ちる暖色の光。 */
+.home-shelf--room-b .home-shelf__room {
+  background:
+    radial-gradient(70% 60% at 50% 30%, rgb(255 196 128 / 0.35), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 46px),
+    linear-gradient(180deg, #5a3a22 0%, #6d4629 45%, #3d2616 100%);
+}
+.home-shelf--room-b .home-shelf__room::after {
+  background: radial-gradient(140% 90% at 50% 50%, transparent 55%, rgb(20 10 4 / 0.55));
+}
+/* C シンプル・ミニマル: 生成りの壁に、棚を包む白いアーチの窪み。 */
+.home-shelf--room-c .home-shelf__room {
+  background: linear-gradient(180deg, #f3eee6, #ece4d8);
+}
+.home-shelf--room-c .home-shelf__room::before {
+  inset: 8% 4% -10%;
+  border-radius: 48% 48% 0 0 / 30% 30% 0 0;
+  background: linear-gradient(180deg, #fbf8f3, #f1ebe2);
+  box-shadow:
+    inset 0 14px 24px -12px rgb(120 100 80 / 0.25),
+    0 1px 0 rgb(255 255 255 / 0.8);
+}
+/* D 窓と景色: 窓の外の空と街並み、白い窓枠、右に薄いカーテン。 */
+.home-shelf--room-d .home-shelf__room {
+  background:
+    linear-gradient(180deg, transparent 62%, #efe6d8 62%),
+    linear-gradient(180deg, #8cc4f0 0%, #cfe6f8 45%, #eef5fb 62%);
+}
+.home-shelf--room-d .home-shelf__room::before {
+  /* 街並み（窓の下の方に、ビルの影が並ぶ） */
+  inset: auto 0 38% 0;
+  height: 26%;
+  background: linear-gradient(
+    90deg,
+    transparent 0 4%,
+    #9fb7cc 4% 11%,
+    transparent 11% 14%,
+    #b3c6d6 14% 22%,
+    transparent 22% 26%,
+    #a7bdd0 26% 31%,
+    transparent 31% 58%,
+    #b7c9d8 58% 66%,
+    transparent 66% 70%,
+    #9cb3c8 70% 79%,
+    transparent 79% 83%,
+    #afc3d4 83% 93%,
+    transparent 93%
+  );
+  mask-image: linear-gradient(180deg, transparent 0%, #000 30%);
+  opacity: 0.85;
+}
+.home-shelf--room-d .home-shelf__room::after {
+  /* 窓枠（縦2本・横1本）と右のカーテン */
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 32.5%,
+      #fff 32.5% 34%,
+      transparent 34% 66%,
+      #fff 66% 67.5%,
+      transparent 67.5%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0 30%,
+      #fff 30% 31.5%,
+      transparent 31.5% 60%,
+      #f7f3ec 60% 62%,
+      transparent 62%
+    ),
+    linear-gradient(90deg, transparent 84%, rgb(255 255 255 / 0.75) 92%, rgb(255 255 255 / 0.9));
+}
+/* 3D が届くまでの仮の棚: 部屋の中の木の棚に、月の色の背表紙が並ぶ。 */
+.home-shelf__proxy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.home-shelf__proxy-shelf {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 88%;
+  height: 46%;
+  padding: 10px 12px 10px;
+  border-radius: 6px;
+  background: linear-gradient(#a57a50, #7a5534);
+  box-shadow:
+    inset 0 0 0 6px #8a6240,
+    inset 0 12px 16px -8px rgb(0 0 0 / 0.45),
+    0 10px 24px -10px rgb(0 0 0 / 0.45);
+}
+.home-shelf__proxy-shelf span {
+  width: 9%;
+  height: 86%;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
 }
 .home-shelf__canvas {
   position: absolute;
@@ -10170,7 +10267,6 @@ html[data-dex-dragging] {
   z-index: 80;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(120% 90% at 50% 40%, #3a322a, #14110e);
 }
 .home-shelf__single-top {
   display: flex;
@@ -10223,7 +10319,6 @@ html[data-dex-dragging] {
   box-shadow:
     0 30px 60px -20px rgb(0 0 0 / 0.7),
     0 2px 6px rgb(0 0 0 / 0.35);
-  animation: home-shelf-page-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .home-shelf__single-img[data-side="left"] {
   border-radius: 10px 3px 3px 10px;
@@ -10250,4 +10345,43 @@ html[data-motion="reduce"] .home-shelf__single-img {
 .home-shelf__single-side {
   color: rgb(255 255 255 / 0.7);
   font-size: 13px;
+}
+/* 片ページの後ろの暗がり（ページが大きくなるのと一緒に濃くなる）。 */
+.home-shelf__single-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(120% 90% at 50% 40%, #3a322a, #14110e);
+}
+.home-shelf__single {
+  isolation: isolate;
+}
+.home-shelf__single-page {
+  touch-action: pan-y;
+  cursor: grab;
+}
+.home-shelf__single-img {
+  user-select: none;
+  -webkit-user-select: none;
+  will-change: transform;
+}
+/* 鉛筆で日記を書き込む机（R17）。 */
+.home-shelf__pencil {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #120c08;
+}
+.home-shelf__pencil-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.home-shelf__pencil-skip {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
 }

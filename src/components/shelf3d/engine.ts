@@ -33,6 +33,7 @@ import {
 } from "./textures";
 import type { DiaryFontId } from "@/lib/diary-fonts";
 import { SHELF_DIMS, tightShelfSize } from "@/lib/home-shelf";
+import { addRoomLights, buildDecor, shadowWall, shelfFinish, type RoomId } from "./room";
 
 // Blender の寸法（book_and_shelf.py と同じ値）。three.js では y が高さ、z が手前。
 const H = SHELF_DIMS.bookH;
@@ -47,6 +48,8 @@ const LEAVES = 6;
 const MAX_DAYS = 31;
 /** 1段に並ぶ本の上限（棚の幅 0.40m に収まる数）。 */
 export const ROW_MAX = 8;
+/** 部屋に置く棚の内側の幅（8 冊＋右に飾りの空き）。 */
+const ROOM_INNER_W = 0.5;
 const LEAF_W = W - 2 * JOINT - 0.002;
 const LEAF_H = H - 0.008;
 const SEG = 36;
@@ -125,6 +128,8 @@ type Book = {
     recto: Canvas | null;
     verso: Canvas | null;
   }>;
+  /** 表紙の絵（表紙まで戻った時に片ページで見せる）。 */
+  coverCanvas?: Canvas;
   /** 表紙の裏の見返し（最初の見開きの左）と、裏表紙の見返し（最後の見開きの右）。 */
   endFront?: Canvas;
   endBack?: Canvas;
@@ -136,7 +141,13 @@ type Book = {
 };
 
 export type ShelfEvents = {
-  onState?: (s: { open: MonthBook | null; page: number; pages: number }) => void;
+  onState?: (s: {
+    open: MonthBook | null;
+    page: number;
+    pages: number;
+    /** 表紙を閉じて手元に持っている（表紙まで戻った）。 */
+    cover?: boolean;
+  }) => void;
   /**
    * 棚の本を押した。渡すと**すぐには開かない** — 呼ぶ側が中身（その月の写真・日記）を
    * 揃えてから `open()` を呼ぶ（本番のホームは写真と日記を読み込んでから開く）。
@@ -174,6 +185,13 @@ export type ShelfOptions = {
    * 置かない。カメラも棚の外形ちょうどに寄せる（ホームの上の帯に小さく置くため）。
    */
   tight?: boolean;
+  /**
+   * **部屋に置いた大きな棚**（R17「本棚が小さすぎる。空中に本棚がただあるデザイン不自然。
+   * 3D のリアルな本棚をアプリの上部に設置して」、参考画像 A〜D）。部屋の壁・窓は画面側
+   * （CSS）が描くので、three.js は透明の上に棚・本・飾り・光・壁への影だけを描く。
+   * 棚は 8 冊と飾りが並ぶ幅、本の上に少し隙間（「本棚と本の間に少し隙間を空けて」）。
+   */
+  room?: RoomId;
 };
 
 /** 棚の Blender の寸法（book_and_shelf.py）。内側の高さ・内側の幅（寸法は `lib/home-shelf.ts`）。 */
@@ -193,7 +211,15 @@ export class ShelfWorld {
   private active: Book | null = null;
   private pull = spring(0.35, 1);
   private present = spring(0.55, 0.92);
-  private open = spring(0.8, 0.82); // 硬い表紙: ゆっくり・重く・少しだけ揺れる
+  /**
+   * 表紙の開き具合（0＝閉じ・1＝開き）。**硬い板がパタッと倒れる**動き（R17「本のカバーを
+   * めくるとは紙のように柔らかいアニメーションではなく、パタッと硬い感じにして」）:
+   * 持ち上げは素早く、垂直を越えたら重さで加速して倒れ、着いた所で小さく1回跳ねて止まる。
+   * ばねではなく時間で決める（ばねは終わりほど遅くなり、倒れる板に見えない）。
+   */
+  private open = { x: 0, v: 0, target: 0, from: 0, t: 1, dur: 0.44 };
+  /** 表紙を閉じて手元に持っている（表紙まで戻った）。 */
+  private coverShut = false;
   private dim = spring(0.4, 1);
   private page = 0; // めくった枚数
   private drag: {
@@ -215,6 +241,7 @@ export class ShelfWorld {
   private rows: 1 | 2;
   private openAt: "first" | "latest";
   private tight: boolean;
+  private room: RoomId | null;
   /** 棚の外形（ぴったりの時だけ。カメラを寄せるのに使う）。 */
   private bounds: THREE.Box3 | null = null;
   constructor(
@@ -226,8 +253,10 @@ export class ShelfWorld {
     this.rows = opts.rows ?? 2;
     this.openAt = opts.openAt ?? "first";
     this.tight = opts.tight ?? false;
+    this.room = opts.room ?? null;
     if (this.rows === 1) this.months = months.slice(-ROW_MAX);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: !!this.room });
+    if (this.room) this.renderer.setClearColor(0x000000, 0);
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -242,6 +271,12 @@ export class ShelfWorld {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.3;
+    if (this.room) {
+      // 部屋の壁・窓は画面側が描く。ここは光だけ（影は棚を置いた後に壁の位置へ）。
+      addRoomLights(this.scene, this.room);
+      this.addDim();
+      return;
+    }
     this.scene.background = new THREE.Color("#2a241e");
 
     // 壁（漆喰）
@@ -278,7 +313,11 @@ export class ShelfWorld {
     fill.position.set(0.4, 0.5, 1.2);
     this.scene.add(fill);
 
-    // 本を手元に寄せた時、棚を少し暗くする幕（本は幕より手前）
+    this.addDim();
+  }
+
+  /** 本を手元に寄せた時、棚を少し暗くする幕（本は幕より手前）。 */
+  private addDim() {
     this.dimMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(4, 4),
       new THREE.MeshBasicMaterial({
@@ -312,8 +351,16 @@ export class ShelfWorld {
       clearcoat: 0.35,
       clearcoatRoughness: 0.45,
     });
+    const finish = this.room ? shelfFinish(this.room) : null;
+    if (finish?.paint) {
+      // 白い塗装の棚（木目を消し、少しだけ艶）
+      woodMat.map = null;
+      woodMat.color = new THREE.Color(finish.color);
+      woodMat.roughness = 0.62;
+      woodMat.clearcoat = 0.15;
+    } else if (finish) woodMat.color = new THREE.Color(finish.color);
     const backWood = woodMat.clone();
-    backWood.color = new THREE.Color("#8a7a6a");
+    backWood.color = new THREE.Color(finish?.paint ? "#e9e3da" : "#8a7a6a");
 
     // 棚（見本は2段、ホームは1段）
     const rows = this.rows;
@@ -327,14 +374,17 @@ export class ShelfWorld {
         mesh.receiveShadow = true;
       });
       shelf.position.y = (rows - 1 - r) * ROW_H;
-      if (this.tight) {
+      if (this.room) {
+        // 部屋の棚: 8 冊と飾りが並ぶ幅。内側の高さは本より 12% 高い（本の上に少し隙間）。
+        shelf.scale.set(ROOM_INNER_W / SHELF_INNER_W, (H * 1.12) / SHELF_INNER_H, 1);
+      } else if (this.tight) {
         // 内側を本の高さ・並ぶ冊数の幅に縮める（板の厚さも同じ割合で少し薄くなる）。
         const n = Math.min(ROW_MAX, Math.max(1, this.months.length));
         const inner = n * T + (n - 1) * BOOK_GAP + 0.004;
         shelf.scale.set(inner / SHELF_INNER_W, (H + 0.002) / SHELF_INNER_H, 1);
       }
       this.scene.add(shelf);
-      if (this.tight) this.bounds = new THREE.Box3().setFromObject(shelf);
+      if (this.tight || this.room) this.bounds = new THREE.Box3().setFromObject(shelf);
     }
 
     // 本（見本の2段は1段に6冊、ホームの1段は最大 ROW_MAX 冊）
@@ -395,7 +445,10 @@ export class ShelfWorld {
         if (o.name.startsWith("Spine")) mesh.material = spineMat;
         else if (o.name.startsWith("Case") || o.name.startsWith("Front")) mesh.material = plainMat;
       });
-      const x = -rowW / 2 + T / 2 + c * (T + gap);
+      // 部屋の棚では左から詰めて並べ、右の空きに飾りを置く。
+      const x = this.room
+        ? -ROOM_INNER_W / 2 + 0.01 + T / 2 + c * (T + gap)
+        : -rowW / 2 + T / 2 + c * (T + gap);
       const shelfPos = new THREE.Vector3(x, (rows - 1 - r) * ROW_H + H / 2 + 0.0004, 0.1 - 0.014);
       group.position.copy(shelfPos);
       group.rotation.set(0, Math.PI / 2, 0);
@@ -412,6 +465,9 @@ export class ShelfWorld {
     });
     for (let r = 0; r < (this.tight ? 0 : rows); r++) {
       const y = (rows - 1 - r) * ROW_H;
+      const standX = this.room
+        ? -ROOM_INNER_W / 2 + 0.01 + perRow * T + (perRow - 1) * gap + 0.004
+        : rowW / 2 + 0.004;
       const stand = new THREE.Group();
       const upright = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.15, 0.1), brass);
       upright.position.set(0, 0.075, 0);
@@ -422,8 +478,24 @@ export class ShelfWorld {
         o.castShadow = true;
         o.receiveShadow = true;
       });
-      stand.position.set(rowW / 2 + 0.004, y, 0.02);
+      stand.position.set(standX, y, 0.02);
       this.scene.add(stand);
+    }
+    if (this.room && this.bounds) {
+      const box = this.bounds.clone();
+      const booksEnd = -ROOM_INNER_W / 2 + 0.01 + perRow * T + (perRow - 1) * gap + 0.012;
+      const decor = buildDecor(this.room, {
+        box,
+        floorY: 0,
+        ceilY: H * 1.12,
+        innerL: -ROOM_INNER_W / 2,
+        innerR: ROOM_INNER_W / 2,
+        booksEnd,
+        midZ: 0.05,
+        photo: this.photos.find(Boolean) ?? null,
+      });
+      this.scene.add(decor);
+      this.scene.add(shadowWall(box.min.z - 0.001, this.room));
     }
     this.resize();
     this.dirty = true;
@@ -489,6 +561,7 @@ export class ShelfWorld {
           : (this.photos[(d.m + 1) % Math.max(1, this.photos.length)] ?? null),
       seed: d.m,
     });
+    b.coverCanvas = cover.color;
     const coverMat = this.clothMaterial(cover);
     b.front.traverse((o: THREE.Object3D) => {
       const mesh = o as THREE.Mesh;
@@ -731,10 +804,33 @@ export class ShelfWorld {
     this.dirty = true;
   }
 
+  /** 画面が縦に送られて指が取られた（押した・払ったとは数えない）。 */
+  pointerCancel() {
+    this.down = null;
+    if (this.drag && this.active) {
+      const l = this.active.leaves[this.drag.leaf];
+      l.p.target = l.p.x > 0.5 ? 1 : 0;
+      this.kick();
+    }
+    this.drag = null;
+  }
+
   pointerUp(e: PointerEvent) {
     const d = this.down;
     this.down = null;
     const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 99;
+    // 表紙を閉じて持っている時に左へ払う → 表紙を開く。最初の見開きで右へ払う → 表紙へ戻る。
+    if (this.active && !this.drag && d && moved > 24) {
+      const dx = e.clientX - d.x;
+      if (this.coverShut && dx < 0) {
+        this.flip(1);
+        return;
+      }
+      if (!this.coverShut && this.page === 0 && dx > 0 && this.open.x > 0.85) {
+        this.flip(-1);
+        return;
+      }
+    }
     // **押しただけ**なら、指が少し揺れても「押した」（オーナー指示 2026-09-29「見開きの
     // 片側ページを長押しではなくタップすると片側ページが全画面に」）。指の腹は離す時に
     // 数 px ずれるので、8px では短く押しても払いに数えられ、何も起きないことがあった。
@@ -766,6 +862,11 @@ export class ShelfWorld {
 
   private tap(e: PointerEvent) {
     if (this.active) {
+      // 閉じた表紙を押した → 表紙を開く（片ページで見るのは開いてから）。
+      if (this.coverShut) {
+        this.flip(1);
+        return;
+      }
       if (this.open.x < 0.5) return;
       const r = this.canvas.getBoundingClientRect();
       const side = e.clientX > r.left + r.width / 2 ? "right" : "left";
@@ -806,6 +907,22 @@ export class ShelfWorld {
 
   flip(dir: 1 | -1) {
     if (!this.active) return;
+    // **表紙までめくれる**（R17「本のアルバムのカバーまでページがめくれるようにして」）。
+    // 最初の見開きから戻ると表紙が閉じ、閉じた表紙から進むと表紙が開く。
+    if (dir === -1 && this.page === 0 && !this.coverShut) {
+      this.coverShut = true;
+      this.setCover(0);
+      this.emit();
+      this.kick();
+      return;
+    }
+    if (dir === 1 && this.coverShut) {
+      this.coverShut = false;
+      this.setCover(1);
+      this.emit();
+      this.kick();
+      return;
+    }
     if (dir === 1 && this.page < this.active.leaves.length) {
       this.active.leaves[this.page].p.target = 1;
       this.page++;
@@ -861,9 +978,10 @@ export class ShelfWorld {
    * いまの見開きの片側の絵（片ページで大きく見せる用）。左は1つ前の紙の裏
    * （最初は見返し）、右はいまの紙の表（最後は最後のページ）。
    */
-  pageCanvas(side: "left" | "right"): Canvas | null {
+  pageCanvas(side: "left" | "right" | "cover"): Canvas | null {
     const b = this.active;
     if (!b) return null;
+    if (side === "cover") return b.coverCanvas ?? null;
     this.ensurePages(b);
     if (side === "left")
       return this.page > 0 ? b.leaves[this.page - 1].verso : (b.endFront ?? null);
@@ -872,7 +990,40 @@ export class ShelfWorld {
 
   /** いまの見開きが何番目か（0＝表紙を開いた所）と、見開きの数。 */
   get spread(): { at: number; count: number } {
-    return { at: this.page, count: (this.active?.leaves.length ?? LEAVES) + 1 };
+    return {
+      at: this.coverShut ? -1 : this.page,
+      count: (this.active?.leaves.length ?? LEAVES) + 1,
+    };
+  }
+
+  /**
+   * 開いた本の片側のページが、いま画面のどこに写っているか（CSS の px、画面の左上から）。
+   * 片ページへ**ページの位置から大きくなって移る**動きの出発点（R17）。
+   */
+  pageRect(side: "left" | "right" | "cover"): DOMRect | null {
+    const b = this.active;
+    if (!b) return null;
+    b.group.updateMatrixWorld(true);
+    const inner = b.group.children[0];
+    const z = T / 2 + 0.001;
+    const x0 = side === "left" ? JOINT - LEAF_W : side === "cover" ? 0 : JOINT;
+    const x1 = side === "left" ? JOINT : side === "cover" ? W : JOINT + LEAF_W;
+    const r = this.canvas.getBoundingClientRect();
+    let l = Infinity;
+    let t = Infinity;
+    let rr = -Infinity;
+    let bb = -Infinity;
+    for (const x of [x0, x1])
+      for (const y of [-LEAF_H / 2, LEAF_H / 2]) {
+        const v = inner.localToWorld(new THREE.Vector3(x, y, z)).project(this.camera);
+        const px = r.left + ((v.x + 1) / 2) * r.width;
+        const py = r.top + ((1 - v.y) / 2) * r.height;
+        l = Math.min(l, px);
+        rr = Math.max(rr, px);
+        t = Math.min(t, py);
+        bb = Math.max(bb, py);
+      }
+    return new DOMRect(l, t, rr - l, bb - t);
   }
 
   /** いま見開いている日（0 始まり）。扉なら -1。 */
@@ -891,6 +1042,7 @@ export class ShelfWorld {
     this.paintInside(b);
     this.active = b;
     this.page = 0;
+    this.coverShut = false;
     this.ensurePages(b, this.openAt === "first" ? 1 : b.days.length);
     this.pull.target = 1;
     this.present.target = 1;
@@ -899,7 +1051,7 @@ export class ShelfWorld {
     window.setTimeout(
       () => {
         if (this.active === b) {
-          this.open.target = 1;
+          this.setCover(1);
           // 表紙が開く瞬間に、録った「表紙のきしみ→紙をめくる」を鳴らす。
           playSfx("book-open");
           this.kick();
@@ -928,7 +1080,8 @@ export class ShelfWorld {
     for (const l of b.leaves) l.p.target = 0;
     this.ensurePages(b, 0);
     this.page = 0;
-    this.open.target = 0;
+    this.coverShut = false;
+    this.setCover(0);
     window.setTimeout(
       () => {
         this.present.target = 0;
@@ -959,6 +1112,7 @@ export class ShelfWorld {
       open: this.active && this.present.target === 1 ? this.active.data : null,
       page: this.page,
       pages: this.active?.leaves.length ?? LEAVES,
+      cover: this.coverShut,
     });
   }
 
@@ -974,7 +1128,19 @@ export class ShelfWorld {
     const vfov = (this.camera.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
     const one = this.rows === 1;
-    if (this.bounds) {
+    if (this.bounds && this.room) {
+      // 部屋の棚: 棚の幅が画面の幅いっぱい（両端に少しだけ壁）。縦長の全画面でも幅で合わせ、
+      // 上下は部屋（CSS）が見える。正面から、ほんの少し上から見下ろす。
+      const size = this.bounds.getSize(new THREE.Vector3());
+      const c = this.bounds.getCenter(new THREE.Vector3());
+      const halfW = size.x / 2 + 0.012;
+      const halfH = size.y / 2 + 0.02;
+      const front = this.bounds.max.z;
+      const d = Math.max(halfH / Math.tan(vfov / 2), halfW / Math.tan(hfov / 2));
+      this.camera.position.set(c.x, c.y + 0.02, front + d);
+      this.camera.lookAt(c.x, c.y, front);
+      this.readingY = c.y;
+    } else if (this.bounds) {
       // ぴったりの棚: 正面から、棚の外形がちょうど収まる距離に。縦長の画面（本を選ぶ
       // 全画面）では、少ない冊数の棚が巨大にならないよう幅を 0.34m 以上として見る。
       const size = this.bounds.getSize(new THREE.Vector3());
@@ -997,7 +1163,9 @@ export class ShelfWorld {
     }
     this.camera.updateProjectionMatrix();
     // 開いた本（幅 ≈0.30m）が画面の幅に収まる手元の位置
-    const need = 0.33 / 2 / Math.tan(hfov / 2);
+    // 部屋の棚では**見開きを大きく**（R17「本を開いたときに見開きのページを大きく表示」）:
+    // 見開き（≈0.30m）が画面の幅の 9 割になる所まで寄せる（手前に傾くぶんの余白を残す）。
+    const need = (this.room ? 0.34 : 0.33) / 2 / Math.tan(hfov / 2);
     this.readingZ = this.camera.position.z - need;
     this.dirty = true;
   }
@@ -1020,7 +1188,8 @@ export class ShelfWorld {
       this.last = t;
       if (this.paused && !this.active) return;
       let moving = false;
-      const springs = [this.pull, this.present, this.open, this.dim];
+      moving = this.stepCover(dt) || moving;
+      const springs = [this.pull, this.present, this.dim];
       for (const s of springs) {
         if (this.reduce) {
           s.x = s.target;
@@ -1062,10 +1231,49 @@ export class ShelfWorld {
     p.y += 0.06 * Math.sin(Math.PI * Math.min(1, pr)); // 弧を描いて寄る
     b.group.position.copy(p);
     const qShelf = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
-    const qRead = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.32, 0, 0));
+    const qRead = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(this.room ? -0.16 : -0.32, 0, 0),
+    );
     b.group.quaternion.copy(qShelf.slerp(qRead, Math.min(1, pr)));
     // 硬い表紙: 蝶番で板のまま回る（曲がらない）
     b.front.rotation.y = -Math.PI * Math.max(0, Math.min(1, this.open.x));
+  }
+
+  /** 表紙を開く（1）・閉じる（0）。硬い板として倒れる（`open` の注）。 */
+  private setCover(target: 0 | 1) {
+    const o = this.open;
+    if (o.target === target && o.t < o.dur + 0.4) return;
+    o.from = o.x;
+    o.target = target;
+    o.t = 0;
+    // 残りの角度が少ないほど短く（途中で向きを変えた時も同じ速さで倒れる）
+    o.dur = 0.44 * Math.max(0.35, Math.abs(target - o.x));
+    if (this.reduce) {
+      o.x = target;
+      o.t = o.dur + 1;
+    }
+  }
+
+  private stepCover(dt: number): boolean {
+    const o = this.open;
+    const end = o.dur + 0.34;
+    if (o.t >= end) {
+      o.x = o.target;
+      return false;
+    }
+    o.t += dt;
+    const span = o.target - o.from;
+    if (o.t < o.dur) {
+      // 持ち上げは素早く、垂直（半分）を越えたら重さで加速して倒れる
+      const p = o.t / o.dur;
+      const e = p < 0.5 ? 1 - Math.pow(1 - 2 * p, 1.6) * 1 : 1 + Math.pow(2 * p - 1, 2.2);
+      o.x = o.from + (span * e) / 2;
+    } else {
+      // 着いた所で 1 回だけ小さく跳ねて止まる（パタッ）
+      const u = o.t - o.dur;
+      o.x = o.target - span * 0.035 * Math.exp(-u * 16) * Math.sin(u * 38);
+    }
+    return true;
   }
 
   dispose() {
